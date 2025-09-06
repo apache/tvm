@@ -36,9 +36,9 @@ def test_matmul():
             return
         dev = tvm.metal(0)
         f = tvm.compile(te.create_prim_func([A, B, C]), target="metal")
-        a = tvm.nd.array(np.random.uniform(size=(n, l)).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=(l, m)).astype(B.dtype), dev)
-        c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=(n, l)).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.random.uniform(size=(l, m)).astype(B.dtype), dev)
+        c = tvm.runtime.tensor(np.zeros((n, m), dtype=C.dtype), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(c.numpy(), np.dot(a.numpy(), b.numpy()), rtol=1e-5)
 
@@ -65,9 +65,9 @@ def test_conv2d():
             return
         dev = tvm.metal(0)
         f = tvm.compile(te.create_prim_func([A, B, C]), target="metal")
-        a = tvm.nd.array(np.random.uniform(size=(n, h, w, ci)).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=(co, kh, kw, ci)).astype(B.dtype), dev)
-        c = tvm.nd.array(np.zeros((n, h // stride, w // stride, co), dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=(n, h, w, ci)).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.random.uniform(size=(co, kh, kw, ci)).astype(B.dtype), dev)
+        c = tvm.runtime.tensor(np.zeros((n, h // stride, w // stride, co), dtype=C.dtype), dev)
         f(a, b, c)
 
     verify(A, B, C, s1)

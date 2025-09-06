@@ -219,17 +219,17 @@ typedef struct TVMFFIObject {
 - `deleter` ensures that objects allocated from one language/runtime can be safely deleted in another.
 
 The object format provides a unified way to manage object life-cycle and dynamic type casting
-for heap-allocated objects, including Shape, NDArray,
+for heap-allocated objects, including Shape, Tensor,
 Function, Array, Map and other custom objects.
 
 
-### DLPack Compatible NDArray
+### DLPack Compatible Tensor
 
-We provide first-class support for DLPack raw unmanaged pointer support as well as a managed NDArray object that
-directly adopts the DLPack DLTensor layout. The overall layout of the NDArray object is as follows:
+We provide first-class support for DLPack raw unmanaged pointer support as well as a managed Tensor object that
+directly adopts the DLPack DLTensor layout. The overall layout of the Tensor object is as follows:
 
 ```c++
-struct NDArrayObj: public ffi::Object, public DLTensor {
+struct TensorObj: public ffi::Object, public DLTensor {
 };
 ```
 
@@ -241,7 +241,7 @@ DLTensor* ReadDLTensorPtr(const TVMFFIAny *value) {
   if (value->type_index == kTVMFFIDLTensorPtr) {
     return static_cast<DLTensor*>(value->v_ptr);
   }
-  assert(value->type_index == kTVMFFINDArray);
+  assert(value->type_index == kTVMFFITensor);
   return reinterpret_cast<DLTensor*>(
     reinterpret_cast<char*>(value->v_obj) + sizeof(TVMFFIObject));
 }

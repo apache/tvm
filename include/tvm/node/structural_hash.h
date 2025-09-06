@@ -25,7 +25,7 @@
 
 #include <tvm/node/functor.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <cmath>
 #include <functional>

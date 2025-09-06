@@ -134,7 +134,7 @@ class VirtualMachine(object):
         closure : Object
             The VMClosure Object.
 
-        args : list[tvm.runtime.NDArray] or list[np.ndarray]
+        args : list[tvm.runtime.Tensor] or list[np.ndarray]
             The arguments to the closure.
 
         Returns
@@ -206,9 +206,9 @@ class VirtualMachine(object):
         if isinstance(arg, Object):
             cargs.append(arg)
         elif isinstance(arg, np.ndarray):
-            nd_arr = tvm.nd.array(arg, device=tvm.cpu(0))
+            nd_arr = tvm.runtime.tensor(arg, device=tvm.cpu(0))
             cargs.append(nd_arr)
-        elif isinstance(arg, tvm.runtime.NDArray):
+        elif isinstance(arg, tvm.runtime.Tensor):
             cargs.append(arg)
         elif isinstance(arg, (tuple, list)):
             field_args: List[Any] = []
@@ -217,7 +217,7 @@ class VirtualMachine(object):
             cargs.append(tuple(field_args))
         elif isinstance(arg, (Number, bool)):
             dtype = _gettype(arg)
-            value = tvm.nd.array(np.array(arg, dtype=dtype), device=tvm.cpu(0))
+            value = tvm.runtime.tensor(np.array(arg, dtype=dtype), device=tvm.cpu(0))
             cargs.append(value)
         elif isinstance(arg, str):
             cargs.append(arg)
@@ -252,7 +252,7 @@ class VirtualMachine(object):
 
     def set_input(self, func_name: str, *args: Any, **kwargs: Any) -> None:
         """Set the inputs to a function.
-        This interface works when using VM over RPC by internally converting NDArray in
+        This interface works when using VM over RPC by internally converting Tensor in
         the arguments to DLTensor, which is supported in RPC where remote could only
         have a minimal C runtime.
 
@@ -263,9 +263,9 @@ class VirtualMachine(object):
         ----------
         func_name : str
             The name of the function.
-        args: List[tvm.runtime.NDArray] or List[np.ndarray]
+        args: List[tvm.runtime.Tensor] or List[np.ndarray]
             The arguments to the function.
-        kwargs: dict of str to tvm.runtime.NDArray or np.ndarray
+        kwargs: dict of str to tvm.runtime.Tensor or np.ndarray
             Named arguments to the function.
         """
         cargs: List[Any] = []
@@ -482,7 +482,7 @@ class VirtualMachine(object):
         func_name : str
             The name of the function.
 
-        args: List of NDArray or other objects supported by PackedFunc.
+        args: List of Tensor or other objects supported by PackedFunc.
             The arguments to the function.
 
         Returns

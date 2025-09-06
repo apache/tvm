@@ -21,7 +21,7 @@ from typing import Any, Callable, List
 import torch
 
 from tvm.ir import Array
-from tvm.runtime import NDArray, ShapeTuple, ndarray
+from tvm.runtime import Tensor, ShapeTuple, _tensor
 from tvm.runtime.vm import VirtualMachine
 
 from . import core
@@ -34,14 +34,14 @@ class TorchModule:  # pylint: disable=too-few-public-methods
 
     spec: _spec.ModuleSpec
     vm: VirtualMachine  # pylint: disable=invalid-name
-    params: List[NDArray]
+    params: List[Tensor]
     effects: List[Any]
 
     def __init__(  # pylint: disable=invalid-name
         self,
         spec: _spec.ModuleSpec,
         vm: VirtualMachine,
-        params: List[NDArray],
+        params: List[Tensor],
     ):
         try:
             self.effects = vm["_initialize_effect"]()
@@ -87,7 +87,7 @@ class TorchModule:  # pylint: disable=too-few-public-methods
 def _tvm_to_torch(arg):
     if isinstance(arg, (list, tuple, Array)):
         return [_tvm_to_torch(i) for i in arg]
-    if isinstance(arg, ndarray.NDArray):
+    if isinstance(arg, _tensor.Tensor):
         return torch.utils.dlpack.from_dlpack(arg)
     if isinstance(arg, ShapeTuple):
         return list(arg)

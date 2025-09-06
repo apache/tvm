@@ -60,9 +60,9 @@ def test_executable_getitem():
     add_func = executable["add"]
 
     # Verify the function works
-    a = tvm.nd.array(np.array([1.0] * 10, dtype="float32"))
-    b = tvm.nd.array(np.array([2.0] * 10, dtype="float32"))
-    c = tvm.nd.array(np.array([0.0] * 10, dtype="float32"))
+    a = tvm.runtime.tensor(np.array([1.0] * 10, dtype="float32"))
+    b = tvm.runtime.tensor(np.array([2.0] * 10, dtype="float32"))
+    c = tvm.runtime.tensor(np.array([0.0] * 10, dtype="float32"))
 
     add_func(a, b, c)
 
@@ -87,10 +87,10 @@ def test_executable_jit_already_jitted():
     # The module might be different after force recompilation
 
     # Verify both modules work correctly
-    a = tvm.nd.array(np.array([1.0] * 10, dtype="float32"))
-    b = tvm.nd.array(np.array([2.0] * 10, dtype="float32"))
-    c1 = tvm.nd.array(np.array([0.0] * 10, dtype="float32"))
-    c2 = tvm.nd.array(np.array([0.0] * 10, dtype="float32"))
+    a = tvm.runtime.tensor(np.array([1.0] * 10, dtype="float32"))
+    b = tvm.runtime.tensor(np.array([2.0] * 10, dtype="float32"))
+    c1 = tvm.runtime.tensor(np.array([0.0] * 10, dtype="float32"))
+    c2 = tvm.runtime.tensor(np.array([0.0] * 10, dtype="float32"))
 
     jitted_mod1["add"](a, b, c1)
     jitted_mod3["add"](a, b, c2)
@@ -118,9 +118,9 @@ def test_executable_export_library():
         assert loaded_mod is not None
 
         # Test the loaded module
-        a = tvm.nd.array(np.array([1.0] * 10, dtype="float32"))
-        b = tvm.nd.array(np.array([2.0] * 10, dtype="float32"))
-        c = tvm.nd.array(np.array([0.0] * 10, dtype="float32"))
+        a = tvm.runtime.tensor(np.array([1.0] * 10, dtype="float32"))
+        b = tvm.runtime.tensor(np.array([2.0] * 10, dtype="float32"))
+        c = tvm.runtime.tensor(np.array([0.0] * 10, dtype="float32"))
 
         loaded_mod["add"](a, b, c)
 
@@ -155,9 +155,9 @@ def test_executable_export_library_with_workspace():
         assert loaded_mod is not None
 
         # Test the loaded module
-        a = tvm.nd.array(np.array([1.0] * 10, dtype="float32"))
-        b = tvm.nd.array(np.array([2.0] * 10, dtype="float32"))
-        c = tvm.nd.array(np.array([0.0] * 10, dtype="float32"))
+        a = tvm.runtime.tensor(np.array([1.0] * 10, dtype="float32"))
+        b = tvm.runtime.tensor(np.array([2.0] * 10, dtype="float32"))
+        c = tvm.runtime.tensor(np.array([0.0] * 10, dtype="float32"))
 
         loaded_mod["add"](a, b, c)
 
@@ -190,9 +190,9 @@ def test_executable_integration():
     assert add_func is not None
 
     # Test the function works
-    a = tvm.nd.array(np.array([1.0] * 10, dtype="float32"))
-    b = tvm.nd.array(np.array([2.0] * 10, dtype="float32"))
-    c = tvm.nd.array(np.array([0.0] * 10, dtype="float32"))
+    a = tvm.runtime.tensor(np.array([1.0] * 10, dtype="float32"))
+    b = tvm.runtime.tensor(np.array([2.0] * 10, dtype="float32"))
+    c = tvm.runtime.tensor(np.array([0.0] * 10, dtype="float32"))
 
     add_func(a, b, c)
 
@@ -214,7 +214,7 @@ def test_executable_integration():
 
         # Test the loaded module
         loaded_add = loaded_mod["add"]
-        c_loaded = tvm.nd.array(np.array([0.0] * 10, dtype="float32"))
+        c_loaded = tvm.runtime.tensor(np.array([0.0] * 10, dtype="float32"))
         loaded_add(a, b, c_loaded)
 
         # Check results
@@ -249,9 +249,9 @@ def test_executable_jit_force_recompile():
     assert jitted_mod3 is not jitted_mod1
 
     # Test the function works
-    a = tvm.nd.array(np.array([1.0] * 10, dtype="float32"))
-    b = tvm.nd.array(np.array([2.0] * 10, dtype="float32"))
-    c = tvm.nd.array(np.array([0.0] * 10, dtype="float32"))
+    a = tvm.runtime.tensor(np.array([1.0] * 10, dtype="float32"))
+    b = tvm.runtime.tensor(np.array([2.0] * 10, dtype="float32"))
+    c = tvm.runtime.tensor(np.array([0.0] * 10, dtype="float32"))
 
     jitted_mod3["add"](a, b, c)
 

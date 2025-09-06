@@ -26,9 +26,9 @@ from .core import String, Bytes
 from .core import Object, ObjectGeneric, Function
 from .convert import convert
 from .error import register_error
-from .ndarray import Device, device
-from .ndarray import cpu, cuda, rocm, opencl, metal, vpi, vulkan, ext_dev, hexagon, webgpu
-from .ndarray import from_dlpack, NDArray, Shape
+from .tensor import Device, device
+from .tensor import cpu, cuda, rocm, opencl, metal, vpi, vulkan, ext_dev, hexagon, webgpu
+from .tensor import from_dlpack, Tensor, Shape
 from .container import Array, Map
 from .module import Module, ModulePropertyMask, system_lib, load_module
 from . import serialization
@@ -65,7 +65,7 @@ __all__ = [
     "hexagon",
     "webgpu",
     "from_dlpack",
-    "NDArray",
+    "Tensor",
     "Shape",
     "Array",
     "Map",

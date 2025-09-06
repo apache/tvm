@@ -25,7 +25,7 @@
 #include <dmlc/parameter.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <fstream>
 #include <memory>
@@ -87,7 +87,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
    *
    * \param consts The constant params from compiled model.
    */
-  void Init(const Array<NDArray>& consts) override {
+  void Init(const Array<Tensor>& consts) override {
     ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
     LoadGlobalOptions();
@@ -122,14 +122,14 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
     if (tool_tag_.size() > 0) {
       const auto pf = tvm::ffi::Function::GetGlobal("msc_tool.callback_step");
       ICHECK(pf.has_value()) << "Cannot find msc_tool.callback_step func.";
-      Map<String, runtime::NDArray> input_datas;
+      Map<String, runtime::Tensor> input_datas;
       int device_id = 0;
       for (const auto& pair : input_bindings_) {
         const auto& tensor_name = engine_->getBindingName(pair.first);
         input_datas.Set(tensor_name, device_buffers_[pair.first]);
         device_id = data_entry_[pair.first]->device.device_id;
       }
-      Map<String, Map<String, runtime::NDArray>> context;
+      Map<String, Map<String, runtime::Tensor>> context;
       context.Set("datas", input_datas);
       (*pf)(context, "before_forward", graph_name_, tool_tag_);
     }
@@ -155,7 +155,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
     if (tool_tag_.size() > 0) {
       const auto pf = tvm::ffi::Function::GetGlobal("msc_tool.callback_step");
       ICHECK(pf.has_value()) << "Cannot find msc_tool.callback_step func.";
-      Map<String, runtime::NDArray> output_datas;
+      Map<String, runtime::Tensor> output_datas;
       for (int bid = 0; bid < engine_->getNbBindings(); bid++) {
         if (input_bindings_.count(bid)) {
           continue;
@@ -163,7 +163,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
         const auto& tensor_name = engine_->getBindingName(bid);
         output_datas.Set(tensor_name, device_buffers_[bid]);
       }
-      Map<String, Map<String, runtime::NDArray>> context;
+      Map<String, Map<String, runtime::Tensor>> context;
       context.Set("datas", output_datas);
       (*pf)(context, "after_forward", graph_name_, tool_tag_);
     }
@@ -289,14 +289,14 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
         const auto& pair = tensor_ids_[tensor_name];
         auto shape = nodes_[pair.first].GetOpShape()[pair.second];
         auto dtype = nodes_[pair.first].GetOpDataType()[pair.second];
-        device_buffers_[bid] = runtime::NDArray::Empty(shape, dtype, {kDLCUDA, 0});
+        device_buffers_[bid] = runtime::Tensor::Empty(shape, dtype, {kDLCUDA, 0});
       }
       bindings_[bid] = device_buffers_[bid]->data;
       binded.insert(bid);
     }
   }
 
-  NDArray GetOrAllocateDeviceBuffer(int entry_id, int binding_index) {
+  Tensor GetOrAllocateDeviceBuffer(int entry_id, int binding_index) {
     std::vector<int64_t> shape(data_entry_[entry_id]->shape,
                                data_entry_[entry_id]->shape + data_entry_[entry_id]->ndim);
     if (device_buffers_.count(binding_index)) {
@@ -304,7 +304,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
       if (shape[0] > device_buffers_[binding_index]->shape[0]) {
         // Buffer is too small. Need to allocate bigger buffer.
         device_buffers_[binding_index] =
-            runtime::NDArray::Empty(shape, data_entry_[entry_id]->dtype, {kDLCUDA, 0});
+            runtime::Tensor::Empty(shape, data_entry_[entry_id]->dtype, {kDLCUDA, 0});
       } else if (shape[0] < device_buffers_[binding_index]->shape[0]) {
         // Buffer is too large. Create view.
         return device_buffers_[binding_index].CreateView(shape, data_entry_[entry_id]->dtype);
@@ -312,7 +312,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
     } else {
       // Buffer not initialized yet.
       device_buffers_[binding_index] =
-          runtime::NDArray::Empty(shape, data_entry_[entry_id]->dtype, {kDLCUDA, 0});
+          runtime::Tensor::Empty(shape, data_entry_[entry_id]->dtype, {kDLCUDA, 0});
     }
     return device_buffers_.at(binding_index);
   }
@@ -341,7 +341,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
   std::unordered_map<int, uint32_t> output_bindings_;
   std::vector<void*> bindings_;
   std::vector<size_t> binding_sizes_;
-  std::unordered_map<int, NDArray> device_buffers_;
+  std::unordered_map<int, Tensor> device_buffers_;
 #endif
 };
 

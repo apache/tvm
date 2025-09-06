@@ -26,7 +26,7 @@ from typing_extensions import Literal
 import numpy as np  # type: ignore
 
 from ...contrib.tar import tar, untar
-from ...runtime import NDArray
+from ...runtime import Tensor
 from ..cost_model import PyCostModel
 from ..feature_extractor import FeatureExtractor
 from ..logging import get_logger
@@ -484,7 +484,7 @@ class XGBModel(PyCostModel):
         group = self.data.get(new_group_hash, None)
 
         # Step 2. Extract features
-        def _feature(x: NDArray) -> np.ndarray:
+        def _feature(x: Tensor) -> np.ndarray:
             return x.numpy().astype("float32")
 
         def _mean_cost(x: RunnerResult) -> float:

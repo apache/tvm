@@ -125,7 +125,7 @@ def test_network(name, dtype):
     for _name, (shape, _dtype) in inputs.items():
         input_data[_name] = np.random.uniform(-1.0, 1.0, shape).astype(_dtype)
 
-    inputs_tvm: List[tvm.nd.NDArray] = [tvm.nd.array(v) for k, v in input_data.items()]
+    inputs_tvm: List[tvm.runtime.Tensor] = [tvm.runtime.tensor(v) for k, v in input_data.items()]
     outputs = _build_and_run_network(remote_obj, tracker, mod, inputs_tvm)
     nnapi_out = outputs[0]
     expected_out = outputs[1]

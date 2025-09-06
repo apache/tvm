@@ -340,7 +340,9 @@ class BaseRunner(object):
         title = self.runner_mark("SAVE_CACHE")
         self._logger.debug(msc_utils.msg_block(title, {"folder": cache_dir, "info": cache_info}))
 
-    def translate(self, apply_hooks: bool = True) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
+    def translate(
+        self, apply_hooks: bool = True
+    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Translate IRModule to MSCgraphs
 
         Parameters
@@ -352,7 +354,7 @@ class BaseRunner(object):
         -------
         graphs: list<MSCGraph>
             The translated graphs
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The translated weights.
         """
 
@@ -366,7 +368,7 @@ class BaseRunner(object):
                 graphs, weights = self._apply_hook("after translate", hook, graphs, weights)
         return graphs, weights
 
-    def _translate(self, mod: tvm.IRModule) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
+    def _translate(self, mod: tvm.IRModule) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Translate IRModule to MSCgraphs
 
         Parameters
@@ -378,7 +380,7 @@ class BaseRunner(object):
         -------
         graphs: list<MSCGraph>
             The translated graphs
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The translated weights.
         """
 
@@ -387,7 +389,7 @@ class BaseRunner(object):
     def reset_tools(
         self,
         graphs: List[MSCGraph] = None,
-        weights: List[Dict[str, tvm.nd.array]] = None,
+        weights: List[Dict[str, tvm.runtime.Tensor]] = None,
         tools: List[BaseTool] = None,
         cache_dir: msc_utils.MSCDirectory = None,
     ):
@@ -397,7 +399,7 @@ class BaseRunner(object):
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: list<dict<str, tvm.nd.array>>
+        weights: list<dict<str, tvm.runtime.tensor>>
             The weights.
         tools: list<BaseTool>
             The tools.
@@ -408,7 +410,7 @@ class BaseRunner(object):
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: list<dict<str, tvm.nd.array>>
+        weights: list<dict<str, tvm.runtime.tensor>>
             The weights.
         """
 
@@ -444,14 +446,16 @@ class BaseRunner(object):
                 model = self._apply_hook("after generate", hook, model)
         return model
 
-    def _generate_model(self, graphs: List[MSCGraph], weights: Dict[str, tvm.nd.array]) -> Any:
+    def _generate_model(
+        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
+    ) -> Any:
         """Codegen the model according to framework
 
         Parameters
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The weights.
 
         Returns
@@ -763,7 +767,9 @@ class BaseRunner(object):
 
         return self._model_info["outputs"]
 
-    def get_weights(self, framework: str = None, device: str = None) -> Iterable[tvm.nd.array]:
+    def get_weights(
+        self, framework: str = None, device: str = None
+    ) -> Iterable[tvm.runtime.Tensor]:
         """Get the weights from graphs
 
         Parameters
@@ -775,7 +781,7 @@ class BaseRunner(object):
 
         Returns
         -------
-        weights: generator<tvm.nd.array>
+        weights: generator<tvm.runtime.tensor>
             The generator of weight datas.
         """
 
@@ -787,23 +793,23 @@ class BaseRunner(object):
                     data = msc_utils.cast_array(data, framework, device)
                 yield data
 
-    def get_runtime_params(self) -> Dict[str, tvm.nd.array]:
+    def get_runtime_params(self) -> Dict[str, tvm.runtime.Tensor]:
         """Get the runtime parameters
 
         Returns
         -------
-        params: dict<str, tvm.nd.array>
+        params: dict<str, tvm.runtime.tensor>
             The parameters from runtime.
         """
 
         return self._get_runtime_params()
 
-    def _get_runtime_params(self) -> Dict[str, tvm.nd.array]:
+    def _get_runtime_params(self) -> Dict[str, tvm.runtime.Tensor]:
         """Get the runtime parameters
 
         Returns
         -------
-        params: dict<str, tvm.nd.array>
+        params: dict<str, tvm.runtime.tensor>
             The parameters from runtime.
         """
 
@@ -1146,7 +1152,7 @@ class BaseRunner(object):
 class ModelRunner(BaseRunner):
     """Model runner of MSC"""
 
-    def _translate(self, mod: tvm.IRModule) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
+    def _translate(self, mod: tvm.IRModule) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Translate IRModule to MSCgraphs
 
         Parameters
@@ -1158,7 +1164,7 @@ class ModelRunner(BaseRunner):
         -------
         graphs: list<MSCGraph>
             The translated graphs
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The translated weights.
         """
 
@@ -1210,14 +1216,16 @@ class ModelRunner(BaseRunner):
                 f_graph.write(self._graphs[0].to_json())
         return {"main": main_info}
 
-    def _generate_model(self, graphs: List[MSCGraph], weights: Dict[str, tvm.nd.array]) -> Any:
+    def _generate_model(
+        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
+    ) -> Any:
         """Codegen the model according to framework
 
         Parameters
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The weights.
 
         Returns
@@ -1319,7 +1327,7 @@ class BYOCRunner(BaseRunner):
             with open(visual_dir.relpath(self._byoc_graph.name + "_graph.json"), "w") as f_graph:
                 f_graph.write(self._byoc_graph.to_json())
 
-    def _translate(self, mod: tvm.IRModule) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
+    def _translate(self, mod: tvm.IRModule) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Translate IRModule to MSCgraphs
 
         Parameters
@@ -1331,7 +1339,7 @@ class BYOCRunner(BaseRunner):
         -------
         graphs: list<MSCGraph>
             The translated graphs
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The translated weights.
         """
 
@@ -1405,14 +1413,16 @@ class BYOCRunner(BaseRunner):
             "byoc_mod": "byoc_module.json",
         }
 
-    def _generate_model(self, graphs: List[MSCGraph], weights: Dict[str, tvm.nd.array]) -> Any:
+    def _generate_model(
+        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
+    ) -> Any:
         """Codegen the model according to framework
 
         Parameters
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The weights.
 
         Returns

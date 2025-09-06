@@ -154,7 +154,7 @@ def test_extracting_tasks():
 
     relax_expectation = {
         "structural": 2,  # The relax constants do not reach the tir at the lowering.
-        "ignore-ndarray": 2,
+        "ignore-tensor": 2,
         "anchor-block": 1,
     }
     for module_equality, count in relax_expectation.items():
@@ -167,7 +167,7 @@ def test_extracting_tasks():
         assert len(extracted_tasks) == count
 
     tir_relax_mod = Module
-    tir_relax_expectation = {"structural": 3, "ignore-ndarray": 2, "anchor-block": 1}
+    tir_relax_expectation = {"structural": 3, "ignore-tensor": 2, "anchor-block": 1}
     for module_equality, count in tir_relax_expectation.items():
         extracted_tasks = ms.relax_integration.extract_tasks(
             tir_relax_mod,
@@ -178,7 +178,7 @@ def test_extracting_tasks():
         assert len(extracted_tasks) == count
 
 
-@pytest.mark.parametrize("module_equality", ["structural", "ignore-ndarray", "anchor-block"])
+@pytest.mark.parametrize("module_equality", ["structural", "ignore-tensor", "anchor-block"])
 def test_using_anchor_trace(module_equality):
     relax_mod = Module
     target = "llvm -mcpu=core-avx2 -num-cores=1"

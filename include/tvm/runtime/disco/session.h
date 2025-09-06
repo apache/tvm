@@ -46,7 +46,7 @@
  * It is assumed that the controler can synchronize with and access the registers of worker-0.
  * The Disco session provides multiple APIs to interact specifically with the worker-0.
  * To shared data with other workers, a common paradigm in Disco is to copy data from the
- * controler-side NDArray to the worker-0, and then copy it to other workers using primitives on
+ * controler-side Tensor to the worker-0, and then copy it to other workers using primitives on
  * the data plane, for example, `broadcast` and `send`.
  *
  * **Control plane.** The controler broadcasts commands to all the workers as control signals.
@@ -74,8 +74,8 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/int_tuple.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/tensor.h>
 
 #include <queue>
 #include <string>
@@ -143,9 +143,9 @@ class DRefObj : public Object {
    */
   inline ffi::Any DebugGetFromRemote(int worker_id);
   /*!
-   * \brief Copy from the NDArray provided to a remote worker.
+   * \brief Copy from the Tensor provided to a remote worker.
    * \param worker_id The id of the worker to be copied to.
-   * \param source The NDArray to be copied.
+   * \param source The Tensor to be copied.
    */
   inline void DebugCopyFrom(int worker_id, ffi::AnyView source);
 
@@ -189,7 +189,7 @@ class SessionObj : public Object {
    * - std::string;
    * - DRef.
    * Examples of unsupported types:
-   * - NDArray, DLTensor;
+   * - Tensor, DLTensor;
    * - TVM Objects, including ffi::Function, Module and String;
    * \param func The function to be called.
    * \param args The variadic arguments.
@@ -209,17 +209,17 @@ class SessionObj : public Object {
   /*! \brief Get a global functions on workers. */
   TVM_DLL virtual DRef GetGlobalFunc(const std::string& name) = 0;
   /*!
-   * \brief Copy an NDArray from worker-0 to the controler-side NDArray
+   * \brief Copy an Tensor from worker-0 to the controler-side Tensor
    * \param host_array The array to be copied to worker-0
-   * \param remote_array The NDArray on worker-0
+   * \param remote_array The Tensor on worker-0
    */
-  TVM_DLL virtual void CopyFromWorker0(const NDArray& host_array, const DRef& remote_array) = 0;
+  TVM_DLL virtual void CopyFromWorker0(const Tensor& host_array, const DRef& remote_array) = 0;
   /*!
-   * \brief Copy the controler-side NDArray to worker-0
+   * \brief Copy the controler-side Tensor to worker-0
    * \param host_array The array to be copied to worker-0
-   * \param remote_array The NDArray on worker-0
+   * \param remote_array The Tensor on worker-0
    */
-  TVM_DLL virtual void CopyToWorker0(const NDArray& host_array, const DRef& remote_array) = 0;
+  TVM_DLL virtual void CopyToWorker0(const Tensor& host_array, const DRef& remote_array) = 0;
   /*!
    * \brief Synchrnoize the controler with a worker, and it will wait until worker finishes
    * executing this instruction.
@@ -319,7 +319,7 @@ class WorkerZeroData {
    * \brief The host-side arrays to passed to worker-0 for special uses, for example,
    * copy-to-worker0 and copy-from-worker0
    */
-  std::queue<NDArray> host_arrays;
+  std::queue<Tensor> host_arrays;
   /*! \brief The mutex that guards `host_arrays` */
   std::mutex queue_mutex_;
 };

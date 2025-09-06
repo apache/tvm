@@ -48,7 +48,7 @@ def build_and_run(mod, inputs_np, target, legalize=True):
     dev = tvm.device(target, 0)
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
-    inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]
+    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
 
     out = f(*inputs)
 
@@ -752,17 +752,21 @@ def test_reconstruct_from_cache():
 
     dev = tvm.device("cuda", 0)
 
-    key = tvm.nd.array(np.random.randn(num_tokens, num_heads, head_dim).astype("float16"), dev)
-    value = tvm.nd.array(np.random.randn(num_tokens, num_heads, head_dim).astype("float16"), dev)
-    slot_mapping = tvm.nd.array(np.arange(num_tokens).astype("int32"), dev)
+    key = tvm.runtime.tensor(
+        np.random.randn(num_tokens, num_heads, head_dim).astype("float16"), dev
+    )
+    value = tvm.runtime.tensor(
+        np.random.randn(num_tokens, num_heads, head_dim).astype("float16"), dev
+    )
+    slot_mapping = tvm.runtime.tensor(np.arange(num_tokens).astype("int32"), dev)
 
-    k_cache = tvm.nd.array(
+    k_cache = tvm.runtime.tensor(
         np.random.randn(num_blocks, num_heads, head_dim // vec_size, block_size, vec_size).astype(
             "float16"
         ),
         dev,
     )
-    v_cache = tvm.nd.array(
+    v_cache = tvm.runtime.tensor(
         np.random.randn(num_blocks, num_heads, head_dim, block_size).astype("float16"), dev
     )
 

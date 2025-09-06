@@ -53,8 +53,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_packed("topi.flip",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     // pass empty seq_lengths tensor to reverse_sequence
-                    *rv =
-                        reverse_sequence(args[0].cast<te::Tensor>(), Tensor(), args[1].cast<int>());
+                    *rv = reverse_sequence(args[0].cast<te::Tensor>(), te::Tensor(),
+                                           args[1].cast<int>());
                   })
       .def_packed("topi.reverse_sequence",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -87,9 +87,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = shape(args[0].cast<te::Tensor>(), args[1].cast<DataType>());
                   })
-      .def_packed("topi.ndarray_size",
+      .def_packed("topi.tensor_size",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = ndarray_size(args[0].cast<te::Tensor>(), args[1].cast<DataType>());
+                    *rv = tensor_size(args[0].cast<te::Tensor>(), args[1].cast<DataType>());
                   })
       .def_packed("topi.split",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -210,7 +210,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_packed(
           "topi.strided_slice",
           [](ffi::PackedArgs args, ffi::Any* rv) {
-            Tensor x = args[0].cast<te::Tensor>();
+            te::Tensor x = args[0].cast<te::Tensor>();
             Array<PrimExpr> begin = args[1].cast<Array<PrimExpr>>();
             Array<PrimExpr> end = args[2].cast<Array<PrimExpr>>();
             Array<PrimExpr> strides = args[3].cast<Array<PrimExpr>>();

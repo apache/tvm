@@ -45,7 +45,7 @@ def relax_check_gradients(
         The forward operator function. Should be a function in package relax.op.
 
     inputs_numpy : List[np.array]
-        The np array inputs for op_func. inputs_numpy will be transformed into TVM NDArray inside
+        The np array inputs for op_func. inputs_numpy will be transformed into TVM Tensor inside
         this function.
 
         If op_func takes a tuple of tensors as input, you can set tuple_input as True, and pass the
@@ -84,12 +84,12 @@ def relax_check_gradients(
     def _numpy_to_tvm(data):
         if isinstance(data, list):
             return [_numpy_to_tvm(d) for d in data]
-        return tvm.nd.array(data)
+        return tvm.runtime.tensor(data)
 
     def _tvm_to_numpy(data, ignore_idx=[]):
         if isinstance(data, tvm.ir.Array):
             return [_tvm_to_numpy(d) for i, d in enumerate(data) if i not in ignore_idx]
-        if isinstance(data, tvm.runtime.ndarray.NDArray):
+        if isinstance(data, tvm.runtime.Tensor):
             return data.numpy()
         return data
 
@@ -189,7 +189,7 @@ def relax_check_gradients(
     grad_ex = tvm.compile(grad_mod, target)
     grad_vm = relax.VirtualMachine(grad_ex, dev)
 
-    # tvm.runtime.NDArray inputs
+    # tvm.runtime.Tensor inputs
     inputs_tvm = [_numpy_to_tvm(i) for i in inputs_numpy]
     weights_tvm = _numpy_to_tvm(weights)
     result_filtered = _tvm_to_numpy(grad_vm[func_name](*inputs_tvm, weights_tvm), ignore_grads)

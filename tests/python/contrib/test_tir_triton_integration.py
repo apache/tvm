@@ -110,8 +110,8 @@ def test_tir_triton_integration():
     assert len(Module.get_attr("external_mods")) == 1
 
     device = tvm.cuda(0)
-    x_nd = tvm.nd.array(np.random.rand(256).astype(np.float32), device)
-    y_nd = tvm.nd.array(np.random.rand(256).astype(np.float32), device)
+    x_nd = tvm.runtime.tensor(np.random.rand(256).astype(np.float32), device)
+    y_nd = tvm.runtime.tensor(np.random.rand(256).astype(np.float32), device)
     output_np = x_nd.numpy() + y_nd.numpy()
 
     with tvm.target.Target("cuda"):

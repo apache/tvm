@@ -19,7 +19,7 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include "cutlass_kernels/cutlass_preprocessors.h"
 
@@ -37,7 +37,7 @@ namespace runtime {
 // The preprocessing functions are defined in C++, so we need to copy the input weight to CPU.
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("cutlass.ft_preprocess_weight", [](NDArray packed_weight, int sm,
+  refl::GlobalDef().def("cutlass.ft_preprocess_weight", [](Tensor packed_weight, int sm,
                                                            bool is_int4) {
     bool is_2d = packed_weight->ndim == 2;
     int num_experts = is_2d ? 1 : packed_weight->shape[0];
@@ -54,7 +54,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     }
     fastertransformer::preprocess_weights(output_cpu.data(), input_cpu.data(), num_experts, rows,
                                           cols, is_int4, sm);
-    auto out = NDArray::Empty(packed_weight.Shape(), packed_weight->dtype, packed_weight->device);
+    auto out = Tensor::Empty(packed_weight.Shape(), packed_weight->dtype, packed_weight->device);
     out.CopyFromBytes(output_cpu.data(), output_cpu.size());
     return out;
   });

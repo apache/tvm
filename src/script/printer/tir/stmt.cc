@@ -252,7 +252,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 template <typename T>
-ExprDoc PrintNDArray(::tvm::runtime::NDArray arr) {
+ExprDoc PrintTensor(::tvm::runtime::Tensor arr) {
   // FIXME(@junrushao): this is a hack and can be wrong in most of the cases
   constexpr int NUM_PRINT = 200;
   int ndim = arr->ndim;
@@ -287,35 +287,35 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ExprDoc data_doc{nullptr};
           if (stmt->dtype.is_int()) {
             if (stmt->dtype.bits() == 8) {
-              data_doc = PrintNDArray<int8_t>(stmt->data.value());
+              data_doc = PrintTensor<int8_t>(stmt->data.value());
             } else if (stmt->dtype.bits() == 16) {
-              data_doc = PrintNDArray<int16_t>(stmt->data.value());
+              data_doc = PrintTensor<int16_t>(stmt->data.value());
             } else if (stmt->dtype.bits() == 32) {
-              data_doc = PrintNDArray<int32_t>(stmt->data.value());
+              data_doc = PrintTensor<int32_t>(stmt->data.value());
             } else if (stmt->dtype.bits() == 64) {
-              data_doc = PrintNDArray<int64_t>(stmt->data.value());
+              data_doc = PrintTensor<int64_t>(stmt->data.value());
             } else {
               LOG(FATAL) << "DataType not supported";
             }
           } else if (stmt->dtype.is_uint()) {
             if (stmt->dtype.bits() == 8) {
-              data_doc = PrintNDArray<uint8_t>(stmt->data.value());
+              data_doc = PrintTensor<uint8_t>(stmt->data.value());
             } else if (stmt->dtype.bits() == 16) {
-              data_doc = PrintNDArray<uint16_t>(stmt->data.value());
+              data_doc = PrintTensor<uint16_t>(stmt->data.value());
             } else if (stmt->dtype.bits() == 32) {
-              data_doc = PrintNDArray<uint32_t>(stmt->data.value());
+              data_doc = PrintTensor<uint32_t>(stmt->data.value());
             } else if (stmt->dtype.bits() == 64) {
-              data_doc = PrintNDArray<uint64_t>(stmt->data.value());
+              data_doc = PrintTensor<uint64_t>(stmt->data.value());
             } else {
               LOG(FATAL) << "DataType not supported";
             }
           } else if (stmt->dtype.is_float()) {
             if (stmt->dtype.bits() == 16) {
-              data_doc = PrintNDArray<int16_t>(stmt->data.value());
+              data_doc = PrintTensor<int16_t>(stmt->data.value());
             } else if (stmt->dtype.bits() == 32) {
-              data_doc = PrintNDArray<float>(stmt->data.value());
+              data_doc = PrintTensor<float>(stmt->data.value());
             } else if (stmt->dtype.bits() == 64) {
-              data_doc = PrintNDArray<double>(stmt->data.value());
+              data_doc = PrintTensor<double>(stmt->data.value());
             } else {
               LOG(FATAL) << "DataType not supported";
             }

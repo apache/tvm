@@ -70,7 +70,7 @@ void BuildLLVMVector(llvm::Type* element_type, void* tensor_data, size_t num_ele
                  [&](T t) { return LLVMConstantGetter<T>::getElement(element_type, t); });
 }
 
-llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::NDArray arr) {
+llvm::ConstantArray* TensorToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::Tensor arr) {
   llvm::Type* element_type = nullptr;
 
   auto arr_type = arr.DataType();

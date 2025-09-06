@@ -1042,7 +1042,7 @@ class TorchFXImporter(BaseFXGraphImporter):
                 dtype = self._convert_data_type(str(param.data.dtype))
                 inputs.append(relax.Var(name, relax.TensorStructInfo(shape, dtype)))
                 self.params[param] = inputs[-1]
-                params.append(tvm.nd.array(param.data.cpu().numpy()))
+                params.append(tvm.runtime.tensor(param.data.cpu().numpy()))
         else:
             func_attrs = None
 

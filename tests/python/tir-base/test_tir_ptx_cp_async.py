@@ -55,8 +55,8 @@ def test_ptx_cp_async():
     A_np = np.random.rand(32, 128).astype("float16")
     B_np = np.zeros((32, 128)).astype("float16")
     dev = tvm.cuda(0)
-    A_nd = tvm.nd.array(A_np, device=dev)
-    B_nd = tvm.nd.array(B_np, device=dev)
+    A_nd = tvm.runtime.tensor(A_np, device=dev)
+    B_nd = tvm.runtime.tensor(B_np, device=dev)
     mod(A_nd, B_nd)
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
@@ -102,8 +102,8 @@ def test_ptx_cp_async_barrier():
     A_np = np.random.rand(32, 128).astype("float16")
     B_np = np.zeros((32, 128)).astype("float16")
     dev = tvm.cuda(0)
-    A_nd = tvm.nd.array(A_np, device=dev)
-    B_nd = tvm.nd.array(B_np, device=dev)
+    A_nd = tvm.runtime.tensor(A_np, device=dev)
+    B_nd = tvm.runtime.tensor(B_np, device=dev)
     mod(A_nd, B_nd)
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
@@ -143,8 +143,8 @@ def test_ptx_cp_async_bulk():
     A_np = np.random.rand(32, 128).astype("float16")
     B_np = np.zeros((32, 128)).astype("float16")
     dev = tvm.cuda(0)
-    A_nd = tvm.nd.array(A_np, device=dev)
-    B_nd = tvm.nd.array(B_np, device=dev)
+    A_nd = tvm.runtime.tensor(A_np, device=dev)
+    B_nd = tvm.runtime.tensor(B_np, device=dev)
     mod(A_nd, B_nd)
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 

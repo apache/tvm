@@ -21,7 +21,7 @@
 #include <float.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include "fp16_group_gemm.cuh"
 #include "fp16_group_gemm_runner_sm90.cuh"
@@ -41,8 +41,8 @@ struct CutlassGroupGemm<90, ElementA, ElementB, ElementC> {
   }
 };
 
-void tvm_cutlass_group_gemm_sm90(NDArray x, NDArray weight, NDArray indptr, NDArray workspace,
-                                 NDArray out) {
+void tvm_cutlass_group_gemm_sm90(Tensor x, Tensor weight, Tensor indptr, Tensor workspace,
+                                 Tensor out) {
   tvm_cutlass_group_gemm_impl<90>(x, weight, indptr, workspace, out);
 }
 

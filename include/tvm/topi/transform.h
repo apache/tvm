@@ -706,8 +706,8 @@ inline PrimExpr GetLength(PrimExpr begin, PrimExpr end, PrimExpr stride, PrimExp
  *
  * \return A Tensor whose op member is the dynamic_strided_slice operation
  */
-inline Tensor dynamic_strided_slice_with_axes(
-    const Tensor& x, const Array<PrimExpr>& begin, const Array<PrimExpr>& end,
+inline te::Tensor dynamic_strided_slice_with_axes(
+    const te::Tensor& x, const Array<PrimExpr>& begin, const Array<PrimExpr>& end,
     const Array<PrimExpr>& strides, const Array<Integer>& axes, bool assume_inbound = true,
     std::string name = "T_dynamic_strided_slice_with_axes", std::string tag = kInjective) {
   const size_t src_tensor_dim = x->shape.size();
@@ -1967,13 +1967,13 @@ inline Tensor shape(const Tensor& src, DataType dtype, const std::string name = 
  * \param tag output tensor tag.
  * \return Tensor of input shape.
  */
-inline Tensor ndarray_size(const Tensor& src, const DataType& dtype,
-                           const std::string& name = "ndarray_size",
-                           const std::string& tag = kInjective) {
+inline te::Tensor tensor_size(const te::Tensor& src, const DataType& dtype,
+                              const std::string& name = "tensor_size",
+                              const std::string& tag = kInjective) {
   int ndim = static_cast<int>(src->shape.size());
-  Array<PrimExpr> out_ndarray_size = {};
+  Array<PrimExpr> out_tensor_size = {};
   return compute(
-      out_ndarray_size,
+      out_tensor_size,
       [&](const Array<Var>& indices) {
         PrimExpr ret = 1;
         for (int i = 0; i < ndim; ++i) {

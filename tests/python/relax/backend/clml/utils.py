@@ -56,7 +56,7 @@ def build_and_run(
         vm = relax.VirtualMachine(ex, dev)
 
     f = vm["main"]
-    inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]
+    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
     vm.set_input("main", *inputs)
     vm.invoke_stateful("main")
     tvm_output = vm.get_outputs("main")

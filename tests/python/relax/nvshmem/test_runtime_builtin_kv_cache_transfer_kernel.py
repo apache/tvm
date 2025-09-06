@@ -62,12 +62,12 @@ def test_kv_transfer_without_disco():
     k_np = np.random.rand(ntokens, num_kv_heads, head_dim).astype(np.float16)
     v_np = np.random.rand(ntokens, num_kv_heads, head_dim).astype(np.float16)
     if rank == 0:
-        k = tvm.nd.array(k_np, dev)
-        v = tvm.nd.array(v_np, dev)
+        k = tvm.runtime.tensor(k_np, dev)
+        v = tvm.runtime.tensor(v_np, dev)
         remote_position_map_np = np.array(position_map_array, dtype=np.int32)
-        remote_position_map = tvm.nd.array(remote_position_map_np, dev)
+        remote_position_map = tvm.runtime.tensor(remote_position_map_np, dev)
         remote_tp_group_pe_offset_np = np.array([1] * len(position_map_array), dtype=np.int32)
-        remote_tp_group_pe_offset = tvm.nd.array(remote_tp_group_pe_offset_np, dev)
+        remote_tp_group_pe_offset = tvm.runtime.tensor(remote_tp_group_pe_offset_np, dev)
         transfer_func = tvm.get_global_func("nvshmem.KVTransfer")
         layer_view = pages._create_view(
             [num_pages, 2, num_kv_heads, page_size, head_dim],
@@ -120,13 +120,13 @@ def test_kv_transfer_page_to_page_without_disco():
     if rank == 0:
         pages.copyfrom(pages_np)
         remote_position_map_np = np.array(rank_1_position_map_array, dtype=np.int32)
-        remote_position_map = tvm.nd.array(remote_position_map_np, dev)
+        remote_position_map = tvm.runtime.tensor(remote_position_map_np, dev)
         local_position_map_np = np.array(rank_0_position_map_array, dtype=np.int32)
-        local_position_map = tvm.nd.array(local_position_map_np, dev)
+        local_position_map = tvm.runtime.tensor(local_position_map_np, dev)
         remote_tp_group_pe_offset_np = np.array(
             [1] * len(rank_0_position_map_array), dtype=np.int32
         )
-        remote_tp_group_pe_offset = tvm.nd.array(remote_tp_group_pe_offset_np, dev)
+        remote_tp_group_pe_offset = tvm.runtime.tensor(remote_tp_group_pe_offset_np, dev)
         transfer_func = tvm.get_global_func("nvshmem.KVTransferPageToPage")
         layer_view = pages._create_view(
             [num_pages, 2, num_kv_heads, page_size, head_dim],
@@ -197,7 +197,7 @@ def test_kv_transfer_with_disco():
         remote_position_map = sess.empty((len(position_map_array),), "int32")
         remote_tp_group_pe_offset_np = np.array([2] * len(position_map_array), dtype=np.int32)
         remote_tp_group_pe_offset = sess.empty((len(remote_tp_group_pe_offset_np),), "int32")
-        f_view_func = sess.get_global_func("runtime.TVMArrayCreateView")
+        f_view_func = sess.get_global_func("runtime.TVMTensorCreateView")
         layer_view = f_view_func(
             pages,
             ShapeTuple([num_pages, 2, num_kv_heads, page_size, head_dim]),

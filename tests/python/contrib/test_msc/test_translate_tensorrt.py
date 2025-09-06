@@ -47,7 +47,7 @@ def build_and_run(mod, inputs):
         rt_mod = tvm.compile(mod, target)
         runnable = tvm.relax.VirtualMachine(rt_mod, tvm.cuda())
     res = runnable["main"](*inputs)
-    if isinstance(res, tvm.runtime.NDArray):
+    if isinstance(res, tvm.runtime.Tensor):
         return [res.numpy()]
     return [e.numpy() for e in res]
 
@@ -104,7 +104,7 @@ def verify_model(torch_model, input_info, **trans_config):
     output_folder = msc_utils.msc_dir()
     # tranalte to tensorrt
     mod = codegen.to_tensorrt(mod, graphs, weights, output_folder=output_folder)
-    tvm_datas = [tvm.nd.array(i, device=tvm.cuda()) for i in datas]
+    tvm_datas = [tvm.runtime.tensor(i, device=tvm.cuda()) for i in datas]
     results = build_and_run(mod, tvm_datas)
     for gol, res in zip(golden, results):
         tvm.testing.assert_allclose(gol, res, atol=1e-3, rtol=1e-3)

@@ -84,7 +84,7 @@ ffi::Any IndexIntoNestedObject(ffi::Any obj, ffi::PackedArgs args, int starting_
   return obj;
 }
 
-NDArray ConvertNDArrayToDevice(NDArray src, const DLDevice& dev, Allocator* alloc) {
+Tensor ConvertTensorToDevice(Tensor src, const DLDevice& dev, Allocator* alloc) {
   if (src->device.device_type == dev.device_type && src->device.device_id == dev.device_id) {
     return src;
   } else {
@@ -95,8 +95,8 @@ NDArray ConvertNDArrayToDevice(NDArray src, const DLDevice& dev, Allocator* allo
 }
 
 Any ConvertObjectToDevice(Any src, const Device& dev, Allocator* alloc) {
-  if (src.as<NDArray::ContainerType>()) {
-    return ConvertNDArrayToDevice(src.cast<NDArray>(), dev, alloc);
+  if (src.as<Tensor::ContainerType>()) {
+    return ConvertTensorToDevice(src.cast<Tensor>(), dev, alloc);
   } else if (src.as<ffi::ArrayObj>()) {
     std::vector<Any> ret;
     auto arr = src.cast<ffi::Array<Any>>();
@@ -112,8 +112,8 @@ Any ConvertObjectToDevice(Any src, const Device& dev, Allocator* alloc) {
 ffi::Any ConvertArgToDevice(ffi::AnyView input, Device dev, Allocator* alloc) {
   // in terms of memory-behavior.
   // To be extra careful, we copy DLTensor.
-  // The developer can still explicitly allocate NDArray
-  // in TVM Native API or NDArray::FromDLPack to regain zero copy behavior.
+  // The developer can still explicitly allocate Tensor
+  // in TVM Native API or Tensor::FromDLPack to regain zero copy behavior.
   ffi::Any ret;
   if (auto opt_obj = input.as<ObjectRef>()) {
     ret = ConvertObjectToDevice(opt_obj.value(), dev, alloc);
@@ -245,7 +245,7 @@ class VirtualMachineImpl : public VirtualMachine {
    * correct device for the function, they will be copied to the device.
    * \param with_param_module If set to true, the last argument will be a module and can be invoked
    *        to get the argument, this is mainly used for debugging purposes and setting composite
-   * objects. \note This interface works when using VM over RPC by internally converting NDArray in
+   * objects. \note This interface works when using VM over RPC by internally converting Tensor in
    * the arguments to DLTensor, which is supported in RPC where remote could only have a minimal C
    * runtime.
    */
@@ -470,7 +470,7 @@ void VirtualMachineImpl::Init(const std::vector<Device>& devices,
   // Setup constant sections.
   this->const_pool_.reserve(exec_->constants.size());
   for (const auto& constant : exec_->constants) {
-    if (auto opt_nd = constant.as<NDArray>()) {
+    if (auto opt_nd = constant.as<Tensor>()) {
       this->const_pool_.push_back(ConvertRegToDevice(opt_nd.value(), devices[0], allocators[0]));
     } else {
       this->const_pool_.push_back(constant);
@@ -1029,11 +1029,11 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
     if (prof_ && prof_->IsRunning()) {
       auto f_name = GetFuncName(inst.func_idx);
       std::optional<Device> dev;
-      std::vector<NDArray> arrs;
+      std::vector<Tensor> arrs;
 
-      auto f_check_ndarray_arg = [&dev, &arrs](const RegType& arg) {
-        if (auto opt_nd = arg.as<NDArray>()) {
-          NDArray arr = opt_nd.value();
+      auto f_check_tensor_arg = [&dev, &arrs](const RegType& arg) {
+        if (auto opt_nd = arg.as<Tensor>()) {
+          Tensor arr = opt_nd.value();
           if (arr.defined()) {
             dev = arr->device;
             arrs.push_back(arr);
@@ -1045,10 +1045,10 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
         Instruction::Arg arg = inst.args[i];
         if (arg.kind() == Instruction::ArgKind::kRegister) {
           auto reg = ReadRegister(curr_frame, arg.value());
-          f_check_ndarray_arg(reg);
+          f_check_tensor_arg(reg);
         } else if (arg.kind() == Instruction::ArgKind::kConstIdx) {
           const auto& const_val = this->const_pool_[arg.value()];
-          f_check_ndarray_arg(const_val);
+          f_check_tensor_arg(const_val);
         }
       }
 

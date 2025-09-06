@@ -452,7 +452,7 @@ def const(value, dtype="int32", span=None):
 
     Parameters
     ----------
-    value : Union[bool, int, float, numpy.ndarray, tvm.nd.NDArray]
+    value : Union[bool, int, float, numpy.ndarray, tvm.runtime.Tensor]
         The constant value.
 
     dtype : str

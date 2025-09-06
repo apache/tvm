@@ -53,9 +53,9 @@ def test_sort():
     dev = tvm.cpu(0)
     target = "llvm"
     f = tvm.compile(te.create_prim_func([data, sort_num, out]), target=target)
-    a = tvm.nd.array(np.array(input_data).astype(data.dtype), dev)
-    b = tvm.nd.array(np.array(sort_num_input).astype(sort_num.dtype), dev)
-    c = tvm.nd.array(np.zeros(a.shape, dtype=out.dtype), dev)
+    a = tvm.runtime.tensor(np.array(input_data).astype(data.dtype), dev)
+    b = tvm.runtime.tensor(np.array(sort_num_input).astype(sort_num.dtype), dev)
+    c = tvm.runtime.tensor(np.zeros(a.shape, dtype=out.dtype), dev)
     f(a, b, c)
     tvm.testing.assert_allclose(c.numpy(), np.array(sorted_index).astype(out.dtype), rtol=1e-5)
 
@@ -85,9 +85,9 @@ def test_sort_np():
     np_data = np.random.uniform(size=dshape)
     np_out = np.argsort(np_data, axis=axis)
     sort_num_input = np.full(reduced_shape, dshape[axis])
-    a = tvm.nd.array(np.array(np_data).astype(data.dtype), dev)
-    b = tvm.nd.array(np.array(sort_num_input).astype(sort_num.dtype), dev)
-    c = tvm.nd.array(np.zeros(a.shape, dtype=out.dtype), dev)
+    a = tvm.runtime.tensor(np.array(np_data).astype(data.dtype), dev)
+    b = tvm.runtime.tensor(np.array(sort_num_input).astype(sort_num.dtype), dev)
+    c = tvm.runtime.tensor(np.zeros(a.shape, dtype=out.dtype), dev)
     f(a, b, c)
     tvm.testing.assert_allclose(c.numpy(), np_out, rtol=1e-5)
 

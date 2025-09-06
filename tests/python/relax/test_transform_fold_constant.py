@@ -38,7 +38,7 @@ def gen_mod(mod, name, binding):
         The const parameter bindings
     """
     funcs = {}
-    binding = {k: tvm.nd.array(v) for k, v in binding.items()}
+    binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
 
     for k, v in mod.functions.items():
         if isinstance(v, tvm.relax.Function):
@@ -431,12 +431,14 @@ def test_fold_shape_computation():
         ) -> R.Tensor((1, 1), dtype="int64"):
             return new_shape
 
-    before = gen_mod(Module, "before", {"indices": tvm.nd.array(np.array([0]).astype("int64"))})
+    before = gen_mod(
+        Module, "before", {"indices": tvm.runtime.tensor(np.array([0]).astype("int64"))}
+    )
     after = relax.transform.FoldConstant()(before)
     np_take = np.take([5, 4, 3, 2], [0], axis=0)
     np_expand = np.expand_dims(np_take, axis=[0])
     np_concat = np.concatenate([np_expand], axis=0)
-    expected = gen_mod(Module, "expected", {"new_shape": tvm.nd.array(np_concat)})
+    expected = gen_mod(Module, "expected", {"new_shape": tvm.runtime.tensor(np_concat)})
     tvm.ir.assert_structural_equal(after, expected)
 
 

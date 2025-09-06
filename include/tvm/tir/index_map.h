@@ -135,13 +135,13 @@ class IndexMapNode : public Object {
    */
   Array<PrimExpr> MapShape(const Array<PrimExpr>& shape, arith::Analyzer* analyzer) const;
 
-  /* \brief Map an NDArray according to this index map
+  /* \brief Map an Tensor according to this index map
    *
-   * \param arr_src The NDArray whose layout is transformed by this index map.
+   * \param arr_src The Tensor whose layout is transformed by this index map.
    *
-   * \returns The transformed NDArray.
+   * \returns The transformed Tensor.
    */
-  runtime::NDArray MapNDArray(runtime::NDArray arr_src) const;
+  runtime::Tensor MapTensor(runtime::Tensor arr_src) const;
 
   /*!
    * \brief Convert to string representation in Python.

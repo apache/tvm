@@ -33,8 +33,8 @@
 #include <CL/opencl.h>
 #include <stdlib.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/profiling.h>
+#include <tvm/runtime/tensor.h>
 
 #include <fstream>
 #include <map>
@@ -253,11 +253,11 @@ struct CachedLayer {
   std::map<cl_ml_op_qcom, std::pair<int, JSONGraphNode>> op_node_map;
   /* The input tensor map  */
   std::map<int, std::shared_ptr<cl_ml_tensor_memory_desc_qcom>> inputs;
-  /* A place holder Tensor representing TVM NDArray as CLML Tensor */
+  /* A place holder Tensor representing TVM Tensor as CLML Tensor */
   std::map<int, std::shared_ptr<cl_ml_tensor_memory_desc_qcom>> in_placeholder;
   /* The Output tensor map */
   std::vector<std::shared_ptr<cl_ml_tensor_memory_desc_qcom>> outputs;
-  /* A place holder Tensor representing TVM NDArray as CLML Tensor */
+  /* A place holder Tensor representing TVM Tensor as CLML Tensor */
   std::vector<std::shared_ptr<cl_ml_tensor_memory_desc_qcom>> out_placeholder;
   /* Tensor shape exception list while returning from CLML Subgraph */
   std::map<int, std::vector<size_t>> out_shapes;

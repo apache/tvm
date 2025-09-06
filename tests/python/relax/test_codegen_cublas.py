@@ -52,7 +52,7 @@ def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
         ex = tvm.compile(mod, target)
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
-    inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]
+    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
 
     # For cuda graph, run the compiled function twice to make sure that we can launch the cached
     # graph on the second run.

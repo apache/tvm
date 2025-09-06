@@ -275,7 +275,7 @@ def verify_dynamo_model(torch_model, input_info, binding, expected):
         args.append(torch.zeros(*info[0], dtype=_convert_data_type(info[1])))
     graph_model = dynamo.export(torch_model)(*args)[0]
     mod = from_fx(graph_model, input_info, unwrap_unit_return_tuple=True)
-    binding = {k: tvm.nd.array(v) for k, v in binding.items()}
+    binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
     tvm.ir.assert_structural_equal(mod, expected)
 

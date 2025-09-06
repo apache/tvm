@@ -38,7 +38,6 @@
 #include "src/runtime/device_api.cc"
 #include "src/runtime/file_utils.cc"
 #include "src/runtime/logging.cc"
-#include "src/runtime/ndarray.cc"
 #include "src/runtime/profiling.cc"
 #include "src/runtime/rpc/rpc_channel.cc"
 #include "src/runtime/rpc/rpc_endpoint.cc"
@@ -46,6 +45,7 @@
 #include "src/runtime/rpc/rpc_local_session.cc"
 #include "src/runtime/rpc/rpc_module.cc"
 #include "src/runtime/rpc/rpc_session.cc"
+#include "src/runtime/tensor.cc"
 #include "src/runtime/workspace_pool.cc"
 // relax setup
 #include "ffi/src/ffi/container.cc"
@@ -56,8 +56,8 @@
 #include "ffi/src/ffi/extra/module.cc"
 #include "ffi/src/ffi/extra/testing.cc"
 #include "ffi/src/ffi/function.cc"
-#include "ffi/src/ffi/ndarray.cc"
 #include "ffi/src/ffi/object.cc"
+#include "ffi/src/ffi/tensor.cc"
 #include "ffi/src/ffi/traceback.cc"
 #include "src/runtime/memory/memory_manager.cc"
 #include "src/runtime/nvtx.cc"
@@ -67,9 +67,9 @@
 #include "src/runtime/vm/executable.cc"
 #include "src/runtime/vm/kv_state.cc"
 #include "src/runtime/vm/lm_support.cc"
-#include "src/runtime/vm/ndarray_cache_support.cc"
 #include "src/runtime/vm/paged_kv_cache.cc"
 #include "src/runtime/vm/rnn_state.cc"
+#include "src/runtime/vm/tensor_cache_support.cc"
 #include "src/runtime/vm/vm.cc"
 
 // --- Implementations of backend and wasm runtime API. ---
@@ -121,7 +121,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       });
 });
 
-void ArrayDecodeStorage(NDArray cpu_arr, std::string bytes, std::string format, std::string dtype) {
+void ArrayDecodeStorage(Tensor cpu_arr, std::string bytes, std::string format, std::string dtype) {
   if (format == "f32-to-bf16" && dtype == "float32") {
     std::vector<uint16_t> buffer(bytes.length() / 2);
     std::memcpy(buffer.data(), bytes.data(), buffer.size() * 2);
@@ -166,7 +166,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                                });
 });
 
-NDArray ConcatEmbeddings(const std::vector<NDArray>& embeddings) {
+Tensor ConcatEmbeddings(const std::vector<Tensor>& embeddings) {
   // Get output shape
   int64_t hidden_size = embeddings[0]->shape[1];
   DLDataType dtype = embeddings[0]->dtype;
@@ -182,7 +182,7 @@ NDArray ConcatEmbeddings(const std::vector<NDArray>& embeddings) {
   std::vector<int64_t> shape;
   shape.push_back(seqLen);
   shape.push_back(hidden_size);
-  NDArray result = NDArray::Empty(shape, dtype, device);
+  Tensor result = Tensor::Empty(shape, dtype, device);
 
   // Copy
   int offset = 0;
@@ -193,29 +193,29 @@ NDArray ConcatEmbeddings(const std::vector<NDArray>& embeddings) {
     copy_dst.shape = embeddings[i]->shape;
     copy_dst.byte_offset =
         offset * hidden_size * ((embeddings[i]->dtype.bits * embeddings[i]->dtype.lanes + 7) / 8);
-    NDArray::CopyFromTo(&copy_src, &copy_dst);
+    Tensor::CopyFromTo(&copy_src, &copy_dst);
     offset += embeddings[i]->shape[0];
   }
 
   return result;
 }
 
-// Concatenate n NDArrays
+// Concatenate n Tensors
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvmjs.runtime.ConcatEmbeddings",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
-                    std::vector<NDArray> embeddings;
+                    std::vector<Tensor> embeddings;
                     for (int i = 0; i < args.size(); ++i) {
-                      embeddings.push_back(args[i].cast<NDArray>());
+                      embeddings.push_back(args[i].cast<Tensor>());
                     }
-                    NDArray result = ConcatEmbeddings(std::move(embeddings));
+                    Tensor result = ConcatEmbeddings(std::move(embeddings));
                     *ret = result;
                   })
-      .def("tvmjs.runtime.NDArrayCopyFromBytes",
-           [](NDArray nd, TVMFFIByteArray* bytes) { nd.CopyFromBytes(bytes->data, bytes->size); })
-      .def("tvmjs.runtime.NDArrayCopyToBytes", [](NDArray nd) -> ffi::Bytes {
+      .def("tvmjs.runtime.TensorCopyFromBytes",
+           [](Tensor nd, TVMFFIByteArray* bytes) { nd.CopyFromBytes(bytes->data, bytes->size); })
+      .def("tvmjs.runtime.TensorCopyToBytes", [](Tensor nd) -> ffi::Bytes {
         size_t size = GetDataSize(*(nd.operator->()));
         std::string bytes;
         bytes.resize(size);

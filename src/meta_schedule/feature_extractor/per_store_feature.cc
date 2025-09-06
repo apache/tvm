@@ -216,18 +216,18 @@ int64_t GetVarStride(const std::vector<MultiIndex>& multi_indices, const IntVec&
 }
 
 /*!
- * \brief Converts a 2-dimensional STL vector to a TVM NDArray
+ * \brief Converts a 2-dimensional STL vector to a TVM Tensor
  * \param src The source 2-dimensional STL vector
  * \param second_dim_size The length of the second dimension. When the first dim of src is 0,
- * second_dim_size must be specified, and in such case the shape of the result NDArray is
+ * second_dim_size must be specified, and in such case the shape of the result Tensor is
  * (0, second_dim_size).
- * \return The converted TVM NDArray
+ * \return The converted TVM Tensor
  */
-runtime::NDArray AsNDArray(const std::vector<std::vector<double>>& src, int second_dim_size = -1) {
+runtime::Tensor AsTensor(const std::vector<std::vector<double>>& src, int second_dim_size = -1) {
   int n = src.size();
   ICHECK(!src.empty() || second_dim_size != -1);
   int m = src.empty() ? second_dim_size : src[0].size();
-  runtime::NDArray tgt = runtime::NDArray::Empty(
+  runtime::Tensor tgt = runtime::Tensor::Empty(
       /*shape=*/{n, m},
       /*dtype=*/DLDataType{kDLFloat, 64, 1},
       /*ctx=*/DLDevice{kDLCPU, 0});
@@ -308,7 +308,7 @@ Pass SimplifyForFeatureExtraction() {
  */
 Sequential PassListForPerStoreFeature() {
   return Sequential({
-      tir::transform::RemoveWeightLayoutRewriteBlock(/*skip_ndarray_rewrite*/ true),
+      tir::transform::RemoveWeightLayoutRewriteBlock(/*skip_tensor_rewrite*/ true),
       tir::transform::SimplifyForFeatureExtraction(),
       tir::transform::LowerCrossThreadReduction(),
       tir::transform::LowerInitBlock(),
@@ -1398,11 +1398,11 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
     }
   }
 
-  Array<runtime::NDArray> ExtractFrom(const TuneContext& tune_context,
-                                      const Array<MeasureCandidate>& candidates) {
+  Array<runtime::Tensor> ExtractFrom(const TuneContext& tune_context,
+                                     const Array<MeasureCandidate>& candidates) {
     auto& target_keys = tune_context->target.value()->keys;
     bool is_gpu = std::find(target_keys.begin(), target_keys.end(), "gpu") != target_keys.end();
-    std::vector<runtime::NDArray> results;
+    std::vector<runtime::Tensor> results;
     results.resize(candidates.size());
     std::unique_ptr<tir::group6::Feature> feature_group6 = nullptr;
     if (extract_workload) {
@@ -1417,7 +1417,7 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
           feature_group6->Export(&feature);
         }
       }
-      results[task_id] = tir::utils::AsNDArray(features, this->feature_vector_length);
+      results[task_id] = tir::utils::AsTensor(features, this->feature_vector_length);
     };
     support::parallel_for_dynamic(0, candidates.size(), tune_context->num_threads, f);
     return results;

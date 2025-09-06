@@ -23,8 +23,8 @@
  */
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
-#include <tvm/ffi/container/ndarray.h>
 #include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/string.h>
@@ -111,9 +111,9 @@ class StructEqualHandler {
         return CompareShape(AnyUnsafe::MoveFromAnyAfterCheck<Shape>(std::move(lhs)),
                             AnyUnsafe::MoveFromAnyAfterCheck<Shape>(std::move(rhs)));
       }
-      case TypeIndex::kTVMFFINDArray: {
-        return CompareNDArray(AnyUnsafe::MoveFromAnyAfterCheck<NDArray>(std::move(lhs)),
-                              AnyUnsafe::MoveFromAnyAfterCheck<NDArray>(std::move(rhs)));
+      case TypeIndex::kTVMFFITensor: {
+        return CompareTensor(AnyUnsafe::MoveFromAnyAfterCheck<Tensor>(std::move(lhs)),
+                             AnyUnsafe::MoveFromAnyAfterCheck<Tensor>(std::move(rhs)));
       }
       default: {
         return CompareObject(AnyUnsafe::MoveFromAnyAfterCheck<ObjectRef>(std::move(lhs)),
@@ -341,14 +341,14 @@ class StructEqualHandler {
     return true;
   }
 
-  bool CompareNDArray(NDArray lhs, NDArray rhs) {
+  bool CompareTensor(Tensor lhs, Tensor rhs) {
     if (lhs.same_as(rhs)) return true;
     if (lhs->ndim != rhs->ndim) return false;
     for (int i = 0; i < lhs->ndim; ++i) {
       if (lhs->shape[i] != rhs->shape[i]) return false;
     }
     if (lhs->dtype != rhs->dtype) return false;
-    if (!skip_ndarray_content_) {
+    if (!skip_tensor_content_) {
       TVM_FFI_ICHECK_EQ(lhs->device.device_type, kDLCPU) << "can only compare CPU tensor";
       TVM_FFI_ICHECK_EQ(rhs->device.device_type, kDLCPU) << "can only compare CPU tensor";
       TVM_FFI_ICHECK(lhs.IsContiguous()) << "Can only compare contiguous tensor";
@@ -385,8 +385,8 @@ class StructEqualHandler {
   }
   // whether we map free variables that are not defined
   bool map_free_vars_{false};
-  // whether we compare ndarray data
-  bool skip_ndarray_content_{false};
+  // whether we compare tensor data
+  bool skip_tensor_content_{false};
   // the root lhs for result printing
   std::vector<reflection::AccessStep>* mismatch_lhs_reverse_path_ = nullptr;
   std::vector<reflection::AccessStep>* mismatch_rhs_reverse_path_ = nullptr;
@@ -399,20 +399,20 @@ class StructEqualHandler {
 };
 
 bool StructuralEqual::Equal(const Any& lhs, const Any& rhs, bool map_free_vars,
-                            bool skip_ndarray_content) {
+                            bool skip_tensor_content) {
   StructEqualHandler handler;
   handler.map_free_vars_ = map_free_vars;
-  handler.skip_ndarray_content_ = skip_ndarray_content;
+  handler.skip_tensor_content_ = skip_tensor_content;
   return handler.CompareAny(lhs, rhs);
 }
 
 Optional<reflection::AccessPathPair> StructuralEqual::GetFirstMismatch(const Any& lhs,
                                                                        const Any& rhs,
                                                                        bool map_free_vars,
-                                                                       bool skip_ndarray_content) {
+                                                                       bool skip_tensor_content) {
   StructEqualHandler handler;
   handler.map_free_vars_ = map_free_vars;
-  handler.skip_ndarray_content_ = skip_ndarray_content;
+  handler.skip_tensor_content_ = skip_tensor_content;
   std::vector<reflection::AccessStep> lhs_reverse_path;
   std::vector<reflection::AccessStep> rhs_reverse_path;
   handler.mismatch_lhs_reverse_path_ = &lhs_reverse_path;

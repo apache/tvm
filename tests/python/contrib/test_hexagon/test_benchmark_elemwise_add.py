@@ -242,9 +242,9 @@ def _benchmark_hexagon_elementwise_add_kernel(
             )
 
             # Create the target-side tensors to hold the primfunc's inputs and outputs...
-            input1_data = tvm.nd.empty(shape, dtype, hexagon_session.device, mem_scope)
-            input2_data = tvm.nd.empty(shape, dtype, hexagon_session.device, mem_scope)
-            output_data = tvm.nd.empty(shape, dtype, hexagon_session.device, mem_scope)
+            input1_data = tvm.runtime.empty(shape, dtype, hexagon_session.device, mem_scope)
+            input2_data = tvm.runtime.empty(shape, dtype, hexagon_session.device, mem_scope)
+            output_data = tvm.runtime.empty(shape, dtype, hexagon_session.device, mem_scope)
 
             # Populate the primfunc's input tensors...
             input1_data.copyfrom(host_numpy_input1_data)

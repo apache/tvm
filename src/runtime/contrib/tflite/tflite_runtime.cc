@@ -131,7 +131,7 @@ void TFLiteRuntime::SetInput(int index, DLTensor* data_in) {
 
 void TFLiteRuntime::SetNumThreads(int num_threads) { interpreter_->SetNumThreads(num_threads); }
 
-NDArray TFLiteRuntime::GetOutput(int index) const {
+Tensor TFLiteRuntime::GetOutput(int index) const {
   TfLiteTensor* output = interpreter_->tensor(interpreter_->outputs()[index]);
   DataType dtype = TfLiteDType2TVMDType(output->type);
   TfLiteIntArray* dims = output->dims;
@@ -141,7 +141,7 @@ NDArray TFLiteRuntime::GetOutput(int index) const {
     shape.push_back(dims->data[i]);
     size *= dims->data[i];
   }
-  NDArray ret = NDArray::Empty(shape, dtype, device_);
+  Tensor ret = Tensor::Empty(shape, dtype, device_);
   TVM_DTYPE_DISPATCH(dtype, DType, {
     DType* dest = static_cast<DType*>(ret->data);
     DType* src = interpreter_->typed_output_tensor<DType>(index);

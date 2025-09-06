@@ -21,7 +21,7 @@ from typing import Callable, Dict, List, Optional
 import tvm
 
 from tvm.ir.module import IRModule
-from tvm.runtime import Module, NDArray
+from tvm.runtime import Module, Tensor
 from tvm.target import Target
 from tvm.driver import build as tvm_build
 from tvm.tir.transform import RemoveWeightLayoutRewriteBlock
@@ -140,10 +140,10 @@ def get_hexagon_local_builder(
         return str(binary_path)
 
     def default_build_with_context(
-        mod: IRModule, target: Target, _params: Optional[Dict[str, NDArray]]
+        mod: IRModule, target: Target, _params: Optional[Dict[str, Tensor]]
     ) -> Module:
         with pass_context:
-            mod = RemoveWeightLayoutRewriteBlock(skip_ndarray_rewrite=True)(mod)
+            mod = RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite=True)(mod)
             return tvm_build(mod, target=target)
 
     if pass_context is not None:

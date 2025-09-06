@@ -73,8 +73,8 @@ class ConstantFolder : public ExprMutator {
    * \brief Pattern match op to constant array arguments.
    * \return The constant array arguments, or nullopt if match fails.
    */
-  static Optional<Array<runtime::NDArray>> MatchConstArrayArgs(const Array<Expr>& args) {
-    Array<runtime::NDArray> res;
+  static Optional<Array<runtime::Tensor>> MatchConstArrayArgs(const Array<Expr>& args) {
+    Array<runtime::Tensor> res;
     for (auto arg : args) {
       auto* ptr = arg.as<relax::ConstantNode>();
       if (!ptr) return std::nullopt;
@@ -144,7 +144,7 @@ class ConstantFolder : public ExprMutator {
 
   // Try constant evaluate the function call
   // if failed return std::nullopt
-  Optional<Expr> ConstEvaluateCallTIR(tir::PrimFunc tir_func, Array<runtime::NDArray> arr_args,
+  Optional<Expr> ConstEvaluateCallTIR(tir::PrimFunc tir_func, Array<runtime::Tensor> arr_args,
                                       ffi::Shape shape, DataType ret_type) {
     // obtain function from the cache.
     Optional<ffi::Function> func = GetCachedBuild(tir_func);
@@ -154,11 +154,11 @@ class ConstantFolder : public ExprMutator {
     std::vector<AnyView> packed_args(arr_args.size() + 1);
 
     DLDevice cpu_dev = {DLDeviceType::kDLCPU, 0};
-    runtime::NDArray ret_tensor = runtime::NDArray::Empty(shape, ret_type, cpu_dev);
+    runtime::Tensor ret_tensor = runtime::Tensor::Empty(shape, ret_type, cpu_dev);
 
     // avoid set rvalue ref which get de-allocated later, store args in a vector
     // where temp_args[i] are lvalue ref that is stable
-    std::vector<runtime::NDArray> temp_args(arr_args.begin(), arr_args.end());
+    std::vector<runtime::Tensor> temp_args(arr_args.begin(), arr_args.end());
 
     size_t arg_offset = 0;
     for (; arg_offset < arr_args.size(); ++arg_offset) {
@@ -179,7 +179,7 @@ class ConstantFolder : public ExprMutator {
     ICHECK_GE(call->args.size(), 2);
     Optional<tir::PrimFunc> func = MatchPrimFunc(call->args[0]);
     ICHECK(call->args[1].as<TupleNode>()) << "call_tir.args[1] must be Tuple";
-    Optional<Array<runtime::NDArray>> arr_args =
+    Optional<Array<runtime::Tensor>> arr_args =
         MatchConstArrayArgs(call->args[1].as<TupleNode>()->fields);
     ICHECK_EQ(call->sinfo_args.size(), 1) << "call_tir should have exactly one sinfo arg";
     Optional<ffi::Shape> shape = MatchConstShape(call->sinfo_args[0]);
@@ -268,7 +268,7 @@ class ConstantFolder : public ExprMutator {
         Expr arg = post_call->args[0];
         if (arg->IsInstance<ConstantNode>()) {
           Constant constant = Downcast<Constant>(arg);
-          runtime::NDArray ndarray = constant->data;
+          runtime::Tensor ndarray = constant->data;
           ICHECK_EQ(ndarray->device.device_type, kDLCPU);
           ICHECK(ffi::IsContiguous(*ndarray.get()));
           ICHECK_EQ(ndarray->byte_offset, 0);
@@ -296,7 +296,7 @@ class ConstantFolder : public ExprMutator {
         }
         if (is_known) {
           const auto func = tvm::ffi::Function::GetGlobalRequired("relax.run.shape_to_tensor");
-          runtime::NDArray vals = func(arr).cast<runtime::NDArray>();
+          runtime::Tensor vals = func(arr).cast<runtime::Tensor>();
           return Constant(vals);
         }
       }

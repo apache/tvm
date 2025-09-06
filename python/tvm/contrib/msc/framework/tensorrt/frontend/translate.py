@@ -60,10 +60,10 @@ def transform_for_tensorrt(
 
 def partition_for_tensorrt(
     mod: tvm.IRModule,
-    params: Optional[Dict[str, tvm.nd.array]] = None,
+    params: Optional[Dict[str, tvm.runtime.Tensor]] = None,
     trans_config: Optional[Dict[str, str]] = None,
     build_config: Optional[Dict[str, str]] = None,
-) -> Tuple[tvm.IRModule, List[Tuple[MSCGraph, Dict[str, tvm.nd.array]]]]:
+) -> Tuple[tvm.IRModule, List[Tuple[MSCGraph, Dict[str, tvm.runtime.Tensor]]]]:
     """Partition module to tensorrt sub functions.
 
     Parameters

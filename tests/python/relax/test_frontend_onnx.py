@@ -172,12 +172,12 @@ def check_correctness(
             assert len(tvm_out) == len(ort_out), "Unequal number of outputs"
             for tvm_out_i, ort_out_i in zip(tvm_out, ort_out):
                 _check_output(tvm_out_i, ort_out_i)
-        elif isinstance(tvm_out, tvm.nd.NDArray) and isinstance(ort_out, np.ndarray):
+        elif isinstance(tvm_out, tvm.runtime.Tensor) and isinstance(ort_out, np.ndarray):
             if check_dtypes:
                 assert tvm_out.numpy().dtype == ort_out.dtype
             tvm.testing.assert_allclose(tvm_out.numpy(), ort_out, rtol=rtol, atol=atol)
         elif isinstance(tvm_out, tvm.runtime.ShapeTuple) and isinstance(ort_out, np.ndarray):
-            shape_out = tvm.nd.array([int(i) for i in tvm_out])
+            shape_out = tvm.runtime.tensor([int(i) for i in tvm_out])
             if check_dtypes:
                 assert _get_numpy_subdtype(shape_out.numpy()) == _get_numpy_subdtype(ort_out)
             tvm.testing.assert_allclose(shape_out.numpy(), ort_out, rtol=rtol, atol=atol)

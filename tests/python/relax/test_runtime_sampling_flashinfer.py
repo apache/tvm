@@ -51,8 +51,8 @@ def test_sampling():
     probs_np = np.array([[0.1, 0.2, 0.3, 0.2, 0.2] for _ in range(batch_size)], dtype="float32")
 
     dev = tvm.cuda(0)
-    prob_tvm = tvm.nd.array(probs_np, device=dev)
-    output_tvm = tvm.nd.empty((batch_size,), "int32", device=dev)
+    prob_tvm = tvm.runtime.tensor(probs_np, device=dev)
+    output_tvm = tvm.runtime.empty((batch_size,), "int32", device=dev)
 
     device = tvm.cuda()
     target = tvm.target.Target.from_device(device)

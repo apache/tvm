@@ -158,7 +158,7 @@ test("ExceptionPassing", () => {
   tvm.endScope();
 });
 
-test("NDArrayCbArg", () => {
+test("TensorCbArg", () => {
   tvm.beginScope();
   let use_count = tvm.getGlobalFunc("testing.object_use_count");
   let record = [];

@@ -19,11 +19,11 @@
  */
 
 /*!
- * \file tvm/ffi/ndarray.h
- * \brief Container to store an NDArray.
+ * \file tvm/ffi/tensor.h
+ * \brief Container to store an Tensor.
  */
-#ifndef TVM_FFI_CONTAINER_NDARRAY_H_
-#define TVM_FFI_CONTAINER_NDARRAY_H_
+#ifndef TVM_FFI_CONTAINER_TENSOR_H_
+#define TVM_FFI_CONTAINER_TENSOR_H_
 
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/dtype.h>
@@ -110,20 +110,20 @@ inline size_t GetDataSize(const DLTensor& arr) {
   return GetDataSize(size, arr.dtype);
 }
 
-/*! \brief An object representing an NDArray. */
-class NDArrayObj : public Object, public DLTensor {
+/*! \brief An object representing an Tensor. */
+class TensorObj : public Object, public DLTensor {
  public:
-  static constexpr const uint32_t _type_index = TypeIndex::kTVMFFINDArray;
-  static constexpr const char* _type_key = StaticTypeKey::kTVMFFINDArray;
-  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(NDArrayObj, Object);
+  static constexpr const uint32_t _type_index = TypeIndex::kTVMFFITensor;
+  static constexpr const char* _type_key = StaticTypeKey::kTVMFFITensor;
+  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(TensorObj, Object);
 
   /*!
-   * \brief Move NDArray to a DLPack managed tensor.
+   * \brief Move Tensor to a DLPack managed tensor.
    * \return The converted DLPack managed tensor.
    */
   DLManagedTensor* ToDLPack() const {
     DLManagedTensor* ret = new DLManagedTensor();
-    NDArrayObj* from = const_cast<NDArrayObj*>(this);
+    TensorObj* from = const_cast<TensorObj*>(this);
     ret->dl_tensor = *static_cast<DLTensor*>(from);
     ret->manager_ctx = from;
     ret->deleter = DLManagedTensorDeleter;
@@ -132,12 +132,12 @@ class NDArrayObj : public Object, public DLTensor {
   }
 
   /*!
-   * \brief Move  NDArray to a DLPack managed tensor.
+   * \brief Move  Tensor to a DLPack managed tensor.
    * \return The converted DLPack managed tensor.
    */
   DLManagedTensorVersioned* ToDLPackVersioned() const {
     DLManagedTensorVersioned* ret = new DLManagedTensorVersioned();
-    NDArrayObj* from = const_cast<NDArrayObj*>(this);
+    TensorObj* from = const_cast<TensorObj*>(this);
     ret->version.major = DLPACK_MAJOR_VERSION;
     ret->version.minor = DLPACK_MINOR_VERSION;
     ret->dl_tensor = *static_cast<DLTensor*>(from);
@@ -149,37 +149,37 @@ class NDArrayObj : public Object, public DLTensor {
   }
 
  protected:
-  // backs up the shape of the NDArray
+  // backs up the shape/strides
   Optional<Shape> shape_data_;
   Optional<Shape> stride_data_;
 
   static void DLManagedTensorDeleter(DLManagedTensor* tensor) {
-    NDArrayObj* obj = static_cast<NDArrayObj*>(tensor->manager_ctx);
+    TensorObj* obj = static_cast<TensorObj*>(tensor->manager_ctx);
     details::ObjectUnsafe::DecRefObjectHandle(obj);
     delete tensor;
   }
 
   static void DLManagedTensorVersionedDeleter(DLManagedTensorVersioned* tensor) {
-    NDArrayObj* obj = static_cast<NDArrayObj*>(tensor->manager_ctx);
+    TensorObj* obj = static_cast<TensorObj*>(tensor->manager_ctx);
     details::ObjectUnsafe::DecRefObjectHandle(obj);
     delete tensor;
   }
 
-  friend class NDArray;
+  friend class Tensor;
 };
 
 namespace details {
 /*!
- *\brief Helper class to create an NDArrayObj from an NDAllocator
+ *\brief Helper class to create an TensorObj from an NDAllocator
  *
  * The underlying allocator needs to be implemented by user.
  */
 template <typename TNDAlloc>
-class NDArrayObjFromNDAlloc : public NDArrayObj {
+class TensorObjFromNDAlloc : public TensorObj {
  public:
   template <typename... ExtraArgs>
-  NDArrayObjFromNDAlloc(TNDAlloc alloc, ffi::Shape shape, DLDataType dtype, DLDevice device,
-                        ExtraArgs&&... extra_args)
+  TensorObjFromNDAlloc(TNDAlloc alloc, ffi::Shape shape, DLDataType dtype, DLDevice device,
+                       ExtraArgs&&... extra_args)
       : alloc_(alloc) {
     this->device = device;
     this->ndim = static_cast<int>(shape.size());
@@ -193,7 +193,7 @@ class NDArrayObjFromNDAlloc : public NDArrayObj {
     alloc_.AllocData(static_cast<DLTensor*>(this), std::forward<ExtraArgs>(extra_args)...);
   }
 
-  ~NDArrayObjFromNDAlloc() { alloc_.FreeData(static_cast<DLTensor*>(this)); }
+  ~TensorObjFromNDAlloc() { alloc_.FreeData(static_cast<DLTensor*>(this)); }
 
  private:
   TNDAlloc alloc_;
@@ -201,9 +201,9 @@ class NDArrayObjFromNDAlloc : public NDArrayObj {
 
 /*! \brief helper class to import from DLPack legacy DLManagedTensor */
 template <typename TDLPackManagedTensor>
-class NDArrayObjFromDLPack : public NDArrayObj {
+class TensorObjFromDLPack : public TensorObj {
  public:
-  explicit NDArrayObjFromDLPack(TDLPackManagedTensor* tensor) : tensor_(tensor) {
+  explicit TensorObjFromDLPack(TDLPackManagedTensor* tensor) : tensor_(tensor) {
     *static_cast<DLTensor*>(this) = tensor_->dl_tensor;
     if (tensor_->dl_tensor.strides == nullptr) {
       Shape strides = Shape(details::MakeStridesFromShape(ndim, shape));
@@ -212,7 +212,7 @@ class NDArrayObjFromDLPack : public NDArrayObj {
     }
   }
 
-  ~NDArrayObjFromDLPack() {
+  ~TensorObjFromDLPack() {
     // run DLPack deleter if needed.
     if (tensor_->deleter != nullptr) {
       (*tensor_->deleter)(tensor_);
@@ -225,62 +225,62 @@ class NDArrayObjFromDLPack : public NDArrayObj {
 }  // namespace details
 
 /*!
- * \brief Managed NDArray.
- *  The array is backed by reference counted blocks.
+ * \brief Managed Tensor (n-dimensional array).
+ *  The tensor is backed by reference counted blocks.
  *
  * \note This class can be subclassed to implement downstream customized
- *       NDArray types that are backed by the same NDArrayObj storage type.
+ *       Tensor types that are backed by the same TensorObj storage type.
  */
-class NDArray : public ObjectRef {
+class Tensor : public ObjectRef {
  public:
   /*!
-   * \brief Get the shape of the NDArray.
-   * \return The shape of the NDArray.
+   * \brief Get the shape of the Tensor.
+   * \return The shape of the Tensor.
    */
   tvm::ffi::Shape shape() const {
-    NDArrayObj* obj = get_mutable();
+    TensorObj* obj = get_mutable();
     if (!obj->shape_data_.has_value()) {
       obj->shape_data_ = tvm::ffi::Shape(obj->shape, obj->shape + obj->ndim);
     }
     return *(obj->shape_data_);
   }
   /*!
-   * \brief Get the data type of the NDArray.
-   * \return The data type of the NDArray.
+   * \brief Get the data type of the Tensor.
+   * \return The data type of the Tensor.
    */
   DLDataType dtype() const { return (*this)->dtype; }
   /*!
-   * \brief Check if the NDArray is contiguous.
-   * \return True if the NDArray is contiguous, false otherwise.
+   * \brief Check if the Tensor is contiguous.
+   * \return True if the Tensor is contiguous, false otherwise.
    */
   bool IsContiguous() const { return tvm::ffi::IsContiguous(*get()); }
   /*!
-   * \brief Create a NDArray from a NDAllocator.
+   * \brief Create a Tensor from a NDAllocator.
    * \param alloc The NDAllocator.
-   * \param shape The shape of the NDArray.
-   * \param dtype The data type of the NDArray.
-   * \param device The device of the NDArray.
-   * \return The created NDArray.
+   * \param shape The shape of the Tensor.
+   * \param dtype The data type of the Tensor.
+   * \param device The device of the Tensor.
+   * \return The created Tensor.
    * \tparam TNDAlloc The type of the NDAllocator, impelments Alloc and Free.
    * \tparam ExtraArgs Extra arguments to be passed to Alloc.
    */
   template <typename TNDAlloc, typename... ExtraArgs>
-  static NDArray FromNDAlloc(TNDAlloc alloc, ffi::Shape shape, DLDataType dtype, DLDevice device,
-                             ExtraArgs&&... extra_args) {
-    return NDArray(make_object<details::NDArrayObjFromNDAlloc<TNDAlloc>>(
+  static Tensor FromNDAlloc(TNDAlloc alloc, ffi::Shape shape, DLDataType dtype, DLDevice device,
+                            ExtraArgs&&... extra_args) {
+    return Tensor(make_object<details::TensorObjFromNDAlloc<TNDAlloc>>(
         alloc, shape, dtype, device, std::forward<ExtraArgs>(extra_args)...));
   }
 
   /*!
-   * \brief Create a NDArray from a DLPack managed tensor, pre v1.0 API.
+   * \brief Create a Tensor from a DLPack managed tensor, pre v1.0 API.
    * \param tensor The input DLPack managed tensor.
    * \param require_alignment The minimum alignment requored of the data + byte_offset.
    * \param require_contiguous Boolean flag indicating if we need to check for contiguity.
    * \note This function will not run any checks on flags.
-   * \return The created NDArray.
+   * \return The created Tensor.
    */
-  static NDArray FromDLPack(DLManagedTensor* tensor, size_t require_alignment = 0,
-                            bool require_contiguous = false) {
+  static Tensor FromDLPack(DLManagedTensor* tensor, size_t require_alignment = 0,
+                           bool require_contiguous = false) {
     if (require_alignment != 0 && !ffi::IsAligned(tensor->dl_tensor, require_alignment)) {
       TVM_FFI_THROW(RuntimeError) << "FromDLPack: Data is not aligned to " << require_alignment
                                   << " bytes.";
@@ -288,18 +288,18 @@ class NDArray : public ObjectRef {
     if (require_contiguous && !ffi::IsContiguous(tensor->dl_tensor)) {
       TVM_FFI_THROW(RuntimeError) << "FromDLPack: Tensor is not contiguous.";
     }
-    return NDArray(make_object<details::NDArrayObjFromDLPack<DLManagedTensor>>(tensor));
+    return Tensor(make_object<details::TensorObjFromDLPack<DLManagedTensor>>(tensor));
   }
 
   /*!
-   * \brief Create a NDArray from a DLPack managed tensor, post v1.0 API.
+   * \brief Create a Tensor from a DLPack managed tensor, post v1.0 API.
    * \param tensor The input DLPack managed tensor.
    * \param require_alignment The minimum alignment requored of the data + byte_offset.
    * \param require_contiguous Boolean flag indicating if we need to check for contiguity.
-   * \return The created NDArray.
+   * \return The created Tensor.
    */
-  static NDArray FromDLPackVersioned(DLManagedTensorVersioned* tensor, size_t require_alignment = 0,
-                                     bool require_contiguous = false) {
+  static Tensor FromDLPackVersioned(DLManagedTensorVersioned* tensor, size_t require_alignment = 0,
+                                    bool require_contiguous = false) {
     if (require_alignment != 0 && !ffi::IsAligned(tensor->dl_tensor, require_alignment)) {
       TVM_FFI_THROW(RuntimeError) << "FromDLPack: Data is not aligned to " << require_alignment
                                   << " bytes.";
@@ -310,32 +310,32 @@ class NDArray : public ObjectRef {
     if (tensor->flags & DLPACK_FLAG_BITMASK_IS_SUBBYTE_TYPE_PADDED) {
       TVM_FFI_THROW(RuntimeError) << "Subbyte type padded is not yet supported";
     }
-    return NDArray(make_object<details::NDArrayObjFromDLPack<DLManagedTensorVersioned>>(tensor));
+    return Tensor(make_object<details::TensorObjFromDLPack<DLManagedTensorVersioned>>(tensor));
   }
 
   /*!
-   * \brief Convert the NDArray to a DLPack managed tensor.
+   * \brief Convert the Tensor to a DLPack managed tensor.
    * \return The converted DLPack managed tensor.
    */
   DLManagedTensor* ToDLPack() const { return get_mutable()->ToDLPack(); }
 
   /*!
-   * \brief Convert the NDArray to a DLPack managed tensor.
+   * \brief Convert the Tensor to a DLPack managed tensor.
    * \return The converted DLPack managed tensor.
    */
   DLManagedTensorVersioned* ToDLPackVersioned() const { return get_mutable()->ToDLPackVersioned(); }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS(NDArray, ObjectRef, NDArrayObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS(Tensor, ObjectRef, TensorObj);
 
  protected:
   /*!
    * \brief Get mutable internal container pointer.
    * \return a mutable container pointer.
    */
-  NDArrayObj* get_mutable() const { return const_cast<NDArrayObj*>(get()); }
+  TensorObj* get_mutable() const { return const_cast<TensorObj*>(get()); }
 };
 
 }  // namespace ffi
 }  // namespace tvm
 
-#endif  // TVM_FFI_CONTAINER_NDARRAY_H_
+#endif  // TVM_FFI_CONTAINER_TENSOR_H_

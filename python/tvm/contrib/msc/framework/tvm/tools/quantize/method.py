@@ -81,9 +81,9 @@ class TVMQuantizeMethod(QuantizeMethod):
             scale_tensor = scale_tensor.astype(quantizer.find_tensor(name).dtype_name)
             zero_point = np.zeros_like(scale_tensor).astype("int8")
             scale_span = _ffi_api.SpanCreateWithAttr("name", name_prefix + "_scale")
-            scale_tensor = tvm.relax.Constant(tvm.nd.array(scale_tensor), span=scale_span)
+            scale_tensor = tvm.relax.Constant(tvm.runtime.tensor(scale_tensor), span=scale_span)
             zp_span = _ffi_api.SpanCreateWithAttr("name", name_prefix + "_zero_point")
-            zero_point = tvm.relax.Constant(tvm.nd.array(zero_point), span=zp_span)
+            zero_point = tvm.relax.Constant(tvm.runtime.tensor(zero_point), span=zp_span)
             quantizer._save_tensor_cache(name, consumer, "scale_tensor", scale_tensor)
             quantizer._save_tensor_cache(name, consumer, "zero_point", zero_point)
         return scale_tensor, zero_point

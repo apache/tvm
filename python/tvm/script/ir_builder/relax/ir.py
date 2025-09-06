@@ -192,7 +192,7 @@ from tvm.relax.struct_info import StructInfo
 from tvm.relax.utils import args_converter, gen_call_tir_inputs
 from tvm.runtime import Object as tvm_Object
 from tvm.runtime import ObjectGeneric
-from tvm.runtime.ndarray import (
+from tvm.runtime._tensor import (
     cpu,
     cuda,
     device,

@@ -106,8 +106,8 @@ def setup_test():
 
     np0 = np.random.rand(16, 16).astype(np.float32)
     np1 = np.random.rand(16, 16).astype(np.float32)
-    data0 = tvm.nd.array(np0, dev)
-    data1 = tvm.nd.array(np1, dev)
+    data0 = tvm.runtime.tensor(np0, dev)
+    data1 = tvm.runtime.tensor(np1, dev)
     inputs = [data0, data1]
 
     # Ground truth should be generated before annotation

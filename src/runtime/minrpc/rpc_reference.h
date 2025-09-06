@@ -24,7 +24,7 @@
 #ifndef TVM_RUNTIME_MINRPC_RPC_REFERENCE_H_
 #define TVM_RUNTIME_MINRPC_RPC_REFERENCE_H_
 
-#include <tvm/ffi/container/ndarray.h>
+#include <tvm/ffi/container/tensor.h>
 
 namespace tvm {
 namespace ffi {
@@ -74,7 +74,7 @@ enum class RPCCode : int {
 enum class RPCServerStatus : int {
   kSuccess = 0,
   kInvalidTypeCodeObject,
-  kInvalidTypeCodeNDArray,
+  kInvalidTypeCodeTensor,
   kInvalidDLTensorFieldStride,
   kInvalidDLTensorFieldByteOffset,
   kUnknownTypeIndex,
@@ -146,8 +146,8 @@ inline const char* RPCServerStatusToString(RPCServerStatus status) {
       return "kSuccess";
     case RPCServerStatus::kInvalidTypeCodeObject:
       return "kInvalidTypeCodeObject";
-    case RPCServerStatus::kInvalidTypeCodeNDArray:
-      return "kInvalidTypeCodeNDArray";
+    case RPCServerStatus::kInvalidTypeCodeTensor:
+      return "kInvalidTypeCodeTensor";
     case RPCServerStatus::kInvalidDLTensorFieldStride:
       return "kInvalidDLTensorFieldStride";
     case RPCServerStatus::kInvalidDLTensorFieldByteOffset: {
@@ -247,7 +247,7 @@ struct RPCReference {
   static void SendDLTensor(TChannelPtr channel, DLTensor* arr) {
     DLDevice dev;
     uint64_t data;
-    // When we return NDArray, we directly return
+    // When we return Tensor, we directly return
     // the space and the context
     // The client will be further wrapping
     dev = arr->device;
@@ -351,8 +351,8 @@ struct RPCReference {
           break;
         }
 
-        case ffi::TypeIndex::kTVMFFINDArray: {
-          channel->ThrowError(RPCServerStatus::kInvalidTypeCodeNDArray);
+        case ffi::TypeIndex::kTVMFFITensor: {
+          channel->ThrowError(RPCServerStatus::kInvalidTypeCodeTensor);
           break;
         }
         case ffi::TypeIndex::kTVMFFIDLTensorPtr: {

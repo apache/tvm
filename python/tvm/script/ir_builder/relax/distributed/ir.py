@@ -29,7 +29,7 @@ from tvm.relax.expr import Tuple as RxTuple
 from tvm.relax.distributed import DTensorStructInfo
 from tvm.relax.utils import args_converter
 from tvm import base as _base
-from tvm.runtime import ndarray as _nd
+from tvm.runtime import _tensor
 from tvm.relax.op.distributed import (
     redistribute as _redistribute,
     annotate_sharding as _annotate_sharding,
@@ -89,14 +89,14 @@ def call_tir(
 
 
 def const(
-    value: Union[bool, int, float, _np.ndarray, tvm.nd.NDArray],
+    value: Union[bool, int, float, _np.ndarray, tvm.runtime.Tensor],
     struct_info: DTensorStructInfo,
 ) -> Constant:
     """Create a constant value.
 
     Parameters
     ----------
-    value: Union[bool, int, float, numpy.ndarray, tvm.nd.NDArray]
+    value: Union[bool, int, float, numpy.ndarray, tvm.runtime.Tensor]
         The constant value.
 
     dtype: Optional[str]
@@ -121,10 +121,10 @@ def const(
     if isinstance(value, (_np.ndarray, _np.generic)):
         if dtype is not None:
             value = value.astype(dtype)
-        value = _nd.array(value)
+        value = _tensor.tensor(value)
 
-    if not isinstance(value, _nd.NDArray):
-        raise ValueError("value has to be scalar or NDArray")
+    if not isinstance(value, _tensor.Tensor):
+        raise ValueError("value has to be scalar or Tensor")
 
     return Constant(value, struct_info)
 

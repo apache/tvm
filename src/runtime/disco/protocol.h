@@ -87,21 +87,21 @@ struct DiscoProtocol {
 
 /*!
  * \brief The debug extension of the communication protocol that allows serialization and
- * deserialization of NDArrays and reflection-capable TVM objects.
+ * deserialization of Tensors and reflection-capable TVM objects.
  */
 struct DiscoDebugObject : public Object {
  public:
   /*! \brief The data to be serialized */
   ffi::Any data;
 
-  /*! \brief Wrap an NDArray or reflection-capable TVM object into the debug extension. */
+  /*! \brief Wrap an Tensor or reflection-capable TVM object into the debug extension. */
   static ObjectRef Wrap(const ffi::Any& data) {
     ObjectPtr<DiscoDebugObject> n = make_object<DiscoDebugObject>();
     n->data = data;
     return ObjectRef(n);
   }
 
-  /*! \brief Wrap an NDArray or reflection-capable TVM object into the debug extension. */
+  /*! \brief Wrap an Tensor or reflection-capable TVM object into the debug extension. */
   static ObjectRef Wrap(const ffi::AnyView& data) {
     ffi::Any rv;
     rv = data;
@@ -219,8 +219,8 @@ inline void DiscoProtocol<SubClassType>::ReadFFIAny(TVMFFIAny* out) {
 }
 
 inline std::string DiscoDebugObject::SaveToStr() const {
-  if (auto opt_nd = this->data.as<NDArray>()) {
-    NDArray array = opt_nd.value();
+  if (auto opt_nd = this->data.as<Tensor>()) {
+    Tensor array = opt_nd.value();
     std::string result;
     {
       dmlc::MemoryStringStream mstrm(&result);
@@ -256,7 +256,7 @@ inline ObjectPtr<DiscoDebugObject> DiscoDebugObject::LoadFromStr(std::string jso
     dmlc::MemoryStringStream mstrm(&json_str);
     support::Base64InStream b64strm(&mstrm);
     b64strm.InitPosition();
-    runtime::NDArray array;
+    runtime::Tensor array;
     ICHECK(array.Load(&b64strm));
     result->data = std::move(array);
   } else {

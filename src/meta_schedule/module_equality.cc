@@ -37,20 +37,20 @@ class ModuleEqualityStructural : public ModuleEquality {
   String GetName() const { return "structural"; }
 };
 
-class ModuleEqualityIgnoreNDArray : public ModuleEquality {
+class ModuleEqualityIgnoreTensor : public ModuleEquality {
  public:
   size_t Hash(IRModule mod) const {
     return tvm::ffi::StructuralHash::Hash(mod, /*map_free_vars=*/false,
-                                          /*skip_ndarray_content=*/true);
+                                          /*skip_tensor_content=*/true);
   }
   bool Equal(IRModule lhs, IRModule rhs) const {
     return tvm::ffi::StructuralEqual::Equal(lhs, rhs, /*map_free_vars=*/false,
-                                            /*skip_ndarray_content=*/true);
+                                            /*skip_tensor_content=*/true);
   }
-  String GetName() const { return "ignore-ndarray"; }
+  String GetName() const { return "ignore-tensor"; }
 };
 
-// The NDArray-ignoring variant of structural equal / hash is used for the module equality
+// The Tensor-ignoring variant of structural equal / hash is used for the module equality
 // on the extracted anchor blocks.
 class ModuleEqualityAnchorBlock : public ModuleEquality {
   size_t Hash(IRModule mod) const {
@@ -58,9 +58,9 @@ class ModuleEqualityAnchorBlock : public ModuleEquality {
     if (anchor_block) {
       return ffi::StructuralHash::Hash(GetRef<tir::Block>(anchor_block),
                                        /*map_free_vars=*/false,
-                                       /*skip_ndarray_content=*/true);
+                                       /*skip_tensor_content=*/true);
     }
-    return ModuleEqualityIgnoreNDArray().Hash(mod);
+    return ModuleEqualityIgnoreTensor().Hash(mod);
   }
   bool Equal(IRModule lhs, IRModule rhs) const {
     auto anchor_block_lhs = tir::FindAnchorBlock(lhs);
@@ -69,9 +69,9 @@ class ModuleEqualityAnchorBlock : public ModuleEquality {
       return tvm::ffi::StructuralEqual::Equal(GetRef<tir::Block>(anchor_block_lhs),
                                               GetRef<tir::Block>(anchor_block_rhs),
                                               /*map_free_vars=*/false,
-                                              /*skip_ndarray_content=*/true);
+                                              /*skip_tensor_content=*/true);
     }
-    return ModuleEqualityIgnoreNDArray().Equal(lhs, rhs);
+    return ModuleEqualityIgnoreTensor().Equal(lhs, rhs);
   }
   String GetName() const { return "anchor-block"; }
 };
@@ -79,8 +79,8 @@ class ModuleEqualityAnchorBlock : public ModuleEquality {
 std::unique_ptr<ModuleEquality> ModuleEquality::Create(const std::string& mod_eq_name) {
   if (mod_eq_name == "structural") {
     return std::make_unique<ModuleEqualityStructural>();
-  } else if (mod_eq_name == "ignore-ndarray") {
-    return std::make_unique<ModuleEqualityIgnoreNDArray>();
+  } else if (mod_eq_name == "ignore-tensor") {
+    return std::make_unique<ModuleEqualityIgnoreTensor>();
   } else if (mod_eq_name == "anchor-block") {
     return std::make_unique<ModuleEqualityAnchorBlock>();
   }

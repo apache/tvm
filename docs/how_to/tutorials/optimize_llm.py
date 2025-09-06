@@ -489,7 +489,7 @@ if not IS_IN_CI:
 
     # Convert params into ndarray
     params = [
-        tvm.nd.array(param_dict[k].astype("float16"), device=dev) for k in named_params.keys()
+        tvm.runtime.tensor(param_dict[k].astype("float16"), device=dev) for k in named_params.keys()
     ]
 
 
@@ -523,7 +523,7 @@ if not IS_IN_CI:
     input_len = len(prompt)
 
     # Load prompt tokens into TVM ndarray on the target device
-    tokens = tvm.nd.array(np.array(prompt).astype("int32"), device=dev)
+    tokens = tvm.runtime.tensor(np.array(prompt).astype("int32"), device=dev)
 
 ######################################################################
 # Create the KVCache
@@ -609,7 +609,7 @@ if not IS_IN_CI:
     print("The generated token:")
 
     while last_token != tokenizer.eos_token_id:
-        tokens = tvm.nd.array(np.array([last_token]).astype("int32"), device=dev)
+        tokens = tvm.runtime.tensor(np.array([last_token]).astype("int32"), device=dev)
         hidden_states = embed(tokens, params)
         begin_forward_func(kv_cache, ShapeTuple([seq_id]), ShapeTuple([1]))
         logits, kv_cache = vm["decode"](hidden_states, kv_cache, params)

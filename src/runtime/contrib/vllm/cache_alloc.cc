@@ -19,15 +19,15 @@
 #include <cuda_runtime.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 namespace tvm {
 namespace runtime {
 namespace vllm {
 
-Array<NDArray> AllocateKVCache(int head_size, int num_layers, int num_heads, int block_size,
-                               int num_blocks) {
-  Array<NDArray> cache;
+Array<Tensor> AllocateKVCache(int head_size, int num_layers, int num_heads, int block_size,
+                              int num_blocks) {
+  Array<Tensor> cache;
   int element_size = 2;
   int vec_size = 16 / element_size;
 
@@ -37,11 +37,11 @@ Array<NDArray> AllocateKVCache(int head_size, int num_layers, int num_heads, int
   DLDevice dev{DLDeviceType::kDLCUDA, device_id};
 
   for (int i = 0; i < num_layers; ++i) {
-    NDArray key_blocks =
-        NDArray::Empty({num_blocks, num_heads, head_size / vec_size, block_size, vec_size},
-                       runtime::DataType::Float(16), dev);
-    NDArray value_blocks = NDArray::Empty({num_blocks, num_heads, head_size, block_size},
-                                          runtime::DataType::Float(16), dev);
+    Tensor key_blocks =
+        Tensor::Empty({num_blocks, num_heads, head_size / vec_size, block_size, vec_size},
+                      runtime::DataType::Float(16), dev);
+    Tensor value_blocks = Tensor::Empty({num_blocks, num_heads, head_size, block_size},
+                                        runtime::DataType::Float(16), dev);
     cache.push_back(key_blocks);
     cache.push_back(value_blocks);
   }

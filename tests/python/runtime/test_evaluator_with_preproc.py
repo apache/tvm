@@ -49,9 +49,9 @@ def test_time_evalutor_with_preproc(f_preproc: str):
     dev = tvm.cuda(0)
     evaluator = f.time_evaluator(f.entry_name, dev, repeat=1000, number=1, f_preproc=f_preproc)
 
-    a = tvm.nd.array(np.random.rand(128, 128).astype("float32"), device=dev)
-    b = tvm.nd.array(np.random.rand(128, 128).astype("float32"), device=dev)
-    c = tvm.nd.array(np.zeros((128, 128)).astype("float32"), device=dev)
+    a = tvm.runtime.tensor(np.random.rand(128, 128).astype("float32"), device=dev)
+    b = tvm.runtime.tensor(np.random.rand(128, 128).astype("float32"), device=dev)
+    c = tvm.runtime.tensor(np.zeros((128, 128)).astype("float32"), device=dev)
     args = [a, b, c]
     print("Evaluator (f_preproc={}):\t{:.5f}ms".format(f_preproc, evaluator(*args).mean * 1000))
 

@@ -25,7 +25,7 @@
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <cstddef>
 #include <string>
@@ -49,7 +49,7 @@ class CublasJSONRuntime : public JSONRuntimeBase {
                     const Array<String> const_names)
       : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
 
-  void Init(const Array<NDArray>& consts) override {}
+  void Init(const Array<Tensor>& consts) override {}
 
   ffi::Optional<ffi::Function> GetFunction(const String& name) override {
     // JSONRuntimeBase::SetInputOutputBuffers(...) is not thread safe. Since CublasJSONRuntime
@@ -76,8 +76,8 @@ class CublasJSONRuntime : public JSONRuntimeBase {
                                            : EntryID(outputs_[i - input_var_eid_.size()]);
 
       const DLTensor* arg;
-      if (auto opt_nd = args[i].as<NDArray>()) {
-        NDArray arr = opt_nd.value();
+      if (auto opt_nd = args[i].as<Tensor>()) {
+        Tensor arr = opt_nd.value();
         arg = arr.operator->();
       } else {
         arg = args[i].cast<DLTensor*>();

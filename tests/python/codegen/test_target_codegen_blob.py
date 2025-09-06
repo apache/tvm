@@ -77,8 +77,8 @@ def test_cuda_multi_lib():
         # Load the system wide library
         dev = tvm.cuda()
         a_np = np.random.uniform(size=12).astype("float32")
-        a_nd = tvm.nd.array(a_np, dev)
-        b_nd = tvm.nd.array(a_np, dev)
+        a_nd = tvm.runtime.tensor(a_np, dev)
+        b_nd = tvm.runtime.tensor(a_np, dev)
         syslibA = tvm.runtime.system_lib("modA_")
         syslibB = tvm.runtime.system_lib("modB_")
         # reload same lib twice

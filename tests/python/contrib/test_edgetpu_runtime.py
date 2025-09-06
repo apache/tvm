@@ -76,7 +76,7 @@ def skipped_test_tflite_runtime():
 
         with open(tflite_model_path, "rb") as model_fin:
             runtime = tflite_runtime.create(model_fin.read(), dev, runtime_target)
-            runtime.set_input(0, tvm.nd.array(tflite_input, dev))
+            runtime.set_input(0, tvm.runtime.tensor(tflite_input, dev))
             runtime.invoke()
             out = runtime.get_output(0)
             np.testing.assert_equal(out.numpy(), tflite_output)

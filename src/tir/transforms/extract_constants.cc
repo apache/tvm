@@ -36,14 +36,14 @@
 namespace tvm {
 namespace tir {
 
-using ConstArrayType = Array<runtime::NDArray>;
+using ConstArrayType = Array<runtime::Tensor>;
 class Applicator : public tir::StmtMutator {
  protected:
   // returns index of the a in constant_array_, if not found - appends
-  size_t DeDup(const runtime::NDArray& a) {
+  size_t DeDup(const runtime::Tensor& a) {
     tvm::StructuralEqual eql;
     auto it = std::find_if(constant_array_.begin(), constant_array_.end(),
-                           [&eql, a](const runtime::NDArray& v) { return eql(a, v); });
+                           [&eql, a](const runtime::Tensor& v) { return eql(a, v); });
     if (it != constant_array_.end()) {
       return it - constant_array_.begin();
     }

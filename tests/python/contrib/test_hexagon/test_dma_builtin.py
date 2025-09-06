@@ -164,8 +164,8 @@ class TestDMACopyWait:
             vm_rt = relax.VirtualMachine(
                 vm_mod, dev, "naive"
             )  # Use naive allocator to exercise VTCM allocation in relax
-            data0 = tvm.nd.array(input_arg0_data, dev)
-            data1 = tvm.nd.array(input_arg1_data, dev)
+            data0 = tvm.runtime.tensor(input_arg0_data, dev)
+            data1 = tvm.runtime.tensor(input_arg1_data, dev)
             vm_rt.set_input("main", data0, data1)
             vm_rt.invoke_stateful("main")
             hexagon_output = vm_rt.get_outputs("main").numpy()

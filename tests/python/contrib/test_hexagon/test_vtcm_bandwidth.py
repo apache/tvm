@@ -101,8 +101,8 @@ def evaluate(hexagon_session, sch, size):
     a = np.random.randint(-128, 127, a_shape, dtype="int8")
     a_vtcm = np.zeros(a_shape, dtype="int8")
 
-    a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device, mem_scope="global")
-    a_vtcm_hexagon = tvm.runtime.ndarray.array(
+    a_hexagon = tvm.runtime.tensor(a, device=hexagon_session.device, mem_scope="global")
+    a_vtcm_hexagon = tvm.runtime.tensor(
         a_vtcm, device=hexagon_session.device, mem_scope="global.vtcm"
     )
 

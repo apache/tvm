@@ -74,21 +74,21 @@ def test_echo():
     assert fadd1(1, 2) == 3
     assert fadd1.same_as(fadd)
 
-    def check_ndarray():
+    def check_tensor():
         np_data = np.arange(10, dtype="int32")
         if not hasattr(np_data, "__dlpack__"):
             return
-        # test NDArray
+        # test Tensor
         x = tvm_ffi.from_dlpack(np_data)
-        assert isinstance(x, tvm_ffi.NDArray)
-        nd_result = fecho(x)
-        assert isinstance(nd_result, tvm_ffi.NDArray)
-        assert nd_result.shape == (10,)
-        assert nd_result.dtype == tvm_ffi.dtype("int32")
-        assert nd_result.device.device_type == tvm_ffi.Device.kDLCPU
-        assert nd_result.device.device_id == 0
+        assert isinstance(x, tvm_ffi.Tensor)
+        tensor_result = fecho(x)
+        assert isinstance(tensor_result, tvm_ffi.Tensor)
+        assert tensor_result.shape == (10,)
+        assert tensor_result.dtype == tvm_ffi.dtype("int32")
+        assert tensor_result.device.device_type == tvm_ffi.Device.kDLCPU
+        assert tensor_result.device.device_id == 0
 
-    check_ndarray()
+    check_tensor()
 
 
 def test_return_raw_str_bytes():

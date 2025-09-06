@@ -19,7 +19,7 @@
 
 /*!
  * \file src/support/scalars.h
- * \brief Helpers for converting between scalars in native, text, TIR immediate and NDArray forms.
+ * \brief Helpers for converting between scalars in native, text, TIR immediate and Tensor forms.
  */
 
 #ifndef TVM_SUPPORT_SCALARS_H_
@@ -28,18 +28,18 @@
 #include <string>
 
 #include "tvm/ir/expr.h"
-#include "tvm/runtime/ndarray.h"
+#include "tvm/runtime/tensor.h"
 
 namespace tvm {
 namespace support {
 
-/*! \brief Returns NDArray 'scalar' for given TIR immediate. */
-runtime::NDArray IntImmToNDArray(const IntImm& int_imm);
-runtime::NDArray FloatImmToNDArray(const FloatImm& float_imm);
-runtime::NDArray BoolToNDArray(bool value);
+/*! \brief Returns Tensor 'scalar' for given TIR immediate. */
+runtime::Tensor IntImmToTensor(const IntImm& int_imm);
+runtime::Tensor FloatImmToTensor(const FloatImm& float_imm);
+runtime::Tensor BoolToTensor(bool value);
 
-/*! \brief Returns literal text for NDArray 'scalar'. */
-std::string NDArrayScalarToString(const runtime::NDArray& data);
+/*! \brief Returns literal text for Tensor 'scalar'. */
+std::string TensorScalarToString(const runtime::Tensor& data);
 
 /*! \brief Returns literal text for given TIR immediate. */
 std::string IntImmToString(const IntImm& int_imm);

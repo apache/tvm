@@ -26,7 +26,7 @@ from tvm.contrib.msc.core import utils as msc_utils
 
 def to_relax(
     graph: MSCGraph,
-    weights: Optional[Dict[str, tvm.nd.array]] = None,
+    weights: Optional[Dict[str, tvm.runtime.Tensor]] = None,
     codegen_config: Optional[Dict[str, str]] = None,
     print_config: Optional[Dict[str, str]] = None,
     build_folder: msc_utils.MSCDirectory = None,

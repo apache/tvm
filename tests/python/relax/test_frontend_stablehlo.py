@@ -126,7 +126,7 @@ def check_correctness(
     tvm_output = vm.get_outputs("main")
 
     # Single ouput
-    if isinstance(tvm_output, tvm.nd.NDArray):
+    if isinstance(tvm_output, tvm.runtime.Tensor):
         tvm.testing.assert_allclose(tvm_output.numpy(), jax_output, rtol=1e-5, atol=1e-5)
         return
 
@@ -138,7 +138,7 @@ def check_correctness(
 
 def get_vm_res(
     ir_mod: tvm.IRModule, weights: Union[np.ndarray, List[np.ndarray]]
-) -> Union[tvm.nd.NDArray, List[tvm.nd.NDArray]]:
+) -> Union[tvm.runtime.Tensor, List[tvm.runtime.Tensor]]:
     """Compile and run an ir_module on Relax VM
 
     Parameters
@@ -151,7 +151,7 @@ def get_vm_res(
 
     Results
     -------
-    out: Union[tvm.nd.NDArray, List[tvm.nd.NDArray]]
+    out: Union[tvm.runtime.Tensor, List[tvm.runtime.Tensor]]
         inference result
     """
     target = tvm.target.Target("llvm", host="llvm")

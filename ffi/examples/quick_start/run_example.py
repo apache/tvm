@@ -32,7 +32,7 @@ def run_add_one_cpu():
     x = numpy.array([1, 2, 3, 4, 5], dtype=numpy.float32)
     y = numpy.empty_like(x)
     # tvm-ffi automatically handles DLPack compatible tensors
-    # torch tensors can be viewed as ffi::NDArray or DLTensor*
+    # torch tensors can be viewed as ffi::Tensor or DLTensor*
     # in the background
     mod.add_one_cpu(x, y)
     print("numpy.result after add_one(x, y)")
@@ -44,7 +44,7 @@ def run_add_one_cpu():
     x = torch.tensor([1, 2, 3, 4, 5], dtype=torch.float32)
     y = torch.empty_like(x)
     # tvm-ffi automatically handles DLPack compatible tensors
-    # torch tensors can be viewed as ffi::NDArray or DLTensor*
+    # torch tensors can be viewed as ffi::Tensor or DLTensor*
     # in the background
     mod.add_one_cpu(x, y)
     print("torch.result after add_one(x, y)")

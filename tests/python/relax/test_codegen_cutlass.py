@@ -94,7 +94,7 @@ def build_and_run(mod, inputs_np, target, legalize=True, cuda_graph=False):
     dev = tvm.device(target, 0)
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
-    inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]
+    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
 
     # For cuda graph, run the compiled function twice to make sure that we can launch the cached
     # graph on the second run.
@@ -1481,15 +1481,15 @@ def test_fp16A_int4B_gemm():
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
     packed_weight, scales, bias_trans = vm[transform_func_name](
-        (tvm.nd.array(y), tvm.nd.array(bias))
+        (tvm.runtime.tensor(y), tvm.runtime.tensor(bias))
     )
 
     dev = tvm.device("cuda", 0)
     ex = tvm.compile(mod_deploy, target="cuda")
     vm = relax.vm.VirtualMachine(ex, dev)
 
-    x_nd = tvm.nd.array(x, dev)
-    residual_nd = tvm.nd.array(residual, dev)
+    x_nd = tvm.runtime.tensor(x, dev)
+    residual_nd = tvm.runtime.tensor(residual, dev)
     params = [packed_weight.copyto(dev), scales.copyto(dev), bias_trans.copyto(dev)]
 
     for f_name in ["main_bias", "main_cast_bias", "main_residual"]:
@@ -1634,14 +1634,14 @@ def test_fp16A_int8B_gemm():
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
     packed_weight, scales, bias_trans = vm[transform_func_name](
-        (tvm.nd.array(y), tvm.nd.array(bias))
+        (tvm.runtime.tensor(y), tvm.runtime.tensor(bias))
     )
 
     dev = tvm.device("cuda", 0)
     ex = tvm.compile(mod_deploy, target="cuda")
     vm = relax.vm.VirtualMachine(ex, dev)
 
-    x_nd = tvm.nd.array(x, dev)
+    x_nd = tvm.runtime.tensor(x, dev)
     inp = [x_nd, packed_weight.copyto(dev), scales.copyto(dev), bias_trans.copyto(dev)]
     out = vm["main"](*inp).numpy()
 
@@ -1909,13 +1909,13 @@ def test_fp16A_int8B_gemm_batched():
     ex = tvm.compile(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
-    packed_weight, scales = vm[transform_func_name]((tvm.nd.array(y),))
+    packed_weight, scales = vm[transform_func_name]((tvm.runtime.tensor(y),))
 
     dev = tvm.device("cuda", 0)
     ex = tvm.compile(mod_deploy, target="cuda")
     vm = relax.vm.VirtualMachine(ex, dev)
 
-    x_nd = tvm.nd.array(x, dev)
+    x_nd = tvm.runtime.tensor(x, dev)
     inp = [x_nd, packed_weight.copyto(dev), scales.copyto(dev)]
     out = vm["main"](*inp).numpy()
     ref = np.dot(x, y.transpose())
@@ -2064,13 +2064,13 @@ def test_fp16A_int8B_gemm_batched_finegrained():
     ex = tvm.compile(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
-    packed_weight, scales = vm[transform_func_name]((tvm.nd.array(y),))
+    packed_weight, scales = vm[transform_func_name]((tvm.runtime.tensor(y),))
 
     dev = tvm.device("cuda", 0)
     ex = tvm.compile(mod_deploy, target="cuda")
     vm = relax.vm.VirtualMachine(ex, dev)
 
-    x_nd = tvm.nd.array(x, dev)
+    x_nd = tvm.runtime.tensor(x, dev)
     inp = [x_nd, packed_weight.copyto(dev), scales.copyto(dev)]
     out = vm["main"](*inp).numpy()
     ref = np.dot(x, y.transpose())

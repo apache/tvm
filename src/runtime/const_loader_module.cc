@@ -19,7 +19,7 @@
 
 /*!
  * \file src/runtime/const_loader_module.cc
- * \brief A wrapper for initializing imported modules using constant NDArray. This
+ * \brief A wrapper for initializing imported modules using constant Tensor. This
  * module is intended to be used by various runtime in the TVM stack, i.e.
  * graph executor, relax VM, AOT runtime, and various user defined runtimes. It
  * paves the way to separate the code and metedata, which makes compilation
@@ -34,7 +34,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <cstdint>
 
@@ -48,9 +48,9 @@ namespace runtime {
 class ConstLoaderModuleObj : public ffi::ModuleObj {
  public:
   ConstLoaderModuleObj(
-      const std::unordered_map<std::string, NDArray>& const_var_ndarray,
+      const std::unordered_map<std::string, Tensor>& const_var_tensor,
       const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol)
-      : const_var_ndarray_(const_var_ndarray), const_vars_by_symbol_(const_vars_by_symbol) {
+      : const_var_tensor_(const_var_tensor), const_vars_by_symbol_(const_vars_by_symbol) {
     VLOG(1) << "Creating ConstLoaderModule";
     // Only the related submodules are cached to reduce the number of runtime
     // symbol lookup for initialization. Otherwise, symbols/primitives in the
@@ -59,7 +59,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
       for (const auto& var : kv.second) {
         VLOG(1) << "ConstLoaderModuleNode has constant '" << var << "' for function '" << kv.first
                 << "'";
-        ICHECK_GT(const_var_ndarray_.count(var), 0)
+        ICHECK_GT(const_var_tensor_.count(var), 0)
             << "ConstLoaderModuleNode is missing entry for constant '" << var << "' for function '"
             << kv.first << "'";
       }
@@ -78,10 +78,10 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
     }
     ObjectRef _self = ffi::GetRef<ObjectRef>(this);
 
-    if (name == "get_const_var_ndarray") {
+    if (name == "get_const_var_tensor") {
       return ffi::Function([_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         Map<String, ffi::Any> ret_map;
-        for (const auto& kv : const_var_ndarray_) {
+        for (const auto& kv : const_var_tensor_) {
           ret_map.Set(kv.first, kv.second);
         }
         *rv = ret_map;
@@ -107,17 +107,17 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
   /*!
    * \brief Get the list of constants that is required by the given module.
    * \param symbol The symbol that is being queried.
-   * \return The list of needed NDArray.
+   * \return The list of needed Tensor.
    */
-  Array<NDArray> GetRequiredConstants(const std::string& symbol) {
-    Array<NDArray> ret;
+  Array<Tensor> GetRequiredConstants(const std::string& symbol) {
+    Array<Tensor> ret;
     ICHECK_GT(const_vars_by_symbol_.count(symbol), 0U)
         << "No constants known for function '" << symbol << "'";
     std::vector<std::string> vars = const_vars_by_symbol_[symbol];
     for (const auto& var : vars) {
-      ICHECK_GT(const_var_ndarray_.count(var), 0U)
+      ICHECK_GT(const_var_tensor_.count(var), 0U)
           << "No such constant variable '" << var << "' for function '" << symbol << "'";
-      ret.push_back(const_var_ndarray_[var]);
+      ret.push_back(const_var_tensor_[var]);
     }
     return ret;
   }
@@ -157,20 +157,20 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
     dmlc::Stream* stream = &ms;
 
     std::vector<std::string> variables;
-    std::vector<NDArray> const_var_ndarray;
-    for (const auto& it : const_var_ndarray_) {
+    std::vector<Tensor> const_var_tensor;
+    for (const auto& it : const_var_tensor_) {
       String var_name = it.first;
       variables.push_back(var_name);
-      const_var_ndarray.push_back(it.second);
+      const_var_tensor.push_back(it.second);
     }
 
     // Save all variables in the function.
     stream->Write(variables);
     // Save all constant data.
-    uint64_t sz = static_cast<uint64_t>(const_var_ndarray.size());
+    uint64_t sz = static_cast<uint64_t>(const_var_tensor.size());
     stream->Write(sz);
     for (uint64_t i = 0; i < sz; i++) {
-      const_var_ndarray[i].Save(stream);
+      const_var_tensor[i].Save(stream);
     }
 
     // Save the symbol to list of required constant variables mapping
@@ -202,17 +202,17 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
     ICHECK_EQ(static_cast<size_t>(sz), variables.size())
         << "The number of variables and ndarray counts must match";
     // Load the list of ndarray.
-    std::vector<NDArray> arrays;
+    std::vector<Tensor> arrays;
     for (uint64_t i = 0; i < sz; i++) {
-      NDArray temp;
+      Tensor temp;
       temp.Load(stream);
       arrays.push_back(temp);
     }
 
-    std::unordered_map<std::string, NDArray> const_var_ndarray;
+    std::unordered_map<std::string, Tensor> const_var_tensor;
     for (uint64_t i = 0; i < sz; i++) {
-      ICHECK_EQ(const_var_ndarray.count(variables[i]), 0U);
-      const_var_ndarray[variables[i]] = arrays[i];
+      ICHECK_EQ(const_var_tensor.count(variables[i]), 0U);
+      const_var_tensor[variables[i]] = arrays[i];
     }
 
     // Load the symbol to list of required constant variables mapping
@@ -232,7 +232,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
       const_vars_by_symbol[symbols[i]] = const_vars[i];
     }
 
-    auto n = make_object<ConstLoaderModuleObj>(const_var_ndarray, const_vars_by_symbol);
+    auto n = make_object<ConstLoaderModuleObj>(const_var_tensor, const_vars_by_symbol);
     return ffi::Module(n);
   }
 
@@ -242,16 +242,16 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
    * modules using execution engine.
    */
   std::unordered_map<std::string, bool> initialized_;
-  /*! \brief Variable name to NDArray mapping. */
-  std::unordered_map<std::string, NDArray> const_var_ndarray_;
+  /*! \brief Variable name to Tensor mapping. */
+  std::unordered_map<std::string, Tensor> const_var_tensor_;
   /*! \brief Symbol name to required constant variables mapping. */
   std::unordered_map<std::string, std::vector<std::string>> const_vars_by_symbol_;
 };
 
 ffi::Module ConstLoaderModuleCreate(
-    const std::unordered_map<std::string, NDArray>& const_var_ndarray,
+    const std::unordered_map<std::string, Tensor>& const_var_tensor,
     const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol) {
-  auto n = make_object<ConstLoaderModuleObj>(const_var_ndarray, const_vars_by_symbol);
+  auto n = make_object<ConstLoaderModuleObj>(const_var_tensor, const_vars_by_symbol);
   return ffi::Module(n);
 }
 

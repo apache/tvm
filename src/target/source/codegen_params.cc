@@ -160,8 +160,8 @@ void PrintFloatingPointArray(void* data, size_t num_elements, int indent_chars, 
   }
 }
 
-void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream& os,
-                    const std::string& eol) {
+void TensorDataToC(::tvm::runtime::Tensor arr, int indent_chars, std::ostream& os,
+                   const std::string& eol) {
   auto arr_type = arr.DataType();
   CHECK_EQ(arr_type.lanes(), 1) << "CodegenParams: only support generating 1-lane parameters; saw "
                                 << arr_type.lanes();

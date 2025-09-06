@@ -63,8 +63,8 @@ def test_constants():
                 lv0 = R.add(R.const(1, dtype="int32"), R.const(1, dtype="int32"))
                 # we expect to bind the repeated large constants
                 lv1 = R.add(
-                    R.const(tvm.nd.array(np.zeros((2, 2), dtype="int32"))),
-                    R.const(tvm.nd.array(np.zeros((2, 2), dtype="int32"))),
+                    R.const(tvm.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
+                    R.const(tvm.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
                 )
                 gv = (lv0, lv1)
                 R.output(gv)
@@ -77,8 +77,8 @@ def test_constants():
             with R.dataflow():
                 lv0 = R.add(R.const(1, dtype="int32"), R.const(1, dtype="int32"))
                 lv1 = R.add(
-                    R.const(tvm.nd.array(np.zeros((2, 2), dtype="int32"))),
-                    R.const(tvm.nd.array(np.zeros((2, 2), dtype="int32"))),
+                    R.const(tvm.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
+                    R.const(tvm.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
                 )
                 gv = (lv0, lv1)
                 R.output(gv)

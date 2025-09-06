@@ -102,9 +102,9 @@ export const enum TypeIndex {
    */
   kTVMFFIShape = 70,
   /*!
-   * \brief NDArray object, layout = { TVMFFIObject, DLTensor, ... }
+   * \brief Tensor object, layout = { TVMFFIObject, DLTensor, ... }
    */
-  kTVMFFINDArray = 71,
+  kTVMFFITensor = 71,
   /*! \brief Map object. */
   kTVMFFIMap = 72,
   /*! \brief Runtime module object. */

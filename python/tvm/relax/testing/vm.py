@@ -32,35 +32,35 @@ def move(src):
 @tvm.register_func("test.vm.add")
 def add(a, b):
     ret = a.numpy() + b.numpy()
-    return tvm.nd.array(ret)
+    return tvm.runtime.tensor(ret)
 
 
 @tvm.register_func("test.vm.mul")
 def mul(a, b):
     ret = a.numpy() * b.numpy()
-    return tvm.nd.array(ret)
+    return tvm.runtime.tensor(ret)
 
 
 @tvm.register_func("test.vm.equal_zero")
 def equal_zero(a):
     ret = np.all((a.numpy() == 0))
-    return tvm.nd.array(ret)
+    return tvm.runtime.tensor(ret)
 
 
 @tvm.register_func("test.vm.subtract_one")
 def subtract_one(a):
     ret = np.subtract(a.numpy(), 1)
-    return tvm.nd.array(ret)
+    return tvm.runtime.tensor(ret)
 
 
 @tvm.register_func("test.vm.identity")
 def identity_packed(a, b):
-    b[:] = tvm.nd.array(a.numpy())
+    b[:] = tvm.runtime.tensor(a.numpy())
 
 
 @tvm.register_func("test.vm.tile")
 def tile_packed(a, b):
-    b[:] = tvm.nd.array(np.tile(a.numpy(), (1, 2)))
+    b[:] = tvm.runtime.tensor(np.tile(a.numpy(), (1, 2)))
 
 
 @tvm.register_func("test.vm.add_scalar")

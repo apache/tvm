@@ -27,7 +27,7 @@ from .core import Effect, Module, ModuleList, Parameter, Tensor, get_default_dty
 
 class IOEffect(Effect):
     """
-    Modeling IO side effect, for example, printing the content of NDArrays on screen, inserting
+    Modeling IO side effect, for example, printing the content of Tensors on screen, inserting
     debug breakpoints, etc.
     """
 

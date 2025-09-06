@@ -131,7 +131,7 @@ std::tuple<Map<Var, Expr>, Map<tir::Var, PrimExpr>> NormalizeBindings(
   auto normalize_value = [&](ffi::Any obj) -> relax::Expr {
     if (auto opt = obj.as<relax::Expr>()) {
       return opt.value();
-    } else if (auto opt = obj.as<runtime::NDArray>()) {
+    } else if (auto opt = obj.as<runtime::Tensor>()) {
       return Constant(opt.value());
     } else {
       LOG(FATAL) << "Cannot coerce object of type " << obj.GetTypeKey() << " into relax expression";

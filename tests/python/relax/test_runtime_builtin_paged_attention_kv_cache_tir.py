@@ -142,7 +142,7 @@ def set_global_func(head_dim, dtype):
         with target:
             mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
         f = tvm.tir.build(mod["main"], target=target)
-        builts.append(f.entry_func)
+        builts.append(f.main)
 
     (
         ftranspose_append,
@@ -184,7 +184,7 @@ def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
         rope_scale,
         rope_theta,
         None,  # rope_ext_factors
-        tvm.nd.empty((), dtype, device=device),
+        tvm.runtime.empty((), dtype, device=device),
         ftranspose_append,
         None,  # f_transpose_append_mla
         ["tir", fattn_prefill_ragged],
@@ -235,8 +235,8 @@ def verify_cached_kv(kv_cache, seq_ids, expected_k, expected_v):
         values_expected = expected_v[seq_id]
         assert keys_expected.shape == values_expected.shape
         seq_length = expected_k[seq_id].shape[1]
-        keys = tvm.nd.empty(keys_expected.shape, dtype=dtype, device=device)
-        values = tvm.nd.empty(values_expected.shape, dtype=dtype, device=device)
+        keys = tvm.runtime.empty(keys_expected.shape, dtype=dtype, device=device)
+        values = tvm.runtime.empty(values_expected.shape, dtype=dtype, device=device)
         fdebug_get_kv(kv_cache, seq_id, 0, seq_length, keys, values)
         torch.testing.assert_close(
             torch.from_numpy(keys.numpy()).to(device_torch), keys_expected, rtol=1e-3, atol=1e-3
@@ -428,8 +428,10 @@ def apply_attention(
         queries_np = global_new_q[layer_id]
         keys_np = global_new_k[layer_id]
         values_np = global_new_v[layer_id]
-        qkv = tvm.nd.array(torch.cat([queries_np, keys_np, values_np], dim=1).cpu().numpy(), device)
-        outputs = tvm.nd.empty(queries_np.shape, dtype, device=device)
+        qkv = tvm.runtime.tensor(
+            torch.cat([queries_np, keys_np, values_np], dim=1).cpu().numpy(), device
+        )
+        outputs = tvm.runtime.empty(queries_np.shape, dtype, device=device)
         fattention_with_fuse_qkv(kv_cache, layer_id, sm_scale, qkv, outputs)
 
         # Compute attention expected results.

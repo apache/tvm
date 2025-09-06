@@ -291,7 +291,7 @@ class SGD(Optimizer):
         self._set_params_and_dtype(params)
         self.state = (
             # num_steps = 0
-            tvm.nd.array(np.zeros((), "int64")),
+            tvm.runtime.tensor(np.zeros((), "int64")),
         )
         return self
 
@@ -433,10 +433,10 @@ class MomentumSGD(Optimizer):
         self._set_params_and_dtype(params)
         self.state = (
             # num_steps = 0
-            tvm.nd.array(np.zeros((), "int64")),
+            tvm.runtime.tensor(np.zeros((), "int64")),
             # v_{param} is initialized to all zeros
             *(
-                tvm.nd.array(np.zeros(_get_shape_as_int_list(p), p.struct_info.dtype))
+                tvm.runtime.tensor(np.zeros(_get_shape_as_int_list(p), p.struct_info.dtype))
                 for p in self.param_list
             ),
         )
@@ -604,17 +604,17 @@ class Adam(Optimizer):
         self._set_params_and_dtype(params)
         self.state = (
             # num_steps, beta_0_prod, beta_1_prod
-            tvm.nd.array(np.zeros((), "int64")),
-            tvm.nd.array(np.ones((), self.dtype)),
-            tvm.nd.array(np.ones((), self.dtype)),
+            tvm.runtime.tensor(np.zeros((), "int64")),
+            tvm.runtime.tensor(np.ones((), self.dtype)),
+            tvm.runtime.tensor(np.ones((), self.dtype)),
             # first_momentum
             *(
-                tvm.nd.array(np.zeros(_get_shape_as_int_list(p), p.struct_info.dtype))
+                tvm.runtime.tensor(np.zeros(_get_shape_as_int_list(p), p.struct_info.dtype))
                 for p in self.param_list
             ),
             # second_momentum
             *(
-                tvm.nd.array(np.zeros(_get_shape_as_int_list(p), p.struct_info.dtype))
+                tvm.runtime.tensor(np.zeros(_get_shape_as_int_list(p), p.struct_info.dtype))
                 for p in self.param_list
             ),
         )

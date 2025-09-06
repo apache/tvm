@@ -325,7 +325,7 @@ class ExprUtils {
    * \return The scalar value.
    */
   template <typename T>
-  TVM_DLL static const T GetScalar(const runtime::NDArray& array, size_t i = 0) {
+  TVM_DLL static const T GetScalar(const runtime::Tensor& array, size_t i = 0) {
     if (array->dtype.code == kDLInt) {
       if (array->dtype.bits == 8) {
         return T(reinterpret_cast<int8_t*>(array->data)[i]);

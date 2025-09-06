@@ -67,7 +67,7 @@ void CoreMLModel::SetInput(const std::string& key, DLTensor* data_in) {
   [input_dict_ setObject:dest forKey:nsKey];
 }
 
-NDArray CoreMLModel::GetOutput(int index) const {
+Tensor CoreMLModel::GetOutput(int index) const {
   MLModelDescription* model_desc = model_.modelDescription;
   NSString* metadata = [model_desc metadata][MLModelDescriptionKey];
   NSData* data = [metadata dataUsingEncoding:NSUTF8StringEncoding];
@@ -103,7 +103,7 @@ NDArray CoreMLModel::GetOutput(int index) const {
       .device_type = kDLCPU,
       .device_id = 0,
   };
-  NDArray ret = NDArray::Empty(shape, dtype, cpu_dev);
+  Tensor ret = Tensor::Empty(shape, dtype, cpu_dev);
   ret.CopyFromBytes(src.dataPointer, size);
 
   return ret;
@@ -157,10 +157,9 @@ Optional<ffi::Function> CoreMLRuntime::GetFunction(const String& name) {
 
       // Copy input tensors to corresponding data entries.
       for (auto i = 0; i < args.size() - 1; ++i) {
-        ICHECK(args[i].type_code() == kTVMDLTensorHandle ||
-               args[i].type_code() == kTVMNDArrayHandle)
-            << "Expect NDArray or DLTensor as inputs\n";
-        if (args[i].type_code() == kTVMDLTensorHandle || args[i].type_code() == kTVMNDArrayHandle) {
+        ICHECK(args[i].type_code() == kTVMDLTensorHandle || args[i].type_code() == kTVMTensorHandle)
+            << "Expect Tensor or DLTensor as inputs\n";
+        if (args[i].type_code() == kTVMDLTensorHandle || args[i].type_code() == kTVMTensorHandle) {
           model_->SetInput([input_names[i] UTF8String], args[i]);
         } else {
           LOG(FATAL) << "Not implemented";
@@ -171,12 +170,12 @@ Optional<ffi::Function> CoreMLRuntime::GetFunction(const String& name) {
       model_->Invoke();
 
       // TODO: Support multiple outputs.
-      NDArray out = model_->GetOutput(0);
+      Tensor out = model_->GetOutput(0);
       if (args[args.size() - 1].type_code() == kTVMDLTensorHandle) {
         DLTensor* arg = args[args.size() - 1];
         out.CopyTo(arg);
       } else {
-        NDArray arg = args[args.size() - 1];
+        Tensor arg = args[args.size() - 1];
         out.CopyTo(arg);
       }
       *rv = out;

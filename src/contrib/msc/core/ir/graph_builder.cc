@@ -34,7 +34,7 @@ namespace msc {
 
 using namespace tvm::relax;
 
-const std::string GetScalarStr(const runtime::NDArray& data, int float_precision) {
+const std::string GetScalarStr(const runtime::Tensor& data, int float_precision) {
   std::string scalar_str;
   if (data->dtype.code == kDLFloat) {
     const float val = ExprUtils::GetScalar<float>(data);
@@ -809,7 +809,7 @@ Array<Expr> GraphBuilder::GetPluginInputs(const Expr& expr) {
   return Downcast<relax::Tuple>(call->args[1])->fields;
 }
 
-Map<MSCTensor, NDArray> WeightsExtractor::GetWeights(const Function& func) {
+Map<MSCTensor, Tensor> WeightsExtractor::GetWeights(const Function& func) {
   VisitExpr(func);
   return weights_;
 }
@@ -849,7 +849,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              return builder.Build(func);
            })
       .def("msc.core.GetRelaxWeights",
-           [](const IRModule& module, const String& entry_name) -> Map<MSCTensor, NDArray> {
+           [](const IRModule& module, const String& entry_name) -> Map<MSCTensor, Tensor> {
              const auto& func = Downcast<Function>(module->Lookup(entry_name));
              return WeightsExtractor(module).GetWeights(func);
            });

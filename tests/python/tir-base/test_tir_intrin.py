@@ -42,8 +42,8 @@ def test_nearbyint():
 
     dev = tvm.cpu(0)
     n = 10
-    a = tvm.nd.array(np.random.uniform(high=100, size=n).astype(A.dtype), dev)
-    a_rounded = tvm.nd.array(np.random.uniform(size=n).astype(A_rounded.dtype), dev)
+    a = tvm.runtime.tensor(np.random.uniform(high=100, size=n).astype(A.dtype), dev)
+    a_rounded = tvm.runtime.tensor(np.random.uniform(size=n).astype(A_rounded.dtype), dev)
     func(a, a_rounded)
     # Note that numpys rint rounds to nearest integer with
     # ties to halfway is broken by rounding to even.
@@ -97,8 +97,8 @@ def test_unary_intrin():
 
         dev = tvm.cpu(0)
         n = 10
-        a = tvm.nd.array(np.random.uniform(0.1, 0.5, size=n).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(0.1, 0.5, size=n).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
         func(a, b)
         tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=atol, rtol=rtol)
 
@@ -113,8 +113,8 @@ def test_unary_intrin():
                     np.random.uniform(-2.0, -1.1, size=n // 2),
                 ]
             ).astype(A.dtype)
-            a2 = tvm.nd.array(out_np, dev)
-            b2 = tvm.nd.array(np.empty_like(out_np), dev)
+            a2 = tvm.runtime.tensor(out_np, dev)
+            b2 = tvm.runtime.tensor(np.empty_like(out_np), dev)
             func(a2, b2)
             # all outputs should be NaN
             assert np.all(np.isnan(b2.numpy()))
@@ -149,9 +149,9 @@ def test_binary_intrin():
 
         dev = tvm.cpu(0)
         n = 10
-        a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(B.dtype), dev)
-        c = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(0, 1, size=n).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.random.uniform(0, 1, size=n).astype(B.dtype), dev)
+        c = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
         func(a, b, c)
         tvm.testing.assert_allclose(c.numpy(), np_func(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5)
 
@@ -176,9 +176,9 @@ def test_ldexp():
 
     dev = tvm.cpu(0)
     n = 10
-    a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), dev)
-    b = tvm.nd.array(np.random.randint(0, 5, size=n).astype(B.dtype), dev)
-    c = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+    a = tvm.runtime.tensor(np.random.uniform(0, 1, size=n).astype(A.dtype), dev)
+    b = tvm.runtime.tensor(np.random.randint(0, 5, size=n).astype(B.dtype), dev)
+    c = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
     func(a, b, c)
     tvm.testing.assert_allclose(c.numpy(), np.ldexp(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5)
 
@@ -230,8 +230,8 @@ def test_clz(target, dev, dtype):
 
     for high in highs:
         a_np = np.random.randint(1, high=high, size=(n,), dtype=dtype)
-        a = tvm.nd.array(a_np, dev)
-        b = tvm.nd.array(np.zeros((n,)).astype("int32"), dev)
+        a = tvm.runtime.tensor(a_np, dev)
+        b = tvm.runtime.tensor(np.zeros((n,)).astype("int32"), dev)
         func(a, b)
         ref = clz_np(a_np, dtype)
         np.testing.assert_equal(b.numpy(), ref)

@@ -25,8 +25,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/meta_schedule/measure_candidate.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/tensor.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -47,10 +47,10 @@ class FeatureExtractorNode : public runtime::Object {
    * \brief Extract features from the given measure candidate.
    * \param context The tuning context for feature extraction.
    * \param candidates The measure candidates to extract features from.
-   * \return The feature ndarray extracted.
+   * \return The feature tensor extracted.
    */
-  virtual Array<tvm::runtime::NDArray> ExtractFrom(const TuneContext& context,
-                                                   const Array<MeasureCandidate>& candidates) = 0;
+  virtual Array<tvm::runtime::Tensor> ExtractFrom(const TuneContext& context,
+                                                  const Array<MeasureCandidate>& candidates) = 0;
 
   static constexpr const char* _type_key = "meta_schedule.FeatureExtractor";
   TVM_DECLARE_BASE_OBJECT_INFO(FeatureExtractorNode, Object);
@@ -63,9 +63,9 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
    * \brief Extract features from the given measure candidate.
    * \param context The tuning context for feature extraction.
    * \param candidates The measure candidates to extract features from.
-   * \return The feature ndarray extracted.
+   * \return The feature tensor extracted.
    */
-  using FExtractFrom = ffi::TypedFunction<Array<tvm::runtime::NDArray>(
+  using FExtractFrom = ffi::TypedFunction<Array<tvm::runtime::Tensor>(
       const TuneContext& context, const Array<MeasureCandidate>& candidates)>;
   /*!
    * \brief Get the feature extractor as string with name.
@@ -83,8 +83,8 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
     // `f_as_string` is not registered
   }
 
-  Array<tvm::runtime::NDArray> ExtractFrom(const TuneContext& context,
-                                           const Array<MeasureCandidate>& candidates) final;
+  Array<tvm::runtime::Tensor> ExtractFrom(const TuneContext& context,
+                                          const Array<MeasureCandidate>& candidates) final;
 
   static constexpr const char* _type_key = "meta_schedule.PyFeatureExtractor";
   TVM_DECLARE_FINAL_OBJECT_INFO(PyFeatureExtractorNode, FeatureExtractorNode);

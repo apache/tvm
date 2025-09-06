@@ -414,7 +414,7 @@ def render_object(val: tvm.Object) -> str:
     ret: str
         A string representing the value, ideally human-readable
     """
-    if isinstance(val, tvm.nd.NDArray):
+    if isinstance(val, tvm.runtime.Tensor):
         return str(val)
     if isinstance(val, tvm.ir.Array):
         fields = ", ".join([render_object(val[i]) for i in range(len(val))])
@@ -423,16 +423,16 @@ def render_object(val: tvm.Object) -> str:
 
 
 @tvm.register_func("relax.run.shape_to_tensor")
-def relax_shape_to_tensor(shape_tuple: tvm.runtime.ShapeTuple) -> tvm.nd.NDArray:
+def relax_shape_to_tensor(shape_tuple: tvm.runtime.ShapeTuple) -> tvm.runtime.Tensor:
     """
-    Takes a ShapeTuple and convert it to NDArray.
+    Takes a ShapeTuple and convert it to Tensor.
 
     Parameters
     ----------
     shape_tuple: tvm.runtime.ShapeTuple
-        Shape tuple that we want to convert to NDArray at runtime
+        Shape tuple that we want to convert to Tensor at runtime
     """
-    return tvm.nd.array([int(v) for v in shape_tuple])
+    return tvm.runtime.tensor([int(v) for v in shape_tuple])
 
 
 @tvm.register_func("relax.run.print")
@@ -514,7 +514,7 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
 
     if isinstance(condition, (bool, int)):
         val = condition
-    elif isinstance(condition, tvm.nd.NDArray):
+    elif isinstance(condition, tvm.runtime.Tensor):
         # may happen if the original program had unknown shape or dtype for the tensor's type
         dtype = condition.dtype
         if dtype != "bool":
@@ -528,7 +528,7 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
     else:
         # should be guaranteed by the type system
         raise ValueError(
-            f"The condition for relax assert must be a bool, int, or NDArray, "
+            f"The condition for relax assert must be a bool, int, or Tensor, "
             f"but received a {type(condition)}."
         )
 

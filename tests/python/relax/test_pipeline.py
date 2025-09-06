@@ -40,8 +40,8 @@ def test_pipeline_compile():
     ex = tvm.compile(mod, target)
     x_np = np.random.rand(3, 4).astype(np.float32)
     y_np = np.random.rand(3, 4).astype(np.float32)
-    x = tvm.nd.array(x_np)
-    y = tvm.nd.array(y_np)
+    x = tvm.runtime.tensor(x_np)
+    y = tvm.runtime.tensor(y_np)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     z = vm["main"](x, y)
@@ -106,8 +106,8 @@ def test_pipeline_with_kv_cache():
     for i in range(num_steps):
         x_np = np.random.rand(1, 4).astype(np.float32)
         y_np = np.random.rand(1, 4).astype(np.float32)
-        x = tvm.nd.array(x_np)
-        y = tvm.nd.array(y_np)
+        x = tvm.runtime.tensor(x_np)
+        y = tvm.runtime.tensor(y_np)
         np_shape = (i + 1, 4)
         kv, kv_cache = vm["main"](x, y, tvm.runtime.ShapeTuple(np_shape), kv_cache)
 

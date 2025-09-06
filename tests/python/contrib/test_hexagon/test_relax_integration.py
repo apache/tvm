@@ -57,7 +57,7 @@ def test_mobilenet_onnx(hexagon_session: Session):
 
     vm_mod = hexagon_session.get_executor_from_factory(exe)
     vm_rt = relax.VirtualMachine(vm_mod, dev)
-    data = tvm.nd.array(data_np, dev)
+    data = tvm.runtime.tensor(data_np, dev)
     vm_rt.set_input("main", data)
     vm_rt.invoke_stateful("main")
     hexagon_res = vm_rt.get_outputs("main")
@@ -67,7 +67,7 @@ def test_mobilenet_onnx(hexagon_session: Session):
     exe = tvm.compile(relax_mod, "llvm")
     dev = tvm.cpu()
     vm_rt = relax.VirtualMachine(exe, dev)
-    data = tvm.nd.array(data_np, dev)
+    data = tvm.runtime.tensor(data_np, dev)
     llvm_res = vm_rt["main"](data)
     tvm.testing.assert_allclose(hexagon_res.numpy(), llvm_res.numpy(), rtol=1e-3)
 
@@ -91,7 +91,7 @@ def test_mobilenet(hexagon_session: Session):
 
     vm_mod = hexagon_session.get_executor_from_factory(exe)
     vm_rt = relax.VirtualMachine(vm_mod, dev)
-    data = tvm.nd.array(data_np, dev)
+    data = tvm.runtime.tensor(data_np, dev)
     vm_rt.set_input("main", data)
     vm_rt.invoke_stateful("main")
     hexagon_res = vm_rt.get_outputs("main")
@@ -101,7 +101,7 @@ def test_mobilenet(hexagon_session: Session):
     exe = tvm.compile(relax_mod, "llvm")
     dev = tvm.cpu()
     vm_rt = relax.VirtualMachine(exe, dev)
-    data = tvm.nd.array(data_np, dev)
+    data = tvm.runtime.tensor(data_np, dev)
     llvm_res = vm_rt["main"](data)
     tvm.testing.assert_allclose(hexagon_res.numpy(), llvm_res.numpy(), rtol=1e-3)
 

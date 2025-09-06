@@ -24,7 +24,7 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <utility>
 #include <vector>

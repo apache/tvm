@@ -25,7 +25,7 @@
 #ifndef TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_BUILDER_H_
 #define TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_BUILDER_H_
 
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <string>
 #include <unordered_map>

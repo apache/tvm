@@ -72,8 +72,8 @@ def test_rpc_module():
         dev = remote.cl(0)
         remote.upload(path_dso_cl)
         f1 = remote.load_module("dev_lib_cl.so")
-        a = tvm.nd.array(a_np, dev)
-        b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
+        a = tvm.runtime.tensor(a_np, dev)
+        b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
         time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
         cost = time_f(a, b).mean
         print("%g secs/op\n" % cost)

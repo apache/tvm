@@ -125,23 +125,23 @@ TVM_FFI_STATIC_INIT_BLOCK({
 [https://github.com/apache/tvm/blob/b2757817af7ba3aefe16ea3ccb6d4982dd7fd531/python/tvm/runtime/ndarray.py#L183](https://github.com/apache/tvm/blob/b2757817af7ba3aefe16ea3ccb6d4982dd7fd531/python/tvm/runtime/ndarray.py#L183)
 
 ```python
-check_call(_LIB.TVMArrayCopyFromBytes(self.handle, data, nbytes))
+check_call(_LIB.TVMTensorCopyFromBytes(self.handle, data, nbytes))
 ```
 
-[https://github.com/apache/tvm/blob/37cd9837ff302e4490696ca57a9fbba6404c7046/src/runtime/ndarray.cc#L322](https://github.com/apache/tvm/blob/37cd9837ff302e4490696ca57a9fbba6404c7046/src/runtime/ndarray.cc#L322)
+[https://github.com/apache/tvm/blob/37cd9837ff302e4490696ca57a9fbba6404c7046/src/runtime/tensor.cc#L322](https://github.com/apache/tvm/blob/37cd9837ff302e4490696ca57a9fbba6404c7046/src/runtime/tensor.cc#L322)
 
 ```cpp
-int TVMArrayCopyFromBytes(TVMArrayHandle handle, void* data, size_t nbytes) {
+int TVMTensorCopyFromBytes(TVMArrayHandle handle, void* data, size_t nbytes) {
   API_BEGIN();
-  ArrayCopyFromBytes(handle, data, nbytes);
+  TensorCopyFromBytes(handle, data, nbytes);
   API_END();
 }
 ```
 
-Now we come to `ArrayCopyFromBytes` function. The first non-obvious question is, which `DeviceAPI` is selected by `DeviceAPI::Get(handle->device)`?
+Now we come to `TensorCopyFromBytes` function. The first non-obvious question is, which `DeviceAPI` is selected by `DeviceAPI::Get(handle->device)`?
 
 ```cpp
-void ArrayCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
+void TensorCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
   ...
   DLTensor from;
   ...

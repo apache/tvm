@@ -81,8 +81,8 @@ export class RPCServer {
   state: RPCServerState = RPCServerState.InitHeader;
   logger: (msg: string) => void;
   getImports: () => Record<string, unknown>;
-  private ndarrayCacheUrl: string;
-  private ndarrayCacheDevice: string;
+  private tensorCacheUrl: string;
+  private tensorCacheDevice: string;
   private initProgressCallback?: runtime.InitProgressCallback;
   private asyncOnServerLoad?: (inst: runtime.Instance) => Promise<void>;
   private pendingSend: Promise<void> = Promise.resolve();
@@ -102,8 +102,8 @@ export class RPCServer {
     key: string,
     getImports: () => Record<string, unknown>,
     logger: (msg: string) => void = console.log,
-    ndarrayCacheUrl = "",
-    ndarrayCacheDevice = "cpu",
+    tensorCacheUrl = "",
+    tensorCacheDevice = "cpu",
     initProgressCallback: runtime.InitProgressCallback | undefined = undefined,
     asyncOnServerLoad: ((inst: runtime.Instance) => Promise<void>) | undefined = undefined,
   ) {
@@ -112,8 +112,8 @@ export class RPCServer {
     this.name = "WebSocketRPCServer[" + this.key + "]: ";
     this.getImports = getImports;
     this.logger = logger;
-    this.ndarrayCacheUrl = ndarrayCacheUrl;
-    this.ndarrayCacheDevice = ndarrayCacheDevice;
+    this.tensorCacheUrl = tensorCacheUrl;
+    this.tensorCacheDevice = tensorCacheDevice;
     this.initProgressCallback = initProgressCallback;
     this.asyncOnServerLoad = asyncOnServerLoad;
     this.checkLittleEndian();
@@ -145,7 +145,7 @@ export class RPCServer {
       this.log("Automatic reconnecting..");
       new RPCServer(
         this.url, this.key, this.getImports, this.logger,
-        this.ndarrayCacheUrl, this.ndarrayCacheDevice,
+        this.tensorCacheUrl, this.tensorCacheDevice,
         this.initProgressCallback, this.asyncOnServerLoad);
     } else {
       this.log("Closing the server, final state=" + this.state);
@@ -287,12 +287,12 @@ export class RPCServer {
         this.inst.registerInitProgressCallback(this.initProgressCallback);
       }
 
-      if (this.ndarrayCacheUrl.length != 0) {
-        if (this.ndarrayCacheDevice === "cpu") {
-          await this.inst.fetchNDArrayCache(this.ndarrayCacheUrl, this.inst.cpu());
+      if (this.tensorCacheUrl.length != 0) {
+        if (this.tensorCacheDevice === "cpu") {
+          await this.inst.fetchTensorCache(this.tensorCacheUrl, this.inst.cpu());
         } else {
-          assert(this.ndarrayCacheDevice === "webgpu");
-          await this.inst.fetchNDArrayCache(this.ndarrayCacheUrl, this.inst.webgpu());
+          assert(this.tensorCacheDevice === "webgpu");
+          await this.inst.fetchTensorCache(this.tensorCacheUrl, this.inst.webgpu());
         }
       }
 

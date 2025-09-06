@@ -20,7 +20,7 @@
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
-#include <tvm/ffi/container/ndarray.h>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/container/tuple.h>
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ffi/function.h>
@@ -127,29 +127,29 @@ struct CPUNDAlloc {
   void FreeData(DLTensor* tensor) { free(tensor->data); }
 };
 
-void ExampleNDArray() {
+void ExampleTensor() {
   namespace ffi = tvm::ffi;
   ffi::Shape shape = {1, 2, 3};
   DLDataType dtype = {kDLFloat, 32, 1};
   DLDevice device = {kDLCPU, 0};
-  ffi::NDArray nd = ffi::NDArray::FromNDAlloc(CPUNDAlloc(), shape, dtype, device);
+  ffi::Tensor tensor = ffi::Tensor::FromNDAlloc(CPUNDAlloc(), shape, dtype, device);
 }
 
-void ExampleNDArrayDLPack() {
+void ExampleTensorDLPack() {
   namespace ffi = tvm::ffi;
   ffi::Shape shape = {1, 2, 3};
   DLDataType dtype = {kDLFloat, 32, 1};
   DLDevice device = {kDLCPU, 0};
-  ffi::NDArray nd = ffi::NDArray::FromNDAlloc(CPUNDAlloc(), shape, dtype, device);
+  ffi::Tensor tensor = ffi::Tensor::FromNDAlloc(CPUNDAlloc(), shape, dtype, device);
   // convert to DLManagedTensorVersioned
-  DLManagedTensorVersioned* dlpack = nd.ToDLPackVersioned();
+  DLManagedTensorVersioned* dlpack = tensor.ToDLPackVersioned();
   // load back from DLManagedTensorVersioned
-  ffi::NDArray nd2 = ffi::NDArray::FromDLPackVersioned(dlpack);
+  ffi::Tensor tensor2 = ffi::Tensor::FromDLPackVersioned(dlpack);
 }
 
-TEST(Example, NDArray) {
-  ExampleNDArray();
-  ExampleNDArrayDLPack();
+TEST(Example, Tensor) {
+  ExampleTensor();
+  ExampleTensorDLPack();
 }
 
 void ExampleString() {

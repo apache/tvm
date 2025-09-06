@@ -56,9 +56,9 @@ def test_cmp_load_store(target, dev, arr_size, compute, get_module):
 
     a_np = np.random.uniform(size=arr_size).astype(A.dtype)
     b_np = np.random.uniform(size=arr_size).astype(B.dtype)
-    a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(b_np, dev)
-    d = tvm.nd.array(np.zeros(arr_size, dtype=D.dtype), dev)
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.tensor(b_np, dev)
+    d = tvm.runtime.tensor(np.zeros(arr_size, dtype=D.dtype), dev)
     f(a, b, d)
     np.testing.assert_equal(
         d.numpy(),

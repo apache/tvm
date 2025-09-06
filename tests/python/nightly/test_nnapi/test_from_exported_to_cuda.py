@@ -47,8 +47,8 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
     ex = relax.build(tvm_mod, target=target, relax_pipeline=relax_pipeline)
     vm = relax.VirtualMachine(ex, dev)
 
-    gpu_data = tvm.nd.array(raw_data_for_tvm, dev)
-    gpu_params = [tvm.nd.array(p, dev) for p in tvm_params["main"]]
+    gpu_data = tvm.runtime.tensor(raw_data_for_tvm, dev)
+    gpu_params = [tvm.runtime.tensor(p, dev) for p in tvm_params["main"]]
     gpu_out = vm["main"](gpu_data, *gpu_params)
 
     pytorch_out = torch_module(torch_data)

@@ -87,8 +87,8 @@ def test_ptx_ldmatrix():
                     A_mask_np[:16, :16] = A_np[:16, :16]
             B_np = np.zeros((16, 16)).astype("float16")
             dev = tvm.cuda(0)
-            A_nd = tvm.nd.array(A_np, device=dev)
-            B_nd = tvm.nd.array(B_np, device=dev)
+            A_nd = tvm.runtime.tensor(A_np, device=dev)
+            B_nd = tvm.runtime.tensor(B_np, device=dev)
             mod(A_nd, B_nd)
             tvm.testing.assert_allclose(B_nd.numpy(), A_mask_np)
 

@@ -25,12 +25,12 @@ import tvm_ffi
 import numpy as np
 
 
-def test_ndarray_attributes():
+def test_tensor_attributes():
     data = np.zeros((10, 8, 4, 2), dtype="int16")
     if not hasattr(data, "__dlpack__"):
         return
     x = tvm_ffi.from_dlpack(data)
-    assert isinstance(x, tvm_ffi.NDArray)
+    assert isinstance(x, tvm_ffi.Tensor)
     assert x.shape == (10, 8, 4, 2)
     assert x.dtype == tvm_ffi.dtype("int16")
     assert x.device.device_type == tvm_ffi.Device.kDLCPU
@@ -56,9 +56,9 @@ def test_shape_object():
 
 
 @pytest.mark.skipif(torch is None, reason="Torch is not installed")
-def test_ndarray_auto_dlpack():
+def test_tensor_auto_dlpack():
     def check(x, y):
-        assert isinstance(y, tvm_ffi.NDArray)
+        assert isinstance(y, tvm_ffi.Tensor)
         assert y.shape == (128,)
         assert y.dtype == tvm_ffi.dtype("int64")
         assert y.device.device_type == tvm_ffi.Device.kDLCPU

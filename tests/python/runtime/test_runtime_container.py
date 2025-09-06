@@ -22,7 +22,7 @@ import numpy as np
 
 import tvm
 import tvm.testing
-from tvm import nd
+import tvm.runtime
 from tvm.runtime import container as _container
 
 

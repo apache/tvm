@@ -131,9 +131,9 @@ typedef enum {
    */
   kTVMFFIShape = 69,
   /*!
-   * \brief NDArray object, layout = { TVMFFIObject, DLTensor, ... }
+   * \brief Tensor object, layout = { TVMFFIObject, DLTensor, ... }
    */
-  kTVMFFINDArray = 70,
+  kTVMFFITensor = 70,
   /*! \brief Array object. */
   kTVMFFIArray = 71,
   //----------------------------------------------------------------
@@ -497,15 +497,15 @@ TVM_FFI_DLL TVMFFIObjectHandle TVMFFIErrorCreate(const TVMFFIByteArray* kind,
 // Section: DLPack support APIs
 //------------------------------------------------------------
 /*!
- * \brief Produce a managed NDArray from a DLPack tensor.
+ * \brief Produce a managed Tensor from a DLPack tensor.
  * \param from The source DLPack tensor.
  * \param require_alignment The minimum alignment required of the data + byte_offset.
  * \param require_contiguous Boolean flag indicating if we need to check for contiguity.
- * \param out The output NDArray handle.
+ * \param out The output Tensor handle.
  * \return 0 on success, nonzero on failure.
  */
-TVM_FFI_DLL int TVMFFINDArrayFromDLPack(DLManagedTensor* from, int32_t require_alignment,
-                                        int32_t require_contiguous, TVMFFIObjectHandle* out);
+TVM_FFI_DLL int TVMFFITensorFromDLPack(DLManagedTensor* from, int32_t require_alignment,
+                                       int32_t require_contiguous, TVMFFIObjectHandle* out);
 
 /*!
  * \brief Produce a DLManagedTensor from the array that shares data memory with the array.
@@ -513,20 +513,20 @@ TVM_FFI_DLL int TVMFFINDArrayFromDLPack(DLManagedTensor* from, int32_t require_a
  * \param out The DLManagedTensor handle.
  * \return 0 on success, nonzero on failure.
  */
-TVM_FFI_DLL int TVMFFINDArrayToDLPack(TVMFFIObjectHandle from, DLManagedTensor** out);
+TVM_FFI_DLL int TVMFFITensorToDLPack(TVMFFIObjectHandle from, DLManagedTensor** out);
 
 /*!
- * \brief Produce a managed NDArray from a DLPack tensor.
+ * \brief Produce a managed Tensor from a DLPack tensor.
  * \param from The source DLPack tensor.
  * \param require_alignment The minimum alignment required of the data + byte_offset.
  * \param require_contiguous Boolean flag indicating if we need to check for contiguity.
- * \param out The output NDArray handle.
+ * \param out The output Tensor handle.
  * \return 0 on success, nonzero on failure.
  */
-TVM_FFI_DLL int TVMFFINDArrayFromDLPackVersioned(DLManagedTensorVersioned* from,
-                                                 int32_t require_alignment,
-                                                 int32_t require_contiguous,
-                                                 TVMFFIObjectHandle* out);
+TVM_FFI_DLL int TVMFFITensorFromDLPackVersioned(DLManagedTensorVersioned* from,
+                                                int32_t require_alignment,
+                                                int32_t require_contiguous,
+                                                TVMFFIObjectHandle* out);
 
 /*!
  * \brief Produce a DLManagedTensor from the array that shares data memory with the array.
@@ -534,8 +534,8 @@ TVM_FFI_DLL int TVMFFINDArrayFromDLPackVersioned(DLManagedTensorVersioned* from,
  * \param out The DLManagedTensor handle.
  * \return 0 on success, nonzero on failure.
  */
-TVM_FFI_DLL int TVMFFINDArrayToDLPackVersioned(TVMFFIObjectHandle from,
-                                               DLManagedTensorVersioned** out);
+TVM_FFI_DLL int TVMFFITensorToDLPackVersioned(TVMFFIObjectHandle from,
+                                              DLManagedTensorVersioned** out);
 
 //---------------------------------------------------------------
 // Section: dtype string support APIs.
@@ -1028,11 +1028,11 @@ inline TVMFFIShapeCell* TVMFFIShapeGetCellPtr(TVMFFIObjectHandle obj) {
 }
 
 /*!
- * \brief Get the DLTensor pointer from an NDArray object.
+ * \brief Get the DLTensor pointer from an Tensor object.
  * \param obj The object handle.
  * \return The DLTensor pointer.
  */
-inline DLTensor* TVMFFINDArrayGetDLTensorPtr(TVMFFIObjectHandle obj) {
+inline DLTensor* TVMFFITensorGetDLTensorPtr(TVMFFIObjectHandle obj) {
   return reinterpret_cast<DLTensor*>(reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject));
 }
 

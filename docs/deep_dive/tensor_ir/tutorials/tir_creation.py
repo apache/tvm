@@ -204,9 +204,9 @@ class DynamicShapeModule:
 
 
 def evaluate_dynamic_shape(lib: tvm.runtime.Module, m: int, n: int, k: int):
-    A = tvm.nd.array(np.random.uniform(size=(m, k)).astype("float32"))
-    B = tvm.nd.array(np.random.uniform(size=(k, n)).astype("float32"))
-    C = tvm.nd.array(np.zeros((m, n), dtype="float32"))
+    A = tvm.runtime.tensor(np.random.uniform(size=(m, k)).astype("float32"))
+    B = tvm.runtime.tensor(np.random.uniform(size=(k, n)).astype("float32"))
+    C = tvm.runtime.tensor(np.zeros((m, n), dtype="float32"))
     lib(A, B, C)
     return C.numpy()
 

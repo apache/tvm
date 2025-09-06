@@ -32,7 +32,7 @@ import torch  # type: ignore
 import tvm
 
 from ...contrib.tar import tar, untar
-from ...runtime import NDArray
+from ...runtime import Tensor
 from ...target import Target
 from ..cost_model import PyCostModel
 from ..database import JSONDatabase
@@ -441,7 +441,7 @@ def extract_features(
     """
     extractor = extractor or PerStoreFeature(extract_workload=True)
 
-    def _feature(feature: NDArray) -> np.ndarray:
+    def _feature(feature: Tensor) -> np.ndarray:
         return feature.numpy().astype("float32")
 
     def _mean_cost(res: RunnerResult) -> float:

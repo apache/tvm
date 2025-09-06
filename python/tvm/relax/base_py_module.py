@@ -24,7 +24,7 @@ import numpy as np
 import tvm
 from tvm import relax, tir
 from tvm.ir import IRModule
-from tvm.runtime import Device, NDArray, PackedFunc
+from tvm.runtime import Device, Tensor, PackedFunc
 from tvm.target import Target
 
 try:
@@ -38,7 +38,7 @@ class BasePyModule:
 
     This class provides the infrastructure for:
     1. JIT compilation of TIR and Relax functions.
-    2. DLPack-based conversion between PyTorch tensors and TVM NDArrays.
+    2. DLPack-based conversion between PyTorch tensors and TVM Tensors.
     3. Wrapping Relax functions for easy Python calling.
     4. Cross-function calls between Python, TIR, and Relax functions.
 
@@ -208,7 +208,7 @@ class BasePyModule:
         return result[0] if len(result) == 1 else result
 
     def call_dps_packed(self, func_name: str, args, out_sinfo):
-        """Call a packed function with PyTorch tensors, converting TVM NDArrays via DLPack."""
+        """Call a packed function with PyTorch tensors, converting TVM Tensors via DLPack."""
         if hasattr(self, func_name) and callable(getattr(self, func_name)):
             return getattr(self, func_name)(*args)
 
@@ -269,8 +269,8 @@ class BasePyModule:
 
     def _convert_pytorch_to_tvm(
         self, tensors: Union[Any, List[Any], Tuple[Any, ...]]
-    ) -> Union[NDArray, List[NDArray]]:
-        """Convert PyTorch tensors to TVM NDArrays using DLPack."""
+    ) -> Union[Tensor, List[Tensor]]:
+        """Convert PyTorch tensors to TVM Tensors using DLPack."""
         # pylint: disable=import-outside-toplevel
         import torch
 
@@ -278,25 +278,25 @@ class BasePyModule:
             return [self._convert_single_pytorch_to_tvm(t) for t in tensors]
         return self._convert_single_pytorch_to_tvm(tensors)
 
-    def _convert_single_pytorch_to_tvm(self, tensor: Any) -> NDArray:
-        """Convert a single PyTorch tensor to TVM NDArray with robust fallbacks."""
+    def _convert_single_pytorch_to_tvm(self, tensor: Any) -> Tensor:
+        """Convert a single PyTorch tensor to TVM Tensor with robust fallbacks."""
         # pylint: disable=import-outside-toplevel
         import torch
 
-        if isinstance(tensor, NDArray):
+        if isinstance(tensor, Tensor):
             return tensor
         if isinstance(tensor, torch.Tensor):
             # 1. Try modern `torch.to_dlpack` (preferred for PyTorch >= 1.7)
             try:
                 dlpack = torch.to_dlpack(tensor)
-                return tvm.nd.from_dlpack(dlpack)
+                return tvm.runtime.from_dlpack(dlpack)
             except (AttributeError, ValueError):
                 pass  # Fall through to the next method
             # 2. Try legacy `torch.utils.dlpack.to_dlpack`
             if to_dlpack_legacy:
                 try:
                     dlpack = to_dlpack_legacy(tensor)
-                    return tvm.nd.from_dlpack(dlpack)
+                    return tvm.runtime.from_dlpack(dlpack)
                 except (AttributeError, ValueError) as error_legacy:
                     print(
                         f"Warning: Legacy DLPack conversion failed ({error_legacy}), "
@@ -304,33 +304,33 @@ class BasePyModule:
                     )
             # 3. If all DLPack methods fail, use numpy fallback
             numpy_array = tensor.detach().cpu().numpy()
-            return tvm.nd.array(numpy_array, device=self.device)
+            return tvm.runtime.tensor(numpy_array, device=self.device)
 
         # For other types (like scalars, lists), convert to numpy first
         try:
             numpy_array = np.array(tensor, dtype=np.float32)
-            return tvm.nd.array(numpy_array, device=self.device)
+            return tvm.runtime.tensor(numpy_array, device=self.device)
         except (TypeError, ValueError) as error:
             raise TypeError(
-                f"Unsupported type for conversion to TVM NDArray: {type(tensor)}"
+                f"Unsupported type for conversion to TVM Tensor: {type(tensor)}"
             ) from error
 
     def _convert_tvm_to_pytorch(
         self, tvm_arrays: Union[Any, List[Any]]
     ) -> Union["torch.Tensor", List["torch.Tensor"]]:
-        """Convert TVM NDArrays to PyTorch tensors using DLPack."""
+        """Convert TVM Tensors to PyTorch tensors using DLPack."""
         if isinstance(tvm_arrays, (list, tuple)):
             return [self._convert_single_tvm_to_pytorch(arr) for arr in tvm_arrays]
         return self._convert_single_tvm_to_pytorch(tvm_arrays)
 
     def _convert_single_tvm_to_pytorch(self, tvm_array: Any) -> "torch.Tensor":
-        """Convert a single TVM NDArray to PyTorch tensor using DLPack."""
+        """Convert a single TVM Tensor to PyTorch tensor using DLPack."""
         # pylint: disable=import-outside-toplevel
         import torch
 
         if isinstance(tvm_array, torch.Tensor):
             return tvm_array
-        if not isinstance(tvm_array, NDArray):
+        if not isinstance(tvm_array, Tensor):
             return torch.tensor(tvm_array)
         try:
             dlpack = tvm_array.to_dlpack()

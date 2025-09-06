@@ -32,9 +32,9 @@ def check_decompose_padding(origin, scheduled, expected, check_run=False):
         out_buffer = origin.buffer_map[origin.params[1]]
         in_shape = [int(_) for _ in in_buffer.shape]
         out_shape = [int(_) for _ in out_buffer.shape]
-        x = tvm.nd.array(np.random.uniform(0, 64, in_shape).astype(in_buffer.dtype))
-        y0 = tvm.nd.array(np.zeros(out_shape).astype(out_buffer.dtype))
-        y1 = tvm.nd.array(np.zeros(out_shape).astype(out_buffer.dtype))
+        x = tvm.runtime.tensor(np.random.uniform(0, 64, in_shape).astype(in_buffer.dtype))
+        y0 = tvm.runtime.tensor(np.zeros(out_shape).astype(out_buffer.dtype))
+        y1 = tvm.runtime.tensor(np.zeros(out_shape).astype(out_buffer.dtype))
         f_origin = tvm.compile(origin)
         f_scheduled = tvm.compile(scheduled)
         f_origin(x, y0)

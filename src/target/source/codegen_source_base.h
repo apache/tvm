@@ -163,7 +163,7 @@ ffi::Module CSourceModuleCreate(const String& code, const String& fmt,
  * \param target The target that all the modules are compiled for
  * \return The wrapped module.
  */
-ffi::Module CreateMetadataModule(const std::unordered_map<std::string, runtime::NDArray>& params,
+ffi::Module CreateMetadataModule(const std::unordered_map<std::string, runtime::Tensor>& params,
                                  ffi::Module target_module, const Array<ffi::Module>& ext_modules,
                                  Target target);
 

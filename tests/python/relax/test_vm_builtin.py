@@ -44,9 +44,9 @@ def test_multinomial_from_uniform():
     np_rand = np.random.rand(3, 5).astype(np.float32)
     # normalize it to get the random prob
     np_prob = np_rand / np_rand.sum(axis=1, keepdims=True)
-    nd_prob = tvm.nd.array(np_prob)
+    nd_prob = tvm.runtime.tensor(np_prob)
     # special sample to get deterministic results
-    nd_sample = tvm.nd.array(np.array([[1.0], [0], [1]]).astype(np.float32))
+    nd_sample = tvm.runtime.tensor(np.array([[1.0], [0], [1]]).astype(np.float32))
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     res = vm["foo"](nd_prob, nd_sample)

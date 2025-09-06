@@ -81,7 +81,7 @@ def set_global_func():
         with target:
             mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)  # pylint: disable=not-callable
         f = tvm.tir.build(mod["main"], target=target)
-        return f.entry_func
+        return f.main
 
     _f_tir_gets, _f_tir_sets = [], []
     for state in states:
@@ -95,7 +95,10 @@ def set_global_func():
 
 def create_rnn_state():
     f_create = tvm.get_global_func("vm.builtin.rnn_state_create")
-    init_values = [tvm.nd.array(np_zero, device=device), tvm.nd.array(np_one, device=device)]
+    init_values = [
+        tvm.runtime.tensor(np_zero, device=device),
+        tvm.runtime.tensor(np_one, device=device),
+    ]
     return f_create(num_layers, reserved_nseq, max_history, f_tir_gets, f_tir_sets, init_values)
 
 
@@ -119,8 +122,8 @@ def test_rnn_state_get(rnn_state):  # pylint: disable=redefined-outer-name
     f_clear(state)
     f_add_sequence(state, 0)
     f_begin_forward(state, ShapeTuple([0]), ShapeTuple([1]))
-    tvm_nd_0 = tvm.nd.array(np.empty((1, 16, 16), "float16"), device=device)
-    tvm_nd_1 = tvm.nd.array(np.empty((1, 32, 32), "float32"), device=device)
+    tvm_nd_0 = tvm.runtime.tensor(np.empty((1, 16, 16), "float16"), device=device)
+    tvm_nd_1 = tvm.runtime.tensor(np.empty((1, 32, 32), "float32"), device=device)
     f_get(state, 0, 0, tvm_nd_0)
     f_get(state, 0, 1, tvm_nd_1)
     f_end_forward(state)
@@ -136,8 +139,8 @@ def test_rnn_state_set(rnn_state):  # pylint: disable=redefined-outer-name
         f_add_sequence(state, seq_id)
     f_begin_forward(state, ShapeTuple([0, 2]), ShapeTuple([1, 1]))
 
-    f_set(state, 0, 0, tvm.nd.array(np.full((2, 16, 16), 2.0, "float16"), device=device))
-    f_set(state, 0, 1, tvm.nd.array(np.full((2, 32, 32), 3.0, "float32"), device=device))
+    f_set(state, 0, 0, tvm.runtime.tensor(np.full((2, 16, 16), 2.0, "float16"), device=device))
+    f_set(state, 0, 1, tvm.runtime.tensor(np.full((2, 32, 32), 3.0, "float32"), device=device))
     f_end_forward(state)
 
     expected_values = [[np_two, np_three], [np_zero, np_one], [np_two, np_three]]
@@ -151,8 +154,8 @@ def test_rnn_state_popn(rnn_state):  # pylint: disable=redefined-outer-name
 
     f_add_sequence(state, 0)
     f_begin_forward(state, ShapeTuple([0]), ShapeTuple([1]))
-    f_set(state, 0, 0, tvm.nd.array(np_two.reshape(1, 16, 16), device=device))
-    f_set(state, 0, 1, tvm.nd.array(np_three.reshape(1, 32, 32), device=device))
+    f_set(state, 0, 0, tvm.runtime.tensor(np_two.reshape(1, 16, 16), device=device))
+    f_set(state, 0, 1, tvm.runtime.tensor(np_three.reshape(1, 32, 32), device=device))
     f_end_forward(state)
 
     verify_state(state, [0], [[np_two, np_three]])
@@ -169,8 +172,8 @@ def test_rnn_state_fork_sequence(rnn_state):  # pylint: disable=redefined-outer-
 
     f_add_sequence(state, 0)
     f_begin_forward(state, ShapeTuple([0]), ShapeTuple([1]))
-    f_set(state, 0, 0, tvm.nd.array(np_two.reshape(1, 16, 16), device=device))
-    f_set(state, 0, 1, tvm.nd.array(np_three.reshape(1, 32, 32), device=device))
+    f_set(state, 0, 0, tvm.runtime.tensor(np_two.reshape(1, 16, 16), device=device))
+    f_set(state, 0, 1, tvm.runtime.tensor(np_three.reshape(1, 32, 32), device=device))
     f_end_forward(state)
     f_fork_sequence(state, 0, 1, -1)
     verify_state(state, [0, 1], [[np_two, np_three], [np_two, np_three]])

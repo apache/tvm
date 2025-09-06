@@ -18,8 +18,7 @@
 from typing import Union
 
 from tvm_ffi import get_global_func
-from ..runtime import Device
-from ..runtime.ndarray import device
+from ..runtime import Device, device
 from . import Target
 
 

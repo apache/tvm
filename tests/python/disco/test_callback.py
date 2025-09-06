@@ -91,7 +91,7 @@ def test_callback():
         params = transform_params(worker_id, fget_item)
 
         # Worker 0 is the same PID as the controlling scope, so
-        # `debug_get_from_remote(0)` returns the NDArray containing
+        # `debug_get_from_remote(0)` returns the Tensor containing
         # the output.
         params_gpu0 = params.debug_get_from_remote(0)
         assert params_gpu0[0].device == tvm.cuda(0)
@@ -109,7 +109,7 @@ def test_callback():
         )
 
         # Worker 1 is a different PID altogether, so
-        # `debug_get_from_remote(1)` returns a new NDArray within the
+        # `debug_get_from_remote(1)` returns a new Tensor within the
         # calling scope's PID.
         params_gpu1 = params.debug_get_from_remote(1)
         assert params_gpu1[0].device == tvm.cpu()

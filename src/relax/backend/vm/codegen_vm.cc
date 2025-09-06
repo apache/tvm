@@ -440,7 +440,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
  * module(s).
  * \return The created module.
  */
-void LinkModules(ObjectPtr<VMExecutable> exec, const Map<String, runtime::NDArray>& params,
+void LinkModules(ObjectPtr<VMExecutable> exec, const Map<String, runtime::Tensor>& params,
                  const tvm::ffi::Module& lib, const Array<ffi::Module>& ext_libs) {
   // query if we need const loader for ext_modules
   // Wrap all submodules in the initialization wrapper.
@@ -461,12 +461,12 @@ void LinkModules(ObjectPtr<VMExecutable> exec, const Map<String, runtime::NDArra
   }
   if (!const_vars_by_symbol.empty() || !params.empty()) {
     // need runtime const information, run link const loader
-    std::unordered_map<std::string, runtime::NDArray> const_var_ndarray;
+    std::unordered_map<std::string, runtime::Tensor> const_var_tensor;
     for (const auto& [name, param] : params) {
-      const_var_ndarray[name] = param;
+      const_var_tensor[name] = param;
     }
     ffi::Module const_loader_mod =
-        runtime::ConstLoaderModuleCreate(const_var_ndarray, const_vars_by_symbol);
+        runtime::ConstLoaderModuleCreate(const_var_tensor, const_vars_by_symbol);
     const_loader_mod->ImportModule(lib);
     for (const auto& it : ext_libs) {
       const_loader_mod->ImportModule(it);
@@ -485,7 +485,7 @@ void LinkModules(ObjectPtr<VMExecutable> exec, const Map<String, runtime::NDArra
  * \brief Link the libraries together.
  */
 ffi::Module VMLink(ExecBuilder builder, Target target, Optional<ffi::Module> lib,
-                   Array<ffi::Module> ext_libs, Map<String, runtime::NDArray> params) {
+                   Array<ffi::Module> ext_libs, Map<String, runtime::Tensor> params) {
   ObjectPtr<VMExecutable> executable = builder->Get();
   if (!lib.defined()) {
     lib = codegen::CSourceModuleCreate(";", "c", Array<String>{});

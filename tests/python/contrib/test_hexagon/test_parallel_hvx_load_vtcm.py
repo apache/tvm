@@ -318,9 +318,9 @@ def setup_and_run(hexagon_session, sch, a, b, c, operations, mem_scope="global")
     func_tir = tvm.compile(sch.mod["main"], target=get_hexagon_target("v69"))
     module = hexagon_session.load_module(func_tir)
 
-    a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device, mem_scope=mem_scope)
-    b_hexagon = tvm.runtime.ndarray.array(b, device=hexagon_session.device, mem_scope=mem_scope)
-    c_hexagon = tvm.runtime.ndarray.array(c, device=hexagon_session.device, mem_scope=mem_scope)
+    a_hexagon = tvm.runtime.tensor(a, device=hexagon_session.device, mem_scope=mem_scope)
+    b_hexagon = tvm.runtime.tensor(b, device=hexagon_session.device, mem_scope=mem_scope)
+    c_hexagon = tvm.runtime.tensor(c, device=hexagon_session.device, mem_scope=mem_scope)
 
     # These are reduced for CI but number=100 and repeat=10 does a good job of removing noise.
     number = 1
@@ -341,16 +341,16 @@ def setup_and_run_preallocated(hexagon_session, sch, a, b, c, operations):
     b_vtcm = np.zeros((b.size), dtype="uint8")
     c_vtcm = np.zeros((c.size), dtype="int32")
 
-    a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device, mem_scope="global")
-    b_hexagon = tvm.runtime.ndarray.array(b, device=hexagon_session.device, mem_scope="global")
-    c_hexagon = tvm.runtime.ndarray.array(c, device=hexagon_session.device, mem_scope="global")
-    a_vtcm_hexagon = tvm.runtime.ndarray.array(
+    a_hexagon = tvm.runtime.tensor(a, device=hexagon_session.device, mem_scope="global")
+    b_hexagon = tvm.runtime.tensor(b, device=hexagon_session.device, mem_scope="global")
+    c_hexagon = tvm.runtime.tensor(c, device=hexagon_session.device, mem_scope="global")
+    a_vtcm_hexagon = tvm.runtime.tensor(
         a_vtcm, device=hexagon_session.device, mem_scope="global.vtcm"
     )
-    b_vtcm_hexagon = tvm.runtime.ndarray.array(
+    b_vtcm_hexagon = tvm.runtime.tensor(
         b_vtcm, device=hexagon_session.device, mem_scope="global.vtcm"
     )
-    c_vtcm_hexagon = tvm.runtime.ndarray.array(
+    c_vtcm_hexagon = tvm.runtime.tensor(
         c_vtcm, device=hexagon_session.device, mem_scope="global.vtcm"
     )
 

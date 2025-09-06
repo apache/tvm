@@ -138,12 +138,12 @@ public class Function extends TVMObject {
 
   /**
    * Push argument to the function.
-   * @param arg NDArray.
+   * @param arg Tensor.
    * @return this
    */
-  public Function pushArg(NDArrayBase arg) {
-    if (arg instanceof NDArray) {
-      Base._LIB.tvmFFIFunctionPushArgHandle(((NDArray) arg).handle, TypeIndex.kTVMFFINDArray);
+  public Function pushArg(TensorBase arg) {
+    if (arg instanceof Tensor) {
+      Base._LIB.tvmFFIFunctionPushArgHandle(((Tensor) arg).handle, TypeIndex.kTVMFFITensor);
     } else {
       Base._LIB.tvmFFIFunctionPushArgHandle(arg.dltensorHandle, TypeIndex.kTVMFFIDLTensorPtr);
     }
@@ -192,7 +192,7 @@ public class Function extends TVMObject {
 
   /**
    * Invoke function with arguments.
-   * @param args Can be Integer, Long, Float, Double, String, NDArray.
+   * @param args Can be Integer, Long, Float, Double, String, Tensor.
    * @return the result.
    */
   public TVMValue call(Object... args) {
@@ -203,10 +203,10 @@ public class Function extends TVMObject {
   }
 
   private static void pushArgToStack(Object arg) {
-    if (arg instanceof NDArrayBase) {
-      NDArrayBase nd = (NDArrayBase) arg;
-      if (nd instanceof NDArray) {
-        Base._LIB.tvmFFIFunctionPushArgHandle(((NDArray) nd).handle, TypeIndex.kTVMFFINDArray);
+    if (arg instanceof TensorBase) {
+      TensorBase nd = (TensorBase) arg;
+      if (nd instanceof Tensor) {
+        Base._LIB.tvmFFIFunctionPushArgHandle(((Tensor) nd).handle, TypeIndex.kTVMFFITensor);
       } else {
         Base._LIB.tvmFFIFunctionPushArgHandle(nd.dltensorHandle, TypeIndex.kTVMFFIDLTensorPtr);
       }

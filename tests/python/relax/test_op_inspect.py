@@ -57,7 +57,7 @@ def test_tensor_dtype_code(dtype):
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
-    arg = tvm.nd.empty([16], dtype)
+    arg = tvm.runtime.empty([16], dtype)
     res = vm["main"](arg)
 
     expected_type_code = tvm.runtime.DataType(dtype).type_code
@@ -74,7 +74,7 @@ def test_tensor_dtype_bits(dtype):
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
-    arg = tvm.nd.empty([16], dtype)
+    arg = tvm.runtime.empty([16], dtype)
     res = vm["main"](arg)
 
     expected_type_bits = tvm.runtime.DataType(dtype).bits
@@ -91,7 +91,7 @@ def test_tensor_dtype_lanes(dtype):
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
-    arg = tvm.nd.empty([16], dtype)
+    arg = tvm.runtime.empty([16], dtype)
     res = vm["main"](arg)
 
     expected_type_lanes = tvm.runtime.DataType(dtype).lanes
@@ -108,7 +108,7 @@ def test_tensor_ndim(shape):
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
-    arg = tvm.nd.empty(shape, "int32")
+    arg = tvm.runtime.empty(shape, "int32")
     res = vm["main"](arg)
 
     assert res == len(shape)
@@ -124,7 +124,7 @@ def test_tensor_shape(shape):
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
-    arg = tvm.nd.empty(shape, "int32")
+    arg = tvm.runtime.empty(shape, "int32")
 
     res = [vm["main"](arg, i) for i, _ in enumerate(shape)]
 
@@ -150,7 +150,7 @@ def test_strides_of_compact_tensor(shape):
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
-    arg = tvm.nd.empty(shape, "int32")
+    arg = tvm.runtime.empty(shape, "int32")
 
     res = [vm["main"](arg, i) for i, _ in enumerate(shape)]
     expected = _get_compact_striding(shape)
@@ -190,8 +190,8 @@ def test_byte_offset(elem_offset):
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
     dtype = "int32"
-    backing_ndarray = tvm.nd.empty(backing_shape, dtype)
-    view = backing_ndarray._create_view(view_shape, dtype, relative_byte_offset=byte_offset)
+    backing_tensor = tvm.runtime.empty(backing_shape, dtype)
+    view = backing_tensor._create_view(view_shape, dtype, relative_byte_offset=byte_offset)
     res = vm["main"](view)
     assert res == byte_offset
 
@@ -213,8 +213,8 @@ def test_elem_offset(elem_offset, dtype):
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
-    backing_ndarray = tvm.nd.empty(backing_shape, dtype)
-    view = backing_ndarray._create_view(view_shape, dtype, relative_byte_offset=byte_offset)
+    backing_tensor = tvm.runtime.empty(backing_shape, dtype)
+    view = backing_tensor._create_view(view_shape, dtype, relative_byte_offset=byte_offset)
     res = vm["main"](view)
 
     assert res == elem_offset

@@ -23,9 +23,9 @@ import struct
 import time
 
 import tvm_ffi
+import tvm.runtime
 from tvm.base import TVMError
 from tvm.contrib import utils
-from tvm.runtime import ndarray as nd
 from tvm.runtime import Device
 
 from . import _ffi_api, base, server
@@ -86,9 +86,9 @@ class RPCSession(object):
         dev: Device
             The corresponding encoded remote device.
         """
-        dev = nd.device(dev_type, dev_id)
+        dev = tvm.runtime.device(dev_type, dev_id)
         encode = (self._tbl_index + 1) * base.RPC_SESS_MASK
-        dev = nd.device(dev.device_type + encode, dev.device_id)
+        dev = tvm.runtime.device(dev.device_type + encode, dev.device_id)
         dev._rpc_sess = self
         return dev
 

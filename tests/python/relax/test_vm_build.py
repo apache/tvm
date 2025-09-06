@@ -52,8 +52,8 @@ def test_vm_compile_simple(exec_mode):
     mod = TestVMCompileStage0
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.build(mod, target, exec_mode=exec_mode)
-    inp1 = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
-    inp2 = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
+    inp1 = tvm.runtime.tensor(np.random.rand(3, 4).astype(np.float32))
+    inp2 = tvm.runtime.tensor(np.random.rand(3, 4).astype(np.float32))
     vm = relax.VirtualMachine(ex, tvm.cpu())
     vm["foo"](inp1, inp2)
     tvm.testing.assert_allclose(inp2.numpy(), inp1.numpy(), rtol=1e-7, atol=1e-7)
@@ -72,8 +72,8 @@ def test_vm_compile_without_target_arg(exec_mode):
             return y
 
     ex = relax.build(mod, exec_mode=exec_mode)
-    inp1 = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
-    inp2 = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
+    inp1 = tvm.runtime.tensor(np.random.rand(3, 4).astype(np.float32))
+    inp2 = tvm.runtime.tensor(np.random.rand(3, 4).astype(np.float32))
     vm = relax.VirtualMachine(ex, tvm.cpu())
     vm["foo"](inp1, inp2)
     tvm.testing.assert_allclose(inp2.numpy(), inp1.numpy(), rtol=1e-7, atol=1e-7)
@@ -90,10 +90,10 @@ def test_match_check(exec_mode):
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    x0 = tvm.nd.array(np.zeros((1, 2)).astype("int32"))
-    y0 = tvm.nd.array(np.zeros((2, 1)).astype("float32"))
-    y1 = tvm.nd.array(np.zeros((1, 2)).astype("float32"))
-    y2 = tvm.nd.array(np.zeros((2, 1, 1)).astype("float32"))
+    x0 = tvm.runtime.tensor(np.zeros((1, 2)).astype("int32"))
+    y0 = tvm.runtime.tensor(np.zeros((2, 1)).astype("float32"))
+    y1 = tvm.runtime.tensor(np.zeros((1, 2)).astype("float32"))
+    y2 = tvm.runtime.tensor(np.zeros((2, 1, 1)).astype("float32"))
 
     vm["foo"](x0, y0)
 
@@ -119,18 +119,18 @@ def test_vm_compile_stage2(exec_mode):
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     shape = (32, 16)
-    arr = tvm.nd.array(np.random.rand(*shape).astype("float32"))
+    arr = tvm.runtime.tensor(np.random.rand(*shape).astype("float32"))
     res = vm["foo"](arr)
     assert res[0] == shape[0] * 2
     assert res[1] == shape[1] * 3
 
     # dtype mismatch
     with pytest.raises(ValueError, match=".*dtype.*"):
-        vm["foo"](tvm.nd.array(np.zeros((1, 2)).astype("int32")))
+        vm["foo"](tvm.runtime.tensor(np.zeros((1, 2)).astype("int32")))
 
     # ndim mismatch
     with pytest.raises(ValueError, match=".*match_cast.*ndim.*"):
-        vm["foo"](tvm.nd.array(np.zeros((1,)).astype("float32")))
+        vm["foo"](tvm.runtime.tensor(np.zeros((1,)).astype("float32")))
 
     # type mismach
     with pytest.raises(TypeError):
@@ -153,7 +153,7 @@ def test_vm_compile_stage3(exec_mode):
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     shape = (32, 16)
-    inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
+    inp = tvm.runtime.tensor(np.random.rand(*shape).astype(np.float32))
     res = vm["foo"](inp)
     tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
 
@@ -177,7 +177,7 @@ def test_vm_compile_e2e(exec_mode):
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     shape = (32, 16)
-    inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
+    inp = tvm.runtime.tensor(np.random.rand(*shape).astype(np.float32))
     res = check_saved_func(vm, "foo", inp)
     tvm.testing.assert_allclose(res.numpy(), np.tile(inp.numpy(), (1, 2)), rtol=1e-7, atol=1e-7)
 
@@ -217,8 +217,8 @@ def test_vm_compile_e2e_func_param_with_shape(exec_mode):
     ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
-    data = tvm.nd.array(np.random.rand(32, 16).astype(np.float32))
-    weight = tvm.nd.array(np.random.rand(16, 32).astype(np.float32))
+    data = tvm.runtime.tensor(np.random.rand(32, 16).astype(np.float32))
+    weight = tvm.runtime.tensor(np.random.rand(16, 32).astype(np.float32))
     res = check_saved_func(vm, "func", data, weight)
     expected = np.dot(data.numpy(), weight.numpy())
     tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-6, atol=1e-6)
@@ -265,9 +265,9 @@ def test_call_tir_inplace_e2e_simple(exec_mode):
     ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
-    x = tvm.nd.array(np.zeros((2, 3)).astype(np.int32))
-    y = tvm.nd.array(np.zeros((2, 3)).astype(np.int32))
-    z = tvm.nd.array(np.ones((2, 3)).astype(np.int32))
+    x = tvm.runtime.tensor(np.zeros((2, 3)).astype(np.int32))
+    y = tvm.runtime.tensor(np.zeros((2, 3)).astype(np.int32))
+    z = tvm.runtime.tensor(np.ones((2, 3)).astype(np.int32))
     vm.set_input("main", x, y, z)
     vm.invoke_stateful("main")
     outs = vm.get_outputs("main")
@@ -312,12 +312,12 @@ def test_call_tir_inplace_e2e_rw(exec_mode):
     ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
-    x = tvm.nd.array(np.ones((2, 3)).astype(np.int32))
-    y = tvm.nd.array(np.ones((2, 3)).astype(np.int32))
+    x = tvm.runtime.tensor(np.ones((2, 3)).astype(np.int32))
+    y = tvm.runtime.tensor(np.ones((2, 3)).astype(np.int32))
     vm.set_input("main", x, y)
     vm.invoke_stateful("main")
     out = vm.get_outputs("main")
-    expected = tvm.nd.array(np.full((2, 3), 2).astype(np.int32))
+    expected = tvm.runtime.tensor(np.full((2, 3), 2).astype(np.int32))
 
     assert x == out
     tvm.testing.assert_allclose(out.numpy(), expected.numpy(), rtol=1e-7, atol=1e-7)
@@ -342,8 +342,8 @@ def test_vm_emit_te_extern(exec_mode):
     ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
-    data = tvm.nd.array(np.random.rand(16, 32).astype(np.float32))
-    weight = tvm.nd.array(np.random.rand(32, 16).astype(np.float32))
+    data = tvm.runtime.tensor(np.random.rand(16, 32).astype(np.float32))
+    weight = tvm.runtime.tensor(np.random.rand(32, 16).astype(np.float32))
     res = check_saved_func(vm, "rx_cblas_matmul", data, weight)
     expected = np.dot(data.numpy(), weight.numpy())
     tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-6, atol=1e-6)
@@ -370,12 +370,12 @@ def test_vm_emit_te_concat(exec_mode):
     ex = relax.build(mod, target, exec_mode=exec_mode)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    inp = tvm.nd.array(
+    inp = tvm.runtime.tensor(
         np.random.rand(
             1,
         ).astype(np.float32)
     )
-    inp2 = tvm.nd.array(
+    inp2 = tvm.runtime.tensor(
         np.random.rand(
             2,
         ).astype(np.float32)
@@ -406,7 +406,7 @@ def test_vm_emit_te_dtype_change(exec_mode):
     ex = relax.build(mod, target, exec_mode=exec_mode)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    inp = tvm.nd.array(
+    inp = tvm.runtime.tensor(
         np.random.rand(
             1,
         ).astype(np.float32)
@@ -435,7 +435,7 @@ def test_vm_emit_te_floor_symbolic_shape(exec_mode):
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     shape = (9,)
-    inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
+    inp = tvm.runtime.tensor(np.random.rand(*shape).astype(np.float32))
     res = check_saved_func(vm, "rx_func", inp)
 
     def expected_output():
@@ -463,7 +463,7 @@ def test_vm_emit_te_constant_param_cpu(exec_mode):
     dev = tvm.cpu()
     vm = relax.VirtualMachine(exec, dev)
 
-    add_res = check_saved_func(vm, "main", tvm.nd.array(x_np, dev))
+    add_res = check_saved_func(vm, "main", tvm.runtime.tensor(x_np, dev))
     tvm.testing.assert_allclose(add_res.numpy(), x_np + c_np, rtol=1e-7, atol=1e-7)
 
 
@@ -490,7 +490,7 @@ def test_vm_emit_te_constant_param_gpu(exec_mode):
     dev = tvm.cuda()
     vm = relax.VirtualMachine(exec, dev)
 
-    add_res = check_saved_func(vm, "main", tvm.nd.array(x_np, dev))
+    add_res = check_saved_func(vm, "main", tvm.runtime.tensor(x_np, dev))
     tvm.testing.assert_allclose(add_res.numpy(), x_np + c_np, rtol=1e-7, atol=1e-7)
 
 
@@ -516,8 +516,8 @@ def test_vm_relax_symbolic_shape(exec_mode):
     vm = relax.VirtualMachine(ex, tvm.cpu())
     shape1 = (5,)
     shape2 = (3,)
-    inp = tvm.nd.array(np.random.rand(*shape1).astype(np.float32))
-    inp2 = tvm.nd.array(np.random.rand(*shape2).astype(np.float32))
+    inp = tvm.runtime.tensor(np.random.rand(*shape1).astype(np.float32))
+    inp2 = tvm.runtime.tensor(np.random.rand(*shape2).astype(np.float32))
     res = check_saved_func(vm, "rx_func", inp, inp2)
 
     def expected_output():
@@ -667,8 +667,8 @@ def test_vm_relax_dyn_tir_shape(exec_mode):
         ex.export_library(temp.relpath("exec.so"))
         vm = relax.VirtualMachine(tvm.runtime.load_module(temp.relpath("exec.so")), tvm.cpu())
 
-    inp = tvm.nd.array(np.random.rand(2).astype(np.float32))
-    inp2 = tvm.nd.array(np.random.rand(3).astype(np.float32))
+    inp = tvm.runtime.tensor(np.random.rand(2).astype(np.float32))
+    inp2 = tvm.runtime.tensor(np.random.rand(3).astype(np.float32))
 
     res = check_saved_func(vm, "rx_func", inp, inp2)
 
@@ -693,8 +693,8 @@ def test_vm_tuple(exec_mode):
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     shape = (5,)
-    inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
-    inp2 = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
+    inp = tvm.runtime.tensor(np.random.rand(*shape).astype(np.float32))
+    inp2 = tvm.runtime.tensor(np.random.rand(*shape).astype(np.float32))
     (res1, res2), res3 = vm["rx_func"](inp, inp2)
 
     tvm.testing.assert_allclose(res1.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
@@ -722,8 +722,8 @@ def test_vm_tuplegetitem(exec_mode):
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    x_inp = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
-    y_inp = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
+    x_inp = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
+    y_inp = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
     res = check_saved_func(vm, "tuple_get_item", x_inp, y_inp)
     tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy(), rtol=1e-7, atol=1e-7)
 
@@ -754,7 +754,7 @@ def test_lower_memory_alloc_storage_tensor(exec_mode):
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    x = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
+    x = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
     y = vm["main"](x)
     tvm.testing.assert_allclose(y.numpy(), x.numpy(), rtol=1e-7, atol=1e-7)
 
@@ -808,8 +808,8 @@ def test_sub_func_call(exec_mode):
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.build(TestVMSubFunction, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    x_inp = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
-    y_inp = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
+    x_inp = tvm.runtime.tensor(np.random.rand(32, 32).astype(np.float32))
+    y_inp = tvm.runtime.tensor(np.random.rand(32, 32).astype(np.float32))
     res = check_saved_func(vm, "main", x_inp, y_inp)
     product = np.dot(x_inp.numpy(), y_inp.numpy())
     expected = product * product
@@ -843,7 +843,7 @@ def test_recursion(exec_mode):
     inp = np.empty(1).astype("float32")
     recursion_runs = np.random.randint(1, 10)
     inp.fill(recursion_runs)
-    inp = tvm.nd.array(inp)
+    inp = tvm.runtime.tensor(inp)
     res = check_saved_func(vm, "recursion", inp)
     tvm.testing.assert_allclose(res.numpy(), np.power(2.0, recursion_runs), rtol=1e-7, atol=1e-7)
 
@@ -870,7 +870,7 @@ def test_vm_to_device(exec_mode):
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    x_inp = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
+    x_inp = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
     res_1 = check_saved_func(vm, "foo1", x_inp)
     res_2 = check_saved_func(vm, "foo2", x_inp)
 
@@ -903,8 +903,8 @@ def test_vm_closure(exec_mode):
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    x_inp = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
-    y_inp = tvm.nd.array(np.array([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]], dtype="float32"))
+    x_inp = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
+    y_inp = tvm.runtime.tensor(np.array([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]], dtype="float32"))
     res = check_saved_func(vm, "main", x_inp, y_inp)
     tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy())
 
@@ -921,8 +921,8 @@ def test_time_evaluator(exec_mode):
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.build(TestTimeEvaluator, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    x = tvm.nd.array(np.random.rand(1).astype("float32"))
-    y = tvm.nd.array(np.random.rand(1).astype("float32"))
+    x = tvm.runtime.tensor(np.random.rand(1).astype("float32"))
+    y = tvm.runtime.tensor(np.random.rand(1).astype("float32"))
 
     # ensure we can use time_evaluator with the stateful API
     vm.set_input("main", x, y)
@@ -1054,8 +1054,8 @@ def test_multi_systemlib(exec_mode):
 
 
 def set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
-    a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
-    b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    a = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
+    b = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
     vm.set_input("main", a, b)
     vm.invoke_stateful("main")
     res0 = vm.get_outputs("main")
@@ -1067,17 +1067,17 @@ def set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> Non
     tvm.testing.assert_allclose(res0.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
     tvm.testing.assert_allclose(res0.numpy(), res1.numpy(), rtol=1e-7, atol=1e-7)
 
-    # bug! If you don't bind the NDArray to a var, the memory will get corrupted.
+    # bug! If you don't bind the Tensor to a var, the memory will get corrupted.
     # Possibly due to object lifecycles and other FFI issues
-    a = tvm.nd.array(np.array(2).astype("int32"), device)
+    a = tvm.runtime.tensor(np.array(2).astype("int32"), device)
     vm.set_input("test_vm_tuple", a)
     vm.invoke_stateful("test_vm_tuple")
     res2 = vm.get_outputs("test_vm_tuple")
-    # the results are NDArrays wrapped around scalars,
-    # so we have to get the scalar out of the NDArray
+    # the results are Tensors wrapped around scalars,
+    # so we have to get the scalar out of the Tensor
     assert tuple(map(lambda a: int(a.numpy()), res2)) == (2, 2)
 
-    b = tvm.nd.array(np.array(1).astype("int32"), device)
+    b = tvm.runtime.tensor(np.array(1).astype("int32"), device)
     vm.set_input("test_vm_nested_tuple", b)
     vm.invoke_stateful("test_vm_nested_tuple")
     res3 = vm.get_outputs("test_vm_nested_tuple")
@@ -1088,8 +1088,8 @@ def set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> Non
 
 def set_input_attempt_stateless(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
     # this should fail: once you set inputs, you cannot run statelessly
-    a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
-    b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    a = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
+    b = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
     vm.set_input("main", a, b)
     # must use invoke stateful!
     vm["main"]()
@@ -1102,8 +1102,8 @@ def set_input_attempt_invoke(vm: relax.VirtualMachine, device: tvm.runtime.Devic
 
 def set_input_attempt_get(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
     # this should fail: you can't get outputs without invoking the function first
-    a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
-    b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    a = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
+    b = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
     vm.set_input("main", a, b)
     _ = vm.get_outputs("main")
 
@@ -1169,16 +1169,16 @@ def test_set_input_tuple(exec_mode):
     temp = utils.tempdir()
     vm, device = make_vm(MyMod, exec_mode, temp)
     device = tvm.cpu(0)
-    a = tvm.nd.empty((32,), "float32", device=device)
-    b = tvm.nd.empty((32,), "float32", device=device)
+    a = tvm.runtime.empty((32,), "float32", device=device)
+    b = tvm.runtime.empty((32,), "float32", device=device)
     vm.set_input("main", (a, b))
     vm.invoke_stateful("main")
 
 
 def save_function_kwargs_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
     # just checking that we can use kwargs for the args when saving a function
-    a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
-    b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    a = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
+    b = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
     vm.save_function("main", "saved_main", x=a, w=b)
     res0 = vm["saved_main"]()
     tvm.testing.assert_allclose(res0.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
@@ -1197,8 +1197,8 @@ def save_function_time_evaluator_trial(
     vm: relax.VirtualMachine, device: tvm.runtime.Device
 ) -> None:
     # just checking that the saved function can be called in the time evaluator
-    a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
-    b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    a = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
+    b = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
     vm.save_function("main", "saved_main", a, b)
     vm.time_evaluator("saved_main", device)()
 
@@ -1292,16 +1292,16 @@ def test_relax_module_with_multiple_targets(exec_mode):
     dev_llvm = tvm.device("llvm")
     vm_llvm = tvm.relax.VirtualMachine(built, device=dev_llvm)
     llvm_output = vm_llvm["func_llvm"](
-        tvm.nd.array(np_A, dev_llvm),
-        tvm.nd.array(np_B, dev_llvm),
+        tvm.runtime.tensor(np_A, dev_llvm),
+        tvm.runtime.tensor(np_B, dev_llvm),
     )
 
     dev_cuda = tvm.device("cuda")
     vm_cuda = tvm.relax.VirtualMachine(built, device=dev_cuda)
 
     cuda_output = vm_cuda["func_cuda"](
-        tvm.nd.array(np_A, dev_cuda),
-        tvm.nd.array(np_B, dev_cuda),
+        tvm.runtime.tensor(np_A, dev_cuda),
+        tvm.runtime.tensor(np_B, dev_cuda),
     )
 
     np_C = np_A + np_B

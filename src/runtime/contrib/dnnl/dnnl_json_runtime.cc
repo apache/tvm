@@ -24,7 +24,7 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <cstddef>
 #include <string>
@@ -60,7 +60,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
   const char* kind() const override { return "dnnl_json"; }
 
-  void Init(const Array<NDArray>& consts) override {
+  void Init(const Array<Tensor>& consts) override {
     ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
 

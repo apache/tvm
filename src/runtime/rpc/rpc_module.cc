@@ -41,18 +41,18 @@
 namespace tvm {
 namespace runtime {
 /*!
- * \brief Build a local NDArray with remote backing storage.
+ * \brief Build a local Tensor with remote backing storage.
  * \param sess the RPCSession which owns the given handle.
  * \param handle A pointer valid on the remote end which should form the `data` field of the
  *     underlying DLTensor.
  * \param template_tensor An empty DLTensor whose shape and dtype fields are used to fill the newly
  *     created array. Needed because it's difficult to pass a shape vector as a ffi::Function arg.
  * \param dev Remote device used with this tensor. Must have non-zero RPCSessMask.
- * \param remote_ndarray_handle The handle returned by RPC server to identify the NDArray.
+ * \param remote_tensor_handle The handle returned by RPC server to identify the Tensor.
  */
-NDArray NDArrayFromRemoteOpaqueHandle(std::shared_ptr<RPCSession> sess, void* handle,
-                                      DLTensor* template_tensor, Device dev,
-                                      void* remote_ndarray_handle) {
+Tensor TensorFromRemoteOpaqueHandle(std::shared_ptr<RPCSession> sess, void* handle,
+                                    DLTensor* template_tensor, Device dev,
+                                    void* remote_tensor_handle) {
   ICHECK_EQ(sess->table_index(), GetRPCSessionIndex(dev))
       << "The Device given does not belong to the given session";
   class RemoteSpaceAlloc {
@@ -71,7 +71,7 @@ NDArray NDArrayFromRemoteOpaqueHandle(std::shared_ptr<RPCSession> sess, void* ha
   space.sess = sess;
   space.data = handle;
   ffi::Shape shape(template_tensor->shape, template_tensor->shape + template_tensor->ndim);
-  return NDArray::FromNDAlloc(RemoteSpaceAlloc(space), shape, template_tensor->dtype, dev);
+  return Tensor::FromNDAlloc(RemoteSpaceAlloc(space), shape, template_tensor->dtype, dev);
 }
 
 /*!
@@ -104,9 +104,9 @@ class RPCWrappedFunc : public Object {
       // run a remote translation to translate RPC related objects to
       // their remote counterparts.
       switch (args[i].type_index()) {
-        case ffi::TypeIndex::kTVMFFINDArray: {
-          // Pass NDArray as DLTensor
-          auto dptr = std::make_unique<DLTensor>(*args[i].cast<NDArray>().operator->());
+        case ffi::TypeIndex::kTVMFFITensor: {
+          // Pass Tensor as DLTensor
+          auto dptr = std::make_unique<DLTensor>(*args[i].cast<Tensor>().operator->());
           dptr->device = RemoveSessMask(dptr->device);
           dptr->data = static_cast<RemoteSpace*>(dptr->data)->data;
           packed_args[i] = dptr.get();
@@ -305,14 +305,14 @@ void RPCWrappedFunc::WrapRemoteReturnToValue(ffi::PackedArgs args, ffi::Any* rv)
     void* handle = args[1].cast<void*>();
     auto n = make_object<RPCModuleNode>(handle, sess_);
     *rv = ffi::Module(n);
-  } else if (type_index == ffi::TypeIndex::kTVMFFINDArray ||
+  } else if (type_index == ffi::TypeIndex::kTVMFFITensor ||
              type_index == ffi::TypeIndex::kTVMFFIDLTensorPtr) {
     ICHECK_EQ(args.size(), 3);
     auto tensor = args[1].cast<DLTensor*>();
     void* nd_handle = args[2].cast<void*>();
-    *rv = NDArrayFromRemoteOpaqueHandle(sess_, tensor->data, tensor,
-                                        AddRPCSessionMask(tensor->device, sess_->table_index()),
-                                        nd_handle);
+    *rv = TensorFromRemoteOpaqueHandle(sess_, tensor->data, tensor,
+                                       AddRPCSessionMask(tensor->device, sess_->table_index()),
+                                       nd_handle);
   } else if (type_index == ffi::TypeIndex::kTVMFFIBytes ||
              type_index == ffi::TypeIndex::kTVMFFIStr ||
              type_index == ffi::TypeIndex::kTVMFFISmallStr ||
@@ -480,11 +480,11 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     ICHECK_EQ(tkey, "rpc");
                     *rv = static_cast<RPCModuleNode*>(m.operator->())->sess()->table_index();
                   })
-      .def("tvm.rpc.NDArrayFromRemoteOpaqueHandle",
+      .def("tvm.rpc.TensorFromRemoteOpaqueHandle",
            [](ffi::Module mod, void* remote_array, DLTensor* template_tensor, Device dev,
-              void* ndarray_handle) -> NDArray {
-             return NDArrayFromRemoteOpaqueHandle(RPCModuleGetSession(mod), remote_array,
-                                                  template_tensor, dev, ndarray_handle);
+              void* tensor_handle) -> Tensor {
+             return TensorFromRemoteOpaqueHandle(RPCModuleGetSession(mod), remote_array,
+                                                 template_tensor, dev, tensor_handle);
            });
 });
 

@@ -44,7 +44,7 @@ def test_take_scalar_tensor_as_index(target, dev, axis):
     vm = tvm.relax.VirtualMachine(built, dev)
 
     np_input = np.random.random(size=[16, 16]).astype("float16")
-    tvm_input = tvm.nd.array(np_input, dev)
+    tvm_input = tvm.runtime.tensor(np_input, dev)
     tvm_output = vm["main"](tvm_input)
     np_expected = np_input.take(1, axis=axis)
 
@@ -70,7 +70,7 @@ def test_take_1d_tensor_as_index(target, dev, axis):
     vm = tvm.relax.VirtualMachine(built, dev)
 
     np_input = np.random.random(size=[16, 16]).astype("float16")
-    tvm_input = tvm.nd.array(np_input, dev)
+    tvm_input = tvm.runtime.tensor(np_input, dev)
     tvm_output = vm["main"](tvm_input)
     np_expected = np_input.take([1], axis=axis)
 
@@ -92,7 +92,7 @@ def test_take_2d_tensor_as_index(target, dev, axis):
     vm = tvm.relax.VirtualMachine(built, dev)
 
     np_input = np.random.random(size=[16, 16]).astype("float16")
-    tvm_input = tvm.nd.array(np_input, dev)
+    tvm_input = tvm.runtime.tensor(np_input, dev)
     tvm_output = vm["main"](tvm_input)
     np_expected = np_input.take([[1, 3], [5, 7]], axis=axis)
 
@@ -119,7 +119,7 @@ def test_take_constant_prim_value_as_index(target, dev, axis):
     vm = tvm.relax.VirtualMachine(built, dev)
 
     np_input = np.random.random(size=[16, 16]).astype("float16")
-    tvm_input = tvm.nd.array(np_input, dev)
+    tvm_input = tvm.runtime.tensor(np_input, dev)
     tvm_output = vm["main"](tvm_input)
     np_expected = np_input.take(1, axis=axis)
 
@@ -147,7 +147,7 @@ def test_take_dynamic_prim_value_as_index(target, dev, axis):
     vm = tvm.relax.VirtualMachine(built, dev)
 
     np_input = np.random.random(size=[16, 16]).astype("float16")
-    tvm_input = tvm.nd.array(np_input, dev)
+    tvm_input = tvm.runtime.tensor(np_input, dev)
     tvm_output = vm["main"](tvm_input)
     np_expected = np_input.take(15, axis=axis)
 
@@ -171,7 +171,7 @@ def test_take_nan_mode_OOB_indices(target, dev, axis):
     vm = tvm.relax.VirtualMachine(built, dev)
 
     np_input = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]], dtype="float16")
-    tvm_input = tvm.nd.array(np_input, dev)
+    tvm_input = tvm.runtime.tensor(np_input, dev)
     tvm_output = vm["main"](tvm_input)
     if axis == 0:
         np_expected = np.array(
@@ -204,7 +204,7 @@ def test_take_wrap_mode_OOB_indices(target, dev, axis):
     vm = tvm.relax.VirtualMachine(built, dev)
 
     np_input = np.random.random(size=[3, 3]).astype("float16")
-    tvm_input = tvm.nd.array(np_input, dev)
+    tvm_input = tvm.runtime.tensor(np_input, dev)
     tvm_output = vm["main"](tvm_input)
     np_expected = np.take(np_input, [0, 1, 2, 3], axis=axis, mode="wrap")
 
@@ -227,7 +227,7 @@ def test_take_clip_mode_OOB_indices(target, dev, axis):
     built = tvm.compile(Module, target=target)
     vm = tvm.relax.VirtualMachine(built, dev)
     np_input = np.random.random(size=[3, 3]).astype("float16")
-    tvm_input = tvm.nd.array(np_input, dev)
+    tvm_input = tvm.runtime.tensor(np_input, dev)
     tvm_output = vm["main"](tvm_input)
     np_expected = np.take(np_input, [0, 1, 2, 3], axis=axis, mode="clip")
 

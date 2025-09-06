@@ -31,12 +31,12 @@ def test_vm_execute():
         ib.emit_ret(ib.r(2))
     ex = ib.get()
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    a = tvm.nd.array(
+    a = tvm.runtime.tensor(
         np.random.rand(
             4,
         )
     )
-    b = tvm.nd.array(
+    b = tvm.runtime.tensor(
         np.random.rand(
             4,
         )
@@ -56,12 +56,12 @@ def test_vm_multiple_func():
         ib.emit_ret(ib.r(2))
     ex = ib.get()
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    a = tvm.nd.array(
+    a = tvm.runtime.tensor(
         np.random.rand(
             4,
         )
     )
-    b = tvm.nd.array(
+    b = tvm.runtime.tensor(
         np.random.rand(
             4,
         )
@@ -108,8 +108,8 @@ def test_emit_cache():
         s2 = ib.convert_constant(tvm.runtime.container.ShapeTuple([1, 3]))
         assert s0 == s1
         assert s1 != s2
-        y0 = ib.convert_constant(tvm.nd.array(np.array([1, 2, 3]).astype("int32")))
-        y1 = ib.convert_constant(tvm.nd.array(np.array([1, 2, 3]).astype("int32")))
+        y0 = ib.convert_constant(tvm.runtime.tensor(np.array([1, 2, 3]).astype("int32")))
+        y1 = ib.convert_constant(tvm.runtime.tensor(np.array([1, 2, 3]).astype("int32")))
         assert y0 == y1
         ib.emit_ret(ib.r(0))
 
@@ -153,7 +153,7 @@ def test_vm_operand():
 def test_vm_shapeof():
     ib = relax.ExecBuilder()
     shape = (32, 16)
-    arr = tvm.nd.array(np.random.rand(*shape))
+    arr = tvm.runtime.tensor(np.random.rand(*shape))
     with ib.function("main", num_inputs=0):
         ib.emit_call("vm.builtin.shape_of", args=[arr], dst=ib.r(0))
         ib.emit_ret(ib.r(0))
@@ -200,12 +200,12 @@ def test_vm_goto():
         ib.emit_ret(ib.r(2))
     ex = ib.get()
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    a = tvm.nd.array(
+    a = tvm.runtime.tensor(
         np.random.rand(
             4,
         )
     )
-    b = tvm.nd.array(
+    b = tvm.runtime.tensor(
         np.random.rand(
             4,
         )
@@ -224,12 +224,12 @@ def test_vm_if():
         ib.emit_ret(ib.r(3))
     ex = ib.get()
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    a = tvm.nd.array(
+    a = tvm.runtime.tensor(
         np.random.rand(
             4,
         )
     )
-    b = tvm.nd.array(
+    b = tvm.runtime.tensor(
         np.random.rand(
             4,
         )
@@ -255,10 +255,10 @@ def test_vm_invoke_closure():
 
     ex = ib.get()
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    w_inp = tvm.nd.array(np.random.rand(2, 3))
-    x_inp = tvm.nd.array(np.random.rand(2, 3))
-    y_inp = tvm.nd.array([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]])
-    z_inp = tvm.nd.array(np.random.rand(2, 3))
+    w_inp = tvm.runtime.tensor(np.random.rand(2, 3))
+    x_inp = tvm.runtime.tensor(np.random.rand(2, 3))
+    y_inp = tvm.runtime.tensor([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]])
+    z_inp = tvm.runtime.tensor(np.random.rand(2, 3))
     clo = vm["main"](w_inp, x_inp)
     res = vm.invoke_closure(clo, y_inp, z_inp)
     tvm.testing.assert_allclose(
@@ -280,8 +280,8 @@ def test_vm_stack_restore_after_failure():
     ex = tvm.compile(Module, "llvm")
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
-    correct_input = tvm.nd.array(np.random.normal(size=(10, 10)).astype("float32"))
-    incorrect_input = tvm.nd.array(np.random.normal(size=(12, 10)).astype("float32"))
+    correct_input = tvm.runtime.tensor(np.random.normal(size=(10, 10)).astype("float32"))
+    incorrect_input = tvm.runtime.tensor(np.random.normal(size=(12, 10)).astype("float32"))
 
     try:
         vm["main"](incorrect_input)

@@ -57,7 +57,7 @@ set(tvm_ffi_objs_sources
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/object.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/error.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/function.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/ndarray.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/tensor.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/dtype.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/container.cc"
 )
@@ -189,7 +189,7 @@ if (TVM_FFI_BUILD_PYTHON_MODULE)
     ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_ffi/cython/dtype.pxi
     ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_ffi/cython/error.pxi
     ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_ffi/cython/function.pxi
-    ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_ffi/cython/ndarray.pxi
+    ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_ffi/cython/tensor.pxi
     ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_ffi/cython/object.pxi
     ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_ffi/cython/string.pxi
   )

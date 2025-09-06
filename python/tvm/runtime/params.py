@@ -16,15 +16,15 @@
 # under the License.
 # pylint: disable=invalid-name
 """Helper utility to save and load parameter dicts."""
-from . import _ffi_api, ndarray, NDArray
+from . import _ffi_api, tensor, Tensor
 
 
-def _to_ndarray(params):
+def _to_tensor(params):
     transformed = {}
 
     for k, v in params.items():
-        if not isinstance(v, NDArray):
-            transformed[k] = ndarray.array(v)
+        if not isinstance(v, Tensor):
+            transformed[k] = tensor(v)
         else:
             transformed[k] = v
 
@@ -39,7 +39,7 @@ def save_param_dict(params):
 
     Parameters
     ----------
-    params : dict of str to NDArray
+    params : dict of str to Tensor
         The parameter dictionary.
 
     Returns
@@ -59,7 +59,7 @@ def save_param_dict(params):
        # Pass in byte array to module to directly set parameters
        tvm.runtime.load_param_dict(param_bytes)
     """
-    return _ffi_api.SaveParams(_to_ndarray(params))
+    return _ffi_api.SaveParams(_to_tensor(params))
 
 
 def save_param_dict_to_file(params, path):
@@ -67,13 +67,13 @@ def save_param_dict_to_file(params, path):
 
     Parameters
     ----------
-    params : dict of str to NDArray
+    params : dict of str to Tensor
         The parameter dictionary.
 
     path: str
         The path to the parameter file.
     """
-    return _ffi_api.SaveParamsToFile(_to_ndarray(params), path)
+    return _ffi_api.SaveParamsToFile(_to_tensor(params), path)
 
 
 def load_param_dict(param_bytes):
@@ -86,7 +86,7 @@ def load_param_dict(param_bytes):
 
     Returns
     -------
-    params : dict of str to NDArray
+    params : dict of str to Tensor
         The parameter dictionary.
     """
     if isinstance(param_bytes, (bytes, str)):
@@ -104,7 +104,7 @@ def load_param_dict_from_file(path):
 
     Returns
     -------
-    params : dict of str to NDArray
+    params : dict of str to Tensor
         The parameter dictionary.
     """
     return _ffi_api.LoadParamsFromFile(path)

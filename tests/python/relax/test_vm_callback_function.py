@@ -51,7 +51,7 @@ def test_pass_tensor_to_function(exec_mode, target, dev):
         from_callback = arr
 
     np_A = np.arange(16, dtype="int32")
-    tvm_A = tvm.nd.array(np_A)
+    tvm_A = tvm.runtime.tensor(np_A)
 
     vm["relax_func"](tvm_A, custom_callback)
 
@@ -78,7 +78,7 @@ def test_generate_tensor_in_function(exec_mode, target, dev):
     np_A = np.arange(16, dtype="int32")
 
     def custom_callback():
-        return tvm.nd.array(np_A)
+        return tvm.runtime.tensor(np_A)
 
     output = vm["relax_func"](custom_callback)
 

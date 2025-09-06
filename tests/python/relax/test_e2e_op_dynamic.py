@@ -52,10 +52,10 @@ def test_dynamic_strided_slice(begin, end, strides):
     vm = build(DynamicStridedSlice)
 
     x_np = np.random.rand(8, 9, 10, 10).astype(np.float32)
-    data_nd = tvm.nd.array(x_np, dev)
-    begin_nd = tvm.nd.array(np.array(begin).astype("int64"), dev)
-    end_nd = tvm.nd.array(np.array(end).astype("int64"), dev)
-    strides_nd = tvm.nd.array(np.array(strides).astype("int64"), dev)
+    data_nd = tvm.runtime.tensor(x_np, dev)
+    begin_nd = tvm.runtime.tensor(np.array(begin).astype("int64"), dev)
+    end_nd = tvm.runtime.tensor(np.array(end).astype("int64"), dev)
+    strides_nd = tvm.runtime.tensor(np.array(strides).astype("int64"), dev)
 
     # Reference implementation
     out_npy = tvm.topi.testing.strided_slice_python(x_np, begin, end, strides)
@@ -85,10 +85,10 @@ def test_dynamic_strided_slice_symbolic(begin, end, strides):
     vm = build(DynamicStridedSlice)
 
     x_np = np.random.rand(8, 9, 10, 10).astype(np.float32)
-    data_nd = tvm.nd.array(x_np, dev)
-    begin_nd = tvm.nd.array(np.array(begin).astype("int64"), dev)
-    end_nd = tvm.nd.array(np.array(end).astype("int64"), dev)
-    strides_nd = tvm.nd.array(np.array(strides).astype("int64"), dev)
+    data_nd = tvm.runtime.tensor(x_np, dev)
+    begin_nd = tvm.runtime.tensor(np.array(begin).astype("int64"), dev)
+    end_nd = tvm.runtime.tensor(np.array(end).astype("int64"), dev)
+    strides_nd = tvm.runtime.tensor(np.array(strides).astype("int64"), dev)
 
     # Reference implementation
     out_npy = tvm.topi.testing.strided_slice_python(x_np, begin, end, strides)

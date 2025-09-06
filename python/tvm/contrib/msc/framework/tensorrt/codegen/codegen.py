@@ -33,7 +33,7 @@ from .utils import write_weight
 
 def to_sub_tensorrt(
     graph: MSCGraph,
-    weights: Dict[str, tvm.nd.array],
+    weights: Dict[str, tvm.runtime.Tensor],
     codegen_config: Optional[Dict[str, str]] = None,
     print_config: Optional[Dict[str, str]] = None,
     build_folder: msc_utils.MSCDirectory = None,
@@ -145,7 +145,7 @@ def to_sub_tensorrt(
 def to_tensorrt(
     mod: tvm.IRModule,
     graphs: List[MSCGraph],
-    weights: Dict[str, tvm.nd.array],
+    weights: Dict[str, tvm.runtime.Tensor],
     codegen_configs: Optional[Union[Dict[str, str], List[Dict[str, str]]]] = None,
     print_configs: Optional[Union[Dict[str, str], List[Dict[str, str]]]] = None,
     extra_options: Optional[Union[Dict[str, str], List[Dict[str, str]]]] = None,

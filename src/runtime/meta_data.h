@@ -28,7 +28,7 @@
 #include <dmlc/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <string>
 #include <unordered_map>

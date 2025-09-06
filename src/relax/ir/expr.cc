@@ -331,7 +331,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
            });
 });
 
-Constant::Constant(runtime::NDArray data, Optional<StructInfo> struct_info_annotation, Span span) {
+Constant::Constant(runtime::Tensor data, Optional<StructInfo> struct_info_annotation, Span span) {
   ObjectPtr<ConstantNode> n = make_object<ConstantNode>();
   n->data = std::move(data);
   n->span = std::move(span);
@@ -356,7 +356,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.Constant",
-      [](runtime::NDArray data, Optional<StructInfo> struct_info_annotation = std::nullopt,
+      [](runtime::Tensor data, Optional<StructInfo> struct_info_annotation = std::nullopt,
          Span span = Span()) { return Constant(data, struct_info_annotation, span); });
 });
 

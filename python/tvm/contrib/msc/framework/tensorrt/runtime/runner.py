@@ -79,14 +79,16 @@ class TensorRTRunner(BYOCRunner):
             assert quantizer.calibrated, "Failed to calibrate the tenosrrt quantizer"
         return super().make_plan(tool_type, data_loader)
 
-    def _generate_model(self, graphs: List[MSCGraph], weights: Dict[str, tvm.nd.array]) -> Any:
+    def _generate_model(
+        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
+    ) -> Any:
         """Codegen the model according to framework
 
         Parameters
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The weights.
 
         Returns

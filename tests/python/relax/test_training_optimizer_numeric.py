@@ -37,7 +37,7 @@ def _legalize_and_build(mod: IRModule, target, dev):
 def _numpy_to_tvm(data):
     if isinstance(data, (list, tuple)):
         return [_numpy_to_tvm(_data) for _data in data]
-    return tvm.nd.array(data)
+    return tvm.runtime.tensor(data)
 
 
 def _tvm_to_numpy(data):

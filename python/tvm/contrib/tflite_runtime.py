@@ -86,7 +86,7 @@ class TFLiteModule(object):
         value : the input value.
            The input key
 
-        params : dict of str to NDArray
+        params : dict of str to Tensor
            Additonal arguments
         """
         self._set_input(index, value)
@@ -96,7 +96,7 @@ class TFLiteModule(object):
 
         Parameters
         ----------
-        input_dict: dict of str to NDArray
+        input_dict: dict of str to Tensor
             List of input values to be feed to
         """
         self._invoke()

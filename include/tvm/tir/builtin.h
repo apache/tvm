@@ -337,7 +337,7 @@ TVM_DLL const Op& tvm_stack_alloca();
 TVM_DLL const Op& tvm_stack_make_shape();
 
 /*!
- * \brief Allocate a NDArray(DLTensor) on stack, return the handle.
+ * \brief Allocate a Tensor(DLTensor) on stack, return the handle.
  *
  *  Type tvm_stack_make_array(Expr data,
  *                            Expr shape,

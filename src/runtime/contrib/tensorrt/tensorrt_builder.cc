@@ -24,7 +24,7 @@
 
 #include "tensorrt_builder.h"
 
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <memory>
 #include <string>
@@ -233,8 +233,8 @@ nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(const DLTensor* dptr,
   }
   weight.count = count;
   weight.values = new float[count];
-  ICHECK_EQ(TVMArrayCopyToBytes(const_cast<DLTensor*>(dptr), const_cast<void*>(weight.values),
-                                weight_bytes),
+  ICHECK_EQ(TVMTensorCopyToBytes(const_cast<DLTensor*>(dptr), const_cast<void*>(weight.values),
+                                 weight_bytes),
             0)
       << TVMGetLastError();
   trt_weights_.push_back(weight);

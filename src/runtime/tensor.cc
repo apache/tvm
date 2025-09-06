@@ -18,15 +18,15 @@
  */
 
 /*!
- * \file ndarray.cc
- * \brief NDArray container infratructure.
+ * \file tensor.cc
+ * \brief Tensor container infratructure.
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include "tvm/runtime/data_type.h"
 
@@ -59,10 +59,10 @@ inline void VerifyDataType(DLDataType dtype) {
   ICHECK_EQ(dtype.bits & (dtype.bits - 1), 0);
 }
 
-void ArrayCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
+void TensorCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
   size_t arr_size = GetDataSize(*handle);
-  ICHECK_EQ(arr_size, nbytes) << "ArrayCopyFromBytes: size mismatch";
-  ICHECK(IsContiguous(*handle)) << "ArrayCopyFromBytes only support contiguous array for now";
+  ICHECK_EQ(arr_size, nbytes) << "TensorCopyFromBytes: size mismatch";
+  ICHECK(IsContiguous(*handle)) << "TensorCopyFromBytes only support contiguous array for now";
 
   DLTensor from;
   from.data = const_cast<void*>(data);
@@ -77,8 +77,8 @@ void ArrayCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
   DeviceAPI::Get(handle->device)->StreamSync(handle->device, nullptr);
 }
 
-void NDArray::CopyToBytes(const DLTensor* handle, void* data, size_t nbytes,
-                          TVMStreamHandle stream) {
+void Tensor::CopyToBytes(const DLTensor* handle, void* data, size_t nbytes,
+                         TVMStreamHandle stream) {
   size_t arr_size = GetDataSize(*handle);
   ICHECK_EQ(arr_size, nbytes) << "ArrayCopyToBytes: size mismatch";
   ICHECK(ffi::IsContiguous(*handle)) << "ArrayCopyToBytes only support contiguous array for now";
@@ -97,7 +97,7 @@ void NDArray::CopyToBytes(const DLTensor* handle, void* data, size_t nbytes,
   DeviceAPI::Get(handle->device)->StreamSync(handle->device, stream);
 }
 
-NDArray NDArray::Empty(ffi::Shape shape, DLDataType dtype, Device dev, Optional<String> mem_scope) {
+Tensor Tensor::Empty(ffi::Shape shape, DLDataType dtype, Device dev, Optional<String> mem_scope) {
   struct DeviceAPIAlloc {
     void AllocData(DLTensor* tensor, ffi::Optional<ffi::String> mem_scope) {
       tensor->data = DeviceAPI::Get(tensor->device)
@@ -108,11 +108,10 @@ NDArray NDArray::Empty(ffi::Shape shape, DLDataType dtype, Device dev, Optional<
       DeviceAPI::Get(tensor->device)->FreeDataSpace(tensor->device, tensor->data);
     }
   };
-  return ffi::NDArray::FromNDAlloc(DeviceAPIAlloc(), shape, dtype, dev, mem_scope);
+  return ffi::Tensor::FromNDAlloc(DeviceAPIAlloc(), shape, dtype, dev, mem_scope);
 }
 
-NDArray NDArray::CreateView(ffi::Shape shape, DLDataType dtype,
-                            uint64_t relative_byte_offset) const {
+Tensor Tensor::CreateView(ffi::Shape shape, DLDataType dtype, uint64_t relative_byte_offset) const {
   ICHECK(data_ != nullptr);
 
   const DLTensor& orig = *get_mutable();
@@ -145,14 +144,14 @@ NDArray NDArray::CreateView(ffi::Shape shape, DLDataType dtype,
       << view_size << " bytes.  "
       << "This would occupy bytes " << relative_byte_offset << " <= i_byte < "
       << (relative_byte_offset + view_size) << " within the backing array.  "
-      << "However, the NDArray being viewed only contains " << curr_size << " bytes (shape = "
+      << "However, the Tensor being viewed only contains " << curr_size << " bytes (shape = "
       << ffi::Shape(curr_dl_tensor.shape, curr_dl_tensor.shape + curr_dl_tensor.ndim)
       << ", dtype= " << curr_dl_tensor.dtype << ").";
 
-  // helper allocator class that retains ref count of original NDArray
+  // helper allocator class that retains ref count of original Tensor
   class ViewBasedAlloc {
    public:
-    explicit ViewBasedAlloc(NDArray source) : source_(source) {}
+    explicit ViewBasedAlloc(Tensor source) : source_(source) {}
     void AllocData(DLTensor* tensor, int64_t byte_offset) {
       tensor->data = source_.get_mutable()->data;
       tensor->byte_offset = byte_offset;
@@ -161,30 +160,30 @@ NDArray NDArray::CreateView(ffi::Shape shape, DLDataType dtype,
     void FreeData(DLTensor* tensor) {}
 
    private:
-    NDArray source_;
+    Tensor source_;
   };
 
-  NDArray ret = NDArray::FromNDAlloc(ViewBasedAlloc(NDArray(*this)), shape, dtype, (*this)->device,
-                                     curr_dl_tensor.byte_offset + relative_byte_offset);
+  Tensor ret = Tensor::FromNDAlloc(ViewBasedAlloc(Tensor(*this)), shape, dtype, (*this)->device,
+                                   curr_dl_tensor.byte_offset + relative_byte_offset);
   return ret;
 }
 
-void NDArray::CopyToBytes(void* data, size_t nbytes) const {
+void Tensor::CopyToBytes(void* data, size_t nbytes) const {
   ICHECK(data != nullptr);
   ICHECK(data_ != nullptr);
-  NDArray::CopyToBytes(get_mutable(), data, nbytes);
+  Tensor::CopyToBytes(get_mutable(), data, nbytes);
 }
 
-void NDArray::CopyFromBytes(const void* data, size_t nbytes) {
+void Tensor::CopyFromBytes(const void* data, size_t nbytes) {
   ICHECK(data != nullptr);
   ICHECK(data_ != nullptr);
-  ArrayCopyFromBytes(get_mutable(), data, nbytes);
+  TensorCopyFromBytes(get_mutable(), data, nbytes);
 }
 
-NDArray NDArray::CopyTo(const Device& dev, Optional<String> mem_scope) const {
+Tensor Tensor::CopyTo(const Device& dev, Optional<String> mem_scope) const {
   ICHECK(data_ != nullptr);
   const DLTensor* dptr = operator->();
-  NDArray ret =
+  Tensor ret =
       Empty(ffi::Shape(dptr->shape, dptr->shape + dptr->ndim), dptr->dtype, dev, mem_scope);
   this->CopyTo(ret);
   Device copy_gpu_dev = dptr->device.device_type != kDLCPU ? dptr->device : dev;
@@ -192,10 +191,10 @@ NDArray NDArray::CopyTo(const Device& dev, Optional<String> mem_scope) const {
   return ret;
 }
 
-void NDArray::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
+void Tensor::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
   size_t from_size = GetDataSize(*from);
   size_t to_size = GetDataSize(*to);
-  ICHECK_EQ(from_size, to_size) << "TVMArrayCopyFromTo: The size in bytes must exactly match.";
+  ICHECK_EQ(from_size, to_size) << "TVMTensorCopyFromTo: The size in bytes must exactly match.";
 
   ICHECK(from->device.device_type == to->device.device_type || from->device.device_type == kDLCPU ||
          to->device.device_type == kDLCPU || from->device.device_type == kDLCUDAHost ||
@@ -219,13 +218,12 @@ using namespace tvm::runtime;
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.TVMArrayAllocWithScope", NDArray::Empty)
-      .def_method("runtime.TVMArrayCreateView", &NDArray::CreateView)
-      .def("runtime.TVMArrayCopyFromBytes",
-           [](DLTensor* arr, void* data, size_t nbytes) { ArrayCopyFromBytes(arr, data, nbytes); })
-      .def(
-          "runtime.TVMArrayCopyToBytes",
-          [](DLTensor* arr, void* data, size_t nbytes) { NDArray::CopyToBytes(arr, data, nbytes); })
-      .def("runtime.TVMArrayCopyFromTo",
-           [](DLTensor* from, DLTensor* to) { NDArray::CopyFromTo(from, to); });
+      .def("runtime.TVMTensorAllocWithScope", Tensor::Empty)
+      .def_method("runtime.TVMTensorCreateView", &Tensor::CreateView)
+      .def("runtime.TVMTensorCopyFromBytes",
+           [](DLTensor* arr, void* data, size_t nbytes) { TensorCopyFromBytes(arr, data, nbytes); })
+      .def("runtime.TVMTensorCopyToBytes",
+           [](DLTensor* arr, void* data, size_t nbytes) { Tensor::CopyToBytes(arr, data, nbytes); })
+      .def("runtime.TVMTensorCopyFromTo",
+           [](DLTensor* from, DLTensor* to) { Tensor::CopyFromTo(from, to); });
 });

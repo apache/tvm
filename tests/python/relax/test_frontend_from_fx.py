@@ -38,7 +38,7 @@ def verify_model(torch_model, input_info, binding, expected):
     graph_model = fx.symbolic_trace(torch_model)
     with torch.no_grad():
         mod = from_fx(graph_model, input_info)
-    binding = {k: tvm.nd.array(v) for k, v in binding.items()}
+    binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
     tvm.ir.assert_structural_equal(mod, expected)
 
@@ -4578,9 +4578,9 @@ def test_keep_params():
     params = params["main"]
 
     assert len(params) == len(func.params) - 1
-    for param_var, param_ndarray in zip(func.params[1:], params):
-        assert tuple(x.value for x in param_var.struct_info.shape.values) == param_ndarray.shape
-        assert param_var.struct_info.dtype == param_ndarray.dtype
+    for param_var, param_tensor in zip(func.params[1:], params):
+        assert tuple(x.value for x in param_var.struct_info.shape.values) == param_tensor.shape
+        assert param_var.struct_info.dtype == param_tensor.dtype
 
     tvm.testing.assert_allclose(params[0].numpy(), model.conv.bias.detach().detach().numpy())
     tvm.testing.assert_allclose(params[1].numpy(), model.conv.weight.detach().detach().numpy())

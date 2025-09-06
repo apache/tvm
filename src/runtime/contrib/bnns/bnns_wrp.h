@@ -62,7 +62,7 @@ class Tensor {
     auto rank = shape.size();
     ICHECK(rank < BNNS_MAX_TENSOR_DIMENSION);
 
-    desc_ = {BNNSNDArrayFlags(0),
+    desc_ = {BNNSTensorFlags(0),
              getPlainLayout(rank),
              {},       // shape
              {},       // strides
@@ -107,7 +107,7 @@ class Tensor {
     is_external_data = true;
   }
 
-  const BNNSNDArrayDescriptor& get_desc() const { return desc_; }
+  const BNNSTensorDescriptor& get_desc() const { return desc_; }
 
   static BNNSDataLayout getPlainLayout(size_t rank) {
     ICHECK(rank <= BNNS_MAX_TENSOR_DIMENSION);
@@ -116,9 +116,9 @@ class Tensor {
 
   static size_t getRank(BNNSDataLayout layout) { return (layout & 0xF0000) >> 16; }
 
-  static size_t getRank(BNNSNDArrayDescriptor desc) { return getRank(desc.layout); }
+  static size_t getRank(BNNSTensorDescriptor desc) { return getRank(desc.layout); }
 
-  static size_t getSize(BNNSNDArrayDescriptor desc) {
+  static size_t getSize(BNNSTensorDescriptor desc) {
     auto rank = getRank(desc);
     return std::accumulate(desc.size, desc.size + rank, 1, std::multiplies<int>());
   }
@@ -127,13 +127,13 @@ class Tensor {
   static size_t getElementSize(Dtype dtype) { return (dtype & 0xFFFF) / 8; }
 
   /** return size of element in bytes */
-  static size_t getElementSize(const BNNSNDArrayDescriptor& desc) {
+  static size_t getElementSize(const BNNSTensorDescriptor& desc) {
     return getElementSize(desc.data_type);
   }
 
  private:
   bool is_external_data = false;
-  BNNSNDArrayDescriptor desc_;
+  BNNSTensorDescriptor desc_;
 };
 
 using TensorPtr = std::shared_ptr<Tensor>;
@@ -291,14 +291,14 @@ class TView {
   operator bool() const { return origin_ != nullptr; }
 
   /** Get BNNS descriptor for particular View. Batch and Party attributed are ignored. */
-  const BNNSNDArrayDescriptor& get_bnns_view() const { return view_desc_; }
+  const BNNSTensorDescriptor& get_bnns_view() const { return view_desc_; }
 
  private:
   /** Original tensor object to view on */
   TensorPtr origin_;
 
   /** Batched view parameters */
-  BNNSNDArrayDescriptor view_desc_ = {};
+  BNNSTensorDescriptor view_desc_ = {};
   size_t batch_size_ = 1;
   size_t batch_stride_ = 0;
 

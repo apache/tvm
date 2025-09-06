@@ -21,8 +21,8 @@
 #include <float.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/tensor.h>
 
 #include "../cublas/cublas_utils.h"
 #include "fp8_groupwise_scaled_gemm.cuh"
@@ -47,20 +47,20 @@ struct CutlassFP8GroupwiseGemm<100, TileShape, ClusterShape, ElementA, ElementB,
   }
 };
 
-void tvm_cutlass_fp8_groupwise_scaled_gemm_sm100(NDArray a, NDArray b, NDArray scales_a,
-                                                 NDArray scales_b, NDArray workspace,
+void tvm_cutlass_fp8_groupwise_scaled_gemm_sm100(Tensor a, Tensor b, Tensor scales_a,
+                                                 Tensor scales_b, Tensor workspace,
                                                  int64_t block_size_0, int64_t block_size_1,
-                                                 NDArray out) {
+                                                 Tensor out) {
   using TileShape = Shape<_128, _128, _128>;
   using ClusterShape = Shape<_1, _1, _1>;
   tvm_cutlass_fp8_groupwise_scaled_gemm_impl<100, TileShape, ClusterShape>(
       a, b, scales_a, scales_b, workspace, block_size_0, block_size_1, out);
 }
 
-void tvm_cutlass_fp8_groupwise_scaled_bmm_sm100(NDArray a, NDArray b, NDArray scales_a,
-                                                NDArray scales_b, NDArray workspace,
+void tvm_cutlass_fp8_groupwise_scaled_bmm_sm100(Tensor a, Tensor b, Tensor scales_a,
+                                                Tensor scales_b, Tensor workspace,
                                                 int64_t block_size_0, int64_t block_size_1,
-                                                NDArray out) {
+                                                Tensor out) {
   using TileShape = Shape<_128, _128, _128>;
   using ClusterShape = Shape<_1, _1, _1>;
   tvm_cutlass_fp8_groupwise_scaled_bmm_impl<100, TileShape, ClusterShape>(

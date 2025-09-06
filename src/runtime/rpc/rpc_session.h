@@ -55,8 +55,8 @@ class RPCSession {
   /*! \brief Module handle in the remote. */
   using ModuleHandle = void*;
 
-  /*! \brief NDArray handle in the remote. */
-  using NDArrayHandle = void*;
+  /*! \brief Tensor handle in the remote. */
+  using TensorHandle = void*;
 
   /*!
    * \brief Callback to send an encoded return values via encode_args.
@@ -66,7 +66,7 @@ class RPCSession {
    * Encoding convention (as list of arguments):
    * - str/float/int/byte: [tcode: int, value: TVMValue] value follows ffi::Function convention.
    * - ffi::Function/Module: [tcode: int, handle: void*]
-   * - NDArray: [tcode: int,  meta: DLTensor*, nd_handle: void*]
+   * - Tensor: [tcode: int,  meta: DLTensor*, nd_handle: void*]
    *            DLTensor* contains the meta-data as well as handle into the remote data.
    *            nd_handle can be used for deletion.
    */
@@ -98,7 +98,7 @@ class RPCSession {
    *  - type_code is follows the ffi::Function convention.
    *  - int/float/string/bytes follows the ffi::Function convention, all data are local.
    *  - ffi::Function/Module and future remote objects: pass remote handle instead.
-   *  - NDArray/DLTensor: pass a DLTensor pointer, the data field of DLTensor
+   *  - Tensor/DLTensor: pass a DLTensor pointer, the data field of DLTensor
    *                      points to a remote data handle returned by the Device API.
    *                      The meta-data of the DLTensor sits on local.
    *
@@ -109,8 +109,8 @@ class RPCSession {
    *
    *  The callee need to store the return value into ret_value.
    *  - ffi::Function/Module are stored as void*
-   *  - NDArray is stored as local NDArray, whose data field is a remote handle.
-   *    Notably the NDArray's deleter won't delete remote handle.
+   *  - Tensor is stored as local Tensor, whose data field is a remote handle.
+   *    Notably the Tensor's deleter won't delete remote handle.
    *    It is up to the user of the RPCSession to such wrapping.
    *  - In short, remote handles are "moved" as return values
    *    and the callee needs to explicitly manage them by calling

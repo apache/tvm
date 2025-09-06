@@ -29,7 +29,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 #include <tvm/runtime/vm/builtin.h>
 #include <tvm/runtime/vm/bytecode.h>
 #include <tvm/runtime/vm/vm.h>
@@ -38,7 +38,7 @@ namespace tvm {
 namespace runtime {
 namespace vm {
 
-using tvm::runtime::NDArray;
+using tvm::runtime::Tensor;
 
 //-------------------------------------------------
 //  Shape/StructInfo handling.
@@ -47,9 +47,9 @@ using tvm::runtime::NDArray;
  * \brief Builtin function to allocate shape heap.
  * \param ctx_ptr The context module pointer.
  * \param size the size of the heap.
- * \return An allocate NDArray as shape heap.
+ * \return An allocate Tensor as shape heap.
  */
-NDArray AllocShapeHeap(void* ctx_ptr, int64_t size) {
+Tensor AllocShapeHeap(void* ctx_ptr, int64_t size) {
   VirtualMachine* vm = static_cast<VirtualMachine*>(ctx_ptr);
   // use host allocator, which is always last element.
   size_t host_device_index = vm->devices.size() - 1;
@@ -122,7 +122,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 void MatchShape(ffi::PackedArgs args, ffi::Any* rv) {
   // input shape the first argument can take in tensor or shape.
   ffi::Shape input_shape;
-  if (auto opt_nd = args[0].as<NDArray>()) {
+  if (auto opt_nd = args[0].as<Tensor>()) {
     input_shape = opt_nd.value().Shape();
   } else {
     input_shape = args[0].cast<ffi::Shape>();
@@ -388,7 +388,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("vm.builtin.alloc_storage", VMAllocStorage)
-      .def_method("vm.builtin.alloc_tensor", &StorageObj::AllocNDArray);
+      .def_method("vm.builtin.alloc_tensor", &StorageObj::AllocTensor);
 });
 
 //-------------------------------------------------
@@ -436,14 +436,13 @@ TVM_FFI_STATIC_INIT_BLOCK({
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("vm.builtin.shape_of", &NDArray::Shape)
+      .def_method("vm.builtin.shape_of", &Tensor::Shape)
       .def("vm.builtin.copy", [](ffi::Any a) -> ffi::Any { return a; })
-      .def("vm.builtin.reshape",
-           [](NDArray data, ffi::Shape new_shape) {
-             return data.CreateView(new_shape, data->dtype);
-           })
+      .def(
+          "vm.builtin.reshape",
+          [](Tensor data, ffi::Shape new_shape) { return data.CreateView(new_shape, data->dtype); })
       .def("vm.builtin.null_value", []() -> std::nullptr_t { return nullptr; })
-      .def("vm.builtin.to_device", [](NDArray data, int dev_type, int dev_id) {
+      .def("vm.builtin.to_device", [](Tensor data, int dev_type, int dev_id) {
         Device dst_device = {(DLDeviceType)dev_type, dev_id};
         return data.CopyTo(dst_device);
       });
@@ -458,7 +457,7 @@ bool ReadIfCond(ffi::AnyView cond) {
   if (auto opt_int = cond.try_cast<bool>()) {
     return opt_int.value();
   }
-  NDArray arr = cond.cast<tvm::runtime::NDArray>();
+  Tensor arr = cond.cast<tvm::runtime::Tensor>();
   if (arr->device.device_type != kDLCPU) {
     arr = arr.CopyTo(DLDevice{kDLCPU, 0});
   }
@@ -548,8 +547,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     *rv = arr;
                   })
       .def("vm.builtin.tensor_to_shape",
-           [](NDArray data) {
-             NDArray arr = data;
+           [](Tensor data) {
+             Tensor arr = data;
              if (data->device.device_type != kDLCPU) {
                arr = data.CopyTo(DLDevice{kDLCPU, 0});
              }
@@ -581,7 +580,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              }
              return ffi::Shape(out_shape);
            })
-      .def("vm.builtin.ensure_zero_offset", [](NDArray data) {
+      .def("vm.builtin.ensure_zero_offset", [](Tensor data) {
         if (data->byte_offset == 0) {
           return data;
         }
@@ -592,9 +591,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
           dl_tensor->dl_tensor.data =
               reinterpret_cast<char*>(dl_tensor->dl_tensor.data) + dl_tensor->dl_tensor.byte_offset;
           dl_tensor->dl_tensor.byte_offset = 0;
-          return NDArray::FromDLPack(dl_tensor);
+          return Tensor::FromDLPack(dl_tensor);
         } else {
-          auto new_array = NDArray::Empty(data.Shape(), data->dtype, data->device);
+          auto new_array = Tensor::Empty(data.Shape(), data->dtype, data->device);
           new_array.CopyFrom(data);
           return new_array;
         }

@@ -40,7 +40,7 @@ namespace tir {
 
 class ParamsCollector : public StmtExprVisitor {
  public:
-  explicit ParamsCollector(const Map<tir::Var, runtime::NDArray>& constant_map)
+  explicit ParamsCollector(const Map<tir::Var, runtime::Tensor>& constant_map)
       : constant_map_(constant_map) {}
   std::vector<const tir::VarNode*> CollectParams(tir::Stmt body) {
     this->VisitStmt(body);
@@ -75,11 +75,11 @@ class ParamsCollector : public StmtExprVisitor {
 
  private:
   std::vector<const tir::VarNode*> constant_list_;
-  Map<tir::Var, runtime::NDArray> constant_map_;
+  Map<tir::Var, runtime::Tensor> constant_map_;
 };
 
-PrimFunc BindParams(PrimFunc f, const Array<runtime::NDArray>& constants) {
-  Map<tir::Var, runtime::NDArray> constant_map;
+PrimFunc BindParams(PrimFunc f, const Array<runtime::Tensor>& constants) {
+  Map<tir::Var, runtime::Tensor> constant_map;
 
   // Remove constants from the primfunc signature
   size_t num_constants = constants.size();
@@ -126,7 +126,7 @@ PrimFunc BindParams(PrimFunc f, const Array<runtime::NDArray>& constants) {
 
 namespace transform {
 
-Pass BindParams(const Array<runtime::NDArray>& constants) {
+Pass BindParams(const Array<runtime::Tensor>& constants) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     return BindParams(f, constants);
   };

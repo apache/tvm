@@ -38,12 +38,12 @@ class StructuralHash {
    * \brief Hash an Any value.
    * \param value The Any value to hash.
    * \param map_free_vars Whether to map free variables.
-   * \param skip_ndarray_content Whether to skip comparingn darray data content,
+   * \param skip_tensor_content Whether to skip comparingn darray data content,
    *                             useful for cases where we don't care about parameters content.
    * \return The hash value.
    */
   TVM_FFI_EXTRA_CXX_API static uint64_t Hash(const Any& value, bool map_free_vars = false,
-                                             bool skip_ndarray_content = false);
+                                             bool skip_tensor_content = false);
   /*!
    * \brief Hash an Any value.
    * \param value The Any value to hash.

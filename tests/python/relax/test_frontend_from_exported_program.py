@@ -34,7 +34,7 @@ def verify_model(torch_model, example_args, binding, expected, dynamic_shapes=No
     exported_program = export(torch_model, args=example_args, dynamic_shapes=dynamic_shapes)
     mod = from_exported_program(exported_program)
 
-    binding = {k: tvm.nd.array(v) for k, v in binding.items()}
+    binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
     tvm.ir.assert_structural_equal(mod, expected)
 
@@ -4802,9 +4802,9 @@ def test_keep_params():
     params = params["main"]
 
     assert len(params) == len(func.params) - 1
-    for param_var, param_ndarray in zip(func.params[1:], params):
-        assert tuple(x.value for x in param_var.struct_info.shape.values) == param_ndarray.shape
-        assert param_var.struct_info.dtype == param_ndarray.dtype
+    for param_var, param_tensor in zip(func.params[1:], params):
+        assert tuple(x.value for x in param_var.struct_info.shape.values) == param_tensor.shape
+        assert param_var.struct_info.dtype == param_tensor.dtype
 
     tvm.testing.assert_allclose(params[0].numpy(), model.conv.weight.detach().detach().numpy())
     tvm.testing.assert_allclose(params[1].numpy(), model.conv.bias.detach().detach().numpy())

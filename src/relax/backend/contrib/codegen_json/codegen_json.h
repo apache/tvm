@@ -174,7 +174,7 @@ class OpAttrExtractor {
           this->Visit(field_info->name.data, &value);
           break;
         }
-        case ffi::TypeIndex::kTVMFFINDArray: {
+        case ffi::TypeIndex::kTVMFFITensor: {
           this->Visit(field_info->name.data, &field_value);
           break;
         }

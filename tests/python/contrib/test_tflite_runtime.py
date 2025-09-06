@@ -92,7 +92,7 @@ def test_local():
     # inference via tvm tflite runtime
     with open(tflite_model_path, "rb") as model_fin:
         runtime = tflite_runtime.create(model_fin.read(), tvm.cpu(0))
-        runtime.set_input(0, tvm.nd.array(tflite_input))
+        runtime.set_input(0, tvm.runtime.tensor(tflite_input))
         runtime.invoke()
         out = runtime.get_output(0)
         np.testing.assert_equal(out.numpy(), tflite_output)
@@ -138,7 +138,7 @@ def test_remote():
 
         with open(tflite_model_path, "rb") as model_fin:
             runtime = tflite_runtime.create(model_fin.read(), remote.cpu(0))
-            runtime.set_input(0, tvm.nd.array(tflite_input, remote.cpu(0)))
+            runtime.set_input(0, tvm.runtime.tensor(tflite_input, remote.cpu(0)))
             runtime.invoke()
             out = runtime.get_output(0)
             np.testing.assert_equal(out.numpy(), tflite_output)

@@ -17,12 +17,12 @@
 
 __dlpack_version__ = (1, 1)
 __dlpack_auto_import_required_alignment__ = 8
-_CLASS_NDARRAY = None
+_CLASS_TENSOR = None
 
 
-def _set_class_ndarray(cls):
-    global _CLASS_NDARRAY
-    _CLASS_NDARRAY = cls
+def _set_class_tensor(cls):
+    global _CLASS_TENSOR
+    _CLASS_TENSOR = cls
 
 
 cdef const char* _c_str_dltensor = "dltensor"
@@ -55,7 +55,7 @@ cdef inline int _from_dlpack(
     if pycapsule.PyCapsule_IsValid(dltensor, _c_str_dltensor):
         ptr = <DLManagedTensor*>pycapsule.PyCapsule_GetPointer(dltensor, _c_str_dltensor)
         with nogil:
-            c_api_ret_code = TVMFFINDArrayFromDLPack(
+            c_api_ret_code = TVMFFITensorFromDLPack(
                 ptr, c_req_alignment, c_req_contiguous, out)
         CHECK_CALL(c_api_ret_code)
         # set name and destructor to be empty
@@ -77,7 +77,7 @@ cdef inline int _from_dlpack_versioned(
         ptr = <DLManagedTensorVersioned*>pycapsule.PyCapsule_GetPointer(
             dltensor, _c_str_dltensor_versioned)
         with nogil:
-            c_api_ret_code = TVMFFINDArrayFromDLPackVersioned(
+            c_api_ret_code = TVMFFITensorFromDLPackVersioned(
                 ptr, c_req_alignment, c_req_contiguous, out)
         CHECK_CALL(c_api_ret_code)
         # set name and destructor to be empty
@@ -89,7 +89,7 @@ cdef inline int _from_dlpack_versioned(
 
 def from_dlpack(ext_tensor, *, required_alignment=8, required_contiguous=True):
     """
-    Convert an external tensor to an NDArray.
+    Convert an external tensor to an Tensor.
 
     Parameters
     ----------
@@ -147,7 +147,7 @@ def from_dlpack(ext_tensor, *, required_alignment=8, required_contiguous=True):
             )
         else:
             raise TypeError("Expect from_dlpack to take either a compatible tensor or PyCapsule")
-    return make_ndarray_from_chandle(chandle)
+    return make_tensor_from_chandle(chandle)
 
 
 # helper class for shape handling
@@ -156,7 +156,7 @@ def _shape_obj_get_py_tuple(obj):
     return tuple(shape.data[i] for i in range(shape.size))
 
 
-cdef class NDArray(Object):
+cdef class Tensor(Object):
     """N-dimensional array that is compatible with DLPack.
     """
     cdef DLTensor* cdltensor
@@ -199,7 +199,7 @@ cdef class NDArray(Object):
         cdef int c_api_ret_code
 
         with nogil:
-            c_api_ret_code = TVMFFINDArrayToDLPack(self.chandle, &dltensor)
+            c_api_ret_code = TVMFFITensorToDLPack(self.chandle, &dltensor)
         CHECK_CALL(c_api_ret_code)
         return pycapsule.PyCapsule_New(dltensor, _c_str_dltensor, <PyCapsule_Destructor>_c_dlpack_deleter)
 
@@ -208,7 +208,7 @@ cdef class NDArray(Object):
         cdef int c_api_ret_code
 
         with nogil:
-            c_api_ret_code = TVMFFINDArrayToDLPackVersioned(self.chandle, &dltensor)
+            c_api_ret_code = TVMFFITensorToDLPackVersioned(self.chandle, &dltensor)
         CHECK_CALL(c_api_ret_code)
         return pycapsule.PyCapsule_New(
             dltensor, _c_str_dltensor_versioned, <PyCapsule_Destructor>_c_dlpack_versioned_deleter)
@@ -266,27 +266,27 @@ cdef class NDArray(Object):
                 raise BufferError(f"Unsupported max_version {max_version}")
 
 
-_set_class_ndarray(NDArray)
-_register_object_by_index(kTVMFFINDArray, NDArray)
+_set_class_tensor(Tensor)
+_register_object_by_index(kTVMFFITensor, Tensor)
 
 
 cdef inline object make_ret_dltensor(TVMFFIAny result):
     cdef DLTensor* dltensor
     dltensor = <DLTensor*>result.v_ptr
-    ndarray = _CLASS_NDARRAY.__new__(_CLASS_NDARRAY)
-    (<Object>ndarray).chandle = NULL
-    (<NDArray>ndarray).cdltensor = dltensor
-    return ndarray
+    tensor = _CLASS_TENSOR.__new__(_CLASS_TENSOR)
+    (<Object>tensor).chandle = NULL
+    (<Tensor>tensor).cdltensor = dltensor
+    return tensor
 
 
-cdef inline object make_ndarray_from_chandle(TVMFFIObjectHandle chandle):
+cdef inline object make_tensor_from_chandle(TVMFFIObjectHandle chandle):
     # TODO: Implement
-    cdef NDArray ndarray
-    ndarray = _CLASS_NDARRAY.__new__(_CLASS_NDARRAY)
-    (<Object>ndarray).chandle = chandle
-    (<NDArray>ndarray).cdltensor = TVMFFINDArrayGetDLTensorPtr(chandle)
-    return ndarray
+    cdef Tensor tensor
+    tensor = _CLASS_TENSOR.__new__(_CLASS_TENSOR)
+    (<Object>tensor).chandle = chandle
+    (<Tensor>tensor).cdltensor = TVMFFITensorGetDLTensorPtr(chandle)
+    return tensor
 
 
-cdef inline object make_ndarray_from_any(TVMFFIAny any):
-    return make_ndarray_from_chandle(any.v_ptr)
+cdef inline object make_tensor_from_any(TVMFFIAny any):
+    return make_tensor_from_chandle(any.v_ptr)

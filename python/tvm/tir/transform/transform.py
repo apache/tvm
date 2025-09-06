@@ -373,7 +373,7 @@ def MakePackedAPI():
     For static shapes, the `BufferNode::shape`, `BufferNode::strides`,
     and `BufferNode::elem_offset` member variables are used to
     generate runtime checks on the corresponding member variables in
-    the user-provided `DLTensor*` or `tvm.nd.array` argument.  (e.g. A
+    the user-provided `DLTensor*` or `tvm.runtime.tensor` argument.  (e.g. A
     PrimFunc that accepts a buffer of shape `[16,32]` validates that
     the `DLTensor::shape` array is `[16,32]`.)
 
@@ -1052,26 +1052,26 @@ def InjectPTXAsyncCopy():
     return _ffi_api.InjectPTXAsyncCopy()  # type: ignore
 
 
-def RemoveWeightLayoutRewriteBlock(skip_ndarray_rewrite=False):
+def RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite=False):
     """Remove weight layout rewrite block before benchmarking during tuning stage.
 
     Parameters
     ----------
-    skip_ndarray_rewrite : bool
-        If True, exact rewrite of NDArray, according to the given index map, will be skipped.
-        Only the shape of the NDArray is transformed correctly, and the content of the destination
+    skip_tensor_rewrite : bool
+        If True, exact rewrite of Tensor, according to the given index map, will be skipped.
+        Only the shape of the Tensor is transformed correctly, and the content of the destination
         array will be filled with random values.
 
-        When this pass is called many times during MetaSchedule tuning, the raw data of NDArray,
-        before and after rewrite, does not matter. Since NDArray layout rewrite, using IndexMap's
-        MapNDArray, is currently slow, skipping the exact rewrite is sometimes necessary.
+        When this pass is called many times during MetaSchedule tuning, the raw data of Tensor,
+        before and after rewrite, does not matter. Since Tensor layout rewrite, using IndexMap's
+        MapTensor, is currently slow, skipping the exact rewrite is sometimes necessary.
 
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.RemoveWeightLayoutRewriteBlock(skip_ndarray_rewrite)  # type: ignore
+    return _ffi_api.RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite)  # type: ignore
 
 
 def ManifestSharedMemoryLocalStage():

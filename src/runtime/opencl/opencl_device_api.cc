@@ -434,12 +434,12 @@ void OpenCLWorkspace::FreeDataSpaceView(Device dev, void* ptr) {
   }
 }
 
-void* OpenCLWorkspace::GetNativePtr(const tvm::runtime::NDArray& narr) {
+void* OpenCLWorkspace::GetNativePtr(const tvm::runtime::Tensor& narr) {
   cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(narr.operator->()->data);
   return desc->host_ptr;
 }
 
-void OpenCLWorkspace::SetNativePtr(const tvm::runtime::NDArray& narr, void* host_ptr,
+void OpenCLWorkspace::SetNativePtr(const tvm::runtime::Tensor& narr, void* host_ptr,
                                    size_t buf_size) {
   cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(narr.operator->()->data);
 

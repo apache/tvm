@@ -48,22 +48,22 @@ class BaseDistiller(BaseTool):
         return super().setup()
 
     def _reset(
-        self, graphs: List[MSCGraph], weights: Dict[str, tvm.nd.array]
-    ) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
+        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
+    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Reset the tool
 
         Parameters
         ----------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The weights.
 
         Returns
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The weights.
         """
 
@@ -164,7 +164,7 @@ class BaseDistiller(BaseTool):
             The distilled weights.
         """
 
-        weights = {n: tvm.nd.array(msc_utils.cast_array(d)) for n, d in weights.items()}
+        weights = {n: tvm.runtime.tensor(msc_utils.cast_array(d)) for n, d in weights.items()}
         weights_path = self._weights_folder.relpath("distill_{}.bin".format(self._current_iter))
         with open(weights_path, "wb") as f_params:
             f_params.write(tvm.runtime.save_param_dict(weights))

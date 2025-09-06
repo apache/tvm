@@ -19,7 +19,7 @@
 
 export {
   Scalar, DLDevice, DLDataType,
-  PackedFunc, Module, NDArray,
+  PackedFunc, Module, Tensor,
   TVMArray, TVMObject, VirtualMachine,
   InitProgressCallback, InitProgressReport,
   Instance, instantiate
@@ -28,8 +28,8 @@ export {
   ArtifactCacheTemplate,
   ArtifactCache,
   ArtifactIndexedDBCache,
-  hasNDArrayInCache,
-  deleteNDArrayCache
+  hasTensorInCache,
+  deleteTensorCache
 } from "./artifact_cache";
 export { Disposable, LibraryProvider } from "./types";
 export { RPCServer } from "./rpc_server";

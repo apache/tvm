@@ -70,7 +70,7 @@ def view(
 
     relative_byte_offset: Optional[Expr]
 
-        The offset of the output NDArray, relative to the byte offset
+        The offset of the output Tensor, relative to the byte offset
         of `data`.  If `None`, the offset of the view is the same as
         the offset of `data`.
 

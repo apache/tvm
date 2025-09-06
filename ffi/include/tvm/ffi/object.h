@@ -57,7 +57,7 @@ struct StaticTypeKey {
   static constexpr const char* kTVMFFIBytes = "ffi.Bytes";
   static constexpr const char* kTVMFFIStr = "ffi.String";
   static constexpr const char* kTVMFFIShape = "ffi.Shape";
-  static constexpr const char* kTVMFFINDArray = "ffi.NDArray";
+  static constexpr const char* kTVMFFITensor = "ffi.Tensor";
   static constexpr const char* kTVMFFIObject = "ffi.Object";
   static constexpr const char* kTVMFFIFunction = "ffi.Function";
   static constexpr const char* kTVMFFIArray = "ffi.Array";

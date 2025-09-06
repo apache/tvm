@@ -481,7 +481,7 @@ def test_lower_runtime_builtin_shape_change():
         @R.function
         def main(A: R.Tensor([4096], "float32")):
             B = R.ExternFunc(
-                "runtime.TVMArrayCreateView",
+                "runtime.TVMTensorCreateView",
                 R.Callable(
                     derive_func="tvm.relax.struct_info.infer_view_sinfo",
                     purity=True,
@@ -513,7 +513,7 @@ def test_lower_runtime_builtin_view_shape_from_unknown():
         @R.function
         def main(A: R.Tensor(dtype="float32")):
             B = R.ExternFunc(
-                "runtime.TVMArrayCreateView",
+                "runtime.TVMTensorCreateView",
                 R.Callable(
                     derive_func="tvm.relax.struct_info.infer_view_sinfo",
                     purity=True,
@@ -543,7 +543,7 @@ def test_lower_runtime_builtin_dtype_change():
         @R.function
         def main(A: R.Tensor([4096], "float32")):
             B = R.ExternFunc(
-                "runtime.TVMArrayCreateView",
+                "runtime.TVMTensorCreateView",
                 R.Callable(
                     derive_func="tvm.relax.struct_info.infer_view_sinfo",
                     purity=True,
@@ -573,7 +573,7 @@ def test_lower_runtime_builtin_byte_offset():
         @R.function
         def main(A: R.Tensor([4096], "float32")):
             B = R.ExternFunc(
-                "runtime.TVMArrayCreateView",
+                "runtime.TVMTensorCreateView",
                 R.Callable(
                     derive_func="tvm.relax.struct_info.infer_view_sinfo",
                     purity=True,
@@ -622,7 +622,7 @@ def test_lower_runtime_builtin_view_with_multiple_updated_fields():
         @R.function
         def main(A: R.Tensor([4096], "uint8")):
             B = R.ExternFunc(
-                "runtime.TVMArrayCreateView",
+                "runtime.TVMTensorCreateView",
                 R.Callable(
                     derive_func="tvm.relax.struct_info.infer_view_sinfo",
                     purity=True,
@@ -634,7 +634,7 @@ def test_lower_runtime_builtin_view_with_multiple_updated_fields():
                 R.prim_value(0),
             )
             C = R.ExternFunc(
-                "runtime.TVMArrayCreateView",
+                "runtime.TVMTensorCreateView",
                 R.Callable(
                     derive_func="tvm.relax.struct_info.infer_view_sinfo",
                     purity=True,
@@ -664,7 +664,7 @@ def test_execute_no_op_view(target, dev):
     vm = tvm.relax.VirtualMachine(built, device=dev)
 
     np_input = np.random.random([4096]).astype("float32")
-    tvm_input = tvm.nd.array(np_input, dev)
+    tvm_input = tvm.runtime.tensor(np_input, dev)
     tvm_output = vm["main"](tvm_input)
     np_expected = np_input
 
@@ -684,7 +684,7 @@ def test_execute_view_with_new_shape(target, dev):
     vm = tvm.relax.VirtualMachine(built, device=dev)
 
     np_input = np.random.random([4096]).astype("float32")
-    tvm_input = tvm.nd.array(np_input, dev)
+    tvm_input = tvm.runtime.tensor(np_input, dev)
     tvm_output = vm["main"](tvm_input)
     np_expected = np_input.reshape(64, 64)
 
@@ -708,7 +708,7 @@ def test_execute_view_with_new_byte_offset(target, dev):
     vm = tvm.relax.VirtualMachine(built, device=dev)
 
     np_input = np.random.random([4096]).astype("float32")
-    tvm_input = tvm.nd.array(np_input, dev)
+    tvm_input = tvm.runtime.tensor(np_input, dev)
     tvm_output = vm["main"](tvm_input)
     np_expected = np_input.reshape(64, 64)[32:48, :]
 
@@ -728,7 +728,7 @@ def test_execute_view_with_new_dtype(target, dev):
     vm = tvm.relax.VirtualMachine(built, device=dev)
 
     np_input = np.random.random([4096]).astype("float32")
-    tvm_input = tvm.nd.array(np_input, dev)
+    tvm_input = tvm.runtime.tensor(np_input, dev)
     tvm_output = vm["main"](tvm_input)
     np_expected = np_input.view("uint32")
 
@@ -758,7 +758,7 @@ def test_execute_view_with_multiple_updated_fields(target, dev):
     vm = tvm.relax.VirtualMachine(built, device=dev)
 
     np_input = np.random.randint(0, 255, size=[4096]).astype("uint8")
-    tvm_input = tvm.nd.array(np_input, dev)
+    tvm_input = tvm.runtime.tensor(np_input, dev)
     tvm_output = vm["main"](tvm_input)
     np_expected = [
         np_input[:2048].view("int32"),

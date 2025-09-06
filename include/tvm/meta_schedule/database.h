@@ -192,10 +192,10 @@ class DatabaseNode : public runtime::Object {
    * \param mod_eq_name A string to specify the module equality testing and hashing method.
    *  It must be one of the followings:
    *    - "structural": Use StructuralEqual/Hash
-   *    - "ignore-ndarray": Same as "structural", but ignore ndarray raw data during
+   *    - "ignore-tensor": Same as "structural", but ignore tensor raw data during
    *                        equality testing and hashing.
    *    - "anchor-block": Apply equality testing and hashing on the anchor block extracted from a
-   *                      given module. The "ignore-ndarray" varint is used for the extracted blocks
+   *                      given module. The "ignore-tensor" varint is used for the extracted blocks
    *                      or in case no anchor block is found.
    *                      For the definition of the anchor block, see tvm/tir/analysis.h.
    */
@@ -291,10 +291,10 @@ class PyDatabaseNode : public DatabaseNode {
    * \param mod_eq_name A string to specify the module equality testing and hashing method.
    *  It must be one of the followings:
    *    - "structural": Use StructuralEqual/Hash
-   *    - "ignore-ndarray": Same as "structural", but ignore ndarray raw data during
+   *    - "ignore-tensor": Same as "structural", but ignore tensor raw data during
    *                        equality testing and hashing.
    *    - "anchor-block": Apply equality testing and hashing on the anchor block extracted from a
-   *                      given module. The "ignore-ndarray" varint is used for the extracted blocks
+   *                      given module. The "ignore-tensor" varint is used for the extracted blocks
    *                      or in case no anchor block is found.
    *                      For the definition of the anchor block, see tvm/tir/analysis.h.
    */

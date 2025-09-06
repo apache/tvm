@@ -281,9 +281,9 @@ def evaluate(
         )
     module = hexagon_session.load_module(func_tir)
 
-    a_hexagon = tvm.runtime.ndarray.array(a_data, device=hexagon_session.device)
-    b_hexagon = tvm.runtime.ndarray.array(b_data, device=hexagon_session.device)
-    c_hexagon = tvm.runtime.ndarray.array(c_data, device=hexagon_session.device)
+    a_hexagon = tvm.runtime.tensor(a_data, device=hexagon_session.device)
+    b_hexagon = tvm.runtime.tensor(b_data, device=hexagon_session.device)
+    c_hexagon = tvm.runtime.tensor(c_data, device=hexagon_session.device)
 
     if tvm.testing.utils.IS_IN_CI:
         # Run with reduced number and repeat for CI
