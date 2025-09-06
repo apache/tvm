@@ -39,6 +39,10 @@ String GetRuleKindFromTarget(const Target& target) {
         return "avx512";
       }
     }
+    bool have_rvv = target_has_feature_fn_ptr("v", target).cast<bool>();
+    if (have_rvv) {
+      return "rvv";
+    }
 
     TargetJSON target_json = target::parsers::aprofile::ParseTarget(target->Export());
     TargetFeatures afeatures = Downcast<TargetFeatures>(target_json.at("features"));
@@ -83,6 +87,13 @@ String GetRuleKindFromTarget(const Target& target) {
   throw;
 }
 
+int GetRISCVVLENFromLLVMTarget(const Target& target) {
+  static auto llvm_get_vector_width_fn =
+      tvm::ffi::Function::GetGlobalRequired("target.llvm_get_vector_width");
+  const int vlen = llvm_get_vector_width_fn(target).cast<int>();
+  return vlen;
+}
+
 void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
   if (context->target.defined() &&  //
       !(sch_rules.defined() &&      //
@@ -116,6 +127,17 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
     } else if (kind == "avx512") {
       default_sch_rules = ScheduleRule::DefaultX86("avx512");
       default_postprocs = Postproc::DefaultCPUTensorization();
+      default_mutator_probs = Mutator::DefaultLLVM();
+    } else if (kind == "rvv") {
+      if (context->target.value()->GetAttr<String>("model") == "rvv") {
+        // experimental rvv tensorization
+        int vlen = GetRISCVVLENFromLLVMTarget(context->target.value());
+        default_sch_rules = ScheduleRule::DefaultRISCV(vlen);
+        default_postprocs = Postproc::DefaultRISCV();
+      } else {
+        default_sch_rules = ScheduleRule::DefaultLLVM();
+        default_postprocs = Postproc::DefaultLLVM();
+      }
       default_mutator_probs = Mutator::DefaultLLVM();
     } else if (kind == "asimd") {
       default_sch_rules = ScheduleRule::DefaultARM("neon");
