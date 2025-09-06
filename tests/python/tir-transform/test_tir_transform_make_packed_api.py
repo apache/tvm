@@ -214,8 +214,8 @@ def test_function_call_with_null_data_pointer():
 
     built = tvm.compile(func, target="llvm")
 
-    A = tvm.nd.array(np.zeros([16], dtype="int32"))
-    B = tvm.nd.empty([16, 16], "int32", tvm.cpu())
+    A = tvm.runtime.tensor(np.zeros([16], dtype="int32"))
+    B = tvm.runtime.empty([16, 16], "int32", tvm.cpu())
 
     with pytest.raises(tvm.TVMError):
         built(A, B)
@@ -231,8 +231,8 @@ def test_function_call_with_wrong_dimensionality():
 
     built = tvm.compile(func, target="llvm")
 
-    A = tvm.nd.array(np.zeros([16], dtype="int32"))
-    B = tvm.nd.empty([16], "int32", tvm.cpu())
+    A = tvm.runtime.tensor(np.zeros([16], dtype="int32"))
+    B = tvm.runtime.empty([16], "int32", tvm.cpu())
 
     with pytest.raises(tvm.TVMError):
         built(A, B)

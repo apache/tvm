@@ -26,8 +26,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/tensor.h>
 #include <tvm/target/target.h>
 
 namespace tvm {
@@ -41,7 +41,7 @@ class BuilderInputNode : public runtime::Object {
   /*! \brief The target to be built for. */
   Target target;
   /*! \brief Parameters for Relax build module. */
-  Optional<Map<String, runtime::NDArray>> params;
+  Optional<Map<String, runtime::Tensor>> params;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -68,7 +68,7 @@ class BuilderInput : public runtime::ObjectRef {
    * \param params Parameters for Relax build module.
    */
   TVM_DLL explicit BuilderInput(IRModule mod, Target target,
-                                Optional<Map<String, runtime::NDArray>> params = std::nullopt);
+                                Optional<Map<String, runtime::Tensor>> params = std::nullopt);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BuilderInput, runtime::ObjectRef, BuilderInputNode);
 };
 

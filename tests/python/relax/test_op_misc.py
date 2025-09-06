@@ -23,7 +23,7 @@ from tvm.script import tir as T
 
 @tvm.register_func("test.op.identity", override=True)
 def identity_packed(a):
-    return tvm.nd.array(a.numpy())
+    return tvm.runtime.tensor(a.numpy())
 
 
 @T.prim_func

@@ -30,8 +30,8 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/tensor.h>
 
 #include <stack>
 #include <string>
@@ -490,17 +490,17 @@ class RatioNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(RatioNode, Object);
 };
 
-/*! \brief String representation of an array of NDArray shapes
- *  \param shapes Array of NDArrays to get the shapes of.
+/*! \brief String representation of an array of Tensor shapes
+ *  \param shapes Array of Tensors to get the shapes of.
  *  \return A textual representation of the shapes. For example: `float32[2], int64[1, 2]`.
  */
-String ShapeString(const std::vector<NDArray>& shapes);
-/*! \brief String representation of shape encoded as an NDArray
- *  \param shape NDArray containing the shape.
+String ShapeString(const std::vector<Tensor>& shapes);
+/*! \brief String representation of shape encoded as an Tensor
+ *  \param shape Tensor containing the shape.
  *  \param dtype The dtype of the shape.
  *  \return A textual representation of the shape. For example: `float32[2]`.
  */
-String ShapeString(NDArray shape, DLDataType dtype);
+String ShapeString(Tensor shape, DLDataType dtype);
 /*! \brief String representation of a shape encoded as a vector
  *  \param shape Shape as a vector of integers.
  *  \param dtype The dtype of the shape.

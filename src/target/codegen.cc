@@ -352,7 +352,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   refl::GlobalDef()
       .def("runtime.ModuleImportsBlobName",
            []() -> std::string { return ffi::symbol::tvm_ffi_library_bin; })
-      .def("runtime.ModulePackImportsToNDArray",
+      .def("runtime.ModulePackImportsToTensor",
            [](const ffi::Module& mod) {
              std::string buffer = PackImportsToBytes(mod);
              ffi::Shape::index_type size = buffer.size();
@@ -363,7 +363,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              DLDevice dev;
              dev.device_type = kDLCPU;
              dev.device_id = 0;
-             auto array = runtime::NDArray::Empty({size}, uchar, dev);
+             auto array = runtime::Tensor::Empty({size}, uchar, dev);
              array.CopyFromBytes(buffer.data(), size);
              return array;
            })

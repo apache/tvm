@@ -194,7 +194,7 @@ and can be loaded in other language environments, such as c++. The following cod
 shows how to run the example exported function in C++.
 
 ```cpp
-#include <tvm/ffi/container/ndarray.h>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/extra/module.h>
 
 void CallAddOne(DLTensor* x, DLTensor *y) {

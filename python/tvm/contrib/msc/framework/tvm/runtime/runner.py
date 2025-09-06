@@ -49,7 +49,7 @@ class WrapRunnable(object):
         self._runnable = runnable
         self._entry = entry
 
-    def __call__(self, *inputs) -> List[tvm.nd.array]:
+    def __call__(self, *inputs) -> List[tvm.runtime.Tensor]:
         execute_step("before_forward", *inputs)
         output = self._runnable[self._entry](*inputs)
         return execute_step("after_forward", output)
@@ -250,13 +250,13 @@ class TVMRunner(ModelRunner):
             with tvm.transform.PassContext(opt_level=3):
                 relax_exec = tvm.compile(model, target)
                 runnable = tvm.relax.VirtualMachine(relax_exec, tvm.cuda())
-            tvm_inputs = [tvm.nd.array(inputs[i], device=tvm.cuda()) for i in input_names]
+            tvm_inputs = [tvm.runtime.tensor(inputs[i], device=tvm.cuda()) for i in input_names]
         else:
             target = tvm.target.Target("llvm")
             with tvm.transform.PassContext(opt_level=3):
                 relax_exec = tvm.compile(model, target)
                 runnable = tvm.relax.VirtualMachine(relax_exec, tvm.cpu())
-            tvm_inputs = [tvm.nd.array(inputs[i]) for i in input_names]
+            tvm_inputs = [tvm.runtime.tensor(inputs[i]) for i in input_names]
 
         def _run_once():
             return runnable["main"](*tvm_inputs)
@@ -271,7 +271,7 @@ class TVMRunner(ModelRunner):
         else:
             outputs = _run_once()
             avg_time = -1
-        if isinstance(outputs, tvm.runtime.NDArray):
+        if isinstance(outputs, tvm.runtime.Tensor):
             outputs = [outputs]
         assert len(output_names) == len(outputs), "Outputs mismatch, {} with {}".format(
             output_names, len(outputs)

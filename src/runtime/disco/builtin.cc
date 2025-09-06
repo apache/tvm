@@ -70,8 +70,8 @@ ffi::Module LoadVMModule(std::string path, Optional<Device> device) {
   return mod;
 }
 
-NDArray DiscoEmptyNDArray(ffi::Shape shape, DataType dtype, Optional<Device> device) {
-  return NDArray::Empty(shape, dtype, UseDefaultDeviceIfNone(device));
+Tensor DiscoEmptyTensor(ffi::Shape shape, DataType dtype, Optional<Device> device) {
+  return Tensor::Empty(shape, dtype, UseDefaultDeviceIfNone(device));
 }
 
 ffi::Function GetCCLFunc(const char* name) {
@@ -83,37 +83,37 @@ ffi::Function GetCCLFunc(const char* name) {
   return *pf;
 }
 
-void AllReduce(NDArray send, ReduceKind reduce_kind, bool in_group, NDArray recv) {
+void AllReduce(Tensor send, ReduceKind reduce_kind, bool in_group, Tensor recv) {
   GetCCLFunc("allreduce")(send, static_cast<int>(reduce_kind), in_group, recv);
 }
 
-void AllGather(NDArray send, bool in_group, NDArray recv) {
+void AllGather(Tensor send, bool in_group, Tensor recv) {
   GetCCLFunc("allgather")(send, in_group, recv);
 }
 
-TVM_DLL void BroadcastFromWorker0(NDArray send, bool in_group, NDArray recv) {
+TVM_DLL void BroadcastFromWorker0(Tensor send, bool in_group, Tensor recv) {
   GetCCLFunc("broadcast_from_worker0")(send, in_group, recv);
 }
 
-TVM_DLL void ScatterFromWorker0(Optional<NDArray> send, bool in_group, NDArray recv) {
+TVM_DLL void ScatterFromWorker0(Optional<Tensor> send, bool in_group, Tensor recv) {
   GetCCLFunc("scatter_from_worker0")(send, in_group, recv);
 }
 
-void GatherToWorker0(NDArray send, bool in_group, Optional<NDArray> recv) {
+void GatherToWorker0(Tensor send, bool in_group, Optional<Tensor> recv) {
   GetCCLFunc("gather_to_worker0")(send, in_group, recv);
 }
 
-void RecvFromWorker0(NDArray buffer) { GetCCLFunc("recv_from_worker0")(buffer); }
+void RecvFromWorker0(Tensor buffer) { GetCCLFunc("recv_from_worker0")(buffer); }
 
-void SendToNextGroup(NDArray buffer) { GetCCLFunc("send_to_next_group")(buffer); }
+void SendToNextGroup(Tensor buffer) { GetCCLFunc("send_to_next_group")(buffer); }
 
-void RecvFromPrevGroup(NDArray buffer) { GetCCLFunc("recv_from_prev_group")(buffer); }
+void RecvFromPrevGroup(Tensor buffer) { GetCCLFunc("recv_from_prev_group")(buffer); }
 
-void SendToWorker(NDArray buffer, int receiver_id) {
+void SendToWorker(Tensor buffer, int receiver_id) {
   GetCCLFunc("send_to_worker")(buffer, receiver_id);
 }
 
-void RecvFromWorker(NDArray buffer, int sender_id) {
+void RecvFromWorker(Tensor buffer, int sender_id) {
   GetCCLFunc("recv_from_worker")(buffer, sender_id);
 }
 
@@ -131,7 +131,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("runtime.disco.load_vm_module", LoadVMModule)
       .def("runtime.disco.empty",
            [](ffi::Shape shape, DataType dtype, Optional<Device> device, bool worker0_only,
-              bool in_group) -> Optional<NDArray> {
+              bool in_group) -> Optional<Tensor> {
              int worker_id = WorkerId();
              int group_size =
                  DiscoWorker::ThreadLocal()->num_workers / DiscoWorker::ThreadLocal()->num_groups;
@@ -140,11 +140,11 @@ TVM_FFI_STATIC_INIT_BLOCK({
              if (worker0_only && !is_worker0) {
                return std::nullopt;
              } else {
-               return DiscoEmptyNDArray(shape, dtype, device);
+               return DiscoEmptyTensor(shape, dtype, device);
              }
            })
       .def("runtime.disco.allreduce",
-           [](NDArray send, ffi::Shape reduce_kind, bool in_group, NDArray recv) {
+           [](Tensor send, ffi::Shape reduce_kind, bool in_group, Tensor recv) {
              int kind = IntegerFromShape(reduce_kind);
              CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
              AllReduce(send, static_cast<ReduceKind>(kind), in_group, recv);

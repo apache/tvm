@@ -24,7 +24,7 @@ from tvm.script.parser import ir as I, relax as R
 
 
 def rand(dtype, *shape):
-    return tvm.nd.array(np.random.rand(*shape).astype(dtype))
+    return tvm.runtime.tensor(np.random.rand(*shape).astype(dtype))
 
 
 def _legalize_and_build(mod, target, dev):
@@ -118,7 +118,9 @@ def test_mlp_blockbuilder(target, dev):
     for arg in After["MLP_adjoint"].params:
         shape = [int(l) for l in arg.struct_info.shape]
         if arg.struct_info.dtype == "int64":
-            args.append(tvm.nd.array(np.random.randint(0, out_size, size=shape).astype(np.int64)))
+            args.append(
+                tvm.runtime.tensor(np.random.randint(0, out_size, size=shape).astype(np.int64))
+            )
         else:  # float32
             args.append(rand("float32", *shape))
 
@@ -127,7 +129,7 @@ def test_mlp_blockbuilder(target, dev):
     _, grad = vm_after["MLP_adjoint"](*args)
 
     def func(*inputs):
-        loss = vm_before["MLP"](args[0], *[tvm.nd.array(i) for i in inputs], args[-1])
+        loss = vm_before["MLP"](args[0], *[tvm.runtime.tensor(i) for i in inputs], args[-1])
         return loss.numpy()
 
     check_numerical_grads(func, [i.numpy() for i in args[1:-1]], [i.numpy() for i in grad])
@@ -183,7 +185,7 @@ def test_complex(target, dev):
     _, grad = vm_after["main_adjoint"](*args)
 
     def func(*inputs):
-        loss = vm_before["main"](*[tvm.nd.array(i) for i in inputs])
+        loss = vm_before["main"](*[tvm.runtime.tensor(i) for i in inputs])
         return loss.numpy()
 
     check_numerical_grads(func, [i.numpy() for i in args], [i.numpy() for i in grad])
@@ -220,7 +222,7 @@ def test_matmul(target, dev):
     _, grad = vm_after["main_adjoint"](*args)
 
     def func(*inputs):
-        loss = vm_before["main"](*[tvm.nd.array(i) for i in inputs])
+        loss = vm_before["main"](*[tvm.runtime.tensor(i) for i in inputs])
         return loss.numpy()
 
     check_numerical_grads(func, [i.numpy() for i in args], [i.numpy() for i in grad])

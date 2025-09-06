@@ -55,8 +55,8 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
         assert isinstance(graph_module, torch.fx.GraphModule)
 
         def to_torch_tensor(nd_tensor):
-            """A helper function to transfer a NDArray to torch.tensor."""
-            if isinstance(nd_tensor, tvm.nd.NDArray):
+            """A helper function to transfer a Tensor to torch.tensor."""
+            if isinstance(nd_tensor, tvm.runtime.Tensor):
                 return torch.from_numpy(nd_tensor.numpy())
             elif isinstance(nd_tensor, tvm.ir.Array):
                 return tuple(to_torch_tensor(x) for x in nd_tensor)
@@ -64,12 +64,12 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
                 raise ValueError(f"Unsupported type {type(nd_tensor)}")
 
         def to_tvm_tensor(torch_tensor):
-            """A helper function to transfer a torch.tensor to NDArray."""
+            """A helper function to transfer a torch.tensor to Tensor."""
             if not isinstance(torch_tensor, torch._subclasses.fake_tensor.FakeTensor):
-                return tvm.nd.array(torch_tensor.numpy())
+                return tvm.runtime.tensor(torch_tensor.numpy())
             # Fake Tensor
             real_tensor = torch.randn(torch_tensor.shape, dtype=torch_tensor.dtype)
-            return tvm.nd.array(real_tensor.numpy())
+            return tvm.runtime.tensor(real_tensor.numpy())
 
         graph_module.graph.eliminate_dead_code()
 

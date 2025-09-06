@@ -101,12 +101,12 @@ def test_in_container():
     assert "d" not in arr
 
 
-def test_ndarray_container():
-    x = tvm.nd.array([1, 2, 3])
+def test_tensor_container():
+    x = tvm.runtime.tensor([1, 2, 3])
     arr = tvm.runtime.convert([x, x])
     assert arr[0].same_as(x)
     assert arr[1].same_as(x)
-    assert isinstance(arr[0], tvm.nd.NDArray)
+    assert isinstance(arr[0], tvm.runtime.Tensor)
 
 
 def test_return_variant_type():

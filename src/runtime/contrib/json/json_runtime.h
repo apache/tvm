@@ -26,8 +26,8 @@
 #define TVM_RUNTIME_CONTRIB_JSON_JSON_RUNTIME_H_
 
 #include <tvm/ffi/extra/module.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/profiling.h>
+#include <tvm/runtime/tensor.h>
 
 #include <cstddef>
 #include <string>
@@ -63,7 +63,7 @@ class JSONRuntimeBase : public ffi::ModuleObj {
   }
 
   /*! \brief Initialize a specific json runtime. */
-  virtual void Init(const Array<NDArray>& consts) = 0;
+  virtual void Init(const Array<Tensor>& consts) = 0;
 
   /*! \brief Invoke the execution engine to inteprete a specific json runtime. */
   virtual void Run() = 0;
@@ -141,7 +141,7 @@ class JSONRuntimeBase : public ffi::ModuleObj {
         ICHECK_EQ(args.size(), 1U);
         std::lock_guard<std::mutex> guard(this->initialize_mutex_);
         if (!this->initialized_) {
-          this->Init(args[0].cast<Array<NDArray>>());
+          this->Init(args[0].cast<Array<Tensor>>());
           this->initialized_ = true;
         }
         *rv = 0;
@@ -212,14 +212,14 @@ class JSONRuntimeBase : public ffi::ModuleObj {
                                            : EntryID(outputs_[i - input_var_eid_.size()]);
 
       const DLTensor* arg;
-      if (auto opt_nd = args[i].as<NDArray>()) {
-        NDArray arr = opt_nd.value();
+      if (auto opt_nd = args[i].as<Tensor>()) {
+        Tensor arr = opt_nd.value();
         arg = arr.operator->();
       } else {
         arg = args[i].cast<DLTensor*>();
       }
 
-      // Assign input/output the NDArray pointers to data entry so that we can directly
+      // Assign input/output the Tensor pointers to data entry so that we can directly
       // read/write host buffers.
       data_entry_[eid] = arg;
     }
@@ -268,9 +268,9 @@ class JSONRuntimeBase : public ffi::ModuleObj {
    * \brief Set up the constants/weights for inference by binding their DLTensor pointer to
    * the corresponding data entry.
    *
-   * \param consts A list of constant NDArray to be used.
+   * \param consts A list of constant Tensor to be used.
    */
-  void SetupConstants(const Array<NDArray>& consts) {
+  void SetupConstants(const Array<Tensor>& consts) {
     for (size_t i = 0; i < consts.size(); ++i) {
       data_entry_[EntryID(const_idx_[i], 0)] = consts[i].operator->();
     }

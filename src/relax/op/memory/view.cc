@@ -346,7 +346,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
   infer_sinfo_env_func = EnvFunc::Get("tvm.relax.struct_info.infer_view_sinfo");
   auto runtime_view_sinfo = FuncStructInfo::OpaqueFunc(infer_sinfo_env_func, true);
 
-  ExternFunc runtime_view_func("runtime.TVMArrayCreateView", runtime_view_sinfo);
+  ExternFunc runtime_view_func("runtime.TVMTensorCreateView", runtime_view_sinfo);
 
   return Call(runtime_view_func, {data, shape, dtype, relative_byte_offset});
 }

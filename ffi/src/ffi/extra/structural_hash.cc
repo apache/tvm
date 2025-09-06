@@ -23,8 +23,8 @@
  */
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
-#include <tvm/ffi/container/ndarray.h>
 #include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -84,8 +84,8 @@ class StructuralHashHandler {
       case TypeIndex::kTVMFFIShape: {
         return HashShape(AnyUnsafe::MoveFromAnyAfterCheck<Shape>(std::move(src)));
       }
-      case TypeIndex::kTVMFFINDArray: {
-        return HashNDArray(AnyUnsafe::MoveFromAnyAfterCheck<NDArray>(std::move(src)));
+      case TypeIndex::kTVMFFITensor: {
+        return HashTensor(AnyUnsafe::MoveFromAnyAfterCheck<Tensor>(std::move(src)));
       }
       default: {
         return HashObject(AnyUnsafe::MoveFromAnyAfterCheck<ObjectRef>(std::move(src)));
@@ -267,29 +267,29 @@ class StructuralHashHandler {
     return hash_value;
   }
 
-  uint64_t HashNDArray(NDArray ndarray) {
-    uint64_t hash_value = details::StableHashCombine(ndarray->GetTypeKeyHash(), ndarray->ndim);
-    for (int i = 0; i < ndarray->ndim; ++i) {
-      hash_value = details::StableHashCombine(hash_value, ndarray->shape[i]);
+  uint64_t HashTensor(Tensor tensor) {
+    uint64_t hash_value = details::StableHashCombine(tensor->GetTypeKeyHash(), tensor->ndim);
+    for (int i = 0; i < tensor->ndim; ++i) {
+      hash_value = details::StableHashCombine(hash_value, tensor->shape[i]);
     }
     TVMFFIAny temp;
     temp.v_uint64 = 0;
-    temp.v_dtype = ndarray->dtype;
+    temp.v_dtype = tensor->dtype;
     hash_value = details::StableHashCombine(hash_value, temp.v_int64);
 
-    if (!skip_ndarray_content_) {
-      TVM_FFI_ICHECK_EQ(ndarray->device.device_type, kDLCPU) << "can only hash CPU tensor";
-      TVM_FFI_ICHECK(ndarray.IsContiguous()) << "Can only hash contiguous tensor";
-      size_t data_size = GetDataSize(*(ndarray.operator->()));
+    if (!skip_tensor_content_) {
+      TVM_FFI_ICHECK_EQ(tensor->device.device_type, kDLCPU) << "can only hash CPU tensor";
+      TVM_FFI_ICHECK(tensor.IsContiguous()) << "Can only hash contiguous tensor";
+      size_t data_size = GetDataSize(*(tensor.operator->()));
       uint64_t data_hash =
-          details::StableHashBytes(static_cast<const char*>(ndarray->data), data_size);
+          details::StableHashBytes(static_cast<const char*>(tensor->data), data_size);
       hash_value = details::StableHashCombine(hash_value, data_hash);
     }
     return hash_value;
   }
 
   bool map_free_vars_{false};
-  bool skip_ndarray_content_{false};
+  bool skip_tensor_content_{false};
   // free var counter.
   uint32_t free_var_counter_{0};
   // graph node counter.
@@ -300,10 +300,10 @@ class StructuralHashHandler {
   std::unordered_map<ObjectRef, uint64_t, ObjectPtrHash, ObjectPtrEqual> hash_memo_;
 };
 
-uint64_t StructuralHash::Hash(const Any& value, bool map_free_vars, bool skip_ndarray_content) {
+uint64_t StructuralHash::Hash(const Any& value, bool map_free_vars, bool skip_tensor_content) {
   StructuralHashHandler handler;
   handler.map_free_vars_ = map_free_vars;
-  handler.skip_ndarray_content_ = skip_ndarray_content;
+  handler.skip_tensor_content_ = skip_tensor_content;
   return handler.HashAny(value);
 }
 

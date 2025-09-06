@@ -25,8 +25,8 @@ import tvm_ffi
 import tvm.ir
 import tvm.relax
 from tvm import DataType
+import tvm.runtime
 from tvm.runtime import Object
-from tvm.runtime import ndarray as _nd
 
 from ..ir import BaseFunc, Node, Span
 from ..runtime import Scriptable, String
@@ -713,7 +713,7 @@ class Constant(ExprWithOp):
 
     Parameters
     ----------
-    data: tvm.nd.NDArray
+    data: tvm.runtime.Tensor
         The data of the constant tensor.
 
     struct_info: Optional[StructInfo]
@@ -727,12 +727,12 @@ class Constant(ExprWithOp):
     Scalar constants are represented by ndim-0 constant tensors.
     """
 
-    data: tvm.nd.NDArray
+    data: tvm.runtime.Tensor
     span: Optional[Span]
 
     def __init__(
         self,
-        data: tvm.nd.NDArray,
+        data: tvm.runtime.Tensor,
         struct_info: Optional[StructInfo] = None,
         span: Optional[Span] = None,
     ) -> None:
@@ -1056,7 +1056,7 @@ class Function(BaseFunc, Scriptable):
         self,
         binding_map: Mapping[
             Union[str, Var],
-            Union[int, float, PrimExpr, tvm.runtime.NDArray, _np.ndarray, Expr],
+            Union[int, float, PrimExpr, tvm.runtime.Tensor, _np.ndarray, Expr],
         ],
     ) -> "Function":
         """Return a new function with updated symbolic variable
@@ -1065,7 +1065,7 @@ class Function(BaseFunc, Scriptable):
         ----------
         binding_map: Mapping[
                 Union[str, Var],
-                Union[int, float, PrimExpr, tvm.runtime.NDArray, _np.ndarray, Expr],
+                Union[int, float, PrimExpr, tvm.runtime.Tensor, _np.ndarray, Expr],
         ]
 
             The mapping of values to be replaced.
@@ -1093,7 +1093,7 @@ class Function(BaseFunc, Scriptable):
                 # Relax uses int64 for symbolic variables, but the FFI
                 # converts python integers into int32.
                 return tvm.tir.const(value, "int64")
-            elif isinstance(value, (_np.ndarray, tvm.nd.NDArray)):
+            elif isinstance(value, (_np.ndarray, tvm.runtime.Tensor)):
                 return tvm.relax.const(value)
             else:
                 return value
@@ -1132,13 +1132,13 @@ def extern(name: str, struct_info: Optional[StructInfo] = None, span: Optional[S
 
 
 def const(
-    value: Union[bool, int, float, _np.ndarray, tvm.nd.NDArray], dtype: Optional[str] = None
+    value: Union[bool, int, float, _np.ndarray, tvm.runtime.Tensor], dtype: Optional[str] = None
 ) -> Constant:
     """Create a constant value.
 
     Parameters
     ----------
-    value: Union[bool, int, float, numpy.ndarray, tvm.nd.NDArray]
+    value: Union[bool, int, float, numpy.ndarray, tvm.runtime.Tensor]
         The constant value.
 
     dtype: Optional[str]
@@ -1168,10 +1168,10 @@ def const(
     if isinstance(value, (_np.ndarray, _np.generic)):
         if dtype is not None:
             value = value.astype(dtype)
-        value = _nd.array(value)
+        value = tvm.runtime.tensor(value)
 
-    if not isinstance(value, _nd.NDArray):
-        raise ValueError("value has to be scalar or NDArray")
+    if not isinstance(value, tvm.runtime.Tensor):
+        raise ValueError("value has to be scalar or Tensor")
 
     return Constant(value)
 

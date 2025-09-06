@@ -336,7 +336,7 @@ def pack_imports(
     """
 
     path_bin = os.path.join(workspace_dir, "imports.bin")
-    pack_to_bin_f_name = "runtime.ModulePackImportsToNDArray"
+    pack_to_bin_f_name = "runtime.ModulePackImportsToTensor"
     fpack_to_bin = tvm.get_global_func(pack_to_bin_f_name)
     assert fpack_to_bin, f"Expecting {pack_to_bin_f_name} in registry"
 
@@ -438,7 +438,7 @@ def allocate_hexagon_array(
         for dim_i, dim_f in zip(boundaries[:-1], boundaries[1:])
     ]
 
-    arr = tvm.nd.empty(physical_shape, dtype=dtype, device=dev, mem_scope=mem_scope)
+    arr = tvm.runtime.empty(physical_shape, dtype=dtype, device=dev, mem_scope=mem_scope)
 
     if data is not None:
         arr.copyfrom(data.reshape(physical_shape))

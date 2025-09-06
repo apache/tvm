@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm/ffi/shape.h
- * \brief Container to store shape of an NDArray.
+ * \brief Container to store shape of an Tensor.
  */
 #ifndef TVM_FFI_CONTAINER_SHAPE_H_
 #define TVM_FFI_CONTAINER_SHAPE_H_

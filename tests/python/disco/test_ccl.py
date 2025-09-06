@@ -491,9 +491,9 @@ def test_mlp(session_kind, ccl):  # pylint: disable=too-many-locals
     W1 = np.random.randn(128, 128).astype("float32")
     W2 = np.random.randn(128, 128).astype("float32")
     Y_expected = VirtualMachine(relax_build(MLP, target), device=dev)["main"](
-        tvm.nd.array(X, device=dev),
-        tvm.nd.array(W1, device=dev),
-        tvm.nd.array(W2, device=dev),
+        tvm.runtime.tensor(X, device=dev),
+        tvm.runtime.tensor(W1, device=dev),
+        tvm.runtime.tensor(W2, device=dev),
     ).numpy()
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -512,7 +512,7 @@ def test_mlp(session_kind, ccl):  # pylint: disable=too-many-locals
         d_W2.debug_copy_from(0, W2[:64, :])
         d_W2.debug_copy_from(1, W2[64:, :])
         d_Y = mod["main"](d_X, d_W1, d_W2)
-        Y_result = tvm.nd.empty((128, 128), "float32", device=dev)
+        Y_result = tvm.runtime.empty((128, 128), "float32", device=dev)
         sess.copy_from_worker_0(Y_result, d_Y)
         sess.sync_worker_0()
         Y_result = Y_result.numpy()
@@ -632,11 +632,11 @@ def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-ma
     Wv = np.random.randn(128, 512).astype("float32")
     Wo = np.random.randn(512, 128).astype("float32")
     Y_expected = VirtualMachine(relax_build(Attention, target), device=dev)["main"](
-        tvm.nd.array(X, device=dev),
-        tvm.nd.array(Wq, device=dev),
-        tvm.nd.array(Wk, device=dev),
-        tvm.nd.array(Wv, device=dev),
-        tvm.nd.array(Wo, device=dev),
+        tvm.runtime.tensor(X, device=dev),
+        tvm.runtime.tensor(Wq, device=dev),
+        tvm.runtime.tensor(Wk, device=dev),
+        tvm.runtime.tensor(Wv, device=dev),
+        tvm.runtime.tensor(Wo, device=dev),
     ).numpy()
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -661,7 +661,7 @@ def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-ma
         d_Wo.debug_copy_from(0, Wo[:256, :])
         d_Wo.debug_copy_from(1, Wo[256:, :])
         d_Y = mod["main"](d_X, d_Wq, d_Wk, d_Wv, d_Wo)
-        Y_result = tvm.nd.empty((1, 10, 128), "float32", device=dev)
+        Y_result = tvm.runtime.empty((1, 10, 128), "float32", device=dev)
         sess.copy_from_worker_0(Y_result, d_Y)
         sess.sync_worker_0()
         Y_result = Y_result.numpy()

@@ -17,17 +17,17 @@
  * under the License.
  */
 /*!
- * \file src/runtime/vm/ndarray_cache_support.cc
- * \brief Runtime to support ndarray cache file loading.
+ * \file src/runtime/vm/tensor_cache_support.cc
+ * \brief Runtime to support tensor cache file loading.
  *
- * This file provides a minimum support for ndarray cache file loading.
+ * This file provides a minimum support for tensor cache file loading.
  *
  * The main focus of this implementation is to enable loading
  * with minimum set of intermediate files while also being
  * compatible to some of the multi-shard files that are more
  * friendly in some of the environments.
  *
- * NDArray cache also provides a way to do system-wide
+ * Tensor cache also provides a way to do system-wide
  * parameter sharing across multiple VMs.
  *
  * There are likely other ways to load the parameters ndarray-ache.
@@ -41,8 +41,8 @@
 #include <picojson.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/vm/ndarray_cache_support.h>
+#include <tvm/runtime/tensor.h>
+#include <tvm/runtime/vm/tensor_cache_support.h>
 
 #include <string>
 #include <vector>
@@ -65,7 +65,7 @@ inline ValueType GetValue(const picojson::object& json, const std::string& key) 
   return AsType<ValueType>(json.at(key));
 }
 
-NDArrayCacheMetadata::FileRecord::ParamRecord JSONAsParamRecord(const picojson::object& json) {
+TensorCacheMetadata::FileRecord::ParamRecord JSONAsParamRecord(const picojson::object& json) {
   std::vector<ffi::Shape::index_type> shape;
   {
     picojson::array shape_json = GetValue<picojson::array>(json, "shape");
@@ -74,7 +74,7 @@ NDArrayCacheMetadata::FileRecord::ParamRecord JSONAsParamRecord(const picojson::
       shape.push_back(AsType<int64_t>(d));
     }
   }
-  NDArrayCacheMetadata::FileRecord::ParamRecord result;
+  TensorCacheMetadata::FileRecord::ParamRecord result;
   std::string dtype = GetValue<std::string>(json, "dtype");
   result.name = GetValue<std::string>(json, "name");
   result.dtype = DataType(StringToDLDataType(dtype));
@@ -85,9 +85,9 @@ NDArrayCacheMetadata::FileRecord::ParamRecord JSONAsParamRecord(const picojson::
   return result;
 }
 
-NDArrayCacheMetadata::FileRecord JSONAsFileRecord(const picojson::object& json) {
+TensorCacheMetadata::FileRecord JSONAsFileRecord(const picojson::object& json) {
   picojson::array records = GetValue<picojson::array>(json, "records");
-  NDArrayCacheMetadata::FileRecord result;
+  TensorCacheMetadata::FileRecord result;
   result.data_path = GetValue<std::string>(json, "dataPath");
   result.format = GetValue<std::string>(json, "format");
   result.nbytes = GetValue<int64_t>(json, "nbytes");
@@ -98,9 +98,9 @@ NDArrayCacheMetadata::FileRecord JSONAsFileRecord(const picojson::object& json) 
   return result;
 }
 
-NDArrayCacheMetadata JSONAsNDArrayCacheMetadata(const picojson::object& json) {
+TensorCacheMetadata JSONAsTensorCacheMetadata(const picojson::object& json) {
   picojson::array records = GetValue<picojson::array>(json, "records");
-  NDArrayCacheMetadata result;
+  TensorCacheMetadata result;
   result.records.reserve(records.size());
   for (const picojson::value& item : records) {
     result.records.push_back(JSONAsFileRecord(AsType<picojson::object>(item)));
@@ -108,8 +108,8 @@ NDArrayCacheMetadata JSONAsNDArrayCacheMetadata(const picojson::object& json) {
   return result;
 }
 
-NDArrayCacheMetadata NDArrayCacheMetadata::LoadFromStr(const std::string& json_str,
-                                                       const std::string& path) {
+TensorCacheMetadata TensorCacheMetadata::LoadFromStr(const std::string& json_str,
+                                                     const std::string& path) {
   picojson::value json_info;
   {
     std::string err = picojson::parse(json_info, json_str);
@@ -119,16 +119,16 @@ NDArrayCacheMetadata NDArrayCacheMetadata::LoadFromStr(const std::string& json_s
     CHECK(json_info.is<picojson::object>())
         << "ValueError: The given string is not a JSON object: " << json_str;
   }
-  NDArrayCacheMetadata result = JSONAsNDArrayCacheMetadata(AsType<picojson::object>(json_info));
+  TensorCacheMetadata result = JSONAsTensorCacheMetadata(AsType<picojson::object>(json_info));
   result.path = path;
   return result;
 }
 
-TVM_DLL NDArrayCacheMetadata NDArrayCacheMetadata::Load(const std::string& path) {
+TVM_DLL TensorCacheMetadata TensorCacheMetadata::Load(const std::string& path) {
   picojson::value json_info;
   {
     std::string json_str;
-    LoadBinaryFromFile(path + "/ndarray-cache.json", &json_str);
+    LoadBinaryFromFile(path + "/tensor-cache.json", &json_str);
     std::string err = picojson::parse(json_info, json_str);
     if (!err.empty()) {
       LOG(FATAL) << "Failed to parse JSON: err. The JSON string is:" << json_str;
@@ -136,13 +136,13 @@ TVM_DLL NDArrayCacheMetadata NDArrayCacheMetadata::Load(const std::string& path)
     CHECK(json_info.is<picojson::object>())
         << "ValueError: The given string is not a JSON object: " << json_str;
   }
-  NDArrayCacheMetadata result = JSONAsNDArrayCacheMetadata(AsType<picojson::object>(json_info));
+  TensorCacheMetadata result = JSONAsTensorCacheMetadata(AsType<picojson::object>(json_info));
   result.path = path;
   return result;
 }
 
-void CopyNDArrayFromBytes(NDArray param, const void* data, size_t nbytes,
-                          Optional<NDArray>* staging_buffer) {
+void CopyTensorFromBytes(Tensor param, const void* data, size_t nbytes,
+                         Optional<Tensor>* staging_buffer) {
   Device device = param->device;
   if (device.device_type != kDLOpenCL || staging_buffer == nullptr) {
     param.CopyFromBytes(data, nbytes);
@@ -158,17 +158,18 @@ void CopyNDArrayFromBytes(NDArray param, const void* data, size_t nbytes,
     }
   }
   if (!staging_buffer->defined()) {
-    *staging_buffer = NDArray::Empty(param.Shape(), param->dtype, param->device);
+    *staging_buffer = Tensor::Empty(param.Shape(), param->dtype, param->device);
   }
-  NDArray staging_view = staging_buffer->value().CreateView(param.Shape(), param->dtype);
+  Tensor staging_view = staging_buffer->value().CreateView(param.Shape(), param->dtype);
   staging_view.CopyFromBytes(data, nbytes);
   param.CopyFrom(staging_view);
   DeviceAPI::Get(device)->StreamSync(device, nullptr);
 }
 
-NDArray NDArrayCacheMetadata::FileRecord::ParamRecord::Load(
-    Device device, const std::string* raw_data, Optional<NDArray>* staging_buffer) const {
-  NDArray arr = NDArray::Empty(shape, dtype, device);
+Tensor TensorCacheMetadata::FileRecord::ParamRecord::Load(Device device,
+                                                          const std::string* raw_data,
+                                                          Optional<Tensor>* staging_buffer) const {
+  Tensor arr = Tensor::Empty(shape, dtype, device);
   if (dtype == DataType::Float(32) && format == "f32-to-bf16") {
     // decode bf16 to f32
     std::vector<uint16_t> buffer(nbytes / 2);
@@ -177,24 +178,24 @@ NDArray NDArrayCacheMetadata::FileRecord::ParamRecord::Load(
     for (size_t i = 0; i < buffer.size(); ++i) {
       decoded[i] = static_cast<uint32_t>(buffer[i]) << 16;
     }
-    CopyNDArrayFromBytes(arr, decoded.data(), decoded.size() * sizeof(uint32_t), staging_buffer);
+    CopyTensorFromBytes(arr, decoded.data(), decoded.size() * sizeof(uint32_t), staging_buffer);
   } else {
-    CopyNDArrayFromBytes(arr, raw_data->data() + byte_offset, nbytes, staging_buffer);
+    CopyTensorFromBytes(arr, raw_data->data() + byte_offset, nbytes, staging_buffer);
   }
   return arr;
 }
 
-TVM_DLL Array<NDArray> NDArrayCacheMetadata::FileRecord::Load(
+TVM_DLL Array<Tensor> TensorCacheMetadata::FileRecord::Load(
     Device device,
     const std::string& path_prefix,  //
     std::string* raw_data_buffer,    //
-    Optional<NDArray>* staging_buffer) const {
+    Optional<Tensor>* staging_buffer) const {
   LoadBinaryFromFile(path_prefix + "/" + this->data_path, raw_data_buffer);
   CHECK_EQ(this->format, "raw-shard") << "ValueError: Only `raw-shard` format is supported";
   CHECK_EQ(this->nbytes, raw_data_buffer->length())
       << "ValueError: Encountered an corrupted parameter shard. It means it is not downloaded "
          "completely or downloading is interrupted. Please try to download again.";
-  Array<NDArray> result;
+  Array<Tensor> result;
   result.reserve(this->records.size());
   for (const ParamRecord& nd_rec : this->records) {
     result.push_back(nd_rec.Load(device, raw_data_buffer, staging_buffer));
@@ -203,25 +204,25 @@ TVM_DLL Array<NDArray> NDArrayCacheMetadata::FileRecord::Load(
 }
 
 /*!
- * A NDArray cache to store pre-loaded arrays in the system.
+ * A Tensor cache to store pre-loaded arrays in the system.
  */
-class NDArrayCache {
+class TensorCache {
  public:
-  static NDArrayCache* Global() {
-    static NDArrayCache* inst = new NDArrayCache();
+  static TensorCache* Global() {
+    static TensorCache* inst = new TensorCache();
     return inst;
   }
 
-  static void Update(String name, NDArray arr, bool override) {
-    NDArrayCache* pool = Global();
+  static void Update(String name, Tensor arr, bool override) {
+    TensorCache* pool = Global();
     if (!override) {
       ICHECK_EQ(pool->pool_.count(name), 0) << "Name " << name << " already exists in the cache";
     }
     pool->pool_.Set(name, arr);
   }
 
-  static Optional<NDArray> Get(String name) {
-    NDArrayCache* pool = Global();
+  static Optional<Tensor> Get(String name) {
+    TensorCache* pool = Global();
     auto it = pool->pool_.find(name);
     if (it != pool->pool_.end()) {
       return (*it).second;
@@ -231,7 +232,7 @@ class NDArrayCache {
   }
 
   static void Remove(String name) {
-    NDArrayCache* pool = Global();
+    TensorCache* pool = Global();
     pool->pool_.erase(name);
   }
 
@@ -245,11 +246,11 @@ class NDArrayCache {
    */
   static void Load(const std::string& cache_path, int device_type, int device_id) {
     DLDevice device{static_cast<DLDeviceType>(device_type), device_id};
-    NDArrayCacheMetadata metadata = NDArrayCacheMetadata::Load(cache_path);
-    Optional<NDArray> staging_buffer;
+    TensorCacheMetadata metadata = TensorCacheMetadata::Load(cache_path);
+    Optional<Tensor> staging_buffer;
     std::string raw_data;
-    Array<NDArray> params;
-    for (const NDArrayCacheMetadata::FileRecord& shard_rec : metadata.records) {
+    Array<Tensor> params;
+    for (const TensorCacheMetadata::FileRecord& shard_rec : metadata.records) {
       try {
         params = shard_rec.Load(device, cache_path, &raw_data, &staging_buffer);
       } catch (const dmlc::Error& e) {
@@ -264,40 +265,40 @@ class NDArrayCache {
   }
 
  private:
-  Map<String, NDArray> pool_;
+  Map<String, Tensor> pool_;
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("vm.builtin.ndarray_cache.get", NDArrayCache::Get)
-      .def_packed("vm.builtin.ndarray_cache.update",
+      .def("vm.builtin.tensor_cache.get", TensorCache::Get)
+      .def_packed("vm.builtin.tensor_cache.update",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     CHECK(args.size() == 2 || args.size() == 3);
                     String name = args[0].cast<String>();
                     bool is_override = args.size() == 2 ? false : args[2].cast<bool>();
 
-                    NDArray arr;
-                    if (auto opt_nd = args[1].as<NDArray>()) {
+                    Tensor arr;
+                    if (auto opt_nd = args[1].as<Tensor>()) {
                       arr = opt_nd.value();
                     } else {
-                      // We support converting DLTensors to NDArrays as RPC references are always
+                      // We support converting DLTensors to Tensors as RPC references are always
                       // DLTensors
                       auto tensor = args[1].cast<DLTensor*>();
                       std::vector<int64_t> shape;
                       for (int64_t i = 0; i < tensor->ndim; i++) {
                         shape.push_back(tensor->shape[i]);
                       }
-                      arr = NDArray::Empty(shape, tensor->dtype, tensor->device);
+                      arr = Tensor::Empty(shape, tensor->dtype, tensor->device);
                       arr.CopyFrom(tensor);
                       DeviceAPI::Get(arr->device)->StreamSync(arr->device, nullptr);
                     }
 
-                    NDArrayCache::Update(name, arr, is_override);
+                    TensorCache::Update(name, arr, is_override);
                   })
-      .def("vm.builtin.ndarray_cache.remove", NDArrayCache::Remove)
-      .def("vm.builtin.ndarray_cache.clear", NDArrayCache::Clear)
-      .def("vm.builtin.ndarray_cache.load", NDArrayCache::Load);
+      .def("vm.builtin.tensor_cache.remove", TensorCache::Remove)
+      .def("vm.builtin.tensor_cache.clear", TensorCache::Clear)
+      .def("vm.builtin.tensor_cache.load", TensorCache::Load);
 });
 
 // This param module node can be useful to get param dict in RPC mode
@@ -315,11 +316,11 @@ class ParamModuleNode : public ffi::ModuleObj {
     }
   }
 
-  static Array<NDArray> GetParams(const String& prefix, int num_params) {
-    Array<NDArray> params;
+  static Array<Tensor> GetParams(const String& prefix, int num_params) {
+    Array<Tensor> params;
     for (int i = 0; i < num_params || num_params == -1; ++i) {
       std::string name = prefix + "_" + std::to_string(i);
-      auto opt = NDArrayCache::Get(name);
+      auto opt = TensorCache::Get(name);
       if (opt) {
         params.push_back(opt.value());
       } else {
@@ -330,11 +331,11 @@ class ParamModuleNode : public ffi::ModuleObj {
     return params;
   }
 
-  static Array<NDArray> GetParamByName(const Array<String>& names) {
-    Array<NDArray> result;
+  static Array<Tensor> GetParamByName(const Array<String>& names) {
+    Array<Tensor> result;
     result.reserve(names.size());
     for (const String& name : names) {
-      if (Optional<NDArray> opt = NDArrayCache::Get(name)) {
+      if (Optional<Tensor> opt = TensorCache::Get(name)) {
         result.push_back(opt.value());
       } else {
         LOG(FATAL) << "ValueError: Cannot find parameter in cache: " << name;
@@ -356,7 +357,7 @@ class ParamModuleNode : public ffi::ModuleObj {
   }
 
  private:
-  Array<NDArray> params_;
+  Array<Tensor> params_;
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({

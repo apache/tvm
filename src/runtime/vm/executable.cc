@@ -48,11 +48,11 @@ std::string VMExecutable::Stats() const {
   oss << "Relax VM executable statistics:" << std::endl;
 
   // Get the number of constants.
-  // If the constant is an NDArray, get the shape of each of them.
+  // If the constant is an Tensor, get the shape of each of them.
   // If the constant is an DLDataType, get the data type of each of them.
   oss << "  Constant pool (# " << constants.size() << "): [";
   for (const auto& it : constants) {
-    if (auto opt_nd = it.as<runtime::NDArray>()) {
+    if (auto opt_nd = it.as<runtime::Tensor>()) {
       const auto ndarray = opt_nd.value();
       const auto& shape = ndarray.Shape();
       // Scalar
@@ -248,8 +248,8 @@ void VMExecutable::SaveGlobalSection(dmlc::Stream* strm) const { strm->Write(fun
 void VMExecutable::SaveConstantSection(dmlc::Stream* strm) const {
   strm->Write(static_cast<uint64_t>(this->constants.size()));
   for (const auto& it : this->constants) {
-    if (auto opt_nd = it.as<runtime::NDArray>()) {
-      strm->Write<int32_t>(ffi::TypeIndex::kTVMFFINDArray);
+    if (auto opt_nd = it.as<runtime::Tensor>()) {
+      strm->Write<int32_t>(ffi::TypeIndex::kTVMFFITensor);
       runtime::SaveDLTensor(strm, opt_nd.value().operator->());
     } else if (auto opt_shape = it.as<ffi::Shape>()) {
       ffi::Shape shape = opt_shape.value();
@@ -299,13 +299,13 @@ void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
   STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "constant");
 
   size_t size = static_cast<size_t>(sz);
-  runtime::NDArray ndarray;
+  runtime::Tensor ndarray;
   DLDataType dtype;
   // Load each of the constants.
   for (size_t i = 0; i < size; i++) {
     int constant_type;
     STREAM_CHECK(strm->Read(&constant_type, sizeof(constant_type)), "constant");
-    if (constant_type == ffi::TypeIndex::kTVMFFINDArray) {
+    if (constant_type == ffi::TypeIndex::kTVMFFITensor) {
       ndarray.Load(strm);
       ffi::Any cell;
       cell = ndarray;
@@ -348,7 +348,7 @@ void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
       cell = value;
       this->constants.push_back(cell);
     } else {
-      LOG(FATAL) << "Constant pool can only contain NDArray and DLDataType, but got "
+      LOG(FATAL) << "Constant pool can only contain Tensor and DLDataType, but got "
                  << ffi::TypeIndexToTypeKey(constant_type) << " when loading the VM constant pool.";
     }
   }

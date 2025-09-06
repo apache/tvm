@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     import numpy as np
 
     from tvm.meta_schedule.runner import EvaluatorConfig, RPCConfig
-    from tvm.runtime import Device, Module, NDArray
+    from tvm.runtime import Device, Module, Tensor
 
 # pylint: disable=import-outside-toplevel,protected-access
 
@@ -32,11 +32,11 @@ if TYPE_CHECKING:
 def _args_to_device(args, device):
     import numpy as np
 
-    from tvm.runtime.ndarray import NDArray, empty
+    from tvm.runtime.tensor import Tensor, empty
 
     uploaded_args = []
     for arg in args:
-        if isinstance(arg, (np.ndarray, NDArray)):
+        if isinstance(arg, (np.ndarray, Tensor)):
             uploaded_args.append(empty(arg.shape, dtype=arg.dtype, device=device).copyfrom(arg))
         elif isinstance(arg, (int, float)):
             uploaded_args.append(arg)
@@ -46,11 +46,11 @@ def _args_to_device(args, device):
 
 
 def _args_to_numpy(args):
-    from tvm.runtime.ndarray import NDArray
+    from tvm.runtime.tensor import Tensor
 
     downloaded_args = []
     for arg in args:
-        if isinstance(arg, NDArray):
+        if isinstance(arg, Tensor):
             downloaded_args.append(arg.numpy())
         else:
             downloaded_args.append(arg)
@@ -80,7 +80,7 @@ def _normalize_export_func(export_func, output_format) -> Tuple[Callable, str]:
 def local_run(  # pylint: disable=too-many-arguments,too-many-locals
     mod: "Module",
     device_type: str,
-    args: List[Union["np.ndarray", "NDArray", int, float]],
+    args: List[Union["np.ndarray", "Tensor", int, float]],
     evaluator_config: Optional["EvaluatorConfig"] = None,
     export_func: Union[Callable[["Module", str], None], Literal["tar", "ndk"]] = "tar",
     output_format: Optional[str] = None,
@@ -93,7 +93,7 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
         The TVM module to run.
     device_type : str
         The device type to run the module on.
-    args : List[Union[np.ndarray, NDArray, int, float]]
+    args : List[Union[np.ndarray, Tensor, int, float]]
         The arguments to be fed to the module.
     evaluator_config : Optional[EvaluatorConfig]
         The evaluator configuration to use.
@@ -109,7 +109,7 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
 
     Returns
     -------
-    args : List[Union[np.ndarray, NDArray, int, float]]
+    args : List[Union[np.ndarray, Tensor, int, float]]
         The results of running the module.
     profile_result : tvm.runtime.BenchmarkResult
         The profiling result of running the module.
@@ -152,7 +152,7 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
 def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
     mod: "Module",
     device_type: str,
-    args: List[Union["np.ndarray", "NDArray", int, float]],
+    args: List[Union["np.ndarray", "Tensor", int, float]],
     evaluator_config: Optional["EvaluatorConfig"] = None,
     rpc_config: Optional["RPCConfig"] = None,
     export_func: Union[Callable[["Module", str], None], Literal["tar", "ndk"]] = "tar",
@@ -166,7 +166,7 @@ def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
         The TVM module to run.
     device_type : str
         The device type to run the module on.
-    args : List[Union[np.ndarray, NDArray, int, float]]
+    args : List[Union[np.ndarray, Tensor, int, float]]
         The arguments to be fed to the module.
     evaluator_config : Optional[EvaluatorConfig]
         The evaluator configuration to use.
@@ -189,7 +189,7 @@ def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
 
     Returns
     -------
-    args : List[Union[np.ndarray, NDArray, int, float]]
+    args : List[Union[np.ndarray, Tensor, int, float]]
         The results of running the module.
     profile_result : tvm.runtime.BenchmarkResult
         The profiling result of running the module.

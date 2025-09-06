@@ -18,14 +18,14 @@
  */
 
 /*!
- * \file tvm/runtime/ndarray.h
- * \brief A device-independent managed NDArray abstraction.
+ * \file tvm/runtime/tensor.h
+ * \brief A device-independent managed Tensor abstraction.
  */
-#ifndef TVM_RUNTIME_NDARRAY_H_
-#define TVM_RUNTIME_NDARRAY_H_
+#ifndef TVM_RUNTIME_TENSOR_H_
+#define TVM_RUNTIME_TENSOR_H_
 
-#include <tvm/ffi/container/ndarray.h>
 #include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/base.h>
@@ -47,31 +47,31 @@ using ffi::IsAligned;
 using ffi::IsContiguous;
 
 /*!
- * \brief Managed NDArray.
+ * \brief Managed Tensor.
  *  The array is backed by reference counted blocks.
  */
-class NDArray : public tvm::ffi::NDArray {
+class Tensor : public tvm::ffi::Tensor {
  public:
-  using Container = ffi::NDArrayObj;
-  NDArray() = default;
+  using Container = ffi::TensorObj;
+  Tensor() = default;
   /*!
    * \brief constructor.
    * \param data ObjectPtr to the data container.
    */
-  explicit NDArray(ObjectPtr<Object> data) : tvm::ffi::NDArray(data) {}
-  NDArray(ffi::NDArray&& other) : tvm::ffi::NDArray(std::move(other)) {}  // NOLINT(*)
-  NDArray(const ffi::NDArray& other) : tvm::ffi::NDArray(other) {}        // NOLINT(*)
+  explicit Tensor(ObjectPtr<Object> data) : tvm::ffi::Tensor(data) {}
+  Tensor(ffi::Tensor&& other) : tvm::ffi::Tensor(std::move(other)) {}  // NOLINT(*)
+  Tensor(const ffi::Tensor& other) : tvm::ffi::Tensor(other) {}        // NOLINT(*)
 
   ffi::Shape Shape() const { return this->shape(); }
   runtime::DataType DataType() const { return runtime::DataType(this->dtype()); }
 
   // DLPack handling
-  static NDArray FromDLPack(DLManagedTensor* tensor) {
-    return tvm::ffi::NDArray::FromDLPack(tensor, kAllocAlignment, true);
+  static Tensor FromDLPack(DLManagedTensor* tensor) {
+    return tvm::ffi::Tensor::FromDLPack(tensor, kAllocAlignment, true);
   }
 
-  static NDArray FromDLPackVersioned(DLManagedTensorVersioned* tensor) {
-    return tvm::ffi::NDArray::FromDLPackVersioned(tensor, kAllocAlignment, true);
+  static Tensor FromDLPackVersioned(DLManagedTensorVersioned* tensor) {
+    return tvm::ffi::Tensor::FromDLPackVersioned(tensor, kAllocAlignment, true);
   }
   /*!
    * \brief Copy data content from another array.
@@ -80,12 +80,12 @@ class NDArray : public tvm::ffi::NDArray {
    *       TVMSynchronize is necessary.
    */
   inline void CopyFrom(const DLTensor* other);
-  inline void CopyFrom(const NDArray& other);
+  inline void CopyFrom(const Tensor& other);
   /*!
    * \brief Copy data content from a byte buffer.
    * \param data The source bytes to be copied from.
    * \param nbytes The size of the buffer in bytes
-   *        Must be equal to the size of the NDArray.
+   *        Must be equal to the size of the Tensor.
    * \note The copy always triggers a TVMSynchronize.
    */
   TVM_DLL void CopyFromBytes(const void* data, size_t nbytes);
@@ -96,12 +96,12 @@ class NDArray : public tvm::ffi::NDArray {
    *       TVMSynchronize is necessary.
    */
   inline void CopyTo(DLTensor* other) const;
-  inline void CopyTo(const NDArray& other) const;
+  inline void CopyTo(const Tensor& other) const;
   /*!
    * \brief Copy data content into another array.
    * \param data The source bytes to be copied from.
    * \param nbytes The size of the data buffer.
-   *        Must be equal to the size of the NDArray.
+   *        Must be equal to the size of the Tensor.
    * \note The copy always triggers a TVMSynchronize.
    */
   TVM_DLL void CopyToBytes(void* data, size_t nbytes) const;
@@ -112,27 +112,27 @@ class NDArray : public tvm::ffi::NDArray {
    * \return The array under another device.
    * \note The copy always triggers a TVMSynchronize.
    */
-  TVM_DLL NDArray CopyTo(const Device& dev, Optional<String> mem_scope = std::nullopt) const;
+  TVM_DLL Tensor CopyTo(const Device& dev, Optional<String> mem_scope = std::nullopt) const;
   /*!
-   * \brief Load NDArray from stream
+   * \brief Load Tensor from stream
    * \param stream The input data stream
    * \return Whether load is successful
    */
   inline bool Load(dmlc::Stream* stream);
   /*!
-   * \brief Save NDArray to stream
+   * \brief Save Tensor to stream
    * \param stream The output data stream
    */
   inline void Save(dmlc::Stream* stream) const;
 
   /*!
-   * \brief Create a NDArray that shares the data memory with the current one.
+   * \brief Create a Tensor that shares the data memory with the current one.
    *
    * \param shape The shape of the new array.
    *
    * \param dtype The data type of the new array.
    *
-   * \param relative_byte_offset The offset of the output NDArray,
+   * \param relative_byte_offset The offset of the output Tensor,
    *     relative to the current byte offset.
    *
    *     By default, the offset of the view is the same as the offset
@@ -145,18 +145,18 @@ class NDArray : public tvm::ffi::NDArray {
    *       outside the bounds of the current array, this function will
    *       raise an exception.
    */
-  TVM_DLL NDArray CreateView(ffi::Shape shape, DLDataType dtype,
-                             uint64_t relative_byte_offset = 0) const;
+  TVM_DLL Tensor CreateView(ffi::Shape shape, DLDataType dtype,
+                            uint64_t relative_byte_offset = 0) const;
   /*!
-   * \brief Create an empty NDArray.
+   * \brief Create an empty Tensor.
    * \param shape The shape of the new array.
    * \param dtype The data type of the new array.
    * \param dev The device of the array.
    * \param mem_scope The memory scope of the array.
    * \return The created Array
    */
-  TVM_DLL static NDArray Empty(ffi::Shape shape, DLDataType dtype, Device dev,
-                               Optional<String> mem_scope = std::nullopt);
+  TVM_DLL static Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
+                              Optional<String> mem_scope = std::nullopt);
   /*!
    * \brief Function to copy data from one array to another.
    * \param from The source array.
@@ -184,33 +184,33 @@ class NDArray : public tvm::ffi::NDArray {
  */
 inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor);
 
-inline void NDArray::CopyFrom(const DLTensor* other) {
+inline void Tensor::CopyFrom(const DLTensor* other) {
   ICHECK(data_ != nullptr);
   CopyFromTo(other, get_mutable());
 }
 
-inline void NDArray::CopyFrom(const NDArray& other) {
+inline void Tensor::CopyFrom(const Tensor& other) {
   ICHECK(data_ != nullptr);
   ICHECK(other.data_ != nullptr);
   CopyFromTo(other.get_mutable(), get_mutable());
 }
 
-inline void NDArray::CopyTo(DLTensor* other) const {
+inline void Tensor::CopyTo(DLTensor* other) const {
   ICHECK(data_ != nullptr);
   CopyFromTo(get_mutable(), other);
 }
 
-inline void NDArray::CopyTo(const NDArray& other) const {
+inline void Tensor::CopyTo(const Tensor& other) const {
   ICHECK(data_ != nullptr);
   ICHECK(other.data_ != nullptr);
   CopyFromTo(get_mutable(), other.get_mutable());
 }
 
-/*! \brief Magic number for NDArray file */
-constexpr uint64_t kTVMNDArrayMagic = 0xDD5E40F096B4A13F;
+/*! \brief Magic number for Tensor file */
+constexpr uint64_t kTVMTensorMagic = 0xDD5E40F096B4A13F;
 
 inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor) {
-  uint64_t header = kTVMNDArrayMagic, reserved = 0;
+  uint64_t header = kTVMTensorMagic, reserved = 0;
   strm->Write(header);
   strm->Write(reserved);
   // Always save data as CPU context
@@ -244,7 +244,7 @@ inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor) {
     strm->Write(tensor->data, data_byte_size);
   } else {
     std::vector<uint8_t> bytes(data_byte_size);
-    NDArray::CopyToBytes(const_cast<DLTensor*>(tensor), dmlc::BeginPtr(bytes), data_byte_size);
+    Tensor::CopyToBytes(const_cast<DLTensor*>(tensor), dmlc::BeginPtr(bytes), data_byte_size);
     if (!DMLC_IO_NO_ENDIAN_SWAP) {
       dmlc::ByteSwap(dmlc::BeginPtr(bytes), type_bytes, num_elems);
     }
@@ -253,13 +253,13 @@ inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor) {
   return true;
 }
 
-inline void NDArray::Save(dmlc::Stream* strm) const { SaveDLTensor(strm, operator->()); }
+inline void Tensor::Save(dmlc::Stream* strm) const { SaveDLTensor(strm, operator->()); }
 
-inline bool NDArray::Load(dmlc::Stream* strm) {
+inline bool Tensor::Load(dmlc::Stream* strm) {
   uint64_t header, reserved;
   ICHECK(strm->Read(&header)) << "Invalid DLTensor file format";
   ICHECK(strm->Read(&reserved)) << "Invalid DLTensor file format";
-  ICHECK(header == kTVMNDArrayMagic) << "Invalid DLTensor file format";
+  ICHECK(header == kTVMTensorMagic) << "Invalid DLTensor file format";
   Device dev;
   int ndim;
   DLDataType dtype;
@@ -271,7 +271,7 @@ inline bool NDArray::Load(dmlc::Stream* strm) {
   if (ndim != 0) {
     ICHECK(strm->ReadArray(&shape[0], ndim)) << "Invalid DLTensor file format";
   }
-  NDArray ret = NDArray::Empty(ffi::Shape(shape), dtype, dev);
+  Tensor ret = Tensor::Empty(ffi::Shape(shape), dtype, dev);
   int64_t num_elems = 1;
   int elem_bytes = (ret->dtype.bits + 7) / 8;
   for (int i = 0; i < ret->ndim; ++i) {
@@ -328,4 +328,4 @@ struct equal_to<tvm::Device> {
 };
 }  // namespace std
 
-#endif  // TVM_RUNTIME_NDARRAY_H_
+#endif  // TVM_RUNTIME_TENSOR_H_

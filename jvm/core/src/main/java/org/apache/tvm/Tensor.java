@@ -23,13 +23,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Lightweight NDArray class of TVM runtime.
+ * Lightweight Tensor class of TVM runtime.
  */
-public class NDArray extends NDArrayBase {
+public class Tensor extends TensorBase {
   private final TVMType dtype;
   private final Device device;
 
-  NDArray(long handle, boolean isView, TVMType dtype, Device dev) {
+  Tensor(long handle, boolean isView, TVMType dtype, Device dev) {
     super(handle, isView);
     this.dtype = dtype;
     this.device = dev;
@@ -37,7 +37,7 @@ public class NDArray extends NDArrayBase {
 
   /**
    * Copy from a native array.
-   * The NDArray type must by float64
+   * The Tensor type must by float64
    * @param sourceArray the source data
    */
   public void copyFrom(double[] sourceArray) {
@@ -54,7 +54,7 @@ public class NDArray extends NDArrayBase {
 
   /**
    * Copy from a native array.
-   * The NDArray type must by float32
+   * The Tensor type must by float32
    * @param sourceArray the source data
    */
   public void copyFrom(float[] sourceArray) {
@@ -71,7 +71,7 @@ public class NDArray extends NDArrayBase {
 
   /**
    * Copy from a native array.
-   * The NDArray type must by int64
+   * The Tensor type must by int64
    * @param sourceArray the source data
    */
   public void copyFrom(long[] sourceArray) {
@@ -88,7 +88,7 @@ public class NDArray extends NDArrayBase {
 
   /**
    * Copy from a native array.
-   * The NDArray type must by float32
+   * The Tensor type must by float32
    * @param sourceArray the source data
    */
   public void copyFrom(int[] sourceArray) {
@@ -105,7 +105,7 @@ public class NDArray extends NDArrayBase {
 
   /**
    * Copy from a native array.
-   * The NDArray type must by int16
+   * The Tensor type must by int16
    * @param sourceArray the source data
    */
   public void copyFrom(short[] sourceArray) {
@@ -122,7 +122,7 @@ public class NDArray extends NDArrayBase {
 
   /**
    * Copy from a native array.
-   * The NDArray type must by int8
+   * The Tensor type must by int8
    * @param sourceArray the source data
    */
   public void copyFrom(byte[] sourceArray) {
@@ -135,7 +135,7 @@ public class NDArray extends NDArrayBase {
 
   /**
    * Copy from a native array.
-   * The NDArray type must by uint16
+   * The Tensor type must by uint16
    * @param sourceArray the source data
    */
   public void copyFrom(char[] sourceArray) {
@@ -167,8 +167,8 @@ public class NDArray extends NDArrayBase {
   }
 
   /**
-   * Get shape of current NDArray.
-   * @return an array representing shape of current ndarray
+   * Get shape of current Tensor.
+   * @return an array representing shape of current tensor
    */
   public long[] shape() {
     List<Long> data = new ArrayList<Long>();
@@ -181,8 +181,8 @@ public class NDArray extends NDArrayBase {
   }
 
   /**
-   * Get total size of current NDArray.
-   * @return size of current NDArray.
+   * Get total size of current Tensor.
+   * @return size of current Tensor.
    */
   public long size() {
     long product = 1L;
@@ -195,7 +195,7 @@ public class NDArray extends NDArrayBase {
 
   /**
    * Return a copied flat java array of current array (row-major).
-   * The NDArray dtype must be float64
+   * The Tensor dtype must be float64
    * @return A copy of array content.
    */
   public double[] asDoubleArray() {
@@ -213,7 +213,7 @@ public class NDArray extends NDArrayBase {
 
   /**
    * Return a copied flat java array of current array (row-major).
-   * The NDArray dtype must be float32
+   * The Tensor dtype must be float32
    * @return A copy of array content.
    */
   public float[] asFloatArray() {
@@ -231,7 +231,7 @@ public class NDArray extends NDArrayBase {
 
   /**
    * Return a copied flat java array of current array (row-major).
-   * The NDArray dtype must be int64
+   * The Tensor dtype must be int64
    * @return A copy of array content.
    */
   public long[] asLongArray() {
@@ -249,7 +249,7 @@ public class NDArray extends NDArrayBase {
 
   /**
    * Return a copied flat java array of current array (row-major).
-   * The NDArray dtype must be int32
+   * The Tensor dtype must be int32
    * @return A copy of array content.
    */
   public int[] asIntArray() {
@@ -267,7 +267,7 @@ public class NDArray extends NDArrayBase {
 
   /**
    * Return a copied flat java array of current array (row-major).
-   * The NDArray dtype must be int16
+   * The Tensor dtype must be int16
    * @return A copy of array content.
    */
   public short[] asShortArray() {
@@ -285,7 +285,7 @@ public class NDArray extends NDArrayBase {
 
   /**
    * Return a copied flat java array of current array (row-major).
-   * The NDArray dtype must be uint16
+   * The Tensor dtype must be uint16
    * @return A copy of array content.
    */
   public char[] asCharArray() {
@@ -303,7 +303,7 @@ public class NDArray extends NDArrayBase {
 
   /**
    * Return a copied flat java array of current array (row-major).
-   * The NDArray dtype must be int8
+   * The Tensor dtype must be int8
    * @return A copy of array content.
    */
   public byte[] asByteArray() {
@@ -319,7 +319,7 @@ public class NDArray extends NDArrayBase {
    * @return A copy of array content.
    */
   public byte[] internal() {
-    NDArray tmp = NDArray.empty(shape(), dtype);
+    Tensor tmp = Tensor.empty(shape(), dtype);
     copyTo(tmp);
 
     int arrLength = dtype.numOfBytes * (int) size();
@@ -359,12 +359,12 @@ public class NDArray extends NDArrayBase {
    * @param dev The device of the array.
    * @return The array tvm supported.
    */
-  public static NDArray empty(long[] shape, TVMType dtype, Device dev) {
+  public static Tensor empty(long[] shape, TVMType dtype, Device dev) {
     Base.RefLong refHandle = new Base.RefLong();
-    Base.checkCall(Base._LIB.tvmNDArrayEmpty(
+    Base.checkCall(Base._LIB.tvmTensorEmpty(
         shape, dtype.typeCode, dtype.bits,
         dtype.lanes, dev.deviceType, dev.deviceId, refHandle));
-    return new NDArray(refHandle.value, false, dtype, dev);
+    return new Tensor(refHandle.value, false, dtype, dev);
   }
 
   /**
@@ -373,7 +373,7 @@ public class NDArray extends NDArrayBase {
    * @param dtype The data type of the array.
    * @return The array tvm supported.
    */
-  public static NDArray empty(long[] shape, TVMType dtype) {
+  public static Tensor empty(long[] shape, TVMType dtype) {
     return empty(shape, dtype, Device.cpu(0));
   }
 
@@ -382,7 +382,7 @@ public class NDArray extends NDArrayBase {
    * @param shape The shape of the array.
    * @return The array tvm supported.
    */
-  public static NDArray empty(long[] shape) {
+  public static Tensor empty(long[] shape) {
     return empty(shape, new TVMType("float32", 1), Device.cpu(0));
   }
 
@@ -392,7 +392,7 @@ public class NDArray extends NDArrayBase {
    * @param dev The device of the array.
    * @return The array tvm supported.
    */
-  public static NDArray empty(long[] shape, Device dev) {
+  public static Tensor empty(long[] shape, Device dev) {
     return empty(shape, new TVMType("float32", 1), dev);
   }
 

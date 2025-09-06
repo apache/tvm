@@ -51,12 +51,12 @@
     function connectRPC() {
       const proxyUrl = document.getElementById("proxyUrl").value;
       const key = document.getElementById("proxyKey").value;
-      const ndarrayCacheName = document.getElementById("cache-select").value;
-      let ndarrayCacheUrl = new URL(ndarrayCacheName + "/", document.URL).href;
-      let ndarrayCacheDevice = document.getElementById("ndarrayCacheDevice").value;
+      const tensorCacheName = document.getElementById("cache-select").value;
+      let tensorCacheUrl = new URL(tensorCacheName + "/", document.URL).href;
+      let tensorCacheDevice = document.getElementById("tensorCacheDevice").value;
 
-      if (ndarrayCacheName == "none" || ndarrayCacheName === undefined) {
-        ndarrayCacheUrl = "";
+      if (tensorCacheName == "none" || tensorCacheName === undefined) {
+        tensorCacheUrl = "";
       }
 
       // only works for once.
@@ -66,7 +66,7 @@
 
       new tvmjs.RPCServer(
         proxyUrl, key, getImports, customLog,
-        ndarrayCacheUrl, ndarrayCacheDevice, initProgressCallback,
+        tensorCacheUrl, tensorCacheDevice, initProgressCallback,
         tvmjsGlobalEnv.asyncOnRPCServerLoad);
     }
 
@@ -117,12 +117,12 @@
       type="text"
       value="wasm"
     /><br />
-    NDArrayCache -
+    TensorCache -
     <select name="cache-name" id="cache-select">
       <option value="none">none</option>
     </select>
     CacheDevice -
-    <select name="cache-device" id="ndarrayCacheDevice">
+    <select name="cache-device" id="tensorCacheDevice">
       <option value="webgpu">webgpu</option>
       <option value="cpu">cpu</option>
     </select>

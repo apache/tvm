@@ -39,7 +39,7 @@ class Executable:
 
     def __call__(self, *args, **kwargs) -> Any:
         """Call the executable."""
-        return self.jit().entry_func(*args, **kwargs)
+        return self.jit().main(*args, **kwargs)
 
     def jit(
         self,

@@ -372,16 +372,16 @@ class BaseTool(object):
     def reset(
         self,
         graphs: List[MSCGraph],
-        weights: Dict[str, tvm.nd.array],
+        weights: Dict[str, tvm.runtime.Tensor],
         cache_dir: msc_utils.MSCDirectory = None,
-    ) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
+    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Reset the tool with graphs and weights
 
         Parameters
         ----------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The weights.
         cache_dir: MSCDirectory
             cache path for save/load info.
@@ -390,7 +390,7 @@ class BaseTool(object):
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The weights.
         """
 
@@ -411,22 +411,22 @@ class BaseTool(object):
         return self._graphs, self._weights
 
     def _reset(
-        self, graphs: List[MSCGraph], weights: Dict[str, tvm.nd.array]
-    ) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
+        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
+    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Reset the tool
 
         Parameters
         ----------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The weights.
 
         Returns
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The weights.
         """
 
@@ -1440,22 +1440,22 @@ class WeightTool(BaseTool):
         return super().setup()
 
     def _reset(
-        self, graphs: List[MSCGraph], weights: Dict[str, tvm.nd.array]
-    ) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
+        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
+    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Reset the tool
 
         Parameters
         ----------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The weights.
 
         Returns
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The weights.
         """
 

@@ -343,7 +343,7 @@ def _expected_results(
     func = func.with_attr("global_symbol", "main")
     rt_mod = tvm.compile(func, target="llvm")
     data = [
-        tvm.nd.array(x)
+        tvm.runtime.tensor(x)
         for x in [
             *inputs,
             np.zeros(output_shape, dtype=output_dtype),
@@ -359,7 +359,7 @@ def _actual_results(
     target = _target()
     actual_rt_mod = tvm.compile(actual, target=target)
     actual_data = [
-        tvm.nd.array(x, device=tvm.cuda() if target.kind.name == "cuda" else tvm.cpu())
+        tvm.runtime.tensor(x, device=tvm.cuda() if target.kind.name == "cuda" else tvm.cpu())
         for x in [
             *inputs,
             np.zeros(output_shape, dtype=output_dtype),

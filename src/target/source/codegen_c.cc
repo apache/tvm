@@ -778,7 +778,7 @@ void CodeGenC::VisitStmt_(const AllocateConstNode* op) {
   decl_stream << " __attribute__((section(\".rodata.tvm\"), "
               << "aligned(" << constants_byte_alignment_->value << "))) " << symbol_name << "["
               << num_elements << "] = {\n";
-  NDArrayDataToC(data, 4, decl_stream);
+  TensorDataToC(data, 4, decl_stream);
 
   decl_stream << "};\n"
               << "#ifdef __cplusplus\n"

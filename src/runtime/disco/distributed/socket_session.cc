@@ -173,8 +173,8 @@ class SocketSessionObj : public BcastSessionObj {
     return remote_channels_[node_id - 1]->Recv();
   }
 
-  void AppendHostNDArray(const NDArray& host_array) final {
-    local_session_->AppendHostNDArray(host_array);
+  void AppendHostTensor(const Tensor& host_array) final {
+    local_session_->AppendHostTensor(host_array);
   }
 
   void Shutdown() final {

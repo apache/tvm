@@ -23,7 +23,7 @@ import tvm
 from tvm import topi
 
 
-def detach_params(mod: tvm.IRModule) -> Tuple[tvm.IRModule, Dict[str, List[tvm.nd.NDArray]]]:
+def detach_params(mod: tvm.IRModule) -> Tuple[tvm.IRModule, Dict[str, List[tvm.runtime.Tensor]]]:
     """Detach the attribute "params" in the functions of the input IRModule as
     separate dictionary of params.
 
@@ -37,7 +37,7 @@ def detach_params(mod: tvm.IRModule) -> Tuple[tvm.IRModule, Dict[str, List[tvm.n
     detached_mod : tvm.IRModule
         The IRModule after the detachment.
 
-    params_dict : Dict[str, List[tvm.nd.NDArray]]
+    params_dict : Dict[str, List[tvm.runtime.Tensor]]
         The detached params. The dict keys corresponds to the names of the
         functions in the input IRModule that have attribute "params".
     """
@@ -46,10 +46,8 @@ def detach_params(mod: tvm.IRModule) -> Tuple[tvm.IRModule, Dict[str, List[tvm.n
     for gv, func in mod.functions_items():
         if "params" in func.attrs:
             params = list(func.attrs["params"])
-            if not all([isinstance(param, tvm.nd.NDArray) for param in params]):
-                raise ValueError(
-                    'The value "params" attribute is expected to be a list of NDArray.'
-                )
+            if not all([isinstance(param, tvm.runtime.Tensor) for param in params]):
+                raise ValueError('The value "params" attribute is expected to be a list of Tensor.')
             params_dict[gv.name_hint] = params
             detached_mod[gv] = func.without_attr("params")
         else:

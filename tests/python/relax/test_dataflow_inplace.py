@@ -526,8 +526,8 @@ def test_insert_inplace_calls():
     new_mod = transform_pass(EndToEndTest)
     tvm.ir.assert_structural_equal(new_mod, Expected)
 
-    x = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
-    y = tvm.nd.array(np.random.rand(1, 3).astype("float32"))
+    x = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
+    y = tvm.runtime.tensor(np.random.rand(1, 3).astype("float32"))
     expected = np.zeros((2, 3), dtype="float32")
 
     target = tvm.target.Target("llvm")
@@ -609,8 +609,8 @@ def test_dynamic():
             return s
 
     tvm.ir.assert_structural_equal(new_mod, Expected, map_free_vars=True)
-    x = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
-    y = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
+    x = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
+    y = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
     expected = np.zeros((2, 3), dtype="float32")
 
     target = tvm.target.Target("llvm")

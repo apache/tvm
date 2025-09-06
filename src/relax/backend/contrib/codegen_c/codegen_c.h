@@ -115,7 +115,7 @@ class CodegenCBase {
    *
    * \code
    *
-   * Array<NDArray> foo_consts;
+   * Array<Tensor> foo_consts;
    *
    * // An example code for the generated C function.
    * int foo_wrapper_(DLTensor* arg0,
@@ -129,7 +129,7 @@ class CodegenCBase {
    *
    * TVM_FFI_DLL_EXPORT_TYPED_FUNC(foo, foo_wrapper_);
    *
-   * int foo_init_wrapper_(Array<NDArray> arr) {
+   * int foo_init_wrapper_(Array<Tensor> arr) {
    *   foo_consts = arr;
    *   return 0;
    * }
@@ -220,7 +220,7 @@ class CodegenCBase {
       // codegen. Moreover, in microTVM we dont expect this part to be generated.
       code_stream_ << "#ifdef __cplusplus\n";
       code_stream_ << "int " << func_name
-                   << "_init_wrapper_(tvm::Array<tvm::runtime::NDArray> arr) {\n";
+                   << "_init_wrapper_(tvm::Array<tvm::runtime::Tensor> arr) {\n";
       EnterScope();
       PrintIndents();
       code_stream_ << func_name << "_consts = arr;\n";
@@ -369,7 +369,7 @@ class CodegenCBase {
   }
 
   /*!
-   * \brief Creates a checker to check if the NDArray pool is initialized
+   * \brief Creates a checker to check if the Tensor pool is initialized
    *
    * \param symobl The Symbol of the current function
    *
@@ -389,8 +389,8 @@ class CodegenCBase {
    *
    * \return The created declaration
    */
-  std::string CreateNDArrayPool(const std::string& symbol) const {
-    return "tvm::Array<tvm::runtime::NDArray> " + symbol + "_consts;";
+  std::string CreateTensorPool(const std::string& symbol) const {
+    return "tvm::Array<tvm::runtime::Tensor> " + symbol + "_consts;";
   }
 
   /*!

@@ -146,9 +146,9 @@ def run_test(
             b_np = np.random.randint(-128, 128, (K, N)).astype("int8")
             c_np = np.dot(a_np.astype("float32"), b_np.astype("float32")).astype("int32")
 
-    a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(b_np, dev)
-    c = tvm.nd.array(np.zeros((M, N), dtype=out_dtype), dev)
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.tensor(b_np, dev)
+    c = tvm.runtime.tensor(np.zeros((M, N), dtype=out_dtype), dev)
 
     f(a, b, c)
 

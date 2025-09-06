@@ -83,7 +83,7 @@ std::tuple<Map<Var, Expr>, Map<tir::Var, PrimExpr>> NormalizeNamedBindings(
   auto normalize_value = [&](Var key, ffi::Any obj) -> relax::Expr {
     if (auto opt = obj.as<relax::Expr>()) {
       return opt.value();
-    } else if (auto opt = obj.as<runtime::NDArray>()) {
+    } else if (auto opt = obj.as<runtime::Tensor>()) {
       const auto& span = SpanUtils::CreateWithAttr(msc_attr::kName, key->name_hint());
       return Constant(opt.value(), StructInfo(), span);
     } else {

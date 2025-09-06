@@ -26,7 +26,7 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <cstddef>
 #include <string>
@@ -309,8 +309,8 @@ class MarvellHardwareModuleNode : public ffi::ModuleObj {
 
     i_d_buf_float = reinterpret_cast<float*>(i_d_buf);
     for (int in = 0; in < num_inputs_; in++) {
-      if (args[in].IsObjectRef<NDArray>()) {
-        NDArray arr = args[in];
+      if (args[in].IsObjectRef<Tensor>()) {
+        Tensor arr = args[in];
         tensor = arr.operator->();
       } else {
         tensor = args[in].operator DLTensor*();
@@ -345,8 +345,8 @@ class MarvellHardwareModuleNode : public ffi::ModuleObj {
     int out = num_inputs_;
 
     if (num_outputs_ == 1) {
-      if (args[out].IsObjectRef<NDArray>()) {
-        NDArray arr = args[out];
+      if (args[out].IsObjectRef<Tensor>()) {
+        Tensor arr = args[out];
         outTensor = arr.operator->();
       } else {
         outTensor = args[out].operator DLTensor*();
@@ -361,8 +361,8 @@ class MarvellHardwareModuleNode : public ffi::ModuleObj {
 
       for (out = num_inputs_; out < args.size(); out++) {
         int out_tot_dim = 1;
-        if (args[out].IsObjectRef<NDArray>()) {
-          NDArray arr = args[out];
+        if (args[out].IsObjectRef<Tensor>()) {
+          Tensor arr = args[out];
           outTensor = arr.operator->();
         } else {
           outTensor = args[out].operator DLTensor*();
@@ -382,8 +382,8 @@ class MarvellHardwareModuleNode : public ffi::ModuleObj {
     const DLTensor* tensor[64];
 
     for (int in = 0; in < num_inputs_; in++) {
-      if (args[in].IsObjectRef<NDArray>()) {
-        NDArray arr = args[in];
+      if (args[in].IsObjectRef<Tensor>()) {
+        Tensor arr = args[in];
         tensor[in] = arr.operator->();
       } else {
         tensor[in] = args[in].operator DLTensor*();
@@ -398,8 +398,8 @@ class MarvellHardwareModuleNode : public ffi::ModuleObj {
 
     int i = 0;
     for (int out = num_inputs_; out < args.size(); out++) {
-      if (args[out].IsObjectRef<NDArray>()) {
-        NDArray arr = args[out];
+      if (args[out].IsObjectRef<Tensor>()) {
+        Tensor arr = args[out];
         tensor[i] = arr.operator->();
       } else {
         tensor[i] = args[out].operator DLTensor*();

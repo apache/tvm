@@ -79,7 +79,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return Relax(d, "shape")->Call({ListDoc(values_doc)});
         });
 
-Optional<ExprDoc> SpecialScalar(const runtime::NDArray& n, const AccessPath& p) {
+Optional<ExprDoc> SpecialScalar(const runtime::Tensor& n, const AccessPath& p) {
   DataType dtype = n.DataType();
   const void* data = n->data;
   if (n->ndim != 0 || n->device.device_type != kDLCPU) {

@@ -20,7 +20,7 @@
 #include <dlpack/dlpack.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -70,7 +70,7 @@ class NNAPIRuntime : public JSONRuntimeBase {
 
   std::optional<CompiledModel> compiled_model_;
 
-  void Init(const Array<NDArray>& consts) final {
+  void Init(const Array<Tensor>& consts) final {
     ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required constants.";
     SetupConstants(consts);
@@ -225,7 +225,7 @@ class NNAPIRuntime : public JSONRuntimeBase {
   std::unordered_map<uint32_t, NNAPIOperand> node_output_map_;
 
 #else   // ifdef TVM_GRAPH_EXECUTOR_NNAPI
-  void Init(const Array<NDArray>& consts) final {
+  void Init(const Array<Tensor>& consts) final {
     LOG(FATAL) << "NNAPI runtime is not enabled. Build with USE_NNAPI_RUNTIME to enable it.";
   }
 

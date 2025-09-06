@@ -427,12 +427,12 @@ class BlockBuilderImpl : public BlockBuilderNode {
     return name_supply_->FreshName(prefix, /*add_prefix*/ false, /*add_underscore*/ false);
   }
 
-  /*! \brief A custom structural hashing that ignores NDArray raw data. */
+  /*! \brief A custom structural hashing that ignores Tensor raw data. */
   class StructuralHashIgnoreNDarray {
    public:
     uint64_t operator()(const ObjectRef& key) const {
       return ffi::StructuralHash::Hash(key, /*map_free_vars=*/false,
-                                       /*skip_ndarray_content=*/true);
+                                       /*skip_tensor_content=*/true);
     }
   };
 

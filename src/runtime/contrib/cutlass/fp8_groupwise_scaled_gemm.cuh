@@ -21,7 +21,7 @@
 #include <float.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/extra/c_env_api.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include "cutlass/bfloat16.h"
 #include "cutlass/half.h"
@@ -34,10 +34,10 @@ template <int Arch, typename TileShape, typename ClusterShape, typename ElementA
 struct CutlassFP8GroupwiseGemm;
 
 template <int Arch, typename TileShape, typename ClusterShape>
-void tvm_cutlass_fp8_groupwise_scaled_gemm_impl(NDArray a, NDArray b, NDArray scales_a,
-                                                NDArray scales_b, NDArray workspace,
+void tvm_cutlass_fp8_groupwise_scaled_gemm_impl(Tensor a, Tensor b, Tensor scales_a,
+                                                Tensor scales_b, Tensor workspace,
                                                 int64_t block_size_0, int64_t block_size_1,
-                                                NDArray out) {
+                                                Tensor out) {
   // Workspace is used for storing device-side gemm arguments and cutlass internal workspace.
   // Recommened size is 4MB.
   cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, a->device.device_id));
@@ -100,10 +100,10 @@ void tvm_cutlass_fp8_groupwise_scaled_gemm_impl(NDArray a, NDArray b, NDArray sc
 }
 
 template <int Arch, typename TileShape, typename ClusterShape>
-void tvm_cutlass_fp8_groupwise_scaled_bmm_impl(NDArray a, NDArray b, NDArray scales_a,
-                                               NDArray scales_b, NDArray workspace,
+void tvm_cutlass_fp8_groupwise_scaled_bmm_impl(Tensor a, Tensor b, Tensor scales_a,
+                                               Tensor scales_b, Tensor workspace,
                                                int64_t block_size_0, int64_t block_size_1,
-                                               NDArray out) {
+                                               Tensor out) {
   // Workspace is used for storing device-side gemm arguments and cutlass internal workspace.
   // Recommened size is 4MB.
   cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, a->device.device_id));

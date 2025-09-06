@@ -49,7 +49,7 @@ cdef extern from "tvm/ffi/c_api.h":
         kTVMFFIError = 67
         kTVMFFIFunction = 68
         kTVMFFIShape = 69
-        kTVMFFINDArray = 70
+        kTVMFFITensor = 70
         kTVMFFIArray = 71
         kTVMFFIMap = 72
         kTVMFFIModule = 73
@@ -196,14 +196,14 @@ cdef extern from "tvm/ffi/c_api.h":
     int TVMFFIDataTypeToString(const DLDataType* dtype, TVMFFIAny* out) nogil
     const TVMFFIByteArray* TVMFFITraceback(
         const char* filename, int lineno, const char* func, int cross_ffi_boundary) nogil;
-    int TVMFFINDArrayFromDLPack(DLManagedTensor* src, int32_t require_alignment,
+    int TVMFFITensorFromDLPack(DLManagedTensor* src, int32_t require_alignment,
                                 int32_t require_contiguous, TVMFFIObjectHandle* out) nogil
-    int TVMFFINDArrayFromDLPackVersioned(DLManagedTensorVersioned* src,
+    int TVMFFITensorFromDLPackVersioned(DLManagedTensorVersioned* src,
                                         int32_t require_alignment,
                                         int32_t require_contiguous,
                                         TVMFFIObjectHandle* out) nogil
-    int TVMFFINDArrayToDLPack(TVMFFIObjectHandle src, DLManagedTensor** out) nogil
-    int TVMFFINDArrayToDLPackVersioned(TVMFFIObjectHandle src,
+    int TVMFFITensorToDLPack(TVMFFIObjectHandle src, DLManagedTensor** out) nogil
+    int TVMFFITensorToDLPackVersioned(TVMFFIObjectHandle src,
                                         DLManagedTensorVersioned** out) nogil
     const TVMFFITypeInfo* TVMFFIGetTypeInfo(int32_t type_index) nogil
     TVMFFIByteArray TVMFFISmallBytesGetContentByteArray(const TVMFFIAny* value) nogil
@@ -211,7 +211,7 @@ cdef extern from "tvm/ffi/c_api.h":
     TVMFFIErrorCell* TVMFFIErrorGetCellPtr(TVMFFIObjectHandle obj) nogil
     TVMFFIOpaqueObjectCell* TVMFFIOpaqueObjectGetCellPtr(TVMFFIObjectHandle obj) nogil
     TVMFFIShapeCell* TVMFFIShapeGetCellPtr(TVMFFIObjectHandle obj) nogil
-    DLTensor* TVMFFINDArrayGetDLTensorPtr(TVMFFIObjectHandle obj) nogil
+    DLTensor* TVMFFITensorGetDLTensorPtr(TVMFFIObjectHandle obj) nogil
     DLDevice TVMFFIDLDeviceFromIntPair(int32_t device_type, int32_t device_id) nogil
 
 cdef extern from "tvm/ffi/extra/c_env_api.h":

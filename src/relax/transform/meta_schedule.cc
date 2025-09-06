@@ -37,7 +37,7 @@ class MetaScheduleTuner {
  public:
   explicit MetaScheduleTuner(Target target, String work_dir, Integer max_trials_global,
                              Integer max_trials_per_task, Optional<Array<String>> op_names,
-                             Map<String, runtime::NDArray> params = {})
+                             Map<String, runtime::Tensor> params = {})
       : target_(target),
         work_dir_(work_dir),
         max_trials_global_(max_trials_global),
@@ -68,7 +68,7 @@ class MetaScheduleTuner {
   Integer max_trials_global_;
   Integer max_trials_per_task_;
   Optional<Array<String>> op_names_;
-  Map<String, runtime::NDArray> params_;
+  Map<String, runtime::Tensor> params_;
   tvm::ffi::Function normalize_mod_func_;
 };
 
@@ -93,7 +93,7 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = 
     }
 
     Map<GlobalVar, BaseFunc> result;
-    auto mod_eq_structural = meta_schedule::ModuleEquality::Create("ignore-ndarray");
+    auto mod_eq_structural = meta_schedule::ModuleEquality::Create("ignore-tensor");
     for (const auto& iter : mod->functions) {
       GlobalVar gv = iter.first;
       BaseFunc base_func = iter.second;
@@ -146,7 +146,7 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = 
   return CreateModulePass(pass_func, 0, "MetaScheduleApplyDatabase", {});
 }
 
-Pass MetaScheduleTuneIRMod(Map<String, runtime::NDArray> params, String work_dir,
+Pass MetaScheduleTuneIRMod(Map<String, runtime::Tensor> params, String work_dir,
                            Integer max_trials_global,
                            Optional<Integer> max_trials_per_task = std::nullopt,
                            Optional<Array<String>> op_names = std::nullopt) {

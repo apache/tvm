@@ -28,7 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 #include <tvm/tir/data_layout.h>
 
 #include <set>
@@ -50,7 +50,7 @@ namespace msc {
 using namespace tvm::relax;
 
 using Expr = tvm::RelaxExpr;
-using tvm::runtime::NDArray;
+using tvm::runtime::Tensor;
 
 /*!
  * \brief Config for building MSCGraph.
@@ -358,14 +358,14 @@ class WeightsExtractor : public ExprVisitor {
   }
 
   /*! \brief Visit the constant and save weights */
-  Map<MSCTensor, NDArray> GetWeights(const Function& func);
+  Map<MSCTensor, Tensor> GetWeights(const Function& func);
 
   void VisitExpr_(const ConstantNode* op) final;
 
   void VisitExpr_(const CallNode* op) final;
 
  private:
-  Map<MSCTensor, NDArray> weights_;
+  Map<MSCTensor, Tensor> weights_;
   Map<Expr, Function> local_funcs_;
   IRModule ref_module_;
 };

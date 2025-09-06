@@ -20,6 +20,9 @@ import sys
 
 import tomli
 
+
+os.environ["TVM_FFI_BUILD_DOCS"] = "1"
+
 # -- General configuration ------------------------------------------------
 
 # Load version from pyproject.toml

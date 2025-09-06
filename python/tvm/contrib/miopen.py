@@ -29,7 +29,7 @@ def _get_np_int32_array_handle(arr):
 
     Parameters
     ----------
-    arr: numpy.NDArray
+    arr: numpy.Tensor
         source numpy array
 
     Returns

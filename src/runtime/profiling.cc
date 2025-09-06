@@ -182,7 +182,7 @@ void Profiler::Stop() {
   }
 }
 
-std::vector<int64_t> ToShape(NDArray shape_tensor) {
+std::vector<int64_t> ToShape(Tensor shape_tensor) {
   std::vector<int64_t> shape;
   auto rank = shape_tensor.Shape().size();
   auto dtype = shape_tensor.DataType();
@@ -212,7 +212,7 @@ std::vector<int64_t> ToShape(NDArray shape_tensor) {
   return shape;
 }
 
-String ShapeString(NDArray shape, DLDataType dtype) { return ShapeString(ToShape(shape), dtype); }
+String ShapeString(Tensor shape, DLDataType dtype) { return ShapeString(ToShape(shape), dtype); }
 
 String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype) {
   std::stringstream sizes;
@@ -227,9 +227,9 @@ String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype) {
   return String(sizes.str());
 }
 
-String ShapeString(const std::vector<NDArray>& shapes) {
+String ShapeString(const std::vector<Tensor>& shapes) {
   std::stringstream sizes;
-  for (const NDArray& ary : shapes) {
+  for (const Tensor& ary : shapes) {
     if (sizes.tellp() > 0) {
       sizes << ", ";
     }
@@ -871,10 +871,10 @@ ffi::Function WrapTimeEvaluator(ffi::Function pf, Device dev, int number, int re
     pf.CallPacked(args, num_args, &temp);
 
     // allocate two large arrays to flush L2 cache
-    NDArray arr1, arr2;
+    Tensor arr1, arr2;
     if (cache_flush_bytes > 0) {
-      arr1 = NDArray::Empty({cache_flush_bytes / 4}, {kDLInt, 32, 1}, dev);
-      arr2 = NDArray::Empty({cache_flush_bytes / 4}, {kDLInt, 32, 1}, dev);
+      arr1 = Tensor::Empty({cache_flush_bytes / 4}, {kDLInt, 32, 1}, dev);
+      arr2 = Tensor::Empty({cache_flush_bytes / 4}, {kDLInt, 32, 1}, dev);
     }
 
     DeviceAPI::Get(dev)->StreamSync(dev, nullptr);

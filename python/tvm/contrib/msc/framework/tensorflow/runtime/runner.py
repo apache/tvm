@@ -88,7 +88,7 @@ class TensorflowRunner(ModelRunner):
         super().destory()
 
     def _generate_model(
-        self, graphs: List[MSCGraph], weights: Dict[str, tvm.nd.array]
+        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
     ) -> tf_v1.Graph:
         """Codegen the model according to framework
 
@@ -96,7 +96,7 @@ class TensorflowRunner(ModelRunner):
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The weights.
 
         Returns
