@@ -229,6 +229,11 @@ void CodeGenCPU::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
 }
 
 void CodeGenCPU::AddMainFunction(const std::string& entry_func_name) {
+  if (module_->getFunction(ffi::symbol::tvm_ffi_main) != nullptr) {
+    // main already exists, no need to create a wrapper function
+    // main takes precedence over other entry functions
+    return;
+  }
   // create a wrapper function with tvm_ffi_main name and redirects to the entry function
   llvm::Function* target_func = module_->getFunction(entry_func_name);
   ICHECK(target_func) << "Function " << entry_func_name << " does not exist in module";
@@ -857,8 +862,9 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
     call_args.push_back(GetPackedFuncHandle(func_name));
     call_args.insert(call_args.end(), {packed_args, ConstInt32(nargs), result});
   } else {
+    // directly call into symbol, needs to prefix with tvm_ffi_symbol_prefix
     callee_ftype = ftype_tvm_ffi_c_func_;
-    callee_value = module_->getFunction(func_name);
+    callee_value = module_->getFunction(ffi::symbol::tvm_ffi_symbol_prefix + func_name);
     if (callee_value == nullptr) {
       callee_value = llvm::Function::Create(ftype_tvm_ffi_c_func_, llvm::Function::ExternalLinkage,
                                             func_name, module_.get());

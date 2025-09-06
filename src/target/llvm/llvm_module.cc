@@ -189,7 +189,8 @@ Optional<ffi::Function> LLVMModuleNode::GetFunction(const String& name) {
 
   TVMFFISafeCallType faddr;
   With<LLVMTarget> llvm_target(*llvm_instance_, LLVMTarget::GetTargetMetadata(*module_));
-  faddr = reinterpret_cast<TVMFFISafeCallType>(GetFunctionAddr(name, *llvm_target));
+  String name_with_prefix = ffi::symbol::tvm_ffi_symbol_prefix + name;
+  faddr = reinterpret_cast<TVMFFISafeCallType>(GetFunctionAddr(name_with_prefix, *llvm_target));
   if (faddr == nullptr) return std::nullopt;
   ffi::Module self_strong_ref = GetRef<ffi::Module>(this);
   return ffi::Function::FromPacked([faddr, self_strong_ref](ffi::PackedArgs args, ffi::Any* rv) {
@@ -386,7 +387,8 @@ void LLVMModuleNode::LoadIR(const std::string& file_name) {
 }
 
 bool LLVMModuleNode::ImplementsFunction(const String& name) {
-  return std::find(function_names_.begin(), function_names_.end(), name) != function_names_.end();
+  return std::find(function_names_.begin(), function_names_.end(),
+                   ffi::symbol::tvm_ffi_symbol_prefix + name) != function_names_.end();
 }
 
 void LLVMModuleNode::InitMCJIT() {

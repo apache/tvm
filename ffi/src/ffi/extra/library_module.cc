@@ -42,7 +42,7 @@ class LibraryModuleObj final : public ModuleObj {
 
   Optional<ffi::Function> GetFunction(const String& name) final {
     TVMFFISafeCallType faddr;
-    faddr = reinterpret_cast<TVMFFISafeCallType>(lib_->GetSymbol(name.c_str()));
+    faddr = reinterpret_cast<TVMFFISafeCallType>(lib_->GetSymbolWithSymbolPrefix(name));
     // ensure the function keeps the Library Module alive
     Module self_strong_ref = GetRef<Module>(this);
     if (faddr != nullptr) {
@@ -140,7 +140,7 @@ class ContextSymbolRegistry {
  public:
   void InitContextSymbols(ObjectPtr<Library> lib) {
     for (const auto& [name, symbol] : context_symbols_) {
-      if (void** symbol_addr = reinterpret_cast<void**>(lib->GetSymbol(name.c_str()))) {
+      if (void** symbol_addr = reinterpret_cast<void**>(lib->GetSymbol(name))) {
         *symbol_addr = symbol;
       }
     }

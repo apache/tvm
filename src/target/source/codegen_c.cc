@@ -149,7 +149,9 @@ void CodeGenC::DeclareFunction(const GlobalVar& gvar, const PrimFunc& func) {
       return gvar->name_hint;
     }
   }();
-
+  if (function_name == ffi::symbol::tvm_ffi_main) {
+    has_tvm_ffi_main_func_ = true;
+  }
   internal_functions_.insert({gvar, function_name});
 
   InitFuncState(func);
