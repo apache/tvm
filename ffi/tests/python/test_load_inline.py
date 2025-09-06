@@ -216,7 +216,7 @@ def test_load_inline_both():
                 static_cast<float*>(y->data)[i] = static_cast<float*>(x->data)[i] + 1;
               }
             }
-            
+
             void add_one_cuda(DLTensor* x, DLTensor* y);
         """,
         cuda_sources=r"""
