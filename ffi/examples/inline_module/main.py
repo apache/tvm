@@ -23,8 +23,8 @@ from tvm_ffi.module import Module
 def main():
     mod: Module = tvm_ffi.cpp.load_inline(
         name="hello",
-        cpp_source=r"""
-            void AddOne(DLTensor* x, DLTensor* y) {
+        cpp_sources=r"""
+            void add_one_cpu(DLTensor* x, DLTensor* y) {
               // implementation of a library function
               TVM_FFI_ICHECK(x->ndim == 1) << "x must be a 1D tensor";
               DLDataType f32_dtype{kDLFloat, 32, 1};
@@ -36,8 +36,10 @@ def main():
                 static_cast<float*>(y->data)[i] = static_cast<float*>(x->data)[i] + 1;
               }
             }
+            
+            void add_one_cuda(DLTensor* x, DLTensor* y);
         """,
-        cuda_source=r"""
+        cuda_sources=r"""
             __global__ void AddOneKernel(float* x, float* y, int n) {
               int idx = blockIdx.x * blockDim.x + threadIdx.x;
               if (idx < n) {
@@ -45,7 +47,7 @@ def main():
               }
             }
 
-            void AddOneCUDA(DLTensor* x, DLTensor* y) {
+            void add_one_cuda(DLTensor* x, DLTensor* y) {
               // implementation of a library function
               TVM_FFI_ICHECK(x->ndim == 1) << "x must be a 1D tensor";
               DLDataType f32_dtype{kDLFloat, 32, 1};
@@ -67,8 +69,7 @@ def main():
                                                                      static_cast<float*>(y->data), n);
             }
         """,
-        cpp_functions={"add_one_cpu": "AddOne"},
-        cuda_functions={"add_one_cuda": "AddOneCUDA"},
+        functions=["add_one_cpu", "add_one_cuda"],
     )
 
     x = torch.tensor([1, 2, 3, 4, 5], dtype=torch.float32)
