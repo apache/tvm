@@ -319,6 +319,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   Integer constants_byte_alignment_ = 16;
   /*! \brief whether to print in SSA form */
   bool print_ssa_form_{false};
+  /*! \brief whether the module has a main function declared */
+  bool has_tvm_ffi_main_func_{false};
 
  private:
   /*! \brief set of volatile buf access */

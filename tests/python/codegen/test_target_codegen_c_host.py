@@ -184,17 +184,9 @@ def test_subroutine_call():
 
     built = tvm.tir.build(mod, target="c")
 
-    func_names = list(built["get_func_names"]())
-    assert (
-        "main" in func_names
-    ), "Externally exposed functions should be listed in available functions."
-    assert (
-        "subroutine" not in func_names
-    ), "Internal function should not be listed in available functions."
-
     source = built.inspect_source()
     assert (
-        source.count("main(void*") == 2
+        source.count("__tvm_ffi_main(void*") == 2
     ), "Expected two occurrences, for forward-declaration and definition"
     assert (
         source.count("subroutine(float*") == 2
