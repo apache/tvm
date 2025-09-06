@@ -118,7 +118,7 @@ void TFLiteRuntime::SetInput(int index, DLTensor* data_in) {
   TVM_DTYPE_DISPATCH(dtype, DType, {
     DType* dest = interpreter_->typed_input_tensor<DType>(index);
     DType* src = static_cast<DType*>(data_in->data);
-    ICHECK(data_in->strides == NULL);
+    ICHECK(ffi::IsContiguous(*data_in));
     int64_t size = 1;
     for (int64_t i = 0; i < data_in->ndim; ++i) {
       size *= data_in->shape[i];

@@ -75,7 +75,7 @@ class RandomEngine {
    */
   void SampleUniform(DLTensor* data, float low, float high) {
     ICHECK_GT(high, low) << "high must be bigger than low";
-    ICHECK(data->strides == nullptr);
+    ICHECK(ffi::IsContiguous(*data));
 
     DLDataType dtype = data->dtype;
     int64_t size = 1;
@@ -99,7 +99,7 @@ class RandomEngine {
    */
   void SampleNormal(DLTensor* data, float loc, float scale) {
     ICHECK_GT(scale, 0) << "standard deviation must be positive";
-    ICHECK(data->strides == nullptr);
+    ICHECK(ffi::IsContiguous(data));
 
     DLDataType dtype = data->dtype;
     int64_t size = 1;

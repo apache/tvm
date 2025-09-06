@@ -255,7 +255,7 @@ struct RPCReference {
     channel->Write(arr->ndim);
     channel->Write(arr->dtype);
     channel->WriteArray(arr->shape, arr->ndim);
-    if (arr->strides != nullptr) {
+    if (!ffi::IsContiguous(*arr)) {
       channel->ThrowError(RPCServerStatus::kInvalidDLTensorFieldStride);
     }
     channel->Write(arr->byte_offset);

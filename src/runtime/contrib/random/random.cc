@@ -80,7 +80,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     int64_t high = args[1].cast<int64_t>();
                     auto out = args[2].cast<DLTensor*>();
                     ICHECK_GT(high, low) << "high must be bigger than low";
-                    ICHECK(out->strides == nullptr);
+                    ICHECK(ffi::IsContiguous(*out));
 
                     DLDataType dtype = out->dtype;
                     int64_t size = 1;
