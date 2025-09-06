@@ -69,7 +69,9 @@ TEST(NDArray, DLPack) {
   EXPECT_EQ(dlpack->dl_tensor.device.device_type, kDLCPU);
   EXPECT_EQ(dlpack->dl_tensor.device.device_id, 0);
   EXPECT_EQ(dlpack->dl_tensor.byte_offset, 0);
-  EXPECT_EQ(dlpack->dl_tensor.strides, nullptr);
+  EXPECT_EQ(dlpack->dl_tensor.strides[0], 6);
+  EXPECT_EQ(dlpack->dl_tensor.strides[1], 3);
+  EXPECT_EQ(dlpack->dl_tensor.strides[2], 1);
   EXPECT_EQ(nd.use_count(), 2);
   {
     NDArray nd2 = NDArray::FromDLPack(dlpack);
@@ -96,7 +98,7 @@ TEST(NDArray, DLPackVersioned) {
   EXPECT_EQ(dlpack->dl_tensor.device.device_type, kDLCPU);
   EXPECT_EQ(dlpack->dl_tensor.device.device_id, 0);
   EXPECT_EQ(dlpack->dl_tensor.byte_offset, 0);
-  EXPECT_EQ(dlpack->dl_tensor.strides, nullptr);
+  EXPECT_EQ(dlpack->dl_tensor.strides[0], 1);
 
   EXPECT_EQ(nd.use_count(), 2);
   {

@@ -91,6 +91,17 @@ TVM_FFI_INLINE ObjectPtr<ShapeObj> MakeInplaceShape(IterType begin, IterType end
   return p;
 }
 
+TVM_FFI_INLINE ObjectPtr<ShapeObj> MakeStridesFromShape(int64_t ndim, int64_t* shape) {
+  int64_t* strides_data;
+  ObjectPtr<ShapeObj> strides = details::MakeEmptyShape(ndim, &strides_data);
+  int64_t stride = 1;
+  for (int i = ndim - 1; i >= 0; --i) {
+    strides_data[i] = stride;
+    stride *= shape[i];
+  }
+  return strides;
+}
+
 }  // namespace details
 
 /*!

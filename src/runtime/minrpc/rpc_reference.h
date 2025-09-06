@@ -24,6 +24,8 @@
 #ifndef TVM_RUNTIME_MINRPC_RPC_REFERENCE_H_
 #define TVM_RUNTIME_MINRPC_RPC_REFERENCE_H_
 
+#include <tvm/ffi/container/ndarray.h>
+
 namespace tvm {
 namespace ffi {
 // Forward declare TVM Object to use `Object*` in RPC protocol.
@@ -255,7 +257,7 @@ struct RPCReference {
     channel->Write(arr->ndim);
     channel->Write(arr->dtype);
     channel->WriteArray(arr->shape, arr->ndim);
-    if (arr->strides != nullptr) {
+    if (!ffi::IsContiguous(*arr)) {
       channel->ThrowError(RPCServerStatus::kInvalidDLTensorFieldStride);
     }
     channel->Write(arr->byte_offset);

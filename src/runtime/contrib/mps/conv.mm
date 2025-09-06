@@ -91,9 +91,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
         ICHECK_EQ(data->ndim, 4);
         ICHECK_EQ(weight->ndim, 4);
         ICHECK_EQ(output->ndim, 4);
-        ICHECK(output->strides == nullptr);
-        ICHECK(weight->strides == nullptr);
-        ICHECK(data->strides == nullptr);
+        ICHECK(ffi::IsContiguous(*output));
+        ICHECK(ffi::IsContiguous(*weight));
+        ICHECK(ffi::IsContiguous(*data));
 
         ICHECK_EQ(data->shape[0], 1);
         ICHECK_EQ(output->shape[0], 1);

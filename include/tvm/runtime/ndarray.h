@@ -239,7 +239,7 @@ inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor) {
   strm->Write(data_byte_size);
 
   if (DMLC_IO_NO_ENDIAN_SWAP && tensor->device.device_type == kDLCPU &&
-      tensor->strides == nullptr && tensor->byte_offset == 0) {
+      ffi::IsContiguous(*tensor) && tensor->byte_offset == 0) {
     // quick path
     strm->Write(tensor->data, data_byte_size);
   } else {

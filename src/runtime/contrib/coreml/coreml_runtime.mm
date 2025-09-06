@@ -60,7 +60,7 @@ void CoreMLModel::SetInput(const std::string& key, DLTensor* data_in) {
 
   MLMultiArray* dest = [[MLMultiArray alloc] initWithShape:shape dataType:dataType error:nil];
 
-  ICHECK(data_in->strides == NULL);
+  ICHECK(ffi::IsContiguous(*data_in));
   memcpy(dest.dataPointer, data_in->data, size);
 
   NSString* nsKey = [NSString stringWithUTF8String:key.c_str()];

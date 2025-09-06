@@ -151,6 +151,7 @@ class NDArrayObj : public Object, public DLTensor {
  protected:
   // backs up the shape of the NDArray
   Optional<Shape> shape_data_;
+  Optional<Shape> stride_data_;
 
   static void DLManagedTensorDeleter(DLManagedTensor* tensor) {
     NDArrayObj* obj = static_cast<NDArrayObj*>(tensor->manager_ctx);
@@ -184,9 +185,11 @@ class NDArrayObjFromNDAlloc : public NDArrayObj {
     this->ndim = static_cast<int>(shape.size());
     this->dtype = dtype;
     this->shape = const_cast<int64_t*>(shape.data());
-    this->strides = nullptr;
+    Shape strides = Shape(details::MakeStridesFromShape(this->ndim, this->shape));
+    this->strides = const_cast<int64_t*>(strides.data());
     this->byte_offset = 0;
     this->shape_data_ = std::move(shape);
+    this->stride_data_ = std::move(strides);
     alloc_.AllocData(static_cast<DLTensor*>(this), std::forward<ExtraArgs>(extra_args)...);
   }
 
@@ -202,9 +205,10 @@ class NDArrayObjFromDLPack : public NDArrayObj {
  public:
   explicit NDArrayObjFromDLPack(TDLPackManagedTensor* tensor) : tensor_(tensor) {
     *static_cast<DLTensor*>(this) = tensor_->dl_tensor;
-    // set strides to nullptr if the tensor is contiguous.
-    if (IsContiguous(tensor->dl_tensor)) {
-      this->strides = nullptr;
+    if (tensor_->dl_tensor.strides == nullptr) {
+      Shape strides = Shape(details::MakeStridesFromShape(ndim, shape));
+      this->strides = const_cast<int64_t*>(strides.data());
+      this->stride_data_ = std::move(strides);
     }
   }
 

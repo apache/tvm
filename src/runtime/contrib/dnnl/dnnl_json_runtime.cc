@@ -821,7 +821,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     TensorRequisite res;
     if (const_dl_tensor) {
       ICHECK(const_dl_tensor->data);
-      ICHECK(const_dl_tensor->strides == nullptr);
+      ICHECK(ffi::IsContiguous(*const_dl_tensor));
       auto mem = dnnl::memory(desc, engine_, const_dl_tensor->data);
       res = TensorRequisite::AsIs(mem, eid);
     } else {

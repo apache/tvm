@@ -81,9 +81,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
             ICHECK_EQ(A->ndim, 2);
             ICHECK_EQ(B->ndim, 2);
             ICHECK_EQ(C->ndim, 2);
-            ICHECK(C->strides == nullptr);
-            ICHECK(B->strides == nullptr);
-            ICHECK(A->strides == nullptr);
+            ICHECK(ffi::IsContiguous(*C));
+            ICHECK(ffi::IsContiguous(*B));
+            ICHECK(ffi::IsContiguous(*A));
             ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
             ICHECK(TypeMatch(B->dtype, kDLFloat, 32));
             ICHECK(TypeMatch(C->dtype, kDLFloat, 32));
