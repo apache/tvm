@@ -245,6 +245,23 @@ class Tensor : public ObjectRef {
     return *(obj->shape_data_);
   }
   /*!
+   * \brief Get the strides of the Tensor.
+   * \return The strides of the Tensor.
+   */
+  tvm::ffi::Shape strides() const {
+    TensorObj* obj = get_mutable();
+    if (obj->strides == nullptr) {
+      Shape strides = Shape(details::MakeStridesFromShape(obj->ndim, obj->shape));
+      obj->strides = const_cast<int64_t*>(strides.data());
+      obj->stride_data_ = std::move(strides);
+      return strides;
+    }
+    if (!obj->stride_data_.has_value()) {
+      obj->stride_data_ = tvm::ffi::Shape(obj->strides, obj->strides + obj->ndim);
+    }
+    return *(obj->stride_data_);
+  }
+  /*!
    * \brief Get the data type of the Tensor.
    * \return The data type of the Tensor.
    */
