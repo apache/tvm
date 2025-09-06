@@ -21,7 +21,7 @@ This namespace offers a pre-defined collection that can be used
 as it is or serves as a basis to do further composition.
 """
 # pylint: disable=unused-argument
-from typing import Union
+from typing import Union, Optional
 
 import tvm
 from tvm import meta_schedule as ms
@@ -111,6 +111,7 @@ def static_shape_tuning_pipeline(
     target: Union[str, tvm.target.Target],
     work_dir: str = "tuning_logs",
     cpu_weight_prepack: bool = False,
+    max_trials_per_task: Optional[int] = None,
 ):
     """Tune the static shape model and store the log to database.
 
@@ -128,6 +129,9 @@ def static_shape_tuning_pipeline(
     cpu_weight_prepack : bool
         Whether to enable the cpu weight prepack feature.
 
+    max_trials_per_task : Optional[int]
+        The maximum number of trials to run per task.
+
     Note
     ----
     `cpu_weight_prepack` is expected to be `True` when running on CPU for
@@ -142,6 +146,7 @@ def static_shape_tuning_pipeline(
             target="llvm -num-cores 16",
             work_dir="tuning_logs",
             cpu_weight_prepack=True,
+            max_trials_per_task=64,
         )(mod)
 
         ex = tvm.compile(mod, target=target)
@@ -177,7 +182,12 @@ def static_shape_tuning_pipeline(
                     *pre_tuning_layout_rewrite,
                     # Skip tuning if total_trials is 0
                     (
-                        transform.MetaScheduleTuneIRMod({}, work_dir, total_trials)
+                        transform.MetaScheduleTuneIRMod(
+                            params={},
+                            work_dir=work_dir,
+                            max_trials_global=total_trials,
+                            max_trials_per_task=max_trials_per_task,
+                        )
                         if total_trials > 0
                         else tvm.transform.Sequential([])
                     ),
