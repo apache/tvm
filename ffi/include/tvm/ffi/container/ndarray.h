@@ -109,6 +109,12 @@ inline size_t GetDataSize(const DLTensor& arr) {
   return GetDataSize(size, arr.dtype);
 }
 
+/*!
+ * \brief Infer the stride from shape
+ *
+ * \param shape the input Shape
+ * \return the inferred stride
+ */
 inline Shape InferStrideFromShape(Shape shape) {
   size_t ndim = shape.size();
   Array<int64_t> strides(ndim, 1);
