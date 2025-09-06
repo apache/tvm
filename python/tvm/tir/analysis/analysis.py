@@ -301,6 +301,10 @@ def find_anchor_block(mod: IRModule) -> Block:
     return _ffi_api.find_anchor_block(mod)  # type: ignore # pylint: disable=no-member
 
 
+def has_if_then_else(stmt: Stmt) -> bool:
+    return tvm.ffi.get_global_func("tir.schedule.HasIfThenElse")(stmt)
+
+
 def get_vtcm_compaction_passes() -> List[tvm.transform.Pass]:
     """Utility function to get the list of lowering passes to be applied to calculate the compacted
     VTCM allocation size
