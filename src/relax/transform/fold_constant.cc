@@ -270,7 +270,7 @@ class ConstantFolder : public ExprMutator {
           Constant constant = Downcast<Constant>(arg);
           runtime::NDArray ndarray = constant->data;
           ICHECK_EQ(ndarray->device.device_type, kDLCPU);
-          ICHECK(ffi::IsContiguous(ndarray));
+          ICHECK(ffi::IsContiguous(*ndarray.get()));
           ICHECK_EQ(ndarray->byte_offset, 0);
           ICHECK_EQ(ndarray->ndim, 1);
           const int64_t* data = static_cast<const int64_t*>(ndarray->data);

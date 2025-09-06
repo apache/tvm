@@ -99,7 +99,7 @@ class RandomEngine {
    */
   void SampleNormal(DLTensor* data, float loc, float scale) {
     ICHECK_GT(scale, 0) << "standard deviation must be positive";
-    ICHECK(ffi::IsContiguous(data));
+    ICHECK(ffi::IsContiguous(*data));
 
     DLDataType dtype = data->dtype;
     int64_t size = 1;

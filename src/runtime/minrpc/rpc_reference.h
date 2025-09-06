@@ -24,6 +24,8 @@
 #ifndef TVM_RUNTIME_MINRPC_RPC_REFERENCE_H_
 #define TVM_RUNTIME_MINRPC_RPC_REFERENCE_H_
 
+#include <tvm/ffi/container/ndarray.h>
+
 namespace tvm {
 namespace ffi {
 // Forward declare TVM Object to use `Object*` in RPC protocol.
