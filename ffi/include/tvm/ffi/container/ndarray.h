@@ -185,7 +185,7 @@ class NDArrayObjFromNDAlloc : public NDArrayObj {
     this->ndim = static_cast<int>(shape.size());
     this->dtype = dtype;
     this->shape = const_cast<int64_t*>(shape.data());
-    Shape strides = Shape(details::InferStrideFromShape(this->ndim, this->shape));
+    Shape strides = Shape(details::MakeStridesFromShape(this->ndim, this->shape));
     this->strides = const_cast<int64_t*>(strides.data());;
     this->byte_offset = 0;
     this->shape_data_ = std::move(shape);
@@ -206,7 +206,7 @@ class NDArrayObjFromDLPack : public NDArrayObj {
   explicit NDArrayObjFromDLPack(TDLPackManagedTensor* tensor) : tensor_(tensor) {
     *static_cast<DLTensor*>(this) = tensor_->dl_tensor;
     if (tensor_->dl_tensor.strides == nullptr) {
-      Shape strides = Shape(details::InferStrideFromShape(ndim, shape));
+      Shape strides = Shape(details::MakeStridesFromShape(ndim, shape));
       this->strides = const_cast<int64_t*>(strides.data());;
       this->stride_data_ = std::move(strides);
     }
