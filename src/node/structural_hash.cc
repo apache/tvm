@@ -60,9 +60,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
         return rtmod;
       });
 
-  refl::TypeAttrDef<runtime::NDArray::Container>()
+  refl::TypeAttrDef<runtime::Tensor::Container>()
       .def("__data_to_json__",
-           [](const runtime::NDArray::Container* node) {
+           [](const runtime::Tensor::Container* node) {
              std::string blob;
              dmlc::MemoryStringStream mstrm(&blob);
              support::Base64OutStream b64strm(&mstrm);
@@ -74,7 +74,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
         support::Base64InStream b64strm(&mstrm);
         b64strm.InitPosition();
-        runtime::NDArray temp;
+        runtime::Tensor temp;
         ICHECK(temp.Load(&b64strm));
         return temp;
       });

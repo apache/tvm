@@ -29,8 +29,8 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/profiling.h>
+#include <tvm/runtime/tensor.h>
 
 /* There are many OpenCL platforms that do not yet support OpenCL 2.0,
  * hence we use 1.2 APIs, some of which are now deprecated.  In order
@@ -353,8 +353,8 @@ class OpenCLWorkspace : public DeviceAPI {
                        Optional<String> mem_scope = std::nullopt) final;
   void* AllocDataSpace(Device dev, size_t width, size_t height, DLDataType type_hint,
                        Optional<String> mem_scope = std::nullopt);
-  void* GetNativePtr(const tvm::runtime::NDArray& narr);
-  void SetNativePtr(const tvm::runtime::NDArray& narr, void* host_ptr, size_t buf_size);
+  void* GetNativePtr(const tvm::runtime::Tensor& narr);
+  void SetNativePtr(const tvm::runtime::Tensor& narr, void* host_ptr, size_t buf_size);
   void SetPerfHint(Device dev, cl_uint perf_hint);
   void FreeDataSpace(Device dev, void* ptr) final;
   void StreamSync(Device dev, TVMStreamHandle stream) final;

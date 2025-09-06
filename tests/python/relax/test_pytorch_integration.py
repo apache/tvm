@@ -181,7 +181,7 @@ class TestPyTorchIntegration:
         # Define my_softmax function
         def my_softmax(tensor, dim):
             """Custom softmax function for testing call_dps_packed."""
-            # Convert TVM NDArray to PyTorch tensor if needed
+            # Convert TVM Tensor to PyTorch tensor if needed
             if hasattr(tensor, "numpy"):
                 tensor = torch.from_numpy(tensor.numpy())
             return F.softmax(tensor, dim=dim)

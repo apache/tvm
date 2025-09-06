@@ -21,7 +21,7 @@
 #include <float.h>
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include "cutlass/bfloat16.h"
 #include "cutlass/half.h"
@@ -33,8 +33,8 @@ template <int Arch, typename ElementA, typename ElementB, typename ElementC>
 struct CutlassGroupGemm;
 
 template <int Arch>
-void tvm_cutlass_group_gemm_impl(NDArray x, NDArray weight, NDArray indptr, NDArray workspace,
-                                 NDArray out) {
+void tvm_cutlass_group_gemm_impl(Tensor x, Tensor weight, Tensor indptr, Tensor workspace,
+                                 Tensor out) {
   // Workspace is used for storing device-side group gemm arguments and cutlass internal workspace.
   // Recommened size is 4MB.
   cudaStream_t stream =

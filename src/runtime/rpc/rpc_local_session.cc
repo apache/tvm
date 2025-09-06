@@ -26,7 +26,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <memory>
 #include <vector>
@@ -54,13 +54,13 @@ void LocalSession::EncodeReturn(ffi::Any rv, const FEncodeReturn& encode_return)
   if (rv == nullptr) {
     packed_args[1] = rv;
     encode_return(ffi::PackedArgs(packed_args, 2));
-  } else if (rv.as<NDArray>()) {
-    // We follow a special protocol to return NDArray to client side
-    // The first pack value is the NDArray handle as DLTensor
-    // The second pack value is a customized deleter that deletes the NDArray.
+  } else if (rv.as<Tensor>()) {
+    // We follow a special protocol to return Tensor to client side
+    // The first pack value is the Tensor handle as DLTensor
+    // The second pack value is a customized deleter that deletes the Tensor.
     TVMFFIAny ret_any = ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(rv));
     void* opaque_handle = ret_any.v_obj;
-    packed_args[1] = TVMFFINDArrayGetDLTensorPtr(opaque_handle);
+    packed_args[1] = TVMFFITensorGetDLTensorPtr(opaque_handle);
     packed_args[2] = opaque_handle;
     encode_return(ffi::PackedArgs(packed_args, 3));
   } else if (const auto opt_bytes = rv.as<ffi::Bytes>()) {

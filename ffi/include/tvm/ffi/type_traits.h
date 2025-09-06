@@ -463,15 +463,15 @@ struct TypeTraits<DLTensor*> : public TypeTraitsBase {
 
   TVM_FFI_INLINE static void MoveToAny(DLTensor*, TVMFFIAny*) {
     TVM_FFI_THROW(RuntimeError)
-        << "DLTensor* cannot be held in Any as it does not retain ownership, use NDArray instead";
+        << "DLTensor* cannot be held in Any as it does not retain ownership, use Tensor instead";
   }
 
   TVM_FFI_INLINE static std::optional<DLTensor*> TryCastFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIDLTensorPtr) {
       return static_cast<DLTensor*>(src->v_ptr);
-    } else if (src->type_index == TypeIndex::kTVMFFINDArray) {
-      // Conversion from NDArray pointer to DLTensor
-      // based on the assumption that NDArray always follows the TVMFFIObject header
+    } else if (src->type_index == TypeIndex::kTVMFFITensor) {
+      // Conversion from Tensor pointer to DLTensor
+      // based on the assumption that Tensor always follows the TVMFFIObject header
       static_assert(sizeof(TVMFFIObject) == 24);
       return reinterpret_cast<DLTensor*>(reinterpret_cast<char*>(src->v_obj) +
                                          sizeof(TVMFFIObject));

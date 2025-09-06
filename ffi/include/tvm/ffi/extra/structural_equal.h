@@ -40,13 +40,13 @@ class StructuralEqual {
    * \param lhs The left hand side Any object.
    * \param rhs The right hand side Any object.
    * \param map_free_vars Whether to map free variables.
-   * \param skip_ndarray_content Whether to skip comparingn darray data content,
+   * \param skip_tensor_content Whether to skip comparingn darray data content,
    *                             useful for cases where we don't care about parameters content
    * \return True if the two Any values are structurally equal, false otherwise.
    */
   TVM_FFI_EXTRA_CXX_API static bool Equal(const Any& lhs, const Any& rhs,
                                           bool map_free_vars = false,
-                                          bool skip_ndarray_content = false);
+                                          bool skip_tensor_content = false);
   /**
    * \brief Get the first mismatch AccessPath pair when running
    * structural equal comparison between two Any values.
@@ -54,14 +54,13 @@ class StructuralEqual {
    * \param lhs The left hand side Any object.
    * \param rhs The right hand side Any object.
    * \param map_free_vars Whether to map free variables.
-   * \param skip_ndarray_content Whether to skip comparing ndarray data content,
+   * \param skip_tensor_content Whether to skip comparing tensor data content,
    *                             useful for cases where we don't care about parameters content
    * \return If comparison fails, return the first mismatch AccessPath pair,
    *         otherwise return std::nullopt.
    */
   TVM_FFI_EXTRA_CXX_API static Optional<reflection::AccessPathPair> GetFirstMismatch(
-      const Any& lhs, const Any& rhs, bool map_free_vars = false,
-      bool skip_ndarray_content = false);
+      const Any& lhs, const Any& rhs, bool map_free_vars = false, bool skip_tensor_content = false);
 
   /*
    * \brief Compare two Any values for structural equality.

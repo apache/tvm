@@ -15,12 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 import ctypes
+import os
 from numbers import Real, Integral
 
-try:
-    # optionally import torch and setup torch related utils
-    import torch
-except ImportError:
+
+if os.environ.get("TVM_FFI_BUILD_DOCS", "0") == "0":
+    try:
+        # optionally import torch and setup torch related utils
+        import torch
+    except ImportError:
+        torch = None
+else:
     torch = None
 
 
@@ -43,9 +48,9 @@ cdef inline object make_ret(TVMFFIAny result):
    # TODO: Implement
     cdef int32_t type_index
     type_index = result.type_index
-    if type_index == kTVMFFINDArray:
-        # specially handle NDArray as it needs a special dltensor field
-        return make_ndarray_from_any(result)
+    if type_index == kTVMFFITensor:
+        # specially handle Tensor as it needs a special dltensor field
+        return make_tensor_from_any(result)
     elif type_index == kTVMFFIOpaquePyObject:
         return make_ret_opaque_object(result)
     elif type_index >= kTVMFFIStaticObjectBegin:
@@ -92,13 +97,13 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args,
             out[i].v_int64 = 0
         out[i].zero_padding = 0
 
-        if isinstance(arg, NDArray):
+        if isinstance(arg, Tensor):
             if (<Object>arg).chandle != NULL:
-                out[i].type_index = kTVMFFINDArray
-                out[i].v_ptr = (<NDArray>arg).chandle
+                out[i].type_index = kTVMFFITensor
+                out[i].v_ptr = (<Tensor>arg).chandle
             else:
                 out[i].type_index = kTVMFFIDLTensorPtr
-                out[i].v_ptr = (<NDArray>arg).cdltensor
+                out[i].v_ptr = (<Tensor>arg).cdltensor
         elif isinstance(arg, Object):
             out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
             out[i].v_ptr = (<Object>arg).chandle
@@ -106,9 +111,9 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args,
             is_cuda = arg.is_cuda
             arg = from_dlpack(torch.utils.dlpack.to_dlpack(arg),
                               required_alignment=__dlpack_auto_import_required_alignment__)
-            out[i].type_index = kTVMFFINDArray
-            out[i].v_ptr = (<NDArray>arg).chandle
-            temp_dltensor = TVMFFINDArrayGetDLTensorPtr((<NDArray>arg).chandle)
+            out[i].type_index = kTVMFFITensor
+            out[i].v_ptr = (<Tensor>arg).chandle
+            temp_dltensor = TVMFFITensorGetDLTensorPtr((<Tensor>arg).chandle)
             # record the stream and device for torch context
             if is_cuda and ctx_dev_type != NULL and ctx_dev_type[0] == -1:
                 ctx_dev_type[0] = temp_dltensor.device.device_type
@@ -119,8 +124,8 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args,
             temp_args.append(arg)
         elif hasattr(arg, "__dlpack__"):
             arg = from_dlpack(arg, required_alignment=__dlpack_auto_import_required_alignment__)
-            out[i].type_index = kTVMFFINDArray
-            out[i].v_ptr = (<NDArray>arg).chandle
+            out[i].type_index = kTVMFFITensor
+            out[i].v_ptr = (<Tensor>arg).chandle
             temp_args.append(arg)
         elif isinstance(arg, PyNativeObject) and arg.__tvm_ffi_object__ is not None:
             arg = arg.__tvm_ffi_object__

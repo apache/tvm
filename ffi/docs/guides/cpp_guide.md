@@ -342,18 +342,18 @@ Error type. Similarly, when we call a Python callback from C++, the error will b
 into the right error kind and message.
 
 
-## NDArray
+## Tensor
 
 For many use cases, we do not need to manage the nd-array/Tensor memory.
 In such cases, `DLTensor*` can be used as the function arguments.
 There can be cases for a managed container for multi-dimensional arrays.
-`ffi::NDArray` is a minimal container to provide such support.
+`ffi::Tensor` is a minimal container to provide such support.
 Notably, specific logic of device allocations and array operations are non-goals
-of the FFI. Instead, we provide minimal generic API `ffi::NDArray::FromNDAlloc`
-to enable flexible customization of NDArray allocation.
+of the FFI. Instead, we provide minimal generic API `ffi::Tensor::FromNDAlloc`
+to enable flexible customization of Tensor allocation.
 
 ```cpp
-#include <tvm/ffi/container/ndarray.h>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/container/shape.h>
 
 struct CPUNDAlloc {
@@ -363,19 +363,19 @@ struct CPUNDAlloc {
   void FreeData(DLTensor* tensor) { free(tensor->data); }
 };
 
-void ExampleNDArray() {
+void ExampleTensor() {
   namespace ffi = tvm::ffi;
   ffi::Shape shape = {1, 2, 3};
   DLDataType dtype = {kDLFloat, 32, 1};
   DLDevice device = {kDLCPU, 0};
-  ffi::NDArray nd = ffi::NDArray::FromNDAlloc(CPUNDAlloc(), shape, dtype, device);
-  // now nd is a managed ndarray
+  ffi::Tensor tensor = ffi::Tensor::FromNDAlloc(CPUNDAlloc(), shape, dtype, device);
+  // now tensor is a managed tensor
 }
 ```
 
 The above example shows how we define `CPUNDAlloc` that customizes `AllocData`
-and `FreeData` behavior. The CPUNDAlloc struct will be kept alive with the NDArray object.
-This pattern allows us to implement various NDArray allocations using the same API:
+and `FreeData` behavior. The CPUNDAlloc struct will be kept alive with the Tensor object.
+This pattern allows us to implement various Tensor allocations using the same API:
 
 - For CUDA allocation, we can change malloc to cudaMalloc
 - For memory-pool based allocation, we can update `CPUNDAlloc` to keep a strong reference to the pool,
@@ -387,27 +387,27 @@ of managed shapes and we provide quick conversions from standard vector types.
 
 ### DLPack Conversion
 
-We provide first-class DLPack support to the `ffi::NDArray` that enables efficient exchange
+We provide first-class DLPack support to the `ffi::Tensor` that enables efficient exchange
 through the DLPack Protocol.
 
 ```cpp
-#include <tvm/ffi/container/ndarray.h>
+#include <tvm/ffi/container/tensor.h>
 
-void ExampleNDArrayDLPack() {
+void ExampleTensorDLPack() {
   namespace ffi = tvm::ffi;
   ffi::Shape shape = {1, 2, 3};
   DLDataType dtype = {kDLFloat, 32, 1};
   DLDevice device = {kDLCPU, 0};
-  ffi::NDArray nd = ffi::NDArray::FromNDAlloc(CPUNDAlloc(), shape, dtype, device);
+  ffi::Tensor tensor = ffi::Tensor::FromNDAlloc(CPUNDAlloc(), shape, dtype, device);
   // convert to DLManagedTensorVersioned
   DLManagedTensorVersioned* dlpack = nd.ToDLPackVersioned();
   // load back from DLManagedTensorVersioned
-  ffi::NDArray nd2 = ffi::NDArray::FromDLPackVersioned(dlpack);
+  ffi::Tensor tensor2 = ffi::Tensor::FromDLPackVersioned(dlpack);
 }
 ```
 
 These APIs are also available through the C APIs
-`TVMFFINDArrayFromDLPackVersioned` and `TVMFFINDArrayToDLPackVersioned`.
+`TVMFFITensorFromDLPackVersioned` and `TVMFFITensorToDLPackVersioned`.
 
 ## String and Bytes
 

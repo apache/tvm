@@ -432,7 +432,7 @@ class DataflowVar : public Var {
 class ConstantNode : public LeafExprNode {
  public:
   /*! \brief The data of the tensor */
-  runtime::NDArray data;
+  runtime::Tensor data;
 
   /*! \return The corresponding tensor type of the data */
   TensorType tensor_type() const;
@@ -458,7 +458,7 @@ class Constant : public LeafExpr {
    *        If not specified, infer it from data.
    * \param span The source span of the expression.
    */
-  TVM_DLL explicit Constant(runtime::NDArray data,
+  TVM_DLL explicit Constant(runtime::Tensor data,
                             Optional<StructInfo> struct_info_annotation = std::nullopt,
                             Span span = Span());
 

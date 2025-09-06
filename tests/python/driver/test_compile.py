@@ -47,9 +47,9 @@ def test_compile_tir():
     dev = tvm.cpu(0)
     a_np = np.random.uniform(size=10).astype(np.float32)
     b_np = np.random.uniform(size=10).astype(np.float32)
-    a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(b_np, dev)
-    c = tvm.nd.array(np.zeros(10, dtype=np.float32), dev)
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.tensor(b_np, dev)
+    c = tvm.runtime.tensor(np.zeros(10, dtype=np.float32), dev)
 
     exec_prim(a, b, c)
     np.testing.assert_allclose(c.numpy(), a_np + b_np)
@@ -77,8 +77,8 @@ def test_compile_relax():
     dev = tvm.cpu(0)
     x_np = np.random.uniform(size=(3, 4)).astype(np.float32)
     y_np = np.random.uniform(size=(3, 4)).astype(np.float32)
-    x = tvm.nd.array(x_np, dev)
-    y = tvm.nd.array(y_np, dev)
+    x = tvm.runtime.tensor(x_np, dev)
+    y = tvm.runtime.tensor(y_np, dev)
 
     vm = relax.VirtualMachine(exec_relax, dev)
     z = vm["main"](x, y)
@@ -107,8 +107,8 @@ def test_compile_mixed_module():
     assert isinstance(ex, Executable)
 
     dev = tvm.cpu(0)
-    x = tvm.nd.array(np.array([1, 2, 3, 4], dtype=np.float32), dev)
-    y = tvm.nd.array(np.zeros(4, dtype=np.float32), dev)
+    x = tvm.runtime.tensor(np.array([1, 2, 3, 4], dtype=np.float32), dev)
+    y = tvm.runtime.tensor(np.zeros(4, dtype=np.float32), dev)
     # For tir function, we can directly call the function
     ex["add_one"](x, y)
     np.testing.assert_allclose(y.numpy(), x.numpy() + 1)

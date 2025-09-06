@@ -37,7 +37,7 @@ def test_min_repeat_ms():
     X = te.compute((), lambda: tvm.tir.call_packed("my_debug", filename))
     func = tvm.tir.build(te.create_prim_func([X]))
 
-    x = tvm.nd.empty((), dtype="int32")
+    x = tvm.runtime.empty((), dtype="int32")
     ftimer = func.time_evaluator(func.entry_name, tvm.cpu(), number=1, repeat=1)
     ftimer(x)
 

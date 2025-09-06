@@ -31,7 +31,7 @@
 #include <dlpack/dlpack.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <memory>
 #include <string>
@@ -67,12 +67,12 @@ class CoreMLModel {
    */
   void SetInput(const std::string& key, DLTensor* data_in);
   /*!
-   * \brief Return NDArray for given output index.
+   * \brief Return Tensor for given output index.
    * \param index The output index.
    *
-   * \return NDArray corresponding to given output node index.
+   * \return Tensor corresponding to given output node index.
    */
-  NDArray GetOutput(int index) const;
+  Tensor GetOutput(int index) const;
   /*!
    * \brief Return the number of outputs
    *

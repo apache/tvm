@@ -17,11 +17,11 @@
  * under the License.
  */
 /*
- * \file src/ffi/ndarray.cc
- * \brief NDArray C API implementation
+ * \file src/ffi/tensor.cc
+ * \brief Tensor C API implementation
  */
 #include <tvm/ffi/c_api.h>
-#include <tvm/ffi/container/ndarray.h>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 
@@ -47,35 +47,35 @@ TVM_FFI_STATIC_INIT_BLOCK({
 }  // namespace ffi
 }  // namespace tvm
 
-int TVMFFINDArrayFromDLPack(DLManagedTensor* from, int32_t min_alignment,
-                            int32_t require_contiguous, TVMFFIObjectHandle* out) {
+int TVMFFITensorFromDLPack(DLManagedTensor* from, int32_t min_alignment, int32_t require_contiguous,
+                           TVMFFIObjectHandle* out) {
   TVM_FFI_SAFE_CALL_BEGIN();
-  tvm::ffi::NDArray nd =
-      tvm::ffi::NDArray::FromDLPack(from, static_cast<size_t>(min_alignment), require_contiguous);
-  *out = tvm::ffi::details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(nd));
+  tvm::ffi::Tensor tensor =
+      tvm::ffi::Tensor::FromDLPack(from, static_cast<size_t>(min_alignment), require_contiguous);
+  *out = tvm::ffi::details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(tensor));
   TVM_FFI_SAFE_CALL_END();
 }
 
-int TVMFFINDArrayFromDLPackVersioned(DLManagedTensorVersioned* from, int32_t min_alignment,
-                                     int32_t require_contiguous, TVMFFIObjectHandle* out) {
+int TVMFFITensorFromDLPackVersioned(DLManagedTensorVersioned* from, int32_t min_alignment,
+                                    int32_t require_contiguous, TVMFFIObjectHandle* out) {
   TVM_FFI_SAFE_CALL_BEGIN();
-  tvm::ffi::NDArray nd = tvm::ffi::NDArray::FromDLPackVersioned(
+  tvm::ffi::Tensor tensor = tvm::ffi::Tensor::FromDLPackVersioned(
       from, static_cast<size_t>(min_alignment), require_contiguous);
-  *out = tvm::ffi::details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(nd));
+  *out = tvm::ffi::details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(tensor));
   TVM_FFI_SAFE_CALL_END();
 }
 
-int TVMFFINDArrayToDLPack(TVMFFIObjectHandle from, DLManagedTensor** out) {
+int TVMFFITensorToDLPack(TVMFFIObjectHandle from, DLManagedTensor** out) {
   TVM_FFI_SAFE_CALL_BEGIN();
-  *out = tvm::ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<tvm::ffi::NDArrayObj>(
+  *out = tvm::ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<tvm::ffi::TensorObj>(
              static_cast<TVMFFIObject*>(from))
              ->ToDLPack();
   TVM_FFI_SAFE_CALL_END();
 }
 
-int TVMFFINDArrayToDLPackVersioned(TVMFFIObjectHandle from, DLManagedTensorVersioned** out) {
+int TVMFFITensorToDLPackVersioned(TVMFFIObjectHandle from, DLManagedTensorVersioned** out) {
   TVM_FFI_SAFE_CALL_BEGIN();
-  *out = tvm::ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<tvm::ffi::NDArrayObj>(
+  *out = tvm::ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<tvm::ffi::TensorObj>(
              static_cast<TVMFFIObject*>(from))
              ->ToDLPackVersioned();
   TVM_FFI_SAFE_CALL_END();

@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""NDArray related objects and functions."""
+"""Tensor related objects and functions."""
 
 from numbers import Integral
 from . import core
-from .core import Device, NDArray, from_dlpack
+from .core import Device, Tensor, from_dlpack
 from . import registry
 from . import _ffi_api
 
@@ -240,7 +240,7 @@ def webgpu(dev_id=0):
 
 __all__ = [
     "from_dlpack",
-    "NDArray",
+    "Tensor",
     "device",
     "cpu",
     "cuda",

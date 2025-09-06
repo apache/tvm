@@ -36,9 +36,9 @@ def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
             return
         dev = tvm.rocm(0)
         f = tvm.compile(te.create_prim_func([A, B, C]), target=target)
-        a = tvm.nd.array(np.random.uniform(0, 128, size=(n, l)).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(0, 128, size=(l, m)).astype(B.dtype), dev)
-        c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(0, 128, size=(n, l)).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.random.uniform(0, 128, size=(l, m)).astype(B.dtype), dev)
+        c = tvm.runtime.tensor(np.zeros((n, m), dtype=C.dtype), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(
             c.numpy(), np.dot(a.numpy().astype(C.dtype), b.numpy().astype(C.dtype)), rtol=rtol
@@ -60,13 +60,13 @@ def verify_batch_matmul(Ashape, Bshape, Cshape, in_dtype, out_dtype, rtol=1e-5):
     f = tvm.compile(te.create_prim_func([A, B, C]), target="rocm")
 
     if "int" in in_dtype:
-        a = tvm.nd.array(np.random.uniform(1, 10, size=Ashape).astype(in_dtype), dev)
-        b = tvm.nd.array(np.random.uniform(1, 10, size=Bshape).astype(in_dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(1, 10, size=Ashape).astype(in_dtype), dev)
+        b = tvm.runtime.tensor(np.random.uniform(1, 10, size=Bshape).astype(in_dtype), dev)
     else:
-        a = tvm.nd.array(np.random.uniform(size=Ashape).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=Bshape).astype(B.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=Ashape).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.random.uniform(size=Bshape).astype(B.dtype), dev)
 
-    c = tvm.nd.array(np.zeros(Cshape, dtype=C.dtype), dev)
+    c = tvm.runtime.tensor(np.zeros(Cshape, dtype=C.dtype), dev)
     f(a, b, c)
     tvm.testing.assert_allclose(
         c.numpy(),

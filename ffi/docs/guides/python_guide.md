@@ -50,9 +50,9 @@ mod.add_one_cpu(x, y)
 In this case, `tvm_ffi.load_module` will return a `tvm_ffi.Module` class that contains
 the exported functions. You can access the functions by their names.
 
-## NDArray
+## Tensor
 
-`tvm_ffi` provides a managed DLPack-compatible NDArray.
+`tvm_ffi` provides a managed DLPack-compatible Tensor.
 
 ```python
 import numpy as np
@@ -65,9 +65,9 @@ tvm_array = tvm_ffi.from_dlpack(np_data)
 np_result = np.from_dlpack(tvm_array)
 ```
 
-In most cases, however, you do not have to explicitly create NDArrays.
+In most cases, however, you do not have to explicitly create Tensors.
 The Python interface can take in `torch.Tensor` and `numpy.ndarray` objects
-and automatically convert them to `tvm_ffi.NDArray`.
+and automatically convert them to `tvm_ffi.Tensor`.
 
 ## Functions and Callbacks
 

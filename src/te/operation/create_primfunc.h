@@ -39,7 +39,7 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
  * will be embedded in the body as AllocateConstNode.
  */
 PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
-                                     const Array<runtime::NDArray>& constants,
+                                     const Array<runtime::Tensor>& constants,
                                      std::optional<DataType> index_dtype_override = std::nullopt);
 
 /*! \brief Use Tensor Expression to create a schedulable TensorIR func. */
@@ -52,7 +52,7 @@ PrimFunc CreatePrimFunc(const Array<ObjectRef>& arg_list,
  * will be embedded in the body as AllocateConstNode.
  */
 PrimFunc CreatePrimFuncWithConstants(const Array<ObjectRef>& arg_list,
-                                     const Array<runtime::NDArray>& constants,
+                                     const Array<runtime::Tensor>& constants,
                                      std::optional<DataType> index_dtype_override);
 
 }  // namespace tir

@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_RUNTIME_VM_NDARRAY_CACHE_SUPPORT_H_
-#define TVM_RUNTIME_VM_NDARRAY_CACHE_SUPPORT_H_
+#ifndef TVM_RUNTIME_VM_TENSOR_CACHE_SUPPORT_H_
+#define TVM_RUNTIME_VM_TENSOR_CACHE_SUPPORT_H_
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <string>
 #include <unordered_map>
@@ -32,10 +32,10 @@ namespace runtime {
 namespace vm {
 
 /*!
- * \brief Metadata for NDArray cache, which by default, is named as "ndarray-cache.json".
+ * \brief Metadata for Tensor cache, which by default, is named as "tensor-cache.json".
  */
-struct NDArrayCacheMetadata {
-  /*! \brief Each shard of NDArray cache, which by default, is named as "params_shard_x.bin". */
+struct TensorCacheMetadata {
+  /*! \brief Each shard of Tensor cache, which by default, is named as "params_shard_x.bin". */
   struct FileRecord {
     /*! \brief Metadata of each parameter */
     struct ParamRecord {
@@ -46,8 +46,8 @@ struct NDArrayCacheMetadata {
        * \param staging_buffer The buffer to be used to avoid extra OpenCL copies. Pass in a nullptr
        * in other cases
        */
-      TVM_DLL NDArray Load(Device device, const std::string* raw_data,
-                           Optional<NDArray>* staging_buffer = nullptr) const;
+      TVM_DLL Tensor Load(Device device, const std::string* raw_data,
+                          Optional<Tensor>* staging_buffer = nullptr) const;
 
       /*! \brief Name of the parameter */
       std::string name;
@@ -64,10 +64,10 @@ struct NDArrayCacheMetadata {
     };
 
     /*! \brief Load a FileRecord into memory */
-    TVM_DLL Array<NDArray> Load(Device device,                   //
-                                const std::string& path_prefix,  //
-                                std::string* raw_data_buffer,    //
-                                Optional<NDArray>* staging_buffer = nullptr) const;
+    TVM_DLL Array<Tensor> Load(Device device,                   //
+                               const std::string& path_prefix,  //
+                               std::string* raw_data_buffer,    //
+                               Optional<Tensor>* staging_buffer = nullptr) const;
 
     /*! \brief Relative path to the bin file */
     std::string data_path;
@@ -78,19 +78,19 @@ struct NDArrayCacheMetadata {
     /*! \brief The parameters in the file */
     std::vector<ParamRecord> records;
   };
-  /*! \brief The files in the NDArray cache */
+  /*! \brief The files in the Tensor cache */
   std::vector<FileRecord> records;
-  /*! \brief The path to the `ndarray-cache.json` file */
+  /*! \brief The path to the `tensor-cache.json` file */
   std::string path;
 
   /*! \brief Load the metadata from a specific directory */
-  TVM_DLL static NDArrayCacheMetadata Load(const std::string& path);
+  TVM_DLL static TensorCacheMetadata Load(const std::string& path);
   /*! \brief Load the metadata from a given JSON string */
-  static NDArrayCacheMetadata LoadFromStr(const std::string& json_str, const std::string& path);
+  static TensorCacheMetadata LoadFromStr(const std::string& json_str, const std::string& path);
 };
 
 }  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_VM_NDARRAY_CACHE_SUPPORT_H_
+#endif  // TVM_RUNTIME_VM_TENSOR_CACHE_SUPPORT_H_

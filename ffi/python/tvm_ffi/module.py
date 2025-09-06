@@ -38,25 +38,8 @@ class ModulePropertyMask(IntEnum):
 class Module(core.Object):
     """Runtime Module."""
 
-    def __new__(cls):
-        instance = super(Module, cls).__new__(cls)  # pylint: disable=no-value-for-parameter
-        instance.entry_name = "main"
-        instance._entry = None
-        return instance
-
-    @property
-    def entry_func(self):
-        """Get the entry function
-
-        Returns
-        -------
-        f : tvm_ffi.Function
-            The entry function if exist
-        """
-        if self._entry:
-            return self._entry
-        self._entry = self.get_function("main")
-        return self._entry
+    # constant for entry function name
+    entry_name = "main"
 
     @property
     def kind(self):
@@ -142,10 +125,8 @@ class Module(core.Object):
         return self.get_function(name)
 
     def __call__(self, *args):
-        if self._entry:
-            return self._entry(*args)
         # pylint: disable=not-callable
-        return self.entry_func(*args)
+        return self.main(*args)
 
     def inspect_source(self, fmt=""):
         """Get source code from module, if available.

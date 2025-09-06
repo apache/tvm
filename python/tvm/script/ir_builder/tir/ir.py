@@ -32,7 +32,7 @@ import numpy as np  # type: ignore
 from tvm import ir, tir
 from tvm.ir import Type
 from tvm.ir.base import deprecated
-from tvm.runtime import String, convert, ndarray
+from tvm.runtime import String, convert, tensor
 from tvm.target import Target
 
 # pylint: disable=unused-import
@@ -1054,7 +1054,7 @@ def allocate_const(
         np_data = np_data.reshape(extents)
 
     return _ffi_api.AllocateConst(  # type: ignore[attr-defined] # pylint: disable=no-member
-        ndarray.array(np_data), dtype, extents, annotations
+        tensor(np_data), dtype, extents, annotations
     )
 
 

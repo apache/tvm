@@ -89,7 +89,7 @@ class CodeGenRunner : ExprMutator {
 
     if (constant_names.size()) {
       // Some backends (e.g. TensorRT) expect constants to be passed when they are instantiated
-      Map<String, runtime::NDArray> constants;
+      Map<String, runtime::Tensor> constants;
       for (const auto& [constant, name] : constant_names) {
         ICHECK(!constants.count(name)) << "More than one constant with the name " << name;
         constants.Set(name, constant->data);

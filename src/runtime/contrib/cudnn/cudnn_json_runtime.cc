@@ -25,7 +25,7 @@
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <cstddef>
 #include <string>
@@ -52,7 +52,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
                    const Array<String> const_names)
       : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
 
-  void Init(const Array<NDArray>& consts) override {
+  void Init(const Array<Tensor>& consts) override {
     op_execs_.resize(nodes_.size());
     // get some config from the graph
     for (size_t i = 0; i < nodes_.size(); ++i) {

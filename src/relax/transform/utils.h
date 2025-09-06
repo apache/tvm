@@ -319,7 +319,7 @@ class FunctionCopier : public SymbolicVarRenewMutator {
  */
 template <typename T>
 inline Constant MakeConstantScalar(T value, DataType dtype) {
-  runtime::NDArray arr = runtime::NDArray::Empty({}, dtype, {kDLCPU, 0});
+  runtime::Tensor arr = runtime::Tensor::Empty({}, dtype, {kDLCPU, 0});
   if (dtype == DataType::Float(32)) {
     *static_cast<float*>(arr->data) = static_cast<float>(value);
   } else if (dtype == DataType::Float(64)) {

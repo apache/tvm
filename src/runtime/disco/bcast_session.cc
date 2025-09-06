@@ -51,14 +51,14 @@ DRef BcastSessionObj::GetGlobalFunc(const std::string& name) {
   return BcastSessionObj::Internal::MakeDRef(reg_id, GetRef<Session>(this));
 }
 
-void BcastSessionObj::CopyFromWorker0(const NDArray& host_array, const DRef& remote_array) {
-  this->AppendHostNDArray(host_array);
+void BcastSessionObj::CopyFromWorker0(const Tensor& host_array, const DRef& remote_array) {
+  this->AppendHostTensor(host_array);
   BcastSessionObj::Internal::BroadcastUnpacked(this, DiscoAction::kCopyFromWorker0,
                                                remote_array->reg_id);
 }
 
-void BcastSessionObj::CopyToWorker0(const NDArray& host_array, const DRef& remote_array) {
-  this->AppendHostNDArray(host_array);
+void BcastSessionObj::CopyToWorker0(const Tensor& host_array, const DRef& remote_array) {
+  this->AppendHostTensor(host_array);
   BcastSessionObj::Internal::BroadcastUnpacked(this, DiscoAction::kCopyToWorker0,
                                                remote_array->reg_id);
 }
@@ -114,7 +114,7 @@ int BcastSessionObj::AllocateReg() {
   return reg_id;
 }
 
-void BcastSessionObj::AppendHostNDArray(const NDArray& host_array) {
+void BcastSessionObj::AppendHostTensor(const Tensor& host_array) {
   std::lock_guard<std::mutex> lock(worker_zero_data_.queue_mutex_);
   worker_zero_data_.host_arrays.push(host_array);
 }

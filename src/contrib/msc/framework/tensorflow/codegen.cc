@@ -40,7 +40,7 @@ void TensorflowCodeGen::CodeGenHelper() {
       .func_arg("name", "str")
       .func_arg("shape", "List[int]")
       .func_arg("dtype", "str")
-      .func_arg("weights", "Dict[str, tvm.nd.array]")
+      .func_arg("weights", "Dict[str, tvm.runtime.Tensor]")
       .func_start()
       .cond_if("name in weights")
       .func_call("tf_v1.get_variable", "var")
@@ -63,7 +63,7 @@ void TensorflowCodeGen::CodeGenGraph() {
     const auto& pair = graph()->FindProducerAndIdx(i);
     stack_.func_arg(IdxOutputBase(pair.first, pair.second), "tf_v1.Tensor");
   }
-  stack_.func_arg("weights", "Dict[str, tvm.nd.array]").func_start();
+  stack_.func_arg("weights", "Dict[str, tvm.runtime.Tensor]").func_start();
   // define weights
   stack_.comment("Define the weights");
   for (const auto& n : graph()->node_names) {

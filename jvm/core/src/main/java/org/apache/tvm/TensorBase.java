@@ -18,26 +18,26 @@
 package org.apache.tvm;
 
 /**
- * Base class of NDArray. To handle callback array.
+ * Base class of Tensor. To handle callback array.
  * Only deep-copy supported.
  */
-public class NDArrayBase extends TVMValue {
+public class TensorBase extends TVMValue {
   protected long handle;
   public final boolean isView;
   protected final long dltensorHandle;
 
-  NDArrayBase(long handle, boolean isView) {
+  TensorBase(long handle, boolean isView) {
     this.dltensorHandle = isView ? handle : handle + 8 * 2;
     this.handle = isView ? 0 : handle;
     this.isView = isView;
   }
 
-  @Override public NDArrayBase asNDArray() {
+  @Override public TensorBase asTensor() {
     return this;
   }
 
   /**
-   * Release the NDArray.
+   * Release the Tensor.
    */
   public void release() {
     if (this.handle != 0) {
@@ -56,7 +56,7 @@ public class NDArrayBase extends TVMValue {
    * @param target The target array to be copied, must have same shape as this array.
    * @return target
    */
-  public NDArrayBase copyTo(NDArrayBase target) {
+  public TensorBase copyTo(TensorBase target) {
     Base.checkCall(Base._LIB.tvmFFIDLTensorCopyFromTo(this.dltensorHandle, target.dltensorHandle));
     return target;
   }

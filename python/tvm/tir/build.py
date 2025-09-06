@@ -22,7 +22,6 @@ from typing import Dict, Optional, Tuple, Union
 import tvm
 from tvm import ir
 from tvm.ir.module import IRModule
-from tvm.runtime import ndarray
 from tvm.target import Target
 from tvm.tir import PrimFunc
 
@@ -206,7 +205,7 @@ def build(
     if target is not None:
         if target.host is not None:
             target_host = target.host
-        elif ndarray.device(target.kind.name, 0).device_type == ndarray.cpu(0).device_type:
+        elif tvm.device(target.kind.name, 0).device_type == tvm.cpu(0).device_type:
             target_host = target
     target_host = Target.canon_target(target_host)
     target_to_bind = target_to_bind.with_host(target_host)

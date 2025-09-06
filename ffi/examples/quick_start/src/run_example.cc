@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ffi/container/ndarray.h>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/extra/module.h>
 
 // This file shows how to load the same compiled module and interact with it in C++
@@ -27,16 +27,16 @@ struct CPUNDAlloc {
   void FreeData(DLTensor* tensor) { free(tensor->data); }
 };
 
-inline ffi::NDArray Empty(ffi::Shape shape, DLDataType dtype, DLDevice device) {
-  return ffi::NDArray::FromNDAlloc(CPUNDAlloc(), shape, dtype, device);
+inline ffi::Tensor Empty(ffi::Shape shape, DLDataType dtype, DLDevice device) {
+  return ffi::Tensor::FromNDAlloc(CPUNDAlloc(), shape, dtype, device);
 }
 
 int main() {
   // load the module
   ffi::Module mod = ffi::Module::LoadFromFile("build/add_one_cpu.so");
 
-  // create an NDArray, alternatively, one can directly pass in a DLTensor*
-  ffi::NDArray x = Empty({5}, DLDataType({kDLFloat, 32, 1}), DLDevice({kDLCPU, 0}));
+  // create an Tensor, alternatively, one can directly pass in a DLTensor*
+  ffi::Tensor x = Empty({5}, DLDataType({kDLFloat, 32, 1}), DLDevice({kDLCPU, 0}));
   for (int i = 0; i < 5; ++i) {
     reinterpret_cast<float*>(x->data)[i] = static_cast<float>(i);
   }

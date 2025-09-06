@@ -322,7 +322,7 @@ std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op);
  * function body.
  * \return The updated function.
  */
-PrimFunc BindParams(PrimFunc f, const Array<runtime::NDArray>& constants);
+PrimFunc BindParams(PrimFunc f, const Array<runtime::Tensor>& constants);
 
 /*! \brief The quad used by StorageAlign for (buffer_idx, axis, factor, offset) */
 using StorageAlignTuple = ffi::Tuple<int32_t, int32_t, int32_t, int32_t>;

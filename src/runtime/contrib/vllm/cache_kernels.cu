@@ -18,7 +18,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <algorithm>
 #include <cassert>
@@ -134,8 +134,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tvm.contrib.vllm.reshape_and_cache",
-           [](NDArray key, NDArray value, NDArray key_cache, NDArray value_cache,
-              NDArray slot_mapping) {
+           [](Tensor key, Tensor value, Tensor key_cache, Tensor value_cache, Tensor slot_mapping) {
              int num_tokens = key->shape[0];
              int num_heads = key->shape[1];
              int head_size = key->shape[2];
@@ -158,7 +157,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              return Array{key_cache, value_cache};
            })
       .def("tvm.contrib.vllm.reconstruct_from_cache",
-           [](NDArray key_cache, NDArray value_cache, NDArray slot_mapping) {
+           [](Tensor key_cache, Tensor value_cache, Tensor slot_mapping) {
              int num_tokens = slot_mapping->shape[0];
              int num_heads = value_cache->shape[1];
              int head_size = value_cache->shape[2];
@@ -166,8 +165,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
              int vec_size = key_cache->shape[4];
 
              DLDevice dev = key_cache->device;
-             auto key = NDArray::Empty({num_tokens, num_heads, head_size}, key_cache->dtype, dev);
-             auto value = NDArray::Empty({num_tokens, num_heads, head_size}, key_cache->dtype, dev);
+             auto key = Tensor::Empty({num_tokens, num_heads, head_size}, key_cache->dtype, dev);
+             auto value = Tensor::Empty({num_tokens, num_heads, head_size}, key_cache->dtype, dev);
 
              int key_stride = key->shape[1] * key->shape[2];
              int value_stride = value->shape[1] * value->shape[2];
@@ -185,8 +184,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
              return Array{key, value};
            })
-      .def("tvm.contrib.vllm.copy_blocks", [](Array<NDArray> key_value_caches,
-                                              NDArray block_mapping) {
+      .def("tvm.contrib.vllm.copy_blocks", [](Array<Tensor> key_value_caches,
+                                              Tensor block_mapping) {
         auto num_layers = key_value_caches.size() / 2;
         auto num_pairs = block_mapping->shape[0] / 2;
 
@@ -203,20 +202,20 @@ TVM_FFI_STATIC_INIT_BLOCK({
               reinterpret_cast<int64_t>(key_value_caches[2 * layer_idx + 1]->data);
         }
 
-        NDArray key_cache = key_value_caches[1];  // [num_blocks, num_heads, head_size, block_size]
+        Tensor key_cache = key_value_caches[1];  // [num_blocks, num_heads, head_size, block_size]
         DLDevice dev = key_cache->device;
 
-        NDArray key_cache_ptrs_gpu =
-            NDArray::Empty({static_cast<int>(num_layers)}, runtime::DataType::Int(64), dev);
-        NDArray value_cache_ptrs_gpu =
-            NDArray::Empty({static_cast<int>(num_layers)}, runtime::DataType::Int(64), dev);
+        Tensor key_cache_ptrs_gpu =
+            Tensor::Empty({static_cast<int>(num_layers)}, runtime::DataType::Int(64), dev);
+        Tensor value_cache_ptrs_gpu =
+            Tensor::Empty({static_cast<int>(num_layers)}, runtime::DataType::Int(64), dev);
         key_cache_ptrs_gpu.CopyFromBytes(key_cache_ptrs.data(),
                                          sizeof(int64_t) * key_cache_ptrs.size());
         value_cache_ptrs_gpu.CopyFromBytes(value_cache_ptrs.data(),
                                            sizeof(int64_t) * value_cache_ptrs.size());
 
-        NDArray block_mapping_gpu =
-            NDArray::Empty(block_mapping.Shape(), runtime::DataType::Int(64), dev);
+        Tensor block_mapping_gpu =
+            Tensor::Empty(block_mapping.Shape(), runtime::DataType::Int(64), dev);
         block_mapping_gpu.CopyFromBytes(block_mapping->data,
                                         sizeof(int64_t) * block_mapping->shape[0]);
 

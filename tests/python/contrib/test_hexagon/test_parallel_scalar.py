@@ -96,9 +96,9 @@ def evaluate(hexagon_session, operations, expected, sch):
     b = np.random.random(shape).astype(dtype)
     c = np.zeros(shape, dtype=dtype)
 
-    a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device)
-    b_hexagon = tvm.runtime.ndarray.array(b, device=hexagon_session.device)
-    c_hexagon = tvm.runtime.ndarray.array(c, device=hexagon_session.device)
+    a_hexagon = tvm.runtime.tensor(a, device=hexagon_session.device)
+    b_hexagon = tvm.runtime.tensor(b, device=hexagon_session.device)
+    c_hexagon = tvm.runtime.tensor(c, device=hexagon_session.device)
 
     # These are reduced for CI but number=100 and repeat=10 does a good job of removing noise.
     number = 1

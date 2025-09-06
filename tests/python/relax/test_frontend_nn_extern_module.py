@@ -57,8 +57,8 @@ def _infer_test_sym(a, b):  # pylint: disable=invalid-name
 
 def _test_scalar_add(func):
     # pylint: disable=invalid-name
-    x = tvm.nd.array(np.array(1.0).astype("float32"))
-    y = tvm.nd.array(np.array(3.0).astype("float32"))
+    x = tvm.runtime.tensor(np.array(1.0).astype("float32"))
+    y = tvm.runtime.tensor(np.array(3.0).astype("float32"))
     z = func(x, y).numpy()
     # pylint: enable=invalid-name
     assert z.ndim == 0
@@ -68,8 +68,8 @@ def _test_scalar_add(func):
 
 def _test_infer_sym(func, x, y, z):  # pylint: disable=invalid-name
     # pylint: disable=invalid-name
-    a = tvm.nd.array(np.random.uniform(size=(x, y, 1)).astype("float32"))
-    b = tvm.nd.array(np.random.uniform(size=(y, z, 5)).astype("float32"))
+    a = tvm.runtime.tensor(np.random.uniform(size=(x, y, 1)).astype("float32"))
+    b = tvm.runtime.tensor(np.random.uniform(size=(y, z, 5)).astype("float32"))
     c = func(a, b).numpy()
     # pylint: enable=invalid-name
     assert c.shape == (x, y, z, 9)

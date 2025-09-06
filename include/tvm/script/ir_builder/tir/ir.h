@@ -28,7 +28,7 @@ namespace script {
 namespace ir_builder {
 namespace tir {
 
-using tvm::runtime::NDArray;
+using tvm::runtime::Tensor;
 using tvm::tir::Buffer;
 using tvm::tir::Var;
 
@@ -323,7 +323,7 @@ AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_s
  * \param annotations Additional annotation hints.
  * \return The created AllocateConstFrame.
  */
-AllocateConstFrame AllocateConst(NDArray data, DataType dtype, Array<PrimExpr> extents,
+AllocateConstFrame AllocateConst(Tensor data, DataType dtype, Array<PrimExpr> extents,
                                  Optional<Map<String, Any>> annotations = std::nullopt);
 
 /*!

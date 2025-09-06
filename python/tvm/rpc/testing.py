@@ -42,8 +42,8 @@ def _strcat(x, y):
     return x + y
 
 
-@tvm.register_func("rpc.test.remote_array_func")
-def _remote_array_func(y):
+@tvm.register_func("rpc.test.remote_tensor_func")
+def _remote_tensor_func(y):
     x = np.ones((3, 4))
     np.testing.assert_equal(y.numpy(), x)
 
@@ -56,7 +56,7 @@ def _add_to_lhs(x):
 @tvm.register_func("rpc.test.remote_return_nd")
 def _my_module(name):
     # Use closure to check the ref counter correctness
-    nd = tvm.nd.array(np.zeros(10).astype("float32"))
+    nd = tvm.runtime.tensor(np.zeros(10).astype("float32"))
 
     if name == "get_arr":
         return lambda: nd

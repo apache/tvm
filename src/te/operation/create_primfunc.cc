@@ -750,7 +750,7 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list,
 }
 
 PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
-                                     const Array<runtime::NDArray>& constants,
+                                     const Array<runtime::Tensor>& constants,
                                      std::optional<DataType> index_dtype_override) {
   // Information used in CreatePrimFunc and its sub-functions.
   CreateFuncInfo info(arg_list);
@@ -827,7 +827,7 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<ObjectRef>& arg_tir_var_list,
 }
 
 PrimFunc CreatePrimFuncWithConstants(const Array<ObjectRef>& arg_list,
-                                     const Array<runtime::NDArray>& constants,
+                                     const Array<runtime::Tensor>& constants,
                                      std::optional<DataType> index_dtype_override) {
   Array<te::Tensor> tensor_arg_list;
   for (const ObjectRef& x : arg_list) {

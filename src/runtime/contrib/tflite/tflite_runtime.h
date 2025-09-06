@@ -29,7 +29,7 @@
 #include <tensorflow/lite/interpreter.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <memory>
 #include <string>
@@ -84,19 +84,19 @@ class TFLiteRuntime : public ffi::ModuleObj {
    */
   void SetInput(int index, DLTensor* data_in);
   /*!
-   * \brief Return NDArray for given input index.
+   * \brief Return Tensor for given input index.
    * \param index The input index.
    *
-   * \return NDArray corresponding to given input node index.
+   * \return Tensor corresponding to given input node index.
    */
-  NDArray GetInput(int index) const;
+  Tensor GetInput(int index) const;
   /*!
-   * \brief Return NDArray for given output index.
+   * \brief Return Tensor for given output index.
    * \param index The output index.
    *
-   * \return NDArray corresponding to given output node index.
+   * \return Tensor corresponding to given output node index.
    */
-  NDArray GetOutput(int index) const;
+  Tensor GetOutput(int index) const;
   /*!
    * \brief Set the number of threads available to the interpreter.
    * \param num_threads The number of threads to be set.
