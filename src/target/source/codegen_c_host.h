@@ -44,6 +44,7 @@ class CodeGenCHost : public CodeGenC {
             const std::unordered_set<std::string>& devices);
 
   void InitGlobalContext();
+
   void AddFunction(const GlobalVar& gvar, const PrimFunc& f) override;
   void AddFunction(const GlobalVar& gvar, const PrimFunc& f, bool emit_fwd_func_decl);
   /*!
@@ -83,6 +84,8 @@ class CodeGenCHost : public CodeGenC {
   bool emit_asserts_;
   /*! \brief whether to emit forwared function declarations in the resulting C code */
   bool emit_fwd_func_decl_;
+  /*! \brief whether to generate the entry function if encountered */
+  bool has_main_func_ = false;
 
   std::string GetPackedName(const CallNode* op);
   void PrintGetFuncFromBackend(const std::string& func_name, const std::string& packed_func_name);

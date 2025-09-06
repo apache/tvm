@@ -35,7 +35,9 @@
 namespace tvm {
 namespace codegen {
 
-CodeGenCHost::CodeGenCHost() { module_name_ = name_supply_->FreshName("__tvm_ffi_library_ctx"); }
+CodeGenCHost::CodeGenCHost() {
+  module_name_ = name_supply_->FreshName(ffi::symbol::tvm_ffi_library_ctx);
+}
 
 void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_decl,
                         std::string target_str, const std::unordered_set<std::string>& devices) {
@@ -72,7 +74,7 @@ void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func,
 
   emit_fwd_func_decl_ = emit_fwd_func_decl;
   CodeGenC::AddFunction(gvar, func);
-  if (func->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
+  if (func->HasNonzeroAttr(tir::attr::kIsEntryFunc) && !has_tvm_ffi_main_func_) {
     ICHECK(global_symbol.has_value())
         << "CodeGenCHost: The entry func must have the global_symbol attribute, "
         << "but function " << gvar << " only has attributes " << func->attrs;
@@ -235,7 +237,7 @@ void CodeGenCHost::PrintCallPacked(const CallNode* op) {
   } else {
     // directly use the original symbol
     ICHECK(op->op.same_as(builtin::tvm_call_cpacked_lowered()));
-    packed_func_name = func_name->value;
+    packed_func_name = ffi::symbol::tvm_ffi_symbol_prefix + func_name->value;
   }
 
   std::string args_stack = PrintExpr(op->args[1]);
