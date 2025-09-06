@@ -265,15 +265,15 @@ def load_inline(
 ) -> Module:
     """Compile and load a C++/CUDA tvm ffi module from inline source code.
 
-    This function compiles the given C++ and/or CUDA source code into a shared library. Both cpp_source and cuda_source
-    are compiled to an object file, and then linked together into a shared library. It's possible to only provide
-    cpp_source or cuda_source.
+    This function compiles the given C++ and/or CUDA source code into a shared library. Both cpp_sources and
+    cuda_sources are compiled to an object file, and then linked together into a shared library. It's possible to only
+    provide cpp_sources or cuda_sources.
 
-    The `cpp_functions` and `cuda_functions` parameters are used to specify which functions in the source code
-    should be exported to the tvm ffi module. The keys of the mapping are the names of the exported functions, and the
-    values are the names of the functions in the source code. The exported name and the function name in the source code
-    must be different. The exported name must be a valid C identifier while the function name in the source code can
-    contain namespace qualifiers.
+    The `functions` parameter is used to specify which functions in the source code should be exported to the tvm ffi module.
+    It can be a mapping, a sequence, or a single string. When a mapping is given, the keys are the names of the exported
+    functions, and the values are docstrings for the functions. When a sequence or a single string is given, they are the
+    functions needed to be exported, and the docstrings are set to empty strings. A single function name can also be given
+    as a string, indicating that only one function is to be exported.
 
     Extra compiler and linker flags can be provided via the `extra_cflags`, `extra_cuda_cflags`, and `extra_ldflags`
     parameters. The default flags are generally sufficient for most use cases, but you may need to provide additional
