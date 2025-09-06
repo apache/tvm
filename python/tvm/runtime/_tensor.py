@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-import, redefined-outer-name
-"""Runtime NDArray API"""
+"""Runtime Tensor API"""
 import ctypes
 import warnings
 from typing import Optional
@@ -49,7 +49,7 @@ from . import _ffi_api
 
 def from_dlpack(ext_tensor):
     """
-    Convert an external tensor to an NDArray.
+    Convert an external tensor to an Tensor.
 
     Parameters
     ----------
@@ -69,9 +69,9 @@ def from_dlpack(ext_tensor):
     )
 
 
-@tvm_ffi.register_object("ffi.NDArray")
-class NDArray(tvm_ffi.core.NDArray):
-    """Lightweight NDArray class of TVM runtime.
+@tvm_ffi.register_object("ffi.Tensor")
+class Tensor(tvm_ffi.core.Tensor):
+    """Lightweight Tensor class of TVM runtime.
 
     Strictly this is only an Array Container (a buffer object)
     No arthimetic operations are defined.
@@ -90,7 +90,7 @@ class NDArray(tvm_ffi.core.NDArray):
             or in_slice.stop is not None
         ):
             raise ValueError("Array only support set from numpy array")
-        if isinstance(value, NDArray):
+        if isinstance(value, Tensor):
             if not value.same_as(self):
                 value.copyto(self)
         elif isinstance(value, (np.ndarray, np.generic)):
@@ -108,10 +108,10 @@ class NDArray(tvm_ffi.core.NDArray):
 
         Returns
         -------
-        arr : NDArray
+        arr : Tensor
             Reference to self.
         """
-        if isinstance(source_array, NDArray):
+        if isinstance(source_array, Tensor):
             source_array.copyto(self)
             return self
 
@@ -132,7 +132,7 @@ class NDArray(tvm_ffi.core.NDArray):
 
         if source_array.shape != shape:
             raise ValueError(
-                f"array shape do not match the shape of NDArray {source_array.shape} vs {shape}"
+                f"array shape do not match the shape of Tensor {source_array.shape} vs {shape}"
             )
         numpy_str_map = tvm_ffi.dtype.NUMPY_DTYPE_TO_STR
         np_dtype_str = (
@@ -159,14 +159,14 @@ class NDArray(tvm_ffi.core.NDArray):
         assert source_array.flags["C_CONTIGUOUS"]
         data = source_array.ctypes.data_as(ctypes.c_void_p)
         nbytes = source_array.size * source_array.dtype.itemsize
-        _ffi_api.TVMArrayCopyFromBytes(self, data, nbytes)
+        _ffi_api.TVMTensorCopyFromBytes(self, data, nbytes)
         return self
 
     def __repr__(self):
         # exception safety handling for chandle=None
         if self.__chandle__() == 0:
             return type(self).__name__ + "(chandle=None)"
-        res = f"<tvm.nd.NDArray shape={self.shape}, {self.device}>\n"
+        res = f"<tvm.runtime.Tensor shape={self.shape}, {self.device}>\n"
         res += self.numpy().__repr__()
         return res
 
@@ -218,7 +218,7 @@ class NDArray(tvm_ffi.core.NDArray):
         # TODO(kathy): revisit and get a mirrored function of ffi::GetDataSize
         # in Python to replace line below
         nbytes = np_arr.size if dtype == "bool" else (np_arr.size * old_dtype.bits + 7) // 8
-        _ffi_api.TVMArrayCopyToBytes(self, data, nbytes)
+        _ffi_api.TVMTensorCopyToBytes(self, data, nbytes)
 
         if old_dtype == "int4" or old_dtype.startswith("float4_e2m1fn"):
             length = np_arr.size
@@ -238,13 +238,13 @@ class NDArray(tvm_ffi.core.NDArray):
 
         Parameters
         ----------
-        target : NDArray
+        target : Tensor
             The target array to be copied, must have same shape as this array.
 
         mem_scope : Optional[str]
             The memory scope of the array.
         """
-        if isinstance(target, NDArray):
+        if isinstance(target, Tensor):
             return self._copyto(target)
         if isinstance(target, tvm_ffi.core.Device):
             res = empty(self.shape, self.dtype, target, mem_scope)
@@ -253,7 +253,7 @@ class NDArray(tvm_ffi.core.NDArray):
 
     def _copyto(self, target_nd):
         """Internal function that implements copy to target ndarray."""
-        _ffi_api.TVMArrayCopyFromTo(self, target_nd)
+        _ffi_api.TVMTensorCopyFromTo(self, target_nd)
         return target_nd
 
     def _create_view(self, shape, dtype: Optional[str] = None, relative_byte_offset: int = 0):
@@ -301,7 +301,7 @@ class NDArray(tvm_ffi.core.NDArray):
         if dtype is None:
             dtype = self.dtype
 
-        return _ffi_api.TVMArrayCreateView(self, shape, dtype, relative_byte_offset)
+        return _ffi_api.TVMTensorCreateView(self, shape, dtype, relative_byte_offset)
 
 
 def empty(shape, dtype="float32", device=None, mem_scope=None):
@@ -323,19 +323,19 @@ def empty(shape, dtype="float32", device=None, mem_scope=None):
 
     Returns
     -------
-    arr : tvm.nd.NDArray
+    arr : tvm.runtime.Tensor
         The array tvm supported.
     """
     device = device or cpu()
     if not isinstance(shape, tvm.runtime.ShapeTuple):
         shape = tvm.runtime.ShapeTuple([int(dim) for dim in shape])
     dtype = tvm_ffi.dtype(dtype)
-    arr = _ffi_api.TVMArrayAllocWithScope(shape, dtype, device, mem_scope)
+    arr = _ffi_api.TVMTensorAllocWithScope(shape, dtype, device, mem_scope)
     return arr
 
 
-def array(arr, device=None, mem_scope=None):
-    """Create an array from source arr.
+def tensor(arr, device=None, mem_scope=None):
+    """Create an tensor from source arr.
 
     Parameters
     ----------
@@ -350,15 +350,15 @@ def array(arr, device=None, mem_scope=None):
 
     Returns
     -------
-    ret : NDArray
+    ret : Tensor
         The created array
     """
     device = device or cpu()
 
-    if not isinstance(arr, (np.ndarray, NDArray)):
+    if not isinstance(arr, (np.ndarray, Tensor)):
         arr = np.array(arr)
     return empty(arr.shape, arr.dtype, device, mem_scope).copyfrom(arr)
 
 
 # Register back to FFI
-tvm_ffi.core._set_class_ndarray(NDArray)
+tvm_ffi.core._set_class_tensor(Tensor)

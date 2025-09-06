@@ -255,7 +255,7 @@ Array<PrimExpr> IndexMapNode::MapShape(const Array<PrimExpr>& shape,
   return output;
 }
 
-runtime::NDArray IndexMapNode::MapNDArray(runtime::NDArray arr_src) const {
+runtime::Tensor IndexMapNode::MapTensor(runtime::Tensor arr_src) const {
   arith::Analyzer analyzer;
   auto shape = arr_src.Shape();
   ICHECK(shape.size() == initial_indices.size())
@@ -305,7 +305,7 @@ runtime::NDArray IndexMapNode::MapNDArray(runtime::NDArray arr_src) const {
               bytes_dst.begin() + dst_linear_index * elem_bytes);
   }
 
-  auto arr_dst = runtime::NDArray::Empty(dst_shape_int, arr_src->dtype, arr_src->device);
+  auto arr_dst = runtime::Tensor::Empty(dst_shape_int, arr_src->dtype, arr_src->device);
   arr_dst.CopyFromBytes(bytes_dst.data(), bytes_dst.size());
   return arr_dst;
 }
@@ -443,8 +443,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
              arith::Analyzer analyzer;
              return map.Inverse(initial_ranges, &analyzer);
            })
-      .def("tir.IndexMapMapNDArray",
-           [](IndexMap map, runtime::NDArray arr) { return map->MapNDArray(arr); })
+      .def("tir.IndexMapMapTensor",
+           [](IndexMap map, runtime::Tensor arr) { return map->MapTensor(arr); })
       .def("tir.IndexMapNonSurjectiveInverse", [](IndexMap forward, Array<Range> initial_ranges) {
         arith::Analyzer analyzer;
         auto result = forward.NonSurjectiveInverse(initial_ranges, &analyzer);

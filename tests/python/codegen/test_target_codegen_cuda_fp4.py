@@ -76,12 +76,12 @@ def test_e2m1_vector_conversions(promoted_dtype):
 
     np_shape = (vector_length, lanes) if lanes > 1 else (vector_length,)
     a_np = np.random.uniform(low=0, high=5, size=np_shape).astype(numpytype)
-    a = tvm.nd.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+    a = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
     a.copyfrom(a_np)
     b_np = np.random.uniform(low=0, high=5, size=np_shape).astype(numpytype)
-    b = tvm.nd.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+    b = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
     b.copyfrom(b_np)
-    c = tvm.nd.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+    c = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
     fadd(a, b, c)
 
     tvm.testing.assert_allclose(

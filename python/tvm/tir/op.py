@@ -51,7 +51,7 @@ def call_packed_lowered(*args, span=None):
     The argument is the corresponding POD type when Expr is presented.
     When the argument is Buffer, the corresponding PackedFunc
     will recieve an TVMArrayHandle whose content is valid during the callback period.
-    If the PackedFunc is a python callback, then the corresponding argument is NDArray.
+    If the PackedFunc is a python callback, then the corresponding argument is Tensor.
 
     Parameters
     ----------
@@ -108,7 +108,7 @@ def call_packed(*args, span=None):
 
     When the argument is Buffer, the corresponding PackedFunc
     will receive an TVMArrayHandle whose content is valid during the callback period.
-    If the PackedFunc is a python callback, then the corresponding argument is NDArray.
+    If the PackedFunc is a python callback, then the corresponding argument is Tensor.
 
     Parameters
     ----------
@@ -356,7 +356,7 @@ def tvm_stack_make_shape(*args):
 
 
 def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
-    """Allocate a NDArray(DLTensor) on stack, return the handle
+    """Allocate a Tensor(DLTensor) on stack, return the handle
 
     Parameters
     ----------

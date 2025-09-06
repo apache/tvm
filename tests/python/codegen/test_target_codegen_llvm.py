@@ -118,7 +118,7 @@ def test_llvm_large_uintimm():
         f = tvm.compile(sch.mod, target="llvm")
         dev = tvm.cpu(0)
         # launch the kernel.
-        a = tvm.nd.empty((), dtype=A.dtype, device=dev)
+        a = tvm.runtime.empty((), dtype=A.dtype, device=dev)
         f(a)
         assert a.numpy() == value + 3
 
@@ -160,8 +160,8 @@ def test_llvm_multi_parallel():
         f = tvm.compile(sch.mod, target="llvm")
         dev = tvm.cpu(0)
         # launch the kernel.
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
+        c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
         f(a, c)
         tvm.testing.assert_allclose(c.numpy(), np.sqrt(a.numpy() + 1) * 2 + 2, rtol=1e-5)
 
@@ -193,8 +193,8 @@ def test_llvm_flip_pipeline():
         dev = tvm.cpu(0)
         # launch the kernel.
         n = nn
-        a = tvm.nd.array(np.random.uniform(size=(n + base)).astype(A.dtype), dev)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=(n + base)).astype(A.dtype), dev)
+        c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
         f(a, c)
         tvm.testing.assert_allclose(c.numpy(), a.numpy()[::-1][:n])
 
@@ -226,9 +226,9 @@ def test_llvm_vadd_pipeline():
     f = tvm.compile(sch.mod, target="llvm")
     dev = tvm.cpu(0)
     n = 128
-    a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-    b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
-    c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
+    a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
+    b = tvm.runtime.tensor(np.random.uniform(size=n).astype(B.dtype), dev)
+    c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
     f(a, b, c)
     tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
@@ -258,8 +258,8 @@ def test_llvm_madd_pipeline():
         dev = tvm.cpu(0)
         # launch the kernel.
         n = nn
-        a = tvm.nd.array(np.random.uniform(size=(n + base, stride)).astype(A.dtype), dev)
-        c = tvm.nd.array(np.zeros((n, stride), dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=(n + base, stride)).astype(A.dtype), dev)
+        c = tvm.runtime.tensor(np.zeros((n, stride), dtype=C.dtype), dev)
         f(a, c)
         tvm.testing.assert_allclose(c.numpy(), a.numpy()[base:] + 1)
 
@@ -288,8 +288,8 @@ def test_llvm_temp_space():
         dev = tvm.cpu(0)
         # launch the kernel.
         n = nn
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
+        c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
         f(a, c)
         tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1 + 1)
 
@@ -320,9 +320,9 @@ def test_multiple_func():
     f = tvm.compile(mod, target="llvm")
     dev = tvm.cpu(0)
     n = 10
-    a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-    b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
-    c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
+    a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
+    b = tvm.runtime.tensor(np.random.uniform(size=n).astype(B.dtype), dev)
+    c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
 
     # Test both functions
     f["fadd1"](a, b, c)
@@ -345,8 +345,8 @@ def test_llvm_condition():
         f = tvm.compile(sch.mod, target="llvm")
         dev = tvm.cpu(0)
         # launch the kernel.
-        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), dev)
-        c = tvm.nd.empty((n,), A.dtype, dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=(n,)).astype(A.dtype), dev)
+        c = tvm.runtime.empty((n,), A.dtype, dev)
         f(a, c)
         c_np = a.numpy()
         c_np[:offset] = 0
@@ -369,8 +369,8 @@ def test_llvm_bool():
         f = tvm.compile(sch.mod, target="llvm")
         dev = tvm.cpu(0)
         # launch the kernel.
-        a = tvm.nd.array(np.random.randint(0, 2, size=(n,)).astype(A.dtype), dev)
-        c = tvm.nd.empty((n,), C.dtype, dev)
+        a = tvm.runtime.tensor(np.random.randint(0, 2, size=(n,)).astype(A.dtype), dev)
+        c = tvm.runtime.empty((n,), C.dtype, dev)
         f(a, c)
         c_np = a.numpy() == 1
         tvm.testing.assert_allclose(c.numpy(), c_np)
@@ -395,9 +395,9 @@ def test_rank_zero():
         f = tvm.compile(sch.mod, target="llvm")
         dev = tvm.cpu(0)
         # launch the kernel.
-        a = tvm.nd.array(np.random.randint(0, 2, size=(n,)).astype(A.dtype), dev)
-        sc = tvm.nd.array(np.random.randint(0, 2, size=()).astype(scale.dtype), dev)
-        d = tvm.nd.empty((), D.dtype, dev)
+        a = tvm.runtime.tensor(np.random.randint(0, 2, size=(n,)).astype(A.dtype), dev)
+        sc = tvm.runtime.tensor(np.random.randint(0, 2, size=()).astype(scale.dtype), dev)
+        d = tvm.runtime.empty((), D.dtype, dev)
         f(a, sc, d)
         d_np = np.sum(a.numpy()) * sc.numpy() + 1
         tvm.testing.assert_allclose(d.numpy(), d_np)
@@ -423,9 +423,9 @@ def test_rank_zero_bound_checkers():
             f = tvm.compile(sch.mod, target="llvm")
             dev = tvm.cpu(0)
             # launch the kernel.
-            a = tvm.nd.array(np.random.randint(0, 2, size=(n,)).astype(A.dtype), dev)
-            sc = tvm.nd.array(np.random.randint(0, 2, size=()).astype(scale.dtype), dev)
-            d = tvm.nd.empty((), D.dtype, dev)
+            a = tvm.runtime.tensor(np.random.randint(0, 2, size=(n,)).astype(A.dtype), dev)
+            sc = tvm.runtime.tensor(np.random.randint(0, 2, size=()).astype(scale.dtype), dev)
+            d = tvm.runtime.empty((), D.dtype, dev)
             f(a, sc, d)
             d_np = np.sum(a.numpy()) * sc.numpy() + 1
             tvm.testing.assert_allclose(d.numpy(), d_np)
@@ -531,16 +531,16 @@ def test_llvm_div():
         f = tvm.compile(sch.mod, target="llvm")
 
         # Fill input arrays with values
-        A_arr = tvm.nd.empty((end - start + 1,), dtype)
-        B_arr = tvm.nd.empty((dend - dstart + 1,), dtype)
+        A_arr = tvm.runtime.empty((end - start + 1,), dtype)
+        B_arr = tvm.runtime.empty((dend - dstart + 1,), dtype)
         A_arr.copyfrom(np.arange(start, end + 1, dtype=dtype))
         B_np = np.arange(dstart, dend + 1, dtype=dtype)
         # If the range of the divisor contains 0, replace it with 1 to avoid division by zero
         if dend >= 0 and dstart <= 0:
             B_np[-dstart] = 1
         B_arr.copyfrom(B_np)
-        D_arr = tvm.nd.empty((end - start + 1, dend - dstart + 1), dtype)
-        M_arr = tvm.nd.empty((end - start + 1, dend - dstart + 1), dtype)
+        D_arr = tvm.runtime.empty((end - start + 1, dend - dstart + 1), dtype)
+        M_arr = tvm.runtime.empty((end - start + 1, dend - dstart + 1), dtype)
 
         # Run the function and convert the results to numpy
         f(A_arr, B_arr, D_arr, M_arr)
@@ -636,8 +636,8 @@ def test_llvm_fp_math():
         # Build from scheduled TIR
         f = tvm.compile(sch.mod, target="llvm")
 
-        a = tvm.nd.array(np.full((n,), 100, "float32"))
-        b = tvm.nd.empty((n,), "float32")
+        a = tvm.runtime.tensor(np.full((n,), 100, "float32"))
+        b = tvm.runtime.empty((n,), "float32")
         f(a, b)
         tvm.testing.assert_allclose(b.numpy(), np.zeros((n,), "float32"))
 
@@ -656,8 +656,8 @@ def test_llvm_fp_math():
         # Build from scheduled TIR
         f = tvm.compile(sch.mod, target="llvm")
 
-        a = tvm.nd.array(np.full((n,), -1000, "float32"))
-        b = tvm.nd.empty((n,), "float32")
+        a = tvm.runtime.tensor(np.full((n,), -1000, "float32"))
+        b = tvm.runtime.empty((n,), "float32")
         f(a, b)
         tvm.testing.assert_allclose(b.numpy(), np.zeros((n,), "float32"))
 
@@ -780,9 +780,9 @@ def test_llvm_bf16():
         npa = np.random.rand(32).astype("bfloat16")
         npb = np.random.rand(32).astype("bfloat16")
         res = npa + npb
-        a_ = tvm.nd.array(npa)
-        b_ = tvm.nd.array(npb)
-        c_ = tvm.nd.empty((32,), "bfloat16")
+        a_ = tvm.runtime.tensor(npa)
+        b_ = tvm.runtime.tensor(npb)
+        c_ = tvm.runtime.empty((32,), "bfloat16")
         module(a_, b_, c_)
         # Note: directly compare without casting to float32 should work with the
         # latest numpy version.
@@ -868,8 +868,8 @@ def test_llvm_import():
         f = tvm.compile(sch.mod, target="llvm")
         dev = tvm.cpu(0)
         # launch the kernel.
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.random.uniform(size=n).astype(B.dtype), dev)
         f(a, b)
         tvm.testing.assert_allclose(b.numpy(), a.numpy() + 1.0)
 
@@ -1027,7 +1027,7 @@ def test_subroutine_call():
 
     built = tvm.compile(mod)
 
-    arr = tvm.nd.array(np.zeros([1], "float32"), device=dev)
+    arr = tvm.runtime.tensor(np.zeros([1], "float32"), device=dev)
     built["main"](arr)
     assert arr.numpy()[0] == 42.0
 
@@ -1191,10 +1191,10 @@ def test_invalid_arguments():
         built(1, 1)
 
     with pytest.raises(RuntimeError):
-        built(1, tvm.nd.empty([10], "int32"))
+        built(1, tvm.runtime.empty([10], "int32"))
 
     with pytest.raises(RuntimeError):
-        built(False, tvm.nd.empty([11], "float32"))
+        built(False, tvm.runtime.empty([11], "float32"))
 
 
 if __name__ == "__main__":

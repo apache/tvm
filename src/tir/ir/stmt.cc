@@ -312,11 +312,11 @@ AllocateConst::AllocateConst(Var buffer_var, DataType dtype, Array<PrimExpr> ext
   node->body = std::move(body);
   node->annotations = annotations;
   node->span = std::move(span);
-  if (data_or_idx->IsInstance<runtime::NDArray::ContainerType>()) {
-    node->data = Optional<tvm::runtime::NDArray>(Downcast<runtime::NDArray>(data_or_idx));
+  if (data_or_idx->IsInstance<runtime::Tensor::ContainerType>()) {
+    node->data = Optional<tvm::runtime::Tensor>(Downcast<runtime::Tensor>(data_or_idx));
     node->irmod_storage_idx = Optional<Integer>();
   } else if (data_or_idx->IsInstance<IntImmNode>()) {
-    node->data = Optional<tvm::runtime::NDArray>();
+    node->data = Optional<tvm::runtime::Tensor>();
     node->irmod_storage_idx = Optional<Integer>(Downcast<Integer>(data_or_idx));
   } else {
     LOG(FATAL) << "Data type not supported: " << data_or_idx->GetTypeKey();

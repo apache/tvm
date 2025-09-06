@@ -24,7 +24,7 @@
 #ifndef TVM_TARGET_LLVM_CODEGEN_PARAMS_H_
 #define TVM_TARGET_LLVM_CODEGEN_PARAMS_H_
 
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 namespace llvm {
 class ConstantArray;
@@ -35,15 +35,15 @@ namespace tvm {
 namespace codegen {
 
 /*!
- * \brief Convert an NDArray to an LLVM array of constants.
+ * \brief Convert an Tensor to an LLVM array of constants.
  *
- * The supplied NDArray is flattened, and each element is converted to the appropriate LLVM type.
+ * The supplied Tensor is flattened, and each element is converted to the appropriate LLVM type.
  *
  * \param ctx LLVM context used to create the various primitive datatypes.
- * \param arr NDArray to convert.
+ * \param arr Tensor to convert.
  * \return LLVM array containing the array data.
  */
-llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, tvm::runtime::NDArray arr);
+llvm::ConstantArray* TensorToLLVMArray(llvm::LLVMContext* ctx, tvm::runtime::Tensor arr);
 
 }  // namespace codegen
 }  // namespace tvm

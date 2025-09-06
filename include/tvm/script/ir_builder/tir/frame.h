@@ -510,7 +510,7 @@ class AllocateConstFrameNode : public TIRFrameNode {
   /*! \brief The extents of the allocate. */
   Array<PrimExpr> extents;
   /*! \brief The data associated with the constant. */
-  tvm::runtime::NDArray data;
+  tvm::runtime::Tensor data;
   /*! \brief The buffer var */
   tvm::tir::Var buffer_var;
   /*! \brief Additional annotations about the allocation. */
