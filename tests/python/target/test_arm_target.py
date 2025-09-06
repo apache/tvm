@@ -84,7 +84,7 @@ def test_scalable_div(sve_device_vector_length):
 
     mod = tvm.compile(my_func, target=target)
 
-    A_nd = tvm.nd.array(np.empty((1,), dtype="int32"), device=dev)
+    A_nd = tvm.runtime.tensor(np.empty((1,), dtype="int32"), device=dev)
     mod(A_nd)
 
     ref = 10000 // (sve_device_vector_length // 32)
@@ -109,8 +109,8 @@ def test_scalable_buffer_load_store(sve_device_vector_length):
 
     A_np = np.random.uniform(size=(num_elements,)).astype("float32")
     B_np = np.zeros((num_elements,)).astype("float32")
-    A_nd = tvm.nd.array(A_np, device=dev)
-    B_nd = tvm.nd.array(B_np, device=dev)
+    A_nd = tvm.runtime.tensor(A_np, device=dev)
+    B_nd = tvm.runtime.tensor(B_np, device=dev)
     mod(A_nd, B_nd)
 
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
@@ -137,8 +137,8 @@ def test_scalable_loop_bound(sve_device_vector_length):
 
     A_np = np.random.uniform(size=(num_elements,)).astype(dtype)
     B_np = np.zeros((num_elements,)).astype(dtype)
-    A_nd = tvm.nd.array(A_np, device=dev)
-    B_nd = tvm.nd.array(B_np, device=dev)
+    A_nd = tvm.runtime.tensor(A_np, device=dev)
+    B_nd = tvm.runtime.tensor(B_np, device=dev)
     mod(A_nd, B_nd)
 
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
@@ -159,7 +159,7 @@ def test_scalable_broadcast(sve_device_vector_length):
     mod = tvm.compile(my_func, target=target)
 
     A_np = np.zeros((num_elements,)).astype("float32")
-    A_nd = tvm.nd.array(A_np, device=dev)
+    A_nd = tvm.runtime.tensor(A_np, device=dev)
     mod(A_nd)
 
     ref = np.ones((num_elements,))

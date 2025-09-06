@@ -50,9 +50,9 @@ def test_llvm_add_pipeline():
         dev = tvm.cpu(0)
         # launch the kernel.
         n = nn
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.random.uniform(size=n).astype(B.dtype), dev)
+        c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 

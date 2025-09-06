@@ -50,7 +50,7 @@ def test_large_uint_imm():
         dev = tvm.device(device, 0)
         f = tvm.compile(sch.mod, target=device)
         # launch the kernel.
-        a = tvm.nd.empty((n,), dtype=A.dtype, device=dev)
+        a = tvm.runtime.empty((n,), dtype=A.dtype, device=dev)
         f(a)
         assert a.numpy()[0] == value + 3
 
@@ -95,12 +95,12 @@ def test_add_pipeline():
         dev = tvm.device(device, 0)
         target = tvm.target.Target(device, host)
         mhost = tvm.tir.build(sch.mod, target=target)
-        f = mhost.entry_func
+        f = mhost.main
         # launch the kernel.
         n = 1027
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=()).astype(B.dtype), dev)
-        d = tvm.nd.array(np.zeros(n, dtype=D.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.random.uniform(size=()).astype(B.dtype), dev)
+        d = tvm.runtime.tensor(np.zeros(n, dtype=D.dtype), dev)
         f(a, b, d)
         tvm.testing.assert_allclose(d.numpy(), a.numpy() + b.numpy() + 1)
 

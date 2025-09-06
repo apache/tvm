@@ -314,11 +314,11 @@ namespace attr {
 constexpr const char* kModuleName = "mod_name";
 
 /*
- * \brief All the runtime::NDArrays extracted from PrimFunc tir::AllocateConst nodes. The
+ * \brief All the runtime::Tensors extracted from PrimFunc tir::AllocateConst nodes. The
  * node will record the index into this array. See also kConstNameToConstant below, which is
  * the analog for Realy Functions.
  *
- * Type: Array<runtime::NDArray>
+ * Type: Array<runtime::Tensor>
  */
 constexpr const char* kConstants = "constants";
 
@@ -360,12 +360,12 @@ constexpr const char* kExternalMods = "external_mods";
 constexpr const char* kSystemLibPrefix = "system_lib_prefix";
 
 /*!
- * \brief All the named runtime::NDArrays accumulated during compilation by external codegen.
+ * \brief All the named runtime::Tensors accumulated during compilation by external codegen.
  * Generally the associated runtime::Module will indicate it requires bindings for these names,
  * and during module initialization these bindings will be recovered from a ConstLoaderModule.
  * See also kConstantsArray above, which is the analog for PrimFuncs.
  *
- * Type: Map<String, runtime::NDArray>
+ * Type: Map<String, runtime::Tensor>
  */
 constexpr const char* kConstNameToConstant = "const_name_to_constant";
 

@@ -32,8 +32,8 @@ def test_rocm_inf_nan():
         sch.bind(xo, "blockIdx.x")
         sch.bind(xi, "threadIdx.x")
         fun = tvm.compile(sch.mod, "rocm")
-        a = tvm.nd.empty((n,), A.dtype, dev)
-        c = tvm.nd.empty((n,), A.dtype, dev)
+        a = tvm.runtime.empty((n,), A.dtype, dev)
+        c = tvm.runtime.empty((n,), A.dtype, dev)
         # Only need to test compiling here
         fun(a, c)
 
@@ -53,7 +53,7 @@ def test_rocm_copy():
         A = te.placeholder((n,), name="A", dtype=dtype)
         dev = tvm.rocm(0)
         a_np = np.random.uniform(size=(n,)).astype(A.dtype)
-        a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(a_np)
+        a = tvm.runtime.empty((n,), A.dtype, dev).copyfrom(a_np)
         b_np = a.numpy()
         tvm.testing.assert_allclose(a_np, b_np)
         tvm.testing.assert_allclose(a_np, a.numpy())
@@ -79,8 +79,8 @@ def test_rocm_vectorize_add():
         fun = tvm.compile(sch.mod, target="rocm")
 
         dev = tvm.rocm(0)
-        a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
-        c = tvm.nd.empty((n,), B.dtype, dev)
+        a = tvm.runtime.empty((n,), A.dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
+        c = tvm.runtime.empty((n,), B.dtype, dev)
         fun(a, c)
         tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
@@ -109,7 +109,7 @@ def test_rocm_warp_shuffle():
 
     mod = tvm.compile(func, target="rocm")
     dev = tvm.rocm(0)
-    a = tvm.nd.array(np.random.uniform(size=(32,)).astype("float32"), dev)
+    a = tvm.runtime.tensor(np.random.uniform(size=(32,)).astype("float32"), dev)
     mod(a)
     tvm.testing.assert_allclose(a.numpy(), np.ones((32,)) * a.numpy()[0])
 
@@ -132,7 +132,7 @@ def test_rocm_vectorized_exp():
 
     mod = tvm.compile(func, target="rocm")
     dev = tvm.rocm(0)
-    a = tvm.nd.array(np.ones((4,)).astype("float32"), dev)
-    b = tvm.nd.array(np.zeros((4,)).astype("float32"), dev)
+    a = tvm.runtime.tensor(np.ones((4,)).astype("float32"), dev)
+    b = tvm.runtime.tensor(np.zeros((4,)).astype("float32"), dev)
     mod(a, b)
     tvm.testing.assert_allclose(b.numpy(), np.exp2(a.numpy()))

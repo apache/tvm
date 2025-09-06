@@ -271,7 +271,7 @@ def test_tir_floatimm_const_fold():
 
     def __wrap_build(f):
         lib = tvm.compile(f, target="llvm")
-        z = tvm.nd.array(np.zeros([]).astype("float32"))
+        z = tvm.runtime.tensor(np.zeros([]).astype("float32"))
 
         def _func(x, y):
             lib(x, y, z)

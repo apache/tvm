@@ -507,8 +507,8 @@ AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_s
   return AllocateFrame(n);
 }
 
-AllocateConstFrame AllocateConst(tvm::runtime::NDArray data, DataType dtype,
-                                 Array<PrimExpr> extents, Optional<Map<String, Any>> annotations) {
+AllocateConstFrame AllocateConst(tvm::runtime::Tensor data, DataType dtype, Array<PrimExpr> extents,
+                                 Optional<Map<String, Any>> annotations) {
   ObjectPtr<AllocateConstFrameNode> n = make_object<AllocateConstFrameNode>();
   n->dtype = dtype;
   n->extents = extents;
