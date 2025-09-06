@@ -899,7 +899,7 @@ def test_extern():
 
 
 def test_empty():
-    @tvm.register_func("test_empty_assert", override=True)
+    @tvm.register_global_func("test_empty_assert", override=True)
     def test_empty_assert(_lineo, x):
         assert x.shape == (10, 10)
         assert x.dtype == "float32"

@@ -17,4 +17,4 @@
 """FFI APIs for tvm.relax.training"""
 import tvm_ffi
 
-tvm_ffi._init_api("relax.training", __name__)
+tvm_ffi.init_ffi_api("relax.training", __name__)

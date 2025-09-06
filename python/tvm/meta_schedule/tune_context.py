@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, List, Optional, Union
 # isort: off
 from typing_extensions import Literal
 
-from tvm_ffi import register_object, register_func
+from tvm_ffi import register_object, register_global_func
 
 # isort: on
 
@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from .space_generator import SpaceGenerator
 
 
-@register_func("tvm.meta_schedule.normalize_mod")
+@register_global_func("tvm.meta_schedule.normalize_mod")
 def _normalize_mod(mod: Union[PrimFunc, IRModule]) -> IRModule:
     """Normalize the input to an IRModule"""
     if isinstance(mod, PrimFunc):

@@ -22,7 +22,7 @@ import itertools
 from statistics import mean
 from typing import Callable, Tuple, Union, List, Any
 import numpy as np  # type: ignore
-from tvm_ffi import get_global_func, register_func
+from tvm_ffi import get_global_func, register_global_func
 
 
 import tvm
@@ -203,7 +203,7 @@ class OriginalModule:
 def initializer() -> None:
     """Initializer function to register the functions on PopenWorker."""
 
-    @register_func("tvm.meta_schedule.testing.default_check_metric")
+    @register_global_func("tvm.meta_schedule.testing.default_check_metric")
     def default_check_metric(  # pylint: disable=unused-variable,unreachable-code
         lhs: List[tvm.runtime.Tensor], rhs: List[tvm.runtime.Tensor]
     ) -> bool:
@@ -229,7 +229,7 @@ def initializer() -> None:
         return True
 
 
-@register_func("tvm.meta_schedule.testing.default_input_generator")
+@register_global_func("tvm.meta_schedule.testing.default_input_generator")
 def default_input_generator(  # pylint: disable=unused-variable
     mod: IRModule,
 ) -> List[tvm.runtime.Tensor]:

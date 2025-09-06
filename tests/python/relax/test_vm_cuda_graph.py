@@ -129,7 +129,7 @@ def test_capture_error_is_recoverable():
     target = tvm.target.Target("cuda")
     dev = tvm.cuda()
 
-    @tvm.register_func("test_vm_cuda_graph.invalid_impl_for_cudagraph", override=True)
+    @tvm.register_global_func("test_vm_cuda_graph.invalid_impl_for_cudagraph", override=True)
     def invalid_impl_for_cudagraph(arg_tensor):
         # Memory allocation/deallocation may not be performed while
         # capturing a cudaGraph.  This passes the warm-up run

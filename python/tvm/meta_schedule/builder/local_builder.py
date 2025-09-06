@@ -19,7 +19,7 @@ import os
 import tempfile
 from typing import Callable, Dict, List, Optional, Union
 
-from tvm_ffi import register_func
+from tvm_ffi import register_global_func
 from tvm.ir import IRModule
 from tvm.runtime import Module, Tensor, load_param_dict, save_param_dict
 from tvm.target import Target
@@ -234,7 +234,7 @@ def _worker_func(
     return artifact_path
 
 
-@register_func("meta_schedule.builder.default_build")
+@register_global_func("meta_schedule.builder.default_build")
 def default_build(mod: IRModule, target: Target, _params: Optional[Dict[str, Tensor]]) -> Module:
     """Default build function.
 
@@ -261,7 +261,7 @@ def default_build(mod: IRModule, target: Target, _params: Optional[Dict[str, Ten
     return tvm_build(mod, target=target)
 
 
-@register_func("meta_schedule.builder.default_export")
+@register_global_func("meta_schedule.builder.default_export")
 def default_export(mod: Module) -> str:
     """Default export function.
 
@@ -282,7 +282,7 @@ def default_export(mod: Module) -> str:
     return artifact_path
 
 
-@register_func("meta_schedule.builder.get_local_builder")
+@register_global_func("meta_schedule.builder.get_local_builder")
 def get_local_builder() -> LocalBuilder:
     """Get the local builder.
 

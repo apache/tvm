@@ -333,8 +333,7 @@ class BasePyModule:
         if not isinstance(tvm_array, Tensor):
             return torch.tensor(tvm_array)
         try:
-            dlpack = tvm_array.to_dlpack()
-            return torch.from_dlpack(dlpack)
+            return torch.from_dlpack(tvm_array)
         # pylint: disable=broad-exception-caught
         except Exception as error:
             print(f"Warning: DLPack conversion from TVM failed ({error}), using numpy fallback")

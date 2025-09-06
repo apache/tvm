@@ -47,7 +47,7 @@ y = np.empty_like(x)
 mod.add_one_cpu(x, y)
 ```
 
-In this case, `tvm_ffi.load_module` will return a `tvm_ffi.Module` class that contains
+In this case, {py:func}`tvm_ffi.load_module` will return a {py:class}`tvm_ffi.Module` class that contains
 the exported functions. You can access the functions by their names.
 
 ## Tensor
@@ -67,12 +67,12 @@ np_result = np.from_dlpack(tvm_array)
 
 In most cases, however, you do not have to explicitly create Tensors.
 The Python interface can take in `torch.Tensor` and `numpy.ndarray` objects
-and automatically convert them to `tvm_ffi.Tensor`.
+and automatically convert them to {py:class}`tvm_ffi.Tensor`.
 
 ## Functions and Callbacks
 
-`tvm_ffi.Function` provides the Python interface for `ffi::Function` in the C++.
-You can retrieve globally registered functions via `tvm_ffi.get_global_func()`.
+{py:class}`tvm_ffi.Function` provides the Python interface for `ffi::Function` in the C++.
+You can retrieve globally registered functions via {py:func}`tvm_ffi.get_global_func`.
 
 ```python
 import tvm_ffi
@@ -84,8 +84,8 @@ assert fecho(1) == 1
 ```
 
 You can pass a Python function as an argument to another FFI function as callbacks.
-Under the hood, `tvm_ffi.convert` is called to convert the Python function into a
-`tvm_ffi.Function`.
+Under the hood, {py:func}`tvm_ffi.convert` is called to convert the Python function into a
+{py:class}`tvm_ffi.Function`.
 
 ```python
 import tvm_ffi
@@ -103,7 +103,7 @@ You can also register a Python callback as a global function.
 ```python
 import tvm_ffi
 
-@tvm_ffi.register_func("example.add_one")
+@tvm_ffi.register_global_func("example.add_one")
 def add_one(a):
     return a + 1
 
@@ -112,7 +112,7 @@ assert tvm_ffi.get_global_func("example.add_one")(1) == 2
 
 ## Container Types
 
-When an FFI function takes arguments from lists/tuples, they will be converted into `tvm_ffi.Array`.
+When an FFI function takes arguments from lists/tuples, they will be converted into {py:class}`tvm_ffi.Array`.
 
 ```python
 import tvm_ffi
@@ -124,7 +124,7 @@ assert len(arr) == 4
 assert arr[0] == 1
 ```
 
-Dictionaries will be converted to `tvm_ffi.Map`
+Dictionaries will be converted to {py:class}`tvm_ffi.Map`
 
 ```python
 import tvm_ffi
@@ -167,7 +167,7 @@ File "src/ffi/extra/testing.cc", line 60, in void tvm::ffi::TestRaiseError(tvm::
   throw ffi::Error(kind, msg, TVMFFITraceback(__FILE__, __LINE__, TVM_FFI_FUNC_SIG, 0));
 ```
 
-We register common error kinds. You can also register extra error dispatch via the `tvm_ffi.register_error` function.
+We register common error kinds. You can also register extra error dispatch via the {py:func}`tvm_ffi.register_error` function.
 
 ## Advanced: Register Your Own Object
 
@@ -239,5 +239,5 @@ assert test_int_pair.b == 2
 Under the hood, we leverage the information registered through the reflection registry to
 generate efficient field accessors and methods for each class.
 
-Importantly, when you have multiple inheritance, you need to call `tvm_ffi.register_object`
+Importantly, when you have multiple inheritance, you need to call {py:func}`tvm_ffi.register_object`
 on both the base class and the child class.

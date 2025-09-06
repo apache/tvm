@@ -17,4 +17,4 @@
 """DataFlow Pattern Language FFI bindings."""
 import tvm_ffi
 
-tvm_ffi._init_api("relax.dpl", __name__)
+tvm_ffi.init_ffi_api("relax.dpl", __name__)

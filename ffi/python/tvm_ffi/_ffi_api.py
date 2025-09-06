@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI API."""
-from .registry import _init_api
+from . import registry
 
-
-_init_api("ffi", __name__)
+registry.init_ffi_api("ffi", __name__)

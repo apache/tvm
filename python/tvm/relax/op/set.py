@@ -84,7 +84,7 @@ def unique(
     )
 
 
-@tvm.register_func("relax.run.unique")
+@tvm.register_global_func("relax.run.unique")
 def numpy_unique(
     x: tvm.runtime.tensor,
     sorted: int,
@@ -143,7 +143,7 @@ def nonzero(x: Expr) -> Expr:
     return _ffi_api.nonzero(x)  # type: ignore
 
 
-@tvm.register_func("relax.run.nonzero")
+@tvm.register_global_func("relax.run.nonzero")
 def numpy_nonzero(x: tvm.runtime.tensor) -> tvm.runtime.tensor:
     np_result = np.atleast_1d(x.numpy()).nonzero()
     return tvm.runtime.tensor(np.stack(np_result, axis=0))

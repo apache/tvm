@@ -17,6 +17,6 @@
 """FFI APIs for tvm.script.ir_builder.relax.distributed"""
 import tvm_ffi
 
-tvm_ffi._init_api(
+tvm_ffi.init_ffi_api(
     "script.ir_builder.relax.distributed", __name__
 )  # pylint: disable=protected-access

@@ -2087,7 +2087,7 @@ def extern(
     out: OutType,
 ) -> OutType:
     """Invoke an extern function during runtime. The extern function must be registered with the "
-    TVM runtime using `reflection::GlobalDef().def` (C++), or `tvm.register_func` (Python).
+    TVM runtime using `reflection::GlobalDef().def` (C++), or `tvm.register_global_func` (Python).
 
     Parameters
     ----------
@@ -2144,7 +2144,7 @@ def debug_func(
 
     .. code-block:: python
 
-        @tvm.register_func(name_of_debug_func)
+        @tvm.register_global_func(name_of_debug_func)
         def debug_func(lineno: str, arg_0, arg_1, ...) -> None:
             ...
 

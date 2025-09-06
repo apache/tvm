@@ -384,7 +384,7 @@ def _worker_func(
         # Step 1. Create session
         with Profiler.timeit("RPCRunner/create_session"):
             session = f_create_session(rpc_config)
-            device = session.device(dev_type=device_type, dev_id=0)
+            device = session.device(device_type, 0)
         # Step 2. Upload the module
         with Profiler.timeit("RPCRunner/upload_module"):
             _, remote_path = osp.split(artifact_path)

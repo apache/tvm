@@ -27,7 +27,7 @@ def test_min_repeat_ms():
     tmp = tempdir()
     filename = tmp.relpath("log")
 
-    @tvm.register_func
+    @tvm.register_global_func
     def my_debug(filename):
         """one call lasts for 100 ms and writes one character to a file"""
         time.sleep(0.1)

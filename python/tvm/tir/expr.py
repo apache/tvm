@@ -34,7 +34,7 @@ import tvm.ir._ffi_api
 from tvm import ir
 from tvm.ir import Op, PrimExpr
 from tvm.ir.base import Span
-from tvm.runtime import Object, ObjectGeneric, Scriptable, DataType, DataTypeCode, const
+from tvm.runtime import Object, ObjectConvertible, Scriptable, DataType, DataTypeCode, const
 
 from . import _ffi_api
 from . import generic as _generic
@@ -227,7 +227,7 @@ class ExprOp:
         return _generic.cast(self, dtype, span)
 
 
-class EqualOp(ObjectGeneric, ExprOp):
+class EqualOp(ObjectConvertible, ExprOp):
     """Deferred equal operator.
 
     This is used to support sugar that a == b can either
@@ -264,7 +264,7 @@ class EqualOp(ObjectGeneric, ExprOp):
         return _ffi_api._OpEQ(self.a, self.b, self.span)  # type: ignore
 
 
-class NotEqualOp(ObjectGeneric, ExprOp):
+class NotEqualOp(ObjectConvertible, ExprOp):
     """Deferred NE operator.
 
     This is used to support sugar that a != b can either
@@ -301,7 +301,7 @@ class NotEqualOp(ObjectGeneric, ExprOp):
         return _ffi_api._OpNE(self.a, self.b, self.span)  # type: ignore
 
 
-class IntImmEnum(ObjectGeneric):
+class IntImmEnum(ObjectConvertible):
     """Lazily evaluate an IntImm in case
     the constructor is not available in runtime.
 

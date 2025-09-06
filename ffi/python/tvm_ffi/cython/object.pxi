@@ -43,7 +43,7 @@ _OBJECT_FROM_JSON_GRAPH_STR = None
 _OBJECT_TO_JSON_GRAPH_STR = None
 
 
-class ObjectGeneric:
+class ObjectConvertible:
     """Base class for all classes that can be converted to object."""
 
     def asobject(self):
@@ -195,7 +195,13 @@ cdef class Object:
 
 
 cdef class OpaquePyObject(Object):
-    """Opaque PyObject container"""
+    """Opaque PyObject container
+
+    This is a helper class to store opaque python objects
+    that will be passed to the ffi functions.
+
+    Users do not need to directly create this class.
+    """
     def pyobject(self):
         """Get the underlying python object"""
         cdef object obj

@@ -94,7 +94,7 @@ def optional_metal_compile_callback(define_metal_compile_callback):
 
     if define_metal_compile_callback:
 
-        @tvm.register_func(name, override=True)
+        @tvm.register_global_func(name, override=True)
         def compile_metal(src, target):
             return tvm.contrib.xcode.compile_metal(src, sdk="macosx")
 
@@ -104,7 +104,7 @@ def optional_metal_compile_callback(define_metal_compile_callback):
         if cached is None:
             tvm_ffi.registry.remove_global_func(name)
         else:
-            tvm.register_func(name, cached, override=True)
+            tvm.register_global_func(name, cached, override=True)
 
 
 @tvm.testing.requires_metal(support_required="compile-only")

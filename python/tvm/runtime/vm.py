@@ -23,7 +23,7 @@ from numbers import Number, Integral
 import numpy as np  # type: ignore
 
 import tvm
-from tvm_ffi import register_func
+from tvm_ffi import register_global_func
 from tvm.runtime import Device, Object, PackedFunc
 from tvm.runtime.profiling import Report
 
@@ -99,7 +99,7 @@ class VirtualMachine(object):
             devs = [dev]
 
         # CPU is required for executing shape functions
-        if devs[-1].device_type % RPC_SESS_MASK != tvm.cpu().device_type:
+        if devs[-1].dlpack_device_type() % RPC_SESS_MASK != tvm.cpu().dlpack_device_type():
             devs.append(tvm.cpu())
 
         default_alloc_type = VirtualMachine.POOLED_ALLOCATOR
@@ -117,8 +117,8 @@ class VirtualMachine(object):
             )
         init_args = []
         for device in devs:
-            init_args.append(device.device_type % RPC_SESS_MASK)
-            init_args.append(device.device_id)
+            init_args.append(device.dlpack_device_type() % RPC_SESS_MASK)
+            init_args.append(device.index)
             alloc_type = memory_cfg[device] if device in memory_cfg else default_alloc_type
             init_args.append(alloc_type)
         self.module["vm_initialization"](*init_args)
@@ -499,6 +499,6 @@ class VirtualMachine(object):
         return Report.from_json(report_json)
 
 
-@register_func("vm.builtin.debug_print")
+@register_global_func("vm.builtin.debug_print")
 def _print(lineo: str, array) -> None:
     print(f"{lineo}: shape = {array.shape}, dtype = {array.dtype}, data =\n{array}")

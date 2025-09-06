@@ -23,7 +23,7 @@ from typing_extensions import Literal
 
 # isort: on
 
-from tvm_ffi import get_global_func, register_func
+from tvm_ffi import get_global_func, register_global_func
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext
 from tvm.runtime import Tensor
@@ -269,7 +269,7 @@ def tune_relax(
     )
 
 
-@register_func("tvm.meta_schedule.tune_relax")
+@register_global_func("tvm.meta_schedule.tune_relax")
 def _tune_relax(
     mod: Union[IRModule, "relax.Function"],
     params: Dict[str, Tensor],

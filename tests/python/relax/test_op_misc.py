@@ -21,7 +21,7 @@ from tvm.script import relax as R
 from tvm.script import tir as T
 
 
-@tvm.register_func("test.op.identity", override=True)
+@tvm.register_global_func("test.op.identity", override=True)
 def identity_packed(a):
     return tvm.runtime.tensor(a.numpy())
 

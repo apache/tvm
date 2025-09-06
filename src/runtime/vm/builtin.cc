@@ -511,7 +511,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         String debug_func_name = args[1].cast<String>();
         const auto debug_func = tvm::ffi::Function::GetGlobal(debug_func_name);
         CHECK(debug_func.has_value()) << "ValueError: " << debug_func_name << " is not found. "
-                                      << "Use the decorator `@tvm.register_func(\""
+                                      << "Use the decorator `@tvm.register_global_func(\""
                                       << debug_func_name << "\")` to register it.";
         String line_info = args[2].cast<String>();
         std::vector<ffi::AnyView> call_args(num_args + 1);

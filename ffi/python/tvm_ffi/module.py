@@ -36,7 +36,23 @@ class ModulePropertyMask(IntEnum):
 
 @register_object("ffi.Module")
 class Module(core.Object):
-    """Runtime Module."""
+    """Module container for dynamically loaded Module.
+
+    Example
+    -------
+    .. code-block:: python
+
+        import tvm_ffi
+
+        # load the module from a tvm-ffi shared library
+        mod : tvm_ffi.Module = tvm_ffi.load_module("path/to/library.so")
+        # you can use mod.func_name to call the exported function
+        mod.func_name(*args)
+
+    See Also
+    --------
+    :py:func:`tvm_ffi.load_module`
+    """
 
     # constant for entry function name
     entry_name = "main"
@@ -242,7 +258,18 @@ def load_module(path):
 
     Returns
     -------
-    module : ffi.Module
+    module : :py:class:`tvm_ffi.Module`
         The loaded module
+
+    Examples
+    --------
+    .. code-block:: python
+
+      mod = tvm_ffi.load_module("path/to/module.so")
+      mod.func_name(*args)
+
+    See Also
+    --------
+    :py:class:`tvm_ffi.Module`
     """
     return _ffi_api.ModuleLoadFromFile(path)

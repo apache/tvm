@@ -107,15 +107,15 @@ struct ToVDeviceAttrs : public AttrsNodeReflAdapter<ToVDeviceAttrs> {
 
 /*! \brief Attributes used in hint_on_device */
 struct HintOnDeviceAttrs : public AttrsNodeReflAdapter<HintOnDeviceAttrs> {
-  int32_t dev_type;
-  int32_t dev_id;
+  int32_t device_type;
+  int32_t index;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<HintOnDeviceAttrs>()
-        .def_ro("dev_type", &HintOnDeviceAttrs::dev_type,
+        .def_ro("device_type", &HintOnDeviceAttrs::device_type,
                 "The device type where the data is supposed to be executed.")
-        .def_ro("dev_id", &HintOnDeviceAttrs::dev_id, "The device id.");
+        .def_ro("index", &HintOnDeviceAttrs::index, "The device id.");
   }
 
   static constexpr const char* _type_key = "relax.attrs.HintOnDeviceAttrs";

@@ -167,7 +167,7 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args,
             out[i].v_int64 = 0
             out[i].v_ptr = (<ByteArrayArg>arg).cptr()
             temp_args.append(arg)
-        elif isinstance(arg, (list, tuple, dict, ObjectGeneric)):
+        elif isinstance(arg, (list, tuple, dict, ObjectConvertible)):
             arg = _FUNC_CONVERT_TO_OBJECT(arg)
             out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
             out[i].v_ptr = (<Object>arg).chandle
@@ -277,11 +277,11 @@ cdef inline int ConstructorCall(void* constructor_handle,
 
 
 class Function(Object):
-    """The Function object used in TVM FFI.
+    """Python class that wraps a function with tvm-ffi ABI.
 
     See Also
     --------
-    tvm_ffi.register_func: How to register global function.
+    tvm_ffi.register_global_func: How to register global function.
     tvm_ffi.get_global_func: How to get global function.
     """
     def __call__(self, *args):

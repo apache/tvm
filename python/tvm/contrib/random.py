@@ -112,4 +112,4 @@ def normal(loc, scale, size):
     )
 
 
-tvm_ffi._init_api("tvm.contrib.random")
+tvm_ffi.init_ffi_api("tvm.contrib.random")

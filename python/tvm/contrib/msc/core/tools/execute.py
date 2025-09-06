@@ -214,7 +214,7 @@ def process_tensor(tensor: Any, name: str, consumer: str, scope: str, tag: str =
     return tensor
 
 
-@tvm.register_func("msc_tool.codegen_tensor")
+@tvm.register_global_func("msc_tool.codegen_tensor")
 def codegen_tensor(
     tensor_ctx: Dict[str, str], name: str, consumer: str, scope: str, tag: str = "main"
 ) -> List[str]:
@@ -356,7 +356,7 @@ def _execute_step_with_context(
     return step_ctx
 
 
-@tvm.register_func("msc_tool.codegen_step")
+@tvm.register_global_func("msc_tool.codegen_step")
 def codegen_step(
     step_ctx: Dict[str, str], step: str, graph_name: str, tag: str = "main"
 ) -> List[str]:
@@ -384,7 +384,7 @@ def codegen_step(
     return step_ctx["processed"]
 
 
-@tvm.register_func("msc_tool.callback_step")
+@tvm.register_global_func("msc_tool.callback_step")
 def callback_step(step_ctx: Dict[str, Any], step: str, graph_name: str = "main", tag: str = "main"):
     """Execute tools for a step
 

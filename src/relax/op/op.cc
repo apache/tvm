@@ -1444,8 +1444,8 @@ TVM_REGISTER_OP("relax.hint_on_device")
 Expr MakeHintOnDevice(Expr data, Device device) {
   static const Op& op = Op::Get("relax.hint_on_device");
   ObjectPtr<HintOnDeviceAttrs> attrs = make_object<HintOnDeviceAttrs>();
-  attrs->dev_type = static_cast<int32_t>(device.device_type);
-  attrs->dev_id = device.device_id;
+  attrs->device_type = static_cast<int32_t>(device.device_type);
+  attrs->index = device.device_id;
   return Call(op, {data}, Attrs(attrs), {});
 }
 

@@ -48,6 +48,6 @@ def run_module_via_rpc(
         session.upload(filename)
         _, filename = os.path.split(filename)
         rt_mod = session.load_module(filename)
-        dev = session.device(dev_type=dev_type, dev_id=0)
+        dev = session.device(dev_type, 0)
         nd_args = {k: ndarray.array(v, dev) for k, v in args.items()}
         return continuation(rt_mod, dev, nd_args)

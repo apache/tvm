@@ -21,7 +21,7 @@ import sys
 import os
 
 # ffi module must load first
-from tvm_ffi import register_object, register_func, get_global_func
+from tvm_ffi import register_object, register_global_func, get_global_func
 
 # top-level alias
 from .base import TVMError, __version__, _RUNTIME_ONLY

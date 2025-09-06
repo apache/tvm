@@ -25,7 +25,7 @@ from typing import Any, Callable, Optional, Sequence, Union
 
 import numpy as np
 
-from tvm_ffi import get_global_func, register_func, register_object
+from tvm_ffi import get_global_func, register_global_func, register_object
 from ..device import Device
 from ..container import ShapeTuple
 from .._tensor import Tensor
@@ -583,7 +583,7 @@ class ProcessSession(Session):
         func(config, os.getpid())
 
 
-@register_func("runtime.disco.create_socket_session_local_workers")
+@register_global_func("runtime.disco.create_socket_session_local_workers")
 def _create_socket_session_local_workers(num_workers) -> Session:
     """Create the local session for each distributed node over socket session."""
     return ProcessSession(num_workers)
@@ -611,7 +611,7 @@ class SocketSession(Session):
         )
 
 
-@register_func("runtime.disco._configure_structlog")
+@register_global_func("runtime.disco._configure_structlog")
 def _configure_structlog(pickled_config: bytes, parent_pid: int) -> None:
     """Configure structlog for all disco workers
 
@@ -646,7 +646,7 @@ def _configure_structlog(pickled_config: bytes, parent_pid: int) -> None:
     structlog.configure(**structlog_config)
 
 
-@register_func("runtime.disco._import_python_module")
+@register_global_func("runtime.disco._import_python_module")
 def _import_python_module(module_name: str) -> None:
     __import__(module_name)
 

@@ -15,33 +15,55 @@
     specific language governing permissions and limitations
     under the License.
 
-Apache TVM FFI Documentation
-============================
+Python API
+==========
 
-.. toctree::
-   :maxdepth: 1
-   :caption: Get Started
+.. automodule:: tvm_ffi
+  :no-members:
 
-   get_started/install.md
-   get_started/quick_start.md
+.. currentmodule:: tvm_ffi
 
-.. toctree::
-   :maxdepth: 1
-   :caption: Guides
+Object
+------
+.. autosummary::
+  :toctree: generated/
 
-   guides/packaging.md
-   guides/cpp_guide.md
-   guides/python_guide.md
+  Object
+  register_object
 
 
-.. toctree::
-   :maxdepth: 1
-   :caption: Concepts
+Function and Module
+-------------------
+.. autosummary::
+  :toctree: generated/
 
-   concepts/abi_overview.md
 
-.. toctree::
-   :maxdepth: 1
-   :caption: Reference
+  Function
+  Module
+  register_global_func
+  get_global_func
+  system_lib
+  load_module
+  init_ffi_api
+  register_error
+  convert
 
-   reference/python/index.rst
+
+Tensor
+------
+.. autosummary::
+  :toctree: generated/
+
+  Shape
+  Tensor
+  Device
+  from_dlpack
+
+
+Containers
+----------
+.. autosummary::
+  :toctree: generated/
+
+  Array
+  Map

@@ -35,7 +35,7 @@ def create(symbol, compiled_model_path, device):
     coreml_runtime : CoreMLModule
         Runtime coreml module that can be used to execute the coreml model.
     """
-    device_type = device.device_type
+    device_type = device.dlpack_device_type()
     runtime_func = "tvm.coreml_runtime.create"
 
     if device_type >= rpc_base.RPC_SESS_MASK:

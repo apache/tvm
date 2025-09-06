@@ -182,7 +182,7 @@ def test_array():
 
 
 def test_env_func():
-    @tvm.register_func("test.sequal.env_func")
+    @tvm.register_global_func("test.sequal.env_func")
     def test(x):
         return x + 1
 

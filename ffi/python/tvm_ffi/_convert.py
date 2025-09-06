@@ -33,6 +33,12 @@ def convert(value: Any) -> Any:
     -------
     ffi_obj : Any
         The converted TVM FFI object.
+
+    Note
+    ----
+    Function arguments to ffi function calls are
+    automatically converted. So this function is mainly
+    only used in internal or testing scenarios.
     """
     if isinstance(value, core.Object):
         return value
@@ -48,7 +54,7 @@ def convert(value: Any) -> Any:
         return core.String(value)
     elif isinstance(value, (bytes, bytearray)):
         return core.Bytes(value)
-    elif isinstance(value, core.ObjectGeneric):
+    elif isinstance(value, core.ObjectConvertible):
         return value.asobject()
     elif callable(value):
         return core._convert_to_ffi_func(value)

@@ -204,7 +204,7 @@ _LIB = _load_lib()
 
 Effectively, it leverages the `tvm_ffi.load_module` call to load the library
 extension DLL shipped along with the package. The `_ffi_api.py` contains a function
-call to `tvm_ffi._init_api` that registers all global functions prefixed
+call to `tvm_ffi.init_ffi_api` that registers all global functions prefixed
 with `my_ffi_extension` into the module.
 
 ```python
@@ -214,7 +214,7 @@ from .base import _LIB
 
 # Register all global functions prefixed with 'my_ffi_extension.'
 # This makes functions registered via TVM_FFI_STATIC_INIT_BLOCK available
-tvm_ffi._init_api("my_ffi_extension", __name__)
+tvm_ffi.init_ffi_api("my_ffi_extension", __name__)
 ```
 
 Then we can redirect the calls to the related functions.

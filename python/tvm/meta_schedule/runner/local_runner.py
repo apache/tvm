@@ -148,7 +148,7 @@ def _worker_func(
             rt_mod = tvm.runtime.load_module(artifact_path)
         # Step 2: Allocate input arguments
         with Profiler.timeit("LocalRunner/alloc_argument"):
-            device = tvm.runtime.device(dev_type=device_type, dev_id=0)
+            device = tvm.runtime.device(device_type, 0)
             repeated_args: List[T_ARGUMENT_LIST] = f_alloc_argument(
                 device,
                 args_info,
@@ -392,7 +392,7 @@ def default_cleanup() -> None:
     pass  # pylint: disable=unnecessary-pass
 
 
-@tvm.register_func("meta_schedule.runner.get_local_runner")
+@tvm.register_global_func("meta_schedule.runner.get_local_runner")
 def get_local_builder() -> LocalRunner:
     """Get the local Runner.
 

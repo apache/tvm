@@ -164,9 +164,9 @@ print(vm["forward"](tvm_data, *params).numpy())
 #   .. code-block:: Python
 #
 #       # Convert PyTorch tensor to TVM Tensor
-#       x_tvm = tvm.runtime.from_dlpack(x_torch.to_dlpack())
+#       x_tvm = tvm.runtime.from_dlpack(x_torch)
 #       # Convert TVM Tensor to PyTorch tensor
-#       x_torch = torch.from_dlpack(x_tvm.to_dlpack())
+#       x_torch = torch.from_dlpack(x_tvm)
 #
 # - TVM runtime works in non-python environments, so it works on settings such as mobile
 #

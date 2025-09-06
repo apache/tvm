@@ -144,8 +144,9 @@ TVM_FFI_DLL_EXPORT_TYPED_FUNC(add_one_cuda, tvm_ffi_example::AddOneCUDA);
 ### Working with PyTorch
 
 Atfer build, we will create library such as `build/add_one_cuda.so`, that can be loaded by
-with api `tvm_ffi.load_module`. Then the function will become available as property of the loaded module.
-The tensor arguments in the ffi functions automatically consumes torch.Tensor. The following code shows how
+with api {py:func}`tvm_ffi.load_module` that returns a {py:class}`tvm_ffi.Module`
+Then the function will become available as property of the loaded module.
+The tensor arguments in the ffi functions automatically consumes `torch.Tensor`. The following code shows how
 to use the function in torch.
 
 ```python

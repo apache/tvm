@@ -205,7 +205,9 @@ def build(
     if target is not None:
         if target.host is not None:
             target_host = target.host
-        elif tvm.device(target.kind.name, 0).device_type == tvm.cpu(0).device_type:
+        elif (
+            tvm.device(target.kind.name, 0).dlpack_device_type() == tvm.cpu(0).dlpack_device_type()
+        ):
             target_host = target
     target_host = Target.canon_target(target_host)
     target_to_bind = target_to_bind.with_host(target_host)
@@ -237,4 +239,4 @@ def build(
     return tir_to_runtime(host_mod, device_mod_dict, target_host)
 
 
-tvm.register_func("tir.build", build)
+tvm.register_global_func("tir.build", build)

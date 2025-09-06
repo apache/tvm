@@ -17,4 +17,4 @@
 """FFI for Rocm TOPI ops and schedules"""
 import tvm_ffi
 
-tvm_ffi._init_api("topi.rocm", "tvm.topi.cpp.rocm")
+tvm_ffi.init_ffi_api("topi.rocm", "tvm.topi.cpp.rocm")

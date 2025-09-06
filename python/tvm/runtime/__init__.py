@@ -16,13 +16,14 @@
 # under the License.
 """TVM runtime namespace."""
 
-from tvm_ffi import convert, dtype as DataType, DataTypeCode
+from tvm_ffi import convert
+from tvm_ffi._dtype import dtype as DataType, DataTypeCode
 
 # class exposures
 from .packed_func import PackedFunc
 from .object import Object
 from .script_printer import Scriptable
-from .object_generic import ObjectGeneric
+from .object_generic import ObjectConvertible
 from .device import Device
 from ._tensor import Tensor, tensor, empty
 from .module import Module

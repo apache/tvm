@@ -20,4 +20,4 @@ import tvm_ffi
 
 from . import yolo
 
-tvm_ffi._init_api("topi.vision", "tvm.topi.cpp.vision")
+tvm_ffi.init_ffi_api("topi.vision", "tvm.topi.cpp.vision")

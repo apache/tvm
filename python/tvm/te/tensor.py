@@ -18,13 +18,13 @@
 # pylint: disable=invalid-name
 import tvm_ffi
 
-from tvm.runtime import Object, ObjectGeneric
+from tvm.runtime import Object, ObjectConvertible
 from tvm.tir import expr as _expr, DataProducer
 
 from . import _ffi_api
 
 
-class TensorSlice(ObjectGeneric, _expr.ExprOp):
+class TensorSlice(ObjectConvertible, _expr.ExprOp):
     """Auxiliary data structure for enable slicing syntax from tensor."""
 
     def __init__(self, tensor, indices):

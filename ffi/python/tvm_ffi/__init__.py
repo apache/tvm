@@ -20,17 +20,21 @@ from . import base
 from . import libinfo
 
 # package init part
-from .registry import register_object, register_func, get_global_func, _init_api
-from .dtype import dtype, DataTypeCode
-from .core import String, Bytes
-from .core import Object, ObjectGeneric, Function
-from .convert import convert
+from .registry import (
+    register_object,
+    register_global_func,
+    get_global_func,
+    remove_global_func,
+    init_ffi_api,
+)
+from ._dtype import dtype
+from .core import Object, ObjectConvertible, Function
+from ._convert import convert
 from .error import register_error
-from .tensor import Device, device
-from .tensor import cpu, cuda, rocm, opencl, metal, vpi, vulkan, ext_dev, hexagon, webgpu
-from .tensor import from_dlpack, Tensor, Shape
+from ._tensor import Device, device, DLDeviceType
+from ._tensor import from_dlpack, Tensor, Shape
 from .container import Array, Map
-from .module import Module, ModulePropertyMask, system_lib, load_module
+from .module import Module, system_lib, load_module
 from . import serialization
 from . import access_path
 from . import testing
@@ -38,32 +42,21 @@ from . import testing
 
 __all__ = [
     "dtype",
-    "DataTypeCode",
     "Device",
     "Object",
     "register_object",
-    "register_func",
+    "register_global_func",
     "get_global_func",
-    "_init_api",
+    "remove_global_func",
+    "init_ffi_api",
     "Object",
-    "ObjectGeneric",
+    "ObjectConvertible",
     "Function",
     "convert",
-    "String",
-    "Bytes",
     "register_error",
     "Device",
     "device",
-    "cpu",
-    "cuda",
-    "rocm",
-    "opencl",
-    "metal",
-    "vpi",
-    "vulkan",
-    "ext_dev",
-    "hexagon",
-    "webgpu",
+    "DLDeviceType",
     "from_dlpack",
     "Tensor",
     "Shape",
@@ -73,7 +66,6 @@ __all__ = [
     "access_path",
     "serialization",
     "Module",
-    "ModulePropertyMask",
     "system_lib",
     "load_module",
 ]

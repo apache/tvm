@@ -17,4 +17,4 @@
 """FFI for x86 TOPI ops and schedules"""
 import tvm_ffi
 
-tvm_ffi._init_api("topi.x86", "tvm.topi.cpp.x86")
+tvm_ffi.init_ffi_api("topi.x86", "tvm.topi.cpp.x86")
