@@ -30,8 +30,8 @@ from tvm_ffi.module import Module
 def test_load_inline_cpp():
     mod: Module = tvm_ffi.cpp.load_inline(
         name="hello",
-        cpp_source=r"""
-            void AddOne(DLTensor* x, DLTensor* y) {
+        cpp_sources=r"""
+            void add_one_cpu(DLTensor* x, DLTensor* y) {
               // implementation of a library function
               TVM_FFI_ICHECK(x->ndim == 1) << "x must be a 1D tensor";
               DLDataType f32_dtype{kDLFloat, 32, 1};
@@ -44,7 +44,7 @@ def test_load_inline_cpp():
               }
             }
         """,
-        cpp_functions={"add_one_cpu": "AddOne"},
+        functions=["add_one_cpu"],
     )
 
     x = numpy.array([1, 2, 3, 4, 5], dtype=numpy.float32)
@@ -53,11 +53,111 @@ def test_load_inline_cpp():
     numpy.testing.assert_equal(x + 1, y)
 
 
-@pytest.mark.skip(reason="Requires CUDA")
+def test_load_inline_cpp_with_docstrings():
+    mod: Module = tvm_ffi.cpp.load_inline(
+        name="hello",
+        cpp_sources=r"""
+            void add_one_cpu(DLTensor* x, DLTensor* y) {
+              // implementation of a library function
+              TVM_FFI_ICHECK(x->ndim == 1) << "x must be a 1D tensor";
+              DLDataType f32_dtype{kDLFloat, 32, 1};
+              TVM_FFI_ICHECK(x->dtype == f32_dtype) << "x must be a float tensor";
+              TVM_FFI_ICHECK(y->ndim == 1) << "y must be a 1D tensor";
+              TVM_FFI_ICHECK(y->dtype == f32_dtype) << "y must be a float tensor";
+              TVM_FFI_ICHECK(x->shape[0] == y->shape[0]) << "x and y must have the same shape";
+              for (int i = 0; i < x->shape[0]; ++i) {
+                static_cast<float*>(y->data)[i] = static_cast<float*>(x->data)[i] + 1;
+              }
+            }
+        """,
+        functions={"add_one_cpu": "add two float32 1D tensors element-wise"},
+    )
+
+    x = numpy.array([1, 2, 3, 4, 5], dtype=numpy.float32)
+    y = numpy.empty_like(x)
+    mod.add_one_cpu(x, y)
+    numpy.testing.assert_equal(x + 1, y)
+
+
+def test_load_inline_cpp_multiple_sources():
+    mod: Module = tvm_ffi.cpp.load_inline(
+        name="hello",
+        cpp_sources=[
+            r"""
+            void add_one_cpu(DLTensor* x, DLTensor* y) {
+              // implementation of a library function
+              TVM_FFI_ICHECK(x->ndim == 1) << "x must be a 1D tensor";
+              DLDataType f32_dtype{kDLFloat, 32, 1};
+              TVM_FFI_ICHECK(x->dtype == f32_dtype) << "x must be a float tensor";
+              TVM_FFI_ICHECK(y->ndim == 1) << "y must be a 1D tensor";
+              TVM_FFI_ICHECK(y->dtype == f32_dtype) << "y must be a float tensor";
+              TVM_FFI_ICHECK(x->shape[0] == y->shape[0]) << "x and y must have the same shape";
+              for (int i = 0; i < x->shape[0]; ++i) {
+                static_cast<float*>(y->data)[i] = static_cast<float*>(x->data)[i] + 1;
+              }
+            }
+        """,
+            r"""
+            void add_two_cpu(DLTensor* x, DLTensor* y) {
+              // implementation of a library function
+              TVM_FFI_ICHECK(x->ndim == 1) << "x must be a 1D tensor";
+              DLDataType f32_dtype{kDLFloat, 32, 1};
+              TVM_FFI_ICHECK(x->dtype == f32_dtype) << "x must be a float tensor";
+              TVM_FFI_ICHECK(y->ndim == 1) << "y must be a 1D tensor";
+              TVM_FFI_ICHECK(y->dtype == f32_dtype) << "y must be a float tensor";
+              TVM_FFI_ICHECK(x->shape[0] == y->shape[0]) << "x and y must have the same shape";
+              for (int i = 0; i < x->shape[0]; ++i) {
+                static_cast<float*>(y->data)[i] = static_cast<float*>(x->data)[i] + 2;
+              }
+            }
+        """,
+        ],
+        functions=["add_one_cpu", "add_two_cpu"],
+    )
+
+    x = numpy.array([1, 2, 3, 4, 5], dtype=numpy.float32)
+    y = numpy.empty_like(x)
+    mod.add_one_cpu(x, y)
+    numpy.testing.assert_equal(x + 1, y)
+
+
+def test_load_inline_cpp_build_dir():
+    mod: Module = tvm_ffi.cpp.load_inline(
+        name="hello",
+        cpp_sources=r"""
+            void add_one_cpu(DLTensor* x, DLTensor* y) {
+              // implementation of a library function
+              TVM_FFI_ICHECK(x->ndim == 1) << "x must be a 1D tensor";
+              DLDataType f32_dtype{kDLFloat, 32, 1};
+              TVM_FFI_ICHECK(x->dtype == f32_dtype) << "x must be a float tensor";
+              TVM_FFI_ICHECK(y->ndim == 1) << "y must be a 1D tensor";
+              TVM_FFI_ICHECK(y->dtype == f32_dtype) << "y must be a float tensor";
+              TVM_FFI_ICHECK(x->shape[0] == y->shape[0]) << "x and y must have the same shape";
+              for (int i = 0; i < x->shape[0]; ++i) {
+                static_cast<float*>(y->data)[i] = static_cast<float*>(x->data)[i] + 1;
+              }
+            }
+        """,
+        functions=["add_one_cpu"],
+        build_directory="./build_add_one",
+    )
+
+    x = numpy.array([1, 2, 3, 4, 5], dtype=numpy.float32)
+    y = numpy.empty_like(x)
+    mod.add_one_cpu(x, y)
+    numpy.testing.assert_equal(x + 1, y)
+
+
+@pytest.mark.skipif(
+    torch is None or not torch.cuda.is_available(), reason="Requires torch and CUDA"
+)
 def test_load_inline_cuda():
     mod: Module = tvm_ffi.cpp.load_inline(
         name="hello",
-        cuda_source=r"""
+        cpp_sources=r"""
+            void add_one_cuda(DLTensor* x, DLTensor* y);
+        """,
+        cuda_sources=r"""
             __global__ void AddOneKernel(float* x, float* y, int n) {
               int idx = blockIdx.x * blockDim.x + threadIdx.x;
               if (idx < n) {
@@ -65,7 +165,7 @@ def test_load_inline_cuda():
               }
             }
 
-            void AddOneCUDA(DLTensor* x, DLTensor* y) {
+            void add_one_cuda(DLTensor* x, DLTensor* y) {
               // implementation of a library function
               TVM_FFI_ICHECK(x->ndim == 1) << "x must be a 1D tensor";
               DLDataType f32_dtype{kDLFloat, 32, 1};
@@ -87,7 +187,7 @@ def test_load_inline_cuda():
                                                                      static_cast<float*>(y->data), n);
             }
         """,
-        cuda_functions={"add_one_cuda": "AddOneCUDA"},
+        functions=["add_one_cuda"],
     )
 
     if torch is not None:
@@ -97,12 +197,14 @@ def test_load_inline_cuda():
         torch.testing.assert_close(x_cuda + 1, y_cuda)
 
 
-@pytest.mark.skip(reason="Requires CUDA")
+@pytest.mark.skipif(
+    torch is None or not torch.cuda.is_available(), reason="Requires torch and CUDA"
+)
 def test_load_inline_both():
     mod: Module = tvm_ffi.cpp.load_inline(
         name="hello",
-        cpp_source=r"""
-            void AddOne(DLTensor* x, DLTensor* y) {
+        cpp_sources=r"""
+            void add_one_cpu(DLTensor* x, DLTensor* y) {
               // implementation of a library function
               TVM_FFI_ICHECK(x->ndim == 1) << "x must be a 1D tensor";
               DLDataType f32_dtype{kDLFloat, 32, 1};
@@ -114,8 +216,10 @@ def test_load_inline_both():
                 static_cast<float*>(y->data)[i] = static_cast<float*>(x->data)[i] + 1;
               }
             }
+
+            void add_one_cuda(DLTensor* x, DLTensor* y);
         """,
-        cuda_source=r"""
+        cuda_sources=r"""
             __global__ void AddOneKernel(float* x, float* y, int n) {
               int idx = blockIdx.x * blockDim.x + threadIdx.x;
               if (idx < n) {
@@ -123,7 +227,7 @@ def test_load_inline_both():
               }
             }
 
-            void AddOneCUDA(DLTensor* x, DLTensor* y) {
+            void add_one_cuda(DLTensor* x, DLTensor* y) {
               // implementation of a library function
               TVM_FFI_ICHECK(x->ndim == 1) << "x must be a 1D tensor";
               DLDataType f32_dtype{kDLFloat, 32, 1};
@@ -145,8 +249,7 @@ def test_load_inline_both():
                                                                      static_cast<float*>(y->data), n);
             }
         """,
-        cpp_functions={"add_one_cpu": "AddOne"},
-        cuda_functions={"add_one_cuda": "AddOneCUDA"},
+        functions=["add_one_cpu", "add_one_cuda"],
     )
 
     x = numpy.array([1, 2, 3, 4, 5], dtype=numpy.float32)
@@ -154,8 +257,7 @@ def test_load_inline_both():
     mod.add_one_cpu(x, y)
     numpy.testing.assert_equal(x + 1, y)
 
-    if torch is not None:
-        x_cuda = torch.asarray([1, 2, 3, 4, 5], dtype=torch.float32, device="cuda")
-        y_cuda = torch.empty_like(x_cuda)
-        mod.add_one_cuda(x_cuda, y_cuda)
-        torch.testing.assert_close(x_cuda + 1, y_cuda)
+    x_cuda = torch.asarray([1, 2, 3, 4, 5], dtype=torch.float32, device="cuda")
+    y_cuda = torch.empty_like(x_cuda)
+    mod.add_one_cuda(x_cuda, y_cuda)
+    torch.testing.assert_close(x_cuda + 1, y_cuda)
