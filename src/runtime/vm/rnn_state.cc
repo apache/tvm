@@ -396,6 +396,7 @@ class RNNStateImpObj : public RNNStateObj {
     _state.byte_offset = elem_offset * state->dtype.bits / 8;
     _state.ndim = state->ndim - 2;
     _state.shape = const_cast<int64_t*>(_state.shape + 2);
+    _state.strides = const_cast<int64_t*>(_state.strides + 2);
     return _state;
   }
 
@@ -411,6 +412,7 @@ class RNNStateImpObj : public RNNStateObj {
     _state.byte_offset = elem_offset * state->dtype.bits / 8;
     _state.ndim = state->ndim - 1;
     _state.shape = const_cast<int64_t*>(_state.shape + 1);
+    _state.strides = const_cast<int64_t*>(_state.strides + 1);
     return _state;
   }
 
@@ -428,7 +430,7 @@ class RNNStateImpObj : public RNNStateObj {
       copy_src.ndim = 1;
       copy_src.dtype = array->dtype;
       copy_src.shape = array->shape;
-      copy_src.strides = nullptr;
+      copy_src.strides = array->strides;
       copy_src.byte_offset = 0;
       NDArray::CopyFromTo(&copy_src, &copy_dst);
     };
