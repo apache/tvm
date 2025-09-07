@@ -166,6 +166,8 @@ class Postproc : public runtime::ObjectRef {
   TVM_DLL static Array<Postproc, void> DefaultLLVM();
   /*! \brief Create default postprocessors for x86 (AVX512 and VNNI) */
   TVM_DLL static Array<Postproc, void> DefaultCPUTensorization();
+  /*! \brief Create default postprocessors for RISCV */
+  TVM_DLL static Array<Postproc, void> DefaultRISCV();
   /*! \brief Create default postprocessors for CUDA */
   TVM_DLL static Array<Postproc, void> DefaultCUDA();
   /*! \brief Create default postprocessors for CUDA with TensorCore */

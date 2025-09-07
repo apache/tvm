@@ -39,6 +39,10 @@ String GetRuleKindFromTarget(const Target& target) {
         return "avx512";
       }
     }
+    bool have_rvv = target_has_feature_fn_ptr("v", target).cast<bool>();
+    if (have_rvv) {
+      return "rvv";
+    }
 
     TargetJSON target_json = target::parsers::aprofile::ParseTarget(target->Export());
     TargetFeatures afeatures = Downcast<TargetFeatures>(target_json.at("features"));
@@ -116,6 +120,13 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
     } else if (kind == "avx512") {
       default_sch_rules = ScheduleRule::DefaultX86("avx512");
       default_postprocs = Postproc::DefaultCPUTensorization();
+      default_mutator_probs = Mutator::DefaultLLVM();
+    } else if (kind == "rvv") {
+      static auto llvm_get_vector_width =
+          tvm::ffi::Function::GetGlobalRequired("target.llvm_get_vector_width");
+      const int vlen = llvm_get_vector_width(context->target.value()).cast<int>();
+      default_sch_rules = ScheduleRule::DefaultRISCV(vlen);
+      default_postprocs = Postproc::DefaultRISCV();
       default_mutator_probs = Mutator::DefaultLLVM();
     } else if (kind == "asimd") {
       default_sch_rules = ScheduleRule::DefaultARM("neon");

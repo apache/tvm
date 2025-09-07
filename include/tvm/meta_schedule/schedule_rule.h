@@ -301,6 +301,8 @@ class ScheduleRule : public runtime::ObjectRef {
   TVM_DLL static Array<ScheduleRule, void> DefaultHexagon();
   /*! \brief Create default schedule rules for ARM CPU (NEON and DOTPROD) */
   TVM_DLL static Array<ScheduleRule, void> DefaultARM(const String& type);
+  /*! \brief Create default schedule rules for RISCV CPU (RVV) */
+  TVM_DLL static Array<ScheduleRule, void> DefaultRISCV(int vlen);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ScheduleRule, ObjectRef, ScheduleRuleNode);
 };
