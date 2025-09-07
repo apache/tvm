@@ -42,8 +42,9 @@ GitHub = "https://github.com/apache/tvm/ffi"
 
 [project.optional-dependencies]
 # setup tools is needed by torch jit for best perf
-torch = ["torch", "setuptools"]
-test = ["pytest", "numpy", "torch"]
+torch = ["torch", "setuptools", "ninja"]
+cpp = ["ninja"]
+test = ["pytest", "numpy", "torch", "ninja"]
 
 [project.scripts]
 tvm-ffi-config = "tvm_ffi.config:__main__"
