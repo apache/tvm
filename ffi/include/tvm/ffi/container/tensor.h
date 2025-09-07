@@ -151,7 +151,7 @@ class TensorObj : public Object, public DLTensor {
  protected:
   // backs up the shape/strides
   Optional<Shape> shape_data_;
-  Optional<Shape> stride_data_;
+  Optional<Shape> strides_data_;
 
   static void DLManagedTensorDeleter(DLManagedTensor* tensor) {
     TensorObj* obj = static_cast<TensorObj*>(tensor->manager_ctx);
@@ -189,7 +189,7 @@ class TensorObjFromNDAlloc : public TensorObj {
     this->strides = const_cast<int64_t*>(strides.data());
     this->byte_offset = 0;
     this->shape_data_ = std::move(shape);
-    this->stride_data_ = std::move(strides);
+    this->strides_data_ = std::move(strides);
     alloc_.AllocData(static_cast<DLTensor*>(this), std::forward<ExtraArgs>(extra_args)...);
   }
 
@@ -208,7 +208,7 @@ class TensorObjFromDLPack : public TensorObj {
     if (tensor_->dl_tensor.strides == nullptr) {
       Shape strides = Shape(details::MakeStridesFromShape(ndim, shape));
       this->strides = const_cast<int64_t*>(strides.data());
-      this->stride_data_ = std::move(strides);
+      this->strides_data_ = std::move(strides);
     }
   }
 
@@ -243,6 +243,18 @@ class Tensor : public ObjectRef {
       obj->shape_data_ = tvm::ffi::Shape(obj->shape, obj->shape + obj->ndim);
     }
     return *(obj->shape_data_);
+  }
+  /*!
+   * \brief Get the strides of the Tensor.
+   * \return The strides of the Tensor.
+   */
+  tvm::ffi::Shape strides() const {
+    TensorObj* obj = get_mutable();
+    TVM_FFI_ICHECK(obj->strides != nullptr);
+    if (!obj->strides_data_.has_value()) {
+      obj->strides_data_ = tvm::ffi::Shape(obj->strides, obj->strides + obj->ndim);
+    }
+    return *(obj->strides_data_);
   }
   /*!
    * \brief Get the data type of the Tensor.

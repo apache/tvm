@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/extra/c_env_api.h>
@@ -30,7 +31,7 @@ __global__ void AddOneKernel(float* x, float* y, int n) {
   }
 }
 
-void AddOneCUDA(DLTensor* x, DLTensor* y) {
+void AddOneCUDA(tvm::ffi::Tensor x, tvm::ffi::Tensor y) {
   // implementation of a library function
   TVM_FFI_ICHECK(x->ndim == 1) << "x must be a 1D tensor";
   DLDataType f32_dtype{kDLFloat, 32, 1};

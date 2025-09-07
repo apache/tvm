@@ -24,6 +24,7 @@
  * The library is written in C++ and can be compiled into a shared library.
  * The shared library can then be loaded into python and used to call the functions.
  */
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
@@ -43,7 +44,7 @@ namespace ffi = tvm::ffi;
  */
 void RaiseError(ffi::String msg) { TVM_FFI_THROW(RuntimeError) << msg; }
 
-void AddOne(DLTensor* x, DLTensor* y) {
+void AddOne(ffi::Tensor x, ffi::Tensor y) {
   // implementation of a library function
   TVM_FFI_ICHECK(x->ndim == 1) << "x must be a 1D tensor";
   DLDataType f32_dtype{kDLFloat, 32, 1};

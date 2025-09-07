@@ -35,10 +35,15 @@ inline Tensor Empty(Shape shape, DLDataType dtype, DLDevice device) {
 TEST(Tensor, Basic) {
   Tensor nd = Empty(Shape({1, 2, 3}), DLDataType({kDLFloat, 32, 1}), DLDevice({kDLCPU, 0}));
   Shape shape = nd.shape();
+  Shape strides = nd.strides();
   EXPECT_EQ(shape.size(), 3);
   EXPECT_EQ(shape[0], 1);
   EXPECT_EQ(shape[1], 2);
   EXPECT_EQ(shape[2], 3);
+  EXPECT_EQ(strides.size(), 3);
+  EXPECT_EQ(strides[0], 6);
+  EXPECT_EQ(strides[1], 3);
+  EXPECT_EQ(strides[2], 1);
   EXPECT_EQ(nd.dtype(), DLDataType({kDLFloat, 32, 1}));
   for (int64_t i = 0; i < shape.Product(); ++i) {
     reinterpret_cast<float*>(nd->data)[i] = static_cast<float>(i);
@@ -47,6 +52,7 @@ TEST(Tensor, Basic) {
   Any any0 = nd;
   Tensor nd2 = any0.as<Tensor>().value();
   EXPECT_EQ(nd2.shape(), shape);
+  EXPECT_EQ(nd2.strides(), strides);
   EXPECT_EQ(nd2.dtype(), DLDataType({kDLFloat, 32, 1}));
   for (int64_t i = 0; i < shape.Product(); ++i) {
     EXPECT_EQ(reinterpret_cast<float*>(nd2->data)[i], i);
