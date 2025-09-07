@@ -195,7 +195,7 @@ class TensorflowRunner(ModelRunner):
                 "Load native model {} with type {} is not supported".format(model, type(model))
             )
         device_protos = device_lib.list_local_devices()
-        if any(dev.device_type == "GPU" for dev in device_protos):
+        if any(dev.dlpack_device_type() == "GPU" for dev in device_protos):
             device = "cuda"
         else:
             device = "cpu"
@@ -301,5 +301,5 @@ class TensorflowRunner(ModelRunner):
             return True
         if device.startswith("cuda"):
             device_protos = device_lib.list_local_devices()
-            return any(dev.device_type == "GPU" for dev in device_protos)
+            return any(dev.dlpack_device_type() == "GPU" for dev in device_protos)
         return False

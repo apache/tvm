@@ -191,7 +191,7 @@ from tvm.relax.op.builtin import stop_lift_params
 from tvm.relax.struct_info import StructInfo
 from tvm.relax.utils import args_converter, gen_call_tir_inputs
 from tvm.runtime import Object as tvm_Object
-from tvm.runtime import ObjectGeneric
+from tvm.runtime import ObjectConvertible
 from tvm.runtime._tensor import (
     cpu,
     cuda,
@@ -431,7 +431,7 @@ def call_packed(
             sinfo()
             if callable(sinfo)
             else sinfo.asobject()
-            if isinstance(sinfo, ObjectGeneric)
+            if isinstance(sinfo, ObjectConvertible)
             else sinfo
         )
         for sinfo in sinfo_args
@@ -462,7 +462,7 @@ def _sinfo_arg_wrapper(func):
             return {_convert_tensor_type(k): _convert_tensor_type(v) for k, v in args.items()}
         if inspect.isfunction(args):
             args = args()
-        if isinstance(args, ObjectGeneric):
+        if isinstance(args, ObjectConvertible):
             args = args.asobject()
         return args
 

@@ -22,7 +22,7 @@ from . import core
 
 
 class DataTypeCode(IntEnum):
-    """DataType code in DLTensor."""
+    """DLDataTypeCode code in DLTensor."""
 
     INT = 0
     UINT = 1
@@ -57,7 +57,7 @@ class dtype(str):
 
     __slots__ = ["__tvm_ffi_dtype__"]
 
-    NUMPY_DTYPE_TO_STR = {}
+    _NUMPY_DTYPE_TO_STR = {}
 
     def __new__(cls, content):
         content = str(content)
@@ -111,30 +111,30 @@ try:
     # although almost in all cases we want numpy
     import numpy as np
 
-    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.bool_)] = "bool"
-    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.int8)] = "int8"
-    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.int16)] = "int16"
-    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.int32)] = "int32"
-    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.int64)] = "int64"
-    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.uint8)] = "uint8"
-    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.uint16)] = "uint16"
-    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.uint32)] = "uint32"
-    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.uint64)] = "uint64"
-    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.float16)] = "float16"
-    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.float32)] = "float32"
-    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.float64)] = "float64"
+    dtype._NUMPY_DTYPE_TO_STR[np.dtype(np.bool_)] = "bool"
+    dtype._NUMPY_DTYPE_TO_STR[np.dtype(np.int8)] = "int8"
+    dtype._NUMPY_DTYPE_TO_STR[np.dtype(np.int16)] = "int16"
+    dtype._NUMPY_DTYPE_TO_STR[np.dtype(np.int32)] = "int32"
+    dtype._NUMPY_DTYPE_TO_STR[np.dtype(np.int64)] = "int64"
+    dtype._NUMPY_DTYPE_TO_STR[np.dtype(np.uint8)] = "uint8"
+    dtype._NUMPY_DTYPE_TO_STR[np.dtype(np.uint16)] = "uint16"
+    dtype._NUMPY_DTYPE_TO_STR[np.dtype(np.uint32)] = "uint32"
+    dtype._NUMPY_DTYPE_TO_STR[np.dtype(np.uint64)] = "uint64"
+    dtype._NUMPY_DTYPE_TO_STR[np.dtype(np.float16)] = "float16"
+    dtype._NUMPY_DTYPE_TO_STR[np.dtype(np.float32)] = "float32"
+    dtype._NUMPY_DTYPE_TO_STR[np.dtype(np.float64)] = "float64"
     if hasattr(np, "float_"):
-        dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.float_)] = "float64"
+        dtype._NUMPY_DTYPE_TO_STR[np.dtype(np.float_)] = "float64"
 except ImportError:
     pass
 
 try:
     import ml_dtypes
 
-    dtype.NUMPY_DTYPE_TO_STR[np.dtype(ml_dtypes.bfloat16)] = "bfloat16"
-    dtype.NUMPY_DTYPE_TO_STR[np.dtype(ml_dtypes.float8_e4m3fn)] = "float8_e4m3fn"
-    dtype.NUMPY_DTYPE_TO_STR[np.dtype(ml_dtypes.float8_e5m2)] = "float8_e5m2"
-    dtype.NUMPY_DTYPE_TO_STR[np.dtype(ml_dtypes.float4_e2m1fn)] = "float4_e2m1fn"
+    dtype._NUMPY_DTYPE_TO_STR[np.dtype(ml_dtypes.bfloat16)] = "bfloat16"
+    dtype._NUMPY_DTYPE_TO_STR[np.dtype(ml_dtypes.float8_e4m3fn)] = "float8_e4m3fn"
+    dtype._NUMPY_DTYPE_TO_STR[np.dtype(ml_dtypes.float8_e5m2)] = "float8_e5m2"
+    dtype._NUMPY_DTYPE_TO_STR[np.dtype(ml_dtypes.float4_e2m1fn)] = "float4_e2m1fn"
 except ImportError:
     pass
 

@@ -21,7 +21,7 @@ import warnings
 from typing import Union
 
 import tvm_ffi
-from tvm_ffi import register_func as _register_func
+from tvm_ffi import register_global_func as _register_global_func
 from tvm.runtime import Device
 from tvm.runtime import Object, convert
 from tvm.runtime.container import String
@@ -853,7 +853,7 @@ def create(target):
     return Target(target)
 
 
-@_register_func("target._load_config_dict")
+@_register_global_func("target._load_config_dict")
 def _load_config_dict(config_dict_str):
     try:
         config = json.loads(config_dict_str)

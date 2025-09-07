@@ -23,7 +23,7 @@ from typing import TypeVar
 import tvm_ffi
 
 
-@tvm_ffi.register_func("tvm.runtime.regex_match")
+@tvm_ffi.register_global_func("tvm.runtime.regex_match")
 def _regex_match(regex_pattern: str, match_against: str) -> bool:
     """Check if a pattern matches a regular expression
 

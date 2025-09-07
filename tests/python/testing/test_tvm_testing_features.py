@@ -49,7 +49,7 @@ class TestTargetAutoParametrization:
         assert sorted(self.targets_used) == sorted(self.enabled_targets)
 
     def test_all_devices_used(self):
-        sort_key = lambda dev: (dev.device_type, dev.device_id)
+        sort_key = lambda dev: (dev.dlpack_device_type(), dev.index)
         assert sorted(self.devices_used, key=sort_key) == sorted(self.enabled_devices, key=sort_key)
 
     targets_with_explicit_list = []

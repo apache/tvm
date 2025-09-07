@@ -34,6 +34,5 @@ class VirtualDevice(tvm_ffi.core.Object):
             _ffi_api.VirtualDevice_ForDeviceTargetAndMemoryScope, device, target, memory_scope
         )
 
-    @property
-    def device_type(self) -> int:
+    def dlpack_device_type(self) -> int:
         return self.device_type_int

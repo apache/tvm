@@ -25,7 +25,7 @@ import tvm
 import tvm.testing
 from tvm import dlight as dl
 from tvm import relax as rx
-from tvm_ffi import register_func
+from tvm_ffi import register_global_func
 from tvm.contrib import tvmjs
 from tvm.runtime import ShapeTuple
 from tvm.runtime import disco as di
@@ -35,19 +35,19 @@ from tvm.target import Target
 from tvm.contrib import tvmjs
 
 
-@register_func("tests.disco.shard_dim_0", override=True)
+@register_global_func("tests.disco.shard_dim_0", override=True)
 def _shard_dim_0(src, num_shards, tgt):
     s_0, s_1 = src.shape
     tgt.copyfrom(src.numpy().reshape(num_shards, s_0 // num_shards, s_1))
 
 
-@register_func("tests.disco.shard_dim_1", override=True)
+@register_global_func("tests.disco.shard_dim_1", override=True)
 def _shard_dim_1(src, num_shards, tgt):
     s_0, s_1 = src.shape
     tgt.copyfrom(src.numpy().reshape(s_0, num_shards, s_1 // num_shards).transpose(1, 0, 2))
 
 
-@register_func("tests.disco.shard_qkv_0", override=True)
+@register_global_func("tests.disco.shard_qkv_0", override=True)
 def _shard_qkv_0(src, num_shards, q_heads, kv_heads, tgt):
     total_dim, hidden_size = src.shape
     head_dim = total_dim // (q_heads + kv_heads + kv_heads)
@@ -75,7 +75,7 @@ def _shard_qkv_0(src, num_shards, q_heads, kv_heads, tgt):
     tgt.copyfrom(w_qkv)
 
 
-@register_func("tests.disco.shard_qkv_1", override=True)
+@register_global_func("tests.disco.shard_qkv_1", override=True)
 def _shard_qkv_1(src, tgt):
     s, _, _, h = src.shape  # pylint: disable=invalid-name
     tgt.copyfrom(src.numpy().reshape(s, -1, h))

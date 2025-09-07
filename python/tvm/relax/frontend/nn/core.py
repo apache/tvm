@@ -639,7 +639,7 @@ def _from_dlpack(tensor) -> tvm.runtime.Tensor:
     return tvm.runtime.tensor(
         tensor.numpy(),
         device=Device(
-            Device.DEVICE_NAME_TO_TYPE[device_type],
+            Device._DEVICE_NAME_TO_TYPE[device_type],
             device_id,
         ),
     )

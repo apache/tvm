@@ -232,4 +232,4 @@ def convolution_inference_weight_transform(
     )
 
 
-tvm_ffi._init_api("tvm.contrib.nnpack")
+tvm_ffi.init_ffi_api("tvm.contrib.nnpack")

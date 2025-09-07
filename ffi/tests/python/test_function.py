@@ -58,8 +58,8 @@ def test_echo():
     # test device
     device_result = fecho(tvm_ffi.device("cuda:1"))
     assert isinstance(device_result, tvm_ffi.Device)
-    assert device_result.device_type == tvm_ffi.Device.kDLCUDA
-    assert device_result.device_id == 1
+    assert device_result.dlpack_device_type() == tvm_ffi.DLDeviceType.kDLCUDA
+    assert device_result.index == 1
     assert str(device_result) == "cuda:1"
     assert device_result.__repr__() == "device(type='cuda', index=1)"
 
@@ -85,8 +85,8 @@ def test_echo():
         assert isinstance(tensor_result, tvm_ffi.Tensor)
         assert tensor_result.shape == (10,)
         assert tensor_result.dtype == tvm_ffi.dtype("int32")
-        assert tensor_result.device.device_type == tvm_ffi.Device.kDLCPU
-        assert tensor_result.device.device_id == 0
+        assert tensor_result.device.dlpack_device_type() == tvm_ffi.DLDeviceType.kDLCPU
+        assert tensor_result.device.index == 0
 
     check_tensor()
 
@@ -113,7 +113,7 @@ def test_pyfunc_convert():
 
 
 def test_global_func():
-    @tvm_ffi.register_func("mytest.echo")
+    @tvm_ffi.register_global_func("mytest.echo")
     def echo(x):
         return x
 

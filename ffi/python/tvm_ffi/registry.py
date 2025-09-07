@@ -60,7 +60,7 @@ def register_object(type_key=None):
     return register(type_key)
 
 
-def register_func(func_name, f=None, override=False):
+def register_global_func(func_name, f=None, override=False):
     """Register global function
 
     Parameters
@@ -78,6 +78,30 @@ def register_func(func_name, f=None, override=False):
     -------
     fregister : function
         Register function if f is not specified.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        import tvm_ffi
+
+        # we can use decorator to register a function
+        @tvm_ffi.register_global_func("mytest.echo")
+        def echo(x):
+            return x
+        # After registering, we can get the function by its name
+        f = tvm_ffi.get_global_func("mytest.echo")
+        assert f(1) == 1
+
+        # we can also directly register a function
+        tvm_ffi.register_global_func("mytest.add_one", lambda x: x + 1)
+        f = tvm_ffi.get_global_func("mytest.add_one")
+        assert f(1) == 2
+
+    See Also
+    --------
+    :py:func:`tvm_ffi.get_global_func`
+    :py:func:`tvm_ffi.remove_global_func`
     """
     if callable(func_name):
         f = func_name
@@ -110,6 +134,10 @@ def get_global_func(name, allow_missing=False):
     -------
     func : Function
         The function to be returned, None if function is missing.
+
+    See Also
+    --------
+    :py:func:`tvm_ffi.register_global_func`
     """
     return core._get_global_func(name, allow_missing)
 
@@ -138,14 +166,33 @@ def remove_global_func(name):
     get_global_func("ffi.FunctionRemoveGlobal")(name)
 
 
-def _init_api(namespace, target_module_name=None):
-    """Initialize api for a given module name
+def init_ffi_api(namespace, target_module_name=None):
+    """Initialize register ffi api  functions into a given module
 
+    Parameters
+    ----------
     namespace : str
        The namespace of the source registry
 
     target_module_name : str
        The target module name if different from namespace
+
+    Examples
+    --------
+
+    A typical usage pattern is to create a _ffi_api.py file to register
+    the functions under a given module. The following
+    code populates all registered global functions
+    prefixed with ``mypackage.`` into the current module,
+    then we can call the function through ``_ffi_api.func_name(*args)``
+    which will call into the registered global function "mypackage.func_name".
+
+    .. code-block:: python
+
+        # _ffi_api.py
+        import tvm_ffi
+
+        tvm_ffi.init_ffi_api("mypackage", __name__)
     """
     target_module_name = target_module_name if target_module_name else namespace
 
@@ -171,9 +218,9 @@ def _init_api(namespace, target_module_name=None):
 
 __all__ = [
     "register_object",
-    "register_func",
+    "register_global_func",
     "get_global_func",
     "list_global_func_names",
     "remove_global_func",
-    "_init_api",
+    "init_ffi_api",
 ]

@@ -17,4 +17,4 @@
 """FFI APIs for tvm.driver"""
 import tvm_ffi
 
-tvm_ffi._init_api("driver", __name__)
+tvm_ffi.init_ffi_api("driver", __name__)

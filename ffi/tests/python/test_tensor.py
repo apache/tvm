@@ -33,8 +33,8 @@ def test_tensor_attributes():
     assert isinstance(x, tvm_ffi.Tensor)
     assert x.shape == (10, 8, 4, 2)
     assert x.dtype == tvm_ffi.dtype("int16")
-    assert x.device.device_type == tvm_ffi.Device.kDLCPU
-    assert x.device.device_id == 0
+    assert x.device.dlpack_device_type() == tvm_ffi.DLDeviceType.kDLCPU
+    assert x.device.index == 0
     x2 = np.from_dlpack(x)
     np.testing.assert_equal(x2, data)
 
@@ -61,8 +61,8 @@ def test_tensor_auto_dlpack():
         assert isinstance(y, tvm_ffi.Tensor)
         assert y.shape == (128,)
         assert y.dtype == tvm_ffi.dtype("int64")
-        assert y.device.device_type == tvm_ffi.Device.kDLCPU
-        assert y.device.device_id == 0
+        assert y.device.dlpack_device_type() == tvm_ffi.DLDeviceType.kDLCPU
+        assert y.device.index == 0
         x2 = torch.from_dlpack(y)
         np.testing.assert_equal(x2.numpy(), x.numpy())
 

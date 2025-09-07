@@ -101,6 +101,11 @@ def from_dlpack(ext_tensor, *, required_alignment=8, required_contiguous=True):
 
     required_contiguous : bool
         Whether to check for contiguous memory.
+
+    Returns
+    -------
+    tensor : :py:class:`tvm_ffi.Tensor`
+        The converted tensor.
     """
     cdef TVMFFIObjectHandle chandle
     # as of most frameworks do not yet support v1.1
@@ -157,13 +162,9 @@ def _shape_obj_get_py_tuple(obj):
 
 
 cdef class Tensor(Object):
-    """N-dimensional array that is compatible with DLPack.
+    """Tensor object that represents a managed n-dimensional array.
     """
     cdef DLTensor* cdltensor
-
-    @property
-    def is_view(self):
-        return self.cdltensor != NULL and self.chandle == NULL
 
     @property
     def shape(self):
@@ -179,22 +180,12 @@ cdef class Tensor(Object):
 
     @property
     def device(self):
-        """Device of this array"""
+        """Device of this Tensor"""
         cdef TVMFFIAny device_any
         device_any.v_device = self.cdltensor.device
         return make_ret_device(device_any)
 
-    def to_dlpack(self):
-        """Produce an array from a DLPack Tensor without copying memory
-
-        Returns
-        -------
-        dlpack : DLPack tensor view of the array data
-
-        Note
-        ----
-        This is an old style legacy API, consider use new dlpack api instead.
-        """
+    def _to_dlpack(self):
         cdef DLManagedTensor* dltensor
         cdef int c_api_ret_code
 
@@ -248,7 +239,7 @@ cdef class Tensor(Object):
             # Keep and use the DLPack 0.X implementation
             # Note: from March 2025 onwards (but ideally as late as
             # possible), it's okay to raise BufferError here
-            return self.to_dlpack()
+            return self._to_dlpack()
         else:
             # We get to produce `DLManagedTensorVersioned` now. Note that
             # our_own_dlpack_version is the max version that the *producer*
@@ -261,7 +252,7 @@ cdef class Tensor(Object):
                     raise BufferError("copy not yet supported")
                 return self._to_dlpack_versioned()
             elif max_version[0] < 1:
-                return self.to_dlpack()
+                return self.__ctypes_handle__to_dlpack()
             else:
                 raise BufferError(f"Unsupported max_version {max_version}")
 

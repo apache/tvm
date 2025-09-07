@@ -53,7 +53,7 @@ pytestmark = pytest.mark.skipif(
     # Windows does not support fork so we can enable Windows for testing
     sys.platform.startswith("win") == False and multiprocessing.get_start_method() != "fork",
     reason=(
-        "pytest + multiprocessing spawn method causes tvm.register_func to "
+        "pytest + multiprocessing spawn method causes tvm.register_global_func to "
         "not work on the rpc.Server."
     ),
 )

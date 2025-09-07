@@ -307,7 +307,7 @@ class ExprWithOp(Expr, Scriptable):
         return tvm.relax.Call(op, [self])
 
 
-class _DLTensorDTypeProxy(tvm.runtime.ObjectGeneric):
+class _DLTensorDTypeProxy(tvm.runtime.ObjectConvertible):
     """A proxy object for unpacking DLDatatype from DLTensor
 
     Exposes accessors for `DLDataType` fields `type_code`, `lanes`,
@@ -387,7 +387,7 @@ class _DLTensorDTypeProxy(tvm.runtime.ObjectGeneric):
         return tvm.relax.Call(op, [self.tensor])
 
 
-class _DLTensorShapeProxy(tvm.runtime.ObjectGeneric):
+class _DLTensorShapeProxy(tvm.runtime.ObjectConvertible):
     """A proxy object for unpacking the shape from DLTensor
 
     Exposes accessors for the `DLTensor::shape` field.  Accessing
@@ -457,7 +457,7 @@ class _DLTensorShapeProxy(tvm.runtime.ObjectGeneric):
         return tvm.relax.Call(op, [self.tensor, axis])
 
 
-class _DLTensorStrideProxy(tvm.runtime.ObjectGeneric):
+class _DLTensorStrideProxy(tvm.runtime.ObjectConvertible):
     """A proxy object for unpacking the strides from DLTensor
 
     Exposes accessors for the `DLTensor::strides` field.  Accessing

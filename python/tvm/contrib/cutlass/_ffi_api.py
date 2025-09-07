@@ -17,4 +17,4 @@
 """FFI API for CUTLASS BYOC."""
 import tvm_ffi
 
-tvm_ffi._init_api("contrib.cutlass", __name__)
+tvm_ffi.init_ffi_api("contrib.cutlass", __name__)

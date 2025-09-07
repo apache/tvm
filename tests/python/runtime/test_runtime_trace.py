@@ -30,7 +30,7 @@ def test_trace_default_action():
 
 
 def test_trace_expr_assign():
-    @tvm.register_func("tvm.tir.trace_callback2")
+    @tvm.register_global_func("tvm.tir.trace_callback2")
     def trace_buffer(x):
         return
 
@@ -59,7 +59,7 @@ def test_trace_expr_assign():
 
 
 def test_trace_expr_sum_generated():
-    @tvm.register_func("tvm.tir.trace_callback3")
+    @tvm.register_global_func("tvm.tir.trace_callback3")
     def trace_buffer(x):
         return
 
@@ -84,7 +84,7 @@ def test_trace_expr_sum_generated():
 
 
 def test_trace_expr_sum_args():
-    @tvm.register_func("tvm.tir.trace_silent")
+    @tvm.register_global_func("tvm.tir.trace_silent")
     def silent(*args):
         return
 
@@ -118,7 +118,7 @@ def test_trace_expr_sum_args():
 
 
 def test_trace_expr_sum_custom():
-    @tvm.register_func("tvm.tir.trace_callback4")
+    @tvm.register_global_func("tvm.tir.trace_callback4")
     def trace_buffer(x):
         return
 
@@ -145,11 +145,11 @@ def test_trace_expr_sum_custom():
 
 
 def test_trace_can_change_traced_value_int():
-    @tvm.register_func("tvm.tir.trace_change_int_first")
+    @tvm.register_global_func("tvm.tir.trace_change_int_first")
     def trace_buffer(x):
         return 13
 
-    @tvm.register_func("tvm.tir.trace_change_int_second")
+    @tvm.register_global_func("tvm.tir.trace_change_int_second")
     def trace_buffer(x):
         return 14
 
@@ -174,11 +174,11 @@ def test_trace_can_change_traced_value_int():
 
 
 def test_trace_can_change_traced_value_float():
-    @tvm.register_func("tvm.tir.trace_change_float_first")
+    @tvm.register_global_func("tvm.tir.trace_change_float_first")
     def trace_buffer(x):
         return 13.0
 
-    @tvm.register_func("tvm.tir.trace_change_float_second")
+    @tvm.register_global_func("tvm.tir.trace_change_float_second")
     def trace_buffer(x):
         return 14.0
 

@@ -17,4 +17,4 @@
 """FFI for NN TOPI ops and schedules"""
 import tvm_ffi
 
-tvm_ffi._init_api("topi.nn", "tvm.topi.cpp.nn")
+tvm_ffi.init_ffi_api("topi.nn", "tvm.topi.cpp.nn")

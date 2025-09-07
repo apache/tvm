@@ -180,7 +180,7 @@ def test_func_with_trailing_pod_params():
                 vi = T.axis.spatial(16, i)
                 B[vi] = A[vi] + x
 
-    @tvm.register_func("tvm_callback_metal_compile")
+    @tvm.register_global_func("tvm_callback_metal_compile")
     def compile_metal(src, target):
         return xcode.compile_metal(src)
 

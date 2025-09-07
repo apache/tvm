@@ -79,8 +79,8 @@ def test_vm_to_device(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
     # check the resulting tensor is on cpu:0
     assert res.device == tvm.cpu(0)
-    assert res.device.device_type == 1
-    assert res.device.device_id == 0
+    assert res.device.dlpack_device_type() == 1
+    assert res.device.index == 0
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)

@@ -24,7 +24,7 @@ and the DiagnosticRenderer.
 import enum
 import tvm_ffi
 from . import _ffi_api
-from ... import get_global_func, register_func, Object
+from ... import get_global_func, register_global_func, Object
 
 
 def get_renderer():
@@ -38,7 +38,7 @@ def get_renderer():
     return _ffi_api.GetRenderer()
 
 
-@tvm_ffi.register_func("diagnostics.override_renderer")
+@tvm_ffi.register_global_func("diagnostics.override_renderer")
 def override_renderer(render_func):
     """
     Sets a custom renderer for diagnostics.
@@ -54,7 +54,7 @@ def override_renderer(render_func):
         def _render_factory():
             return DiagnosticRenderer(render_func)
 
-        register_func("diagnostics.OverrideRenderer", _render_factory, override=True)
+        register_global_func("diagnostics.OverrideRenderer", _render_factory, override=True)
     else:
         _ffi_api.ClearRenderer()
 

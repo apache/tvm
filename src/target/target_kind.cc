@@ -436,8 +436,6 @@ TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
 
 TVM_REGISTER_TARGET_KIND("ext_dev", kDLExtDev);
 
-TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU);
-
 TVM_REGISTER_TARGET_KIND("composite", kDLCPU)  // line break
     .add_attr_option<Array<Target>>("devices");
 

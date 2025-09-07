@@ -26,7 +26,7 @@ import numpy as np
 from tvm.tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 
 
-@tvm.register_func("tvm.test_matmul")
+@tvm.register_global_func("tvm.test_matmul")
 def my_matmul(a, b, c):
     c.copyfrom(np.dot(a.numpy(), b.numpy()))
 

@@ -35,7 +35,7 @@ def create(tflite_model_bytes, device, runtime_target="cpu"):
     tflite_runtime : TFLiteModule
         Runtime tflite module that can be used to execute the tflite model.
     """
-    device_type = device.device_type
+    device_type = device.dlpack_device_type()
 
     if runtime_target == "edge_tpu":
         runtime_func = "tvm.edgetpu_runtime.create"

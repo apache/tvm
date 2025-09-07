@@ -179,7 +179,7 @@ def test_tensor_cache():
 
     temp = utils.tempdir()
     tvmjs.dump_tensor_cache(param_dict, temp.path, encode_format="f32-to-bf16")
-    fload(str(temp.path), tvm.cpu().device_type, 0)
+    fload(str(temp.path), tvm.cpu().dlpack_device_type(), 0)
     res = fget_params("x", -1)
     for i, v in enumerate(res):
         v_np = param_dict[f"x_{i}"]
@@ -204,7 +204,7 @@ def test_tensor_cache_update():
     tvmjs.dump_tensor_cache(
         param_dict, temp.path, encode_format="f32-to-bf16", update_if_exists=True
     )
-    fload(str(temp.path), tvm.cpu().device_type, 0)
+    fload(str(temp.path), tvm.cpu().dlpack_device_type(), 0)
     res = fget_params("x", -1)
     for i, v in enumerate(res):
         v_np = param_dict[f"x_{i}"]

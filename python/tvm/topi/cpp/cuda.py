@@ -17,4 +17,4 @@
 """FFI for CUDA TOPI ops and schedules"""
 import tvm_ffi
 
-tvm_ffi._init_api("topi.cuda", "tvm.topi.cpp.cuda")
+tvm_ffi.init_ffi_api("topi.cuda", "tvm.topi.cpp.cuda")

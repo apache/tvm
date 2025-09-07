@@ -338,7 +338,7 @@ def test_op_call_inplace_packed(exec_mode):
             )
             return z
 
-    @tvm.register_func("test.inplace.add", override=True)
+    @tvm.register_global_func("test.inplace.add", override=True)
     def inplace_add(a, b):
         arr_a = a.numpy()
         arr_b = b.numpy()
@@ -372,7 +372,7 @@ def test_op_call_inplace_packed(exec_mode):
     assert result == tvm_arr_a
     assert (result.numpy() == sum).all()
 
-    @tvm.register_func("test.inplace.tuple_add", override=True)
+    @tvm.register_global_func("test.inplace.tuple_add", override=True)
     def inplace_tuple_add(a, b):
         arr_a = a.numpy()
         arr_b = b.numpy()

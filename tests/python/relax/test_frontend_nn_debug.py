@@ -43,7 +43,7 @@ def test_debug_print():
 
 
 def test_debug_func():
-    @tvm.register_func("testing.relax.frontend.nn.test_debug_func")
+    @tvm.register_global_func("testing.relax.frontend.nn.test_debug_func")
     def _debug(  # pylint: disable=too-many-arguments
         lineno: str,
         tensor: Tensor,

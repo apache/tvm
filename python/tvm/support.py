@@ -26,7 +26,7 @@ import tvm_ffi
 from .runtime.module import Module
 from . import get_global_func
 
-tvm_ffi._init_api("support", __name__)
+tvm_ffi.init_ffi_api("support", __name__)
 
 
 def libinfo():

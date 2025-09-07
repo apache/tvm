@@ -84,7 +84,7 @@ w_uv = None
 
 
 # Register a dumb function for testing purpose.
-@tvm.register_func("test.dumb_function", override=True)
+@tvm.register_global_func("test.dumb_function", override=True)
 def _dumb_function():
     raise RuntimeError("Dumb function isn't supposed to be accessed.")
 

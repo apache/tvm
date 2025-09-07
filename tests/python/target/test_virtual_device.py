@@ -21,7 +21,7 @@ import tvm.testing
 
 def test_make_virtual_device_for_device():
     virtual_device = tvm.target.VirtualDevice(tvm.device("cuda"))
-    assert virtual_device.device_type == 2
+    assert virtual_device.dlpack_device_type() == 2
     # ie kDLCUDA
     assert virtual_device.virtual_device_id == 0
     assert virtual_device.target is None
@@ -31,7 +31,7 @@ def test_make_virtual_device_for_device():
 def test_make_virtual_device_for_device_and_target():
     target = tvm.target.Target("cuda")
     virtual_device = tvm.target.VirtualDevice(tvm.device("cuda"), target)
-    assert virtual_device.device_type == 2  # ie kDLCUDA
+    assert virtual_device.dlpack_device_type() == 2  # ie kDLCUDA
     assert virtual_device.target == target
     assert virtual_device.memory_scope == ""
 
@@ -40,7 +40,7 @@ def test_make_virtual_device_for_device_target_and_memory_scope():
     target = tvm.target.Target("cuda")
     scope = "local"
     virtual_device = tvm.target.VirtualDevice(tvm.device("cuda"), target, scope)
-    assert virtual_device.device_type == 2  # ie kDLCUDA
+    assert virtual_device.dlpack_device_type() == 2  # ie kDLCUDA
     assert virtual_device.target == target
     assert virtual_device.memory_scope == scope
 

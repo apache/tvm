@@ -31,7 +31,7 @@ def check_server_drop():
         # pylint: disable=import-outside-toplevel
         from tvm.rpc.base import TrackerCode
 
-        @tvm.register_func("rpc.test2.addone")
+        @tvm.register_global_func("rpc.test2.addone")
         def addone(x):
             return x + 1
 

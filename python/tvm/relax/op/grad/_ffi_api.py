@@ -17,4 +17,4 @@
 """FFI APIs for tvm.relax.op.grad"""
 import tvm_ffi
 
-tvm_ffi._init_api("relax.op.grad", __name__)
+tvm_ffi.init_ffi_api("relax.op.grad", __name__)

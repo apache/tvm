@@ -39,7 +39,7 @@ MODES = {"proxy": rpc.connect, "tracker": rpc.connect_tracker, "standalone": rpc
 
 
 # override metal compiler to compile to iphone
-@tvm.register_func("tvm_callback_metal_compile")
+@tvm.register_global_func("tvm_callback_metal_compile")
 def compile_metal(src, target):
     return xcode.compile_metal(src, sdk=sdk)
 

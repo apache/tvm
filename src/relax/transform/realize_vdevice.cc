@@ -54,8 +54,8 @@ class VDeviceLookup {
   VDevice operator()(Attrs hint_on_device_attrs) {
     auto attrs = hint_on_device_attrs.as<HintOnDeviceAttrs>();
     ICHECK(attrs);
-    int32_t device_type = attrs->dev_type;
-    int32_t device_id = attrs->dev_id;
+    int32_t device_type = attrs->device_type;
+    int32_t device_id = attrs->index;
 
     CHECK(opt_vdevices_.defined())
         << "ValueError: The target VDevice in the GlobalInfos was not found.";

@@ -18,7 +18,7 @@
 
 TODO(@gussmith23 @hypercubestart) link to BYODT docs when they exist"""
 from tvm_ffi import get_global_func
-from tvm_ffi import register_func as _register_func
+from tvm_ffi import register_global_func as _register_global_func
 
 import tvm
 from tvm.runtime import convert, DataType
@@ -216,7 +216,7 @@ def register_op(
         )
     else:
         lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." + src_type_name
-    tvm_ffi.register_func(lower_func_name, lower_func)
+    tvm_ffi.register_global_func(lower_func_name, lower_func)
 
 
 def register_min_func(func, type_name):
@@ -245,7 +245,7 @@ def register_min_func(func, type_name):
     type_name : str
         The name of the custom datatype, e.g. posites2 (but not custom[posites2]32).
     """
-    _register_func("tvm.datatype.min." + type_name, func)
+    _register_global_func("tvm.datatype.min." + type_name, func)
 
 
 def create_min_lower_func(extern_func_map, type_name):

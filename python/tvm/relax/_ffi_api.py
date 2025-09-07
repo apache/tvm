@@ -17,4 +17,4 @@
 """FFI API for Relax."""
 import tvm_ffi
 
-tvm_ffi._init_api("relax", __name__)
+tvm_ffi.init_ffi_api("relax", __name__)

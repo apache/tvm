@@ -94,7 +94,7 @@ def test_make_sum():
 
 
 def test_env_func():
-    @tvm.register_func("test.env_func")
+    @tvm.register_global_func("test.env_func")
     def test(x):
         return x + 1
 
