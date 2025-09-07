@@ -252,8 +252,7 @@ class Tensor : public ObjectRef {
     TensorObj* obj = get_mutable();
     TVM_FFI_ICHECK(obj->strides != nullptr);
     if (!obj->strides_data_.has_value()) {
-      Shape strides = Shape(details::MakeStridesFromShape(obj->ndim, obj->shape));
-      obj->strides_data_ = std::move(strides);
+      obj->strides_data_ = tvm::ffi::Shape(obj->strides, obj->strides + obj->ndim);
     }
     return *(obj->strides_data_);
   }
