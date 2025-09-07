@@ -36,7 +36,10 @@ namespace ffi {
 /*! \brief Reflection namespace */
 namespace reflection {
 
-/*! \brief Trait that can be used to set field info */
+/*!
+ * \brief Trait that can be used to set field info
+ * \sa DefaultValue, AttachFieldFlag
+ */
 struct FieldInfoTrait {};
 
 /*!
@@ -44,8 +47,16 @@ struct FieldInfoTrait {};
  */
 class DefaultValue : public FieldInfoTrait {
  public:
+  /*!
+   * \brief Constructor
+   * \param value The value to be set
+   */
   explicit DefaultValue(Any value) : value_(value) {}
 
+  /*!
+   * \brief Apply the default value to the field info
+   * \param info The field info.
+   */
   TVM_FFI_INLINE void Apply(TVMFFIFieldInfo* info) const {
     info->default_value = AnyView(value_).CopyToTVMFFIAny();
     info->flags |= kTVMFFIFieldFlagBitMaskHasDefault;
@@ -55,7 +66,7 @@ class DefaultValue : public FieldInfoTrait {
   Any value_;
 };
 
-/*
+/*!
  * \brief Trait that can be used to attach field flag
  */
 class AttachFieldFlag : public FieldInfoTrait {
@@ -82,6 +93,10 @@ class AttachFieldFlag : public FieldInfoTrait {
     return AttachFieldFlag(kTVMFFIFieldFlagBitMaskSEqHashIgnore);
   }
 
+  /*!
+   * \brief Apply the field flag to the field info
+   * \param info The field info.
+   */
   TVM_FFI_INLINE void Apply(TVMFFIFieldInfo* info) const { info->flags |= flag_; }
 
  private:
@@ -104,6 +119,7 @@ TVM_FFI_INLINE int64_t GetFieldByteOffsetToObject(T Class::*field_ptr) {
   return field_offset_to_class - details::ObjectUnsafe::GetObjectOffsetToSubclass<Class>();
 }
 
+/// \cond Doxygen_Suppress
 class ReflectionDefBase {
  protected:
   template <typename T>
@@ -203,10 +219,19 @@ class ReflectionDefBase {
     return ffi::Function::FromTyped(std::forward<Func>(func), name);
   }
 };
+/// \endcond
 
+/*!
+ * \brief GlobalDef helper to register a global function.
+ *
+ * \code
+ *  namespace refl = tvm::ffi::reflection;
+ *  refl::GlobalDef().def("my_ffi_extension.my_function", MyFunction);
+ * \endcode
+ */
 class GlobalDef : public ReflectionDefBase {
  public:
-  /*
+  /*!
    * \brief Define a global function.
    *
    * \tparam Func The function type.
@@ -214,7 +239,7 @@ class GlobalDef : public ReflectionDefBase {
    *
    * \param name The name of the function.
    * \param func The function to be registered.
-   * \param extra The extra arguments that can be docstring.
+   * \param extra The extra arguments that can be docstring or subclass of FieldInfoTrait.
    *
    * \return The reflection definition.
    */
@@ -225,7 +250,7 @@ class GlobalDef : public ReflectionDefBase {
     return *this;
   }
 
-  /*
+  /*!
    * \brief Define a global function in ffi::PackedArgs format.
    *
    * \tparam Func The function type.
@@ -233,7 +258,7 @@ class GlobalDef : public ReflectionDefBase {
    *
    * \param name The name of the function.
    * \param func The function to be registered.
-   * \param extra The extra arguments that can be docstring.
+   * \param extra The extra arguments that can be docstring or subclass of FieldInfoTrait.
    *
    * \return The reflection definition.
    */
@@ -243,7 +268,7 @@ class GlobalDef : public ReflectionDefBase {
     return *this;
   }
 
-  /*
+  /*!
    * \brief Expose a class method as a global function.
    *
    * An argument will be added to the first position if the function is not static.
@@ -253,6 +278,7 @@ class GlobalDef : public ReflectionDefBase {
    *
    * \param name The name of the method.
    * \param func The function to be registered.
+   * \param extra The extra arguments that can be docstring.
    *
    * \return The reflection definition.
    */
@@ -279,9 +305,23 @@ class GlobalDef : public ReflectionDefBase {
   }
 };
 
+/*!
+ * \brief Helper to register Object's reflection metadata.
+ * \tparam Class The class type.
+ *
+ * \code
+ *  namespace refl = tvm::ffi::reflection;
+ *  refl::ObjectDef<MyClass>().def_ro("my_field", &MyClass::my_field);
+ * \endcode
+ */
 template <typename Class>
 class ObjectDef : public ReflectionDefBase {
  public:
+  /*!
+   * \brief Constructor
+   * \tparam ExtraArgs The extra arguments.
+   * \param extra_args The extra arguments.
+   */
   template <typename... ExtraArgs>
   explicit ObjectDef(ExtraArgs&&... extra_args)
       : type_index_(Class::_GetOrAllocRuntimeTypeIndex()), type_key_(Class::_type_key) {
@@ -430,14 +470,30 @@ class ObjectDef : public ReflectionDefBase {
   const char* type_key_;
 };
 
+/*!
+ * \brief Helper to register type attribute.
+ * \tparam Class The class type.
+ * \tparam ExtraArgs The extra arguments.
+ *
+ * \code
+ *  namespace refl = tvm::ffi::reflection;
+ *  refl::TypeAttrDef<MyClass>().def("func_attr", MyFunc);
+ * \endcode
+ *
+ */
 template <typename Class, typename = std::enable_if_t<std::is_base_of_v<Object, Class>>>
 class TypeAttrDef : public ReflectionDefBase {
  public:
+  /*!
+   * \brief Constructor
+   * \tparam ExtraArgs The extra arguments.
+   * \param extra_args The extra arguments.
+   */
   template <typename... ExtraArgs>
   explicit TypeAttrDef(ExtraArgs&&... extra_args)
       : type_index_(Class::RuntimeTypeIndex()), type_key_(Class::_type_key) {}
 
-  /*
+  /*!
    * \brief Define a function-valued type attribute.
    *
    * \tparam Func The function type.
@@ -457,7 +513,7 @@ class TypeAttrDef : public ReflectionDefBase {
     return *this;
   }
 
-  /*
+  /*!
    * \brief Define a constant-valued type attribute.
    *
    * \tparam T The type of the value.

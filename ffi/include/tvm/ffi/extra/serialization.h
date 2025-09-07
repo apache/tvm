@@ -34,7 +34,7 @@ namespace ffi {
  *
  * The JSON graph structure is stored as follows:
  *
- * ```json
+ * ```
  * {
  *   "root_index": <int>,        // Index of root node in nodes array
  *   "nodes": [<node>, ...],     // Array of serialized nodes

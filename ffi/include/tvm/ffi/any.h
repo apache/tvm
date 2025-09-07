@@ -52,7 +52,7 @@ class AnyView {
   friend class Any;
 
  public:
-  // NOTE: the following two functions uses styl style
+  // NOTE: the following functions use style
   // since they are common functions appearing in FFI.
   /*!
    * \brief Reset any view to None
@@ -64,13 +64,13 @@ class AnyView {
     data_.v_int64 = 0;
   }
   /*!
-   * \brief Swap this array with another Object
-   * \param other The other Object
+   * \brief Swap this AnyView with another AnyView
+   * \param other The other AnyView
    */
   TVM_FFI_INLINE void swap(AnyView& other) noexcept { std::swap(data_, other.data_); }
   /*! \return the internal type index */
   TVM_FFI_INLINE int32_t type_index() const noexcept { return data_.type_index; }
-  // default constructors
+  /*! \brief Default constructor */
   AnyView() {
     data_.type_index = TypeIndex::kTVMFFINone;
     data_.zero_padding = 0;
@@ -78,8 +78,11 @@ class AnyView {
   }
   ~AnyView() = default;
   // constructors from any view
+  /*! \brief Copy constructor */
   AnyView(const AnyView&) = default;
+  /*! \brief Copy assignment operator */
   AnyView& operator=(const AnyView&) = default;
+  /*! \brief Move constructor */
   AnyView(AnyView&& other) : data_(other.data_) {
     other.data_.type_index = TypeIndex::kTVMFFINone;
     other.data_.zero_padding = 0;
@@ -90,11 +93,20 @@ class AnyView {
     AnyView(std::move(other)).swap(*this);  // NOLINT(*)
     return *this;
   }
-  // constructor from general types
+  /*!
+   * \brief Constructor from a general type.
+   * \tparam T The type to convert from.
+   * \param other The value to convert from.
+   */
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::convert_enabled>>
   AnyView(const T& other) {  // NOLINT(*)
     TypeTraits<T>::CopyToAnyView(other, &data_);
   }
+  /*!
+   * \brief Assign from a general type.
+   * \tparam T The type to convert from.
+   * \param other The value to convert from.
+   */
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::convert_enabled>>
   TVM_FFI_INLINE AnyView& operator=(const T& other) {  // NOLINT(*)
     // copy-and-swap idiom
@@ -117,7 +129,7 @@ class AnyView {
       return std::optional<T>(std::nullopt);
     }
   }
-  /*
+  /*!
    * \brief Shortcut of as Object to cast to a const pointer when T is an Object.
    *
    * \tparam T The object type.
@@ -128,7 +140,7 @@ class AnyView {
     return this->as<const T*>().value_or(nullptr);
   }
 
-  /**
+  /*!
    * \brief Cast to a type T.
    *
    * \tparam T The type to cast to.
@@ -243,44 +255,71 @@ class Any {
     data_.v_int64 = 0;
   }
   /*!
-   * \brief Swap this array with another Object
-   * \param other The other Object
+   * \brief Swap this Any with another Any
+   * \param other The other Any
    */
   TVM_FFI_INLINE void swap(Any& other) noexcept { std::swap(data_, other.data_); }
   /*! \return the internal type index */
   TVM_FFI_INLINE int32_t type_index() const noexcept { return data_.type_index; }
-  // default constructors
+  /*!
+   * \brief Default constructor
+   */
   Any() {
     data_.type_index = TypeIndex::kTVMFFINone;
     data_.zero_padding = 0;
     data_.v_int64 = 0;
   }
+  /*!
+   * \brief Destructor
+   */
   ~Any() { this->reset(); }
-  // constructors from Any
+  /*!
+   * \brief Constructor from another Any
+   * \param other The other Any
+   */
   Any(const Any& other) : data_(other.data_) {
     if (data_.type_index >= TypeIndex::kTVMFFIStaticObjectBegin) {
       details::ObjectUnsafe::IncRefObjectHandle(data_.v_obj);
     }
   }
+  /*!
+   * \brief Move constructor from another Any
+   * \param other The other Any
+   */
   Any(Any&& other) : data_(other.data_) {
     other.data_.type_index = TypeIndex::kTVMFFINone;
     other.data_.zero_padding = 0;
     other.data_.v_int64 = 0;
   }
+  /*!
+   * \brief Assign from another Any
+   * \param other The other Any
+   */
   TVM_FFI_INLINE Any& operator=(const Any& other) {
     // copy-and-swap idiom
     Any(other).swap(*this);  // NOLINT(*)
     return *this;
   }
+  /*!
+   * \brief Move assign from another Any
+   * \param other The other Any
+   */
   TVM_FFI_INLINE Any& operator=(Any&& other) {
     // copy-and-swap idiom
     Any(std::move(other)).swap(*this);  // NOLINT(*)
     return *this;
   }
-  // convert from/to AnyView
+  /*!
+   * \brief Constructor from another AnyView
+   * \param other The other AnyView
+   */
   Any(const AnyView& other) : data_(other.data_) {  // NOLINT(*)
     details::InplaceConvertAnyViewToAny(&data_);
   }
+  /*!
+   * \brief Assign from another AnyView
+   * \param other The other AnyView
+   */
   TVM_FFI_INLINE Any& operator=(const AnyView& other) {
     // copy-and-swap idiom
     Any(other).swap(*this);  // NOLINT(*)
@@ -288,11 +327,18 @@ class Any {
   }
   /*! \brief Any can be converted to AnyView in zero cost. */
   operator AnyView() const { return AnyView::CopyFromTVMFFIAny(data_); }
-  // constructor from general types
+  /*!
+   * \brief Constructor from a general type
+   * \tparam T The value type of the other
+   */
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::convert_enabled>>
   Any(T other) {  // NOLINT(*)
     TypeTraits<T>::MoveToAny(std::move(other), &data_);
   }
+  /*!
+   * \brief Assignment from a general type
+   * \tparam T The value type of the other
+   */
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::convert_enabled>>
   TVM_FFI_INLINE Any& operator=(T other) {  // NOLINT(*)
     // copy-and-swap idiom
@@ -342,7 +388,7 @@ class Any {
     }
   }
 
-  /*
+  /*!
    * \brief Shortcut of as Object to cast to a const pointer when T is an Object.
    *
    * \tparam T The object type.
@@ -405,7 +451,7 @@ class Any {
       return TypeTraits<T>::TryCastFromAnyView(&data_);
     }
   }
-  /*
+  /*!
    * \brief Check if the two Any are same type and value in shallow comparison.
    * \param other The other Any
    * \return True if the two Any are same type and value, false otherwise.
@@ -415,7 +461,7 @@ class Any {
            data_.zero_padding == other.data_.zero_padding && data_.v_int64 == other.data_.v_int64;
   }
 
-  /*
+  /*!
    * \brief Check if any and ObjectRef are same type and value in shallow comparison.
    * \param other The other ObjectRef
    * \return True if the two Any are same type and value, false otherwise.

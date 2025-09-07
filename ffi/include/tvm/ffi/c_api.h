@@ -202,7 +202,7 @@ typedef enum {
  * \brief C-based type of all FFI object header that allocates on heap.
  * \note TVMFFIObject and TVMFFIAny share the common type_index header
  */
-typedef struct TVMFFIObject {
+typedef struct {
   /*!
    * \brief type index of the object.
    * \note The type index of Object and Any are shared in FFI.
@@ -223,7 +223,7 @@ typedef struct TVMFFIObject {
      * \param flags The flags to indicate deletion behavior.
      * \sa TVMFFIObjectDeleterFlagBitMask
      */
-    void (*deleter)(struct TVMFFIObject* self, int flags);
+    void (*deleter)(void* self, int flags);
     /*!
      * \brief auxilary field to TVMFFIObject is always 8 bytes aligned.
      * \note This helps us to ensure cross platform compatibility.
@@ -238,7 +238,7 @@ typedef struct TVMFFIObject {
  * Any value can hold on stack values like int,
  * as well as reference counted pointers to object.
  */
-typedef struct TVMFFIAny {
+typedef struct {
   /*!
    * \brief type index of the object.
    * \note The type index of Object and Any are shared in FFI.
@@ -281,7 +281,9 @@ typedef struct TVMFFIAny {
  *       The FFI binding should be careful when treating this ABI.
  */
 typedef struct {
+  /*! \brief The data pointer. */
   const char* data;
+  /*! \brief The size of the data. */
   size_t size;
 } TVMFFIByteArray;
 
@@ -289,7 +291,9 @@ typedef struct {
  * \brief Shape cell used in shape object following header.
  */
 typedef struct {
+  /*! \brief The data pointer. */
   const int64_t* data;
+  /*! \brief The size of the data. */
   size_t size;
 } TVMFFIShapeCell;
 
@@ -442,7 +446,7 @@ TVM_FFI_DLL int TVMFFIFunctionGetGlobal(const TVMFFIByteArray* name, TVMFFIObjec
 
 /*!
  * \brief Convert an AnyView to an owned Any.
- * \param any The AnyView to convert.
+ * \param any_view The AnyView to convert.
  * \param out The output Any, must be an empty object.
  * \return 0 on success, nonzero on failure.
  */
@@ -724,9 +728,9 @@ typedef struct {
    *
    * Possible values:
    *
-   *  - TVMFFITypeIndex::kTVMFFIObject for general objects
-   *    - The value is nullable when kTVMFFIObject is chosen
-   * - static object type kinds such as Map, Dict, String
+   * - TVMFFITypeIndex::kTVMFFIObject for general objects.
+   *   The value is nullable when kTVMFFIObject is chosen.
+   * - Static object type kinds such as Map, Dict, String
    * - POD type index, note it does not give information about storage size of the field.
    * - TVMFFITypeIndex::kTVMFFIAny if we don't have specialized info
    *   about the field.
@@ -793,7 +797,7 @@ typedef struct {
   TVMFFISEqHashKind structural_eq_hash_kind;
 } TVMFFITypeMetadata;
 
-/*
+/*!
  * \brief Column array that stores extra attributes about types
  *
  * The attributes stored in a column array that can be looked up by type index.
@@ -813,7 +817,11 @@ typedef struct {
 /*!
  * \brief Runtime type information for object type checking.
  */
+#ifdef __cplusplus
+struct TVMFFITypeInfo {
+#else
 typedef struct TVMFFITypeInfo {
+#endif
   /*!
    *\brief The runtime type index,
    * It can be allocated during runtime if the type is dynamic.
@@ -842,7 +850,11 @@ typedef struct TVMFFITypeInfo {
   const TVMFFIMethodInfo* methods;
   /*! \brief The extra information of the type. */
   const TVMFFITypeMetadata* metadata;
+#ifdef __cplusplus
+};
+#else
 } TVMFFITypeInfo;
+#endif
 
 /*!
  * \brief Register the function to runtime's global table.
@@ -860,7 +872,7 @@ TVM_FFI_DLL int TVMFFIFunctionSetGlobal(const TVMFFIByteArray* name, TVMFFIObjec
  * This is the same as TVMFFIFunctionSetGlobal but with method info that can provide extra
  * metadata used in the runtime.
  * \param method_info The method info to be registered.
- * \param override Whether to allow overriding an already registered function.
+ * \param allow_override Whether to allow overriding an already registered function.
  * \return 0 on success, nonzero on failure.
  */
 TVM_FFI_DLL int TVMFFIFunctionSetGlobalFromMethodInfo(const TVMFFIMethodInfo* method_info,
@@ -923,19 +935,21 @@ TVM_FFI_DLL const TVMFFIByteArray* TVMFFITraceback(const char* filename, int lin
 
 /*!
  * \brief Initialize the type info during runtime.
+ *
  * When the function is first called for a type,
  * it will register the type to the type table in the runtime.
  * If the static_tindex is non-negative, the function will
  * allocate a runtime type index.
  * Otherwise, we will populate the type table and return the static index.
+ *
  * \param type_key The type key.
+ * \param type_depth The type depth.
  * \param static_type_index Static type index if any, can be -1, which means this is a dynamic index
  * \param num_child_slots Number of slots reserved for its children.
  * \param child_slots_can_overflow Whether to allow child to overflow the slots.
  * \param parent_type_index Parent type index, pass in -1 if it is root.
- * \param result The output type index
  *
- * \return 0 if success, -1 if error occured
+ * \return The allocated type index.
  */
 TVM_FFI_DLL int32_t TVMFFITypeGetOrAllocIndex(const TVMFFIByteArray* type_key,
                                               int32_t static_type_index, int32_t type_depth,
@@ -974,7 +988,7 @@ inline int32_t TVMFFIObjectGetTypeIndex(TVMFFIObjectHandle obj) {
 
 /*!
  * \brief Get the content of a small string in bytearray format.
- * \param obj The object handle.
+ * \param value The value to get the content of the small string in bytearray format.
  * \return The content of the small string in bytearray format.
  */
 inline TVMFFIByteArray TVMFFISmallBytesGetContentByteArray(const TVMFFIAny* value) {

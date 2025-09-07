@@ -33,3 +33,14 @@ Then build the doc
 ```bash
 make livehtml
 ```
+
+## Build with C++ Docs
+
+To build with C++ docs, we need to first install Doxygen. Then
+set the environment variable `BUILD_CPP_DOCS=1`, to turn on c++ docs.
+
+```bash
+BUILD_CPP_DOCS=1 make livehtml
+```
+
+Building c++ docs can take longer, so it is not on by default.

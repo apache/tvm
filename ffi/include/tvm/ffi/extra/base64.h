@@ -80,7 +80,7 @@ inline String Base64Encode(const Bytes& data) {
 
 /*!
  * \brief Decode a base64 string into a byte array
- * \param data The base64 encoded string to decode
+ * \param bytes The bytes to be decoded
  * \return The decoded byte array
  */
 inline Bytes Base64Decode(TVMFFIByteArray bytes) {

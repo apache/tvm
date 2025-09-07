@@ -19,8 +19,8 @@
  */
 
 /*!
- * \file tvm/ffi/tensor.h
- * \brief Container to store an Tensor.
+ * \file tvm/ffi/container/tensor.h
+ * \brief Container to store a Tensor.
  */
 #ifndef TVM_FFI_CONTAINER_TENSOR_H_
 #define TVM_FFI_CONTAINER_TENSOR_H_
@@ -80,11 +80,11 @@ inline bool IsAligned(const DLTensor& arr, size_t alignment) {
 }
 
 /*!
- * \brief return the total number bytes needs to store packed data
+ * \brief return the total number of bytes needed to store packed data
  *
  * \param numel the number of elements in the array
  * \param dtype the data type of the array
- * \return the total number bytes needs to store packed data
+ * \return the total number of bytes needed to store packed data
  */
 inline size_t GetDataSize(int64_t numel, DLDataType dtype) {
   // compatible handling sub-byte uint1(bool), which usually stored as uint8_t
@@ -97,10 +97,10 @@ inline size_t GetDataSize(int64_t numel, DLDataType dtype) {
 }
 
 /*!
- * \brief return the size of data the DLTensor hold, in term of number of bytes
+ * \brief return the size of data the DLTensor holds, in terms of number of bytes
  *
  *  \param arr the input DLTensor
- *  \return number of  bytes of data in the DLTensor.
+ *  \return number of bytes of data in the DLTensor.
  */
 inline size_t GetDataSize(const DLTensor& arr) {
   size_t size = 1;
@@ -110,15 +110,17 @@ inline size_t GetDataSize(const DLTensor& arr) {
   return GetDataSize(size, arr.dtype);
 }
 
-/*! \brief An object representing an Tensor. */
+/*! \brief An object representing a Tensor. */
 class TensorObj : public Object, public DLTensor {
  public:
+  /// \cond Doxygen_Suppress
   static constexpr const uint32_t _type_index = TypeIndex::kTVMFFITensor;
   static constexpr const char* _type_key = StaticTypeKey::kTVMFFITensor;
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(TensorObj, Object);
+  /// \endcond
 
   /*!
-   * \brief Move Tensor to a DLPack managed tensor.
+   * \brief Move a Tensor to a DLPack managed tensor.
    * \return The converted DLPack managed tensor.
    */
   DLManagedTensor* ToDLPack() const {
@@ -132,7 +134,7 @@ class TensorObj : public Object, public DLTensor {
   }
 
   /*!
-   * \brief Move  Tensor to a DLPack managed tensor.
+   * \brief Move a Tensor to a DLPack managed tensor.
    * \return The converted DLPack managed tensor.
    */
   DLManagedTensorVersioned* ToDLPackVersioned() const {
@@ -149,16 +151,25 @@ class TensorObj : public Object, public DLTensor {
   }
 
  protected:
-  // backs up the shape/strides
+  /*! \brief Internal data to back returning shape. */
   Optional<Shape> shape_data_;
+  /*! \brief Internal data to back returning strides. */
   Optional<Shape> strides_data_;
 
+  /*!
+   * \brief Deleter for DLManagedTensor.
+   * \param tensor The DLManagedTensor to be deleted.
+   */
   static void DLManagedTensorDeleter(DLManagedTensor* tensor) {
     TensorObj* obj = static_cast<TensorObj*>(tensor->manager_ctx);
     details::ObjectUnsafe::DecRefObjectHandle(obj);
     delete tensor;
   }
 
+  /*!
+   * \brief Deleter for DLManagedTensorVersioned.
+   * \param tensor The DLManagedTensorVersioned to be deleted.
+   */
   static void DLManagedTensorVersionedDeleter(DLManagedTensorVersioned* tensor) {
     TensorObj* obj = static_cast<TensorObj*>(tensor->manager_ctx);
     details::ObjectUnsafe::DecRefObjectHandle(obj);
@@ -166,6 +177,7 @@ class TensorObj : public Object, public DLTensor {
   }
 
   friend class Tensor;
+  /// \endcond
 };
 
 namespace details {
@@ -272,6 +284,7 @@ class Tensor : public ObjectRef {
    * \param shape The shape of the Tensor.
    * \param dtype The data type of the Tensor.
    * \param device The device of the Tensor.
+   * \param extra_args Extra arguments to be forwarded to TNDAlloc.
    * \return The created Tensor.
    * \tparam TNDAlloc The type of the NDAllocator, impelments Alloc and Free.
    * \tparam ExtraArgs Extra arguments to be passed to Alloc.
@@ -337,7 +350,9 @@ class Tensor : public ObjectRef {
    */
   DLManagedTensorVersioned* ToDLPackVersioned() const { return get_mutable()->ToDLPackVersioned(); }
 
+  /// \cond Doxygen_Suppress
   TVM_FFI_DEFINE_OBJECT_REF_METHODS(Tensor, ObjectRef, TensorObj);
+  /// \endcond
 
  protected:
   /*!

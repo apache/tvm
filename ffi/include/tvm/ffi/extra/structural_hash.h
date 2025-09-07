@@ -29,7 +29,7 @@
 namespace tvm {
 namespace ffi {
 
-/*
+/*!
  * \brief Structural hash
  */
 class StructuralHash {

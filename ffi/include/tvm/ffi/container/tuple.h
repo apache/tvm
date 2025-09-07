@@ -45,33 +45,69 @@ class Tuple : public ObjectRef {
  public:
   static_assert(details::all_storage_enabled_v<Types...>,
                 "All types used in Tuple<...> must be compatible with Any");
-
+  /*! \brief Default constructor */
   Tuple() : ObjectRef(MakeDefaultTupleNode()) {}
+  /*! \brief Copy constructor */
   Tuple(const Tuple<Types...>& other) : ObjectRef(other) {}
+  /*! \brief Move constructor */
   Tuple(Tuple<Types...>&& other) : ObjectRef(std::move(other)) {}
+  /*!
+   * \brief Constructor from another tuple
+   * \param other The other tuple
+   * \tparam UTypes The types of the other tuple
+   * \tparam The enable_if_t type
+   */
   template <typename... UTypes,
             typename = std::enable_if_t<(details::type_contains_v<Types, UTypes> && ...), int>>
   Tuple(const Tuple<UTypes...>& other) : ObjectRef(other) {}
+
+  /*!
+   * \brief Constructor from another tuple
+   * \param other The other tuple
+   * \tparam UTypes The types of the other tuple
+   * \tparam The enable_if_t type
+   */
   template <typename... UTypes,
             typename = std::enable_if_t<(details::type_contains_v<Types, UTypes> && ...), int>>
   Tuple(Tuple<UTypes...>&& other) : ObjectRef(std::move(other)) {}
 
+  /*!
+   * \brief Constructor from arguments
+   * \param args The arguments
+   * \tparam UTypes The types of the other tuple
+   */
   template <typename... UTypes, typename = std::enable_if_t<
                                     sizeof...(Types) == sizeof...(UTypes) &&
                                     !(sizeof...(Types) == 1 &&
                                       (std::is_same_v<std::decay_t<UTypes>, Tuple<Types>> && ...))>>
   explicit Tuple(UTypes&&... args) : ObjectRef(MakeTupleNode(std::forward<UTypes>(args)...)) {}
 
+  /*!
+   * \brief Assignment from another tuple
+   * \param other The other tuple
+   * \tparam The enable_if_t type
+   */
   TVM_FFI_INLINE Tuple& operator=(const Tuple<Types...>& other) {
     data_ = other.data_;
     return *this;
   }
 
+  /*!
+   * \brief Assignment from another tuple
+   * \param other The other tuple
+   * \tparam The enable_if_t type
+   */
   TVM_FFI_INLINE Tuple& operator=(Tuple<Types...>&& other) {
     data_ = std::move(other.data_);
     return *this;
   }
 
+  /*!
+   * \brief Assignment from another tuple
+   * \param other The other tuple
+   * \tparam UTypes The types of the other tuple
+   * \tparam The enable_if_t type
+   */
   template <typename... UTypes,
             typename = std::enable_if_t<(details::type_contains_v<Types, UTypes> && ...)>>
   TVM_FFI_INLINE Tuple& operator=(const Tuple<UTypes...>& other) {
@@ -79,6 +115,12 @@ class Tuple : public ObjectRef {
     return *this;
   }
 
+  /*!
+   * \brief Assignment from another tuple
+   * \param other The other tuple
+   * \tparam UTypes The types of the other tuple
+   * \tparam The enable_if_t type
+   */
   template <typename... UTypes,
             typename = std::enable_if_t<(details::type_contains_v<Types, UTypes> && ...)>>
   TVM_FFI_INLINE Tuple& operator=(Tuple<UTypes...>&& other) {
@@ -86,7 +128,12 @@ class Tuple : public ObjectRef {
     return *this;
   }
 
-  explicit Tuple(ObjectPtr<Object> n) : ObjectRef(n) {}
+  /*!
+   * \brief Constructor ObjectPtr
+   * \param ptr The ObjectPtr
+   * \tparam The enable_if_t type
+   */
+  explicit Tuple(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
 
   /*!
    * \brief Get I-th element of the tuple

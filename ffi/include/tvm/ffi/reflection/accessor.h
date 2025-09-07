@@ -57,11 +57,25 @@ inline const TVMFFIFieldInfo* GetFieldInfo(std::string_view type_key, const char
  */
 class FieldGetter {
  public:
+  /*!
+   * \brief Constructor
+   * \param field_info The field info.
+   */
   explicit FieldGetter(const TVMFFIFieldInfo* field_info) : field_info_(field_info) {}
 
+  /*!
+   * \brief Constructor
+   * \param type_key The type key.
+   * \param field_name The name of the field.
+   */
   explicit FieldGetter(std::string_view type_key, const char* field_name)
       : FieldGetter(GetFieldInfo(type_key, field_name)) {}
 
+  /*!
+   * \brief Get the value of the field
+   * \param obj_ptr The object pointer.
+   * \return The value of the field.
+   */
   Any operator()(const Object* obj_ptr) const {
     Any result;
     const void* addr = reinterpret_cast<const char*>(obj_ptr) + field_info_->offset;
@@ -83,11 +97,25 @@ class FieldGetter {
  */
 class FieldSetter {
  public:
+  /*!
+   * \brief Constructor
+   * \param field_info The field info.
+   */
   explicit FieldSetter(const TVMFFIFieldInfo* field_info) : field_info_(field_info) {}
 
+  /*!
+   * \brief Constructor
+   * \param type_key The type key.
+   * \param field_name The name of the field.
+   */
   explicit FieldSetter(std::string_view type_key, const char* field_name)
       : FieldSetter(GetFieldInfo(type_key, field_name)) {}
 
+  /*!
+   * \brief Set the value of the field
+   * \param obj_ptr The object pointer.
+   * \param value The value to be set.
+   */
   void operator()(const Object* obj_ptr, AnyView value) const {
     const void* addr = reinterpret_cast<const char*>(obj_ptr) + field_info_->offset;
     TVM_FFI_CHECK_SAFE_CALL(
@@ -104,8 +132,15 @@ class FieldSetter {
   const TVMFFIFieldInfo* field_info_;
 };
 
+/*!
+ * \brief Helper class to get type attribute column.
+ */
 class TypeAttrColumn {
  public:
+  /*!
+   * \brief Constructor
+   * \param attr_name The name of the type attribute.
+   */
   explicit TypeAttrColumn(std::string_view attr_name) {
     TVMFFIByteArray attr_name_array = {attr_name.data(), attr_name.size()};
     column_ = TVMFFIGetTypeAttrColumn(&attr_name_array);
@@ -113,7 +148,11 @@ class TypeAttrColumn {
       TVM_FFI_THROW(RuntimeError) << "Cannot find type attribute " << attr_name;
     }
   }
-
+  /*!
+   * \brief Get the type attribute column by type index.
+   * \param type_index The type index.
+   * \return The type attribute column.
+   */
   AnyView operator[](int32_t type_index) const {
     size_t tindex = static_cast<size_t>(type_index);
     if (tindex >= column_->size) {

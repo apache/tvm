@@ -21,7 +21,7 @@
  * \file tvm/ffi/container/array.h
  * \brief Array type.
  *
- * tvm::ffi::Array<Any> is an erased type that contains list of content
+ * tvm::ffi::Array<Any> is an erased type that contains a list of content
  */
 #ifndef TVM_FFI_CONTAINER_ARRAY_H_
 #define TVM_FFI_CONTAINER_ARRAY_H_
@@ -41,7 +41,7 @@
 namespace tvm {
 namespace ffi {
 
-/*! \brief array node content in array */
+/*! \brief Array node content in array */
 class ArrayObj : public Object, public details::InplaceArrayBase<ArrayObj, TVMFFIAny> {
  public:
   ~ArrayObj() {
@@ -106,7 +106,7 @@ class ArrayObj : public Object, public details::InplaceArrayBase<ArrayObj, TVMFF
   static ObjectPtr<ArrayObj> CopyFrom(int64_t cap, ArrayObj* from) {
     int64_t size = from->size_;
     if (size > cap) {
-      TVM_FFI_THROW(ValueError) << "not enough capacity";
+      TVM_FFI_THROW(ValueError) << "Not enough capacity";
     }
     ObjectPtr<ArrayObj> p = ArrayObj::Empty(cap);
     Any* write = p->MutableBegin();
@@ -127,7 +127,7 @@ class ArrayObj : public Object, public details::InplaceArrayBase<ArrayObj, TVMFF
   static ObjectPtr<ArrayObj> MoveFrom(int64_t cap, ArrayObj* from) {
     int64_t size = from->size_;
     if (size > cap) {
-      TVM_FFI_THROW(RuntimeError) << "not enough capacity";
+      TVM_FFI_THROW(RuntimeError) << "Not enough capacity";
     }
     ObjectPtr<ArrayObj> p = ArrayObj::Empty(cap);
     Any* write = p->MutableBegin();
@@ -155,10 +155,12 @@ class ArrayObj : public Object, public details::InplaceArrayBase<ArrayObj, TVMFF
     return p;
   }
 
+  /// \cond Doxygen_Suppress
   static constexpr const int32_t _type_index = TypeIndex::kTVMFFIArray;
   static constexpr const char* _type_key = StaticTypeKey::kTVMFFIArray;
   static const constexpr bool _type_final = true;
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(ArrayObj, Object);
+  /// \endcond
 
  private:
   /*! \return Size of initialized memory, used by InplaceArrayBase. */
@@ -172,6 +174,7 @@ class ArrayObj : public Object, public details::InplaceArrayBase<ArrayObj, TVMFF
 
   /*!
    * \brief Emplace a new element at the back of the array
+   * \param idx The index of the element.
    * \param args The arguments to construct the new element
    */
   template <typename... Args>
@@ -328,6 +331,11 @@ struct is_valid_iterator<Optional<T>, IterType> : is_valid_iterator<T, IterType>
 template <typename IterType>
 struct is_valid_iterator<Any, IterType> : std::true_type {};
 
+/*!
+ * \brief Check whether IterType is valid iterator for T.
+ * \tparam T The type.
+ * \tparam IterType The type of iterator.
+ */
 template <typename T, typename IterType>
 inline constexpr bool is_valid_iterator_v = is_valid_iterator<T, IterType>::value;
 
@@ -351,32 +359,69 @@ inline constexpr bool is_valid_iterator_v = is_valid_iterator<T, IterType>::valu
 template <typename T, typename = typename std::enable_if_t<details::storage_enabled_v<T>>>
 class Array : public ObjectRef {
  public:
+  /*! \brief The value type of the array */
   using value_type = T;
   // constructors
   /*!
    * \brief default constructor
    */
   Array() { data_ = ArrayObj::Empty(); }
+  /*!
+   * \brief Move constructor
+   * \param other The other array
+   */
   Array(Array<T>&& other) : ObjectRef(std::move(other.data_)) {}
+  /*!
+   * \brief Copy constructor
+   * \param other The other array
+   */
   Array(const Array<T>& other) : ObjectRef(other.data_) {}
+  /*!
+   * \brief Constructor from another array
+   * \param other The other array
+   * \tparam U The value type of the other array
+   */
   template <typename U, typename = std::enable_if_t<details::type_contains_v<T, U>>>
   Array(Array<U>&& other) : ObjectRef(std::move(other.data_)) {}
+  /*!
+   * \brief Constructor from another array
+   * \param other The other array
+   * \tparam U The value type of the other array
+   */
   template <typename U, typename = std::enable_if_t<details::type_contains_v<T, U>>>
   Array(const Array<U>& other) : ObjectRef(other.data_) {}
 
+  /*!
+   * \brief Move assignment from another array
+   * \param other The other array
+   */
   TVM_FFI_INLINE Array<T>& operator=(Array<T>&& other) {
     data_ = std::move(other.data_);
     return *this;
   }
+  /*!
+   * \brief Assignment from another array
+   * \param other The other array
+   */
   TVM_FFI_INLINE Array<T>& operator=(const Array<T>& other) {
     data_ = other.data_;
     return *this;
   }
+  /*!
+   * \brief Move assignment from another array
+   * \param other The other array
+   * \tparam U The value type of the other array
+   */
   template <typename U, typename = std::enable_if_t<details::type_contains_v<T, U>>>
   TVM_FFI_INLINE Array<T>& operator=(Array<U>&& other) {
     data_ = std::move(other.data_);
     return *this;
   }
+  /*!
+   * \brief Assignment from another array
+   * \param other The other array
+   * \tparam U The value type of the other array
+   */
   template <typename U, typename = std::enable_if_t<details::type_contains_v<T, U>>>
   TVM_FFI_INLINE Array<T>& operator=(const Array<U>& other) {
     data_ = other.data_;
@@ -384,7 +429,7 @@ class Array : public ObjectRef {
   }
 
   /*!
-   * \brief constructor from pointer
+   * \brief Constructor from pointer
    * \param n the container pointer
    */
   explicit Array(ObjectPtr<Object> n) : ObjectRef(n) {}
@@ -427,12 +472,21 @@ class Array : public ObjectRef {
 
  public:
   // iterators
+  /// \cond Doxygen_Suppress
   struct ValueConverter {
     using ResultType = T;
+    /*!
+     * \brief Convert any to T
+     * \param n The any value to convert
+     * \return The converted value
+     */
     static T convert(const Any& n) { return details::AnyUnsafe::CopyFromAnyViewAfterCheck<T>(n); }
   };
+  /// \endcond
 
+  /*! \brief The iterator type of the array */
   using iterator = details::IterAdapter<ValueConverter, const Any*>;
+  /*! \brief The reverse iterator type of the array */
   using reverse_iterator = details::ReverseIterAdapter<ValueConverter, const Any*>;
 
   /*! \return begin iterator */
@@ -515,6 +569,10 @@ class Array : public ObjectRef {
     p->EmplaceInit(p->size_++, item);
   }
 
+  /*!
+   * \brief Emplace a new element at the back of the array
+   * \param args The arguments to construct the new element
+   */
   template <typename... Args>
   void emplace_back(Args&&... args) {
     ArrayObj* p = CopyOnWrite(1);
@@ -660,7 +718,7 @@ class Array : public ObjectRef {
       p->clear();
     }
   }
-
+  /// \cond Doxygen_Suppress
   template <typename... Args>
   static size_t CalcCapacityImpl() {
     return 0;
@@ -690,6 +748,7 @@ class Array : public ObjectRef {
     dest.push_back(value);
     AgregateImpl(dest, args...);
   }
+  /// \endcond
 
  public:
   // Array's own methods
@@ -986,7 +1045,10 @@ inline Array<T> Concat(Array<T> lhs, const Array<T>& rhs) {
   return std::move(lhs);
 }
 
-// Specialize make_object<ArrayObj> to make sure it is correct.
+/*!
+ * \brief Specialize make_object<ArrayObj>
+ * \return The empty array object.
+ */
 template <>
 inline ObjectPtr<ArrayObj> make_object() {
   return ArrayObj::Empty();
@@ -1079,8 +1141,6 @@ inline constexpr bool type_contains_v<Array<T>, Array<U>> = type_contains_v<T, U
 
 }  // namespace ffi
 
-// Expose to the tvm namespace
-// Rationale: convinience and no ambiguity
 using ffi::Array;
 }  // namespace tvm
 #endif  // TVM_FFI_CONTAINER_ARRAY_H_

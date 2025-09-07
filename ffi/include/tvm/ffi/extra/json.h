@@ -54,7 +54,7 @@ using Array = ffi::Array<Any>;
  * \brief Parse a JSON string into an Any value.
  *
  * Besides the standard JSON syntax, this function also supports:
- * - Infinity/NaN as javascript syntax
+ * - Infinity/NaN as JavaScript syntax
  * - int64 integer value
  *
  * If error_msg is not nullptr, the error message will be written to it

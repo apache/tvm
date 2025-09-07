@@ -23,6 +23,9 @@ import tomli
 
 os.environ["TVM_FFI_BUILD_DOCS"] = "1"
 
+build_exhale = os.environ.get("BUILD_CPP_DOCS", "0") == "1"
+
+
 # -- General configuration ------------------------------------------------
 
 # Load version from pyproject.toml
@@ -38,6 +41,7 @@ release = __version__
 # -- Extensions and extension configurations --------------------------------
 
 extensions = [
+    "breathe",
     "myst_parser",
     "nbsphinx",
     "autodocsumm",
@@ -48,6 +52,7 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
+    "sphinx.ext.ifconfig",
     "sphinx_copybutton",
     "sphinx_reredirects",
     "sphinx_tabs.tabs",
@@ -56,6 +61,40 @@ extensions = [
     "sphinxcontrib.mermaid",
 ]
 
+if build_exhale:
+    extensions.append("exhale")
+
+breathe_default_project = "tvm-ffi"
+
+breathe_projects = {"tvm-ffi": "./_build/doxygen/xml"}
+
+exhaleDoxygenStdin = """
+INPUT = ../include
+PREDEFINED  += TVM_FFI_DLL= TVM_FFI_INLINE= TVM_FFI_EXTRA_CXX_API= __cplusplus=201703
+
+EXCLUDE_SYMBOLS   += *details*  *TypeTraits* std \
+                         *use_default_type_traits_v* *is_optional_type_v* *operator* \
+
+EXCLUDE_PATTERNS   += *details.h
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+"""
+
+exhaleAfterTitleDescription = """
+This page contains the full API index for the C++ API.
+"""
+
+# Setup the exhale extension
+exhale_args = {
+    "containmentFolder": "reference/cpp/generated",
+    "rootFileName": "index.rst",
+    "doxygenStripFromPath": "../include",
+    "rootFileTitle": "Full API Index",
+    "createTreeView": True,
+    "exhaleExecutesDoxygen": True,
+    "exhaleDoxygenStdin": exhaleDoxygenStdin,
+    "afterTitleDescription": exhaleAfterTitleDescription,
+}
 nbsphinx_allow_errors = True
 nbsphinx_execute = "never"
 
@@ -69,6 +108,7 @@ myst_enable_extensions = [
     "colon_fence",
     "html_image",
     "linkify",
+    "attrs_block",
     "substitution",
 ]
 
