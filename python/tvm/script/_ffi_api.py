@@ -17,4 +17,4 @@
 import tvm_ffi
 
 
-tvm_ffi._init_api("script", __name__)
+tvm_ffi.init_ffi_api("script", __name__)

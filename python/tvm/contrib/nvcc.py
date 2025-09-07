@@ -312,14 +312,14 @@ def find_nvshmem_paths() -> Tuple[str, str]:
     raise RuntimeError("\n".join(error_message))
 
 
-@tvm_ffi.register_func
+@tvm_ffi.register_global_func
 def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
     """use nvcc to generate fatbin code for better optimization"""
     ptx = compile_cuda(code, target_format="fatbin")
     return ptx
 
 
-@tvm_ffi.register_func("tvm_callback_libdevice_path")
+@tvm_ffi.register_global_func("tvm_callback_libdevice_path")
 def find_libdevice_path(arch):
     """Utility function to find libdevice
 
@@ -384,7 +384,7 @@ def callback_libdevice_path(arch):
         return ""
 
 
-@tvm_ffi.register_func("tvm.contrib.nvcc.get_compute_version")
+@tvm_ffi.register_global_func("tvm.contrib.nvcc.get_compute_version")
 def get_target_compute_version(target=None):
     """Utility function to get compute capability of compilation target.
 
@@ -529,7 +529,7 @@ def have_cudagraph():
         return False
 
 
-@tvm_ffi.register_func("tvm.contrib.nvcc.supports_bf16")
+@tvm_ffi.register_global_func("tvm.contrib.nvcc.supports_bf16")
 def have_bf16(compute_version):
     """Either bf16 support is provided in the compute capability or not
 
@@ -545,7 +545,7 @@ def have_bf16(compute_version):
     return False
 
 
-@tvm_ffi.register_func("tvm.contrib.nvcc.supports_fp8")
+@tvm_ffi.register_global_func("tvm.contrib.nvcc.supports_fp8")
 def have_fp8(compute_version):
     """Whether fp8 support is provided in the specified compute capability or not
 
@@ -563,7 +563,7 @@ def have_fp8(compute_version):
     return False
 
 
-@tvm_ffi.register_func("tvm.contrib.nvcc.supports_fp4")
+@tvm_ffi.register_global_func("tvm.contrib.nvcc.supports_fp4")
 def have_fp4(compute_version):
     """Whether fp4 support is provided in the specified compute capability or not
 

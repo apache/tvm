@@ -51,7 +51,7 @@ def test_static_init():
     handle = tvm.tir.call_intrin("handle", "tir.tvm_static_handle")
     ib.emit(tvm.tir.call_packed("test_static_callback", handle, Ab))
 
-    @tvm.register_func("test_static_callback")
+    @tvm.register_global_func("test_static_callback")
     def test_cb(sh, A):
         assert isinstance(sh, ctypes.c_void_p)
         return sh
