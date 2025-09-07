@@ -16,14 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 
 namespace tvm_ffi_example {
 
-void AddOne(DLTensor* x, DLTensor* y) {
+void AddOne(tvm::ffi::Tensor x, tvm::ffi::Tensor y) {
   // implementation of a library function
   TVM_FFI_ICHECK(x->ndim == 1) << "x must be a 1D tensor";
   DLDataType f32_dtype{kDLFloat, 32, 1};
