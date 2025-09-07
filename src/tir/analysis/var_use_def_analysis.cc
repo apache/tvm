@@ -27,7 +27,7 @@
 namespace tvm {
 namespace tir {
 
-VarUseDefAnalyzer::VarUseDefAnalyzer(const Array<Var>& defined_vars, bool visit_thread_extent)
+VarUseDefAnalyzer::VarUseDefAnalyzer(const ffi::Array<Var>& defined_vars, bool visit_thread_extent)
     : visit_thread_extent_(visit_thread_extent) {
   for (const Var v : defined_vars) {
     use_count_[v.get()] = 0;
@@ -104,7 +104,7 @@ void VarUseDefAnalyzer::VisitExpr_(const LetNode* op) {
 }
 
 void VarUseDefAnalyzer::VisitExpr_(const VarNode* op) {
-  this->HandleUse(GetRef<Var>(op));
+  this->HandleUse(ffi::GetRef<Var>(op));
   StmtExprVisitor::VisitExpr_(op);
 }
 
@@ -123,7 +123,7 @@ void VarUseDefAnalyzer::VisitExpr_(const BufferLoadNode* op) {
 void VarUseDefAnalyzer::VisitBuffer(const Buffer& buffer) {
   this->HandleUse(buffer->data);
 
-  auto visit_arr = [&](Array<PrimExpr> arr) {
+  auto visit_arr = [&](ffi::Array<PrimExpr> arr) {
     for (const auto& element : arr) {
       this->VisitExpr(element);
     }
@@ -151,7 +151,7 @@ void VarUseDefAnalyzer::HandleUse(const Var& var) {
       ++it->second;
     }
   } else {
-    undefined_.push_back(GetRef<Var>(v));
+    undefined_.push_back(ffi::GetRef<Var>(v));
     use_count_[v] = -1;
   }
 }
@@ -176,26 +176,26 @@ void VarUseDefAnalyzer::HandleUse(const Buffer& buf) {
       ++it->second;
     }
   } else {
-    undefined_buffers_.push_back(GetRef<Buffer>(ptr));
+    undefined_buffers_.push_back(ffi::GetRef<Buffer>(ptr));
     buffer_use_count_[ptr] = -1;
   }
 
   VisitBuffer(buf);
 }
 
-Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
+ffi::Array<Var> UndefinedVars(const Stmt& stmt, const ffi::Array<Var>& args) {
   VarUseDefAnalyzer m(args);
   m(stmt);
   return m.undefined_;
 }
 
-Array<Var> UndefinedVars(const PrimExpr& expr) {
+ffi::Array<Var> UndefinedVars(const PrimExpr& expr) {
   VarUseDefAnalyzer m({});
   m(expr);
   return m.undefined_;
 }
 
-Array<Var> UndefinedVars(const PrimExpr& expr, const Array<Var>& args) {
+ffi::Array<Var> UndefinedVars(const PrimExpr& expr, const ffi::Array<Var>& args) {
   VarUseDefAnalyzer m(args);
   m(expr);
   return m.undefined_;
@@ -206,9 +206,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
   refl::GlobalDef().def_packed(
       "tir.analysis.UndefinedVars", [](ffi::PackedArgs args, ffi::Any* rv) {
         if (auto opt_stmt = args[0].as<Stmt>()) {
-          *rv = UndefinedVars(opt_stmt.value(), args[1].cast<Array<Var>>());
+          *rv = UndefinedVars(opt_stmt.value(), args[1].cast<ffi::Array<Var>>());
         } else if (auto opt_expr = args[0].as<PrimExpr>()) {
-          *rv = UndefinedVars(opt_expr.value(), args[1].cast<Array<Var>>());
+          *rv = UndefinedVars(opt_expr.value(), args[1].cast<ffi::Array<Var>>());
         } else {
           LOG(FATAL) << "either UndefinedVars(stmt, args) or UndefinedVars(expr, args) is expected";
         }

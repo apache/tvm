@@ -43,12 +43,12 @@ namespace topi {
 using namespace tvm::te;
 
 /*! \brief The operation to use for CommReduce */
-using FReduce = std::function<PrimExpr(PrimExpr source, const Array<IterVar>& axis,
-                                       Array<PrimExpr> init, Span span)>;
+using FReduce = std::function<PrimExpr(PrimExpr source, const ffi::Array<IterVar>& axis,
+                                       ffi::Array<PrimExpr> init, Span span)>;
 
 /*! \brief The operation to use for CommReduceIdx */
-using FCommReduce = std::function<Array<PrimExpr>(Array<PrimExpr> exprs, const Array<IterVar>& axis,
-                                                  PrimExpr* condition)>;
+using FCommReduce = std::function<ffi::Array<PrimExpr>(
+    ffi::Array<PrimExpr> exprs, const ffi::Array<IterVar>& axis, PrimExpr* condition)>;
 
 /*!
  * \brief Convert a reduction axis which could be empty or have negative
@@ -62,7 +62,7 @@ using FCommReduce = std::function<Array<PrimExpr>(Array<PrimExpr> exprs, const A
  * If any input element is negative, it will be treated as an offset from the
  * last dimension (same as python indexing rules).
  */
-inline std::vector<int> GetRealAxis(int ndim, const Optional<Array<Integer>>& axis) {
+inline std::vector<int> GetRealAxis(int ndim, const ffi::Optional<ffi::Array<Integer>>& axis) {
   std::vector<int> real_axis;
   if (!axis.has_value()) {
     for (int i = 0; i < ndim; ++i) {
@@ -86,8 +86,8 @@ inline std::vector<int> GetRealAxis(int ndim, const Optional<Array<Integer>>& ax
 }
 
 /*! \brief Enumerate the axes for a reduce op */
-inline Array<IterVar> MakeReduceAxes(const std::vector<int>& real_axis, const Tensor& data) {
-  Array<IterVar> reduce_axes;
+inline ffi::Array<IterVar> MakeReduceAxes(const std::vector<int>& real_axis, const Tensor& data) {
+  ffi::Array<IterVar> reduce_axes;
   for (auto i : real_axis) {
     std::string name = "k" + std::to_string(i);
     reduce_axes.push_back(tvm::te::reduce_axis(Range(0, data->shape[i]), name));
@@ -96,10 +96,11 @@ inline Array<IterVar> MakeReduceAxes(const std::vector<int>& real_axis, const Te
 }
 
 /*! \brief Calculate the target shape for a reduce op */
-inline Array<PrimExpr> MakeReduceTargetShape(const std::vector<int>& real_axis, const Tensor& data,
-                                             bool keepdims, bool atleast1d) {
+inline ffi::Array<PrimExpr> MakeReduceTargetShape(const std::vector<int>& real_axis,
+                                                  const Tensor& data, bool keepdims,
+                                                  bool atleast1d) {
   auto ndim = data->shape.size();
-  Array<PrimExpr> target_shape;
+  ffi::Array<PrimExpr> target_shape;
   if (keepdims) {
     for (size_t i = 0; i < ndim; ++i) {
       if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {
@@ -136,13 +137,14 @@ inline Array<PrimExpr> MakeReduceTargetShape(const std::vector<int>& real_axis, 
  *
  * \return The result tensor.
  */
-inline Tensor DoCommReduce(const Tensor& data, FReduce func, const Array<PrimExpr>& target_shape,
+inline Tensor DoCommReduce(const Tensor& data, FReduce func,
+                           const ffi::Array<PrimExpr>& target_shape,
                            const std::vector<int>& reduce_axes,
                            const std::vector<int>& squeeze_axes, Span span = Span()) {
   auto r_axes = MakeReduceAxes(reduce_axes, data);
-  auto compute = [&](const Array<Var>& indices) {
-    Array<PrimExpr> eval_range;
-    Array<Var> eval_indices;
+  auto compute = [&](const ffi::Array<Var>& indices) {
+    ffi::Array<PrimExpr> eval_range;
+    ffi::Array<Var> eval_indices;
     int arg_counter = 0;
     int red_counter = 0;
 
@@ -179,8 +181,8 @@ inline Tensor DoCommReduce(const Tensor& data, FReduce func, const Array<PrimExp
  *
  * \return The result tensor.
  */
-inline Tensor CommReduce(const Tensor& data, const Optional<Array<Integer>>& axis, FReduce func,
-                         bool keepdims, bool atleast1d) {
+inline Tensor CommReduce(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
+                         FReduce func, bool keepdims, bool atleast1d) {
   auto ndim = data->shape.size();
   ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
@@ -202,7 +204,7 @@ inline Tensor CommReduce(const Tensor& data, const Optional<Array<Integer>>& axi
  *
  * \return The result tensor.
  */
-inline Tensor CommReduceIdx(const Tensor& data, const Optional<Array<Integer>>& axis,
+inline Tensor CommReduceIdx(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
                             FCommReduce func, bool keepdims, bool atleast1d) {
   auto ndim = data->shape.size();
   ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
@@ -211,9 +213,9 @@ inline Tensor CommReduceIdx(const Tensor& data, const Optional<Array<Integer>>& 
   auto target_shape = MakeReduceTargetShape(real_axis, data, keepdims, atleast1d);
 
   auto compute = [ndim, keepdims, &real_axis, &reduce_axes, &func,
-                  &data](const Array<Var>& indices) {
-    Array<PrimExpr> eval_range;
-    Array<PrimExpr> eval_indices;
+                  &data](const ffi::Array<Var>& indices) {
+    ffi::Array<PrimExpr> eval_range;
+    ffi::Array<PrimExpr> eval_indices;
     int arg_counter = 0;
     int red_counter = 0;
 
@@ -233,7 +235,7 @@ inline Tensor CommReduceIdx(const Tensor& data, const Optional<Array<Integer>>& 
       }
     }
 
-    Array<PrimExpr> ravel_shape;
+    ffi::Array<PrimExpr> ravel_shape;
     for (auto i : real_axis) {
       ravel_shape.push_back(data->shape[i]);
     }
@@ -246,15 +248,15 @@ inline Tensor CommReduceIdx(const Tensor& data, const Optional<Array<Integer>>& 
   auto temp_idx = temp_idx_val[0];
   auto temp_val = temp_idx_val[1];
   return tvm::te::compute(
-      target_shape, [&temp_idx](const Array<Var>& indices) { return temp_idx(indices); },
+      target_shape, [&temp_idx](const ffi::Array<Var>& indices) { return temp_idx(indices); },
       data->op->name + "_red", kCommReduceIdx);
 }
 
 /*! \brief A combiner function for a reduction */
-using FCombine = std::function<Array<PrimExpr>(Array<Var> lhs, Array<Var> rhs)>;
+using FCombine = std::function<ffi::Array<PrimExpr>(ffi::Array<Var> lhs, ffi::Array<Var> rhs)>;
 
 /*! \brief An initializer function for a reduction */
-using FIdentity = std::function<Array<PrimExpr>(std::vector<DataType> types)>;
+using FIdentity = std::function<ffi::Array<PrimExpr>(std::vector<DataType> types)>;
 
 /*!
  * \brief Create a commutative reducer for a reduction
@@ -267,9 +269,9 @@ using FIdentity = std::function<Array<PrimExpr>(std::vector<DataType> types)>;
  */
 inline FCommReduce MakeCommReducer(FCombine fcombine, FIdentity fidentity,
                                    std::string name = "reduce") {
-  return [fcombine, fidentity, name](Array<PrimExpr> exprs, const Array<IterVar>& axis,
+  return [fcombine, fidentity, name](ffi::Array<PrimExpr> exprs, const ffi::Array<IterVar>& axis,
                                      PrimExpr* condition) {
-    Array<Var> lhs, rhs;
+    ffi::Array<Var> lhs, rhs;
     std::vector<DataType> dtypes;
 
     for (size_t i = 0; i < exprs.size(); ++i) {
@@ -284,7 +286,7 @@ inline FCommReduce MakeCommReducer(FCombine fcombine, FIdentity fidentity,
     auto cond = condition != nullptr ? *condition : tir::const_true();
 
     auto combiner = tvm::tir::CommReducer(lhs, rhs, result, id_elem);
-    Array<PrimExpr> outputs;
+    ffi::Array<PrimExpr> outputs;
     for (size_t i = 0; i < exprs.size(); ++i) {
       outputs.push_back(tvm::tir::Reduce(combiner, exprs, axis, cond, static_cast<int>(i), {}));
     }
@@ -293,19 +295,19 @@ inline FCommReduce MakeCommReducer(FCombine fcombine, FIdentity fidentity,
 }
 
 /*! \brief Wrap tvm::min to ensure we get the correct overload */
-inline PrimExpr MinOp(PrimExpr source, Array<IterVar> axis, Array<PrimExpr> init = {},
+inline PrimExpr MinOp(PrimExpr source, ffi::Array<IterVar> axis, ffi::Array<PrimExpr> init = {},
                       Span span = Span()) {
   return tvm::min(source, axis, init, span);
 }
 
 /*! \brief Wrap tvm::max to ensure we get the correct overload */
-inline PrimExpr MaxOp(PrimExpr source, Array<IterVar> axis, Array<PrimExpr> init = {},
+inline PrimExpr MaxOp(PrimExpr source, ffi::Array<IterVar> axis, ffi::Array<PrimExpr> init = {},
                       Span span = Span()) {
   return tvm::max(source, axis, init, span);  // NOLINT(*)
 }
 
 /*! \brief Wrap tvm::prod to ensure we get the correct overload */
-inline PrimExpr ProdOp(PrimExpr source, Array<IterVar> axis, Array<PrimExpr> init = {},
+inline PrimExpr ProdOp(PrimExpr source, ffi::Array<IterVar> axis, ffi::Array<PrimExpr> init = {},
                        Span span = Span()) {
   return tvm::prod(source, axis, init, span);  // NOLINT(*)
 }
@@ -323,8 +325,8 @@ inline PrimExpr ProdOp(PrimExpr source, Array<IterVar> axis, Array<PrimExpr> ini
  *
  * \return A Tensor whose op member is the sum operation
  */
-inline Tensor sum(const Tensor& data, const Optional<Array<Integer>>& axis, bool keepdims = false,
-                  bool atleast1d = false) {
+inline Tensor sum(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
+                  bool keepdims = false, bool atleast1d = false) {
   if (data->dtype.is_bool()) {
     return CommReduce(data, axis, tvm::any, keepdims, atleast1d);
   } else {
@@ -332,7 +334,7 @@ inline Tensor sum(const Tensor& data, const Optional<Array<Integer>>& axis, bool
   }
 }
 
-inline Tensor collapse_sum(const Tensor& data, Array<PrimExpr> target_shape) {
+inline Tensor collapse_sum(const Tensor& data, ffi::Array<PrimExpr> target_shape) {
   const auto& ishape = data->shape;
   const auto& oshape = target_shape;
   int isize = data->shape.size();
@@ -380,8 +382,8 @@ inline Tensor collapse_sum(const Tensor& data, Array<PrimExpr> target_shape) {
  *
  * \return A Tensor whose op member is the all operation
  */
-inline Tensor all(const Tensor& data, const Optional<Array<Integer>>& axis, bool keepdims = false,
-                  bool atleast1d = false) {
+inline Tensor all(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
+                  bool keepdims = false, bool atleast1d = false) {
   return CommReduce(data, axis, tvm::all, keepdims, atleast1d);
 }
 
@@ -399,8 +401,8 @@ inline Tensor all(const Tensor& data, const Optional<Array<Integer>>& axis, bool
  *
  * \return A Tensor whose op member is the all operation
  */
-inline Tensor any(const Tensor& data, const Optional<Array<Integer>>& axis, bool keepdims = false,
-                  bool atleast1d = false) {
+inline Tensor any(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
+                  bool keepdims = false, bool atleast1d = false) {
   return CommReduce(data, axis, tvm::any, keepdims, atleast1d);
 }
 
@@ -418,8 +420,8 @@ inline Tensor any(const Tensor& data, const Optional<Array<Integer>>& axis, bool
  *
  * \return A Tensor whose op member is the min operation
  */
-inline Tensor min(const Tensor& data, const Optional<Array<Integer>>& axis, bool keepdims = false,
-                  bool atleast1d = false) {
+inline Tensor min(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
+                  bool keepdims = false, bool atleast1d = false) {
   return CommReduce(data, axis, MinOp, keepdims, atleast1d);
 }
 
@@ -437,15 +439,15 @@ inline Tensor min(const Tensor& data, const Optional<Array<Integer>>& axis, bool
  *
  * \return A Tensor whose op member is the max operation
  */
-inline Tensor max(const Tensor& data, const Optional<Array<Integer>>& axis, bool keepdims = false,
-                  bool atleast1d = false) {
+inline Tensor max(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
+                  bool keepdims = false, bool atleast1d = false) {
   return CommReduce(data, axis, MaxOp, keepdims, atleast1d);
 }
 
 inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
   // Create a Commutative Reducer with a comparison operation, and method to get the initial value.
-  auto fcombine = [=](Array<Var> lhs, Array<Var> rhs) {
-    Array<PrimExpr> result;
+  auto fcombine = [=](ffi::Array<Var> lhs, ffi::Array<Var> rhs) {
+    ffi::Array<PrimExpr> result;
 
     // Casting to avoid operator ambiguity
     PrimExpr lhs_idx = static_cast<PrimExpr>(lhs[0]);
@@ -473,7 +475,7 @@ inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
     return result;
   };
   auto fidentity = [&](std::vector<DataType> types) {
-    Array<PrimExpr> result;
+    ffi::Array<PrimExpr> result;
     result.push_back(tvm::tir::make_const(types[0], -1));  // idx
     result.push_back(tvm::max_value(types[1]));            // val
     return result;
@@ -497,7 +499,7 @@ inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
  *
  * \return A Tensor whose op member is the argmin operation
  */
-inline Tensor argmin(const Tensor& data, const Optional<Array<Integer>>& axis,
+inline Tensor argmin(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
                      bool keepdims = false, bool atleast1d = false,
                      bool select_last_index = false) {
   auto reducer = MakeArgminReducer(select_last_index);
@@ -506,8 +508,8 @@ inline Tensor argmin(const Tensor& data, const Optional<Array<Integer>>& axis,
 
 inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
   // Create a Commutative Reducer with a comparison operation, and method to get the initial value.
-  auto fcombine = [=](Array<Var> lhs, Array<Var> rhs) {
-    Array<PrimExpr> result;
+  auto fcombine = [=](ffi::Array<Var> lhs, ffi::Array<Var> rhs) {
+    ffi::Array<PrimExpr> result;
 
     // Casting to avoid operator ambiguity
     PrimExpr lhs_idx = static_cast<PrimExpr>(lhs[0]);
@@ -535,7 +537,7 @@ inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
     return result;
   };
   auto fidentity = [&](std::vector<DataType> types) {
-    Array<PrimExpr> result;
+    ffi::Array<PrimExpr> result;
     result.push_back(tvm::tir::make_const(types[0], -1));  // idx
     result.push_back(tvm::min_value(types[1]));            // val
     return result;
@@ -558,7 +560,7 @@ inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
  * appears multiple times, else select the first index.
  * \return A Tensor whose op member is the argmax operation
  */
-inline Tensor argmax(const Tensor& data, const Optional<Array<Integer>>& axis,
+inline Tensor argmax(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
                      bool keepdims = false, bool atleast1d = false,
                      bool select_last_index = false) {
   auto reducer = MakeArgmaxReducer(select_last_index);
@@ -578,8 +580,8 @@ inline Tensor argmax(const Tensor& data, const Optional<Array<Integer>>& axis,
  *
  * \return A Tensor whose op member is the prod operation
  */
-inline Tensor prod(const Tensor& data, const Optional<Array<Integer>>& axis, bool keepdims = false,
-                   bool atleast1d = false) {
+inline Tensor prod(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
+                   bool keepdims = false, bool atleast1d = false) {
   return CommReduce(data, axis, ProdOp, keepdims, atleast1d);
 }
 
@@ -587,8 +589,8 @@ inline Tensor prod(const Tensor& data, const Optional<Array<Integer>>& axis, boo
  * \brief Create communitive reducer summing over tuples
  */
 inline FCommReduce MakeTupleSumReducer() {
-  auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
-    Array<PrimExpr> result;
+  auto fcombine = [](ffi::Array<Var> lhs, ffi::Array<Var> rhs) {
+    ffi::Array<PrimExpr> result;
     ICHECK_EQ(lhs.size(), rhs.size());
     result.reserve(lhs.size());
     for (size_t i = 0; i < lhs.size(); ++i) {
@@ -597,7 +599,7 @@ inline FCommReduce MakeTupleSumReducer() {
     return result;
   };
   auto fidentity = [](std::vector<DataType> types) {
-    Array<PrimExpr> result;
+    ffi::Array<PrimExpr> result;
     for (size_t i = 0; i < types.size(); ++i) {
       result.push_back(tvm::tir::make_const(types[i], 0));
     }

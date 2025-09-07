@@ -112,8 +112,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
                   [](ffi::PackedArgs args, ffi::Any* ret) {
                     (args[0].cast<ffi::Function>()).CallPacked(args.Slice(1), ret);
                   })
-      .def_packed("tvmjs.testing.log_info_str",
-                  [](ffi::PackedArgs args, ffi::Any* ret) { LOG(INFO) << args[0].cast<String>(); })
+      .def_packed(
+          "tvmjs.testing.log_info_str",
+          [](ffi::PackedArgs args, ffi::Any* ret) { LOG(INFO) << args[0].cast<ffi::String>(); })
       .def("tvmjs.testing.add_one", [](int x) { return x + 1; })
       .def_packed("tvmjs.testing.wrap_callback", [](ffi::PackedArgs args, ffi::Any* ret) {
         ffi::Function pf = args[0].cast<ffi::Function>();
@@ -162,7 +163,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                                      data.push_back(arr_i->at(j));
                                    }
                                  }
-                                 *ret = Array<Any>(data);
+                                 *ret = ffi::Array<Any>(data);
                                });
 });
 

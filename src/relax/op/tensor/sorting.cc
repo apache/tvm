@@ -40,7 +40,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 /* relax.sort */
 
 Expr sort(Expr data, int axis, bool descending) {
-  auto attrs = make_object<SortAttrs>();
+  auto attrs = ffi::make_object<SortAttrs>();
   attrs->axis = std::move(axis);
   attrs->descending = std::move(descending);
 
@@ -67,7 +67,7 @@ TVM_REGISTER_OP("relax.sort")
 /* relax.argsort */
 
 Expr argsort(Expr data, int axis, bool descending, DataType dtype) {
-  auto attrs = make_object<ArgsortAttrs>();
+  auto attrs = ffi::make_object<ArgsortAttrs>();
   attrs->axis = std::move(axis);
   attrs->descending = std::move(descending);
   attrs->dtype = std::move(dtype);
@@ -100,8 +100,8 @@ TVM_REGISTER_OP("relax.argsort")
 
 /* relax.topk */
 
-Expr topk(Expr data, int k, int axis, String ret_type, bool largest, DataType dtype) {
-  auto attrs = make_object<TopKAttrs>();
+Expr topk(Expr data, int k, int axis, ffi::String ret_type, bool largest, DataType dtype) {
+  auto attrs = ffi::make_object<TopKAttrs>();
   attrs->k = std::move(k);
   attrs->axis = std::move(axis);
   attrs->ret_type = std::move(ret_type);
@@ -124,7 +124,7 @@ StructInfo InferStructInfoTopK(const Call& call, const BlockBuilder& ctx) {
   DataType indices_type = attrs->dtype.is_void() ? data_sinfo->dtype : attrs->dtype;
   int ndim = data_sinfo->ndim;
   int k = attrs->k;
-  String ret_type = attrs->ret_type;
+  ffi::String ret_type = attrs->ret_type;
   int axis = attrs->axis;
   if (axis < 0 && ndim > 0) {
     axis += ndim;
@@ -137,7 +137,7 @@ StructInfo InferStructInfoTopK(const Call& call, const BlockBuilder& ctx) {
         TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice));
     output_sinfos.push_back(TensorStructInfo(indices_type, data_sinfo->ndim, data_sinfo->vdevice));
   } else {
-    Array<PrimExpr> out_shape = data_shape->values;
+    ffi::Array<PrimExpr> out_shape = data_shape->values;
     const auto* int_dim = out_shape[axis].as<IntImmNode>();
     if (k > 0 && (int_dim == nullptr || k < int_dim->value)) {
       out_shape.Set(axis, k);

@@ -150,9 +150,9 @@ ffi::Module SourceModuleCreate(std::string code, std::string fmt);
  * \param const_vars. The constant variables that the c source module needs.
  * \return The created module.
  */
-ffi::Module CSourceModuleCreate(const String& code, const String& fmt,
-                                const Array<String>& func_names,
-                                const Array<String>& const_vars = {});
+ffi::Module CSourceModuleCreate(const ffi::String& code, const ffi::String& fmt,
+                                const ffi::Array<ffi::String>& func_names,
+                                const ffi::Array<ffi::String>& const_vars = {});
 
 /*!
  * \brief Wrap the submodules in a metadata module.
@@ -164,8 +164,8 @@ ffi::Module CSourceModuleCreate(const String& code, const String& fmt,
  * \return The wrapped module.
  */
 ffi::Module CreateMetadataModule(const std::unordered_map<std::string, runtime::Tensor>& params,
-                                 ffi::Module target_module, const Array<ffi::Module>& ext_modules,
-                                 Target target);
+                                 ffi::Module target_module,
+                                 const ffi::Array<ffi::Module>& ext_modules, Target target);
 
 /*!
  * \brief Create a source module for viewing and limited saving for device.

@@ -275,7 +275,7 @@ void DocPrinter::Append(const Doc& doc, const PrinterConfig& cfg) {
   }
 }
 
-String DocPrinter::GetString() const {
+ffi::String DocPrinter::GetString() const {
   std::string text = output_.str();
 
   // Remove any trailing indentation

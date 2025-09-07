@@ -93,9 +93,9 @@ needs to be executed when running under a user-provided optimization level. The
 .. code:: c++
 
     class PassInfoNode : public Object {
-      String name;
+      ffi::String name;
       int opt_level;
-      Array<String> required;
+      ffi::Array<ffi::String> required;
     };
 
 PassContext
@@ -125,11 +125,11 @@ Python APIs to create a compilation pipeline using pass context.
     class PassContextNode : public Object {
      public:
       int opt_level{2};
-      tvm::Array<tvm::Expr> required_pass;
-      tvm::Array<tvm::Expr> disabled_pass;
-      mutable Optional<DiagnosticContext> diag_ctx;
-      Map<String, Any> config;
-      Array<instrument::PassInstrument> instruments;
+      tvm::ffi::Array<tvm::Expr> required_pass;
+      tvm::ffi::Array<tvm::Expr> disabled_pass;
+      mutable ffi::Optional<DiagnosticContext> diag_ctx;
+      ffi::Map<ffi::String, Any> config;
+      ffi::Array<instrument::PassInstrument> instruments;
     };
 
     class PassContext : public NodeRef {
@@ -262,7 +262,7 @@ of passes for execution.
     class SequentialPassNode : PassNode {
       PassInfo pass_info;
       // Passes need to be executed.
-      Array<Pass> passes;
+      ffi::Array<Pass> passes;
       bool PassEnabled(const PassInfo& info) const;
       Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
     };
@@ -321,22 +321,22 @@ favorably use Python APIs to create a specific pass object.
     Pass CreateFunctionPass(
         std::function<Function(Function, IRModule, PassContext)> pass_func,
         int opt_level,
-        String name,
-        Array<String> required);
+        ffi::String name,
+        ffi::Array<ffi::String> required);
 
     Pass CreatePrimFuncPass(
         std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
         int opt_level,
-        String name,
-        Array<String> required);
+        ffi::String name,
+        ffi::Array<ffi::String> required);
 
     Pass CreateModulePass(
         std::function<IRModule(IRModule, PassContext)> pass_func,
         int opt_level,
-        String name,
-        Array<String> required);
+        ffi::String name,
+        ffi::Array<ffi::String> required);
 
-    Pass Sequential(tvm::Array<Pass> passes, PassInfo pass_info);
+    Pass Sequential(tvm::ffi::Array<Pass> passes, PassInfo pass_info);
 
 Pass Registration
 ^^^^^^^^^^^^^^^^^
@@ -440,7 +440,7 @@ Multiple ``PassInstrument`` instances can be registed into a single
 
     class PassInstrumentNode : public Object {
      public:
-      String name;
+      ffi::String name;
       virtual void EnterPassContext() const = 0;
       virtual void ExitPassContext() const = 0;
       virtual bool ShouldRun(const IRModule& mod, const transform::PassInfo& info) const = 0;

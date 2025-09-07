@@ -23,7 +23,8 @@ namespace script {
 namespace printer {
 
 Doc PrintBlock(IRDocsifier d, tir::Block block, AccessPath block_p,  //
-               Optional<tir::BlockRealize> opt_realize, Optional<AccessPath> opt_realize_p) {
+               ffi::Optional<tir::BlockRealize> opt_realize,
+               ffi::Optional<AccessPath> opt_realize_p) {
   With<TIRFrame> frame(d, block);
   ICHECK_EQ(opt_realize.defined(), opt_realize_p.defined());
   const tir::BlockRealizeNode* realize =
@@ -35,7 +36,8 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, AccessPath block_p,  //
   for (Frame f : d->frames) {
     if (const auto* tir_f = f.as<TIRFrameNode>()) {
       if (auto for_loop = tir_f->tir.as<tir::For>()) {
-        for (Optional<tir::For> loop = for_loop; loop; loop = loop.value()->body.as<tir::For>()) {
+        for (ffi::Optional<tir::For> loop = for_loop; loop;
+             loop = loop.value()->body.as<tir::For>()) {
           loop_vars.insert(std::make_pair(loop.value()->loop_var.get(), loop.value()));
         }
       }
@@ -113,12 +115,12 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, AccessPath block_p,  //
         remap_vars_indices.clear();
         return;
       }
-      Array<ExprDoc> lhs;
-      Array<ExprDoc> loop_var_doc;
+      ffi::Array<ExprDoc> lhs;
+      ffi::Array<ExprDoc> loop_var_doc;
       lhs.reserve(m);
       loop_var_doc.reserve(m);
       std::string binding_type = "";
-      Array<AccessPath> binding_paths;
+      ffi::Array<AccessPath> binding_paths;
       for (int i : remap_vars_indices) {
         tir::IterVar iter_var = block->iter_vars[i];
         AccessPath iter_var_p = block_p->Attr("iter_vars")->ArrayItem(i);
@@ -158,12 +160,12 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, AccessPath block_p,  //
   }
   // Step 3. Handle block read/write regions
   {
-    Array<ExprDoc> reads;
+    ffi::Array<ExprDoc> reads;
     for (int i = 0, n = block->reads.size(); i < n; ++i) {
       reads.push_back(d->AsDoc<ExprDoc>(block->reads[i], block_p->Attr("reads")->ArrayItem(i)));
     }
     (*frame)->stmts.push_back(ExprStmtDoc(TIR(d, "reads")->Call(reads)));
-    Array<ExprDoc> writes;
+    ffi::Array<ExprDoc> writes;
     for (int i = 0, n = block->writes.size(); i < n; ++i) {
       writes.push_back(d->AsDoc<ExprDoc>(block->writes[i], block_p->Attr("writes")->ArrayItem(i)));
     }
@@ -201,8 +203,8 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, AccessPath block_p,  //
   }
   // Step 8. Handle block body
   AsDocBody(block->body, block_p->Attr("body"), frame->get(), d);
-  Array<String> kwargs_keys;
-  Array<ExprDoc> kwargs_values;
+  ffi::Array<ffi::String> kwargs_keys;
+  ffi::Array<ExprDoc> kwargs_values;
   if (!realize) {
     kwargs_keys.push_back("no_realize");
     kwargs_values.push_back(LiteralDoc::Boolean(true, std::nullopt));

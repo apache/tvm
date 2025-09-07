@@ -94,8 +94,9 @@ class KVStateObj : public Object {
    * is the sum of "append_lengths". Nullptr means the token tree of each sequence
    * is a chain.
    */
-  virtual void BeginForward(const IntTuple& seq_ids, const IntTuple& append_lengths,
-                            const Optional<IntTuple>& token_tree_parent_ptr = std::nullopt) = 0;
+  virtual void BeginForward(
+      const IntTuple& seq_ids, const IntTuple& append_lengths,
+      const ffi::Optional<IntTuple>& token_tree_parent_ptr = std::nullopt) = 0;
 
   /*!
    * \brief Mark the start of the forward function.
@@ -178,7 +179,7 @@ class AttentionKVCacheObj : public KVStateObj {
    * \param sm_scale The additional attention scaling factor.
    * \sa AttentionKVCache::Attention
    */
-  virtual void AttentionWithFusedQKV(int64_t layer_id, Tensor qkv_data, Optional<Tensor> mask,
+  virtual void AttentionWithFusedQKV(int64_t layer_id, Tensor qkv_data, ffi::Optional<Tensor> mask,
                                      Tensor o_data, double sm_scale) = 0;
 
   /*!
@@ -220,8 +221,8 @@ class AttentionKVCacheObj : public KVStateObj {
    * \param lse2_data The second source LSE data.
    * \return The merged O and LSE data.
    */
-  virtual Array<Tensor> MergeAttnOutputInplace(Tensor o_self_attn, Tensor lse_self_attn,
-                                               Tensor o_cross_attn, Tensor lse_cross_attn) = 0;
+  virtual ffi::Array<Tensor> MergeAttnOutputInplace(Tensor o_self_attn, Tensor lse_self_attn,
+                                                    Tensor o_cross_attn, Tensor lse_cross_attn) = 0;
 
   /*!
    * \brief Compute linear attention with Q/K/V data.

@@ -82,7 +82,7 @@ struct TopKAttrs : public AttrsNodeReflAdapter<TopKAttrs> {
   int k;
   int axis;
   bool largest;
-  String ret_type;
+  ffi::String ret_type;
   DataType dtype;
 
   static void RegisterReflection() {

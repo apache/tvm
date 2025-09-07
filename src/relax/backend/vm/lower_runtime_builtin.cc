@@ -60,7 +60,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
       return InvokeClosure(call);
     } else if (call->op == alloc_tensor_op_) {
       LOG(FATAL) << "VMBuiltinLower encountered " << call->op << " in expression "
-                 << GetRef<Call>(call_node) << ".  "
+                 << ffi::GetRef<Call>(call_node) << ".  "
                  << "This operation should have been lowered earlier "
                  << "using the 'relax.transform.LowerAllocTensor' pass.";
     } else if (call->op == mem_alloc_storage_op_) {
@@ -70,7 +70,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     } else if (call->op == mem_kill_storage_op_ || call->op == mem_kill_tensor_op_) {
       return MakeMemKillObject(call);
     } else if (const auto* op_node = call->op.as<OpNode>()) {
-      Op op = GetRef<Op>(op_node);
+      Op op = ffi::GetRef<Op>(op_node);
       if (lower_builtin_fmap.count(op)) {
         return lower_builtin_fmap[op](builder_, call);
       }
@@ -101,7 +101,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     ICHECK(call_node->args.size() == 2);
     ICHECK(call_node->args[0]->IsInstance<GlobalVarNode>());
     ICHECK(call_node->args[1]->IsInstance<TupleNode>());
-    Array<Expr> args;
+    ffi::Array<Expr> args;
 
     auto tir_args = Downcast<Tuple>(call_node->args[1]);
     args.push_back(call_node->args[0]);
@@ -144,7 +144,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     ICHECK(call_node->args.size() == 1);
     ICHECK(call_node->struct_info_.defined());
     auto attrs = call_node->attrs.as<ToVDeviceAttrs>();
-    Array<Expr> args;
+    ffi::Array<Expr> args;
     args.push_back(call_node->args[0]);
     // Get the DLDeviceType and device_id from VDevice
     VDevice vdev = attrs->dst_vdevice;
@@ -160,7 +160,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     ICHECK(call_node->args[0]->IsInstance<GlobalVarNode>());
     ICHECK(call_node->args[1]->IsInstance<TupleNode>());
 
-    Array<Expr> args;
+    ffi::Array<Expr> args;
     auto func = call_node->args[0];
     auto closure_args = Downcast<Tuple>(call_node->args[1]);
 
@@ -177,7 +177,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     ICHECK(call_node->args[0]->IsInstance<VarNode>());
     ICHECK(call_node->args[1]->IsInstance<TupleNode>());
 
-    Array<Expr> args;
+    ffi::Array<Expr> args;
 
     args.push_back(call_node->args[0]);
 
@@ -192,7 +192,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
 
   const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
   const StructInfo object_sinfo_ = ObjectStructInfo();
-  const StructInfo void_sinfo_ = TupleStructInfo(Array<StructInfo>({}));
+  const StructInfo void_sinfo_ = TupleStructInfo(ffi::Array<StructInfo>({}));
   // object to pattern match.
   const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
   const Op& reshape_op_ = Op::Get("relax.reshape");

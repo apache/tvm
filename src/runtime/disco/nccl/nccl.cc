@@ -141,7 +141,7 @@ void AllGather(Tensor send, bool in_group, Tensor recv) {
                           in_group ? ctx->group_comm : ctx->global_comm, stream));
 }
 
-void BroadcastFromWorker0(Optional<Tensor> send, bool in_group, Tensor recv) {
+void BroadcastFromWorker0(ffi::Optional<Tensor> send, bool in_group, Tensor recv) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   int worker_id = ctx->worker->worker_id;
   int group_size = ctx->worker->num_workers / ctx->worker->num_groups;
@@ -164,7 +164,7 @@ void BroadcastFromWorker0(Optional<Tensor> send, bool in_group, Tensor recv) {
                           /*root=*/0, in_group ? ctx->group_comm : ctx->global_comm, stream));
 }
 
-void ScatterFromWorker0(Optional<Tensor> send, bool in_group, Tensor recv) {
+void ScatterFromWorker0(ffi::Optional<Tensor> send, bool in_group, Tensor recv) {
   CHECK(recv.defined()) << "ValueError: buffer `recv` must not be None";
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   int worker_id = ctx->worker->worker_id;
@@ -211,7 +211,7 @@ void ScatterFromWorker0(Optional<Tensor> send, bool in_group, Tensor recv) {
   NCCL_CALL(ncclGroupEnd());
 }
 
-void GatherToWorker0(Tensor send, bool in_group, Optional<Tensor> recv) {
+void GatherToWorker0(Tensor send, bool in_group, ffi::Optional<Tensor> recv) {
   CHECK(send.defined()) << "ValueError: buffer `send` must not be None";
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   int worker_id = ctx->worker->worker_id;
@@ -330,7 +330,7 @@ void SyncWorker() {
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.disco.compiled_ccl", []() -> String { return TVM_DISCO_CCL_NAME; })
+      .def("runtime.disco.compiled_ccl", []() -> ffi::String { return TVM_DISCO_CCL_NAME; })
       .def("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl", InitCCL)
       .def("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker", InitCCLPerWorker)
       .def("runtime.disco." TVM_DISCO_CCL_NAME ".allreduce",

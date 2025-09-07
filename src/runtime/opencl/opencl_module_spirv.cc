@@ -39,9 +39,9 @@ class OpenCLSPIRVModuleNode : public OpenCLModuleNodeBase {
                                  std::unordered_map<std::string, FunctionInfo> fmap)
       : OpenCLModuleNodeBase(fmap), shaders_(shaders), spirv_text_(spirv_text) {}
 
-  void WriteToFile(const String& file_name, const String& format) const final;
+  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final;
   ffi::Bytes SaveToBytes() const final;
-  String InspectSource(const String& format) const final { return spirv_text_; }
+  ffi::String InspectSource(const ffi::String& format) const final { return spirv_text_; }
 
   void Init() override;
   cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
@@ -52,7 +52,8 @@ class OpenCLSPIRVModuleNode : public OpenCLModuleNodeBase {
   std::string spirv_text_;
 };
 
-void OpenCLSPIRVModuleNode::WriteToFile(const String& file_name, const String& format) const {
+void OpenCLSPIRVModuleNode::WriteToFile(const ffi::String& file_name,
+                                        const ffi::String& format) const {
   // TODO(masahi): How SPIRV binaries should be save to a file?
   LOG(FATAL) << "Not implemented.";
 }
@@ -132,7 +133,7 @@ cl_kernel OpenCLSPIRVModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenC
 ffi::Module OpenCLModuleCreate(const std::unordered_map<std::string, SPIRVShader>& shaders,
                                const std::string& spirv_text,
                                std::unordered_map<std::string, FunctionInfo> fmap) {
-  auto n = make_object<OpenCLSPIRVModuleNode>(shaders, spirv_text, fmap);
+  auto n = ffi::make_object<OpenCLSPIRVModuleNode>(shaders, spirv_text, fmap);
   n->Init();
   return ffi::Module(n);
 }

@@ -33,12 +33,12 @@ namespace distributed {
  * \brief Pattern match op to a TIR function and look it up.
  * \return The TIR function, or nullopt if pattern match fails.
  */
-inline Optional<tir::PrimFunc> MatchPrimFunc(const IRModule& mod_, const Expr& op) {
+inline ffi::Optional<tir::PrimFunc> MatchPrimFunc(const IRModule& mod_, const Expr& op) {
   const GlobalVar& global_var = Downcast<GlobalVar>(op);
   // NOTE: as check works for nullptr(returns null)
-  Optional<BaseFunc> base_func = mod_->functions.Get(global_var);
+  ffi::Optional<BaseFunc> base_func = mod_->functions.Get(global_var);
   if (auto* pfunc = base_func.as<tir::PrimFuncNode>()) {
-    return GetRef<tir::PrimFunc>(pfunc);
+    return ffi::GetRef<tir::PrimFunc>(pfunc);
   }
   return std::nullopt;
 }
@@ -46,7 +46,7 @@ inline Optional<tir::PrimFunc> MatchPrimFunc(const IRModule& mod_, const Expr& o
  * \brief Check whether the given struct infos can appear in DistIR
  * \return Whether the given struct infos can appear in DistIR
  */
-bool SinfoCompatibleWithDistIR(Array<StructInfo> sinfos);
+bool SinfoCompatibleWithDistIR(ffi::Array<StructInfo> sinfos);
 
 /*!
  * \brief Check whether the given function is a DistIR function

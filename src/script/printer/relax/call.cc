@@ -29,8 +29,8 @@ namespace printer {
 
 class AttrPrinter {
  public:
-  explicit AttrPrinter(AccessPath p, const IRDocsifier& d, Array<String>* keys,
-                       Array<ExprDoc>* values)
+  explicit AttrPrinter(AccessPath p, const IRDocsifier& d, ffi::Array<ffi::String>* keys,
+                       ffi::Array<ExprDoc>* values)
       : p(std::move(p)), d(d), keys(keys), values(values) {}
 
   void operator()(const tvm::Attrs& attrs) {
@@ -46,7 +46,7 @@ class AttrPrinter {
           << "` misses reflection registration and do not support serialization";
       // new printing mechanism using the new reflection
       ffi::reflection::ForEachFieldInfo(attrs_tinfo, [&](const TVMFFIFieldInfo* field_info) {
-        String field_name = String(field_info->name);
+        ffi::String field_name = ffi::String(field_info->name);
         Any field_value = ffi::reflection::FieldGetter(field_info)(attrs);
         keys->push_back(field_name);
         values->push_back(d->AsDoc<ExprDoc>(field_value, p->Attr(field_name)));
@@ -56,8 +56,8 @@ class AttrPrinter {
 
   AccessPath p;
   const IRDocsifier& d;
-  Array<String>* keys;
-  Array<ExprDoc>* values;
+  ffi::Array<ffi::String>* keys;
+  ffi::Array<ExprDoc>* values;
 };
 
 ExprDoc PrintCallee(const relax::Expr& n, const AccessPath& n_p, const IRDocsifier& d) {
@@ -69,8 +69,8 @@ ExprDoc PrintCallee(const relax::Expr& n, const AccessPath& n_p, const IRDocsifi
   }
 }
 
-Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessPath& n_p,
-                                        const IRDocsifier& d) {
+ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessPath& n_p,
+                                             const IRDocsifier& d) {
   static const Op& call_tir_op = Op::Get("relax.call_tir");
   static const Op& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
   static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
@@ -83,9 +83,9 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessPath& 
   }
   ICHECK(n->args.size() == 2 || n->args.size() == 3);
   ICHECK(n->sinfo_args.size() == 1);
-  Array<ExprDoc> args;
-  Array<String> kwargs_keys;
-  Array<ExprDoc> kwargs_values;
+  ffi::Array<ExprDoc> args;
+  ffi::Array<ffi::String> kwargs_keys;
+  ffi::Array<ExprDoc> kwargs_values;
   // Step 1. Print n->args[0], the callee
   args.push_back(PrintCallee(n->args[0], n_p->Attr("args")->ArrayItem(0), d));
   // Step 2. Print n->args[1], the input arguments
@@ -96,7 +96,7 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessPath& 
   bool is_dtensor = false;
   kwargs_keys.push_back("out_sinfo");
   if (const auto* o = o_sinfo.as<relax::TupleStructInfoNode>()) {
-    Array<ExprDoc> fields;
+    ffi::Array<ExprDoc> fields;
     AccessPath fields_p = o_sinfo_p->Attr("fields");
     for (int i = 0, l = o->fields.size(); i < l; ++i) {
       if (o->fields[i].as<relax::distributed::DTensorStructInfoNode>()) {
@@ -115,7 +115,7 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessPath& 
   // for call_tir_inplace, we also need to include the inplace args
   if (n->op.same_as(call_tir_inplace_op)) {
     kwargs_keys.push_back("inplace_indices");
-    Array<ExprDoc> index_fields;
+    ffi::Array<ExprDoc> index_fields;
     if (auto* call_tir_inplace_attrs = n->attrs.as<relax::CallTIRInplaceAttrs>()) {
       for (auto inplace_index : call_tir_inplace_attrs->inplace_indices) {
         index_fields.push_back(
@@ -160,7 +160,8 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessPath& 
   }
 }
 
-Optional<ExprDoc> PrintAssertOp(const relax::Call& n, const AccessPath& n_p, const IRDocsifier& d) {
+ffi::Optional<ExprDoc> PrintAssertOp(const relax::Call& n, const AccessPath& n_p,
+                                     const IRDocsifier& d) {
   static const Op& assert_op = Op::Get("relax.assert_op");
   if (!n->op.same_as(assert_op)) {
     return std::nullopt;
@@ -170,7 +171,7 @@ Optional<ExprDoc> PrintAssertOp(const relax::Call& n, const AccessPath& n_p, con
   // is the _format_ string, or else roundtripping will fail
   // (the format string will be interpreted as an argument and there will be a new default format
   // string given)
-  Array<ExprDoc> args;
+  ffi::Array<ExprDoc> args;
   args.push_back(d->AsDoc<ExprDoc>(n->args[0], n_p->Attr("args")->ArrayItem(0)));
   ExprDoc second_arg = d->AsDoc<ExprDoc>(n->args[1], n_p->Attr("args")->ArrayItem(1));
   for (size_t i = 2; i < n->args.size(); i++) {
@@ -179,17 +180,17 @@ Optional<ExprDoc> PrintAssertOp(const relax::Call& n, const AccessPath& n_p, con
   return Relax(d, "assert_op")->Call(args, {"format"}, {second_arg});
 }
 
-Optional<ExprDoc> PrintHintOnDevice(const relax::Call& n, const AccessPath& n_p,
-                                    const IRDocsifier& d) {
+ffi::Optional<ExprDoc> PrintHintOnDevice(const relax::Call& n, const AccessPath& n_p,
+                                         const IRDocsifier& d) {
   static const Op& hint_on_device_op = Op::Get("relax.hint_on_device");
   if (!n->op.same_as(hint_on_device_op)) {
     return std::nullopt;
   }
-  Array<ExprDoc> args;
+  ffi::Array<ExprDoc> args;
 
   args.push_back(PrintCallee(n->args[0], n_p->Attr("args")->ArrayItem(0), d));
-  Array<String> kwargs_keys;
-  Array<ExprDoc> kwargs_values;
+  ffi::Array<ffi::String> kwargs_keys;
+  ffi::Array<ExprDoc> kwargs_values;
   ICHECK(n->attrs.defined());
   if (n->attrs.as<relax::HintOnDeviceAttrs>()) {
     AttrPrinter(n_p->Attr("attrs"), d, &kwargs_keys, &kwargs_values)(n->attrs);
@@ -198,17 +199,17 @@ Optional<ExprDoc> PrintHintOnDevice(const relax::Call& n, const AccessPath& n_p,
   return Relax(d, "hint_on_device")->Call(args);
 }
 
-Optional<ExprDoc> PrintToVDevice(const relax::Call& n, const AccessPath& n_p,
-                                 const IRDocsifier& d) {
+ffi::Optional<ExprDoc> PrintToVDevice(const relax::Call& n, const AccessPath& n_p,
+                                      const IRDocsifier& d) {
   static const Op& to_vdevice_op = Op::Get("relax.to_vdevice");
   if (!n->op.same_as(to_vdevice_op)) {
     return std::nullopt;
   }
-  Array<ExprDoc> args;
+  ffi::Array<ExprDoc> args;
 
   args.push_back(PrintCallee(n->args[0], n_p->Attr("args")->ArrayItem(0), d));
-  Array<String> kwargs_keys;
-  Array<ExprDoc> kwargs_values;
+  ffi::Array<ffi::String> kwargs_keys;
+  ffi::Array<ExprDoc> kwargs_values;
   ICHECK(n->attrs.defined());
   if (const auto* attrs = n->attrs.as<relax::ToVDeviceAttrs>()) {
     VDevice vdev = attrs->dst_vdevice;
@@ -221,8 +222,8 @@ Optional<ExprDoc> PrintToVDevice(const relax::Call& n, const AccessPath& n_p,
   return Relax(d, "to_vdevice")->Call(args, kwargs_keys, kwargs_values);
 }
 
-Optional<ExprDoc> PrintRelaxPrint(const relax::Call& n, const AccessPath& n_p,
-                                  const IRDocsifier& d) {
+ffi::Optional<ExprDoc> PrintRelaxPrint(const relax::Call& n, const AccessPath& n_p,
+                                       const IRDocsifier& d) {
   static const Op& print_op = Op::Get("relax.print");
   if (!n->op.same_as(print_op)) {
     return std::nullopt;
@@ -233,7 +234,7 @@ Optional<ExprDoc> PrintRelaxPrint(const relax::Call& n, const AccessPath& n_p,
   // (the format string will be interpreted as an argument and there will be a new default format
   // string given)
   ExprDoc first_arg = d->AsDoc<ExprDoc>(n->args[0], n_p->Attr("args")->ArrayItem(0));
-  Array<ExprDoc> args;
+  ffi::Array<ExprDoc> args;
   for (size_t i = 1; i < n->args.size(); i++) {
     args.push_back(d->AsDoc<ExprDoc>(n->args[i], n_p->Attr("args")->ArrayItem(i)));
   }
@@ -244,29 +245,29 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Call>(  //
         "", [](relax::Call n, AccessPath n_p, IRDocsifier d) -> Doc {
           // Special case: call_tir, call_dps_packed, call_tir_with_grad
-          if (Optional<ExprDoc> doc = PrintCallTIRDPSPacked(n, n_p, d)) {
+          if (ffi::Optional<ExprDoc> doc = PrintCallTIRDPSPacked(n, n_p, d)) {
             return doc.value();
           }
           // Special case: assert_op
-          if (Optional<ExprDoc> doc = PrintAssertOp(n, n_p, d)) {
+          if (ffi::Optional<ExprDoc> doc = PrintAssertOp(n, n_p, d)) {
             return doc.value();
           }
           // Special case: hint_on_device
-          if (Optional<ExprDoc> doc = PrintHintOnDevice(n, n_p, d)) {
+          if (ffi::Optional<ExprDoc> doc = PrintHintOnDevice(n, n_p, d)) {
             return doc.value();
           }
           // Special case: to_vdevice
-          if (Optional<ExprDoc> doc = PrintToVDevice(n, n_p, d)) {
+          if (ffi::Optional<ExprDoc> doc = PrintToVDevice(n, n_p, d)) {
             return doc.value();
           }
           // Special case: print
-          if (Optional<ExprDoc> doc = PrintRelaxPrint(n, n_p, d)) {
+          if (ffi::Optional<ExprDoc> doc = PrintRelaxPrint(n, n_p, d)) {
             return doc.value();
           }
           ExprDoc prefix{nullptr};
-          Array<ExprDoc> args;
-          Array<String> kwargs_keys;
-          Array<ExprDoc> kwargs_values;
+          ffi::Array<ExprDoc> args;
+          ffi::Array<ffi::String> kwargs_keys;
+          ffi::Array<ExprDoc> kwargs_values;
           // Step 1. Print op
           if (const auto* op = n->op.as<relax::ExternFuncNode>()) {
             prefix = Relax(d, "call_packed");
@@ -299,7 +300,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
               kwargs_values.push_back(LiteralDoc::Str(n->attrs->GetTypeKey(), n_p->Attr("attrs")));
             }
             if (const auto* attrs = n->attrs.as<tvm::DictAttrsNode>()) {
-              std::vector<std::pair<String, ffi::Any>> sorted;
+              std::vector<std::pair<ffi::String, ffi::Any>> sorted;
               for (const auto& kv : attrs->dict) {
                 sorted.push_back(kv);
               }
@@ -317,7 +318,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           // Step 4. Print type_args
           if (n->sinfo_args.size() > 0) {
             AccessPath sinfo_args_p = n_p->Attr("sinfo_args");
-            Array<ExprDoc> sinfo_args;
+            ffi::Array<ExprDoc> sinfo_args;
             for (int i = 0, l = n->sinfo_args.size(); i < l; ++i) {
               sinfo_args.push_back(d->AsDoc<ExprDoc>(n->sinfo_args[i], sinfo_args_p->ArrayItem(i)));
             }

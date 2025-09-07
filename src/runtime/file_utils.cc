@@ -196,12 +196,12 @@ void CopyFile(const std::string& src_file_name, const std::string& dest_file_nam
                << " dest='" << dest_file_name << "'";
 }
 
-Map<String, Tensor> LoadParams(const std::string& param_blob) {
+ffi::Map<ffi::String, Tensor> LoadParams(const std::string& param_blob) {
   dmlc::MemoryStringStream strm(const_cast<std::string*>(&param_blob));
   return LoadParams(&strm);
 }
-Map<String, Tensor> LoadParams(dmlc::Stream* strm) {
-  Map<String, Tensor> params;
+ffi::Map<ffi::String, Tensor> LoadParams(dmlc::Stream* strm) {
+  ffi::Map<ffi::String, Tensor> params;
   uint64_t header, reserved;
   ICHECK(strm->Read(&header)) << "Invalid parameters file format";
   ICHECK(header == kTVMTensorListMagic) << "Invalid parameters file format";
@@ -222,7 +222,7 @@ Map<String, Tensor> LoadParams(dmlc::Stream* strm) {
   return params;
 }
 
-void SaveParams(dmlc::Stream* strm, const Map<String, Tensor>& params) {
+void SaveParams(dmlc::Stream* strm, const ffi::Map<ffi::String, Tensor>& params) {
   std::vector<std::string> names;
   std::vector<const DLTensor*> arrays;
   for (auto& p : params) {
@@ -243,7 +243,7 @@ void SaveParams(dmlc::Stream* strm, const Map<String, Tensor>& params) {
   }
 }
 
-std::string SaveParams(const Map<String, Tensor>& params) {
+std::string SaveParams(const ffi::Map<ffi::String, Tensor>& params) {
   std::string bytes;
   dmlc::MemoryStringStream strm(&bytes);
   dmlc::Stream* fo = &strm;
@@ -255,17 +255,17 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.SaveParams",
-           [](const Map<String, Tensor>& params) {
+           [](const ffi::Map<ffi::String, Tensor>& params) {
              std::string s = ::tvm::runtime::SaveParams(params);
              return ffi::Bytes(std::move(s));
            })
       .def("runtime.SaveParamsToFile",
-           [](const Map<String, Tensor>& params, const String& path) {
+           [](const ffi::Map<ffi::String, Tensor>& params, const ffi::String& path) {
              tvm::runtime::SimpleBinaryFileStream strm(path, "wb");
              SaveParams(&strm, params);
            })
       .def("runtime.LoadParams", [](const ffi::Bytes& s) { return ::tvm::runtime::LoadParams(s); })
-      .def("runtime.LoadParamsFromFile", [](const String& path) {
+      .def("runtime.LoadParamsFromFile", [](const ffi::String& path) {
         tvm::runtime::SimpleBinaryFileStream strm(path, "rb");
         return LoadParams(&strm);
       });

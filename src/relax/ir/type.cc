@@ -36,7 +36,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 ShapeType::ShapeType(int ndim, Span span) {
-  ObjectPtr<ShapeTypeNode> n = make_object<ShapeTypeNode>();
+  ObjectPtr<ShapeTypeNode> n = ffi::make_object<ShapeTypeNode>();
   n->ndim = ndim;
   n->span = span;
   data_ = std::move(n);
@@ -49,7 +49,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 ObjectType::ObjectType(Span span) {
-  ObjectPtr<ObjectTypeNode> n = make_object<ObjectTypeNode>();
+  ObjectPtr<ObjectTypeNode> n = ffi::make_object<ObjectTypeNode>();
   n->span = span;
   data_ = std::move(n);
 }
@@ -60,7 +60,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 TensorType::TensorType(int ndim, DataType dtype, Span span) {
-  ObjectPtr<TensorTypeNode> n = make_object<TensorTypeNode>();
+  ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>();
   n->ndim = std::move(ndim);
   n->dtype = std::move(dtype);
   n->span = span;
@@ -68,7 +68,7 @@ TensorType::TensorType(int ndim, DataType dtype, Span span) {
 }
 
 TensorType TensorType::CreateUnknownNDim(DataType dtype, Span span) {
-  ObjectPtr<TensorTypeNode> n = make_object<TensorTypeNode>();
+  ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>();
   n->ndim = -1;
   n->dtype = std::move(dtype);
   n->span = std::move(span);
@@ -83,7 +83,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 PackedFuncType::PackedFuncType(Span span) {
-  ObjectPtr<PackedFuncTypeNode> n = make_object<PackedFuncTypeNode>();
+  ObjectPtr<PackedFuncTypeNode> n = ffi::make_object<PackedFuncTypeNode>();
   n->span = span;
   data_ = std::move(n);
 }

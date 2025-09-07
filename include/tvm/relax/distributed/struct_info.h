@@ -86,9 +86,9 @@ class ShardingNode : public PlacementSpecNode {
 class PlacementNode : public Object {
  public:
   /*! \brief specs for each dim of device mesh.*/
-  Array<PlacementSpec> dim_specs;
+  ffi::Array<PlacementSpec> dim_specs;
 
-  String ToString() const;
+  ffi::String ToString() const;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -106,9 +106,9 @@ class PlacementNode : public Object {
  */
 class Placement : public ObjectRef {
  public:
-  TVM_DLL explicit Placement(Array<PlacementSpec> dim_specs);
+  TVM_DLL explicit Placement(ffi::Array<PlacementSpec> dim_specs);
   /*! \brief replica dim is printed as "R" and sharding dim is printed as "S[i]".]*/
-  static Placement FromText(String text_repr);
+  static Placement FromText(ffi::String text_repr);
   TVM_DEFINE_OBJECT_REF_METHODS(Placement, ObjectRef, PlacementNode);
 };
 

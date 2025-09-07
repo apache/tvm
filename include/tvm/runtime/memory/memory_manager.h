@@ -67,7 +67,7 @@ class Allocator {
    *  \return The empty Tensor.
    */
   TVM_DLL Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
-                       Optional<String> mem_scope = std::nullopt);
+                       ffi::Optional<ffi::String> mem_scope = std::nullopt);
   /*! \brief Return the allocator type. */
   inline AllocatorType type() const { return type_; }
   /*! \brief Allocate a buffer given a size, alignment and type.
@@ -168,7 +168,7 @@ class StorageObj : public Object {
 
   /*! \brief Allocate an Tensor with memory scope from a given piece of storage. */
   TVM_DLL Tensor AllocTensorScoped(int64_t offset, ffi::Shape shape, DLDataType dtype,
-                                   String scope = "global");
+                                   ffi::String scope = "global");
 
   ~StorageObj() {
     if (allocator) {

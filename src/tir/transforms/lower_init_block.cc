@@ -45,7 +45,7 @@ class InitBlockLower : public StmtMutator {
     return Block(n);
   }
 
-  static Stmt DoLowering(const Stmt& init, const Array<IterVar>& iter_vars) {
+  static Stmt DoLowering(const Stmt& init, const ffi::Array<IterVar>& iter_vars) {
     std::vector<PrimExpr> conditions;
     for (const IterVar& var : iter_vars) {
       if (var->iter_type == IterVarType::kCommReduce) {

@@ -57,9 +57,9 @@ class OpaqueBlockLower : public StmtExprMutator {
     // Step 3. Handle allocations in reverse order
     for (size_t i = new_block->alloc_buffers.size(); i > 0; --i) {
       const Buffer& buffer = new_block->alloc_buffers[i - 1];
-      Array<PrimExpr> allocation_shape = GetBufferAllocationShape(buffer);
+      ffi::Array<PrimExpr> allocation_shape = GetBufferAllocationShape(buffer);
       body = DeclBuffer(buffer, std::move(body));
-      Map<String, ffi::Any> allocate_annotations;
+      ffi::Map<ffi::String, ffi::Any> allocate_annotations;
       auto it = storage_align_.find(buffer->data);
       if (it != storage_align_.end()) {
         StorageAlignAnnotation allocate_aligns;
@@ -94,13 +94,13 @@ class OpaqueBlockLower : public StmtExprMutator {
     Stmt body = this->VisitStmt(op->body);
     // Step 3. Handle annotations
     std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
-    Map<String, ffi::Any> new_annotations =
+    ffi::Map<ffi::String, ffi::Any> new_annotations =
         HandleAnnotations(op->annotations, &pragma_attrs, /*is_block=*/false);
     // Step 4. Create new For loop accordingly
     if (op->kind == ForKind::kThreadBinding) {
       // Case 1. Thread binding
       ICHECK(op->thread_binding.defined());
-      String thread_tag = op->thread_binding.value()->thread_tag;
+      ffi::String thread_tag = op->thread_binding.value()->thread_tag;
       body = MakeLaunchThread(min, extent, op->loop_var, thread_tag, body);
     } else if (is_one(extent) && op->annotations.empty()) {
       // Case 2. Unit loop
@@ -118,7 +118,7 @@ class OpaqueBlockLower : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
-    Var var = GetRef<Var>(op);
+    Var var = ffi::GetRef<Var>(op);
     auto it = unit_loop_vars_.find(var);
     if (it == unit_loop_vars_.end()) {
       return var;
@@ -132,16 +132,16 @@ class OpaqueBlockLower : public StmtExprMutator {
     }
   }
 
-  static Stmt MakeLaunchThread(PrimExpr min, PrimExpr extent, Var var, String thread_tag,
+  static Stmt MakeLaunchThread(PrimExpr min, PrimExpr extent, Var var, ffi::String thread_tag,
                                Stmt body) {
     IterVar iter_var(/*dom=*/Range::FromMinExtent(min, extent),
                      /*var=*/std::move(var),
                      /*iter_type=*/IterVarType::kThreadIndex,
                      /*thread_tag=*/thread_tag);
-    String attr_key = (thread_tag == "vthread" || thread_tag == "vthread.x" ||
-                       thread_tag == "vthread.y" || thread_tag == "vthread.z")
-                          ? attr::virtual_thread
-                          : attr::thread_extent;
+    ffi::String attr_key = (thread_tag == "vthread" || thread_tag == "vthread.x" ||
+                            thread_tag == "vthread.y" || thread_tag == "vthread.z")
+                               ? attr::virtual_thread
+                               : attr::thread_extent;
     return AttrStmt(/*node=*/std::move(iter_var),
                     /*attr_key=*/std::move(attr_key),
                     /*value=*/std::move(extent),
@@ -149,12 +149,12 @@ class OpaqueBlockLower : public StmtExprMutator {
   }
 
   /*! \brief Convert attr value from annotation map into PrimExpr. */
-  PrimExpr ConvertAttrValue(const String& key, const Any& obj) {
+  PrimExpr ConvertAttrValue(const ffi::String& key, const Any& obj) {
     if (obj == nullptr) {
       return PrimExpr();
     } else if (auto expr = obj.try_cast<PrimExpr>()) {
       return expr.value();
-    } else if (auto str = obj.try_cast<String>()) {
+    } else if (auto str = obj.try_cast<ffi::String>()) {
       return std::move(StringImm(str.value()));
     } else {
       LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj.GetTypeKey()
@@ -171,13 +171,13 @@ class OpaqueBlockLower : public StmtExprMutator {
    * (3) the non-pragma block annotations are dropped
    * \return New annotation dict with preserved keys. Also update pragma attr pairs ordered by key.
    */
-  Map<String, ffi::Any> HandleAnnotations(
-      const Map<String, ffi::Any>& annotations,
+  ffi::Map<ffi::String, ffi::Any> HandleAnnotations(
+      const ffi::Map<ffi::String, ffi::Any>& annotations,
       std::vector<std::pair<std::string, PrimExpr>>* pragma_attrs, bool is_block) {
-    Map<String, ffi::Any> preserved_annotations;
+    ffi::Map<ffi::String, ffi::Any> preserved_annotations;
     pragma_attrs->clear();
     for (const auto& kv : annotations) {
-      const String& key = kv.first;
+      const ffi::String& key = kv.first;
       if (attr::IsPragmaKey(key)) {
         pragma_attrs->emplace_back(key, ConvertAttrValue(key, kv.second));
       } else if (!is_block) {

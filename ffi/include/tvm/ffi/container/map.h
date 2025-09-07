@@ -1755,7 +1755,5 @@ inline constexpr bool type_contains_v<Map<K, V>, Map<KU, VU>> =
 }  // namespace details
 
 }  // namespace ffi
-
-using ffi::Map;
 }  // namespace tvm
 #endif  // TVM_FFI_CONTAINER_MAP_H_

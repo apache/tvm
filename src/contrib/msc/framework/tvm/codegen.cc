@@ -35,7 +35,7 @@ void RelaxCodeGen::CodeGenHeader() {
 
 void RelaxCodeGen::CodeGenGraph() {
   stack_.func_def(graph()->name, "tvm.IRModule");
-  Array<String> idx_inputs;
+  ffi::Array<ffi::String> idx_inputs;
   for (const auto& i : graph()->GetInputs()) {
     const auto& pair = graph()->FindProducerAndIdx(i);
     const auto& idx_input = IdxOutputBase(pair.first, pair.second);
@@ -89,13 +89,13 @@ void RelaxCodeGen::CodeGenGraph() {
   }
   // mark outputs
   stack_.comment("Emit the outputs");
-  Array<String> idx_exits;
+  ffi::Array<ffi::String> idx_exits;
 
   for (const auto& e : graph()->GetExits()) {
     const auto& idx_exit = IdxNodeBase(e) + (config()->use_tools ? "_exit" : "");
     if (config()->use_tools) {
       if (e->outputs.size() > 1) {
-        Array<String> tuple_outputs;
+        ffi::Array<ffi::String> tuple_outputs;
         for (size_t o_idx = 0; o_idx < e->outputs.size(); o_idx++) {
           const auto& t_output = IdxOutputBase(e, o_idx, true);
           tuple_outputs.push_back(t_output);
@@ -151,7 +151,7 @@ void RelaxCodeGen::CodeGenInference() {
     const auto& producer = graph()->FindProducer(i);
     stack_.call_arg(IdxNodeBase(producer));
   }
-  String target, device;
+  ffi::String target, device;
   if (config()->test_device == "cpu") {
     target = "llvm";
     device = "tvm.cpu()";
@@ -189,7 +189,7 @@ void RelaxCodeGen::CodeGenInference() {
   }
 }
 
-const String RelaxCodeGen::DescribePrim(const MSCPrim& prim) {
+const ffi::String RelaxCodeGen::DescribePrim(const MSCPrim& prim) {
   if (prim->optype == "shape") {
     const auto& producer = graph()->FindNode(prim->GetTypeAttr<std::string>("producer"));
     int out_idx = prim->GetTypeAttr<int>("out_idx");
@@ -199,7 +199,7 @@ const String RelaxCodeGen::DescribePrim(const MSCPrim& prim) {
   return PyCodeGen<RelaxCodeGenConfig, RelaxCodeGenHelper>::DescribePrim(prim);
 }
 
-const Array<Doc> RelaxCodeGen::GetOpCodes(const MSCJoint& node) {
+const ffi::Array<Doc> RelaxCodeGen::GetOpCodes(const MSCJoint& node) {
   const auto& ops_map = GetRelaxOpCodes();
   auto it = ops_map->find(GetOpType(node));
   ICHECK(it != ops_map->end()) << "Unsupported relax op(" << node->optype << "): " << node;
@@ -215,8 +215,8 @@ const Array<Doc> RelaxCodeGen::GetOpCodes(const MSCJoint& node) {
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("msc.framework.tvm.GetRelaxSources",
-                        [](const MSCGraph& graph, const String& codegen_config,
-                           const String& print_config) -> Map<String, String> {
+                        [](const MSCGraph& graph, const ffi::String& codegen_config,
+                           const ffi::String& print_config) -> ffi::Map<ffi::String, ffi::String> {
                           RelaxCodeGen codegen = RelaxCodeGen(graph, codegen_config);
                           codegen.Init();
                           return codegen.GetSources(print_config);

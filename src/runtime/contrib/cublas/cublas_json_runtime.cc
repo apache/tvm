@@ -46,12 +46,12 @@ using namespace tvm::runtime::json;
 class CublasJSONRuntime : public JSONRuntimeBase {
  public:
   CublasJSONRuntime(const std::string& symbol_name, const std::string& graph_json,
-                    const Array<String> const_names)
+                    const ffi::Array<ffi::String> const_names)
       : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
 
-  void Init(const Array<Tensor>& consts) override {}
+  void Init(const ffi::Array<Tensor>& consts) override {}
 
-  ffi::Optional<ffi::Function> GetFunction(const String& name) override {
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) override {
     // JSONRuntimeBase::SetInputOutputBuffers(...) is not thread safe. Since CublasJSONRuntime
     // can be used by multiple GPUs running on different threads, we avoid using that function
     // and directly call cuBLAS on the inputs from ffi::PackedArgs.
@@ -153,9 +153,9 @@ class CublasJSONRuntime : public JSONRuntimeBase {
   void Run() override { LOG(FATAL) << "Unreachable"; }
 };
 
-ffi::Module CublasJSONRuntimeCreate(String symbol_name, String graph_json,
-                                    const Array<String>& const_names) {
-  auto n = make_object<CublasJSONRuntime>(symbol_name, graph_json, const_names);
+ffi::Module CublasJSONRuntimeCreate(ffi::String symbol_name, ffi::String graph_json,
+                                    const ffi::Array<ffi::String>& const_names) {
+  auto n = ffi::make_object<CublasJSONRuntime>(symbol_name, graph_json, const_names);
   return ffi::Module(n);
 }
 

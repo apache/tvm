@@ -41,13 +41,13 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("diagnostics.Diagnostic", [](int level, Span span, String message) {
+  refl::GlobalDef().def("diagnostics.Diagnostic", [](int level, Span span, ffi::String message) {
     return Diagnostic(static_cast<DiagnosticLevel>(level), span, message);
   });
 });
 
 Diagnostic::Diagnostic(DiagnosticLevel level, Span span, const std::string& message) {
-  auto n = make_object<DiagnosticNode>();
+  auto n = ffi::make_object<DiagnosticNode>();
   n->level = level;
   n->span = span;
   n->message = message;
@@ -94,13 +94,15 @@ DiagnosticBuilder Diagnostic::Help(ObjectRef loc) {
   return DiagnosticBuilder(DiagnosticLevel::kHelp, loc);
 }
 
-DiagnosticBuilder Diagnostic::Bug(const Object* loc) { return Bug(GetRef<ObjectRef>(loc)); }
+DiagnosticBuilder Diagnostic::Bug(const Object* loc) { return Bug(ffi::GetRef<ObjectRef>(loc)); }
 
-DiagnosticBuilder Diagnostic::Error(const Object* loc) { return Error(GetRef<ObjectRef>(loc)); }
+DiagnosticBuilder Diagnostic::Error(const Object* loc) {
+  return Error(ffi::GetRef<ObjectRef>(loc));
+}
 
-DiagnosticBuilder Diagnostic::Note(const Object* loc) { return Note(GetRef<ObjectRef>(loc)); }
+DiagnosticBuilder Diagnostic::Note(const Object* loc) { return Note(ffi::GetRef<ObjectRef>(loc)); }
 
-DiagnosticBuilder Diagnostic::Help(const Object* loc) { return Help(GetRef<ObjectRef>(loc)); }
+DiagnosticBuilder Diagnostic::Help(const Object* loc) { return Help(ffi::GetRef<ObjectRef>(loc)); }
 
 /* Diagnostic Renderer */
 
@@ -108,7 +110,7 @@ void DiagnosticRenderer::Render(const DiagnosticContext& ctx) { (*this)->rendere
 
 TVM_DLL DiagnosticRenderer::DiagnosticRenderer(
     ffi::TypedFunction<void(DiagnosticContext ctx)> renderer) {
-  auto n = make_object<DiagnosticRendererNode>();
+  auto n = ffi::make_object<DiagnosticRendererNode>();
   n->renderer = renderer;
   data_ = std::move(n);
 }
@@ -152,7 +154,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
 DiagnosticContext::DiagnosticContext(const IRModule& module, const DiagnosticRenderer& renderer) {
   CHECK(renderer.defined()) << "can not initialize a diagnostic renderer with a null function";
-  auto n = make_object<DiagnosticContextNode>();
+  auto n = ffi::make_object<DiagnosticContextNode>();
   n->module = module;
   n->renderer = renderer;
   data_ = std::move(n);

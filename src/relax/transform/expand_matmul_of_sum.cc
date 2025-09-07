@@ -41,7 +41,7 @@ namespace tvm {
 namespace relax {
 
 namespace {
-std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns(
+std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>> CreatePatterns(
     const Function& func) {
   auto compile_time_arr = ComputableAtCompileTime(func);
   std::unordered_set<Var> compile_time_lookup(compile_time_arr.begin(), compile_time_arr.end());
@@ -58,7 +58,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> Crea
 
   auto pat_matmul = IsOp("relax.matmul")(pat_lhs, pat_rhs);
 
-  auto rewriter = [=](Expr expr, Map<DFPattern, Expr> matches) -> Expr {
+  auto rewriter = [=](Expr expr, ffi::Map<DFPattern, Expr> matches) -> Expr {
     auto lhs = matches[pat_lhs];
     auto rhs_a = matches[pat_rhs_a];
     auto rhs_b = matches[pat_rhs_b];

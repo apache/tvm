@@ -79,7 +79,7 @@ class PurityChecker : TIRVisitorWithPath {
       LOG_IF(FATAL, assert_on_error_)
           << "AssertionError: "
           << "Pure functions must not contain calls to impure operators, "
-          << "but " << GetRef<PrimExpr>(call) << " calls operator " << call->op
+          << "but " << ffi::GetRef<PrimExpr>(call) << " calls operator " << call->op
           << ", which has side effect " << effect;
     }
   }

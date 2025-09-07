@@ -44,7 +44,7 @@ Postproc Postproc::PyPostproc(
     PyPostprocNode::FApply f_apply,                                             //
     PyPostprocNode::FClone f_clone,                                             //
     PyPostprocNode::FAsString f_as_string) {
-  ObjectPtr<PyPostprocNode> n = make_object<PyPostprocNode>();
+  ObjectPtr<PyPostprocNode> n = ffi::make_object<PyPostprocNode>();
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);
   n->f_apply = std::move(f_apply);
   n->f_clone = std::move(f_clone);
@@ -52,8 +52,8 @@ Postproc Postproc::PyPostproc(
   return Postproc(n);
 }
 
-Array<Postproc> Postproc::DefaultLLVM() {
-  return Array<Postproc>{
+ffi::Array<Postproc> Postproc::DefaultLLVM() {
+  return ffi::Array<Postproc>{
       Postproc::DisallowDynamicLoop(),
       Postproc::RewriteParallelVectorizeUnroll(),
       Postproc::RewriteReductionBlock(),
@@ -61,24 +61,24 @@ Array<Postproc> Postproc::DefaultLLVM() {
   };
 }
 
-Array<Postproc> Postproc::DefaultCPUTensorization() {
-  return Array<Postproc>{
+ffi::Array<Postproc> Postproc::DefaultCPUTensorization() {
+  return ffi::Array<Postproc>{
       Postproc::DisallowDynamicLoop(),   Postproc::RewriteParallelVectorizeUnroll(),
       Postproc::RewriteReductionBlock(), Postproc::RewriteTensorize(/*vectorize_init_loop=*/true),
       Postproc::RewriteLayout(),
   };
 }
 
-Array<Postproc> Postproc::DefaultRISCV() {
-  return Array<Postproc>{
+ffi::Array<Postproc> Postproc::DefaultRISCV() {
+  return ffi::Array<Postproc>{
       Postproc::DisallowDynamicLoop(),   Postproc::RewriteParallelVectorizeUnroll(),
       Postproc::RewriteReductionBlock(), Postproc::RewriteTensorize(/*vectorize_init_loop=*/false),
       Postproc::RewriteLayout(),
   };
 }
 
-Array<Postproc> Postproc::DefaultCUDA() {
-  return Array<Postproc>{
+ffi::Array<Postproc> Postproc::DefaultCUDA() {
+  return ffi::Array<Postproc>{
       Postproc::DisallowDynamicLoop(),
       Postproc::RewriteCooperativeFetch(),
       Postproc::RewriteUnboundBlock(/*max_threadblocks=*/256),
@@ -88,8 +88,8 @@ Array<Postproc> Postproc::DefaultCUDA() {
   };
 }
 
-Array<Postproc> Postproc::DefaultCUDATensorCore() {
-  return Array<Postproc>{
+ffi::Array<Postproc> Postproc::DefaultCUDATensorCore() {
+  return ffi::Array<Postproc>{
       Postproc::DisallowDynamicLoop(),
       Postproc::RewriteCooperativeFetch(),
       Postproc::RewriteUnboundBlock(/*max_threadblocks=*/256),
@@ -102,8 +102,8 @@ Array<Postproc> Postproc::DefaultCUDATensorCore() {
   };
 }
 
-Array<Postproc> Postproc::DefaultHexagon() {
-  return Array<Postproc>{
+ffi::Array<Postproc> Postproc::DefaultHexagon() {
+  return ffi::Array<Postproc>{
       Postproc::DisallowDynamicLoop(),   Postproc::RewriteParallelVectorizeUnroll(),
       Postproc::RewriteReductionBlock(), Postproc::RewriteLayout(),
       Postproc::VerifyVTCMLimit(),

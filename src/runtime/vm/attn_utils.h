@@ -706,7 +706,7 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
    * offset to the destination Tensor.
    */
   void CopyVecDataToArray(Tensor array, int32_t* vec_data,
-                          Optional<ffi::Shape> shape = std::nullopt, int dst_elem_offset = 0) {
+                          ffi::Optional<ffi::Shape> shape = std::nullopt, int dst_elem_offset = 0) {
     if (array->shape[0] == 0) {
       return;
     }

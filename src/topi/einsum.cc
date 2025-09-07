@@ -136,26 +136,26 @@ class EinsumBuilder {
    * \param equation The Einsum equation
    * \param input_shapes The shapes of the input tensors
    */
-  EinsumBuilder(EinsumEquation equation, Array<Array<PrimExpr>> input_shapes)
+  EinsumBuilder(EinsumEquation equation, ffi::Array<ffi::Array<PrimExpr>> input_shapes)
       : equation_(equation), input_shapes_(input_shapes) {}
 
   /*!
    * \brief Run the shape inference
    * \return The inferred shape of the output
    */
-  Array<PrimExpr> InferShape() {
+  ffi::Array<PrimExpr> InferShape() {
     CHECK_EQ(equation_.inputs.size(), input_shapes_.size())
         << "Number of operands does not match the "
            "equation";
 
-    std::vector<Array<PrimExpr>>
+    std::vector<ffi::Array<PrimExpr>>
         ellipis_shapes;  // the sub-shape covered by the ellipsis for each operand
 
     // Step 1: Collect the broadcasted extent for each label
     for (int operand_index = 0; operand_index < static_cast<int>(input_shapes_.size());
          ++operand_index) {
       const EinsumEquation::Subscript subscript = equation_.inputs[operand_index];
-      const Array<PrimExpr>& input_shape = input_shapes_[operand_index];
+      const ffi::Array<PrimExpr>& input_shape = input_shapes_[operand_index];
 
       int current_dim = 0;
       for (auto label : subscript) {
@@ -182,14 +182,16 @@ class EinsumBuilder {
     // Step 2: Infer the shape of the ellipsis if exists
     // The ellipsis may cover different number of dimensions for each operand, these sub-shapes
     // need to be broadcasted to the shape with the maximum number of dimensions
-    Array<PrimExpr> ellipsis_shape;
+    ffi::Array<PrimExpr> ellipsis_shape;
     if (ellipis_shapes.size()) {
-      ellipsis_shape = *std::max_element(
-          ellipis_shapes.begin(), ellipis_shapes.end(),
-          [](const Array<PrimExpr>& a, const Array<PrimExpr>& b) { return a.size() < b.size(); });
-      for (const Array<PrimExpr>& shape : ellipis_shapes) {
+      ellipsis_shape =
+          *std::max_element(ellipis_shapes.begin(), ellipis_shapes.end(),
+                            [](const ffi::Array<PrimExpr>& a, const ffi::Array<PrimExpr>& b) {
+                              return a.size() < b.size();
+                            });
+      for (const ffi::Array<PrimExpr>& shape : ellipis_shapes) {
         auto common_shape = detail::BroadcastShape(ellipsis_shape, shape).common_shape;
-        ellipsis_shape = Array<PrimExpr>(common_shape.begin(), common_shape.end());
+        ellipsis_shape = ffi::Array<PrimExpr>(common_shape.begin(), common_shape.end());
       }
     }
 
@@ -205,10 +207,10 @@ class EinsumBuilder {
     return output_shape_;
   }
 
-  PrimExpr BuildOutputExpr(const Array<Tensor> inputs, const Array<Var>& indices) {
+  PrimExpr BuildOutputExpr(const ffi::Array<Tensor> inputs, const ffi::Array<Var>& indices) {
     std::unordered_map<EinsumEquation::Label, Var> label_to_index;
-    Array<Var> ellipsis_indices;
-    Array<IterVar> reduce_axes;
+    ffi::Array<Var> ellipsis_indices;
+    ffi::Array<IterVar> reduce_axes;
 
     PrepareOutputIndicesMapping(indices, &label_to_index, &ellipsis_indices);
     PrepareReductionIndicesMapping(indices, &label_to_index, &ellipsis_indices, &reduce_axes);
@@ -234,14 +236,15 @@ class EinsumBuilder {
   /*!
    * \brief Prepare mapping from label (including ellipsis) to the output indices
    */
-  void PrepareOutputIndicesMapping(const Array<Var>& indices,
+  void PrepareOutputIndicesMapping(const ffi::Array<Var>& indices,
                                    std::unordered_map<EinsumEquation::Label, Var>* label_to_index,
-                                   Array<Var>* ellipsis_indices) {
+                                   ffi::Array<Var>* ellipsis_indices) {
     int i = 0;
     for (auto label : equation_.output) {
       if (label == EinsumEquation::kEllipsis) {
         auto ellipsis_ndim = ellipsis_shape_.value().size();
-        *ellipsis_indices = Array<Var>(indices.begin() + i, indices.begin() + i + ellipsis_ndim);
+        *ellipsis_indices =
+            ffi::Array<Var>(indices.begin() + i, indices.begin() + i + ellipsis_ndim);
         i += ellipsis_ndim;
       } else {
         label_to_index->emplace(label, indices[i++]);
@@ -255,8 +258,9 @@ class EinsumBuilder {
    * necessary) to the reduction axes
    */
   void PrepareReductionIndicesMapping(
-      const Array<Var>& indices, std::unordered_map<EinsumEquation::Label, Var>* label_to_index,
-      Array<Var>* ellipsis_indices, Array<IterVar>* reduction_axes) {
+      const ffi::Array<Var>& indices,
+      std::unordered_map<EinsumEquation::Label, Var>* label_to_index,
+      ffi::Array<Var>* ellipsis_indices, ffi::Array<IterVar>* reduction_axes) {
     // Collect labels that need to be reduced, which is the union(input_labels) - output_labels
     std::set<char> reduction_labels;
     for (const EinsumEquation::Subscript& subscript : equation_.inputs) {
@@ -288,18 +292,18 @@ class EinsumBuilder {
     }
   }
 
-  Array<PrimExpr> GetIndicesForOperand(
+  ffi::Array<PrimExpr> GetIndicesForOperand(
       int operand_index, const std::unordered_map<EinsumEquation::Label, Var>& label_to_index,
-      const Array<Var>& ellipsis_indices) {
+      const ffi::Array<Var>& ellipsis_indices) {
     const EinsumEquation::Subscript& subscript = equation_.inputs[operand_index];
-    Array<PrimExpr> indices;  // the indices for the operand
-    const Array<PrimExpr> input_shape = input_shapes_[operand_index];
+    ffi::Array<PrimExpr> indices;  // the indices for the operand
+    const ffi::Array<PrimExpr> input_shape = input_shapes_[operand_index];
 
     int i = 0;  // index of the operand shape
     for (char label : subscript) {
       if (label == EinsumEquation::kEllipsis) {
         // Ellipsis
-        Array<PrimExpr> ellipsis_shape = ellipsis_shape_.value();
+        ffi::Array<PrimExpr> ellipsis_shape = ellipsis_shape_.value();
         int ellipsis_ndim =
             static_cast<int>(input_shape.size()) - static_cast<int>(subscript.size()) + 1;
         // use last 'ellipsis_ndim' axes
@@ -320,24 +324,24 @@ class EinsumBuilder {
   }
 
   EinsumEquation equation_;
-  Array<Array<PrimExpr>> input_shapes_;
+  ffi::Array<ffi::Array<PrimExpr>> input_shapes_;
 
   // intermediate results of shape inference
 
   // The output shape
-  Array<PrimExpr> output_shape_;
+  ffi::Array<PrimExpr> output_shape_;
   // The extent of each label with broadcast rules applied
   std::unordered_map<EinsumEquation::Label, PrimExpr> label_to_extent_;
   // The shape of the ellipsis if ellipsis is used. The shape covered by the
   // ellipsis in each operand might be different from this, this is the common
   // shape among them according to the broadcast rules.
-  Optional<Array<PrimExpr>> ellipsis_shape_;
+  ffi::Optional<ffi::Array<PrimExpr>> ellipsis_shape_;
 };
 
-Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inputs, std::string name,
+Tensor einsum(const std::string& subscripts_str, const ffi::Array<Tensor> inputs, std::string name,
               std::string tag) {
   EinsumEquation equation = EinsumEquation::FromString(subscripts_str);
-  Array<Array<PrimExpr>> input_shapes;
+  ffi::Array<ffi::Array<PrimExpr>> input_shapes;
   for (const Tensor& input : inputs) {
     input_shapes.push_back(input->shape);
   }
@@ -345,12 +349,14 @@ Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inputs, std
   auto output_shape = einsum_builder.InferShape();
   return te::compute(
       output_shape,
-      [&](const Array<Var>& indices) { return einsum_builder.BuildOutputExpr(inputs, indices); },
+      [&](const ffi::Array<Var>& indices) {
+        return einsum_builder.BuildOutputExpr(inputs, indices);
+      },
       name, tag);
 }
 
-Array<PrimExpr> InferEinsumShape(const std::string& subscripts,
-                                 const std::vector<Array<PrimExpr>>& operands) {
+ffi::Array<PrimExpr> InferEinsumShape(const std::string& subscripts,
+                                      const std::vector<ffi::Array<PrimExpr>>& operands) {
   EinsumEquation equation = EinsumEquation::FromString(subscripts);
   EinsumBuilder einsum_builder = EinsumBuilder(equation, operands);
   return einsum_builder.InferShape();
@@ -359,7 +365,7 @@ Array<PrimExpr> InferEinsumShape(const std::string& subscripts,
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("topi.einsum", [](ffi::PackedArgs args, ffi::Any* rv) {
-    *rv = einsum(args[0].cast<std::string>(), args[1].cast<Array<Tensor>>());
+    *rv = einsum(args[0].cast<std::string>(), args[1].cast<ffi::Array<Tensor>>());
   });
 });
 

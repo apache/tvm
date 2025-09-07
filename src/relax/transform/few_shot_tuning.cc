@@ -42,13 +42,13 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
     ICHECK(runner.defined()) << "ValueError: The local runner is not defined!";
   }
   // create an IRModule
-  IRModule mod = IRModule(Map<GlobalVar, BaseFunc>(
-      {{GlobalVar("main"), WithAttr(prim_func, tvm::attr::kGlobalSymbol, String("main"))}}));
+  IRModule mod = IRModule(ffi::Map<GlobalVar, BaseFunc>(
+      {{GlobalVar("main"), WithAttr(prim_func, tvm::attr::kGlobalSymbol, ffi::String("main"))}}));
   // fetch the number of physical cores
   static const auto f_cpu_count = tvm::ffi::Function::GetGlobalRequired("meta_schedule.cpu_count");
   int num_threads = f_cpu_count(false).cast<int>();
   // store the results
-  Array<IRModule> results;
+  ffi::Array<IRModule> results;
   std::vector<double> costs;
   // create a TuneContext
   meta_schedule::TuneContext task = meta_schedule::TuneContext(
@@ -72,16 +72,16 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
       /*cost_model=*/std::nullopt);
   int fail_count = 0, max_fail_count = 100;
   while (valid_count > 0 && fail_count < max_fail_count) {
-    Optional<Array<meta_schedule::MeasureCandidate>> candidates =
+    ffi::Optional<ffi::Array<meta_schedule::MeasureCandidate>> candidates =
         task->search_strategy.value()->GenerateMeasureCandidates();
     if (!candidates.defined()) break;
-    Array<meta_schedule::BuilderInput> builder_inputs;
+    ffi::Array<meta_schedule::BuilderInput> builder_inputs;
     for (const meta_schedule::MeasureCandidate& candidate : candidates.value()) {
       builder_inputs.push_back(meta_schedule::BuilderInput(
           /*mod=*/candidate->sch->mod(),
           /*target=*/target));
     }
-    Array<meta_schedule::BuilderResult> builder_results = builder->Build(builder_inputs);
+    ffi::Array<meta_schedule::BuilderResult> builder_results = builder->Build(builder_inputs);
     ICHECK_EQ(builder_results.size(), candidates.value().size());
     int idx = 0;
     bool no_valid = true;  // whether there is no valid schedule in this iteration
@@ -95,7 +95,7 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
     }
     fail_count += no_valid;  // increase fail_count if there is no valid schedule
     if (benchmark) {
-      Array<meta_schedule::RunnerInput> runner_inputs;
+      ffi::Array<meta_schedule::RunnerInput> runner_inputs;
       int idx = 0;
       for (const meta_schedule::BuilderResult& builder_result : builder_results) {
         if (!builder_result->error_msg.has_value()) {
@@ -106,7 +106,7 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
         }
         idx++;
       }
-      Array<meta_schedule::RunnerFuture> runner_futures = runner->Run(runner_inputs);
+      ffi::Array<meta_schedule::RunnerFuture> runner_futures = runner->Run(runner_inputs);
       for (const meta_schedule::RunnerFuture& runner_future : runner_futures) {
         meta_schedule::RunnerResult runner_result = runner_future->Result();
         if (runner_result->error_msg.has_value()) {
@@ -153,12 +153,13 @@ Pass FewShotTuning(int valid_count, bool benchmark) {
         tvm::Target target = tvm::Target::Current();
         ICHECK(target.defined()) << "Target is not set in current context";
         // generate the few shot tuned prim funcs.
-        Map<GlobalVar, BaseFunc> result;
+        ffi::Map<GlobalVar, BaseFunc> result;
         for (const auto& [gv, func] : m->functions) {
           if (func->IsInstance<tir::PrimFuncNode>() &&
               !func->HasNonzeroAttr(tir::attr::kIsScheduled)) {
-            result.Set(gv, FewShotTunePrimFunc(GetRef<tir::PrimFunc>(func.as<tir::PrimFuncNode>()),
-                                               target, valid_count, benchmark));
+            result.Set(gv,
+                       FewShotTunePrimFunc(ffi::GetRef<tir::PrimFunc>(func.as<tir::PrimFuncNode>()),
+                                           target, valid_count, benchmark));
           } else {
             result.Set(gv, func);
           }

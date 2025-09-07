@@ -32,7 +32,7 @@ namespace relax {
 
 /*! \brief Attributes used in allreduce operators */
 struct AllReduceAttrs : public tvm::AttrsNodeReflAdapter<AllReduceAttrs> {
-  String op_type;
+  ffi::String op_type;
   bool in_group;
 
   static void RegisterReflection() {

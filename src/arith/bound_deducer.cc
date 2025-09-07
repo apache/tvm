@@ -390,8 +390,8 @@ IntSet DeduceBound(PrimExpr v, PrimExpr e,
 
 // assuming e >= 0, deduce the bound of variable from it.
 // return empty set to represent deduce failure.
-IntSet DeduceBound(PrimExpr v, PrimExpr e, const Map<Var, IntSet>& hint_map,
-                   const Map<Var, IntSet>& relax_map) {
+IntSet DeduceBound(PrimExpr v, PrimExpr e, const ffi::Map<Var, IntSet>& hint_map,
+                   const ffi::Map<Var, IntSet>& relax_map) {
   std::unordered_map<const VarNode*, IntSet> hmap;
   for (auto kv : hint_map) {
     hmap[kv.first.get()] = kv.second;
@@ -405,10 +405,11 @@ IntSet DeduceBound(PrimExpr v, PrimExpr e, const Map<Var, IntSet>& hint_map,
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "arith.DeduceBound",
-      [](PrimExpr v, PrimExpr cond, const Map<Var, IntSet> hint_map,
-         const Map<Var, IntSet> relax_map) { return DeduceBound(v, cond, hint_map, relax_map); });
+  refl::GlobalDef().def("arith.DeduceBound",
+                        [](PrimExpr v, PrimExpr cond, const ffi::Map<Var, IntSet> hint_map,
+                           const ffi::Map<Var, IntSet> relax_map) {
+                          return DeduceBound(v, cond, hint_map, relax_map);
+                        });
 });
 
 }  // namespace arith

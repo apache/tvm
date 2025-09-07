@@ -45,9 +45,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     KVState kv_state = args[0].cast<KVState>();
                     ffi::Shape seq_ids = args[1].cast<ffi::Shape>();
                     ffi::Shape append_lengths = args[2].cast<ffi::Shape>();
-                    Optional<ffi::Shape> token_tree_parent_ptr;
+                    ffi::Optional<ffi::Shape> token_tree_parent_ptr;
                     if (args.size() == 4) {
-                      token_tree_parent_ptr = args[3].cast<Optional<ffi::Shape>>();
+                      token_tree_parent_ptr = args[3].cast<ffi::Optional<ffi::Shape>>();
                     }
                     kv_state->BeginForward(seq_ids, append_lengths, token_tree_parent_ptr);
                   })

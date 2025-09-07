@@ -47,10 +47,10 @@ class MutateComputeLocationNode : public MutatorNode {
     this->json_mod_ = SaveJSON(context->mod.value());
   }
   // Inherit from `MutatorNode`
-  Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
+  ffi::Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
   // Inherit from `MutatorNode`
   Mutator Clone() const final {
-    ObjectPtr<MutateComputeLocationNode> n = make_object<MutateComputeLocationNode>(*this);
+    ObjectPtr<MutateComputeLocationNode> n = ffi::make_object<MutateComputeLocationNode>(*this);
     return Mutator(n);
   }
 
@@ -86,9 +86,9 @@ std::vector<MutateComputeLocationNode::Candidate> MutateComputeLocationNode::Fin
       InstructionKind::Get("SampleComputeLocation");
   std::vector<MutateComputeLocationNode::Candidate> candidates;
 
-  auto f_decision_provider = [&](const tir::Instruction& inst,  //
-                                 const Array<Any>& inputs,      //
-                                 const Array<Any>& attrs,       //
+  auto f_decision_provider = [&](const tir::Instruction& inst,   //
+                                 const ffi::Array<Any>& inputs,  //
+                                 const ffi::Array<Any>& attrs,   //
                                  const Any& decision) -> Any {
     if (inst->kind.same_as(inst_sample_compute_location)) {
       // Step 1. Extract the instruction input and the old decision.
@@ -118,7 +118,7 @@ std::vector<MutateComputeLocationNode::Candidate> MutateComputeLocationNode::Fin
   return candidates;
 }
 
-Optional<Trace> MutateComputeLocationNode::Apply(const Trace& trace, TRandState* rand_state) {
+ffi::Optional<Trace> MutateComputeLocationNode::Apply(const Trace& trace, TRandState* rand_state) {
   std::vector<Candidate> candidates = FindCandidates(trace, rand_state);
   if (candidates.empty()) {
     return std::nullopt;
@@ -129,7 +129,7 @@ Optional<Trace> MutateComputeLocationNode::Apply(const Trace& trace, TRandState*
 }
 
 Mutator Mutator::MutateComputeLocation() {
-  return Mutator(make_object<MutateComputeLocationNode>());
+  return Mutator(ffi::make_object<MutateComputeLocationNode>());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({ MutateComputeLocationNode::RegisterReflection(); });

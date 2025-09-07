@@ -47,7 +47,7 @@ struct GenerateBodyOutput {
   std::string decl;
   std::vector<std::string> buffers;
   std::vector<Output> outputs;
-  Array<String> headers;
+  ffi::Array<ffi::String> headers;
 };
 
 // The base class to generate the declaration functions in C.
@@ -115,7 +115,7 @@ class CodegenCBase {
    *
    * \code
    *
-   * Array<Tensor> foo_consts;
+   * ffi::Array<Tensor> foo_consts;
    *
    * // An example code for the generated C function.
    * int foo_wrapper_(DLTensor* arg0,
@@ -129,7 +129,7 @@ class CodegenCBase {
    *
    * TVM_FFI_DLL_EXPORT_TYPED_FUNC(foo, foo_wrapper_);
    *
-   * int foo_init_wrapper_(Array<Tensor> arr) {
+   * int foo_init_wrapper_(ffi::Array<Tensor> arr) {
    *   foo_consts = arr;
    *   return 0;
    * }
@@ -220,7 +220,7 @@ class CodegenCBase {
       // codegen. Moreover, in microTVM we dont expect this part to be generated.
       code_stream_ << "#ifdef __cplusplus\n";
       code_stream_ << "int " << func_name
-                   << "_init_wrapper_(tvm::Array<tvm::runtime::Tensor> arr) {\n";
+                   << "_init_wrapper_(tvm::ffi::Array<tvm::runtime::Tensor> arr) {\n";
       EnterScope();
       PrintIndents();
       code_stream_ << func_name << "_consts = arr;\n";
@@ -233,7 +233,7 @@ class CodegenCBase {
     }
   }
 
-  void GenerateBackendCFunc(const std::string& func_name, const Array<Var>& args,
+  void GenerateBackendCFunc(const std::string& func_name, const ffi::Array<Var>& args,
                             const std::string& const_arr_name, const std::vector<Output>& outs,
                             bool pass_dl_tensor = false) {
     std::vector<std::string> arg_types;
@@ -266,7 +266,7 @@ class CodegenCBase {
    *
    * \return The emitted code string.
    */
-  std::string JitImpl(const std::string& ext_func_id, const Array<Var>& args,
+  std::string JitImpl(const std::string& ext_func_id, const ffi::Array<Var>& args,
                       const std::vector<std::string>& buf_decl,
                       const std::vector<std::string>& body, const std::string& const_arr_name,
                       const std::vector<Output>& outs) {
@@ -390,7 +390,7 @@ class CodegenCBase {
    * \return The created declaration
    */
   std::string CreateTensorPool(const std::string& symbol) const {
-    return "tvm::Array<tvm::runtime::Tensor> " + symbol + "_consts;";
+    return "tvm::ffi::Array<tvm::runtime::Tensor> " + symbol + "_consts;";
   }
 
   /*!

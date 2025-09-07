@@ -120,7 +120,7 @@ void TensorRTPluginCodeGen::CodeGenAttrDefine(const Plugin& plugin) {
       .for_start("i", 0, plugin->attrs.size());
   for (size_t i = 0; i < plugin->attrs.size(); i++) {
     const auto& attr = plugin->attrs[i];
-    const String& cond = "strcmp(fields[i].name, \"" + attr->name + "\") == 0";
+    const ffi::String& cond = "strcmp(fields[i].name, \"" + attr->name + "\") == 0";
     if (i == 0) {
       stack_.switch_start(cond);
     } else {
@@ -275,7 +275,7 @@ void TensorRTPluginCodeGen::CodeGenOpDefine(const Plugin& plugin) {
         .declare("bool", "support");
     size_t cnt = 0;
     for (const auto& dtypes : GetDtypeMatrix(plugin)) {
-      const String& cond = "dtype_ == TRTUtils::ToDataType(\"" + dtypes.at(0) + "\")";
+      const ffi::String& cond = "dtype_ == TRTUtils::ToDataType(\"" + dtypes.at(0) + "\")";
       if (cnt == 0) {
         stack_.switch_start(cond);
       } else {
@@ -374,7 +374,7 @@ void TensorRTPluginCodeGen::CodeGenOpDefine(const Plugin& plugin) {
       .declare("bool", "support");
   size_t cnt = 0;
   for (const auto& dtypes : GetDtypeMatrix(plugin)) {
-    String cond;
+    ffi::String cond;
     for (size_t i = 0; i < plugin->inputs.size(); i++) {
       cond = cond + "io_desc[" + std::to_string(i) + "].type == TRTUtils::ToDataType(\"" +
              dtypes.at(i) + "\")";
@@ -419,8 +419,8 @@ void TensorRTPluginCodeGen::CodeGenOpDefine(const Plugin& plugin) {
   CodegenCreator(plugin, true, false);
 }
 
-void TensorRTPluginCodeGen::CodeGenCmake(const std::set<String>& devices) {
-  Map<String, String> flags;
+void TensorRTPluginCodeGen::CodeGenCmake(const std::set<ffi::String>& devices) {
+  ffi::Map<ffi::String, ffi::String> flags;
   flags.Set("PLUGIN_SUPPORT_TENSORRT", "");
   flags.Set("TRT_MAJOR", std::to_string(config()->version[0]));
   flags.Set("TRT_MINOR", std::to_string(config()->version[1]));
@@ -432,7 +432,7 @@ void TensorRTPluginCodeGen::CodeGenCmake(const std::set<String>& devices) {
       .line("find_library(TRT_LIBS nvinfer HINTS " + config()->tensorrt_root +
             " PATH_SUFFIXES lib)")
       .line("set(CMAKE_CXX_FLAGS \"${CMAKE_CXX_FLAGS} -Wno-terminate\")");
-  Array<String> includes, libs;
+  ffi::Array<ffi::String> includes, libs;
   includes.push_back("${TRT_INCLUDE_DIR}");
   libs.push_back("${TRT_LIBS}");
   CodeGenPostCmake(devices, includes, libs);
@@ -454,7 +454,7 @@ void TensorRTPluginCodeGen::CodeGenManagerMethods() {
 void TensorRTPluginCodeGen::CodegenOpCommonMethods(const Plugin& plugin, bool dynamic,
                                                    bool in_declare) {
   const auto& op_cls = OpCls(plugin, dynamic);
-  const String& plugin_cls = dynamic ? "IPluginV2DynamicExt" : "IPluginV2";
+  const ffi::String& plugin_cls = dynamic ? "IPluginV2DynamicExt" : "IPluginV2";
   if (in_declare) {
     stack_.comment("common methods for " + op_cls);
     stack_.constructor_def(op_cls).constructor_arg("name", "const std::string&");
@@ -567,7 +567,7 @@ void TensorRTPluginCodeGen::CodegenOpCommonMethods(const Plugin& plugin, bool dy
         .line("assert(char_buf == (start_buf + getSerializationSize()));")
         .func_end();
     // getPluginType
-    const String& plugin_type = plugin->name + (dynamic ? "_dynamic" : "");
+    const ffi::String& plugin_type = plugin->name + (dynamic ? "_dynamic" : "");
     stack_.func_def(op_cls + "::getPluginType", "const char*")
         .func_decorator("const noexcept")
         .func_start()
@@ -644,7 +644,7 @@ void TensorRTPluginCodeGen::CodegenOpMembers(const Plugin& plugin, bool dynamic)
 
 void TensorRTPluginCodeGen::CodegenCreator(const Plugin& plugin, bool dynamic, bool in_declare) {
   const auto& creator_cls = CreatorCls(plugin, dynamic);
-  const String& plugin_cls = dynamic ? "IPluginV2DynamicExt" : "IPluginV2";
+  const ffi::String& plugin_cls = dynamic ? "IPluginV2DynamicExt" : "IPluginV2";
   if (in_declare) {
     stack_.class_def(creator_cls + " :  public IPluginCreator")
         .class_start()
@@ -679,7 +679,7 @@ void TensorRTPluginCodeGen::CodegenCreator(const Plugin& plugin, bool dynamic, b
         .line()
         .class_end();
   } else {
-    const String& attr_name = MetaAttrCls(plugin);
+    const ffi::String& attr_name = MetaAttrCls(plugin);
     // static members
     stack_.comment("static members and register for " + plugin->name)
         .declare("PluginFieldCollection", creator_cls + "::collection_")
@@ -705,7 +705,7 @@ void TensorRTPluginCodeGen::CodegenCreator(const Plugin& plugin, bool dynamic, b
         .func_call("data", fields_doc, DocUtils::ToDoc("fields_"))
         .constructor_end();
     // getPluginName
-    const String& plugin_type = plugin->name + (dynamic ? "_dynamic" : "");
+    const ffi::String& plugin_type = plugin->name + (dynamic ? "_dynamic" : "");
     stack_.func_def(creator_cls + "::getPluginName", "const char*")
         .func_decorator("const noexcept")
         .func_start()
@@ -753,7 +753,7 @@ void TensorRTPluginCodeGen::CodegenCreator(const Plugin& plugin, bool dynamic, b
         .for_start("i", plugin->attrs.size(), fields_size);
     for (size_t i = 0; i < plugin->inputs.size(); i++) {
       const auto& tensor = plugin->inputs[i];
-      const String& cond = "strcmp(fields[i].name, \"layout_" + tensor->name + "\") == 0";
+      const ffi::String& cond = "strcmp(fields[i].name, \"layout_" + tensor->name + "\") == 0";
       if (i == 0) {
         stack_.switch_start(cond);
       } else {
@@ -794,7 +794,7 @@ void TensorRTPluginCodeGen::CodegenCreator(const Plugin& plugin, bool dynamic, b
 }
 
 void TensorRTPluginCodeGen::CodegenOutputInfer(const Plugin& plugin, bool as_desc) {
-  Array<String> infer_args{"input_metas_", "meta_attr_", "false"};
+  ffi::Array<ffi::String> infer_args{"input_metas_", "meta_attr_", "false"};
   stack_.line("assert(n_inputs == " + std::to_string(plugin->inputs.size()) + ");")
       .func_call("resize", "", "input_metas_")
       .call_arg(plugin->inputs.size())
@@ -810,7 +810,7 @@ void TensorRTPluginCodeGen::CodegenOutputInfer(const Plugin& plugin, bool as_des
 }
 
 void TensorRTPluginCodeGen::CodegenBufferInfer(const Plugin& plugin) {
-  Array<String> infer_args{"input_metas_", "meta_attr_", "false"};
+  ffi::Array<ffi::String> infer_args{"input_metas_", "meta_attr_", "false"};
   CodeGenSafeCall(plugin->externs["infer_buffer"], infer_args, "buffer_metas_");
   stack_.for_start("b", "buffer_metas_")
       .assign("size", "size + max_batch * b.size(false)")
@@ -820,12 +820,12 @@ void TensorRTPluginCodeGen::CodegenBufferInfer(const Plugin& plugin) {
 void TensorRTPluginCodeGen::CodegenEnqueue(const Plugin& plugin, bool dynamic) {
   ICHECK(plugin->externs.count("cuda_compute")) << "cuda_compute is needed fo TensorRT plugin";
   auto prepare_tensor = [this, &dynamic](const PluginTensor& tensor,
-                                         const Map<String, String>& dtypes, size_t idx,
-                                         const String& collect) {
-    const String& t_name = "d_" + tensor->name;
-    const String& t_dtype = dtypes.count(tensor->name) ? dtypes[tensor->name] : tensor->dtype;
-    const String& tensor_type = "DataTensor<" + t_dtype + ">";
-    const String& anno = collect == "input" ? "const " + tensor_type + "&" : tensor_type;
+                                         const ffi::Map<ffi::String, ffi::String>& dtypes,
+                                         size_t idx, const ffi::String& collect) {
+    const ffi::String& t_name = "d_" + tensor->name;
+    const ffi::String& t_dtype = dtypes.count(tensor->name) ? dtypes[tensor->name] : tensor->dtype;
+    const ffi::String& tensor_type = "DataTensor<" + t_dtype + ">";
+    const ffi::String& anno = collect == "input" ? "const " + tensor_type + "&" : tensor_type;
     stack_.func_call("TRTUtils::To" + tensor_type, DocUtils::ToDeclare(anno, t_name));
     const auto& t_meta = DocUtils::ToIndex(collect + "_metas_", idx);
     if (dynamic) {
@@ -844,8 +844,8 @@ void TensorRTPluginCodeGen::CodegenEnqueue(const Plugin& plugin, bool dynamic) {
   };
   for (const auto& dtypes : GetDtypeMatrix(plugin)) {
     const auto& tensor_dtypes = GetTensorDtypes(plugin, dtypes);
-    Array<String> compute_args;
-    String dtype_cond = "";
+    ffi::Array<ffi::String> compute_args;
+    ffi::String dtype_cond = "";
     if (dynamic) {
       for (size_t i = 0; i < plugin->inputs.size(); i++) {
         dtype_cond = dtype_cond + "input_descs[" + std::to_string(i) +
@@ -858,19 +858,19 @@ void TensorRTPluginCodeGen::CodegenEnqueue(const Plugin& plugin, bool dynamic) {
     // prepare compute datas
     stack_.cond_if(dtype_cond).comment("prepare compute datas");
     for (size_t i = 0; i < plugin->inputs.size(); i++) {
-      const String& t_name = prepare_tensor(plugin->inputs[i], tensor_dtypes, i, "input");
+      const ffi::String& t_name = prepare_tensor(plugin->inputs[i], tensor_dtypes, i, "input");
       compute_args.push_back(t_name);
     }
     for (size_t i = 0; i < plugin->outputs.size(); i++) {
-      const String& t_name = prepare_tensor(plugin->outputs[i], tensor_dtypes, i, "output");
+      const ffi::String& t_name = prepare_tensor(plugin->outputs[i], tensor_dtypes, i, "output");
       compute_args.push_back(t_name);
     }
     if (plugin->buffers.size() > 0) {
       stack_.assign("offset", 0, "size_t");
       for (size_t i = 0; i < plugin->buffers.size(); i++) {
-        const String& t_name = prepare_tensor(plugin->outputs[i], tensor_dtypes, i, "buffer");
+        const ffi::String& t_name = prepare_tensor(plugin->outputs[i], tensor_dtypes, i, "buffer");
         compute_args.push_back(t_name);
-        const String& size_name = "size_" + plugin->buffers[i]->name;
+        const ffi::String& size_name = "size_" + plugin->buffers[i]->name;
         stack_
             .func_call("size", DocUtils::ToDeclare("size_t", size_name),
                        DocUtils::ToIndex("buffer_metas_", i))
@@ -888,8 +888,8 @@ void TensorRTPluginCodeGen::CodegenEnqueue(const Plugin& plugin, bool dynamic) {
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("msc.plugin.GetTensorRTPluginSources",
-                        [](const String& codegen_config, const String& print_config,
-                           const String& codegen_type) -> Map<String, String> {
+                        [](const ffi::String& codegen_config, const ffi::String& print_config,
+                           const ffi::String& codegen_type) -> ffi::Map<ffi::String, ffi::String> {
                           TensorRTPluginCodeGen codegen = TensorRTPluginCodeGen(codegen_config);
                           if (codegen_type == "build") {
                             return codegen.GetBuildSources(print_config);
@@ -897,7 +897,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                           if (codegen_type == "manager") {
                             return codegen.GetManagerSources(print_config);
                           }
-                          return Map<String, String>();
+                          return ffi::Map<ffi::String, ffi::String>();
                         });
 });
 

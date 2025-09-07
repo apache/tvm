@@ -30,7 +30,7 @@ bool IsRootBlock(const Schedule& sch, const BlockRV& block_rv) {
 
 bool CheckSpatialPrimFunc(const Schedule& sch, const BlockRV& root_block_rv) {
   return IsSpatialPrimFunc(
-      GetRef<PrimFunc>(GetRootPrimFunc(sch->mod(), sch->Get(root_block_rv).get(), nullptr)));
+      ffi::GetRef<PrimFunc>(GetRootPrimFunc(sch->mod(), sch->Get(root_block_rv).get(), nullptr)));
 }
 
 }  // namespace tir
@@ -51,7 +51,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
   }
 
   // Inherited from ScheduleRuleNode
-  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& root_rv) {
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& root_rv) {
     // Currently only mark the root block with annotations.
     if (!tir::IsRootBlock(sch, root_rv)) {
       return {sch};
@@ -70,7 +70,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
     if (!unroll_max_steps.empty() && !tir::CheckSpatialPrimFunc(sch, root_rv)) {
       int n = unroll_max_steps.size();
       double prob = 1.0 / n;
-      Array<FloatImm> probs(n, FloatImm(DataType::Float(32), prob));
+      ffi::Array<FloatImm> probs(n, FloatImm(DataType::Float(32), prob));
       PrimExpr max_step = sch->SampleCategorical(unroll_max_steps, probs);
       if (unroll_explicit) {
         sch->Annotate(root_rv, tir::attr::meta_schedule_unroll_explicit, max_step);
@@ -84,7 +84,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
     ObjectPtr<ParallelizeVectorizeUnrollNode> n =
-        make_object<ParallelizeVectorizeUnrollNode>(*this);
+        ffi::make_object<ParallelizeVectorizeUnrollNode>(*this);
     return ScheduleRule(n);
   }
 
@@ -104,7 +104,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
    * \brief The options of the maximum number of unroll steps to be done.
    * Use an empty array to disable unroll.
    */
-  Array<Integer> unroll_max_steps;
+  ffi::Array<Integer> unroll_max_steps;
   /*! \brief Whether to explicitly unroll the loop, or just add an "unroll" pragma. */
   bool unroll_explicit;
   /*! \brief The number of maximum available jobs in CPU. */
@@ -125,9 +125,9 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
 
 ScheduleRule ScheduleRule::ParallelizeVectorizeUnroll(int max_jobs_per_core,
                                                       int max_vectorize_extent,
-                                                      Array<Integer> unroll_max_steps,
+                                                      ffi::Array<Integer> unroll_max_steps,
                                                       bool unroll_explicit) {
-  ObjectPtr<ParallelizeVectorizeUnrollNode> n = make_object<ParallelizeVectorizeUnrollNode>();
+  ObjectPtr<ParallelizeVectorizeUnrollNode> n = ffi::make_object<ParallelizeVectorizeUnrollNode>();
   n->max_jobs_per_core = max_jobs_per_core;
   n->max_vectorize_extent = max_vectorize_extent;
   n->unroll_max_steps = unroll_max_steps;

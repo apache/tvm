@@ -129,7 +129,7 @@ void CoreMLRuntime::Init(const std::string& symbol, const std::string& _model_pa
   model_ = std::unique_ptr<CoreMLModel>(new CoreMLModel(url));
 }
 
-Optional<ffi::Function> CoreMLRuntime::GetFunction(const String& name) {
+ffi::Optional<ffi::Function> CoreMLRuntime::GetFunction(const ffi::String& name) {
   // Return member functions during query.
   if (name == "invoke" || name == "run") {
     return ffi::Function([this](ffi::PackedArgs args, ffi::Any* rv) { model_->Invoke(); });
@@ -153,7 +153,7 @@ Optional<ffi::Function> CoreMLRuntime::GetFunction(const String& name) {
       NSDictionary* json = [NSJSONSerialization JSONObjectWithData:data
                                                            options:NSJSONReadingAllowFragments
                                                              error:nil];
-      NSArray<NSString*>* input_names = json[@"inputs"];
+      NSffi::Array<NSString*>* input_names = json[@"inputs"];
 
       // Copy input tensors to corresponding data entries.
       for (auto i = 0; i < args.size() - 1; ++i) {
@@ -186,7 +186,7 @@ Optional<ffi::Function> CoreMLRuntime::GetFunction(const String& name) {
 }
 
 ffi::Module CoreMLRuntimeCreate(const std::string& symbol, const std::string& model_path) {
-  auto exec = make_object<CoreMLRuntime>();
+  auto exec = ffi::make_object<CoreMLRuntime>();
   exec->Init(symbol, model_path);
   return ffi::Module(exec);
 }
@@ -250,7 +250,7 @@ ffi::Module CoreMLRuntimeLoadFromBytes(const ffi::Bytes& bytes) {
   BOOL res = [dirWrapper writeToURL:url options:0 originalContentsURL:nil error:nil];
   ICHECK(res) << "Failed to create model directory " << [model_path UTF8String];
 
-  auto exec = make_object<CoreMLRuntime>();
+  auto exec = ffi::make_object<CoreMLRuntime>();
   exec->Init(symbol, [model_path UTF8String]);
   return ffi::Module(exec);
 }

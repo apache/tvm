@@ -42,13 +42,13 @@ namespace meta_schedule {
 class ExtractedTaskNode : public runtime::Object {
  public:
   /*! \brief The name of the task extracted */
-  String task_name;
+  ffi::String task_name;
   /*! \brief The high-level IR */
   IRModule mod;
   /*! \brief Target */
   Target target;
   /*! \brief A list of low-level IRs that the high-level IR could potentially dispatch to */
-  Array<IRModule> dispatched;
+  ffi::Array<IRModule> dispatched;
   /*! \brief Weight of the task */
   int weight;
 
@@ -73,8 +73,8 @@ class ExtractedTaskNode : public runtime::Object {
  */
 class ExtractedTask : public runtime::ObjectRef {
  public:
-  explicit ExtractedTask(String task_name, IRModule mod, Target target, Array<IRModule> dispatched,
-                         int weight);
+  explicit ExtractedTask(ffi::String task_name, IRModule mod, Target target,
+                         ffi::Array<IRModule> dispatched, int weight);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ExtractedTask, runtime::ObjectRef,
                                                     ExtractedTaskNode);
 };

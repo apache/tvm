@@ -41,7 +41,7 @@ class BuilderInputNode : public runtime::Object {
   /*! \brief The target to be built for. */
   Target target;
   /*! \brief Parameters for Relax build module. */
-  Optional<Map<String, runtime::Tensor>> params;
+  ffi::Optional<ffi::Map<ffi::String, runtime::Tensor>> params;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -67,8 +67,9 @@ class BuilderInput : public runtime::ObjectRef {
    * \param target The target to be built for.
    * \param params Parameters for Relax build module.
    */
-  TVM_DLL explicit BuilderInput(IRModule mod, Target target,
-                                Optional<Map<String, runtime::Tensor>> params = std::nullopt);
+  TVM_DLL explicit BuilderInput(
+      IRModule mod, Target target,
+      ffi::Optional<ffi::Map<ffi::String, runtime::Tensor>> params = std::nullopt);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BuilderInput, runtime::ObjectRef, BuilderInputNode);
 };
 
@@ -76,9 +77,9 @@ class BuilderInput : public runtime::ObjectRef {
 class BuilderResultNode : public runtime::Object {
  public:
   /*! \brief The path to the built artifact. */
-  Optional<String> artifact_path;
+  ffi::Optional<ffi::String> artifact_path;
   /*! \brief The error message if any. */
-  Optional<String> error_msg;
+  ffi::Optional<ffi::String> error_msg;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -102,7 +103,8 @@ class BuilderResult : public runtime::ObjectRef {
    * \param artifact_path The path to the built artifact.
    * \param error_msg The error message if any.
    */
-  TVM_DLL explicit BuilderResult(Optional<String> artifact_path, Optional<String> error_msg);
+  TVM_DLL explicit BuilderResult(ffi::Optional<ffi::String> artifact_path,
+                                 ffi::Optional<ffi::String> error_msg);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BuilderResult, runtime::ObjectRef, BuilderResultNode);
 };
 
@@ -116,13 +118,13 @@ class BuilderNode : public runtime::Object {
    * \param build_inputs The inputs to be built.
    * \return The build results.
    */
-  virtual Array<BuilderResult> Build(const Array<BuilderInput>& build_inputs) = 0;
+  virtual ffi::Array<BuilderResult> Build(const ffi::Array<BuilderInput>& build_inputs) = 0;
   /*!
    * \brief The function type of `Build` method.
    * \param build_inputs The inputs to be built.
    * \return The build results.
    */
-  using FBuild = ffi::TypedFunction<Array<BuilderResult>(const Array<BuilderInput>&)>;
+  using FBuild = ffi::TypedFunction<ffi::Array<BuilderResult>(const ffi::Array<BuilderInput>&)>;
 
   static constexpr const char* _type_key = "meta_schedule.Builder";
   TVM_DECLARE_BASE_OBJECT_INFO(BuilderNode, runtime::Object);
@@ -154,7 +156,7 @@ class PyBuilderNode : public BuilderNode {
     refl::ObjectDef<PyBuilderNode>().def_ro("f_build", &PyBuilderNode::f_build);
   }
 
-  Array<BuilderResult> Build(const Array<BuilderInput>& build_inputs) final {
+  ffi::Array<BuilderResult> Build(const ffi::Array<BuilderInput>& build_inputs) final {
     ICHECK(f_build != nullptr) << "PyBuilder's Build method not implemented!";
     return f_build(build_inputs);
   }

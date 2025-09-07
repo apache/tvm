@@ -42,11 +42,11 @@ HexagonModuleNode::HexagonModuleNode(std::string data, std::string fmt,
                                      std::string bc_str)
     : data_(data), fmt_(fmt), fmap_(fmap), asm_(asm_str), obj_(obj_str), ir_(ir_str), bc_(bc_str) {}
 
-Optional<ffi::Function> HexagonModuleNode::GetFunction(const String& name) {
+ffi::Optional<ffi::Function> HexagonModuleNode::GetFunction(const ffi::String& name) {
   LOG(FATAL) << "HexagonModuleNode::GetFunction is not implemented.";
 }
 
-String HexagonModuleNode::InspectSource(const String& format) const {
+ffi::String HexagonModuleNode::InspectSource(const ffi::String& format) const {
   if (format == "s" || format == "asm") {
     return asm_;
   }
@@ -56,7 +56,7 @@ String HexagonModuleNode::InspectSource(const String& format) const {
   return "";
 }
 
-void HexagonModuleNode::WriteToFile(const String& file_name, const String& format) const {
+void HexagonModuleNode::WriteToFile(const ffi::String& file_name, const ffi::String& format) const {
   std::string fmt = runtime::GetFileFormat(file_name, format);
   if (fmt == "so" || fmt == "dll" || fmt == "hexagon") {
     std::string meta_file = GetMetaFilePath(file_name);
@@ -93,7 +93,7 @@ ffi::Module HexagonModuleCreate(std::string data, std::string fmt,
                                 std::unordered_map<std::string, FunctionInfo> fmap,
                                 std::string asm_str, std::string obj_str, std::string ir_str,
                                 std::string bc_str) {
-  auto n = make_object<HexagonModuleNode>(data, fmt, fmap, asm_str, obj_str, ir_str, bc_str);
+  auto n = ffi::make_object<HexagonModuleNode>(data, fmt, fmap, asm_str, obj_str, ir_str, bc_str);
   return ffi::Module(n);
 }
 

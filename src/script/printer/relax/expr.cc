@@ -53,7 +53,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           if (n->fields.empty()) {
             return Relax(d, "tuple")->Call({});
           }
-          Array<ExprDoc> fields_doc;
+          ffi::Array<ExprDoc> fields_doc;
           AccessPath fields_p = n_p->Attr("fields");
           for (int i = 0, l = n->fields.size(); i < l; ++i) {
             fields_doc.push_back(d->AsDoc<ExprDoc>(n->fields[i], fields_p->ArrayItem(i)));
@@ -71,7 +71,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::ShapeExpr>(  //
         "", [](relax::ShapeExpr n, AccessPath n_p, IRDocsifier d) -> Doc {
-          Array<ExprDoc> values_doc;
+          ffi::Array<ExprDoc> values_doc;
           AccessPath values_p = n_p->Attr("values");
           for (int i = 0, l = n->values.size(); i < l; ++i) {
             values_doc.push_back(PrintShapeVar(n->values[i], values_p->ArrayItem(i), d));
@@ -79,7 +79,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return Relax(d, "shape")->Call({ListDoc(values_doc)});
         });
 
-Optional<ExprDoc> SpecialScalar(const runtime::Tensor& n, const AccessPath& p) {
+ffi::Optional<ExprDoc> SpecialScalar(const runtime::Tensor& n, const AccessPath& p) {
   DataType dtype = n.DataType();
   const void* data = n->data;
   if (n->ndim != 0 || n->device.device_type != kDLCPU) {
@@ -135,7 +135,7 @@ Optional<ExprDoc> SpecialScalar(const runtime::Tensor& n, const AccessPath& p) {
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Constant>(  //
         "", [](relax::Constant n, AccessPath n_p, IRDocsifier d) -> Doc {
-          if (Optional<ExprDoc> s = SpecialScalar(n->data, n_p->Attr("data"))) {
+          if (ffi::Optional<ExprDoc> s = SpecialScalar(n->data, n_p->Attr("data"))) {
             if (n->struct_info_.as<relax::distributed::DTensorStructInfoNode>()) {
               ExprDoc ann = d->AsDoc<ExprDoc>(n->struct_info_, n_p->Attr("struct_info_"));
               return Relax(d, "dist.const")->Call({s.value(), ann});

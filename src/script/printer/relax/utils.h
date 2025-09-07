@@ -58,7 +58,7 @@ class RelaxFrameNode : public FrameNode {
 class RelaxFrame : public Frame {
  public:
   explicit RelaxFrame(const IRDocsifier& d) {
-    ObjectPtr<RelaxFrameNode> n = make_object<RelaxFrameNode>();
+    ObjectPtr<RelaxFrameNode> n = ffi::make_object<RelaxFrameNode>();
     n->stmts.clear();
     n->d = d.get();
     n->is_func = false;
@@ -81,8 +81,9 @@ inline IdDoc DefineVar(const relax::Var& var, const Frame& frame, const IRDocsif
   return d->Define(var, frame, var->name_hint().empty() ? "v" : var->name_hint());
 }
 
-inline Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const AccessPath& v_p,
-                                         const IRDocsifier& d, const Optional<relax::Expr>& rhs) {
+inline ffi::Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const AccessPath& v_p,
+                                              const IRDocsifier& d,
+                                              const ffi::Optional<relax::Expr>& rhs) {
   if (!v->struct_info_.defined()) {
     return std::nullopt;
   }
@@ -96,7 +97,7 @@ inline Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const AccessPath& 
     }
   }
   if (attempt_to_hide_struct_info) {
-    Optional<relax::StructInfo> inferred_sinfo = std::nullopt;
+    ffi::Optional<relax::StructInfo> inferred_sinfo = std::nullopt;
     if (auto opt = rhs.as<relax::Call>()) {
       auto call = opt.value();
       if (auto opt = call->op.as<Op>()) {
@@ -133,13 +134,13 @@ inline Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const AccessPath& 
   return d->AsDoc<ExprDoc>(v->struct_info_, v_p->Attr("struct_info_"));
 }
 
-Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const AccessPath& n_p, const IRDocsifier& d,
-                            bool use_ret);
+ffi::Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const AccessPath& n_p,
+                                 const IRDocsifier& d, bool use_ret);
 
 ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifier& d);
 
 inline int FindVDeviceIndexByTargetKind(const VDevice& vdevice, const IRDocsifier& d) {
-  Array<GlobalInfo> vdevices = d->global_infos["vdevice"];
+  ffi::Array<GlobalInfo> vdevices = d->global_infos["vdevice"];
   int kind_index = 0;
   for (size_t i = 0; i < vdevices.size(); ++i) {
     auto vdev = Downcast<VDevice>(vdevices[i]);

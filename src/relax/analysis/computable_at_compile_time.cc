@@ -35,10 +35,10 @@ namespace relax {
 namespace {
 class CompileTimeCollector : ExprVisitor {
  public:
-  static Array<Var> Collect(const Function& func) {
+  static ffi::Array<Var> Collect(const Function& func) {
     CompileTimeCollector visitor;
     visitor(func);
-    return Array<Var>(visitor.known_relax_vars_.begin(), visitor.known_relax_vars_.end());
+    return ffi::Array<Var>(visitor.known_relax_vars_.begin(), visitor.known_relax_vars_.end());
   }
 
  private:
@@ -89,7 +89,7 @@ class CompileTimeCollector : ExprVisitor {
 };
 }  // namespace
 
-Array<Var> ComputableAtCompileTime(const Function& func) {
+ffi::Array<Var> ComputableAtCompileTime(const Function& func) {
   return CompileTimeCollector::Collect(func);
 }
 

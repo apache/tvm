@@ -131,7 +131,7 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
   CodeGenCUDA cg;
   cg.Init(output_ssa);
 
-  Map<GlobalVar, PrimFunc> functions;
+  ffi::Map<GlobalVar, PrimFunc> functions;
   for (auto [gvar, base_func] : mod->functions) {
     ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenCUDA: Can only take PrimFunc";
     auto prim_func = Downcast<PrimFunc>(base_func);
@@ -177,6 +177,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("target.build.cuda", BuildCUDA);
 });
-TVM_REGISTER_PASS_CONFIG_OPTION("cuda.kernels_output_dir", String);
+TVM_REGISTER_PASS_CONFIG_OPTION("cuda.kernels_output_dir", ffi::String);
 }  // namespace codegen
 }  // namespace tvm

@@ -60,34 +60,34 @@ class TensorRTCodeGen : public CppCodeGen<TensorRTCodeGenConfig, TensorRTCodeGen
 
  protected:
   /*! \brief Get the docs for the op*/
-  const Array<Doc> GetOpCodes(const MSCJoint& node) final;
+  const ffi::Array<Doc> GetOpCodes(const MSCJoint& node) final;
 
   /*! \brief Get the tensor context for codegen_tensor*/
-  const Map<String, String> GetTensorCtx(const MSCTensor& tensor) final;
+  const ffi::Map<ffi::String, ffi::String> GetTensorCtx(const MSCTensor& tensor) final;
 
   /*! \brief Get the step context for codegen_step*/
-  const Map<String, String> GetStepCtx() final;
+  const ffi::Map<ffi::String, ffi::String> GetStepCtx() final;
 
   /*! \brief Generate return on fail codes*/
-  void ReturnOnFail(const String& flag, const String& err);
+  void ReturnOnFail(const ffi::String& flag, const ffi::String& err);
 
   /*! \brief Get the index tensor*/
-  const String IdxTensor(const MSCTensor& tensor);
+  const ffi::String IdxTensor(const MSCTensor& tensor);
 
   /*! \brief Get the dtype from the datatype*/
-  const String CppDType(const DataType& dtype);
+  const ffi::String CppDType(const DataType& dtype);
 
   /*! \brief Generate describe for tensor bytes*/
-  const String GetTensorBytes(const MSCTensor& tensor);
+  const ffi::String GetTensorBytes(const MSCTensor& tensor);
 
   /*! \brief Get the tensorrt dims from dims*/
   template <typename T>
-  const String ToDims(const std::vector<T>& dims, bool use_ndim = true);
-  const String ToDims(const Array<Integer>& dims, bool use_ndim = true);
+  const ffi::String ToDims(const std::vector<T>& dims, bool use_ndim = true);
+  const ffi::String ToDims(const ffi::Array<Integer>& dims, bool use_ndim = true);
 
  private:
-  Array<String> before_build_codes_;
-  Array<String> after_build_codes_;
+  ffi::Array<ffi::String> before_build_codes_;
+  ffi::Array<ffi::String> after_build_codes_;
 };
 
 }  // namespace msc

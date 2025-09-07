@@ -125,7 +125,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *                       this option influences whether global ctors are used.
    */
   virtual void Init(const std::string& module_name, LLVMTarget* llvm_target,
-                    Optional<String> system_lib_prefix, bool dynamic_lookup, bool target_c_runtime);
+                    ffi::Optional<ffi::String> system_lib_prefix, bool dynamic_lookup,
+                    bool target_c_runtime);
 
   /*!
    * \brief Turn on fast math flags for floating point operations.
@@ -266,7 +267,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   /*!
    * \brief Convert tvm::ffi::String into llvm::StringRef
    */
-  static llvm::StringRef MakeStringRef(const String& string) {
+  static llvm::StringRef MakeStringRef(const ffi::String& string) {
     return llvm::StringRef(string.c_str(), string.size());
   }
   /*!
@@ -293,8 +294,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   virtual llvm::Value* CreateIntrinsic(const CallNode* op);
   // create extern function call
   // skip first arg mode used for call extern intrinsic.
-  virtual llvm::Value* CreateCallExtern(Type ret_type, String global_symbol,
-                                        const Array<PrimExpr>& args, bool skip_first_arg);
+  virtual llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,
+                                        const ffi::Array<PrimExpr>& args, bool skip_first_arg);
 
   /*! \brief Insert a printf() call to the generated LLVM
    *
@@ -359,7 +360,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *       - Should return the generated expression.
    */
   void BufferAccessHelper(
-      Buffer buffer, Array<PrimExpr> indices, Optional<PrimExpr> predicate, DataType value_dtype,
+      Buffer buffer, ffi::Array<PrimExpr> indices, ffi::Optional<PrimExpr> predicate,
+      DataType value_dtype,
       std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
                                        llvm::Value* predicate, int alignment, bool is_volatile)>
           make_instruction);
@@ -585,7 +587,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   const Op& builtin_tvm_call_cpacked_lowered_ = builtin::tvm_call_cpacked_lowered();
 
   void EmitDebugLocation();
-  void EmitDebugLocation(const Optional<Span>& span);
+  void EmitDebugLocation(const ffi::Optional<Span>& span);
   void EmitDebugLocation(const StmtNode* op);
 
   // Get the DWARF type corresponding to the LLVM type |ty|. The current API in practice only
@@ -594,7 +596,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::DIType* GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm);
 
   // Adds the DWARF debug information for |function| to |dbg_info_|.
-  void AddDebugInformation(llvm::Function* f_llvm, const Array<Type>& tvm_param_types);
+  void AddDebugInformation(llvm::Function* f_llvm, const ffi::Array<Type>& tvm_param_types);
   // Adds the DWARF debug information for |tir_var| to |dbg_info_|.
   void AddDebugInformation(llvm::Value* llvm_value, const Var& tir_var,
                            llvm::Instruction* insert_before = nullptr);

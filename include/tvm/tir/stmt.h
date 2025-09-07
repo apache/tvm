@@ -117,7 +117,7 @@ class AttrStmtNode : public StmtNode {
   /*! \brief this is attribute about certain node */
   ffi::Any node;
   /*! \brief the type key of the attribute */
-  String attr_key;
+  ffi::String attr_key;
   /*! \brief The attribute value, value is well defined at current scope. */
   PrimExpr value;
   /*! \brief The body statement to be executed */
@@ -142,7 +142,8 @@ class AttrStmtNode : public StmtNode {
  */
 class AttrStmt : public Stmt {
  public:
-  TVM_DLL AttrStmt(ffi::Any node, String attr_key, PrimExpr value, Stmt body, Span span = Span());
+  TVM_DLL AttrStmt(ffi::Any node, ffi::String attr_key, PrimExpr value, Stmt body,
+                   Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(AttrStmt, Stmt, AttrStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AttrStmtNode);
@@ -204,9 +205,9 @@ class BufferStoreNode : public StmtNode {
   /*! \brief The value to be stored. */
   PrimExpr value;
   /*! \brief The indices location to be stored. */
-  Array<PrimExpr> indices;
+  ffi::Array<PrimExpr> indices;
   /*! \brief The predicate mask for storing values. */
-  Optional<PrimExpr> predicate;
+  ffi::Optional<PrimExpr> predicate;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -227,8 +228,9 @@ class BufferStoreNode : public StmtNode {
  */
 class BufferStore : public Stmt {
  public:
-  TVM_DLL explicit BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
-                               Optional<PrimExpr> predicate = std::nullopt, Span span = Span());
+  TVM_DLL explicit BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
+                               ffi::Optional<PrimExpr> predicate = std::nullopt,
+                               Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(BufferStore, Stmt, BufferStoreNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferStoreNode);
@@ -250,7 +252,7 @@ class BufferRealizeNode : public StmtNode {
   /*! \brief The buffer variable. */
   Buffer buffer;
   /*! \brief Bounds to be realized */
-  Array<Range> bounds;
+  ffi::Array<Range> bounds;
   /*! \brief Only realize if condition holds. */
   PrimExpr condition;
   /*! \brief The body of realization. */
@@ -266,7 +268,7 @@ class BufferRealizeNode : public StmtNode {
   }
 
   BufferRealizeNode() = default;
-  BufferRealizeNode(Buffer buffer, Array<Range> bounds, PrimExpr condition, Stmt body,
+  BufferRealizeNode(Buffer buffer, ffi::Array<Range> bounds, PrimExpr condition, Stmt body,
                     Span span = Span())
       : StmtNode(span), buffer(buffer), bounds(bounds), condition(condition), body(body) {}
 
@@ -280,8 +282,8 @@ class BufferRealizeNode : public StmtNode {
  */
 class BufferRealize : public Stmt {
  public:
-  TVM_DLL explicit BufferRealize(Buffer buffer, Array<Range> bounds, PrimExpr condition, Stmt body,
-                                 Span span = Span());
+  TVM_DLL explicit BufferRealize(Buffer buffer, ffi::Array<Range> bounds, PrimExpr condition,
+                                 Stmt body, Span span = Span());
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BufferRealize, Stmt, BufferRealizeNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRealizeNode);
@@ -297,7 +299,7 @@ class AllocateNode : public StmtNode {
   /*! \brief The type of the buffer. */
   DataType dtype;
   /*! \brief The extents of the buffer. */
-  Array<PrimExpr> extents;
+  ffi::Array<PrimExpr> extents;
   /*! \brief Only allocate buffer when condition is satisfied. */
   PrimExpr condition;
   /*! \brief The body to be executed. */
@@ -308,7 +310,7 @@ class AllocateNode : public StmtNode {
    *  These annotations can be used as auxiliary hint
    *  to future transformations.
    */
-  Map<String, ffi::Any> annotations;
+  ffi::Map<ffi::String, ffi::Any> annotations;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -333,7 +335,7 @@ class AllocateNode : public StmtNode {
    * \param extents The extents of the buffer.
    * \return The result.
    */
-  TVM_DLL static int64_t ConstantAllocationSize(const Array<PrimExpr>& extents);
+  TVM_DLL static int64_t ConstantAllocationSize(const ffi::Array<PrimExpr>& extents);
 
   static constexpr const char* _type_key = "tir.Allocate";
 
@@ -346,8 +348,9 @@ class AllocateNode : public StmtNode {
  */
 class Allocate : public Stmt {
  public:
-  TVM_DLL Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body, Map<String, ffi::Any> annotations = Map<String, ffi::Any>(),
+  TVM_DLL Allocate(Var buffer_var, DataType dtype, ffi::Array<PrimExpr> extents, PrimExpr condition,
+                   Stmt body,
+                   ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
                    Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Allocate, Stmt, AllocateNode);
@@ -363,16 +366,16 @@ class AllocateConstNode : public StmtNode {
   Var buffer_var;
   /*! \brief The optional data associated to the constant.
    */
-  Optional<runtime::Tensor> data;
+  ffi::Optional<runtime::Tensor> data;
   /*!
    * \brief If the PrimFunc containing the Stmt is added to IRModule, this is an optional index
-   * to indicate the index within "constants" attribute, that is a Array<Tensor> of IRModule.
+   * to indicate the index within "constants" attribute, that is a ffi::Array<Tensor> of IRModule.
    */
-  Optional<Integer> irmod_storage_idx;
+  ffi::Optional<Integer> irmod_storage_idx;
   /*! \brief The type of the buffer. */
   DataType dtype;
   /*! \brief The extents of the buffer. */
-  Array<PrimExpr> extents;
+  ffi::Array<PrimExpr> extents;
   /*! \brief The body to be executed. */
   Stmt body;
   /*!
@@ -381,7 +384,7 @@ class AllocateConstNode : public StmtNode {
    *  These annotations can be used as auxiliary hint
    *  to future transformations.
    */
-  Map<String, ffi::Any> annotations;
+  ffi::Map<ffi::String, ffi::Any> annotations;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -407,7 +410,7 @@ class AllocateConstNode : public StmtNode {
    * \param extents The extents of the buffer.
    * \return The result.
    */
-  TVM_DLL static int64_t ConstantAllocationSize(const Array<PrimExpr>& extents);
+  TVM_DLL static int64_t ConstantAllocationSize(const ffi::Array<PrimExpr>& extents);
 
   static constexpr const char* _type_key = "tir.AllocateConst";
   TVM_DECLARE_FINAL_OBJECT_INFO(AllocateConstNode, StmtNode);
@@ -423,10 +426,10 @@ class AllocateConst : public Stmt {
    * depending on the type of ObjectRef, it will either
    * create AllocateConstNode with irmod_storage_idx or data
    */
-  TVM_DLL AllocateConst(Var buffer_var, DataType dtype, Array<PrimExpr> extents,
-                        ObjectRef data_or_idx, Stmt body,
-                        Map<String, ffi::Any> annotations = Map<String, ffi::Any>(),
-                        Span span = Span());
+  TVM_DLL AllocateConst(
+      Var buffer_var, DataType dtype, ffi::Array<PrimExpr> extents, ObjectRef data_or_idx,
+      Stmt body, ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
+      Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(AllocateConst, Stmt, AllocateConstNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocateConstNode);
 };
@@ -465,7 +468,7 @@ class DeclBuffer : public Stmt {
 class SeqStmtNode : public StmtNode {
  public:
   /*! \brief internal sequence content. */
-  Array<Stmt> seq;
+  ffi::Array<Stmt> seq;
 
   /*! \return get the size of the sequence */
   size_t size() const { return seq.size(); }
@@ -525,7 +528,7 @@ class SeqStmt : public Stmt {
    * \param seq The sequence.
    * \param span The location of this object in the source code.
    */
-  TVM_DLL explicit SeqStmt(Array<Stmt> seq, Span span = Span());
+  TVM_DLL explicit SeqStmt(ffi::Array<Stmt> seq, Span span = Span());
 
   /*! \return get the size of the sequence */
   size_t size() const { return operator->()->size(); }
@@ -555,7 +558,7 @@ class SeqStmt : public Stmt {
    */
   template <typename... Args>
   static Stmt Flatten(Args&&... seq_args) {
-    Array<Stmt> seq;
+    ffi::Array<Stmt> seq;
 
     ffi::details::for_each(Flattener(&seq), std::forward<Args>(seq_args)...);
 
@@ -593,10 +596,10 @@ class SeqStmt : public Stmt {
   /*! \brief Helper class to flatten sequence of arguments into Array. */
   class Flattener {
    public:
-    explicit Flattener(Array<Stmt>* seq) : seq_(seq) {}
+    explicit Flattener(ffi::Array<Stmt>* seq) : seq_(seq) {}
 
     template <typename T>
-    static Optional<SeqStmt> AsSeqStmt(const T& t) {
+    static ffi::Optional<SeqStmt> AsSeqStmt(const T& t) {
       if constexpr (std::is_same_v<T, SeqStmt>) {
         return t;
       }
@@ -605,7 +608,7 @@ class SeqStmt : public Stmt {
       }
       if constexpr (std::is_base_of_v<Stmt, T>) {
         if (const SeqStmtNode* ptr = t.template as<SeqStmtNode>()) {
-          return GetRef<SeqStmt>(ptr);
+          return ffi::GetRef<SeqStmt>(ptr);
         } else {
           return std::nullopt;
         }
@@ -661,7 +664,7 @@ class SeqStmt : public Stmt {
     }
 
    private:
-    Array<Stmt>* seq_;
+    ffi::Array<Stmt>* seq_;
   };
 
   TVM_DEFINE_OBJECT_REF_METHODS(SeqStmt, Stmt, SeqStmtNode);
@@ -678,7 +681,7 @@ class IfThenElseNode : public StmtNode {
   /*! \brief The branch to be executed when condition is true. */
   Stmt then_case;
   /*! \brief The branch to be executed when condition is false, can be null. */
-  Optional<Stmt> else_case;
+  ffi::Optional<Stmt> else_case;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -698,8 +701,8 @@ class IfThenElseNode : public StmtNode {
  */
 class IfThenElse : public Stmt {
  public:
-  TVM_DLL IfThenElse(PrimExpr condition, Stmt then_case, Optional<Stmt> else_case = std::nullopt,
-                     Span span = Span());
+  TVM_DLL IfThenElse(PrimExpr condition, Stmt then_case,
+                     ffi::Optional<Stmt> else_case = std::nullopt, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(IfThenElse, Stmt, IfThenElseNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IfThenElseNode);
@@ -759,7 +762,7 @@ class ForNode : public StmtNode {
    * \brief Only valid when kind == ForKind::kThreadBinding
    * The context thread that this loop variable bounds to.
    */
-  Optional<IterVar> thread_binding;
+  ffi::Optional<IterVar> thread_binding;
   /*!
    * \brief Additional annotations about the loop.
    *
@@ -768,7 +771,7 @@ class ForNode : public StmtNode {
    *  not change the control flow semantics of the loop
    *  and can be ignored in most passes.
    */
-  Map<String, ffi::Any> annotations;
+  ffi::Map<ffi::String, ffi::Any> annotations;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -793,8 +796,9 @@ class ForNode : public StmtNode {
 class For : public Stmt {
  public:
   TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
-              Optional<IterVar> thread_binding = std::nullopt,
-              Map<String, ffi::Any> annotations = Map<String, ffi::Any>(), Span span = Span());
+              ffi::Optional<IterVar> thread_binding = std::nullopt,
+              ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
+              Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(For, Stmt, ForNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ForNode);
@@ -848,7 +852,7 @@ class BufferRegionNode : public PrimExprConvertibleNode {
   /*! \brief The buffer of the buffer region. */
   Buffer buffer;
   /*! \brief The region array of the buffer region. */
-  Array<Range> region;
+  ffi::Array<Range> region;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -870,7 +874,7 @@ class BufferRegionNode : public PrimExprConvertibleNode {
  */
 class BufferRegion : public PrimExprConvertible {
  public:
-  TVM_DLL explicit BufferRegion(Buffer buffer, Array<Range> region);
+  TVM_DLL explicit BufferRegion(Buffer buffer, ffi::Array<Range> region);
 
   /*!
    * \brief Create a BufferRegion which is full region of the given buffer.
@@ -885,7 +889,7 @@ class BufferRegion : public PrimExprConvertible {
    * \param indices The access point indices of the buffer
    * \return The BufferRegion which is the single point of the given buffer.
    */
-  TVM_DLL static BufferRegion FromPoint(Buffer buffer, Array<PrimExpr> indices);
+  TVM_DLL static BufferRegion FromPoint(Buffer buffer, ffi::Array<PrimExpr> indices);
 
   TVM_DEFINE_OBJECT_REF_METHODS(BufferRegion, PrimExprConvertible, BufferRegionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRegionNode);
@@ -955,19 +959,19 @@ class MatchBufferRegion : public ObjectRef {
 class BlockNode : public StmtNode {
  public:
   /*! \brief The variables of the block. */
-  Array<IterVar> iter_vars;
+  ffi::Array<IterVar> iter_vars;
   /*! \brief The read buffer regions of the block. */
-  Array<BufferRegion> reads;
+  ffi::Array<BufferRegion> reads;
   /*! \brief The write buffer regions of the block. */
-  Array<BufferRegion> writes;
+  ffi::Array<BufferRegion> writes;
   /*! \brief The name_hint of the block. */
-  String name_hint;
+  ffi::String name_hint;
   /*! \brief The buffer allocated in the block. */
-  Array<Buffer> alloc_buffers;
+  ffi::Array<Buffer> alloc_buffers;
   /*! \brief The match buffer regions. */
-  Array<MatchBufferRegion> match_buffers;
+  ffi::Array<MatchBufferRegion> match_buffers;
   /*! \brief The annotation of the block. */
-  Map<String, ffi::Any> annotations;
+  ffi::Map<ffi::String, ffi::Any> annotations;
   /*!
    * \brief The init statement is executed during the first iteration of reduction loops in a
    *  reduction block. The optional init field allows us to represent initialization and
@@ -975,7 +979,7 @@ class BlockNode : public StmtNode {
    *  We also provide primitives to decompose the init into a separate block during scheduling.
    *  Init field is `std::nullopt` if there is no reduction iter_vars
    */
-  Optional<Stmt> init;
+  ffi::Optional<Stmt> init;
   /*! \brief The body of the block. */
   Stmt body;
 
@@ -1003,13 +1007,14 @@ class BlockNode : public StmtNode {
  */
 class Block : public Stmt {
  public:
-  TVM_DLL explicit Block(Array<IterVar> iter_vars, Array<BufferRegion> reads,
-                         Array<BufferRegion> writes, String name_hint, Stmt body,
-                         Optional<Stmt> init = std::nullopt,
-                         Array<Buffer> alloc_buffers = Array<Buffer>(),
-                         Array<MatchBufferRegion> match_buffers = Array<MatchBufferRegion>(),
-                         Map<String, ffi::Any> annotations = Map<String, ffi::Any>(),
-                         Span span = Span());
+  TVM_DLL explicit Block(
+      ffi::Array<IterVar> iter_vars, ffi::Array<BufferRegion> reads,
+      ffi::Array<BufferRegion> writes, ffi::String name_hint, Stmt body,
+      ffi::Optional<Stmt> init = std::nullopt,
+      ffi::Array<Buffer> alloc_buffers = ffi::Array<Buffer>(),
+      ffi::Array<MatchBufferRegion> match_buffers = ffi::Array<MatchBufferRegion>(),
+      ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
+      Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Block, Stmt, BlockNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BlockNode);
@@ -1021,7 +1026,7 @@ class Block : public Stmt {
 class BlockRealizeNode : public StmtNode {
  public:
   /*! \brief The corresponding values of the iter vars. */
-  Array<PrimExpr> iter_values;
+  ffi::Array<PrimExpr> iter_values;
   /*!
    * \brief The predicate of the block realization, the block will only be executed when the
    * predicate is true.
@@ -1048,7 +1053,7 @@ class BlockRealizeNode : public StmtNode {
  */
 class BlockRealize : public Stmt {
  public:
-  TVM_DLL explicit BlockRealize(Array<PrimExpr> iter_values, PrimExpr predicate, Block block,
+  TVM_DLL explicit BlockRealize(ffi::Array<PrimExpr> iter_values, PrimExpr predicate, Block block,
                                 Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(BlockRealize, Stmt, BlockRealizeNode);
@@ -1146,7 +1151,7 @@ constexpr const char* buffer_dim_align = "buffer_dim_align";
 constexpr const char* buffer_bound = "buffer_bound";
 /*!
  * \brief Bind the buffer specification to the region of the op
- *  When this scope occurs, the stmt.node is a Array<NodeRef> = [buffer, tensor]
+ *  When this scope occurs, the stmt.node is a ffi::Array<NodeRef> = [buffer, tensor]
  *  stmt.value is a tvm_tuple(min0, extent0, min1, extent1, ...).
  *  The scope represents that we need to bind the storage region of tensor to buffer.
  *  This will affect replacement of some variables inside the scope that

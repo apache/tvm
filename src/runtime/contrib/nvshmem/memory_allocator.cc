@@ -68,7 +68,7 @@ class NVSHMEMAllocator final : public PooledAllocator {
       Buffer buffer_;
     };
 
-    Buffer buffer = PooledAllocator::Alloc(device, shape, dtype, String("nvshmem"));
+    Buffer buffer = PooledAllocator::Alloc(device, shape, dtype, ffi::String("nvshmem"));
     return Tensor::FromNDAlloc(NVSHMEMAlloc(buffer), shape, dtype, device);
   }
 

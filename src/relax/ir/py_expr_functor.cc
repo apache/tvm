@@ -110,28 +110,29 @@ class PyExprVisitorNode : public Object, public ExprVisitor {
       PY_EXPR_VISITOR_DEFAULT(binding, f_visit_binding, ExprVisitor::VisitBinding(binding));
 
   void VisitBinding_(const VarBindingNode* binding)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<VarBinding>(binding), f_visit_var_binding_,
+      PY_EXPR_VISITOR_DEFAULT(ffi::GetRef<VarBinding>(binding), f_visit_var_binding_,
                               ExprVisitor::VisitBinding_(binding));
   void VisitBinding_(const MatchCastNode* binding)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<MatchCast>(binding), f_visit_match_cast_,
+      PY_EXPR_VISITOR_DEFAULT(ffi::GetRef<MatchCast>(binding), f_visit_match_cast_,
                               ExprVisitor::VisitBinding_(binding));
 
   void VisitBindingBlock(const BindingBlock& block)
       PY_EXPR_VISITOR_DEFAULT(block, f_visit_binding_block, ExprVisitor::VisitBindingBlock(block));
 
   void VisitBindingBlock_(const BindingBlockNode* block)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<BindingBlock>(block), f_visit_binding_block_,
+      PY_EXPR_VISITOR_DEFAULT(ffi::GetRef<BindingBlock>(block), f_visit_binding_block_,
                               ExprVisitor::VisitBindingBlock_(block));
   void VisitBindingBlock_(const DataflowBlockNode* block)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<DataflowBlock>(block), f_visit_dataflow_block_,
+      PY_EXPR_VISITOR_DEFAULT(ffi::GetRef<DataflowBlock>(block), f_visit_dataflow_block_,
                               ExprVisitor::VisitBindingBlock_(block));
 
   void VisitVarDef(const Var& var)
       PY_EXPR_VISITOR_DEFAULT(var, f_visit_var_def, ExprVisitor::VisitVarDef(var));
   void VisitVarDef_(const VarNode* var)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<Var>(var), f_visit_var_def_, ExprVisitor::VisitVarDef_(var));
+      PY_EXPR_VISITOR_DEFAULT(ffi::GetRef<Var>(var), f_visit_var_def_,
+                              ExprVisitor::VisitVarDef_(var));
   void VisitVarDef_(const DataflowVarNode* var)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<DataflowVar>(var), f_visit_dataflow_var_def_,
+      PY_EXPR_VISITOR_DEFAULT(ffi::GetRef<DataflowVar>(var), f_visit_dataflow_var_def_,
                               ExprVisitor::VisitVarDef_(var));
 
   void VisitSpan(const Span& span)
@@ -227,7 +228,7 @@ class PyExprVisitor : public ObjectRef {
       ffi::Function f_visit_dataflow_block_, ffi::Function f_visit_var_def,
       ffi::Function f_visit_var_def_, ffi::Function f_visit_dataflow_var_def_,
       ffi::Function f_visit_span) {
-    ObjectPtr<PyExprVisitorNode> n = make_object<PyExprVisitorNode>();
+    ObjectPtr<PyExprVisitorNode> n = ffi::make_object<PyExprVisitorNode>();
     n->f_visit_expr = f_visit_expr;
     n->f_visit_binding = f_visit_binding;
     n->f_visit_binding_block = f_visit_binding_block;
@@ -348,14 +349,14 @@ class PyExprMutatorNode : public Object, public ExprMutator {
 
   void VisitBinding_(const VarBindingNode* binding) {
     if (f_visit_var_binding_ != nullptr)
-      f_visit_var_binding_(GetRef<VarBinding>(binding));
+      f_visit_var_binding_(ffi::GetRef<VarBinding>(binding));
     else
       ExprMutator::VisitBinding_(binding);
   }
 
   void VisitBinding_(const MatchCastNode* binding) {
     if (f_visit_match_cast_ != nullptr)
-      f_visit_match_cast_(GetRef<MatchCast>(binding));
+      f_visit_match_cast_(ffi::GetRef<MatchCast>(binding));
     else
       ExprMutator::VisitBinding_(binding);
   }
@@ -365,18 +366,19 @@ class PyExprMutatorNode : public Object, public ExprMutator {
                               BindingBlock);
 
   BindingBlock VisitBindingBlock_(const BindingBlockNode* block)
-      PY_EXPR_MUTATOR_DEFAULT(GetRef<BindingBlock>(block), f_visit_binding_block_,
+      PY_EXPR_MUTATOR_DEFAULT(ffi::GetRef<BindingBlock>(block), f_visit_binding_block_,
                               ExprMutator::VisitBindingBlock_(block), BindingBlock);
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block)
-      PY_EXPR_MUTATOR_DEFAULT(GetRef<DataflowBlock>(block), f_visit_dataflow_block_,
+      PY_EXPR_MUTATOR_DEFAULT(ffi::GetRef<DataflowBlock>(block), f_visit_dataflow_block_,
                               ExprMutator::VisitBindingBlock_(block), BindingBlock);
 
   Var VisitVarDef(const Var& var)
       PY_EXPR_MUTATOR_DEFAULT(var, f_visit_var_def, ExprMutator::VisitVarDef(var), Var);
-  Var VisitVarDef_(const VarNode* var) PY_EXPR_MUTATOR_DEFAULT(GetRef<Var>(var), f_visit_var_def_,
-                                                               ExprMutator::VisitVarDef_(var), Var);
+  Var VisitVarDef_(const VarNode* var)
+      PY_EXPR_MUTATOR_DEFAULT(ffi::GetRef<Var>(var), f_visit_var_def_,
+                              ExprMutator::VisitVarDef_(var), Var);
   Var VisitVarDef_(const DataflowVarNode* var)
-      PY_EXPR_MUTATOR_DEFAULT(GetRef<DataflowVar>(var), f_visit_dataflow_var_def_,
+      PY_EXPR_MUTATOR_DEFAULT(ffi::GetRef<DataflowVar>(var), f_visit_dataflow_var_def_,
                               ExprMutator::VisitVarDef_(var), Var);
 
   /*!
@@ -510,7 +512,7 @@ class PyExprMutator : public ObjectRef {
       ffi::Function f_visit_dataflow_block_, ffi::Function f_visit_var_def,
       ffi::Function f_visit_var_def_, ffi::Function f_visit_dataflow_var_def_,
       ffi::Function f_visit_span) {
-    ObjectPtr<PyExprMutatorNode> n = make_object<PyExprMutatorNode>();
+    ObjectPtr<PyExprMutatorNode> n = ffi::make_object<PyExprMutatorNode>();
     n->builder_ = builder_;
     n->f_visit_expr = f_visit_expr;
     n->f_visit_constant_ = f_visit_constant_;

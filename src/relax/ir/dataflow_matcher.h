@@ -38,15 +38,15 @@ namespace relax {
 
 class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Expr&)> {
  public:
-  using var2val_t = Map<Var, Expr>;
+  using var2val_t = ffi::Map<Var, Expr>;
 
   explicit DFPatternMatcher() {}
   explicit DFPatternMatcher(var2val_t var2val) : var2val_(std::move(var2val)) {}
   bool Match(const DFPattern& pattern, const Expr& expr);
-  Map<DFPattern, Expr> GetMemo() { return memo_; }
+  ffi::Map<DFPattern, Expr> GetMemo() { return memo_; }
 
   /* \brief Unwrap trivial expressions/bindings */
-  static Expr UnwrapBindings(Expr expr, const Map<Var, Expr>& bindings);
+  static Expr UnwrapBindings(Expr expr, const ffi::Map<Var, Expr>& bindings);
 
  protected:
   bool VisitDFPattern(const DFPattern& pattern, const Expr& expr) override;
@@ -73,8 +73,8 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   bool VisitDFPattern_(const UnorderedTuplePatternNode* op, const Expr& expr) override;
 
   void ClearMap(size_t watermark);
-  bool TryUnorderedMatch(size_t idx, const tvm::Array<DFPattern> patterns,
-                         const tvm::Array<Expr> fields, std::vector<int8_t>& match_cache,
+  bool TryUnorderedMatch(size_t idx, const tvm::ffi::Array<DFPattern> patterns,
+                         const tvm::ffi::Array<Expr> fields, std::vector<int8_t>& match_cache,
                          std::vector<bool>& matched);
 
   /* \brief Simplify a boolean condition using the analyzer

@@ -27,7 +27,7 @@
 namespace tvm {
 namespace runtime {
 
-inline Device UseDefaultDeviceIfNone(Optional<Device> device) {
+inline Device UseDefaultDeviceIfNone(ffi::Optional<Device> device) {
   return device.value_or(DiscoWorker::ThreadLocal()->default_device);
 }
 

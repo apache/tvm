@@ -27,7 +27,7 @@ namespace tir {
 /*! \brief Find all the blocks that are not bound */
 class UnboundBlockFinder : private StmtVisitor {
  public:
-  static std::vector<std::pair<StmtSRef, String>> Find(const ScheduleState& self) {
+  static std::vector<std::pair<StmtSRef, ffi::String>> Find(const ScheduleState& self) {
     UnboundBlockFinder finder(self);
     for (const auto& kv : self->mod->functions) {
       GlobalVar g_var = kv.first;
@@ -68,13 +68,13 @@ class UnboundBlockFinder : private StmtVisitor {
   /*! \brief The schedule state */
   const ScheduleState& self_;
   /*! \brief The list of unbound blocks */
-  std::vector<std::pair<StmtSRef, String>> blocks_;
+  std::vector<std::pair<StmtSRef, ffi::String>> blocks_;
   /*!  \brief The number of blockIdx above the current stmt */
   int n_block_idx_;
   /*!  \brief The number of threadIdx above the current stmt */
   int n_thread_idx_;
   /*! \brief The name of the global var */
-  String global_var_name_;
+  ffi::String global_var_name_;
 };
 
 }  // namespace tir
@@ -89,7 +89,7 @@ class RewriteUnboundBlockNode : public PostprocNode {
   // Inherited from PostprocNode
   void InitializeWithTuneContext(const TuneContext& context) final {
     CHECK(context->target.defined()) << "ValueError: target is not defined";
-    Optional<Integer> max_threads_per_block =
+    ffi::Optional<Integer> max_threads_per_block =
         context->target.value()->GetAttr<Integer>("max_threads_per_block");
     CHECK(max_threads_per_block.defined())
         << "ValueError: missing attribute `max_threads_per_block` in the target";
@@ -100,7 +100,7 @@ class RewriteUnboundBlockNode : public PostprocNode {
   bool Apply(const tir::Schedule& sch) final;
 
   Postproc Clone() const {
-    ObjectPtr<RewriteUnboundBlockNode> n = make_object<RewriteUnboundBlockNode>(*this);
+    ObjectPtr<RewriteUnboundBlockNode> n = ffi::make_object<RewriteUnboundBlockNode>(*this);
     return Postproc(n);
   }
 
@@ -128,11 +128,11 @@ bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch) {
   auto get_factor = [t = this->max_threads_per_block_](int max_extent) -> ExprRV {
     return Integer(std::min(t, max_extent));
   };
-  std::vector<std::pair<tir::StmtSRef, String>> unbound_blocks =
+  std::vector<std::pair<tir::StmtSRef, ffi::String>> unbound_blocks =
       tir::UnboundBlockFinder::Find(sch->state());
   for (const auto& kv : unbound_blocks) {
     tir::StmtSRef block_sref = kv.first;
-    String global_var_name = kv.second;
+    ffi::String global_var_name = kv.second;
     BlockRV block_rv = GetRVFromSRef(sch, block_sref, global_var_name);
     BindBlockThreadIdx(sch, block_rv, max_threadblocks_, max_threads_per_block_, get_factor);
   }
@@ -140,7 +140,7 @@ bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch) {
 }
 
 Postproc Postproc::RewriteUnboundBlock(int max_threadblocks) {
-  ObjectPtr<RewriteUnboundBlockNode> n = make_object<RewriteUnboundBlockNode>();
+  ObjectPtr<RewriteUnboundBlockNode> n = ffi::make_object<RewriteUnboundBlockNode>();
   n->max_threadblocks_ = max_threadblocks;
   n->max_threads_per_block_ = -1;
   return Postproc(n);

@@ -39,7 +39,7 @@ class DataflowBlockExtractor : public ExprMutator {
   explicit DataflowBlockExtractor(size_t min_size) : ExprMutator(), min_size_(min_size) {}
 
   Expr VisitExpr_(const SeqExprNode* seq) override {
-    Array<BindingBlock> new_blocks;
+    ffi::Array<BindingBlock> new_blocks;
     Expr new_body = VisitExpr(seq->body);
     bool changed = !new_body.same_as(seq->body);
 
@@ -49,15 +49,15 @@ class DataflowBlockExtractor : public ExprMutator {
     // make a dataflowblock.  Because these bindings occur prior to
     // `dataflow_bindings`, this array may only be accumulated into
     // when `dataflow_bindings` is empty.
-    Array<Binding> non_dataflow_bindings;
+    ffi::Array<Binding> non_dataflow_bindings;
 
     // Current bindings that may legally be added to a DataflowBlock.
-    Array<Binding> dataflow_bindings;
+    ffi::Array<Binding> dataflow_bindings;
 
     // If present, a DataflowBlock whose bindings are currently in
     // `dataflow_bindings`.  Used to propagate DataflowBlock to the
     // output, even if it doesn't meet the minimum size.
-    Optional<DataflowBlock> input_dataflow_block;
+    ffi::Optional<DataflowBlock> input_dataflow_block;
 
     // Handle any bindings currently in `dataflow_bindings`.  These
     // are either pushed to their own block, or to the end of
@@ -134,7 +134,7 @@ class DataflowBlockExtractor : public ExprMutator {
     if (changed) {
       return SeqExpr(new_blocks, new_body);
     } else {
-      return GetRef<SeqExpr>(seq);
+      return ffi::GetRef<SeqExpr>(seq);
     }
   }
 

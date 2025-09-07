@@ -26,13 +26,13 @@ namespace meta_schedule {
 class RemoveBuildArtifactNode : public MeasureCallbackNode {
  public:
   void Apply(const TaskScheduler& task_scheduler, int task_id,
-             const Array<MeasureCandidate>& measure_candidates,
-             const Array<BuilderResult>& builder_results,
-             const Array<RunnerResult>& runner_results) final {
+             const ffi::Array<MeasureCandidate>& measure_candidates,
+             const ffi::Array<BuilderResult>& builder_results,
+             const ffi::Array<RunnerResult>& runner_results) final {
     static auto f_rm = tvm::ffi::Function::GetGlobalRequired("meta_schedule.remove_build_dir");
     auto _ = Profiler::TimedScope("MeasureCallback/RemoveBuildArtifact");
     for (const BuilderResult& build_result : builder_results) {
-      if (Optional<String> path = build_result->artifact_path) {
+      if (ffi::Optional<ffi::String> path = build_result->artifact_path) {
         f_rm(path.value());
       }
     }
@@ -43,7 +43,7 @@ class RemoveBuildArtifactNode : public MeasureCallbackNode {
 };
 
 MeasureCallback MeasureCallback::RemoveBuildArtifact() {
-  ObjectPtr<RemoveBuildArtifactNode> n = make_object<RemoveBuildArtifactNode>();
+  ObjectPtr<RemoveBuildArtifactNode> n = ffi::make_object<RemoveBuildArtifactNode>();
   return MeasureCallback(n);
 }
 

@@ -86,7 +86,7 @@ class AttrRegistryMapContainerMap {
 
  private:
   /*! \brief The name of the attr field */
-  String attr_name_;
+  ffi::String attr_name_;
   /*! \brief The internal data. */
   std::vector<std::pair<ffi::Any, int>> data_;
   /*! \brief The constructor */
@@ -97,7 +97,7 @@ class AttrRegistryMapContainerMap {
 };
 
 /*!
- * \brief Map<Key, ValueType> used to store meta-data.
+ * \brief ffi::Map<Key, ValueType> used to store meta-data.
  * \tparam KeyType The type of the key
  * \tparam ValueType The type of the value stored in map.
  */

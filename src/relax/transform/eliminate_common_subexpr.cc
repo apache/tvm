@@ -48,7 +48,7 @@ namespace {
  */
 struct ReplacementKey {
   tvm::relax::Expr bound_value;
-  tvm::Optional<tvm::relax::StructInfo> match_cast = std::nullopt;
+  tvm::ffi::Optional<tvm::relax::StructInfo> match_cast = std::nullopt;
 
   explicit ReplacementKey(const tvm::relax::Binding& binding)
       : bound_value(GetBoundValue(binding)) {
@@ -155,7 +155,7 @@ class CommonSubexprEliminator : public ExprMutator {
     // copy of the mutator, to avoid replacing a child-scope
     // expression with a parent-scope binding, or vice versa.
     if (expr_replacements_.size() || var_remap_.size()) {
-      return VisitWithCleanScope(GetRef<Expr>(op));
+      return VisitWithCleanScope(ffi::GetRef<Expr>(op));
     } else {
       return ExprMutator::VisitExpr_(op);
     }
@@ -168,7 +168,7 @@ class CommonSubexprEliminator : public ExprMutator {
     if (op->cond.same_as(cond) && op->true_branch.same_as(true_branch) &&
         op->false_branch.same_as(false_branch) &&
         VisitAndCheckStructInfoFieldUnchanged(op->struct_info_)) {
-      return GetRef<Expr>(op);
+      return ffi::GetRef<Expr>(op);
     } else {
       return If(cond, true_branch, false_branch, op->span);
     }
@@ -193,7 +193,7 @@ class CommonSubexprEliminator : public ExprMutator {
     static const auto& allocator_attr_map = Op::GetAttrMap<Bool>("TAllocator");
     if (const auto* call = expr.as<CallNode>()) {
       if (const auto* op = call->op.as<OpNode>()) {
-        bool is_allocator = allocator_attr_map.get(GetRef<Op>(op), Bool(false))->value;
+        bool is_allocator = allocator_attr_map.get(ffi::GetRef<Op>(op), Bool(false))->value;
         if (is_allocator) {
           return true;
         }

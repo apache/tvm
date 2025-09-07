@@ -64,7 +64,7 @@ class DefaultTimerNode : public TimerNode {
   Device device_;
 };
 
-Timer DefaultTimer(Device dev) { return Timer(make_object<DefaultTimerNode>(dev)); }
+Timer DefaultTimer(Device dev) { return Timer(ffi::make_object<DefaultTimerNode>(dev)); }
 
 class CPUTimerNode : public TimerNode {
  public:
@@ -84,7 +84,7 @@ class CPUTimerNode : public TimerNode {
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("profiling.timer.cpu",
-                        [](Device dev) { return Timer(make_object<CPUTimerNode>()); });
+                        [](Device dev) { return Timer(ffi::make_object<CPUTimerNode>()); });
 });
 
 // keep track of which timers are not defined but we have already warned about
@@ -122,12 +122,12 @@ TVM_FFI_STATIC_INIT_BLOCK({
 namespace profiling {
 
 Profiler::Profiler(std::vector<Device> devs, std::vector<MetricCollector> metric_collectors,
-                   std::unordered_map<String, ffi::Any> configuration)
+                   std::unordered_map<ffi::String, ffi::Any> configuration)
     : devs_(devs), collectors_(metric_collectors), configuration_(configuration) {
   is_running_ = false;
   std::vector<DeviceWrapper> wrapped_devs;
   for (auto dev : devs) {
-    wrapped_devs.push_back(DeviceWrapper(make_object<DeviceWrapperNode>(dev)));
+    wrapped_devs.push_back(DeviceWrapper(ffi::make_object<DeviceWrapperNode>(dev)));
   }
   for (auto& x : collectors_) {
     x->Init(wrapped_devs);
@@ -135,8 +135,8 @@ Profiler::Profiler(std::vector<Device> devs, std::vector<MetricCollector> metric
   // reset the thread pool so that PAPI eventset hooks are set in all threads.
   threading::ResetThreadPool();
 
-  configuration_[String("Number of threads")] =
-      ObjectRef(make_object<CountNode>(threading::NumThreads()));
+  configuration_[ffi::String("Number of threads")] =
+      ObjectRef(ffi::make_object<CountNode>(threading::NumThreads()));
 }
 
 void Profiler::Start() {
@@ -146,7 +146,7 @@ void Profiler::Start() {
   }
 }
 
-void Profiler::StartCall(String name, Device dev,
+void Profiler::StartCall(ffi::String name, Device dev,
                          std::unordered_map<std::string, ffi::Any> extra_metrics) {
   std::vector<std::pair<MetricCollector, ObjectRef>> objs;
   for (auto& collector : collectors_) {
@@ -212,9 +212,11 @@ std::vector<int64_t> ToShape(Tensor shape_tensor) {
   return shape;
 }
 
-String ShapeString(Tensor shape, DLDataType dtype) { return ShapeString(ToShape(shape), dtype); }
+ffi::String ShapeString(Tensor shape, DLDataType dtype) {
+  return ShapeString(ToShape(shape), dtype);
+}
 
-String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype) {
+ffi::String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype) {
   std::stringstream sizes;
   sizes << dtype << "[";
   for (size_t i = 0; i < shape.size(); i++) {
@@ -224,10 +226,10 @@ String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype) {
     sizes << shape[i];
   }
   sizes << "]";
-  return String(sizes.str());
+  return ffi::String(sizes.str());
 }
 
-String ShapeString(const std::vector<Tensor>& shapes) {
+ffi::String ShapeString(const std::vector<Tensor>& shapes) {
   std::stringstream sizes;
   for (const Tensor& ary : shapes) {
     if (sizes.tellp() > 0) {
@@ -243,10 +245,10 @@ String ShapeString(const std::vector<Tensor>& shapes) {
     }
     sizes << "]";
   }
-  return String(sizes.str());
+  return ffi::String(sizes.str());
 }
 
-String ReportNode::AsCSV() const {
+ffi::String ReportNode::AsCSV() const {
   // get unique headers
   std::set<std::string> unique_headers;
 
@@ -300,7 +302,7 @@ String ReportNode::AsCSV() const {
 
 namespace {
 void metric_as_json(std::ostream& os, ffi::Any o) {
-  if (auto opt_str = o.as<String>()) {
+  if (auto opt_str = o.as<ffi::String>()) {
     os << "{\"string\":"
        << "\"" << *opt_str << "\""
        << "}";
@@ -321,7 +323,7 @@ void metric_as_json(std::ostream& os, ffi::Any o) {
 }
 }  // namespace
 
-String ReportNode::AsJSON() const {
+ffi::String ReportNode::AsJSON() const {
   std::ostringstream s;
   // DMLC's JSONWriter does not allow us to write a key value pair without
   // implementing Write for the value. We want a specific write for the value,
@@ -395,29 +397,29 @@ Any AggregateMetric(const std::vector<ffi::Any>& metrics) {
     for (auto& metric : metrics) {
       sum += metric.as<DurationNode>()->microseconds;
     }
-    return ObjectRef(make_object<DurationNode>(sum));
+    return ObjectRef(ffi::make_object<DurationNode>(sum));
   } else if (metrics[0].as<CountNode>()) {
     int64_t sum = 0;
     for (auto& metric : metrics) {
       sum += metric.as<CountNode>()->value;
     }
-    return ObjectRef(make_object<CountNode>(sum));
+    return ObjectRef(ffi::make_object<CountNode>(sum));
   } else if (metrics[0].as<PercentNode>()) {
     double sum = 0;
     for (auto& metric : metrics) {
       sum += metric.as<PercentNode>()->percent;
     }
-    return ObjectRef(make_object<PercentNode>(sum));
+    return ObjectRef(ffi::make_object<PercentNode>(sum));
   } else if (metrics[0].as<RatioNode>()) {
     double sum = 0;
     for (auto& metric : metrics) {
       sum += metric.as<RatioNode>()->ratio;
     }
-    return ObjectRef(make_object<RatioNode>(sum / metrics.size()));
+    return ObjectRef(ffi::make_object<RatioNode>(sum / metrics.size()));
   } else if (auto opt_str = metrics[0].as<ffi::String>()) {
     for (auto& m : metrics) {
       if (*opt_str != m.as<ffi::String>()) {
-        return String("");
+        return ffi::String("");
       }
     }
     // Assume all strings in metrics are the same.
@@ -442,7 +444,7 @@ static void set_locale_for_separators(std::stringstream& s) {
   }
 }
 
-static String print_metric(ffi::Any metric) {
+static ffi::String print_metric(ffi::Any metric) {
   std::string val;
   if (metric.as<CountNode>()) {
     std::stringstream s;
@@ -471,23 +473,23 @@ static String print_metric(ffi::Any metric) {
   return val;
 }
 
-String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) const {
+ffi::String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) const {
   // aggregate calls by op hash (or op name if hash is not set) + argument shapes
-  std::vector<Map<String, ffi::Any>> aggregated_calls;
+  std::vector<ffi::Map<ffi::String, ffi::Any>> aggregated_calls;
   if (aggregate) {
     std::unordered_map<std::string, std::vector<size_t>> aggregates;
     for (size_t i = 0; i < calls.size(); i++) {
       auto& frame = calls[i];
       auto it = frame.find("Hash");
-      std::string name = frame["Name"].cast<String>();
+      std::string name = frame["Name"].cast<ffi::String>();
       if (it != frame.end()) {
-        name = (*it).second.cast<String>();
+        name = (*it).second.cast<ffi::String>();
       }
       if (frame.find("Argument Shapes") != frame.end()) {
-        name += frame["Argument Shapes"].cast<String>();
+        name += frame["Argument Shapes"].cast<ffi::String>();
       }
       if (frame.find("Device") != frame.end()) {
-        name += frame["Device"].cast<String>();
+        name += frame["Device"].cast<ffi::String>();
       }
 
       if (aggregates.find(name) == aggregates.end()) {
@@ -497,7 +499,7 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
       }
     }
     for (const auto& p : aggregates) {
-      std::unordered_map<String, ffi::Any> aggregated;
+      std::unordered_map<ffi::String, ffi::Any> aggregated;
       std::unordered_set<std::string> metrics;
       for (auto& call : calls) {
         for (auto& metric : call) {
@@ -509,7 +511,7 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
         for (auto i : p.second) {
           auto& call = calls[i];
           auto it = std::find_if(call.begin(), call.end(),
-                                 [&metric](const std::pair<String, ffi::Any>& call_metric) {
+                                 [&metric](const std::pair<ffi::String, ffi::Any>& call_metric) {
                                    return std::string(call_metric.first) == metric;
                                  });
           if (it != call.end()) {
@@ -530,16 +532,17 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
 
   // sort rows by duration
   if (sort) {
-    std::sort(aggregated_calls.begin(), aggregated_calls.end(),
-              [&](const Map<String, ffi::Any>& a, const Map<String, ffi::Any>& b) {
-                return a.at("Duration (us)").as<DurationNode>()->microseconds >
-                       b.at("Duration (us)").as<DurationNode>()->microseconds;
-              });
+    std::sort(
+        aggregated_calls.begin(), aggregated_calls.end(),
+        [&](const ffi::Map<ffi::String, ffi::Any>& a, const ffi::Map<ffi::String, ffi::Any>& b) {
+          return a.at("Duration (us)").as<DurationNode>()->microseconds >
+                 b.at("Duration (us)").as<DurationNode>()->microseconds;
+        });
   }
 
   // compute columnwise sums
   if (compute_col_sums) {
-    std::unordered_map<String, ffi::Any> col_sums;
+    std::unordered_map<ffi::String, ffi::Any> col_sums;
     for (auto call : aggregated_calls) {
       for (auto p : call) {
         if (p.second.as<CountNode>()) {
@@ -548,35 +551,35 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
           if (it != col_sums.end()) {
             val += it->second.as<CountNode>()->value;
           }
-          col_sums[p.first] = ObjectRef(make_object<CountNode>(val));
+          col_sums[p.first] = ObjectRef(ffi::make_object<CountNode>(val));
         } else if (p.second.as<DurationNode>()) {
           double val = p.second.as<DurationNode>()->microseconds;
           auto it = col_sums.find(p.first);
           if (it != col_sums.end()) {
             val += it->second.as<DurationNode>()->microseconds;
           }
-          col_sums[p.first] = ObjectRef(make_object<DurationNode>(val));
+          col_sums[p.first] = ObjectRef(ffi::make_object<DurationNode>(val));
         } else if (p.second.as<PercentNode>()) {
           double val = p.second.as<PercentNode>()->percent;
           auto it = col_sums.find(p.first);
           if (it != col_sums.end()) {
             val += it->second.as<PercentNode>()->percent;
           }
-          col_sums[p.first] = ObjectRef(make_object<PercentNode>(val));
+          col_sums[p.first] = ObjectRef(ffi::make_object<PercentNode>(val));
         } else if (p.second.as<RatioNode>()) {
           // It does not make sense to sum ratios
         }
       }
     }
-    col_sums["Name"] = String("Sum");
-    aggregated_calls.push_back({{String("Name"), String("----------")}});  // separator
+    col_sums["Name"] = ffi::String("Sum");
+    aggregated_calls.push_back({{ffi::String("Name"), ffi::String("----------")}});  // separator
     aggregated_calls.push_back(col_sums);
   }
 
   // per-device metrics
   for (auto p : device_metrics) {
-    Map<String, ffi::Any> metrics = p.second;
-    metrics.Set("Name", String("Total"));
+    ffi::Map<ffi::String, ffi::Any> metrics = p.second;
+    metrics.Set("Name", ffi::String("Total"));
     aggregated_calls.push_back(metrics);
   }
 
@@ -660,14 +663,14 @@ std::string DeviceString(Device dev) {
 
 Report Profiler::Report() {
   // sync all timers and normalize rows
-  std::vector<std::unordered_map<String, ffi::Any>> rows;
+  std::vector<std::unordered_map<ffi::String, ffi::Any>> rows;
   for (auto& cf : calls_) {
-    std::unordered_map<String, ffi::Any> row;
+    std::unordered_map<ffi::String, ffi::Any> row;
     double us = cf.timer->SyncAndGetElapsedNanos() / 1e3;
-    row["Duration (us)"] = ObjectRef(make_object<DurationNode>(us));
-    row["Count"] = ObjectRef(make_object<CountNode>(1));
+    row["Duration (us)"] = ObjectRef(ffi::make_object<DurationNode>(us));
+    row["Count"] = ObjectRef(ffi::make_object<CountNode>(1));
     row["Name"] = cf.name;
-    row["Device"] = String(DeviceString(cf.dev));
+    row["Device"] = ffi::String(DeviceString(cf.dev));
     for (auto p : cf.extra_metrics) {
       row[p.first] = p.second;
     }
@@ -676,23 +679,23 @@ Report Profiler::Report() {
 
   // the last frames are the overall times
   double overall_time_us = 0;
-  std::unordered_map<String, Map<String, ffi::Any>> device_metrics;
+  std::unordered_map<ffi::String, ffi::Map<ffi::String, ffi::Any>> device_metrics;
   for (size_t i = 0; i < devs_.size(); i++) {
     auto row = rows[rows.size() - 1];
     rows.pop_back();
-    device_metrics[row["Device"].cast<String>()] = row;
+    device_metrics[row["Device"].cast<ffi::String>()] = row;
     overall_time_us =
         std::max(overall_time_us, row["Duration (us)"].as<DurationNode>()->microseconds);
   }
 
   // Calculate percentages
   for (auto& row : rows) {
-    row["Percent"] = ObjectRef(make_object<PercentNode>(
+    row["Percent"] = ObjectRef(ffi::make_object<PercentNode>(
         row["Duration (us)"].as<DurationNode>()->microseconds / overall_time_us * 100));
   }
 
   // convert to map
-  std::vector<Map<String, ffi::Any>> converted_rows;
+  std::vector<ffi::Map<ffi::String, ffi::Any>> converted_rows;
   for (const auto& row : rows) {
     converted_rows.push_back(row);
   }
@@ -700,20 +703,20 @@ Report Profiler::Report() {
   return profiling::Report(converted_rows, device_metrics, configuration_);
 }
 
-Report::Report(Array<Map<String, ffi::Any>> calls,
-               Map<String, Map<String, ffi::Any>> device_metrics,
-               Map<String, ffi::Any> configuration) {
-  auto node = make_object<ReportNode>();
+Report::Report(ffi::Array<ffi::Map<ffi::String, ffi::Any>> calls,
+               ffi::Map<ffi::String, ffi::Map<ffi::String, ffi::Any>> device_metrics,
+               ffi::Map<ffi::String, ffi::Any> configuration) {
+  auto node = ffi::make_object<ReportNode>();
   node->calls = std::move(calls);
   node->device_metrics = std::move(device_metrics);
   node->configuration = std::move(configuration);
   data_ = std::move(node);
 }
 
-Map<String, ffi::Any> parse_metrics(dmlc::JSONReader* reader) {
+ffi::Map<ffi::String, ffi::Any> parse_metrics(dmlc::JSONReader* reader) {
   reader->BeginObject();
   std::string metric_name, metric_value_name;
-  Map<String, ffi::Any> metrics;
+  ffi::Map<ffi::String, ffi::Any> metrics;
   while (reader->NextObjectItem(&metric_name)) {
     ffi::Any o;
     reader->BeginObject();
@@ -721,23 +724,23 @@ Map<String, ffi::Any> parse_metrics(dmlc::JSONReader* reader) {
     if (metric_value_name == "microseconds") {
       double microseconds;
       reader->Read(&microseconds);
-      o = ObjectRef(make_object<DurationNode>(microseconds));
+      o = ObjectRef(ffi::make_object<DurationNode>(microseconds));
     } else if (metric_value_name == "percent") {
       double percent;
       reader->Read(&percent);
-      o = ObjectRef(make_object<PercentNode>(percent));
+      o = ObjectRef(ffi::make_object<PercentNode>(percent));
     } else if (metric_value_name == "count") {
       int64_t count;
       reader->Read(&count);
-      o = ObjectRef(make_object<CountNode>(count));
+      o = ObjectRef(ffi::make_object<CountNode>(count));
     } else if (metric_value_name == "ratio") {
       double ratio;
       reader->Read(&ratio);
-      o = ObjectRef(make_object<RatioNode>(ratio));
+      o = ObjectRef(ffi::make_object<RatioNode>(ratio));
     } else if (metric_value_name == "string") {
       std::string s;
       reader->Read(&s);
-      o = String(s);
+      o = ffi::String(s);
     } else {
       LOG(FATAL) << "Cannot parse metric of type " << metric_value_name
                  << " valid types are microseconds, percent, count.";
@@ -752,13 +755,13 @@ Map<String, ffi::Any> parse_metrics(dmlc::JSONReader* reader) {
   return metrics;
 }
 
-Report Report::FromJSON(String json) {
+Report Report::FromJSON(ffi::String json) {
   std::stringstream input(json.operator std::string());
   dmlc::JSONReader reader(&input);
   std::string key;
-  Array<Map<String, ffi::Any>> calls;
-  Map<String, Map<String, ffi::Any>> device_metrics;
-  Map<String, ffi::Any> configuration;
+  ffi::Array<ffi::Map<ffi::String, ffi::Any>> calls;
+  ffi::Map<ffi::String, ffi::Map<ffi::String, ffi::Any>> device_metrics;
+  ffi::Map<ffi::String, ffi::Any> configuration;
 
   reader.BeginObject();
   while (reader.NextObjectItem(&key)) {
@@ -793,7 +796,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 ffi::Function ProfileFunction(ffi::Module mod, std::string func_name, int device_type,
-                              int device_id, int warmup_iters, Array<MetricCollector> collectors) {
+                              int device_id, int warmup_iters,
+                              ffi::Array<MetricCollector> collectors) {
   // Module::GetFunction is not const, so this lambda has to be mutable
   return ffi::Function::FromPacked([=](const ffi::AnyView* args, int32_t num_args,
                                        ffi::Any* ret) mutable {
@@ -810,7 +814,7 @@ ffi::Function ProfileFunction(ffi::Module mod, std::string func_name, int device
     for (auto& collector : collectors) {
       collector->Init({DeviceWrapper(dev)});
     }
-    std::vector<Map<String, ffi::Any>> results;
+    std::vector<ffi::Map<ffi::String, ffi::Any>> results;
     results.reserve(collectors.size());
     std::vector<std::pair<MetricCollector, ObjectRef>> collector_data;
     collector_data.reserve(collectors.size());
@@ -828,7 +832,7 @@ ffi::Function ProfileFunction(ffi::Module mod, std::string func_name, int device
     for (auto& kv : collector_data) {
       results.push_back(kv.first->Stop(kv.second));
     }
-    Map<String, ffi::Any> combined_results;
+    ffi::Map<ffi::String, ffi::Any> combined_results;
     for (auto m : results) {
       for (auto p : m) {
         // assume that there is no shared metric name between collectors
@@ -843,8 +847,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "runtime.profiling.ProfileFunction",
-      [](ffi::Module mod, String func_name, int device_type, int device_id, int warmup_iters,
-         Array<MetricCollector> collectors) {
+      [](ffi::Module mod, ffi::String func_name, int device_type, int device_id, int warmup_iters,
+         ffi::Array<MetricCollector> collectors) {
         if (mod->kind() == std::string("rpc")) {
           LOG(FATAL)
               << "Profiling a module over RPC is not yet supported";  // because we can't send
@@ -925,18 +929,19 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.profiling.Report",
-           [](Array<Map<String, ffi::Any>> calls, Map<String, Map<String, ffi::Any>> device_metrics,
-              Map<String, ffi::Any> configuration) {
+           [](ffi::Array<ffi::Map<ffi::String, ffi::Any>> calls,
+              ffi::Map<ffi::String, ffi::Map<ffi::String, ffi::Any>> device_metrics,
+              ffi::Map<ffi::String, ffi::Any> configuration) {
              return Report(calls, device_metrics, configuration);
            })
       .def("runtime.profiling.Count",
-           [](int64_t count) { return ObjectRef(make_object<CountNode>(count)); })
+           [](int64_t count) { return ObjectRef(ffi::make_object<CountNode>(count)); })
       .def("runtime.profiling.Percent",
-           [](double percent) { return ObjectRef(make_object<PercentNode>(percent)); })
+           [](double percent) { return ObjectRef(ffi::make_object<PercentNode>(percent)); })
       .def("runtime.profiling.Duration",
-           [](double duration) { return ObjectRef(make_object<DurationNode>(duration)); })
+           [](double duration) { return ObjectRef(ffi::make_object<DurationNode>(duration)); })
       .def("runtime.profiling.Ratio",
-           [](double ratio) { return ObjectRef(make_object<RatioNode>(ratio)); });
+           [](double ratio) { return ObjectRef(ffi::make_object<RatioNode>(ratio)); });
 });
 
 }  // namespace profiling

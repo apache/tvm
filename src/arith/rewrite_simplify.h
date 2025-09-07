@@ -71,7 +71,7 @@ struct RewriteSimplifierStatsNode : Object {
 
 struct RewriteSimplifierStats : ObjectRef {
   explicit RewriteSimplifierStats(RewriteSimplifierStatsNode data) {
-    data_ = make_object<RewriteSimplifierStatsNode>(data);
+    data_ = ffi::make_object<RewriteSimplifierStatsNode>(data);
   }
 
   TVM_DEFINE_OBJECT_REF_METHODS(RewriteSimplifierStats, ObjectRef, RewriteSimplifierStatsNode);
@@ -193,7 +193,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
    * matches a constraint, return the boolean it should be replaced
    * with.  Otherwise, return false.
    */
-  Optional<PrimExpr> TryMatchLiteralConstraint(const PrimExpr& expr) const;
+  ffi::Optional<PrimExpr> TryMatchLiteralConstraint(const PrimExpr& expr) const;
 
   /*! \brief Rewrite rules for Less Than comparisons
    *

@@ -28,9 +28,9 @@ namespace tvm {
 namespace contrib {
 namespace msc {
 
-const String DocSymbol::Empty() { return "::EMPTY"; }
+const ffi::String DocSymbol::Empty() { return "::EMPTY"; }
 
-const String DocSymbol::NextLine() { return "::NEXT_LINE"; }
+const ffi::String DocSymbol::NextLine() { return "::NEXT_LINE"; }
 
 const ExprDoc DocUtils::ToDoc(int64_t val) { return LiteralDoc::Int(val, std::nullopt); }
 
@@ -50,19 +50,19 @@ const ExprDoc DocUtils::ToDoc(const FloatImm& val) { return ToDoc(val->value); }
 
 const ExprDoc DocUtils::ToDoc(const char* val) { return IdDoc(std::string(val)); }
 
-const ExprDoc DocUtils::ToDoc(const String& val) { return IdDoc(val); }
+const ExprDoc DocUtils::ToDoc(const ffi::String& val) { return IdDoc(val); }
 
 const ExprDoc DocUtils::ToDoc(bool val) { return LiteralDoc::Boolean(val, std::nullopt); }
 
 const ExprDoc DocUtils::ToDoc(const ExprDoc& val) { return val; }
 
-const ExprDoc DocUtils::ToStr(const String& val) { return LiteralDoc::Str(val, std::nullopt); }
+const ExprDoc DocUtils::ToStr(const ffi::String& val) { return LiteralDoc::Str(val, std::nullopt); }
 
-const PointerDoc DocUtils::ToPtr(const String& val) { return PointerDoc(val); }
+const PointerDoc DocUtils::ToPtr(const ffi::String& val) { return PointerDoc(val); }
 
 const StrictListDoc DocUtils::ToStrList(const std::vector<std::string>& values, bool allow_empty) {
   if (values.size() > 0 || allow_empty) {
-    Array<ExprDoc> elements;
+    ffi::Array<ExprDoc> elements;
     for (const auto& v : values) {
       elements.push_back(ToStr(v));
     }
@@ -71,7 +71,7 @@ const StrictListDoc DocUtils::ToStrList(const std::vector<std::string>& values, 
   return StrictListDoc(ListDoc(), false);
 }
 
-const StrictListDoc DocUtils::ToStrList(const std::vector<String>& values, bool allow_empty) {
+const StrictListDoc DocUtils::ToStrList(const std::vector<ffi::String>& values, bool allow_empty) {
   std::vector<std::string> v_values;
   for (const auto& v : values) {
     v_values.push_back(v);
@@ -79,7 +79,7 @@ const StrictListDoc DocUtils::ToStrList(const std::vector<String>& values, bool 
   return ToStrList(v_values, allow_empty);
 }
 
-const StrictListDoc DocUtils::ToStrList(const Array<String>& values, bool allow_empty) {
+const StrictListDoc DocUtils::ToStrList(const ffi::Array<ffi::String>& values, bool allow_empty) {
   std::vector<std::string> v_values;
   for (const auto& v : values) {
     v_values.push_back(v);
@@ -87,8 +87,8 @@ const StrictListDoc DocUtils::ToStrList(const Array<String>& values, bool allow_
   return ToStrList(v_values, allow_empty);
 }
 
-const Array<StmtDoc> DocUtils::ToStmts(const Array<Doc>& docs) {
-  Array<StmtDoc> stmts;
+const ffi::Array<StmtDoc> DocUtils::ToStmts(const ffi::Array<Doc>& docs) {
+  ffi::Array<StmtDoc> stmts;
   for (const auto& d : docs) {
     if (d->IsInstance<StmtDocNode>()) {
       stmts.push_back(Downcast<StmtDoc>(d));
@@ -101,7 +101,7 @@ const Array<StmtDoc> DocUtils::ToStmts(const Array<Doc>& docs) {
   return stmts;
 }
 
-const StmtBlockDoc DocUtils::ToStmtBlock(const Array<Doc>& docs) {
+const StmtBlockDoc DocUtils::ToStmtBlock(const ffi::Array<Doc>& docs) {
   return StmtBlockDoc(ToStmts(docs));
 }
 

@@ -58,12 +58,13 @@ class BoundCollector : public StmtVisitor {
     StmtVisitor::VisitStmt_(op);
   }
   // Hashtable which maps buffer_var to shape.
-  std::unordered_map<const VarNode*, Array<PrimExpr>> mem_to_shape;
+  std::unordered_map<const VarNode*, ffi::Array<PrimExpr>> mem_to_shape;
 };
 
 class BoundChecker : public StmtExprMutator {
  public:
-  explicit BoundChecker(const std::unordered_map<const VarNode*, Array<PrimExpr>>& mem_to_shape)
+  explicit BoundChecker(
+      const std::unordered_map<const VarNode*, ffi::Array<PrimExpr>>& mem_to_shape)
       : mem_to_shape_(mem_to_shape) {}
 
   Stmt VisitStmt_(const AllocateNode* op) final {
@@ -95,13 +96,13 @@ class BoundChecker : public StmtExprMutator {
       PrimExpr condition = MakeCondition();
       if (!condition.as<StringImmNode>()) {
         Stmt nop = Evaluate(1);
-        Stmt then_case = GetRef<Stmt>(op);
+        Stmt then_case = ffi::GetRef<Stmt>(op);
         Stmt else_case = AssertStmt(condition, StringImm(error_message_), nop);
         Stmt body = IfThenElse(condition, then_case, else_case);
         return body;
       }
     }
-    return GetRef<Stmt>(op);
+    return ffi::GetRef<Stmt>(op);
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -116,7 +117,7 @@ class BoundChecker : public StmtExprMutator {
     return (buffer_var.defined() && mem_to_shape_.count(buffer_var.get()));
   }
 
-  void Update(const Var& buffer_var, Array<PrimExpr> new_shape, const DataType& type) {
+  void Update(const Var& buffer_var, ffi::Array<PrimExpr> new_shape, const DataType& type) {
     // Sanity check at first.
     if (!ShapeIsValid(new_shape)) {
       return;
@@ -129,7 +130,7 @@ class BoundChecker : public StmtExprMutator {
     mem_to_shape_[buffer_var.get()] = new_shape;
   }
 
-  bool ShapeIsValid(const Array<PrimExpr>& shape) const {
+  bool ShapeIsValid(const ffi::Array<PrimExpr>& shape) const {
     if (!shape.defined()) {
       return false;
     }
@@ -142,7 +143,7 @@ class BoundChecker : public StmtExprMutator {
     return true;
   }
 
-  bool IndicesAreValid(const Array<PrimExpr>& indices) const {
+  bool IndicesAreValid(const ffi::Array<PrimExpr>& indices) const {
     if (!indices.defined()) {
       return false;
     }
@@ -176,12 +177,12 @@ class BoundChecker : public StmtExprMutator {
     return expr.defined() && expr.dtype().is_scalar();
   }
 
-  bool CanInstrument(const Array<PrimExpr>& indices, const Var& buffer_var) const {
+  bool CanInstrument(const ffi::Array<PrimExpr>& indices, const Var& buffer_var) const {
     return buffer_var.defined() && mem_to_shape_.count(buffer_var.get()) &&
            IndicesAreValid(indices) && !unsafe_rewritten_;
   }
 
-  void Collect(Array<PrimExpr> indices, Var buffer_var) {
+  void Collect(ffi::Array<PrimExpr> indices, Var buffer_var) {
     store_scope_bound_collector_.push_back(
         std::make_pair(indices, mem_to_shape_[buffer_var.get()]));
   }
@@ -189,8 +190,8 @@ class BoundChecker : public StmtExprMutator {
   PrimExpr MakeCondition() {
     PrimExpr condition;
     for (const auto& pair : store_scope_bound_collector_) {
-      Array<PrimExpr> indices = pair.first;
-      Array<PrimExpr> shape = pair.second;
+      ffi::Array<PrimExpr> indices = pair.first;
+      ffi::Array<PrimExpr> shape = pair.second;
 
       ICHECK_EQ(indices.size(), shape.size())
           << "Mismatch between dimension of physical shape and physical indices";
@@ -200,7 +201,7 @@ class BoundChecker : public StmtExprMutator {
         PrimExpr upper_bound = shape[i];
 
         if (const RampNode* ramp_index = index.as<RampNode>()) {
-          index = arith::UnwrapVectorExpr(GetRef<Ramp>(ramp_index), ramp_index->lanes);
+          index = arith::UnwrapVectorExpr(ffi::GetRef<Ramp>(ramp_index), ramp_index->lanes);
         }
 
         // Try to simplify index and bound.
@@ -226,11 +227,11 @@ class BoundChecker : public StmtExprMutator {
   // Whether we face tvm_if_then_else intrinsic.
   bool unsafe_rewritten_{false};
   // Pool which collects the pair of index and shape for specific store/load.
-  std::vector<std::pair<Array<PrimExpr>, Array<PrimExpr>>> store_scope_bound_collector_;
+  std::vector<std::pair<ffi::Array<PrimExpr>, ffi::Array<PrimExpr>>> store_scope_bound_collector_;
   // Error message.
   const char* const error_message_ = "OUT OF THE BOUNDS";
   // Hashtable which maps buffer_var to shape.
-  std::unordered_map<const VarNode*, Array<PrimExpr>> mem_to_shape_;
+  std::unordered_map<const VarNode*, ffi::Array<PrimExpr>> mem_to_shape_;
   // internal analyzer
   arith::Analyzer analyzer_;
 };

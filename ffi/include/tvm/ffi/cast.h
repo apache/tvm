@@ -73,8 +73,5 @@ inline ObjectPtr<BaseType> GetObjectPtr(ObjectType* ptr) {
   return details::ObjectUnsafe::ObjectPtrFromUnowned<BaseType>(ptr);
 }
 }  // namespace ffi
-
-using ffi::GetObjectPtr;
-using ffi::GetRef;
 }  // namespace tvm
 #endif  // TVM_FFI_CAST_H_

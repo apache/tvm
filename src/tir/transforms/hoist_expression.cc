@@ -89,7 +89,7 @@ struct HoistExpressionConfigNode : public AttrsNodeReflAdapter<HoistExpressionCo
 class HoistExpressionConfig : public Attrs {
  public:
   HoistExpressionConfig(int hoisted_conditionals, int hoisted_let_bindings) {
-    auto node = make_object<HoistExpressionConfigNode>();
+    auto node = ffi::make_object<HoistExpressionConfigNode>();
     node->hoisted_conditionals = hoisted_conditionals;
     node->hoisted_let_bindings = hoisted_let_bindings;
     data_ = std::move(node);
@@ -250,7 +250,7 @@ class HoistInfoCollector : public StmtExprVisitor {
   }
 
   void VisitStmt_(const ForNode* op) final {
-    active_loops.push_back({op->loop_var, GetRef<Stmt>(op)});
+    active_loops.push_back({op->loop_var, ffi::GetRef<Stmt>(op)});
     active_loop_vars.insert(op->loop_var.get());
 
     Parent::VisitStmt_(op);
@@ -272,7 +272,7 @@ class HoistInfoCollector : public StmtExprVisitor {
 
     active_block_vars.insert(var.get());
     active_loop_vars.insert(var.get());
-    active_loops.push_back({var, GetRef<Stmt>(op)});
+    active_loops.push_back({var, ffi::GetRef<Stmt>(op)});
 
     Parent::VisitStmt_(op);
 

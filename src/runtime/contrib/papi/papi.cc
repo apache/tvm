@@ -101,7 +101,7 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
    * collected on that device. You can find the names of available metrics by
    * running `papi_native_avail`.
    */
-  explicit PAPIMetricCollectorNode(Map<DeviceWrapper, Array<String>> metrics) {
+  explicit PAPIMetricCollectorNode(ffi::Map<DeviceWrapper, ffi::Array<ffi::String>> metrics) {
     for (auto& p : metrics) {
       papi_metric_names[p.first->device] = {};
       for (auto& metric : p.second) {
@@ -114,7 +114,7 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
   /*! \brief Initialization call.
    * \param devices The devices this collector will be running on
    */
-  void Init(Array<DeviceWrapper> devices) {
+  void Init(ffi::Array<DeviceWrapper> devices) {
     if (!PAPI_is_initialized()) {
       if (sizeof(long_long) > sizeof(int64_t)) {
         LOG(WARNING) << "PAPI's long_long is larger than int64_t. Overflow may occur when "
@@ -225,7 +225,7 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
       int event_set = it->second;
       std::vector<long_long> values(papi_metric_names[dev].size());
       PAPI_CALL(PAPI_read(event_set, values.data()));
-      return ObjectRef(make_object<PAPIEventSetNode>(values, dev));
+      return ObjectRef(ffi::make_object<PAPIEventSetNode>(values, dev));
     } else {
       return ObjectRef(nullptr);
     }
@@ -237,19 +237,19 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
    * \param obj `PAPIEventSetNode` created by a call to `Start`.
    * \returns A mapping from metric name to value.
    */
-  Map<String, ffi::Any> Stop(ObjectRef obj) final {
+  ffi::Map<ffi::String, ffi::Any> Stop(ObjectRef obj) final {
     const PAPIEventSetNode* event_set_node = obj.as<PAPIEventSetNode>();
     std::vector<long_long> end_values(papi_metric_names[event_set_node->dev].size());
     PAPI_CALL(PAPI_read(event_sets[event_set_node->dev], end_values.data()));
-    std::unordered_map<String, ffi::Any> reported_metrics;
+    std::unordered_map<ffi::String, ffi::Any> reported_metrics;
     for (size_t i = 0; i < end_values.size(); i++) {
       if (end_values[i] < event_set_node->start_values[i]) {
         LOG(WARNING) << "Detected overflow when reading performance counter, setting value to -1.";
         reported_metrics[papi_metric_names[event_set_node->dev][i]] =
-            ObjectRef(make_object<CountNode>(-1));
+            ObjectRef(ffi::make_object<CountNode>(-1));
       } else {
         reported_metrics[papi_metric_names[event_set_node->dev][i]] =
-            ObjectRef(make_object<CountNode>(end_values[i] - event_set_node->start_values[i]));
+            ObjectRef(ffi::make_object<CountNode>(end_values[i] - event_set_node->start_values[i]));
       }
     }
     return reported_metrics;
@@ -277,22 +277,24 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
 /*! \brief Wrapper for `PAPIMetricCollectorNode`. */
 class PAPIMetricCollector : public MetricCollector {
  public:
-  explicit PAPIMetricCollector(Map<DeviceWrapper, Array<String>> metrics) {
-    data_ = make_object<PAPIMetricCollectorNode>(metrics);
+  explicit PAPIMetricCollector(ffi::Map<DeviceWrapper, ffi::Array<ffi::String>> metrics) {
+    data_ = ffi::make_object<PAPIMetricCollectorNode>(metrics);
   }
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PAPIMetricCollector, MetricCollector,
                                         PAPIMetricCollectorNode);
 };
 
-MetricCollector CreatePAPIMetricCollector(Map<DeviceWrapper, Array<String>> metrics) {
+MetricCollector CreatePAPIMetricCollector(
+    ffi::Map<DeviceWrapper, ffi::Array<ffi::String>> metrics) {
   return PAPIMetricCollector(metrics);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "runtime.profiling.PAPIMetricCollector",
-      [](Map<DeviceWrapper, Array<String>> metrics) { return PAPIMetricCollector(metrics); });
+  refl::GlobalDef().def("runtime.profiling.PAPIMetricCollector",
+                        [](ffi::Map<DeviceWrapper, ffi::Array<ffi::String>> metrics) {
+                          return PAPIMetricCollector(metrics);
+                        });
 });
 
 }  // namespace profiling

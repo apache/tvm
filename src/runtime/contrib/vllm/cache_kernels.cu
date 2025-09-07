@@ -184,7 +184,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
              return Array{key, value};
            })
-      .def("tvm.contrib.vllm.copy_blocks", [](Array<Tensor> key_value_caches,
+      .def("tvm.contrib.vllm.copy_blocks", [](ffi::Array<Tensor> key_value_caches,
                                               Tensor block_mapping) {
         auto num_layers = key_value_caches.size() / 2;
         auto num_pairs = block_mapping->shape[0] / 2;

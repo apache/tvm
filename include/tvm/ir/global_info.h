@@ -34,7 +34,7 @@ namespace tvm {
 /*!
  * \brief Abstract label for an area of memory.
  */
-using MemoryScope = String;
+using MemoryScope = ffi::String;
 
 /*!
  * \brief GlobalInfo are globally static object that are referred by the IR itself.

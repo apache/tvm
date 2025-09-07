@@ -63,8 +63,8 @@ struct PrimExprSlot {
  */
 struct MatchShapeTodoItem {
   Expr input;
-  Array<PrimExpr> pattern;
-  String err_ctx;
+  ffi::Array<PrimExpr> pattern;
+  ffi::String err_ctx;
 };
 
 /*! \brief Slot map used for shape lowering. */
@@ -200,7 +200,7 @@ class PrimExprSlotCollector : public ExprVisitor, public StructInfoVisitor {
  */
 class VMShapeLowerMutator
     : public ExprMutator,
-      public StructInfoFunctor<void(const StructInfo&, Expr, bool, bool, const String&,
+      public StructInfoFunctor<void(const StructInfo&, Expr, bool, bool, const ffi::String&,
                                     std::vector<MatchShapeTodoItem>*)> {
  public:
   static IRModule Lower(IRModule mod, bool emit_err_ctx) {
@@ -208,7 +208,7 @@ class VMShapeLowerMutator
 
     for (auto& kv : mod->functions) {
       if (auto* func = kv.second.as<FunctionNode>()) {
-        Function updated_func = mutator.Rewrite(kv.first, GetRef<Function>(func));
+        Function updated_func = mutator.Rewrite(kv.first, ffi::GetRef<Function>(func));
         mutator.builder_->UpdateFunction(kv.first, updated_func);
       }
     }
@@ -235,7 +235,7 @@ class VMShapeLowerMutator
     // prepare slot information
     this->PopulateSlotInfo();
 
-    Array<BindingBlock> blocks;
+    ffi::Array<BindingBlock> blocks;
 
     builder_->BeginScope(func->params);
 
@@ -305,7 +305,7 @@ class VMShapeLowerMutator
     for (auto& kv : slot_map_) {
       auto* slot = kv.second;
       if (!slot->expr.as<tir::VarNode>()) {
-        Array<tir::Var> dep_vars = tir::UndefinedVars(slot->expr);
+        ffi::Array<tir::Var> dep_vars = tir::UndefinedVars(slot->expr);
         for (auto var : dep_vars) {
           auto it = slot_map_.find(var);
           ICHECK(it != slot_map_.end())
@@ -323,7 +323,7 @@ class VMShapeLowerMutator
   //-------------------------------------------------------
   // Helper functions
   //-------------------------------------------------------
-  StringImm GetErrContext(String err_ctx) const {
+  StringImm GetErrContext(ffi::String err_ctx) const {
     return emit_err_ctx_ ? StringImm(err_ctx) : StringImm("");
   }
 
@@ -350,7 +350,7 @@ class VMShapeLowerMutator
   Expr VisitExpr_(const FunctionNode* op) final {
     LOG(FATAL) << "VMShapeLower do not work for local functions, make sure "
                << " to run it after LambdaLift";
-    return GetRef<Expr>(op);
+    return ffi::GetRef<Expr>(op);
   }
 
   std::pair<Expr, Expr> MakeSymbolicShapeArg(const PrimExpr& expr) {
@@ -376,10 +376,10 @@ class VMShapeLowerMutator
     bool is_const_value =
         op->value->IsInstance<IntImmNode>() || op->value->IsInstance<FloatImmNode>();
     if (is_const_value) {
-      return GetRef<Expr>(op);
+      return ffi::GetRef<Expr>(op);
     }
 
-    Array<Expr> args = {shape_heap_};
+    ffi::Array<Expr> args = {shape_heap_};
     auto [code, value_or_index] = MakeSymbolicShapeArg(op->value);
     args.push_back(code);
     args.push_back(value_or_index);
@@ -396,10 +396,11 @@ class VMShapeLowerMutator
       return e->IsInstance<IntImmNode>();
     });
     if (is_const_shape) {
-      return GetRef<Expr>(op);
+      return ffi::GetRef<Expr>(op);
     }
 
-    Array<Expr> args = {shape_heap_, PrimValue::Int64(static_cast<int64_t>(op->values.size()))};
+    ffi::Array<Expr> args = {shape_heap_,
+                             PrimValue::Int64(static_cast<int64_t>(op->values.size()))};
     for (PrimExpr expr : op->values) {
       auto [code, value_or_index] = MakeSymbolicShapeArg(expr);
       args.push_back(code);
@@ -502,7 +503,7 @@ class VMShapeLowerMutator
       bool all_nop = true;
       bool any_nop = false;
 
-      Array<Expr> args = {item.input, shape_heap_};
+      ffi::Array<Expr> args = {item.input, shape_heap_};
 
       Expr match_op;
       if (item.input->struct_info_.as<PrimStructInfoNode>()) {
@@ -567,18 +568,18 @@ class VMShapeLowerMutator
     ICHECK_GT(heap_size_->value, 0);
     // construct a PrimFunc that compute the shape.
     tir::Var heap("heap", DataType::Handle());
-    Array<PrimExpr> buffer_shape{heap_size_};
+    ffi::Array<PrimExpr> buffer_shape{heap_size_};
     tir::Buffer buffer = tir::decl_buffer(buffer_shape, ShapeDType(), "H", "global");
-    Map<tir::Var, tir::Buffer> buffer_map;
+    ffi::Map<tir::Var, tir::Buffer> buffer_map;
     buffer_map.Set(heap, buffer);
 
-    auto var_map = [&](const tir::Var& var) -> Optional<PrimExpr> {
+    auto var_map = [&](const tir::Var& var) -> ffi::Optional<PrimExpr> {
       auto it = slot_map_.find(var);
       ICHECK(it != slot_map_.end());
       return tir::BufferLoad(buffer, {IntImm(ShapeDType(), it->second->index)});
     };
 
-    Array<tir::Stmt> seq;
+    ffi::Array<tir::Stmt> seq;
     for (PrimExprSlot* slot : to_compute) {
       ICHECK(!slot->value_computed);
       slot->value_computed = true;
@@ -587,7 +588,7 @@ class VMShapeLowerMutator
     }
 
     tir::Stmt body = tir::SeqStmt::Flatten(seq);
-    Array<tir::Var> params{heap};
+    ffi::Array<tir::Var> params{heap};
     Type ret_type = VoidType();
 
     // TODO(relax-team): Consider attach the target attribute to
@@ -623,14 +624,14 @@ class VMShapeLowerMutator
    *                    visit the match cast.
    */
   void CheckMatchCast(const StructInfo& struct_info, Expr value, bool always_check,
-                      bool dynamic_only, const String& err_ctx,
+                      bool dynamic_only, const ffi::String& err_ctx,
                       std::vector<MatchShapeTodoItem>* match_todos) {
     return this->VisitStructInfo(struct_info, value, always_check, dynamic_only, err_ctx,
                                  match_todos);
   }
 
   void VisitStructInfo(const StructInfo& struct_info, Expr value, bool always_check,
-                       bool dynamic_only, const String& err_ctx,
+                       bool dynamic_only, const ffi::String& err_ctx,
                        std::vector<MatchShapeTodoItem>* match_todos) final {
     // short-cut, if the struct info already satisfies the
     // constraint during match cast, we can skip matching
@@ -640,11 +641,11 @@ class VMShapeLowerMutator
   }
 
   void VisitStructInfo_(const ObjectStructInfoNode* op, Expr value, bool always_check,
-                        bool dynamic_only, const String& err_ctx,
+                        bool dynamic_only, const ffi::String& err_ctx,
                         std::vector<MatchShapeTodoItem>* match_todos) final {}
 
   void VisitStructInfo_(const PrimStructInfoNode* op, Expr value, bool always_check,
-                        bool dynamic_only, const String& err_ctx,
+                        bool dynamic_only, const ffi::String& err_ctx,
                         std::vector<MatchShapeTodoItem>* match_todos) final {
     // emit runtime check of shape
     if (always_check || !IsBaseOf(PrimStructInfo(op->dtype), GetStructInfo(value))) {
@@ -663,7 +664,7 @@ class VMShapeLowerMutator
   }
 
   void VisitStructInfo_(const ShapeStructInfoNode* op, Expr value, bool always_check,
-                        bool dynamic_only, const String& err_ctx,
+                        bool dynamic_only, const ffi::String& err_ctx,
                         std::vector<MatchShapeTodoItem>* match_todos) final {
     // emit runtime check of shape
     if (always_check || !IsBaseOf(ShapeStructInfo(op->ndim), GetStructInfo(value))) {
@@ -683,7 +684,7 @@ class VMShapeLowerMutator
   }
 
   void VisitStructInfo_(const TensorStructInfoNode* op, Expr value, bool always_check,
-                        bool dynamic_only, const String& err_ctx,
+                        bool dynamic_only, const ffi::String& err_ctx,
                         std::vector<MatchShapeTodoItem>* match_todos) final {
     // emit runtime check of shape
     auto* shape_expr = op->shape.as<ShapeExprNode>();
@@ -734,7 +735,7 @@ class VMShapeLowerMutator
   }
 
   void VisitStructInfo_(const TupleStructInfoNode* op, Expr value, bool always_check,
-                        bool dynamic_only, const String& err_ctx,
+                        bool dynamic_only, const ffi::String& err_ctx,
                         std::vector<MatchShapeTodoItem>* match_todos) final {
     auto* value_tinfo = GetStructInfoAs<TupleStructInfoNode>(value);
     if (value_tinfo) {
@@ -757,7 +758,7 @@ class VMShapeLowerMutator
   }
 
   void VisitStructInfo_(const FuncStructInfoNode* op, Expr value, bool always_check,
-                        bool dynamic_only, const String& err_ctx,
+                        bool dynamic_only, const ffi::String& err_ctx,
                         std::vector<MatchShapeTodoItem>* match_todos) final {
     // we only check function is callable.
     if (!always_check && MatchStructInfo<FuncStructInfo>(value)) return;
@@ -779,7 +780,7 @@ class VMShapeLowerMutator
   std::vector<std::unique_ptr<PrimExprSlot>> slot_vec_;
   /*! \brief Expr => slot. */
   PrimExprSlotMap slot_map_;
-  Optional<GlobalVar> current_gvar_ = std::nullopt;
+  ffi::Optional<GlobalVar> current_gvar_ = std::nullopt;
   /*!
    * \brief List of vars that are being defined but
    * have not go through outstanding shape compute check.
@@ -790,7 +791,7 @@ class VMShapeLowerMutator
   const Op& null_value_op_ = Op::Get("relax.null_value");
   // common struct info
   const StructInfo object_sinfo_ = ObjectStructInfo();
-  const StructInfo void_sinfo_ = TupleStructInfo(Array<StructInfo>({}));
+  const StructInfo void_sinfo_ = TupleStructInfo(ffi::Array<StructInfo>({}));
   // check function
   const ExternFunc builtin_alloc_shape_heap_{"vm.builtin.alloc_shape_heap"};
   const ExternFunc builtin_match_shape_{"vm.builtin.match_shape"};

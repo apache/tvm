@@ -41,26 +41,26 @@ Expr no_grad(Expr input);
 
 /*! \brief Backward operator of relax.nll_loss. All parameters except output_grad is the same as
  * relax.nll_loss. Returns the gradient w.r.t. predictions. */
-Expr nll_loss_backward(Expr output_grad, Expr predictions, Expr targets, Optional<Expr> weights,
-                       String reduction, int ignore_index);
+Expr nll_loss_backward(Expr output_grad, Expr predictions, Expr targets,
+                       ffi::Optional<Expr> weights, ffi::String reduction, int ignore_index);
 
 /*! \brief Backward operator of relax.max_pool2d. All parameters except output_grad is the same as
  * relax.max_pool2d. Returns the gradient w.r.t. data. */
-Expr max_pool2d_backward(Expr output_grad, Expr data, Array<IntImm> pool_size,
-                         Array<IntImm> strides, Array<IntImm> padding, Array<IntImm> dilation,
-                         bool ceil_mode, bool count_include_pad, String layout,
-                         Optional<String> out_layout);
+Expr max_pool2d_backward(Expr output_grad, Expr data, ffi::Array<IntImm> pool_size,
+                         ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
+                         ffi::Array<IntImm> dilation, bool ceil_mode, bool count_include_pad,
+                         ffi::String layout, ffi::Optional<ffi::String> out_layout);
 
 /*! \brief Backward operator of relax.avg_pool2d. All parameters except output_grad is the same as
  * relax.avg_pool2d. Returns the gradient w.r.t. data. */
-Expr avg_pool2d_backward(Expr output_grad, Expr data, Array<IntImm> pool_size,
-                         Array<IntImm> strides, Array<IntImm> padding, Array<IntImm> dilation,
-                         bool ceil_mode, bool count_include_pad, String layout,
-                         Optional<String> out_layout);
+Expr avg_pool2d_backward(Expr output_grad, Expr data, ffi::Array<IntImm> pool_size,
+                         ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
+                         ffi::Array<IntImm> dilation, bool ceil_mode, bool count_include_pad,
+                         ffi::String layout, ffi::Optional<ffi::String> out_layout);
 
 /*! \brief Backward operator of relax.take. All parameters except output_grad is the same as
  * relax.take. Returns the gradient w.r.t. data. */
-Expr take_backward(Expr output_grad, Expr x, Expr indices, Optional<int64_t> axis);
+Expr take_backward(Expr output_grad, Expr x, Expr indices, ffi::Optional<int64_t> axis);
 
 }  // namespace relax
 }  // namespace tvm

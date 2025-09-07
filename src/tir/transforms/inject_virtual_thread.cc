@@ -208,7 +208,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     if (touched_var_.count(op)) {
       visit_touched_var_ = true;
     }
-    return GetRef<PrimExpr>(op);
+    return ffi::GetRef<PrimExpr>(op);
   }
   PrimExpr RewriteIndex(PrimExpr index, PrimExpr alloc_extent) const {
     return analyzer_->Simplify(index + var_ * alloc_extent);
@@ -229,7 +229,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
 
       return Call(op->dtype, op->op, {op->args[0], op->args[1], offset, extent, op->args[4]});
     } else if (op->op.same_as(builtin::tvm_context_id())) {
-      return allow_share_ ? GetRef<PrimExpr>(op) : var_;
+      return allow_share_ ? ffi::GetRef<PrimExpr>(op) : var_;
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }
@@ -287,14 +287,14 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     PrimExpr value = this->VisitExpr(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
-      return InjectVTLoop(GetRef<Stmt>(op), true);
+      return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     } else if (!allow_share_ && !vt_loop_injected_ &&
                (op->attr_key == attr::coproc_uop_scope || op->attr_key == attr::coproc_scope)) {
-      return InjectVTLoop(GetRef<Stmt>(op), true);
+      return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     } else {
       Stmt body = this->VisitStmt(op->body);
       if (value.same_as(op->value) && body.same_as(op->body)) {
-        return GetRef<Stmt>(op);
+        return ffi::GetRef<Stmt>(op);
       } else {
         return AttrStmt(op->node, op->attr_key, value, body);
       }
@@ -304,12 +304,12 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const LetStmtNode* op) final {
     PrimExpr value = this->VisitExpr(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
-      return InjectVTLoop(GetRef<Stmt>(op), true);
+      return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     }
     visit_touched_var_ = false;
     Stmt body = this->VisitStmt(op->body);
     if (value.same_as(op->value) && body.same_as(op->body)) {
-      return GetRef<Stmt>(op);
+      return ffi::GetRef<Stmt>(op);
     } else {
       return LetStmt(op->var, value, body);
     }
@@ -319,7 +319,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     ICHECK(is_zero(op->min));
     PrimExpr extent = this->VisitExpr(op->extent);
     if (visit_touched_var_ && !vt_loop_injected_) {
-      Stmt stmt = InjectVTLoop(GetRef<Stmt>(op), true);
+      Stmt stmt = InjectVTLoop(ffi::GetRef<Stmt>(op), true);
       ++max_loop_depth_;
       return stmt;
     }
@@ -327,7 +327,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     Stmt body = this->VisitStmt(op->body);
     ++max_loop_depth_;
     if (extent.same_as(op->extent) && body.same_as(op->body)) {
-      return GetRef<Stmt>(op);
+      return ffi::GetRef<Stmt>(op);
     } else {
       auto n = CopyOnWrite(op);
       n->extent = std::move(extent);
@@ -339,12 +339,12 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const IfThenElseNode* op) final {
     PrimExpr condition = this->VisitExpr(op->condition);
     if (visit_touched_var_ && !vt_loop_injected_) {
-      return InjectVTLoop(GetRef<Stmt>(op), true);
+      return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     }
     visit_touched_var_ = false;
     ICHECK_EQ(max_loop_depth_, 0);
     Stmt then_case = this->VisitStmt(op->then_case);
-    Optional<Stmt> else_case = std::nullopt;
+    ffi::Optional<Stmt> else_case = std::nullopt;
     if (op->else_case) {
       int temp = max_loop_depth_;
       max_loop_depth_ = 0;
@@ -353,7 +353,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     }
     if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
         else_case.same_as(op->else_case)) {
-      return GetRef<Stmt>(op);
+      return ffi::GetRef<Stmt>(op);
     } else {
       return IfThenElse(condition, then_case, else_case);
     }
@@ -379,15 +379,15 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   }
   // Allocate
   Stmt VisitStmt_(const AllocateNode* op) final {
-    Allocate node = GetRef<Allocate>(op);
+    Allocate node = ffi::GetRef<Allocate>(op);
 
     PrimExpr condition = this->VisitExpr(op->condition);
 
-    Array<PrimExpr> extents =
+    ffi::Array<PrimExpr> extents =
         op->extents.Map([this](const PrimExpr& extent) { return this->VisitExpr(extent); });
 
     if (visit_touched_var_ && !vt_loop_injected_) {
-      return InjectVTLoop(GetRef<Stmt>(op), true);
+      return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     }
 
     visit_touched_var_ = false;
@@ -417,7 +417,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
 
     if (extents.same_as(op->extents) && body.same_as(op->body) &&
         condition.same_as(op->condition)) {
-      return GetRef<Stmt>(op);
+      return ffi::GetRef<Stmt>(op);
     } else {
       return Allocate(op->buffer_var, op->dtype, extents, condition, body);
     }
@@ -439,7 +439,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     // only unroll if number of vthreads are small
     if (max_loop_depth_ == 0 && num_threads_ < 16) {
       // do unrolling if it is inside innermost content.
-      Array<Stmt> seq;
+      ffi::Array<Stmt> seq;
       for (int i = 0; i < num_threads_; ++i) {
         seq.push_back(Substitute(stmt, {{var_, make_const(var_.dtype(), i)}}));
       }

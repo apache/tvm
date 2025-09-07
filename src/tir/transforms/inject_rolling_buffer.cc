@@ -50,7 +50,7 @@ struct RollingBufferInfo {
   int rolling_axis;
   int rolling_extent;
   std::vector<int> axis_overlaps;
-  std::vector<Optional<Var>> axis_iter_vars;
+  std::vector<ffi::Optional<Var>> axis_iter_vars;
 };
 
 class RollingBufferInjector : public StmtExprMutator {
@@ -70,7 +70,7 @@ class RollingBufferInjector : public StmtExprMutator {
 
   Stmt VisitStmt_(const ForNode* op) final {
     // Manage the stack of iter_vars
-    for_loops.push_back(GetRef<For>(op));
+    for_loops.push_back(ffi::GetRef<For>(op));
 
     auto stmt{StmtExprMutator::VisitStmt_(op)};
     op = stmt.as<ForNode>();
@@ -82,7 +82,7 @@ class RollingBufferInjector : public StmtExprMutator {
     if (it != hoist_buffer_to_for.end()) {
       // If the loop corresponds to an iter_var that needs a BufferRealize
       // hoisting to its scope, perform the hoisting
-      Stmt body{GetRef<For>(op)};
+      Stmt body{ffi::GetRef<For>(op)};
       for (auto realise : it->second) {
         auto attrs{buffer_to_attrs[realise->buffer]};
         Stmt new_realize{BufferRealize(realise->buffer, realise->bounds, realise->condition, body,
@@ -108,7 +108,7 @@ class RollingBufferInjector : public StmtExprMutator {
       // Keep a dictionary associating attribute statements with the buffers
       // they reference. We'll need this if the buffer gets hoisted and we
       // need to hoist all of its attributes at the same time.
-      buffer_to_attrs[buffer].push_back(GetRef<AttrStmt>(op));
+      buffer_to_attrs[buffer].push_back(ffi::GetRef<AttrStmt>(op));
 
       if (op->attr_key == attr::rolling_buffer_scope && Downcast<IntImm>(op->value)->value) {
         // If the attribute is indicating that a buffer should be a rolling
@@ -122,13 +122,13 @@ class RollingBufferInjector : public StmtExprMutator {
 
         // If a BufferRealize has been identified as needing to be made into
         // a rolling buffer, begin the analysis.
-        std::vector<Optional<Var>> bound_iter_vars{};
+        std::vector<ffi::Optional<Var>> bound_iter_vars{};
         std::vector<int> bound_overlaps{};
         // We use the bound information of the BufferRealize to calculate
         // how we can legally roll
         auto stride{0};
         auto divisor{1};
-        Optional<Var> iter_var{};
+        ffi::Optional<Var> iter_var{};
         for (auto bound : buffer_realize->bounds) {
           divisor = 1;
           if (auto floor_div = bound->min.as<FloorDivNode>()) {
@@ -143,7 +143,7 @@ class RollingBufferInjector : public StmtExprMutator {
             iter_var = nullptr;
           } else if (auto var = bound->min.as<VarNode>()) {
             // If the bound is just a Var, that implies the stride is 1
-            iter_var = GetRef<Var>(var);
+            iter_var = ffi::GetRef<Var>(var);
             stride = 1;
           } else {
             // Otherwise, it's the iter var multiplied by the stride
@@ -154,7 +154,7 @@ class RollingBufferInjector : public StmtExprMutator {
             ICHECK(a) << "Rolling buffer injection failed: the buffer striding is unsupported";
             auto b = mul->b.as<IntImmNode>();
             ICHECK(b) << "Rolling buffer injection failed: the buffer striding is unsupported";
-            iter_var = GetRef<Var>(a);
+            iter_var = ffi::GetRef<Var>(a);
             stride = b->value;
           }
           stride = std::ceil(static_cast<float>(stride) / divisor);
@@ -167,7 +167,7 @@ class RollingBufferInjector : public StmtExprMutator {
         }
         // Pick the outermost iter_var that's mentioned in the bounds
         // to be the rolling axis
-        Optional<Var> roll_iter_var{};
+        ffi::Optional<Var> roll_iter_var{};
         int roll_axis{1};
         for (auto loop : for_loops) {
           auto loop_var{loop->loop_var};
@@ -175,7 +175,7 @@ class RollingBufferInjector : public StmtExprMutator {
 
           auto it{std::find_if(
               bound_iter_vars.begin(), bound_iter_vars.end(),
-              [&](Optional<Var> var) { return var && (var.get() == loop_var.get()); })};
+              [&](ffi::Optional<Var> var) { return var && (var.get() == loop_var.get()); })};
 
           if (it != bound_iter_vars.end()) {
             auto i{std::distance(bound_iter_vars.begin(), it)};
@@ -195,7 +195,7 @@ class RollingBufferInjector : public StmtExprMutator {
             bound_iter_vars,
         };
         rolling_buffer_to_info[buffer] = rolling_buffer_info;
-        Array<Range> new_bounds{};
+        ffi::Array<Range> new_bounds{};
         auto shape{buffer->shape};
         for (size_t i{0}; i < shape.size(); ++i) {
           auto extent{shape[i]};
@@ -225,7 +225,7 @@ class RollingBufferInjector : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
-    buffer_to_buffer_realize.insert({op->buffer, GetRef<BufferRealize>(op)});
+    buffer_to_buffer_realize.insert({op->buffer, ffi::GetRef<BufferRealize>(op)});
 
     auto stmt{StmtExprMutator::VisitStmt_(op)};
     op = stmt.as<BufferRealizeNode>();
@@ -266,7 +266,7 @@ class RollingBufferInjector : public StmtExprMutator {
         auto iter_var{rolling_buffer_info.axis_iter_vars[i]};
         if (iter_var && rolling_buffer_info.axis_overlaps[i] > 0) {
           Var var{iter_var.value()};
-          const Map<Var, IntSet> dmap{std::make_pair(var, IntSet::Interval(0, 0))};
+          const ffi::Map<Var, IntSet> dmap{std::make_pair(var, IntSet::Interval(0, 0))};
           auto term_2{arith::Analyzer{}.int_set(op->indices[i], dmap).min()};
           auto condition = Or(LT(var, 1), GE(term_2, rolling_buffer_info.axis_overlaps[i]));
           buffer_store = IfThenElse(likely(condition), buffer_store);

@@ -147,7 +147,7 @@ class ScheduleStateNode : public Object {
    * \note The reuse of loop srefs are detected automatically according to the reuse of loop vars.
    */
   TVM_DLL void Replace(const tir::StmtSRef& src_sref, const Stmt& tgt_stmt,
-                       const Map<Block, Block>& block_sref_reuse);
+                       const ffi::Map<Block, Block>& block_sref_reuse);
   /*!
    * \brief Trigger the verification according to the `debug_mask` bitmask.
    * 1) If the bitmask `kVerifySRefTree` is on, verify the correctness of the sref tree.

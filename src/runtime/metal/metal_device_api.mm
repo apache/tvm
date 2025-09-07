@@ -164,7 +164,7 @@ MetalWorkspace::MetalWorkspace() {
   id<MTLDevice> d = MTLCreateSystemDefaultDevice();
   devices.push_back(d);
 #else
-  NSArray<id<MTLDevice> >* devs = MTLCopyAllDevices();
+  NSffi::Array<id<MTLDevice> >* devs = MTLCopyAllDevices();
   for (size_t i = 0; i < devs.count; ++i) {
     id<MTLDevice> d = [devs objectAtIndex:i];
     devices.push_back(d);
@@ -397,7 +397,7 @@ class MetalTimerNode : public TimerNode {
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("profiling.timer.metal",
-                        [](Device dev) { return Timer(make_object<MetalTimerNode>(dev)); });
+                        [](Device dev) { return Timer(ffi::make_object<MetalTimerNode>(dev)); });
 });
 
 }  // namespace metal

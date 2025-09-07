@@ -36,14 +36,16 @@ class HasInitBlock : public ScheduleError {
  public:
   explicit HasInitBlock(IRModule mod, Block block) : mod_(mod), block_(block) {}
 
-  String FastErrorString() const final { return "ScheduleError: The block has init statement"; }
+  ffi::String FastErrorString() const final {
+    return "ScheduleError: The block has init statement";
+  }
 
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     return "ScheduleError: The block has init statement: {0}";
   }
 
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
   static void Check(const IRModule& mod, const Block& block) {
     if (block->init.defined()) {
@@ -61,12 +63,12 @@ class NotSingleReadWriteBuffer : public ScheduleError {
   explicit NotSingleReadWriteBuffer(IRModule mod, bool is_read, Block block)
       : mod_(mod), is_read_(is_read), block_(std::move(block)) {}
 
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return is_read_ ? "ScheduleError: The block is allowed to read only a single buffer region"
                     : "ScheduleError: The block is allowed to write only a single buffer region";
   }
 
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     if (is_read_) {
       int k = block_->reads.size();
       return "The block is only allowed to read a single buffer region, but it reads " +
@@ -79,7 +81,7 @@ class NotSingleReadWriteBuffer : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
   IRModule mod_;
   bool is_read_;
@@ -87,7 +89,7 @@ class NotSingleReadWriteBuffer : public ScheduleError {
 
   static Buffer GetSingleRead(const ScheduleState& self, const Block& block,
                               const StmtSRef& scope_root_sref) {
-    const std::unordered_map<Buffer, Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual>&
+    const std::unordered_map<Buffer, ffi::Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual>&
         buffer_writers = self->block_info.at(scope_root_sref).scope->buffer_writers;
     const BufferNode* read_buffer = nullptr;
     for (const BufferRegion& read_region : block->reads) {
@@ -95,7 +97,7 @@ class NotSingleReadWriteBuffer : public ScheduleError {
       if (buffer == read_buffer) {
         continue;
       }
-      if (buffer_writers.count(GetRef<Buffer>(buffer)) > 0) {
+      if (buffer_writers.count(ffi::GetRef<Buffer>(buffer)) > 0) {
         if (read_buffer != nullptr) {
           throw NotSingleReadWriteBuffer(self->mod, true, block);
         }
@@ -105,7 +107,7 @@ class NotSingleReadWriteBuffer : public ScheduleError {
     if (read_buffer == nullptr) {
       throw NotSingleReadWriteBuffer(self->mod, true, block);
     }
-    return GetRef<Buffer>(read_buffer);
+    return ffi::GetRef<Buffer>(read_buffer);
   }
 
   static Buffer GetSingleWrite(const ScheduleState& self, const Block& block) {
@@ -121,17 +123,17 @@ class BodyAnalysisError : public ScheduleError {
   explicit BodyAnalysisError(bool is_reverse, IRModule mod, Block block)
       : is_reverse_(is_reverse), mod_(mod), block_(std::move(block)) {}
 
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return "ScheduleError: The block cannot be inlined because its body pattern does not meet the "
            "condition for inlining";
   }
 
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     return is_reverse_ ? kErrBodyReverseInline : kErrBodyInline;
   }
 
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
   bool is_reverse_;
   IRModule mod_;
@@ -143,20 +145,20 @@ class NonSingleProducerError : public ScheduleError {
   explicit NonSingleProducerError(IRModule mod, Block block)
       : mod_(mod), block_(std::move(block)) {}
 
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return "ScheduleError: The consumer block to be inlined is required to have only a single "
            "producer block, and the producer block should be a complete block who has only a "
            "single consumer";
   }
 
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     return "The consumer block {0} to be inlined is required to have only a single "
            "producer block, and the producer block should be a complete block who has only a "
            "single consumer";
   }
 
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
   IRModule mod_;
   Block block_;
@@ -174,7 +176,7 @@ class NonSingleProducerError : public ScheduleError {
     const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_root_sref);
     const BlockNode* consumer_block = TVM_SREF_TO_BLOCK(consumer_block_sref);
     Buffer consumer_buffer = NotSingleReadWriteBuffer::GetSingleRead(
-        self, GetRef<Block>(consumer_block), scope_root_sref);
+        self, ffi::GetRef<Block>(consumer_block), scope_root_sref);
     class ProducerFinder : public StmtVisitor {
      public:
       static std::vector<Block> GetProducer(const ScheduleState& self,
@@ -211,9 +213,9 @@ class NonSingleProducerError : public ScheduleError {
             // Check if the producer block is a complete block
             StmtSRef producer_block_sref = self_->stmt2ref.at(node);
             if (!IsCompleteBlock(self_, producer_block_sref, scope_root_sref_)) {
-              throw NonSingleProducerError(self_->mod, GetRef<Block>(node));
+              throw NonSingleProducerError(self_->mod, ffi::GetRef<Block>(node));
             }
-            producer_across_scope_.back().push_back(GetRef<Block>(node));
+            producer_across_scope_.back().push_back(ffi::GetRef<Block>(node));
             break;
           }
         }
@@ -224,9 +226,9 @@ class NonSingleProducerError : public ScheduleError {
       std::vector<std::vector<Block>> producer_across_scope_;
     };
     std::vector<Block> producer_across_scope = ProducerFinder::GetProducer(
-        self, scope_root_sref, consumer_buffer, GetRef<Block>(scope_block));
+        self, scope_root_sref, consumer_buffer, ffi::GetRef<Block>(scope_block));
     if (producer_across_scope.size() != 1) {
-      throw NonSingleProducerError(self->mod, GetRef<Block>(consumer_block));
+      throw NonSingleProducerError(self->mod, ffi::GetRef<Block>(consumer_block));
     }
     return self->stmt2ref.at(producer_across_scope[0].get());
   }
@@ -237,21 +239,21 @@ class OpaqueAccessError : public ScheduleError {
   explicit OpaqueAccessError(IRModule mod, StmtSRef scope_root_sref)
       : mod_(mod), scope_root_(nullptr) {
     const BlockNode* scope_root = TVM_SREF_TO_BLOCK(scope_root_sref);
-    this->scope_root_ = GetRef<Block>(scope_root);
+    this->scope_root_ = ffi::GetRef<Block>(scope_root);
   }
 
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return "ScheduleError: The buffer to be inlined has opaque access (e.g. `B.data`), or its "
            "subregion is matched into other blocks";
   }
 
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     return "The buffer to be inlined has opaque access (e.g. `B.data`), or its "
            "subregion is matched into other blocks: {0}";
   }
 
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {scope_root_}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {scope_root_}; }
 
   IRModule mod_;
   Block scope_root_;
@@ -263,11 +265,11 @@ class ProducerHasNonTrivialPredicateError : public ScheduleError {
                                                PrimExpr new_predicate)
       : mod_(mod), producer_(producer), new_predicate_(new_predicate) {}
 
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return "ScheduleError: The producer block has a non-trivial predicate.";
   }
 
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "ScheduleError: The producer block {0} has a non-trivial predicate "
        << producer_->predicate << " that cannot be implied by the synthesized predicate "
@@ -276,7 +278,7 @@ class ProducerHasNonTrivialPredicateError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {producer_}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {producer_}; }
 
   IRModule mod_;
   BlockRealize producer_;
@@ -315,7 +317,7 @@ class BaseInliner : public StmtExprMutator {
   Stmt VisitStmt_(const BlockNode* block) {
     CheckMatchBufferRegion(block);
     AddBuffersInBlockSignature(block);
-    Block src_block = GetRef<Block>(block);
+    Block src_block = ffi::GetRef<Block>(block);
     if (src_block.same_as(src_stmt)) {
       block = tgt_stmt.as<BlockNode>();
       ICHECK(block != nullptr);
@@ -358,7 +360,7 @@ class BaseInliner : public StmtExprMutator {
    */
   Block UpdateBuffersInBlockSignature(Block block, bool is_scope_root) {
     // Step 1. Update `BlockNode::alloc_buffers`
-    Array<Buffer> alloc_buffers;
+    ffi::Array<Buffer> alloc_buffers;
     if (is_scope_root) {
       alloc_buffers.reserve(block->alloc_buffers.size());
       for (const Buffer& alloc_buffer : block->alloc_buffers) {
@@ -370,14 +372,15 @@ class BaseInliner : public StmtExprMutator {
       alloc_buffers = std::move(block->alloc_buffers);
     }
     // Step 2. Update `BlockNode::reads` and `BlockNode::writes`
-    Array<BufferRegion> reads = std::move(block->reads);
-    Array<BufferRegion> writes = std::move(block->writes);
+    ffi::Array<BufferRegion> reads = std::move(block->reads);
+    ffi::Array<BufferRegion> writes = std::move(block->writes);
     auto f_access_inline_buffer = [this](const BufferRegion& access) {
       return access->buffer.same_as(this->inlined_buffer_);
     };
     if (!is_scope_root && (std::any_of(reads.begin(), reads.end(), f_access_inline_buffer) ||
                            std::any_of(writes.begin(), writes.end(), f_access_inline_buffer))) {
-      Array<Array<BufferRegion>> inspected = GetBlockReadWriteRegion(block, buffer_var_map_);
+      ffi::Array<ffi::Array<BufferRegion>> inspected =
+          GetBlockReadWriteRegion(block, buffer_var_map_);
       reads = inspected[0];
       writes = inspected[1];
     }
@@ -422,7 +425,7 @@ class BaseInliner : public StmtExprMutator {
   /*! \brief The scope root */
   StmtSRef scope_root_sref_{nullptr};
   /*! \brief Maps a buffer's data field to itself */
-  Map<Var, Buffer> buffer_var_map_;
+  ffi::Map<Var, Buffer> buffer_var_map_;
   /*! \brief The indices used for indexing the buffer to be inlined */
   std::vector<Var> idx_vars_;
   /*! \brief The mapping to substitute index variables to PrimExprs */
@@ -438,7 +441,7 @@ class BaseInliner : public StmtExprMutator {
   /*! \brief The Stmt to be replaced to when removing the leaf block */
   Stmt tgt_stmt{nullptr};
   /*! \brief The reuse mapping of block srefs */
-  Map<Block, Block> block_reuse;
+  ffi::Map<Block, Block> block_reuse;
   /*! \brief Indicates if there is any opaque access of the inlined buffer */
   bool has_opaque_access{false};
 };
@@ -489,7 +492,7 @@ class ComputeInliner : public BaseInliner {
 
     // If the mapping for store indices is non-trivial
     // check bijective mapping from producer iter var to store indices
-    Map<Var, Range> producer_iter_doms;
+    ffi::Map<Var, Range> producer_iter_doms;
     for (const auto& iter : producer_block->iter_vars) {
       producer_iter_doms.Set(iter->var, iter->dom);
     }
@@ -509,7 +512,7 @@ class ComputeInliner : public BaseInliner {
       idx_vars_[i] = Var("ph_" + std::to_string(i), inlined_store_->indices[i].dtype());
     }
     auto inverse_iter_map = arith::InverseAffineIterMap(
-        res->indices, Array<PrimExpr>(idx_vars_.begin(), idx_vars_.end()));
+        res->indices, ffi::Array<PrimExpr>(idx_vars_.begin(), idx_vars_.end()));
     for (const auto& iter : producer_block->iter_vars) {
       if (is_const_int(iter->dom->min) && analyzer_.CanProveEqual(iter->dom->extent, 1)) {
         // fallback mapping for constant iters
@@ -541,7 +544,7 @@ class ComputeInliner : public BaseInliner {
    * \brief Set the mapping of index substitution `self->idx_sub_`
    * \param indices The expressions that the corresponding index variables are replaced to
    */
-  void SetIndexSubstitution(const Array<PrimExpr>& indices) {
+  void SetIndexSubstitution(const ffi::Array<PrimExpr>& indices) {
     ICHECK_EQ(indices.size(), idx_vars_.size());
     int n = idx_vars_.size();
     for (int i = 0; i < n; ++i) {
@@ -573,7 +576,7 @@ class ReverseComputeInliner : public BaseInliner {
     PrimExpr VisitExpr_(const VarNode* var) final {
       auto it = self_->idx_sub_.find(var);
       if (it == self_->idx_sub_.end()) {
-        return GetRef<Var>(var);
+        return ffi::GetRef<Var>(var);
       }
       return (*it).second;
     }
@@ -594,7 +597,7 @@ class ReverseComputeInliner : public BaseInliner {
     PrimExpr VisitExpr_(const VarNode* var) final {
       auto it = self_->idx_sub_.find(var);
       if (it == self_->idx_sub_.end()) {
-        return GetRef<Var>(var);
+        return ffi::GetRef<Var>(var);
       }
       return (*it).second;
     }
@@ -644,7 +647,7 @@ class ReverseComputeInliner : public BaseInliner {
     }
 
     // Collect block iter domains and update the substition map
-    Map<Var, Range> consumer_iter_doms;
+    ffi::Map<Var, Range> consumer_iter_doms;
     for (const auto& iter_var : consumer_block->iter_vars) {
       consumer_iter_doms.Set(iter_var->var, iter_var->dom);
       // Set default mapping for unit iters
@@ -708,7 +711,7 @@ class ReverseComputeInliner : public BaseInliner {
   /*! \brief Generate the predicate after inlining based on the consumer predicate */
   BlockRealize BuildInlinedConsumerPredicate(BlockRealize producer_block_realize) {
     // Bind the producer block iter domains for simplification
-    Map<Var, PrimExpr> subst_map;
+    ffi::Map<Var, PrimExpr> subst_map;
     Block producer_block = producer_block_realize->block;
     for (int i = 0, n = producer_block->iter_vars.size(); i < n; ++i) {
       const IterVar& iter = producer_block->iter_vars[i];
@@ -748,7 +751,7 @@ class ReverseComputeInliner : public BaseInliner {
     auto n = producer_block_realize.CopyOnWrite();
     n->block = producer_block;
     n->predicate = analyzer_.Simplify(outer_predicate);
-    return GetRef<BlockRealize>(n);
+    return ffi::GetRef<BlockRealize>(n);
   }
 
   Stmt VisitStmt_(const BlockRealizeNode* op) final {
@@ -774,7 +777,7 @@ class ReverseComputeInliner : public BaseInliner {
    * \return Whether the consumer block iter domains are covered
    */
   bool CheckConsumerCovered() {
-    Map<IterVar, arith::IntSet> producer_iter_doms;
+    ffi::Map<IterVar, arith::IntSet> producer_iter_doms;
     for (const IterVar& iter_var : producer_block_->iter_vars) {
       producer_iter_doms.Set(iter_var, arith::IntSet::FromRange(iter_var->dom));
     }
@@ -800,7 +803,7 @@ class ReverseComputeInliner : public BaseInliner {
    *        the result. It will be later used to transform the BufferStore indices of the producer.
    * \param producer_indices The BufferStore indices of the producer.
    */
-  void CreateInverseMapping(const Array<PrimExpr> producer_indices) {
+  void CreateInverseMapping(const ffi::Array<PrimExpr> producer_indices) {
     auto inverse_iter_map = arith::InverseAffineIterMap(buffer_load_iter_map_, producer_indices);
     for (const auto& pair : inverse_iter_map) {
       idx_sub_[pair.first.get()] = pair.second;
@@ -811,7 +814,7 @@ class ReverseComputeInliner : public BaseInliner {
     // "producer->value" may contain the buffer that is inlined in cases of reduction,
     // so we need to resolve the recursion first
     producer_rhs_ = RecursionResolver(this)(producer->value);
-    return Substituter(this)(GetRef<BufferStore>(inlined_store_));
+    return Substituter(this)(ffi::GetRef<BufferStore>(inlined_store_));
   }
 
   /*!
@@ -847,7 +850,7 @@ class ReverseComputeInliner : public BaseInliner {
    * \param expected_ndim The expected ndim of the access
    * \return A boolean flag indicating if the check is successful
    */
-  bool UpdateAndCheckIndexExprs(const Array<PrimExpr>& indices) {
+  bool UpdateAndCheckIndexExprs(const ffi::Array<PrimExpr>& indices) {
     if (buffer_load_indices_.empty()) {
       buffer_load_indices_ = indices;
     } else if (!std::equal(buffer_load_indices_.begin(), buffer_load_indices_.end(),
@@ -861,9 +864,9 @@ class ReverseComputeInliner : public BaseInliner {
   /*! \brief The RHS value of the producer's BufferStore statement */
   PrimExpr producer_rhs_{nullptr};
   /*! \brief The indices of the consumer's BufferLoad */
-  Array<PrimExpr> buffer_load_indices_;
+  ffi::Array<PrimExpr> buffer_load_indices_;
   /*! \brief The IterMap representing the indices of the consumer's BufferLoad */
-  Array<arith::IterSumExpr> buffer_load_iter_map_{nullptr};
+  ffi::Array<arith::IterSumExpr> buffer_load_iter_map_{nullptr};
   /*! \brief The producer block */
   const BlockNode* producer_block_{nullptr};
   /* \brief The consumer block */
@@ -879,7 +882,7 @@ class ReverseComputeInliner : public BaseInliner {
 void ComputeInlineImpl(ScheduleState self, const StmtSRef& producer_block_sref,
                        bool check_only = false) {
   const BlockNode* _producer_block = TVM_SREF_TO_BLOCK(producer_block_sref);
-  Block producer_block = GetRef<Block>(_producer_block);
+  Block producer_block = ffi::GetRef<Block>(_producer_block);
   HasInitBlock::Check(self->mod, producer_block);
   Buffer inlined_buffer = NotSingleReadWriteBuffer::GetSingleWrite(self, producer_block);
   // Step 1. Get the scope block
@@ -897,7 +900,7 @@ void ComputeInlineImpl(ScheduleState self, const StmtSRef& producer_block_sref,
   LeafBlockRemovalPlan(self, producer_block_sref, &inliner.src_stmt, &inliner.tgt_stmt);
   // Step 5. Create an AST where the leaf `producer_block_sref` points to is removed,
   // and update other blocks who read from the removed block
-  Stmt tgt_stmt = inliner(GetRef<Stmt>(scope_root_sref->stmt));
+  Stmt tgt_stmt = inliner(ffi::GetRef<Stmt>(scope_root_sref->stmt));
   if (inliner.has_opaque_access) {
     throw OpaqueAccessError(self->mod, scope_root_sref);
   }
@@ -924,7 +927,7 @@ bool CanComputeInline(const ScheduleState& self, const StmtSRef& producer_block_
 void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block_sref,
                               bool check_only = false) {
   const BlockNode* _consumer_block = TVM_SREF_TO_BLOCK(consumer_block_sref);
-  Block consumer_block = GetRef<Block>(_consumer_block);
+  Block consumer_block = ffi::GetRef<Block>(_consumer_block);
   BlockRealize consumer_block_realize = GetBlockRealize(self, consumer_block_sref);
   HasInitBlock::Check(self->mod, consumer_block);
   // Step 1. Get the scope block
@@ -949,7 +952,7 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
   LeafBlockRemovalPlan(self, consumer_block_sref, &inliner.src_stmt, &inliner.tgt_stmt);
   // Step 6. Create an AST where the leaf `consumer_block_sref` points to is removed,
   // and update other blocks who read from the removed block
-  Stmt tgt_stmt = inliner(GetRef<Stmt>(scope_root_sref->stmt));
+  Stmt tgt_stmt = inliner(ffi::GetRef<Stmt>(scope_root_sref->stmt));
   if (inliner.has_opaque_access) {
     throw OpaqueAccessError(self->mod, scope_root_sref);
   }
@@ -963,7 +966,8 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
   BlockInfo& block_info = self->block_info[producer_block_sref];
   block_info.affine_binding = IsAffineBinding(
       /*realize=*/GetBlockRealize(self, producer_block_sref),
-      /*loop_var_ranges=*/LoopDomainOfSRefTreePath(GetRef<StmtSRef>(producer_block_sref->parent)),
+      /*loop_var_ranges=*/
+      LoopDomainOfSRefTreePath(ffi::GetRef<StmtSRef>(producer_block_sref->parent)),
       /*analyzer=*/&analyzer);
 }
 
@@ -995,7 +999,7 @@ struct ComputeInlineTraits : public UnpackedInstTraits<ComputeInlineTraits> {
     return sch->ComputeInline(block_rv);
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String block_rv) {
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv) {
     PythonAPICall py("compute_inline");
     py.Input("block", block_rv);
     return py.Str();
@@ -1018,7 +1022,7 @@ struct ReverseComputeInlineTraits : public UnpackedInstTraits<ReverseComputeInli
     return sch->ReverseComputeInline(block_rv);
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String block_rv) {
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv) {
     PythonAPICall py("reverse_compute_inline");
     py.Input("block", block_rv);
     return py.Str();

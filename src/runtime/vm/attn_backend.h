@@ -497,7 +497,8 @@ class TIRRaggedPrefillTreeMaskFunc : public RaggedPrefillTreeMaskFunc {
  * ffi::Functions. \param attn_kind The attention kind of the function. \return The created
  * PagedPrefillFunc pointer.
  */
-std::unique_ptr<PagedPrefillFunc> ConvertPagedPrefillFunc(Array<ffi::Any> args, AttnKind attn_kind);
+std::unique_ptr<PagedPrefillFunc> ConvertPagedPrefillFunc(ffi::Array<ffi::Any> args,
+                                                          AttnKind attn_kind);
 
 /*!
  * \brief Create a PagedDecodeFunc from the given arguments and the attention kind.
@@ -505,7 +506,8 @@ std::unique_ptr<PagedPrefillFunc> ConvertPagedPrefillFunc(Array<ffi::Any> args, 
  * ffi::Functions. \param attn_kind The attention kind of the function. \return The created
  * PagedDecodeFunc pointer.
  */
-std::unique_ptr<PagedDecodeFunc> ConvertPagedDecodeFunc(Array<ffi::Any> args, AttnKind attn_kind);
+std::unique_ptr<PagedDecodeFunc> ConvertPagedDecodeFunc(ffi::Array<ffi::Any> args,
+                                                        AttnKind attn_kind);
 
 /*!
  * \brief Create a RaggedPrefillFunc from the given arguments and the attention kind.
@@ -513,7 +515,7 @@ std::unique_ptr<PagedDecodeFunc> ConvertPagedDecodeFunc(Array<ffi::Any> args, At
  * ffi::Functions. \param attn_kind The attention kind of the function. \return The created
  * RaggedPrefillFunc pointer.
  */
-std::unique_ptr<RaggedPrefillFunc> ConvertRaggedPrefillFunc(Array<ffi::Any> args,
+std::unique_ptr<RaggedPrefillFunc> ConvertRaggedPrefillFunc(ffi::Array<ffi::Any> args,
                                                             AttnKind attn_kind);
 
 /*!
@@ -522,7 +524,7 @@ std::unique_ptr<RaggedPrefillFunc> ConvertRaggedPrefillFunc(Array<ffi::Any> args
  * ffi::Functions. \param attn_kind The attention kind of the function. \return The created
  * PagedPrefillTreeMaskFunc pointer.
  */
-std::unique_ptr<PagedPrefillTreeMaskFunc> ConvertPagedPrefillTreeMaskFunc(Array<ffi::Any> args,
+std::unique_ptr<PagedPrefillTreeMaskFunc> ConvertPagedPrefillTreeMaskFunc(ffi::Array<ffi::Any> args,
                                                                           AttnKind attn_kind);
 
 /*!
@@ -531,8 +533,8 @@ std::unique_ptr<PagedPrefillTreeMaskFunc> ConvertPagedPrefillTreeMaskFunc(Array<
  * ffi::Functions. \param attn_kind The attention kind of the function. \return The created
  * RaggedPrefillTreeMaskFunc pointer.
  */
-std::unique_ptr<RaggedPrefillTreeMaskFunc> ConvertRaggedPrefillTreeMaskFunc(Array<ffi::Any> args,
-                                                                            AttnKind attn_kind);
+std::unique_ptr<RaggedPrefillTreeMaskFunc> ConvertRaggedPrefillTreeMaskFunc(
+    ffi::Array<ffi::Any> args, AttnKind attn_kind);
 
 }  // namespace vm
 }  // namespace runtime

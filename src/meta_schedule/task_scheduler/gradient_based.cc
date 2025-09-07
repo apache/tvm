@@ -44,10 +44,10 @@ class GradientBasedNode final : public TaskSchedulerNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(GradientBasedNode, TaskSchedulerNode);
 
  public:
-  void Tune(Array<TuneContext> tasks, Array<FloatImm> task_weights, int max_trials_global,
+  void Tune(ffi::Array<TuneContext> tasks, ffi::Array<FloatImm> task_weights, int max_trials_global,
             int max_trials_per_task, int num_trials_per_iter, Builder builder, Runner runner,
-            Array<MeasureCallback> measure_callbacks, Optional<Database> database,
-            Optional<CostModel> cost_model) final {
+            ffi::Array<MeasureCallback> measure_callbacks, ffi::Optional<Database> database,
+            ffi::Optional<CostModel> cost_model) final {
     int n_tasks = tasks.size();
     round_robin_rounds_ = 0;
     best_latency_history_.resize(n_tasks, std::vector<double>());
@@ -122,8 +122,8 @@ class GradientBasedNode final : public TaskSchedulerNode {
     return task_id;
   }
 
-  Array<RunnerResult> JoinRunningTask(int task_id) final {
-    Array<RunnerResult> results = TaskSchedulerNode::JoinRunningTask(task_id);
+  ffi::Array<RunnerResult> JoinRunningTask(int task_id) final {
+    ffi::Array<RunnerResult> results = TaskSchedulerNode::JoinRunningTask(task_id);
     TaskRecordNode* task = this->tasks_[task_id].get();
     if (task->latency_ms.size() > 0) {
       this->best_latency_history_.at(task_id).push_back(
@@ -136,7 +136,7 @@ class GradientBasedNode final : public TaskSchedulerNode {
 
 TaskScheduler TaskScheduler::GradientBased(ffi::Function logger, double alpha, int window_size,
                                            support::LinearCongruentialEngine::TRandState seed) {
-  ObjectPtr<GradientBasedNode> n = make_object<GradientBasedNode>();
+  ObjectPtr<GradientBasedNode> n = ffi::make_object<GradientBasedNode>();
   n->logger = logger;
   n->alpha = alpha;
   n->window_size = window_size;

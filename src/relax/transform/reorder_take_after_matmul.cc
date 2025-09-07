@@ -41,7 +41,7 @@ namespace tvm {
 namespace relax {
 
 namespace {
-std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns() {
+std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>> CreatePatterns() {
   auto pat_lhs = WildcardPattern();
 
   auto pat_weights = WildcardPattern();
@@ -50,7 +50,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> Crea
 
   auto pat_matmul = IsOp("relax.matmul")(pat_lhs, pat_rhs);
 
-  auto rewriter = [=](Expr expr, Map<DFPattern, Expr> matches) -> Expr {
+  auto rewriter = [=](Expr expr, ffi::Map<DFPattern, Expr> matches) -> Expr {
     auto lhs = matches[pat_lhs];
     auto weights = matches[pat_weights];
     auto indices = matches[pat_indices];
@@ -114,7 +114,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> Crea
       // indices.shape = [batch1]
 
       // reordered_weight.shape = [infeatures, table_size, outfeatures]
-      auto reordered_weight = permute_dims(weights, Array{Integer(1), Integer(0), Integer(2)});
+      auto reordered_weight = permute_dims(weights, ffi::Array{Integer(1), Integer(0), Integer(2)});
       // fused_weight.shape = [infeatures, table_size * outfeatures]
       auto fused_weight = reshape(reordered_weight,
                                   ShapeExpr({weight_shape[1], weight_shape[0] * weight_shape[2]}));

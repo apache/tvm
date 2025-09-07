@@ -56,7 +56,7 @@ class VerifyVTCMLimitNode : public PostprocNode {
   }
 
   Postproc Clone() const {
-    ObjectPtr<VerifyVTCMLimitNode> n = make_object<VerifyVTCMLimitNode>(*this);
+    ObjectPtr<VerifyVTCMLimitNode> n = ffi::make_object<VerifyVTCMLimitNode>(*this);
     return Postproc(n);
   }
 
@@ -65,7 +65,7 @@ class VerifyVTCMLimitNode : public PostprocNode {
 };
 
 Postproc Postproc::VerifyVTCMLimit() {
-  ObjectPtr<VerifyVTCMLimitNode> n = make_object<VerifyVTCMLimitNode>();
+  ObjectPtr<VerifyVTCMLimitNode> n = ffi::make_object<VerifyVTCMLimitNode>();
   return Postproc(n);
 }
 

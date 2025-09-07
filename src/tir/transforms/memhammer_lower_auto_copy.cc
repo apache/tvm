@@ -90,8 +90,8 @@ class AutoPadder {
    * \param buffers the given buffers
    * \return the list of new padded buffers
    */
-  Array<Buffer> PadSharedMemory(const Array<Buffer>& buffers) {
-    Array<Buffer> result;
+  ffi::Array<Buffer> PadSharedMemory(const ffi::Array<Buffer>& buffers) {
+    ffi::Array<Buffer> result;
 
     for (const Buffer& buffer : buffers) {
       runtime::StorageScope scope = runtime::StorageScope::Create(buffer.scope());
@@ -113,7 +113,7 @@ class AutoPadder {
           low_dim_iter_space[i] = last_dim_iter_space;
         }
         PrimExpr stride = 1;
-        Array<PrimExpr> reverse_strides;
+        ffi::Array<PrimExpr> reverse_strides;
         int pad_min = padding_min_.Get(buffer).value_or(Integer(1)).IntValue();
         // Step 2. For each dimension, select a padding that has minimal bank conflict
         for (int k = n - 2; k >= 0; k--) {  // dims
@@ -165,8 +165,8 @@ class AutoPadder {
           reverse_strides.push_back(stride);
         }
         // Step 3. create the new padded buffer
-        ObjectPtr<BufferNode> b = make_object<BufferNode>(*buffer.get());
-        Array<PrimExpr> strides;
+        ObjectPtr<BufferNode> b = ffi::make_object<BufferNode>(*buffer.get());
+        ffi::Array<PrimExpr> strides;
         for (int i = static_cast<int>(reverse_strides.size()) - 1; i >= 0; i--) {
           strides.push_back(reverse_strides[i]);
         }
@@ -190,7 +190,7 @@ class AutoPadder {
   Stmt RewriteBufferAccess(const Stmt& stmt) {
     class Rewriter : public StmtExprMutator {
      public:
-      explicit Rewriter(const Map<Buffer, Buffer>& buffer_map) : buffer_map_(buffer_map) {}
+      explicit Rewriter(const ffi::Map<Buffer, Buffer>& buffer_map) : buffer_map_(buffer_map) {}
 
      private:
       PrimExpr VisitExpr_(const BufferLoadNode* _op) final {
@@ -217,7 +217,7 @@ class AutoPadder {
         // after mutation. Otherwise we just return the original block.
         bool changed = false;
         // Step 1. Mutate the read region.
-        Array<BufferRegion> reads;
+        ffi::Array<BufferRegion> reads;
         for (const BufferRegion& read : op->reads) {
           if (buffer_map_.count(read->buffer)) {
             changed = true;
@@ -227,7 +227,7 @@ class AutoPadder {
           }
         }
         // Step 2. Mutate the write region.
-        Array<BufferRegion> writes;
+        ffi::Array<BufferRegion> writes;
         for (const BufferRegion& write : op->writes) {
           if (buffer_map_.count(write->buffer)) {
             changed = true;
@@ -238,7 +238,7 @@ class AutoPadder {
         }
         // Step 4. Mutate `match_buffers`. If an old buffer appears as a source of
         // MatchBufferRegion, the storage scope of the target buffer also needs to be set.
-        Array<MatchBufferRegion> match_buffers;
+        ffi::Array<MatchBufferRegion> match_buffers;
         for (const MatchBufferRegion& match_buffer : op->match_buffers) {
           if (buffer_map_.count(match_buffer->source->buffer)) {
             changed = true;
@@ -262,10 +262,10 @@ class AutoPadder {
           block->match_buffers = std::move(match_buffers);
           return Stmt(block);
         } else {
-          return GetRef<Block>(op);
+          return ffi::GetRef<Block>(op);
         }
       }
-      const Map<Buffer, Buffer>& buffer_map_;
+      const ffi::Map<Buffer, Buffer>& buffer_map_;
     };
     Rewriter rewriter(padded_buffer_map_);
     return rewriter(stmt);
@@ -287,7 +287,7 @@ class AutoPadder {
       if (!success_) {
         return;
       }
-      int extent = var_range_[GetRef<Var>(op)]->extent.as<IntImmNode>()->value;
+      int extent = var_range_[ffi::GetRef<Var>(op)]->extent.as<IntImmNode>()->value;
       if (extent > 1) {
         stack_.push({{extent, 1}});
       } else {
@@ -396,7 +396,7 @@ class AutoPadder {
     }
 
    public:
-    explicit PatternCollector(const Map<Var, Range>& var_range) : var_range_(var_range) {}
+    explicit PatternCollector(const ffi::Map<Var, Range>& var_range) : var_range_(var_range) {}
 
     /*!
      * \brief Collect the iteration space for given indices. The iteration space is the possible
@@ -409,9 +409,8 @@ class AutoPadder {
      * \return The iteration space. The first array represents dimensions, and the second array
      * represents the iteration space of one dimension
      */
-    static std::vector<std::vector<int>> CollectIterationSpace(const Array<PrimExpr>& indices,
-                                                               const Map<Var, Range>& var_range,
-                                                               int data_bits) {
+    static std::vector<std::vector<int>> CollectIterationSpace(
+        const ffi::Array<PrimExpr>& indices, const ffi::Map<Var, Range>& var_range, int data_bits) {
       PatternCollector collector(var_range);
       std::vector<std::vector<int>> ret;
       for (int i = 0; i < static_cast<int>(indices.size()); i++) {
@@ -444,30 +443,30 @@ class AutoPadder {
     }
 
     std::stack<std::vector<Pattern>> stack_;
-    const Map<Var, Range>& var_range_;
+    const ffi::Map<Var, Range>& var_range_;
     bool success_ = true;
   };
 
   /*! A utility class for calling CollectIterationSpace to each buffer access*/
   class IterSpaceAnalyzer : public StmtExprVisitor {
    public:
-    IterSpaceAnalyzer(const Map<Var, PrimExpr>& substitute_map, AutoPadder* self, int data_bits,
-                      const Map<String, Integer> warp_thread_extent)
+    IterSpaceAnalyzer(const ffi::Map<Var, PrimExpr>& substitute_map, AutoPadder* self,
+                      int data_bits, const ffi::Map<ffi::String, Integer> warp_thread_extent)
         : substitute_map_(substitute_map),
           self(self),
           data_bits_(data_bits),
           warp_thread_extent_(warp_thread_extent) {}
 
    private:
-    bool CheckVarContiguous(PrimExpr e, Var var, const Map<Var, PrimExpr>& subst_map) {
-      PrimExpr e1 = Substitute(e, [var](const Var& v) -> Optional<PrimExpr> {
+    bool CheckVarContiguous(PrimExpr e, Var var, const ffi::Map<Var, PrimExpr>& subst_map) {
+      PrimExpr e1 = Substitute(e, [var](const Var& v) -> ffi::Optional<PrimExpr> {
         if (v.same_as(var)) {
           return Integer(0);
         } else {
           return v;
         }
       });
-      PrimExpr e2 = Substitute(e, [var](const Var& v) -> Optional<PrimExpr> {
+      PrimExpr e2 = Substitute(e, [var](const Var& v) -> ffi::Optional<PrimExpr> {
         if (v.same_as(var)) {
           return Integer(1);
         } else {
@@ -508,7 +507,7 @@ class AutoPadder {
     void VisitStmt_(const BufferStoreNode* op) final {
       runtime::StorageScope scope = runtime::StorageScope::Create(op->buffer.scope());
       if (scope.rank == runtime::StorageRank::kShared) {
-        Array<PrimExpr> substitued_indices;
+        ffi::Array<PrimExpr> substitued_indices;
         arith::Analyzer analyzer;
         for (const PrimExpr& e : op->indices) {
           substitued_indices.push_back(analyzer.Simplify(Substitute(e, substitute_map_)));
@@ -536,7 +535,7 @@ class AutoPadder {
     void VisitExpr_(const BufferLoadNode* op) final {
       runtime::StorageScope scope = runtime::StorageScope::Create(op->buffer.scope());
       if (scope.rank == runtime::StorageRank::kShared) {
-        Array<PrimExpr> substitued_indices;
+        ffi::Array<PrimExpr> substitued_indices;
         arith::Analyzer analyzer;
         for (const PrimExpr& e : op->indices) {
           substitued_indices.push_back(analyzer.Simplify(Substitute(e, substitute_map_)));
@@ -572,13 +571,13 @@ class AutoPadder {
               runtime::StorageScope scope = runtime::StorageScope::Create(src_buffer.scope());
               if (scope.rank == runtime::StorageRank::kShared) {
                 Region region = r->source->region;
-                Array<PrimExpr> indices;
+                ffi::Array<PrimExpr> indices;
                 for (int i = 0; i < static_cast<int>(region.size()); i++) {
                   Var var("region" + std::to_string(i));
                   indices.push_back(region[i]->min + var);
                   var_range_.Set(var, Range::FromMinExtent(0, region[i]->extent));
                 }
-                Array<PrimExpr> substitued_indices;
+                ffi::Array<PrimExpr> substitued_indices;
                 arith::Analyzer analyzer;
                 for (const PrimExpr& e : indices) {
                   substitued_indices.push_back(analyzer.Simplify(Substitute(e, substitute_map_)));
@@ -595,11 +594,11 @@ class AutoPadder {
       }
     }
 
-    Map<Var, PrimExpr> substitute_map_;
+    ffi::Map<Var, PrimExpr> substitute_map_;
     AutoPadder* self;
     int data_bits_;
-    Map<String, Integer> warp_thread_extent_;
-    Map<Var, Range> var_range_;
+    ffi::Map<ffi::String, Integer> warp_thread_extent_;
+    ffi::Map<Var, Range> var_range_;
     int vector_length_ = -1;
     Var vector_var;
   };
@@ -611,11 +610,12 @@ class AutoPadder {
    * \param data_bits The length of dtype in bits
    * \param thread_extent The extents of all thread binding loops
    */
-  void AnalyzeSharedMemoryAccess(const Stmt& stmt, const Array<For>& outer_loops, int data_bits,
-                                 const Map<String, Integer>& thread_extent) {
-    Map<String, Integer> warp_thread_extent;
+  void AnalyzeSharedMemoryAccess(const Stmt& stmt, const ffi::Array<For>& outer_loops,
+                                 int data_bits,
+                                 const ffi::Map<ffi::String, Integer>& thread_extent) {
+    ffi::Map<ffi::String, Integer> warp_thread_extent;
     Integer prod = 1;
-    Array<String> thread_tags{"threadIdx.x", "threadIdx.y", "threadIdx.z"};
+    ffi::Array<ffi::String> thread_tags{"threadIdx.x", "threadIdx.y", "threadIdx.z"};
     arith::Analyzer analyzer;
     for (int i = 0; i < 3; i++) {
       Integer extent = thread_extent.Get(thread_tags[i]).value_or(1);
@@ -628,7 +628,7 @@ class AutoPadder {
         prod *= extent;
       }
     }
-    Map<Var, PrimExpr> substitute_map;
+    ffi::Map<Var, PrimExpr> substitute_map;
     for (const For& loop : outer_loops) {
       substitute_map.Set(loop->loop_var, loop->min);
     }
@@ -638,11 +638,11 @@ class AutoPadder {
 
  private:
   /*! \brief A map from the old buffers to the new padded buffers */
-  Map<Buffer, Buffer> padded_buffer_map_;
+  ffi::Map<Buffer, Buffer> padded_buffer_map_;
   /*! \brief A map from each buffer to the iteration spaces of the accesses*/
   std::unordered_map<const BufferNode*, std::vector<std::vector<std::vector<int>>>> iter_spaces_;
   /*! \brief A map from each buffer to their minimal padding size */
-  Map<Buffer, Integer> padding_min_;
+  ffi::Map<Buffer, Integer> padding_min_;
   /*! \brief max padding size in relative to the original shape*/
   const double max_pad_factor_ = 0.25;
 
@@ -651,7 +651,8 @@ class AutoPadder {
 
 class AutoCopyMutator : public StmtExprMutator {
  public:
-  explicit AutoCopyMutator(Map<String, Integer> thread_extent) : thread_extent_(thread_extent) {}
+  explicit AutoCopyMutator(ffi::Map<ffi::String, Integer> thread_extent)
+      : thread_extent_(thread_extent) {}
   /**
    * \brief Replace old buffers with padded buffers in the stmt
    * \param stmt The stmt to rewrite
@@ -708,16 +709,16 @@ class AutoCopyMutator : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
-    outer_loops_.push_back(GetRef<For>(op));
+    outer_loops_.push_back(ffi::GetRef<For>(op));
     Stmt stmt = StmtMutator::VisitStmt_(op);
     outer_loops_.pop_back();
     return stmt;
   }
 
   /*! \brief Thread extents collected. */
-  Map<String, Integer> thread_extent_;
+  ffi::Map<ffi::String, Integer> thread_extent_;
   /*! \brief The outer loops during recursive visit */
-  Array<For> outer_loops_;
+  ffi::Array<For> outer_loops_;
   /*! \brief Calculating optimal padding size */
   AutoPadder padder;
 
@@ -736,7 +737,7 @@ class AutoCopyMutator : public StmtExprMutator {
  */
 class ThreadExtentCollector : public StmtVisitor {
  public:
-  static Map<String, Integer> CollectThreadExtent(const Stmt& stmt) {
+  static ffi::Map<ffi::String, Integer> CollectThreadExtent(const Stmt& stmt) {
     ThreadExtentCollector collector;
     collector(stmt);
     return collector.thread_extent_;
@@ -744,7 +745,7 @@ class ThreadExtentCollector : public StmtVisitor {
 
  private:
   void VisitStmt_(const BlockNode* op) final {
-    if (Optional<Integer> warp_execution = GetAnn<Integer>(op, "warp_execution")) {
+    if (ffi::Optional<Integer> warp_execution = GetAnn<Integer>(op, "warp_execution")) {
       if (warp_execution.value()->value != 0) {
         thread_extent_.Set("threadIdx.x", Integer(32));
       }
@@ -754,14 +755,14 @@ class ThreadExtentCollector : public StmtVisitor {
   void VisitStmt_(const ForNode* op) final {
     if (op->thread_binding.defined() && op->thread_binding.value()->iter_type == kThreadIndex) {
       if (const auto* extent = op->extent.as<IntImmNode>()) {
-        thread_extent_.Set(op->thread_binding.value()->thread_tag, GetRef<Integer>(extent));
+        thread_extent_.Set(op->thread_binding.value()->thread_tag, ffi::GetRef<Integer>(extent));
       }
     }
     StmtVisitor::VisitStmt_(op);
   }
 
   /*! \brief the map from thread tag to its extent */
-  Map<String, Integer> thread_extent_;
+  ffi::Map<ffi::String, Integer> thread_extent_;
 };
 
 namespace transform {

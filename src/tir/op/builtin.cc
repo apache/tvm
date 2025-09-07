@@ -203,11 +203,11 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_stack_make_array)
 // When num_inputs are not set, the function is assumed to be variable length.
 TIR_DEFINE_BUILTIN_FUNC(tvm_call_packed)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
-    .set_attr<TScriptPrinterName>("TScriptPrinterName", String("call_packed"), /*plevel=*/20);
+    .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("call_packed"), /*plevel=*/20);
 
 TIR_DEFINE_BUILTIN_FUNC(tvm_call_cpacked)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
-    .set_attr<TScriptPrinterName>("TScriptPrinterName", String("call_cpacked"), /*plevel=*/20);
+    .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("call_cpacked"), /*plevel=*/20);
 
 TIR_DEFINE_BUILTIN_FUNC(tvm_call_trace_packed)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
@@ -222,12 +222,12 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_thread_invariant)
 
 TIR_DEFINE_BUILTIN_FUNC(tvm_call_packed_lowered)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
-    .set_attr<TScriptPrinterName>("TScriptPrinterName", String("call_packed_lowered"),
+    .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("call_packed_lowered"),
                                   /*plevel=*/20);
 
 TIR_DEFINE_BUILTIN_FUNC(tvm_call_cpacked_lowered)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
-    .set_attr<TScriptPrinterName>("TScriptPrinterName", String("call_cpacked_lowered"),
+    .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("call_cpacked_lowered"),
                                   /*plevel=*/20);
 
 TIR_DEFINE_BUILTIN_FUNC(tvm_call_trace_packed_lowered)

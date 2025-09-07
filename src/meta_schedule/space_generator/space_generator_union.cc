@@ -27,7 +27,7 @@ namespace meta_schedule {
 class SpaceGeneratorUnionNode : public SpaceGeneratorNode {
  public:
   /*! \brief The array of design space generators unioned, could be recursive. */
-  Array<SpaceGenerator> space_generators;
+  ffi::Array<SpaceGenerator> space_generators;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -42,11 +42,11 @@ class SpaceGeneratorUnionNode : public SpaceGeneratorNode {
     }
   }
 
-  Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final {
-    Array<tir::Schedule> design_spaces;
+  ffi::Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final {
+    ffi::Array<tir::Schedule> design_spaces;
     for (const SpaceGenerator& space_generator : space_generators) {
       // Generate partial design spaces from each design space generator.
-      Array<tir::Schedule> partial = space_generator->GenerateDesignSpace(mod);
+      ffi::Array<tir::Schedule> partial = space_generator->GenerateDesignSpace(mod);
       // Merge the partial design spaces.
       design_spaces.insert(design_spaces.end(), partial.begin(), partial.end());
     }
@@ -54,8 +54,8 @@ class SpaceGeneratorUnionNode : public SpaceGeneratorNode {
   }
 
   SpaceGenerator Clone() const final {
-    ObjectPtr<SpaceGeneratorUnionNode> n = make_object<SpaceGeneratorUnionNode>(*this);
-    n->space_generators = Array<SpaceGenerator>();
+    ObjectPtr<SpaceGeneratorUnionNode> n = ffi::make_object<SpaceGeneratorUnionNode>(*this);
+    n->space_generators = ffi::Array<SpaceGenerator>();
     for (const SpaceGenerator& space_generator : this->space_generators) {
       n->space_generators.push_back(space_generator->Clone());
     }
@@ -72,11 +72,11 @@ class SpaceGeneratorUnionNode : public SpaceGeneratorNode {
  * \param space_generators Array of the design space generators to be unioned.
  * \return The design space generator created.
  */
-SpaceGenerator SpaceGenerator::SpaceGeneratorUnion(Array<SpaceGenerator> space_generators,
-                                                   Optional<Array<ScheduleRule>> sch_rules,
-                                                   Optional<Array<Postproc>> postprocs,
-                                                   Optional<Map<Mutator, FloatImm>> mutator_probs) {
-  ObjectPtr<SpaceGeneratorUnionNode> n = make_object<SpaceGeneratorUnionNode>();
+SpaceGenerator SpaceGenerator::SpaceGeneratorUnion(
+    ffi::Array<SpaceGenerator> space_generators, ffi::Optional<ffi::Array<ScheduleRule>> sch_rules,
+    ffi::Optional<ffi::Array<Postproc>> postprocs,
+    ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs) {
+  ObjectPtr<SpaceGeneratorUnionNode> n = ffi::make_object<SpaceGeneratorUnionNode>();
   n->sch_rules = std::move(sch_rules);
   n->postprocs = std::move(postprocs);
   n->mutator_probs = std::move(mutator_probs);

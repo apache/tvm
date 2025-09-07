@@ -33,7 +33,7 @@ namespace arith {
 
 using namespace tir;
 
-Map<PrimExpr, Integer> DetectCommonSubExpr(const PrimExpr& e, int thresh) {
+ffi::Map<PrimExpr, Integer> DetectCommonSubExpr(const PrimExpr& e, int thresh) {
   // Check the threshold in the range of size_t
   CHECK_GE(thresh, std::numeric_limits<size_t>::min());
   CHECK_LE(thresh, std::numeric_limits<size_t>::max());
@@ -63,7 +63,7 @@ Map<PrimExpr, Integer> DetectCommonSubExpr(const PrimExpr& e, int thresh) {
   }
 
   // Return the common sub expr that occur more than thresh times
-  Map<PrimExpr, Integer> results;
+  ffi::Map<PrimExpr, Integer> results;
   for (auto& it : semantic_comp_done_by_expr) {
     if (it.second >= repeat_thr) results.Set(it.first, it.second);
   }

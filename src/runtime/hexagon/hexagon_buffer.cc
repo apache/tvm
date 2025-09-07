@@ -109,7 +109,7 @@ std::unique_ptr<Allocation> Allocator<HexagonBuffer::StorageScope::kVTCM>(size_t
   return std::make_unique<VTCMAllocation>(nbytes, alignment);
 }
 
-HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment, Optional<String> scope)
+HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment, ffi::Optional<ffi::String> scope)
     : ndim_(1), nbytes_per_allocation_(nbytes) {
   SetStorageScope(scope);
 
@@ -125,7 +125,7 @@ HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment, Optional<String> s
 }
 
 HexagonBuffer::HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment,
-                             Optional<String> scope)
+                             ffi::Optional<ffi::String> scope)
     : ndim_(2), nbytes_per_allocation_(nbytes) {
   SetStorageScope(scope);
 
@@ -166,7 +166,7 @@ void* HexagonBuffer::GetPointer() {
 
 HexagonBuffer::StorageScope HexagonBuffer::GetStorageScope() const { return storage_scope_; }
 
-void HexagonBuffer::SetStorageScope(Optional<String> scope) {
+void HexagonBuffer::SetStorageScope(ffi::Optional<ffi::String> scope) {
   const std::string s = scope.value_or("global");
 
   if (s == "global") {

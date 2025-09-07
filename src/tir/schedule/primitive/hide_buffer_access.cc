@@ -27,25 +27,25 @@ namespace tir {
 namespace {
 class BufTypeError : public ScheduleError {
  public:
-  explicit BufTypeError(IRModule mod, const String& buf_type)
+  explicit BufTypeError(IRModule mod, const ffi::String& buf_type)
       : mod_(std::move(mod)), buf_type_(buf_type) {}
 
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return "ScheduleError: Invalid buffer type for hide_buffer_access schedule.";
   }
 
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     return "The buffer type for hide_buffer_access schedule should either be 'read'"
            " or 'write', got " +
            buf_type_ + " instead.";
   }
 
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
 
  private:
   IRModule mod_;
-  String buf_type_;
+  ffi::String buf_type_;
 };
 
 class InvalidIndexError : public ScheduleError {
@@ -53,11 +53,11 @@ class InvalidIndexError : public ScheduleError {
   explicit InvalidIndexError(IRModule mod, int num_access_regions, int buf_idx)
       : mod_(std::move(mod)), num_access_regions_(num_access_regions), buf_idx_(buf_idx) {}
 
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return "ScheduleError: Invalid buffer index array for hide_buffer_access schedule.";
   }
 
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     return "The buffer index array for hide_buffer_access schedule should be a list of integers"
            " between 0 and " +
            std::to_string(num_access_regions_ - 1) + ", got " + std::to_string(buf_idx_) +
@@ -66,7 +66,7 @@ class InvalidIndexError : public ScheduleError {
 
   IRModule mod() const final { return mod_; }
 
-  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
 
  private:
   IRModule mod_;
@@ -78,8 +78,9 @@ class InvalidIndexError : public ScheduleError {
 
 /******** Implementation ********/
 
-void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref, const String& buf_type,
-                            const Array<IntImm>& buf_index_array) {
+void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref,
+                            const ffi::String& buf_type,
+                            const ffi::Array<IntImm>& buf_index_array) {
   /*!
    * Check:
    *   - validity of buf_index_array
@@ -107,7 +108,7 @@ void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref, cons
 
   /* Step 0: Collect new buffer access regions. */
 
-  Array<BufferRegion> reads, writes;
+  ffi::Array<BufferRegion> reads, writes;
 
   if (buf_type == "read") {
     for (size_t i = 0; i < block->reads.size(); ++i) {
@@ -129,12 +130,12 @@ void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref, cons
 
   /* Step 1: Replace old block with the new block */
 
-  auto n = make_object<BlockNode>(*block);
+  auto n = ffi::make_object<BlockNode>(*block);
   n->reads = reads;
   n->writes = writes;
   Block new_block = Block(n);
-  Map<Block, Block> blk_map;
-  blk_map.Set(GetRef<Block>(block), new_block);
+  ffi::Map<Block, Block> blk_map;
+  blk_map.Set(ffi::GetRef<Block>(block), new_block);
   self->Replace(block_sref, new_block, blk_map);
 }
 
@@ -147,13 +148,13 @@ struct UnsafeHideBufferAccessTraits : public UnpackedInstTraits<UnsafeHideBuffer
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block, String buf_type,
-                                      Array<IntImm> buf_index_array) {
+  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block, ffi::String buf_type,
+                                      ffi::Array<IntImm> buf_index_array) {
     sch->UnsafeHideBufferAccess(block, buf_type, buf_index_array);
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String block, String buf_type,
-                                 Array<IntImm> buf_index_array) {
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
+                                      ffi::String buf_type, ffi::Array<IntImm> buf_index_array) {
     PythonAPICall py("unsafe_hide_buffer_access");
     py.Input("block", block);
     py.Input("buf_type", buf_type);

@@ -78,14 +78,14 @@ class BaseValueHash {
   uint64_t operator()(const std::string& key) const {
     return tvm::ffi::details::StableHashBytes(key.data(), key.length());
   }
-  uint64_t operator()(const Optional<int64_t>& key) const {
+  uint64_t operator()(const ffi::Optional<int64_t>& key) const {
     if (key.has_value()) {
       return Reinterpret<int64_t, uint64_t>(*key);
     } else {
       return 0;
     }
   }
-  uint64_t operator()(const Optional<double>& key) const {
+  uint64_t operator()(const ffi::Optional<double>& key) const {
     if (key.has_value()) {
       return Reinterpret<double, uint64_t>(*key);
     } else {

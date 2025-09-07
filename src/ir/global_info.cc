@@ -34,13 +34,13 @@ TVM_FFI_STATIC_INIT_BLOCK({
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ir.DummyGlobalInfo", []() {
-    auto n = DummyGlobalInfo(make_object<DummyGlobalInfoNode>());
+    auto n = DummyGlobalInfo(ffi::make_object<DummyGlobalInfoNode>());
     return n;
   });
 });
 
 VDevice::VDevice(Target tgt, int dev_id, MemoryScope mem_scope) {
-  ObjectPtr<VDeviceNode> n = make_object<VDeviceNode>();
+  ObjectPtr<VDeviceNode> n = ffi::make_object<VDeviceNode>();
   n->target = std::move(tgt);
   n->vdevice_id = std::move(dev_id);
   n->memory_scope = std::move(mem_scope);

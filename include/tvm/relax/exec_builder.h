@@ -62,7 +62,7 @@ class ExecBuilderNode : public Object {
    * \param init_register_size Initial setting of register file size.
    */
   void EmitFunction(const std::string& func, int64_t num_inputs,
-                    Optional<Array<String>> param_names,
+                    ffi::Optional<ffi::Array<ffi::String>> param_names,
                     vm::VMFuncInfo::FuncKind kind = vm::VMFuncInfo::FuncKind::kVMFunc,
                     int64_t init_register_size = 0);
   /*!

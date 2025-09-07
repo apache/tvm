@@ -161,14 +161,14 @@ class BaseFuncNode : public RelaxExprNode {
    * \endcode
    */
   template <typename TObjectRef>
-  Optional<TObjectRef> GetAttr(const std::string& attr_key,
-                               Optional<TObjectRef> default_value = std::nullopt) const {
+  ffi::Optional<TObjectRef> GetAttr(const std::string& attr_key,
+                                    ffi::Optional<TObjectRef> default_value = std::nullopt) const {
     return attrs.GetAttr(attr_key, default_value);
   }
   // variant that uses TObjectRef to enable implicit conversion to default value.
   template <typename TObjectRef>
-  Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
-    return GetAttr<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
+  ffi::Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
+    return GetAttr<TObjectRef>(attr_key, ffi::Optional<TObjectRef>(default_value));
   }
 
   /*!
@@ -211,7 +211,7 @@ class BaseFuncNode : public RelaxExprNode {
    */
 
   LinkageType GetLinkageType() const {
-    if (GetAttr<String>(attr::kGlobalSymbol))
+    if (GetAttr<ffi::String>(attr::kGlobalSymbol))
       return LinkageType::kExternal;
     else
       return LinkageType::kInternal;

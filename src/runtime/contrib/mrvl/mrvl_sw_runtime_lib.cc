@@ -126,7 +126,7 @@ static void ReadOutputsAndUpdateRuntime(ffi::PackedArgs args, size_t num_inputs,
     }
     float f;
     float* data = new float[tot_dim]();
-    String outbin = out_bin_prefix + "-" + std::to_string(out - num_inputs) + ".bin";
+    ffi::String outbin = out_bin_prefix + "-" + std::to_string(out - num_inputs) + ".bin";
     std::ifstream fin(outbin, std::ios::binary);
     ICHECK(fin.is_open()) << "Cannot open file: " << outbin;
     int i = 0;

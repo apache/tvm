@@ -54,11 +54,11 @@ class TaskRecordNode : public runtime::Object {
   /*! \brief The latency of each run, in milliseconds. */
   std::vector<double> latency_ms = {};
   /*! \brief The measure candidates. */
-  Optional<Array<MeasureCandidate>> measure_candidates = std::nullopt;
+  ffi::Optional<ffi::Array<MeasureCandidate>> measure_candidates = std::nullopt;
   /*! \brief The building results. */
-  Optional<Array<BuilderResult>> builder_results = std::nullopt;
+  ffi::Optional<ffi::Array<BuilderResult>> builder_results = std::nullopt;
   /*! \brief Packed functions to fetch the runner results asynchronously. */
-  Optional<Array<RunnerFuture>> runner_futures = std::nullopt;
+  ffi::Optional<ffi::Array<RunnerFuture>> runner_futures = std::nullopt;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -131,13 +131,13 @@ class TaskSchedulerNode : public runtime::Object {
   /*! \brief The tuning task's logging function. */
   ffi::Function logger;
   /*! \brief Records for each task */
-  Array<TaskRecord> tasks_;
+  ffi::Array<TaskRecord> tasks_;
   /*! \brief The list of measure callbacks of the scheduler. */
-  Array<MeasureCallback> measure_callbacks_;
+  ffi::Array<MeasureCallback> measure_callbacks_;
   /*! \brief The database used in tuning */
-  Optional<Database> database_;
+  ffi::Optional<Database> database_;
   /*! \brief The cost model used in tuning */
-  Optional<CostModel> cost_model_;
+  ffi::Optional<CostModel> cost_model_;
   /*! \brief The number of remaining tasks to be tuned. */
   int remaining_tasks_;
 
@@ -164,7 +164,7 @@ class TaskSchedulerNode : public runtime::Object {
    * \param task_id The task id to be joined.
    * \return The results from the runner.
    */
-  virtual Array<RunnerResult> JoinRunningTask(int task_id);
+  virtual ffi::Array<RunnerResult> JoinRunningTask(int task_id);
   /*!
    * \brief Jointly tune a given list of tasks.
    * \param tasks The tasks to be tuned
@@ -178,16 +178,16 @@ class TaskSchedulerNode : public runtime::Object {
    * \param database The database used in tuning
    * \param cost_model The cost model used in tuning
    */
-  virtual void Tune(Array<TuneContext> tasks,                  //
-                    Array<FloatImm> task_weights,              //
-                    int max_trials_global,                     //
-                    int max_trials_per_task,                   //
-                    int num_trials_per_iter,                   //
-                    Builder builder,                           //
-                    Runner runner,                             //
-                    Array<MeasureCallback> measure_callbacks,  //
-                    Optional<Database> database,               //
-                    Optional<CostModel> cost_model);
+  virtual void Tune(ffi::Array<TuneContext> tasks,                  //
+                    ffi::Array<FloatImm> task_weights,              //
+                    int max_trials_global,                          //
+                    int max_trials_per_task,                        //
+                    int num_trials_per_iter,                        //
+                    Builder builder,                                //
+                    Runner runner,                                  //
+                    ffi::Array<MeasureCallback> measure_callbacks,  //
+                    ffi::Optional<Database> database,               //
+                    ffi::Optional<CostModel> cost_model);
   /*!
    * \brief Terminate a task
    * \param task_id The id of the task to be terminated
@@ -219,18 +219,18 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
    * \brief The function type of `JoinRunningTask` method.
    * \param task_id The task id to be joined.
    */
-  using FJoinRunningTask = ffi::TypedFunction<Array<RunnerResult>(int)>;
+  using FJoinRunningTask = ffi::TypedFunction<ffi::Array<RunnerResult>(int)>;
   /*! \brief The function type of `Tune` method. */
-  using FTune = ffi::TypedFunction<void(Array<TuneContext> tasks,                  //
-                                        Array<FloatImm> task_weights,              //
-                                        int max_trials_global,                     //
-                                        int max_trials_per_task,                   //
-                                        int num_trials_per_iter,                   //
-                                        Builder builder,                           //
-                                        Runner runner,                             //
-                                        Array<MeasureCallback> measure_callbacks,  //
-                                        Optional<Database> database,               //
-                                        Optional<CostModel> cost_model)>;
+  using FTune = ffi::TypedFunction<void(ffi::Array<TuneContext> tasks,                  //
+                                        ffi::Array<FloatImm> task_weights,              //
+                                        int max_trials_global,                          //
+                                        int max_trials_per_task,                        //
+                                        int num_trials_per_iter,                        //
+                                        Builder builder,                                //
+                                        Runner runner,                                  //
+                                        ffi::Array<MeasureCallback> measure_callbacks,  //
+                                        ffi::Optional<Database> database,               //
+                                        ffi::Optional<CostModel> cost_model)>;
 
   /*! \brief The packed function to the `NextTaskId` function. */
   FNextTaskId f_next_task_id;
@@ -245,11 +245,11 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
   }
 
   int NextTaskId() final;
-  Array<RunnerResult> JoinRunningTask(int task_id) final;
-  void Tune(Array<TuneContext> tasks, Array<FloatImm> task_weights, int max_trials_global,
+  ffi::Array<RunnerResult> JoinRunningTask(int task_id) final;
+  void Tune(ffi::Array<TuneContext> tasks, ffi::Array<FloatImm> task_weights, int max_trials_global,
             int max_trials_per_task, int num_trials_per_iter, Builder builder, Runner runner,
-            Array<MeasureCallback> measure_callbacks, Optional<Database> database,
-            Optional<CostModel> cost_model) final;
+            ffi::Array<MeasureCallback> measure_callbacks, ffi::Optional<Database> database,
+            ffi::Optional<CostModel> cost_model) final;
 
   static constexpr const char* _type_key = "meta_schedule.PyTaskScheduler";
   TVM_DECLARE_FINAL_OBJECT_INFO(PyTaskSchedulerNode, TaskSchedulerNode);

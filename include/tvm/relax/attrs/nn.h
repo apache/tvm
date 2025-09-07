@@ -31,13 +31,13 @@ namespace relax {
 
 /*! \brief Attributes used in Conv1d operator */
 struct Conv1DAttrs : public AttrsNodeReflAdapter<Conv1DAttrs> {
-  Array<IntImm> strides;
-  Array<IntImm> padding;
-  Array<IntImm> dilation;
+  ffi::Array<IntImm> strides;
+  ffi::Array<IntImm> padding;
+  ffi::Array<IntImm> dilation;
   int groups;
-  String data_layout;
-  String kernel_layout;
-  String out_layout;
+  ffi::String data_layout;
+  ffi::String kernel_layout;
+  ffi::String out_layout;
   DataType out_dtype;
 
   static void RegisterReflection() {
@@ -77,13 +77,13 @@ struct Conv1DAttrs : public AttrsNodeReflAdapter<Conv1DAttrs> {
 
 /*! \brief Attributes used in Conv2d operator */
 struct Conv2DAttrs : public AttrsNodeReflAdapter<Conv2DAttrs> {
-  Array<IntImm> strides;
-  Array<IntImm> padding;
-  Array<IntImm> dilation;
+  ffi::Array<IntImm> strides;
+  ffi::Array<IntImm> padding;
+  ffi::Array<IntImm> dilation;
   int groups;
-  String data_layout;
-  String kernel_layout;
-  String out_layout;
+  ffi::String data_layout;
+  ffi::String kernel_layout;
+  ffi::String out_layout;
   DataType out_dtype;
 
   static void RegisterReflection() {
@@ -125,13 +125,13 @@ struct Conv2DAttrs : public AttrsNodeReflAdapter<Conv2DAttrs> {
 
 /*! \brief Attributes used in Conv3d operator */
 struct Conv3DAttrs : public AttrsNodeReflAdapter<Conv3DAttrs> {
-  Array<IntImm> strides;
-  Array<IntImm> padding;
-  Array<IntImm> dilation;
+  ffi::Array<IntImm> strides;
+  ffi::Array<IntImm> padding;
+  ffi::Array<IntImm> dilation;
   int groups;
-  String data_layout;
-  String kernel_layout;
-  String out_layout;
+  ffi::String data_layout;
+  ffi::String kernel_layout;
+  ffi::String out_layout;
   DataType out_dtype;
 
   static void RegisterReflection() {
@@ -175,14 +175,14 @@ struct Conv3DAttrs : public AttrsNodeReflAdapter<Conv3DAttrs> {
 
 /*! \brief Attributes used in Conv1DTranspose operator */
 struct Conv1DTransposeAttrs : public AttrsNodeReflAdapter<Conv1DTransposeAttrs> {
-  Array<IntImm> strides;
-  Array<IntImm> padding;
-  Array<IntImm> output_padding;
-  Array<IntImm> dilation;
+  ffi::Array<IntImm> strides;
+  ffi::Array<IntImm> padding;
+  ffi::Array<IntImm> output_padding;
+  ffi::Array<IntImm> dilation;
   int groups;
-  String data_layout;
-  String kernel_layout;
-  String out_layout;
+  ffi::String data_layout;
+  ffi::String kernel_layout;
+  ffi::String out_layout;
   DataType out_dtype;
 
   static void RegisterReflection() {
@@ -225,14 +225,14 @@ struct Conv1DTransposeAttrs : public AttrsNodeReflAdapter<Conv1DTransposeAttrs> 
 
 /*! \brief Attributes used in Conv2d operator */
 struct Conv2DTransposeAttrs : public AttrsNodeReflAdapter<Conv2DTransposeAttrs> {
-  Array<IntImm> strides;
-  Array<IntImm> padding;
-  Array<IntImm> output_padding;
-  Array<IntImm> dilation;
+  ffi::Array<IntImm> strides;
+  ffi::Array<IntImm> padding;
+  ffi::Array<IntImm> output_padding;
+  ffi::Array<IntImm> dilation;
   int groups;
-  String data_layout;
-  String kernel_layout;
-  String out_layout;
+  ffi::String data_layout;
+  ffi::String kernel_layout;
+  ffi::String out_layout;
   DataType out_dtype;
 
   static void RegisterReflection() {
@@ -277,14 +277,14 @@ struct Conv2DTransposeAttrs : public AttrsNodeReflAdapter<Conv2DTransposeAttrs> 
 
 /*! \brief Attributes used in max_pool1d and avg_pool1d operator */
 struct Pool1DAttrs : public AttrsNodeReflAdapter<Pool1DAttrs> {
-  Array<IntImm> pool_size;
-  Array<IntImm> strides;
-  Array<IntImm> padding;
-  Array<IntImm> dilation;
+  ffi::Array<IntImm> pool_size;
+  ffi::Array<IntImm> strides;
+  ffi::Array<IntImm> padding;
+  ffi::Array<IntImm> dilation;
   bool ceil_mode;
   bool count_include_pad;
-  String layout;
-  String out_layout;
+  ffi::String layout;
+  ffi::String out_layout;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -320,14 +320,14 @@ struct Pool1DAttrs : public AttrsNodeReflAdapter<Pool1DAttrs> {
 
 /*! \brief Attributes used in max_pool2d and avg_pool2d operator */
 struct Pool2DAttrs : public AttrsNodeReflAdapter<Pool2DAttrs> {
-  Array<IntImm> pool_size;
-  Array<IntImm> strides;
-  Array<IntImm> padding;
-  Array<IntImm> dilation;
+  ffi::Array<IntImm> pool_size;
+  ffi::Array<IntImm> strides;
+  ffi::Array<IntImm> padding;
+  ffi::Array<IntImm> dilation;
   bool ceil_mode;
   bool count_include_pad;
-  String layout;
-  String out_layout;
+  ffi::String layout;
+  ffi::String out_layout;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -365,14 +365,14 @@ struct Pool2DAttrs : public AttrsNodeReflAdapter<Pool2DAttrs> {
 
 /*! \brief Attributes used in max_pool3d and avg_pool3d operator */
 struct Pool3DAttrs : public AttrsNodeReflAdapter<Pool3DAttrs> {
-  Array<IntImm> pool_size;
-  Array<IntImm> strides;
-  Array<IntImm> padding;
-  Array<IntImm> dilation;
+  ffi::Array<IntImm> pool_size;
+  ffi::Array<IntImm> strides;
+  ffi::Array<IntImm> padding;
+  ffi::Array<IntImm> dilation;
   bool ceil_mode;
   bool count_include_pad;
-  String layout;
-  String out_layout;
+  ffi::String layout;
+  ffi::String out_layout;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -410,9 +410,9 @@ struct Pool3DAttrs : public AttrsNodeReflAdapter<Pool3DAttrs> {
 
 /*! \brief Attributes for 1d adaptive pool operator */
 struct AdaptivePool1DAttrs : public AttrsNodeReflAdapter<AdaptivePool1DAttrs> {
-  Optional<Array<IntImm>> output_size;
-  String layout;
-  String out_layout;
+  ffi::Optional<ffi::Array<IntImm>> output_size;
+  ffi::String layout;
+  ffi::String out_layout;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -436,9 +436,9 @@ struct AdaptivePool1DAttrs : public AttrsNodeReflAdapter<AdaptivePool1DAttrs> {
 
 /*! \brief Attributes for 2d adaptive pool operator */
 struct AdaptivePool2DAttrs : public AttrsNodeReflAdapter<AdaptivePool2DAttrs> {
-  Optional<Array<IntImm>> output_size;
-  String layout;
-  String out_layout;
+  ffi::Optional<ffi::Array<IntImm>> output_size;
+  ffi::String layout;
+  ffi::String out_layout;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -462,9 +462,9 @@ struct AdaptivePool2DAttrs : public AttrsNodeReflAdapter<AdaptivePool2DAttrs> {
 
 /*! \brief Attributes for 3d adaptive pool operator */
 struct AdaptivePool3DAttrs : public AttrsNodeReflAdapter<AdaptivePool3DAttrs> {
-  Optional<Array<IntImm>> output_size;
-  String layout;
-  String out_layout;
+  ffi::Optional<ffi::Array<IntImm>> output_size;
+  ffi::String layout;
+  ffi::String out_layout;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -577,7 +577,7 @@ struct BatchNormAttrs : public AttrsNodeReflAdapter<BatchNormAttrs> {
 
 /*! \brief Attributes used in layer_norm operator */
 struct LayerNormAttrs : public AttrsNodeReflAdapter<LayerNormAttrs> {
-  Array<Integer> axes;
+  ffi::Array<Integer> axes;
   double epsilon;
   bool center;
   bool scale;
@@ -603,7 +603,7 @@ struct LayerNormAttrs : public AttrsNodeReflAdapter<LayerNormAttrs> {
 struct GroupNormAttrs : public AttrsNodeReflAdapter<GroupNormAttrs> {
   int num_groups;
   int channel_axis;
-  Array<Integer> axes;
+  ffi::Array<Integer> axes;
   double epsilon;
   bool center;
   bool scale;
@@ -633,7 +633,7 @@ struct GroupNormAttrs : public AttrsNodeReflAdapter<GroupNormAttrs> {
 /*! \brief Attributes used in instance_norm operator */
 struct InstanceNormAttrs : public AttrsNodeReflAdapter<InstanceNormAttrs> {
   int channel_axis;
-  Array<Integer> axes;
+  ffi::Array<Integer> axes;
   double epsilon;
   bool center;
   bool scale;
@@ -659,7 +659,7 @@ struct InstanceNormAttrs : public AttrsNodeReflAdapter<InstanceNormAttrs> {
 
 /*! \brief Attributes used in rms_norm operator */
 struct RMSNormAttrs : public AttrsNodeReflAdapter<RMSNormAttrs> {
-  Array<Integer> axes;
+  ffi::Array<Integer> axes;
   double epsilon;
 
   static void RegisterReflection() {
@@ -677,7 +677,7 @@ struct RMSNormAttrs : public AttrsNodeReflAdapter<RMSNormAttrs> {
 
 /*! \brief Attributes used in nll_loss operator */
 struct NLLLossAttrs : public AttrsNodeReflAdapter<NLLLossAttrs> {
-  String reduction;
+  ffi::String reduction;
   int ignore_index;
 
   static void RegisterReflection() {
@@ -711,9 +711,9 @@ struct DropoutAttrs : public AttrsNodeReflAdapter<DropoutAttrs> {
 
 /*! \brief Attributes used in Attention operator */
 struct AttentionAttrs : public AttrsNodeReflAdapter<AttentionAttrs> {
-  Optional<FloatImm> scale;
-  Optional<String> causal_mask;
-  Optional<IntImm> window_size;
+  ffi::Optional<FloatImm> scale;
+  ffi::Optional<ffi::String> causal_mask;
+  ffi::Optional<IntImm> window_size;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -733,9 +733,9 @@ struct AttentionAttrs : public AttrsNodeReflAdapter<AttentionAttrs> {
 
 /*! \brief Attributes used for the padding operator */
 struct PadAttrs : public AttrsNodeReflAdapter<PadAttrs> {
-  Array<Integer> pad_width;
+  ffi::Array<Integer> pad_width;
   double pad_value = 0.0;
-  tvm::String pad_mode;
+  tvm::ffi::String pad_mode;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

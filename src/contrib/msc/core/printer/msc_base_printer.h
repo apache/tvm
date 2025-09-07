@@ -97,7 +97,7 @@ class MSCBasePrinter {
    * \brief Get the printed string of all Doc appended
    * \sa Append
    */
-  String GetString() const { return output_.str(); }
+  ffi::String GetString() const { return output_.str(); }
 
  protected:
   /*! \brief Print doc*/
@@ -199,7 +199,7 @@ class MSCBasePrinter {
 
   /*! \brief Print docs to joined doc */
   template <typename DocType>
-  void PrintJoinedDocs(const Array<DocType>& docs, const String& separator = ", ") {
+  void PrintJoinedDocs(const ffi::Array<DocType>& docs, const ffi::String& separator = ", ") {
     for (size_t i = 0; i < docs.size(); i++) {
       PrintDoc(docs[i], false);
       output_ << (i == docs.size() - 1 ? "" : separator);

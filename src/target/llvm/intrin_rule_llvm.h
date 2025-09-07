@@ -41,7 +41,7 @@ template <unsigned id, int num_signature>
 inline PrimExpr DispatchLLVMPureIntrin(const PrimExpr& e) {
   const tir::CallNode* call = e.as<tir::CallNode>();
   ICHECK(call != nullptr);
-  Array<PrimExpr> cargs;
+  ffi::Array<PrimExpr> cargs;
   // intrin id.
   cargs.push_back(IntImm(DataType::UInt(32), id));
   ICHECK_EQ(call->args.size(), num_signature)
@@ -58,7 +58,7 @@ template <unsigned id, int num_signature>
 inline PrimExpr DispatchLLVMIntrin(const PrimExpr& e) {
   const tir::CallNode* call = e.as<tir::CallNode>();
   ICHECK(call != nullptr);
-  Array<PrimExpr> cargs;
+  ffi::Array<PrimExpr> cargs;
   // intrin id.
   cargs.push_back(IntImm(DataType::UInt(32), id));
   ICHECK_EQ(call->args.size(), num_signature)

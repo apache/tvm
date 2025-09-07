@@ -26,10 +26,10 @@ namespace meta_schedule {
 
 class MemoryDatabaseNode : public DatabaseNode {
  public:
-  explicit MemoryDatabaseNode(String mod_eq_name = "structural") : DatabaseNode(mod_eq_name) {}
+  explicit MemoryDatabaseNode(ffi::String mod_eq_name = "structural") : DatabaseNode(mod_eq_name) {}
 
-  Array<TuningRecord> records;
-  Array<Workload> workloads;
+  ffi::Array<TuningRecord> records;
+  ffi::Array<Workload> workloads;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -64,7 +64,7 @@ class MemoryDatabaseNode : public DatabaseNode {
 
   void CommitTuningRecord(const TuningRecord& record) final { records.push_back(record); }
 
-  Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
+  ffi::Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
     CHECK_GE(top_k, 0) << "ValueError: top_k must be non-negative";
     if (top_k == 0) {
       return {};
@@ -88,13 +88,13 @@ class MemoryDatabaseNode : public DatabaseNode {
     }
   }
 
-  Array<TuningRecord> GetAllTuningRecords() final { return records; }
+  ffi::Array<TuningRecord> GetAllTuningRecords() final { return records; }
 
   int64_t Size() final { return records.size(); }
 };
 
-Database Database::MemoryDatabase(String mod_eq_name) {
-  ObjectPtr<MemoryDatabaseNode> n = make_object<MemoryDatabaseNode>(mod_eq_name);
+Database Database::MemoryDatabase(ffi::String mod_eq_name) {
+  ObjectPtr<MemoryDatabaseNode> n = ffi::make_object<MemoryDatabaseNode>(mod_eq_name);
   n->records.clear();
   n->workloads.clear();
   return Database(n);

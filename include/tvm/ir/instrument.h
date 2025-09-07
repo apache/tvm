@@ -103,7 +103,7 @@ namespace instrument {
 class PassInstrumentNode : public Object {
  public:
   /*! \brief Name of this pass instrument object. */
-  String name;
+  ffi::String name;
 
   virtual ~PassInstrumentNode() {}
 

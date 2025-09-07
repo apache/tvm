@@ -49,13 +49,13 @@ class PurityRemover : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) override {
     if (call->op == call_pure_packed_op_) {
-      auto ret = Call(call->args[0], Array<Expr>(call->args.begin() + 1, call->args.end()),
+      auto ret = Call(call->args[0], ffi::Array<Expr>(call->args.begin() + 1, call->args.end()),
                       call->attrs, call->sinfo_args);
       return VisitExpr(ret);
     }
     if (call->op == call_inplace_packed_op_) {
       // call_inplace_packed has its own attrs so we don't pass those down
-      auto ret = Call(call->args[0], Array<Expr>(call->args.begin() + 1, call->args.end()),
+      auto ret = Call(call->args[0], ffi::Array<Expr>(call->args.begin() + 1, call->args.end()),
                       tvm::Attrs(), call->sinfo_args);
       return VisitExpr(ret);
     }
@@ -68,7 +68,7 @@ class PurityRemover : public ExprMutator {
 
   Expr VisitExpr_(const FunctionNode* func) override {
     // handling inner functions: we will remove purity annotations from them too
-    return RemovePurity(GetRef<Function>(func));
+    return RemovePurity(ffi::GetRef<Function>(func));
   }
 
  private:

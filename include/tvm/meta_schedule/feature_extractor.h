@@ -49,8 +49,8 @@ class FeatureExtractorNode : public runtime::Object {
    * \param candidates The measure candidates to extract features from.
    * \return The feature tensor extracted.
    */
-  virtual Array<tvm::runtime::Tensor> ExtractFrom(const TuneContext& context,
-                                                  const Array<MeasureCandidate>& candidates) = 0;
+  virtual ffi::Array<tvm::runtime::Tensor> ExtractFrom(
+      const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates) = 0;
 
   static constexpr const char* _type_key = "meta_schedule.FeatureExtractor";
   TVM_DECLARE_BASE_OBJECT_INFO(FeatureExtractorNode, Object);
@@ -65,13 +65,13 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
    * \param candidates The measure candidates to extract features from.
    * \return The feature tensor extracted.
    */
-  using FExtractFrom = ffi::TypedFunction<Array<tvm::runtime::Tensor>(
-      const TuneContext& context, const Array<MeasureCandidate>& candidates)>;
+  using FExtractFrom = ffi::TypedFunction<ffi::Array<tvm::runtime::Tensor>(
+      const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates)>;
   /*!
    * \brief Get the feature extractor as string with name.
    * \return The string of the feature extractor.
    */
-  using FAsString = ffi::TypedFunction<String()>;
+  using FAsString = ffi::TypedFunction<ffi::String()>;
 
   /*! \brief The packed function to the `ExtractFrom` function. */
   FExtractFrom f_extract_from;
@@ -83,8 +83,8 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
     // `f_as_string` is not registered
   }
 
-  Array<tvm::runtime::Tensor> ExtractFrom(const TuneContext& context,
-                                          const Array<MeasureCandidate>& candidates) final;
+  ffi::Array<tvm::runtime::Tensor> ExtractFrom(
+      const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates) final;
 
   static constexpr const char* _type_key = "meta_schedule.PyFeatureExtractor";
   TVM_DECLARE_FINAL_OBJECT_INFO(PyFeatureExtractorNode, FeatureExtractorNode);

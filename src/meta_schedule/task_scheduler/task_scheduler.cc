@@ -48,9 +48,9 @@ TaskRecord::TaskRecord(TuneContext ctx, double task_weight) {
 
 void SendToBuilder(TaskRecordNode* self, const Builder& builder) {
   auto _ = Profiler::TimedScope("SendToBuilder");
-  Array<MeasureCandidate> candidates = self->measure_candidates.value();
+  ffi::Array<MeasureCandidate> candidates = self->measure_candidates.value();
   Target target = self->ctx->target.value();
-  Array<BuilderInput> inputs;
+  ffi::Array<BuilderInput> inputs;
   inputs.reserve(candidates.size());
   for (const MeasureCandidate& candidate : candidates) {
     inputs.push_back(BuilderInput(candidate->sch->mod(), target));
@@ -60,13 +60,13 @@ void SendToBuilder(TaskRecordNode* self, const Builder& builder) {
 
 void SendToRunner(TaskRecordNode* self, const Runner& runner) {
   auto _ = Profiler::TimedScope("SendToRunner");
-  Array<MeasureCandidate> candidates = self->measure_candidates.value();
-  Array<BuilderResult> builder_results = self->builder_results.value();
+  ffi::Array<MeasureCandidate> candidates = self->measure_candidates.value();
+  ffi::Array<BuilderResult> builder_results = self->builder_results.value();
   Target target = self->ctx->target.value();
   ICHECK_EQ(candidates.size(), builder_results.size());
   int n = candidates.size();
   int n_build_errors = 0;
-  Array<RunnerInput> inputs;
+  ffi::Array<RunnerInput> inputs;
   inputs.reserve(n);
   for (int i = 0; i < n; ++i) {
     const MeasureCandidate& candidate = candidates[i];
@@ -79,12 +79,12 @@ void SendToRunner(TaskRecordNode* self, const Runner& runner) {
                                  /*device_type=*/target->kind->name,
                                  /*args_info=*/candidate->args_info));
   }
-  Array<RunnerFuture> futures = runner->Run(inputs);
+  ffi::Array<RunnerFuture> futures = runner->Run(inputs);
   if (n_build_errors == 0) {
     self->runner_futures = futures;
     return;
   }
-  Array<RunnerFuture> results;
+  ffi::Array<RunnerFuture> results;
   results.reserve(n);
   for (int i = 0, j = 0; i < n; ++i) {
     const BuilderResult& builder_result = builder_results[i];
@@ -102,7 +102,7 @@ void SendToRunner(TaskRecordNode* self, const Runner& runner) {
   self->runner_futures = results;
 }
 
-void TaskCleanUp(TaskRecordNode* self, int task_id, const Array<RunnerResult>& results) {
+void TaskCleanUp(TaskRecordNode* self, int task_id, const ffi::Array<RunnerResult>& results) {
   ICHECK_EQ(self->builder_results.value().size(), results.size());
   ICHECK_EQ(self->runner_futures.value().size(), results.size());
   int n = results.size();
@@ -112,7 +112,7 @@ void TaskCleanUp(TaskRecordNode* self, int task_id, const Array<RunnerResult>& r
     const BuilderResult& builder_result = self->builder_results.value()[i];
     const MeasureCandidate& candidate = self->measure_candidates.value()[i];
     const RunnerResult& runner_result = results[i];
-    Optional<String> error_msg = std::nullopt;
+    ffi::Optional<ffi::String> error_msg = std::nullopt;
     int trials = self->latency_ms.size() + 1;
     double run_ms = 1e9;
     if ((error_msg = builder_result->error_msg)) {
@@ -148,11 +148,12 @@ void TaskCleanUp(TaskRecordNode* self, int task_id, const Array<RunnerResult>& r
   self->runner_futures = std::nullopt;
 }
 
-void TaskSchedulerNode::Tune(Array<TuneContext> ctxs, Array<FloatImm> task_weights,
+void TaskSchedulerNode::Tune(ffi::Array<TuneContext> ctxs, ffi::Array<FloatImm> task_weights,
                              int max_trials_global, int max_trials_per_task,
                              int num_trials_per_iter, Builder builder, Runner runner,
-                             Array<MeasureCallback> measure_callbacks, Optional<Database> database,
-                             Optional<CostModel> cost_model) {
+                             ffi::Array<MeasureCallback> measure_callbacks,
+                             ffi::Optional<Database> database,
+                             ffi::Optional<CostModel> cost_model) {
   CHECK_EQ(ctxs.size(), task_weights.size()) << "ValueError: `task_weights` must have the same "
                                                 "length as `ctxs`";
   int n_tasks = this->remaining_tasks_ = ctxs.size();
@@ -167,7 +168,7 @@ void TaskSchedulerNode::Tune(Array<TuneContext> ctxs, Array<FloatImm> task_weigh
     TVM_PY_LOG(INFO, this->logger) << "Initializing Task #" << i << ": " << ctx->task_name;
     TVM_PY_LOG(INFO, ctx->logger) << "Initializing Task #" << i << ": " << ctx->task_name;
     this->tasks_.push_back(TaskRecord(ctx, weight));
-    Array<tir::Schedule> design_spaces =
+    ffi::Array<tir::Schedule> design_spaces =
         ctx->space_generator.value()->GenerateDesignSpace(ctx->mod.value());
     TVM_PY_LOG(INFO, ctx->logger) << "Total " << design_spaces.size()
                                   << " design space(s) generated";
@@ -194,7 +195,7 @@ void TaskSchedulerNode::Tune(Array<TuneContext> ctxs, Array<FloatImm> task_weigh
       TerminateTask(task_id);
       continue;
     }
-    if (Optional<Array<MeasureCandidate>> candidates = task->measure_candidates =
+    if (ffi::Optional<ffi::Array<MeasureCandidate>> candidates = task->measure_candidates =
             task->ctx->search_strategy.value()->GenerateMeasureCandidates()) {
       int num_candidates = candidates.value().size();
       num_trials_already += num_candidates;
@@ -218,13 +219,13 @@ void TaskSchedulerNode::Tune(Array<TuneContext> ctxs, Array<FloatImm> task_weigh
   }
 }
 
-Array<RunnerResult> TaskSchedulerNode::JoinRunningTask(int task_id) {
+ffi::Array<RunnerResult> TaskSchedulerNode::JoinRunningTask(int task_id) {
   TaskRecordNode* task = this->tasks_[task_id].get();
   ICHECK(task->runner_futures.defined());
-  Array<RunnerResult> results;
+  ffi::Array<RunnerResult> results;
   {
     auto _ = Profiler::TimedScope("JoinRunnerFutures");
-    Array<RunnerFuture> futures = task->runner_futures.value();
+    ffi::Array<RunnerFuture> futures = task->runner_futures.value();
     results.reserve(futures.size());
     for (RunnerFuture future : futures) {
       results.push_back(future->Result());
@@ -237,7 +238,7 @@ Array<RunnerResult> TaskSchedulerNode::JoinRunningTask(int task_id) {
   ICHECK_EQ(results.size(), task->measure_candidates.value().size());
   ICHECK_EQ(results.size(), task->builder_results.value().size());
   for (const MeasureCallback& callback : this->measure_callbacks_) {
-    callback->Apply(GetRef<TaskScheduler>(this), task_id, task->measure_candidates.value(),
+    callback->Apply(ffi::GetRef<TaskScheduler>(this), task_id, task->measure_candidates.value(),
                     task->builder_results.value(), results);
   }
   TaskCleanUp(task, task_id, results);
@@ -333,7 +334,7 @@ TaskScheduler TaskScheduler::PyTaskScheduler(
     ffi::Function logger, PyTaskSchedulerNode::FNextTaskId f_next_task_id,
     PyTaskSchedulerNode::FJoinRunningTask f_join_running_task, PyTaskSchedulerNode::FTune f_tune) {
   CHECK(f_next_task_id != nullptr) << "ValueError: next_task_id is not defined";
-  ObjectPtr<PyTaskSchedulerNode> n = make_object<PyTaskSchedulerNode>();
+  ObjectPtr<PyTaskSchedulerNode> n = ffi::make_object<PyTaskSchedulerNode>();
   n->logger = logger;
   n->f_next_task_id = f_next_task_id;
   n->f_join_running_task = f_join_running_task;
@@ -346,7 +347,7 @@ int PyTaskSchedulerNode::NextTaskId() {
   return f_next_task_id();
 }
 
-Array<RunnerResult> PyTaskSchedulerNode::JoinRunningTask(int task_id) {
+ffi::Array<RunnerResult> PyTaskSchedulerNode::JoinRunningTask(int task_id) {
   if (f_join_running_task == nullptr) {
     return TaskSchedulerNode::JoinRunningTask(task_id);
   } else {
@@ -354,11 +355,12 @@ Array<RunnerResult> PyTaskSchedulerNode::JoinRunningTask(int task_id) {
   }
 }
 
-void PyTaskSchedulerNode::Tune(Array<TuneContext> tasks, Array<FloatImm> task_weights,
+void PyTaskSchedulerNode::Tune(ffi::Array<TuneContext> tasks, ffi::Array<FloatImm> task_weights,
                                int max_trials_global, int max_trials_per_task,
                                int num_trials_per_iter, Builder builder, Runner runner,
-                               Array<MeasureCallback> measure_callbacks,
-                               Optional<Database> database, Optional<CostModel> cost_model) {
+                               ffi::Array<MeasureCallback> measure_callbacks,
+                               ffi::Optional<Database> database,
+                               ffi::Optional<CostModel> cost_model) {
   if (f_tune == nullptr) {
     TaskSchedulerNode::Tune(tasks, task_weights, max_trials_global, max_trials_per_task,
                             num_trials_per_iter, builder, runner, measure_callbacks, database,

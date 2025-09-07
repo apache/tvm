@@ -56,14 +56,14 @@ class SourceModuleNode : public ffi::ModuleObj {
   SourceModuleNode(std::string code, std::string fmt) : code_(code), fmt_(fmt) {}
   const char* kind() const final { return "source"; }
 
-  Optional<ffi::Function> GetFunction(const String& name) final {
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
     LOG(FATAL) << "Source module cannot execute, to get executable module"
                << " build TVM with \'" << fmt_ << "\' runtime support";
   }
 
-  String InspectSource(const String& format) const final { return code_; }
+  ffi::String InspectSource(const ffi::String& format) const final { return code_; }
 
-  Array<String> GetWriteFormats() const override { return {fmt_}; }
+  ffi::Array<ffi::String> GetWriteFormats() const override { return {fmt_}; }
 
  protected:
   std::string code_;
@@ -71,7 +71,7 @@ class SourceModuleNode : public ffi::ModuleObj {
 };
 
 ffi::Module SourceModuleCreate(std::string code, std::string fmt) {
-  auto n = make_object<SourceModuleNode>(code, fmt);
+  auto n = ffi::make_object<SourceModuleNode>(code, fmt);
   return ffi::Module(n);
 }
 
@@ -79,14 +79,15 @@ ffi::Module SourceModuleCreate(std::string code, std::string fmt) {
 class CSourceModuleNode : public ffi::ModuleObj {
  public:
   CSourceModuleNode(const std::string& code, const std::string& fmt,
-                    const Array<String>& func_names, const Array<String>& const_vars)
+                    const ffi::Array<ffi::String>& func_names,
+                    const ffi::Array<ffi::String>& const_vars)
       : code_(code), fmt_(fmt), const_vars_(const_vars), func_names_(func_names) {
     if (fmt_.empty()) fmt_ = "c";
   }
 
   const char* kind() const final { return "c"; }
 
-  Optional<ffi::Function> GetFunction(const String& name) final {
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
     ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
     // Currently c-source module is used as demonstration purposes with binary metadata module
     // that expects get_symbol interface. When c-source module is used as external module, it
@@ -106,9 +107,9 @@ class CSourceModuleNode : public ffi::ModuleObj {
     }
   }
 
-  String InspectSource(const String& format) const final { return code_; }
+  ffi::String InspectSource(const ffi::String& format) const final { return code_; }
 
-  Array<String> GetWriteFormats() const override { return {fmt_}; }
+  ffi::Array<ffi::String> GetWriteFormats() const override { return {fmt_}; }
 
   ffi::Bytes SaveToBytes() const final {
     std::string buffer;
@@ -138,17 +139,17 @@ class CSourceModuleNode : public ffi::ModuleObj {
     CHECK(stream->Read(&tmp_func_names)) << "Loading func names failed";
     CHECK(stream->Read(&tmp_const_vars)) << "Loading const vars failed";
 
-    Array<String> func_names;
-    for (auto func_name : tmp_func_names) func_names.push_back(String(func_name));
+    ffi::Array<ffi::String> func_names;
+    for (auto func_name : tmp_func_names) func_names.push_back(ffi::String(func_name));
 
-    Array<String> const_vars;
-    for (auto const_var : tmp_const_vars) const_vars.push_back(String(const_var));
+    ffi::Array<ffi::String> const_vars;
+    for (auto const_var : tmp_const_vars) const_vars.push_back(ffi::String(const_var));
 
-    auto n = make_object<CSourceModuleNode>(code, fmt, func_names, const_vars);
+    auto n = ffi::make_object<CSourceModuleNode>(code, fmt, func_names, const_vars);
     return ffi::Module(n);
   }
 
-  void WriteToFile(const String& file_name, const String& format) const final {
+  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
     if (fmt == "c" || fmt == "cc" || fmt == "cpp" || fmt == "cu") {
@@ -163,21 +164,22 @@ class CSourceModuleNode : public ffi::ModuleObj {
     return ffi::Module::kBinarySerializable | ffi::Module::kCompilationExportable;
   }
 
-  bool ImplementsFunction(const String& name) final {
+  bool ImplementsFunction(const ffi::String& name) final {
     return std::find(func_names_.begin(), func_names_.end(), name) != func_names_.end();
   }
 
  protected:
   std::string code_;
   std::string fmt_;
-  Array<String> const_vars_;
-  Array<String> func_names_;
+  ffi::Array<ffi::String> const_vars_;
+  ffi::Array<ffi::String> func_names_;
 };
 
-ffi::Module CSourceModuleCreate(const String& code, const String& fmt,
-                                const Array<String>& func_names, const Array<String>& const_vars) {
-  auto n = make_object<CSourceModuleNode>(code.operator std::string(), fmt.operator std::string(),
-                                          func_names, const_vars);
+ffi::Module CSourceModuleCreate(const ffi::String& code, const ffi::String& fmt,
+                                const ffi::Array<ffi::String>& func_names,
+                                const ffi::Array<ffi::String>& const_vars) {
+  auto n = ffi::make_object<CSourceModuleNode>(code.operator std::string(),
+                                               fmt.operator std::string(), func_names, const_vars);
   return ffi::Module(n);
 }
 
@@ -210,12 +212,12 @@ class DeviceSourceModuleNode final : public ffi::ModuleObj {
                          std::function<std::string(const std::string&)> fget_source)
       : data_(data), fmt_(fmt), fmap_(fmap), type_key_(type_key), fget_source_(fget_source) {}
 
-  Optional<ffi::Function> GetFunction(const String& name) final {
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
     LOG(FATAL) << "Source module cannot execute, to get executable module"
                << " build TVM with \'" << fmt_ << "\' runtime support";
   }
 
-  String InspectSource(const String& format) const final {
+  ffi::String InspectSource(const ffi::String& format) const final {
     if (fget_source_ != nullptr) {
       return fget_source_(format);
     } else {
@@ -227,7 +229,7 @@ class DeviceSourceModuleNode final : public ffi::ModuleObj {
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final { return ffi::Module::kBinarySerializable; }
 
-  void WriteToFile(const String& file_name, const String& format) const final {
+  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final {
     std::string fmt = GetFileFormat(file_name, format);
     ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     std::string meta_file = GetMetaFilePath(file_name);
@@ -257,7 +259,7 @@ ffi::Module DeviceSourceModuleCreate(std::string data, std::string fmt,
                                      std::unordered_map<std::string, FunctionInfo> fmap,
                                      std::string type_key,
                                      std::function<std::string(const std::string&)> fget_source) {
-  auto n = make_object<DeviceSourceModuleNode>(data, fmt, fmap, type_key, fget_source);
+  auto n = ffi::make_object<DeviceSourceModuleNode>(data, fmt, fmap, type_key, fget_source);
   return ffi::Module(n);
 }
 
@@ -265,9 +267,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.SourceModuleCreate", SourceModuleCreate)
-      .def("runtime.CSourceModuleCreate", [](String code, String fmt,
-                                             Optional<Array<String>> func_names,
-                                             Optional<Array<String>> const_vars) {
+      .def("runtime.CSourceModuleCreate", [](ffi::String code, ffi::String fmt,
+                                             ffi::Optional<ffi::Array<ffi::String>> func_names,
+                                             ffi::Optional<ffi::Array<ffi::String>> const_vars) {
         return CSourceModuleCreate(code, fmt, func_names.value_or({}), const_vars.value_or({}));
       });
 });

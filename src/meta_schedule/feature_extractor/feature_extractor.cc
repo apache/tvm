@@ -23,8 +23,8 @@
 namespace tvm {
 namespace meta_schedule {
 
-Array<tvm::runtime::Tensor> PyFeatureExtractorNode::ExtractFrom(
-    const TuneContext& context, const Array<MeasureCandidate>& candidates) {
+ffi::Array<tvm::runtime::Tensor> PyFeatureExtractorNode::ExtractFrom(
+    const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates) {
   ICHECK(f_extract_from != nullptr) << "PyFeatureExtractor's ExtractFrom method not implemented!";
   return f_extract_from(context, candidates);
 }
@@ -32,7 +32,7 @@ Array<tvm::runtime::Tensor> PyFeatureExtractorNode::ExtractFrom(
 FeatureExtractor FeatureExtractor::PyFeatureExtractor(
     PyFeatureExtractorNode::FExtractFrom f_extract_from,  //
     PyFeatureExtractorNode::FAsString f_as_string) {
-  ObjectPtr<PyFeatureExtractorNode> n = make_object<PyFeatureExtractorNode>();
+  ObjectPtr<PyFeatureExtractorNode> n = ffi::make_object<PyFeatureExtractorNode>();
   n->f_extract_from = std::move(f_extract_from);
   n->f_as_string = std::move(f_as_string);
   return FeatureExtractor(n);

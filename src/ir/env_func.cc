@@ -42,13 +42,13 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 ObjectPtr<Object> CreateEnvNode(const std::string& name) {
   auto f = tvm::ffi::Function::GetGlobal(name);
   ICHECK(f.has_value()) << "Cannot find global function \'" << name << '\'';
-  ObjectPtr<EnvFuncNode> n = make_object<EnvFuncNode>();
+  ObjectPtr<EnvFuncNode> n = ffi::make_object<EnvFuncNode>();
   n->func = *f;
   n->name = name;
   return n;
 }
 
-EnvFunc EnvFunc::Get(const String& name) { return EnvFunc(CreateEnvNode(name)); }
+EnvFunc EnvFunc::Get(const ffi::String& name) { return EnvFunc(CreateEnvNode(name)); }
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;

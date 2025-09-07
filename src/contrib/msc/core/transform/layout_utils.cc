@@ -57,12 +57,12 @@ LayoutDecision LayoutUtils::InferLayoutDecisionAt(const Expr& expr,
 }
 
 bool LayoutUtils::LayoutInfered(const Expr& expr) {
-  const String& layout = SpanUtils::GetAttr(expr->span, msc_attr::kLayout);
+  const ffi::String& layout = SpanUtils::GetAttr(expr->span, msc_attr::kLayout);
   return layout.size() > 0;
 }
 
 bool LayoutUtils::SetLayout(const Expr& expr, const NLayout& layout) {
-  const String& saved_layout = SpanUtils::GetAttr(expr->span, msc_attr::kLayout);
+  const ffi::String& saved_layout = SpanUtils::GetAttr(expr->span, msc_attr::kLayout);
   const auto& sinfo = GetStructInfo(expr);
   if (sinfo->IsInstance<TensorStructInfoNode>() || sinfo->IsInstance<ShapeStructInfoNode>()) {
     if (!layout.IsLeaf()) {
@@ -80,8 +80,8 @@ bool LayoutUtils::SetLayout(const Expr& expr, const NLayout& layout) {
     if (layout.IsLeaf()) {
       return false;
     }
-    String layout_str;
-    Array<NLayout> nested_layouts = layout.NestedArray();
+    ffi::String layout_str;
+    ffi::Array<NLayout> nested_layouts = layout.NestedArray();
     for (size_t i = 0; i < nested_layouts.size(); i++) {
       if (!nested_layouts[i].IsLeaf()) {
         return false;
@@ -109,7 +109,7 @@ const NLayout LayoutUtils::GetNLayout(const Expr& expr) {
     return LayoutDecision(SpanUtils::GetAttr(expr->span, msc_attr::kLayout));
   }
   if (sinfo->IsInstance<TupleStructInfoNode>()) {
-    String layout_str = SpanUtils::GetAttr(expr->span, msc_attr::kLayout);
+    ffi::String layout_str = SpanUtils::GetAttr(expr->span, msc_attr::kLayout);
     std::vector<NLayout> output_layout;
     for (const auto& l : StringUtils::Split(layout_str, ",")) {
       output_layout.push_back(LayoutDecision(l));
@@ -134,7 +134,7 @@ bool LayoutUtils::HasUnknownDimTensor(const NLayout& nlayout) {
   return find;
 }
 
-bool LayoutUtils::HasUnknownDimTensor(const Array<Expr>& args) {
+bool LayoutUtils::HasUnknownDimTensor(const ffi::Array<Expr>& args) {
   for (const auto& arg : args) {
     if (IsNestedTensor(arg)) {
       if (HasUnknownDimTensor(GetNLayout(arg))) {
@@ -204,8 +204,8 @@ const LayoutDecision LayoutUtils::ReduceLayout(const LayoutDecision& src_layout,
 }
 
 const LayoutDecision LayoutUtils::PermuteLayout(const LayoutDecision& src_layout,
-                                                const Array<Integer>& axes) {
-  String layout_str;
+                                                const ffi::Array<Integer>& axes) {
+  ffi::String layout_str;
   for (const auto& a : axes) {
     layout_str = layout_str + src_layout->layout[a->value].name();
   }
@@ -214,7 +214,7 @@ const LayoutDecision LayoutUtils::PermuteLayout(const LayoutDecision& src_layout
 
 const LayoutDecision LayoutUtils::PermuteLayout(const LayoutDecision& src_layout,
                                                 const std::vector<size_t>& axes) {
-  String layout_str;
+  ffi::String layout_str;
   for (const auto& a : axes) {
     layout_str = layout_str + src_layout->layout[a].name();
   }

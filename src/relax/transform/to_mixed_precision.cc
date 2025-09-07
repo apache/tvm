@@ -44,7 +44,7 @@ int GetMixedPrecisionInfo(const CallNode* call_node) {
   if (op_node == nullptr) {
     return -1;
   }
-  Op op = GetRef<Op>(op_node);
+  Op op = ffi::GetRef<Op>(op_node);
   auto attr_map = Op::GetAttrMap<TMixedPrecisionPolicy>("TMixedPrecisionPolicy");
   return attr_map.count(op) ? attr_map[op] : MixedPrecisionPolicyKind::kNever;
 }
@@ -146,12 +146,12 @@ class DTypeDecisionCollector : public ExprVisitor {
   }
 
   // merge the message for all vars in the expr list
-  void RequireArgsToType(Array<Expr> args, Array<NType> to) {
+  void RequireArgsToType(ffi::Array<Expr> args, ffi::Array<NType> to) {
     ICHECK(args.size() == to.size()) << "Invalid target dtypes";
     for (size_t i = 0; i < args.size(); ++i) {
       auto fvisitleaf = [&](const Expr& expr, NType to) {
         if (const auto* var = expr.as<VarNode>()) {
-          UpdateVarDTypeMap(GetRef<Var>(var), to);
+          UpdateVarDTypeMap(ffi::GetRef<Var>(var), to);
         } else if (expr->IsInstance<ConstantNode>()) {
           // Constant can be casted anyway, so we don't need to do anything here
           return;
@@ -164,7 +164,7 @@ class DTypeDecisionCollector : public ExprVisitor {
   }
 
   // merge the message for all vars in the expr list
-  void RequireArgsToType(Array<Expr> args, DataType to) {
+  void RequireArgsToType(ffi::Array<Expr> args, DataType to) {
     std::vector<Expr> arg_arr;
     std::vector<NType> to_arr;
     for (const Expr& arg : args) {
@@ -178,7 +178,7 @@ class DTypeDecisionCollector : public ExprVisitor {
   }
 
   void VisitVars_(const VarNode* op) {
-    Var var = GetRef<Var>(op);
+    Var var = ffi::GetRef<Var>(op);
     if (IsNestedTensor(var)) {
       // require the var to be fp32 (its original dtype)
       UpdateVarDTypeMap(var, NTypeFrom(var, fp32_));
@@ -239,7 +239,7 @@ class DTypeDecisionCollector : public ExprVisitor {
     }
 
     if (auto* sinfo = op->struct_info_.as<StructInfoNode>()) {
-      this->VisitExprDepStructInfoField(GetRef<StructInfo>(sinfo));
+      this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo));
     }
   }
 
@@ -258,7 +258,7 @@ class DTypeDecisionCollector : public ExprVisitor {
     this->VisitExpr(op->cond);
 
     if (auto* sinfo = op->struct_info_.as<StructInfoNode>()) {
-      this->VisitExprDepStructInfoField(GetRef<StructInfo>(sinfo));
+      this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo));
     }
   }
 
@@ -301,7 +301,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     }
   }
 
-  Array<Expr> RemapArgs(const Array<Expr>& args) {
+  ffi::Array<Expr> RemapArgs(const ffi::Array<Expr>& args) {
     return args.Map([this](Expr arg) { return VarReplacer::Replace(arg, var_remap_); });
   }
 
@@ -317,13 +317,13 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       // We only rewrite the expr if the dtype is fp16 or fp32, dtypes such as int32, float64 is not
       // supported to be rewritten
       if (tensor->dtype != fp16_ && tensor->dtype != fp32_) return expr;
-      return astype(expr, DataType(StringToDLDataType(to[0].LeafValue())));
+      return astype(expr, DataType(ffi::StringToDLDataType(to[0].LeafValue())));
     };
-    return TransformTupleLeaf<String>(expr, std::array<NType, 1>({to}), fvisitleaf);
+    return TransformTupleLeaf<ffi::String>(expr, std::array<NType, 1>({to}), fvisitleaf);
   }
 
-  Array<Expr> RewriteArgs(const Array<Expr>& args, DataType to) {
-    Array<Expr> new_args;
+  ffi::Array<Expr> RewriteArgs(const ffi::Array<Expr>& args, DataType to) {
+    ffi::Array<Expr> new_args;
     for (const Expr& arg : args) {
       if (IsNestedTensor(arg)) {
         new_args.push_back(RewriteExpr(arg, NTypeFrom(arg, to)));
@@ -344,7 +344,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     return true;
   }
 
-  bool AllFP16Castable(const Array<Expr>& args) {
+  bool AllFP16Castable(const ffi::Array<Expr>& args) {
     auto is_fp16 = [](StructInfo sinfo) {
       if (auto tensor_sinfo = sinfo.as<TensorStructInfoNode>();
           tensor_sinfo && tensor_sinfo->dtype == DataType::Float(16)) {
@@ -413,11 +413,11 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     auto it = only_fp16_map_->find(var);
     if (it == only_fp16_map_->end()) return;
     // Get the to dtype, cast to fp16 if the var is fp16 only, otherwise do nothing
-    auto fcombine = [](const String& from, const String& required) -> String {
+    auto fcombine = [](const ffi::String& from, const ffi::String& required) -> ffi::String {
       return required == "float16" ? required : from;
     };
     NType from = NTypeFrom(cur_var);
-    NType to = CombineNestedMsg<String>(from, it->second, fcombine);
+    NType to = CombineNestedMsg<ffi::String>(from, it->second, fcombine);
     Expr rewrite = RewriteExpr(cur_var, to);
     // If cur_var is not rewritten, we don't need to emit a new var
     if (!rewrite.same_as(cur_var)) {
@@ -439,7 +439,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     if (!builder_->CurrentBlockIsDataFlow()) {
       return ExprMutator::VisitExpr_(op);
     }
-    return VisitVar_(GetRef<Var>(op));
+    return VisitVar_(ffi::GetRef<Var>(op));
   }
 
   Var VisitVarDef(const Var& var) { return GetRemapped(var); }
@@ -464,14 +464,14 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     // var = Call(op)
     const auto* op_node = call_node->op.as<OpNode>();
     ICHECK(op_node != nullptr);
-    Op op = GetRef<Op>(op_node);
+    Op op = ffi::GetRef<Op>(op_node);
     if (wrap_param_op.same_as(op)) {
       // wrap_param
       ReEmitBinding(binding, call_node->args[0]);
       return;
     }
 
-    Call new_call = GetRef<Call>(call_node);
+    Call new_call = ffi::GetRef<Call>(call_node);
 
     // We first to remap the args to the current vars according to the var_remap_
     new_call.CopyOnWrite()->args = RemapArgs(new_call->args);
@@ -493,7 +493,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       // cast back to the original datatype.
 
       if (!new_call->args.same_as(call_node->args)) {
-        Array<Expr> new_typed_args;
+        ffi::Array<Expr> new_typed_args;
         for (size_t i = 0; i < call_node->args.size(); i++) {
           auto arg = new_call->args[i];
           auto old_ntype = NTypeFrom(call_node->args[i]);
@@ -532,7 +532,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       ExprMutator::VisitBinding_(binding, tuple_node);
       return;
     }
-    ObjectPtr<TupleNode> new_tuple = make_object<TupleNode>(*tuple_node);
+    ObjectPtr<TupleNode> new_tuple = ffi::make_object<TupleNode>(*tuple_node);
     new_tuple->fields = RemapArgs(tuple_node->fields);
     new_tuple->struct_info_ = std::nullopt;
     Expr new_value = builder_->Normalize(Tuple(new_tuple));
@@ -552,7 +552,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       return;
     }
     ObjectPtr<TupleGetItemNode> new_tuple_get_item =
-        make_object<TupleGetItemNode>(*tuple_get_item_node);
+        ffi::make_object<TupleGetItemNode>(*tuple_get_item_node);
     new_tuple_get_item->tuple = RemapArgs({tuple_get_item_node->tuple})[0];
     new_tuple_get_item->struct_info_ = std::nullopt;
     Expr new_value = TupleGetItem(new_tuple_get_item);
@@ -593,14 +593,14 @@ class ToMixedPrecisionRewriter : public ExprMutator {
   DataType fp16_ = DataType(DataType::TypeCode::kFloat, 16, 1);
   DataType fp32_ = DataType(DataType::TypeCode::kFloat, 32, 1);
   DataType output_dtype_;
-  Array<Var> params_;
+  ffi::Array<Var> params_;
   std::unordered_set<std::string> fp16_input_names_;
 
   const Op& wrap_param_op = Op::Get("relax.wrap_param");
 };
 
 Expr ToMixedPrecision(const Function& f, const DataType& out_dtype,
-                      Optional<Array<String>> fp16_input_names) {
+                      ffi::Optional<ffi::Array<ffi::String>> fp16_input_names) {
   VarDTypeMap only_fp16_map = DTypeDecisionCollector::Collect(f, out_dtype);
   std::unordered_set<std::string> fp16_input_names_set;
   if (fp16_input_names) {
@@ -612,7 +612,8 @@ Expr ToMixedPrecision(const Function& f, const DataType& out_dtype,
 
 namespace transform {
 
-Pass ToMixedPrecision(const DataType& out_dtype, Optional<Array<String>> fp16_input_names) {
+Pass ToMixedPrecision(const DataType& out_dtype,
+                      ffi::Optional<ffi::Array<ffi::String>> fp16_input_names) {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
     return Downcast<Function>(ToMixedPrecision(f, out_dtype, fp16_input_names));
   };

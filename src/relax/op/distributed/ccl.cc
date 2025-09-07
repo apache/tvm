@@ -25,7 +25,7 @@ namespace relax {
 namespace distributed {
 
 StructInfo InferDistStructInfoAllReduce(const Call& call, const BlockBuilder& ctx) {
-  Array<DTensorStructInfo> input_dtensor_sinfos = GetInputDTensorStructInfo(call, ctx);
+  ffi::Array<DTensorStructInfo> input_dtensor_sinfos = GetInputDTensorStructInfo(call, ctx);
   ICHECK(input_dtensor_sinfos.size() == 1);
   DTensorStructInfo input_dtensor_sinfo = input_dtensor_sinfos[0];
   TensorStructInfo tensor_sinfo = input_dtensor_sinfo->tensor_sinfo;

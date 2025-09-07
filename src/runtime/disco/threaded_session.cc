@@ -190,7 +190,7 @@ class ThreadedSessionObj final : public BcastSessionObj {
 Session Session::ThreadedSession(int num_workers, int num_group) {
   CHECK_EQ(num_workers % num_group, 0)
       << "The number of workers should be divisible by the number of worker group.";
-  ObjectPtr<ThreadedSessionObj> n = make_object<ThreadedSessionObj>(num_workers, num_group);
+  ObjectPtr<ThreadedSessionObj> n = ffi::make_object<ThreadedSessionObj>(num_workers, num_group);
   return Session(std::move(n));
 }
 

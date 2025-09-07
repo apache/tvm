@@ -36,7 +36,7 @@ namespace meta_schedule {
  * \return A sampler that returns a random thread extent.
  */
 std::function<tir::ExprRV(int64_t)> MakeFactorSampler(tir::Schedule sch,
-                                                      Array<Integer> thread_extents);
+                                                      ffi::Array<Integer> thread_extents);
 
 /*!
  * \brief Bind blockIdx.x and threadIdx.x to the given loop
@@ -47,9 +47,9 @@ std::function<tir::ExprRV(int64_t)> MakeFactorSampler(tir::Schedule sch,
  * \param get_factor A function that returns the tiling factor.
  * \return The binded loops in the order of blockIdx.x, threadIdx.x, and the rest.
  */
-Array<tir::LoopRV> BindSpatialLoop(tir::Schedule sch, tir::LoopRV loop,  //
-                                   int64_t max_threadblocks, int64_t max_threads_per_block,
-                                   std::function<tir::ExprRV(int64_t)> get_factor = nullptr);
+ffi::Array<tir::LoopRV> BindSpatialLoop(tir::Schedule sch, tir::LoopRV loop,  //
+                                        int64_t max_threadblocks, int64_t max_threads_per_block,
+                                        std::function<tir::ExprRV(int64_t)> get_factor = nullptr);
 
 /*!
  * \brief Bind the given block if it is not bound to blockIdx or threadIdx.

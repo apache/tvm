@@ -31,7 +31,7 @@ namespace relax {
 
 /*! \brief Attributes for search operators */
 struct ArgmaxArgminAttrs : public AttrsNodeReflAdapter<ArgmaxArgminAttrs> {
-  Optional<int64_t> axis;
+  ffi::Optional<int64_t> axis;
   bool keepdims;
 
   static void RegisterReflection() {

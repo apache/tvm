@@ -78,7 +78,7 @@ class BlockDependenceInfoNode : public Object {
     auto it = sref2scope.find(scope_root);
     CHECK(it != sref2scope.end())
         << "IndexError: Cannot find the corresponding BlockScope to the block sref:\n"
-        << GetRef<Stmt>(scope_root->stmt);
+        << ffi::GetRef<Stmt>(scope_root->stmt);
     return it->second;
   }
 };

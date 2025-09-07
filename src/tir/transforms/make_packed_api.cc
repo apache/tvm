@@ -125,7 +125,8 @@ class ReturnRewriter : public StmtMutator {
 
 class SubroutineCallRewriter : public StmtExprMutator {
  public:
-  static Optional<Stmt> Apply(const Map<GlobalVar, String>& packed_func_methods, Stmt stmt) {
+  static ffi::Optional<Stmt> Apply(const ffi::Map<GlobalVar, ffi::String>& packed_func_methods,
+                                   Stmt stmt) {
     SubroutineCallRewriter rewriter(packed_func_methods);
     stmt = rewriter.VisitStmt(std::move(stmt));
     if (rewriter.made_change_) {
@@ -136,16 +137,16 @@ class SubroutineCallRewriter : public StmtExprMutator {
   }
 
  private:
-  explicit SubroutineCallRewriter(const Map<GlobalVar, String>& packed_func_methods)
+  explicit SubroutineCallRewriter(const ffi::Map<GlobalVar, ffi::String>& packed_func_methods)
       : packed_func_methods(packed_func_methods) {}
 
   PrimExpr VisitExpr_(const CallNode* op) override {
     auto node = Downcast<Call>(StmtExprMutator::VisitExpr_(op));
 
     if (auto* gvar_ptr = node->op.as<GlobalVarNode>()) {
-      auto gvar = GetRef<GlobalVar>(gvar_ptr);
+      auto gvar = ffi::GetRef<GlobalVar>(gvar_ptr);
       if (auto symbol = packed_func_methods.Get(gvar)) {
-        Array<PrimExpr> cpacked_args;
+        ffi::Array<PrimExpr> cpacked_args;
         cpacked_args.push_back(tir::StringImm(symbol.value()));
         for (auto arg : node->args) {
           cpacked_args.push_back(arg);
@@ -160,7 +161,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
 
     return node;
   }
-  const Map<GlobalVar, String>& packed_func_methods;
+  const ffi::Map<GlobalVar, ffi::String>& packed_func_methods;
   bool made_change_{false};
 };
 
@@ -182,7 +183,7 @@ inline Stmt MakeAssertNotNull(PrimExpr ptr, std::string msg) {
  * \returns The global_symbol to be used for the function at call
  * sites, or std::nullopt if the function is to remain unchanged.
  */
-Optional<String> RequiresPackedAPI(const PrimFunc& func) {
+ffi::Optional<ffi::String> RequiresPackedAPI(const PrimFunc& func) {
   // A function with an explicit calling convention has already been
   // lowered, and should not be modified.
   if (auto opt = func->GetAttr<Integer>(tvm::attr::kCallingConv)) {
@@ -192,7 +193,7 @@ Optional<String> RequiresPackedAPI(const PrimFunc& func) {
   }
 
   // Internal function calls do not need the ffi::Function API
-  auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
   if (!global_symbol.has_value()) {
     return std::nullopt;
   }
@@ -248,8 +249,8 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   // local function definitions
   // load i-th argument as type t
   auto f_load_arg_value = [&](DataType arg_type, int i) {
-    Array<PrimExpr> call_args{v_packed_args, IntImm(DataType::Int(32), i),
-                              IntImm(DataType::Int(32), builtin::kTVMFFIAnyUnionValue)};
+    ffi::Array<PrimExpr> call_args{v_packed_args, IntImm(DataType::Int(32), i),
+                                   IntImm(DataType::Int(32), builtin::kTVMFFIAnyUnionValue)};
     // load 64 bit version
     DataType api_type = APIType(arg_type);
     PrimExpr res = Call(api_type, builtin::tvm_struct_get(), call_args);
@@ -347,7 +348,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   }
 
   // signature: (void* handle, TVMFFIAny* packed_args, int num_args, TVMFFIAny* v_result)
-  Array<Var> args{v_self_handle, v_packed_args, v_num_packed_args, v_result};
+  ffi::Array<Var> args{v_self_handle, v_packed_args, v_num_packed_args, v_result};
 
   // Arg definitions are defined before buffer binding to avoid the use before
   // def errors.
@@ -396,11 +397,11 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   func_ptr->body = body;
   func_ptr->params = args;
 
-  Array<Var> undefined = UndefinedVars(func_ptr->body, func_ptr->params);
+  ffi::Array<Var> undefined = UndefinedVars(func_ptr->body, func_ptr->params);
   ICHECK_EQ(undefined.size(), 0) << "In PrimFunc " << name_hint << " variables " << undefined
                                  << " are used, but are not passed in as API arguments";
 
-  func_ptr->buffer_map = Map<Var, Buffer>();
+  func_ptr->buffer_map = ffi::Map<Var, Buffer>();
   func_ptr->ret_type = PrimType(DataType::Int(32));
 
   // return the function.
@@ -411,7 +412,7 @@ namespace transform {
 
 Pass MakePackedAPI() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
-    Map<GlobalVar, String> packed_func_methods;
+    ffi::Map<GlobalVar, ffi::String> packed_func_methods;
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<PrimFunc>()) {
         auto prim_func = opt.value();

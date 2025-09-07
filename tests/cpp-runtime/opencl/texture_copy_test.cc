@@ -63,7 +63,7 @@ TEST(TextureCopy, HostDeviceRT) {
   std::vector<int64_t> shape{16, 16, 4};
   auto cpu_arr0 = runtime::Tensor::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto cpu_arr1 = runtime::Tensor::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  String mem_scope = "global.texture";
+  ffi::String mem_scope = "global.texture";
   auto opencl_txarr0 = runtime::Tensor::Empty(shape, {kDLFloat, 32, 1}, {kDLOpenCL, 0}, mem_scope);
 
   size_t size = 1;
@@ -97,7 +97,7 @@ TEST_F(TextureCopyTest, ViewBufferAsBuffer) {
   auto cpu_arr = runtime::Tensor::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto cpu_arr_ret = runtime::Tensor::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
-  String mem_scope = "global";
+  ffi::String mem_scope = "global";
 
   DLDevice cl_dev = {kDLOpenCL, 0};
   auto allocator = MemoryManager::GetOrCreateAllocator(cl_dev, AllocatorType::kPooled);

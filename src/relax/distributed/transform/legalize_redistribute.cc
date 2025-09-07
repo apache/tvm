@@ -55,7 +55,7 @@ class RedistributeLegalizer : public ExprMutator {
         continue;
       }
       Expr new_func_body = VisitExpr(func_->body);
-      auto new_func = make_object<FunctionNode>(*func_);
+      auto new_func = ffi::make_object<FunctionNode>(*func_);
       new_func->body = new_func_body;
       builder_->UpdateFunction(gv, Function(new_func));
     }

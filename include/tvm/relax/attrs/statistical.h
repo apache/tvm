@@ -31,7 +31,7 @@ namespace relax {
 
 /*! \brief Attributes for statistical operators */
 struct StatisticalAttrs : public AttrsNodeReflAdapter<StatisticalAttrs> {
-  Optional<Array<Integer>> axis;
+  ffi::Optional<ffi::Array<Integer>> axis;
   bool keepdims;
 
   static void RegisterReflection() {
@@ -51,7 +51,7 @@ struct StatisticalAttrs : public AttrsNodeReflAdapter<StatisticalAttrs> {
 
 /*! \brief Attributes used in scan operators like cumsum, cumprod */
 struct ScanopAttrs : public AttrsNodeReflAdapter<ScanopAttrs> {
-  Optional<int64_t> axis;
+  ffi::Optional<int64_t> axis;
   DataType dtype;
   Bool exclusive = Bool(false);
 

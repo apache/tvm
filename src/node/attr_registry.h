@@ -50,7 +50,7 @@ class AttrRegistry {
    * \param name The name of the item.
    * \return The corresponding entry.
    */
-  const EntryType* Get(const String& name) const {
+  const EntryType* Get(const ffi::String& name) const {
     auto it = entry_map_.find(name);
     if (it != entry_map_.end()) return it->second;
     return nullptr;
@@ -61,7 +61,7 @@ class AttrRegistry {
    * \param name The name of the item.
    * \return The corresponding entry.
    */
-  EntryType& RegisterOrGet(const String& name) {
+  EntryType& RegisterOrGet(const ffi::String& name) {
     auto it = entry_map_.find(name);
     if (it != entry_map_.end()) return *it->second;
     uint32_t registry_index = static_cast<uint32_t>(entries_.size());
@@ -77,8 +77,8 @@ class AttrRegistry {
    * \brief List all the entry names in the registry.
    * \return The entry names.
    */
-  Array<String> ListAllNames() const {
-    Array<String> names;
+  ffi::Array<ffi::String> ListAllNames() const {
+    ffi::Array<ffi::String> names;
     for (const auto& kv : entry_map_) {
       names.push_back(kv.first);
     }
@@ -92,7 +92,7 @@ class AttrRegistry {
    * \param value The value to be set.
    * \param plevel The support level.
    */
-  void UpdateAttr(const String& attr_name, const KeyType& key, Any value, int plevel) {
+  void UpdateAttr(const ffi::String& attr_name, const KeyType& key, Any value, int plevel) {
     using ffi::Any;
     auto& op_map = attrs_[attr_name];
     if (op_map == nullptr) {
@@ -119,7 +119,7 @@ class AttrRegistry {
    * \param attr_name The name of the attribute.
    * \param key The key to the attribute table.
    */
-  void ResetAttr(const String& attr_name, const KeyType& key) {
+  void ResetAttr(const ffi::String& attr_name, const KeyType& key) {
     auto& op_map = attrs_[attr_name];
     if (op_map == nullptr) {
       return;
@@ -135,7 +135,7 @@ class AttrRegistry {
    * \param attr_name The name of the attribute.
    * \return The result attribute map.
    */
-  const AttrRegistryMapContainerMap<KeyType>& GetAttrMap(const String& attr_name) {
+  const AttrRegistryMapContainerMap<KeyType>& GetAttrMap(const ffi::String& attr_name) {
     auto it = attrs_.find(attr_name);
     if (it == attrs_.end()) {
       LOG(FATAL) << "Attribute \'" << attr_name << "\' is not registered";
@@ -148,7 +148,7 @@ class AttrRegistry {
    * \param attr_name The name of the attribute.
    * \return The check result.
    */
-  bool HasAttrMap(const String& attr_name) { return attrs_.count(attr_name); }
+  bool HasAttrMap(const ffi::String& attr_name) { return attrs_.count(attr_name); }
 
   /*!
    * \return a global singleton of the registry.
@@ -162,9 +162,9 @@ class AttrRegistry {
   // entries in the registry
   std::vector<std::unique_ptr<EntryType>> entries_;
   // map from name to entries.
-  std::unordered_map<String, EntryType*> entry_map_;
+  std::unordered_map<ffi::String, EntryType*> entry_map_;
   // storage of additional attribute table.
-  std::unordered_map<String, std::unique_ptr<AttrRegistryMapContainerMap<KeyType>>> attrs_;
+  std::unordered_map<ffi::String, std::unique_ptr<AttrRegistryMapContainerMap<KeyType>>> attrs_;
 };
 
 }  // namespace tvm

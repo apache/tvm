@@ -49,16 +49,16 @@ class ReplayFuncNode : public SearchStrategyNode {
           << "ValueError: The search strategy has not been initialized.";
     }
 
-    inline Optional<Array<MeasureCandidate>> GenerateMeasureCandidates();
-    inline void NotifyRunnerResults(const Array<RunnerResult>& results);
+    inline ffi::Optional<ffi::Array<MeasureCandidate>> GenerateMeasureCandidates();
+    inline void NotifyRunnerResults(const ffi::Array<RunnerResult>& results);
   };
 
   /*! \brief The random state. -1 means using random number. */
   TRandState rand_state_ = -1;
   /*! \brief The IRModule to be scheduled from TuneContext. */
-  Optional<IRModule> mod_ = std::nullopt;
+  ffi::Optional<IRModule> mod_ = std::nullopt;
   /*! \brief The space generator from TuneContext. */
-  Optional<SpaceGenerator> space_generator_ = std::nullopt;
+  ffi::Optional<SpaceGenerator> space_generator_ = std::nullopt;
   /*! \brief The state of the search strategy. */
   std::unique_ptr<State> state_ = nullptr;
 
@@ -85,8 +85,10 @@ class ReplayFuncNode : public SearchStrategyNode {
     this->state_.reset();
   }
 
-  void PreTuning(int max_trials, int num_trials_per_iter, const Array<tir::Schedule>& design_spaces,
-                 const Optional<Database>& database, const Optional<CostModel>& cost_model) final {
+  void PreTuning(int max_trials, int num_trials_per_iter,
+                 const ffi::Array<tir::Schedule>& design_spaces,
+                 const ffi::Optional<Database>& database,
+                 const ffi::Optional<CostModel>& cost_model) final {
     CHECK(this->state_ == nullptr)
         << "ValueError: `PreTuning` is already invoked without corresponding `PostTuning`.";
     this->state_ = std::make_unique<State>(this, max_trials, num_trials_per_iter);
@@ -98,19 +100,19 @@ class ReplayFuncNode : public SearchStrategyNode {
     this->state_.reset();
   }
 
-  Optional<Array<MeasureCandidate>> GenerateMeasureCandidates() final {
+  ffi::Optional<ffi::Array<MeasureCandidate>> GenerateMeasureCandidates() final {
     ICHECK(this->state_ != nullptr);
     return this->state_->GenerateMeasureCandidates();
   }
 
-  void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
-                           const Array<RunnerResult>& results) final {
+  void NotifyRunnerResults(const ffi::Array<MeasureCandidate>& measure_candidates,
+                           const ffi::Array<RunnerResult>& results) final {
     ICHECK(this->state_ != nullptr);
     this->state_->NotifyRunnerResults(results);
   }
 
   SearchStrategy Clone() const final {
-    ObjectPtr<ReplayFuncNode> n = make_object<ReplayFuncNode>();
+    ObjectPtr<ReplayFuncNode> n = ffi::make_object<ReplayFuncNode>();
     n->rand_state_ = -1;
     n->mod_ = std::nullopt;
     n->space_generator_ = std::nullopt;
@@ -119,17 +121,18 @@ class ReplayFuncNode : public SearchStrategyNode {
   }
 };
 
-inline Optional<Array<MeasureCandidate>> ReplayFuncNode::State::GenerateMeasureCandidates() {
+inline ffi::Optional<ffi::Array<MeasureCandidate>>
+ReplayFuncNode::State::GenerateMeasureCandidates() {
   if (st >= max_trials) {
     return std::nullopt;
   }
   ed = std::min(ed, max_trials);
-  Array<MeasureCandidate> result;
+  ffi::Array<MeasureCandidate> result;
   IRModule mod = self->mod_.value();
-  Array<Postproc> postprocs = self->space_generator_.value()->postprocs.value_or({});
+  ffi::Array<Postproc> postprocs = self->space_generator_.value()->postprocs.value_or({});
   for (int i = st; i < ed; i++) {
     for (;;) {
-      Array<tir::Schedule> schs = self->space_generator_.value()->GenerateDesignSpace(mod);
+      ffi::Array<tir::Schedule> schs = self->space_generator_.value()->GenerateDesignSpace(mod);
       int design_space_index = tir::SampleInt(&self->rand_state_, 0, schs.size());
       tir::Schedule sch = schs[design_space_index];
       sch->EnterPostproc();
@@ -141,7 +144,7 @@ inline Optional<Array<MeasureCandidate>> ReplayFuncNode::State::GenerateMeasureC
         }
       }
       if (!failed) {
-        Array<ArgInfo> args_info = ArgInfo::FromEntryFunc(sch->mod(), /*remove_preproc=*/true);
+        ffi::Array<ArgInfo> args_info = ArgInfo::FromEntryFunc(sch->mod(), /*remove_preproc=*/true);
         result.push_back(MeasureCandidate(sch, args_info));
         break;
       }
@@ -150,13 +153,13 @@ inline Optional<Array<MeasureCandidate>> ReplayFuncNode::State::GenerateMeasureC
   return result;
 }
 
-inline void ReplayFuncNode::State::NotifyRunnerResults(const Array<RunnerResult>& results) {
+inline void ReplayFuncNode::State::NotifyRunnerResults(const ffi::Array<RunnerResult>& results) {
   st += num_trials_per_iter;
   ed += num_trials_per_iter;
 }
 
 SearchStrategy SearchStrategy::ReplayFunc() {
-  ObjectPtr<ReplayFuncNode> n = make_object<ReplayFuncNode>();
+  ObjectPtr<ReplayFuncNode> n = ffi::make_object<ReplayFuncNode>();
   return SearchStrategy(n);
 }
 

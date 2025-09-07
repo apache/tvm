@@ -46,7 +46,7 @@ class NormalizeMutator : public ExprMutatorBase {
     Expr body = this->VisitWithNewScope(op->body, op->params);
 
     if (body.same_as(op->body)) {
-      return GetRef<Expr>(op);
+      return ffi::GetRef<Expr>(op);
     } else {
       return Function(op->params, body, op->ret_struct_info, op->is_pure, op->attrs);
     }
@@ -58,13 +58,13 @@ class NormalizeMutator : public ExprMutatorBase {
     Expr false_b = this->VisitWithNewScope(op->false_branch);
     if (op->cond.same_as(guard) && op->true_branch.same_as(true_b) &&
         op->false_branch.same_as(false_b)) {
-      return GetRef<Expr>(op);
+      return ffi::GetRef<Expr>(op);
     } else {
       return If(guard, true_b, false_b, op->span);
     }
   }
 
-  Expr VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params = std::nullopt) {
+  Expr VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<Var>> params = std::nullopt) {
     builder_->BeginBindingBlock();
     if (params.defined()) {
       builder_->BeginScope(params);
@@ -82,7 +82,7 @@ class NormalizeMutator : public ExprMutatorBase {
 
   Expr VisitExpr_(const SeqExprNode* op) final {
     bool all_blocks_unchanged = true;
-    Array<BindingBlock> blocks;
+    ffi::Array<BindingBlock> blocks;
     for (auto block : op->blocks) {
       BindingBlock new_block = this->VisitBindingBlock(block);
       if (!new_block->bindings.empty()) {
@@ -100,7 +100,7 @@ class NormalizeMutator : public ExprMutatorBase {
     }
 
     if (all_blocks_unchanged && body.same_as(op->body)) {
-      return GetRef<Expr>(op);
+      return ffi::GetRef<Expr>(op);
     } else {
       return SeqExpr(blocks, body);
     }
@@ -151,7 +151,7 @@ class NormalizeMutator : public ExprMutatorBase {
     }
 
     if (new_value.same_as(binding->value)) {
-      builder_->EmitNormalized(GetRef<VarBinding>(binding));
+      builder_->EmitNormalized(ffi::GetRef<VarBinding>(binding));
     } else {
       builder_->EmitNormalized(VarBinding(binding->var, new_value));
     }
@@ -161,7 +161,7 @@ class NormalizeMutator : public ExprMutatorBase {
     Expr new_value = this->VisitExpr(binding->value);
 
     if (new_value.same_as(binding->value)) {
-      builder_->EmitNormalized(GetRef<MatchCast>(binding));
+      builder_->EmitNormalized(ffi::GetRef<MatchCast>(binding));
     } else {
       builder_->EmitNormalized(
           MatchCast(binding->var, builder_->NormalizeArgument(new_value), binding->struct_info));
@@ -219,7 +219,7 @@ class GlobalVarNormalizer : private ExprMutator {
   /*! \brief Check if any function needs to be renamed. */
   bool NeedRename() {
     for (const auto& [gvar, func] : module_->functions) {
-      auto global_symbol = func->GetAttr<String>("global_symbol");
+      auto global_symbol = func->GetAttr<ffi::String>("global_symbol");
       if (global_symbol && global_symbol.value() != gvar->name_hint) {
         return true;
       }
@@ -230,7 +230,7 @@ class GlobalVarNormalizer : private ExprMutator {
   /*! \brief Add public functions to the builder, and update the name supplier. */
   void AddPublicFunctions() {
     for (const auto& [gvar, func] : module_->functions) {
-      auto global_symbol = func->GetAttr<String>("global_symbol");
+      auto global_symbol = func->GetAttr<ffi::String>("global_symbol");
       if (!global_symbol) {
         continue;
       }
@@ -250,7 +250,7 @@ class GlobalVarNormalizer : private ExprMutator {
    */
   void AddPrivateFunctions() {
     for (auto [gvar, func] : module_->functions) {
-      auto global_symbol = func->GetAttr<String>("global_symbol");
+      auto global_symbol = func->GetAttr<ffi::String>("global_symbol");
       if (global_symbol) {
         continue;
       }
@@ -262,13 +262,13 @@ class GlobalVarNormalizer : private ExprMutator {
   }
 
   Expr VisitExpr_(const GlobalVarNode* op) final {
-    ICHECK(gvar_map_.count(GetRef<GlobalVar>(op)));
-    return gvar_map_[GetRef<GlobalVar>(op)];
+    ICHECK(gvar_map_.count(ffi::GetRef<GlobalVar>(op)));
+    return gvar_map_[ffi::GetRef<GlobalVar>(op)];
   }
 
   IRModule module_;
   NameSupply name_supply_;
-  Map<GlobalVar, GlobalVar> gvar_map_;
+  ffi::Map<GlobalVar, GlobalVar> gvar_map_;
 };
 
 namespace transform {

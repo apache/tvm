@@ -923,7 +923,7 @@ PrimExpr isinf(PrimExpr x, Span span) {
 // isfinite
 PrimExpr isfinite(PrimExpr x, Span span) { return !isinf(x, span) && !isnan(x, span); }
 
-PrimExpr sum(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span span) {
+PrimExpr sum(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
   Var x("x", source.dtype(), span), y("y", source.dtype(), span);
   PrimExpr result = tir::Add(x, y, span);
   PrimExpr identity_element = make_zero(source.dtype(), span);
@@ -931,7 +931,7 @@ PrimExpr sum(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span sp
   return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init, span);
 }
 
-PrimExpr all(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span span) {
+PrimExpr all(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
   type_check_boolean_args(source, "tvm::all");
   Var x("x", source.dtype(), span), y("y", source.dtype());
   PrimExpr result = tir::And(x, y, span);
@@ -940,7 +940,7 @@ PrimExpr all(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span sp
   return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init, span);
 }
 
-PrimExpr any(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span span) {
+PrimExpr any(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
   type_check_boolean_args(source, "tvm::any");
   Var x("x", source.dtype(), span), y("y", source.dtype(), span);
   PrimExpr result = tir::Or(x, y, span);
@@ -949,7 +949,7 @@ PrimExpr any(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span sp
   return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init, span);
 }
 
-PrimExpr max(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span span) {
+PrimExpr max(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
   Var x("x", source.dtype(), span), y("y", source.dtype(), span);
   PrimExpr result = tir::Max(x, y, span);
   PrimExpr identity_element = min_value(source.dtype(), span);
@@ -957,7 +957,7 @@ PrimExpr max(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span sp
   return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init, span);
 }
 
-PrimExpr min(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span span) {
+PrimExpr min(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
   Var x("x", source.dtype(), span), y("y", source.dtype(), span);
   PrimExpr result = tir::Min(x, y, span);
   PrimExpr identity_element = max_value(source.dtype(), span);
@@ -965,7 +965,7 @@ PrimExpr min(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span sp
   return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init, span);
 }
 
-PrimExpr prod(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span span) {
+PrimExpr prod(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
   Var x("x", source.dtype(), span), y("y", source.dtype(), span);
   PrimExpr result = tir::Mul(x, y, span);
   PrimExpr identity_element = make_const(source.dtype(), 1, span);

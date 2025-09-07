@@ -45,7 +45,7 @@ class RPCDeviceAPI final : public DeviceAPI {
   }
 
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                       Optional<String> mem_scope) final {
+                       ffi::Optional<ffi::String> mem_scope) final {
     auto sess = GetSess(dev);
     auto remote_dev = RemoveRPCSessionMask(dev);
     void* data =

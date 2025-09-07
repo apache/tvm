@@ -62,7 +62,7 @@ inline std::string ReduceKind2String(ReduceKind kind) {
  * \param device The default device used to initialize the RelaxVM
  * \return The RelaxVM as a runtime Module
  */
-TVM_DLL ffi::Module LoadVMModule(std::string path, Optional<Device> device);
+TVM_DLL ffi::Module LoadVMModule(std::string path, ffi::Optional<Device> device);
 /*!
  * \brief Create an uninitialized empty Tensor
  * \param shape The shape of the Tensor
@@ -70,7 +70,7 @@ TVM_DLL ffi::Module LoadVMModule(std::string path, Optional<Device> device);
  * \param device The device the Tensor is created on. If None, use the thread local default device
  * \return The Tensor created
  */
-TVM_DLL Tensor DiscoEmptyTensor(ffi::Shape shape, DataType dtype, Optional<Device> device);
+TVM_DLL Tensor DiscoEmptyTensor(ffi::Shape shape, DataType dtype, ffi::Optional<Device> device);
 /*!
  * \brief Perform an allreduce operation using the underlying communication library
  * \param send The array send to perform allreduce on
@@ -100,7 +100,7 @@ TVM_DLL void BroadcastFromWorker0(Tensor send, bool in_group, Tensor recv);
  * \param in_group Whether the scatter operation performs globally or in group as default.
  * \param recv The receiving buffer, which must not be None.
  */
-TVM_DLL void ScatterFromWorker0(Optional<Tensor> send, bool in_group, Tensor recv);
+TVM_DLL void ScatterFromWorker0(ffi::Optional<Tensor> send, bool in_group, Tensor recv);
 /*!
  * \brief Perform a gather operation to worker-0.
  * \param send The sending buffer, which must not be None.
@@ -108,7 +108,7 @@ TVM_DLL void ScatterFromWorker0(Optional<Tensor> send, bool in_group, Tensor rec
  * \param recv For worker-0, it must be provided, and otherwise, the buffer must be None. The
  * receiving buffer will be divided into equal parts and receive from each worker accordingly.
  */
-TVM_DLL void GatherToWorker0(Tensor send, bool in_group, Optional<Tensor> recv);
+TVM_DLL void GatherToWorker0(Tensor send, bool in_group, ffi::Optional<Tensor> recv);
 /*!
  * \brief Receive a buffer from worker-0. No-op if the current worker is worker-0.
  * \param buffer The buffer to be received

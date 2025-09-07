@@ -105,19 +105,19 @@ class BufferSubstituter : public StmtExprMutator {
 /*! \brief Helper data structure to store information. */
 struct CreateFuncInfo {
   /*! \brief The Tensor arg_list. */
-  Array<te::Tensor> arg_list;
+  ffi::Array<te::Tensor> arg_list;
   /*! \brief The map from each Tensor to its corresponding buffer. */
   std::unordered_map<te::Tensor, Buffer> tensor2buffers;
   /*! \brief The transformer from ProducerLoad to BufferLoad. */
   ProducerToBufferTransformer transformer;
   /*! \brief The buffers should be allocated at function root. */
-  Array<Buffer> root_alloc;
+  ffi::Array<Buffer> root_alloc;
   /*! \brief The NameSupply to make block name unique. */
   NameSupply name_supply;
 
-  String FreshName(String base_name) { return name_supply->FreshName(base_name); }
+  ffi::String FreshName(ffi::String base_name) { return name_supply->FreshName(base_name); }
 
-  explicit CreateFuncInfo(Array<te::Tensor> arg_list)
+  explicit CreateFuncInfo(ffi::Array<te::Tensor> arg_list)
       : arg_list(std::move(arg_list)), transformer(tensor2buffers) {}
 
   bool IsArg(const te::Tensor& tensor) const {
@@ -131,7 +131,7 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
   PrimFunc Process(PrimFunc func) {
     for (int i = 0, n = func->params.size(); i < n; ++i) {
       if (auto v = func->params[i].as<Var>()) {
-        if (Optional<Buffer> buffer = func->buffer_map.Get(v.value())) {
+        if (ffi::Optional<Buffer> buffer = func->buffer_map.Get(v.value())) {
           buffer2index_[buffer.value()] = i;
         }
       }
@@ -141,7 +141,7 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
     if (this->layout_free_buffer_indices_.empty()) {
       return func;
     }
-    Array<int64_t> indices;
+    ffi::Array<int64_t> indices;
     indices.reserve(this->layout_free_buffer_indices_.size());
     for (int i : this->layout_free_buffer_indices_) {
       indices.push_back(i);
@@ -153,8 +153,8 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
     Block block = Downcast<Block>(StmtMutator::VisitStmt_(_block));
     BlockNode* n = block.CopyOnWrite();
     if (auto opt_ann = n->annotations.Get(topi_attr)) {
-      Array<Buffer> new_buffers;
-      for (Buffer buffer : Downcast<Array<Buffer>>(opt_ann.value())) {
+      ffi::Array<Buffer> new_buffers;
+      for (Buffer buffer : Downcast<ffi::Array<Buffer>>(opt_ann.value())) {
         auto it = buffer2index_.find(buffer);
         if (it != buffer2index_.end()) {
           layout_free_buffer_indices_.insert(it->second);
@@ -168,7 +168,7 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
         n->annotations.Set(topi_attr, new_buffers);
       }
     }
-    for (const String& attr : this->blocklist) {
+    for (const ffi::String& attr : this->blocklist) {
       auto it = n->annotations.find(attr);
       if (it != n->annotations.end()) {
         n->annotations.erase(attr);
@@ -179,9 +179,9 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
 
   std::unordered_map<tir::Buffer, int, ObjectPtrHash, ObjectPtrEqual> buffer2index_;
   std::set<int> layout_free_buffer_indices_;
-  String topi_attr = "layout_free_placeholders";
-  std::vector<String> blocklist = {"const_matrix", "auto_scheduler_simplify_const_tensor_indices",
-                                   "workload"};
+  ffi::String topi_attr = "layout_free_placeholders";
+  std::vector<ffi::String> blocklist = {"const_matrix",
+                                        "auto_scheduler_simplify_const_tensor_indices", "workload"};
 };
 
 /**!
@@ -191,7 +191,8 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
  **/
 using NestedIterLevels = std::vector<std::vector<IterVar>>;
 
-NestedIterLevels GenerateNestedIterLevels(const Array<IterVar>& axes, arith::Analyzer* analyzer) {
+NestedIterLevels GenerateNestedIterLevels(const ffi::Array<IterVar>& axes,
+                                          arith::Analyzer* analyzer) {
   int global_max_depth = 0;
   std::unordered_map<Var, int> depth;
   std::unordered_map<Var, IterVar> var2iter;
@@ -244,9 +245,9 @@ NestedIterLevels GenerateNestedIterLevels(const Array<IterVar>& axes, arith::Ana
  * \param info Generation context info.
  * \returns The output buffer objects, ordered by compute op's outputs.
  **/
-Array<Buffer> GenerateOutputBuffers(const te::ComputeOp& compute_op, CreateFuncInfo* info) {
+ffi::Array<Buffer> GenerateOutputBuffers(const te::ComputeOp& compute_op, CreateFuncInfo* info) {
   // Step 1. Collect output tensors in TE operation.
-  Array<te::Tensor> tensors;
+  ffi::Array<te::Tensor> tensors;
   if (compute_op->body[0]->IsInstance<ReduceNode>()) {
     auto f_reducer_equal = [](const ReduceNode* a, const ReduceNode* b) -> bool {
       StructuralEqual eq;
@@ -265,8 +266,8 @@ Array<Buffer> GenerateOutputBuffers(const te::ComputeOp& compute_op, CreateFuncI
       ICHECK(reduce_);
       ICHECK(f_reducer_equal(reduce_, reduce))
           << "The Reduce inputs of ComputeOp should have the same attribute except value_index, "
-          << "but the first argument has body " << GetRef<PrimExpr>(reduce_) << ", while the " << k
-          << "-th argument has body " << GetRef<PrimExpr>(reduce);
+          << "but the first argument has body " << ffi::GetRef<PrimExpr>(reduce_) << ", while the "
+          << k << "-th argument has body " << ffi::GetRef<PrimExpr>(reduce);
       tensors.push_back(compute_op.output(k));
     }
   } else {
@@ -278,7 +279,7 @@ Array<Buffer> GenerateOutputBuffers(const te::ComputeOp& compute_op, CreateFuncI
   //  - Declare buffers
   //  - Update `op2buffers`
   //  - Add the non-argument tensors to `alloc_buffer` of the root block
-  Array<Buffer> buffers;
+  ffi::Array<Buffer> buffers;
   for (const te::Tensor& tensor : tensors) {
     Buffer buffer = decl_buffer(tensor->shape, tensor->dtype, tensor->GetNameHint(), "global");
     info->tensor2buffers[tensor] = buffer;
@@ -296,9 +297,9 @@ Array<Buffer> GenerateOutputBuffers(const te::ComputeOp& compute_op, CreateFuncI
  * \param info Generation context info.
  * \returns The block annotation dict.
  **/
-Map<String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& compute_op,
-                                               CreateFuncInfo* info) {
-  Map<String, ffi::Any> annotations;
+ffi::Map<ffi::String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& compute_op,
+                                                         CreateFuncInfo* info) {
+  ffi::Map<ffi::String, ffi::Any> annotations;
   auto mutate_attr = [&info](const ffi::Any& value) -> ffi::Any {
     if (auto tensor_value = value.try_cast<te::Tensor>()) {
       return info->tensor2buffers.at(tensor_value.value());
@@ -307,11 +308,11 @@ Map<String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& compute_op,
     }
   };
   for (const auto& pair : compute_op->attrs) {
-    const String& key = pair.first;
+    const ffi::String& key = pair.first;
     const Any& value = pair.second;
     // TensorIR will not allow Tensor data structure
     if (value.as<ffi::ArrayObj>()) {
-      const auto array_value = Downcast<Array<ffi::Any>>(value);
+      const auto array_value = Downcast<ffi::Array<ffi::Any>>(value);
       annotations.Set(key, array_value.Map(mutate_attr));
     } else {
       annotations.Set(key, mutate_attr(value));
@@ -331,17 +332,17 @@ Map<String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& compute_op,
  * \param info Generation context info.
  * \returns Init stmt.
  **/
-Stmt GenerateInitStmt(const Array<PrimExpr>& indices, const Array<Buffer>& buffers,
-                      const ReduceNode* reduce, const Map<Var, PrimExpr>& var_map,
+Stmt GenerateInitStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buffer>& buffers,
+                      const ReduceNode* reduce, const ffi::Map<Var, PrimExpr>& var_map,
                       CreateFuncInfo* info) {
   // helper to transform the expr and remap iters to the block domain
   auto f_transform_and_remap = [&](const PrimExpr& e) {
     return Substitute(info->transformer(e), var_map);
   };
-  Optional<Stmt> init = std::nullopt;
+  ffi::Optional<Stmt> init = std::nullopt;
   Stmt body;
   int n_buffers = buffers.size();
-  Array<Stmt> init_stmts;
+  ffi::Array<Stmt> init_stmts;
   init_stmts.reserve(n_buffers);
   for (int i = 0; i < n_buffers; ++i) {
     const Buffer& buffer = buffers[i];
@@ -361,9 +362,9 @@ Stmt GenerateInitStmt(const Array<PrimExpr>& indices, const Array<Buffer>& buffe
  * \param analyzer Arithmetic analyzer in context.
  * \returns Init stmt.
  **/
-Stmt GenerateBodyStmt(const Array<PrimExpr>& indices, const Array<Buffer>& buffers,
-                      const Map<Var, PrimExpr>& var_map, PrimExpr expr_body, CreateFuncInfo* info,
-                      arith::Analyzer* analyzer) {
+Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buffer>& buffers,
+                      const ffi::Map<Var, PrimExpr>& var_map, PrimExpr expr_body,
+                      CreateFuncInfo* info, arith::Analyzer* analyzer) {
   // helper to transform the expr and remap iters to the block domain
   auto f_transform_and_remap = [&](const PrimExpr& e) {
     return Substitute(info->transformer(e), var_map);
@@ -373,8 +374,8 @@ Stmt GenerateBodyStmt(const Array<PrimExpr>& indices, const Array<Buffer>& buffe
     // Case 1. Reduce compute
     int n_buffers = buffers.size();
 
-    Array<PrimExpr> lhs;
-    Array<PrimExpr> rhs;
+    ffi::Array<PrimExpr> lhs;
+    ffi::Array<PrimExpr> rhs;
     lhs.reserve(n_buffers);
     rhs.reserve(n_buffers);
 
@@ -389,8 +390,8 @@ Stmt GenerateBodyStmt(const Array<PrimExpr>& indices, const Array<Buffer>& buffe
       ICHECK_EQ(left->dtype, right->dtype);
     }
 
-    Array<Var> temp_vars;
-    Array<Stmt> body_stmts;
+    ffi::Array<Var> temp_vars;
+    ffi::Array<Stmt> body_stmts;
     temp_vars.reserve(n_buffers);
     body_stmts.reserve(n_buffers);
 
@@ -433,16 +434,16 @@ struct NestedScopeInfo {
   // loop var and range in the scope.
   std::vector<std::pair<Var, Range>> loop_vars;
   // block iters for current level's block.
-  Array<IterVar> block_iters;
+  ffi::Array<IterVar> block_iters;
   // block bindings for current level's block.
-  Array<PrimExpr> bindings;
+  ffi::Array<PrimExpr> bindings;
   // store indices for current level's block.
-  Array<PrimExpr> store_indices;
+  ffi::Array<PrimExpr> store_indices;
   // mapping from original TE compute axes to new block vars.
-  Map<Var, PrimExpr> axes_remap;
+  ffi::Map<Var, PrimExpr> axes_remap;
 
   // helper to add new block var
-  void AddBlockIter(const Optional<IterVar>& origin_axis, const IterVar& iter,
+  void AddBlockIter(const ffi::Optional<IterVar>& origin_axis, const IterVar& iter,
                     const PrimExpr& value) {
     block_iters.push_back(iter);
     bindings.push_back(value);
@@ -455,9 +456,9 @@ struct NestedScopeInfo {
   }
 
   // helper to renew leaf block var defs to ensure SSA.
-  void Renew(const Array<IterVar>& origin_axes) {
+  void Renew(const ffi::Array<IterVar>& origin_axes) {
     block_iters.MutateByApply([](const IterVar& itervar) {
-      auto n = make_object<IterVarNode>(*itervar.get());
+      auto n = ffi::make_object<IterVarNode>(*itervar.get());
       n->var = n->var.copy_with_suffix("");
       return IterVar(n);
     });
@@ -474,7 +475,7 @@ struct NestedScopeInfo {
 Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* info,
                              arith::Analyzer* analyzer) {
   // Step 1. Collect all iter axes in original TE compute op
-  Array<IterVar> axes = compute_op->axis;
+  ffi::Array<IterVar> axes = compute_op->axis;
   axes.insert(axes.end(), compute_op->reduce_axis.begin(), compute_op->reduce_axis.end());
 
   // Step 2. Prepare nested iteration scopes.
@@ -528,12 +529,12 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   }
 
   // Step 3. Generate output buffers for each output tensor
-  Array<Buffer> buffers = GenerateOutputBuffers(compute_op, info);
+  ffi::Array<Buffer> buffers = GenerateOutputBuffers(compute_op, info);
 
   // Step 4. Generate leaf block stmts.
-  Array<Stmt> seq_stmt;
+  ffi::Array<Stmt> seq_stmt;
   auto leaf = scopes.back();
-  Map<String, ffi::Any> annotations = GenerateBlockAnnotations(compute_op, info);
+  ffi::Map<ffi::String, ffi::Any> annotations = GenerateBlockAnnotations(compute_op, info);
   const ReduceNode* reduce = compute_op->body[0].as<ReduceNode>();
   if (reduce) {
     PrimExpr expr_body = compute_op->body[0];
@@ -585,7 +586,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
       auto block_name = info->FreshName(compute_op->name + "_l" + std::to_string(i));
       const auto& block_iters = cur.block_iters;
 
-      Optional<Stmt> init{std::nullopt};
+      ffi::Optional<Stmt> init{std::nullopt};
       if (reduce && std::any_of(block_iters.begin(), block_iters.end(), [](const IterVar& iter) {
             return iter->iter_type == IterVarType::kCommReduce;
           })) {
@@ -666,13 +667,13 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
                             /*annotations=*/extern_op->attrs));
 }
 
-Array<te::Operation> CollectOrderedOps(const Array<te::Tensor>& arg_list) {
-  Array<te::Operation> arg_ops;
+ffi::Array<te::Operation> CollectOrderedOps(const ffi::Array<te::Tensor>& arg_list) {
+  ffi::Array<te::Operation> arg_ops;
   for (const te::Tensor& arg : arg_list) {
     arg_ops.push_back(arg->op);
   }
   te::ReadGraph g = te::CreateReadGraph(arg_ops);
-  Array<te::Operation> order = te::PostDFSOrder(arg_ops, g);
+  ffi::Array<te::Operation> order = te::PostDFSOrder(arg_ops, g);
 
   for (const te::Operation& op : order) {
     if (!(op->IsInstance<te::PlaceholderOpNode>() || op->IsInstance<te::ComputeOpNode>() ||
@@ -683,7 +684,7 @@ Array<te::Operation> CollectOrderedOps(const Array<te::Tensor>& arg_list) {
   return order;
 }
 
-void InitializeBufferBinds(const Array<te::Operation>& ordered_ops, CreateFuncInfo* info) {
+void InitializeBufferBinds(const ffi::Array<te::Operation>& ordered_ops, CreateFuncInfo* info) {
   // Process any TE operations which contain user defined buffers
   for (const auto& op : ordered_ops) {
     // Initialize the tensor2buffer binds map with buffers defined by the te.extern
@@ -698,8 +699,8 @@ void InitializeBufferBinds(const Array<te::Operation>& ordered_ops, CreateFuncIn
   }
 }
 
-void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info, Array<Stmt>* root_stmts,
-                         arith::Analyzer* analyzer) {
+void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info,
+                         ffi::Array<Stmt>* root_stmts, arith::Analyzer* analyzer) {
   if (const auto* placeholder = op.as<te::PlaceholderOpNode>()) {
     // Case 1. PlaceholderOp (te.placeholder)
     ICHECK_EQ(op->num_outputs(), 1);
@@ -727,10 +728,10 @@ void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info, Array<St
   }
 }
 
-PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list,
-                                     const Array<Stmt>& root_stmts, CreateFuncInfo* info) {
-  Array<Var> parameters;
-  Map<Var, Buffer> buffer_map;
+PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<te::Tensor>& arg_list,
+                                     const ffi::Array<Stmt>& root_stmts, CreateFuncInfo* info) {
+  ffi::Array<Var> parameters;
+  ffi::Map<Var, Buffer> buffer_map;
   for (const te::Tensor& tensor : arg_list) {
     Var arg("var_" + tensor->GetNameHint(), PrimType(DataType::Handle()));
     parameters.push_back(arg);
@@ -742,25 +743,25 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list,
                                      /*body=*/SeqStmt::Flatten(root_stmts),
                                      /*ret_type=*/VoidType(),
                                      /*buffer_map=*/std::move(buffer_map)),
-                            {{"global_symbol", String("main")}, {"tir.noalias", true}});
+                            {{"global_symbol", ffi::String("main")}, {"tir.noalias", true}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
   ICHECK(fcomplete.has_value());
   func = (*fcomplete)(std::move(func), info->root_alloc).cast<PrimFunc>();
   return func;
 }
 
-PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
-                                     const Array<runtime::Tensor>& constants,
+PrimFunc CreatePrimFuncWithConstants(const ffi::Array<te::Tensor>& arg_list,
+                                     const ffi::Array<runtime::Tensor>& constants,
                                      std::optional<DataType> index_dtype_override) {
   // Information used in CreatePrimFunc and its sub-functions.
   CreateFuncInfo info(arg_list);
   // Root body stmts.
-  Array<Stmt> root_stmts;
+  ffi::Array<Stmt> root_stmts;
   // Analyzer
   arith::Analyzer analyzer;
 
   // Step 1. Create ordered array of operations and validate they are supported.
-  Array<te::Operation> order = CollectOrderedOps(arg_list);
+  ffi::Array<te::Operation> order = CollectOrderedOps(arg_list);
 
   // Step 2. Initialize buffer binds map
   InitializeBufferBinds(order, &info);
@@ -780,7 +781,7 @@ PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
   return result;
 }
 
-PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
+PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
                         std::optional<DataType> index_dtype_override) {
   return CreatePrimFuncWithConstants(arg_list, {}, index_dtype_override);
 }
@@ -788,7 +789,7 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("te.CreatePrimFunc", [](ffi::PackedArgs args, ffi::Any* ret) {
-    Array<ObjectRef> arg_list = args[0].cast<Array<ObjectRef>>();
+    ffi::Array<ObjectRef> arg_list = args[0].cast<ffi::Array<ObjectRef>>();
     std::optional<DataType> index_dtype_override{std::nullopt};
     // Add conversion to make std::optional compatible with FFI.
     if (args[1] != nullptr) {
@@ -799,10 +800,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 // Relax version impl
-PrimFunc GenerateAndCompletePrimFunc(const Array<ObjectRef>& arg_tir_var_list,
-                                     const Array<Stmt>& root_stmts, CreateFuncInfo* info) {
-  Array<Var> parameters;
-  Map<Var, Buffer> buffer_map;
+PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ObjectRef>& arg_tir_var_list,
+                                     const ffi::Array<Stmt>& root_stmts, CreateFuncInfo* info) {
+  ffi::Array<Var> parameters;
+  ffi::Map<Var, Buffer> buffer_map;
   for (const ObjectRef& arg : arg_tir_var_list) {
     if (auto opt_tensor = arg.as<te::Tensor>()) {
       te::Tensor tensor = opt_tensor.value();
@@ -819,32 +820,32 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<ObjectRef>& arg_tir_var_list,
                                      /*body=*/SeqStmt::Flatten(root_stmts),
                                      /*ret_type=*/VoidType(),
                                      /*buffer_map=*/std::move(buffer_map)),
-                            {{"global_symbol", String("main")}, {"tir.noalias", true}});
+                            {{"global_symbol", ffi::String("main")}, {"tir.noalias", true}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
   ICHECK(fcomplete.has_value());
   func = (*fcomplete)(std::move(func), info->root_alloc).cast<PrimFunc>();
   return func;
 }
 
-PrimFunc CreatePrimFuncWithConstants(const Array<ObjectRef>& arg_list,
-                                     const Array<runtime::Tensor>& constants,
+PrimFunc CreatePrimFuncWithConstants(const ffi::Array<ObjectRef>& arg_list,
+                                     const ffi::Array<runtime::Tensor>& constants,
                                      std::optional<DataType> index_dtype_override) {
-  Array<te::Tensor> tensor_arg_list;
+  ffi::Array<te::Tensor> tensor_arg_list;
   for (const ObjectRef& x : arg_list) {
     if (auto tensor_node = x.as<te::TensorNode>()) {
-      te::Tensor tensor = GetRef<te::Tensor>(tensor_node);
+      te::Tensor tensor = ffi::GetRef<te::Tensor>(tensor_node);
       tensor_arg_list.push_back(tensor);
     }
   }
   // Infomations used in CreatePrimFunc and its sub-functions.
   CreateFuncInfo info(tensor_arg_list);
   // Root body stmts.
-  Array<Stmt> root_stmts;
+  ffi::Array<Stmt> root_stmts;
   // Analyzer
   arith::Analyzer analyzer;
 
   // Step 1. Create ordered array of operations and validate they are supported.
-  Array<te::Operation> order = CollectOrderedOps(tensor_arg_list);
+  ffi::Array<te::Operation> order = CollectOrderedOps(tensor_arg_list);
 
   // Step 2. Initialize buffer binds map
   InitializeBufferBinds(order, &info);
@@ -862,7 +863,7 @@ PrimFunc CreatePrimFuncWithConstants(const Array<ObjectRef>& arg_list,
   return result;
 }
 
-PrimFunc CreatePrimFunc(const Array<ObjectRef>& arg_list,
+PrimFunc CreatePrimFunc(const ffi::Array<ObjectRef>& arg_list,
                         std::optional<DataType> index_dtype_override) {
   return CreatePrimFuncWithConstants(arg_list, {}, index_dtype_override);
 }

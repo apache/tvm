@@ -43,11 +43,11 @@ using namespace tvm::script::printer;
 class DeclareDocNode : public ExprDocNode {
  public:
   /*! \brief The type of the variable */
-  Optional<ExprDoc> type;
+  ffi::Optional<ExprDoc> type;
   /*! \brief The variable */
   ExprDoc variable{nullptr};
   /*! \brief The init arguments for the variable. */
-  Array<ExprDoc> init_args;
+  ffi::Array<ExprDoc> init_args;
   /*! \brief Whether to use constructor(otherwise initializer) */
   bool use_constructor{true};
 
@@ -78,7 +78,7 @@ class DeclareDoc : public ExprDoc {
    * \param init_args The init arguments of the variable.
    * \param use_constructor Whether to use constructor(otherwise initializer).
    */
-  explicit DeclareDoc(Optional<ExprDoc> type, ExprDoc variable, Array<ExprDoc> init_args,
+  explicit DeclareDoc(ffi::Optional<ExprDoc> type, ExprDoc variable, ffi::Array<ExprDoc> init_args,
                       bool use_constructor);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(DeclareDoc, ExprDoc, DeclareDocNode);
 };
@@ -130,7 +130,7 @@ class StrictListDoc : public ExprDoc {
 class PointerDocNode : public ExprDocNode {
  public:
   /*! \brief The name of the identifier */
-  String name;
+  ffi::String name;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -152,7 +152,7 @@ class PointerDoc : public ExprDoc {
    * \brief Constructor of PointerDoc.
    * \param name The name of identifier.
    */
-  explicit PointerDoc(String name);
+  explicit PointerDoc(ffi::String name);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(PointerDoc, ExprDoc, PointerDocNode);
 };
 
@@ -166,9 +166,9 @@ class StructDocNode : public StmtDocNode {
   /*! \brief The name of class. */
   IdDoc name{nullptr};
   /*! \brief Decorators of class. */
-  Array<ExprDoc> decorators;
+  ffi::Array<ExprDoc> decorators;
   /*! \brief The body of class. */
-  Array<StmtDoc> body;
+  ffi::Array<StmtDoc> body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -195,7 +195,7 @@ class StructDoc : public StmtDoc {
    * \param decorators The decorator of class.
    * \param body The body of class.
    */
-  explicit StructDoc(IdDoc name, Array<ExprDoc> decorators, Array<StmtDoc> body);
+  explicit StructDoc(IdDoc name, ffi::Array<ExprDoc> decorators, ffi::Array<StmtDoc> body);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(StructDoc, StmtDoc, StructDocNode);
 };
 
@@ -215,9 +215,9 @@ class ConstructorDocNode : public StmtDocNode {
    * `annotation` means argument type,
    * and `rhs` means default value.
    */
-  Array<AssignDoc> args;
+  ffi::Array<AssignDoc> args;
   /*! \brief The body of function. */
-  Array<StmtDoc> body;
+  ffi::Array<StmtDoc> body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -244,7 +244,7 @@ class ConstructorDoc : public StmtDoc {
    * \param args The arguments of function.
    * \param body The body of function.
    */
-  explicit ConstructorDoc(IdDoc name, Array<AssignDoc> args, Array<StmtDoc> body);
+  explicit ConstructorDoc(IdDoc name, ffi::Array<AssignDoc> args, ffi::Array<StmtDoc> body);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ConstructorDoc, StmtDoc, ConstructorDocNode);
 };
 
@@ -256,11 +256,11 @@ class ConstructorDoc : public StmtDoc {
 class SwitchDocNode : public StmtDocNode {
  public:
   /*! \brief The predicates of the switch statement. */
-  Array<ExprDoc> predicates;
+  ffi::Array<ExprDoc> predicates;
   /*! \brief The branchs of the switch statement. */
-  Array<Array<StmtDoc>> branchs;
+  ffi::Array<ffi::Array<StmtDoc>> branchs;
   /*! \brief The default_branch of the switch statement. */
-  Array<StmtDoc> default_branch;
+  ffi::Array<StmtDoc> default_branch;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -287,8 +287,8 @@ class SwitchDoc : public StmtDoc {
    * \param branchs The branchs of the switch statement.
    * \param default_branch The default_branch of the switch statement.
    */
-  explicit SwitchDoc(Array<ExprDoc> predicates, Array<Array<StmtDoc>> branchs,
-                     Array<StmtDoc> default_branch);
+  explicit SwitchDoc(ffi::Array<ExprDoc> predicates, ffi::Array<ffi::Array<StmtDoc>> branchs,
+                     ffi::Array<StmtDoc> default_branch);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(SwitchDoc, StmtDoc, SwitchDocNode);
 };
 
@@ -308,11 +308,11 @@ class LambdaDocNode : public StmtDocNode {
    * `annotation` means argument type,
    * and `rhs` means default value.
    */
-  Array<AssignDoc> args;
+  ffi::Array<AssignDoc> args;
   /*! \brief References of lambda. */
-  Array<ExprDoc> refs;
+  ffi::Array<ExprDoc> refs;
   /*! \brief The body of lambda. */
-  Array<StmtDoc> body;
+  ffi::Array<StmtDoc> body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -341,7 +341,8 @@ class LambdaDoc : public StmtDoc {
    * \param refs The references of lambda.
    * \param body The body of lambda.
    */
-  explicit LambdaDoc(IdDoc name, Array<AssignDoc> args, Array<ExprDoc> refs, Array<StmtDoc> body);
+  explicit LambdaDoc(IdDoc name, ffi::Array<AssignDoc> args, ffi::Array<ExprDoc> refs,
+                     ffi::Array<StmtDoc> body);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(LambdaDoc, StmtDoc, LambdaDocNode);
 };
 

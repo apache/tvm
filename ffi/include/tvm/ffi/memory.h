@@ -225,7 +225,5 @@ inline ObjectPtr<ArrayType> make_inplace_array_object(size_t num_elems, Args&&..
 }
 
 }  // namespace ffi
-
-using ffi::make_object;
 }  // namespace tvm
 #endif  // TVM_FFI_MEMORY_H_

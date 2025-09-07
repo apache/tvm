@@ -40,14 +40,14 @@ namespace relax {
 namespace {
 class ParamStructInfoMutator : public ExprMutator {
  public:
-  explicit ParamStructInfoMutator(ffi::TypedFunction<Optional<StructInfo>(Var)> sinfo_func)
+  explicit ParamStructInfoMutator(ffi::TypedFunction<ffi::Optional<StructInfo>(Var)> sinfo_func)
       : sinfo_func_(sinfo_func) {}
 
   using ExprMutator::VisitExpr_;
   using ExprMutator::VisitVarDef_;
 
   Expr VisitExpr_(const FunctionNode* op) override {
-    auto func = GetRef<Function>(op);
+    auto func = ffi::GetRef<Function>(op);
 
     auto params = op->params.Map([this](Var param) {
       if (auto new_sinfo = sinfo_func_(param)) {
@@ -65,12 +65,12 @@ class ParamStructInfoMutator : public ExprMutator {
     return ExprMutator::VisitExpr_(func.get());
   }
 
-  ffi::TypedFunction<Optional<StructInfo>(Var)> sinfo_func_;
+  ffi::TypedFunction<ffi::Optional<StructInfo>(Var)> sinfo_func_;
 };
 }  // namespace
 
 namespace transform {
-Pass UpdateParamStructInfo(ffi::TypedFunction<Optional<StructInfo>(Var)> sinfo_func) {
+Pass UpdateParamStructInfo(ffi::TypedFunction<ffi::Optional<StructInfo>(Var)> sinfo_func) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     ParamStructInfoMutator mutator(sinfo_func);
 

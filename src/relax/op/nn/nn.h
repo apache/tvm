@@ -83,19 +83,19 @@ Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_
                 int axis, double epsilon, bool center, bool scale, double momentum, bool training);
 
 /*! \brief Compute layer normalization. */
-Expr layer_norm(Expr data, Expr gamma, Expr beta, Array<Integer> axes, double epsilon, bool center,
-                bool scale);
+Expr layer_norm(Expr data, Expr gamma, Expr beta, ffi::Array<Integer> axes, double epsilon,
+                bool center, bool scale);
 
 /*! \brief Compute group normalization. */
 Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_axis,
-                Array<Integer> axes, double epsilon, bool center, bool scale);
+                ffi::Array<Integer> axes, double epsilon, bool center, bool scale);
 
 /*! \brief Compute instance normalization. */
-Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, Array<Integer> axes,
+Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, ffi::Array<Integer> axes,
                    double epsilon, bool center, bool scale);
 
 /*! \brief Compute root mean square normalization. */
-Expr rms_norm(Expr data, Expr weight, Array<Integer> axes, double epsilon);
+Expr rms_norm(Expr data, Expr weight, ffi::Array<Integer> axes, double epsilon);
 
 /*!
  * \brief Applies the dropout operation to the input tensor.
@@ -111,7 +111,7 @@ Expr dropout(Expr data, double rate);
 Expr cross_entropy_with_logits(Expr predictions, Expr labels);
 
 /*! \brief Negative log likelihood loss. */
-Expr nll_loss(Expr predictions, Expr targets, Optional<Expr> weights, String reduction,
+Expr nll_loss(Expr predictions, Expr targets, ffi::Optional<Expr> weights, ffi::String reduction,
               int ignore_index);
 
 }  // namespace relax

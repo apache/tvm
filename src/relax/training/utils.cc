@@ -39,13 +39,13 @@ namespace relax {
 /*! \brief Append the loss function to the backbone function in an IRModule.*/
 class AppendLossMutator : private ExprMutator {
  public:
-  static IRModule Transform(IRModule mod, String func_name, Function loss_function,
-                            int num_backbone_outputs, Optional<String> new_func_name) {
+  static IRModule Transform(IRModule mod, ffi::String func_name, Function loss_function,
+                            int num_backbone_outputs, ffi::Optional<ffi::String> new_func_name) {
     auto* old_func = mod->Lookup(func_name).as<FunctionNode>();
     CHECK(old_func) << func_name << "is not a Relax Function";
 
     // functions should be copied to satisfy the well-formed check
-    Function new_func = CopyWithNewVars(GetRef<Function>(old_func));
+    Function new_func = CopyWithNewVars(ffi::GetRef<Function>(old_func));
     Function new_loss_func = CopyWithNewVars(loss_function);
 
     AppendLossMutator mutator(mod, new_loss_func, num_backbone_outputs);
@@ -53,7 +53,7 @@ class AppendLossMutator : private ExprMutator {
         WithAttr(Downcast<Function>(mutator.VisitExpr(new_func)), tvm::attr::kGlobalSymbol,
                  new_func_name.value_or(func_name + "_loss"));
 
-    auto new_module = GetRef<IRModule>(mod.CopyOnWrite());
+    auto new_module = ffi::GetRef<IRModule>(mod.CopyOnWrite());
     auto new_var = GlobalVar(new_func_name.value_or(func_name + "_loss"));
     new_module->Add(new_var, new_func_transformed);
     return new_module;
@@ -73,7 +73,7 @@ class AppendLossMutator : private ExprMutator {
     CheckAndRemapBackboneReturn();
     CheckAndRemapLossParams(loss_function_->params);
 
-    Array<Var> new_params = func->params;
+    ffi::Array<Var> new_params = func->params;
     new_params.insert(new_params.end(), loss_function_->params.begin() + num_backbone_outputs_,
                       loss_function_->params.end());
     Expr new_body = this->VisitExpr(func->body);
@@ -85,8 +85,8 @@ class AppendLossMutator : private ExprMutator {
     CHECK(seq_expr->blocks.size() == 1 && seq_expr->blocks[0]->IsInstance<DataflowBlockNode>())
         << "Backbone should have only one DataflowBlock";
 
-    auto new_blocks = Array<BindingBlock>({this->VisitBindingBlock(seq_expr->blocks[0])});
-    auto ret = Array<Expr>({loss_body_->body});
+    auto new_blocks = ffi::Array<BindingBlock>({this->VisitBindingBlock(seq_expr->blocks[0])});
+    auto ret = ffi::Array<Expr>({loss_body_->body});
     ret.insert(ret.end(), backbone_return_arr_.begin() + num_backbone_outputs_,
                backbone_return_arr_.end());
     return SeqExpr(new_blocks, ret.size() == 1 ? ret[0] : Tuple(ret));
@@ -118,22 +118,22 @@ class AppendLossMutator : private ExprMutator {
     CHECK(loss_body_->blocks.size() == 1 && loss_body_->blocks[0]->IsInstance<DataflowBlockNode>())
         << "The loss function should have only one DataflowBlock";
     auto var_node = loss_body_->body.as<VarNode>();
-    CHECK(var_node && IsScalarTensor(GetRef<Var>(var_node)))
+    CHECK(var_node && IsScalarTensor(ffi::GetRef<Var>(var_node)))
         << "The loss function must return a scalar(0-dim Tensor) Var";
   }
 
   /*!
-   * \brief Convert the return value of the backbone to Array<Var>. The backbone should return one
-   * or a tuple of Vars.
+   * \brief Convert the return value of the backbone to ffi::Array<Var>. The backbone should return
+   * one or a tuple of Vars.
    */
   void BackboneReturnToArr(const Expr& backbone_return) {
     if (auto* var = backbone_return.as<VarNode>()) {
-      backbone_return_arr_.push_back(GetRef<Var>(var));
+      backbone_return_arr_.push_back(ffi::GetRef<Var>(var));
     } else if (auto* tuple = backbone_return.as<TupleNode>()) {
       for (auto i : tuple->fields) {
         auto var = i.as<VarNode>();
         CHECK(var) << "The return value of the backbone should be either a Var or a Tuple of Vars";
-        backbone_return_arr_.push_back(GetRef<Var>(var));
+        backbone_return_arr_.push_back(ffi::GetRef<Var>(var));
       }
     } else {
       LOG(FATAL) << "The return value of the backbone should be either a Var or a Tuple of Vars";
@@ -145,7 +145,7 @@ class AppendLossMutator : private ExprMutator {
    * and the elements in backbone_return_arr_ and loss_func_params have matched struct_info. Also
    * sets up var_remap_ from loss parameter Vars to backbone returned Vars.
    */
-  void CheckAndRemapLossParams(const Array<Var>& loss_func_params) {
+  void CheckAndRemapLossParams(const ffi::Array<Var>& loss_func_params) {
     static StructuralEqual checker;
     CHECK(static_cast<int>(loss_func_params.size()) >= num_backbone_outputs_)
         << "The number of parameters of the loss function is " << loss_func_params.size()
@@ -199,13 +199,13 @@ class AppendLossMutator : private ExprMutator {
   /*! \brief The body of the loss function */
   SeqExpr loss_body_;
   /*! \brief The unpacked return values of the backbone. All return values should be Vars. */
-  Array<Var> backbone_return_arr_;
+  ffi::Array<Var> backbone_return_arr_;
 };
 
 namespace transform {
 
-Pass AppendLoss(String func_name, Function loss_function, int num_backbone_outputs,
-                Optional<String> new_func_name) {
+Pass AppendLoss(ffi::String func_name, Function loss_function, int num_backbone_outputs,
+                ffi::Optional<ffi::String> new_func_name) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     return relax::AppendLossMutator::Transform(mod, func_name, loss_function, num_backbone_outputs,
                                                new_func_name);

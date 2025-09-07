@@ -68,7 +68,7 @@ class VMClosureObj : public Object {
    * \brief The function name. The function could be any
    * function object that is compatible to the VM runtime.
    */
-  String func_name;
+  ffi::String func_name;
 
   /*!
    * \brief The implementation of the Closure.
@@ -85,7 +85,7 @@ class VMClosureObj : public Object {
 /*! \brief reference to closure. */
 class VMClosure : public ObjectRef {
  public:
-  VMClosure(String func_name, ffi::Function impl);
+  VMClosure(ffi::String func_name, ffi::Function impl);
   TVM_DEFINE_OBJECT_REF_METHODS(VMClosure, ObjectRef, VMClosureObj);
 
   /*!
@@ -149,7 +149,7 @@ class VirtualMachine : public ffi::ModuleObj {
    * \param func_name The name of the function.
    * \return The closure
    */
-  virtual VMClosure GetClosure(const String& func_name) = 0;
+  virtual VMClosure GetClosure(const ffi::String& func_name) = 0;
   /*!
    * \brief Invoke closure or packed function using ffi::Function convention.
    * \param closure_or_packedfunc A VM closure or a packed_func.

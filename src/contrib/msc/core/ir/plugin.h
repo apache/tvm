@@ -254,13 +254,13 @@ struct JsonPlugin {
 class PluginAttrNode : public Object {
  public:
   /*! \brief The name of attribute. */
-  String name;
+  ffi::String name;
   /*! \brief The type of attribute. */
-  String type;
+  ffi::String type;
   /*! \brief The default_value of attribute. */
-  String default_value;
+  ffi::String default_value;
   /*! \brief The describe of attribute. */
-  String describe;
+  ffi::String describe;
 
   /*! \brief Export attribute to json. */
   const JsonPluginAttr ToJson() const;
@@ -296,8 +296,8 @@ class PluginAttr : public ObjectRef {
    * \param default_value The default_value of the attribute.
    * \param describe The describe of the attribute.
    */
-  TVM_DLL PluginAttr(const String& name, const String& type, const String& default_value,
-                     const String& describe);
+  TVM_DLL PluginAttr(const ffi::String& name, const ffi::String& type,
+                     const ffi::String& default_value, const ffi::String& describe);
 
   /*!
    * \brief The json constructor.
@@ -320,15 +320,15 @@ class PluginAttr : public ObjectRef {
 class PluginTensorNode : public Object {
  public:
   /*! \brief The name of tensor. */
-  String name;
+  ffi::String name;
   /*! \brief The dtype of tensor. */
-  String dtype;
+  ffi::String dtype;
   /*! \brief The ndim of tensor. */
   Integer ndim;
   /*! \brief The device of tensor. */
-  String device;
+  ffi::String device;
   /*! \brief The describe of tensor. */
-  String describe;
+  ffi::String describe;
 
   /*! \brief Export tensor to json. */
   const JsonPluginTensor ToJson() const;
@@ -366,8 +366,8 @@ class PluginTensor : public ObjectRef {
    * \param device The device of the tensor.
    * \param describe The describe of the tensor.
    */
-  TVM_DLL PluginTensor(const String& name, const String& dtype, const Integer& ndim,
-                       const String& device, const String& describe);
+  TVM_DLL PluginTensor(const ffi::String& name, const ffi::String& dtype, const Integer& ndim,
+                       const ffi::String& device, const ffi::String& describe);
 
   /*!
    * \brief The json constructor.
@@ -390,15 +390,15 @@ class PluginTensor : public ObjectRef {
 class PluginExternNode : public Object {
  public:
   /*! \brief The name of extern. */
-  String name;
+  ffi::String name;
   /*! \brief The header of extern. */
-  String header;
+  ffi::String header;
   /*! \brief The source of extern. */
-  String source;
+  ffi::String source;
   /*! \brief The lib of extern. */
-  String lib;
+  ffi::String lib;
   /*! \brief The describe of extern. */
-  String describe;
+  ffi::String describe;
 
   /*! \brief Export extern to json. */
   const JsonPluginExtern ToJson() const;
@@ -436,8 +436,9 @@ class PluginExtern : public ObjectRef {
    * \param lib The lib of the extern.
    * \param describe The describe of the extern.
    */
-  TVM_DLL PluginExtern(const String& name, const String& header, const String& source,
-                       const String& lib, const String& describe);
+  TVM_DLL PluginExtern(const ffi::String& name, const ffi::String& header,
+                       const ffi::String& source, const ffi::String& lib,
+                       const ffi::String& describe);
 
   /*!
    * \brief The json constructor.
@@ -460,25 +461,25 @@ class PluginExtern : public ObjectRef {
 class PluginNode : public Object {
  public:
   /*! \brief The name of plugin. */
-  String name;
+  ffi::String name;
   /*! \brief The version of plugin. */
-  String version;
+  ffi::String version;
   /*! \brief The describe of plugin. */
-  String describe;
+  ffi::String describe;
   /*! \brief The attributes of plugin. */
-  Array<PluginAttr> attrs;
+  ffi::Array<PluginAttr> attrs;
   /*! \brief The inputs of plugin. */
-  Array<PluginTensor> inputs;
+  ffi::Array<PluginTensor> inputs;
   /*! \brief The outputs of plugin. */
-  Array<PluginTensor> outputs;
+  ffi::Array<PluginTensor> outputs;
   /*! \brief The buffers of plugin. */
-  Array<PluginTensor> buffers;
+  ffi::Array<PluginTensor> buffers;
   /*! \brief The externs of plugin. */
-  Map<String, PluginExtern> externs;
+  ffi::Map<ffi::String, PluginExtern> externs;
   /*! \brief The support_dtypes of plugin. */
-  Map<String, Array<String>> support_dtypes;
+  ffi::Map<ffi::String, ffi::Array<ffi::String>> support_dtypes;
   /*! \brief The options of plugin. */
-  Map<String, String> options;
+  ffi::Map<ffi::String, ffi::String> options;
 
   /*! \brief Export plugin to json. */
   const JsonPlugin ToJson() const;
@@ -531,12 +532,12 @@ class Plugin : public ObjectRef {
    * \param support_dtypes The support_dtypes of the plugin.
    * \param options The options of the plugin.
    */
-  TVM_DLL Plugin(const String& name, const String& version, const String& describe,
-                 const Array<PluginAttr>& attrs, const Array<PluginTensor>& inputs,
-                 const Array<PluginTensor>& outputs, const Array<PluginTensor>& buffers,
-                 const Map<String, PluginExtern>& externs,
-                 const Map<String, Array<String>>& support_dtypes,
-                 const Map<String, String>& options);
+  TVM_DLL Plugin(const ffi::String& name, const ffi::String& version, const ffi::String& describe,
+                 const ffi::Array<PluginAttr>& attrs, const ffi::Array<PluginTensor>& inputs,
+                 const ffi::Array<PluginTensor>& outputs, const ffi::Array<PluginTensor>& buffers,
+                 const ffi::Map<ffi::String, PluginExtern>& externs,
+                 const ffi::Map<ffi::String, ffi::Array<ffi::String>>& support_dtypes,
+                 const ffi::Map<ffi::String, ffi::String>& options);
 
   /*!
    * \brief The json constructor.
@@ -561,7 +562,7 @@ class PluginRegistry {
    * \param json_str The json_str.
    * \return The corresponding entry.
    */
-  bool Register(const String& name, const String& json_str) {
+  bool Register(const ffi::String& name, const ffi::String& json_str) {
     plugin_map_[name] = Plugin(json_str);
     return true;
   }
@@ -571,7 +572,7 @@ class PluginRegistry {
    * \param name The name of the item.
    * \return Whether the plugin is registered.
    */
-  bool Registered(const String& name) const {
+  bool Registered(const ffi::String& name) const {
     auto it = plugin_map_.find(name);
     return it != plugin_map_.end();
   }
@@ -581,7 +582,7 @@ class PluginRegistry {
    * \param name The name of the item.
    * \return The corresponding plugin.
    */
-  const Plugin Get(const String& name) const {
+  const Plugin Get(const ffi::String& name) const {
     auto it = plugin_map_.find(name);
     ICHECK(it != plugin_map_.end()) << "Can not find plugin " << name;
     return it->second;
@@ -591,8 +592,8 @@ class PluginRegistry {
    * \brief List all the plugin names in the registry.
    * \return The plugin names.
    */
-  Array<String> ListAllNames() const {
-    Array<String> names;
+  ffi::Array<ffi::String> ListAllNames() const {
+    ffi::Array<ffi::String> names;
     for (const auto& kv : plugin_map_) {
       names.push_back(kv.first);
     }
@@ -609,28 +610,28 @@ class PluginRegistry {
 
  private:
   // map from name to plugins.
-  std::unordered_map<String, Plugin> plugin_map_;
+  std::unordered_map<ffi::String, Plugin> plugin_map_;
 };
 
 /*!
  * \brief List all plugin names.
  * \return the corresponding plugin names.
  */
-const Array<String> ListPluginNames();
+const ffi::Array<ffi::String> ListPluginNames();
 
 /*!
  * \brief Get the registered plugin.
  * \param name The name of the Plugin.
  * \return the corresponding plugin.
  */
-const Plugin GetPlugin(const String& name);
+const Plugin GetPlugin(const ffi::String& name);
 
 /*!
  * \brief Check if an plugin is registered.
  * \param name The name of the item.
  * \return Whether the plugin is registered.
  */
-bool IsPlugin(const String& name);
+bool IsPlugin(const ffi::String& name);
 
 }  // namespace msc
 }  // namespace contrib

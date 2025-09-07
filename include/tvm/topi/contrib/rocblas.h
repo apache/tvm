@@ -48,7 +48,7 @@ inline Tensor rocblas_matmul(const Tensor& lhs, const Tensor& rhs, bool transa, 
 
   return make_extern(
       {{n, m}}, {lhs->dtype}, {lhs, rhs},
-      [&](Array<Buffer> ins, Array<Buffer> outs) {
+      [&](ffi::Array<Buffer> ins, ffi::Array<Buffer> outs) {
         return call_packed({StringImm("tvm.contrib.rocblas.matmul"), pack_buffer(ins[0]),
                             pack_buffer(ins[1]), pack_buffer(outs[0]), transa, transb});
       },
@@ -71,7 +71,7 @@ inline Tensor rocblas_batch_matmul(const Tensor& lhs, const Tensor& rhs, bool tr
 
   return make_extern(
       {{batch_size, n, m}}, {lhs->dtype}, {lhs, rhs},
-      [&](Array<Buffer> ins, Array<Buffer> outs) {
+      [&](ffi::Array<Buffer> ins, ffi::Array<Buffer> outs) {
         return call_packed({StringImm("tvm.contrib.rocblas.batch_matmul"), pack_buffer(ins[0]),
                             pack_buffer(ins[1]), pack_buffer(outs[0]), transa, transb});
       },

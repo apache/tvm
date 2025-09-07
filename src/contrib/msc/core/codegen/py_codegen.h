@@ -70,8 +70,9 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
   }
 
   /*! \brief Get sources*/
-  virtual const Map<String, String> GetSources(const std::string& print_options = "") {
-    Map<String, String> sources;
+  virtual const ffi::Map<ffi::String, ffi::String> GetSources(
+      const std::string& print_options = "") {
+    ffi::Map<ffi::String, ffi::String> sources;
     PythonPrinter printer(print_options);
     CodeGenScript();
     for (const auto& d : this->stack_.GetDocs()) {
@@ -83,7 +84,7 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
 
  protected:
   /*! \brief Describe the prim*/
-  virtual const String DescribePrim(const MSCPrim& prim) {
+  virtual const ffi::String DescribePrim(const MSCPrim& prim) {
     // binary ops
     DESCRIBE_PRIM_BINARY("Min", "min", true)
     DESCRIBE_PRIM_BINARY("Max", "max", true)
@@ -216,7 +217,7 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
   virtual void CodeGenInference() = 0;
 
   /*! \brief Get tensor type of the framework*/
-  virtual const String TensorType() const { return "np.ndarray"; }
+  virtual const ffi::String TensorType() const { return "np.ndarray"; }
 
  private:
   std::set<MSCTensor> graph_outputs_;

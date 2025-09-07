@@ -21,6 +21,7 @@
 
 #include "../src/runtime/hexagon/hexagon_device_api.h"
 
+using namespace tvm;
 using namespace tvm::runtime;
 using namespace tvm::runtime::hexagon;
 using namespace tvm::ffi;
@@ -46,10 +47,10 @@ class HexagonDeviceAPITest : public ::testing::Test {
   int64_t shape1d[1]{256};
   int64_t shape2d[2]{256, 256};
   int64_t shape3d[3]{256, 256, 256};
-  Optional<String> default_scope;
-  Optional<String> invalid_scope = String("invalid");
-  Optional<String> global_scope = String("global");
-  Optional<String> global_vtcm_scope = String("global.vtcm");
+  ffi::Optional<ffi::String> default_scope;
+  ffi::Optional<ffi::String> invalid_scope = ffi::String("invalid");
+  ffi::Optional<ffi::String> global_scope = ffi::String("global");
+  ffi::Optional<ffi::String> global_vtcm_scope = ffi::String("global.vtcm");
 };
 
 TEST_F(HexagonDeviceAPITest, global) { CHECK(hexapi != nullptr); }

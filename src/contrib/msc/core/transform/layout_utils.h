@@ -100,7 +100,7 @@ class LayoutUtils {
    * \brief Check if the args has unknown dim tensor.
    * \return Whether the args has unknown dim tensor.
    */
-  TVM_DLL static bool HasUnknownDimTensor(const Array<Expr>& args);
+  TVM_DLL static bool HasUnknownDimTensor(const ffi::Array<Expr>& args);
 
   /*!
    * \brief Insert axes to the Layout
@@ -120,7 +120,7 @@ class LayoutUtils {
    * \return The new layout.
    */
   TVM_DLL static const LayoutDecision PermuteLayout(const LayoutDecision& src_layout,
-                                                    const Array<Integer>& axes);
+                                                    const ffi::Array<Integer>& axes);
   TVM_DLL static const LayoutDecision PermuteLayout(const LayoutDecision& src_layout,
                                                     const std::vector<size_t>& axes);
 

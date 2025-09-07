@@ -40,7 +40,7 @@ using backend::contrib::NodeEntries;
 
 class cuDNNJSONSerializer : public JSONSerializer {
  public:
-  cuDNNJSONSerializer(Map<Constant, String> constant_names, Map<Var, Expr> bindings)
+  cuDNNJSONSerializer(ffi::Map<Constant, ffi::String> constant_names, ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
 
   using JSONSerializer::VisitExpr_;
@@ -48,10 +48,10 @@ class cuDNNJSONSerializer : public JSONSerializer {
   NodeEntries VisitExpr_(const CallNode* call_node) final {
     const auto* fn_var = call_node->op.as<VarNode>();
     ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
+    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
     ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
-    auto composite_opt = fn->GetAttr<String>(attr::kComposite);
+    auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
     ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
 
     std::string composite_name = composite_opt.value();
@@ -89,7 +89,7 @@ class cuDNNJSONSerializer : public JSONSerializer {
 
     const CallNode* root_call = backend::GetOpInFunction(fn, "relax.nn.conv2d");
     SetCallNodeAttribute(node, root_call);
-    return AddNode(node, GetRef<Expr>(call_node));
+    return AddNode(node, ffi::GetRef<Expr>(call_node));
   }
 
   NodeEntries HandleAttention(const CallNode* call_node, const Function& fn,
@@ -125,17 +125,18 @@ class cuDNNJSONSerializer : public JSONSerializer {
     node->SetAttr("head_size", to_str_array(head_size));
     node->SetAttr("head_size_v", to_str_array(head_size_v));
     node->SetAttr("layout", std::vector<dmlc::any>{std::vector<std::string>{layout}});
-    return AddNode(node, GetRef<Expr>(call_node));
+    return AddNode(node, ffi::GetRef<Expr>(call_node));
   }
 
  private:
   /*! \brief The bindings to look up composite functions. */
-  Map<Var, Expr> bindings_;
+  ffi::Map<Var, Expr> bindings_;
 };
 
-Array<ffi::Module> cuDNNCompiler(Array<Function> functions, Map<String, ffi::Any> /*unused*/,
-                                 Map<Constant, String> constant_names) {
-  Array<ffi::Module> compiled_functions;
+ffi::Array<ffi::Module> cuDNNCompiler(ffi::Array<Function> functions,
+                                      ffi::Map<ffi::String, ffi::Any> /*unused*/,
+                                      ffi::Map<Constant, ffi::String> constant_names) {
+  ffi::Array<ffi::Module> compiled_functions;
 
   for (const auto& func : functions) {
     cuDNNJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));

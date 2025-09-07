@@ -162,7 +162,7 @@ class PointerTypeNode : public TypeNode {
   /*!
    * \brief The storage scope of the pointer
    */
-  String storage_scope;
+  ffi::String storage_scope;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -186,7 +186,7 @@ class PointerType : public Type {
    * \param element_type The type of the element which the pointer points to.
    * \param storage_scope The storage scope into which the pointer addresses
    */
-  TVM_DLL explicit PointerType(Type element_type, String storage_scope = "");
+  TVM_DLL explicit PointerType(Type element_type, ffi::String storage_scope = "");
 
   TVM_DEFINE_OBJECT_REF_METHODS(PointerType, Type, PointerTypeNode);
 };
@@ -198,7 +198,7 @@ class PointerType : public Type {
 class TupleTypeNode : public TypeNode {
  public:
   /*! \brief The type of each field in the tuple. */
-  Array<Type> fields;
+  ffi::Array<Type> fields;
 
   TupleTypeNode() {}
 
@@ -224,7 +224,7 @@ class TupleType : public Type {
    * \param fields Fields in the tuple.
    * \param span The span of the type.
    */
-  TVM_DLL explicit TupleType(Array<Type> fields, Span span = Span());
+  TVM_DLL explicit TupleType(ffi::Array<Type> fields, Span span = Span());
 
   /*!
    * \brief Create an empty tuple type that constains nothing.
@@ -260,7 +260,7 @@ inline bool IsVoidType(const Type& type) {
 class FuncTypeNode : public TypeNode {
  public:
   /*! \brief type type of arguments */
-  Array<Type> arg_types;
+  ffi::Array<Type> arg_types;
   /*! \brief The type of return value. */
   Type ret_type;
 
@@ -289,7 +289,7 @@ class FuncType : public Type {
    * \param span The span information.
    * \sa FuncTypeNode for more docs about these fields.
    */
-  TVM_DLL FuncType(Array<Type> arg_types, Type ret_type, Span span = Span());
+  TVM_DLL FuncType(ffi::Array<Type> arg_types, Type ret_type, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(FuncType, Type, FuncTypeNode);
 };

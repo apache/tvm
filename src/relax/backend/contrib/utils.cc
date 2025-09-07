@@ -31,8 +31,8 @@ namespace tvm {
 namespace relax {
 namespace backend {
 
-Map<String, IntImm> ExtractArgIdx(String pattern_name, Function f) {
-  Map<String, IntImm> arg_idx;
+ffi::Map<ffi::String, IntImm> ExtractArgIdx(ffi::String pattern_name, Function f) {
+  ffi::Map<ffi::String, IntImm> arg_idx;
   auto pattern = backend::GetPattern(pattern_name);
   ICHECK(pattern) << "Unsupported op_type " << pattern_name;
 
@@ -44,7 +44,7 @@ Map<String, IntImm> ExtractArgIdx(String pattern_name, Function f) {
                        << "\", expected to find a match for " << pattern.value()->pattern
                        << ".  However, the function did not include this pattern " << f;
 
-  auto find_index = [](const Array<Var>& params, Var v) -> std::optional<size_t> {
+  auto find_index = [](const ffi::Array<Var>& params, Var v) -> std::optional<size_t> {
     for (size_t i = 0; i < params.size(); ++i) {
       if (params[i] == v) {
         return i;
@@ -56,7 +56,7 @@ Map<String, IntImm> ExtractArgIdx(String pattern_name, Function f) {
   for (const auto& [name, pat] : pattern.value()->annotation_patterns) {
     auto exp = matched_expr.value()[pat];
     if (auto arg_var = exp.as<VarNode>()) {
-      if (auto idx = find_index(f->params, GetRef<Var>(arg_var))) {
+      if (auto idx = find_index(f->params, ffi::GetRef<Var>(arg_var))) {
         arg_idx.Set(name, IntImm(DataType::Int(64), *idx));
       }
     }

@@ -44,12 +44,12 @@ using namespace tvm::runtime::json;
 class HipblasJSONRuntime : public JSONRuntimeBase {
  public:
   HipblasJSONRuntime(const std::string& symbol_name, const std::string& graph_json,
-                     const Array<String> const_names)
+                     const ffi::Array<ffi::String> const_names)
       : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
 
-  void Init(const Array<Tensor>& consts) override {}
+  void Init(const ffi::Array<Tensor>& consts) override {}
 
-  ffi::Optional<ffi::Function> GetFunction(const String& name) override {
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) override {
     // JSONRuntimeBase::SetInputOutputBuffers(...) is not thread safe. Since HipblasJSONRuntime
     // can be used by multiple GPUs running on different threads, we avoid using that function
     // and directly call hipBLAS on the inputs from ffi::PackedArgs.
@@ -140,9 +140,9 @@ class HipblasJSONRuntime : public JSONRuntimeBase {
   void Run() override { LOG(FATAL) << "Unreachable"; }
 };
 
-ffi::Module HipblasJSONRuntimeCreate(String symbol_name, String graph_json,
-                                     const Array<String>& const_names) {
-  auto n = make_object<HipblasJSONRuntime>(symbol_name, graph_json, const_names);
+ffi::Module HipblasJSONRuntimeCreate(ffi::String symbol_name, ffi::String graph_json,
+                                     const ffi::Array<ffi::String>& const_names) {
+  auto n = ffi::make_object<HipblasJSONRuntime>(symbol_name, graph_json, const_names);
   return ffi::Module(n);
 }
 

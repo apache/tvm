@@ -43,7 +43,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 void SeqExprFrameNode::ExitWithScope() {
   // At this moment, there should be at most one BlockFrame which hasn't ended. In this case, call
   // its `ExitBlockFrame` and check if there is any more unended BlockFrame.
-  if (Optional<BlockFrame> block_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>()) {
+  if (ffi::Optional<BlockFrame> block_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>()) {
     block_frame.value()->ExitWithScope();
     ICHECK(!IRBuilder::Current()->GetLastFrame<BlockFrame>().defined())
         << "ValueError: There is some remaining BlockFrame that is not properly popped out.";
@@ -87,12 +87,12 @@ void FunctionFrameNode::ExitWithScope() {
     // Case 0. No outer frame, return function directly
     ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
     builder->result = func;
-  } else if (Optional<IRModuleFrame> opt_frame = builder->FindFrame<IRModuleFrame>()) {
+  } else if (ffi::Optional<IRModuleFrame> opt_frame = builder->FindFrame<IRModuleFrame>()) {
     // Case 1. A global function of an IRModule
     CHECK(name.has_value()) << "ValueError: The function name must be defined before exiting the "
                                "function scope, if it's defined in a Module";
     const IRModuleFrame& frame = opt_frame.value();
-    const String& func_name = name.value_or("");
+    const ffi::String& func_name = name.value_or("");
     if (!frame->global_var_map.count(func_name)) {
       // First time visiting the function.
       ir::DeclFunction(func_name, func);
@@ -108,7 +108,7 @@ void FunctionFrameNode::ExitWithScope() {
 void BlockFrameNode::EnterWithScope() {
   // Step 1. If the last frame is a block frame. The start of a new block frame marks the end of the
   // last block frame.
-  Optional<BlockFrame> block_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>();
+  ffi::Optional<BlockFrame> block_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>();
   if (block_frame.defined()) {
     block_frame.value()->ExitWithScope();
     // Block frames cannot appear consecutively.
@@ -116,7 +116,7 @@ void BlockFrameNode::EnterWithScope() {
   }
   // Step 2. Deal with the new block frame.
   RelaxFrameNode::EnterWithScope();
-  Optional<FunctionFrame> func_frame = IRBuilder::Current()->FindFrame<FunctionFrame>();
+  ffi::Optional<FunctionFrame> func_frame = IRBuilder::Current()->FindFrame<FunctionFrame>();
   CHECK(func_frame.defined())
       << "ValueError: Cannot find FunctionFrame when creating BindingBlocks, Please ensure "
          "creating the block under Relax function scope.";
@@ -162,7 +162,7 @@ void BlockFrameNode::ExitWithScope() {
   // Step 3. Rewrite the dataflow block.
   if (is_dataflow) {
     // Step 3.0.  Define a map to replace variables
-    Array<tvm::relax::Var> new_output_vars;
+    ffi::Array<tvm::relax::Var> new_output_vars;
     std::unordered_map<tvm::relax::Id, tvm::relax::Var, ObjectPtrHash, ObjectPtrEqual> var_remap;
     for (const auto& output_var : output_vars) {
       tvm::relax::Var new_output_var(output_var->name_hint(), GetStructInfo(output_var));
@@ -185,7 +185,7 @@ void BlockFrameNode::ExitWithScope() {
   }
 
   // Step 3. Get the last frame from the IRBuilder frame stack.
-  Optional<RelaxFrame> opt_last_frame = IRBuilder::Current()->GetLastFrame<RelaxFrame>();
+  ffi::Optional<RelaxFrame> opt_last_frame = IRBuilder::Current()->GetLastFrame<RelaxFrame>();
   ICHECK(opt_last_frame.defined());
   RelaxFrame last_frame = opt_last_frame.value();
 
@@ -195,7 +195,7 @@ void BlockFrameNode::ExitWithScope() {
 
   // Step 5. Push the block frame into the corresponding field of the last frame.
   if (const auto* seq_frame = last_frame.as<SeqExprFrameNode>()) {
-    auto frame = GetRef<SeqExprFrame>(seq_frame);
+    auto frame = ffi::GetRef<SeqExprFrame>(seq_frame);
     frame->binding_blocks.push_back(block);
   } else {
     LOG(FATAL) << "ValueError: Currently the last frame is supposed to be either a function frame "
@@ -210,7 +210,7 @@ void BlockFrameNode::ExitWithScope() {
 }
 
 void IfFrameNode::EnterWithScope() {
-  const Array<IRBuilderFrame>& frames = IRBuilder::Current()->frames;
+  const ffi::Array<IRBuilderFrame>& frames = IRBuilder::Current()->frames;
   for (const IRBuilderFrame& frame : frames) {
     const auto* block_frame = frame.as<BlockFrameNode>();
     if (block_frame && block_frame->is_dataflow) {
@@ -241,8 +241,8 @@ void ThenFrameNode::EnterWithScope() {
 
 void ThenFrameNode::ExitWithScope() {
   SeqExprFrameNode::ExitWithScope();
-  String var_name;
-  output = GetSeqExprForBranch(GetRef<ThenFrame>(this), &var_name);
+  ffi::String var_name;
+  output = GetSeqExprForBranch(ffi::GetRef<ThenFrame>(this), &var_name);
   IfFrame frame = FindIfFrame("R.Then");
   frame->then_expr = output;
   frame->var_name = var_name;
@@ -259,8 +259,8 @@ void ElseFrameNode::EnterWithScope() {
 
 void ElseFrameNode::ExitWithScope() {
   SeqExprFrameNode::ExitWithScope();
-  String var_name;
-  output = GetSeqExprForBranch(GetRef<ElseFrame>(this), &var_name);
+  ffi::String var_name;
+  output = GetSeqExprForBranch(ffi::GetRef<ElseFrame>(this), &var_name);
   IfFrame frame = FindIfFrame("R.Else");
   frame->else_expr = output;
   CHECK(frame->var_name == var_name)

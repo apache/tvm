@@ -57,9 +57,9 @@ class RelaxFrame : public IRBuilderFrame {
 class SeqExprFrameNode : public RelaxFrameNode {
  public:
   /*! \brief The binding blocks inside the frame. */
-  Array<tvm::relax::BindingBlock> binding_blocks;
+  ffi::Array<tvm::relax::BindingBlock> binding_blocks;
   /*! \brief The frame output expr. `std::nullopt` when undefined. */
-  Optional<tvm::relax::Expr> output;
+  ffi::Optional<tvm::relax::Expr> output;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -89,9 +89,9 @@ class FunctionFrameNode : public SeqExprFrameNode {
    * \note The name will not be specified in constructor, so it is "Optional",
    *       However, we must specify the name by `R.func_name` before exit this frame.
    */
-  Optional<String> name;
+  ffi::Optional<ffi::String> name;
   /*! \brief The function params. */
-  Array<tvm::relax::Var> params;
+  ffi::Array<tvm::relax::Var> params;
   /*!
    * \brief The function return struct info.
    * \note Usually the function return type can be deduced by the function body.
@@ -101,13 +101,13 @@ class FunctionFrameNode : public SeqExprFrameNode {
    *       if we ret_struct_info is base of body.struct_info. If not, we will
    *       take the specified `ret_struct_info`.
    */
-  Optional<tvm::relax::StructInfo> ret_struct_info;
+  ffi::Optional<tvm::relax::StructInfo> ret_struct_info;
   /*! \brief Whether the function is annotated as pure */
-  Optional<Bool> is_pure;
+  ffi::Optional<Bool> is_pure;
   /*! \brief Whether the function is annotated as private */
-  Optional<Bool> is_private;
+  ffi::Optional<Bool> is_private;
   /*! \brief The function attributes. */
-  Map<String, Any> attrs;
+  ffi::Map<ffi::String, Any> attrs;
   /*! \brief The block builder to create Relax function. */
   tvm::relax::BlockBuilder block_builder;
 
@@ -143,7 +143,7 @@ class BlockFrameNode : public RelaxFrameNode {
   /*! \brief The flag that indicates whether the block is a dataflow block. */
   bool is_dataflow;
   /*! \brief The variables emitted in this block. */
-  Array<tvm::relax::Var> emitted_vars;
+  ffi::Array<tvm::relax::Var> emitted_vars;
   /*!
    * \brief A boolean indicating if the dataflow block is ended of construction.
    * If it is true, any new binding trying to be emitted into this block will cause an error.
@@ -154,7 +154,7 @@ class BlockFrameNode : public RelaxFrameNode {
    * \brief The output vars of the dataflow block.
    * \note Only used for a dataflow block.
    */
-  Array<tvm::relax::Var> output_vars;
+  ffi::Array<tvm::relax::Var> output_vars;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -188,13 +188,13 @@ class IfFrameNode : public RelaxFrameNode {
   /*! \brief The condition of the if statement. */
   tvm::relax::Expr condition;
   /*! \brief The Bindings in the true branch. */
-  Optional<tvm::relax::Expr> then_expr;
+  ffi::Optional<tvm::relax::Expr> then_expr;
   /*! \brief The Bindings in the false branch. */
-  Optional<tvm::relax::Expr> else_expr;
+  ffi::Optional<tvm::relax::Expr> else_expr;
   /*! \brief The Binding var. */
   tvm::relax::Var var;
   /*! \brief The binding var name. */
-  String var_name;
+  ffi::String var_name;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

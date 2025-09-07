@@ -37,7 +37,7 @@ using tir::Trace;
  */
 std::vector<int64_t> DowncastTilingDecision(const ObjectRef& decision) {
   const auto* arr = TVM_TYPE_AS(decision, ffi::ArrayObj);
-  return support::AsVector<ObjectRef, int64_t>(GetRef<Array<ObjectRef>>(arr));
+  return support::AsVector<ObjectRef, int64_t>(ffi::GetRef<ffi::Array<ObjectRef>>(arr));
 }
 
 /*!
@@ -68,10 +68,10 @@ class MutateTileSizeNode : public MutatorNode {
   // Inherit from `MutatorNode`
   void InitializeWithTuneContext(const TuneContext& context) final {}
   // Inherit from `MutatorNode`
-  Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
+  ffi::Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
   // Inherit from `MutatorNode`
   Mutator Clone() const final {
-    ObjectPtr<MutateTileSizeNode> n = make_object<MutateTileSizeNode>(*this);
+    ObjectPtr<MutateTileSizeNode> n = ffi::make_object<MutateTileSizeNode>(*this);
     return Mutator(n);
   }
 };
@@ -119,7 +119,7 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
     if (inst->kind.same_as(inst_annotate)) {
       ICHECK_EQ(inst->attrs.size(), 1);
       ICHECK_EQ(inst->inputs.size(), 2);
-      if (Downcast<String>(inst->attrs[0]) == tir::attr::meta_schedule_cooperative_fetch) {
+      if (Downcast<ffi::String>(inst->attrs[0]) == tir::attr::meta_schedule_cooperative_fetch) {
         const auto* ann_val = inst->inputs[1].as<tir::ExprRVNode>();
         ICHECK(ann_val);
         annotated.insert(ann_val);
@@ -134,7 +134,7 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
       if (annotated.count(inst->outputs[0].as<Object>())) {
         ICHECK_EQ(inst->attrs.size(), 2);
         std::vector<double> probs =
-            support::AsVector<FloatImm, double>(Downcast<Array<FloatImm>>(inst->attrs[1]));
+            support::AsVector<FloatImm, double>(Downcast<ffi::Array<FloatImm>>(inst->attrs[1]));
         if (probs.size() == 1) {
           // Skip mutating the sampling instructions who have only single candidate.
           continue;
@@ -191,8 +191,8 @@ struct FactorMemo {
   std::mutex mutex_;
 };
 
-Optional<Trace> MutateSampleTileSize(const Trace& trace, Instruction inst,
-                                     std::vector<int64_t> tiles, TRandState* rand_state) {
+ffi::Optional<Trace> MutateSampleTileSize(const Trace& trace, Instruction inst,
+                                          std::vector<int64_t> tiles, TRandState* rand_state) {
   int n_splits = tiles.size();
   // Step 1. Choose two loops, `x` and `y`
   int x, y;
@@ -235,11 +235,11 @@ Optional<Trace> MutateSampleTileSize(const Trace& trace, Instruction inst,
   }
 }
 
-Optional<Trace> MutateSampleVectorize(const Trace& trace, Instruction inst,
-                                      int64_t original_decision, TRandState* rand_state) {
+ffi::Optional<Trace> MutateSampleVectorize(const Trace& trace, Instruction inst,
+                                           int64_t original_decision, TRandState* rand_state) {
   ICHECK_EQ(inst->attrs.size(), 2);
   std::vector<double> probs =
-      support::AsVector<FloatImm, double>(Downcast<Array<FloatImm>>(inst->attrs[1]));
+      support::AsVector<FloatImm, double>(Downcast<ffi::Array<FloatImm>>(inst->attrs[1]));
   probs.erase(probs.begin() + original_decision);
   int result = tir::MakeMultinomialSampler(rand_state, probs)();
   if (result >= original_decision) {
@@ -248,7 +248,7 @@ Optional<Trace> MutateSampleVectorize(const Trace& trace, Instruction inst,
   return trace->WithDecision(inst, Integer(result), /*remove_postproc=*/true);
 }
 
-Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* rand_state) {
+ffi::Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* rand_state) {
   std::vector<Instruction> sample_perfect_tile_insts;
   std::vector<Instruction> sample_vectorize_insts;
   std::vector<std::vector<int64_t>> sample_perfect_tile_tiles;
@@ -271,7 +271,7 @@ Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* rand_s
   }
 }
 
-Mutator Mutator::MutateTileSize() { return Mutator(make_object<MutateTileSizeNode>()); }
+Mutator Mutator::MutateTileSize() { return Mutator(ffi::make_object<MutateTileSizeNode>()); }
 
 TVM_FFI_STATIC_INIT_BLOCK({ MutateTileSizeNode::RegisterReflection(); });
 

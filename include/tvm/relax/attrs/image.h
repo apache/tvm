@@ -31,11 +31,11 @@ namespace relax {
 
 /*! \brief Attributes used in image resize2d operator */
 struct Resize2DAttrs : public AttrsNodeReflAdapter<Resize2DAttrs> {
-  Array<FloatImm> roi;
-  String layout;
-  String method;
-  String coordinate_transformation_mode;
-  String rounding_method;
+  ffi::Array<FloatImm> roi;
+  ffi::String layout;
+  ffi::String method;
+  ffi::String coordinate_transformation_mode;
+  ffi::String rounding_method;
   double cubic_alpha;
   int cubic_exclude;
   double extrapolation_value;

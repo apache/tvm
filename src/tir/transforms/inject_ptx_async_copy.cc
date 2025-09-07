@@ -81,8 +81,8 @@ class PTXAsyncCopyInjector : public StmtMutator {
         if (indices_lanes == 1) {
           auto src_offset = load->indices[0];
           auto dst_offset = store->indices[0];
-          Array<PrimExpr> args = {store->buffer->data, mul(dst_offset, PrimExpr(index_factor)),
-                                  load->buffer->data, src_offset, PrimExpr(bytes)};
+          ffi::Array<PrimExpr> args = {store->buffer->data, mul(dst_offset, PrimExpr(index_factor)),
+                                       load->buffer->data, src_offset, PrimExpr(bytes)};
           // use arguments size to indicate whether or not to use predicated cp.async
           if (predicated) {
             args.push_back(predicate_value);

@@ -22,18 +22,18 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const AccessPath& n_p, const IRDocsifier& d,
-                            bool use_ret) {
+ffi::Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const AccessPath& n_p,
+                                 const IRDocsifier& d, bool use_ret) {
   With<RelaxFrame> f(d);
-  const Array<relax::BindingBlock>& blocks = n->blocks;
+  const ffi::Array<relax::BindingBlock>& blocks = n->blocks;
   AccessPath blocks_p = n_p->Attr("blocks");
-  Array<StmtDoc>* stmts = &(*f)->stmts;
+  ffi::Array<StmtDoc>* stmts = &(*f)->stmts;
   for (int i = 0, l = blocks.size(); i < l; ++i) {
     Doc block = d->AsDoc(blocks[i], blocks_p->ArrayItem(i));
     if (const auto* stmt_block = block.as<StmtBlockDocNode>()) {
       stmts->insert(stmts->end(), stmt_block->stmts.begin(), stmt_block->stmts.end());
     } else if (const auto* stmt = block.as<StmtDocNode>()) {
-      stmts->push_back(GetRef<StmtDoc>(stmt));
+      stmts->push_back(ffi::GetRef<StmtDoc>(stmt));
     } else {
       LOG(FATAL) << "TypeError: Unknown type: " << block->GetTypeKey();
     }
@@ -52,18 +52,19 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return StmtBlockDoc(PrintSeqExpr(n, n_p, d, false));
     });
 
-Array<StmtDoc> PrintBindingBlock(const relax::BindingBlock& n, const AccessPath& n_p,
-                                 const IRDocsifier& d, Array<ExprDoc>* non_dataflow_vars) {
-  const Array<relax::Binding>& bindings = n->bindings;
+ffi::Array<StmtDoc> PrintBindingBlock(const relax::BindingBlock& n, const AccessPath& n_p,
+                                      const IRDocsifier& d,
+                                      ffi::Array<ExprDoc>* non_dataflow_vars) {
+  const ffi::Array<relax::Binding>& bindings = n->bindings;
   AccessPath bindings_p = n_p->Attr("bindings");
-  Array<StmtDoc> stmts;
+  ffi::Array<StmtDoc> stmts;
   for (int i = 0, l = bindings.size(); i < l; ++i) {
     const relax::Binding& binding = bindings[i];
     AccessPath binding_p = bindings_p->ArrayItem(i);
     ICHECK(binding->var.defined());
     Doc binding_doc = d->AsDoc(binding, binding_p);
     if (const auto* stmt = binding_doc.as<StmtDocNode>()) {
-      stmts.push_back(GetRef<StmtDoc>(stmt));
+      stmts.push_back(ffi::GetRef<StmtDoc>(stmt));
     } else if (const auto* stmt_block = binding_doc.as<StmtBlockDocNode>()) {
       stmts.insert(stmts.end(), stmt_block->stmts.begin(), stmt_block->stmts.end());
     } else {
@@ -85,8 +86,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::DataflowBlock>(  //
         "", [](relax::DataflowBlock n, AccessPath n_p, IRDocsifier d) -> Doc {
-          Array<ExprDoc> non_dataflow_vars;
-          Array<StmtDoc> stmts = PrintBindingBlock(n, n_p, d, &non_dataflow_vars);
+          ffi::Array<ExprDoc> non_dataflow_vars;
+          ffi::Array<StmtDoc> stmts = PrintBindingBlock(n, n_p, d, &non_dataflow_vars);
           stmts.push_back(ExprStmtDoc(Relax(d, "output")->Call(non_dataflow_vars)));
           return ScopeDoc(std::nullopt, Relax(d, "dataflow")->Call({}), stmts);
         });

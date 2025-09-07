@@ -25,9 +25,9 @@ namespace tvm {
 namespace runtime {
 namespace vllm {
 
-Array<Tensor> AllocateKVCache(int head_size, int num_layers, int num_heads, int block_size,
-                              int num_blocks) {
-  Array<Tensor> cache;
+ffi::Array<Tensor> AllocateKVCache(int head_size, int num_layers, int num_heads, int block_size,
+                                   int num_blocks) {
+  ffi::Array<Tensor> cache;
   int element_size = 2;
   int vec_size = 16 / element_size;
 

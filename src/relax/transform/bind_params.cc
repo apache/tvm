@@ -32,7 +32,7 @@ namespace tvm {
 namespace relax {
 
 void MatchSymbolicVar(const Expr& arg, const Expr& constant,
-                      Map<tir::Var, PrimExpr>* symbolic_var_map, arith::Analyzer* analyzer_) {
+                      ffi::Map<tir::Var, PrimExpr>* symbolic_var_map, arith::Analyzer* analyzer_) {
   auto opt_arg_sinfo = MatchStructInfo<TensorStructInfo>(arg);
   CHECK(opt_arg_sinfo)
       << "The struct info of the bound parameter is expected to be TensorStructInfo, but got: "
@@ -70,9 +70,9 @@ void MatchSymbolicVar(const Expr& arg, const Expr& constant,
     const PrimExpr& const_dim = const_shape->values[i];
     ICHECK(tir::is_const_int(const_dim));
     if (const auto* shape_var = arg_shape->values[i].as<tir::VarNode>()) {
-      auto it = symbolic_var_map->find(GetRef<tir::Var>(shape_var));
+      auto it = symbolic_var_map->find(ffi::GetRef<tir::Var>(shape_var));
       if (it == symbolic_var_map->end()) {
-        symbolic_var_map->Set(GetRef<tir::Var>(shape_var), const_dim);
+        symbolic_var_map->Set(ffi::GetRef<tir::Var>(shape_var), const_dim);
       } else {
         CHECK(analyzer_->CanProveEqual((*it).second, const_dim))
             << "The shape of the bound parameter is expected to be " << (*it).second
@@ -82,23 +82,23 @@ void MatchSymbolicVar(const Expr& arg, const Expr& constant,
   }
 }
 
-std::tuple<Map<Var, Expr>, Map<tir::Var, PrimExpr>> NormalizeBindings(
-    const Function& func, const Map<Any, ObjectRef>& untyped_params) {
+std::tuple<ffi::Map<Var, Expr>, ffi::Map<tir::Var, PrimExpr>> NormalizeBindings(
+    const Function& func, const ffi::Map<Any, ObjectRef>& untyped_params) {
   ICHECK(func.defined());
   ICHECK(untyped_params.defined());
 
   // Map from string to the variable(s) with that name.
-  std::unordered_map<std::string, Array<relax::Var>> string_lookup;
+  std::unordered_map<std::string, ffi::Array<relax::Var>> string_lookup;
   std::unordered_set<const relax::VarNode*> var_set;
   for (const auto& param : func->params) {
     string_lookup[param->name_hint()].push_back(param);
     var_set.insert(param.get());
   }
 
-  Map<relax::Var, relax::Expr> relax_var_remap;
+  ffi::Map<relax::Var, relax::Expr> relax_var_remap;
 
   auto normalize_key = [&](ffi::Any obj) -> relax::Var {
-    if (auto opt_str = obj.as<String>()) {
+    if (auto opt_str = obj.as<ffi::String>()) {
       std::string str = opt_str.value();
       auto it = string_lookup.find(str);
       CHECK(it != string_lookup.end())
@@ -143,7 +143,7 @@ std::tuple<Map<Var, Expr>, Map<tir::Var, PrimExpr>> NormalizeBindings(
   }
 
   arith::Analyzer analyzer;
-  Map<tir::Var, PrimExpr> symbolic_var_map = InferSymbolicVarMap(relax_var_remap, &analyzer);
+  ffi::Map<tir::Var, PrimExpr> symbolic_var_map = InferSymbolicVarMap(relax_var_remap, &analyzer);
 
   // for (const auto& [bind_param, bind_expr] : relax_var_remap) {
   //   MatchSymbolicVar(bind_param, bind_expr, &symbolic_var_map, &analyzer);
@@ -158,7 +158,7 @@ std::tuple<Map<Var, Expr>, Map<tir::Var, PrimExpr>> NormalizeBindings(
  * \param params params dict
  * \return Function
  */
-Function FunctionBindParams(Function func, const Map<Any, ObjectRef>& untyped_params) {
+Function FunctionBindParams(Function func, const ffi::Map<Any, ObjectRef>& untyped_params) {
   auto [bind_dict, symbolic_var_map] = NormalizeBindings(func, untyped_params);
 
   Expr bound_expr = Bind(func, bind_dict, symbolic_var_map);
@@ -172,28 +172,29 @@ Function FunctionBindParams(Function func, const Map<Any, ObjectRef>& untyped_pa
  * \param param The param dict
  * \return The module after binding params.
  */
-IRModule BindParam(IRModule m, String func_name, Map<Any, ObjectRef> bind_params) {
+IRModule BindParam(IRModule m, ffi::String func_name, ffi::Map<Any, ObjectRef> bind_params) {
   IRModuleNode* new_module = m.CopyOnWrite();
-  Map<GlobalVar, BaseFunc> functions = m->functions;
+  ffi::Map<GlobalVar, BaseFunc> functions = m->functions;
   for (const auto& func_pr : functions) {
     if (const auto* relax_f = func_pr.second.as<FunctionNode>()) {
       if (relax_f->GetLinkageType() == LinkageType::kExternal) {
         // Use global_symbol if it's external linkage
-        Optional<String> gsymbol = relax_f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+        ffi::Optional<ffi::String> gsymbol =
+            relax_f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
         if (gsymbol.has_value() && gsymbol.value() == func_name) {
-          Function f_after_bind = FunctionBindParams(GetRef<Function>(relax_f), bind_params);
+          Function f_after_bind = FunctionBindParams(ffi::GetRef<Function>(relax_f), bind_params);
           new_module->Update(func_pr.first, f_after_bind);
         }
       } else {
         // Use global var's name_hint if it's internal linkage
         if (func_pr.first->name_hint == func_name) {
-          Function f_after_bind = FunctionBindParams(GetRef<Function>(relax_f), bind_params);
+          Function f_after_bind = FunctionBindParams(ffi::GetRef<Function>(relax_f), bind_params);
           new_module->Update(func_pr.first, f_after_bind);
         }
       }
     }
   }
-  return GetRef<IRModule>(new_module);
+  return ffi::GetRef<IRModule>(new_module);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({
@@ -203,7 +204,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
 namespace transform {
 
-Pass BindParams(String func_name, Map<Any, ObjectRef> params) {
+Pass BindParams(ffi::String func_name, ffi::Map<Any, ObjectRef> params) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     return BindParam(std::move(mod), func_name, params);
   };

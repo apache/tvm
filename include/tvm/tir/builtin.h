@@ -298,7 +298,7 @@ TVM_DLL const Op& tvm_struct_set();
 
 /*!
  * \brief See pseudo code
- * Type lookup_param(String param_name) {
+ * Type lookup_param(ffi::String param_name) {
  *     return __tvm_param__param_name;
  * }
  */

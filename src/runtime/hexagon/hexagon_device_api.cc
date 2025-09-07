@@ -52,7 +52,7 @@ void HexagonDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) {
 
 // DataSpace: static allocations for Hexagon
 void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                                       Optional<String> mem_scope) {
+                                       ffi::Optional<ffi::String> mem_scope) {
   CHECK(shape || ndim == 0) << "shape array is null for a non-scalar tensor, ndim = " << ndim;
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
 
@@ -122,7 +122,7 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignme
   CHECK(runtime_hexbuffs) << "Attempted to allocate Hexagon data with "
                           << "HexagonDeviceAPI::AllocDataSpace before initializing resources.  "
                           << "Please call HexagonDeviceAPI::AcquireResources";
-  return runtime_hexbuffs->AllocateHexagonBuffer(nbytes, alignment, String("global"));
+  return runtime_hexbuffs->AllocateHexagonBuffer(nbytes, alignment, ffi::String("global"));
 }
 
 void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
@@ -272,7 +272,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     type_hint.lanes = 1;
 
                     HexagonDeviceAPI* hexapi = HexagonDeviceAPI::Global();
-                    *rv = hexapi->AllocDataSpace(dev, ndim, shape, type_hint, String(scope));
+                    *rv = hexapi->AllocDataSpace(dev, ndim, shape, type_hint, ffi::String(scope));
                   })
       .def_packed("device_api.hexagon.free_nd",
                   [](ffi::PackedArgs args, ffi::Any* rv) {

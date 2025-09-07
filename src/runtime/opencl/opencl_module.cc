@@ -135,7 +135,7 @@ cl::OpenCLWorkspace* OpenCLModuleNodeBase::GetGlobalWorkspace() {
   return cl::OpenCLWorkspace::Global();
 }
 
-Optional<ffi::Function> OpenCLModuleNodeBase::GetFunction(const String& name) {
+ffi::Optional<ffi::Function> OpenCLModuleNodeBase::GetFunction(const ffi::String& name) {
   ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
   ICHECK_EQ(sptr_to_self.get(), this);
   auto it = fmap_.find(name);
@@ -160,7 +160,7 @@ Optional<ffi::Function> OpenCLModuleNodeBase::GetFunction(const String& name) {
   return PackFuncVoidAddr(f, info.arg_types);
 }
 
-void OpenCLModuleNode::WriteToFile(const String& file_name, const String& format) const {
+void OpenCLModuleNode::WriteToFile(const ffi::String& file_name, const ffi::String& format) const {
   std::string fmt = GetFileFormat(file_name, format);
   ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
   std::string meta_file = GetMetaFilePath(file_name);
@@ -178,7 +178,7 @@ ffi::Bytes OpenCLModuleNode::SaveToBytes() const {
   return ffi::Bytes(buffer);
 }
 
-String OpenCLModuleNode::InspectSource(const String& format) const {
+ffi::String OpenCLModuleNode::InspectSource(const ffi::String& format) const {
   if (format == fmt_) return data_;
   if (fmt_ == "cl") {
     return data_;
@@ -349,7 +349,7 @@ std::string OpenCLModuleNode::GetPreCompiledPrograms() {
   return data;
 }
 
-Optional<ffi::Function> OpenCLModuleNode::GetFunction(const String& name) {
+ffi::Optional<ffi::Function> OpenCLModuleNode::GetFunction(const ffi::String& name) {
   ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
   ICHECK_EQ(sptr_to_self.get(), this);
   if (name == "opencl.GetPreCompiledPrograms") {
@@ -367,13 +367,13 @@ Optional<ffi::Function> OpenCLModuleNode::GetFunction(const String& name) {
 ffi::Module OpenCLModuleCreate(std::string data, std::string fmt,
                                std::unordered_map<std::string, FunctionInfo> fmap,
                                std::string source) {
-  auto n = make_object<OpenCLModuleNode>(data, fmt, fmap, source);
+  auto n = ffi::make_object<OpenCLModuleNode>(data, fmt, fmap, source);
   n->Init();
   return ffi::Module(n);
 }
 
 // Load module from module.
-ffi::Module OpenCLModuleLoadFile(const std::string& file_name, const String& format) {
+ffi::Module OpenCLModuleLoadFile(const std::string& file_name, const ffi::String& format) {
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
