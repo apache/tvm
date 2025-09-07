@@ -1953,7 +1953,7 @@ def all(*args, span=None):
     return val
 
 
-@tvm_ffi.register_func("tvm.default_trace_action")
+@tvm_ffi.register_global_func("tvm.default_trace_action")
 def _tvm_default_trace_action(*args):
     print(list(args))
 

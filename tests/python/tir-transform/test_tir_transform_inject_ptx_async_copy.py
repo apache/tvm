@@ -402,7 +402,7 @@ def postproc_if_missing_async_support():
         nonlocal original_code
         return original_code
 
-    @tvm.register_func(func_name, override=True)
+    @tvm.register_global_func(func_name, override=True)
     def tvm_callback_cuda_postproc(code, _):
         nonlocal original_code
         original_code = code
@@ -424,7 +424,7 @@ def postproc_if_missing_async_support():
     if prev_postproc is None:
         tvm_ffi.registry.remove_global_func(func_name)
     else:
-        tvm.register_func(func_name, prev_postproc, override=True)
+        tvm.register_global_func(func_name, prev_postproc, override=True)
 
 
 @tvm.testing.requires_cuda

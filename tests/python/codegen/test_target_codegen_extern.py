@@ -97,7 +97,7 @@ def test_pack_buffer_simple():
     # Create IRModule directly
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, C]))
 
-    @tvm.register_func
+    @tvm.register_global_func
     def my_extern_array_func1(aa, bb):
         aa.copyto(bb)
 
@@ -143,7 +143,7 @@ def test_pack_buffer_intermediate():
         a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
         c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
 
-        @tvm.register_func
+        @tvm.register_global_func
         def my_extern_array_func2(aa, bb):
             assert aa.shape == a.shape
             tvm.testing.assert_allclose(aa.numpy(), a.numpy() + 1)

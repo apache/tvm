@@ -377,8 +377,8 @@ class Module(_Module):
             feval = _ffi_api.RPCTimeEvaluator(
                 self,
                 func_name,
-                dev.device_type,
-                dev.device_id,
+                dev.dlpack_device_type(),
+                dev.index,
                 number,
                 repeat,
                 min_repeat_ms,

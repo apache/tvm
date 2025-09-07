@@ -28,19 +28,7 @@ except ImportError:
     ml_dtypes = None
 
 import tvm_ffi
-from tvm_ffi import (
-    device,
-    cpu,
-    cuda,
-    rocm,
-    opencl,
-    metal,
-    vpi,
-    vulkan,
-    ext_dev,
-    hexagon,
-    webgpu,
-)
+from tvm_ffi import device, DLDeviceType
 
 import tvm
 from tvm.runtime import Device
@@ -134,7 +122,7 @@ class Tensor(tvm_ffi.core.Tensor):
             raise ValueError(
                 f"array shape do not match the shape of Tensor {source_array.shape} vs {shape}"
             )
-        numpy_str_map = tvm_ffi.dtype.NUMPY_DTYPE_TO_STR
+        numpy_str_map = tvm_ffi.dtype._NUMPY_DTYPE_TO_STR
         np_dtype_str = (
             numpy_str_map[source_array.dtype]
             if source_array.dtype in numpy_str_map
@@ -358,6 +346,171 @@ def tensor(arr, device=None, mem_scope=None):
     if not isinstance(arr, (np.ndarray, Tensor)):
         arr = np.array(arr)
     return empty(arr.shape, arr.dtype, device, mem_scope).copyfrom(arr)
+
+
+def cpu(dev_id=0):
+    """Construct a CPU device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+
+    Returns
+    -------
+    dev : Device
+        The created device
+    """
+    return device(DLDeviceType.kDLCPU, dev_id)
+
+
+def cuda(dev_id=0):
+    """Construct a CUDA GPU device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+
+    Returns
+    -------
+    dev : Device
+        The created device
+    """
+    return device(DLDeviceType.kDLCUDA, dev_id)
+
+
+def rocm(dev_id=0):
+    """Construct a ROCM device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+
+    Returns
+    -------
+    dev : Device
+        The created device
+    """
+    return device(DLDeviceType.kDLROCM, dev_id)
+
+
+def opencl(dev_id=0):
+    """Construct a OpenCL device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+
+    Returns
+    -------
+    dev : Device
+        The created device
+    """
+    return device(DLDeviceType.kDLOpenCL, dev_id)
+
+
+def metal(dev_id=0):
+    """Construct a metal device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+
+    Returns
+    -------
+    dev : Device
+        The created device
+    """
+    return device(DLDeviceType.kDLMetal, dev_id)
+
+
+def vpi(dev_id=0):
+    """Construct a VPI simulated device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+
+    Returns
+    -------
+    dev : Device
+        The created device
+    """
+    return device(DLDeviceType.kDLVPI, dev_id)
+
+
+def vulkan(dev_id=0):
+    """Construct a Vulkan device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+
+    Returns
+    -------
+    dev : Device
+        The created device
+    """
+    return device(DLDeviceType.kDLVulkan, dev_id)
+
+
+def ext_dev(dev_id=0):
+    """Construct a extension device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+
+    Returns
+    -------
+    dev : Device
+        The created device
+
+    Note
+    ----
+    This API is reserved for quick testing of new
+    device by plugin device API as ext_dev.
+    """
+    return device(DLDeviceType.kDLExtDev, dev_id)
+
+
+def hexagon(dev_id=0):
+    """Construct a Hexagon device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+
+    Returns
+    -------
+    dev : Device
+        The created device
+    """
+    return device(DLDeviceType.kDLHexagon, dev_id)
+
+
+def webgpu(dev_id=0):
+    """Construct a webgpu device.
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+
+    Returns
+    -------
+    dev : Device
+        The created device
+    """
+    return device(DLDeviceType.kDLWebGPU, dev_id)
 
 
 # Register back to FFI

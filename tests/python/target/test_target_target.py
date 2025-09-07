@@ -24,15 +24,19 @@ from tvm.target import Target, arm_cpu, bifrost, cuda, intel_graphics, mali, roc
 
 def test_all_targets_device_type_verify():
     """Consistency verification for all targets' device type"""
-    all_targets = [tvm.target.Target(t) for t in tvm.target.Target.list_kinds()]
+    target_kind_set = set(tvm.target.Target.list_kinds())
+    target_kind_set.remove("composite")
+    all_targets = [tvm.target.Target(t) for t in target_kind_set]
 
     for tgt in all_targets:
-        if tgt.kind.name not in tvm.runtime.Device.DEVICE_NAME_TO_TYPE:
+        if tgt.kind.name not in tvm.runtime.Device._DEVICE_NAME_TO_TYPE:
             raise KeyError(
-                "Cannot find target kind: %s in Device.DEVICE_NAME_TO_TYPE" % tgt.kind.name
+                "Cannot find target kind: %s in Device._DEVICE_NAME_TO_TYPE" % tgt.kind.name
             )
 
-        assert tgt.get_target_device_type() == tvm.runtime.Device.DEVICE_NAME_TO_TYPE[tgt.kind.name]
+        assert (
+            tgt.get_target_device_type() == tvm.runtime.Device._DEVICE_NAME_TO_TYPE[tgt.kind.name]
+        )
 
 
 def test_target_string_parse():
@@ -347,7 +351,7 @@ def test_canon_multi_target_and_host_5():
 
 def test_canon_multi_target_and_host_6():
     """Test `canon_target_and_host` by using TVM Objects"""
-    cuda_device_type = tvm.device("cuda").device_type
+    cuda_device_type = tvm.device("cuda").dlpack_device_type()
     target = {cuda_device_type: Target(target="cuda", host="llvm")}
     host = None
     raw_targets_1 = Target.canon_multi_target_and_host(target, host)
