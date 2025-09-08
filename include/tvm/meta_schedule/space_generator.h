@@ -124,6 +124,13 @@ class SpaceGeneratorNode : public runtime::Object {
 class SpaceGenerator : public runtime::ObjectRef {
  public:
   /*!
+   * \brief Constructor from ObjectPtr<SpaceGeneratorNode>.
+   * \param data The object pointer.
+   */
+  explicit SpaceGenerator(ObjectPtr<SpaceGeneratorNode> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
+  /*!
    * \brief The function type of `InitializeWithTuneContext` method.
    * \param context The tuning context for initialization.
    */

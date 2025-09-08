@@ -36,6 +36,7 @@ class Module;
 
 /*!
  * \brief A module that can dynamically load ffi::Functions or exportable source code.
+ * \sa Module
  */
 class TVM_FFI_EXTRA_CXX_API ModuleObj : public Object {
  public:
@@ -168,6 +169,16 @@ class TVM_FFI_EXTRA_CXX_API ModuleObj : public Object {
 
 /*!
  * \brief Reference to module object.
+ *
+ * When invoking a function on a ModuleObj, such as GetFunction,
+ * use operator-> to get the ModuleObj pointer and invoke the member functions.
+ *
+ * \code
+ * ffi::Module mod = ffi::Module::LoadFromFile("path/to/module.so");
+ * ffi::Function func = mod->GetFunction(name);
+ * \endcode
+ *
+ * \sa ModuleObj which contains most of the function implementations.
  */
 class Module : public ObjectRef {
  public:
@@ -202,7 +213,11 @@ class Module : public ObjectRef {
      */
     kCompilationExportable = 0b100
   };
-
+  /*!
+   * \brief Constructor from ObjectPtr<ModuleObj>.
+   * \param ptr The object pointer.
+   */
+  explicit Module(ObjectPtr<ModuleObj> ptr) : ObjectRef(ptr) { TVM_FFI_ICHECK(ptr != nullptr); }
   /*!
    * \brief Load a module from file.
    * \param file_name The name of the host function module.

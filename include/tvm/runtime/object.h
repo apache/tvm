@@ -128,7 +128,7 @@ static_assert(static_cast<int>(TypeIndex::kCustomStaticIndex) >=
  */
 #define TVM_DEFINE_OBJECT_REF_METHODS_WITHOUT_DEFAULT_CONSTRUCTOR(TypeName, ParentType,        \
                                                                   ObjectName)                  \
-  explicit TypeName(::tvm::ffi::ObjectPtr<::tvm::ffi::Object> n) : ParentType(n) {}            \
+  explicit TypeName(::tvm::ffi::ObjectPtr<ObjectName> n) : ParentType(n) {}                    \
   TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                           \
   const ObjectName* operator->() const { return static_cast<const ObjectName*>(data_.get()); } \
   const ObjectName* get() const { return operator->(); }                                       \

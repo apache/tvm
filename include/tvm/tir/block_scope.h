@@ -297,6 +297,13 @@ class BlockScopeNode : public Object {
  */
 class BlockScope : public ObjectRef {
  public:
+  /*!
+   * \brief Constructor from ObjectPtr<BlockScopeNode>.
+   * \param data The object pointer.
+   */
+  explicit BlockScope(ObjectPtr<BlockScopeNode> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   /*! \brief The constructor creating an empty block scope with on dependency information */
   TVM_DLL BlockScope();
   /*!

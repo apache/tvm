@@ -141,11 +141,11 @@ void BindBlockThreadIdx(tir::Schedule sch, tir::BlockRV block_rv,  //
     ICHECK(false) << "Unsupported case, where blockIdx is bound but threadIdx is not";
     throw;
   }
-  LoopRV loop_rv{nullptr};
+  LoopRV loop_rv{ffi::UnsafeInit()};
   {
     ffi::Array<LoopRV> loop_rvs = sch->GetLoops(block_rv);
     if (i_spatial_loop == -1) {
-      LoopRV spatial_loop_rv{nullptr};
+      LoopRV spatial_loop_rv{ffi::UnsafeInit()};
       if (loop_rvs.empty()) {
         spatial_loop_rv = sch->AddUnitLoop(block_rv);
       } else {

@@ -54,7 +54,7 @@ namespace tvm {
 template <typename TObjectRef>
 inline TObjectRef NullValue() {
   static_assert(TObjectRef::_type_is_nullable, "Can only get NullValue for nullable types");
-  return TObjectRef(ObjectPtr<Object>(nullptr));
+  return TObjectRef(ObjectPtr<typename TObjectRef::ContainerType>(nullptr));
 }
 
 template <>
@@ -165,6 +165,10 @@ class DictAttrsNode : public BaseAttrsNode {
  */
 class DictAttrs : public Attrs {
  public:
+  /*!
+   * \brief constructor with UnsafeInit
+   */
+  explicit DictAttrs(ffi::UnsafeInit tag) : Attrs(tag) {}
   /*!
    * \brief Consruct a Attrs backed by DictAttrsNode.
    * \param dict The attributes.

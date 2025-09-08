@@ -415,7 +415,7 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
 
   bool Apply(const Schedule& sch) final {
     tir::ParsedAnnotation parsed_root;
-    tir::BlockRV root_rv{nullptr};
+    tir::BlockRV root_rv{ffi::UnsafeInit()};
     while (tir::FindAnnotatedRootBlock(sch, &parsed_root, &root_rv)) {
       for (tir::BlockRV block_rv : sch->GetChildBlocks(root_rv)) {
         ffi::Array<tir::LoopRV> loop_rvs = sch->GetLoops(block_rv);

@@ -50,6 +50,7 @@ class Operation : public ObjectRef {
   /*! \brief default constructor  */
   Operation() {}
   explicit Operation(ObjectPtr<Object> n) : ObjectRef(n) {}
+  explicit Operation(ffi::UnsafeInit tag) : ObjectRef(tag) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

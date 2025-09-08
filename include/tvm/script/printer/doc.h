@@ -88,6 +88,7 @@ class DocNode : public Object {
 class Doc : public ObjectRef {
  protected:
   Doc() = default;
+  explicit Doc(ObjectPtr<DocNode> data) : ObjectRef(data) {}
 
  public:
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Doc, ObjectRef, DocNode);
@@ -155,6 +156,8 @@ class ExprDoc : public Doc {
    * \param indices The indices to access.
    */
   ExprDoc operator[](ffi::Array<Doc> indices) const;
+
+  explicit ExprDoc(ObjectPtr<ExprDocNode> data) : Doc(data) { TVM_FFI_ICHECK(data != nullptr); }
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ExprDoc, Doc, ExprDocNode);
 };
@@ -378,7 +381,7 @@ class IdDoc : public ExprDoc {
 class AttrAccessDocNode : public ExprDocNode {
  public:
   /*! \brief The target expression to be accessed */
-  ExprDoc value{nullptr};
+  ExprDoc value{ffi::UnsafeInit()};
   /*! \brief The attribute to be accessed */
   ffi::String name;
 
@@ -418,7 +421,7 @@ class AttrAccessDoc : public ExprDoc {
 class IndexDocNode : public ExprDocNode {
  public:
   /*! \brief The container value to be accessed */
-  ExprDoc value{nullptr};
+  ExprDoc value{ffi::UnsafeInit()};
   /*!
    * \brief The indices to access
    *
@@ -464,7 +467,7 @@ class IndexDoc : public ExprDoc {
 class CallDocNode : public ExprDocNode {
  public:
   /*! \brief The callee of this function call */
-  ExprDoc callee{nullptr};
+  ExprDoc callee{ffi::UnsafeInit()};
   /*! \brief The positional arguments */
   ffi::Array<ExprDoc> args;
   /*! \brief The keys of keyword arguments */
@@ -604,7 +607,7 @@ class LambdaDocNode : public ExprDocNode {
   /*! \brief The arguments of this anonymous function */
   ffi::Array<IdDoc> args;
   /*! \brief The body of this anonymous function */
-  ExprDoc body{nullptr};
+  ExprDoc body{ffi::UnsafeInit()};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -664,7 +667,7 @@ class TupleDoc : public ExprDoc {
   /*!
    * \brief Create an empty TupleDoc
    */
-  TupleDoc() : TupleDoc(ffi::make_object<TupleDocNode>()) {}
+  TupleDoc() : ExprDoc(ffi::make_object<TupleDocNode>()) {}
   /*!
    * \brief Constructor of TupleDoc
    * \param elements Elements of tuple.
@@ -703,7 +706,7 @@ class ListDoc : public ExprDoc {
   /*!
    * \brief Create an empty ListDoc
    */
-  ListDoc() : ListDoc(ffi::make_object<ListDocNode>()) {}
+  ListDoc() : ExprDoc(ffi::make_object<ListDocNode>()) {}
   /*!
    * \brief Constructor of ListDoc
    * \param elements Elements of list.
@@ -751,7 +754,7 @@ class DictDoc : public ExprDoc {
   /*!
    * \brief Create an empty dictionary
    */
-  DictDoc() : DictDoc(ffi::make_object<DictDocNode>()) {}
+  DictDoc() : ExprDoc(ffi::make_object<DictDocNode>()) {}
   /*!
    * \brief Constructor of DictDoc
    * \param keys Keys of dictionary.
@@ -816,7 +819,7 @@ class SliceDoc : public Doc {
 class AssignDocNode : public StmtDocNode {
  public:
   /*! \brief The left hand side of the assignment */
-  ExprDoc lhs{nullptr};
+  ExprDoc lhs{ffi::UnsafeInit()};
   /*!
    * \brief The right hand side of the assignment.
    *
@@ -864,7 +867,7 @@ class AssignDoc : public StmtDoc {
 class IfDocNode : public StmtDocNode {
  public:
   /*! \brief The predicate of the if-then-else statement. */
-  ExprDoc predicate{nullptr};
+  ExprDoc predicate{ffi::UnsafeInit()};
   /*! \brief The then branch of the if-then-else statement. */
   ffi::Array<StmtDoc> then_branch;
   /*! \brief The else branch of the if-then-else statement. */
@@ -909,7 +912,7 @@ class IfDoc : public StmtDoc {
 class WhileDocNode : public StmtDocNode {
  public:
   /*! \brief The predicate of the while statement. */
-  ExprDoc predicate{nullptr};
+  ExprDoc predicate{ffi::UnsafeInit()};
   /*! \brief The body of the while statement. */
   ffi::Array<StmtDoc> body;
 
@@ -953,9 +956,9 @@ class WhileDoc : public StmtDoc {
 class ForDocNode : public StmtDocNode {
  public:
   /*! \brief The left hand side of the assignment of iterating variable. */
-  ExprDoc lhs{nullptr};
+  ExprDoc lhs{ffi::UnsafeInit()};
   /*! \brief The right hand side of the assignment of iterating variable. */
-  ExprDoc rhs{nullptr};
+  ExprDoc rhs{ffi::UnsafeInit()};
   /*! \brief The body of the for statement. */
   ffi::Array<StmtDoc> body;
 
@@ -1004,7 +1007,7 @@ class ScopeDocNode : public StmtDocNode {
   /*! \brief The name of the scoped variable. */
   ffi::Optional<ExprDoc> lhs{std::nullopt};
   /*! \brief The value of the scoped variable. */
-  ExprDoc rhs{nullptr};
+  ExprDoc rhs{ffi::UnsafeInit()};
   /*! \brief The body of the scope doc. */
   ffi::Array<StmtDoc> body;
 
@@ -1054,7 +1057,7 @@ class ScopeDoc : public StmtDoc {
 class ExprStmtDocNode : public StmtDocNode {
  public:
   /*! \brief The expression represented by this doc. */
-  ExprDoc expr{nullptr};
+  ExprDoc expr{ffi::UnsafeInit()};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -1089,7 +1092,7 @@ class ExprStmtDoc : public StmtDoc {
 class AssertDocNode : public StmtDocNode {
  public:
   /*! \brief The expression to test. */
-  ExprDoc test{nullptr};
+  ExprDoc test{ffi::UnsafeInit()};
   /*! \brief The optional error message when assertion failed. */
   ffi::Optional<ExprDoc> msg{std::nullopt};
 
@@ -1129,7 +1132,7 @@ class AssertDoc : public StmtDoc {
 class ReturnDocNode : public StmtDocNode {
  public:
   /*! \brief The value to return. */
-  ExprDoc value{nullptr};
+  ExprDoc value{ffi::UnsafeInit()};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -1164,7 +1167,7 @@ class ReturnDoc : public StmtDoc {
 class FunctionDocNode : public StmtDocNode {
  public:
   /*! \brief The name of function. */
-  IdDoc name{nullptr};
+  IdDoc name{ffi::UnsafeInit{}};
   /*!
    * \brief The arguments of function.
    *
@@ -1223,7 +1226,7 @@ class FunctionDoc : public StmtDoc {
 class ClassDocNode : public StmtDocNode {
  public:
   /*! \brief The name of class. */
-  IdDoc name{nullptr};
+  IdDoc name{ffi::UnsafeInit{}};
   /*! \brief Decorators of class. */
   ffi::Array<ExprDoc> decorators;
   /*! \brief The body of class. */

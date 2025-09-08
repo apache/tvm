@@ -334,7 +334,7 @@ class WmmaToGlobalRewriter : public StmtExprMutator {
 Stmt WmmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                            OutputSet* output) const {
   Stmt body{nullptr};
-  ffi::Optional<For> compute_location{nullptr};
+  ffi::Optional<For> compute_location;
   std::tie(body, compute_location) = TileWmmaBlock(stmt);
   SeqStmt seq{nullptr};
   Buffer cache_buffer;
@@ -543,7 +543,7 @@ class MmaToGlobalRewriter : public StmtExprMutator {
 Stmt MmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                           OutputSet* output) const {
   Stmt body{nullptr};
-  ffi::Optional<For> compute_location{nullptr};
+  ffi::Optional<For> compute_location;
   std::tie(body, compute_location) = TileMmaToGlobalBlock(stmt);
   SeqStmt seq{nullptr};
   Buffer cache_buffer;

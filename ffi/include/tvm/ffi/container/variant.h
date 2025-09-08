@@ -68,7 +68,7 @@ class VariantBase<true> : public ObjectRef {
   explicit VariantBase(const T& other) : ObjectRef(other) {}
   template <typename T>
   explicit VariantBase(T&& other) : ObjectRef(std::move(other)) {}
-  explicit VariantBase(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
+  explicit VariantBase(UnsafeInit tag) : ObjectRef(tag) {}
   explicit VariantBase(Any other)
       : ObjectRef(details::AnyUnsafe::MoveFromAnyAfterCheck<ObjectRef>(std::move(other))) {}
 

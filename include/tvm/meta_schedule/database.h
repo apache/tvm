@@ -71,6 +71,7 @@ class WorkloadNode : public runtime::Object {
 class Workload : public runtime::ObjectRef {
  public:
   using THashCode = WorkloadNode::THashCode;
+  explicit Workload(ObjectPtr<WorkloadNode> data) : ObjectRef(data) {}
   /*!
    * \brief Constructor of Workload.
    * \param mod The workload's IRModule.
@@ -117,7 +118,7 @@ class TuningRecordNode : public runtime::Object {
   /*! \brief The trace tuned. */
   tir::Trace trace;
   /*! \brief The workload. */
-  Workload workload{nullptr};
+  Workload workload{ffi::UnsafeInit()};
   /*! \brief The profiling result in seconds. */
   ffi::Optional<ffi::Array<FloatImm>> run_secs;
   /*! \brief The target for tuning. */
@@ -466,6 +467,13 @@ class PyDatabaseNode : public DatabaseNode {
  */
 class Database : public runtime::ObjectRef {
  public:
+  /*!
+   * \brief Constructor from ObjectPtr<DatabaseNode>.
+   * \param data The object pointer.
+   */
+  explicit Database(ObjectPtr<DatabaseNode> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   /*!
    * \brief An in-memory database.
    * \param mod_eq_name A string to specify the module equality testing and hashing method.

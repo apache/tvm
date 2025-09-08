@@ -71,15 +71,17 @@ namespace ffi {
 template <typename TObjRef, typename = std::enable_if_t<std::is_base_of_v<ObjectRef, TObjRef>>>
 class RValueRef {
  public:
+  /*! \brief the container type of the rvalue ref */
+  using ContainerType = typename TObjRef::ContainerType;
   /*! \brief only allow move constructor from rvalue of T */
   explicit RValueRef(TObjRef&& data)
-      : data_(details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(std::move(data))) {}
+      : data_(details::ObjectUnsafe::ObjectPtrFromObjectRef<ContainerType>(std::move(data))) {}
 
   /*! \brief return the data as rvalue */
   TObjRef operator*() && { return TObjRef(std::move(data_)); }
 
  private:
-  mutable ObjectPtr<Object> data_;
+  mutable ObjectPtr<ContainerType> data_;
 
   template <typename, typename>
   friend struct TypeTraits;
@@ -125,7 +127,8 @@ struct TypeTraits<RValueRef<TObjRef>> : public TypeTraitsBase {
       tmp_any.v_obj = reinterpret_cast<TVMFFIObject*>(rvalue_ref->get());
       // fast path, storage type matches, direct move the rvalue ref
       if (TypeTraits<TObjRef>::CheckAnyStrict(&tmp_any)) {
-        return RValueRef<TObjRef>(TObjRef(std::move(*rvalue_ref)));
+        return RValueRef<TObjRef>(
+            details::ObjectUnsafe::ObjectRefFromObjectPtr<TObjRef>(std::move(*rvalue_ref)));
       }
       if (std::optional<TObjRef> opt = TypeTraits<TObjRef>::TryCastFromAnyView(&tmp_any)) {
         // object type does not match up, we need to try to convert the object

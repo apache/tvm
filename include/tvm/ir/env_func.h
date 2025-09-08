@@ -71,6 +71,10 @@ class EnvFunc : public ObjectRef {
  public:
   EnvFunc() {}
   explicit EnvFunc(ObjectPtr<Object> n) : ObjectRef(n) {}
+  /*!
+   * \brief constructor with UnsafeInit
+   */
+  explicit EnvFunc(ffi::UnsafeInit tag) : ObjectRef(tag) {}
   /*! \return The internal global function pointer */
   const EnvFuncNode* operator->() const { return static_cast<const EnvFuncNode*>(get()); }
   /*!
@@ -117,6 +121,10 @@ class TypedEnvFunc<R(Args...)> : public ObjectRef {
   using TSelf = TypedEnvFunc<R(Args...)>;
   TypedEnvFunc() {}
   explicit TypedEnvFunc(ObjectPtr<Object> n) : ObjectRef(n) {}
+  /*!
+   * \brief constructor with UnsafeInit
+   */
+  explicit TypedEnvFunc(ffi::UnsafeInit tag) : ObjectRef(tag) {}
   /*!
    * \brief Assign global function to a TypedEnvFunc
    * \param other Another global function.

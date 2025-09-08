@@ -1382,6 +1382,10 @@ class Map : public ObjectRef {
   /*! \brief The iterator type of the map */
   class iterator;
   /*!
+   * \brief Construct an Map with UnsafeInit
+   */
+  explicit Map(UnsafeInit tag) : ObjectRef(tag) {}
+  /*!
    * \brief default constructor
    */
   Map() { data_ = MapObj::Empty(); }

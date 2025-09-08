@@ -31,7 +31,7 @@ static ffi::Array<tir::LoopRV> ScheduleDataPack(tir::Schedule sch, tir::BlockRV 
   using namespace tvm::tir;
   ICHECK_EQ(tiled.size(), 2);
   ICHECK_EQ(unrolled.size(), 4);
-  ffi::Array<ExprRV> factors{nullptr};
+  ffi::Array<ExprRV> factors{ffi::UnsafeInit()};
   ffi::Array<LoopRV> loops = sch->GetLoops(block);
   ICHECK_EQ(loops.size(), 6);
 

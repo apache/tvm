@@ -607,7 +607,8 @@ class Binding : public ObjectRef {
   Binding() = default;
 
  public:
-  explicit Binding(ObjectPtr<Object> n) : ObjectRef(n) {}
+  explicit Binding(ObjectPtr<BindingNode> n) : ObjectRef(n) {}
+  explicit Binding(ffi::UnsafeInit tag) : ObjectRef(tag) {}
   TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(Binding);
   const BindingNode* operator->() const { return static_cast<const BindingNode*>(data_.get()); }
   const BindingNode* get() const { return operator->(); }

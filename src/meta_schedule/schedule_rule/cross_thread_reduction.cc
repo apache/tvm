@@ -171,7 +171,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
    * \return The extent of "threadIdx.x" in the input schedule
    */
   tir::ExprRV GetThreadIdxExtentFromTrace(const tir::Trace& trace) {
-    tir::ExprRV extent{nullptr};
+    tir::ExprRV extent{ffi::UnsafeInit()};
     for (const tir::Instruction& inst : trace->insts) {
       if (inst->kind->name == "Bind" && Downcast<ffi::String>(inst->attrs[0]) == "threadIdx.x") {
         if (GetLoopRVExtentSource(trace, Downcast<tir::LoopRV>(inst->inputs[0]), &extent)) {
@@ -198,8 +198,8 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     // Step 0. Due to technical reason of some primitives (e.g., compute-at), if the block is doing
     // a tuple reduction, fusion is temporarily not supported.
     if (sch->Get(block_rv)->writes.size() != 1) {
-      return std::make_tuple(false, tir::LoopRV{nullptr}, tir::BlockRV{nullptr},
-                             tir::LoopRV{nullptr});
+      return std::make_tuple(false, tir::LoopRV{ffi::UnsafeInit()}, tir::BlockRV{ffi::UnsafeInit()},
+                             tir::LoopRV{ffi::UnsafeInit()});
     }
 
     // Step 1. Get all the consumers of the input block.
@@ -208,8 +208,8 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     // Step 2. If the block has no consumer or the first consumer needs multi-level tiling, it is
     // not fusible.
     if (consumers.empty() || tir::NeedsMultiLevelTiling(sch->state(), sch->GetSRef(consumers[0]))) {
-      return std::make_tuple(false, tir::LoopRV{nullptr}, tir::BlockRV{nullptr},
-                             tir::LoopRV{nullptr});
+      return std::make_tuple(false, tir::LoopRV{ffi::UnsafeInit()}, tir::BlockRV{ffi::UnsafeInit()},
+                             tir::LoopRV{ffi::UnsafeInit()});
     }
 
     // Step 3. Calculate the lowest common ancestor of all the consumers.
@@ -221,8 +221,8 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     const tir::StmtSRef& lca_sref =
         tir::GetSRefLowestCommonAncestor(tir::BlockRVs2StmtSRefs(sch, consumers));
     if (consumers.size() > 1 && lca_sref->StmtAs<tir::BlockNode>() != nullptr) {
-      return std::make_tuple(false, tir::LoopRV{nullptr}, tir::BlockRV{nullptr},
-                             tir::LoopRV{nullptr});
+      return std::make_tuple(false, tir::LoopRV{ffi::UnsafeInit()}, tir::BlockRV{ffi::UnsafeInit()},
+                             tir::LoopRV{ffi::UnsafeInit()});
     }
 
     // Step 4. Get the outer loops of the target block, and get the compute-at position index.
@@ -231,8 +231,8 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
 
     // Step 5. A negative position index means not fusible, and vice-versa.
     if (pos < 0) {
-      return std::make_tuple(false, tir::LoopRV{nullptr}, tir::BlockRV{nullptr},
-                             tir::LoopRV{nullptr});
+      return std::make_tuple(false, tir::LoopRV{ffi::UnsafeInit()}, tir::BlockRV{ffi::UnsafeInit()},
+                             tir::LoopRV{ffi::UnsafeInit()});
     } else {
       return std::make_tuple(true, tgt_block_loops[pos], consumers[0], tgt_block_loops.back());
     }

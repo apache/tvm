@@ -59,8 +59,8 @@ class TIntObj : public TNumberObj {
  public:
   int64_t value;
 
-  TIntObj() = default;
   TIntObj(int64_t value) : value(value) {}
+  explicit TIntObj(UnsafeInit) {}
 
   int64_t GetValue() const { return value; }
 
@@ -165,9 +165,9 @@ class TVarObj : public Object {
  public:
   std::string name;
 
-  // need default constructor for json serialization
-  TVarObj() = default;
   TVarObj(std::string name) : name(name) {}
+  // need unsafe init constructor for json serialization
+  explicit TVarObj(UnsafeInit) {}
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -193,8 +193,8 @@ class TFuncObj : public Object {
   Array<ObjectRef> body;
   Optional<String> comment;
 
-  // need default constructor for json serialization
-  TFuncObj() = default;
+  // need unsafe init constructor or default constructor for json serialization
+  explicit TFuncObj(UnsafeInit) {}
   TFuncObj(Array<TVar> params, Array<ObjectRef> body, Optional<String> comment)
       : params(params), body(body), comment(comment) {}
 

@@ -333,6 +333,9 @@ class RPCObjectRefObj : public Object {
  */
 class RPCObjectRef : public ObjectRef {
  public:
+  explicit RPCObjectRef(ObjectPtr<RPCObjectRefObj> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(RPCObjectRef, ObjectRef, RPCObjectRefObj);
 };
 

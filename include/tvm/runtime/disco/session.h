@@ -170,6 +170,7 @@ class DRefObj : public Object {
  */
 class DRef : public ObjectRef {
  public:
+  explicit DRef(ObjectPtr<DRefObj> data) : ObjectRef(data) { TVM_FFI_ICHECK(data != nullptr); }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(DRef, ObjectRef, DRefObj);
 };
 

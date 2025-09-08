@@ -604,7 +604,7 @@ void ConcreteScheduleNode::ReorderBlockIterVar(const BlockRV& block_rv,
 }
 
 LoopRV ConcreteScheduleNode::AddUnitLoop(const BlockRV& block_rv) {
-  LoopRV result{nullptr};
+  LoopRV result{ffi::UnsafeInit()};
   TVM_TIR_SCHEDULE_BEGIN();
   result = CreateRV<LoopRV>(tir::AddUnitLoop(state_, GetSRef(block_rv)));
   TVM_TIR_SCHEDULE_END("add-unit-loop", this->error_render_level_);
@@ -613,7 +613,7 @@ LoopRV ConcreteScheduleNode::AddUnitLoop(const BlockRV& block_rv) {
 }
 
 LoopRV ConcreteScheduleNode::AddUnitLoop(const LoopRV& loop_rv) {
-  LoopRV result{nullptr};
+  LoopRV result{ffi::UnsafeInit()};
   TVM_TIR_SCHEDULE_BEGIN();
   result = CreateRV<LoopRV>(tir::AddUnitLoop(state_, GetSRef(loop_rv)));
   TVM_TIR_SCHEDULE_END("add-unit-loop", this->error_render_level_);

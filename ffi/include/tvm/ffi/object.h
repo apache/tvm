@@ -45,6 +45,24 @@ using TypeIndex = TVMFFITypeIndex;
 using TypeInfo = TVMFFITypeInfo;
 
 /*!
+ * \brief Helper tag to explicitly request unsafe initialization.
+ *
+ * Constructing an ObjectRefType with UnsafeInit{} will set the data_ member to nullptr.
+ *
+ * When initializing Object fields, ObjectRef fields can be set to UnsafeInit.
+ * This enables the "construct with UnsafeInit then set all fields" pattern
+ * when the object does not have a default constructor.
+ *
+ * Used for initialization in controlled scenarios where such unsafe
+ * initialization is known to be safe.
+ *
+ * Each ObjectRefType should have a constructor that takes an UnsafeInit tag.
+ *
+ * \note As the name suggests, do not use it in normal code paths.
+ */
+struct UnsafeInit {};
+
+/*!
  * \brief Known type keys for pre-defined types.
  */
 struct StaticTypeKey {
@@ -702,6 +720,8 @@ class ObjectRef {
   ObjectRef& operator=(ObjectRef&& other) = default;
   /*! \brief Constructor from existing object ptr */
   explicit ObjectRef(ObjectPtr<Object> data) : data_(data) {}
+  /*! \brief Constructor from UnsafeInit */
+  explicit ObjectRef(UnsafeInit) : data_(nullptr) {}
   /*!
    * \brief Comparator
    * \param other Another object ref.
@@ -774,7 +794,9 @@ class ObjectRef {
   TVM_FFI_INLINE std::optional<ObjectRefType> as() const {
     if (data_ != nullptr) {
       if (data_->IsInstance<typename ObjectRefType::ContainerType>()) {
-        return ObjectRefType(data_);
+        ObjectRefType ref(UnsafeInit{});
+        ref.data_ = data_;
+        return ref;
       } else {
         return std::nullopt;
       }
@@ -782,6 +804,7 @@ class ObjectRef {
       return std::nullopt;
     }
   }
+
   /*!
    * \brief Get the type index of the ObjectRef
    * \return The type index of the ObjectRef
@@ -914,7 +937,8 @@ struct ObjectPtrEqual {
  */
 #define TVM_FFI_DEFINE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)                    \
   TypeName() = default;                                                                        \
-  explicit TypeName(::tvm::ffi::ObjectPtr<::tvm::ffi::Object> n) : ParentType(n) {}            \
+  explicit TypeName(::tvm::ffi::ObjectPtr<ObjectName> n) : ParentType(n) {}                    \
+  explicit TypeName(::tvm::ffi::UnsafeInit tag) : ParentType(tag) {}                           \
   TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName)                                        \
   const ObjectName* operator->() const { return static_cast<const ObjectName*>(data_.get()); } \
   const ObjectName* get() const { return operator->(); }                                       \
@@ -928,7 +952,7 @@ struct ObjectPtrEqual {
  * \param ObjectName The type name of the object.
  */
 #define TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)        \
-  explicit TypeName(::tvm::ffi::ObjectPtr<::tvm::ffi::Object> n) : ParentType(n) {}            \
+  explicit TypeName(::tvm::ffi::UnsafeInit tag) : ParentType(tag) {}                           \
   TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName)                                        \
   const ObjectName* operator->() const { return static_cast<const ObjectName*>(data_.get()); } \
   const ObjectName* get() const { return operator->(); }                                       \
@@ -943,11 +967,12 @@ struct ObjectPtrEqual {
  * \note We recommend making objects immutable when possible.
  *       This macro is only reserved for objects that stores runtime states.
  */
-#define TVM_FFI_DEFINE_MUTABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)         \
-  TypeName() = default;                                                                     \
-  TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName)                                     \
-  explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {} \
-  ObjectName* operator->() const { return static_cast<ObjectName*>(data_.get()); }          \
+#define TVM_FFI_DEFINE_MUTABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
+  TypeName() = default;                                                             \
+  explicit TypeName(::tvm::ffi::UnsafeInit tag) : ParentType(tag) {}                \
+  TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName)                             \
+  explicit TypeName(::tvm::ffi::ObjectPtr<ObjectName> n) : ParentType(n) {}         \
+  ObjectName* operator->() const { return static_cast<ObjectName*>(data_.get()); }  \
   using ContainerType = ObjectName
 
 /*!
@@ -958,7 +983,7 @@ struct ObjectPtrEqual {
  * \param ObjectName The type name of the object.
  */
 #define TVM_FFI_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
-  explicit TypeName(::tvm::ffi::ObjectPtr<::tvm::ffi::Object> n) : ParentType(n) {}             \
+  explicit TypeName(::tvm::ffi::UnsafeInit tag) : ParentType(tag) {}                            \
   TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName)                                         \
   ObjectName* operator->() const { return static_cast<ObjectName*>(data_.get()); }              \
   ObjectName* get() const { return operator->(); }                                              \
@@ -1022,6 +1047,20 @@ struct ObjectUnsafe {
   }
 
   template <typename T>
+  TVM_FFI_INLINE static T ObjectRefFromObjectPtr(const ObjectPtr<Object>& ptr) {
+    T ref(UnsafeInit{});
+    ref.data_ = ptr;
+    return ref;
+  }
+
+  template <typename T>
+  TVM_FFI_INLINE static T ObjectRefFromObjectPtr(ObjectPtr<Object>&& ptr) {
+    T ref(UnsafeInit{});
+    ref.data_ = std::move(ptr);
+    return ref;
+  }
+
+  template <typename T>
   TVM_FFI_INLINE static ObjectPtr<T> ObjectPtrFromObjectRef(const ObjectRef& ref) {
     if constexpr (std::is_same_v<T, Object>) {
       return ref.data_;
@@ -1035,7 +1074,10 @@ struct ObjectUnsafe {
     if constexpr (std::is_same_v<T, Object>) {
       return std::move(ref.data_);
     } else {
-      return tvm::ffi::ObjectPtr<T>(std::move(ref.data_.data_));
+      ObjectPtr<T> result;
+      result.data_ = std::move(ref.data_.data_);
+      ref.data_.data_ = nullptr;
+      return result;
     }
   }
 

@@ -264,7 +264,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           if (ffi::Optional<ExprDoc> doc = PrintRelaxPrint(n, n_p, d)) {
             return doc.value();
           }
-          ExprDoc prefix{nullptr};
+          ExprDoc prefix{ffi::UnsafeInit()};
           ffi::Array<ExprDoc> args;
           ffi::Array<ffi::String> kwargs_keys;
           ffi::Array<ExprDoc> kwargs_values;

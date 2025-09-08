@@ -761,6 +761,9 @@ class TensorizeInfoNode : public Object {
 
 class TensorizeInfo : public ObjectRef {
  public:
+  explicit TensorizeInfo(ObjectPtr<TensorizeInfoNode> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TensorizeInfo, ObjectRef, TensorizeInfoNode);
 };
 
@@ -810,6 +813,10 @@ class AutoTensorizeMappingInfoNode : public Object {
 
 class AutoTensorizeMappingInfo : public ObjectRef {
  public:
+  explicit AutoTensorizeMappingInfo(ObjectPtr<AutoTensorizeMappingInfoNode> data)
+      : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AutoTensorizeMappingInfo, ObjectRef,
                                             AutoTensorizeMappingInfoNode);
 };

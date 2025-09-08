@@ -363,6 +363,10 @@ class Array : public ObjectRef {
   using value_type = T;
   // constructors
   /*!
+   * \brief Construct an Array with UnsafeInit
+   */
+  explicit Array(UnsafeInit tag) : ObjectRef(tag) {}
+  /*!
    * \brief default constructor
    */
   Array() { data_ = ArrayObj::Empty(); }

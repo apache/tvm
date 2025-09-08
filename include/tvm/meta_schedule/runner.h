@@ -207,7 +207,11 @@ class RunnerNode : public runtime::Object {
 class Runner : public runtime::ObjectRef {
  public:
   using FRun = RunnerNode::FRun;
-
+  /*!
+   * \brief Constructor from ObjectPtr<RunnerNode>.
+   * \param data The object pointer.
+   */
+  explicit Runner(ObjectPtr<RunnerNode> data) : ObjectRef(data) { TVM_FFI_ICHECK(data != nullptr); }
   /*!
    * \brief Create a runner with customized build method on the python-side.
    * \param f_run The packed function to run the built artifacts and get runner futures.

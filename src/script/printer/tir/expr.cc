@@ -27,7 +27,7 @@ namespace printer {
 ExprDoc PrintVarCreation(const tir::Var& var, const AccessPath& var_p, const IRDocsifier& d) {
   Type type = var->type_annotation;
   AccessPath type_p = var_p->Attr("type_annotation");
-  ExprDoc rhs{nullptr};
+  ExprDoc rhs{ffi::UnsafeInit()};
   ffi::Array<ffi::String> kwargs_keys;
   ffi::Array<ExprDoc> kwargs_values;
 
@@ -169,7 +169,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::CommReducer>(  //
         "", [](tir::CommReducer r, AccessPath p, IRDocsifier d) -> Doc {
           ICHECK_EQ(r->lhs.size(), r->rhs.size());
-          LambdaDoc lambda{nullptr};
+          ffi::Optional<LambdaDoc> lambda;
           {
             With<TIRFrame> f(d, r);
             int n_vars = r->lhs.size();
@@ -194,7 +194,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             }
           }
           ExprDoc id = d->AsDoc<ExprDoc>(r->identity_element, p->Attr("identity_element"));
-          return TIR(d, "comm_reducer")->Call({lambda, id});
+          return TIR(d, "comm_reducer")->Call({lambda.value(), id});
         });
 
 LambdaDoc PrintIndexMap(const ObjectRef& map, const ffi::Array<tir::Var>& vs,
@@ -244,7 +244,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       static const OpAttrMap<tir::TScriptDtypePrintLocation> dtype_locations =
           Op::GetAttrMap<tir::TScriptDtypePrintLocation>("TScriptDtypePrintLocation");
       tir::ScriptDtypePrintLocation dtype_print_location = tir::ScriptDtypePrintLocation::kNone;
-      ExprDoc prefix{nullptr};
+      ffi::Optional<ExprDoc> prefix;
       if (auto optional_op = call->op.as<Op>()) {
         auto op = optional_op.value();
         ffi::String name = op_names.get(op, op->name);
@@ -279,7 +279,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           if (dtype_print_location == tir::ScriptDtypePrintLocation::kLast) {
             args.push_back(LiteralDoc::DataType(call->dtype, call_p->Attr("dtype")));
           }
-          return prefix->Call(args);
+          return prefix.value()->Call(args);
         }
       } else if (call->op.as<GlobalVarNode>()) {
         prefix = d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
@@ -299,7 +299,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       if (dtype_print_location == tir::ScriptDtypePrintLocation::kLast) {
         args.push_back(LiteralDoc::DataType(call->dtype, call_p->Attr("dtype")));
       }
-      return prefix->Call(args);
+      return prefix.value()->Call(args);
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)

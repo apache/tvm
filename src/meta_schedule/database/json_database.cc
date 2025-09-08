@@ -185,11 +185,11 @@ Database Database::JSONDatabase(ffi::String path_workload, ffi::String path_tuni
   {
     std::vector<Any> json_objs = JSONFileReadLines(path_tuning_record, num_threads, allow_missing);
     std::vector<TuningRecord> records;
-    records.resize(json_objs.size(), TuningRecord{nullptr});
+    records.resize(json_objs.size(), TuningRecord{ffi::UnsafeInit()});
     support::parallel_for_dynamic(
         0, json_objs.size(), num_threads, [&](int thread_id, int task_id) {
           auto json_obj = json_objs[task_id].cast<ObjectRef>();
-          Workload workload{nullptr};
+          Workload workload{ffi::UnsafeInit()};
           try {
             const ffi::ArrayObj* arr = json_obj.as<ffi::ArrayObj>();
             ICHECK_EQ(arr->size(), 2);

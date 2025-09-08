@@ -99,6 +99,13 @@ class TuneContext : public runtime::ObjectRef {
  public:
   using TRandState = support::LinearCongruentialEngine::TRandState;
   /*!
+   * \brief Constructor from ObjectPtr<TuneContextNode>.
+   * \param data The object pointer.
+   */
+  explicit TuneContext(ObjectPtr<TuneContextNode> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
+  /*!
    * \brief Constructor.
    * \param mod The workload to be tuned.
    * \param target The target to be tuned for.

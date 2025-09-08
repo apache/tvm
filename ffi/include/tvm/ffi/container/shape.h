@@ -94,13 +94,13 @@ TVM_FFI_INLINE ObjectPtr<ShapeObj> MakeInplaceShape(IterType begin, IterType end
   return p;
 }
 
-TVM_FFI_INLINE ObjectPtr<ShapeObj> MakeStridesFromShape(int64_t ndim, int64_t* shape) {
+TVM_FFI_INLINE ObjectPtr<ShapeObj> MakeStridesFromShape(const int64_t* data, int64_t ndim) {
   int64_t* strides_data;
   ObjectPtr<ShapeObj> strides = details::MakeEmptyShape(ndim, &strides_data);
   int64_t stride = 1;
   for (int i = ndim - 1; i >= 0; --i) {
     strides_data[i] = stride;
-    stride *= shape[i];
+    stride *= data[i];
   }
   return strides;
 }
@@ -149,6 +149,16 @@ class Shape : public ObjectRef {
    */
   Shape(std::vector<int64_t> other)  // NOLINT(*)
       : ObjectRef(make_object<details::ShapeObjStdImpl>(std::move(other))) {}
+
+  /*!
+   * \brief Create a strides from a shape.
+   * \param data The shape data.
+   * \param ndim The number of dimensions.
+   * \return The strides.
+   */
+  static Shape StridesFromShape(const int64_t* data, int64_t ndim) {
+    return Shape(details::MakeStridesFromShape(data, ndim));
+  }
 
   /*!
    * \brief Return the data pointer
@@ -204,6 +214,9 @@ class Shape : public ObjectRef {
   /// \cond Doxygen_Suppress
   TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Shape, ObjectRef, ShapeObj);
   /// \endcond
+
+ private:
+  explicit Shape(ObjectPtr<ShapeObj> ptr) : ObjectRef(ptr) {}
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Shape& shape) {

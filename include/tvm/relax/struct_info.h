@@ -27,6 +27,8 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
 
+#include <utility>
+
 namespace tvm {
 namespace relax {
 
@@ -317,6 +319,10 @@ class FuncStructInfoNode : public StructInfoNode {
  */
 class FuncStructInfo : public StructInfo {
  public:
+  explicit FuncStructInfo(ObjectPtr<FuncStructInfoNode> data) : StructInfo(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
   /*!
    * \brief Constructor from parameter struct info and return value struct info.
    * \param params The struct info of function parameters.

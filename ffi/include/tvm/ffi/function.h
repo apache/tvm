@@ -403,7 +403,7 @@ class Function : public ObjectRef {
     TVM_FFI_CHECK_SAFE_CALL(TVMFFIFunctionGetGlobal(&name_arr, &handle));
     if (handle != nullptr) {
       return Function(
-          details::ObjectUnsafe::ObjectPtrFromOwned<Object>(static_cast<Object*>(handle)));
+          details::ObjectUnsafe::ObjectPtrFromOwned<FunctionObj>(static_cast<Object*>(handle)));
     } else {
       return std::nullopt;
     }

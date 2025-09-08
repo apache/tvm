@@ -40,7 +40,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         TVM_FFI_THROW(ValueError) << "Expect shape to take list of int arguments";
       }
     }
-    *ret = Shape(shape);
+    *ret = details::ObjectUnsafe::ObjectRefFromObjectPtr<Shape>(shape);
   });
 });
 

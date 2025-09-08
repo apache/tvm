@@ -97,6 +97,14 @@ TEST(ObjectRef, as) {
   EXPECT_EQ(b.as<TFloatObj>()->value, 20);
 }
 
+TEST(ObjectRef, UnsafeInit) {
+  ObjectRef a(UnsafeInit{});
+  EXPECT_TRUE(a.get() == nullptr);
+
+  TInt b(UnsafeInit{});
+  EXPECT_TRUE(b.get() == nullptr);
+}
+
 TEST(Object, CAPIAccessor) {
   ObjectRef a = TInt(10);
   TVMFFIObjectHandle obj = details::ObjectUnsafe::RawObjectPtrFromObjectRef(a);

@@ -177,6 +177,9 @@ class PyExprVisitorNode : public Object, public ExprVisitor {
  */
 class PyExprVisitor : public ObjectRef {
  public:
+  explicit PyExprVisitor(ObjectPtr<PyExprVisitorNode> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   /*!
    * \brief Create a PyExprVisitor with customized methods on the python-side.
    * \param f_visit_expr The packed function of `VisitExpr(const Expr& expr)`.
@@ -461,6 +464,9 @@ class PyExprMutatorNode : public Object, public ExprMutator {
  */
 class PyExprMutator : public ObjectRef {
  public:
+  explicit PyExprMutator(ObjectPtr<PyExprMutatorNode> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   /*!
    * \brief Create a PyExprMutator with customized methods on the python-side.
    * \param f_visit_expr The packed function of `VisitExpr(const Expr& expr)`.

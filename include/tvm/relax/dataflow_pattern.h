@@ -280,6 +280,7 @@ class PatternContextNode : public Object {
  */
 class PatternContext : public ObjectRef {
  public:
+  explicit PatternContext(ffi::UnsafeInit tag) : ObjectRef(tag) {}
   TVM_DLL explicit PatternContext(ObjectPtr<Object> n) : ObjectRef(n) {}
   TVM_DLL explicit PatternContext(bool incremental = false);
 
@@ -778,6 +779,10 @@ class WildcardPatternNode : public DFPatternNode {
 class WildcardPattern : public DFPattern {
  public:
   WildcardPattern();
+  explicit WildcardPattern(ObjectPtr<WildcardPatternNode> data) : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
 
   // Declaring WildcardPattern declared as non-nullable avoids the
   // default zero-parameter constructor for ObjectRef with `data_ =

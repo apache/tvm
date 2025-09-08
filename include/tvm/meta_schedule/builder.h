@@ -137,6 +137,13 @@ class BuilderNode : public runtime::Object {
 class Builder : public runtime::ObjectRef {
  public:
   /*!
+   * \brief Constructor from ObjectPtr<BuilderNode>.
+   * \param data The object pointer.
+   */
+  explicit Builder(ObjectPtr<BuilderNode> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
+  /*!
    * \brief Create a builder with customized build method on the python-side.
    * \param f_build The packed function to the `Build` function..
    * \return The Builder created.
