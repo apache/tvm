@@ -109,8 +109,7 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args,
             out[i].v_ptr = (<Object>arg).chandle
         elif torch is not None and isinstance(arg, torch.Tensor):
             is_cuda = arg.is_cuda
-            arg = from_dlpack(torch.utils.dlpack.to_dlpack(arg),
-                              required_alignment=__dlpack_auto_import_required_alignment__)
+            arg = from_dlpack(torch.utils.dlpack.to_dlpack(arg))
             out[i].type_index = kTVMFFITensor
             out[i].v_ptr = (<Tensor>arg).chandle
             temp_dltensor = TVMFFITensorGetDLTensorPtr((<Tensor>arg).chandle)
@@ -123,7 +122,7 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args,
                 ctx_stream[0] = <TVMFFIStreamHandle>temp_ptr
             temp_args.append(arg)
         elif hasattr(arg, "__dlpack__"):
-            arg = from_dlpack(arg, required_alignment=__dlpack_auto_import_required_alignment__)
+            arg = from_dlpack(arg)
             out[i].type_index = kTVMFFITensor
             out[i].v_ptr = (<Tensor>arg).chandle
             temp_args.append(arg)

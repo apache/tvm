@@ -16,7 +16,6 @@
 # under the License.
 
 __dlpack_version__ = (1, 1)
-__dlpack_auto_import_required_alignment__ = 8
 _CLASS_TENSOR = None
 
 
@@ -45,13 +44,13 @@ cdef void _c_dlpack_versioned_deleter(object pycaps):
 
 
 cdef inline int _from_dlpack(
-    object dltensor, int required_alignment,
-    int required_contiguous, TVMFFIObjectHandle* out
+    object dltensor, int require_alignment,
+    int require_contiguous, TVMFFIObjectHandle* out
 ) except -1:
     cdef DLManagedTensor* ptr
     cdef int c_api_ret_code
-    cdef int c_req_alignment = required_alignment
-    cdef int c_req_contiguous = required_contiguous
+    cdef int c_req_alignment = require_alignment
+    cdef int c_req_contiguous = require_contiguous
     if pycapsule.PyCapsule_IsValid(dltensor, _c_str_dltensor):
         ptr = <DLManagedTensor*>pycapsule.PyCapsule_GetPointer(dltensor, _c_str_dltensor)
         with nogil:
@@ -66,13 +65,13 @@ cdef inline int _from_dlpack(
 
 
 cdef inline int _from_dlpack_versioned(
-    object dltensor, int required_alignment,
-    int required_contiguous, TVMFFIObjectHandle* out
+    object dltensor, int require_alignment,
+    int require_contiguous, TVMFFIObjectHandle* out
 ) except -1:
     cdef DLManagedTensorVersioned* ptr
     cdef int c_api_ret_code
-    cdef int c_req_alignment = required_alignment
-    cdef int c_req_contiguous = required_contiguous
+    cdef int c_req_alignment = require_alignment
+    cdef int c_req_contiguous = require_contiguous
     if pycapsule.PyCapsule_IsValid(dltensor, _c_str_dltensor_versioned):
         ptr = <DLManagedTensorVersioned*>pycapsule.PyCapsule_GetPointer(
             dltensor, _c_str_dltensor_versioned)
@@ -87,7 +86,7 @@ cdef inline int _from_dlpack_versioned(
     raise ValueError("Expect a dltensor_versioned field, PyCapsule can only be consumed once")
 
 
-def from_dlpack(ext_tensor, *, required_alignment=8, required_contiguous=True):
+def from_dlpack(ext_tensor, *, require_alignment=0, require_contiguous=False):
     """
     Convert an external tensor to an Tensor.
 
@@ -96,10 +95,10 @@ def from_dlpack(ext_tensor, *, required_alignment=8, required_contiguous=True):
     ext_tensor : object
         The external tensor to convert.
 
-    required_alignment : int
+    require_alignment : int
         The minimum required alignment to check for the tensor.
 
-    required_contiguous : bool
+    require_contiguous : bool
         Whether to check for contiguous memory.
 
     Returns
@@ -116,38 +115,38 @@ def from_dlpack(ext_tensor, *, required_alignment=8, required_contiguous=True):
         if favor_legacy_dlpack:
             _from_dlpack(
                     ext_tensor.__dlpack__(),
-                required_alignment,
-                required_contiguous,
+                require_alignment,
+                require_contiguous,
                 &chandle
             )
         else:
             try:
                 _from_dlpack_versioned(
                     ext_tensor.__dlpack__(max_version=__dlpack_version__),
-                    required_alignment,
-                    required_contiguous,
+                    require_alignment,
+                    require_contiguous,
                     &chandle
                 )
             except TypeError:
                 _from_dlpack(
                     ext_tensor.__dlpack__(),
-                    required_alignment,
-                    required_contiguous,
+                    require_alignment,
+                    require_contiguous,
                     &chandle
                 )
     else:
         if pycapsule.PyCapsule_IsValid(ext_tensor, _c_str_dltensor_versioned):
             _from_dlpack_versioned(
                 ext_tensor,
-                required_alignment,
-                required_contiguous,
+                require_alignment,
+                require_contiguous,
                 &chandle
             )
         elif pycapsule.PyCapsule_IsValid(ext_tensor, _c_str_dltensor):
             _from_dlpack(
                 ext_tensor,
-                required_alignment,
-                required_contiguous,
+                require_alignment,
+                require_contiguous,
                 &chandle
             )
         else:

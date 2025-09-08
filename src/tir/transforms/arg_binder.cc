@@ -93,8 +93,8 @@ void ArgBinder::BindBuffer(const Buffer& arg, const Buffer& value, const std::st
       << "Argument " << arg_name << " Buffer bind data type mismatch";
   if (value->data_alignment % arg->data_alignment != 0) {
     LOG(WARNING) << "Trying to bind buffer to another one with lower alignment requirement "
-                 << " required_alignment=" << arg->data_alignment
-                 << ", provided_alignment=" << value->data_alignment;
+                 << " required alignment=" << arg->data_alignment
+                 << ", provided alignment=" << value->data_alignment;
   }
 
   if (value->elem_offset.defined()) {

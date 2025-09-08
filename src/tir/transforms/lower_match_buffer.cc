@@ -152,8 +152,8 @@ class MatchBufferLower : public StmtExprMutator {
     // Step.1.2. Check data alignment
     if (source_buffer->data_alignment % buffer->data_alignment != 0) {
       LOG(WARNING) << "Trying to bind buffer to another one with lower alignment requirement "
-                   << " required_alignment=" << buffer->data_alignment
-                   << ", provided_alignment=" << source_buffer->data_alignment;
+                   << " required alignment=" << buffer->data_alignment
+                   << ", provided alignment=" << source_buffer->data_alignment;
     }
     if (is_zero(buffer->elem_offset)) {
       ICHECK(is_zero(source_buffer->elem_offset))
