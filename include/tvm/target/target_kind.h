@@ -127,6 +127,9 @@ class TargetKindNode : public Object {
 class TargetKind : public ObjectRef {
  public:
   TargetKind() = default;
+  explicit TargetKind(ObjectPtr<TargetKindNode> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   /*! \brief Get the attribute map given the attribute name */
   template <typename ValueType>
   static inline TargetKindAttrMap<ValueType> GetAttrMap(const ffi::String& attr_name);

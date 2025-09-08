@@ -613,7 +613,11 @@ class Integer : public IntImm {
   /*!
    * \brief constructor from node.
    */
-  explicit Integer(ObjectPtr<Object> node) : IntImm(node) {}
+  explicit Integer(ObjectPtr<IntImmNode> node) : IntImm(node) {}
+  /*!
+   * \brief constructor with UnsafeInit
+   */
+  explicit Integer(ffi::UnsafeInit tag) : IntImm(tag) {}
   /*!
    * \brief Construct integer from int value.
    */

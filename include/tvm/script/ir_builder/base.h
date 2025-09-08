@@ -107,6 +107,7 @@ class IRBuilderFrame : public runtime::ObjectRef {
  protected:
   /*! \brief Disallow direct construction of this object. */
   IRBuilderFrame() = default;
+  explicit IRBuilderFrame(ObjectPtr<IRBuilderFrameNode> data) : ObjectRef(data) {}
 
  public:
   /*!

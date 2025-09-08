@@ -56,10 +56,10 @@ class TargetInternal {
       const ffi::Map<ffi::String, ffi::Any>& attrs);
   static Any ParseType(const std::string& str, const TargetKindNode::ValueTypeInfo& info);
   static Any ParseType(const Any& obj, const TargetKindNode::ValueTypeInfo& info);
-  static ObjectPtr<Object> FromString(const ffi::String& tag_or_config_or_target_str);
-  static ObjectPtr<Object> FromConfigString(const ffi::String& config_str);
-  static ObjectPtr<Object> FromRawString(const ffi::String& target_str);
-  static ObjectPtr<Object> FromConfig(ffi::Map<ffi::String, ffi::Any> config);
+  static ObjectPtr<TargetNode> FromString(const ffi::String& tag_or_config_or_target_str);
+  static ObjectPtr<TargetNode> FromConfigString(const ffi::String& config_str);
+  static ObjectPtr<TargetNode> FromRawString(const ffi::String& target_str);
+  static ObjectPtr<TargetNode> FromConfig(ffi::Map<ffi::String, ffi::Any> config);
   static void ConstructorDispatcher(ffi::PackedArgs args, ffi::Any* rv);
   static Target WithHost(const Target& target, const Target& target_host) {
     ObjectPtr<TargetNode> n = ffi::make_object<TargetNode>(*target.get());
@@ -771,10 +771,10 @@ void TargetInternal::ConstructorDispatcher(ffi::PackedArgs args, ffi::Any* rv) {
   LOG(FATAL) << "ValueError: Invalid number of arguments. Expect 1 or 2, but gets: " << args.size();
 }
 
-ObjectPtr<Object> TargetInternal::FromString(const ffi::String& tag_or_config_or_target_str) {
+ObjectPtr<TargetNode> TargetInternal::FromString(const ffi::String& tag_or_config_or_target_str) {
   if (ffi::Optional<Target> target = TargetTag::Get(tag_or_config_or_target_str)) {
     Target value = target.value();
-    return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(value);
+    return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<TargetNode>(value);
   }
   if (!tag_or_config_or_target_str.empty() && tag_or_config_or_target_str.data()[0] == '{') {
     return TargetInternal::FromConfigString(tag_or_config_or_target_str);
@@ -782,7 +782,7 @@ ObjectPtr<Object> TargetInternal::FromString(const ffi::String& tag_or_config_or
   return TargetInternal::FromRawString(tag_or_config_or_target_str);
 }
 
-ObjectPtr<Object> TargetInternal::FromConfigString(const ffi::String& config_str) {
+ObjectPtr<TargetNode> TargetInternal::FromConfigString(const ffi::String& config_str) {
   const auto loader = tvm::ffi::Function::GetGlobal("target._load_config_dict");
   ICHECK(loader.has_value())
       << "AttributeError: \"target._load_config_dict\" is not registered. Please check "
@@ -794,7 +794,7 @@ ObjectPtr<Object> TargetInternal::FromConfigString(const ffi::String& config_str
   return TargetInternal::FromConfig({config.value().begin(), config.value().end()});
 }
 
-ObjectPtr<Object> TargetInternal::FromRawString(const ffi::String& target_str) {
+ObjectPtr<TargetNode> TargetInternal::FromRawString(const ffi::String& target_str) {
   ICHECK_GT(target_str.length(), 0) << "Cannot parse empty target string";
   // Split the string by empty spaces
   std::vector<std::string> options = SplitString(std::string(target_str), ' ');
@@ -826,7 +826,7 @@ ObjectPtr<Object> TargetInternal::FromRawString(const ffi::String& target_str) {
   return TargetInternal::FromConfig(config);
 }
 
-ObjectPtr<Object> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi::Any> config) {
+ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi::Any> config) {
   const ffi::String kKind = "kind";
   const ffi::String kTag = "tag";
   const ffi::String kKeys = "keys";

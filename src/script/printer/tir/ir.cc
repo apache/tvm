@@ -66,7 +66,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<PointerType>("", [](PointerType ty, AccessPath ty_p, IRDocsifier d) -> Doc {
-      ExprDoc element_type{nullptr};
+      ExprDoc element_type{ffi::UnsafeInit()};
       if (const auto* prim_type = ty->element_type.as<PrimTypeNode>()) {
         element_type = LiteralDoc::DataType(prim_type->dtype,  //
                                             ty_p->Attr("element_type")->Attr("dtype"));
