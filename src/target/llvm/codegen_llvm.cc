@@ -138,7 +138,7 @@ std::unique_ptr<CodeGenLLVM> CodeGenLLVM::Create(LLVMTarget* llvm_target) {
 }
 
 void CodeGenLLVM::Init(const std::string& module_name, LLVMTarget* llvm_target,
-                       Optional<String> system_lib_prefix, bool dynamic_lookup,
+                       ffi::Optional<ffi::String> system_lib_prefix, bool dynamic_lookup,
                        bool target_c_runtime) {
   llvm_target_ = llvm_target;
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
@@ -240,7 +240,7 @@ void CodeGenLLVM::InitFuncState() {
 
 std::tuple<std::string, llvm::Function::LinkageTypes> CodeGenLLVM::GetLinkage(
     const GlobalVar& gvar, const PrimFunc& func) {
-  if (auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+  if (auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
     return {global_symbol.value(), llvm::Function::ExternalLinkage};
   }
 
@@ -717,8 +717,8 @@ void CodeGenLLVM::GetAlignment(DataType t, const VarNode* buf_var, const PrimExp
   auto it = alloc_storage_info_.find(buf_var);
   if (it != alloc_storage_info_.end()) {
     const StorageInfo& info = it->second;
-    *p_native_bits =
-        NativeVectorBits(runtime::StorageScope::Create(GetPtrStorageScope(GetRef<Var>(buf_var))));
+    *p_native_bits = NativeVectorBits(
+        runtime::StorageScope::Create(GetPtrStorageScope(ffi::GetRef<Var>(buf_var))));
     max_align_bits = info.alignment * 8;
   } else {
     *p_native_bits = native_vector_bits_;
@@ -1060,8 +1060,8 @@ llvm::Value* CodeGenLLVM::CreateLookupReturnAddress(unsigned int level) {
   return call;
 }
 
-llvm::Value* CodeGenLLVM::CreateCallExtern(Type ret_type, String global_symbol,
-                                           const Array<PrimExpr>& args, bool skip_first_arg) {
+llvm::Value* CodeGenLLVM::CreateCallExtern(Type ret_type, ffi::String global_symbol,
+                                           const ffi::Array<PrimExpr>& args, bool skip_first_arg) {
   std::vector<llvm::Value*> arg_value;
   std::vector<llvm::Type*> arg_type;
   for (size_t i = static_cast<size_t>(skip_first_arg); i < args.size(); ++i) {
@@ -1367,7 +1367,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       arg_value.push_back(MakeValue(op->args[i]));
       arg_type.push_back(arg_value.back()->getType());
     }
-    llvm::Type* return_type = GetLLVMType(GetRef<PrimExpr>(op));
+    llvm::Type* return_type = GetLLVMType(ffi::GetRef<PrimExpr>(op));
     llvm::Function* f = GetIntrinsicDecl(id, return_type, arg_type);
     ICHECK(f) << "Cannot find intrinsic declaration, possible type mismatch: "
               << llvmGetIntrinName(id);
@@ -1406,7 +1406,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
     ICHECK(op->args.size() == 1 && load);
 
-    Array<PrimExpr> indices = load->indices;
+    ffi::Array<PrimExpr> indices = load->indices;
     if (const RampNode* r = indices[indices.size() - 1].as<RampNode>()) {
       indices.Set(indices.size() - 1, r->base);
     }
@@ -1697,7 +1697,8 @@ bool CodeGenLLVM::HasAlignmentPadding(DataType dtype) {
 }
 
 void CodeGenLLVM::BufferAccessHelper(
-    Buffer buffer, Array<PrimExpr> indices, Optional<PrimExpr> predicate, DataType value_dtype,
+    Buffer buffer, ffi::Array<PrimExpr> indices, ffi::Optional<PrimExpr> predicate,
+    DataType value_dtype,
     std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
                                      llvm::Value* predicate, int alignment, bool is_volatile)>
         make_instruction) {
@@ -1855,20 +1856,20 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
       // call extern intrinsic
       ICHECK_GE(op->args.size(), 1U);
       auto global_symbol = Downcast<StringImm>(op->args[0]);
-      return this->CreateCallExtern(GetType(GetRef<PrimExpr>(op)), global_symbol->value, op->args,
-                                    true);
+      return this->CreateCallExtern(GetType(ffi::GetRef<PrimExpr>(op)), global_symbol->value,
+                                    op->args, true);
     } else if (op_attr_global_symbol_.count(call_op)) {
       // call extern if the op itself have a global symbol.
-      return this->CreateCallExtern(GetType(GetRef<PrimExpr>(op)), op_attr_global_symbol_[call_op],
-                                    op->args, false);
+      return this->CreateCallExtern(GetType(ffi::GetRef<PrimExpr>(op)),
+                                    op_attr_global_symbol_[call_op], op->args, false);
     } else {
-      VLOG(2) << "CreateIntrinsic: " << GetRef<Call>(op);
+      VLOG(2) << "CreateIntrinsic: " << ffi::GetRef<Call>(op);
       auto x = CreateIntrinsic(op);
       VLOG(2) << "CreateIntrinsic done";
       return x;
     }
   } else if (auto* ptr_gvar = op->op.as<GlobalVarNode>()) {
-    auto gvar = GetRef<GlobalVar>(ptr_gvar);
+    auto gvar = ffi::GetRef<GlobalVar>(ptr_gvar);
     auto it = functions_.find(ptr_gvar);
     ICHECK(it != functions_.end()) << "Call to undefined GlobalVar \"" << gvar << "\"";
     llvm::Function* callee = it->second;
@@ -2188,7 +2189,7 @@ void CodeGenLLVM::VisitStmt_(const EvaluateNode* op) {
   MakeValue(op->value);
 }
 
-void CodeGenLLVM::EmitDebugLocation(const Optional<Span>& span) {
+void CodeGenLLVM::EmitDebugLocation(const ffi::Optional<Span>& span) {
 #if TVM_LLVM_VERSION >= 50
   if (di_subprogram_ == nullptr) {
     // debug info is not always generated outside of CPU codegen
@@ -2213,7 +2214,8 @@ void CodeGenLLVM::EmitDebugLocation() { builder_->SetCurrentDebugLocation(nullpt
 void CodeGenLLVM::EmitDebugLocation(const StmtNode* op) { EmitDebugLocation(op->span); }
 
 // Following Glow |DebugInfo::generateFunctionDebugInfo|, https://git.io/fjadv
-void CodeGenLLVM::AddDebugInformation(llvm::Function* f_llvm, const Array<Type>& tvm_param_types) {
+void CodeGenLLVM::AddDebugInformation(llvm::Function* f_llvm,
+                                      const ffi::Array<Type>& tvm_param_types) {
 #if TVM_LLVM_VERSION >= 50
   ICHECK(di_subprogram_);
   f_llvm->setSubprogram(di_subprogram_);
@@ -2355,9 +2357,9 @@ static void CodegenLLVMRegisterReflection() {
            []() -> std::string { return llvm::sys::getProcessTriple(); })
       .def("tvm.codegen.llvm.GetHostCPUName",
            []() -> std::string { return llvm::sys::getHostCPUName().str(); })
-      .def("tvm.codegen.llvm.GetHostCPUFeatures", []() -> Map<String, IntImm> {
+      .def("tvm.codegen.llvm.GetHostCPUFeatures", []() -> ffi::Map<ffi::String, IntImm> {
 #if TVM_LLVM_VERSION >= 190
-        Map<String, IntImm> ret;
+        ffi::Map<ffi::String, IntImm> ret;
         auto features = llvm::sys::getHostCPUFeatures();
         for (auto it = features.begin(); it != features.end(); ++it) {
           std::string name = it->getKey().str();
@@ -2368,7 +2370,7 @@ static void CodegenLLVMRegisterReflection() {
 #else
       llvm::StringMap<bool> features;
       if (llvm::sys::getHostCPUFeatures(features)) {
-        Map<String, IntImm> ret;
+        ffi::Map<ffi::String, IntImm> ret;
         for (auto it = features.begin(); it != features.end(); ++it) {
           std::string name = it->getKey().str();
           bool value = it->getValue();

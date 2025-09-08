@@ -112,7 +112,8 @@ class Tensor : public tvm::ffi::Tensor {
    * \return The array under another device.
    * \note The copy always triggers a TVMSynchronize.
    */
-  TVM_DLL Tensor CopyTo(const Device& dev, Optional<String> mem_scope = std::nullopt) const;
+  TVM_DLL Tensor CopyTo(const Device& dev,
+                        ffi::Optional<ffi::String> mem_scope = std::nullopt) const;
   /*!
    * \brief Load Tensor from stream
    * \param stream The input data stream
@@ -156,7 +157,7 @@ class Tensor : public tvm::ffi::Tensor {
    * \return The created Array
    */
   TVM_DLL static Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
-                              Optional<String> mem_scope = std::nullopt);
+                              ffi::Optional<ffi::String> mem_scope = std::nullopt);
   /*!
    * \brief Function to copy data from one array to another.
    * \param from The source array.

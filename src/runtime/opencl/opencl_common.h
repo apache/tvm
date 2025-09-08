@@ -341,7 +341,7 @@ class OpenCLWorkspace : public DeviceAPI {
   }
 
   void* AllocDataSpaceView(Device dev, void* data, ffi::Shape shape, DLDataType dtype,
-                           Optional<String> mem_scope = std::nullopt);
+                           ffi::Optional<ffi::String> mem_scope = std::nullopt);
   void FreeDataSpaceView(Device dev, void* ptr);
 
   cl_device_id GetCLDeviceID(int device_id);
@@ -350,9 +350,9 @@ class OpenCLWorkspace : public DeviceAPI {
   void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final;
   void* AllocDataSpace(Device dev, size_t size, size_t alignment, DLDataType type_hint) final;
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                       Optional<String> mem_scope = std::nullopt) final;
+                       ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
   void* AllocDataSpace(Device dev, size_t width, size_t height, DLDataType type_hint,
-                       Optional<String> mem_scope = std::nullopt);
+                       ffi::Optional<ffi::String> mem_scope = std::nullopt);
   void* GetNativePtr(const tvm::runtime::Tensor& narr);
   void SetNativePtr(const tvm::runtime::Tensor& narr, void* host_ptr, size_t buf_size);
   void SetPerfHint(Device dev, cl_uint perf_hint);
@@ -360,12 +360,13 @@ class OpenCLWorkspace : public DeviceAPI {
   void StreamSync(Device dev, TVMStreamHandle stream) final;
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
   void FreeWorkspace(Device dev, void* data) final;
-  size_t GetDataSize(const DLTensor& arr, Optional<String> mem_scope = std::nullopt) final;
+  size_t GetDataSize(const DLTensor& arr,
+                     ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
 
   // cl_mem alloc utils
   void* AllocCLBuffer(Device dev, size_t size, size_t alignment, DLDataType type_hint);
   void* AllocCLImage(Device dev, void* back_buffer, size_t width, size_t height, size_t row_pitch,
-                     DLDataType type_hint, Optional<String> mem_scope);
+                     DLDataType type_hint, ffi::Optional<ffi::String> mem_scope);
 
   /*!
    * \brief Get the thread local ThreadEntry
@@ -436,9 +437,10 @@ struct BufferDescriptor {
     kImage2DNHWC,
   };
   BufferDescriptor() = default;
-  explicit BufferDescriptor(Optional<String> scope) : layout(MemoryLayoutFromScope(scope)) {}
-  static MemoryLayout MemoryLayoutFromScope(Optional<String> mem_scope);
-  static String ScopeFromMemoryLayout(MemoryLayout mem_scope);
+  explicit BufferDescriptor(ffi::Optional<ffi::String> scope)
+      : layout(MemoryLayoutFromScope(scope)) {}
+  static MemoryLayout MemoryLayoutFromScope(ffi::Optional<ffi::String> mem_scope);
+  static ffi::String ScopeFromMemoryLayout(MemoryLayout mem_scope);
 
   /* clBuffer object */
   // buffer should be the first element here
@@ -479,7 +481,7 @@ class OpenCLModuleNodeBase : public ffi::ModuleObj {
     return ffi::Module::kBinarySerializable | ffi::Module::kRunnable;
   }
 
-  Optional<ffi::Function> GetFunction(const String& name) override;
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) override;
 
   // Initialize the programs
   virtual void Init() = 0;
@@ -509,14 +511,14 @@ class OpenCLModuleNode : public OpenCLModuleNodeBase {
                             std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
       : OpenCLModuleNodeBase(fmap), data_(data), fmt_(fmt), source_(source) {}
 
-  Optional<ffi::Function> GetFunction(const String& name) final;
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final;
   // Return true if OpenCL program for the requested function and device was created
   bool IsProgramCreated(const std::string& func_name, int device_id);
-  void WriteToFile(const String& file_name, const String& format) const final;
+  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final;
   ffi::Bytes SaveToBytes() const final;
   void SetPreCompiledPrograms(const std::string& bytes);
   std::string GetPreCompiledPrograms();
-  String InspectSource(const String& format) const final;
+  ffi::String InspectSource(const ffi::String& format) const final;
 
   // Initialize the programs
   void Init() override;

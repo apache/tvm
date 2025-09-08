@@ -103,7 +103,7 @@ void Analyzer::MarkGlobalNonNegValue(const PrimExpr& value) {
   // We may consider enhance the sub analyzer to directly take
   // MarkPositiveVar so their bounds do not overlap
   if (const auto* var_ptr = symbol.as<VarNode>()) {
-    Var var = GetRef<Var>(var_ptr);
+    Var var = ffi::GetRef<Var>(var_ptr);
     // skip non-index type, keep it to be compatible
     // with any_dim that do not represent any value
     if (!IsIndexType(var.dtype())) return;
@@ -116,7 +116,7 @@ void Analyzer::MarkGlobalNonNegValue(const PrimExpr& value) {
   }
 }
 
-void Analyzer::Bind(const Map<Var, Range>& variables, bool allow_override) {
+void Analyzer::Bind(const ffi::Map<Var, Range>& variables, bool allow_override) {
   for (const auto& iter : variables) {
     this->Bind(iter.first, iter.second, allow_override);
   }
@@ -202,7 +202,7 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
     // This is to avoid repeatitive calling of this function
     // that causes speed issues.
     // This strategy can only be called from top-level and not from sub-analyzers.
-    Optional<PrimExpr> pos_diff;
+    ffi::Optional<PrimExpr> pos_diff;
     int lower_bound = 0;
     if (const auto* ptr_lt = expr.as<tir::LTNode>()) {
       pos_diff = ptr_lt->b - ptr_lt->a;
@@ -322,7 +322,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         });
       } else if (name == "int_set") {
         return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
-          *ret = self->int_set(args[0].cast<PrimExpr>(), args[1].cast<Map<Var, IntSet>>());
+          *ret = self->int_set(args[0].cast<PrimExpr>(), args[1].cast<ffi::Map<Var, IntSet>>());
         });
       } else if (name == "bind") {
         return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {

@@ -63,7 +63,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   }
 
   /// Verification result
-  std::vector<String> Errors() const { return errs_; }
+  std::vector<ffi::String> Errors() const { return errs_; }
 
  protected:
   /// Visitor implementation
@@ -158,7 +158,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   /// Status of visitor
   //@{
   bool in_thread_env_{false};
-  std::vector<String> errs_;
+  std::vector<ffi::String> errs_;
   //@}
   tir::PrimFunc func_{nullptr};                        ///< Function to be verified.
   int dev_type_{kDLCPU};                               ///< Device type
@@ -167,7 +167,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
 }  // namespace
 
 /// Interface of VerifyMemory pass
-std::vector<String> VerifyMemory_(const PrimFunc& func) {
+std::vector<ffi::String> VerifyMemory_(const PrimFunc& func) {
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
   ICHECK(target.defined()) << "VerifyMemory: Require the target attribute";
 

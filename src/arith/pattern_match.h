@@ -214,7 +214,7 @@ class PVar : public Pattern<PVar<T>> {
             typename = typename std::enable_if<std::is_base_of<NodeRefType, T>::value>::type>
   bool Match_(const NodeRefType& value) const {
     if (const auto* ptr = value.template as<typename T::ContainerType>()) {
-      return Match_(GetRef<T>(ptr));
+      return Match_(ffi::GetRef<T>(ptr));
     } else {
       return false;
     }
@@ -257,7 +257,7 @@ class PVarWithCheck : public arith::Pattern<PVarWithCheck<Derived, T>> {
             typename = typename std::enable_if<std::is_base_of<NodeRefType, T>::value>::type>
   bool Match_(const NodeRefType& value) const {
     if (const auto* ptr = value.template as<typename T::ContainerType>()) {
-      return Match_(GetRef<T>(ptr));
+      return Match_(ffi::GetRef<T>(ptr));
     } else {
       return false;
     }
@@ -727,7 +727,7 @@ struct PCallExprMatchFunctor {
 };
 
 struct PCallExprEvalArgsFunctor {
-  Array<PrimExpr> args_;
+  ffi::Array<PrimExpr> args_;
 
   template <typename T>
   void operator()(size_t i, const T& pattern) {
@@ -778,7 +778,7 @@ class PCallExpr : public Pattern<PCallExpr<Op, TArgs...>> {
 // arithemetic intrinsics
 #define TVM_PATTERN_BINARY_INTRIN(FuncName, OpName, IntrinOpName)                         \
   struct OpName {                                                                         \
-    static PrimExpr Eval(Array<PrimExpr> args) {                                          \
+    static PrimExpr Eval(ffi::Array<PrimExpr> args) {                                     \
       return tir::Call(args[0].dtype(), GetOp(), args);                                   \
     }                                                                                     \
     static const Op& GetOp() { return tir::builtin::IntrinOpName(); }                     \
@@ -797,7 +797,7 @@ TVM_PATTERN_BINARY_INTRIN(operator^, PBitwiseXorOp, bitwise_xor);
 // unary intrinsics
 #define TVM_PATTERN_UNARY_INTRIN(FuncName, OpName, IntrinOpName)      \
   struct OpName {                                                     \
-    static PrimExpr Eval(Array<PrimExpr> args) {                      \
+    static PrimExpr Eval(ffi::Array<PrimExpr> args) {                 \
       return tir::Call(args[0].dtype(), GetOp(), args);               \
     }                                                                 \
     static const Op& GetOp() { return tir::builtin::IntrinOpName(); } \
@@ -811,7 +811,9 @@ TVM_PATTERN_UNARY_INTRIN(operator~, PBitwiseNotOp, bitwise_not);
 
 // if_then_else
 struct PIfThenElseOp {
-  static PrimExpr Eval(Array<PrimExpr> args) { return tir::Call(args[1].dtype(), GetOp(), args); }
+  static PrimExpr Eval(ffi::Array<PrimExpr> args) {
+    return tir::Call(args[1].dtype(), GetOp(), args);
+  }
   static const Op& GetOp() { return tir::builtin::if_then_else(); }
 };
 

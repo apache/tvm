@@ -582,7 +582,7 @@ class IntSetAnalyzer {
    * \param dom_map The domain map to indicate which variable to relax.
    * \return the result of the analysis.
    */
-  TVM_DLL IntSet operator()(const PrimExpr& expr, const Map<Var, IntSet>& dom_map);
+  TVM_DLL IntSet operator()(const PrimExpr& expr, const ffi::Map<Var, IntSet>& dom_map);
 
   /*!
    * \brief Find a symbolic integer set that contains all possible
@@ -704,7 +704,7 @@ class TVM_DLL Analyzer {
    *        expression. This option should not be used if there is any dependency
    *        between variables.
    */
-  void Bind(const Map<Var, Range>& variables, bool allow_override = false);
+  void Bind(const ffi::Map<Var, Range>& variables, bool allow_override = false);
   /*!
    * \brief Whether can we prove expr >= val.
 

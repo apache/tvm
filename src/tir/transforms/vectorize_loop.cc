@@ -75,7 +75,7 @@ inline PrimExpr BroadcastTo(PrimExpr e, int lanes, bool is_scalable) {
 
 bool EnableBufferLevelPredication(Target target) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
-  Optional<Bool> enable_buffer_predication =
+  ffi::Optional<Bool> enable_buffer_predication =
       pass_ctx->GetConfig<Bool>("tir.enable_buffer_level_predication");
   if (enable_buffer_predication.defined()) {
     return enable_buffer_predication.value();
@@ -160,7 +160,7 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
     num_accesses_analyzed_ += 1;
 
     // Do not try to predicate non-vectorized accesses
-    Array<PrimExpr> indices = node->indices;
+    ffi::Array<PrimExpr> indices = node->indices;
     if (!indices.size() || !indices[0]->IsInstance<RampNode>()) {
       return node;
     }
@@ -233,7 +233,7 @@ class VecAllocAccess : public StmtExprMutator {
       // Extend the least significant dimension by a factor of
       // var_lanes_.  Typically, this will be a 1-d index into a flat
       // memory space.
-      Array<PrimExpr> shape = node->buffer->shape;
+      ffi::Array<PrimExpr> shape = node->buffer->shape;
       shape.Set(shape.size() - 1, analyzer_.Simplify(shape[shape.size() - 1] * var_lanes_));
 
       // TODO(Lunderberg): Move this pass to be prior to
@@ -243,7 +243,7 @@ class VecAllocAccess : public StmtExprMutator {
       // are updated for consistency.
 
       // Update strides if defined.
-      Array<PrimExpr> strides;
+      ffi::Array<PrimExpr> strides;
       for (size_t i = 0; i < strides.size(); i++) {
         PrimExpr stride = strides[i];
         if (i != strides.size() - 1) {
@@ -262,7 +262,7 @@ class VecAllocAccess : public StmtExprMutator {
 
     // Extend the last index by the number of lanes in the vectorized
     // variable.
-    Array<PrimExpr> indices = node->indices;
+    ffi::Array<PrimExpr> indices = node->indices;
     indices.Set(indices.size() - 1,
                 analyzer_.Simplify(indices[indices.size() - 1] * var_lanes_ + var_));
 
@@ -322,7 +322,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     PrimExpr a = this->VisitExpr(op->a);
     PrimExpr b = this->VisitExpr(op->b);
     if (a.same_as(op->a) && b.same_as(op->b)) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       bool is_vec_a = a.dtype().is_scalable_or_fixed_length_vector();
       bool is_vec_b = b.dtype().is_scalable_or_fixed_length_vector();
@@ -369,7 +369,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   PrimExpr VisitExpr_(const NotNode* op) final {
     PrimExpr a = this->VisitExpr(op->a);
     if (a.same_as(op->a)) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       return !(a);
     }
@@ -396,7 +396,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     int lanes = std::max(base.dtype().lanes(), stride.dtype().lanes());
     base = BroadcastTo(base, lanes, false);
     stride = BroadcastTo(stride, lanes, false);
-    Array<PrimExpr> elems;
+    ffi::Array<PrimExpr> elems;
     for (int i = 0; i < lanes; ++i) {
       elems.push_back(
           Ramp(Shuffle::ExtractElement(base, i), Shuffle::ExtractElement(stride, i), op->lanes));
@@ -408,10 +408,10 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     PrimExpr value = this->VisitExpr(op->value);
     if (value.dtype().is_scalable_or_fixed_length_vector()) {
       need_scalarize_ = true;
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     }
     if (value.same_as(op->value)) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       return Broadcast(op->value, op->lanes);
     }
@@ -422,7 +422,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     PrimExpr t = this->VisitExpr(op->true_value);
     PrimExpr f = this->VisitExpr(op->false_value);
     if (cond.same_as(op->condition) && t.same_as(op->true_value) && f.same_as(op->false_value)) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       int cond_lanes = cond.dtype().get_lanes_or_vscale_factor();
       int t_lanes = t.dtype().get_lanes_or_vscale_factor();
@@ -438,7 +438,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   PrimExpr VisitExpr_(const CastNode* op) final {
     PrimExpr value = this->VisitExpr(op->value);
     if (value.same_as(op->value)) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       if (value.dtype().is_scalable_vector()) {
         return Cast(op->dtype.with_scalable_vscale_factor(value.dtype().vscale_factor()), value);
@@ -448,15 +448,15 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     }
   }
 
-  PrimExpr VisitExpr_(const FloatImmNode* op) final { return GetRef<PrimExpr>(op); }
+  PrimExpr VisitExpr_(const FloatImmNode* op) final { return ffi::GetRef<PrimExpr>(op); }
 
-  PrimExpr VisitExpr_(const IntImmNode* op) final { return GetRef<PrimExpr>(op); }
+  PrimExpr VisitExpr_(const IntImmNode* op) final { return ffi::GetRef<PrimExpr>(op); }
 
-  PrimExpr VisitExpr_(const StringImmNode* op) final { return GetRef<PrimExpr>(op); }
+  PrimExpr VisitExpr_(const StringImmNode* op) final { return ffi::GetRef<PrimExpr>(op); }
 
   // Variable
   PrimExpr VisitExpr_(const VarNode* op) final {
-    Var var = GetRef<Var>(op);
+    Var var = ffi::GetRef<Var>(op);
 
     if (var.same_as(var_)) {
       return ramp_;
@@ -473,12 +473,12 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     PrimExpr cond = this->VisitExpr(op->args[0]);
     if (cond.dtype().is_scalable_or_fixed_length_vector()) {
       need_scalarize_ = true;
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     }
     PrimExpr t = this->VisitExpr(op->args[1]);
     PrimExpr f = this->VisitExpr(op->args[2]);
     if (cond.same_as(op->args[0]) && t.same_as(op->args[1]) && f.same_as(op->args[2])) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       int t_lanes = t.dtype().get_lanes_or_vscale_factor();
       int f_lanes = f.dtype().get_lanes_or_vscale_factor();
@@ -498,7 +498,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     ICHECK(op->op.same_as(builtin::reinterpret()));
     PrimExpr value = this->VisitExpr(op->args[0]);
     if (value.same_as(op->args[0])) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       int lanes = value.dtype().get_lanes_or_vscale_factor();
       if (value.dtype().is_scalable_vector()) {
@@ -518,7 +518,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       return MutateIfThenElseExpr_(op);
     } else if (op->op.same_as(builtin::texture2d_load())) {
       int lane = 0;
-      Array<PrimExpr> fcd = MutateArray({op->args.back()}, &lane);
+      ffi::Array<PrimExpr> fcd = MutateArray({op->args.back()}, &lane);
       auto new_args = op->args;
       new_args.pop_back();
       new_args.push_back(fcd[0]);
@@ -526,9 +526,9 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     } else if (op->op.same_as(builtin::texture2d_store())) {
       int lane = 0;
       // Vectorize the value to store
-      Array<PrimExpr> value{op->args.back()};
-      Array<PrimExpr> mutated_value = MutateArray(value, &lane);
-      Array<PrimExpr> new_args{op->args[0], op->args[1], op->args[2], mutated_value[0]};
+      ffi::Array<PrimExpr> value{op->args.back()};
+      ffi::Array<PrimExpr> mutated_value = MutateArray(value, &lane);
+      ffi::Array<PrimExpr> new_args{op->args[0], op->args[1], op->args[2], mutated_value[0]};
       return Call(op->dtype.with_lanes(lane), op->op, new_args);
     } else if (op->op.same_as(builtin::reinterpret())) {
       return MutateReinterpretExpr_(op);
@@ -539,32 +539,32 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
 
     if (!vectorizable) {
       // Cannot vectorize this op
-      Array<PrimExpr> new_args;
+      ffi::Array<PrimExpr> new_args;
       for (auto arg : op->args) {
         auto new_arg = this->VisitExpr(arg);
         if (new_arg.dtype().is_scalable_or_fixed_length_vector()) {
           need_scalarize_ = true;
-          return GetRef<PrimExpr>(op);
+          return ffi::GetRef<PrimExpr>(op);
         }
         new_args.push_back(new_arg);
       }
       if (op->args.same_as(new_args)) {
-        return GetRef<PrimExpr>(op);
+        return ffi::GetRef<PrimExpr>(op);
       } else {
         return Call(op->dtype, op->op, new_args);
       }
     } else {
       int lane = 0;
-      Array<PrimExpr> new_args;
+      ffi::Array<PrimExpr> new_args;
       if (op->op.same_as(builtin::call_llvm_pure_intrin())) {
         // op->args[1], will give us total number of arguments to intrinsic
-        Array<PrimExpr> op_expr_args;
+        ffi::Array<PrimExpr> op_expr_args;
         for (size_t i = 1; i < op->args.size(); ++i) {
           // Collect all intrinsic arguments
           op_expr_args.push_back(op->args[i]);
         }
         // Generate RAMP nodes for intrinsic arguments
-        Array<PrimExpr> updated_args = MutateArray(op_expr_args, &lane);
+        ffi::Array<PrimExpr> updated_args = MutateArray(op_expr_args, &lane);
         new_args.push_back(op->args[0]);
         // Collect updated intrinsic arguments
         for (size_t i = 0; i < updated_args.size(); ++i) {
@@ -575,7 +575,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       }
       // normal code path.
       if (op->args.same_as(new_args)) {
-        return GetRef<PrimExpr>(op);
+        return ffi::GetRef<PrimExpr>(op);
       } else {
         return Call(op->dtype.with_lanes(lane), op->op, new_args);
       }
@@ -583,10 +583,10 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   }
   // BufferLoad
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    auto load = GetRef<BufferLoad>(op);
+    auto load = ffi::GetRef<BufferLoad>(op);
 
     auto fmutate = [this](const PrimExpr& index) { return this->VisitExpr(index); };
-    Array<PrimExpr> indices = op->indices.Map(fmutate);
+    ffi::Array<PrimExpr> indices = op->indices.Map(fmutate);
 
     if (!indices.same_as(op->indices)) {
       auto writer = load.CopyOnWrite();
@@ -619,7 +619,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       let_binding_[op->var] = op->var;
       PrimExpr body = this->VisitExpr(op->body);
       if (value.same_as(op->value) && body.same_as(op->body)) {
-        return GetRef<PrimExpr>(op);
+        return ffi::GetRef<PrimExpr>(op);
       } else {
         return Let(op->var, value, body);
       }
@@ -631,10 +631,10 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
         << op->vectors.size() << " and the index size is " << op->indices.size();
     int lane_vectors = 0;
     int lane_indices = 0;
-    Array<PrimExpr> vectors = MutateArray(op->vectors, &lane_vectors);
-    Array<PrimExpr> indices = MutateArray(op->indices, &lane_indices);
+    ffi::Array<PrimExpr> vectors = MutateArray(op->vectors, &lane_vectors);
+    ffi::Array<PrimExpr> indices = MutateArray(op->indices, &lane_indices);
     if (vectors.same_as(op->vectors) && indices.same_as(op->indices)) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     }
 
     int new_vec_length = Downcast<IntImm>(var_lanes_)->value / op->vectors[0].dtype().lanes();
@@ -689,10 +689,10 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   }
   // BufferStore
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    auto store = GetRef<BufferStore>(op);
+    auto store = ffi::GetRef<BufferStore>(op);
 
     auto fmutate = [this](const PrimExpr& index) { return this->VisitExpr(index); };
-    Array<PrimExpr> indices = op->indices.Map(fmutate);
+    ffi::Array<PrimExpr> indices = op->indices.Map(fmutate);
 
     PrimExpr value = this->VisitExpr(op->value);
 
@@ -746,11 +746,11 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     ICHECK(!op->extent.dtype().is_scalable_or_fixed_length_vector());
     PrimExpr extent = this->VisitExpr(op->extent);
     if (extent.dtype().is_scalable_or_fixed_length_vector()) {
-      return Scalarize(GetRef<Stmt>(op));
+      return Scalarize(ffi::GetRef<Stmt>(op));
     }
     Stmt body = this->VisitStmt(op->body);
     if (extent.same_as(op->extent) && body.same_as(op->body)) {
-      return GetRef<Stmt>(op);
+      return ffi::GetRef<Stmt>(op);
     } else {
       return For(op->loop_var, op->min, extent, op->kind, body, op->thread_binding,
                  op->annotations);
@@ -766,7 +766,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     // temp clear need_scalarize flag, so VisitStmt
     // won't trigger an ICHECK eror
     Stmt then_case = this->VisitStmt(op->then_case);
-    Optional<Stmt> else_case = std::nullopt;
+    ffi::Optional<Stmt> else_case = std::nullopt;
     if (op->else_case) {
       else_case = this->VisitStmt(op->else_case.value());
     }
@@ -782,11 +782,11 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     }
 
     if (cond_need_scalarize || condition.dtype().is_scalable_or_fixed_length_vector()) {
-      return Scalarize(GetRef<Stmt>(op));
+      return Scalarize(ffi::GetRef<Stmt>(op));
     }
     if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
         else_case.same_as(op->else_case)) {
-      return GetRef<Stmt>(op);
+      return ffi::GetRef<Stmt>(op);
     } else {
       return IfThenElse(condition, then_case, else_case);
     }
@@ -802,7 +802,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     // we need to scalarize the let
     if (need_scalarize_) {
       need_scalarize_ = false;
-      Scalarize(GetRef<Stmt>(op));
+      Scalarize(ffi::GetRef<Stmt>(op));
     }
     ICHECK(!let_binding_.count(op->var)) << "SSA violation, a single var is binded twice";
     let_binding_[op->var] = value;
@@ -816,7 +816,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       let_binding_[op->var] = op->var;
       Stmt body = this->VisitStmt(op->body);
       if (value.same_as(op->value) && body.same_as(op->body)) {
-        return GetRef<Stmt>(op);
+        return ffi::GetRef<Stmt>(op);
       } else {
         return LetStmt(op->var, value, body);
       }
@@ -828,16 +828,16 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     PrimExpr condition = this->VisitExpr(op->condition);
     if (condition.dtype().is_scalable_or_fixed_length_vector()) {
       LOG(WARNING) << "Cannot handle vector extent in alloc of " << op->buffer_var->name_hint;
-      return Scalarize(GetRef<Stmt>(op));
+      return Scalarize(ffi::GetRef<Stmt>(op));
     }
 
     // Mutate the extents
-    Array<PrimExpr> extents;
+    ffi::Array<PrimExpr> extents;
     for (const auto& extent : op->extents) {
       PrimExpr new_ext = this->VisitExpr(extent);
       if (new_ext.dtype().is_scalable_or_fixed_length_vector()) {
         LOG(WARNING) << "Cannot handle vector extent in alloc of " << op->buffer_var->name_hint;
-        return Scalarize(GetRef<Stmt>(op));
+        return Scalarize(ffi::GetRef<Stmt>(op));
       }
       extents.push_back(new_ext);
     }
@@ -887,7 +887,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
 
   // mutate array, with given lane requirement
   // when finished, p_lane updates the lane requirement.
-  Array<PrimExpr> MutateArray(Array<PrimExpr> arr, int* p_lanes) {
+  ffi::Array<PrimExpr> MutateArray(ffi::Array<PrimExpr> arr, int* p_lanes) {
     if (arr.size() == 0) return arr;
     int& lanes = *p_lanes;
     bool changed = false;
@@ -907,7 +907,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       }
     }
     if (!changed) return arr;
-    return Array<PrimExpr>(new_arr);
+    return ffi::Array<PrimExpr>(new_arr);
   }
   template <typename TOp, typename T>
   PrimExpr BinaryVec(const T* op) {
@@ -915,7 +915,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     PrimExpr a = this->VisitExpr(op->a);
     PrimExpr b = this->VisitExpr(op->b);
     if (a.same_as(op->a) && b.same_as(op->b)) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       int a_lanes = a.dtype().get_lanes_or_vscale_factor();
       int b_lanes = b.dtype().get_lanes_or_vscale_factor();
@@ -929,7 +929,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     PrimExpr a = this->VisitExpr(op->a);
     PrimExpr b = this->VisitExpr(op->b);
     if (a.same_as(op->a) && b.same_as(op->b)) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       int a_lanes = a.dtype().get_lanes_or_vscale_factor();
       int b_lanes = b.dtype().get_lanes_or_vscale_factor();

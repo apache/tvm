@@ -97,7 +97,8 @@ void Tensor::CopyToBytes(const DLTensor* handle, void* data, size_t nbytes,
   DeviceAPI::Get(handle->device)->StreamSync(handle->device, stream);
 }
 
-Tensor Tensor::Empty(ffi::Shape shape, DLDataType dtype, Device dev, Optional<String> mem_scope) {
+Tensor Tensor::Empty(ffi::Shape shape, DLDataType dtype, Device dev,
+                     ffi::Optional<ffi::String> mem_scope) {
   struct DeviceAPIAlloc {
     void AllocData(DLTensor* tensor, ffi::Optional<ffi::String> mem_scope) {
       tensor->data = DeviceAPI::Get(tensor->device)
@@ -180,7 +181,7 @@ void Tensor::CopyFromBytes(const void* data, size_t nbytes) {
   TensorCopyFromBytes(get_mutable(), data, nbytes);
 }
 
-Tensor Tensor::CopyTo(const Device& dev, Optional<String> mem_scope) const {
+Tensor Tensor::CopyTo(const Device& dev, ffi::Optional<ffi::String> mem_scope) const {
   ICHECK(data_ != nullptr);
   const DLTensor* dptr = operator->();
   Tensor ret =

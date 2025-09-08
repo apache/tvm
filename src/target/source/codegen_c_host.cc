@@ -67,7 +67,7 @@ void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
 
 void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func,
                                bool emit_fwd_func_decl) {
-  auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
   if (global_symbol) {
     function_names_.push_back(global_symbol.value());
   }
@@ -90,8 +90,8 @@ void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func,
   }
 }
 
-void CodeGenCHost::GenerateForwardFunctionDeclarations(String global_symbol,
-                                                       const Array<Type>& arg_types,
+void CodeGenCHost::GenerateForwardFunctionDeclarations(ffi::String global_symbol,
+                                                       const ffi::Array<Type>& arg_types,
                                                        const Type& ret_type) {
   if (!emit_fwd_func_decl_) {
     return;
@@ -363,9 +363,9 @@ ffi::Module BuildCHost(IRModule mod, Target target) {
   bool emit_fwd_func_decl = true;
 
   std::unordered_set<std::string> devices;
-  if (mod->GetAttr<Map<GlobalVar, String>>("device_contexts") != nullptr) {
-    Map<GlobalVar, String> device_contexts =
-        mod->GetAttr<Map<GlobalVar, String>>("device_contexts").value();
+  if (mod->GetAttr<ffi::Map<GlobalVar, ffi::String>>("device_contexts") != nullptr) {
+    ffi::Map<GlobalVar, ffi::String> device_contexts =
+        mod->GetAttr<ffi::Map<GlobalVar, ffi::String>>("device_contexts").value();
     for (auto const& context : device_contexts) {
       devices.insert(context.second.data());
     }

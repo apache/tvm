@@ -275,7 +275,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
   }
 
   void VisitExpr_(const VarNode* op, AccessPath path) override {
-    auto var = GetRef<Var>(op);
+    auto var = ffi::GetRef<Var>(op);
 
     auto active_def = currently_defined_.find(var);
     auto verify = Verify(active_def != currently_defined_.end());
@@ -342,7 +342,7 @@ class SingleEnvThreadVerifier : public Verifier<SingleEnvThreadVerifier> {
     }
   }
 
-  std::unordered_map<String, std::tuple<Var, AccessPath>> env_thread_vars_;
+  std::unordered_map<ffi::String, std::tuple<Var, AccessPath>> env_thread_vars_;
 };
 
 bool VerifyWellFormed(const PrimFunc& func, bool assert_mode) {

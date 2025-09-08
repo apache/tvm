@@ -324,14 +324,14 @@ class LLVMTargetInfo {
    * \brief Get all supported targets from the LLVM backend
    * \return list with all valid targets
    */
-  const Array<String> GetAllLLVMTargets() const;
+  const ffi::Array<ffi::String> GetAllLLVMTargets() const;
 
   /*!
    * \brief Get all CPU arches from target
    * \return list with all valid cpu architectures
    * \note The arches are fetched from the LLVM backend using the target `-mtriple`.
    */
-  const Array<String> GetAllLLVMTargetArches() const;
+  const ffi::Array<ffi::String> GetAllLLVMTargetArches() const;
 
   /*!
    * \brief Get all CPU features from target
@@ -340,7 +340,7 @@ class LLVMTargetInfo {
    * \note The features are fetched from the LLVM backend using the target `-mtriple`
    *       and the `-mcpu` architecture, but also consider the `-mattr` attributes.
    */
-  const Map<String, String> GetAllLLVMCpuFeatures() const;
+  const ffi::Map<ffi::String, ffi::String> GetAllLLVMCpuFeatures() const;
 
   /*!
    * \brief Check the target if has a specific cpu feature

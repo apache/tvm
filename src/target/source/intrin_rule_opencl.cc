@@ -109,7 +109,8 @@ static PrimExpr DispatchIntelShuffle(const PrimExpr& e) {
   arith::Analyzer analyzer;
   ICHECK(analyzer.CanProve(call->args[3] == call->args[4]))
       << "Intel warp shuffle dose not support width != warp_size";
-  Array<PrimExpr> opencl_args{{StringImm("intel_sub_group_shuffle"), call->args[1], call->args[2]}};
+  ffi::Array<PrimExpr> opencl_args{
+      {StringImm("intel_sub_group_shuffle"), call->args[1], call->args[2]}};
   return Call(call->dtype, builtin::call_pure_extern(), opencl_args);
 }
 

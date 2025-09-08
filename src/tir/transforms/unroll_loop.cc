@@ -83,7 +83,7 @@ class VarLocalAccessMarker : public ExprVisitor {
   explicit VarLocalAccessMarker(std::unordered_set<Var>* var_touched_local)
       : var_touched_local_(var_touched_local) {}
 
-  void VisitExpr_(const VarNode* op) final { var_touched_local_->insert(GetRef<Var>(op)); }
+  void VisitExpr_(const VarNode* op) final { var_touched_local_->insert(ffi::GetRef<Var>(op)); }
 
  private:
   std::unordered_set<Var>* var_touched_local_;
@@ -176,7 +176,7 @@ class LoopUnroller : public StmtExprMutator {
         }
       }
     }
-    return GetRef<PrimExpr>(op);
+    return ffi::GetRef<PrimExpr>(op);
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
@@ -222,8 +222,8 @@ class LoopUnroller : public StmtExprMutator {
     ICHECK_NE(value, -1) << "loop doesn't have a constant integer extent";
     if (value == 0) return Evaluate(0);
     Stmt body = op->body;
-    Map<Var, PrimExpr> vmap;
-    Array<Stmt> unrolled;
+    ffi::Map<Var, PrimExpr> vmap;
+    ffi::Array<Stmt> unrolled;
     for (int i = 0; i < value; ++i) {
       vmap.Set(op->loop_var, op->min + make_const(op->loop_var.dtype(), i));
       Stmt step = Substitute(body, vmap);

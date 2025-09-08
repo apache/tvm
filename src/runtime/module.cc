@@ -35,7 +35,7 @@
 namespace tvm {
 namespace runtime {
 
-bool RuntimeEnabled(const String& target_str) {
+bool RuntimeEnabled(const ffi::String& target_str) {
   std::string target = target_str;
   std::string f_name;
   if (target == "cpu") {

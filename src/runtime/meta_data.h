@@ -38,7 +38,7 @@
 namespace tvm {
 namespace runtime {
 
-inline String get_name_mangled(const String& module_name, const String& name) {
+inline ffi::String get_name_mangled(const ffi::String& module_name, const ffi::String& name) {
   std::stringstream ss;
   ss << module_name << "_" << name;
   return ss.str();

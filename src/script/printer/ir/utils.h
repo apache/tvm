@@ -37,7 +37,7 @@ namespace printer {
 
 class IRFrameNode : public FrameNode {
  public:
-  Map<String, Array<GlobalInfo>>* global_infos = nullptr;
+  ffi::Map<ffi::String, ffi::Array<GlobalInfo>>* global_infos = nullptr;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -51,7 +51,7 @@ class IRFrameNode : public FrameNode {
 class IRFrame : public Frame {
  public:
   explicit IRFrame(const IRDocsifier& d) {
-    ObjectPtr<IRFrameNode> n = make_object<IRFrameNode>();
+    ObjectPtr<IRFrameNode> n = ffi::make_object<IRFrameNode>();
     n->stmts.clear();
     n->d = d.get();
     n->global_infos = nullptr;

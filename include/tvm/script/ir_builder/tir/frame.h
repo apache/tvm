@@ -36,7 +36,7 @@ namespace tir {
 class TIRFrameNode : public IRBuilderFrameNode {
  public:
   /*! \brief The Stmt within in this frame. */
-  Array<tvm::tir::Stmt> stmts;
+  ffi::Array<tvm::tir::Stmt> stmts;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -68,21 +68,21 @@ class TIRFrame : public IRBuilderFrame {
 class PrimFuncFrameNode : public TIRFrameNode {
  public:
   /*! \brief The name of the block. */
-  Optional<String> name;
+  ffi::Optional<ffi::String> name;
   /*! \brief Function parameters. */
-  Array<tvm::tir::Var> args;
+  ffi::Array<tvm::tir::Var> args;
   /*! \brief Whether the PrimFunc is annotated as private. */
   bool is_private;
   /*! \brief The return type of the function. */
-  Optional<Type> ret_type;
+  ffi::Optional<Type> ret_type;
   /*! \brief Maps some parameters to specific Buffer data structures. */
-  Map<tvm::tir::Var, tvm::tir::Buffer> buffer_map;
+  ffi::Map<tvm::tir::Var, tvm::tir::Buffer> buffer_map;
   /*! \brief Additional attributes storing the meta-data */
-  Map<String, Any> attrs;
+  ffi::Map<ffi::String, Any> attrs;
   /*! \brief The variable map bound to thread env. */
-  Map<tvm::tir::Var, tvm::tir::IterVar> env_threads;
+  ffi::Map<tvm::tir::Var, tvm::tir::IterVar> env_threads;
   /*! \brief The buffer allocated in root block. */
-  Array<tvm::tir::Buffer> root_alloc_buffers;
+  ffi::Array<tvm::tir::Buffer> root_alloc_buffers;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -126,28 +126,28 @@ class PrimFuncFrame : public TIRFrame {
 class BlockFrameNode : public TIRFrameNode {
  public:
   /*! \brief The name of the block. */
-  String name;
+  ffi::String name;
   /*! \brief The variables of the block. */
-  Array<tvm::tir::IterVar> iter_vars;
+  ffi::Array<tvm::tir::IterVar> iter_vars;
   /*! \brief The read buffer regions of the block. */
-  Optional<Array<tvm::tir::BufferRegion>> reads;
+  ffi::Optional<ffi::Array<tvm::tir::BufferRegion>> reads;
   /*! \brief The write buffer regions of the block. */
-  Optional<Array<tvm::tir::BufferRegion>> writes;
+  ffi::Optional<ffi::Array<tvm::tir::BufferRegion>> writes;
   /*! \brief The init statement of the bolck. */
-  Optional<tvm::tir::Stmt> init;
+  ffi::Optional<tvm::tir::Stmt> init;
   /*! \brief The buffer allocated in the block. */
-  Array<tvm::tir::Buffer> alloc_buffers;
+  ffi::Array<tvm::tir::Buffer> alloc_buffers;
   /*! \brief The match buffer regions. */
-  Array<tvm::tir::MatchBufferRegion> match_buffers;
+  ffi::Array<tvm::tir::MatchBufferRegion> match_buffers;
   /*! \brief The annotation of the block. */
-  Optional<Map<String, Any>> annotations;
+  ffi::Optional<ffi::Map<ffi::String, Any>> annotations;
   /*! \brief The corresponding values of the iter vars. */
-  Array<PrimExpr> iter_values;
+  ffi::Array<PrimExpr> iter_values;
   /*!
    * \brief The predicate of the block realization, the block will only be executed when the
    * predicate is true.
    */
-  Optional<PrimExpr> predicate;
+  ffi::Optional<PrimExpr> predicate;
   /*! \brief The flag whether to construct BlockRealize or Block. */
   bool no_realize;
 
@@ -241,12 +241,13 @@ class ForFrameNode : public TIRFrameNode {
    * \param loop_body The loop body
    * \return A stmt, the loop nest
    */
-  using FMakeForLoop = ffi::TypedFunction<tvm::tir::Stmt(
-      Array<tvm::tir::Var> loop_vars, Array<Range> loop_extents, tvm::tir::Stmt loop_body)>;
+  using FMakeForLoop =
+      ffi::TypedFunction<tvm::tir::Stmt(ffi::Array<tvm::tir::Var> loop_vars,
+                                        ffi::Array<Range> loop_extents, tvm::tir::Stmt loop_body)>;
   /*! \brief The loop variable. */
-  Array<tvm::tir::Var> vars;
+  ffi::Array<tvm::tir::Var> vars;
   /*! \brief The domains of iteration. */
-  Array<Range> doms;
+  ffi::Array<Range> doms;
   /*! \brief The for loop generating function. */
   FMakeForLoop f_make_for_loop;
 
@@ -369,7 +370,7 @@ class LaunchThreadFrameNode : public TIRFrameNode {
   /*! \brief The extent of environment thread. */
   PrimExpr extent;
   /*! \brief The attribute key, could be either virtual_thread or thread_extent. */
-  String attr_key;
+  ffi::String attr_key;
   /*! \brief The iteration variable. */
   tvm::tir::IterVar iter_var;
 
@@ -413,7 +414,7 @@ class RealizeFrameNode : public TIRFrameNode {
   /*! \brief The region of buffer access. */
   tvm::tir::BufferRegion buffer_slice;
   /*! \brief The storage scope associated with this realization. */
-  String storage_scope;
+  ffi::String storage_scope;
   /*! \brief The condition expression. */
   PrimExpr condition;
 
@@ -454,15 +455,15 @@ class RealizeFrame : public TIRFrame {
 class AllocateFrameNode : public TIRFrameNode {
  public:
   /*! \brief The extents of the allocate. */
-  Array<PrimExpr> extents;
+  ffi::Array<PrimExpr> extents;
   /*! \brief The data type of the buffer. */
   DataType dtype;
   /*! \brief The storage scope. */
-  String storage_scope;
+  ffi::String storage_scope;
   /*! \brief The condition. */
   PrimExpr condition;
   /*! \brief Additional annotation hints. */
-  Map<String, Any> annotations;
+  ffi::Map<ffi::String, Any> annotations;
   /*! \brief The buffer var. */
   tvm::tir::Var buffer_var;
 
@@ -508,13 +509,13 @@ class AllocateConstFrameNode : public TIRFrameNode {
   /*! \brief The data type of the buffer. */
   DataType dtype;
   /*! \brief The extents of the allocate. */
-  Array<PrimExpr> extents;
+  ffi::Array<PrimExpr> extents;
   /*! \brief The data associated with the constant. */
   tvm::runtime::Tensor data;
   /*! \brief The buffer var */
   tvm::tir::Var buffer_var;
   /*! \brief Additional annotations about the allocation. */
-  Map<String, Any> annotations;
+  ffi::Map<ffi::String, Any> annotations;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -557,7 +558,7 @@ class AttrFrameNode : public TIRFrameNode {
   /*! \brief The node to annotate the attribute. */
   Any node;
   /*! \brief Attribute type key. */
-  String attr_key;
+  ffi::String attr_key;
   /*! \brief The value of the attribute. */
   PrimExpr value;
 
@@ -636,9 +637,9 @@ class IfFrameNode : public TIRFrameNode {
   /*! \brief The condition of the if statement. */
   PrimExpr condition;
   /*! \brief The statements in the true branch. */
-  Optional<Array<tvm::tir::Stmt>> then_stmts;
+  ffi::Optional<ffi::Array<tvm::tir::Stmt>> then_stmts;
   /*! \brief The stetements in the false branch. */
-  Optional<Array<tvm::tir::Stmt>> else_stmts;
+  ffi::Optional<ffi::Array<tvm::tir::Stmt>> else_stmts;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

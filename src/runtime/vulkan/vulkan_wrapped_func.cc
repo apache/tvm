@@ -205,7 +205,7 @@ VulkanModuleNode::~VulkanModuleNode() {
   }
 }
 
-Optional<ffi::Function> VulkanModuleNode::GetFunction(const String& name) {
+ffi::Optional<ffi::Function> VulkanModuleNode::GetFunction(const ffi::String& name) {
   ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
   ICHECK_EQ(sptr_to_self.get(), this);
   auto it = fmap_.find(name);
@@ -403,7 +403,7 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   return pe;
 }
 
-void VulkanModuleNode::WriteToFile(const String& file_name, const String& format) const {
+void VulkanModuleNode::WriteToFile(const ffi::String& file_name, const ffi::String& format) const {
   std::string fmt = GetFileFormat(file_name, format);
   ICHECK_EQ(fmt, fmt_) << "Can only save to customized format vulkan";
   std::string meta_file = GetMetaFilePath(file_name);
@@ -427,7 +427,7 @@ ffi::Bytes VulkanModuleNode::SaveToBytes() const {
   return ffi::Bytes(buffer);
 }
 
-String VulkanModuleNode::InspectSource(const String& format) const {
+ffi::String VulkanModuleNode::InspectSource(const ffi::String& format) const {
   // can only return disassembly code.
   return source_;
 }

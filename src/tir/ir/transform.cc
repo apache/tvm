@@ -43,7 +43,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.enable_debug", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.enable_equiv_terms_in_cse_tir", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_storage_rewrite", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.is_entry_func", Bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tir.add_lower_pass", Array<Array<ObjectRef>>);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.add_lower_pass", ffi::Array<ffi::Array<ObjectRef>>);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.debug_keep_trivial_loop", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.use_async_copy", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.merge_static_smem", Bool);
@@ -102,7 +102,7 @@ class PrimFuncPass : public Pass {
 
 PrimFuncPass::PrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
                            PassInfo pass_info) {
-  auto n = make_object<PrimFuncPassNode>();
+  auto n = ffi::make_object<PrimFuncPassNode>();
   n->pass_func = std::move(pass_func);
   n->pass_info = std::move(pass_info);
   data_ = std::move(n);
@@ -141,7 +141,8 @@ IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
 }
 
 Pass CreatePrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
-                        int opt_level, String name, tvm::Array<String> required, bool traceable) {
+                        int opt_level, ffi::String name, tvm::ffi::Array<ffi::String> required,
+                        bool traceable) {
   PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
   return PrimFuncPass(std::move(pass_func), pass_info);
 }
