@@ -19,14 +19,30 @@ import os
 from numbers import Real, Integral
 
 
-if os.environ.get("TVM_FFI_BUILD_DOCS", "0") == "0":
+def is_building_docs():
+    return os.environ.get("TVM_FFI_BUILD_DOCS", "0") == "1"
+
+def try_import_torch():
+    if is_building_docs():
+        return None
     try:
-        # optionally import torch and setup torch related utils
         import torch
+        return torch
     except ImportError:
-        torch = None
-else:
-    torch = None
+        return None
+
+def try_import_paddle():
+    if is_building_docs():
+        return None
+    try:
+        import paddle
+        return paddle
+    except ImportError:
+        return None
+
+# optionally import specific framework and setup framework related utils
+torch = try_import_torch()
+paddle = try_import_paddle()
 
 
 cdef inline object make_ret_small_str(TVMFFIAny result):
@@ -120,6 +136,21 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args,
                 ctx_dev_id[0] = temp_dltensor.device.device_id
                 # This is an API that dynamo and other uses to get the raw stream from torch
                 temp_ptr = torch._C._cuda_getCurrentRawStream(temp_dltensor.device.device_id)
+                ctx_stream[0] = <TVMFFIStreamHandle>temp_ptr
+            temp_args.append(arg)
+        elif paddle is not None and isinstance(arg, paddle.Tensor):
+            is_cuda = arg.is_cuda
+            arg = from_dlpack(paddle.utils.dlpack.to_dlpack(arg),
+                              required_alignment=__dlpack_auto_import_required_alignment__)
+            out[i].type_index = kTVMFFITensor
+            out[i].v_ptr = (<Tensor>arg).chandle
+            temp_dltensor = TVMFFITensorGetDLTensorPtr((<Tensor>arg).chandle)
+            # record the stream and device for paddle context
+            if is_cuda and ctx_dev_type != NULL and ctx_dev_type[0] == -1:
+                ctx_dev_type[0] = temp_dltensor.device.device_type
+                ctx_dev_id[0] = temp_dltensor.device.device_id
+                # PaddlePaddle provides a torch compatible API to get the current stream
+                temp_ptr = paddle._C._cuda_getCurrentRawStream(temp_dltensor.device.device_id)
                 ctx_stream[0] = <TVMFFIStreamHandle>temp_ptr
             temp_args.append(arg)
         elif hasattr(arg, "__dlpack__"):
