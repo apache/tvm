@@ -53,7 +53,7 @@ class HostDeviceSplitter : public StmtMutator {
 
  private:
   Stmt SplitDeviceFunc(Stmt body, Target device_target) {
-    auto [params, buffers_to_declare] = [&]() -> std::tuple<Array<Var>, Array<Buffer>> {
+    auto [params, buffers_to_declare] = [&]() -> std::tuple<ffi::Array<Var>, ffi::Array<Buffer>> {
       VarUseDefAnalyzer use_def(/*defined_vars=*/{}, /*visit_thread_extent=*/true);
       use_def(body);
 
@@ -98,7 +98,7 @@ class HostDeviceSplitter : public StmtMutator {
 
     GlobalVar kernel_symbol_global = var_supply_();
     (*device_mod_)->Add(kernel_symbol_global, device_func);
-    Array<PrimExpr> args = params.Map([](const Var& var) -> PrimExpr { return var; });
+    ffi::Array<PrimExpr> args = params.Map([](const Var& var) -> PrimExpr { return var; });
 
     if (can_propagate_errors) {
       Var kernel_error_code("kernel_error_code", success->dtype);
@@ -137,14 +137,14 @@ Pass SplitHostDevice() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
     GlobalVarSupply global_var_supply(mod);
 
-    IRModule device_mod = IRModule(Map<GlobalVar, BaseFunc>({}));
-    IRModule updates = IRModule(Map<GlobalVar, BaseFunc>({}));
+    IRModule device_mod = IRModule(ffi::Map<GlobalVar, BaseFunc>({}));
+    IRModule updates = IRModule(ffi::Map<GlobalVar, BaseFunc>({}));
 
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<PrimFunc>()) {
         PrimFunc func = opt.value();
 
-        auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+        auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
         auto name_prefix = global_symbol.value_or(gvar->name_hint);
         auto kernel_name = name_prefix + "_kernel";
         auto var_supply = [&global_var_supply, &kernel_name]() -> GlobalVar {

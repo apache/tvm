@@ -36,7 +36,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("ir.BaseFunc_Attrs", [](BaseFunc func) { return func->attrs; })
       .def("ir.BaseFuncCopy", [](BaseFunc func) { return func; })
       .def("ir.BaseFuncWithAttr",
-           [](ffi::RValueRef<BaseFunc> func_ref, String key, Any value) -> BaseFunc {
+           [](ffi::RValueRef<BaseFunc> func_ref, ffi::String key, Any value) -> BaseFunc {
              BaseFunc func = *std::move(func_ref);
              if (func->IsInstance<tir::PrimFuncNode>()) {
                return WithAttr(Downcast<tir::PrimFunc>(std::move(func)), key, value);
@@ -49,13 +49,14 @@ TVM_FFI_STATIC_INIT_BLOCK({
              }
            })
       .def("ir.BaseFuncWithAttrs",
-           [](ffi::RValueRef<BaseFunc> func_ref, Map<String, ffi::Any> attr_map) -> BaseFunc {
+           [](ffi::RValueRef<BaseFunc> func_ref,
+              ffi::Map<ffi::String, ffi::Any> attr_map) -> BaseFunc {
              BaseFunc func = *std::move(func_ref);
              if (func->IsInstance<tir::PrimFuncNode>()) {
                return WithAttrs(Downcast<tir::PrimFunc>(std::move(func)), attr_map);
              }
              if (const auto f = tvm::ffi::Function::GetGlobal("relax.FuncWithAttrs")) {
-               if (auto ret = (*f)(func, attr_map).cast<Optional<BaseFunc>>()) {
+               if (auto ret = (*f)(func, attr_map).cast<ffi::Optional<BaseFunc>>()) {
                  return ret.value();
                }
              }
@@ -65,17 +66,18 @@ TVM_FFI_STATIC_INIT_BLOCK({
              LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
              TVM_FFI_UNREACHABLE();
            })
-      .def("ir.BaseFuncWithoutAttr", [](ffi::RValueRef<BaseFunc> func_ref, String key) -> BaseFunc {
-        BaseFunc func = *std::move(func_ref);
-        if (func->IsInstance<tir::PrimFuncNode>()) {
-          return WithoutAttr(Downcast<tir::PrimFunc>(std::move(func)), key);
-        } else if (func->IsInstance<relax::FunctionNode>()) {
-          return WithoutAttr(Downcast<relax::Function>(std::move(func)), key);
-        } else {
-          LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
-          TVM_FFI_UNREACHABLE();
-        }
-      });
+      .def("ir.BaseFuncWithoutAttr",
+           [](ffi::RValueRef<BaseFunc> func_ref, ffi::String key) -> BaseFunc {
+             BaseFunc func = *std::move(func_ref);
+             if (func->IsInstance<tir::PrimFuncNode>()) {
+               return WithoutAttr(Downcast<tir::PrimFunc>(std::move(func)), key);
+             } else if (func->IsInstance<relax::FunctionNode>()) {
+               return WithoutAttr(Downcast<relax::Function>(std::move(func)), key);
+             } else {
+               LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
+               TVM_FFI_UNREACHABLE();
+             }
+           });
 });
 
 }  // namespace tvm

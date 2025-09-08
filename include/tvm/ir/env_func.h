@@ -43,7 +43,7 @@ namespace tvm {
 class EnvFuncNode : public Object {
  public:
   /*! \brief Unique name of the global function */
-  String name;
+  ffi::String name;
   /*! \brief The internal packed function */
   ffi::Function func;
   /*! \brief constructor */
@@ -90,7 +90,7 @@ class EnvFunc : public ObjectRef {
    * \return The created global function.
    * \note The function can be unique
    */
-  TVM_DLL static EnvFunc Get(const String& name);
+  TVM_DLL static EnvFunc Get(const ffi::String& name);
   /*! \brief specify container node */
   using ContainerType = EnvFuncNode;
 };

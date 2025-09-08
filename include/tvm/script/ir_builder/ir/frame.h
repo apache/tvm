@@ -41,16 +41,16 @@ namespace ir {
 class IRModuleFrameNode : public IRBuilderFrameNode {
  public:
   /*! \brief A map from string names to global variables that ensures global uniqueness. */
-  Map<String, GlobalVar> global_var_map;
+  ffi::Map<ffi::String, GlobalVar> global_var_map;
   /*!
    * \brief A map from GlobalVar to all global functions.
    * \note Only defined functions are in the map, while declared functions are not included.
    */
-  Map<GlobalVar, BaseFunc> functions;
+  ffi::Map<GlobalVar, BaseFunc> functions;
   /*! \brief IRModule's attributes. */
-  Map<String, Any> attrs;
+  ffi::Map<ffi::String, Any> attrs;
   /*! \brief IRModule's global_infos */
-  Map<String, Array<GlobalInfo>> global_infos;
+  ffi::Map<ffi::String, ffi::Array<GlobalInfo>> global_infos;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

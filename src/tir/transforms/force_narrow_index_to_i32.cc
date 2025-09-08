@@ -56,7 +56,7 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
       ICHECK_LE(op->value, Downcast<Integer>(max_value(target_data_type_))->value);
       return IntImm(DataType::Int(32), op->value);
     }
-    return GetRef<IntImm>(op);
+    return ffi::GetRef<IntImm>(op);
   }
 
   Stmt VisitStmt_(const BlockNode* block) final {

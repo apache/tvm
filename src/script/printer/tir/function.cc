@@ -82,7 +82,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         ++buffer_data_counter.at(data_var);
       }
       // Step 1. Handle `func->params`
-      Array<AssignDoc> args;
+      ffi::Array<AssignDoc> args;
       args.reserve(n_args);
       std::unordered_set<const tir::BufferNode*> buffer_inlined;
       for (int i = 0; i < n_args; ++i) {
@@ -107,8 +107,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       if (func->attrs.defined() && !func->attrs->dict.empty()) {
         // for global symbol, don't display it if it matches the func name
         if (func->attrs->dict.count(tvm::attr::kGlobalSymbol) &&
-            Downcast<String>(func->attrs->dict.at(tvm::attr::kGlobalSymbol)) == func_name->name) {
-          Map<String, Any> new_attrs;
+            Downcast<ffi::String>(func->attrs->dict.at(tvm::attr::kGlobalSymbol)) ==
+                func_name->name) {
+          ffi::Map<ffi::String, Any> new_attrs;
           for (auto kv : func->attrs->dict) {
             if (kv.first != tvm::attr::kGlobalSymbol) {
               new_attrs.Set(kv.first, kv.second);
@@ -142,7 +143,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         }
       }
       // Step 4. Handle `func->body`
-      Optional<tir::Block> implicit_root_block = [&]() -> Optional<tir::Block> {
+      ffi::Optional<tir::Block> implicit_root_block = [&]() -> ffi::Optional<tir::Block> {
         const tir::BlockRealizeNode* root_block_realize = func->body.as<tir::BlockRealizeNode>();
         if (root_block_realize && !root_block_realize->iter_values.size() &&
             tir::is_one(root_block_realize->predicate)) {
@@ -178,7 +179,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       } else {
         AsDocBody(func->body, p->Attr("body"), f->get(), d);
       }
-      Optional<ExprDoc> ret_type = std::nullopt;
+      ffi::Optional<ExprDoc> ret_type = std::nullopt;
       if (func->ret_type.defined()) {
         const auto* as_tuple = func->ret_type.as<TupleTypeNode>();
         if (!as_tuple || as_tuple->fields.size()) {
@@ -189,9 +190,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       ExprDoc decorator = TIR(d, "prim_func");
       // mark private if there is no global symbol
       if (!func->attrs.defined() || !func->attrs->dict.count(tvm::attr::kGlobalSymbol)) {
-        Array<ExprDoc> pos_args;
+        ffi::Array<ExprDoc> pos_args;
         decorator = decorator->Call(pos_args, {"private"},
-                                    {LiteralDoc::Boolean(true, Optional<AccessPath>())});
+                                    {LiteralDoc::Boolean(true, ffi::Optional<AccessPath>())});
       }
 
       return HeaderWrapper(d, FunctionDoc(
@@ -207,7 +208,7 @@ TVM_SCRIPT_REPR(tir::PrimFuncNode, ReprPrintTIR);
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::GlobalVar>(                                           //
         "tir", [](tvm::GlobalVar n, AccessPath n_p, IRDocsifier d) -> Doc {  //
-          if (Optional<ExprDoc> doc = d->GetVarDoc(n)) {
+          if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(n)) {
             return doc.value();
           } else {
             IdDoc ret(n->name_hint);
@@ -219,7 +220,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::IRModule>(                                             //
         "tir", [](tvm::IRModule mod, AccessPath n_p, IRDocsifier d) -> Doc {  //
-          Optional<ExprDoc> doc = d->GetVarDoc(mod);
+          ffi::Optional<ExprDoc> doc = d->GetVarDoc(mod);
           ICHECK(doc) << "Unable to print IRModule before definition in TIR.";
           return doc.value();
         });

@@ -68,11 +68,11 @@ inline DataType NullValue<DataType>() {
 class AttrFieldInfoNode : public Object {
  public:
   /*! \brief name of the field */
-  String name;
+  ffi::String name;
   /*! \brief type docstring information in str. */
-  String type_info;
+  ffi::String type_info;
   /*! \brief detailed description of the type */
-  String description;
+  ffi::String description;
 
   static void RegisterReflection() {
     namespace rfl = ffi::reflection;
@@ -145,7 +145,7 @@ class Attrs : public ObjectRef {
 class DictAttrsNode : public BaseAttrsNode {
  public:
   /*! \brief internal attrs map */
-  Map<String, ffi::Any> dict;
+  ffi::Map<ffi::String, ffi::Any> dict;
 
   static void RegisterReflection() {
     namespace rfl = ffi::reflection;
@@ -169,7 +169,7 @@ class DictAttrs : public Attrs {
    * \brief Consruct a Attrs backed by DictAttrsNode.
    * \param dict The attributes.
    */
-  TVM_DLL explicit DictAttrs(Map<String, Any> dict = {});
+  TVM_DLL explicit DictAttrs(ffi::Map<ffi::String, Any> dict = {});
 
   // Utils for accessing attributes
   // This needs to be on DictAttrs, not DictAttrsNode because we return the default
@@ -194,9 +194,9 @@ class DictAttrs : public Attrs {
    * \endcode
    */
   template <typename TObjectRef>
-  Optional<TObjectRef> GetAttr(
+  ffi::Optional<TObjectRef> GetAttr(
       const std::string& attr_key,
-      Optional<TObjectRef> default_value = Optional<TObjectRef>(std::nullopt)) const {
+      ffi::Optional<TObjectRef> default_value = ffi::Optional<TObjectRef>(std::nullopt)) const {
     if (!defined()) return default_value;
     const DictAttrsNode* node = this->as<DictAttrsNode>();
     auto it = node->dict.find(attr_key);
@@ -208,8 +208,8 @@ class DictAttrs : public Attrs {
   }
   // variant that uses TObjectRef to enable implicit conversion to default value.
   template <typename TObjectRef>
-  Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
-    return GetAttr<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
+  ffi::Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
+    return GetAttr<TObjectRef>(attr_key, ffi::Optional<TObjectRef>(default_value));
   }
   /*!
    * \brief Check whether the function has an non-zero integer attr.
@@ -248,7 +248,7 @@ class DictAttrs : public Attrs {
  *
  * \returns The new DictAttrs with updated attributes.
  */
-DictAttrs WithAttrs(DictAttrs attrs, Map<String, Any> new_attrs);
+DictAttrs WithAttrs(DictAttrs attrs, ffi::Map<ffi::String, Any> new_attrs);
 
 /*!
  * \brief Copy the DictAttrs, but overrides a single attribute.
@@ -261,10 +261,10 @@ DictAttrs WithAttrs(DictAttrs attrs, Map<String, Any> new_attrs);
  *
  * \returns The new DictAttrs with updated attributes.
  */
-DictAttrs WithAttr(DictAttrs attrs, String key, Any value);
+DictAttrs WithAttr(DictAttrs attrs, ffi::String key, Any value);
 
 inline DictAttrs WithAttr(DictAttrs attrs, const std::string& key, Any value) {
-  return WithAttr(std::move(attrs), String(key), std::move(value));
+  return WithAttr(std::move(attrs), ffi::String(key), std::move(value));
 }
 
 /*!
@@ -325,7 +325,7 @@ inline TFunc WithAttr(TFunc input, const std::string& attr_key, Any attr_value) 
  * \returns The new function or module with updated attributes.
  */
 template <typename TFunc>
-inline TFunc WithAttrs(TFunc input, Map<String, Any> attrs) {
+inline TFunc WithAttrs(TFunc input, ffi::Map<ffi::String, Any> attrs) {
   using TNode = typename TFunc::ContainerType;
   static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
   TNode* node = input.CopyOnWrite();
@@ -410,7 +410,7 @@ inline TAttrs AttrsWithDefaultValues() {
     finit_object.CallPacked(ffi::PackedArgs(packed_args, 1), &rv);
     return rv.cast<TAttrs>();
   } else {
-    auto n = make_object<ContainerType>();
+    auto n = ffi::make_object<ContainerType>();
     n->InitByPackedArgs(ffi::PackedArgs(nullptr, 0), false);
     return TAttrs(n);
   }

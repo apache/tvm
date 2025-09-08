@@ -53,8 +53,8 @@ using tir::VarNode;
  *        The deduce bound must implies e for all value in relax_map
  * \return An integer set that always satisfies the condition.
  */
-IntSet DeduceBound(PrimExpr v, PrimExpr cond, const Map<Var, IntSet>& hint_map,
-                   const Map<Var, IntSet>& relax_map);
+IntSet DeduceBound(PrimExpr v, PrimExpr cond, const ffi::Map<Var, IntSet>& hint_map,
+                   const ffi::Map<Var, IntSet>& relax_map);
 /*!
  * \brief Same as DeduceBound with  unordered_map signature.
  *

@@ -94,15 +94,15 @@ class VulkanModuleNode final : public ffi::ModuleObj {
     return ffi::Module::kBinarySerializable | ffi::Module::kRunnable;
   }
 
-  Optional<ffi::Function> GetFunction(const String& name) final;
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final;
 
   std::shared_ptr<VulkanPipeline> GetPipeline(size_t device_id, const std::string& func_name,
                                               size_t num_pack_args);
 
-  void WriteToFile(const String& file_name, const String& format) const final;
+  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final;
 
   ffi::Bytes SaveToBytes() const final;
-  String InspectSource(const String& format) const final;
+  ffi::String InspectSource(const ffi::String& format) const final;
 
  private:
   // function information table.

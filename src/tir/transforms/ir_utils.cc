@@ -41,48 +41,48 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
   for (auto ri = nest.rbegin(); ri != nest.rend(); ++ri) {
     Stmt s = *ri;
     if (const auto* for_ = s.as<ForNode>()) {
-      auto n = make_object<ForNode>(*for_);
+      auto n = ffi::make_object<ForNode>(*for_);
       ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* let = s.as<LetStmtNode>()) {
-      auto n = make_object<LetStmtNode>(*let);
+      auto n = ffi::make_object<LetStmtNode>(*let);
       ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* attr = s.as<AttrStmtNode>()) {
-      auto n = make_object<AttrStmtNode>(*attr);
+      auto n = ffi::make_object<AttrStmtNode>(*attr);
       ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* ite = s.as<IfThenElseNode>()) {
-      auto n = make_object<IfThenElseNode>(*ite);
+      auto n = ffi::make_object<IfThenElseNode>(*ite);
       ICHECK(is_no_op(n->then_case));
       ICHECK(!n->else_case);
       n->then_case = body;
       body = Stmt(n);
     } else if (const auto* seq = s.as<SeqStmtNode>()) {
-      auto n = make_object<SeqStmtNode>(*seq);
+      auto n = ffi::make_object<SeqStmtNode>(*seq);
       ICHECK(n->size() != 0 && is_no_op(n->seq[n->size() - 1]));
       n->seq.Set(n->size() - 1, body);
       body = Stmt(n);
     } else if (const auto* assert_ = s.as<AssertStmtNode>()) {
-      auto n = make_object<AssertStmtNode>(*assert_);
+      auto n = ffi::make_object<AssertStmtNode>(*assert_);
       ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* alloc = s.as<AllocateNode>()) {
-      auto n = make_object<AllocateNode>(*alloc);
+      auto n = ffi::make_object<AllocateNode>(*alloc);
       ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* alloc = s.as<AllocateConstNode>()) {
-      auto n = make_object<AllocateConstNode>(*alloc);
+      auto n = ffi::make_object<AllocateConstNode>(*alloc);
       ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* decl_buffer = s.as<DeclBufferNode>()) {
-      auto n = make_object<DeclBufferNode>(*decl_buffer);
+      auto n = ffi::make_object<DeclBufferNode>(*decl_buffer);
       ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
@@ -130,7 +130,7 @@ class IRConvertSSA final : public StmtExprMutator {
           if (defined_params.count(var_ptr)) return;
 
           if (defined_.count(var_ptr)) {
-            auto var = GetRef<Var>(var_ptr);
+            auto var = ffi::GetRef<Var>(var_ptr);
             redefines.emplace_back(this, var);
           } else {
             defined_.insert(var_ptr);
@@ -148,7 +148,7 @@ class IRConvertSSA final : public StmtExprMutator {
 
     // Update the buffer map, based on the redefined parameters
     auto buffer_map = [&]() {
-      Map<Var, Buffer> buffer_map;
+      ffi::Map<Var, Buffer> buffer_map;
       bool made_change = false;
       for (const auto& [var, buffer] : func->buffer_map) {
         auto new_var = GetRemappedVar(var);
@@ -174,15 +174,15 @@ class IRConvertSSA final : public StmtExprMutator {
         return DictAttrs();
       }
 
-      Map<String, ffi::Any> dict;
+      ffi::Map<ffi::String, ffi::Any> dict;
       bool made_change = false;
 
       for (const auto& [key, old_value] : func->attrs->dict) {
         auto value = old_value;
         if (auto* expr = value.as<PrimExprNode>()) {
-          value = VisitExpr(GetRef<PrimExpr>(expr));
+          value = VisitExpr(ffi::GetRef<PrimExpr>(expr));
         } else if (auto* stmt = value.as<StmtNode>()) {
-          value = VisitStmt(GetRef<Stmt>(stmt));
+          value = VisitStmt(ffi::GetRef<Stmt>(stmt));
         }
 
         made_change = made_change || !value.same_as(old_value);
@@ -212,7 +212,7 @@ class IRConvertSSA final : public StmtExprMutator {
     return func;
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) final { return GetRemappedVar(GetRef<Var>(op)); }
+  PrimExpr VisitExpr_(const VarNode* op) final { return GetRemappedVar(ffi::GetRef<Var>(op)); }
   PrimExpr VisitExpr_(const LetNode* op) final {
     const Var& v = op->var;
     if (defined_.count(v.get())) {
@@ -248,13 +248,13 @@ class IRConvertSSA final : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BlockNode* op) final {
-    Block block = GetRef<Block>(op);
+    Block block = ffi::GetRef<Block>(op);
 
     // The BlockNode is the point of definition for the IterVar
     // instances.  These re-defines must be present before visiting
     // the body of the BlockNode.
     std::vector<ScopedRedefine> redefines;
-    Array<IterVar> iter_vars = op->iter_vars.Map([&](IterVar iter_var) {
+    ffi::Array<IterVar> iter_vars = op->iter_vars.Map([&](IterVar iter_var) {
       if (defined_.count(iter_var->var.get())) {
         redefines.emplace_back(this, iter_var->var);
         iter_var.CopyOnWrite()->var = redefines.back().new_var;
@@ -263,9 +263,9 @@ class IRConvertSSA final : public StmtExprMutator {
       }
       return iter_var;
     });
-    Array<BufferRegion> reads =
+    ffi::Array<BufferRegion> reads =
         block->reads.Map([&](const auto& region) { return VisitBufferAccess(region); });
-    Array<BufferRegion> writes =
+    ffi::Array<BufferRegion> writes =
         block->writes.Map([&](const auto& region) { return VisitBufferAccess(region); });
 
     if (!reads.same_as(block->reads) || !writes.same_as(block->writes) ||
@@ -312,8 +312,8 @@ class IRConvertSSA final : public StmtExprMutator {
     Var new_buffer_var = GetRemappedVar(buf->data);
     PrimExpr elem_offset = VisitExpr(buf->elem_offset);
     auto visit_expr = [this](const PrimExpr& expr) { return VisitExpr(expr); };
-    Array<PrimExpr> shape = buf->shape.Map(visit_expr);
-    Array<PrimExpr> strides = buf->strides.Map(visit_expr);
+    ffi::Array<PrimExpr> shape = buf->shape.Map(visit_expr);
+    ffi::Array<PrimExpr> strides = buf->strides.Map(visit_expr);
 
     // If no mapping is required, return the original buffer.
     if (new_buffer_var.same_as(buf->data) && elem_offset.same_as(buf->elem_offset) &&
@@ -432,7 +432,7 @@ class IRConvertSSA final : public StmtExprMutator {
 
       IterVar new_iter_var;
       if (dom.same_as(iter_var->dom) && var.same_as(iter_var->var)) {
-        new_iter_var = GetRef<IterVar>(iter_var);
+        new_iter_var = ffi::GetRef<IterVar>(iter_var);
       } else {
         new_iter_var = IterVar(dom, var, iter_var->iter_type, iter_var->thread_tag, iter_var->span);
       }
@@ -442,7 +442,7 @@ class IRConvertSSA final : public StmtExprMutator {
 
       Stmt output;
       if (new_iter_var.get() == iter_var && body.same_as(op->body) && value.same_as(op->value)) {
-        output = GetRef<Stmt>(op);
+        output = ffi::GetRef<Stmt>(op);
       } else {
         output = AttrStmt(new_iter_var, op->attr_key, value, body, iter_var->span);
       }
@@ -530,14 +530,14 @@ class IRConvertSSA final : public StmtExprMutator {
 
 Stmt ConvertSSA(Stmt stmt) { return IRConvertSSA()(std::move(stmt)); }
 
-String GetPtrStorageScope(Var buffer_var) {
+ffi::String GetPtrStorageScope(Var buffer_var) {
   const auto* ptr_type = buffer_var->type_annotation.as<PointerTypeNode>();
   ICHECK(ptr_type) << "The provided variable is not of pointer type";
   return ptr_type->storage_scope;
 }
 
-Array<PrimExpr> GetBufferAllocationShape(const Buffer& buffer) {
-  Array<PrimExpr> alloc_shape = buffer->shape;
+ffi::Array<PrimExpr> GetBufferAllocationShape(const Buffer& buffer) {
+  ffi::Array<PrimExpr> alloc_shape = buffer->shape;
   if (buffer->strides.size()) {
     ICHECK_EQ(buffer->shape.size(), buffer->strides.size());
     for (size_t i = buffer->strides.size() - 1; i > 0; --i) {
@@ -549,14 +549,14 @@ Array<PrimExpr> GetBufferAllocationShape(const Buffer& buffer) {
   return alloc_shape;
 }
 
-Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
-                               const Array<PrimExpr>& indices) {
+ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
+                                    const ffi::Array<PrimExpr>& indices) {
   const Buffer& target = match_buffer->buffer;
   const BufferRegion& source = match_buffer->source;
   ICHECK_EQ(indices.size(), target->shape.size());
 
   arith::Analyzer analyzer;
-  Array<PrimExpr> result;
+  ffi::Array<PrimExpr> result;
   result.reserve(source->region.size());
   size_t offset = source->region.size() - indices.size();
   for (size_t i = 0; i < offset; ++i) {
@@ -595,7 +595,7 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
   return result;
 }
 
-Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition() {
+ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition() {
   // extract equations and related vars from condition expression.
   // currently only extract simple integral equations which could be solvable.
   arith::Analyzer analyzer;
@@ -603,8 +603,8 @@ Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition() {
   if (is_const_int(condition)) {
     return std::nullopt;
   }
-  Array<PrimExpr> equations;
-  Array<Var> vars;
+  ffi::Array<PrimExpr> equations;
+  ffi::Array<Var> vars;
   std::function<void(const PrimExpr&)> fvisit = [&equations, &vars, &fvisit](const PrimExpr& e) {
     if (e->IsInstance<GENode>() || e->IsInstance<GTNode>() || e->IsInstance<LENode>() ||
         e->IsInstance<LTNode>() || e->IsInstance<EQNode>() || e->IsInstance<NENode>()) {
@@ -615,7 +615,7 @@ Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition() {
           return;
         } else if (const VarNode* var = obj.as<VarNode>()) {
           if (var->dtype.is_int() || var->dtype.is_uint()) {
-            cand_vars.push_back(GetRef<Var>(var));
+            cand_vars.push_back(ffi::GetRef<Var>(var));
           }
         } else {
           is_simple &= obj->IsInstance<AddNode>() || obj->IsInstance<SubNode>() ||
@@ -648,7 +648,7 @@ Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition() {
     return std::nullopt;
   }
   // build dom ranges for related vars
-  Map<Var, Range> ranges;
+  ffi::Map<Var, Range> ranges;
   for (const Var& v : vars) {
     arith::IntSet dom;
     auto relax_it = relax_map_->find(v.get());
@@ -684,7 +684,7 @@ ConditionalBoundsContext::ConditionalBoundsContext(
       origin_pending_conditions_num_(pending_conditions->size()) {}
 
 void ConditionalBoundsContext::EnterWithScope() {
-  Optional<arith::IntConstraints> constraints = TrySolveCondition();
+  ffi::Optional<arith::IntConstraints> constraints = TrySolveCondition();
   if (!constraints.defined()) {
     // fail to process the condition, add to unresolved
     pending_conditions_->push_back(condition_);
@@ -831,11 +831,11 @@ namespace transform {
 Pass ConvertSSA() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
     tir::IRConvertSSA converter;
-    Map<GlobalVar, BaseFunc> functions;
+    ffi::Map<GlobalVar, BaseFunc> functions;
     bool made_change = false;
     for (auto [gvar, base_func] : mod->functions) {
       if (auto* ptr = base_func.as<tir::PrimFuncNode>()) {
-        auto updated = converter.VisitPrimFunc(GetRef<tir::PrimFunc>(ptr));
+        auto updated = converter.VisitPrimFunc(ffi::GetRef<tir::PrimFunc>(ptr));
         if (!updated.same_as(base_func)) {
           made_change = true;
           base_func = updated;

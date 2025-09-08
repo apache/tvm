@@ -40,7 +40,7 @@ namespace tir {
 class BuiltinLower : public StmtExprMutator {
  public:
   static PrimFunc Build(PrimFunc func) {
-    Optional<PrimExpr> device_type = std::nullopt;
+    ffi::Optional<PrimExpr> device_type = std::nullopt;
     if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
       device_type = Integer(target.value()->kind->default_device_type);
     }
@@ -50,7 +50,7 @@ class BuiltinLower : public StmtExprMutator {
     return func;
   }
 
-  explicit BuiltinLower(Optional<PrimExpr> device_type = std::nullopt)
+  explicit BuiltinLower(ffi::Optional<PrimExpr> device_type = std::nullopt)
       : device_type_(device_type) {}
 
   // NOTE: Right now, we make the following scoping requirement
@@ -317,7 +317,7 @@ class BuiltinLower : public StmtExprMutator {
     }
 
     if (min.same_as(op->min) && extent.same_as(op->extent) && body.same_as(op->body)) {
-      return GetRef<Stmt>(op);
+      return ffi::GetRef<Stmt>(op);
     } else {
       auto n = CopyOnWrite(op);
       n->min = std::move(min);
@@ -370,7 +370,7 @@ class BuiltinLower : public StmtExprMutator {
                   << "but was instead the expression " << device_type_ << " with type "
                   << device_type_.value()->GetTypeKey();
 
-    String device_name = runtime::DLDeviceType2Str(as_int->value);
+    ffi::String device_name = runtime::DLDeviceType2Str(as_int->value);
     return StringImm("device_api." + device_name + "." + method_name);
   }
 
@@ -594,9 +594,9 @@ class BuiltinLower : public StmtExprMutator {
     scope.run_sizes.shape_stack = restore_shape_stack;
     scope.run_sizes.array_stack = restore_array_stack;
     scope.run_sizes.arg_stack = arg_stack_begin;
-    Array<PrimExpr> packed_args = {op->args[name_offset], scope.stack_ffi_any,
-                                   ConstInt32(arg_stack_begin),
-                                   ConstInt32(arg_stack_begin + num_args)};
+    ffi::Array<PrimExpr> packed_args = {op->args[name_offset], scope.stack_ffi_any,
+                                        ConstInt32(arg_stack_begin),
+                                        ConstInt32(arg_stack_begin + num_args)};
     if (pass_last_arg_as_traced_value) {
       // pass in last element as traced value
       // used by call_packed_traced
@@ -626,7 +626,7 @@ class BuiltinLower : public StmtExprMutator {
     std::string fdevapi_prefix = "device_api.";
     fdevapi_prefix += runtime::DLDeviceType2Str(device_type_.as<IntImmNode>()->value);
 
-    Array<PrimExpr> args = {
+    ffi::Array<PrimExpr> args = {
         GetDeviceMethodName("alloc_nd"),
         device_type_.value(),
         device_id_.value(),
@@ -657,8 +657,8 @@ class BuiltinLower : public StmtExprMutator {
 
   // The prepration sequence to be emitted before the current statement.
   std::vector<std::vector<Stmt>> prep_seq_stack_;
-  Optional<PrimExpr> device_type_{std::nullopt};
-  Optional<PrimExpr> device_id_{std::nullopt};
+  ffi::Optional<PrimExpr> device_type_{std::nullopt};
+  ffi::Optional<PrimExpr> device_id_{std::nullopt};
 
   bool is_precheck_{false};
 

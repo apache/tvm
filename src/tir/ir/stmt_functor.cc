@@ -152,22 +152,22 @@ class StmtMutator::Internal {
    * \return The mutated array, a new copy can be created.
    */
   template <typename T, typename F>
-  static Array<T> MutateArray(StmtMutator* self, const Array<T>& arr, F fmutate) {
+  static ffi::Array<T> MutateArray(StmtMutator* self, const ffi::Array<T>& arr, F fmutate) {
     if (self->allow_copy_on_write_ && arr.unique()) {
       // if we allow copy on write, we can directly
       // call the inplace mutate function.
-      const_cast<Array<T>&>(arr).MutateByApply(fmutate);
+      const_cast<ffi::Array<T>&>(arr).MutateByApply(fmutate);
       return arr;
     } else {
       bool allow_cow = false;
       std::swap(allow_cow, self->allow_copy_on_write_);
-      Array<T> copy = arr.Map(fmutate);
+      ffi::Array<T> copy = arr.Map(fmutate);
       std::swap(allow_cow, self->allow_copy_on_write_);
       return copy;
     }
   }
 
-  static Array<IterVar> Mutate(StmtMutator* self, const Array<IterVar>& arr) {
+  static ffi::Array<IterVar> Mutate(StmtMutator* self, const ffi::Array<IterVar>& arr) {
     auto fmutate = [self](const IterVar& iter_var) {
       PrimExpr min = self->VisitExpr(iter_var->dom->min);
       PrimExpr extent = self->VisitExpr(iter_var->dom->extent);
@@ -181,17 +181,17 @@ class StmtMutator::Internal {
     return MutateArray(self, arr, fmutate);
   }
 
-  static Array<PrimExpr> Mutate(StmtMutator* self, const Array<PrimExpr>& arr) {
+  static ffi::Array<PrimExpr> Mutate(StmtMutator* self, const ffi::Array<PrimExpr>& arr) {
     auto fmutate = [self](const PrimExpr& e) { return self->VisitExpr(e); };
     return MutateArray(self, arr, fmutate);
   }
 
-  static Array<Stmt> Mutate(StmtMutator* self, const Array<Stmt>& arr) {
+  static ffi::Array<Stmt> Mutate(StmtMutator* self, const ffi::Array<Stmt>& arr) {
     auto fmutate = [self](const Stmt& s) { return self->VisitStmt(s); };
     return MutateArray(self, arr, fmutate);
   }
 
-  static Array<Range> Mutate(StmtMutator* self, const Array<Range>& arr) {
+  static ffi::Array<Range> Mutate(StmtMutator* self, const ffi::Array<Range>& arr) {
     auto fmutate = [self](const Range& r) {
       PrimExpr min = self->VisitExpr(r->min);
       PrimExpr extent = self->VisitExpr(r->extent);
@@ -204,9 +204,9 @@ class StmtMutator::Internal {
     return MutateArray(self, arr, fmutate);
   }
 
-  static Array<BufferRegion> Mutate(StmtMutator* self, const Array<BufferRegion>& arr) {
+  static ffi::Array<BufferRegion> Mutate(StmtMutator* self, const ffi::Array<BufferRegion>& arr) {
     auto fmutate = [self](const BufferRegion& buffer_region) {
-      Array<Range> region = Mutate(self, buffer_region->region);
+      ffi::Array<Range> region = Mutate(self, buffer_region->region);
       if (region.same_as(buffer_region->region)) {
         return buffer_region;
       } else {
@@ -216,9 +216,10 @@ class StmtMutator::Internal {
     return MutateArray(self, arr, fmutate);
   }
 
-  static Array<MatchBufferRegion> Mutate(StmtMutator* self, const Array<MatchBufferRegion>& arr) {
+  static ffi::Array<MatchBufferRegion> Mutate(StmtMutator* self,
+                                              const ffi::Array<MatchBufferRegion>& arr) {
     auto fmutate = [self](const MatchBufferRegion& match_buffer_region) {
-      Array<Range> region = Mutate(self, match_buffer_region->source->region);
+      ffi::Array<Range> region = Mutate(self, match_buffer_region->source->region);
       if (region.same_as(match_buffer_region->source->region)) {
         return match_buffer_region;
       } else {
@@ -234,7 +235,7 @@ Stmt StmtMutator::VisitStmt_(const AttrStmtNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
   Stmt body = this->VisitStmt(op->body);
   if (value.same_as(op->value) && body.same_as(op->body)) {
-    return GetRef<Stmt>(op);
+    return ffi::GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->value = std::move(value);
@@ -247,7 +248,7 @@ Stmt StmtMutator::VisitStmt_(const LetStmtNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
   Stmt body = this->VisitStmt(op->body);
   if (value.same_as(op->value) && body.same_as(op->body)) {
-    return GetRef<Stmt>(op);
+    return ffi::GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->value = std::move(value);
@@ -261,7 +262,7 @@ Stmt StmtMutator::VisitStmt_(const ForNode* op) {
   PrimExpr extent = this->VisitExpr(op->extent);
   Stmt body = this->VisitStmt(op->body);
   if (min.same_as(op->min) && extent.same_as(op->extent) && body.same_as(op->body)) {
-    return GetRef<Stmt>(op);
+    return ffi::GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->min = std::move(min);
@@ -275,7 +276,7 @@ Stmt StmtMutator::VisitStmt_(const WhileNode* op) {
   PrimExpr condition = this->VisitExpr(op->condition);
   Stmt body = this->VisitStmt(op->body);
   if (condition.same_as(op->condition) && body.same_as(op->body)) {
-    return GetRef<Stmt>(op);
+    return ffi::GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->condition = std::move(condition);
@@ -285,12 +286,12 @@ Stmt StmtMutator::VisitStmt_(const WhileNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const AllocateNode* op) {
-  Array<PrimExpr> extents = Internal::Mutate(this, op->extents);
+  ffi::Array<PrimExpr> extents = Internal::Mutate(this, op->extents);
   Stmt body = this->VisitStmt(op->body);
   PrimExpr condition = this->VisitExpr(op->condition);
 
   if (extents.same_as(op->extents) && body.same_as(op->body) && condition.same_as(op->condition)) {
-    return GetRef<Stmt>(op);
+    return ffi::GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->extents = std::move(extents);
@@ -301,11 +302,11 @@ Stmt StmtMutator::VisitStmt_(const AllocateNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const AllocateConstNode* op) {
-  Array<PrimExpr> extents = Internal::Mutate(this, op->extents);
+  ffi::Array<PrimExpr> extents = Internal::Mutate(this, op->extents);
   Stmt body = this->VisitStmt(op->body);
 
   if (extents.same_as(op->extents) && body.same_as(op->body)) {
-    return GetRef<Stmt>(op);
+    return ffi::GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->extents = std::move(extents);
@@ -318,7 +319,7 @@ Stmt StmtMutator::VisitStmt_(const DeclBufferNode* op) {
   Stmt body = this->VisitStmt(op->body);
 
   if (body.same_as(op->body)) {
-    return GetRef<Stmt>(op);
+    return ffi::GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->body = std::move(body);
@@ -329,13 +330,13 @@ Stmt StmtMutator::VisitStmt_(const DeclBufferNode* op) {
 Stmt StmtMutator::VisitStmt_(const IfThenElseNode* op) {
   PrimExpr condition = this->VisitExpr(op->condition);
   Stmt then_case = this->VisitStmt(op->then_case);
-  Optional<Stmt> else_case = std::nullopt;
+  ffi::Optional<Stmt> else_case = std::nullopt;
   if (op->else_case) {
     else_case = this->VisitStmt(op->else_case.value());
   }
   if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
       else_case.same_as(op->else_case)) {
-    return GetRef<Stmt>(op);
+    return ffi::GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->condition = std::move(condition);
@@ -347,10 +348,10 @@ Stmt StmtMutator::VisitStmt_(const IfThenElseNode* op) {
 
 Stmt StmtMutator::VisitStmt_(const BufferStoreNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
-  Array<PrimExpr> indices = Internal::Mutate(this, op->indices);
+  ffi::Array<PrimExpr> indices = Internal::Mutate(this, op->indices);
 
   if (value.same_as(op->value) && indices.same_as(op->indices)) {
-    return GetRef<Stmt>(op);
+    return ffi::GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->value = std::move(value);
@@ -365,7 +366,7 @@ Stmt StmtMutator::VisitStmt_(const BufferRealizeNode* op) {
   Stmt body = this->VisitStmt(op->body);
 
   if (bounds.same_as(op->bounds) && condition.same_as(op->condition) && body.same_as(op->body)) {
-    return GetRef<Stmt>(op);
+    return ffi::GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->bounds = std::move(bounds);
@@ -376,9 +377,9 @@ Stmt StmtMutator::VisitStmt_(const BufferRealizeNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const SeqStmtNode* op) {
-  Array<Stmt> seq = Internal::Mutate(this, op->seq);
+  ffi::Array<Stmt> seq = Internal::Mutate(this, op->seq);
   if (seq.same_as(op->seq)) {
-    return SeqStmt::Flatten(GetRef<Stmt>(op));
+    return SeqStmt::Flatten(ffi::GetRef<Stmt>(op));
   } else {
     auto node = CopyOnWrite(op);
     node->seq = std::move(seq);
@@ -400,10 +401,10 @@ Stmt StmtMutator::VisitSeqStmt_(const SeqStmtNode* op, bool flatten_before_visit
   }
   // function to run the visit.
   auto frunvisit = [&](const SeqStmtNode* op) {
-    Array<Stmt> seq = fmutate != nullptr ? Internal::MutateArray(this, op->seq, fmutate)
-                                         : Internal::Mutate(this, op->seq);
+    ffi::Array<Stmt> seq = fmutate != nullptr ? Internal::MutateArray(this, op->seq, fmutate)
+                                              : Internal::Mutate(this, op->seq);
     if (seq.same_as(op->seq)) {
-      return GetRef<Stmt>(op);
+      return ffi::GetRef<Stmt>(op);
     } else {
       auto n = CopyOnWrite(op);
       n->seq = std::move(seq);
@@ -411,7 +412,7 @@ Stmt StmtMutator::VisitSeqStmt_(const SeqStmtNode* op, bool flatten_before_visit
     }
   };
   if (flatten_before_visit) {
-    Array<Stmt> seq;
+    ffi::Array<Stmt> seq;
     SeqStmt::Flattener flattener(&seq);
     flattener(0, op->seq);
     // NOTE: If copy on write is allowed
@@ -435,7 +436,7 @@ Stmt StmtMutator::VisitStmt_(const AssertStmtNode* op) {
   Stmt body = this->VisitStmt(op->body);
 
   if (condition.same_as(op->condition) && message.same_as(op->message) && body.same_as(op->body)) {
-    return GetRef<Stmt>(op);
+    return ffi::GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->condition = std::move(condition);
@@ -448,7 +449,7 @@ Stmt StmtMutator::VisitStmt_(const AssertStmtNode* op) {
 Stmt StmtMutator::VisitStmt_(const EvaluateNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
   if (value.same_as(op->value)) {
-    return GetRef<Stmt>(op);
+    return ffi::GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->value = std::move(value);
@@ -457,11 +458,11 @@ Stmt StmtMutator::VisitStmt_(const EvaluateNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const BlockNode* op) {
-  Array<IterVar> iter_vars = Internal::Mutate(this, op->iter_vars);
-  Array<BufferRegion> reads = Internal::Mutate(this, op->reads);
-  Array<BufferRegion> writes = Internal::Mutate(this, op->writes);
-  Array<MatchBufferRegion> match_buffers = Internal::Mutate(this, op->match_buffers);
-  Optional<Stmt> init = std::nullopt;
+  ffi::Array<IterVar> iter_vars = Internal::Mutate(this, op->iter_vars);
+  ffi::Array<BufferRegion> reads = Internal::Mutate(this, op->reads);
+  ffi::Array<BufferRegion> writes = Internal::Mutate(this, op->writes);
+  ffi::Array<MatchBufferRegion> match_buffers = Internal::Mutate(this, op->match_buffers);
+  ffi::Optional<Stmt> init = std::nullopt;
   if (op->init.defined()) {
     init = VisitStmt(op->init.value());
   }
@@ -469,7 +470,7 @@ Stmt StmtMutator::VisitStmt_(const BlockNode* op) {
   if (iter_vars.same_as(op->iter_vars) && reads.same_as(op->reads) && writes.same_as(op->writes) &&
       body.same_as(op->body) && init.same_as(op->init) &&
       match_buffers.same_as(op->match_buffers)) {
-    return GetRef<Block>(op);
+    return ffi::GetRef<Block>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->iter_vars = std::move(iter_vars);
@@ -483,11 +484,11 @@ Stmt StmtMutator::VisitStmt_(const BlockNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const BlockRealizeNode* op) {
-  Array<PrimExpr> v = Internal::Mutate(this, op->iter_values);
+  ffi::Array<PrimExpr> v = Internal::Mutate(this, op->iter_values);
   PrimExpr pred = this->VisitExpr(op->predicate);
   Stmt block = this->VisitStmt(op->block);
   if (v.same_as(op->iter_values) && pred.same_as(op->predicate) && block.same_as(op->block)) {
-    return GetRef<Stmt>(op);
+    return ffi::GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->iter_values = std::move(v);
@@ -575,7 +576,7 @@ class IRTransformer final : public StmtExprMutator {
 };
 
 Stmt IRTransform(Stmt ir_node, const ffi::Function& f_preorder, const ffi::Function& f_postorder,
-                 Optional<Array<String>> only_enable) {
+                 ffi::Optional<ffi::Array<ffi::String>> only_enable) {
   std::unordered_set<uint32_t> only_type_index;
   if (only_enable.defined()) {
     for (auto s : only_enable.value()) {
@@ -588,10 +589,10 @@ Stmt IRTransform(Stmt ir_node, const ffi::Function& f_preorder, const ffi::Funct
 
 class IRSubstitute : public StmtExprMutator {
  public:
-  explicit IRSubstitute(std::function<Optional<PrimExpr>(const Var&)> vmap) : vmap_(vmap) {}
+  explicit IRSubstitute(std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) : vmap_(vmap) {}
 
   PrimExpr VisitExpr_(const VarNode* op) final {
-    Var var = GetRef<Var>(op);
+    Var var = ffi::GetRef<Var>(op);
     auto ret = vmap_(var);
     if (ret.defined()) {
       // Allow substitution of void variables with any expression. The TVM script parser
@@ -679,7 +680,7 @@ class IRSubstitute : public StmtExprMutator {
 
  private:
   // Caller provided function that defines the variables to be remapped.
-  std::function<Optional<PrimExpr>(const Var&)> vmap_;
+  std::function<ffi::Optional<PrimExpr>(const Var&)> vmap_;
 
   /* \brief Generated map to track buffers being remapped.
    *
@@ -691,11 +692,11 @@ class IRSubstitute : public StmtExprMutator {
   std::unordered_map<const BufferNode*, Buffer> buf_remap_;
 };
 
-Stmt Substitute(Stmt stmt, std::function<Optional<PrimExpr>(const Var&)> vmap) {
+Stmt Substitute(Stmt stmt, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) {
   return IRSubstitute(vmap)(std::move(stmt));
 }
 
-PrimExpr Substitute(PrimExpr expr, std::function<Optional<PrimExpr>(const Var&)> vmap) {
+PrimExpr Substitute(PrimExpr expr, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) {
   return IRSubstitute(vmap)(std::move(expr));
 }
 
@@ -743,14 +744,15 @@ void PreOrderVisit(const ObjectRef& stmt_or_expr,
 
 class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
  public:
-  explicit IRSubstituteWithDataTypeLegalization(std::function<Optional<PrimExpr>(const Var&)> vmap)
+  explicit IRSubstituteWithDataTypeLegalization(
+      std::function<ffi::Optional<PrimExpr>(const Var&)> vmap)
       : vmap_(vmap) {}
 
   using DataTypeLegalizer::VisitExpr_;
   using DataTypeLegalizer::VisitStmt_;
 
   PrimExpr VisitExpr_(const VarNode* op) final {
-    Var var = GetRef<Var>(op);
+    Var var = ffi::GetRef<Var>(op);
     auto ret = vmap_(var);
     if (ret.defined()) {
       return ret.value();
@@ -811,7 +813,7 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
 
  private:
   // Caller provided function that defines the variables to be remapped.
-  std::function<Optional<PrimExpr>(const Var&)> vmap_;
+  std::function<ffi::Optional<PrimExpr>(const Var&)> vmap_;
 
   /* \brief Generated map to track buffers being remapped.
    *
@@ -824,12 +826,12 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
 };
 
 Stmt SubstituteWithDataTypeLegalization(Stmt stmt,
-                                        std::function<Optional<PrimExpr>(const Var&)> vmap) {
+                                        std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) {
   return IRSubstituteWithDataTypeLegalization(vmap)(std::move(stmt));
 }
 
-PrimExpr SubstituteWithDataTypeLegalization(PrimExpr expr,
-                                            std::function<Optional<PrimExpr>(const Var&)> vmap) {
+PrimExpr SubstituteWithDataTypeLegalization(
+    PrimExpr expr, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) {
   return IRSubstituteWithDataTypeLegalization(vmap)(std::move(expr));
 }
 
@@ -845,7 +847,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](ObjectRef node, ffi::Function f) {
              tir::PreOrderVisit(node, [f](const ObjectRef& n) { return f(n).cast<bool>(); });
            })
-      .def("tir.Substitute", [](ObjectRef node, Map<Var, PrimExpr> vmap) -> ObjectRef {
+      .def("tir.Substitute", [](ObjectRef node, ffi::Map<Var, PrimExpr> vmap) -> ObjectRef {
         if (node->IsInstance<StmtNode>()) {
           return Substitute(Downcast<Stmt>(node), vmap);
         } else {

@@ -406,7 +406,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     if (it != alloc_map_.end()) {
       Buffer buf = RemapBuffer(node->buffer, it->second->alloc_var);
 
-      Array<PrimExpr> indices = node->indices;
+      ffi::Array<PrimExpr> indices = node->indices;
       indices.Set(indices.size() - 1,
                   RemapIndex(node->buffer->dtype, indices[indices.size() - 1], it->second));
 
@@ -453,7 +453,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       }
       return it->second->alloc_var;
     } else {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     }
   }
   PrimExpr VisitExpr_(const CallNode* op) final {
@@ -840,7 +840,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           ICHECK(alloc_info.count(var));
           const AllocEntry& entry = alloc_info.at(var);
           const AllocateNode* alloc = entry.alloc;
-          auto storage_scope = StorageScope::Create(GetPtrStorageScope(GetRef<Var>(var)));
+          auto storage_scope = StorageScope::Create(GetPtrStorageScope(ffi::GetRef<Var>(var)));
           StorageEntry* dst_entry = nullptr;
           // inplace detection
           if (detect_inplace) {
@@ -1145,7 +1145,8 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
    * missing a type annotation, assume that it has the same underlying
    * type as it is later accessed, with scalar element types.
    */
-  VectorTypeAccessChecker(const Array<tir::Var>& params, const Map<Var, Buffer>& buffer_map,
+  VectorTypeAccessChecker(const ffi::Array<tir::Var>& params,
+                          const ffi::Map<Var, Buffer>& buffer_map,
                           bool allow_untyped_pointers = false,
                           bool detect_scalar_read_patterns = true)
       : allow_untyped_pointers_(allow_untyped_pointers),
@@ -1196,7 +1197,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   }
 
   void VisitStmt_(const AllocateNode* op) final {
-    const Array<PrimExpr>& extents = op->extents;
+    const ffi::Array<PrimExpr>& extents = op->extents;
     PrimExpr extent = extents[extents.size() - 1];
     OnArrayDeclaration(op->buffer_var, op->dtype, extent, BufferVarInfo::kAllocateNode);
 
@@ -1204,7 +1205,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   }
 
   void VisitStmt_(const AllocateConstNode* op) final {
-    const Array<PrimExpr>& extents = op->extents;
+    const ffi::Array<PrimExpr>& extents = op->extents;
     PrimExpr extent = extents.size() ? extents[extents.size() - 1] : NullValue<PrimExpr>();
     OnArrayDeclaration(op->buffer_var, op->dtype, extent, BufferVarInfo::kAllocateConstNode);
 
@@ -1271,8 +1272,8 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
    *
    * @param is_buffer_load Whether the access is BufferLoad
    */
-  void OnArrayAccess(DataType value_dtype, const VarNode* buffer, const Array<PrimExpr>& indices,
-                     bool is_buffer_load) {
+  void OnArrayAccess(DataType value_dtype, const VarNode* buffer,
+                     const ffi::Array<PrimExpr>& indices, bool is_buffer_load) {
     auto it = info_map_.find(buffer);
     ICHECK(it != info_map_.end()) << "Load/Store of buffer " << buffer->name_hint << " (" << buffer
                                   << ") occurred before its declaration.";
@@ -1471,7 +1472,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     }
     const auto& info = it->second;
 
-    Array<PrimExpr> indices = node->indices;
+    ffi::Array<PrimExpr> indices = node->indices;
     const PrimExpr& last_dim_index = indices[indices.size() - 1];
     const RampNode* ramp_index = indices[indices.size() - 1].as<RampNode>();
 
@@ -1536,7 +1537,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     Stmt body = this->VisitStmt(op->body);
     Var var = (it == rewrite_map_.end()) ? op->var : it->second.new_buffer_var;
     if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
-      return GetRef<Stmt>(op);
+      return ffi::GetRef<Stmt>(op);
     }
     return LetStmt(var, value, body);
   }
@@ -1553,7 +1554,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     if (info_it != rewrite_map_.end()) {
       auto& info = info_it->second;
 
-      Array<PrimExpr> shape = buf->shape;
+      ffi::Array<PrimExpr> shape = buf->shape;
       PrimExpr last_dim = shape[shape.size() - 1];
       shape.Set(shape.size() - 1, last_dim / make_const(last_dim.dtype(), info.factor()));
 
@@ -1591,7 +1592,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       int factor = info.factor();
       extent = extent / make_const(extent.dtype(), factor);
       index = index / make_const(index.dtype(), factor);
-      Array<PrimExpr> acc_args{e_dtype, info.new_buffer_var, index, extent, flag};
+      ffi::Array<PrimExpr> acc_args{e_dtype, info.new_buffer_var, index, extent, flag};
       return Call(info.new_element_dtype, builtin::tvm_access_ptr(), acc_args);
 
     } else {
@@ -1612,7 +1613,7 @@ class VectorTypeRewriter : public StmtExprMutator {
 
     Var new_buffer_var = info.new_buffer_var;
 
-    Array<PrimExpr> extents = op->extents;
+    ffi::Array<PrimExpr> extents = op->extents;
     PrimExpr last_extent = extents[extents.size() - 1];
     extents.Set(extents.size() - 1, last_extent / make_const(last_extent.dtype(), info.factor()));
     return Allocate(new_buffer_var, info.new_element_dtype, extents, op->condition, op->body);
@@ -1633,7 +1634,7 @@ class VectorTypeRewriter : public StmtExprMutator {
 
     int factor = info.new_element_dtype.lanes() / op->dtype.lanes();
 
-    Array<PrimExpr> extents = op->extents;
+    ffi::Array<PrimExpr> extents = op->extents;
     extents.Set(extents.size() - 1,
                 extents[extents.size() - 1] / make_const(extents[0].dtype(), factor));
     return AllocateConst(new_buffer_var, info.new_element_dtype, extents, op->data, op->body);
@@ -1652,7 +1653,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     auto* n = func.CopyOnWrite();
 
     // Remap any remaining references to the old buffer variables
-    Map<Var, Var> var_remap;
+    ffi::Map<Var, Var> var_remap;
     for (const auto& pair : rewrite_map_) {
       const auto& info = pair.second;
       var_remap.Set(info.old_buffer_var, info.new_buffer_var);
@@ -1660,7 +1661,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     n->body = Substitute(n->body, var_remap);
 
     // Remap the argument list to use the new buffer variables.
-    Array<Var> new_params;
+    ffi::Array<Var> new_params;
     for (const auto& old_param : n->params) {
       auto it = rewrite_map_.find(old_param.get());
       if (it == rewrite_map_.end()) {
@@ -1674,7 +1675,7 @@ class VectorTypeRewriter : public StmtExprMutator {
 
     // Remap the Buffer objects in PrimFunc::buffer_map so that the
     // buffers use the new buffer variables
-    Map<Var, Buffer> new_buffer_map;
+    ffi::Map<Var, Buffer> new_buffer_map;
     for (const auto& pair : n->buffer_map) {
       Var key = pair.first;
       Buffer old_buffer = pair.second;
@@ -1742,7 +1743,7 @@ Pass StorageRewrite() {
       enable_reuse = false;
     }
 
-    Optional<Target> target = f->GetAttr<Target>("target");
+    ffi::Optional<Target> target = f->GetAttr<Target>("target");
     if (target.defined() &&
         (target.value()->kind->name == "vulkan" || target.value()->kind->name == "webgpu")) {
       // Require exactly same-dtype matching in smem reuse for Vulkan and WebGPU

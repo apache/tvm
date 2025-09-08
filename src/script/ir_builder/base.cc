@@ -31,7 +31,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 void IRBuilderFrameNode::EnterWithScope() {
-  IRBuilder::Current()->frames.push_back(GetRef<IRBuilderFrame>(this));
+  IRBuilder::Current()->frames.push_back(ffi::GetRef<IRBuilderFrame>(this));
 }
 
 void IRBuilderFrameNode::ExitWithScope() {
@@ -50,7 +50,7 @@ void IRBuilderFrameNode::AddCallback(ffi::TypedFunction<void()> callback) {
 }
 
 IRBuilder::IRBuilder() {
-  ObjectPtr<IRBuilderNode> n = make_object<IRBuilderNode>();
+  ObjectPtr<IRBuilderNode> n = ffi::make_object<IRBuilderNode>();
   n->frames.clear();
   n->result = std::nullopt;
   data_ = n;
@@ -95,7 +95,7 @@ Namer::FType& Namer::vtable() {
   return inst;
 }
 
-void Namer::Name(ObjectRef node, String name) {
+void Namer::Name(ObjectRef node, ffi::String name) {
   static const FType& f = vtable();
   CHECK(node.defined()) << "ValueError: Cannot name nullptr with: " << name;
   CHECK(f.can_dispatch(node)) << "ValueError: Do not know how to name type \""
