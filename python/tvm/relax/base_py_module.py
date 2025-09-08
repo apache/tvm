@@ -198,7 +198,7 @@ class BasePyModule:
             )
         func = self.compiled_tir_funcs[func_name]
 
-        out = self._create_output_tensors(out_sinfo)
+        out = self._create_output_tensors(out_sinfo, args)
         tvm_args = self._convert_pytorch_to_tvm(args)
         tvm_out = self._convert_pytorch_to_tvm(out)
 
@@ -222,12 +222,11 @@ class BasePyModule:
                 ) from error
         func = self.extern_funcs[func_name]
 
-        out = self._create_output_tensors(out_sinfo)
+        out = self._create_output_tensors(out_sinfo, args)
         tvm_args = self._convert_pytorch_to_tvm(args)
         tvm_out = self._convert_pytorch_to_tvm(out)
         func(*tvm_args, *tvm_out)
-        result = self._convert_tvm_to_pytorch(tvm_out)
-        return result[0] if len(result) == 1 else result
+        return out[0] if len(out) == 1 else out
 
     def call_py_func(self, func_name: str, args):
         """Call a Python function stored in the IRModule's pyfuncs."""
@@ -237,21 +236,84 @@ class BasePyModule:
         converted_args = self._convert_tvm_to_pytorch(args)
         return py_func(*converted_args)
 
-    def _create_output_tensors(self, out_sinfo):
-        """Create output PyTorch tensors based on shape and type information."""
+    def _create_output_tensors(self, out_sinfo, in_args=None):
         # pylint: disable=import-outside-toplevel
         import torch
 
         sinfo_list = out_sinfo if isinstance(out_sinfo, list) else [out_sinfo]
         out_tensors = []
         for sinfo in sinfo_list:
+            if isinstance(sinfo, (tuple, list)) and all(
+                isinstance(x, (int, np.integer)) for x in sinfo
+            ):
+            
+                out_tensors.append(torch.zeros(list(map(int, sinfo)), dtype=torch.float32))
+                continue
+
             if hasattr(sinfo, "shape") and hasattr(sinfo, "dtype"):
-                shape = [int(val) for val in sinfo.shape]
+                concrete_shape = self._infer_concrete_shape_from_args(sinfo.shape, in_args)
                 torch_dtype = self._convert_tvm_dtype_to_torch(sinfo.dtype)
-                out_tensors.append(torch.empty(shape, dtype=torch_dtype))
-            else:
-                out_tensors.append(torch.empty((1,), dtype=torch.float32))
+                out_tensors.append(torch.zeros(concrete_shape, dtype=torch_dtype))
+                continue
+
+            out_tensors.append(torch.zeros((1,), dtype=torch.float32))
         return out_tensors
+
+    def _infer_concrete_shape_from_args(self, shape, in_args):
+        import tvm
+        from tvm import tir as _tir
+
+        def is_symbolic_dim(dim):
+            return isinstance(dim, (_tir.Var, _tir.PrimExpr)) and not isinstance(dim, _tir.IntImm)
+
+        concrete = []
+        symbolic_positions = []
+        for idx, dim in enumerate(shape):
+            if isinstance(dim, (int, np.integer)):
+                concrete.append(int(dim))
+            elif isinstance(dim, _tir.IntImm):
+                concrete.append(int(dim.value))
+            else:
+                concrete.append(None)
+                symbolic_positions.append(idx)
+
+        if not symbolic_positions:
+            return concrete
+
+        candidates = []
+        if in_args is not None:
+            if not isinstance(in_args, (list, tuple)):
+                in_args = [in_args]
+            for obj in in_args:
+                try:
+                    import torch
+
+                    if hasattr(obj, "shape") and isinstance(obj.shape, (tuple, list)):
+                        candidates.append(tuple(int(x) for x in obj.shape))
+                        continue
+                except Exception:
+                    pass
+
+                if hasattr(obj, "shape") and isinstance(obj.shape, (tuple, list)):
+                    try:
+                        candidates.append(tuple(int(x) for x in obj.shape))
+                        continue
+                    except Exception:
+                        pass
+
+        target_ndim = len(shape)
+        for cand in candidates:
+            if len(cand) == target_ndim:
+                for pos in symbolic_positions:
+                    concrete[pos] = cand[pos]
+                if all(x is not None for x in concrete):
+                    return concrete
+
+        raise ValueError(
+            "Cannot infer concrete output shape from symbolic shape and inputs. "
+            "Please provide a concrete `out_sinfo` (e.g., a tuple/list of ints) "
+            "or ensure input tensors carry shapes that determine output extents."
+        )
 
     def _convert_tvm_dtype_to_torch(self, tvm_dtype: str) -> "torch.dtype":
         """Convert TVM dtype string to PyTorch dtype."""
