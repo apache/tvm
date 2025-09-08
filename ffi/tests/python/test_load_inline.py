@@ -28,10 +28,6 @@ import tvm_ffi.cpp
 from tvm_ffi.module import Module
 
 
-@pytest.mark.xfail(
-    not sys.platform.startswith("linux") and not sys.platform.startswith("win32"),
-    reason="need to support other platforms",
-)
 def test_load_inline_cpp():
     mod: Module = tvm_ffi.cpp.load_inline(
         name="hello",

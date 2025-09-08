@@ -140,6 +140,9 @@ def _generate_ninja_build(
     """Generate the content of build.ninja for building the module."""
     default_include_paths = [find_include_path(), find_dlpack_include_path()]
 
+    tvm_ffi_lib = find_libtvm_ffi()
+    tvm_ffi_lib_path = os.path.dirname(tvm_ffi_lib)
+    tvm_ffi_lib_name = os.path.splitext(os.path.basename(tvm_ffi_lib))[0]
     if IS_WINDOWS:
         default_cflags = [
             "/std:c++17",
@@ -157,17 +160,11 @@ def _generate_ninja_build(
             "/EHsc",
         ]
         default_cuda_cflags = ["-Xcompiler", "/std:c++17", "/O2"]
-        # Find the TVM FFI library for linking
-        tvm_ffi_lib = find_libtvm_ffi()
-        tvm_ffi_lib_path = os.path.dirname(tvm_ffi_lib)
-        tvm_ffi_lib_name = os.path.splitext(os.path.basename(tvm_ffi_lib))[
-            0
-        ]  # Remove .dll extension
         default_ldflags = ["/DLL", f"/LIBPATH:{tvm_ffi_lib_path}", f"{tvm_ffi_lib_name}.lib"]
     else:
         default_cflags = ["-std=c++17", "-fPIC", "-O2"]
         default_cuda_cflags = ["-Xcompiler", "-fPIC", "-std=c++17", "-O2"]
-        default_ldflags = ["-shared"]
+        default_ldflags = ["-shared", "-L{}".format(tvm_ffi_lib_path), "-ltvm_ffi"]
 
         if with_cuda:
             # determine the compute capability of the current GPU
