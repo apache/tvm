@@ -171,7 +171,7 @@ def test_strides_of_non_compact_tensor():
     expected_strides = [1, 4]
     # use transpose to make strides non-compact
     x = np.zeros([4, 4], "int32").T
-    y = tvm_ffi.from_dlpack(x, required_alignment=4, required_contiguous=False)
+    y = tvm_ffi.from_dlpack(x, require_alignment=4, require_contiguous=False)
     res = [vm["main"](y, i) for i, _ in enumerate(view_shape)]
     tvm.ir.assert_structural_equal(res, expected_strides)
 

@@ -36,6 +36,16 @@ namespace tvm {
 namespace ffi {
 
 /*!
+ * \brief Check if the device uses direct address, where address of data indicate alignment.
+ * \param device The input device.
+ * \return True if the device uses direct address, false otherwise.
+ */
+inline bool IsDirectAddressDevice(const DLDevice& device) {
+  return device.device_type <= kDLCUDAHost || device.device_type == kDLCUDAManaged ||
+         device.device_type == kDLROCM || device.device_type == kDLROCMHost;
+}
+
+/*!
  * \brief check if a DLTensor is contiguous.
  * \param arr The input DLTensor.
  * \return The check result.
@@ -67,11 +77,7 @@ inline bool IsContiguous(const DLTensor& arr) {
  * \return True if the data is aligned to the given alignment, false otherwise.
  */
 inline bool IsAligned(const DLTensor& arr, size_t alignment) {
-  // whether the device uses direct address mapping instead of indirect buffer
-  bool direct_address = arr.device.device_type <= kDLCUDAHost ||
-                        arr.device.device_type == kDLCUDAManaged ||
-                        arr.device.device_type == kDLROCM || arr.device.device_type == kDLROCMHost;
-  if (direct_address) {
+  if (IsDirectAddressDevice(arr.device)) {
     return (reinterpret_cast<size_t>(static_cast<char*>(arr.data) + arr.byte_offset) % alignment ==
             0);
   } else {
@@ -278,6 +284,12 @@ class Tensor : public ObjectRef {
    * \return True if the Tensor is contiguous, false otherwise.
    */
   bool IsContiguous() const { return tvm::ffi::IsContiguous(*get()); }
+  /*!
+   * \brief Check if the Tensor data is aligned to the given alignment.
+   * \param alignment The alignment to check.
+   * \return True if the Tensor data is aligned to the given alignment, false otherwise.
+   */
+  bool IsAligned(size_t alignment) const { return tvm::ffi::IsAligned(*get(), alignment); }
   /*!
    * \brief Create a Tensor from a NDAllocator.
    * \param alloc The NDAllocator.

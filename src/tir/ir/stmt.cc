@@ -603,8 +603,8 @@ MatchBufferRegion::MatchBufferRegion(Buffer buffer, BufferRegion source) {
   // Check data_alignment
   CHECK(source_buffer->data_alignment % buffer->data_alignment == 0)
       << "Trying to match buffer to another one with lower alignment requirement "
-      << " required_alignment=" << buffer->data_alignment
-      << ", provided_alignment=" << source_buffer->data_alignment;
+      << " required alignment=" << buffer->data_alignment
+      << ", provided alignment=" << source_buffer->data_alignment;
 
   // Check BufferType. AutoBroadcast is not allowed for now.
   CHECK(buffer->buffer_type == BufferType::kDefault &&
