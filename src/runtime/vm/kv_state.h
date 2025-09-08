@@ -90,11 +90,13 @@ class KVStateObj : public Object {
    * in the model forward function.
    * \param seq_ids The ids of the sequence to run in the incoming model forward.
    * \param append_lengths The sequence lengths to run forward for for each sequence.
+   * \param seqlen_padding_factor The padding factor of the sequences in the current round of forwarding.
    * \param token_tree_parent_ptr The parent idx array of the token trees. Its length
    * is the sum of "append_lengths". Nullptr means the token tree of each sequence
    * is a chain.
    */
   virtual void BeginForward(const IntTuple& seq_ids, const IntTuple& append_lengths,
+                            const int64_t seqlen_padding_factor = 0,
                             const Optional<IntTuple>& token_tree_parent_ptr = std::nullopt) = 0;
 
   /*!
@@ -158,7 +160,7 @@ class AttentionKVCacheObj : public KVStateObj {
                                             const IntTuple& leaf_indices) = 0;
 
   /*! \brief Prepare for the disaggregation KV data receive for the specified sequence and length.*/
-  virtual IntTuple DisaggPrepareRecv(int64_t seq_id, int length) = 0;
+  virtual IntTuple DisaggPrepareRecv(int64_t seq_id, int length, int64_t seqlen_padding_factor = 0) = 0;
 
   /*! \brief Mark which tokens' KV cache needs to be sent to other devices */
   virtual void DisaggMarkSend(int64_t seq_id, int64_t begin,

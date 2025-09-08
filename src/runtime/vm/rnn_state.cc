@@ -208,6 +208,7 @@ class RNNStateImpObj : public RNNStateObj {
   /************** Interaction **************/
 
   void BeginForward(const ffi::Shape& seq_ids, const ffi::Shape& append_lengths,
+                    const int64_t seqlen_padding_factor,
                     const Optional<ffi::Shape>& opt_token_tree_parent_ptr) final {
     CHECK_EQ(seq_ids.size(), append_lengths.size())
         << "The seq_ids size (" << seq_ids.size() << ") and append_lengths size ("
