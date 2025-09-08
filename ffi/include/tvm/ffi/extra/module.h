@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file tvm/ffi/module.h
+ * \file tvm/ffi/extra/module.h
  * \brief A managed dynamic module in the TVM FFI.
  */
 #ifndef TVM_FFI_EXTRA_MODULE_H_
@@ -130,6 +130,7 @@ class TVM_FFI_EXTRA_CXX_API ModuleObj : public Object {
   /*!
    * \brief Get the function metadata of the function if available.
    * \param name The name of the function.
+   * \param query_imports Whether to query imported modules.
    * \return The function metadata of the function in json format.
    */
   Optional<String> GetFunctionMetadata(const String& name, bool query_imports);
@@ -142,10 +143,12 @@ class TVM_FFI_EXTRA_CXX_API ModuleObj : public Object {
 
   struct InternalUnsafe;
 
+  /// \cond Doxygen_Suppress
   static constexpr const int32_t _type_index = TypeIndex::kTVMFFIModule;
   static constexpr const char* _type_key = StaticTypeKey::kTVMFFIModule;
   static const constexpr bool _type_final = true;
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(ModuleObj, Object);
+  /// \endcond
 
  protected:
   friend struct InternalUnsafe;
@@ -203,12 +206,11 @@ class Module : public ObjectRef {
   /*!
    * \brief Load a module from file.
    * \param file_name The name of the host function module.
-   * \param format The format of the file.
    * \note This function won't load the import relationship.
    *  Re-create import relationship by calling Import.
    */
   TVM_FFI_EXTRA_CXX_API static Module LoadFromFile(const String& file_name);
-  /*
+  /*!
    * \brief Query context symbols that is registered via TVMEnvRegisterSymbols.
    * \param callback The callback to be called with the symbol name and address.
    * \note This helper can be used to implement custom Module that needs to access context symbols.
@@ -216,7 +218,9 @@ class Module : public ObjectRef {
   TVM_FFI_EXTRA_CXX_API static void VisitContextSymbols(
       const ffi::TypedFunction<void(String, void*)>& callback);
 
+  /// \cond Doxygen_Suppress
   TVM_FFI_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Module, ObjectRef, ModuleObj);
+  /// \endcond
 };
 
 /*

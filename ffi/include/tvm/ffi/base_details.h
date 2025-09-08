@@ -19,7 +19,7 @@
 /*!
  * \file tvm/ffi/base_details.h
  * \brief Internal detail utils that can be used by files in tvm/ffi.
- * \note details header are for internal use only
+ * \note details headers are for internal use only
  *       and not to be directly used by user.
  */
 #ifndef TVM_FFI_BASE_DETAILS_H_
@@ -47,6 +47,7 @@
 #endif
 
 #endif
+/// \cond Doxygen_Suppress
 
 #if defined(_MSC_VER)
 #define TVM_FFI_INLINE [[msvc::forceinline]] inline
@@ -268,4 +269,5 @@ TVM_FFI_INLINE uint64_t StableHashSmallStrBytes(const TVMFFIAny* data) {
 }  // namespace details
 }  // namespace ffi
 }  // namespace tvm
+/// \endcond
 #endif  // TVM_FFI_BASE_DETAILS_H_

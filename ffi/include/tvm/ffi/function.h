@@ -40,8 +40,16 @@ namespace ffi {
 /**
  * Helper macro to construct a safe call
  *
- * \brief Marks the begining of the safe call that catches exception explicitly
+ * \brief Marks the beginning of the safe call that catches exception explicitly
+ * \sa TVM_FFI_SAFE_CALL_END
  *
+ * \code
+ * int TVMFFICStyleFunction() {
+ *   TVM_FFI_SAFE_CALL_BEGIN();
+ *   // c++ code region here
+ *   TVM_FFI_SAFE_CALL_END();
+ * }
+ * \endcode
  */
 #define TVM_FFI_SAFE_CALL_BEGIN() \
   try {                           \
@@ -66,6 +74,15 @@ namespace ffi {
   }                                                                                            \
   TVM_FFI_UNREACHABLE()
 
+/*!
+ * \brief Macro to check a call to TVMFFISafeCallType and raise exception if error happens.
+ * \param func The function to check.
+ *
+ * \code
+ * // calls TVMFFIFunctionCall and raises exception if error happens
+ * TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(&type_key_arr, &type_index));
+ * \endcode
+ */
 #define TVM_FFI_CHECK_SAFE_CALL(func)                      \
   {                                                        \
     int ret_code = (func);                                 \
@@ -79,28 +96,34 @@ namespace ffi {
 
 /*!
  * \brief Object container class that backs ffi::Function
- * \note Do not use this function directly, use ffi::Function
+ * \note Do not use this class directly, use ffi::Function
  */
 class FunctionObj : public Object, public TVMFFIFunctionCell {
  public:
+  /*! \brief Typedef for C++ style calling signature that comes with exception propagation */
   typedef void (*FCall)(const FunctionObj*, const AnyView*, int32_t, Any*);
   using TVMFFIFunctionCell::safe_call;
-  /*! \brief A C++ style call implementation, with exception propagation in c++ style. */
+  /*! \brief A C++ style call implementation, with exception propagation in C++ style. */
   FCall call;
-
+  /*!
+   * \brief Call the function in packed format.
+   * \param args The arguments
+   * \param num_args The number of arguments
+   * \param result The return value.
+   */
   TVM_FFI_INLINE void CallPacked(const AnyView* args, int32_t num_args, Any* result) const {
     this->call(this, args, num_args, result);
   }
-
+  /// \cond Doxygen_Suppress
   static constexpr const uint32_t _type_index = TypeIndex::kTVMFFIFunction;
   static constexpr const char* _type_key = StaticTypeKey::kTVMFFIFunction;
-
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(FunctionObj, Object);
+  /// \endcond
 
  protected:
   /*! \brief Make default constructor protected. */
   FunctionObj() {}
-
+  /// \cond Doxygen_Suppress
   // Implementing safe call style
   static int SafeCall(void* func, const TVMFFIAny* args, int32_t num_args, TVMFFIAny* result) {
     TVM_FFI_SAFE_CALL_BEGIN();
@@ -110,7 +133,7 @@ class FunctionObj : public Object, public TVMFFIFunctionCell {
                reinterpret_cast<Any*>(result));
     TVM_FFI_SAFE_CALL_END();
   }
-
+  /// \endcond
   friend class Function;
 };
 
@@ -118,7 +141,7 @@ namespace details {
 /*!
  * \brief Derived object class for constructing FunctionObj backed by a TCallable
  *
- * This is a helper class that
+ * This is a helper class that implements the function call interface.
  */
 template <typename TCallable>
 class FunctionObjImpl : public FunctionObj {
@@ -386,14 +409,32 @@ class Function : public ObjectRef {
     }
   }
 
+  /*!
+   * \brief Get global function by name
+   * \param name The name of the function
+   * \return The global function
+   * \note This function will return std::nullopt if the function is not found.
+   */
   static std::optional<Function> GetGlobal(const std::string& name) {
     return GetGlobal(std::string_view(name.data(), name.length()));
   }
 
+  /*!
+   * \brief Get global function by name
+   * \param name The name of the function
+   * \return The global function
+   * \note This function will return std::nullopt if the function is not found.
+   */
   static std::optional<Function> GetGlobal(const String& name) {
     return GetGlobal(std::string_view(name.data(), name.length()));
   }
 
+  /*!
+   * \brief Get global function by name
+   * \param name The name of the function
+   * \return The global function
+   * \note This function will return std::nullopt if the function is not found.
+   */
   static std::optional<Function> GetGlobal(const char* name) {
     return GetGlobal(std::string_view(name));
   }
@@ -411,14 +452,32 @@ class Function : public ObjectRef {
     return *res;
   }
 
+  /*!
+   * \brief Get global function by name
+   * \param name The name of the function
+   * \return The global function
+   * \note This function will throw an error if the function is not found.
+   */
   static Function GetGlobalRequired(const std::string& name) {
     return GetGlobalRequired(std::string_view(name.data(), name.length()));
   }
 
+  /*!
+   * \brief Get global function by name
+   * \param name The name of the function
+   * \return The global function
+   * \note This function will throw an error if the function is not found.
+   */
   static Function GetGlobalRequired(const String& name) {
     return GetGlobalRequired(std::string_view(name.data(), name.length()));
   }
 
+  /*!
+   * \brief Get global function by name
+   * \param name The name of the function
+   * \return The global function
+   * \note This function will throw an error if the function is not found.
+   */
   static Function GetGlobalRequired(const char* name) {
     return GetGlobalRequired(std::string_view(name));
   }
@@ -514,7 +573,8 @@ class Function : public ObjectRef {
   /*!
    * \brief Call the function in packed format.
    * \param args The arguments
-   * \param rv The return value.
+   * \param num_args The number of arguments
+   * \param result The return value.
    */
   TVM_FFI_INLINE void CallPacked(const AnyView* args, int32_t num_args, Any* result) const {
     static_cast<FunctionObj*>(data_.get())->CallPacked(args, num_args, result);
@@ -533,7 +593,9 @@ class Function : public ObjectRef {
   /*! \return Whether the packed function is not nullptr */
   TVM_FFI_INLINE bool operator!=(std::nullptr_t) const { return data_ != nullptr; }
 
+  /// \cond Doxygen_Suppress
   TVM_FFI_DEFINE_OBJECT_REF_METHODS(Function, ObjectRef, FunctionObj);
+  /// \endcond
 
   class Registry;
 

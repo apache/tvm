@@ -54,7 +54,7 @@ class BytesObjBase : public Object, public TVMFFIByteArray {};
 
 /*!
  * \brief An object representing bytes.
- * \note We use separate object for bytes to follow python convention
+ * \note We use a separate object for bytes to follow Python convention
  *       and indicate passing of raw bytes.
  *       Bytes can be converted from/to string.
  */
@@ -66,7 +66,7 @@ class BytesObj : public BytesObjBase {
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(BytesObj, Object);
 };
 
-/*! \brief An object representing string. It's POD type. */
+/*! \brief An object representing string. This is a POD type. */
 class StringObj : public BytesObjBase {
  public:
   static constexpr const uint32_t _type_index = TypeIndex::kTVMFFIStr;
@@ -257,13 +257,14 @@ class Bytes {
   /*!
    * \brief constructor from size
    *
-   * \param other a char array.
+   * \param data The data pointer.
+   * \param size The size of the char array.
    */
   Bytes(const char* data, size_t size) { this->InitData(data, size); }
   /*!
    * \brief constructor from TVMFFIByteArray
    *
-   * \param other a char array.
+   * \param bytes a char array.
    */
   Bytes(TVMFFIByteArray bytes) {  // NOLINT(*)
     this->InitData(bytes.data, bytes.size);
@@ -391,10 +392,26 @@ class String {
    */
   String() { data_.InitTypeIndex(TypeIndex::kTVMFFISmallStr); }
   // constructors from Any
-  String(const String& other) = default;             // NOLINT(*)
-  String(String&& other) = default;                  // NOLINT(*)
+  /*!
+   * \brief Copy constructor
+   * \param other The other string
+   */
+  String(const String& other) = default;  // NOLINT(*)
+  /*!
+   * \brief Move constructor
+   * \param other The other string
+   */
+  String(String&& other) = default;  // NOLINT(*)
+  /*!
+   * \brief Copy assignment operator
+   * \param other The other string
+   */
   String& operator=(const String& other) = default;  // NOLINT(*)
-  String& operator=(String&& other) = default;       // NOLINT(*)
+  /*!
+   * \brief Move assignment operator
+   * \param other The other string
+   */
+  String& operator=(String&& other) = default;  // NOLINT(*)
 
   /*!
    * \brief Swap this String with another string
@@ -404,15 +421,27 @@ class String {
     std::swap(data_, other.data_);
   }
 
+  /*!
+   * \brief Copy assignment operator
+   * \param other The other string
+   */
   String& operator=(const std::string& other) {
     String(other).swap(*this);  // NOLINT(*)
     return *this;
   }
+  /*!
+   * \brief Move assignment operator
+   * \param other The other string
+   */
   String& operator=(std::string&& other) {
     String(std::move(other)).swap(*this);  // NOLINT(*)
     return *this;
   }
 
+  /*!
+   * \brief Copy assignment operator
+   * \param other The other string
+   */
   String& operator=(const char* other) {
     String(other).swap(*this);  // NOLINT(*)
     return *this;
@@ -421,9 +450,10 @@ class String {
   /*!
    * \brief constructor from raw string
    *
-   * \param other a char array.
+   * \param data The data pointer.
+   * \param size The size of the char array.
    */
-  String(const char* other, size_t size) { this->InitData(other, size); }
+  String(const char* data, size_t size) { this->InitData(data, size); }
 
   /*!
    * \brief constructor from raw string
@@ -640,6 +670,7 @@ class String {
 TVM_FFI_INLINE std::string_view ToStringView(TVMFFIByteArray str) {
   return std::string_view(str.data, str.size);
 }
+/// \cond Doxygen_Suppress
 
 template <>
 inline constexpr bool use_default_type_traits_v<Bytes> = false;
@@ -960,14 +991,14 @@ inline std::ostream& operator<<(std::ostream& out, const String& input) {
   out.write(input.data(), input.size());
   return out;
 }
+/// \endcond
 }  // namespace ffi
 
-// Expose to the tvm namespace for usability
-// Rationale: no ambiguity even in root
 using ffi::Bytes;
 using ffi::String;
 }  // namespace tvm
 
+/// \cond Doxygen_Suppress
 namespace std {
 
 template <>
@@ -984,4 +1015,5 @@ struct hash<::tvm::ffi::String> {
   }
 };
 }  // namespace std
+/// \endcond
 #endif  // TVM_FFI_STRING_H_

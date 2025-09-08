@@ -37,14 +37,23 @@ namespace tvm {
 namespace ffi {
 namespace reflection {
 
+/*!
+ * \brief The kind of the access pattern.
+ */
 enum class AccessKind : int32_t {
+  /*! \brief Object attribute access. */
   kAttr = 0,
+  /*! \brief Array item access. */
   kArrayItem = 1,
+  /*! \brief Map item access. */
   kMapItem = 2,
   // the following two are used for error reporting when
   // the supposed access field is not available
+  /*! \brief Object attribute missing access. */
   kAttrMissing = 3,
+  /*! \brief Array item missing access. */
   kArrayItemMissing = 4,
+  /*! \brief Map item missing access. */
   kMapItemMissing = 5,
 };
 
@@ -68,6 +77,11 @@ class AccessStepObj : public Object {
 
   // default constructor to enable auto-serialization
   AccessStepObj() = default;
+  /*!
+   * \brief Constructor
+   * \param kind The kind of the access step.
+   * \param key The key of the access step.
+   */
   AccessStepObj(AccessKind kind, Any key) : kind(kind), key(key) {}
 
   /*!
@@ -77,9 +91,11 @@ class AccessStepObj : public Object {
    */
   inline bool StepEqual(const AccessStep& other) const;
 
+  /// \cond Doxygen_Suppress
   static constexpr const char* _type_key = "ffi.reflection.AccessStep";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
   TVM_FFI_DECLARE_FINAL_OBJECT_INFO(AccessStepObj, Object);
+  /// \endcond
 };
 
 /*!
@@ -89,27 +105,65 @@ class AccessStepObj : public Object {
  */
 class AccessStep : public ObjectRef {
  public:
+  /*!
+   * \brief Constructor
+   * \param kind The kind of the access step.
+   * \param key The key of the access step.
+   * \return The access step.
+   */
   AccessStep(AccessKind kind, Any key) : ObjectRef(make_object<AccessStepObj>(kind, key)) {}
 
+  /*!
+   * \brief Create an access step for a object attribute access.
+   * \param field_name The name of the field to access.
+   * \return The access step.
+   */
   static AccessStep Attr(String field_name) { return AccessStep(AccessKind::kAttr, field_name); }
 
+  /*!
+   * \brief Create an access step for a object attribute missing access.
+   * \param field_name The name of the field to access.
+   * \return The access step.
+   */
   static AccessStep AttrMissing(String field_name) {
     return AccessStep(AccessKind::kAttrMissing, field_name);
   }
 
+  /*!
+   * \brief Create an access step for a array item access.
+   * \param index The index of the array item to access.
+   * \return The access step.
+   */
   static AccessStep ArrayItem(int64_t index) { return AccessStep(AccessKind::kArrayItem, index); }
 
+  /*!
+   * \brief Create an access step for a array item missing access.
+   * \param index The index of the array item to access.
+   * \return The access step.
+   */
   static AccessStep ArrayItemMissing(int64_t index) {
     return AccessStep(AccessKind::kArrayItemMissing, index);
   }
 
+  /*!
+   * \brief Create an access step for a map item access.
+   * \param key The key of the map item to access.
+   * \return The access step.
+   */
   static AccessStep MapItem(Any key) { return AccessStep(AccessKind::kMapItem, key); }
 
+  /*!
+   * \brief Create an access step for a map item missing access.
+   * \param key The key of the map item to access.
+   * \return The access step.
+   */
   static AccessStep MapItemMissing(Any key = nullptr) {
     return AccessStep(AccessKind::kMapItemMissing, key);
   }
 
+  /// \cond Doxygen_Suppress
   TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AccessStep, ObjectRef, AccessStepObj);
+  /// \endcond
 };
 
 inline bool AccessStepObj::StepEqual(const AccessStep& other) const {
@@ -231,9 +285,11 @@ class AccessPathObj : public Object {
    */
   inline bool IsPrefixOf(const AccessPath& other) const;
 
+  /// \cond Doxygen_Suppress
   static constexpr const char* _type_key = "ffi.reflection.AccessPath";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
   TVM_FFI_DECLARE_FINAL_OBJECT_INFO(AccessPathObj, Object);
+  /// \endcond
 
  private:
   static bool PathEqual(const AccessPathObj* lhs, const AccessPathObj* rhs) {
@@ -301,9 +357,14 @@ class AccessPath : public ObjectRef {
     return AccessPath(make_object<AccessPathObj>(std::nullopt, std::nullopt, 0));
   }
 
+  /// \cond Doxygen_Suppress
   TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AccessPath, ObjectRef, AccessPathObj);
+  /// \endcond
 };
 
+/*!
+ * \brief The pair of access paths.
+ */
 using AccessPathPair = Tuple<AccessPath, AccessPath>;
 
 inline Optional<AccessPath> AccessPathObj::GetParent() const {

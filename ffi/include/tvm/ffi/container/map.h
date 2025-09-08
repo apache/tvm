@@ -40,12 +40,14 @@
 namespace tvm {
 namespace ffi {
 
+/// \cond Doxygen_Suppress
 #if TVM_FFI_DEBUG_WITH_ABI_CHANGE
 #define TVM_FFI_MAP_FAIL_IF_CHANGED() \
   TVM_FFI_ICHECK(state_marker == self->state_marker) << "Concurrent modification of the Map";
 #else
 #define TVM_FFI_MAP_FAIL_IF_CHANGED()
 #endif  // TVM_FFI_DEBUG_WITH_ABI_CHANGE
+/// \endcond
 
 /*! \brief Shared content of all specializations of hash map */
 class MapObj : public Object {
@@ -56,24 +58,28 @@ class MapObj : public Object {
   using mapped_type = Any;
   /*! \brief Type of value stored in the hash map */
   using KVType = std::pair<Any, Any>;
+  /// \cond Doxygen_Suppress
   /*! \brief Type of raw storage of the key-value pair in the hash map */
   struct KVRawStorageType {
     TVMFFIAny first;
     TVMFFIAny second;
   };
+  /// \endcond
   /*! \brief Iterator class */
   class iterator;
 
   static_assert(std::is_standard_layout<KVType>::value, "KVType is not standard layout");
   static_assert(sizeof(KVType) == 32, "sizeof(KVType) incorrect");
 
+  /// \cond Doxygen_Suppress
   static constexpr const int32_t _type_index = TypeIndex::kTVMFFIMap;
   static constexpr const char* _type_key = StaticTypeKey::kTVMFFIMap;
   static const constexpr bool _type_final = true;
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(MapObj, Object);
+  /// \endcond
 
   /*!
-   * \brief Number of elements in the SmallMapObj
+   * \brief Number of elements in the MapObj
    * \return The result
    */
   size_t size() const { return size_; }
@@ -116,6 +122,7 @@ class MapObj : public Object {
    */
   void erase(const key_type& key) { erase(find(key)); }
 
+  /// \cond Doxygen_Suppress
   class iterator {
    public:
     using iterator_category = std::forward_iterator_tag;
@@ -180,6 +187,7 @@ class MapObj : public Object {
     friend class DenseMapObj;
     friend class SmallMapObj;
   };
+  /// \endcond
   /*!
    * \brief Create an empty container
    * \return The object created
@@ -1206,6 +1214,7 @@ class DenseMapObj : public MapObj {
   }
 };
 
+/// \cond
 #define TVM_FFI_DISPATCH_MAP(base, var, body) \
   {                                           \
     using TSmall = SmallMapObj*;              \
@@ -1280,6 +1289,7 @@ inline MapObj::iterator MapObj::find(const MapObj::key_type& key) const {
 inline void MapObj::erase(const MapObj::iterator& position) {
   TVM_FFI_DISPATCH_MAP(this, p, { return p->erase(position); });
 }
+/// \endcond
 
 #undef TVM_FFI_DISPATCH_MAP
 #undef TVM_FFI_DISPATCH_MAP_CONST
@@ -1365,8 +1375,11 @@ template <typename K, typename V,
                                                details::storage_enabled_v<V>>>
 class Map : public ObjectRef {
  public:
+  /*! \brief The key type of the map */
   using key_type = K;
+  /*! \brief The mapped type of the map */
   using mapped_type = V;
+  /*! \brief The iterator type of the map */
   class iterator;
   /*!
    * \brief default constructor
@@ -1383,24 +1396,52 @@ class Map : public ObjectRef {
    */
   Map(const Map<K, V>& other) : ObjectRef(other.data_) {}
 
+  /*!
+   * \brief Move constructor
+   * \param other The other map
+   * \tparam KU The key type of the other map
+   * \tparam VU The mapped type of the other map
+   */
   template <typename KU, typename VU,
             typename = std::enable_if_t<details::type_contains_v<K, KU> &&
                                         details::type_contains_v<V, VU>>>
   Map(Map<KU, VU>&& other) : ObjectRef(std::move(other.data_)) {}
 
+  /*!
+   * \brief Copy constructor
+   * \param other The other map
+   * \tparam KU The key type of the other map
+   * \tparam VU The mapped type of the other map
+   */
   template <typename KU, typename VU,
             typename = std::enable_if_t<details::type_contains_v<K, KU> &&
                                         details::type_contains_v<V, VU>>>
   Map(const Map<KU, VU>& other) : ObjectRef(other.data_) {}
+
+  /*!
+   * \brief Move assignment
+   * \param other The other map
+   */
   Map<K, V>& operator=(Map<K, V>&& other) {
     data_ = std::move(other.data_);
     return *this;
   }
+
+  /*!
+   * \brief Copy assignment
+   * \param other The other map
+   */
   Map<K, V>& operator=(const Map<K, V>& other) {
     data_ = other.data_;
     return *this;
   }
 
+  /*!
+   * \brief Move assignment
+   * \param other The other map
+   * \tparam KU The key type of the other map
+   * \tparam VU The mapped type of the other map
+   */
   template <typename KU, typename VU,
             typename = std::enable_if_t<details::type_contains_v<K, KU> &&
                                         details::type_contains_v<V, VU>>>
@@ -1409,6 +1450,12 @@ class Map : public ObjectRef {
     return *this;
   }
 
+  /*!
+   * \brief Copy assignment
+   * \param other The other map
+   * \tparam KU The key type of the other map
+   * \tparam VU The mapped type of the other map
+   */
   template <typename KU, typename VU,
             typename = std::enable_if_t<details::type_contains_v<K, KU> &&
                                         details::type_contains_v<V, VU>>>
@@ -1502,6 +1549,11 @@ class Map : public ObjectRef {
     }
     return details::AnyUnsafe::CopyFromAnyViewAfterCheck<V>(iter->second);
   }
+
+  /*!
+   * \brief Erase the entry associated with the key
+   * \param key The key
+   */
   void erase(const K& key) { CopyOnWrite()->erase(key); }
 
   /*!
@@ -1523,6 +1575,7 @@ class Map : public ObjectRef {
   /*! \brief specify container node */
   using ContainerType = MapObj;
 
+  /// \cond Doxygen_Suppress
   /*! \brief Iterator of the hash map */
   class iterator {
    public:
@@ -1579,6 +1632,7 @@ class Map : public ObjectRef {
 
     MapObj::iterator itr;
   };
+  /// \endcond
 
  private:
   /*! \brief Return data_ as type of pointer of MapObj */
@@ -1702,8 +1756,6 @@ inline constexpr bool type_contains_v<Map<K, V>, Map<KU, VU>> =
 
 }  // namespace ffi
 
-// Expose to the tvm namespace
-// Rationale: convinience and no ambiguity
 using ffi::Map;
 }  // namespace tvm
 #endif  // TVM_FFI_CONTAINER_MAP_H_

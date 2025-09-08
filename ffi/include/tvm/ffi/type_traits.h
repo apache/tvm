@@ -93,8 +93,14 @@ struct TypeTraitsBase {
   }
 };
 
+/*!
+ * \brief Trait that maps a type to its field static type index
+ * \tparam T the type
+ * \return the field static type index
+ */
 template <typename T, typename = void>
 struct TypeToFieldStaticTypeIndex {
+  /*! \brief The field static type index of the type  */
   static constexpr int32_t value = TypeIndex::kTVMFFIAny;
 };
 
@@ -103,8 +109,17 @@ struct TypeToFieldStaticTypeIndex<T, std::enable_if_t<TypeTraits<T>::convert_ena
   static constexpr int32_t value = TypeTraits<T>::field_static_type_index;
 };
 
+/*!
+ * \brief Trait that maps a type to its runtime type index
+ * \tparam T the type
+ * \return the runtime type index
+ */
 template <typename T, typename = void>
 struct TypeToRuntimeTypeIndex {
+  /*!
+   * \brief Get the runtime type index of the type
+   * \return the runtime type index
+   */
   static int32_t v() { return TypeToFieldStaticTypeIndex<T>::value; }
 };
 
@@ -161,7 +176,15 @@ struct TypeTraits<std::nullptr_t> : public TypeTraitsBase {
  */
 class StrictBool {
  public:
+  /*!
+   * \brief Constructor
+   * \param value The value of the strict bool.
+   */
   StrictBool(bool value) : value_(value) {}  // NOLINT(*)
+  /*!
+   *\brief Convert the strict bool to bool.
+   * \return The value of the strict bool.
+   */
   operator bool() const { return value_; }
 
  private:
@@ -582,6 +605,7 @@ struct TypeTraits<TObjRef, std::enable_if_t<std::is_base_of_v<ObjectRef, TObjRef
 template <typename T, typename... FallbackTypes>
 struct FallbackOnlyTraitsBase : public TypeTraitsBase {
   // disable container for FallbackOnlyTraitsBase
+  /// \cond Doxygen_Suppress
   static constexpr bool storage_enabled = false;
 
   TVM_FFI_INLINE static std::optional<T> TryCastFromAnyView(const TVMFFIAny* src) {
@@ -601,6 +625,7 @@ struct FallbackOnlyTraitsBase : public TypeTraitsBase {
     }
     return std::nullopt;
   }
+  /// \endcond
 };
 
 /*!
@@ -616,6 +641,7 @@ struct FallbackOnlyTraitsBase : public TypeTraitsBase {
  */
 template <typename ObjectRefType, typename... FallbackTypes>
 struct ObjectRefWithFallbackTraitsBase : public ObjectRefTypeTraitsBase<ObjectRefType> {
+  /// \cond Doxygen_Suppress
   TVM_FFI_INLINE static std::optional<ObjectRefType> TryCastFromAnyView(const TVMFFIAny* src) {
     if (auto opt_obj = ObjectRefTypeTraitsBase<ObjectRefType>::TryCastFromAnyView(src)) {
       return *opt_obj;
@@ -637,6 +663,7 @@ struct ObjectRefWithFallbackTraitsBase : public ObjectRefTypeTraitsBase<ObjectRe
     }
     return std::nullopt;
   }
+  /// \endcond
 };
 
 // Traits for weak pointer of object

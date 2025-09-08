@@ -34,34 +34,63 @@
 namespace tvm {
 namespace ffi {
 
+/*!
+ * \brief TypeIndex enum, alias of TVMFFITypeIndex.
+ */
 using TypeIndex = TVMFFITypeIndex;
+
+/*!
+ * \brief TypeInfo, alias of TVMFFITypeInfo.
+ */
 using TypeInfo = TVMFFITypeInfo;
 
 /*!
  * \brief Known type keys for pre-defined types.
  */
 struct StaticTypeKey {
+  /*! \brief The type key for Any */
   static constexpr const char* kTVMFFIAny = "Any";
+  /*! \brief The type key for None */
   static constexpr const char* kTVMFFINone = "None";
+  /*! \brief The type key for bool */
   static constexpr const char* kTVMFFIBool = "bool";
+  /*! \brief The type key for int */
   static constexpr const char* kTVMFFIInt = "int";
+  /*! \brief The type key for float */
   static constexpr const char* kTVMFFIFloat = "float";
+  /*! \brief The type key for void* */
   static constexpr const char* kTVMFFIOpaquePtr = "void*";
+  /*! \brief The type key for DataType */
   static constexpr const char* kTVMFFIDataType = "DataType";
+  /*! \brief The type key for Device */
   static constexpr const char* kTVMFFIDevice = "Device";
+  /*! \brief The type key for const char* */
   static constexpr const char* kTVMFFIRawStr = "const char*";
+  /*! \brief The type key for TVMFFIByteArray* */
   static constexpr const char* kTVMFFIByteArrayPtr = "TVMFFIByteArray*";
+  /*! \brief The type key for ObjectRValueRef */
   static constexpr const char* kTVMFFIObjectRValueRef = "ObjectRValueRef";
+  /*! \brief The type key for SmallStr */
   static constexpr const char* kTVMFFISmallStr = "ffi.SmallStr";
+  /*! \brief The type key for SmallBytes */
   static constexpr const char* kTVMFFISmallBytes = "ffi.SmallBytes";
+  /*! \brief The type key for Bytes */
   static constexpr const char* kTVMFFIBytes = "ffi.Bytes";
+  /*! \brief The type key for String */
   static constexpr const char* kTVMFFIStr = "ffi.String";
+  /*! \brief The type key for Shape */
   static constexpr const char* kTVMFFIShape = "ffi.Shape";
+  /*! \brief The type key for Tensor */
   static constexpr const char* kTVMFFITensor = "ffi.Tensor";
+  /*! \brief The type key for Object */
   static constexpr const char* kTVMFFIObject = "ffi.Object";
+  /*! \brief The type key for Function */
   static constexpr const char* kTVMFFIFunction = "ffi.Function";
+  /*! \brief The type key for Array */
   static constexpr const char* kTVMFFIArray = "ffi.Array";
+  /*! \brief The type key for Map */
   static constexpr const char* kTVMFFIMap = "ffi.Map";
+  /*! \brief The type key for Module */
   static constexpr const char* kTVMFFIModule = "ffi.Module";
 };
 
@@ -95,7 +124,7 @@ TVM_FFI_INLINE bool IsObjectInstance(int32_t object_type_index);
 }  // namespace details
 
 /*!
- * \brief base class of all object containers.
+ * \brief Base class of all object containers.
  *
  * Sub-class of objects should declare the following static constexpr fields:
  *
@@ -189,11 +218,14 @@ class Object {
     return std::string(type_info->type_key.data, type_info->type_key.size);
   }
 
+  /*!
+   * \return Whether the object.use_count() == 1.
+   */
   bool unique() const { return use_count() == 1; }
 
   /*!
    * \return The usage count of the cell.
-   * \note We use stl style naming to be consistent with known API in shared_ptr.
+   * \note We use STL style naming to be consistent with known API in shared_ptr.
    */
   int32_t use_count() const {
     // only need relaxed load of counters
@@ -204,19 +236,26 @@ class Object {
 #endif
   }
 
-  // Information about the object
+  //----------------------------------------------------------------------------
+  //  The following fields are configuration flags for subclasses of object
+  //----------------------------------------------------------------------------
+  /*! \brief The type key of the class */
   static constexpr const char* _type_key = StaticTypeKey::kTVMFFIObject;
-
-  // Default object type properties for sub-classes
+  /*! \brief Whether the class is final */
   static constexpr bool _type_final = false;
+  /*! \brief Whether allow mutable access to fields */
   static constexpr bool _type_mutable = false;
+  /*! \brief The number of child slots of the class to pre-allocate to this type */
   static constexpr uint32_t _type_child_slots = 0;
+  /*!
+   * \brief Whether allow additional children beyond pre-specified by _type_child_slots
+   */
   static constexpr bool _type_child_slots_can_overflow = true;
-  // NOTE: static type index field of the class
+  /*! \brief The static type index of the class */
   static constexpr int32_t _type_index = TypeIndex::kTVMFFIObject;
-  // the static type depth of the class
+  /*! \brief The static depth of the class in the object hierarchy */
   static constexpr int32_t _type_depth = 0;
-  // the structural equality and hash kind of the type
+  /*! \brief The structural equality and hash kind of the type */
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUnsupported;
   // The following functions are provided by macro
   // TVM_FFI_DECLARE_BASE_OBJECT_INFO and TVM_DECLARE_FINAL_OBJECT_INFO
@@ -761,7 +800,7 @@ class ObjectRef {
 
   /*! \brief type indicate the container type. */
   using ContainerType = Object;
-  // Default type properties for the reference class.
+  /*! \brief Whether the reference can point to nullptr */
   static constexpr bool _type_is_nullable = true;
 
  protected:
@@ -804,7 +843,7 @@ struct ObjectPtrEqual {
   TVM_FFI_INLINE bool operator()(const Variant<V...>& a, const Variant<V...>& b) const;
 };
 
-// If dynamic type is enabled, we still need to register the runtime type of parent
+/// \cond Doxygen_Suppress
 #define TVM_FFI_REGISTER_STATIC_TYPE_INFO(TypeName, ParentType)                               \
   static constexpr int32_t _type_depth = ParentType::_type_depth + 1;                         \
   static int32_t _GetOrAllocRuntimeTypeIndex() {                                              \
@@ -820,6 +859,7 @@ struct ObjectPtrEqual {
     return tindex;                                                                            \
   }                                                                                           \
   static inline int32_t _register_type_index = _GetOrAllocRuntimeTypeIndex()
+/// \endcond
 
 /*!
  * \brief Helper macro to declare a object that comes with static type index.
@@ -862,7 +902,7 @@ struct ObjectPtrEqual {
   static const constexpr bool _type_final [[maybe_unused]] = true;   \
   TVM_FFI_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)
 
-/*
+/*!
  * \brief Define object reference methods.
  *
  * \param TypeName The object type name
@@ -880,7 +920,7 @@ struct ObjectPtrEqual {
   const ObjectName* get() const { return operator->(); }                                       \
   using ContainerType = ObjectName
 
-/*
+/*!
  * \brief Define object reference methods do not have undefined state.
  *
  * \param TypeName The object type name
@@ -895,7 +935,7 @@ struct ObjectPtrEqual {
   static constexpr bool _type_is_nullable = false;                                             \
   using ContainerType = ObjectName
 
-/*
+/*!
  * \brief Define object reference methods of whose content is mutable.
  * \param TypeName The object type name
  * \param ParentType The parent type of the objectref
@@ -910,7 +950,7 @@ struct ObjectPtrEqual {
   ObjectName* operator->() const { return static_cast<ObjectName*>(data_.get()); }          \
   using ContainerType = ObjectName
 
-/*
+/*!
  * \brief Define object reference methods that is both not nullable and mutable.
  *
  * \param TypeName The object type name

@@ -36,9 +36,17 @@ namespace reflection {
  */
 class ObjectCreator {
  public:
+  /*!
+   * \brief Constructor
+   * \param type_key The type key.
+   */
   explicit ObjectCreator(std::string_view type_key)
       : ObjectCreator(TVMFFIGetTypeInfo(TypeKeyToIndex(type_key))) {}
 
+  /*!
+   * \brief Constructor
+   * \param type_info The type info.
+   */
   explicit ObjectCreator(const TVMFFITypeInfo* type_info) : type_info_(type_info) {
     int32_t type_index = type_info->type_index;
     if (type_info->metadata == nullptr) {

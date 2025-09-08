@@ -102,6 +102,7 @@ class VariantBase<true> : public ObjectRef {
 template <typename... V>
 class Variant : public details::VariantBase<details::all_object_ref_v<V...>> {
  public:
+  /// \cond Doxygen_Suppress
   using TParent = details::VariantBase<details::all_object_ref_v<V...>>;
   static_assert(details::all_storage_enabled_v<V...>,
                 "All types used in Variant<...> must be compatible with Any");
@@ -113,34 +114,63 @@ class Variant : public details::VariantBase<details::all_object_ref_v<V...>> {
   /* \brief Helper utility for SFINAE if the type is part of the variant */
   template <typename T>
   using enable_if_variant_contains_t = std::enable_if_t<variant_contains_v<T>>;
-
+  /// \endcond
+  /*!
+   * \brief Constructor from another variant
+   * \param other The other variant
+   */
   Variant(const Variant<V...>& other) : TParent(other.data_) {}
+  /*!
+   * \brief Constructor from another variant
+   * \param other The other variant
+   */
   Variant(Variant<V...>&& other) : TParent(std::move(other.data_)) {}
 
+  /*!
+   * \brief Assignment from another variant
+   * \param other The other variant
+   */
   TVM_FFI_INLINE Variant& operator=(const Variant<V...>& other) {
     this->SetData(other.data_);
     return *this;
   }
 
+  /*!
+   * \brief Assignment from another variant
+   * \param other The other variant
+   */
   TVM_FFI_INLINE Variant& operator=(Variant<V...>&& other) {
     this->SetData(std::move(other.data_));
     return *this;
   }
 
+  /*!
+   * \brief Constructor from another variant
+   * \param other The other variant
+   */
   template <typename T, typename = enable_if_variant_contains_t<T>>
   Variant(T other) : TParent(std::move(other)) {}  // NOLINT(*)
 
+  /*!
+   * \brief Assignment from another variant
+   * \param other The other variant
+   */
   template <typename T, typename = enable_if_variant_contains_t<T>>
   TVM_FFI_INLINE Variant& operator=(T other) {
     return operator=(Variant(std::move(other)));
   }
 
+  /*!
+   * \brief Try to cast to a type T, return std::nullopt if the cast is not possible.
+   * \return The casted value, or std::nullopt if the cast is not possible.
+   * \tparam T The type to cast to.
+   */
   template <typename T, typename = enable_if_variant_contains_t<T>>
   TVM_FFI_INLINE std::optional<T> as() const {
     return this->TParent::ToAnyView().template as<T>();
   }
 
-  /*
+  /*!
    * \brief Shortcut of as Object to cast to a const pointer when T is an Object.
    *
    * \tparam T The object type.
@@ -151,16 +181,30 @@ class Variant : public details::VariantBase<details::all_object_ref_v<V...>> {
     return this->TParent::ToAnyView().template as<const T*>().value_or(nullptr);
   }
 
+  /*!
+   * \brief Get the value of the variant in type T, throws an exception if cast fails.
+   * \return The value of the variant
+   * \tparam T The type to get.
+   */
   template <typename T, typename = enable_if_variant_contains_t<T>>
   TVM_FFI_INLINE T get() const& {
     return this->TParent::ToAnyView().template cast<T>();
   }
 
+  /*!
+   * \brief Get the value of the variant in type T, throws an exception if cast fails.
+   * \return The value of the variant
+   * \tparam T The type to get.
+   */
   template <typename T, typename = enable_if_variant_contains_t<T>>
   TVM_FFI_INLINE T get() && {
     return std::move(*this).TParent::MoveToAny().template cast<T>();
   }
 
+  /*!
+   * \brief Get the type key of the variant
+   * \return The type key of the variant
+   */
   TVM_FFI_INLINE std::string GetTypeKey() const { return this->TParent::ToAnyView().GetTypeKey(); }
 
  private:
@@ -255,8 +299,6 @@ inline constexpr bool type_contains_v<Variant<V...>, T> = (type_contains_v<V, T>
 }  // namespace details
 }  // namespace ffi
 
-// Expose to the tvm namespace
-// Rationale: convinience and no ambiguity
 using ffi::Variant;
 }  // namespace tvm
 #endif  // TVM_FFI_CONTAINER_VARIANT_H_

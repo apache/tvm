@@ -34,6 +34,9 @@ extern "C" {
 // Focusing on minimalistic thread-local context recording stream being used.
 // We explicitly not handle allocation/de-allocation of stream here.
 // ----------------------------------------------------------------------------
+/*!
+ * \brief The type of the stream handle.
+ */
 typedef void* TVMFFIStreamHandle;
 
 /*!
@@ -91,7 +94,7 @@ TVM_FFI_DLL int TVMFFIEnvRegisterCAPI(const char* name, void* symbol);
 TVM_FFI_DLL int TVMFFIEnvModLookupFromImports(TVMFFIObjectHandle library_ctx, const char* func_name,
                                               TVMFFIObjectHandle* out);
 
-/*
+/*!
  * \brief Register a symbol value that will be initialized when a library with the symbol is loaded.
  *
  * This function can be used to make context functions to be available in the library

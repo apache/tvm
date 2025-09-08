@@ -38,7 +38,7 @@ namespace ffi {
 
 // Note: We place optional in tvm/ffi instead of tvm/ffi/container
 // because optional itself is an inherent core component of the FFI system.
-
+/// \cond Doxygen_Suppress
 template <typename T>
 inline constexpr bool is_optional_type_v = false;
 
@@ -50,6 +50,7 @@ inline constexpr bool is_optional_type_v<Optional<T>> = true;
 template <typename T>
 inline constexpr bool use_ptr_based_optional_v =
     (std::is_base_of_v<ObjectRef, T> && !is_optional_type_v<T>);
+/// \endcond
 
 // Specialization for non-ObjectRef types.
 // simply fallback to std::optional
@@ -410,7 +411,6 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
 };
 }  // namespace ffi
 
-// Expose to the tvm namespace
 using ffi::Optional;
 }  // namespace tvm
 #endif  // TVM_FFI_OPTIONAL_H_

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tvm/ffi/shape.h
+ * \file tvm/ffi/container/shape.h
  * \brief Container to store shape of an Tensor.
  */
 #ifndef TVM_FFI_CONTAINER_SHAPE_H_
@@ -39,6 +39,7 @@ namespace ffi {
 /*! \brief An object representing a shape tuple. */
 class ShapeObj : public Object, public TVMFFIShapeCell {
  public:
+  /*! \brief The type of shape index element. */
   using index_type = int64_t;
 
   /*! \brief Get "numel", meaning the number of elements of an array if the array has this shape */
@@ -50,9 +51,11 @@ class ShapeObj : public Object, public TVMFFIShapeCell {
     return product;
   }
 
+  /// \cond Doxygen_Suppress
   static constexpr const uint32_t _type_index = TypeIndex::kTVMFFIShape;
   static constexpr const char* _type_key = StaticTypeKey::kTVMFFIShape;
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(ShapeObj, Object);
+  /// \endcond
 };
 
 namespace details {
@@ -198,7 +201,9 @@ class Shape : public ObjectRef {
   /*! \return The product of the shape tuple */
   int64_t Product() const { return get()->Product(); }
 
+  /// \cond Doxygen_Suppress
   TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Shape, ObjectRef, ShapeObj);
+  /// \endcond
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Shape& shape) {

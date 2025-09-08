@@ -30,7 +30,7 @@
 
 namespace tvm {
 namespace ffi {
-/*
+/*!
  * \brief Structural equality comparators
  */
 class StructuralEqual {

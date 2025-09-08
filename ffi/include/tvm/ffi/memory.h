@@ -33,16 +33,7 @@ namespace tvm {
 namespace ffi {
 
 /*! \brief Deleter function for obeject */
-typedef void (*FObjectDeleter)(TVMFFIObject* obj, int flags);
-
-/*!
- * \brief Allocate an object using default allocator.
- * \param args arguments to the constructor.
- * \tparam T the node type.
- * \return The ObjectPtr to the allocated object.
- */
-template <typename T, typename... Args>
-inline ObjectPtr<T> make_object(Args&&... args);
+typedef void (*FObjectDeleter)(void* obj, int flags);
 
 // Detail implementations after this
 //
@@ -53,7 +44,7 @@ inline ObjectPtr<T> make_object(Args&&... args);
 // - Arena allocator that gives ownership of memory to arena (deleter = nullptr)
 // - Thread-local object pools: one pool per size and alignment requirement.
 // - Can specialize by type of object to give the specific allocator to each object.
-
+namespace details {
 /*!
  * \brief Base class of object allocators that implements make.
  *  Use curiously recurring template pattern.
@@ -138,8 +129,9 @@ class SimpleObjAllocator : public ObjAllocatorBase<SimpleObjAllocator> {
     static FObjectDeleter Deleter() { return Deleter_; }
 
    private:
-    static void Deleter_(TVMFFIObject* objptr, int flags) {
-      T* tptr = details::ObjectUnsafe::RawObjectPtrFromUnowned<T>(objptr);
+    static void Deleter_(void* objptr, int flags) {
+      T* tptr =
+          details::ObjectUnsafe::RawObjectPtrFromUnowned<T>(static_cast<TVMFFIObject*>(objptr));
       if (flags & kTVMFFIObjectDeleterFlagBitMaskStrong) {
         // It is important to do tptr->T::~T(),
         // so that we explicitly call the specific destructor
@@ -188,8 +180,9 @@ class SimpleObjAllocator : public ObjAllocatorBase<SimpleObjAllocator> {
     static FObjectDeleter Deleter() { return Deleter_; }
 
    private:
-    static void Deleter_(TVMFFIObject* objptr, int flags) {
-      ArrayType* tptr = details::ObjectUnsafe::RawObjectPtrFromUnowned<ArrayType>(objptr);
+    static void Deleter_(void* objptr, int flags) {
+      ArrayType* tptr = details::ObjectUnsafe::RawObjectPtrFromUnowned<ArrayType>(
+          static_cast<TVMFFIObject*>(objptr));
       if (flags & kTVMFFIObjectDeleterFlagBitMaskStrong) {
         // It is important to do tptr->ArrayType::~ArrayType(),
         // so that we explicitly call the specific destructor
@@ -204,22 +197,35 @@ class SimpleObjAllocator : public ObjAllocatorBase<SimpleObjAllocator> {
     }
   };
 };
+}  // namespace details
 
+/*!
+ * \brief Allocate an object
+ * \param args arguments to the constructor.
+ * \tparam T the node type.
+ * \return The ObjectPtr to the allocated object.
+ */
 template <typename T, typename... Args>
 inline ObjectPtr<T> make_object(Args&&... args) {
-  return SimpleObjAllocator().make_object<T>(std::forward<Args>(args)...);
+  return details::SimpleObjAllocator().make_object<T>(std::forward<Args>(args)...);
 }
 
+/*!
+ * \brief Allocate an Object with additional ElemType[num_elems] that are stored right after.
+ * \param num_elems The number of elements in the array.
+ * \param args arguments to the constructor.
+ * \tparam ArrayType the array type.
+ * \tparam ElemType the element type.
+ * \return The ObjectPtr to the allocated array.
+ */
 template <typename ArrayType, typename ElemType, typename... Args>
 inline ObjectPtr<ArrayType> make_inplace_array_object(size_t num_elems, Args&&... args) {
-  return SimpleObjAllocator().make_inplace_array<ArrayType, ElemType>(num_elems,
-                                                                      std::forward<Args>(args)...);
+  return details::SimpleObjAllocator().make_inplace_array<ArrayType, ElemType>(
+      num_elems, std::forward<Args>(args)...);
 }
 
 }  // namespace ffi
 
-// Export the make_object function
-// rationale: ease of use, and no ambiguity
 using ffi::make_object;
 }  // namespace tvm
 #endif  // TVM_FFI_MEMORY_H_

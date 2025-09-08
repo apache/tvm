@@ -1,4 +1,6 @@
 autodocsumm
+exhale
+breathe
 linkify-it-py
 matplotlib
 myst-parser

@@ -39,7 +39,7 @@ namespace ffi {
  *
  * This class is always consistent with the DLPack.
  *
- * TOTO(tvm-team): update to latest DLPack types.
+ * TODO(tvm-team): update to latest DLPack types.
  */
 enum DLExtDataTypeCode { kDLExtCustomBegin = 129 };
 
@@ -113,6 +113,11 @@ inline const char* DLDataTypeCodeAsCStr(DLDataTypeCode type_code) {  // NOLINT(*
 }
 }  // namespace details
 
+/*!
+ * \brief Convert a string to a DLDataType.
+ * \param str The string to convert.
+ * \return The DLDataType.
+ */
 inline DLDataType StringToDLDataType(const String& str) {
   DLDataType out;
   TVMFFIByteArray data{str.data(), str.size()};
@@ -120,6 +125,11 @@ inline DLDataType StringToDLDataType(const String& str) {
   return out;
 }
 
+/*!
+ * \brief Convert a DLDataType to a string.
+ * \param dtype The DLDataType to convert.
+ * \return The string.
+ */
 inline String DLDataTypeToString(DLDataType dtype) {
   TVMFFIAny out;
   TVM_FFI_CHECK_SAFE_CALL(TVMFFIDataTypeToString(&dtype, &out));

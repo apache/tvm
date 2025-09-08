@@ -18,6 +18,10 @@
 Apache TVM FFI Documentation
 ============================
 
+Welcome to the documentation for TVM FFI. You can get started by reading the get started section,
+or reading through the guides and concepts sections.
+
+
 .. toctree::
    :maxdepth: 1
    :caption: Get Started
@@ -40,8 +44,10 @@ Apache TVM FFI Documentation
 
    concepts/abi_overview.md
 
+
 .. toctree::
    :maxdepth: 1
    :caption: Reference
 
    reference/python/index.rst
+   reference/cpp/index.rst
