@@ -26,7 +26,6 @@ from tvm.script import ir as I, tir as T, relax as R
 
 
 def _make_module():
-    # Minimal IRModule; no functions needed to test shape inference helper
     return IRModule({})
 
 
@@ -246,7 +245,6 @@ def test_base_py_module_call_dps_packed_symbolic():
             """Add two tensors element-wise."""
             a_np = a.numpy()
             b_np = b.numpy()
-            # 直接修改TVM张量，而不是numpy副本
             result = a_np + b_np
             out[:] = result
 
@@ -276,7 +274,6 @@ def test_base_py_module_call_dps_packed_multiple_args():
             """Matrix multiplication."""
             a_np = a.numpy()
             b_np = b.numpy()
-            # 直接修改TVM张量，而不是numpy副本
             result = np.matmul(a_np, b_np)
             out[:] = result
 
@@ -286,7 +283,6 @@ def test_base_py_module_call_dps_packed_multiple_args():
         a = np.random.randn(2, 3).astype("float32")
         b = np.random.randn(3, 4).astype("float32")
 
-        # 使用正确的输出形状 (2, 4)
         out_sinfo = relax.TensorStructInfo((2, 4), "float32")
 
         out = bpm.call_dps_packed("test_matmul_packed", [a, b], out_sinfo)
@@ -306,12 +302,10 @@ def test_base_py_module_call_dps_packed_scalar_args():
         def test_add_scalar_packed(x, scalar, out):
             """Add scalar to tensor."""
             x_np = x.numpy()
-            # Convert scalar to numpy scalar if needed
             if hasattr(scalar, 'numpy'):
                 scalar_val = scalar.numpy()
             else:
                 scalar_val = scalar
-            # 直接修改TVM张量，而不是numpy副本
             result = x_np + scalar_val
             out[:] = result
 
