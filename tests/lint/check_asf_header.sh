@@ -17,6 +17,7 @@
 # under the License.
 
 set -euo pipefail
+
 rat_tempdir="$(mktemp -d)"
 
 function cleanup() {
