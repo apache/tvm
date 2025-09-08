@@ -141,12 +141,28 @@ def _generate_ninja_build(
     default_include_paths = [find_include_path(), find_dlpack_include_path()]
 
     if IS_WINDOWS:
-        default_cflags = ["/std:c++17", '/MD', '/wd4819', '/wd4251', '/wd4244', '/wd4267', '/wd4275', '/wd4018', '/wd4190', '/wd4624', '/wd4067', '/wd4068', '/EHsc']
+        default_cflags = [
+            "/std:c++17",
+            "/MD",
+            "/wd4819",
+            "/wd4251",
+            "/wd4244",
+            "/wd4267",
+            "/wd4275",
+            "/wd4018",
+            "/wd4190",
+            "/wd4624",
+            "/wd4067",
+            "/wd4068",
+            "/EHsc",
+        ]
         default_cuda_cflags = ["-Xcompiler", "/std:c++17", "/O2"]
         # Find the TVM FFI library for linking
         tvm_ffi_lib = find_libtvm_ffi()
         tvm_ffi_lib_path = os.path.dirname(tvm_ffi_lib)
-        tvm_ffi_lib_name = os.path.splitext(os.path.basename(tvm_ffi_lib))[0]  # Remove .dll extension
+        tvm_ffi_lib_name = os.path.splitext(os.path.basename(tvm_ffi_lib))[
+            0
+        ]  # Remove .dll extension
         default_ldflags = ["/DLL", f"/LIBPATH:{tvm_ffi_lib_path}", f"{tvm_ffi_lib_name}.lib"]
     else:
         default_cflags = ["-std=c++17", "-fPIC", "-O2"]
@@ -208,7 +224,9 @@ def _generate_ninja_build(
 
     # build targets
     ninja.append(
-        "build main.o: compile {}".format(os.path.abspath(os.path.join(build_dir, "main.cpp")).replace(":", "$:"))
+        "build main.o: compile {}".format(
+            os.path.abspath(os.path.join(build_dir, "main.cpp")).replace(":", "$:")
+        )
     )
     if with_cuda:
         ninja.append(
@@ -236,7 +254,7 @@ def _build_ninja(build_dir: str) -> None:
     status = subprocess.run(args=command, cwd=build_dir, capture_output=True)
     if status.returncode != 0:
         msg = ["ninja exited with status {}".format(status.returncode)]
-        encoding = 'oem' if IS_WINDOWS else 'utf-8'
+        encoding = "oem" if IS_WINDOWS else "utf-8"
         if status.stdout:
             msg.append("stdout:\n{}".format(status.stdout.decode(encoding)))
         if status.stderr:
