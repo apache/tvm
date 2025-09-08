@@ -273,7 +273,11 @@ class IRModule : public ObjectRef {
    * \brief constructor
    * \param n The object pointer.
    */
-  explicit IRModule(ObjectPtr<Object> n) : ObjectRef(n) {}
+  explicit IRModule(ObjectPtr<IRModuleNode> n) : ObjectRef(n) {}
+  /*!
+   * \brief constructor with UnsafeInit
+   */
+  explicit IRModule(ffi::UnsafeInit tag) : ObjectRef(tag) {}
   /*! \return mutable pointers to the node. */
   IRModuleNode* operator->() const {
     auto* ptr = get_mutable();

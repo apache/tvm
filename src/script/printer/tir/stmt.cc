@@ -284,7 +284,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ffi::Array<ExprDoc> args;
           ffi::Array<ffi::String> kwargs_keys;
           ffi::Array<ExprDoc> kwargs_values;
-          ExprDoc data_doc{nullptr};
+          ExprDoc data_doc{ffi::UnsafeInit()};
           if (stmt->dtype.is_int()) {
             if (stmt->dtype.bits() == 8) {
               data_doc = PrintTensor<int8_t>(stmt->data.value());
@@ -377,7 +377,7 @@ ExprDoc DocsifyLaunchThread(const tir::AttrStmt& attr_stmt, const AccessPath& at
   tir::IterVar iter_var = Downcast<tir::IterVar>(attr_stmt->node);
   AccessPath iter_var_p = attr_stmt_p->Attr("node");
 
-  ExprDoc var_doc{nullptr};
+  ExprDoc var_doc{ffi::UnsafeInit()};
   if (d->IsVarDefined(iter_var->var)) {
     var_doc = d->AsDoc<ExprDoc>(iter_var->var, iter_var_p->Attr("var"));
   } else if (IsAncestorOfAllVarUse(attr_stmt, iter_var->var, d)) {

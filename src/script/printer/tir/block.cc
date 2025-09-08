@@ -83,7 +83,7 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, AccessPath block_p,  //
       LOG(FATAL) << "ValueError: Unknown IterVarType in block signature: "
                  << tir::IterVarType2String(iter_var->iter_type);
     }
-    ExprDoc dom{nullptr};
+    ExprDoc dom{ffi::UnsafeInit()};
     if (tir::is_zero(iter_var->dom->min)) {
       ExprDoc extent = d->AsDoc<ExprDoc>(iter_var->dom->extent,  //
                                          iter_var_p->Attr("dom")->Attr("extent"));

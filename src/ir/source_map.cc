@@ -46,7 +46,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("__data_from_json__", SourceName::Get);
 });
 
-ObjectPtr<Object> GetSourceNameNode(const ffi::String& name) {
+ObjectPtr<SourceNameNode> GetSourceNameNode(const ffi::String& name) {
   // always return pointer as the reference can change as map re-allocate.
   // or use another level of indirection by creating a unique_ptr
   static std::unordered_map<ffi::String, ObjectPtr<SourceNameNode>> source_map;
@@ -62,7 +62,7 @@ ObjectPtr<Object> GetSourceNameNode(const ffi::String& name) {
   }
 }
 
-ObjectPtr<Object> GetSourceNameNodeByStr(const std::string& name) {
+ObjectPtr<SourceNameNode> GetSourceNameNodeByStr(const std::string& name) {
   return GetSourceNameNode(name);
 }
 

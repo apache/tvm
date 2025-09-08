@@ -156,7 +156,14 @@ class PassContextNode : public Object {
 class PassContext : public ObjectRef {
  public:
   PassContext() {}
-  explicit PassContext(ObjectPtr<Object> n) : ObjectRef(n) {}
+  /*!
+   * \brief constructor with UnsafeInit
+   */
+  explicit PassContext(ffi::UnsafeInit tag) : ObjectRef(tag) {}
+  /*!
+   * \brief constructor with ObjectPtr
+   */
+  explicit PassContext(ObjectPtr<PassContextNode> n) : ObjectRef(n) {}
   /*!
    * \brief const accessor.
    * \return const access pointer.
@@ -512,7 +519,7 @@ class Sequential : public Pass {
   TVM_DLL Sequential(ffi::Array<Pass> passes, ffi::String name = "sequential");
 
   Sequential() = default;
-  explicit Sequential(ObjectPtr<Object> n) : Pass(n) {}
+  explicit Sequential(ObjectPtr<SequentialNode> n) : Pass(n) {}
 
   const SequentialNode* operator->() const;
   using ContainerType = SequentialNode;
