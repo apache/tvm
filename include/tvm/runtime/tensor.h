@@ -58,7 +58,8 @@ class Tensor : public tvm::ffi::Tensor {
    * \brief constructor.
    * \param data ObjectPtr to the data container.
    */
-  explicit Tensor(ObjectPtr<Object> data) : tvm::ffi::Tensor(data) {}
+  explicit Tensor(ObjectPtr<ffi::TensorObj> data) : tvm::ffi::Tensor(data) {}
+  explicit Tensor(ffi::UnsafeInit tag) : tvm::ffi::Tensor(tag) {}
   Tensor(ffi::Tensor&& other) : tvm::ffi::Tensor(std::move(other)) {}  // NOLINT(*)
   Tensor(const ffi::Tensor& other) : tvm::ffi::Tensor(other) {}        // NOLINT(*)
 

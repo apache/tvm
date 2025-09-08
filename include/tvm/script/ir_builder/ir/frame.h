@@ -75,6 +75,9 @@ class IRModuleFrameNode : public IRBuilderFrameNode {
  */
 class IRModuleFrame : public IRBuilderFrame {
  public:
+  explicit IRModuleFrame(ObjectPtr<IRModuleFrameNode> data) : IRBuilderFrame(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IRModuleFrame, IRBuilderFrame,
                                                     IRModuleFrameNode);
 };

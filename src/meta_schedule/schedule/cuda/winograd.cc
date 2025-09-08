@@ -35,7 +35,7 @@ static ffi::Array<tir::LoopRV> ScheduleDataPack(tir::Schedule sch, tir::BlockRV 
   using namespace tvm::tir;
   ICHECK_EQ(tiled.size(), 2);
   ICHECK_EQ(unrolled.size(), 4);
-  ffi::Array<ExprRV> factors{nullptr};
+  ffi::Array<ExprRV> factors{ffi::UnsafeInit()};
   ffi::Array<LoopRV> loops = sch->GetLoops(block);
   ICHECK_EQ(loops.size(), 6);
 
@@ -109,7 +109,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              int64_t max_threads_per_block = 1024;
              BlockRV input_tile = GetWinogradProducerAndInlineConst(sch, data_pack);
              BlockRV data_pad = GetWinogradProducerAndInlineConst(sch, input_tile);
-             LoopRV outer{nullptr};
+             LoopRV outer{ffi::UnsafeInit()};
              {
                ffi::Array<LoopRV> loops = sch->GetLoops(data_pack);
                ICHECK_EQ(loops.size(), 6);
@@ -139,7 +139,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              // loops on top of the inverse block: [CO, P, tile_size, tile_size, alpha, alpha]
              int64_t tile_size =
                  Downcast<IntImm>(sch->Get(inverse)->writes[0]->buffer->shape[2])->value;
-             LoopRV outer{nullptr};
+             LoopRV outer{ffi::UnsafeInit()};
              {
                BlockRV output = sch->GetConsumers(inverse)[0];
                ffi::Array<LoopRV> nchw = sch->GetLoops(output);

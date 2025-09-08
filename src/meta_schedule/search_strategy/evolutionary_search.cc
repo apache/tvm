@@ -112,7 +112,7 @@ class SizedHeap {
 };
 
 struct PerThreadData {
-  IRModule mod{nullptr};
+  IRModule mod{ffi::UnsafeInit()};
   TRandState rand_state{-1};
   std::function<int32_t()> trace_sampler = nullptr;
   std::function<ffi::Optional<Mutator>()> mutator_sampler = nullptr;
@@ -270,11 +270,11 @@ class EvolutionarySearchNode : public SearchStrategyNode {
      * */
     IRModuleSet measured_workloads_;
     /*! \brief A Database for selecting useful candidates. */
-    Database database_{nullptr};
+    Database database_{ffi::UnsafeInit()};
     /*! \brief A cost model helping to explore the search space */
-    CostModel cost_model_{nullptr};
+    CostModel cost_model_{ffi::UnsafeInit()};
     /*! \brief The token registered for the given workload in database. */
-    Workload token_{nullptr};
+    Workload token_{ffi::UnsafeInit()};
 
     explicit State(EvolutionarySearchNode* self, int max_trials, int num_trials_per_iter,
                    ffi::Array<Schedule> design_space_schedules, Database database,

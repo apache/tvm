@@ -50,7 +50,7 @@ ObjectRef WorkloadNode::AsJSON() const {
 }
 
 Workload Workload::FromJSON(const ObjectRef& json_obj) {
-  IRModule mod{nullptr};
+  IRModule mod{ffi::UnsafeInit()};
   THashCode shash = 0;
   try {
     const ffi::ArrayObj* json_array = json_obj.as<ffi::ArrayObj>();
@@ -133,7 +133,7 @@ bool TuningRecordNode::IsValid() const {
 }
 
 TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& workload) {
-  tir::Trace trace{nullptr};
+  tir::Trace trace{ffi::UnsafeInit()};
   ffi::Optional<ffi::Array<FloatImm>> run_secs;
   ffi::Optional<Target> target;
   ffi::Optional<ffi::Array<ArgInfo>> args_info;

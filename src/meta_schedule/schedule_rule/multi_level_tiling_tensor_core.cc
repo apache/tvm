@@ -77,7 +77,7 @@ class TensorCoreStateNode : public StateNode {
   /*! \brief The tensor core intrinsic group. */
   TensorCoreIntrinGroup intrin_group;
   /*! \brief The auto tensorization maping info. */
-  tir::AutoTensorizeMappingInfo mapping_info{nullptr};
+  tir::AutoTensorizeMappingInfo mapping_info{ffi::UnsafeInit()};
   /*! \brief The Tensor Core reindex block A for Tensor Core computation */
   tir::BlockRV tensor_core_reindex_A;
   /*! \brief The Tensor Core reindex block B for Tensor Core computation */

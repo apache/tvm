@@ -47,6 +47,10 @@ class Tuple : public ObjectRef {
                 "All types used in Tuple<...> must be compatible with Any");
   /*! \brief Default constructor */
   Tuple() : ObjectRef(MakeDefaultTupleNode()) {}
+  /*!
+   * \brief Constructor with UnsafeInit
+   */
+  explicit Tuple(UnsafeInit tag) : ObjectRef(tag) {}
   /*! \brief Copy constructor */
   Tuple(const Tuple<Types...>& other) : ObjectRef(other) {}
   /*! \brief Move constructor */
@@ -127,13 +131,6 @@ class Tuple : public ObjectRef {
     data_ = std::move(other.data_);
     return *this;
   }
-
-  /*!
-   * \brief Constructor ObjectPtr
-   * \param ptr The ObjectPtr
-   * \tparam The enable_if_t type
-   */
-  explicit Tuple(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
 
   /*!
    * \brief Get I-th element of the tuple
@@ -283,7 +280,8 @@ struct TypeTraits<Tuple<Types...>> : public ObjectRefTypeTraitsBase<Tuple<Types.
     Array<Any> arr = TypeTraits<Array<Any>>::CopyFromAnyViewAfterCheck(src);
     Any* ptr = arr.CopyOnWrite()->MutableBegin();
     if (TryConvertElements<0, Types...>(ptr)) {
-      return Tuple<Types...>(details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(arr));
+      return details::ObjectUnsafe::ObjectRefFromObjectPtr<Tuple<Types...>>(
+          details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(arr));
     }
     return std::nullopt;
   }

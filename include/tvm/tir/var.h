@@ -77,7 +77,8 @@ class VarNode : public PrimExprNode {
 /*! \brief a named variable in TIR */
 class Var : public PrimExpr {
  public:
-  explicit Var(ObjectPtr<Object> n) : PrimExpr(n) {}
+  explicit Var(ffi::UnsafeInit tag) : PrimExpr(tag) {}
+  explicit Var(ObjectPtr<VarNode> n) : PrimExpr(n) {}
   /*!
    * \brief Constructor
    * \param name_hint variable name
@@ -143,7 +144,8 @@ class SizeVarNode : public VarNode {
 /*! \brief a named variable represents a tensor index size */
 class SizeVar : public Var {
  public:
-  explicit SizeVar(ObjectPtr<Object> n) : Var(n) {}
+  explicit SizeVar(ObjectPtr<SizeVarNode> n) : Var(n) {}
+  explicit SizeVar(ffi::UnsafeInit tag) : Var(tag) {}
   /*!
    * \brief constructor
    * \param name_hint variable name

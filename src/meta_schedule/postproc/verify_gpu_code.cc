@@ -114,8 +114,8 @@ Integer Extract(const Target& target, const char* name) {
 /*! \brief Verify the correctness of the generated GPU code. */
 class VerifyGPUCodeNode : public PostprocNode {
  public:
-  Target target_{nullptr};
-  ffi::Map<ffi::String, PrimExpr> target_constraints_{nullptr};
+  Target target_{ffi::UnsafeInit()};
+  ffi::Map<ffi::String, PrimExpr> target_constraints_{ffi::UnsafeInit()};
   int thread_warp_size_ = -1;
 
   void InitializeWithTuneContext(const TuneContext& context) final {
@@ -150,7 +150,7 @@ class VerifyGPUCodeNode : public PostprocNode {
         if (!tir::ThreadExtentChecker::Check(prim_func->body, thread_warp_size_)) {
           return false;
         }
-        IRModule lowered{nullptr};
+        IRModule lowered{ffi::UnsafeInit()};
         try {
           auto pass_list = ffi::Array<tvm::transform::Pass>();
           // Phase 1

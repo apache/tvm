@@ -133,7 +133,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
       const GlobalVar& g_var = kv.first;
       const BaseFunc& base_func = kv.second;
       if (const auto* prim_func = base_func.as<tir::PrimFuncNode>()) {
-        IRModule lowered{nullptr};
+        IRModule lowered{ffi::UnsafeInit()};
         try {
           auto pass_list = ffi::Array<tvm::transform::Pass>();
           pass_list.push_back(tir::transform::BindTarget(this->target));

@@ -40,7 +40,7 @@ namespace meta_schedule {
 class TaskRecordNode : public runtime::Object {
  public:
   /*! \brief The tune context of the task. */
-  TuneContext ctx{nullptr};
+  TuneContext ctx{ffi::UnsafeInit()};
   /*! \brief The weight of the task */
   double task_weight{1.0};
   /*! \brief The FLOP count of the task */
@@ -261,6 +261,9 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
  */
 class TaskScheduler : public runtime::ObjectRef {
  public:
+  explicit TaskScheduler(ObjectPtr<TaskSchedulerNode> data) : runtime::ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   /*!
    * \brief Create a task scheduler that fetches tasks in a round-robin fashion.
    * \param logger The tuning task's logging function.

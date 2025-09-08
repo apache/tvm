@@ -203,7 +203,7 @@ class TensorObjFromNDAlloc : public TensorObj {
     this->ndim = static_cast<int>(shape.size());
     this->dtype = dtype;
     this->shape = const_cast<int64_t*>(shape.data());
-    Shape strides = Shape(details::MakeStridesFromShape(this->ndim, this->shape));
+    Shape strides = Shape::StridesFromShape(this->shape, this->ndim);
     this->strides = const_cast<int64_t*>(strides.data());
     this->byte_offset = 0;
     this->shape_data_ = std::move(shape);
@@ -224,7 +224,7 @@ class TensorObjFromDLPack : public TensorObj {
   explicit TensorObjFromDLPack(TDLPackManagedTensor* tensor) : tensor_(tensor) {
     *static_cast<DLTensor*>(this) = tensor_->dl_tensor;
     if (tensor_->dl_tensor.strides == nullptr) {
-      Shape strides = Shape(details::MakeStridesFromShape(ndim, shape));
+      Shape strides = Shape::StridesFromShape(tensor_->dl_tensor.shape, tensor_->dl_tensor.ndim);
       this->strides = const_cast<int64_t*>(strides.data());
       this->strides_data_ = std::move(strides);
     }

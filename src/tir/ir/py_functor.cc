@@ -342,6 +342,9 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
  */
 class PyStmtExprVisitor : public ObjectRef {
  public:
+  explicit PyStmtExprVisitor(ObjectPtr<PyStmtExprVisitorNode> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   TVM_DLL static PyStmtExprVisitor MakePyStmtExprVisitor(ffi::Function f_visit_stmt,            //
                                                          ffi::Function f_visit_expr,            //
                                                          ffi::Function f_visit_let_stmt,        //
@@ -702,6 +705,9 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
 /*! \brief Managed reference to PyStmtExprMutatorNode. */
 class PyStmtExprMutator : public ObjectRef {
  public:
+  explicit PyStmtExprMutator(ObjectPtr<PyStmtExprMutatorNode> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   /*!
    * \brief Create a PyStmtExprMutator with customized methods on the python-side.
    * \return The PyStmtExprMutator created.

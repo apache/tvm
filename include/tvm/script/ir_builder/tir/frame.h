@@ -23,6 +23,8 @@
 #include <tvm/script/ir_builder/ir/frame.h>
 #include <tvm/tir/stmt.h>
 
+#include <utility>
+
 namespace tvm {
 namespace script {
 namespace ir_builder {
@@ -58,6 +60,7 @@ class TIRFrame : public IRBuilderFrame {
 
  protected:
   TIRFrame() = default;
+  explicit TIRFrame(ObjectPtr<TIRFrameNode> data) : IRBuilderFrame(data) {}
 };
 
 /*!
@@ -115,6 +118,10 @@ class PrimFuncFrameNode : public TIRFrameNode {
  */
 class PrimFuncFrame : public TIRFrame {
  public:
+  explicit PrimFuncFrame(ObjectPtr<PrimFuncFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PrimFuncFrame, TIRFrame, PrimFuncFrameNode);
 };
 
@@ -186,6 +193,10 @@ class BlockFrameNode : public TIRFrameNode {
 
 class BlockFrame : public TIRFrame {
  public:
+  explicit BlockFrame(ObjectPtr<BlockFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockFrame, TIRFrame, BlockFrameNode);
 };
 
@@ -224,6 +235,10 @@ class BlockInitFrameNode : public TIRFrameNode {
  */
 class BlockInitFrame : public TIRFrame {
  public:
+  explicit BlockInitFrame(ObjectPtr<BlockInitFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockInitFrame, TIRFrame, BlockInitFrameNode);
 };
 
@@ -277,6 +292,10 @@ class ForFrameNode : public TIRFrameNode {
  */
 class ForFrame : public TIRFrame {
  public:
+  explicit ForFrame(ObjectPtr<ForFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ForFrame, TIRFrame, ForFrameNode);
 };
 
@@ -318,6 +337,10 @@ class AssertFrameNode : public TIRFrameNode {
  */
 class AssertFrame : public TIRFrame {
  public:
+  explicit AssertFrame(ObjectPtr<AssertFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AssertFrame, TIRFrame, AssertFrameNode);
 };
 
@@ -358,6 +381,10 @@ class LetFrameNode : public TIRFrameNode {
  */
 class LetFrame : public TIRFrame {
  public:
+  explicit LetFrame(ObjectPtr<LetFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(LetFrame, TIRFrame, LetFrameNode);
 };
 
@@ -400,6 +427,10 @@ class LaunchThreadFrameNode : public TIRFrameNode {
  */
 class LaunchThreadFrame : public TIRFrame {
  public:
+  explicit LaunchThreadFrame(ObjectPtr<LaunchThreadFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(LaunchThreadFrame, TIRFrame,
                                                     LaunchThreadFrameNode);
 };
@@ -444,6 +475,10 @@ class RealizeFrameNode : public TIRFrameNode {
  */
 class RealizeFrame : public TIRFrame {
  public:
+  explicit RealizeFrame(ObjectPtr<RealizeFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(RealizeFrame, TIRFrame, RealizeFrameNode);
 };
 
@@ -496,6 +531,10 @@ class AllocateFrameNode : public TIRFrameNode {
  */
 class AllocateFrame : public TIRFrame {
  public:
+  explicit AllocateFrame(ObjectPtr<AllocateFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AllocateFrame, TIRFrame, AllocateFrameNode);
 };
 
@@ -545,6 +584,11 @@ class AllocateConstFrameNode : public TIRFrameNode {
  */
 class AllocateConstFrame : public TIRFrame {
  public:
+  explicit AllocateConstFrame(ObjectPtr<AllocateConstFrameNode> data)
+      : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AllocateConstFrame, TIRFrame,
                                                     AllocateConstFrameNode);
 };
@@ -588,6 +632,10 @@ class AttrFrameNode : public TIRFrameNode {
  */
 class AttrFrame : public TIRFrame {
  public:
+  explicit AttrFrame(ObjectPtr<AttrFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AttrFrame, TIRFrame, AttrFrameNode);
 };
 
@@ -624,6 +672,10 @@ class WhileFrameNode : public TIRFrameNode {
  */
 class WhileFrame : public TIRFrame {
  public:
+  explicit WhileFrame(ObjectPtr<WhileFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(WhileFrame, TIRFrame, WhileFrameNode);
 };
 
@@ -667,6 +719,9 @@ class IfFrameNode : public TIRFrameNode {
  */
 class IfFrame : public TIRFrame {
  public:
+  explicit IfFrame(ObjectPtr<IfFrameNode> data) : TIRFrame(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IfFrame, TIRFrame, IfFrameNode);
 };
 
@@ -705,6 +760,9 @@ class ThenFrameNode : public TIRFrameNode {
  */
 class ThenFrame : public TIRFrame {
  public:
+  explicit ThenFrame(ObjectPtr<ThenFrameNode> data) : TIRFrame(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ThenFrame, TIRFrame, ThenFrameNode);
 };
 
@@ -743,6 +801,10 @@ class ElseFrameNode : public TIRFrameNode {
  */
 class ElseFrame : public TIRFrame {
  public:
+  explicit ElseFrame(ObjectPtr<ElseFrameNode> data) : TIRFrame(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
+
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ElseFrame, TIRFrame, ElseFrameNode);
 };
 
@@ -769,6 +831,9 @@ class DeclBufferFrameNode : public TIRFrameNode {
 
 class DeclBufferFrame : public TIRFrame {
  public:
+  explicit DeclBufferFrame(ObjectPtr<DeclBufferFrameNode> data) : TIRFrame(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(DeclBufferFrame, TIRFrame, DeclBufferFrameNode);
 };
 

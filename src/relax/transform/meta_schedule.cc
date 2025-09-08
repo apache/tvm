@@ -81,7 +81,7 @@ Pass MetaScheduleApplyDatabase(ffi::Optional<ffi::String> work_dir, bool enable_
   ICHECK(normalize_mod_func_.has_value()) << "Normalization function is not found.";
 
   auto pass_func = [=](IRModule mod, PassContext ctx) {
-    Database database{nullptr};
+    Database database{ffi::UnsafeInit()};
     if (Database::Current().defined()) {
       database = Database::Current().value();
     } else {

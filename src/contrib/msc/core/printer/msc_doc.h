@@ -45,7 +45,7 @@ class DeclareDocNode : public ExprDocNode {
   /*! \brief The type of the variable */
   ffi::Optional<ExprDoc> type;
   /*! \brief The variable */
-  ExprDoc variable{nullptr};
+  ExprDoc variable{ffi::UnsafeInit{}};
   /*! \brief The init arguments for the variable. */
   ffi::Array<ExprDoc> init_args;
   /*! \brief Whether to use constructor(otherwise initializer) */
@@ -164,7 +164,7 @@ class PointerDoc : public ExprDoc {
 class StructDocNode : public StmtDocNode {
  public:
   /*! \brief The name of class. */
-  IdDoc name{nullptr};
+  IdDoc name{ffi::UnsafeInit{}};
   /*! \brief Decorators of class. */
   ffi::Array<ExprDoc> decorators;
   /*! \brief The body of class. */
@@ -207,7 +207,7 @@ class StructDoc : public StmtDoc {
 class ConstructorDocNode : public StmtDocNode {
  public:
   /*! \brief The name of function. */
-  IdDoc name{nullptr};
+  IdDoc name{ffi::UnsafeInit{}};
   /*!
    * \brief The arguments of function.
    *
@@ -300,7 +300,7 @@ class SwitchDoc : public StmtDoc {
 class LambdaDocNode : public StmtDocNode {
  public:
   /*! \brief The name of lambda. */
-  IdDoc name{nullptr};
+  IdDoc name{ffi::UnsafeInit{}};
   /*!
    * \brief The arguments of lambda.
    *

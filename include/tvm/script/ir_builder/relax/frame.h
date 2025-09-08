@@ -26,6 +26,8 @@
 #include <tvm/script/ir_builder/ir/frame.h>
 #include <tvm/script/ir_builder/ir/ir.h>
 
+#include <utility>
+
 namespace tvm {
 namespace script {
 namespace ir_builder {
@@ -45,6 +47,10 @@ class RelaxFrameNode : public IRBuilderFrameNode {
 
 class RelaxFrame : public IRBuilderFrame {
  public:
+  explicit RelaxFrame(ObjectPtr<RelaxFrameNode> data) : IRBuilderFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(RelaxFrame, IRBuilderFrame, RelaxFrameNode);
 
  protected:
@@ -78,6 +84,9 @@ class SeqExprFrameNode : public RelaxFrameNode {
 
 class SeqExprFrame : public RelaxFrame {
  public:
+  explicit SeqExprFrame(ObjectPtr<SeqExprFrameNode> data) : RelaxFrame(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(SeqExprFrame, RelaxFrame, SeqExprFrameNode);
 };
 
@@ -134,6 +143,9 @@ class FunctionFrameNode : public SeqExprFrameNode {
 
 class FunctionFrame : public SeqExprFrame {
  public:
+  explicit FunctionFrame(ObjectPtr<FunctionFrameNode> data) : SeqExprFrame(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(FunctionFrame, SeqExprFrame, FunctionFrameNode);
 };
 
@@ -175,6 +187,9 @@ class BlockFrameNode : public RelaxFrameNode {
 
 class BlockFrame : public RelaxFrame {
  public:
+  explicit BlockFrame(ObjectPtr<BlockFrameNode> data) : RelaxFrame(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockFrame, RelaxFrame, BlockFrameNode);
 };
 
@@ -229,6 +244,9 @@ class IfFrameNode : public RelaxFrameNode {
  */
 class IfFrame : public RelaxFrame {
  public:
+  explicit IfFrame(ObjectPtr<IfFrameNode> data) : RelaxFrame(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IfFrame, RelaxFrame, IfFrameNode);
 };
 
@@ -267,6 +285,9 @@ class ThenFrameNode : public SeqExprFrameNode {
  */
 class ThenFrame : public SeqExprFrame {
  public:
+  explicit ThenFrame(ObjectPtr<ThenFrameNode> data) : SeqExprFrame(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ThenFrame, SeqExprFrame, ThenFrameNode);
 };
 
@@ -305,6 +326,9 @@ class ElseFrameNode : public SeqExprFrameNode {
  */
 class ElseFrame : public SeqExprFrame {
  public:
+  explicit ElseFrame(ObjectPtr<ElseFrameNode> data) : SeqExprFrame(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ElseFrame, SeqExprFrame, ElseFrameNode);
 };
 

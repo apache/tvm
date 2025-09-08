@@ -132,7 +132,7 @@ class IRDocsifierNode : public Object {
     ffi::Optional<ffi::String> name;
   };
   /*! \brief The configuration of the printer */
-  PrinterConfig cfg{nullptr};
+  PrinterConfig cfg{ffi::UnsafeInit()};
   /*!
    * \brief The stack of frames.
    * \sa FrameNode

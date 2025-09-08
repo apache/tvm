@@ -43,7 +43,7 @@ namespace tir {
  */
 struct BlockInfo {
   /*! \brief Property of a block scope rooted at the block, storing dependencies in the scope */
-  BlockScope scope{nullptr};
+  BlockScope scope{ffi::UnsafeInit()};
   // The properties below are information about the current block realization under its parent scope
   /*! \brief Property of a block, indicating the block realization binding is quasi-affine */
   bool affine_binding{false};

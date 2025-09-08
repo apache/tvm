@@ -360,6 +360,10 @@ class AccessPath : public ObjectRef {
   /// \cond Doxygen_Suppress
   TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AccessPath, ObjectRef, AccessPathObj);
   /// \endcond
+
+ private:
+  friend class AccessPathObj;
+  explicit AccessPath(ObjectPtr<AccessPathObj> ptr) : ObjectRef(ptr) {}
 };
 
 /*!

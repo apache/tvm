@@ -34,7 +34,7 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
   meta_schedule::Builder builder = f_get_local_builder().cast<meta_schedule::Builder>();
   ICHECK(builder.defined()) << "ValueError: The local builder is not defined!";
   // fetch a local runner
-  meta_schedule::Runner runner{nullptr};
+  meta_schedule::Runner runner{ffi::UnsafeInit()};
   if (benchmark) {
     static const auto f_get_local_runner =
         tvm::ffi::Function::GetGlobalRequired("meta_schedule.runner.get_local_runner");
