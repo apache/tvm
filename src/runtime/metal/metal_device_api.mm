@@ -164,7 +164,7 @@ MetalWorkspace::MetalWorkspace() {
   id<MTLDevice> d = MTLCreateSystemDefaultDevice();
   devices.push_back(d);
 #else
-  NSffi::Array<id<MTLDevice> >* devs = MTLCopyAllDevices();
+  NSArray<id<MTLDevice> >* devs = MTLCopyAllDevices();
   for (size_t i = 0; i < devs.count; ++i) {
     id<MTLDevice> d = [devs objectAtIndex:i];
     devices.push_back(d);
