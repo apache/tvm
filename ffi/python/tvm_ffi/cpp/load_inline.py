@@ -26,7 +26,7 @@ import functools
 
 from tvm_ffi.module import Module, load_module
 from tvm_ffi.utils import FileLock
-from tvm_ffi.libinfo import find_include_path, find_dlpack_include_path
+from tvm_ffi.libinfo import find_include_path, find_dlpack_include_path, find_libtvm_ffi
 
 IS_WINDOWS = sys.platform == "win32"
 
@@ -141,9 +141,29 @@ def _generate_ninja_build(
     default_include_paths = [find_include_path(), find_dlpack_include_path()]
 
     if IS_WINDOWS:
-        default_cflags = ["/std:c++17"]
+        default_cflags = [
+            "/std:c++17",
+            "/MD",
+            "/wd4819",
+            "/wd4251",
+            "/wd4244",
+            "/wd4267",
+            "/wd4275",
+            "/wd4018",
+            "/wd4190",
+            "/wd4624",
+            "/wd4067",
+            "/wd4068",
+            "/EHsc",
+        ]
         default_cuda_cflags = ["-Xcompiler", "/std:c++17", "/O2"]
-        default_ldflags = ["/DLL"]
+        # Find the TVM FFI library for linking
+        tvm_ffi_lib = find_libtvm_ffi()
+        tvm_ffi_lib_path = os.path.dirname(tvm_ffi_lib)
+        tvm_ffi_lib_name = os.path.splitext(os.path.basename(tvm_ffi_lib))[
+            0
+        ]  # Remove .dll extension
+        default_ldflags = ["/DLL", f"/LIBPATH:{tvm_ffi_lib_path}", f"{tvm_ffi_lib_name}.lib"]
     else:
         default_cflags = ["-std=c++17", "-fPIC", "-O2"]
         default_cuda_cflags = ["-Xcompiler", "-fPIC", "-std=c++17", "-O2"]
@@ -161,8 +181,8 @@ def _generate_ninja_build(
 
     # append include paths
     for path in include_paths:
-        cflags.append("-I{}".format(path))
-        cuda_cflags.append("-I{}".format(path))
+        cflags.append("-I{}".format(path.replace(":", "$:")))
+        cuda_cflags.append("-I{}".format(path.replace(":", "$:")))
 
     # flags
     ninja = []
@@ -177,9 +197,13 @@ def _generate_ninja_build(
     # rules
     ninja.append("")
     ninja.append("rule compile")
-    ninja.append("  depfile = $out.d")
-    ninja.append("  deps = gcc")
-    ninja.append("  command = $cxx -MMD -MF $out.d $cflags -c $in -o $out")
+    if IS_WINDOWS:
+        ninja.append("  command = $cxx /showIncludes $cflags -c $in /Fo$out")
+        ninja.append("  deps = msvc")
+    else:
+        ninja.append("  depfile = $out.d")
+        ninja.append("  deps = gcc")
+        ninja.append("  command = $cxx -MMD -MF $out.d $cflags -c $in -o $out")
     ninja.append("")
 
     if with_cuda:
@@ -192,24 +216,31 @@ def _generate_ninja_build(
         ninja.append("")
 
     ninja.append("rule link")
-    ninja.append("  command = $cxx $in $ldflags -o $out")
+    if IS_WINDOWS:
+        ninja.append("  command = $cxx $in /link $ldflags /out:$out")
+    else:
+        ninja.append("  command = $cxx $in $ldflags -o $out")
     ninja.append("")
 
     # build targets
     ninja.append(
-        "build main.o: compile {}".format(os.path.abspath(os.path.join(build_dir, "main.cpp")))
+        "build main.o: compile {}".format(
+            os.path.abspath(os.path.join(build_dir, "main.cpp")).replace(":", "$:")
+        )
     )
     if with_cuda:
         ninja.append(
             "build cuda.o: compile_cuda {}".format(
-                os.path.abspath(os.path.join(build_dir, "cuda.cu"))
+                os.path.abspath(os.path.join(build_dir, "cuda.cu")).replace(":", "$:")
             )
         )
-    ninja.append("build {}.so: link main.o{}".format(name, " cuda.o" if with_cuda else ""))
+    # Use appropriate extension based on platform
+    ext = ".dll" if IS_WINDOWS else ".so"
+    ninja.append("build {}{}: link main.o{}".format(name, ext, " cuda.o" if with_cuda else ""))
     ninja.append("")
 
     # default target
-    ninja.append("default {}.so".format(name))
+    ninja.append("default {}{}".format(name, ext))
     ninja.append("")
     return "\n".join(ninja)
 
@@ -223,10 +254,11 @@ def _build_ninja(build_dir: str) -> None:
     status = subprocess.run(args=command, cwd=build_dir, capture_output=True)
     if status.returncode != 0:
         msg = ["ninja exited with status {}".format(status.returncode)]
+        encoding = "oem" if IS_WINDOWS else "utf-8"
         if status.stdout:
-            msg.append("stdout:\n{}".format(status.stdout.decode("utf-8")))
+            msg.append("stdout:\n{}".format(status.stdout.decode(encoding)))
         if status.stderr:
-            msg.append("stderr:\n{}".format(status.stderr.decode("utf-8")))
+            msg.append("stderr:\n{}".format(status.stderr.decode(encoding)))
 
         raise RuntimeError("\n".join(msg))
 
@@ -395,4 +427,6 @@ def load_inline(
         # build the module
         _build_ninja(build_dir)
 
-        return load_module(os.path.join(build_dir, "{}.so".format(name)))
+        # Use appropriate extension based on platform
+        ext = ".dll" if IS_WINDOWS else ".so"
+        return load_module(os.path.abspath(os.path.join(build_dir, "{}{}".format(name, ext))))
