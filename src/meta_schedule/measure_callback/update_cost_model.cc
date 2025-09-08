@@ -26,9 +26,9 @@ namespace meta_schedule {
 class UpdateCostModelNode : public MeasureCallbackNode {
  public:
   void Apply(const TaskScheduler& task_scheduler, int task_id,
-             const Array<MeasureCandidate>& measure_candidates,
-             const Array<BuilderResult>& builder_results,
-             const Array<RunnerResult>& runner_results) final {
+             const ffi::Array<MeasureCandidate>& measure_candidates,
+             const ffi::Array<BuilderResult>& builder_results,
+             const ffi::Array<RunnerResult>& runner_results) final {
     auto _ = Profiler::TimedScope("MeasureCallback/UpdateCostModel");
     const TaskRecord& task = task_scheduler->tasks_[task_id];
     if (!task_scheduler->cost_model_.defined()) {
@@ -39,8 +39,8 @@ class UpdateCostModelNode : public MeasureCallbackNode {
     ICHECK_EQ(measure_candidates.size(), builder_results.size());
     ICHECK_EQ(runner_results.size(), builder_results.size());
     int n = builder_results.size();
-    Array<MeasureCandidate> pruned_candidate;
-    Array<RunnerResult> pruned_runner_result;
+    ffi::Array<MeasureCandidate> pruned_candidate;
+    ffi::Array<RunnerResult> pruned_runner_result;
     pruned_candidate.reserve(n);
     pruned_runner_result.reserve(n);
     for (int i = 0; i < n; i++) {
@@ -60,7 +60,7 @@ class UpdateCostModelNode : public MeasureCallbackNode {
 };
 
 MeasureCallback MeasureCallback::UpdateCostModel() {
-  ObjectPtr<UpdateCostModelNode> n = make_object<UpdateCostModelNode>();
+  ObjectPtr<UpdateCostModelNode> n = ffi::make_object<UpdateCostModelNode>();
   return MeasureCallback(n);
 }
 

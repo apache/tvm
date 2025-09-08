@@ -49,31 +49,31 @@ class TorchOpCode : public BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper> {
    * \param func_name the function name for the node.
    * \param config the config json for the node.
    */
-  explicit TorchOpCode(const String& module_name, const String& func_name)
+  explicit TorchOpCode(const ffi::String& module_name, const ffi::String& func_name)
       : BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper>(func_name) {
     module_name_ = module_name;
   }
 
   /*! \brief Config the TorchOpCode*/
   void Config(const MSCJoint& node, const std::shared_ptr<TorchCodeGenConfig> config, bool is_init,
-              const Map<String, String>& prims) {
+              const ffi::Map<ffi::String, ffi::String>& prims) {
     BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper>::Config(node, config, prims);
     is_init_ = is_init;
     module_ref_ = "self." + StringUtils::Replace(node->name, ".", "_");
   }
 
   /*! \brief Get return describe for default node*/
-  const String IdxNode() final {
+  const ffi::String IdxNode() final {
     return is_init_ ? module_ref_ : BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper>::IdxNode();
   };
 
   /*! \brief Get dtype string*/
-  const String DType(const DataType& dtype) final {
+  const ffi::String DType(const DataType& dtype) final {
     return "torch." + BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper>::DType(dtype);
   }
 
   /*! \brief Get func_name for the default node*/
-  const String callee_name() final {
+  const ffi::String callee_name() final {
     if (is_init_) {
       return module_name_;
     }
@@ -84,7 +84,7 @@ class TorchOpCode : public BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper> {
   }
 
   /*! \brief Convert node to docs*/
-  const Array<Doc> GetDocs() final;
+  const ffi::Array<Doc> GetDocs() final;
 
  protected:
   TorchOpCodeStack stack_;
@@ -96,28 +96,29 @@ class TorchOpCode : public BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper> {
   virtual void CodeGenForward();
 
   /*! \brief Get the padding from op*/
-  const StrictListDoc GetPadding(const String& key = "padding");
+  const StrictListDoc GetPadding(const ffi::String& key = "padding");
 
   /*! \brief Get the is_init_ of codegen*/
   bool is_init() { return is_init_; }
 
   /*! \brief Get the module_name of codegen*/
-  const String module_name() { return module_name_; }
+  const ffi::String module_name() { return module_name_; }
 
   /*! \brief Get the module_ref of codegen*/
-  const String module_ref() { return module_ref_; }
+  const ffi::String module_ref() { return module_ref_; }
 
  private:
   bool is_init_;
-  String module_name_;
-  String module_ref_;
+  ffi::String module_name_;
+  ffi::String module_ref_;
 };
 
 /*!
  * \brief Get the map of available TorchOpCode, use optype as key
  * \return Map of <string, TorchOpCode>
  */
-const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TorchOpCode>>> GetTorchOpCodes();
+const std::shared_ptr<std::unordered_map<ffi::String, std::shared_ptr<TorchOpCode>>>
+GetTorchOpCodes();
 
 }  // namespace msc
 }  // namespace contrib

@@ -37,16 +37,16 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::distributed::DTensorStructInfo>(
         "", [](relax::distributed::DTensorStructInfo n, AccessPath n_p, IRDocsifier d) -> Doc {
-          Array<ExprDoc> args;
-          Array<String> kwargs_keys;
-          Array<ExprDoc> kwargs_values;
+          ffi::Array<ExprDoc> args;
+          ffi::Array<ffi::String> kwargs_keys;
+          ffi::Array<ExprDoc> kwargs_values;
           bool require_kwargs = false;
           if (n->tensor_sinfo->shape.defined()) {
             // Need to dig into ShapeExpr to preserve the `R.shape` prefix
             if (const auto* shape = n->tensor_sinfo->shape.value().as<relax::ShapeExprNode>()) {
-              auto shape_expr = GetRef<relax::ShapeExpr>(shape);
+              auto shape_expr = ffi::GetRef<relax::ShapeExpr>(shape);
               AccessPath shape_p = n_p->Attr("shape")->Attr("values");
-              Array<ExprDoc> shape_docs;
+              ffi::Array<ExprDoc> shape_docs;
               for (int i = 0, ndim = shape_expr->values.size(); i < ndim; ++i) {
                 shape_docs.push_back(
                     PrintShapeVar(shape_expr->values[i], shape_p->ArrayItem(i), d));
@@ -102,7 +102,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             }
           }
           if (!has_relax_frame || !f) {
-            Array<ExprDoc> args;
+            ffi::Array<ExprDoc> args;
             args.push_back(d->AsDoc<ExprDoc>(n->shape, n_p->Attr("shape")));
             if (n->device_range.defined()) {
               args.push_back(d->AsDoc<ExprDoc>(n->device_range, n_p->Attr("device_range")));
@@ -116,7 +116,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                 if (kv.second[i].same_as(n)) {
                   std::stringstream ss;
                   ss << kv.first << "[" << i << "]";
-                  return d->AsDoc<Doc>(String(ss.str()), n_p);
+                  return d->AsDoc<Doc>(ffi::String(ss.str()), n_p);
                 }
               }
             }

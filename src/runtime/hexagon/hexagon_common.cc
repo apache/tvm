@@ -57,7 +57,7 @@ class HexagonTimerNode : public TimerNode {
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("profiling.timer.hexagon",
-                        [](Device dev) { return Timer(make_object<HexagonTimerNode>()); });
+                        [](Device dev) { return Timer(ffi::make_object<HexagonTimerNode>()); });
 });
 }  // namespace hexagon
 
@@ -94,7 +94,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   refl::GlobalDef().def_packed(
       "ffi.Module.load_from_file.hexagon", [](ffi::PackedArgs args, ffi::Any* rv) {
         auto floader = tvm::ffi::Function::GetGlobalRequired("ffi.Module.load_from_file.so");
-        *rv = floader(args[0].cast<String>(), "so");
+        *rv = floader(args[0].cast<ffi::String>(), "so");
       });
 });
 

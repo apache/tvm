@@ -35,10 +35,10 @@ namespace meta_schedule {
  * \param allow_missing Whether to create new file when the given path is not found.
  * \return An array containing lines read from the json file.
  */
-std::vector<Any> JSONFileReadLines(const String& path, int num_threads, bool allow_missing) {
+std::vector<Any> JSONFileReadLines(const ffi::String& path, int num_threads, bool allow_missing) {
   std::ifstream is(path);
   if (is.good()) {
-    std::vector<String> json_strs;
+    std::vector<ffi::String> json_strs;
     for (std::string str; std::getline(is, str);) {
       json_strs.push_back(str);
     }
@@ -61,7 +61,7 @@ std::vector<Any> JSONFileReadLines(const String& path, int num_threads, bool all
  * \param path The path to the json file.
  * \param line The line to append.
  */
-void JSONFileAppendLine(const String& path, const std::string& line) {
+void JSONFileAppendLine(const ffi::String& path, const std::string& line) {
   std::ofstream os(path, std::ofstream::app);
   CHECK(os.good()) << "ValueError: Cannot open the file to write: " << path;
   os << line << std::endl;
@@ -70,14 +70,14 @@ void JSONFileAppendLine(const String& path, const std::string& line) {
 /*! \brief The default database implementation, which mimics two database tables with two files. */
 class JSONDatabaseNode : public DatabaseNode {
  public:
-  explicit JSONDatabaseNode(String mod_eq_name = "structural")
+  explicit JSONDatabaseNode(ffi::String mod_eq_name = "structural")
       : DatabaseNode(mod_eq_name),
         workloads2idx_(/*bucket_count*/ 0, WorkloadHash(), WorkloadEqual(GetModuleEquality())) {}
 
   /*! \brief The path to the workload table */
-  String path_workload;
+  ffi::String path_workload;
   /*! \brief The path to the tuning record table */
-  String path_tuning_record;
+  ffi::String path_tuning_record;
   /*! \brief All the workloads in the database */
   std::unordered_map<Workload, int, WorkloadHash, WorkloadEqual> workloads2idx_;
   /*! \brief All the tuning records in the database */
@@ -115,18 +115,18 @@ class JSONDatabaseNode : public DatabaseNode {
   void CommitTuningRecord(const TuningRecord& record) {
     this->tuning_records_.insert(record);
     JSONFileAppendLine(this->path_tuning_record,
-                       JSONDumps(Array<Any>{
+                       JSONDumps(ffi::Array<Any>{
                            /*workload_index=*/Integer(this->workloads2idx_.at(record->workload)),
                            /*tuning_record=*/record->AsJSON()  //
                        }));
   }
 
-  Array<TuningRecord> GetTopK(const Workload& workload, int top_k) {
+  ffi::Array<TuningRecord> GetTopK(const Workload& workload, int top_k) {
     CHECK_GE(top_k, 0) << "ValueError: top_k must be non-negative";
     if (top_k == 0) {
       return {};
     }
-    Array<TuningRecord> results;
+    ffi::Array<TuningRecord> results;
     results.reserve(top_k);
     for (const TuningRecord& record : this->tuning_records_) {
       auto run_secs = record->run_secs;
@@ -144,8 +144,8 @@ class JSONDatabaseNode : public DatabaseNode {
     return results;
   }
 
-  Array<TuningRecord> GetAllTuningRecords() {
-    Array<TuningRecord> results;
+  ffi::Array<TuningRecord> GetAllTuningRecords() {
+    ffi::Array<TuningRecord> results;
     results.reserve(Size());
     for (const TuningRecord& record : this->tuning_records_) {
       results.push_back(record);
@@ -156,10 +156,10 @@ class JSONDatabaseNode : public DatabaseNode {
   int64_t Size() { return tuning_records_.size(); }
 };
 
-Database Database::JSONDatabase(String path_workload, String path_tuning_record, bool allow_missing,
-                                String mod_eq_name) {
+Database Database::JSONDatabase(ffi::String path_workload, ffi::String path_tuning_record,
+                                bool allow_missing, ffi::String mod_eq_name) {
   int num_threads = std::thread::hardware_concurrency();
-  ObjectPtr<JSONDatabaseNode> n = make_object<JSONDatabaseNode>(mod_eq_name);
+  ObjectPtr<JSONDatabaseNode> n = ffi::make_object<JSONDatabaseNode>(mod_eq_name);
   // Load `n->workloads2idx_` from `path_workload`
   std::vector<Workload> workloads;
   {
@@ -173,7 +173,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
       // Todo(tvm-team): re-enable the shash check when we get environment
       // independent structural hash values.
       if (recalc_hash != workload->shash) {
-        ObjectPtr<WorkloadNode> wkl = make_object<WorkloadNode>(*workload.get());
+        ObjectPtr<WorkloadNode> wkl = ffi::make_object<WorkloadNode>(*workload.get());
         wkl->shash = recalc_hash;
         workload = Workload(wkl);
       }

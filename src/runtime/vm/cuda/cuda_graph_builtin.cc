@@ -44,7 +44,7 @@ struct CUDAGraphCaptureKey {
   // identified by this shape tuple. This is default constructed as an empty tuple.
   ffi::Shape shape_expr;
 
-  CUDAGraphCaptureKey(int64_t index, const Optional<ffi::Shape>& shape_expr) : index(index) {
+  CUDAGraphCaptureKey(int64_t index, const ffi::Optional<ffi::Shape>& shape_expr) : index(index) {
     if (shape_expr) {
       this->shape_expr = shape_expr.value();
     }
@@ -153,7 +153,7 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
    * \return The return value of the capture function.
    */
   ObjectRef RunOrCapture(VirtualMachine* vm, const ObjectRef& capture_func, Any args,
-                         int64_t entry_index, Optional<ffi::Shape> shape_expr) {
+                         int64_t entry_index, ffi::Optional<ffi::Shape> shape_expr) {
     CUDAGraphCaptureKey entry_key{entry_index, shape_expr};
     if (auto it = capture_cache_.find(entry_key); it != capture_cache_.end()) {
       // Launch CUDA graph
@@ -166,7 +166,7 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
     }
 
     // Set up arguments for the graph execution
-    Array<Any> tuple_args = args.cast<ffi::Array<Any>>();
+    ffi::Array<Any> tuple_args = args.cast<ffi::Array<Any>>();
     int nargs = static_cast<int>(tuple_args.size());
 
     std::vector<AnyView> packed_args(nargs);
@@ -242,7 +242,7 @@ class CUDAGraphExtension : public VMExtension {
  public:
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(CUDAGraphExtension, VMExtension, CUDAGraphExtensionNode);
   static CUDAGraphExtension Create() {
-    auto data_ = make_object<CUDAGraphExtensionNode>();
+    auto data_ = ffi::make_object<CUDAGraphExtensionNode>();
     return CUDAGraphExtension(std::move(data_));
   }
 };
@@ -258,7 +258,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     auto capture_func = args[1].cast<ObjectRef>();
                     Any func_args = args[2];
                     int64_t entry_index = args[3].cast<int64_t>();
-                    Optional<ffi::Shape> shape_expr = std::nullopt;
+                    ffi::Optional<ffi::Shape> shape_expr = std::nullopt;
                     if (args.size() == 5) {
                       shape_expr = args[4].cast<ffi::Shape>();
                     }

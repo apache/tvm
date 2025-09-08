@@ -39,7 +39,7 @@ bool IsInSpatialPrimFunc(const tir::Schedule& sch, const tir::StmtSRef& block_sr
   for (; sref->parent != nullptr; sref = sref->parent) {
   }
   ICHECK(sref->stmt != nullptr && sref->stmt->IsInstance<BlockNode>());
-  return IsSpatialPrimFunc(GetRef<PrimFunc>(GetRootPrimFunc(sch->mod(), sref->stmt, nullptr)));
+  return IsSpatialPrimFunc(ffi::GetRef<PrimFunc>(GetRootPrimFunc(sch->mod(), sref->stmt, nullptr)));
 }
 
 /*! \brief The rule that inlines spatial blocks if it satisfies some conditions. */
@@ -52,7 +52,7 @@ class AutoInlineNode : public ScheduleRuleNode {
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
   // Inherited from ScheduleRuleNode
-  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
     InlineType inline_type = CheckInline(sch, block_rv);
     if (inline_type == InlineType::kInlineIntoConsumer) {
       sch->ComputeInline(block_rv);
@@ -64,7 +64,7 @@ class AutoInlineNode : public ScheduleRuleNode {
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
-    ObjectPtr<AutoInlineNode> n = make_object<AutoInlineNode>(*this);
+    ObjectPtr<AutoInlineNode> n = ffi::make_object<AutoInlineNode>(*this);
     return ScheduleRule(n);
   }
 
@@ -82,7 +82,7 @@ class AutoInlineNode : public ScheduleRuleNode {
   /*! \brief Always require the read-to-write mapping to be ordered to do auto inline */
   bool require_ordered;
   /*! \brief The operators that are disallowed in auto inline */
-  Array<Op> disallow_op;
+  ffi::Array<Op> disallow_op;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -114,7 +114,7 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
   }
   // Cond 2. For a block that generates a constant tensor, ignore all other conditions
   if (inline_const_tensor && block->reads.empty()) {
-    Array<tir::StmtSRef> consumer_srefs = GetConsumers(state, block_sref);
+    ffi::Array<tir::StmtSRef> consumer_srefs = GetConsumers(state, block_sref);
     if (!consumer_srefs.empty() && CanComputeInline(state, block_sref)) {
       return InlineType::kInlineIntoConsumer;
     }
@@ -144,25 +144,26 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
     }
   }
   // Cond 6. The block is disallowed for auto inline
-  if (Optional<String> ann =
-          tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_inline_rule)) {
+  if (ffi::Optional<ffi::String> ann =
+          tir::GetAnn<ffi::String>(block_sref, tir::attr::meta_schedule_inline_rule)) {
     if (ann.value() == "disable") return InlineType::kNoInline;
   }
   // Last cond: Check inline into the consumers or the spatial producer
   tir::StmtSRef scope_block = tir::GetScopeRoot(sch->state(), block_sref,
                                                 /*require_stage_pipeline=*/false);
   if (into_consumer) {
-    Array<tir::StmtSRef> consumer_srefs = GetConsumers(state, block_sref);
+    ffi::Array<tir::StmtSRef> consumer_srefs = GetConsumers(state, block_sref);
     if (!consumer_srefs.empty() && CanComputeInline(state, block_sref)) {
       return InlineType::kInlineIntoConsumer;
     }
   }
   if (into_producer) {
-    Array<tir::StmtSRef> producer_srefs = GetProducers(state, block_sref);
+    ffi::Array<tir::StmtSRef> producer_srefs = GetProducers(state, block_sref);
     if (producer_srefs.size() == 1 &&
         tir::IsCompleteBlock(sch->state(), producer_srefs[0], scope_block) &&
         CanReverseComputeInline(state, block_sref) &&
-        !GetAnn<String>(producer_srefs[0], tir::attr::meta_schedule_auto_tensorize).has_value()) {
+        !GetAnn<ffi::String>(producer_srefs[0], tir::attr::meta_schedule_auto_tensorize)
+             .has_value()) {
       return InlineType::kInlineIntoProducer;
     }
   }
@@ -175,8 +176,8 @@ ScheduleRule ScheduleRule::AutoInline(bool into_producer,          //
                                       bool disallow_if_then_else,  //
                                       bool require_injective,      //
                                       bool require_ordered,        //
-                                      Optional<Array<String>> disallow_op) {
-  ObjectPtr<AutoInlineNode> n = make_object<AutoInlineNode>();
+                                      ffi::Optional<ffi::Array<ffi::String>> disallow_op) {
+  ObjectPtr<AutoInlineNode> n = ffi::make_object<AutoInlineNode>();
   n->into_producer = into_producer;
   n->into_consumer = into_consumer;
   n->inline_const_tensor = inline_const_tensor;
@@ -185,9 +186,9 @@ ScheduleRule ScheduleRule::AutoInline(bool into_producer,          //
   n->require_ordered = require_ordered;
   n->disallow_op.clear();
   if (disallow_op.defined()) {
-    Array<String> op_names = disallow_op.value();
+    ffi::Array<ffi::String> op_names = disallow_op.value();
     n->disallow_op.reserve(op_names.size());
-    for (const String& op_name : op_names) {
+    for (const ffi::String& op_name : op_names) {
       n->disallow_op.push_back(Op::Get(op_name));
     }
   }
@@ -206,7 +207,7 @@ class InlineConstantScalarsNode : public ScheduleRuleNode {
  public:
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
-  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
     // Look for a block of the form
     // block compile_engine_const(iter_var(vi, range(min=0, ext=1))) {
     //   reads([])
@@ -225,7 +226,7 @@ class InlineConstantScalarsNode : public ScheduleRuleNode {
   }
 
   ScheduleRule Clone() const final {
-    ObjectPtr<InlineConstantScalarsNode> n = make_object<InlineConstantScalarsNode>(*this);
+    ObjectPtr<InlineConstantScalarsNode> n = ffi::make_object<InlineConstantScalarsNode>(*this);
     return ScheduleRule(n);
   }
 
@@ -239,7 +240,7 @@ class InlineConstantScalarsNode : public ScheduleRuleNode {
 };
 
 ScheduleRule ScheduleRule::InlineConstantScalars() {
-  ObjectPtr<InlineConstantScalarsNode> n = make_object<InlineConstantScalarsNode>();
+  ObjectPtr<InlineConstantScalarsNode> n = ffi::make_object<InlineConstantScalarsNode>();
   return ScheduleRule(n);
 }
 

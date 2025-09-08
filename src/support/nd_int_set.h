@@ -50,7 +50,7 @@ inline NDIntSet NDIntSetFromRegion(const tir::Region& region) {
  * \param shape The shape which is an array of the length of each dimension.
  * \return The constructed set.
  */
-inline NDIntSet NDIntSetFromShape(const Array<PrimExpr>& shape) {
+inline NDIntSet NDIntSetFromShape(const ffi::Array<PrimExpr>& shape) {
   PrimExpr zero = Integer(0);
   NDIntSet result;
   result.reserve(shape.size());
@@ -65,7 +65,7 @@ inline NDIntSet NDIntSetFromShape(const Array<PrimExpr>& shape) {
  * \param indices The N-dimensional indices representing the point.
  * \return The constructed set.
  */
-inline NDIntSet NDIntSetFromPoint(const Array<PrimExpr>& indices) {
+inline NDIntSet NDIntSetFromPoint(const ffi::Array<PrimExpr>& indices) {
   NDIntSet result;
   result.reserve(indices.size());
   for (const PrimExpr& index : indices) {
@@ -106,7 +106,7 @@ inline NDIntSet NDIntSetUnion(const std::vector<NDIntSet>& nd_int_sets) {
   }
   NDIntSet result;
   result.reserve(ndim);
-  Array<arith::IntSet> int_sets(n, arith::IntSet{nullptr});
+  ffi::Array<arith::IntSet> int_sets(n, arith::IntSet{nullptr});
   for (int dim = 0; dim < ndim; ++dim) {
     for (int i = 0; i < n; ++i) {
       int_sets.Set(i, nd_int_sets[i][dim]);

@@ -51,8 +51,9 @@ IterVar reduce_axis(Range dom, std::string name) {
 Var var(std::string name_hint, DataType t) { return Var(name_hint, t); }
 
 // Tensor
-inline PrimExpr Tensor::IndexTensor(Array<PrimExpr> indices, bool support_negative_indices) const {
-  Array<PrimExpr> shape = (*this)->shape;
+inline PrimExpr Tensor::IndexTensor(ffi::Array<PrimExpr> indices,
+                                    bool support_negative_indices) const {
+  ffi::Array<PrimExpr> shape = (*this)->shape;
 
   if (shape.size() != 0) {
     ICHECK_EQ(shape.size(), indices.size())
@@ -70,30 +71,32 @@ inline PrimExpr Tensor::IndexTensor(Array<PrimExpr> indices, bool support_negati
   return ProducerLoad((*this), indices);
 }
 
-PrimExpr Tensor::operator()(Array<Var> indices) const {
-  Array<PrimExpr> arr(indices.begin(), indices.end());
+PrimExpr Tensor::operator()(ffi::Array<Var> indices) const {
+  ffi::Array<PrimExpr> arr(indices.begin(), indices.end());
   return operator()(arr);
 }
 
-PrimExpr Tensor::operator()(Array<PrimExpr> indices) const { return IndexTensor(indices, false); }
+PrimExpr Tensor::operator()(ffi::Array<PrimExpr> indices) const {
+  return IndexTensor(indices, false);
+}
 
-PrimExpr Tensor::IndexWithNegativeIndices(Array<Var> indices) const {
-  Array<PrimExpr> arr(indices.begin(), indices.end());
+PrimExpr Tensor::IndexWithNegativeIndices(ffi::Array<Var> indices) const {
+  ffi::Array<PrimExpr> arr(indices.begin(), indices.end());
   return IndexWithNegativeIndices(arr);
 }
 
-PrimExpr Tensor::IndexWithNegativeIndices(Array<PrimExpr> indices) const {
+PrimExpr Tensor::IndexWithNegativeIndices(ffi::Array<PrimExpr> indices) const {
   return IndexTensor(indices, true);
 }
 
-String TensorNode::GetNameHint() const {
+ffi::String TensorNode::GetNameHint() const {
   return op->num_outputs() == 1 ? op->name : (op->name + ".v" + std::to_string(value_index));
 }
 
-PrimExpr TensorNode::ToPrimExpr() const { return GetRef<Tensor>(this)(); }
+PrimExpr TensorNode::ToPrimExpr() const { return ffi::GetRef<Tensor>(this)(); }
 
 Tensor Operation::output(size_t i) const {
-  auto node = make_object<TensorNode>();
+  auto node = ffi::make_object<TensorNode>();
   node->op = *this;
   node->value_index = i;
   node->dtype = (*this)->output_dtype(i);
@@ -101,8 +104,8 @@ Tensor Operation::output(size_t i) const {
   return Tensor(node);
 }
 
-Tensor::Tensor(Array<PrimExpr> shape, DataType dtype, Operation op, int value_index) {
-  auto n = make_object<TensorNode>();
+Tensor::Tensor(ffi::Array<PrimExpr> shape, DataType dtype, Operation op, int value_index) {
+  auto n = ffi::make_object<TensorNode>();
   n->shape = std::move(shape);
   n->dtype = dtype;
   n->op = op;
@@ -112,10 +115,10 @@ Tensor::Tensor(Array<PrimExpr> shape, DataType dtype, Operation op, int value_in
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("te.Tensor",
-                        [](Array<PrimExpr> shape, DataType dtype, Operation op, int value_index) {
-                          return Tensor(shape, dtype, op, value_index);
-                        });
+  refl::GlobalDef().def(
+      "te.Tensor", [](ffi::Array<PrimExpr> shape, DataType dtype, Operation op, int value_index) {
+        return Tensor(shape, dtype, op, value_index);
+      });
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

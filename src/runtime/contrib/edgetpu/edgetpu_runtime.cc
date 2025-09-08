@@ -64,7 +64,7 @@ void EdgeTPURuntime::Init(const std::string& tflite_model_bytes, Device dev) {
 }
 
 ffi::Module EdgeTPURuntimeCreate(const std::string& tflite_model_bytes, Device dev) {
-  auto exec = make_object<EdgeTPURuntime>();
+  auto exec = ffi::make_object<EdgeTPURuntime>();
   exec->Init(tflite_model_bytes, dev);
   return ffi::Module(exec);
 }

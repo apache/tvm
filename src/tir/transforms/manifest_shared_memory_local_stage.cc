@@ -73,7 +73,7 @@ class IntermediateStageRewriter {
     BufferLoad new_buffer_load = BufferLoad(new_buffer, buffer_indices);
     BufferStore new_buffer_store = Downcast<BufferStore>(block->body);
     new_buffer_store.CopyOnWrite()->value = new_buffer_load;
-    Block new_block = GetRef<Block>(block);
+    Block new_block = ffi::GetRef<Block>(block);
     new_block.CopyOnWrite()->body = std::move(new_buffer_store);
 
     return {target_buffer, new_buffer, new_block, local_stage};
@@ -119,7 +119,7 @@ class IntermediateStageRewriter {
 
   /*! \brief Create the intermediate stage. */
   Stmt MakeLocalStage(const BlockNode* block, const Buffer& new_buffer,
-                      Array<PrimExpr> local_stage_indices,
+                      ffi::Array<PrimExpr> local_stage_indices,
                       std::vector<const ForNode*> relaxed_loops, const BufferStoreNode* store) {
     // Step 0: Create the body of the local stage, which is BufferStore to the intermediate buffer.
     Stmt local_stage = BufferStore(new_buffer, store->value, local_stage_indices);
@@ -135,9 +135,9 @@ class IntermediateStageRewriter {
         Downcast<Block>(local_stage));
 
     // Step 2: Add outer loops
-    Map<Var, Var> subst_map;
+    ffi::Map<Var, Var> subst_map;
     for (const ForNode* relaxed_loop : relaxed_loops) {
-      ObjectPtr<ForNode> for_node = make_object<ForNode>(*relaxed_loop);
+      ObjectPtr<ForNode> for_node = ffi::make_object<ForNode>(*relaxed_loop);
       for_node->loop_var = for_node->loop_var.copy_with_suffix("");
       for_node->body = std::move(local_stage);
       local_stage = For(for_node);
@@ -148,10 +148,10 @@ class IntermediateStageRewriter {
   }
 
   /*! \brief Create the intermediate buffer with the extents of the relaxed outer loops. */
-  std::pair<Buffer, Array<PrimExpr>> CreateIntermediateBuffer(
+  std::pair<Buffer, ffi::Array<PrimExpr>> CreateIntermediateBuffer(
       const std::vector<const ForNode*> relaxed_loops, const Buffer& buffer) const {
-    Array<PrimExpr> buffer_indices;
-    Array<PrimExpr> new_buffer_shape;
+    ffi::Array<PrimExpr> buffer_indices;
+    ffi::Array<PrimExpr> new_buffer_shape;
 
     // Create the intermediate buffer for the local stage. The shape of the new buffer is the
     // extents of the relaxed outer loops.
@@ -172,14 +172,14 @@ class IntermediateStageRewriter {
 class SharedMemoryLocalStageInserter : public StmtMutator {
  public:
   Stmt VisitStmt_(const ForNode* op) final {
-    ancestor_loop_or_blocks_.push_back(GetRef<Stmt>(op));
+    ancestor_loop_or_blocks_.push_back(ffi::GetRef<Stmt>(op));
     Stmt new_stmt = StmtMutator::VisitStmt_(op);
     ancestor_loop_or_blocks_.pop_back();
     return new_stmt;
   }
 
   Stmt VisitStmt_(const BlockRealizeNode* op) final {
-    ancestor_loop_or_blocks_.push_back(GetRef<Stmt>(op));
+    ancestor_loop_or_blocks_.push_back(ffi::GetRef<Stmt>(op));
     Stmt new_stmt = StmtMutator::VisitStmt_(op);
     ancestor_loop_or_blocks_.pop_back();
     return new_stmt;
@@ -206,8 +206,8 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
         op->alloc_buffers.begin(), op->alloc_buffers.end());
 
     // Visit children and insert local stages (if any) to the proper location.
-    Array<Buffer> new_alloc_buffers;
-    Array<Stmt> new_seq;
+    ffi::Array<Buffer> new_alloc_buffers;
+    ffi::Array<Stmt> new_seq;
 
     // Helper function to check if the subtree (body of the block) contains any target buffers.
     // If so, the allocated intermediate buffer and the local stage should be lifted to the current
@@ -236,7 +236,7 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
         }
       }
       if (!changed) {
-        return GetRef<Stmt>(op);
+        return ffi::GetRef<Stmt>(op);
       }
     } else {
       int subtree_start = target_buffers_.size();
@@ -244,12 +244,12 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
       int subtree_end = target_buffers_.size();
       f_check_subtree(subtree_start, subtree_end);
       if (body.same_as(op->body)) {
-        return GetRef<Stmt>(op);
+        return ffi::GetRef<Stmt>(op);
       }
       new_seq.push_back(body);
     }
 
-    Block new_block = GetRef<Block>(op);
+    Block new_block = ffi::GetRef<Block>(op);
     BlockNode* new_block_node = new_block.CopyOnWrite();
     // Add new buffer allocations if any.
     if (new_alloc_buffers.size() > 0) {
@@ -260,9 +260,10 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
   }
 
   std::vector<Stmt> ancestor_loop_or_blocks_;  // ancestor loops or block realize
-  Map<Buffer, Buffer> buffer_remap_;  // mapping from the target buffer to the intermediate buffer
-  Map<Buffer, Stmt> buffer_local_stage_;  // mapping from the target buffer to the local stage
-  Array<Buffer> target_buffers_;          // the target buffers for rewriting
+  ffi::Map<Buffer, Buffer>
+      buffer_remap_;  // mapping from the target buffer to the intermediate buffer
+  ffi::Map<Buffer, Stmt> buffer_local_stage_;  // mapping from the target buffer to the local stage
+  ffi::Array<Buffer> target_buffers_;          // the target buffers for rewriting
 };
 
 namespace transform {

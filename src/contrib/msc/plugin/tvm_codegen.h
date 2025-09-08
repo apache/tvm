@@ -82,7 +82,7 @@ class TVMPluginCodeGen : public BasePluginCodeGen<TVMPluginCodeGenConfig> {
   void CodeGenOpRuntime(const Plugin& plugin) final;
 
   /*! \brief Codegen cmake file*/
-  void CodeGenCmake(const std::set<String>& devices) final;
+  void CodeGenCmake(const std::set<ffi::String>& devices) final;
 
   /*! \brief Codegen manager depends*/
   void CodeGenManagerDepends() final;
@@ -95,13 +95,13 @@ class TVMPluginCodeGen : public BasePluginCodeGen<TVMPluginCodeGenConfig> {
 
  private:
   /*! \brief Func name of compute*/
-  const String ComputeName(const Plugin& plugin) { return plugin->name + "_compute"; }
+  const ffi::String ComputeName(const Plugin& plugin) { return plugin->name + "_compute"; }
 
   /*! \brief Codegen compute*/
-  void CodeGenCompute(const Plugin& plugin, const String& device);
+  void CodeGenCompute(const Plugin& plugin, const ffi::String& device);
 
   /*! \brief Type name in tvm*/
-  const String ToTVMType(const String& type) {
+  const ffi::String ToTVMType(const ffi::String& type) {
     if (type == "string") {
       return "StringImm";
     }

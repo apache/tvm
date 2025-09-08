@@ -37,7 +37,7 @@ int32_t DataType2Int(const tvm::DataType& dtype) {
   return converter.dst;
 }
 
-String Int2DataTypeStr(int32_t dtype) {
+ffi::String Int2DataTypeStr(int32_t dtype) {
   union {
     DLDataType dst;
     int32_t src;

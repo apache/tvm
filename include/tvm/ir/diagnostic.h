@@ -64,7 +64,7 @@ class DiagnosticNode : public Object {
    */
   ObjectRef loc;
   /*! \brief The diagnostic message. */
-  String message;
+  ffi::String message;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -194,7 +194,7 @@ class DiagnosticContextNode : public Object {
   IRModule module;
 
   /*! \brief The set of diagnostics to report. */
-  Array<Diagnostic> diagnostics;
+  ffi::Array<Diagnostic> diagnostics;
 
   /*! \brief The renderer set for the context. */
   DiagnosticRenderer renderer;

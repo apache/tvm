@@ -26,12 +26,12 @@ namespace distributed {
 
 TVM_FFI_STATIC_INIT_BLOCK({ DeviceMeshNode::RegisterReflection(); });
 
-DeviceMesh::DeviceMesh(ffi::Shape shape, Array<Integer> device_ids) {
+DeviceMesh::DeviceMesh(ffi::Shape shape, ffi::Array<Integer> device_ids) {
   int prod = 1;
   for (int i = 0; i < static_cast<int>(shape.size()); i++) {
     prod *= shape[i];
   }
-  ObjectPtr<DeviceMeshNode> n = make_object<DeviceMeshNode>();
+  ObjectPtr<DeviceMeshNode> n = ffi::make_object<DeviceMeshNode>();
   CHECK_EQ(prod, static_cast<int>(device_ids.size()))
       << "The number of device ids must match the product of the shape";
   n->shape = std::move(shape);
@@ -40,8 +40,8 @@ DeviceMesh::DeviceMesh(ffi::Shape shape, Array<Integer> device_ids) {
 }
 
 DeviceMesh::DeviceMesh(ffi::Shape shape, Range device_range) {
-  ObjectPtr<DeviceMeshNode> n = make_object<DeviceMeshNode>();
-  Array<Integer> device_ids;
+  ObjectPtr<DeviceMeshNode> n = ffi::make_object<DeviceMeshNode>();
+  ffi::Array<Integer> device_ids;
   int range_start = device_range->min.as<IntImmNode>()->value;
   int range_extent = device_range->extent.as<IntImmNode>()->value;
   for (int i = range_start; i < range_start + range_extent; i++) {
@@ -63,7 +63,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.distributed.DeviceMesh",
-      [](ffi::Shape shape, Array<Integer> device_ids, Optional<Range> device_range) {
+      [](ffi::Shape shape, ffi::Array<Integer> device_ids, ffi::Optional<Range> device_range) {
         if (device_range.defined())
           return DeviceMesh(shape, device_range.value());
         else

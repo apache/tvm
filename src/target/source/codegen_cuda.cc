@@ -140,7 +140,7 @@ void CodeGenCUDA::Init(bool output_ssa) {
   ICHECK_EQ(vid_global_barrier_state_, runtime::symbol::tvm_global_barrier_state);
 }
 
-void CodeGenCUDA::PrintFunctionSignature(const String& function_name, const PrimFunc& func,
+void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
                                          std::ostream& os) {
   auto calling_conv =
       func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(tvm::CallingConv::kDefault));
@@ -866,8 +866,9 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
   os << sret;
 }
 
-void CodeGenCUDA::PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
-                                  bool skip_first_arg, std::ostream& os) {  // NOLINT(*)
+void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
+                                  const ffi::Array<PrimExpr>& args, bool skip_first_arg,
+                                  std::ostream& os) {  // NOLINT(*)
   DataType ret_dtype = GetRuntimeDataType(ret_type);
   if (ret_dtype.is_fixed_length_vector()) {
     //

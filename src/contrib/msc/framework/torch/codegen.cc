@@ -92,7 +92,7 @@ void TorchCodeGen::CodeGenGraph() {
     }
     CodeGenNode(node, config()->use_tools);
   }
-  Array<String> idx_outputs;
+  ffi::Array<ffi::String> idx_outputs;
   for (const auto& o : graph()->GetOutputs()) {
     const auto& pair = graph()->FindProducerAndIdx(o);
     idx_outputs.push_back(IdxOutputBase(pair.first, pair.second, true));
@@ -140,7 +140,7 @@ void TorchCodeGen::CodeGenInference() {
   }
 }
 
-const Array<Doc> TorchCodeGen::GetOpCodes(const MSCJoint& node) {
+const ffi::Array<Doc> TorchCodeGen::GetOpCodes(const MSCJoint& node) {
   const auto& ops_map = GetTorchOpCodes();
   auto it = ops_map->find(GetOpType(node));
   ICHECK(it != ops_map->end()) << "Unsupported torch op(" << node->optype << "): " << node;
@@ -156,8 +156,8 @@ const Array<Doc> TorchCodeGen::GetOpCodes(const MSCJoint& node) {
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("msc.framework.torch.GetTorchSources",
-                        [](const MSCGraph& graph, const String& codegen_config,
-                           const String& print_config) -> Map<String, String> {
+                        [](const MSCGraph& graph, const ffi::String& codegen_config,
+                           const ffi::String& print_config) -> ffi::Map<ffi::String, ffi::String> {
                           TorchCodeGen codegen = TorchCodeGen(graph, codegen_config);
                           codegen.Init();
                           return codegen.GetSources(print_config);

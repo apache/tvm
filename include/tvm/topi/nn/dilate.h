@@ -44,7 +44,7 @@ using namespace tvm::te;
  *
  * \return The logical conjunction expression
  */
-PrimExpr all(Array<PrimExpr> args) {
+PrimExpr all(ffi::Array<PrimExpr> args) {
   ICHECK_GT(args.size(), 0) << "all requires at least one argument";
 
   PrimExpr ret = args[0];
@@ -67,13 +67,13 @@ PrimExpr all(Array<PrimExpr> args) {
  *
  * \return The output tensor.
  */
-inline Tensor dilate(const Tensor& x, Array<PrimExpr> strides, double dilation_value,
+inline Tensor dilate(const Tensor& x, ffi::Array<PrimExpr> strides, double dilation_value,
                      std::string name = "tensor", std::string tag = kInjective) {
   auto n = x->shape.size();
   ICHECK_EQ(n, strides.size()) << "strides size (" << strides.size()
                                << ") must match dimension of x (" << n << ")";
 
-  Array<PrimExpr> out_shape;
+  ffi::Array<PrimExpr> out_shape;
   arith::Analyzer analyzer;
   for (size_t i = 0; i < n; ++i) {
     out_shape.push_back(analyzer.Simplify((x->shape[i] - 1) * (strides[i] + 1)));
@@ -81,9 +81,9 @@ inline Tensor dilate(const Tensor& x, Array<PrimExpr> strides, double dilation_v
 
   return tvm::te::compute(
       out_shape,
-      [&](const Array<Var>& indices) {
-        Array<PrimExpr> not_zero;
-        Array<PrimExpr> index_tuple;
+      [&](const ffi::Array<Var>& indices) {
+        ffi::Array<PrimExpr> not_zero;
+        ffi::Array<PrimExpr> index_tuple;
         for (size_t i = 0; i < n; ++i) {
           if (IsConstInt(strides[i]) && GetConstInt(strides[i]) == 1) {
             index_tuple.push_back(indices[i]);

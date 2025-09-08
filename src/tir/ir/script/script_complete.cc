@@ -36,10 +36,11 @@ namespace tir {
 /*! \brief Generate surrounding loops automatically */
 class ScriptCompleter : public StmtMutator {
  public:
-  explicit ScriptCompleter(Map<Var, Buffer>* buffer_var_map) : buffer_var_map_(buffer_var_map) {}
+  explicit ScriptCompleter(ffi::Map<Var, Buffer>* buffer_var_map)
+      : buffer_var_map_(buffer_var_map) {}
 
  private:
-  Map<Var, Buffer>* buffer_var_map_;
+  ffi::Map<Var, Buffer>* buffer_var_map_;
   Stmt VisitStmt_(const BlockRealizeNode* op) final {
     for (const PrimExpr& value : op->iter_values) {
       CHECK(value.dtype().is_int())
@@ -81,9 +82,9 @@ class ScriptCompleter : public StmtMutator {
     // ignore root block or blocks which already has reads/writes regions
     if (mask != 0) {
       auto access_region = GetBlockAccessRegion(block, *buffer_var_map_);
-      const Array<BufferRegion>& reads = access_region[0];
-      const Array<BufferRegion>& writes = access_region[1];
-      const Array<BufferRegion>& opaque = access_region[2];
+      const ffi::Array<BufferRegion>& reads = access_region[0];
+      const ffi::Array<BufferRegion>& writes = access_region[1];
+      const ffi::Array<BufferRegion>& opaque = access_region[2];
       CHECK(opaque.empty())
           << "ValueError: Can not auto detect buffer access region from tir.Load, tir.Store or "
              "direct access by buffer data. Please annotation the access region manually";
@@ -114,8 +115,8 @@ class ScriptCompleter : public StmtMutator {
   bool is_root_block_ = true;
 };
 
-PrimFunc ScriptComplete(PrimFunc func, const Array<Buffer>& root_allocates) {
-  Map<Var, Buffer> buffer_var_map;
+PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<Buffer>& root_allocates) {
+  ffi::Map<Var, Buffer> buffer_var_map;
   for (const auto& pair : func->buffer_map) {
     const Buffer& buffer = pair.second;
     buffer_var_map.Set(buffer->data, buffer);

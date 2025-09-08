@@ -299,7 +299,8 @@ class ROCMTimerNode : public TimerNode {
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("profiling.timer.rocm", [](Device dev) { return Timer(make_object<ROCMTimerNode>()); })
+      .def("profiling.timer.rocm",
+           [](Device dev) { return Timer(ffi::make_object<ROCMTimerNode>()); })
       .def("runtime.get_rocm_stream", []() {
         int device_id;
         ROCM_CALL(hipGetDevice(&device_id));

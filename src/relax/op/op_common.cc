@@ -24,9 +24,9 @@
 namespace tvm {
 namespace relax {
 
-Array<Expr> GetCallArgs(const Call& call) {
+ffi::Array<Expr> GetCallArgs(const Call& call) {
   static const Op& call_tir_op = Op::Get("relax.call_tir");
-  Array<Expr> args;
+  ffi::Array<Expr> args;
   if (call->op.same_as(call_tir_op)) {
     args = Downcast<Tuple>(call->args[1])->fields;
   } else {
@@ -70,19 +70,19 @@ TensorStructInfo GetInputTensorStructInfo(const Call& call, size_t i_arg, const 
   }
 }
 
-Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBuilder& ctx) {
+ffi::Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBuilder& ctx) {
   CheckNumArguments(call, ctx);
 
   Op op = Downcast<Op>(call->op);
-  Array<TensorStructInfo> input_tensor_sinfo;
+  ffi::Array<TensorStructInfo> input_tensor_sinfo;
   for (size_t i = 0; i < call->args.size(); ++i) {
     input_tensor_sinfo.push_back(GetInputTensorStructInfo(call, i, ctx));
   }
   return input_tensor_sinfo;
 }
 
-Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, const BlockBuilder& ctx,
-                                                     const Expr& tup) {
+ffi::Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, const BlockBuilder& ctx,
+                                                          const Expr& tup) {
   const auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(tup);
   if (tuple_sinfo == nullptr) {
     ctx->ReportFatal(Diagnostic::Error(call)
@@ -91,7 +91,7 @@ Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, const Blo
                      << tup->struct_info_->GetTypeKey());
   }
 
-  Array<TensorStructInfo> tensor_sinfo;
+  ffi::Array<TensorStructInfo> tensor_sinfo;
   tensor_sinfo.reserve(tuple_sinfo->fields.size());
   for (StructInfo field_sinfo : tuple_sinfo->fields) {
     const auto* field_tensor_sinfo = field_sinfo.as<TensorStructInfoNode>();
@@ -101,14 +101,14 @@ Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, const Blo
           << call->op << " expects the input to be a Tuple of Tensors. However, the given input is "
           << tup->struct_info_);
     }
-    tensor_sinfo.push_back(GetRef<TensorStructInfo>(field_tensor_sinfo));
+    tensor_sinfo.push_back(ffi::GetRef<TensorStructInfo>(field_tensor_sinfo));
   }
   return tensor_sinfo;
 }
 
-Optional<Array<PrimExpr>> InferBinaryBroadcastShape(const Call& call, const BlockBuilder& ctx,
-                                                    const Array<PrimExpr>& x1_shape,
-                                                    const Array<PrimExpr>& x2_shape) {
+ffi::Optional<ffi::Array<PrimExpr>> InferBinaryBroadcastShape(
+    const Call& call, const BlockBuilder& ctx, const ffi::Array<PrimExpr>& x1_shape,
+    const ffi::Array<PrimExpr>& x2_shape) {
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   int x1_ndim = x1_shape.size();
   int x2_ndim = x2_shape.size();
@@ -143,11 +143,11 @@ Optional<Array<PrimExpr>> InferBinaryBroadcastShape(const Call& call, const Bloc
   for (; i <= max_ndim; ++i) {
     output_shape.push_back(longer_shape[max_ndim - i]);
   }
-  return Array<PrimExpr>(output_shape.rbegin(), output_shape.rend());
+  return ffi::Array<PrimExpr>(output_shape.rbegin(), output_shape.rend());
 }
 
 std::vector<int> NormalizeAxes(const Call& call, const BlockBuilder& ctx, int ndim,
-                               const Array<Integer>& axes) {
+                               const ffi::Array<Integer>& axes) {
   ICHECK_NE(ndim, kUnknownNDim) << "The ndim is required to be known for this function.";
   std::vector<bool> appeared_dims_set;
   std::vector<int> axes_non_neg;
@@ -177,21 +177,21 @@ std::vector<int> NormalizeAxes(const Call& call, const BlockBuilder& ctx, int nd
   return axes_non_neg;
 }
 
-InferLayoutOutput InferLayoutUnaryEwise(const Call& call,
-                                        const Map<String, Array<String>>& desired_layouts,
-                                        const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutUnaryEwise(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   return InferLayoutOutput({layout}, {layout}, Attrs(call->attrs));
 }
 
 bool CanProveLayoutTransform(const Layout& input_layout, const Layout& desired_layout,
-                             Array<PrimExpr> shape) {
+                             ffi::Array<PrimExpr> shape) {
   bool can_prove = true;
   try {
     tir::BijectiveLayout todesired(input_layout, desired_layout);
-    Array<PrimExpr> desired_shape = todesired.ForwardShape(shape);
-    Array<PrimExpr> back_shape = todesired.BackwardShape(desired_shape);
+    ffi::Array<PrimExpr> desired_shape = todesired.ForwardShape(shape);
+    ffi::Array<PrimExpr> back_shape = todesired.BackwardShape(desired_shape);
     arith::Analyzer analyzer;
     for (size_t i = 0; i < shape.size(); ++i) {
       if (tir::is_const_int(shape[i])) {

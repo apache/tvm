@@ -57,7 +57,7 @@ inline SubRef Downcast(BaseRef ref) {
     }
     TVM_FFI_THROW(TypeError) << "Downcast from undefined(nullptr) to `"
                              << SubRef::ContainerType::_type_key
-                             << "` is not allowed. Use Downcast<Optional<T>> instead.";
+                             << "` is not allowed. Use Downcast<ffi::Optional<T>> instead.";
     TVM_FFI_UNREACHABLE();
   }
 }

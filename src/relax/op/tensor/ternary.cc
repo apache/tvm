@@ -30,7 +30,7 @@ namespace tvm {
 namespace relax {
 
 StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   TensorStructInfo t1 = input_sinfo[0];
   TensorStructInfo t2 = input_sinfo[1];
   TensorStructInfo t3 = input_sinfo[2];
@@ -87,7 +87,7 @@ StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
   auto* s3 = t3->shape.as<ShapeExprNode>();
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   if (s1 && s2 && s3) {
-    Array<PrimExpr> output_shape;
+    ffi::Array<PrimExpr> output_shape;
     for (int i = 0; i < ndim; ++i) {
       PrimExpr dim1 = s1->values[i];
       PrimExpr dim2 = s2->values[i];
@@ -115,9 +115,9 @@ StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
   return TensorStructInfo(output_dtype, ndim);
 }
 
-InferLayoutOutput InferLayoutEwiseFMA(const Call& call,
-                                      const Map<String, Array<String>>& desired_layouts,
-                                      const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutEwiseFMA(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
 
   LayoutDecision layout0 = GetLayoutDecision(var_layout_map, call->args[0]);

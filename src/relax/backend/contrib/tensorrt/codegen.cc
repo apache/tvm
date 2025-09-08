@@ -46,7 +46,7 @@ namespace contrib {
 
 /*! \brief Attributes to store the compiler options for TensorRT. */
 struct TensorRTCompilerConfigNode : public AttrsNodeReflAdapter<TensorRTCompilerConfigNode> {
-  Array<Integer> tensorrt_version;
+  ffi::Array<Integer> tensorrt_version;
   bool use_implicit_batch;
   size_t max_workspace_size;
   bool remove_no_mac_subgraphs;
@@ -58,7 +58,7 @@ struct TensorRTCompilerConfigNode : public AttrsNodeReflAdapter<TensorRTCompiler
     refl::ObjectDef<TensorRTCompilerConfigNode>()
         .def_ro("tensorrt_version", &TensorRTCompilerConfigNode::tensorrt_version,
                 "TensorRT version as (major, minor, patch).",
-                refl::DefaultValue(Array<Integer>({6, 0, 1})))
+                refl::DefaultValue(ffi::Array<Integer>({6, 0, 1})))
         .def_ro("use_implicit_batch", &TensorRTCompilerConfigNode::use_implicit_batch,
                 "Use implicit batch", refl::DefaultValue(true))
         .def_ro("max_workspace_size", &TensorRTCompilerConfigNode::max_workspace_size,
@@ -128,7 +128,8 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
  */
 class TensorRTJSONSerializer : public JSONSerializer {
  public:
-  explicit TensorRTJSONSerializer(Map<Constant, String> constant_names, Map<Var, Expr> bindings)
+  explicit TensorRTJSONSerializer(ffi::Map<Constant, ffi::String> constant_names,
+                                  ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
 
   using JSONSerializer::VisitExpr_;
@@ -137,9 +138,9 @@ class TensorRTJSONSerializer : public JSONSerializer {
     // The call must be to an inline "Composite" function
     const auto* fn_var = call_node->op.as<VarNode>();
     ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
+    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
 
-    auto opt_composite = fn->GetAttr<String>(attr::kComposite);
+    auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
     ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
@@ -172,7 +173,7 @@ class TensorRTJSONSerializer : public JSONSerializer {
 
     VLOG(1) << name << " has " << node->GetInputs().size() << " inputs";
 
-    return AddNode(node, GetRef<Expr>(call_node));
+    return AddNode(node, ffi::GetRef<Expr>(call_node));
   }
 
   static void SaveGlobalAttributes(std::shared_ptr<JSONGraphNode> node) {
@@ -206,11 +207,11 @@ class TensorRTJSONSerializer : public JSONSerializer {
 
  private:
   /*! \brief The bindings to look up composite functions. */
-  Map<Var, Expr> bindings_;
+  ffi::Map<Var, Expr> bindings_;
 };
 
 void CollectFromCompositeFunctionBody::VisitExpr_(const ConstantNode* constant_node) {
-  for (const auto& entry : serializer_->VisitExpr(GetRef<Constant>(constant_node))) {
+  for (const auto& entry : serializer_->VisitExpr(ffi::GetRef<Constant>(constant_node))) {
     args_.emplace_back(entry);
   }
 }
@@ -225,9 +226,10 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
  * \param functions The extern functions to be compiled via TensorRT
  * \return Runtime modules.
  */
-Array<ffi::Module> TensorRTCompiler(Array<Function> functions, Map<String, ffi::Any> /*unused*/,
-                                    Map<Constant, String> constant_names) {
-  Array<ffi::Module> compiled_functions;
+ffi::Array<ffi::Module> TensorRTCompiler(ffi::Array<Function> functions,
+                                         ffi::Map<ffi::String, ffi::Any> /*unused*/,
+                                         ffi::Map<Constant, ffi::String> constant_names) {
+  ffi::Array<ffi::Module> compiled_functions;
   for (const auto& func : functions) {
     VLOG(1) << "TensorRT partition:" << std::endl << func;
     TensorRTJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));
@@ -265,7 +267,7 @@ inline constexpr bool IsTensorRTRuntimeEnabled() {
  * \return Array of three integers for major, minor, and patch, or empty array if TensorRT graph
  * runtime is not enabled.
  */
-Array<Integer> GetTensorRTVersion() {
+ffi::Array<Integer> GetTensorRTVersion() {
 #if TVM_GRAPH_EXECUTOR_TENSORRT
   return {Integer(NV_TENSORRT_MAJOR), Integer(NV_TENSORRT_MINOR), Integer(NV_TENSORRT_PATCH)};
 #else

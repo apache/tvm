@@ -64,7 +64,7 @@ enum class ReuseType : int32_t {
  * \param str The string to be converted.
  * \return The converted ReuseType.
  */
-inline ReuseType Str2ReuseType(const String& str) {
+inline ReuseType Str2ReuseType(const ffi::String& str) {
   if (str == "no") {
     return ReuseType::kNoReuse;
   } else if (str == "may") {
@@ -84,16 +84,16 @@ struct ReuseConfig {
   /*! \brief Which levels are caching stage inserted at */
   std::vector<int> levels;
   /*! \brief The storage scope */
-  String scope;
+  ffi::String scope;
 
   /*! \brief Default constructor: no data reuse */
   ReuseConfig() : req(ReuseType::kNoReuse) {}
 
   /*! \brief Construct from a configuration dictionary */
-  explicit ReuseConfig(const Map<String, ffi::Any>& config)
-      : req(Str2ReuseType(Downcast<String>(config.at("req")))),
-        levels(support::AsVector<Integer, int>(Downcast<Array<Integer>>(config.at("levels")))),
-        scope(Downcast<String>(config.at("scope"))) {
+  explicit ReuseConfig(const ffi::Map<ffi::String, ffi::Any>& config)
+      : req(Str2ReuseType(Downcast<ffi::String>(config.at("req")))),
+        levels(support::AsVector<Integer, int>(Downcast<ffi::Array<Integer>>(config.at("levels")))),
+        scope(Downcast<ffi::String>(config.at("scope"))) {
     ICHECK_EQ(config.size(), 3);
   }
 };
@@ -109,9 +109,9 @@ class StateNode : public Object {
   /*! \brief The block to be tiled */
   tir::BlockRV block_rv;
   /*! \brief The loop tiles */
-  Array<Array<tir::LoopRV>> tiles;
+  ffi::Array<ffi::Array<tir::LoopRV>> tiles;
   /*! \brief The factors of the loop tiles. */
-  Array<Array<tir::ExprRV>> tile_factors;
+  ffi::Array<ffi::Array<tir::ExprRV>> tile_factors;
   /*! \brief The mapping from buffer index to read cache block. */
   std::unordered_map<int, tir::BlockRV> read_reuse;
   /*! \brief The mapping from buffer index to write cache block. */
@@ -131,7 +131,8 @@ class StateNode : public Object {
 class State : public ObjectRef {
  public:
   /*! \brief Default constructor */
-  explicit State(tir::Schedule sch, tir::BlockRV block_rv, Array<Array<tir::LoopRV>> tiles = {});
+  explicit State(tir::Schedule sch, tir::BlockRV block_rv,
+                 ffi::Array<ffi::Array<tir::LoopRV>> tiles = {});
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(State, ObjectRef, StateNode);
 };
 
@@ -173,7 +174,7 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   void InitializeWithTuneContext(const TuneContext& context) final;
 
   // Entry of the mega rule; Inherited from ScheduleRuleNode
-  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) override;
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) override;
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const override;
@@ -181,10 +182,8 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
  protected:
   virtual std::vector<State> ApplySubRules(std::vector<State> states);
 
-  virtual std::pair<Array<tir::ExprRV>, Array<tir::LoopRV>> SplitLoop(const tir::Schedule& sch,
-                                                                      tir::BlockRV block,
-                                                                      tir::LoopRV loop,
-                                                                      int n_tiles) const;
+  virtual std::pair<ffi::Array<tir::ExprRV>, ffi::Array<tir::LoopRV>> SplitLoop(
+      const tir::Schedule& sch, tir::BlockRV block, tir::LoopRV loop, int n_tiles) const;
 
   // Annotate a block to use cooperative fetching
   void AnnotateCooperativeFetching(tir::Schedule* sch, const tir::BlockRV& block) const;
@@ -195,9 +194,9 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
    * - 'SSRSRS' on CPU
    * - 'SSSRRSRS' on GPU
    */
-  String structure;
+  ffi::String structure;
   /*! \brief For each level of tiles, which thread axis it is bound to */
-  Array<String> tile_binds;
+  ffi::Array<ffi::String> tile_binds;
   /*! \brief The maximum size of the innermost factor */
   int max_innermost_factor;
   /*! \brief The length of vector lane in vectorized cooperative fetching */
@@ -219,7 +218,7 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   /*! \brief The logging function */
   ffi::Function logger;
   /*! \brief The function to overwrite the default condition for applying MultiLevelTiling. */
-  Optional<ffi::Function> filter_fn_;
+  ffi::Optional<ffi::Function> filter_fn_;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -234,12 +233,13 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
 };
 
 template <typename NodeType>
-ObjectPtr<NodeType> MultiLevelTilingInitCommon(String structure, Optional<Array<String>> tile_binds,
-                                               Optional<Integer> max_innermost_factor,
-                                               Optional<Array<Integer>> vector_load_lens,
-                                               Optional<Map<String, ffi::Any>> reuse_read,
-                                               Optional<Map<String, ffi::Any>> reuse_write) {
-  ObjectPtr<NodeType> n = make_object<NodeType>();
+ObjectPtr<NodeType> MultiLevelTilingInitCommon(
+    ffi::String structure, ffi::Optional<ffi::Array<ffi::String>> tile_binds,
+    ffi::Optional<Integer> max_innermost_factor,
+    ffi::Optional<ffi::Array<Integer>> vector_load_lens,
+    ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
+    ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write) {
+  ObjectPtr<NodeType> n = ffi::make_object<NodeType>();
   n->structure = structure;
   n->tile_binds = tile_binds.value_or({});
   n->max_innermost_factor = max_innermost_factor.value_or(Integer(-1))->value;

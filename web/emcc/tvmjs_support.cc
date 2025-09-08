@@ -252,10 +252,10 @@ class AsyncLocalSession : public LocalSession {
   std::optional<ffi::Function> async_wait_;
 
   // time evaluator
-  ffi::Function GetTimeEvaluator(Optional<ffi::Module> opt_mod, std::string name, int device_type,
-                                 int device_id, int number, int repeat, int min_repeat_ms,
-                                 int limit_zero_time_iterations, int cooldown_interval_ms,
-                                 int repeats_to_cooldown) {
+  ffi::Function GetTimeEvaluator(ffi::Optional<ffi::Module> opt_mod, std::string name,
+                                 int device_type, int device_id, int number, int repeat,
+                                 int min_repeat_ms, int limit_zero_time_iterations,
+                                 int cooldown_interval_ms, int repeats_to_cooldown) {
     Device dev;
     dev.device_type = static_cast<DLDeviceType>(device_type);
     dev.device_id = device_id;

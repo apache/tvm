@@ -57,7 +57,7 @@ inline tvm::te::Tensor binarize_pack(const tvm::te::Tensor& data, int axis,
 
   arith::Analyzer analyzer;
   auto n = ishape.size();
-  Array<PrimExpr> oshape;
+  ffi::Array<PrimExpr> oshape;
   for (size_t i = 0; i < n; ++i) {
     oshape.push_back(i == static_cast<size_t>(axis) ? analyzer.Simplify(indexdiv(ishape[i], 32))
                                                     : ishape[i]);
@@ -65,15 +65,15 @@ inline tvm::te::Tensor binarize_pack(const tvm::te::Tensor& data, int axis,
 
   return tvm::te::compute(
       oshape,
-      [&](const Array<Var>& indices) {
-        Array<PrimExpr> start_idx;
+      [&](const ffi::Array<Var>& indices) {
+        ffi::Array<PrimExpr> start_idx;
         for (size_t i = 0; i < n; ++i) {
           start_idx.push_back(i == static_cast<size_t>(axis) ? indices[i] * 32
                                                              : static_cast<PrimExpr>(indices[i]));
         }
         auto packed = make_const(DataType::UInt(32), 0);
         for (size_t j = 0; j < 32; ++j) {
-          Array<PrimExpr> idx;
+          ffi::Array<PrimExpr> idx;
           for (size_t i = 0; i < n; ++i) {
             idx.push_back(i == static_cast<size_t>(axis) ? start_idx[i] + static_cast<int>(j)
                                                          : start_idx[i]);

@@ -81,7 +81,7 @@ class SSAVerifier final : public StmtExprVisitor {
   }
 
   void VisitExpr_(const VarNode* node) final {
-    auto var = GetRef<Var>(node);
+    auto var = ffi::GetRef<Var>(node);
     if (match_scope_) {
       MarkDef(var, var, true);
     }

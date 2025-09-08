@@ -50,12 +50,12 @@ TVM_FFI_STATIC_INIT_BLOCK({
   refl::TypeAttrDef<ffi::ModuleObj>()
       .def("__data_to_json__",
            [](const ffi::ModuleObj* node) {
-             std::string bytes = codegen::SerializeModuleToBytes(GetRef<ffi::Module>(node),
+             std::string bytes = codegen::SerializeModuleToBytes(ffi::GetRef<ffi::Module>(node),
                                                                  /*export_dso*/ false);
              return ffi::Base64Encode(ffi::Bytes(bytes));
            })
-      .def("__data_from_json__", [](const String& base64_bytes) {
-        Bytes bytes = ffi::Base64Decode(base64_bytes);
+      .def("__data_from_json__", [](const ffi::String& base64_bytes) {
+        ffi::Bytes bytes = ffi::Base64Decode(base64_bytes);
         ffi::Module rtmod = codegen::DeserializeModuleFromBytes(bytes.operator std::string());
         return rtmod;
       });
@@ -68,7 +68,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              support::Base64OutStream b64strm(&mstrm);
              runtime::SaveDLTensor(&b64strm, node);
              b64strm.Finish();
-             return String(blob);
+             return ffi::String(blob);
            })
       .def("__data_from_json__", [](const std::string& blob) {
         dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));

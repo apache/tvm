@@ -56,7 +56,7 @@ BaseFunc BaseFuncWithoutAttr(BaseFunc func, const std::string& attr_key) {
 }
 }  // namespace
 
-Pass ApplyPassToFunction(Pass pass, String func_name_regex,
+Pass ApplyPassToFunction(Pass pass, ffi::String func_name_regex,
                          bool error_if_no_function_matches_regex) {
   auto pass_name =
       static_cast<const std::stringstream&>(std::stringstream() << "ApplyPassTo" << func_name_regex)
@@ -65,15 +65,15 @@ Pass ApplyPassToFunction(Pass pass, String func_name_regex,
   auto pass_func = [pass, func_name_regex, error_if_no_function_matches_regex](
                        IRModule mod, PassContext) -> IRModule {
     bool at_least_one_function_matched_regex = false;
-    std::unordered_set<String> keep_original_version;
-    std::unordered_set<String> internal_functions;
+    std::unordered_set<ffi::String> keep_original_version;
+    std::unordered_set<ffi::String> internal_functions;
     IRModule subset;
 
     for (auto [gvar, func] : mod->functions) {
       std::string name = gvar->name_hint;
       if (tvm::runtime::regex_match(name, func_name_regex)) {
         at_least_one_function_matched_regex = true;
-        if (!func->GetAttr<String>(tvm::attr::kGlobalSymbol).has_value()) {
+        if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value()) {
           // Function may be mutated, but is an internal function.  Mark
           // it as externally-exposed, so that any call-tracing internal
           // transforms do not remove this function, in case it its
@@ -97,7 +97,7 @@ Pass ApplyPassToFunction(Pass pass, String func_name_regex,
     if (error_if_no_function_matches_regex) {
       CHECK(at_least_one_function_matched_regex)
           << "No function matched regex '" << func_name_regex << "', out of functions " << [&]() {
-               Array<String> function_names;
+               ffi::Array<ffi::String> function_names;
                for (const auto& [gvar, func] : mod->functions) {
                  function_names.push_back(gvar->name_hint);
                }

@@ -111,7 +111,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   /*! \brief The RoPE theta. */
   const double rotary_theta_;
   /*! \brief The optional RoPE extension factors for RoPE scaling. */
-  const Optional<Tensor> rope_ext_factors_;
+  const ffi::Optional<Tensor> rope_ext_factors_;
 
   /*! \brief The KV cache dtype. */
   const DataType kv_dtype_;
@@ -251,10 +251,10 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   std::vector<Tensor> tree_attn_mask_view_;
   std::vector<Tensor> tree_attn_mn_indptr_view_;
 
-  Optional<ffi::Function> f_transpose_append_mha_;
-  Optional<ffi::Function> f_transpose_append_mla_;
-  Optional<ffi::Function> f_transfer_kv_;
-  Optional<ffi::Function> f_transfer_kv_page_to_page_ = std::nullopt;
+  ffi::Optional<ffi::Function> f_transpose_append_mha_;
+  ffi::Optional<ffi::Function> f_transpose_append_mla_;
+  ffi::Optional<ffi::Function> f_transfer_kv_;
+  ffi::Optional<ffi::Function> f_transfer_kv_page_to_page_ = std::nullopt;
   ffi::Function f_compact_copy_;
   std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged_;
   std::unique_ptr<PagedPrefillFunc> f_attention_prefill_;
@@ -264,10 +264,10 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   std::unique_ptr<PagedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask_paged_kv_;
   std::unique_ptr<RaggedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask_;
   std::unique_ptr<PagedPrefillFunc> f_mla_prefill_;
-  Array<ffi::Function> f_merge_inplace_;
+  ffi::Array<ffi::Function> f_merge_inplace_;
   ffi::Function f_split_rotary_;
   ffi::Function f_copy_single_page_;
-  Optional<ffi::Function> f_debug_get_kv_;
+  ffi::Optional<ffi::Function> f_debug_get_kv_;
 
   /*! \brief The device this PagedKVCache runs on. */
   Device device_;
@@ -286,9 +286,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       int64_t v_head_dim, std::vector<AttnKind> attn_kinds, int64_t reserved_num_seqs,
       int64_t num_total_pages, int64_t prefill_chunk_size, bool support_sliding_window,
       RoPEMode rope_mode, double rotary_scale, double rotary_theta,
-      Optional<Tensor> rope_ext_factors, bool enable_kv_transfer, DLDataType dtype, Device device,
-      Optional<ffi::Function> f_transpose_append_mha,
-      Optional<ffi::Function> f_transpose_append_mla, ffi::Function f_compact_copy,
+      ffi::Optional<Tensor> rope_ext_factors, bool enable_kv_transfer, DLDataType dtype,
+      Device device, ffi::Optional<ffi::Function> f_transpose_append_mha,
+      ffi::Optional<ffi::Function> f_transpose_append_mla, ffi::Function f_compact_copy,
       std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged,
       std::unique_ptr<PagedPrefillFunc> f_attention_prefill,
       std::unique_ptr<PagedDecodeFunc> f_attention_decode,
@@ -296,7 +296,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       std::unique_ptr<PagedDecodeFunc> f_attention_decode_sliding_window,
       std::unique_ptr<PagedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask_paged_kv,
       std::unique_ptr<RaggedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask,
-      std::unique_ptr<PagedPrefillFunc> f_mla_prefill, Array<ffi::Function> f_merge_inplace,
+      std::unique_ptr<PagedPrefillFunc> f_mla_prefill, ffi::Array<ffi::Function> f_merge_inplace,
       ffi::Function f_split_rotary, ffi::Function f_copy_single_page, ffi::Function f_debug_get_kv)
       : page_size_(page_size),
         num_layers_(num_layers),
@@ -849,7 +849,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   /************** Attention **************/
 
   void BeginForward(const ffi::Shape& seq_ids, const ffi::Shape& append_lengths,
-                    const Optional<ffi::Shape>& opt_token_tree_parent_ptr) final {
+                    const ffi::Optional<ffi::Shape>& opt_token_tree_parent_ptr) final {
     // Note: MLA does not supported tree attention for now.
     if (attn_kinds_[0] == AttnKind::kMLA) {
       CHECK(!opt_token_tree_parent_ptr.defined()) << "Tree attention is not supported yet for MLA";
@@ -1271,7 +1271,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
                  sequence->kv_transfer_metadata.local_position_map.end());
   }
 
-  void AttentionWithFusedQKV(int64_t layer_id, Tensor qkv_data, Optional<Tensor> mask,
+  void AttentionWithFusedQKV(int64_t layer_id, Tensor qkv_data, ffi::Optional<Tensor> mask,
                              Tensor o_data, double sm_scale) final {
     // Part 1. Shape and dtype check.
     int64_t local_layer_id = layer_id - layer_id_begin_offset_;
@@ -1481,8 +1481,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     f_transpose_append_mla_.value()(pages_[local_layer_id], kv_data, append_position_map_view_);
   }
 
-  Array<Tensor> MergeAttnOutputInplace(Tensor o_self_attn, Tensor lse_self_attn,
-                                       Tensor o_cross_attn, Tensor lse_cross_attn) final {
+  ffi::Array<Tensor> MergeAttnOutputInplace(Tensor o_self_attn, Tensor lse_self_attn,
+                                            Tensor o_cross_attn, Tensor lse_cross_attn) final {
     CHECK_GE(f_merge_inplace_.size(), 2) << "The general attention merge function is not defined.";
     f_merge_inplace_[1](o_self_attn, lse_self_attn, o_cross_attn, lse_cross_attn);
     return {o_self_attn, lse_self_attn};
@@ -2463,27 +2463,27 @@ TVM_FFI_STATIC_INIT_BLOCK({
         int rope_mode = args[8].cast<int>();
         double rotary_scale = args[9].cast<double>();
         double rotary_theta = args[10].cast<double>();
-        Optional<Tensor> rope_ext_factors = std::nullopt;  // args[11]
+        ffi::Optional<Tensor> rope_ext_factors = std::nullopt;  // args[11]
         Tensor init = args[12].cast<Tensor>();
-        Optional<ffi::Function> f_transpose_append_mha = std::nullopt;  // args[13]
-        Optional<ffi::Function> f_transpose_append_mla = std::nullopt;  // args[14]
+        ffi::Optional<ffi::Function> f_transpose_append_mha = std::nullopt;  // args[13]
+        ffi::Optional<ffi::Function> f_transpose_append_mla = std::nullopt;  // args[14]
         std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged =
-            ConvertRaggedPrefillFunc(args[15].cast<Array<ffi::Any>>(), AttnKind::kMHA);
+            ConvertRaggedPrefillFunc(args[15].cast<ffi::Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<PagedPrefillFunc> f_attention_prefill =
-            ConvertPagedPrefillFunc(args[16].cast<Array<ffi::Any>>(), AttnKind::kMHA);
+            ConvertPagedPrefillFunc(args[16].cast<ffi::Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<PagedDecodeFunc> f_attention_decode =
-            ConvertPagedDecodeFunc(args[17].cast<Array<ffi::Any>>(), AttnKind::kMHA);
+            ConvertPagedDecodeFunc(args[17].cast<ffi::Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<PagedPrefillFunc> f_attention_prefill_sliding_window =
-            ConvertPagedPrefillFunc(args[18].cast<Array<ffi::Any>>(), AttnKind::kMHA);
+            ConvertPagedPrefillFunc(args[18].cast<ffi::Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<PagedDecodeFunc> f_attention_decode_sliding_window =
-            ConvertPagedDecodeFunc(args[19].cast<Array<ffi::Any>>(), AttnKind::kMHA);
+            ConvertPagedDecodeFunc(args[19].cast<ffi::Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<PagedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask_paged_kv =
-            ConvertPagedPrefillTreeMaskFunc(args[20].cast<Array<ffi::Any>>(), AttnKind::kMHA);
+            ConvertPagedPrefillTreeMaskFunc(args[20].cast<ffi::Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<RaggedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask =
-            ConvertRaggedPrefillTreeMaskFunc(args[21].cast<Array<ffi::Any>>(), AttnKind::kMHA);
+            ConvertRaggedPrefillTreeMaskFunc(args[21].cast<ffi::Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<PagedPrefillFunc> f_mla_prefill =
-            ConvertPagedPrefillFunc(args[22].cast<Array<ffi::Any>>(), AttnKind::kMLA);
-        Array<ffi::Function> f_merge_inplace = args[23].cast<Array<ffi::Function>>();
+            ConvertPagedPrefillFunc(args[22].cast<ffi::Array<ffi::Any>>(), AttnKind::kMLA);
+        ffi::Array<ffi::Function> f_merge_inplace = args[23].cast<ffi::Array<ffi::Function>>();
         ffi::Function f_split_rotary = args[24].cast<ffi::Function>();
         ffi::Function f_copy_single_page = args[25].cast<ffi::Function>();
         ffi::Function f_debug_get_kv = args[26].cast<ffi::Function>();
@@ -2492,7 +2492,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         if (auto opt_nd = args[11].as<Tensor>()) {
           rope_ext_factors = opt_nd.value();
         }
-        auto f_convert_optional_packed_func = [&args](int arg_idx) -> Optional<ffi::Function> {
+        auto f_convert_optional_packed_func = [&args](int arg_idx) -> ffi::Optional<ffi::Function> {
           if (auto opt_func = args[arg_idx].as<ffi::Function>()) {
             return opt_func.value();
           }
@@ -2521,7 +2521,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         }
         // NOTE: We will remove this legacy construction after finishing the transition phase.
         // Some `ffi::Function()` here are placeholders that will be filled.
-        ObjectPtr<PagedAttentionKVCacheObj> n = make_object<PagedAttentionKVCacheObj>(
+        ObjectPtr<PagedAttentionKVCacheObj> n = ffi::make_object<PagedAttentionKVCacheObj>(
             page_size, num_layers, layer_id_begin_offset, layer_id_end_offset, num_qo_heads,
             num_kv_heads, qk_head_dim, v_head_dim, attn_kinds_vec, reserved_num_seqs,
             num_total_pages, prefill_chunk_size, support_sliding_window, RoPEMode(rope_mode),

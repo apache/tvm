@@ -23,11 +23,11 @@
 namespace tvm {
 namespace meta_schedule {
 
-void PyMeasureCallbackNode::Apply(const TaskScheduler& task_scheduler,                //
-                                  int task_id,                                        //
-                                  const Array<MeasureCandidate>& measure_candidates,  //
-                                  const Array<BuilderResult>& builds,                 //
-                                  const Array<RunnerResult>& results) {
+void PyMeasureCallbackNode::Apply(const TaskScheduler& task_scheduler,                     //
+                                  int task_id,                                             //
+                                  const ffi::Array<MeasureCandidate>& measure_candidates,  //
+                                  const ffi::Array<BuilderResult>& builds,                 //
+                                  const ffi::Array<RunnerResult>& results) {
   ICHECK(f_apply != nullptr) << "PyMeasureCallback's Apply method not implemented!";
   auto _ = Profiler::TimedScope("MeasureCallback/" + this->f_as_string());
   return f_apply(task_scheduler, task_id, measure_candidates, builds, results);
@@ -35,13 +35,13 @@ void PyMeasureCallbackNode::Apply(const TaskScheduler& task_scheduler,          
 
 MeasureCallback MeasureCallback::PyMeasureCallback(PyMeasureCallbackNode::FApply f_apply,  //
                                                    PyMeasureCallbackNode::FAsString f_as_string) {
-  ObjectPtr<PyMeasureCallbackNode> n = make_object<PyMeasureCallbackNode>();
+  ObjectPtr<PyMeasureCallbackNode> n = ffi::make_object<PyMeasureCallbackNode>();
   n->f_apply = std::move(f_apply);
   n->f_as_string = std::move(f_as_string);
   return MeasureCallback(n);
 }
 
-Array<MeasureCallback, void> MeasureCallback::Default() {
+ffi::Array<MeasureCallback, void> MeasureCallback::Default() {
   return {
       MeasureCallback::AddToDatabase(),
       MeasureCallback::RemoveBuildArtifact(),

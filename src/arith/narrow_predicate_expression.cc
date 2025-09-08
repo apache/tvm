@@ -50,14 +50,14 @@ using namespace tir;
 // with free parameters, and the range of those parameters.
 class ExpressionNarrower : public tir::ExprMutator {
  public:
-  static PrimExpr Apply(PrimExpr expr, Map<Var, Range> free_parameters) {
+  static PrimExpr Apply(PrimExpr expr, ffi::Map<Var, Range> free_parameters) {
     ICHECK(expr.dtype().is_bool()) << "Expected boolean expression, but received " << expr;
     ExpressionNarrower mutator(free_parameters);
     return mutator(expr);
   }
 
  private:
-  explicit ExpressionNarrower(Map<Var, Range> free_parameters)
+  explicit ExpressionNarrower(ffi::Map<Var, Range> free_parameters)
       : free_parameters_(free_parameters) {}
 
   using Parent = tir::ExprMutator;
@@ -111,22 +111,22 @@ class ExpressionNarrower : public tir::ExprMutator {
 
   PrimExpr VisitExpr_(const GTNode* op) override {
     auto current = CurrentContext();
-    return VisitInequality(GetRef<GT>(op), OppositeContext(current), current);
+    return VisitInequality(ffi::GetRef<GT>(op), OppositeContext(current), current);
   }
 
   PrimExpr VisitExpr_(const GENode* op) override {
     auto current = CurrentContext();
-    return VisitInequality(GetRef<GE>(op), OppositeContext(current), current);
+    return VisitInequality(ffi::GetRef<GE>(op), OppositeContext(current), current);
   }
 
   PrimExpr VisitExpr_(const LTNode* op) override {
     auto current = CurrentContext();
-    return VisitInequality(GetRef<LT>(op), current, OppositeContext(current));
+    return VisitInequality(ffi::GetRef<LT>(op), current, OppositeContext(current));
   }
 
   PrimExpr VisitExpr_(const LENode* op) override {
     auto current = CurrentContext();
-    return VisitInequality(GetRef<LE>(op), current, OppositeContext(current));
+    return VisitInequality(ffi::GetRef<LE>(op), current, OppositeContext(current));
   }
 
   PrimExpr VisitExpr_(const EQNode* op) override {
@@ -143,7 +143,7 @@ class ExpressionNarrower : public tir::ExprMutator {
 
   PrimExpr VisitExpr_(const SubNode* op) override {
     auto current = CurrentContext();
-    return VisitInequality(GetRef<Sub>(op), current, OppositeContext(current));
+    return VisitInequality(ffi::GetRef<Sub>(op), current, OppositeContext(current));
   }
 
   PrimExpr VisitExpr_(const NotNode* op) override {
@@ -154,11 +154,11 @@ class ExpressionNarrower : public tir::ExprMutator {
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) override {
     contains_unknown_expr_ = true;
-    return GetRef<PrimExpr>(op);
+    return ffi::GetRef<PrimExpr>(op);
   }
 
   PrimExpr VisitExpr_(const VarNode* op) override {
-    auto it = free_parameters_.find(GetRef<Var>(op));
+    auto it = free_parameters_.find(ffi::GetRef<Var>(op));
     if (it == free_parameters_.end()) {
       return Parent::VisitExpr_(op);
     }
@@ -206,11 +206,11 @@ class ExpressionNarrower : public tir::ExprMutator {
   };
 
   std::vector<Context> context_stack_;
-  Map<Var, Range> free_parameters_;
+  ffi::Map<Var, Range> free_parameters_;
   bool contains_unknown_expr_{false};
 };
 
-PrimExpr NarrowPredicateExpression(PrimExpr expr, Map<Var, Range> free_parameters) {
+PrimExpr NarrowPredicateExpression(PrimExpr expr, ffi::Map<Var, Range> free_parameters) {
   return ExpressionNarrower::Apply(std::move(expr), std::move(free_parameters));
 }
 

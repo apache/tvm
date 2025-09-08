@@ -116,7 +116,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("ffi.Module.load_from_file.dylib_custom",
                                [](ffi::PackedArgs args, ffi::Any* rv) {
-                                 auto n = make_object<UnsignedDSOLoader>();
+                                 auto n = ffi::make_object<UnsignedDSOLoader>();
                                  n->Init(args[0]);
                                  *rv = tvm::ffi::CreateLibraryModule(n);
                                });

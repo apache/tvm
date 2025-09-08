@@ -41,7 +41,7 @@ class BcastSessionObj : public SessionObj {
   void CopyToWorker0(const Tensor& host_array, const DRef& remote_array) override;
   void SyncWorker(int worker_id) override;
   void Shutdown() override;
-  void InitCCL(String ccl, IntTuple device_ids) override;
+  void InitCCL(ffi::String ccl, IntTuple device_ids) override;
   ffi::Any DebugGetFromRemote(int64_t reg_id, int worker_id) override = 0;
   void DebugSetRegister(int64_t reg_id, ffi::AnyView value, int worker_id) override = 0;
 

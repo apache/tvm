@@ -169,7 +169,7 @@ class SimpleSockHandler : public dmlc::Stream {
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("rpc.ReturnException", [](int sockfd, String msg) {
+  refl::GlobalDef().def("rpc.ReturnException", [](int sockfd, ffi::String msg) {
     auto handler = SimpleSockHandler(sockfd);
     RPCReference::ReturnException(msg.c_str(), &handler);
     return;

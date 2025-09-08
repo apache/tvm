@@ -78,7 +78,8 @@ ShardInfo::TensorInfo LoadTensorInfoFromJSON(const picojson::array& json_tensor_
     shape.push_back(AsType<int64_t>(shape_json[i]));
   }
   std::string dtype = AsType<std::string>(json_tensor_info[1]);
-  return ShardInfo::TensorInfo{ffi::Shape(std::move(shape)), DataType(StringToDLDataType(dtype))};
+  return ShardInfo::TensorInfo{ffi::Shape(std::move(shape)),
+                               DataType(ffi::StringToDLDataType(dtype))};
 }
 
 ShardInfo::ShardFunc LoadShardFuncFromJSON(const picojson::array& json_shard_func) {
@@ -117,19 +118,19 @@ class ShardLoaderObj : public Object {
  public:
   /*! \brief Create a shard loader. */
   static ObjectRef Create(const std::string& path_to_metadata, const std::string& metadata,
-                          std::string shard_info, Optional<ffi::Module> mod);
+                          std::string shard_info, ffi::Optional<ffi::Module> mod);
   /*! \brief Load the i-th parameter */
   Tensor Load(int weight_index) const;
 
   Tensor LoadParamOnWorker0(int weight_index) const;
 
   /*! \brief Load all the parameters */
-  Array<Tensor> LoadAll() const;
+  ffi::Array<Tensor> LoadAll() const;
 
   Tensor ApplyShardFunc(const ShardInfo::ShardFunc& shard_func, const Tensor& param) const;
 
   /*! \brief Load all the pre-sharded parameters */
-  Array<Tensor> LoadAllPresharded() const;
+  ffi::Array<Tensor> LoadAllPresharded() const;
 
   /*! \brief Load the i-th parameter from presharded binaries */
   Tensor LoadPresharded(int weight_index) const;
@@ -175,13 +176,13 @@ class ShardLoaderObj : public Object {
 };
 
 ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std::string& metadata,
-                                 std::string shard_info, Optional<ffi::Module> mod) {
+                                 std::string shard_info, ffi::Optional<ffi::Module> mod) {
   if (shard_info.empty() && mod.has_value()) {
     if (auto get_shard_info = (*mod)->GetFunction("get_shard_info")) {
-      shard_info = (*get_shard_info)().cast<String>();
+      shard_info = (*get_shard_info)().cast<ffi::String>();
     }
   }
-  ObjectPtr<ShardLoaderObj> n = make_object<ShardLoaderObj>();
+  ObjectPtr<ShardLoaderObj> n = ffi::make_object<ShardLoaderObj>();
   n->metadata_ = TensorCacheMetadata::LoadFromStr(metadata, path_to_metadata);
   n->current_file_ = nullptr;
   n->param_info_.clear();
@@ -194,7 +195,7 @@ ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std:
       ShardInfo& shard_info = shards[name];
       for (const ShardInfo::ShardFunc& shard_func : shard_info.funcs) {
         const std::string& name = shard_func.name;
-        if (Optional<ffi::Function> f =
+        if (ffi::Optional<ffi::Function> f =
                 mod.has_value() ? (*mod)->GetFunction(name, true) : std::nullopt) {
           n->shard_funcs_[name] = *f;
         } else if (const auto f = tvm::ffi::Function::GetGlobal(name)) {
@@ -341,9 +342,9 @@ Tensor ShardLoaderObj::Load(int weight_index) const {
   }
 }
 
-Array<Tensor> ShardLoaderObj::LoadAll() const {
+ffi::Array<Tensor> ShardLoaderObj::LoadAll() const {
   int n = static_cast<int>(param_info_.size());
-  Array<Tensor> shards;
+  ffi::Array<Tensor> shards;
   shards.reserve(n);
   for (int i = 0; i < n; ++i) {
     std::string param_name = "param_" + std::to_string(i);
@@ -380,13 +381,13 @@ Tensor ShardLoaderObj::LoadPresharded(int weight_index) const {
   return LoadDirect(index);
 }
 
-Array<Tensor> ShardLoaderObj::LoadAllPresharded() const {
+ffi::Array<Tensor> ShardLoaderObj::LoadAllPresharded() const {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   size_t worker_id = static_cast<size_t>(worker->worker_id);
   size_t num_workers = static_cast<size_t>(worker->num_workers);
   size_t num_params = param_info_.size() / num_workers;
 
-  Array<Tensor> params;
+  ffi::Array<Tensor> params;
   params.reserve(num_params);
   for (size_t i_param = 0; i_param < num_params; ++i_param) {
     std::string param_name = static_cast<const std::stringstream&>(

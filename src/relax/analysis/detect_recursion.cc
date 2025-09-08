@@ -87,7 +87,7 @@ class DependencyGatherer : public ExprVisitor {
 
   void VisitExpr_(const GlobalVarNode* gv) override {
     // disregard PrimFuncs
-    if (!m_->Lookup(GetRef<GlobalVar>(gv)).as<relax::FunctionNode>()) {
+    if (!m_->Lookup(ffi::GetRef<GlobalVar>(gv)).as<relax::FunctionNode>()) {
       return;
     }
     deps_.insert(gv->name_hint);
@@ -111,7 +111,7 @@ adjacency_map GatherDependencyGraph(const IRModule& m) {
       continue;
     }
     std::string name = gv_func.first->name_hint;
-    auto deps = DependencyGatherer(m).Track(GetRef<relax::Function>(func));
+    auto deps = DependencyGatherer(m).Track(ffi::GetRef<relax::Function>(func));
     ret.insert({name, deps});
   }
   return ret;
@@ -369,7 +369,7 @@ std::vector<node_set> CoalesceCircuits(const std::vector<node_set>& circuits) {
   return ret;
 }
 
-tvm::Array<tvm::Array<GlobalVar>> DetectRecursion(const IRModule& m) {
+tvm::ffi::Array<tvm::ffi::Array<GlobalVar>> DetectRecursion(const IRModule& m) {
   auto graph = GatherDependencyGraph(m);
 
   // have to decide on some ordering for names
@@ -382,9 +382,9 @@ tvm::Array<tvm::Array<GlobalVar>> DetectRecursion(const IRModule& m) {
   auto groups = CoalesceCircuits(DetectElementaryCircuits(indices));
 
   // convert to expected representation
-  tvm::Array<tvm::Array<GlobalVar>> ret;
+  tvm::ffi::Array<tvm::ffi::Array<GlobalVar>> ret;
   for (auto group : groups) {
-    tvm::Array<GlobalVar> found;
+    tvm::ffi::Array<GlobalVar> found;
     for (size_t node : group) {
       found.push_back(m->GetGlobalVar(name_ordering[node]));
     }

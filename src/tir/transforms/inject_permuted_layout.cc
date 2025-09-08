@@ -59,7 +59,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitExpr_;
   using IRMutatorWithAnalyzer::VisitStmt_;
 
-  Array<PrimExpr> PermuteIndices(PrimExpr row_idx, PrimExpr col_idx, int row_size) {
+  ffi::Array<PrimExpr> PermuteIndices(PrimExpr row_idx, PrimExpr col_idx, int row_size) {
     ICHECK(permute_);
     // Index after vectorizing by 8
     PrimExpr col_idx_outer = floordiv(col_idx, VECTORIZE_FACTOR),
@@ -104,7 +104,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
   }
 
   static bool CheckAnnotation(const Any& annotation) {
-    if (auto opt_str = annotation.as<String>()) {
+    if (auto opt_str = annotation.as<ffi::String>()) {
       // Support string annotation for backward compatibility
       return *opt_str != "";
     } else if (auto* node = annotation.as<IntImmNode>()) {
@@ -165,7 +165,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return buffer_row_size;
   }
 
-  Array<PrimExpr> HandleBufferIndices(Buffer buffer, Array<PrimExpr> indices) {
+  ffi::Array<PrimExpr> HandleBufferIndices(Buffer buffer, ffi::Array<PrimExpr> indices) {
     auto buffer_row_size = CheckAndGetBufferRowSize(buffer);
 
     // Mutate the last two indices
@@ -216,7 +216,8 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return load;
   }
 
-  PrimExpr HandleAccessPtrAndOffset(PrimExpr access_ptr, Optional<PrimExpr> offset = std::nullopt) {
+  PrimExpr HandleAccessPtrAndOffset(PrimExpr access_ptr,
+                                    ffi::Optional<PrimExpr> offset = std::nullopt) {
     // The 2th arg of T.tvm_access_ptr call is offset, we set it to 0 and accumulate it to
     // smem_offset
     CHECK(access_ptr->IsInstance<CallNode>())

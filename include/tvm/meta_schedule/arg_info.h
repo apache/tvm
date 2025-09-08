@@ -60,14 +60,14 @@ class ArgInfo : public runtime::ObjectRef {
    * \param func The PrimFunc to get argument information from.
    * \return An array of the argument information derived.
    */
-  TVM_DLL static Array<ArgInfo, void> FromPrimFunc(const tir::PrimFunc& func);
+  TVM_DLL static ffi::Array<ArgInfo, void> FromPrimFunc(const tir::PrimFunc& func);
   /*!
    * \brief Extract a list of the argument information from the entry func of an IRModule
    * \param mod The IRModule to extract argument information from.
    * \param remove_preproc Whether to remove the preprocessing blocks.
    * \return An array of the argument information derived.
    */
-  TVM_DLL static Array<ArgInfo, void> FromEntryFunc(const IRModule& mod, bool remove_preproc);
+  TVM_DLL static ffi::Array<ArgInfo, void> FromEntryFunc(const IRModule& mod, bool remove_preproc);
 
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ArgInfo, runtime::ObjectRef, ArgInfoNode);
 

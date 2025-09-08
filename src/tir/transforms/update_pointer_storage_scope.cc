@@ -37,7 +37,7 @@
 namespace tvm {
 namespace tir {
 
-Var WithStorageScope(const VarNode* buffer_var, String storage_scope) {
+Var WithStorageScope(const VarNode* buffer_var, ffi::String storage_scope) {
   auto* ptr_type = buffer_var->type_annotation.as<PointerTypeNode>();
   ICHECK(ptr_type) << "The provided variable is not of pointer type";
   return Var(buffer_var->name_hint, PointerType(ptr_type->element_type, storage_scope),
@@ -45,7 +45,7 @@ Var WithStorageScope(const VarNode* buffer_var, String storage_scope) {
 }
 
 UpdatePointerStorageScope::UpdatePointerStorageScope(
-    const std::unordered_map<const VarNode*, String>& new_storage_scopes) {
+    const std::unordered_map<const VarNode*, ffi::String>& new_storage_scopes) {
   for (auto& kv : new_storage_scopes) {
     new_var_remap_[kv.first] = WithStorageScope(kv.first, kv.second);
   }
@@ -54,7 +54,7 @@ UpdatePointerStorageScope::UpdatePointerStorageScope(
 PrimExpr UpdatePointerStorageScope::VisitExpr_(const VarNode* op) {
   auto it = new_var_remap_.find(op);
   if (it == new_var_remap_.end()) {
-    return GetRef<Var>(op);
+    return ffi::GetRef<Var>(op);
   }
   return it->second;
 }

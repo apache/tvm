@@ -46,7 +46,7 @@ class CodeGenCUDA final : public CodeGenC {
             enable_fp4_ || need_math_constants_h_ || need_mma_h_);
   }
   // override behavior
-  void PrintFunctionSignature(const String& function_name, const PrimFunc& func,
+  void PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
                               std::ostream& os) final;
   void PrintExtraAttrs(const PrimFunc& f, std::ostream& os) final;  // NOLINT(*)
   void VisitStmt_(const ForNode* op) final;
@@ -74,7 +74,7 @@ class CodeGenCUDA final : public CodeGenC {
   void VisitStmt_(const AttrStmtNode* op) final;
 
  protected:
-  void PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
+  void PrintCallExtern(Type ret_type, ffi::String global_symbol, const ffi::Array<PrimExpr>& args,
                        bool skip_first_arg, std::ostream& os) final;  // NOLINT(*)
 
  private:

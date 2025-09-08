@@ -84,7 +84,8 @@ std::vector<int64_t> GetBufferShape(const Buffer& buffer, arith::Analyzer* analy
  * \return The value of `pragma_auto_unroll_max_step` if it exists, or -1 if it does not exist
  */
 int64_t GetPragmaAutoUnroll(const ForNode* loop) {
-  if (Optional<IntImm> auto_unroll = GetAnn<IntImm>(loop, tir::attr::pragma_auto_unroll_max_step)) {
+  if (ffi::Optional<IntImm> auto_unroll =
+          GetAnn<IntImm>(loop, tir::attr::pragma_auto_unroll_max_step)) {
     return auto_unroll.value()->value;
   }
   return -1;
@@ -267,16 +268,16 @@ Pass SimplifyForFeatureExtraction() {
     PrimExpr VisitExpr_(const SelectNode* node) final {
       if (HasBufferLoad(node->true_value) || HasBufferLoad(node->false_value) ||
           HasBufferLoad(node->condition)) {
-        return GetRef<Select>(node);
+        return ffi::GetRef<Select>(node);
       }
       return make_const(node->dtype, 1.0);
     }
 
     PrimExpr VisitExpr_(const VarNode* var) final {
-      if (unit_vars_.count(GetRef<Var>(var))) {
+      if (unit_vars_.count(ffi::GetRef<Var>(var))) {
         return make_const(var->dtype, 0.0);
       }
-      return GetRef<Var>(var);
+      return ffi::GetRef<Var>(var);
     }
 
     Stmt VisitStmt_(const ForNode* loop) final {
@@ -859,7 +860,7 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::Analyzer* 
   // For each buffer, we find the loop stride on it
   const BufferNode* buffer = this->buffer;
   int ndim = this->buffer->shape.size();
-  IntVec buffer_shape = utils::GetBufferShape(GetRef<Buffer>(buffer), analyzer);
+  IntVec buffer_shape = utils::GetBufferShape(ffi::GetRef<Buffer>(buffer), analyzer);
   // Calculate the buffer's stride from its shape
   IntVec buffer_stride(ndim);
   if (ndim >= 1) {
@@ -1398,8 +1399,8 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
     }
   }
 
-  Array<runtime::Tensor> ExtractFrom(const TuneContext& tune_context,
-                                     const Array<MeasureCandidate>& candidates) {
+  ffi::Array<runtime::Tensor> ExtractFrom(const TuneContext& tune_context,
+                                          const ffi::Array<MeasureCandidate>& candidates) {
     auto& target_keys = tune_context->target.value()->keys;
     bool is_gpu = std::find(target_keys.begin(), target_keys.end(), "gpu") != target_keys.end();
     std::vector<runtime::Tensor> results;
@@ -1430,7 +1431,7 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
 FeatureExtractor FeatureExtractor::PerStoreFeature(int buffers_per_store,
                                                    int arith_intensity_curve_num_samples,
                                                    int cache_line_bytes, bool extract_workload) {
-  ObjectPtr<PerStoreFeatureNode> n = make_object<PerStoreFeatureNode>();
+  ObjectPtr<PerStoreFeatureNode> n = ffi::make_object<PerStoreFeatureNode>();
   n->buffers_per_store = buffers_per_store;
   n->arith_intensity_curve_num_samples = arith_intensity_curve_num_samples;
   n->cache_line_bytes = cache_line_bytes;

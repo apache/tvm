@@ -50,8 +50,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       // Step 2. Construct `T.grid`
       if (grid.size() > 1) {
         int n = grid.size();
-        Array<ExprDoc> lhs;
-        Array<ExprDoc> rhs;
+        ffi::Array<ExprDoc> lhs;
+        ffi::Array<ExprDoc> rhs;
         lhs.reserve(n);
         rhs.reserve(n);
         for (int i = 0; i < n; ++i) {
@@ -65,10 +65,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       }
       // Step 3. If not `T.grid`, print loop kind accordingly
       ExprDoc lhs = DefineVar(loop->loop_var, *f, d);
-      Optional<ExprDoc> min = std::nullopt;
-      Optional<ExprDoc> max = std::nullopt;
-      Optional<ExprDoc> annotations = std::nullopt;
-      Optional<ExprDoc> thread = std::nullopt;
+      ffi::Optional<ExprDoc> min = std::nullopt;
+      ffi::Optional<ExprDoc> max = std::nullopt;
+      ffi::Optional<ExprDoc> annotations = std::nullopt;
+      ffi::Optional<ExprDoc> thread = std::nullopt;
       if (tir::is_zero(loop->min)) {
         max = d->AsDoc<ExprDoc>(loop->extent, loop_p->Attr("extent"));
       } else {
@@ -98,9 +98,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       } else {
         LOG(FATAL) << "ValueError: Unknown ForKind: " << tir::ForKind2String(loop->kind);
       }
-      Array<ExprDoc> args;
-      Array<String> kwargs_keys;
-      Array<ExprDoc> kwargs_values;
+      ffi::Array<ExprDoc> args;
+      ffi::Array<ffi::String> kwargs_keys;
+      ffi::Array<ExprDoc> kwargs_values;
       if (min.defined()) {
         args.push_back(min.value());
       }

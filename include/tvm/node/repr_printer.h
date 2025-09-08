@@ -83,7 +83,7 @@ inline std::ostream& operator<<(std::ostream& os, const Any& n) {  // NOLINT(*)
 }
 
 template <typename... V>
-inline std::ostream& operator<<(std::ostream& os, const Variant<V...>& n) {  // NOLINT(*)
+inline std::ostream& operator<<(std::ostream& os, const ffi::Variant<V...>& n) {  // NOLINT(*)
   ReprPrinter(os).Print(Any(n));
   return os;
 }
@@ -94,7 +94,7 @@ inline std::ostream& operator<<(std::ostream& os, const AccessStep& step) {
   namespace refl = ffi::reflection;
   switch (step->kind) {
     case refl::AccessKind::kAttr: {
-      os << '.' << step->key.cast<String>();
+      os << '.' << step->key.cast<ffi::String>();
       return os;
     }
     case refl::AccessKind::kArrayItem: {
@@ -106,7 +106,7 @@ inline std::ostream& operator<<(std::ostream& os, const AccessStep& step) {
       return os;
     }
     case refl::AccessKind::kAttrMissing: {
-      os << ".<missing attr " << step->key.cast<String>() << "`>";
+      os << ".<missing attr " << step->key.cast<ffi::String>() << "`>";
       return os;
     }
     case refl::AccessKind::kArrayItemMissing: {
@@ -125,7 +125,7 @@ inline std::ostream& operator<<(std::ostream& os, const AccessStep& step) {
 }
 
 inline std::ostream& operator<<(std::ostream& os, const AccessPath& path) {
-  Array<AccessStep> steps = path->ToSteps();
+  ffi::Array<AccessStep> steps = path->ToSteps();
   os << "<root>";
   for (const auto& step : steps) {
     os << step;

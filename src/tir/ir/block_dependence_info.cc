@@ -42,7 +42,7 @@ class BlockDependenceInfoCollector : private StmtVisitor {
   }
 
   void MakeBlockScope(StmtSRef scope) {
-    Array<StmtSRef> child_block_srefs = std::move(block_frames_.back());
+    ffi::Array<StmtSRef> child_block_srefs = std::move(block_frames_.back());
     self_->sref2scope[scope] = BlockScope(child_block_srefs);
   }
 
@@ -67,13 +67,13 @@ class BlockDependenceInfoCollector : private StmtVisitor {
 
   BlockDependenceInfoNode* self_;
   /*! \brief The stack frames of blocks in the DFS visit. */
-  std::vector<Array<StmtSRef>> block_frames_;
+  std::vector<ffi::Array<StmtSRef>> block_frames_;
 };
 
-BlockDependenceInfo::BlockDependenceInfo() { data_ = make_object<BlockDependenceInfoNode>(); }
+BlockDependenceInfo::BlockDependenceInfo() { data_ = ffi::make_object<BlockDependenceInfoNode>(); }
 
 BlockDependenceInfo::BlockDependenceInfo(IRModule mod) {
-  ObjectPtr<BlockDependenceInfoNode> n = make_object<BlockDependenceInfoNode>();
+  ObjectPtr<BlockDependenceInfoNode> n = ffi::make_object<BlockDependenceInfoNode>();
   BlockDependenceInfoNode* self = n.get();
   n->stmt2ref = SRefTreeCreator::Create(mod, /* include_loops */ false);
 
@@ -94,9 +94,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](IRModule mod) -> BlockDependenceInfo { return BlockDependenceInfo(mod); })
       .def_method("tir.BlockDependenceInfoGetBlockScope", &BlockDependenceInfoNode::GetBlockScope)
       .def("tir.BlockDependenceInfoGetSRef",
-           [](BlockDependenceInfo self, Stmt stmt) -> Optional<StmtSRef> {
+           [](BlockDependenceInfo self, Stmt stmt) -> ffi::Optional<StmtSRef> {
              auto it = self->stmt2ref.find(stmt.get());
-             return it != self->stmt2ref.end() ? it->second : Optional<StmtSRef>(std::nullopt);
+             return it != self->stmt2ref.end() ? it->second : ffi::Optional<StmtSRef>(std::nullopt);
            });
 });
 

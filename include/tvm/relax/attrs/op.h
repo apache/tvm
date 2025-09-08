@@ -32,8 +32,8 @@ namespace relax {
 
 /*! \brief Attributes used in call_tir_with_grad */
 struct CallTIRWithGradAttrs : public AttrsNodeReflAdapter<CallTIRWithGradAttrs> {
-  String te_grad_name;
-  Map<String, Any> te_grad_kwargs;
+  ffi::String te_grad_name;
+  ffi::Map<ffi::String, Any> te_grad_kwargs;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -58,7 +58,7 @@ struct CallTIRInplaceAttrs : public AttrsNodeReflAdapter<CallTIRInplaceAttrs> {
    * store the `i`th output. If an element has the value -1, that means a new tensor should be
    * allocated for that output.
    */
-  Array<Integer> inplace_indices;
+  ffi::Array<Integer> inplace_indices;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -79,7 +79,7 @@ struct CallInplacePackedAttrs : public AttrsNodeReflAdapter<CallInplacePackedAtt
    * store the `i`th output. If an element has the value -1, that means the output will be newly
    * allocated.
    */
-  Array<Integer> inplace_indices;
+  ffi::Array<Integer> inplace_indices;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

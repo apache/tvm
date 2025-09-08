@@ -64,7 +64,7 @@ class CustomDatatypesLowerer : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const FloatImmNode* imm) final {
     auto type_code = imm->dtype.code();
-    auto e = GetRef<PrimExpr>(imm);
+    auto e = ffi::GetRef<PrimExpr>(imm);
     if (datatype::Registry::Global()->GetTypeRegistered(type_code)) {
       auto lower = datatype::GetFloatImmLowerFunc(target_, type_code);
       ICHECK(lower) << "FloatImm lowering function for target " << target_ << " type "
@@ -75,7 +75,7 @@ class CustomDatatypesLowerer : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
-    Var var = GetRef<Var>(op);
+    Var var = ffi::GetRef<Var>(op);
 
     auto itr = var_remap_.find(var);
     if (itr != var_remap_.end()) {

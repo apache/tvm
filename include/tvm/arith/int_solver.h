@@ -58,9 +58,9 @@ constexpr int kSimplifyRewriteCanonicalRewrite = 3;
 class IntGroupBoundsNode : public Object {
  public:
   PrimExpr coef;
-  Array<PrimExpr> lower;
-  Array<PrimExpr> equal;
-  Array<PrimExpr> upper;
+  ffi::Array<PrimExpr> lower;
+  ffi::Array<PrimExpr> equal;
+  ffi::Array<PrimExpr> upper;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -93,8 +93,8 @@ class IntGroupBounds : public ObjectRef {
    * \param equal equalities
    * \param upper the upper bounds (include)
    */
-  TVM_DLL IntGroupBounds(PrimExpr coef, Array<PrimExpr> lower, Array<PrimExpr> equal,
-                         Array<PrimExpr> upper);
+  TVM_DLL IntGroupBounds(PrimExpr coef, ffi::Array<PrimExpr> lower, ffi::Array<PrimExpr> equal,
+                         ffi::Array<PrimExpr> upper);
 
   /*!
    * \brief Construct bounds from a range.
@@ -106,7 +106,7 @@ class IntGroupBounds : public ObjectRef {
   /*!
    * \brief Perform substitution on all components of the struct.
    */
-  IntGroupBounds Substitute(const Map<Var, PrimExpr>& subst) const;
+  IntGroupBounds Substitute(const ffi::Map<Var, PrimExpr>& subst) const;
 
   /*!
    * \brief Find the best range from the grouped bounds.
@@ -114,7 +114,7 @@ class IntGroupBounds : public ObjectRef {
    * \return The best range (has the least difference between the lower bound and upper bound).
    *         undefined if (-inf, +inf).
    */
-  Range FindBestRange(const Map<Var, Range>& vranges_addl = {}) const;
+  Range FindBestRange(const ffi::Map<Var, Range>& vranges_addl = {}) const;
 
   /*!
    * \brief Combine the bounds with another range.
@@ -134,14 +134,14 @@ class IntGroupBounds : public ObjectRef {
 class IntConstraintsNode : public Object {
  public:
   // e.g., \alpha, \beta, must be integers
-  Array<Var> variables;
+  ffi::Array<Var> variables;
   // e.g., 1 <= \alpha <= N, etc.
   // it is absolutely ok to include ranges for parameters
   // (variables that are not in this->variables) in this map
-  Map<Var, Range> ranges;
+  ffi::Map<Var, Range> ranges;
   // linear equalities or inequalities
   // e.g., A \alpha = \beta or A \alpha <= \beta
-  Array<PrimExpr> relations;
+  ffi::Array<PrimExpr> relations;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -170,7 +170,8 @@ class IntConstraints : public ObjectRef {
    * \param relations The linear relations between the variables
    *                  (either equations or inequalities)
    */
-  TVM_DLL IntConstraints(Array<Var> variables, Map<Var, Range> ranges, Array<PrimExpr> relations);
+  TVM_DLL IntConstraints(ffi::Array<Var> variables, ffi::Map<Var, Range> ranges,
+                         ffi::Array<PrimExpr> relations);
 
   TVM_DEFINE_OBJECT_REF_METHODS(IntConstraints, ObjectRef, IntConstraintsNode);
 };
@@ -193,8 +194,8 @@ class IntConstraintsTransformNode : public Object {
  public:
   IntConstraints src;
   IntConstraints dst;
-  Map<Var, PrimExpr> src_to_dst;
-  Map<Var, PrimExpr> dst_to_src;
+  ffi::Map<Var, PrimExpr> src_to_dst;
+  ffi::Map<Var, PrimExpr> dst_to_src;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -228,7 +229,8 @@ class IntConstraintsTransform : public ObjectRef {
    *                   e.g., {m -> a, n -> -b}
    */
   TVM_DLL IntConstraintsTransform(IntConstraints src, IntConstraints dst,
-                                  Map<Var, PrimExpr> src_to_dst, Map<Var, PrimExpr> dst_to_src);
+                                  ffi::Map<Var, PrimExpr> src_to_dst,
+                                  ffi::Map<Var, PrimExpr> dst_to_src);
 
   /*!
    * \brief Chain-compose two IntConstraintsTransform together.
@@ -242,7 +244,7 @@ class IntConstraintsTransform : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(IntConstraintsTransform, ObjectRef, IntConstraintsTransformNode);
 };
 
-typedef std::pair<Map<Var, IntGroupBounds>, Array<PrimExpr>> PartialSolvedInequalities;
+typedef std::pair<ffi::Map<Var, IntGroupBounds>, ffi::Array<PrimExpr>> PartialSolvedInequalities;
 
 /*!
  * \brief Obtain Smith Normal Form of linear equation A x = y.
@@ -301,8 +303,9 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
  * \param bounds grouped boundary of the variables.
  * \param relations other relations.
  */
-Array<PrimExpr> AsConditions(const Array<Var>& variables, const Map<Var, IntGroupBounds>& bounds,
-                             const Array<PrimExpr>& relations);
+ffi::Array<PrimExpr> AsConditions(const ffi::Array<Var>& variables,
+                                  const ffi::Map<Var, IntGroupBounds>& bounds,
+                                  const ffi::Array<PrimExpr>& relations);
 
 /*!
  * \brief Solve linear inequalities and infer the range of each variable.

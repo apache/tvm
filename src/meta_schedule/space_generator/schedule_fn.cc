@@ -40,7 +40,7 @@ class ScheduleFnNode : public SpaceGeneratorNode {
     this->rand_state_ = ForkSeed(&context->rand_state);
   }
 
-  Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final {
+  ffi::Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final {
     tir::Schedule sch = tir::Schedule::Traced(
         /*mod=*/mod,
         /*rand_state=*/ForkSeed(&this->rand_state_),
@@ -56,7 +56,7 @@ class ScheduleFnNode : public SpaceGeneratorNode {
       return {sch.value()};
     }
     if (const auto* arr = obj.as<ffi::ArrayObj>()) {
-      Array<tir::Schedule> result;
+      ffi::Array<tir::Schedule> result;
       result.reserve(arr->size());
       for (Any val : *arr) {
         if (auto sch = val.as<tir::Schedule>()) {
@@ -76,7 +76,7 @@ class ScheduleFnNode : public SpaceGeneratorNode {
   }
 
   SpaceGenerator Clone() const final {
-    ObjectPtr<ScheduleFnNode> n = make_object<ScheduleFnNode>(*this);
+    ObjectPtr<ScheduleFnNode> n = ffi::make_object<ScheduleFnNode>(*this);
     CloneRules(this, n.get());
     return SpaceGenerator(n);
   }
@@ -85,11 +85,11 @@ class ScheduleFnNode : public SpaceGeneratorNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleFnNode, SpaceGeneratorNode);
 };
 
-SpaceGenerator SpaceGenerator::ScheduleFn(ffi::Function schedule_fn,
-                                          Optional<Array<ScheduleRule>> sch_rules,
-                                          Optional<Array<Postproc>> postprocs,
-                                          Optional<Map<Mutator, FloatImm>> mutator_probs) {
-  ObjectPtr<ScheduleFnNode> n = make_object<ScheduleFnNode>();
+SpaceGenerator SpaceGenerator::ScheduleFn(
+    ffi::Function schedule_fn, ffi::Optional<ffi::Array<ScheduleRule>> sch_rules,
+    ffi::Optional<ffi::Array<Postproc>> postprocs,
+    ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs) {
+  ObjectPtr<ScheduleFnNode> n = ffi::make_object<ScheduleFnNode>();
   n->sch_rules = std::move(sch_rules);
   n->postprocs = std::move(postprocs);
   n->mutator_probs = std::move(mutator_probs);

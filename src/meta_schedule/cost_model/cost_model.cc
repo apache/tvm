@@ -23,24 +23,25 @@
 namespace tvm {
 namespace meta_schedule {
 
-void PyCostModelNode::Load(const String& path) {
+void PyCostModelNode::Load(const ffi::String& path) {
   ICHECK(f_load != nullptr) << "PyCostModel's Load method not implemented!";
   f_load(path);
 }
 
-void PyCostModelNode::Save(const String& path) {
+void PyCostModelNode::Save(const ffi::String& path) {
   ICHECK(f_save != nullptr) << "PyCostModel's Save method not implemented!";
   f_save(path);
 }
 
-void PyCostModelNode::Update(const TuneContext& context, const Array<MeasureCandidate>& candidates,
-                             const Array<RunnerResult>& results) {
+void PyCostModelNode::Update(const TuneContext& context,
+                             const ffi::Array<MeasureCandidate>& candidates,
+                             const ffi::Array<RunnerResult>& results) {
   ICHECK(f_update != nullptr) << "PyCostModel's Update method not implemented!";
   f_update(context, candidates, results);
 }
 
 std::vector<double> PyCostModelNode::Predict(const TuneContext& context,
-                                             const Array<MeasureCandidate>& candidates) {
+                                             const ffi::Array<MeasureCandidate>& candidates) {
   ICHECK(f_predict != nullptr) << "PyCostModel's Predict method not implemented!";
   std::vector<double> result(candidates.size(), 0.0);
   f_predict(context, candidates, result.data());
@@ -52,7 +53,7 @@ CostModel CostModel::PyCostModel(PyCostModelNode::FLoad f_load,        //
                                  PyCostModelNode::FUpdate f_update,    //
                                  PyCostModelNode::FPredict f_predict,  //
                                  PyCostModelNode::FAsString f_as_string) {
-  ObjectPtr<PyCostModelNode> n = make_object<PyCostModelNode>();
+  ObjectPtr<PyCostModelNode> n = ffi::make_object<PyCostModelNode>();
   n->f_load = std::move(f_load);
   n->f_save = std::move(f_save);
   n->f_update = std::move(f_update);
@@ -77,9 +78,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_method("meta_schedule.CostModelSave", &CostModelNode::Save)
       .def_method("meta_schedule.CostModelUpdate", &CostModelNode::Update)
       .def("meta_schedule.CostModelPredict",
-           [](CostModel model,                     //
-              const TuneContext& context,          //
-              Array<MeasureCandidate> candidates,  //
+           [](CostModel model,                          //
+              const TuneContext& context,               //
+              ffi::Array<MeasureCandidate> candidates,  //
               void* p_addr) -> void {
              std::vector<double> result = model->Predict(context, candidates);
              std::copy(result.begin(), result.end(), static_cast<double*>(p_addr));

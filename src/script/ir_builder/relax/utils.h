@@ -31,8 +31,8 @@ namespace script {
 namespace ir_builder {
 namespace relax {
 
-inline FunctionFrame FindFunctionFrame(const String& method) {
-  if (Optional<FunctionFrame> frame = IRBuilder::Current()->FindFrame<FunctionFrame>()) {
+inline FunctionFrame FindFunctionFrame(const ffi::String& method) {
+  if (ffi::Optional<FunctionFrame> frame = IRBuilder::Current()->FindFrame<FunctionFrame>()) {
     return frame.value();
   }
   LOG(FATAL) << "ValueError: Function frame not find. Please ensure '" << method
@@ -40,8 +40,8 @@ inline FunctionFrame FindFunctionFrame(const String& method) {
   throw;
 }
 
-inline IfFrame FindIfFrame(const String& method) {
-  if (Optional<IfFrame> frame = IRBuilder::Current()->GetLastFrame<IfFrame>()) {
+inline IfFrame FindIfFrame(const ffi::String& method) {
+  if (ffi::Optional<IfFrame> frame = IRBuilder::Current()->GetLastFrame<IfFrame>()) {
     return frame.value();
   } else {
     LOG(FATAL) << "ValueError: IfThenElse frame not find. Please ensure '" << method
@@ -51,7 +51,7 @@ inline IfFrame FindIfFrame(const String& method) {
 }
 
 inline tvm::relax::BlockBuilder GetBlockBuilder() {
-  Optional<FunctionFrame> frame = IRBuilder::Current()->FindFrame<FunctionFrame>();
+  ffi::Optional<FunctionFrame> frame = IRBuilder::Current()->FindFrame<FunctionFrame>();
   CHECK(frame.defined()) << "ValueError: Relax Function frame not find. Please ensure "
                             "assignment is called under R.function()";
   return frame.value()->block_builder;
@@ -61,14 +61,14 @@ inline BlockFrame CheckBlockFrameExistAndUnended() {
   // We check if the current block is "ended" - if a block is ended, it is not allowed to emit new
   // bindings into this block, and we should throw exceptions.
 
-  Optional<BlockFrame> block_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>();
+  ffi::Optional<BlockFrame> block_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>();
   CHECK(block_frame.defined()) << "ValueError: Block frame not find";
   CHECK(!block_frame.value()->block_ended)
       << "ValueError: New binding is not allowed after dataflow block output.";
   return block_frame.value();
 }
 
-inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, String* var_name) {
+inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, ffi::String* var_name) {
   // Step 0. Check frame type
   std::string method;
   std::string output_var_suffix;
@@ -101,10 +101,10 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, String
   *var_name = last_binding->var->name_hint();
 
   // Step 3. Re-collect binding blocks to replace the last binding.
-  Array<tvm::relax::BindingBlock> new_blocks(frame->binding_blocks.begin(),
-                                             frame->binding_blocks.end() - 1);
-  Array<tvm::relax::Binding> last_block_bindings(last_block->bindings.begin(),
-                                                 last_block->bindings.end() - 1);
+  ffi::Array<tvm::relax::BindingBlock> new_blocks(frame->binding_blocks.begin(),
+                                                  frame->binding_blocks.end() - 1);
+  ffi::Array<tvm::relax::Binding> last_block_bindings(last_block->bindings.begin(),
+                                                      last_block->bindings.end() - 1);
 
   tvm::relax::Var new_var = tvm::relax::Var(last_binding->var->name_hint() + output_var_suffix,
                                             GetStructInfo(last_binding->var));

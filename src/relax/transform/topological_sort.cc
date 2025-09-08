@@ -149,7 +149,7 @@ class BindingOrderCollector : ExprVisitor {
   }
 
   void VisitExpr_(const VarNode* op) override {
-    Var upstream_requirement = GetRef<Var>(op);
+    Var upstream_requirement = ffi::GetRef<Var>(op);
     auto downstream_user = current_binding_;
 
     dependencies_.downstream_users[upstream_requirement].push_back(downstream_user);
@@ -167,7 +167,7 @@ class TopologicalSorter : public ExprMutator {
 
   Expr VisitExpr_(const FunctionNode* op) override {
     auto cached = dependencies_;
-    dependencies_ = BindingOrderCollector::Collect(GetRef<Expr>(op));
+    dependencies_ = BindingOrderCollector::Collect(ffi::GetRef<Expr>(op));
 
     if (starting_location_ == StartingLocation::FromOutputs) {
       std::reverse(dependencies_.binding_order.begin(), dependencies_.binding_order.end());
@@ -184,7 +184,7 @@ class TopologicalSorter : public ExprMutator {
   }
 
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* op) override {
-    auto block = GetRef<DataflowBlock>(op);
+    auto block = ffi::GetRef<DataflowBlock>(op);
 
     // A map from not-yet-defined variables to the binding that will
     // define the variable.  Items are removed from this map as they
@@ -309,13 +309,13 @@ class TopologicalSorter : public ExprMutator {
                                  << "no bindings should remain to emit.  "
                                  << "However, bindings " <<
         [&]() {
-          Array<Var> arr;
+          ffi::Array<Var> arr;
           for (const auto& [var, binding] : to_emit) {
             arr.push_back(var);
           }
           return arr;
         }() << " still remain after emitting "
-                                 << Array<Binding>(new_bindings.begin(), new_bindings.end())
+                                 << ffi::Array<Binding>(new_bindings.begin(), new_bindings.end())
                                         .Map([](const Binding& binding) { return binding->var; });
 
     if (starting_location_ == StartingLocation::FromOutputs) {
@@ -346,7 +346,8 @@ Pass TopologicalSort(TraversalOrder order, StartingLocation starting_location) {
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "relax.transform.TopologicalSort", [](String order_str, String direction_str) -> Pass {
+      "relax.transform.TopologicalSort",
+      [](ffi::String order_str, ffi::String direction_str) -> Pass {
         TraversalOrder order = [&]() {
           if (order_str == "depth-first") {
             return TraversalOrder::DepthFirst;

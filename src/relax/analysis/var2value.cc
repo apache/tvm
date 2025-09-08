@@ -26,7 +26,7 @@ namespace tvm {
 namespace relax {
 class Var2ValAnalysis : public relax::ExprVisitor {
  public:
-  Map<Var, Expr> var2value_;
+  ffi::Map<Var, Expr> var2value_;
   void VisitBinding_(const VarBindingNode* binding) override {
     var2value_.Set(binding->var, binding->value);
     // Recursively visit the value to handle local functions.
@@ -34,25 +34,25 @@ class Var2ValAnalysis : public relax::ExprVisitor {
   }
 };
 
-Map<Var, Expr> AnalyzeVar2Value(const Expr& expr) {
+ffi::Map<Var, Expr> AnalyzeVar2Value(const Expr& expr) {
   Var2ValAnalysis var2val_analysis;
   var2val_analysis.VisitExpr(expr);
   return std::move(var2val_analysis.var2value_);
 }
 
-Map<Var, Expr> AnalyzeVar2Value(const DataflowBlock& dfb) {
+ffi::Map<Var, Expr> AnalyzeVar2Value(const DataflowBlock& dfb) {
   Var2ValAnalysis var2val_analysis;
   var2val_analysis.VisitBindingBlock_(dfb.get());
   return std::move(var2val_analysis.var2value_);
 }
 
-Map<Var, Expr> AnalyzeVar2Value(const IRModule& m) {
+ffi::Map<Var, Expr> AnalyzeVar2Value(const IRModule& m) {
   Var2ValAnalysis var2val_analysis;
 
   for (const auto& it : m->functions) {
     // visit relax.Function
     if (auto* n = it.second.as<FunctionNode>()) {
-      var2val_analysis.VisitExpr(GetRef<Function>(n));
+      var2val_analysis.VisitExpr(ffi::GetRef<Function>(n));
     }
   }
 
@@ -69,23 +69,24 @@ class Name2BindingAnalysis : public relax::ExprVisitor {
  public:
   // Map is not suitable for doing in-place update.
   // so we use standard container for internal usage.
-  std::map<String, Array<Binding>> name2bindings_;
+  std::map<ffi::String, ffi::Array<Binding>> name2bindings_;
   void VisitBinding_(const VarBindingNode* binding) override {
     const auto& vname = binding->var->name_hint();
-    name2bindings_[vname].push_back(GetRef<VarBinding>(binding));
+    name2bindings_[vname].push_back(ffi::GetRef<VarBinding>(binding));
   }
 
   void VisitBinding_(const MatchCastNode* binding) override {
     const auto& vname = binding->var->name_hint();
-    name2bindings_[vname].push_back(GetRef<MatchCast>(binding));
+    name2bindings_[vname].push_back(ffi::GetRef<MatchCast>(binding));
   }
 };
 
-Map<String, Array<Binding>> NameToBinding(const Function& fn) {
+ffi::Map<ffi::String, ffi::Array<Binding>> NameToBinding(const Function& fn) {
   Name2BindingAnalysis analysis{};
   analysis.VisitExpr_(fn.get());
-  return Map<String, Array<Binding>>(std::make_move_iterator(analysis.name2bindings_.begin()),
-                                     std::make_move_iterator(analysis.name2bindings_.end()));
+  return ffi::Map<ffi::String, ffi::Array<Binding>>(
+      std::make_move_iterator(analysis.name2bindings_.begin()),
+      std::make_move_iterator(analysis.name2bindings_.end()));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({

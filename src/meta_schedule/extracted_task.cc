@@ -28,9 +28,9 @@
 namespace tvm {
 namespace meta_schedule {
 
-ExtractedTask::ExtractedTask(String task_name, IRModule mod, Target target,
-                             Array<IRModule> dispatched, int weight) {
-  ObjectPtr<ExtractedTaskNode> n = make_object<ExtractedTaskNode>();
+ExtractedTask::ExtractedTask(ffi::String task_name, IRModule mod, Target target,
+                             ffi::Array<IRModule> dispatched, int weight) {
+  ObjectPtr<ExtractedTaskNode> n = ffi::make_object<ExtractedTaskNode>();
   n->task_name = task_name;
   n->mod = mod;
   n->target = target;
@@ -44,8 +44,8 @@ TVM_FFI_STATIC_INIT_BLOCK({ ExtractedTaskNode::RegisterReflection(); });
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ExtractedTask",
-                        [](String task_name, IRModule mod, Target target,
-                           Array<IRModule> dispatched, int weight) -> ExtractedTask {
+                        [](ffi::String task_name, IRModule mod, Target target,
+                           ffi::Array<IRModule> dispatched, int weight) -> ExtractedTask {
                           return ExtractedTask(task_name, mod, target, dispatched, weight);
                         });
 });

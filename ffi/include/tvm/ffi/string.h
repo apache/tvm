@@ -993,9 +993,6 @@ inline std::ostream& operator<<(std::ostream& out, const String& input) {
 }
 /// \endcond
 }  // namespace ffi
-
-using ffi::Bytes;
-using ffi::String;
 }  // namespace tvm
 
 /// \cond Doxygen_Suppress

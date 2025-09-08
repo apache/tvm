@@ -56,7 +56,7 @@ class DiscoSocketChannel : public DiscoChannel {
 class SocketSessionObj : public BcastSessionObj {
  public:
   explicit SocketSessionObj(int num_nodes, int num_workers_per_node, int num_groups,
-                            const String& host, int port)
+                            const ffi::String& host, int port)
       : num_nodes_(num_nodes), num_workers_per_node_(num_workers_per_node) {
     const auto f_create_local_session =
         tvm::ffi::Function::GetGlobal("runtime.disco.create_socket_session_local_workers");
@@ -209,7 +209,8 @@ class SocketSessionObj : public BcastSessionObj {
 
 class RemoteSocketSession {
  public:
-  explicit RemoteSocketSession(const String& server_host, int server_port, int num_local_workers) {
+  explicit RemoteSocketSession(const ffi::String& server_host, int server_port,
+                               int num_local_workers) {
     socket_.Create();
     socket_.SetKeepAlive(true);
     SockAddr server_addr{server_host.c_str(), server_port};
@@ -287,7 +288,7 @@ class RemoteSocketSession {
   int num_workers_per_node_{-1};
 };
 
-void RemoteSocketSessionEntryPoint(const String& server_host, int server_port,
+void RemoteSocketSessionEntryPoint(const ffi::String& server_host, int server_port,
                                    int num_local_workers) {
   RemoteSocketSession proxy(server_host, server_port, num_local_workers);
   proxy.MainLoop();
@@ -298,9 +299,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
   refl::GlobalDef().def("runtime.disco.RemoteSocketSession", RemoteSocketSessionEntryPoint);
 });
 
-Session SocketSession(int num_nodes, int num_workers_per_node, int num_groups, const String& host,
-                      int port) {
-  auto n = make_object<SocketSessionObj>(num_nodes, num_workers_per_node, num_groups, host, port);
+Session SocketSession(int num_nodes, int num_workers_per_node, int num_groups,
+                      const ffi::String& host, int port) {
+  auto n =
+      ffi::make_object<SocketSessionObj>(num_nodes, num_workers_per_node, num_groups, host, port);
   return Session(n);
 }
 

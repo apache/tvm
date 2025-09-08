@@ -42,7 +42,7 @@ using namespace tir;
 TVM_FFI_STATIC_INIT_BLOCK({ ConstIntBoundNode::RegisterReflection(); });
 
 ConstIntBound::ConstIntBound(int64_t min_value, int64_t max_value) {
-  auto node = make_object<ConstIntBoundNode>();
+  auto node = ffi::make_object<ConstIntBoundNode>();
   node->min_value = min_value;
   node->max_value = max_value;
   data_ = std::move(node);
@@ -387,7 +387,7 @@ class ConstIntBoundAnalyzer::Impl
   }
 
   Entry VisitExpr_(const VarNode* op) final {
-    Var v = GetRef<Var>(op);
+    Var v = ffi::GetRef<Var>(op);
     auto it = var_map_.find(v);
     if (it != var_map_.end()) {
       return it->second;
@@ -397,7 +397,7 @@ class ConstIntBoundAnalyzer::Impl
   }
 
   Entry VisitExpr_(const SizeVarNode* op) final {
-    SizeVar v = GetRef<SizeVar>(op);
+    SizeVar v = ffi::GetRef<SizeVar>(op);
     auto it = var_map_.find(v);
     if (it != var_map_.end()) {
       return it->second;
@@ -744,7 +744,7 @@ class ConstIntBoundAnalyzer::Impl
    * This expression is used as the implementation of
    * topi.math.ceil_log2, and can appear in iteration bounds.
    */
-  static Optional<PrimExpr> FindCeilLog2Arg(const CastNode* op) {
+  static ffi::Optional<PrimExpr> FindCeilLog2Arg(const CastNode* op) {
     if (op->dtype.is_int()) {
       if (auto as_call = op->value.as<CallNode>()) {
         if (as_call->op.same_as(Op::Get("tir.ceil"))) {

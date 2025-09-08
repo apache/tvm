@@ -88,7 +88,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
  * \sa MatchShape
  */
 void MatchPrimValue(int64_t input_value, DLTensor* heap, int code_value, int64_t reg,
-                    Optional<String> err_ctx) {
+                    ffi::Optional<ffi::String> err_ctx) {
   int64_t* heap_data = heap == nullptr ? nullptr : static_cast<int64_t*>(heap->data);
   MatchShapeCode code = static_cast<MatchShapeCode>(code_value);
 
@@ -134,7 +134,7 @@ void MatchShape(ffi::PackedArgs args, ffi::Any* rv) {
   ICHECK_LE(kBeginCode + size * 2, args.size());
   // a function that lazily get context for error reporting
   const int64_t kErrorContextOffset = kBeginCode + size * 2;
-  Optional<String> err_ctx = args[kErrorContextOffset].cast<String>();
+  ffi::Optional<ffi::String> err_ctx = args[kErrorContextOffset].cast<ffi::String>();
 
   CHECK_EQ(input_shape.size(), size)
       << "RuntimeError: " << err_ctx.value_or("") << " match_cast shape size mismatch.";
@@ -238,14 +238,14 @@ void CheckTensorInfo(ffi::PackedArgs args, ffi::Any* rv) {
   ffi::AnyView arg = args[0];
   int ndim = args[1].cast<int>();
   DataType dtype;
-  Optional<String> err_ctx;
+  ffi::Optional<ffi::String> err_ctx;
 
   if (args.size() == 3) {
     dtype = DataType::Void();
-    err_ctx = args[2].cast<Optional<String>>();
+    err_ctx = args[2].cast<ffi::Optional<ffi::String>>();
   } else {
     dtype = args[2].cast<DataType>();
-    err_ctx = args[3].cast<Optional<String>>();
+    err_ctx = args[3].cast<ffi::Optional<ffi::String>>();
   }
 
   auto opt_ptr = arg.try_cast<DLTensor*>();
@@ -276,7 +276,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
  * \param ndim Expected size of the shape, can be -1 (indicate unknown).
  * \param err_ctx Additional context if error occurs.
  */
-void CheckShapeInfo(ObjectRef arg, int ndim, Optional<String> err_ctx) {
+void CheckShapeInfo(ObjectRef arg, int ndim, ffi::Optional<ffi::String> err_ctx) {
   // a function that lazily get context for error reporting
   auto* ptr = arg.as<ffi::Shape::ContainerType>();
   CHECK(ptr != nullptr) << "TypeError: " << err_ctx.value_or("") << " expect a Shape but get "
@@ -299,7 +299,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
  * \param dtype Expected dtype of the PrimValue.  Can be DataType::Void() for unknown dtype.
  * \param err_ctx Additional context if error occurs.
  */
-void CheckPrimValueInfo(ffi::AnyView arg, DataType dtype, Optional<String> err_ctx) {
+void CheckPrimValueInfo(ffi::AnyView arg, DataType dtype, ffi::Optional<ffi::String> err_ctx) {
   if (auto opt_obj = arg.as<ObjectRef>()) {
     LOG(FATAL) << "TypeError: " << err_ctx.value_or("") << ", expected dtype " << dtype
                << ", but received ObjectRef of type " << opt_obj.value()->GetTypeKey();
@@ -329,7 +329,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
  * \param size The expected size of the tuple.
  * \param err_ctx Additional context if error occurs.
  */
-void CheckTupleInfo(ObjectRef arg, int64_t size, Optional<String> err_ctx) {
+void CheckTupleInfo(ObjectRef arg, int64_t size, ffi::Optional<ffi::String> err_ctx) {
   // a function that lazily get context for error reporting
   auto* ptr = arg.as<ffi::ArrayObj>();
   CHECK(ptr != nullptr) << "TypeError: " << err_ctx.value_or("") << " expect a Tuple but get "
@@ -349,7 +349,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
  * \param arg The input argument.
  * \param err_ctx Additional context if error occurs.
  */
-void CheckFuncInfo(ObjectRef arg, Optional<String> err_ctx) {
+void CheckFuncInfo(ObjectRef arg, ffi::Optional<ffi::String> err_ctx) {
   // a function that lazily get context for error reporting
   bool is_func = arg.as<ffi::Function::ContainerType>() || arg.as<VMClosure::ContainerType>();
   CHECK(is_func) << "TypeError: " << err_ctx.value_or("") << " expect a Function but get "
@@ -365,7 +365,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 //  Storage management.
 //-------------------------------------------------
 Storage VMAllocStorage(void* ctx_ptr, ffi::Shape buffer_shape, Index device_index,
-                       DLDataType dtype_hint, String mem_scope) {
+                       DLDataType dtype_hint, ffi::String mem_scope) {
   VirtualMachine* vm = static_cast<VirtualMachine*>(ctx_ptr);
 
   ICHECK_LT(device_index, vm->devices.size())
@@ -508,12 +508,12 @@ TVM_FFI_STATIC_INIT_BLOCK({
         int num_args = args.size() - 3;
         ObjectRef io_effect = args[0].cast<ObjectRef>();
         ICHECK(!io_effect.defined()) << "ValueError: IOEffect is expected to be lowered to None.";
-        String debug_func_name = args[1].cast<String>();
+        ffi::String debug_func_name = args[1].cast<ffi::String>();
         const auto debug_func = tvm::ffi::Function::GetGlobal(debug_func_name);
         CHECK(debug_func.has_value()) << "ValueError: " << debug_func_name << " is not found. "
                                       << "Use the decorator `@tvm.register_global_func(\""
                                       << debug_func_name << "\")` to register it.";
-        String line_info = args[2].cast<String>();
+        ffi::String line_info = args[2].cast<ffi::String>();
         std::vector<ffi::AnyView> call_args(num_args + 1);
         {
           call_args[0] = line_info;
@@ -533,14 +533,14 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("vm.builtin.tuple_getitem",
-           [](Array<ffi::Any> arr, int64_t index) { return arr[index]; })
+           [](ffi::Array<ffi::Any> arr, int64_t index) { return arr[index]; })
       .def("vm.builtin.tuple_reset_item",
            [](const ffi::ArrayObj* arr, int64_t index) {
              const_cast<ffi::ArrayObj*>(arr)->SetItem(index, nullptr);
            })
       .def_packed("vm.builtin.make_tuple",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    Array<ffi::Any> arr;
+                    ffi::Array<ffi::Any> arr;
                     for (int i = 0; i < args.size(); ++i) {
                       arr.push_back(args[i]);
                     }

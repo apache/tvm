@@ -55,7 +55,7 @@ inline bool IsConstInt(PrimExpr expr) { return expr->IsInstance<tvm::tir::IntImm
  *
  * \return true if every element in array is constant int or uint, false otherwise.
  */
-inline bool IsConstIntArray(Array<PrimExpr> array) {
+inline bool IsConstIntArray(ffi::Array<PrimExpr> array) {
   bool is_const_int = true;
   for (auto const& elem : array) {
     is_const_int &= !elem.defined() || elem->IsInstance<tvm::tir::IntImmNode>();
@@ -88,7 +88,7 @@ inline int64_t GetConstInt(PrimExpr expr) {
  *
  * \return A vector of the integer values
  */
-inline std::vector<int> GetConstIntValues(Array<PrimExpr> exprs, const std::string& var_name) {
+inline std::vector<int> GetConstIntValues(ffi::Array<PrimExpr> exprs, const std::string& var_name) {
   std::vector<int> result;
   if (!exprs.defined()) return result;
   for (auto expr : exprs) {
@@ -107,7 +107,7 @@ inline std::vector<int> GetConstIntValues(Array<PrimExpr> exprs, const std::stri
  *
  * \return A vector of the int64_t values
  */
-inline std::vector<int64_t> GetConstInt64Values(Array<PrimExpr> exprs,
+inline std::vector<int64_t> GetConstInt64Values(ffi::Array<PrimExpr> exprs,
                                                 const std::string& var_name) {
   std::vector<int64_t> result;
   if (!exprs.defined()) return result;

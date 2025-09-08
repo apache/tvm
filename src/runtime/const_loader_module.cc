@@ -67,7 +67,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
     }
   }
 
-  ffi::Optional<ffi::Function> GetFunction(const String& name) final {
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
     VLOG(1) << "ConstLoaderModuleNode::GetFunction(" << name << ")";
     // Initialize and memoize the module.
     // Usually, we have some warmup runs. The module initialization should be
@@ -80,7 +80,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
 
     if (name == "get_const_var_tensor") {
       return ffi::Function([_self, this](ffi::PackedArgs args, ffi::Any* rv) {
-        Map<String, ffi::Any> ret_map;
+        ffi::Map<ffi::String, ffi::Any> ret_map;
         for (const auto& kv : const_var_tensor_) {
           ret_map.Set(kv.first, kv.second);
         }
@@ -109,8 +109,8 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
    * \param symbol The symbol that is being queried.
    * \return The list of needed Tensor.
    */
-  Array<Tensor> GetRequiredConstants(const std::string& symbol) {
-    Array<Tensor> ret;
+  ffi::Array<Tensor> GetRequiredConstants(const std::string& symbol) {
+    ffi::Array<Tensor> ret;
     ICHECK_GT(const_vars_by_symbol_.count(symbol), 0U)
         << "No constants known for function '" << symbol << "'";
     std::vector<std::string> vars = const_vars_by_symbol_[symbol];
@@ -139,7 +139,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
     for (const Any& it : this->imports_) {
       // Get the initialization function from the imported modules.
       std::string init_name = "__init_" + symbol;
-      Optional<ffi::Function> init = it.cast<ffi::Module>()->GetFunction(init_name, false);
+      ffi::Optional<ffi::Function> init = it.cast<ffi::Module>()->GetFunction(init_name, false);
       if (init.has_value()) {
         auto md = GetRequiredConstants(symbol);
         // Initialize the module with constants.
@@ -159,7 +159,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
     std::vector<std::string> variables;
     std::vector<Tensor> const_var_tensor;
     for (const auto& it : const_var_tensor_) {
-      String var_name = it.first;
+      ffi::String var_name = it.first;
       variables.push_back(var_name);
       const_var_tensor.push_back(it.second);
     }
@@ -232,7 +232,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
       const_vars_by_symbol[symbols[i]] = const_vars[i];
     }
 
-    auto n = make_object<ConstLoaderModuleObj>(const_var_tensor, const_vars_by_symbol);
+    auto n = ffi::make_object<ConstLoaderModuleObj>(const_var_tensor, const_vars_by_symbol);
     return ffi::Module(n);
   }
 
@@ -251,7 +251,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
 ffi::Module ConstLoaderModuleCreate(
     const std::unordered_map<std::string, Tensor>& const_var_tensor,
     const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol) {
-  auto n = make_object<ConstLoaderModuleObj>(const_var_tensor, const_vars_by_symbol);
+  auto n = ffi::make_object<ConstLoaderModuleObj>(const_var_tensor, const_vars_by_symbol);
   return ffi::Module(n);
 }
 

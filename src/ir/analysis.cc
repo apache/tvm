@@ -29,17 +29,17 @@
 namespace tvm {
 namespace ir {
 
-Map<GlobalVar, Array<GlobalVar>> CollectCallMap(const IRModule& mod) {
+ffi::Map<GlobalVar, ffi::Array<GlobalVar>> CollectCallMap(const IRModule& mod) {
   struct CalleeCollectorImpl : CalleeCollector {
     void Mark(GlobalVar gvar) override { gvars.push_back(gvar); }
     support::OrderedSet<GlobalVar, ObjectPtrHash, ObjectPtrEqual> gvars;
   };
 
-  Map<GlobalVar, Array<GlobalVar>> call_map;
+  ffi::Map<GlobalVar, ffi::Array<GlobalVar>> call_map;
   for (const auto& [gvar, base_func] : mod->functions) {
     CalleeCollectorImpl collector;
     CalleeCollector::vtable()(base_func, &collector);
-    call_map.Set(gvar, Array<GlobalVar>{collector.gvars.begin(), collector.gvars.end()});
+    call_map.Set(gvar, ffi::Array<GlobalVar>{collector.gvars.begin(), collector.gvars.end()});
   }
   return call_map;
 }

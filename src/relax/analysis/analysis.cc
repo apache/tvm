@@ -46,9 +46,9 @@ struct InsertionSet {
 
 class VarVisitor : protected ExprVisitor {
  public:
-  Array<Var> Free(const Expr& expr) {
+  ffi::Array<Var> Free(const Expr& expr) {
     this->VisitExpr(expr);
-    Array<Var> ret;
+    ffi::Array<Var> ret;
     for (const auto& v : vars_.data) {
       if (bound_vars_.set.count(v) == 0) {
         ret.push_back(v);
@@ -57,31 +57,31 @@ class VarVisitor : protected ExprVisitor {
     return ret;
   }
 
-  Array<Var> Collect() {
-    Array<Var> ret;
+  ffi::Array<Var> Collect() {
+    ffi::Array<Var> ret;
     for (const auto& v : bound_vars_.data) {
       ret.push_back(v);
     }
     return ret;
   }
 
-  Array<Var> Bound(const Expr& expr) {
+  ffi::Array<Var> Bound(const Expr& expr) {
     this->VisitExpr(expr);
     return Collect();
   }
 
-  Array<Var> All(const Expr& expr) {
+  ffi::Array<Var> All(const Expr& expr) {
     this->VisitExpr(expr);
-    Array<Var> ret;
+    ffi::Array<Var> ret;
     for (const auto& v : vars_.data) {
       ret.push_back(v);
     }
     return ret;
   }
 
-  Array<GlobalVar> AllGlobalVars(const Expr& expr) {
+  ffi::Array<GlobalVar> AllGlobalVars(const Expr& expr) {
     this->VisitExpr(expr);
-    Array<GlobalVar> ret;
+    ffi::Array<GlobalVar> ret;
     for (const auto& v : global_vars_.data) {
       ret.push_back(v);
     }
@@ -93,7 +93,7 @@ class VarVisitor : protected ExprVisitor {
     vars_.Insert(v);
   }
 
-  void VisitExpr_(const VarNode* var) final { vars_.Insert(GetRef<Var>(var)); }
+  void VisitExpr_(const VarNode* var) final { vars_.Insert(ffi::GetRef<Var>(var)); }
 
   void VisitExpr_(const FunctionNode* op) final {
     for (const auto& param : op->params) {
@@ -102,7 +102,9 @@ class VarVisitor : protected ExprVisitor {
     VisitExpr(op->body);
   }
 
-  void VisitExpr_(const GlobalVarNode* op) final { global_vars_.Insert(GetRef<GlobalVar>(op)); }
+  void VisitExpr_(const GlobalVarNode* op) final {
+    global_vars_.Insert(ffi::GetRef<GlobalVar>(op));
+  }
 
   void VisitExpr_(const CallNode* call_node) final {
     VisitSpan(call_node->span);
@@ -134,25 +136,27 @@ class VarVisitor : protected ExprVisitor {
   InsertionSet<GlobalVar> global_vars_;
 };
 
-tvm::Array<Var> FreeVars(const Expr& expr) { return VarVisitor().Free(expr); }
+tvm::ffi::Array<Var> FreeVars(const Expr& expr) { return VarVisitor().Free(expr); }
 
-tvm::Array<Var> BoundVars(const Expr& expr) { return VarVisitor().Bound(expr); }
+tvm::ffi::Array<Var> BoundVars(const Expr& expr) { return VarVisitor().Bound(expr); }
 
-tvm::Array<Var> AllVars(const Expr& expr) { return VarVisitor().All(expr); }
+tvm::ffi::Array<Var> AllVars(const Expr& expr) { return VarVisitor().All(expr); }
 
-tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr) { return VarVisitor().AllGlobalVars(expr); }
+tvm::ffi::Array<GlobalVar> AllGlobalVars(const Expr& expr) {
+  return VarVisitor().AllGlobalVars(expr);
+}
 
-Optional<Expr> FindImpureCall(const Expr& expr, const Optional<Expr>& own_name) {
+ffi::Optional<Expr> FindImpureCall(const Expr& expr, const ffi::Optional<Expr>& own_name) {
   class ImpureCallChecker : public ExprVisitor {
    public:
-    static Optional<Expr> Check(const Expr& expr, const Optional<Expr>& own_name) {
+    static ffi::Optional<Expr> Check(const Expr& expr, const ffi::Optional<Expr>& own_name) {
       ImpureCallChecker visitor(own_name);
       visitor.VisitExpr(expr);
       return visitor.impure_expr_;
     }
 
    private:
-    explicit ImpureCallChecker(const Optional<Expr>& own_name) : own_name_(own_name) {}
+    explicit ImpureCallChecker(const ffi::Optional<Expr>& own_name) : own_name_(own_name) {}
 
     void VisitExpr(const Expr& expr) override {
       // Early bail-out if we found an impure expression
@@ -169,7 +173,7 @@ Optional<Expr> FindImpureCall(const Expr& expr, const Optional<Expr>& own_name) 
     void VisitExpr_(const CallNode* call) override {
       // ignore recursive calls if we find one
       bool is_recursive = (own_name_ && own_name_.value().same_as(call->op));
-      auto expr = GetRef<Call>(call);
+      auto expr = ffi::GetRef<Call>(call);
       if (!is_recursive && IsImpureCall(expr)) {
         impure_expr_ = expr;
       } else {
@@ -178,8 +182,8 @@ Optional<Expr> FindImpureCall(const Expr& expr, const Optional<Expr>& own_name) 
     }
 
    private:
-    const Optional<Expr>& own_name_;
-    Optional<Expr> impure_expr_ = std::nullopt;
+    const ffi::Optional<Expr>& own_name_;
+    ffi::Optional<Expr> impure_expr_ = std::nullopt;
   };
 
   if (own_name) {
@@ -194,7 +198,7 @@ Optional<Expr> FindImpureCall(const Expr& expr, const Optional<Expr>& own_name) 
   return ImpureCallChecker::Check(to_check, own_name);
 }
 
-bool ContainsImpureCall(const Expr& expr, const Optional<Expr>& own_name) {
+bool ContainsImpureCall(const Expr& expr, const ffi::Optional<Expr>& own_name) {
   return FindImpureCall(expr, own_name).defined();
 }
 

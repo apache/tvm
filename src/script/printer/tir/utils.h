@@ -65,7 +65,7 @@ class TIRFrame : public Frame {
  public:
   /*! \brief Constructor */
   explicit TIRFrame(const IRDocsifier& d, const ObjectRef& tir) {
-    ObjectPtr<TIRFrameNode> n = make_object<TIRFrameNode>();
+    ObjectPtr<TIRFrameNode> n = ffi::make_object<TIRFrameNode>();
     n->stmts.clear();
     n->d = d.get();
     n->tir = tir;
@@ -84,7 +84,7 @@ class TIRFrame : public Frame {
  * \return The IdDoc corresponding to the variable
  */
 inline ExprDoc DefineVar(const tir::Var& var, const Frame& frame, const IRDocsifier& d) {
-  if (Optional<ExprDoc> doc = d->GetVarDoc(var)) {
+  if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(var)) {
     return doc.value();
   }
   return d->Define(var, frame, var->name_hint.empty() ? "v" : var->name_hint);
@@ -111,7 +111,7 @@ inline IdDoc DefineBuffer(const tir::Buffer& buffer, const Frame& frame, const I
  */
 inline void AsDocBody(const tir::Stmt& stmt, AccessPath p, TIRFrameNode* f, const IRDocsifier& d) {
   if (const auto* seq_stmt = stmt.as<tir::SeqStmtNode>()) {
-    Array<tir::Stmt> body = seq_stmt->seq;
+    ffi::Array<tir::Stmt> body = seq_stmt->seq;
     for (int i = 0, n = body.size(); i < n; ++i) {
       f->allow_concise_scoping = (i == n - 1);
       Doc doc = d->AsDoc(body[i], p->Attr("seq")->ArrayItem(i));
@@ -139,7 +139,7 @@ inline void AsDocBody(const tir::Stmt& stmt, AccessPath p, TIRFrameNode* f, cons
  * \param d The IRDocsifier
  * \return The frame that could place the var definition
  */
-inline Optional<Frame> FindLowestVarDef(const ObjectRef& var, const IRDocsifier& d) {
+inline ffi::Optional<Frame> FindLowestVarDef(const ObjectRef& var, const IRDocsifier& d) {
   if (!d->common_prefix.count(var.get())) {
     return std::nullopt;
   }
@@ -159,11 +159,11 @@ inline Optional<Frame> FindLowestVarDef(const ObjectRef& var, const IRDocsifier&
   const std::vector<const Object*>& path = d->common_prefix.at(var.get());
   for (auto it = path.rbegin(); it != path.rend(); ++it) {
     if (tir_to_frame.count(*it)) {
-      return GetRef<Frame>(tir_to_frame.at(*it));
+      return ffi::GetRef<Frame>(tir_to_frame.at(*it));
     }
   }
   if (fallback_frame != nullptr) {
-    return GetRef<Frame>(fallback_frame);
+    return ffi::GetRef<Frame>(fallback_frame);
   }
   return std::nullopt;
 }
@@ -214,9 +214,9 @@ enum class BufferVarDefinition {
  *     the buffer.
  * \return The ExprDoc corresponding to the buffer declaration
  */
-ExprDoc BufferDecl(const tir::Buffer& buffer, const String& method, const Array<ExprDoc>& args,
-                   const AccessPath& p, const Frame& frame, const IRDocsifier& d,
-                   BufferVarDefinition var_definitions);
+ExprDoc BufferDecl(const tir::Buffer& buffer, const ffi::String& method,
+                   const ffi::Array<ExprDoc>& args, const AccessPath& p, const Frame& frame,
+                   const IRDocsifier& d, BufferVarDefinition var_definitions);
 
 /*!
  * \brief Declare and define a buffer as annotation

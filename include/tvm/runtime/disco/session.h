@@ -235,7 +235,7 @@ class SessionObj : public Object {
    * \param ccl The name of the communication backend, e.g., nccl, rccl, mpi.
    * \param device_ids The device ids of the workers.
    */
-  TVM_DLL virtual void InitCCL(String ccl, IntTuple device_ids) = 0;
+  TVM_DLL virtual void InitCCL(ffi::String ccl, IntTuple device_ids) = 0;
   /*!
    * \brief Get the value of a register from a remote worker.
    * \param reg_id The id of the register to be fetched.
@@ -287,7 +287,7 @@ class Session : public ObjectRef {
    * worker-0 does not exist in the process pool.
    */
   TVM_DLL static Session ProcessSession(int num_workers, int num_groups,
-                                        String process_pool_creator, String entrypoint);
+                                        ffi::String process_pool_creator, ffi::String entrypoint);
 
   TVM_FFI_DEFINE_MUTABLE_OBJECT_REF_METHODS(Session, ObjectRef, SessionObj);
 };

@@ -56,8 +56,8 @@ using tvm::transform::Sequential;
  * \return The created function pass.
  */
 TVM_DLL Pass CreatePrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
-                                int opt_level, String name, tvm::Array<String> required,
-                                bool traceable = false);
+                                int opt_level, ffi::String name,
+                                tvm::ffi::Array<ffi::String> required, bool traceable = false);
 
 /*!
  * \brief partition loops in the stmt.
@@ -197,7 +197,7 @@ TVM_DLL Pass MakeUnpackedAPI();
  *
  * \return The pass.
  */
-TVM_DLL Pass RemapThreadAxis(Map<String, IterVar> axis_map);
+TVM_DLL Pass RemapThreadAxis(ffi::Map<ffi::String, IterVar> axis_map);
 
 /*!
  * \brief Lower custom datatypes.
@@ -273,7 +273,7 @@ TVM_DLL Pass SkipAssert();
  * \param storage_scope The storage scope considered.
  * \return The pass.
  */
-TVM_DLL Pass ThreadSync(String storage_scope);
+TVM_DLL Pass ThreadSync(ffi::String storage_scope);
 
 /*!
  * \brief Lower cross thread alleduce.
@@ -361,7 +361,7 @@ TVM_DLL Pass BF16ComputeLegalize();
  * \note Must be run after BindTarget, as it relies on target attributes for PrimFuncs
  * \return The pass.
  */
-TVM_DLL Pass FP8ComputeLegalize(String promote_dtype_str = "float16");
+TVM_DLL Pass FP8ComputeLegalize(ffi::String promote_dtype_str = "float16");
 
 /*!
  * \brief Legalize bf16 storage types to u16.
@@ -676,7 +676,7 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  */
 TVM_DLL Pass InjectSoftwarePipeline();
 
-TVM_DLL Pass BindParams(const Array<runtime::Tensor>& constants);
+TVM_DLL Pass BindParams(const ffi::Array<runtime::Tensor>& constants);
 
 /*!
  * \brief Pass to collect tir non-scalar constants into module's 'Constants' attribute.

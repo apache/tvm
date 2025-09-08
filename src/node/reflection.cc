@@ -38,12 +38,12 @@ using ffi::PackedArgs;
 //   key1, value1, ..., key_n, value_n
 void MakeNode(const ffi::PackedArgs& args, ffi::Any* rv) {
   // TODO(tvm-team): consider further simplify by removing DictAttrsNode special handling
-  String type_key = args[0].cast<String>();
+  ffi::String type_key = args[0].cast<ffi::String>();
   int32_t type_index;
   TVMFFIByteArray type_key_array = TVMFFIByteArray{type_key.data(), type_key.size()};
   TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(&type_key_array, &type_index));
   if (type_index == DictAttrsNode::RuntimeTypeIndex()) {
-    ObjectPtr<DictAttrsNode> attrs = make_object<DictAttrsNode>();
+    ObjectPtr<DictAttrsNode> attrs = ffi::make_object<DictAttrsNode>();
     attrs->InitByPackedArgs(args.Slice(1), false);
     *rv = ObjectRef(attrs);
   } else {

@@ -77,7 +77,7 @@ TensorCacheMetadata::FileRecord::ParamRecord JSONAsParamRecord(const picojson::o
   TensorCacheMetadata::FileRecord::ParamRecord result;
   std::string dtype = GetValue<std::string>(json, "dtype");
   result.name = GetValue<std::string>(json, "name");
-  result.dtype = DataType(StringToDLDataType(dtype));
+  result.dtype = DataType(ffi::StringToDLDataType(dtype));
   result.format = GetValue<std::string>(json, "format");
   result.nbytes = GetValue<int64_t>(json, "nbytes");
   result.byte_offset = GetValue<int64_t>(json, "byteOffset");
@@ -142,7 +142,7 @@ TVM_DLL TensorCacheMetadata TensorCacheMetadata::Load(const std::string& path) {
 }
 
 void CopyTensorFromBytes(Tensor param, const void* data, size_t nbytes,
-                         Optional<Tensor>* staging_buffer) {
+                         ffi::Optional<Tensor>* staging_buffer) {
   Device device = param->device;
   if (device.device_type != kDLOpenCL || staging_buffer == nullptr) {
     param.CopyFromBytes(data, nbytes);
@@ -166,9 +166,8 @@ void CopyTensorFromBytes(Tensor param, const void* data, size_t nbytes,
   DeviceAPI::Get(device)->StreamSync(device, nullptr);
 }
 
-Tensor TensorCacheMetadata::FileRecord::ParamRecord::Load(Device device,
-                                                          const std::string* raw_data,
-                                                          Optional<Tensor>* staging_buffer) const {
+Tensor TensorCacheMetadata::FileRecord::ParamRecord::Load(
+    Device device, const std::string* raw_data, ffi::Optional<Tensor>* staging_buffer) const {
   Tensor arr = Tensor::Empty(shape, dtype, device);
   if (dtype == DataType::Float(32) && format == "f32-to-bf16") {
     // decode bf16 to f32
@@ -185,17 +184,17 @@ Tensor TensorCacheMetadata::FileRecord::ParamRecord::Load(Device device,
   return arr;
 }
 
-TVM_DLL Array<Tensor> TensorCacheMetadata::FileRecord::Load(
+TVM_DLL ffi::Array<Tensor> TensorCacheMetadata::FileRecord::Load(
     Device device,
     const std::string& path_prefix,  //
     std::string* raw_data_buffer,    //
-    Optional<Tensor>* staging_buffer) const {
+    ffi::Optional<Tensor>* staging_buffer) const {
   LoadBinaryFromFile(path_prefix + "/" + this->data_path, raw_data_buffer);
   CHECK_EQ(this->format, "raw-shard") << "ValueError: Only `raw-shard` format is supported";
   CHECK_EQ(this->nbytes, raw_data_buffer->length())
       << "ValueError: Encountered an corrupted parameter shard. It means it is not downloaded "
          "completely or downloading is interrupted. Please try to download again.";
-  Array<Tensor> result;
+  ffi::Array<Tensor> result;
   result.reserve(this->records.size());
   for (const ParamRecord& nd_rec : this->records) {
     result.push_back(nd_rec.Load(device, raw_data_buffer, staging_buffer));
@@ -213,7 +212,7 @@ class TensorCache {
     return inst;
   }
 
-  static void Update(String name, Tensor arr, bool override) {
+  static void Update(ffi::String name, Tensor arr, bool override) {
     TensorCache* pool = Global();
     if (!override) {
       ICHECK_EQ(pool->pool_.count(name), 0) << "Name " << name << " already exists in the cache";
@@ -221,7 +220,7 @@ class TensorCache {
     pool->pool_.Set(name, arr);
   }
 
-  static Optional<Tensor> Get(String name) {
+  static ffi::Optional<Tensor> Get(ffi::String name) {
     TensorCache* pool = Global();
     auto it = pool->pool_.find(name);
     if (it != pool->pool_.end()) {
@@ -231,7 +230,7 @@ class TensorCache {
     }
   }
 
-  static void Remove(String name) {
+  static void Remove(ffi::String name) {
     TensorCache* pool = Global();
     pool->pool_.erase(name);
   }
@@ -247,9 +246,9 @@ class TensorCache {
   static void Load(const std::string& cache_path, int device_type, int device_id) {
     DLDevice device{static_cast<DLDeviceType>(device_type), device_id};
     TensorCacheMetadata metadata = TensorCacheMetadata::Load(cache_path);
-    Optional<Tensor> staging_buffer;
+    ffi::Optional<Tensor> staging_buffer;
     std::string raw_data;
-    Array<Tensor> params;
+    ffi::Array<Tensor> params;
     for (const TensorCacheMetadata::FileRecord& shard_rec : metadata.records) {
       try {
         params = shard_rec.Load(device, cache_path, &raw_data, &staging_buffer);
@@ -265,7 +264,7 @@ class TensorCache {
   }
 
  private:
-  Map<String, Tensor> pool_;
+  ffi::Map<ffi::String, Tensor> pool_;
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({
@@ -275,7 +274,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_packed("vm.builtin.tensor_cache.update",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     CHECK(args.size() == 2 || args.size() == 3);
-                    String name = args[0].cast<String>();
+                    ffi::String name = args[0].cast<ffi::String>();
                     bool is_override = args.size() == 2 ? false : args[2].cast<bool>();
 
                     Tensor arr;
@@ -307,7 +306,7 @@ class ParamModuleNode : public ffi::ModuleObj {
  public:
   const char* kind() const final { return "param_module"; }
 
-  Optional<ffi::Function> GetFunction(const String& name) final {
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
     if (name == "get_params") {
       auto params = params_;
       return ffi::Function([params](ffi::PackedArgs args, ffi::Any* rv) { *rv = params; });
@@ -316,8 +315,8 @@ class ParamModuleNode : public ffi::ModuleObj {
     }
   }
 
-  static Array<Tensor> GetParams(const String& prefix, int num_params) {
-    Array<Tensor> params;
+  static ffi::Array<Tensor> GetParams(const ffi::String& prefix, int num_params) {
+    ffi::Array<Tensor> params;
     for (int i = 0; i < num_params || num_params == -1; ++i) {
       std::string name = prefix + "_" + std::to_string(i);
       auto opt = TensorCache::Get(name);
@@ -331,11 +330,11 @@ class ParamModuleNode : public ffi::ModuleObj {
     return params;
   }
 
-  static Array<Tensor> GetParamByName(const Array<String>& names) {
-    Array<Tensor> result;
+  static ffi::Array<Tensor> GetParamByName(const ffi::Array<ffi::String>& names) {
+    ffi::Array<Tensor> result;
     result.reserve(names.size());
-    for (const String& name : names) {
-      if (Optional<Tensor> opt = TensorCache::Get(name)) {
+    for (const ffi::String& name : names) {
+      if (ffi::Optional<Tensor> opt = TensorCache::Get(name)) {
         result.push_back(opt.value());
       } else {
         LOG(FATAL) << "ValueError: Cannot find parameter in cache: " << name;
@@ -345,19 +344,19 @@ class ParamModuleNode : public ffi::ModuleObj {
   }
 
   static ffi::Module Create(const std::string& prefix, int num_params) {
-    auto n = make_object<ParamModuleNode>();
+    auto n = ffi::make_object<ParamModuleNode>();
     n->params_ = GetParams(prefix, num_params);
     return ffi::Module(n);
   }
 
-  static ffi::Module CreateByName(const Array<String>& names) {
-    auto n = make_object<ParamModuleNode>();
+  static ffi::Module CreateByName(const ffi::Array<ffi::String>& names) {
+    auto n = ffi::make_object<ParamModuleNode>();
     n->params_ = GetParamByName(names);
     return ffi::Module(n);
   }
 
  private:
-  Array<Tensor> params_;
+  ffi::Array<Tensor> params_;
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({
@@ -369,14 +368,14 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("vm.builtin.param_array_from_cache_by_name", ParamModuleNode::GetParamByName)
       .def_packed("vm.builtin.param_array_from_cache_by_name_unpacked",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    Array<String> names;
+                    ffi::Array<ffi::String> names;
                     names.reserve(args.size());
                     for (int i = 0; i < args.size(); ++i) {
-                      if (!args[i].try_cast<String>()) {
+                      if (!args[i].try_cast<ffi::String>()) {
                         LOG(FATAL) << "ValueError: Expect string as input, but get "
                                    << args[i].GetTypeKey() << " at " << i;
                       }
-                      names.push_back(args[i].cast<String>());
+                      names.push_back(args[i].cast<ffi::String>());
                     }
                     *rv = ParamModuleNode::GetParamByName(names);
                   });

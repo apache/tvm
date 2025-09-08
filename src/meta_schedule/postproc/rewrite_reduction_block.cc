@@ -27,8 +27,8 @@ namespace tir {
 struct ReductionBlockFinder : private StmtVisitor {
  public:
   /*! \brief Find all the reduction blocks that should be decomposed */
-  static std::vector<std::pair<StmtSRef, String>> Find(const ScheduleState& self) {
-    std::vector<std::pair<StmtSRef, String>> results;
+  static std::vector<std::pair<StmtSRef, ffi::String>> Find(const ScheduleState& self) {
+    std::vector<std::pair<StmtSRef, ffi::String>> results;
     for (const auto& kv : self->mod->functions) {
       GlobalVar g_var = kv.first;
       BaseFunc base_func = kv.second;
@@ -92,7 +92,7 @@ struct ReductionBlockFinder : private StmtVisitor {
  * or -1 if the `init` does not need to be decomposed.
  */
 int FindDecomposePoint(const StmtSRef& block_sref) {
-  Array<StmtSRef> loop_srefs = GetLoops(block_sref);
+  ffi::Array<StmtSRef> loop_srefs = GetLoops(block_sref);
   int n = loop_srefs.size();
   for (int i = 0; i < n; ++i) {
     if (GetLoopIterType(loop_srefs[i]) != IterVarType::kDataPar) {
@@ -122,7 +122,7 @@ class RewriteReductionBlockNode : public PostprocNode {
   bool Apply(const tir::Schedule& sch) final;
 
   Postproc Clone() const {
-    ObjectPtr<RewriteReductionBlockNode> n = make_object<RewriteReductionBlockNode>(*this);
+    ObjectPtr<RewriteReductionBlockNode> n = ffi::make_object<RewriteReductionBlockNode>(*this);
     return Postproc(n);
   }
 
@@ -132,26 +132,27 @@ class RewriteReductionBlockNode : public PostprocNode {
 
 bool RewriteReductionBlockNode::Apply(const tir::Schedule& sch) {
   for (;;) {
-    std::vector<std::pair<tir::StmtSRef, String>> results =
+    std::vector<std::pair<tir::StmtSRef, ffi::String>> results =
         tir::ReductionBlockFinder::Find(sch->state());
     int rewritten = 0;
     for (const auto& kv : results) {
       const tir::StmtSRef& block_sref = kv.first;
-      const String& global_var_name = kv.second;
+      const ffi::String& global_var_name = kv.second;
       int decompose_point = tir::FindDecomposePoint(block_sref);
       if (decompose_point == -1) {
         continue;
       }
       tir::BlockRV block_rv = GetRVFromSRef(sch, block_sref, global_var_name);
-      Array<tir::LoopRV> loop_rvs = sch->GetLoops(block_rv);
+      ffi::Array<tir::LoopRV> loop_rvs = sch->GetLoops(block_rv);
       tir::BlockRV init_block_rv = sch->DecomposeReduction(block_rv, loop_rvs[decompose_point]);
 
       // Rewrite auto tensorization related annotations
-      if (tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_auto_tensorize).has_value()) {
+      if (tir::GetAnn<ffi::String>(block_sref, tir::attr::meta_schedule_auto_tensorize)
+              .has_value()) {
         // Remove tensorization annotation as it shouldn't be propagated to the init block.
         sch->Unannotate(init_block_rv, tir::attr::meta_schedule_auto_tensorize);
-        Optional<String> tensorize_init =
-            tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_auto_tensorize_init);
+        ffi::Optional<ffi::String> tensorize_init =
+            tir::GetAnn<ffi::String>(block_sref, tir::attr::meta_schedule_auto_tensorize_init);
         // The annotation of tensorization of the init statement should be moved to the init block
         // after 'DecomposeReduction'.
         // Annotate to hint `RewriteTensorize` postprocessor even if tensorize_init is std::nullopt.
@@ -172,7 +173,7 @@ bool RewriteReductionBlockNode::Apply(const tir::Schedule& sch) {
 }
 
 Postproc Postproc::RewriteReductionBlock() {
-  ObjectPtr<RewriteReductionBlockNode> n = make_object<RewriteReductionBlockNode>();
+  ObjectPtr<RewriteReductionBlockNode> n = ffi::make_object<RewriteReductionBlockNode>();
   return Postproc(n);
 }
 

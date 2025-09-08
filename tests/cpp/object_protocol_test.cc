@@ -59,11 +59,12 @@ class ObjAA : public ObjA {
 }  // namespace tvm
 
 TEST(ObjectHierachy, Basic) {
+  using namespace tvm;
   using namespace tvm::runtime;
   using namespace tvm::test;
   using namespace tvm::ffi;
 
-  ObjectRef refA(make_object<ObjA>());
+  ObjectRef refA(ffi::make_object<ObjA>());
   ICHECK_EQ(refA->type_index(), ObjA::RuntimeTypeIndex());
   ICHECK(refA.as<Object>() != nullptr);
   ICHECK(refA.as<ObjA>() != nullptr);
@@ -71,7 +72,7 @@ TEST(ObjectHierachy, Basic) {
   ICHECK(refA.as<ObjB>() == nullptr);
   ICHECK(refA.as<ObjAA>() == nullptr);
 
-  ObjectRef refAA(make_object<ObjAA>());
+  ObjectRef refAA(ffi::make_object<ObjAA>());
   ICHECK_EQ(refAA->type_index(), ObjAA::RuntimeTypeIndex());
   ICHECK(refAA.as<Object>() != nullptr);
   ICHECK(refAA.as<ObjBase>() != nullptr);
@@ -79,7 +80,7 @@ TEST(ObjectHierachy, Basic) {
   ICHECK(refAA.as<ObjAA>() != nullptr);
   ICHECK(refAA.as<ObjB>() == nullptr);
 
-  ObjectRef refB(make_object<ObjB>());
+  ObjectRef refB(ffi::make_object<ObjB>());
   ICHECK_EQ(refB->type_index(), ObjB::RuntimeTypeIndex());
   ICHECK(refB.as<Object>() != nullptr);
   ICHECK(refB.as<ObjBase>() != nullptr);

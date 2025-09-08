@@ -125,7 +125,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
       ICHECK_LT(it->second.level, scope_.size());
-      if (IsAppropriateSharedMemory(GetRef<Var>(buf))) {
+      if (IsAppropriateSharedMemory(ffi::GetRef<Var>(buf))) {
         scope_[it->second.level].touched.push_back(buf);
       }
     }
@@ -156,7 +156,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
       ICHECK_LT(it->second.level, scope_.size()) << "Load memory in places other than store.";
-      if (IsAppropriateSharedMemory(GetRef<Var>(buf))) {
+      if (IsAppropriateSharedMemory(ffi::GetRef<Var>(buf))) {
         scope_[it->second.level].touched.push_back(buf);
       }
     }
@@ -178,7 +178,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
       ICHECK_LT(it->second.level, scope_.size());
-      if (IsAppropriateSharedMemory(GetRef<Var>(buf))) {
+      if (IsAppropriateSharedMemory(ffi::GetRef<Var>(buf))) {
         scope_[it->second.level].touched.push_back(buf);
       }
     }
@@ -352,8 +352,8 @@ class SharedMemoryRewriter : public StmtExprMutator {
           << "MergeSharedMemoryAllocations expects flat memory buffers, "
           << "and is to be run after "
           << "FlattenBuffer";
-      Array<PrimExpr> indices = {node->indices[0] +
-                                 this->GetBufferOffset(node->buffer->data, node->buffer->dtype)};
+      ffi::Array<PrimExpr> indices = {
+          node->indices[0] + this->GetBufferOffset(node->buffer->data, node->buffer->dtype)};
 
       auto writer = node.CopyOnWrite();
       writer->buffer = GetUpdatedBuffer(node->buffer);

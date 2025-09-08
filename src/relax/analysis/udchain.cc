@@ -44,23 +44,23 @@ class UDChain : relax::ExprVisitor {
     UDChain visitor;
     visitor.VisitExpr(expr);
 
-    Array<Var> output(visitor.outputs.begin(), visitor.outputs.end());
+    ffi::Array<Var> output(visitor.outputs.begin(), visitor.outputs.end());
 
-    Map<Var, Array<Var>> use_def;
+    ffi::Map<Var, ffi::Array<Var>> use_def;
     for (const auto& [var, usage] : visitor.usage_map) {
-      use_def.Set(var, Array<Var>(usage.begin(), usage.end()));
+      use_def.Set(var, ffi::Array<Var>(usage.begin(), usage.end()));
     }
 
     return VarUsageInfo{visitor.bound_values, use_def, output};
   }
 
  private:
-  Map<Var, Expr> bound_values;
+  ffi::Map<Var, Expr> bound_values;
   std::unordered_set<Var> forward_declarations;
   std::unordered_map<Var, support::OrderedSet<Var, ObjectPtrHash, ObjectPtrEqual>> usage_map;
   support::OrderedSet<Var, ObjectPtrHash, ObjectPtrEqual> outputs;
 
-  Optional<Var> cur_user_;
+  ffi::Optional<Var> cur_user_;
 
   void VisitBinding_(const VarBindingNode* binding) override {
     CHECK(!bound_values.count(binding->var))
@@ -89,7 +89,7 @@ class UDChain : relax::ExprVisitor {
     }
   }
   void VisitExpr_(const VarNode* op) override {
-    auto var = GetRef<Var>(op);
+    auto var = ffi::GetRef<Var>(op);
 
     if (cur_user_) {
       usage_map[var].insert(cur_user_.value());
@@ -109,13 +109,13 @@ class UDChain : relax::ExprVisitor {
   }
 };
 
-std::pair<Map<Var, Array<Var>>, Array<Var>> FunctionUseDef(const Expr& fn) {
+std::pair<ffi::Map<Var, ffi::Array<Var>>, ffi::Array<Var>> FunctionUseDef(const Expr& fn) {
   auto usage = UDChain::Collect(fn);
   return {usage.downstream_usage, usage.outputs};
 }
 
-Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb) {
-  auto usage = UDChain::Collect(SeqExpr({dfb}, Tuple(Array<Expr>())));
+ffi::Map<Var, ffi::Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb) {
+  auto usage = UDChain::Collect(SeqExpr({dfb}, Tuple(ffi::Array<Expr>())));
   return usage.downstream_usage;
 }
 

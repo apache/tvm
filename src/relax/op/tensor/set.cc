@@ -36,7 +36,7 @@ namespace relax {
 /* relax.unique */
 
 Expr unique(Expr x, PrimValue sorted, PrimValue return_index, PrimValue return_inverse,
-            PrimValue return_counts, Optional<PrimValue> axis) {
+            PrimValue return_counts, ffi::Optional<PrimValue> axis) {
   static const Op& op = Op::Get("relax.unique");
   Call call;
   if (!axis) {
@@ -58,7 +58,7 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
   PrimValue axis, return_index, return_inverse, return_counts;
   if (call->args.size() == 6) {
     if (auto* prim_value_node = call->args[5].as<PrimValueNode>()) {
-      axis = GetRef<PrimValue>(prim_value_node);
+      axis = ffi::GetRef<PrimValue>(prim_value_node);
     }
   }
   if (!data_sinfo->IsUnknownNdim() && axis.defined()) {
@@ -79,7 +79,7 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
     CHECK(value->IsInstance<IntImmNode>())
         << value << " expects to be IntImm, but gets " << value->GetTypeKey();
     const auto* val_node = value.as<IntImmNode>();
-    auto val_imm = GetRef<IntImm>(val_node);
+    auto val_imm = ffi::GetRef<IntImm>(val_node);
     return val_imm->value;
   };
 

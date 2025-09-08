@@ -92,7 +92,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     return node;
   }
 
-  Optional<Buffer> GetRemappedBuffer(const Buffer& buf) {
+  ffi::Optional<Buffer> GetRemappedBuffer(const Buffer& buf) {
     if (auto it = buf_remap_.find(buf.get()); it != buf_remap_.end()) {
       return it->second;
     }
@@ -162,7 +162,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     const IntImmNode* size_of_args = call->args[0].as<IntImmNode>();
     ICHECK(size_of_args) << call->args[0]->GetTypeKey();
     ICHECK_EQ(size, size_of_args->value);
-    Array<PrimExpr> inits = combiner->identity_element;
+    ffi::Array<PrimExpr> inits = combiner->identity_element;
     std::vector<PrimExpr> values(size);
     std::vector<DataType> types(size);
     PrimExpr cond = call->args[size + 1];
@@ -433,12 +433,12 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   }
 
   std::pair<std::vector<PrimExpr>, std::vector<Buffer>> MakeWarpAllreduce(
-      std::vector<PrimExpr> src_values,             //
-      std::vector<DataType> dtypes,                 //
-      const CommReducerNode* combiner,              //
-      PrimExpr reduce_index, int reduce_extent,     //
-      PrimExpr group_index,                         //
-      PrimExpr mask, Optional<PrimExpr> predicate,  //
+      std::vector<PrimExpr> src_values,                  //
+      std::vector<DataType> dtypes,                      //
+      const CommReducerNode* combiner,                   //
+      PrimExpr reduce_index, int reduce_extent,          //
+      PrimExpr group_index,                              //
+      PrimExpr mask, ffi::Optional<PrimExpr> predicate,  //
       std::vector<Stmt>* seq) {
     int n_buffers = src_values.size();
 
@@ -449,8 +449,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // This is the index to the reduction variable, one reduction
     // variable per warp. Local scope seems easier to reason without
     // relying on a pattern match pass to fix it later.
-    Array<PrimExpr> zero_indices = {0};
-    Array<PrimExpr> shape = {1};
+    ffi::Array<PrimExpr> zero_indices = {0};
+    ffi::Array<PrimExpr> shape = {1};
 
     std::vector<Stmt> load_values;
     load_values.reserve(n_buffers);
@@ -473,7 +473,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // The mask for this reducer, as this reducer may sit inside
     // a divergent control flow. Here it uses a variable to cache the current
     // active channels.
-    Optional<Buffer> mask_buffer;
+    ffi::Optional<Buffer> mask_buffer;
     if (need_warp_shuffle_mask_) {
       mask_buffer = decl_buffer(shape, mask->dtype, "mask", "local");
       seq->emplace_back(BufferStore(mask_buffer.value(), mask, zero_indices));
@@ -489,7 +489,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     }
     for (int offset = start_offset; offset > 0; offset /= 2) {
       // Load reduction values, no synchronization needed.
-      Array<PrimExpr> a, b;
+      ffi::Array<PrimExpr> a, b;
       for (int i = 0; i < n_buffers; ++i) {
         Buffer shared_buf = shared_bufs[i];
         BufferLoad val(shared_buf, zero_indices);
@@ -519,7 +519,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       }
 
       // Do reductions.
-      Array<PrimExpr> ret = (*combiner)(a, b);
+      ffi::Array<PrimExpr> ret = (*combiner)(a, b);
 
       // Store the reduction result to itself.
       std::vector<Stmt> stores;
@@ -554,7 +554,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
   // make allreduce.
   Stmt MakeBufAllreduce(const CommReducerNode* combiner, const std::vector<DataType>& types,
-                        const Array<Buffer>& shared_bufs, PrimExpr reduce_index,
+                        const ffi::Array<Buffer>& shared_bufs, PrimExpr reduce_index,
                         PrimExpr group_index, int reduce_extent, int group_extent,
                         int contiguous_reduce_extent) {
     // Get next power of two
@@ -569,7 +569,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     PrimExpr buf_index = BufIndex(reduce_index, group_index, reduce_extent);
     // make reduction
     auto fload = [&](int offset) {
-      Array<PrimExpr> a, b;
+      ffi::Array<PrimExpr> a, b;
       for (size_t i = 0; i < size; ++i) {
         BufferLoad b_load(shared_bufs[i],
                           {BufIndex(reduce_index + offset, group_index, reduce_extent)});
@@ -580,10 +580,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         ICHECK_EQ(a_load->dtype, types[i]);
         a.push_back(a_load);
       }
-      Array<PrimExpr> ret = (*combiner)(a, b);
+      ffi::Array<PrimExpr> ret = (*combiner)(a, b);
       return ret;
     };
-    auto fstore = [&](const Array<PrimExpr>& ret) {
+    auto fstore = [&](const ffi::Array<PrimExpr>& ret) {
       std::vector<Stmt> stores(size);
       for (size_t i = 0; i < size; ++i) {
         stores[i] = BufferStore(shared_bufs[i], ret[i], {buf_index});
@@ -633,7 +633,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         // here to reduce thread divergence.
         auto loads = fload(reduce_align);
 
-        Array<Var> in_warp_local_vars;
+        ffi::Array<Var> in_warp_local_vars;
         for (auto expr : loads) {
           Var var(
               "w_" + std::to_string(reduce_align) + "_" + std::to_string(in_warp_local_vars.size()),
@@ -696,9 +696,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   }
 
   // Emit warp shuffle  calls.
-  PrimExpr WarpShuffle(const Op& op, Optional<Buffer> mask_buffer, PrimExpr val,
+  PrimExpr WarpShuffle(const Op& op, ffi::Optional<Buffer> mask_buffer, PrimExpr val,
                        PrimExpr delta_or_lane) {
-    Array<PrimExpr> indices = {0};
+    ffi::Array<PrimExpr> indices = {0};
     PrimExpr mask;
     if (mask_buffer.defined()) {
       mask = BufferLoad(mask_buffer.value(), indices);
@@ -706,7 +706,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       mask = IntImm(DataType::Int(32), 0);
     }
     PrimExpr width = IntImm(DataType::Int(32), warp_size_);
-    Array<PrimExpr> args{mask, val, delta_or_lane, width, width};
+    ffi::Array<PrimExpr> args{mask, val, delta_or_lane, width, width};
     return Call(val.dtype(), op, args);
   }
 

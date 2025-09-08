@@ -33,18 +33,18 @@ namespace tvm {
 namespace relax {
 
 /*! \brief 2D maximum pooling operator. */
-Expr max_pool2d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array<IntImm> padding,
-                Array<IntImm> dilation, bool ceil_mode, bool count_include_pad, String layout,
-                Optional<String> out_layout);
+Expr max_pool2d(Expr data, ffi::Array<IntImm> pool_size, ffi::Array<IntImm> strides,
+                ffi::Array<IntImm> padding, ffi::Array<IntImm> dilation, bool ceil_mode,
+                bool count_include_pad, ffi::String layout, ffi::Optional<ffi::String> out_layout);
 
 /*! \brief 2D average pooling operator. */
-Expr avg_pool2d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array<IntImm> padding,
-                Array<IntImm> dilation, bool ceil_mode, bool count_include_pad, String layout,
-                Optional<String> out_layout);
+Expr avg_pool2d(Expr data, ffi::Array<IntImm> pool_size, ffi::Array<IntImm> strides,
+                ffi::Array<IntImm> padding, ffi::Array<IntImm> dilation, bool ceil_mode,
+                bool count_include_pad, ffi::String layout, ffi::Optional<ffi::String> out_layout);
 
 /*! \brief 2D adaptive average pooling operator. */
-Expr adaptive_avg_pool2d(Expr data, Optional<Array<IntImm>> output_size, String layout,
-                         Optional<String> out_layout);
+Expr adaptive_avg_pool2d(Expr data, ffi::Optional<ffi::Array<IntImm>> output_size,
+                         ffi::String layout, ffi::Optional<ffi::String> out_layout);
 
 }  // namespace relax
 }  // namespace tvm

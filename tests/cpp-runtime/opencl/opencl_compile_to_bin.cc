@@ -194,7 +194,7 @@ TEST_F(OpenCLCompileBin, SourceVsBinaryCompilationPerf) {
   {
     OpenCLModuleNode module(m_dataSrc, "cl", m_fmap, std::string());
     module.Init();
-    module.GetFunction("opencl.SetPreCompiledPrograms").value()(tvm::String(bytes));
+    module.GetFunction("opencl.SetPreCompiledPrograms").value()(tvm::ffi::String(bytes));
     Timestamp comp_start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < m_kernelNames.size(); ++i) {
       OpenCLModuleNode::KTRefEntry e = {i, 1};

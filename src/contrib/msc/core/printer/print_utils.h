@@ -44,10 +44,10 @@ using namespace tvm::script::printer;
 class DocSymbol {
  public:
   /*! * \brief The empty symbol*/
-  TVM_DLL static const String Empty();
+  TVM_DLL static const ffi::String Empty();
 
   /*! * \brief The next line symbol*/
-  TVM_DLL static const String NextLine();
+  TVM_DLL static const ffi::String NextLine();
 };
 
 /*!
@@ -68,30 +68,30 @@ class DocUtils {
   TVM_DLL static const ExprDoc ToDoc(double val);
   TVM_DLL static const ExprDoc ToDoc(const FloatImm& val);
   TVM_DLL static const ExprDoc ToDoc(const char* val);
-  TVM_DLL static const ExprDoc ToDoc(const String& val);
+  TVM_DLL static const ExprDoc ToDoc(const ffi::String& val);
   TVM_DLL static const ExprDoc ToDoc(bool val);
   TVM_DLL static const ExprDoc ToDoc(const ExprDoc& val);
-  TVM_DLL static const ExprDoc ToStr(const String& val);
-  TVM_DLL static const PointerDoc ToPtr(const String& val);
+  TVM_DLL static const ExprDoc ToStr(const ffi::String& val);
+  TVM_DLL static const PointerDoc ToPtr(const ffi::String& val);
 
   /*!
    * \brief Change object to DeclareDoc.
    * \return The DeclareDoc.
    */
   template <typename T>
-  TVM_DLL static const DeclareDoc ToDeclare(const String& type, const T& variable, size_t len = 0,
-                                            bool use_constructor = true) {
-    Optional<ExprDoc> type_doc;
+  TVM_DLL static const DeclareDoc ToDeclare(const ffi::String& type, const T& variable,
+                                            size_t len = 0, bool use_constructor = true) {
+    ffi::Optional<ExprDoc> type_doc;
     if (type.size() == 0) {
       type_doc = std::nullopt;
     } else {
       type_doc = IdDoc(type);
     }
     if (len == 0) {
-      return DeclareDoc(type_doc, ToDoc(variable), Array<ExprDoc>(), use_constructor);
+      return DeclareDoc(type_doc, ToDoc(variable), ffi::Array<ExprDoc>(), use_constructor);
     }
-    Array<Doc> doc_indices{DocUtils::ToDoc(len)};
-    return DeclareDoc(type_doc, IndexDoc(ToDoc(variable), doc_indices), Array<ExprDoc>(),
+    ffi::Array<Doc> doc_indices{DocUtils::ToDoc(len)};
+    return DeclareDoc(type_doc, IndexDoc(ToDoc(variable), doc_indices), ffi::Array<ExprDoc>(),
                       use_constructor);
   }
 
@@ -101,22 +101,22 @@ class DocUtils {
    */
   template <typename LT, typename RT>
   TVM_DLL static const AssignDoc ToAssign(const LT& lhs, const RT& rhs,
-                                          const String& annotation = "") {
+                                          const ffi::String& annotation = "") {
     if (annotation.size() == 0) {
       return AssignDoc(ToDoc(lhs), ToDoc(rhs), std::nullopt);
     }
     return AssignDoc(ToDoc(lhs), ToDoc(rhs), IdDoc(annotation));
   }
   template <typename T>
-  TVM_DLL static const AssignDoc ToAssign(const T& lhs, const String& rhs,
-                                          const String& annotation = "") {
-    Optional<ExprDoc> rhs_doc;
+  TVM_DLL static const AssignDoc ToAssign(const T& lhs, const ffi::String& rhs,
+                                          const ffi::String& annotation = "") {
+    ffi::Optional<ExprDoc> rhs_doc;
     if (rhs.size() > 0) {
       rhs_doc = IdDoc(rhs);
     } else {
       rhs_doc = std::nullopt;
     }
-    Optional<ExprDoc> annotation_doc;
+    ffi::Optional<ExprDoc> annotation_doc;
     if (annotation.size() > 0) {
       annotation_doc = IdDoc(annotation);
     } else {
@@ -130,7 +130,7 @@ class DocUtils {
    * \return The AttrAccessDoc.
    */
   template <typename T>
-  TVM_DLL static const AttrAccessDoc ToAttrAccess(const T& value, const String& name) {
+  TVM_DLL static const AttrAccessDoc ToAttrAccess(const T& value, const ffi::String& name) {
     return AttrAccessDoc(ToDoc(value), name);
   }
 
@@ -139,15 +139,15 @@ class DocUtils {
    * \return The List of Docs.
    */
   template <typename T>
-  TVM_DLL static const Array<ExprDoc> ToDocList(const std::vector<T>& values) {
-    Array<ExprDoc> elements;
+  TVM_DLL static const ffi::Array<ExprDoc> ToDocList(const std::vector<T>& values) {
+    ffi::Array<ExprDoc> elements;
     for (const auto& v : values) {
       elements.push_back(ToDoc(v));
     }
     return elements;
   }
   template <typename T>
-  TVM_DLL static const Array<ExprDoc> ToDocList(const Array<T>& values) {
+  TVM_DLL static const ffi::Array<ExprDoc> ToDocList(const ffi::Array<T>& values) {
     std::vector<T> v_values;
     for (const auto& v : values) {
       v_values.push_back(v);
@@ -168,7 +168,7 @@ class DocUtils {
     return StrictListDoc(ListDoc(), false);
   }
   template <typename T>
-  TVM_DLL static const StrictListDoc ToList(const Array<T>& values, bool allow_empty = false) {
+  TVM_DLL static const StrictListDoc ToList(const ffi::Array<T>& values, bool allow_empty = false) {
     std::vector<T> v_values;
     for (const auto& v : values) {
       v_values.push_back(v);
@@ -182,9 +182,9 @@ class DocUtils {
    */
   TVM_DLL static const StrictListDoc ToStrList(const std::vector<std::string>& values,
                                                bool allow_empty = false);
-  TVM_DLL static const StrictListDoc ToStrList(const std::vector<String>& values,
+  TVM_DLL static const StrictListDoc ToStrList(const std::vector<ffi::String>& values,
                                                bool allow_empty = false);
-  TVM_DLL static const StrictListDoc ToStrList(const Array<String>& values,
+  TVM_DLL static const StrictListDoc ToStrList(const ffi::Array<ffi::String>& values,
                                                bool allow_empty = false);
 
   /*!
@@ -193,21 +193,21 @@ class DocUtils {
    */
   template <typename VT, typename IT>
   TVM_DLL static const IndexDoc ToIndex(const VT& value, const IT& index) {
-    Array<Doc> doc_indices;
+    ffi::Array<Doc> doc_indices;
     doc_indices.push_back(ToDoc(index));
     return IndexDoc(ToDoc(value), doc_indices);
   }
   template <typename VT, typename IT>
   TVM_DLL static const IndexDoc ToIndices(const VT& value, const std::vector<IT>& indices) {
-    Array<Doc> doc_indices;
+    ffi::Array<Doc> doc_indices;
     for (const auto& i : indices) {
       doc_indices.push_back(ToDoc(i));
     }
     return IndexDoc(ToDoc(value), doc_indices);
   }
   template <typename VT, typename IT>
-  TVM_DLL static const IndexDoc ToIndices(const VT& value, const Array<IT>& indices) {
-    Array<Doc> doc_indices;
+  TVM_DLL static const IndexDoc ToIndices(const VT& value, const ffi::Array<IT>& indices) {
+    ffi::Array<Doc> doc_indices;
     for (const auto& i : indices) {
       doc_indices.push_back(ToDoc(i));
     }
@@ -218,13 +218,13 @@ class DocUtils {
    * \brief Convert the docs to Stmts.
    * \return The Stmts.
    */
-  TVM_DLL static const Array<StmtDoc> ToStmts(const Array<Doc>& docs);
+  TVM_DLL static const ffi::Array<StmtDoc> ToStmts(const ffi::Array<Doc>& docs);
 
   /*!
    * \brief Convert the docs to StmtBlock.
    * \return The StmtBlockDoc.
    */
-  TVM_DLL static const StmtBlockDoc ToStmtBlock(const Array<Doc>& docs);
+  TVM_DLL static const StmtBlockDoc ToStmtBlock(const ffi::Array<Doc>& docs);
 };
 
 }  // namespace msc

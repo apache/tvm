@@ -38,8 +38,6 @@ namespace ffi {
  * \brief Extension code beyond the DLDataType.
  *
  * This class is always consistent with the DLPack.
- *
- * TODO(tvm-team): update to latest DLPack types.
  */
 enum DLExtDataTypeCode { kDLExtCustomBegin = 129 };
 

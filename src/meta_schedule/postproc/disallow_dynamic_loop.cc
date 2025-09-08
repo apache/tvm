@@ -71,7 +71,7 @@ class DisallowDynamicLoopNode : public PostprocNode {
   bool Apply(const tir::Schedule& sch) final { return !tir::DynamicExtentFinder::Find(sch->mod()); }
   // Inherited from PostprocNode
   Postproc Clone() const {
-    ObjectPtr<DisallowDynamicLoopNode> n = make_object<DisallowDynamicLoopNode>(*this);
+    ObjectPtr<DisallowDynamicLoopNode> n = ffi::make_object<DisallowDynamicLoopNode>(*this);
     return Postproc(n);
   }
 
@@ -80,7 +80,7 @@ class DisallowDynamicLoopNode : public PostprocNode {
 };
 
 Postproc Postproc::DisallowDynamicLoop() {
-  ObjectPtr<DisallowDynamicLoopNode> n = make_object<DisallowDynamicLoopNode>();
+  ObjectPtr<DisallowDynamicLoopNode> n = ffi::make_object<DisallowDynamicLoopNode>();
   return Postproc(n);
 }
 

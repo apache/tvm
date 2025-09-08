@@ -35,7 +35,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
   IRDocsifierNode::RegisterReflection();
 });
 
-IdDoc IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, const String& name_hint) {
+IdDoc IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame,
+                              const ffi::String& name_hint) {
   if (auto it = obj2info.find(obj); it != obj2info.end()) {
     // TVM's IR dialects do not allow multiple definitions of the same
     // variable within an IRModule.  This branch can only be reached
@@ -51,7 +52,7 @@ IdDoc IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, const St
     return IdDoc(it->second.name.value());
   }
 
-  String name = name_hint;
+  ffi::String name = name_hint;
   if (cfg->show_object_address) {
     std::stringstream stream;
     stream << name << "_" << obj.get();
@@ -72,7 +73,7 @@ void IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, DocCreato
   frame->AddExitCallback([this, obj]() { this->RemoveVar(obj); });
 }
 
-Optional<ExprDoc> IRDocsifierNode::GetVarDoc(const ObjectRef& obj) const {
+ffi::Optional<ExprDoc> IRDocsifierNode::GetVarDoc(const ObjectRef& obj) const {
   auto it = obj2info.find(obj);
   if (it == obj2info.end()) {
     return std::nullopt;
@@ -82,8 +83,8 @@ Optional<ExprDoc> IRDocsifierNode::GetVarDoc(const ObjectRef& obj) const {
 
 ExprDoc IRDocsifierNode::AddMetadata(const ffi::Any& obj) {
   ICHECK(obj != nullptr) << "TypeError: Cannot add nullptr to metadata";
-  String key = obj.GetTypeKey();
-  Array<ffi::Any>& array = metadata[key];
+  ffi::String key = obj.GetTypeKey();
+  ffi::Array<ffi::Any>& array = metadata[key];
   int index = std::find_if(array.begin(), array.end(),
                            [&](const ffi::Any& a) { return ffi::AnyEqual()(a, obj); }) -
               array.begin();
@@ -94,9 +95,9 @@ ExprDoc IRDocsifierNode::AddMetadata(const ffi::Any& obj) {
       "metadata")[{LiteralDoc::Str(key, std::nullopt)}][{LiteralDoc::Int(index, std::nullopt)}];
 }
 
-void IRDocsifierNode::AddGlobalInfo(const String& name, const GlobalInfo& ginfo) {
+void IRDocsifierNode::AddGlobalInfo(const ffi::String& name, const GlobalInfo& ginfo) {
   ICHECK(ginfo.defined()) << "TypeError: Cannot add nullptr to global_infos";
-  Array<GlobalInfo>& array = global_infos[name];
+  ffi::Array<GlobalInfo>& array = global_infos[name];
   array.push_back(ginfo);
 }
 
@@ -191,11 +192,11 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
 }
 
 IRDocsifier::IRDocsifier(const PrinterConfig& cfg) {
-  auto n = make_object<IRDocsifierNode>();
+  auto n = ffi::make_object<IRDocsifierNode>();
   n->cfg = cfg;
   n->dispatch_tokens.push_back("");
   // Define builtin keywords according to cfg.
-  for (const String& keyword : cfg->GetBuiltinKeywords()) {
+  for (const ffi::String& keyword : cfg->GetBuiltinKeywords()) {
     n->defined_names.insert(keyword);
   }
   data_ = std::move(n);

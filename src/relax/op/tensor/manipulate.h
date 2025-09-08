@@ -44,7 +44,7 @@ Expr broadcast_to(Expr x, Expr shape);
  * If it is `std::nullopt`, the input tensor is required to be flattened before concatenation.
  * \return The concatenated tensor.
  */
-Expr concat(Expr tensors, Optional<int64_t> axis);
+Expr concat(Expr tensors, ffi::Optional<int64_t> axis);
 
 /*!
  * \brief Insert new axes at the positions given by `axis`.
@@ -52,7 +52,7 @@ Expr concat(Expr tensors, Optional<int64_t> axis);
  * \param axis The axes at which the input array are expanded.
  * \return The transformed result.
  */
-Expr expand_dims(Expr x, Array<Integer> axis);
+Expr expand_dims(Expr x, ffi::Array<Integer> axis);
 
 /*!
  * \brief Flatten all the tensor dimensions into one.
@@ -72,9 +72,9 @@ Expr flatten(Expr x);
  * \param input axis_separators Array of values for input buffer.
  * \return The transformed result.
  */
-Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value,
-                      Optional<Array<IntImm>> axis_separators,
-                      Optional<Array<IntImm>> input_axis_separators = std::nullopt);
+Expr layout_transform(Expr x, tir::IndexMap index_map, ffi::Optional<PrimValue> pad_value,
+                      ffi::Optional<ffi::Array<IntImm>> axis_separators,
+                      ffi::Optional<ffi::Array<IntImm>> input_axis_separators = std::nullopt);
 
 /*!
  * \brief Permutes the dimensions of an array.
@@ -82,7 +82,7 @@ Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_v
  * \param axes The target axes order, reverse order if not specified.
  * \return The transposed result.
  */
-Expr permute_dims(Expr x, Optional<Array<Integer>> axes);
+Expr permute_dims(Expr x, ffi::Optional<ffi::Array<Integer>> axes);
 
 /*!
  * \brief Reshape the input array, supporting `-1` inference in the new
@@ -92,7 +92,7 @@ Expr permute_dims(Expr x, Optional<Array<Integer>> axes);
  * It is required to be either an Array of PrimExpr, or a Shape in Relax
  * \return The reshaped result.
  */
-Expr reshape(Expr x, Variant<Expr, Array<PrimExpr>> shape);
+Expr reshape(Expr x, ffi::Variant<Expr, ffi::Array<PrimExpr>> shape);
 
 /*!
  * \brief Split input tensor along axis by sections or indices.
@@ -107,7 +107,7 @@ Expr reshape(Expr x, Variant<Expr, Array<PrimExpr>> shape);
  * \param axis The axis over which to split.
  * \return The computed result.
  */
-Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis);
+Expr split(Expr x, ffi::Variant<IntImm, ffi::Array<IntImm>> indices_or_sections, int axis);
 
 /*!
  * \brief Squeeze axes in the array.
@@ -117,14 +117,14 @@ Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis)
  * If any specified axis has dimension that does not equal 1, it is an error.
  * \return The squeezed result.
  */
-Expr squeeze(Expr x, Optional<Array<Integer>> axis);
+Expr squeeze(Expr x, ffi::Optional<ffi::Array<Integer>> axis);
 /*!
  * \brief Stack tensors along the specified axis.
  * \param tensors The input tensors to be stacked.
  * \param axis The axis along which the tensors will be stacked.
  * \return The stacked result.
  */
-Expr stack(Expr tensors, Optional<Integer> axis);
+Expr stack(Expr tensors, ffi::Optional<Integer> axis);
 /*!
  * \brief Return a summation of data to the shape of collapse_target.
  * For details, please see the operator `relax.collapse_sum_to`.
@@ -154,7 +154,7 @@ Expr collapse_sum_to(Expr data, Expr shape);
  * from the backward. By default, use the flattened input array, and return a flat output array.
  * \return The computed result.
  */
-Expr repeat(Expr data, int repeats, Optional<int64_t> axis = std::nullopt);
+Expr repeat(Expr data, int repeats, ffi::Optional<int64_t> axis = std::nullopt);
 
 /*!
  * \brief Construct an array by repeating data the number of times given by reps.
@@ -171,7 +171,7 @@ Expr repeat(Expr data, int repeats, Optional<int64_t> axis = std::nullopt);
  * \param repeats The number of repetitions of data along each axis.
  * \return The computed result.
  */
-Expr tile(Expr data, Array<Integer> repeats);
+Expr tile(Expr data, ffi::Array<Integer> repeats);
 
 /*!
  * \brief Reverses the order of elements along given axis.
@@ -238,7 +238,7 @@ Expr index_put(Expr data, Expr indices, Expr values, bool accumulate = false);
  * \param indexing Indexing mode, either "ij" (matrix indexing) or "xy" (Cartesian indexing).
  * \return A tuple of tensors representing the coordinate grids.
  */
-Expr meshgrid(Expr tensors, Optional<String> indexing = String("ij"));
+Expr meshgrid(Expr tensors, ffi::Optional<ffi::String> indexing = ffi::String("ij"));
 
 /*!
  * \brief Scatter updates into an array according to indices.
@@ -250,7 +250,7 @@ Expr meshgrid(Expr tensors, Optional<String> indexing = String("ij"));
  * either "update", "add", "mul", "mean", "max" or "min".
  * \return The computed result.
  */
-Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, String reduction);
+Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, ffi::String reduction);
 
 /*!
  * \brief Scatter updates into an array according to indices.
@@ -271,7 +271,7 @@ Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, String re
  *       The shape of `updates` must match the shape of `indices` except for the last dimension,
  *       which must match the slice shape at each index.
  */
-Expr scatter_nd(Expr data, Expr indices, Expr updates, String reduction);
+Expr scatter_nd(Expr data, Expr indices, Expr updates, ffi::String reduction);
 
 /*!
  * \brief Embeds the values of the src tensor into input at the given dimension.

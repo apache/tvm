@@ -49,11 +49,11 @@ namespace tir {
 using IntImmNode = tvm::IntImmNode;
 using FloatImmNode = tvm::FloatImmNode;
 
-/*! \brief String constants, only used in asserts. */
+/*! \brief ffi::String constants, only used in asserts. */
 class StringImmNode : public PrimExprNode {
  public:
   /*! \brief The constant value content. */
-  String value;
+  ffi::String value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -70,7 +70,7 @@ class StringImmNode : public PrimExprNode {
  */
 class StringImm : public PrimExpr {
  public:
-  TVM_DLL StringImm(String value, Span span = Span());
+  TVM_DLL StringImm(ffi::String value, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(StringImm, PrimExpr, StringImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StringImmNode);
 };
@@ -543,9 +543,9 @@ class BufferLoadNode : public PrimExprNode {
   /*! \brief The buffer variable. */
   Buffer buffer;
   /*! \brief The indices location to be loaded. */
-  Array<PrimExpr> indices;
+  ffi::Array<PrimExpr> indices;
   /*! \brief The predicate mask for loading values. */
-  Optional<PrimExpr> predicate;
+  ffi::Optional<PrimExpr> predicate;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -581,8 +581,8 @@ class BufferLoadNode : public PrimExprNode {
  */
 class BufferLoad : public PrimExpr {
  public:
-  TVM_DLL explicit BufferLoad(Buffer buffer, Array<PrimExpr> indices,
-                              Optional<PrimExpr> predicate = std::nullopt, Span span = Span());
+  TVM_DLL explicit BufferLoad(Buffer buffer, ffi::Array<PrimExpr> indices,
+                              ffi::Optional<PrimExpr> predicate = std::nullopt, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(BufferLoad, PrimExpr, BufferLoadNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferLoadNode);
 };
@@ -601,7 +601,7 @@ class ProducerLoadNode : public PrimExprNode {
   /*! \brief The buffer producer. */
   DataProducer producer;
   /*! \brief The location arguments. */
-  Array<PrimExpr> indices;
+  ffi::Array<PrimExpr> indices;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -620,7 +620,8 @@ class ProducerLoadNode : public PrimExprNode {
  */
 class ProducerLoad : public PrimExpr {
  public:
-  TVM_DLL explicit ProducerLoad(DataProducer producer, Array<PrimExpr> indices, Span span = Span());
+  TVM_DLL explicit ProducerLoad(DataProducer producer, ffi::Array<PrimExpr> indices,
+                                Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(ProducerLoad, PrimExpr, ProducerLoadNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ProducerLoadNode);
@@ -746,7 +747,7 @@ class CallNode : public PrimExprNode {
   RelaxExpr op;
 
   /*! \brief The arguments. */
-  Array<PrimExpr> args;
+  ffi::Array<PrimExpr> args;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -763,7 +764,7 @@ class CallNode : public PrimExprNode {
  */
 class Call : public PrimExpr {
  public:
-  TVM_DLL Call(DataType dtype, RelaxExpr op, Array<PrimExpr> args, Span span = Span());
+  TVM_DLL Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Call, PrimExpr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };
@@ -776,9 +777,9 @@ class Call : public PrimExpr {
 class ShuffleNode : public PrimExprNode {
  public:
   /*! \brief the input vectors. */
-  Array<PrimExpr> vectors;
+  ffi::Array<PrimExpr> vectors;
   /*! \brief The indices of each element. */
-  Array<PrimExpr> indices;
+  ffi::Array<PrimExpr> indices;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -797,8 +798,8 @@ class ShuffleNode : public PrimExprNode {
  */
 class Shuffle : public PrimExpr {
  public:
-  TVM_DLL Shuffle(Array<PrimExpr> vectors, Array<PrimExpr> indices, Span span = Span());
-  TVM_DLL static PrimExpr Concat(Array<PrimExpr> vectors, Span span = Span());
+  TVM_DLL Shuffle(ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Span span = Span());
+  TVM_DLL static PrimExpr Concat(ffi::Array<PrimExpr> vectors, Span span = Span());
   TVM_DLL static PrimExpr ExtractElement(PrimExpr vector, int index, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Shuffle, PrimExpr, ShuffleNode);
@@ -813,19 +814,19 @@ class Shuffle : public PrimExpr {
 class CommReducerNode : public Object {
  public:
   /*! \brief The left argument of reducer */
-  Array<Var> lhs;
+  ffi::Array<Var> lhs;
   /*! \brief The right argument of reducer */
-  Array<Var> rhs;
+  ffi::Array<Var> rhs;
   /*! \brief The result of reducer */
-  Array<PrimExpr> result;
+  ffi::Array<PrimExpr> result;
   /*!
    * \brief The identity element of reducer, which leaves other
    *  elements unchanged when combined with it, with respect to
    *  the binary operation of this reducer uses.
    */
-  Array<PrimExpr> identity_element;
+  ffi::Array<PrimExpr> identity_element;
   /*! \brief Function call operator to combine a and b */
-  Array<PrimExpr> operator()(Array<PrimExpr> a, Array<PrimExpr> b) const;
+  ffi::Array<PrimExpr> operator()(ffi::Array<PrimExpr> a, ffi::Array<PrimExpr> b) const;
   /*!
    * \brief Span that points to the original source code.
    *        Reserved debug information.
@@ -853,8 +854,8 @@ class CommReducerNode : public Object {
  */
 class CommReducer : public ObjectRef {
  public:
-  TVM_DLL CommReducer(Array<Var> lhs, Array<Var> rhs, Array<PrimExpr> result,
-                      Array<PrimExpr> identity_element, Span span = Span());
+  TVM_DLL CommReducer(ffi::Array<Var> lhs, ffi::Array<Var> rhs, ffi::Array<PrimExpr> result,
+                      ffi::Array<PrimExpr> identity_element, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(CommReducer, ObjectRef, CommReducerNode);
 };
@@ -865,11 +866,11 @@ class ReduceNode : public PrimExprNode {
   /*! \brief The commutative combiner */
   CommReducer combiner;
   /*! \brief The source operand */
-  Array<PrimExpr> source;
+  ffi::Array<PrimExpr> source;
   /*! \brief The init operand */
-  Array<PrimExpr> init;
+  ffi::Array<PrimExpr> init;
   /*! \brief The reduction axis */
-  Array<IterVar> axis;
+  ffi::Array<IterVar> axis;
   /*!
    * \brief Predicate on the reduction
    *  Only add the body to reduction if condition is true.
@@ -899,8 +900,9 @@ class ReduceNode : public PrimExprNode {
  */
 class Reduce : public PrimExpr {
  public:
-  TVM_DLL Reduce(CommReducer combiner, Array<PrimExpr> src, Array<IterVar> rdom, PrimExpr condition,
-                 int value_index, Array<PrimExpr> init, Span span = Span());
+  TVM_DLL Reduce(CommReducer combiner, ffi::Array<PrimExpr> src, ffi::Array<IterVar> rdom,
+                 PrimExpr condition, int value_index, ffi::Array<PrimExpr> init,
+                 Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Reduce, PrimExpr, ReduceNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ReduceNode);
@@ -915,7 +917,7 @@ class Reduce : public PrimExpr {
  * \tparam V the value of the Map.
  */
 template <typename K, typename V>
-inline std::unordered_map<K, V> as_unordered_map(const Map<K, V>& dmap) {
+inline std::unordered_map<K, V> as_unordered_map(const ffi::Map<K, V>& dmap) {
   std::unordered_map<K, V> ret;
   for (auto kv : dmap) {
     ret[kv.first] = kv.second;
@@ -931,8 +933,8 @@ inline constexpr bool use_default_type_traits_v<tvm::tir::StringImm> = false;
 
 template <>
 struct TypeTraits<tvm::tir::StringImm>
-    : public ObjectRefWithFallbackTraitsBase<tvm::tir::StringImm, String> {
-  TVM_FFI_INLINE static tvm::tir::StringImm ConvertFallbackValue(String value) {
+    : public ObjectRefWithFallbackTraitsBase<tvm::tir::StringImm, ffi::String> {
+  TVM_FFI_INLINE static tvm::tir::StringImm ConvertFallbackValue(ffi::String value) {
     return tvm::tir::StringImm(value);
   }
 };

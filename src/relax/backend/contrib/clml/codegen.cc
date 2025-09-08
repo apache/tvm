@@ -113,7 +113,8 @@ class CollectCLMLFromCompositeFunctionBody : public ExprVisitor {
  */
 class OpenCLMLJSONSerializer : public JSONSerializer {
  public:
-  explicit OpenCLMLJSONSerializer(Map<Constant, String> constant_names, Map<Var, Expr> bindings)
+  explicit OpenCLMLJSONSerializer(ffi::Map<Constant, ffi::String> constant_names,
+                                  ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
 
   /*!
@@ -135,9 +136,9 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     // The call must be to an inline "Composite" function
     const auto* fn_var = call_node->op.as<VarNode>();
     ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
+    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
 
-    auto opt_composite = fn->GetAttr<String>(attr::kComposite);
+    auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
     ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
@@ -177,7 +178,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
       VLOG(1) << name << " has " << node->GetInputs().size() << " inputs";
     }
 
-    return AddNode(node, GetRef<Expr>(call_node));
+    return AddNode(node, ffi::GetRef<Expr>(call_node));
   }
 
   /*!
@@ -191,8 +192,8 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
 
     const auto* fn_var = cn->op.as<VarNode>();
     ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
-    auto opt_composite = fn->GetAttr<String>(attr::kComposite);
+    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
+    auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
     ICHECK(opt_composite.has_value());
 
     nodes.pad = backend::TryGetOpInFunction(fn, "relax.nn.pad");
@@ -220,8 +221,8 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
 
     const auto* fn_var = cn->op.as<VarNode>();
     ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
-    auto opt_composite = fn->GetAttr<String>(attr::kComposite);
+    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
+    auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
     ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
@@ -292,11 +293,11 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
 
  private:
   /*! \brief The bindings to look up composite functions. */
-  Map<Var, Expr> bindings_;
+  ffi::Map<Var, Expr> bindings_;
 };
 
 void CollectCLMLFromCompositeFunctionBody::VisitExpr_(const ConstantNode* constant_node) {
-  for (const auto& entry : serializer_->VisitExpr(GetRef<Constant>(constant_node))) {
+  for (const auto& entry : serializer_->VisitExpr(ffi::GetRef<Constant>(constant_node))) {
     args_.emplace_back(entry);
   }
 }
@@ -311,9 +312,10 @@ void CollectCLMLFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node)
  * \param functions The extern functions to be compiled via OpenCLML
  * \return Runtime modules.
  */
-Array<ffi::Module> OpenCLMLCompiler(Array<Function> functions, Map<String, Any> /*unused*/,
-                                    Map<Constant, String> constant_names) {
-  Array<ffi::Module> compiled_functions;
+ffi::Array<ffi::Module> OpenCLMLCompiler(ffi::Array<Function> functions,
+                                         ffi::Map<ffi::String, Any> /*unused*/,
+                                         ffi::Map<Constant, ffi::String> constant_names) {
+  ffi::Array<ffi::Module> compiled_functions;
   for (const auto& func : functions) {
     VLOG(1) << "OpenCLML partition:" << std::endl << func;
     OpenCLMLJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));

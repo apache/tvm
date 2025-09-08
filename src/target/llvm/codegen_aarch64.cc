@@ -85,7 +85,7 @@ void CodeGenAArch64::VisitStmt_(const AttrStmtNode* op) {
   }
 
   const auto* attr_value = op->value.as<StringImmNode>();
-  ICHECK(attr_value) << "Expect " << attr_key << " to have a String value but was "
+  ICHECK(attr_value) << "Expect " << attr_key << " to have a ffi::String value but was "
                      << op->value->GetTypeKey();
 
   std::string aarch64_attr_key = attr_key.substr(7);

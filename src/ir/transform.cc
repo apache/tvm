@@ -54,7 +54,9 @@ struct PassContextThreadLocalEntry {
   /*! \brief The current pass context. */
   std::stack<PassContext> context_stack;
 
-  PassContextThreadLocalEntry() { default_context = PassContext(make_object<PassContextNode>()); }
+  PassContextThreadLocalEntry() {
+    default_context = PassContext(ffi::make_object<PassContextNode>());
+  }
 };
 
 /*! \brief Thread local store to hold the pass context. */
@@ -86,7 +88,7 @@ PassContext PassContext::Current() {
 }
 
 // linearly scan the pass array to match pass_name
-bool PassArrayContains(const Array<String>& pass_array, const std::string& pass_name) {
+bool PassArrayContains(const ffi::Array<ffi::String>& pass_array, const std::string& pass_name) {
   for (auto x : pass_array) {
     if (x == pass_name) return true;
   }
@@ -107,7 +109,7 @@ bool PassContext::PassEnabled(const PassInfo& info) const {
 
 class PassConfigManager {
  public:
-  void Register(std::string key, String value_type_str,
+  void Register(std::string key, ffi::String value_type_str,
                 std::function<ffi::Any(ffi::Any)> legalization) {
     ICHECK_EQ(key2vtype_.count(key), 0U);
     ValueTypeInfo info;
@@ -117,7 +119,7 @@ class PassConfigManager {
   }
 
   // Trying to validate and legalize a config.
-  void Legalize(Map<String, ffi::Any>* config) {
+  void Legalize(ffi::Map<ffi::String, ffi::Any>* config) {
     std::vector<std::pair<std::string, ffi::Any>> update;
     for (auto [key, value] : *config) {
       auto it = key2vtype_.find(key);
@@ -149,10 +151,10 @@ class PassConfigManager {
     }
   }
 
-  Map<String, Map<String, String>> ListConfigs() {
-    Map<String, Map<String, String>> configs;
+  ffi::Map<ffi::String, ffi::Map<ffi::String, ffi::String>> ListConfigs() {
+    ffi::Map<ffi::String, ffi::Map<ffi::String, ffi::String>> configs;
     for (const auto& kv : key2vtype_) {
-      Map<String, String> metadata;
+      ffi::Map<ffi::String, ffi::String> metadata;
       metadata.Set("type", kv.second.type_str);
       configs.Set(kv.first, metadata);
     }
@@ -173,20 +175,20 @@ class PassConfigManager {
   std::unordered_map<std::string, ValueTypeInfo> key2vtype_;
 };
 
-void PassContext::RegisterConfigOption(const char* key, String value_type_str,
+void PassContext::RegisterConfigOption(const char* key, ffi::String value_type_str,
                                        std::function<ffi::Any(ffi::Any)> legalization) {
   PassConfigManager::Global()->Register(key, value_type_str, legalization);
 }
 
-Map<String, Map<String, String>> PassContext::ListConfigs() {
+ffi::Map<ffi::String, ffi::Map<ffi::String, ffi::String>> PassContext::ListConfigs() {
   return PassConfigManager::Global()->ListConfigs();
 }
 
-PassContext PassContext::Create() { return PassContext(make_object<PassContextNode>()); }
+PassContext PassContext::Create() { return PassContext(ffi::make_object<PassContextNode>()); }
 
 namespace {
 struct ClearOnError {
-  Array<instrument::PassInstrument>* instruments{nullptr};
+  ffi::Array<instrument::PassInstrument>* instruments{nullptr};
 
   ~ClearOnError() {
     if (instruments) {
@@ -244,7 +246,7 @@ struct ExitPassSuccesses {
 
   bool all_initialized{false};
   std::vector<instrument::PassInstrument> successes;
-  Array<instrument::PassInstrument>* instruments{nullptr};
+  ffi::Array<instrument::PassInstrument>* instruments{nullptr};
 };
 }  // namespace
 
@@ -378,8 +380,9 @@ class ModulePass : public Pass {
   TVM_DEFINE_OBJECT_REF_METHODS(ModulePass, Pass, ModulePassNode);
 };
 
-PassInfo::PassInfo(int opt_level, String name, tvm::Array<String> required, bool traceable) {
-  auto pass_info = make_object<PassInfoNode>();
+PassInfo::PassInfo(int opt_level, ffi::String name, tvm::ffi::Array<ffi::String> required,
+                   bool traceable) {
+  auto pass_info = ffi::make_object<PassInfoNode>();
   pass_info->opt_level = opt_level;
   pass_info->name = std::move(name);
   pass_info->required = std::move(required);
@@ -389,7 +392,7 @@ PassInfo::PassInfo(int opt_level, String name, tvm::Array<String> required, bool
 
 ModulePass::ModulePass(std::function<IRModule(IRModule, PassContext)> pass_func,
                        PassInfo pass_info) {
-  auto n = make_object<ModulePassNode>();
+  auto n = ffi::make_object<ModulePassNode>();
   n->pass_func = std::move(pass_func);
   n->pass_info = std::move(pass_info);
   data_ = std::move(n);
@@ -429,15 +432,15 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
   return mod;
 }
 
-Sequential::Sequential(tvm::Array<Pass> passes, PassInfo pass_info) {
-  auto n = make_object<SequentialNode>();
+Sequential::Sequential(tvm::ffi::Array<Pass> passes, PassInfo pass_info) {
+  auto n = ffi::make_object<SequentialNode>();
   n->passes = std::move(passes);
   n->pass_info = std::move(pass_info);
   data_ = std::move(n);
 }
 
-Sequential::Sequential(tvm::Array<Pass> passes, String name) {
-  auto n = make_object<SequentialNode>();
+Sequential::Sequential(tvm::ffi::Array<Pass> passes, ffi::String name) {
+  auto n = ffi::make_object<SequentialNode>();
   n->passes = std::move(passes);
   PassInfo pass_info = PassInfo(0, std::move(name), {}, /* traceable */ false);
   n->pass_info = std::move(pass_info);
@@ -457,7 +460,7 @@ void SequentialNode::ResolveDependency(const IRModule& mod) {
              << "\n";
 }
 
-Pass GetPass(const String& pass_name) {
+Pass GetPass(const ffi::String& pass_name) {
   std::optional<tvm::ffi::Function> f;
   if (pass_name.operator std::string().find("transform.") != std::string::npos) {
     f = tvm::ffi::Function::GetGlobal(pass_name);
@@ -492,7 +495,7 @@ IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) c
 }
 
 Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pass_func, int opt_level,
-                      String name, tvm::Array<String> required, bool traceable) {
+                      ffi::String name, tvm::ffi::Array<ffi::String> required, bool traceable) {
   PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
   return ModulePass(std::move(pass_func), pass_info);
 }
@@ -501,9 +504,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("transform.PassInfo",
-           [](int opt_level, String name, tvm::Array<String> required, bool traceable) {
-             return PassInfo(opt_level, name, required, traceable);
-           })
+           [](int opt_level, ffi::String name, tvm::ffi::Array<ffi::String> required,
+              bool traceable) { return PassInfo(opt_level, name, required, traceable); })
       .def_packed("transform.Info", [](ffi::PackedArgs args, ffi::Any* ret) {
         Pass pass = args[0].cast<Pass>();
         *ret = pass->Info();
@@ -561,10 +563,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("transform.Sequential", [](ffi::PackedArgs args, ffi::Any* ret) {
-    auto passes = args[0].cast<tvm::Array<Pass>>();
+    auto passes = args[0].cast<tvm::ffi::Array<Pass>>();
     int opt_level = args[1].cast<int>();
     std::string name = args[2].cast<std::string>();
-    auto required = args[3].cast<tvm::Array<String>>();
+    auto required = args[3].cast<tvm::ffi::Array<ffi::String>>();
     bool traceable = args[4].cast<bool>();
     PassInfo pass_info = PassInfo(opt_level, name, required, /* traceable */ traceable);
     *ret = Sequential(passes, pass_info);
@@ -589,8 +591,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "transform.PassContext",
-      [](int opt_level, Array<String> required, Array<String> disabled,
-         Array<instrument::PassInstrument> instruments, Optional<Map<String, ffi::Any>> config) {
+      [](int opt_level, ffi::Array<ffi::String> required, ffi::Array<ffi::String> disabled,
+         ffi::Array<instrument::PassInstrument> instruments,
+         ffi::Optional<ffi::Map<ffi::String, ffi::Any>> config) {
         auto pctx = PassContext::Create();
         pctx->opt_level = opt_level;
 
@@ -634,14 +637,14 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("transform.EnterPassContext", PassContext::Internal::EnterScope)
       .def("transform.ExitPassContext", PassContext::Internal::ExitScope)
       .def("transform.OverrideInstruments",
-           [](PassContext pass_ctx, Array<instrument::PassInstrument> instruments) {
+           [](PassContext pass_ctx, ffi::Array<instrument::PassInstrument> instruments) {
              pass_ctx.InstrumentExitPassContext();
              pass_ctx->instruments = instruments;
              pass_ctx.InstrumentEnterPassContext();
            });
 });
 
-Pass PrintIR(String header, bool show_meta_data) {
+Pass PrintIR(ffi::String header, bool show_meta_data) {
   auto pass_func = [header, show_meta_data](IRModule mod, const PassContext& ctx) {
     LOG(INFO) << "PrintIR(" << header << "):\n" << mod;
     return mod;

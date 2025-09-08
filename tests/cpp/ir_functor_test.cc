@@ -215,7 +215,7 @@ TEST(IRF, StmtMutator) {
     Stmt body2 = Evaluate(1);
     Stmt bref = body.as<AllocateNode>()->body;
     auto* extentptr = body.as<AllocateNode>()->extents.get();
-    Array<Stmt> arr{std::move(body), body2, body2};
+    ffi::Array<Stmt> arr{std::move(body), body2, body2};
     auto* arrptr = arr.get();
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
     ICHECK(arr.get() == arrptr);
@@ -228,9 +228,9 @@ TEST(IRF, StmtMutator) {
     ICHECK(bref.as<EvaluateNode>()->value.as<AddNode>());
   }
   {
-    Array<Stmt> arr{fmakealloc()};
+    ffi::Array<Stmt> arr{fmakealloc()};
     // mutate array get reference by another one, triiger copy.
-    Array<Stmt> arr2 = arr;
+    ffi::Array<Stmt> arr2 = arr;
     auto* arrptr = arr.get();
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
     ICHECK(arr.get() != arrptr);
@@ -242,7 +242,7 @@ TEST(IRF, StmtMutator) {
     ICHECK(arr2.get() == arr.get());
   }
   {
-    Array<Stmt> arr{fmakeif()};
+    ffi::Array<Stmt> arr{fmakeif()};
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
     ICHECK(arr[0].as<IfThenElseNode>()->else_case.as<EvaluateNode>()->value.same_as(x));
     // mutate but no content change.
@@ -332,7 +332,7 @@ TEST(IRF, Substitute) {
     // test substitute buffer var
     Var y = x.copy_with_suffix("subst");
     BufferLoad buffer_load = fmaketest();
-    auto f_subst = [&](const Var& var) -> Optional<PrimExpr> {
+    auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> {
       if (var.same_as(x)) {
         return y;
       }
@@ -345,7 +345,7 @@ TEST(IRF, Substitute) {
   {
     // test identity substitution
     PrimExpr expr = fmaketest();
-    auto f_subst = [&](const Var& var) -> Optional<PrimExpr> { return var; };
+    auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> { return var; };
     PrimExpr new_expr = Substitute(expr, f_subst);
     // the expression is not changed
     ICHECK(new_expr.same_as(expr));

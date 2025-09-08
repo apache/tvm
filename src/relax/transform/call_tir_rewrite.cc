@@ -74,7 +74,7 @@ class CallTIRMutator : public ExprMutator {
         call->op == call_dps_packed_op) {
       bool is_inplace = (call->op == call_tir_inplace_op);
       const auto* inplace_attrs = call->attrs.as<CallTIRInplaceAttrs>();
-      Array<Expr> outs;
+      ffi::Array<Expr> outs;
       if (const auto& _tensor_sinfo = MatchStructInfo<TensorStructInfo>(expr)) {
         // single output case
         const TensorStructInfo& tensor_sinfo = _tensor_sinfo.value();
@@ -130,7 +130,7 @@ class CallTIRMutator : public ExprMutator {
                    << expr->struct_info_;
       }
 
-      Array<Expr> args;
+      ffi::Array<Expr> args;
       if (call->args[1].as<TupleNode>()) {
         args = Downcast<Tuple>(call->args[1])->fields;
         // for call_tir_inplace, don't reinsert in-place args, only the newly allocated ones
@@ -167,7 +167,7 @@ class CallTIRMutator : public ExprMutator {
       return std::move(Tuple(outs));
     }
 
-    return GetRef<Expr>(call);
+    return ffi::GetRef<Expr>(call);
   }
 
   /*! \brief The context IRModule. */

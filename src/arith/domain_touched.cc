@@ -115,7 +115,7 @@ class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
   }
 
  private:
-  void Touch(BufferTouches* bounds, const Array<PrimExpr>& args) {
+  void Touch(BufferTouches* bounds, const ffi::Array<PrimExpr>& args) {
     if (args.size() > bounds->size()) {
       bounds->resize(args.size());
     }
@@ -136,25 +136,25 @@ Region DomainTouched(const Stmt& stmt, const Buffer& buffer, bool consider_loads
   return BufferTouchedDomain(stmt).FindUnion(buffer, consider_loads, consider_stores);
 }
 
-Map<Buffer, Array<ObjectRef>> DomainTouchedAccessMap(const PrimFunc& func) {
+ffi::Map<Buffer, ffi::Array<ObjectRef>> DomainTouchedAccessMap(const PrimFunc& func) {
   auto buffer_access_map = BufferTouchedDomain(func->body).GetAccessedBufferRegions();
-  Map<Buffer, Array<ObjectRef>> ret;
+  ffi::Map<Buffer, ffi::Array<ObjectRef>> ret;
   auto& buffer_map = func->buffer_map;
   for (auto& var : func->params) {
     auto& buffer = buffer_map[var];
     auto& access = buffer_access_map[buffer.get()];
-    Array<Array<IntSet>> loads, stores, combined;
+    ffi::Array<ffi::Array<IntSet>> loads, stores, combined;
     for (std::vector<IntSet>& touch : std::get<LoadAccess>(access).set) {
-      loads.push_back(Array<IntSet>(touch));
+      loads.push_back(ffi::Array<IntSet>(touch));
     }
     for (std::vector<IntSet>& touch : std::get<StoreAccess>(access).set) {
-      stores.push_back(Array<IntSet>(touch));
+      stores.push_back(ffi::Array<IntSet>(touch));
     }
     for (std::vector<IntSet>& touch : std::get<CombinedAccess>(access).set) {
-      combined.push_back(Array<IntSet>(touch));
+      combined.push_back(ffi::Array<IntSet>(touch));
     }
 
-    Array<ObjectRef> fields;
+    ffi::Array<ObjectRef> fields;
     fields.push_back(loads);
     fields.push_back(stores);
     fields.push_back(combined);

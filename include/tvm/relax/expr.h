@@ -53,7 +53,7 @@ class IdNode : public Object {
    *  this only acts as a hint to the user,
    *  and is not used for equality.
    */
-  String name_hint;
+  ffi::String name_hint;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -73,7 +73,7 @@ class Id : public ObjectRef {
    * \brief The constructor
    * \param name_hint The name of the variable.
    */
-  TVM_DLL explicit Id(String name_hint);
+  TVM_DLL explicit Id(ffi::String name_hint);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Id, ObjectRef, IdNode);
 };
@@ -152,7 +152,7 @@ class CallNode : public ExprNode {
   Expr op;
 
   /*! \brief The arguments(inputs) of the call */
-  tvm::Array<Expr> args;
+  tvm::ffi::Array<Expr> args;
 
   /*! \brief The additional attributes */
   Attrs attrs;
@@ -163,7 +163,7 @@ class CallNode : public ExprNode {
    * call_tir, call_builtin_with_ctx, etc.) and calls to ExternFuncs, with the main
    * usage of structure info inference.
    */
-  Array<StructInfo> sinfo_args;
+  ffi::Array<StructInfo> sinfo_args;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -188,8 +188,8 @@ class Call : public Expr {
    * \param sinfo_args The structure info arguments passed to a function.
    * \param span The source span of the expression.
    */
-  TVM_DLL Call(Expr op, Array<Expr> args, Attrs attrs = Attrs(),
-               Array<StructInfo> sinfo_args = Array<StructInfo>(), Span span = Span());
+  TVM_DLL Call(Expr op, ffi::Array<Expr> args, Attrs attrs = Attrs(),
+               ffi::Array<StructInfo> sinfo_args = ffi::Array<StructInfo>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Call, Expr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
@@ -200,17 +200,18 @@ class Call : public Expr {
  * Returns \p call if all properties are unchanged. Otherwise, returns a copy with the new
  * fields.
  */
-Call WithFields(Call call, Optional<Expr> opt_op = Optional<Expr>(),
-                Optional<Array<Expr>> opt_args = Optional<Array<Expr>>(),
-                Optional<Attrs> opt_attrs = Optional<Attrs>(),
-                Optional<Array<StructInfo>> opt_sinfo_args = Optional<Array<StructInfo>>(),
-                Optional<Span> opt_span = Optional<Span>());
+Call WithFields(
+    Call call, ffi::Optional<Expr> opt_op = ffi::Optional<Expr>(),
+    ffi::Optional<ffi::Array<Expr>> opt_args = ffi::Optional<ffi::Array<Expr>>(),
+    ffi::Optional<Attrs> opt_attrs = ffi::Optional<Attrs>(),
+    ffi::Optional<ffi::Array<StructInfo>> opt_sinfo_args = ffi::Optional<ffi::Array<StructInfo>>(),
+    ffi::Optional<Span> opt_span = ffi::Optional<Span>());
 
 /*! \brief Tuple container */
 class TupleNode : public ExprNode {
  public:
   /*! \brief the fields of the tuple */
-  tvm::Array<Expr> fields;
+  tvm::ffi::Array<Expr> fields;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -228,15 +229,15 @@ class Tuple : public Expr {
    * \param fields The fields of a tuple.
    * \param span The source span of the expression.
    */
-  TVM_DLL explicit Tuple(tvm::Array<Expr> fields, Span span = Span());
+  TVM_DLL explicit Tuple(tvm::ffi::Array<Expr> fields, Span span = Span());
 
   /*!
    * \brief Utility constructor to handle conversion to relax::Expr
    *
    * If the calling scope already has an array of a specific type of
-   * relax expression (e.g. `Array<relax::Var>`), it must be converted
+   * relax expression (e.g. `ffi::Array<relax::Var>`), it must be converted
    * into an array of base type.  This constructor handles the
-   * conversion to the base `Array<relax::Expr>`.
+   * conversion to the base `ffi::Array<relax::Expr>`.
    *
    * \tparam RelaxExpr The type of relax expression passed in as an argument.
    *
@@ -245,7 +246,7 @@ class Tuple : public Expr {
    * \param span The source span of the expression.
    */
   template <typename RelaxExpr, typename = std::enable_if_t<std::is_base_of_v<Expr, RelaxExpr>>>
-  TVM_DLL explicit Tuple(tvm::Array<RelaxExpr> fields, Span span = Span())
+  TVM_DLL explicit Tuple(tvm::ffi::Array<RelaxExpr> fields, Span span = Span())
       : Tuple(fields.Map([](const RelaxExpr& expr) -> Expr { return expr; }), span) {}
 
   TVM_DEFINE_OBJECT_REF_METHODS(Tuple, Expr, TupleNode);
@@ -257,8 +258,9 @@ class Tuple : public Expr {
  * Returns \p tuple if all properties are unchanged. Otherwise, returns a copy with the new
  * fields.
  */
-Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields = Optional<Array<Expr>>(),
-                 Optional<Span> opt_span = Optional<Span>());
+Tuple WithFields(Tuple tuple,
+                 ffi::Optional<ffi::Array<Expr>> opt_fields = ffi::Optional<ffi::Array<Expr>>(),
+                 ffi::Optional<Span> opt_span = ffi::Optional<Span>());
 
 /*! \brief Get index-th field out of a tuple. */
 class TupleGetItemNode : public ExprNode {
@@ -298,9 +300,10 @@ class TupleGetItem : public Expr {
  * Returns \p tuple_get_item if all properties are unchanged. Otherwise, returns a copy with the new
  * fields.
  */
-TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple = Optional<Expr>(),
-                        Optional<Integer> opt_index = Optional<Integer>(),
-                        Optional<Span> opt_span = Optional<Span>());
+TupleGetItem WithFields(TupleGetItem tuple_get_item,
+                        ffi::Optional<Expr> opt_tuple = ffi::Optional<Expr>(),
+                        ffi::Optional<Integer> opt_index = ffi::Optional<Integer>(),
+                        ffi::Optional<Span> opt_span = ffi::Optional<Span>());
 
 /*!
  * \brief Base type of all (non-function) leaf Exprs.
@@ -327,7 +330,7 @@ class LeafExpr : public Expr {
 class ShapeExprNode : public LeafExprNode {
  public:
   /*! The values of the shape expression. */
-  Array<PrimExpr> values;
+  ffi::Array<PrimExpr> values;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -340,7 +343,7 @@ class ShapeExprNode : public LeafExprNode {
 
 class ShapeExpr : public LeafExpr {
  public:
-  TVM_DLL explicit ShapeExpr(Array<PrimExpr> values, Span span = Span());
+  TVM_DLL explicit ShapeExpr(ffi::Array<PrimExpr> values, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(ShapeExpr, LeafExpr, ShapeExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ShapeExprNode);
 };
@@ -353,7 +356,7 @@ class VarNode : public LeafExprNode {
   Id vid;
 
   /*! \return The name hint of the variable */
-  const String& name_hint() const { return vid->name_hint; }
+  const ffi::String& name_hint() const { return vid->name_hint; }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -386,11 +389,12 @@ class VarNode : public LeafExprNode {
 
 class Var : public LeafExpr {
  public:
-  TVM_DLL explicit Var(String name_hint, Optional<StructInfo> struct_info_annotation,
+  TVM_DLL explicit Var(ffi::String name_hint, ffi::Optional<StructInfo> struct_info_annotation,
                        Span span = Span())
       : Var(Id(name_hint), struct_info_annotation, span) {}
 
-  TVM_DLL explicit Var(Id vid, Optional<StructInfo> struct_info_annotation, Span span = Span());
+  TVM_DLL explicit Var(Id vid, ffi::Optional<StructInfo> struct_info_annotation,
+                       Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Var, LeafExpr, VarNode);
 
   VarNode* CopyOnWrite();
@@ -413,11 +417,11 @@ class DataflowVarNode : public VarNode {
 
 class DataflowVar : public Var {
  public:
-  TVM_DLL explicit DataflowVar(String name_hint, Optional<StructInfo> struct_info_annotation,
-                               Span span = Span())
+  TVM_DLL explicit DataflowVar(ffi::String name_hint,
+                               ffi::Optional<StructInfo> struct_info_annotation, Span span = Span())
       : DataflowVar(Id(name_hint), struct_info_annotation, span) {}
 
-  TVM_DLL explicit DataflowVar(Id vid, Optional<StructInfo> struct_info_annotation,
+  TVM_DLL explicit DataflowVar(Id vid, ffi::Optional<StructInfo> struct_info_annotation,
                                Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(DataflowVar, Var, DataflowVarNode);
@@ -459,7 +463,7 @@ class Constant : public LeafExpr {
    * \param span The source span of the expression.
    */
   TVM_DLL explicit Constant(runtime::Tensor data,
-                            Optional<StructInfo> struct_info_annotation = std::nullopt,
+                            ffi::Optional<StructInfo> struct_info_annotation = std::nullopt,
                             Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Constant, LeafExpr, ConstantNode);
@@ -516,7 +520,7 @@ class PrimValue : public LeafExpr {
 class StringImmNode : public LeafExprNode {
  public:
   /*! \brief The data value. */
-  String value;
+  ffi::String value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -538,7 +542,7 @@ class StringImm : public LeafExpr {
    * \param value The value input.
    * \param span The source span of the expression.
    */
-  TVM_DLL explicit StringImm(String value, Span span = Span());
+  TVM_DLL explicit StringImm(ffi::String value, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(StringImm, LeafExpr, StringImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StringImmNode);
@@ -680,7 +684,7 @@ class VarBinding : public Binding {
 
 class BindingBlockNode : public Object {
  public:
-  Array<Binding> bindings;
+  ffi::Array<Binding> bindings;
   mutable Span span;
 
   static void RegisterReflection() {
@@ -699,7 +703,7 @@ class BindingBlockNode : public Object {
 
 class BindingBlock : public ObjectRef {
  public:
-  TVM_DLL explicit BindingBlock(Array<Binding> bindings, Span span = Span());
+  TVM_DLL explicit BindingBlock(ffi::Array<Binding> bindings, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(BindingBlock, ObjectRef, BindingBlockNode);
 
   BindingBlockNode* CopyOnWrite();
@@ -719,7 +723,7 @@ class DataflowBlockNode : public BindingBlockNode {
 
 class DataflowBlock : public BindingBlock {
  public:
-  TVM_DLL explicit DataflowBlock(Array<Binding> bindings, Span span = Span());
+  TVM_DLL explicit DataflowBlock(ffi::Array<Binding> bindings, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(DataflowBlock, BindingBlock, DataflowBlockNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataflowBlockNode);
 };
@@ -730,7 +734,7 @@ class DataflowBlock : public BindingBlock {
  */
 class SeqExprNode : public ExprNode {
  public:
-  Array<BindingBlock> blocks;
+  ffi::Array<BindingBlock> blocks;
   Expr body;
 
   static void RegisterReflection() {
@@ -760,7 +764,7 @@ class SeqExpr : public Expr {
    */
   TVM_DLL SeqExpr(Expr body);  // NOLINT(*)
 
-  TVM_DLL explicit SeqExpr(Array<BindingBlock> blocks, Expr body, Span span = Span());
+  TVM_DLL explicit SeqExpr(ffi::Array<BindingBlock> blocks, Expr body, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(SeqExpr, Expr, SeqExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SeqExprNode);
 };
@@ -828,16 +832,16 @@ class If : public Expr {
  * Returns \p if_expr if all properties are unchanged. Otherwise, returns a copy with the new
  * fields.
  */
-If WithFields(If if_expr, Optional<Expr> opt_cond = Optional<Expr>(),
-              Optional<Expr> opt_true_branch = Optional<Expr>(),
-              Optional<Expr> opt_false_branch = Optional<Expr>(),
-              Optional<Span> opt_span = Optional<Span>());
+If WithFields(If if_expr, ffi::Optional<Expr> opt_cond = ffi::Optional<Expr>(),
+              ffi::Optional<Expr> opt_true_branch = ffi::Optional<Expr>(),
+              ffi::Optional<Expr> opt_false_branch = ffi::Optional<Expr>(),
+              ffi::Optional<Span> opt_span = ffi::Optional<Span>());
 
 /*! \brief A Relax function. */
 class FunctionNode : public BaseFuncNode {
  public:
   /*! \brief The parameters to the function. */
-  Array<Var> params;
+  ffi::Array<Var> params;
   /*! \brief The body of the function. */
   SeqExpr body;
   /*! \brief The return type of the function. */
@@ -882,14 +886,15 @@ class Function : public BaseFunc {
    *
    * \param span The source span of the expression.
    */
-  TVM_DLL explicit Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
-                            bool is_pure = true, DictAttrs attrs = DictAttrs(), Span span = Span());
+  TVM_DLL explicit Function(ffi::Array<Var> params, Expr body,
+                            ffi::Optional<StructInfo> ret_struct_info, bool is_pure = true,
+                            DictAttrs attrs = DictAttrs(), Span span = Span());
 
   /*!
    * \brief Mimics the constructor but without body Expr.
    * \note ret_struct_info is required, since it can not deduced by the body.
    */
-  TVM_DLL static Function CreateEmpty(Array<Var> params, StructInfo ret_struct_info,
+  TVM_DLL static Function CreateEmpty(ffi::Array<Var> params, StructInfo ret_struct_info,
                                       bool is_pure = true, DictAttrs attrs = DictAttrs(),
                                       Span span = Span());
 
@@ -932,7 +937,7 @@ constexpr const char* kNumInput = "num_input";
 class ExternFuncNode : public BaseFuncNode {
  public:
   /*! \brief The name of global symbol. */
-  String global_symbol;
+  ffi::String global_symbol;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -945,8 +950,8 @@ class ExternFuncNode : public BaseFuncNode {
 
 class ExternFunc : public BaseFunc {
  public:
-  TVM_DLL ExternFunc(String global_symbol, Span span = Span());
-  TVM_DLL ExternFunc(String global_symbol, StructInfo struct_info, Span span = Span());
+  TVM_DLL ExternFunc(ffi::String global_symbol, Span span = Span());
+  TVM_DLL ExternFunc(ffi::String global_symbol, StructInfo struct_info, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(ExternFunc, BaseFunc, ExternFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ExternFuncNode);

@@ -58,7 +58,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           if (n->fields.empty()) {
             return Relax(d, "Tuple");
           }
-          Array<ExprDoc> fields_doc;
+          ffi::Array<ExprDoc> fields_doc;
           AccessPath fields_p = n_p->Attr("fields");
           for (int i = 0, l = n->fields.size(); i < l; ++i) {
             fields_doc.push_back(d->AsDoc<ExprDoc>(n->fields[i], fields_p->ArrayItem(i)));
@@ -69,8 +69,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::FuncType>(
         "relax", [](tvm::FuncType n, AccessPath n_p, IRDocsifier d) -> Doc {
-          Array<ExprDoc> arg_types_doc;
-          Array<Type> arg_types = n->arg_types;
+          ffi::Array<ExprDoc> arg_types_doc;
+          ffi::Array<Type> arg_types = n->arg_types;
           AccessPath arg_types_p = n_p->Attr("arg_types");
           for (int i = 0, n_params = arg_types.size(); i < n_params; ++i) {
             arg_types_doc.push_back(d->AsDoc<ExprDoc>(arg_types[i], arg_types_p->ArrayItem(i)));

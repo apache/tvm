@@ -261,7 +261,8 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       // Always wrap things back in RPCObjectRef
       // this is because we want to enable multi-hop RPC
       // and next hop would also need to check the object index
-      RPCObjectRef rpc_obj(make_object<RPCObjectRefObj>(reinterpret_cast<void*>(handle), nullptr));
+      RPCObjectRef rpc_obj(
+          ffi::make_object<RPCObjectRefObj>(reinterpret_cast<void*>(handle), nullptr));
       // Legacy ABI translation
       // TODO(tqchen): remove this once we have upgraded to new ABI
       *reinterpret_cast<AnyView*>(out) = rpc_obj;
@@ -433,7 +434,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     if (code == RPCCode::kException) {
       // switch to the state before sending exception.
       this->SwitchToState(kRecvPacketNumBytes);
-      String msg = args[0].cast<String>();
+      ffi::String msg = args[0].cast<ffi::String>();
       if (!support::StartsWith(msg, "RPCSessionTimeoutError: ")) {
         msg = "RPCError: Error caught from RPC call:\n" + msg;
       }
@@ -962,7 +963,7 @@ void RPCDevAllocDataWithScope(RPCSession* handler, ffi::PackedArgs args, ffi::An
   int ndim = arr->ndim;
   int64_t* shape = arr->shape;
   DLDataType dtype = arr->dtype;
-  auto mem_scope = args[1].cast<Optional<String>>();
+  auto mem_scope = args[1].cast<ffi::Optional<ffi::String>>();
   void* data = handler->GetDeviceAPI(dev)->AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
   *rv = data;
 }
@@ -1154,7 +1155,7 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
   }
 
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                       Optional<String> mem_scope) final {
+                       ffi::Optional<ffi::String> mem_scope) final {
     DLTensor temp;
     temp.data = nullptr;
     temp.device = dev;

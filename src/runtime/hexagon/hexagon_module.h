@@ -39,10 +39,10 @@ namespace runtime {
  * \param data          The module data.
  * \param fmt           The format of the data, can be "obj".
  * \param fmap          The function information map of each function.
- * \param asm_str       String with the generated assembly source.
- * \param obj_str       String with the object file data.
- * \param ir_str        String with the disassembled LLVM IR source.
- * \param bc_str        String with the bitcode LLVM IR.
+ * \param asm_str       ffi::String with the generated assembly source.
+ * \param obj_str       ffi::String with the object file data.
+ * \param ir_str        ffi::String with the disassembled LLVM IR source.
+ * \param bc_str        ffi::String with the bitcode LLVM IR.
  */
 ffi::Module HexagonModuleCreate(std::string data, std::string fmt,
                                 std::unordered_map<std::string, FunctionInfo> fmap,
@@ -60,15 +60,15 @@ class HexagonModuleNode : public ffi::ModuleObj {
   HexagonModuleNode(std::string data, std::string fmt,
                     std::unordered_map<std::string, FunctionInfo> fmap, std::string asm_str,
                     std::string obj_str, std::string ir_str, std::string bc_str);
-  Optional<ffi::Function> GetFunction(const String& name) final;
-  String InspectSource(const String& format) const final;
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final;
+  ffi::String InspectSource(const ffi::String& format) const final;
   const char* kind() const final { return "hexagon"; }
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final {
     return ffi::Module::kBinarySerializable | ffi::Module::kCompilationExportable |
            ffi::Module::kRunnable;
   }
-  void WriteToFile(const String& file_name, const String& format) const final;
+  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final;
   ffi::Bytes SaveToBytes() const final;
 
  protected:

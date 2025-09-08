@@ -123,7 +123,7 @@ class DoubleBufferInjector : public StmtExprMutator {
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AllocateNode>();
 
-      Array<PrimExpr> new_extents = {op->extents[0] * make_const(op->extents[0].dtype(), 2)};
+      ffi::Array<PrimExpr> new_extents = {op->extents[0] * make_const(op->extents[0].dtype(), 2)};
       ICHECK(entry.loop != nullptr);
       auto& alloc_nest = loop_allocs_[entry.loop];
       alloc_nest.emplace_back(Allocate(op->buffer_var, op->dtype, new_extents, op->condition,
@@ -249,7 +249,7 @@ class DoubleBufferInjector : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const VarNode* op) final {
     ICHECK(!dbuffer_info_.count(op));
-    return GetRef<PrimExpr>(op);
+    return ffi::GetRef<PrimExpr>(op);
   }
 
  private:

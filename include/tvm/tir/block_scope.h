@@ -262,11 +262,11 @@ class BlockScopeNode : public Object {
    * \note We intentionally didn't use tvm::Map as the data structure, because we need the values
    * inside to be mutable so that they could be further maintained properly during transformations.
    */
-  std::unordered_map<StmtSRef, Array<Dependency>, ObjectPtrHash, ObjectPtrEqual> src2deps;
+  std::unordered_map<StmtSRef, ffi::Array<Dependency>, ObjectPtrHash, ObjectPtrEqual> src2deps;
   /*! \brief Lookup table for the `dst` of dependencies */
-  std::unordered_map<StmtSRef, Array<Dependency>, ObjectPtrHash, ObjectPtrEqual> dst2deps;
+  std::unordered_map<StmtSRef, ffi::Array<Dependency>, ObjectPtrHash, ObjectPtrEqual> dst2deps;
   /*! \brief The mapping from the buffer to the blocks who write it */
-  std::unordered_map<Buffer, Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual> buffer_writers;
+  std::unordered_map<Buffer, ffi::Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual> buffer_writers;
 
   static void RegisterReflection() {
     // No fields to register as they are not visited
@@ -282,13 +282,13 @@ class BlockScopeNode : public Object {
    * \param src The queried block
    * \return The dependencies
    */
-  TVM_DLL Array<Dependency> GetDepsBySrc(const StmtSRef& src) const;
+  TVM_DLL ffi::Array<Dependency> GetDepsBySrc(const StmtSRef& src) const;
   /*!
    * \brief Get all dependencies whose `dst` equals `dst`
    * \param dst The queried block
    * \return The dependencies
    */
-  TVM_DLL Array<Dependency> GetDepsByDst(const StmtSRef& dst) const;
+  TVM_DLL ffi::Array<Dependency> GetDepsByDst(const StmtSRef& dst) const;
 };
 
 /*!
@@ -305,7 +305,7 @@ class BlockScope : public ObjectRef {
    * \param child_block_srefs The srefs to the leaf blocks
    * \note We assume the leaf blocks are given in pre-DFS order
    */
-  TVM_DLL explicit BlockScope(const Array<StmtSRef>& child_block_srefs);
+  TVM_DLL explicit BlockScope(const ffi::Array<StmtSRef>& child_block_srefs);
 
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockScope, ObjectRef, BlockScopeNode);
 };

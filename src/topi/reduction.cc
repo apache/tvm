@@ -76,7 +76,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                                     args[2].cast<bool>());
                   })
       .def_packed("topi.collapse_sum", [](ffi::PackedArgs args, ffi::Any* rv) {
-        *rv = topi::collapse_sum(args[0].cast<te::Tensor>(), args[1].cast<Array<Integer>>());
+        *rv = topi::collapse_sum(args[0].cast<te::Tensor>(), args[1].cast<ffi::Array<Integer>>());
       });
 });
 

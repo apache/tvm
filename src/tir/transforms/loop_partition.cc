@@ -113,7 +113,7 @@ class CandidateSelector final : public StmtExprVisitor {
     // always treat var with hint to be partitioned
     const VarNode* var = op->loop_var.get();
     if (partition_hint_vars.count(var)) {
-      candidates.insert(GetRef<Stmt>(op));
+      candidates.insert(ffi::GetRef<Stmt>(op));
       StmtExprVisitor::VisitStmt_(op);
       return;
     }
@@ -122,7 +122,7 @@ class CandidateSelector final : public StmtExprVisitor {
       record_.insert({var, false});
       StmtExprVisitor::VisitStmt_(op);
       if (record_.at(var) && !no_split_) {
-        candidates.insert(GetRef<Stmt>(op));
+        candidates.insert(ffi::GetRef<Stmt>(op));
       }
       record_.erase(var);
     } else {
@@ -137,7 +137,7 @@ class CandidateSelector final : public StmtExprVisitor {
       Var var = iv->var;
       // always treat var with hint to be partitioned
       if (partition_hint_vars.count(var.get())) {
-        candidates.insert(GetRef<Stmt>(op));
+        candidates.insert(ffi::GetRef<Stmt>(op));
         StmtExprVisitor::VisitStmt_(op);
         return;
       }
@@ -146,7 +146,7 @@ class CandidateSelector final : public StmtExprVisitor {
         record_.insert({var.get(), false});
         StmtExprVisitor::VisitStmt_(op);
         if (record_.at(var.get()) && !no_split_) {
-          candidates.insert(GetRef<Stmt>(op));
+          candidates.insert(ffi::GetRef<Stmt>(op));
         }
         record_.erase(var.get());
         return;
@@ -213,7 +213,7 @@ class CandidateSelector final : public StmtExprVisitor {
 #define DEFINE_PARTITION_FINDER_VISIT_CMP_OP(OpNodeT) \
   void VisitExpr_(const OpNodeT* op) final {          \
     if (has_partition_hint_) {                        \
-      DeduceCondition(GetRef<PrimExpr>(op));          \
+      DeduceCondition(ffi::GetRef<PrimExpr>(op));     \
       return;                                         \
     }                                                 \
     StmtExprVisitor::VisitExpr_(op);                  \
@@ -421,7 +421,7 @@ class LoopPartitioner : public StmtMutator {
 
   Stmt VisitStmt_(const ForNode* op) final {
     analyzer_.Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent), true);
-    auto fs = GetRef<Stmt>(op);
+    auto fs = ffi::GetRef<Stmt>(op);
     if (selector.candidates.count(fs)) {
       Stmt s = TryPartition(fs, op->loop_var, op->min, op->min + op->extent - 1, op->body, false);
       if (s.defined()) return s;
@@ -443,7 +443,7 @@ class LoopPartitioner : public StmtMutator {
     const IterVarNode* iv = op->node.as<IterVarNode>();
     ICHECK(iv);
     Var var = iv->var;
-    auto as = GetRef<Stmt>(op);
+    auto as = ffi::GetRef<Stmt>(op);
     if (selector.candidates.count(as)) {
       Stmt s = TryPartition(as, var, 0, op->value - 1, op->body, true);
       if (s.defined()) return s;
@@ -489,7 +489,7 @@ class LoopPartitioner : public StmtMutator {
 std::pair<IntSet, ExpressionSet> LoopPartitioner::GetIntervalAndCondset(
     const Partition& partitions, const arith::IntervalSet& for_interval, bool cond_value,
     bool has_partition_hint) {
-  Array<IntSet> sets;
+  ffi::Array<IntSet> sets;
   ExpressionSet cond_set;
 
   for (const auto& kv : partitions) {

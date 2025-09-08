@@ -45,7 +45,7 @@ struct MatmulAttrs : public AttrsNodeReflAdapter<MatmulAttrs> {
 
 /*! \brief Attributes used in einsum operator */
 struct EinsumAttrs : public AttrsNodeReflAdapter<EinsumAttrs> {
-  String subscripts;
+  ffi::String subscripts;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

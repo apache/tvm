@@ -54,7 +54,7 @@ class TFLiteRuntime : public ffi::ModuleObj {
    * \param sptr_to_self The pointer to the module node.
    * \return The corresponding member function.
    */
-  virtual Optional<ffi::Function> GetFunction(const String& name);
+  virtual ffi::Optional<ffi::Function> GetFunction(const ffi::String& name);
 
   /*!
    * \return The type key of the executor.

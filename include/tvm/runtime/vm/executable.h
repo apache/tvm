@@ -113,12 +113,12 @@ class VMExecutable : public ffi::ModuleObj {
    * \brief Print the instructions as text format.
    * \return The text format of the instructions.
    */
-  String AsText() const;
+  ffi::String AsText() const;
   /*!
    * \brief Print the instructions as python program.
    * \return The python program of the instructions, represented by a string.
    */
-  String AsPython() const;
+  ffi::String AsPython() const;
   /*!
    * \brief Write the VMExecutable to the binary stream in serialized form.
    * \return The binary bytes that save the executable to.
@@ -135,19 +135,19 @@ class VMExecutable : public ffi::ModuleObj {
    * \param file_name The name of the file to write the serialized data to.
    * \param format The target format of the saved file.
    */
-  void WriteToFile(const String& file_name, const String& format) const final;
+  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final;
   /*! \brief Create a Relax virtual machine and load `this` as the executable. */
   ffi::Module VMLoadExecutable() const;
   /*! \brief Create a Relax virtual machine with profiler and load `this` as the executable. */
   ffi::Module VMProfilerLoadExecutable() const;
   /*! \brief Check if the VMExecutable contains a specific function. */
-  bool HasFunction(const String& name) const;
+  bool HasFunction(const ffi::String& name) const;
   /*!
    * \brief Load VMExecutable from the file.
    * \param file_name The path of the file that load the executable from.
    * \return The loaded executable, in the form of a `runtime::Module`.
    */
-  static ffi::Module LoadFromFile(const String& file_name);
+  static ffi::Module LoadFromFile(const ffi::String& file_name);
 
   /*! \brief The virtual machine's function table. */
   std::vector<VMFuncInfo> func_table;

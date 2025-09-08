@@ -47,7 +47,7 @@ struct TensorCacheMetadata {
        * in other cases
        */
       TVM_DLL Tensor Load(Device device, const std::string* raw_data,
-                          Optional<Tensor>* staging_buffer = nullptr) const;
+                          ffi::Optional<Tensor>* staging_buffer = nullptr) const;
 
       /*! \brief Name of the parameter */
       std::string name;
@@ -64,10 +64,10 @@ struct TensorCacheMetadata {
     };
 
     /*! \brief Load a FileRecord into memory */
-    TVM_DLL Array<Tensor> Load(Device device,                   //
-                               const std::string& path_prefix,  //
-                               std::string* raw_data_buffer,    //
-                               Optional<Tensor>* staging_buffer = nullptr) const;
+    TVM_DLL ffi::Array<Tensor> Load(Device device,                   //
+                                    const std::string& path_prefix,  //
+                                    std::string* raw_data_buffer,    //
+                                    ffi::Optional<Tensor>* staging_buffer = nullptr) const;
 
     /*! \brief Relative path to the bin file */
     std::string data_path;

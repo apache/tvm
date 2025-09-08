@@ -69,9 +69,9 @@ class ProfilerNode : public runtime::Object {
 
  public:
   /*! \brief Get the internal stats of the running time */
-  Map<String, FloatImm> Get() const;
+  ffi::Map<ffi::String, FloatImm> Get() const;
   /*! \brief Return a summary of profiling results as table format */
-  String Table() const;
+  ffi::String Table() const;
 };
 
 /*!
@@ -88,13 +88,13 @@ class Profiler : public runtime::ObjectRef {
   /*! \brief Exiting the scope of the context manager */
   void ExitWithScope();
   /*! \brief Returns the current profiler */
-  static Optional<Profiler> Current();
+  static ffi::Optional<Profiler> Current();
   /*!
    * \brief Profile the time usage in the given scope in the given name.
    * \param name Name for the scope.
    * \return A scope timer for time profiling.
    */
-  static ScopedTimer TimedScope(String name);
+  static ScopedTimer TimedScope(ffi::String name);
 };
 
 }  // namespace meta_schedule

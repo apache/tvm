@@ -280,7 +280,7 @@ ffi::Module BuildAMDGPU(IRModule mod, Target target) {
 
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   auto fbitcode = tvm::ffi::Function::GetGlobalRequired("tvm_callback_rocm_bitcode_path");
-  auto bitcode_files = fbitcode().cast<Array<String>>();
+  auto bitcode_files = fbitcode().cast<ffi::Array<ffi::String>>();
 
   for (auto& bitcode_path : bitcode_files) {
     std::unique_ptr<llvm::Module> mlib = llvm_instance.LoadIR(bitcode_path);

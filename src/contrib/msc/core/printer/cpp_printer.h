@@ -147,7 +147,7 @@ class CppPrinter : public MSCBasePrinter {
   bool IsEmptyDoc(const ExprDoc& doc);
 
   /*! \brief Print block with indent*/
-  void PrintIndentedBlock(const Array<StmtDoc>& docs);
+  void PrintIndentedBlock(const ffi::Array<StmtDoc>& docs);
 };
 
 }  // namespace msc

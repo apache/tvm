@@ -50,7 +50,7 @@ namespace json {
 class JSONRuntimeBase : public ffi::ModuleObj {
  public:
   JSONRuntimeBase(const std::string& symbol_name, const std::string& graph_json,
-                  const Array<String> const_names)
+                  const ffi::Array<ffi::String> const_names)
       : symbol_name_(symbol_name), graph_json_(graph_json), const_names_(const_names) {
     LoadGraph(graph_json_);
   }
@@ -63,7 +63,7 @@ class JSONRuntimeBase : public ffi::ModuleObj {
   }
 
   /*! \brief Initialize a specific json runtime. */
-  virtual void Init(const Array<Tensor>& consts) = 0;
+  virtual void Init(const ffi::Array<Tensor>& consts) = 0;
 
   /*! \brief Invoke the execution engine to inteprete a specific json runtime. */
   virtual void Run() = 0;
@@ -93,7 +93,7 @@ class JSONRuntimeBase : public ffi::ModuleObj {
    * \param sptr_to_self The pointer to the module node.
    * \return The packed function.
    */
-  Optional<ffi::Function> GetFunction(const String& name) override {
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) override {
     ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
     if (name == "get_symbol") {
       return ffi::Function(
@@ -123,8 +123,8 @@ class JSONRuntimeBase : public ffi::ModuleObj {
         // Bind argument tensors to data entries.
         this->SetInputOutputBuffers(args);
 
-        if (auto opt_str = rv->try_cast<String>()) {
-          String purpose = std::move(opt_str.value());
+        if (auto opt_str = rv->try_cast<ffi::String>()) {
+          ffi::String purpose = std::move(opt_str.value());
           if ("debug_dump" == purpose) {
             *rv = this->DebugDump();
           }
@@ -133,7 +133,7 @@ class JSONRuntimeBase : public ffi::ModuleObj {
           profiling::Profiler* prof = static_cast<profiling::Profiler*>(rv->cast<void*>());
           this->RunProfile(prof);
         }
-        // String vendor_prof = this->RunProfile(prof);
+        // ffi::String vendor_prof = this->RunProfile(prof);
       });
     } else if ("__init_" + this->symbol_name_ == name) {
       // The function to initialize constant tensors.
@@ -141,7 +141,7 @@ class JSONRuntimeBase : public ffi::ModuleObj {
         ICHECK_EQ(args.size(), 1U);
         std::lock_guard<std::mutex> guard(this->initialize_mutex_);
         if (!this->initialized_) {
-          this->Init(args[0].cast<Array<Tensor>>());
+          this->Init(args[0].cast<ffi::Array<Tensor>>());
           this->initialized_ = true;
         }
         *rv = 0;
@@ -180,11 +180,11 @@ class JSONRuntimeBase : public ffi::ModuleObj {
     ICHECK(stream->Read(&symbol)) << "Loading symbol name failed";
     ICHECK(stream->Read(&graph_json)) << "Loading graph json failed";
     ICHECK(stream->Read(&consts)) << "Loading the const name list failed";
-    Array<String> const_names;
+    ffi::Array<ffi::String> const_names;
     for (const auto& it : consts) {
       const_names.push_back(it);
     }
-    auto n = make_object<T>(symbol, graph_json, const_names);
+    auto n = ffi::make_object<T>(symbol, graph_json, const_names);
     return ffi::Module(n);
   }
 
@@ -194,7 +194,7 @@ class JSONRuntimeBase : public ffi::ModuleObj {
    * \param format the format to return.
    * \return A string of JSON.
    */
-  String InspectSource(const String& format) const override { return graph_json_; }
+  ffi::String InspectSource(const ffi::String& format) const override { return graph_json_; }
 
  protected:
   /*!
@@ -270,7 +270,7 @@ class JSONRuntimeBase : public ffi::ModuleObj {
    *
    * \param consts A list of constant Tensor to be used.
    */
-  void SetupConstants(const Array<Tensor>& consts) {
+  void SetupConstants(const ffi::Array<Tensor>& consts) {
     for (size_t i = 0; i < consts.size(); ++i) {
       data_entry_[EntryID(const_idx_[i], 0)] = consts[i].operator->();
     }
@@ -313,7 +313,7 @@ class JSONRuntimeBase : public ffi::ModuleObj {
   /*! \brief The graph. */
   std::string graph_json_;
   /*! \brief The required constant names. */
-  Array<String> const_names_;
+  ffi::Array<ffi::String> const_names_;
   /*! \brief The json graph nodes. */
   std::vector<JSONGraphNode> nodes_;
   /*! \brief The input nodes, including variables and constants. */

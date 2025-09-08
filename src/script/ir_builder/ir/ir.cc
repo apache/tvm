@@ -32,7 +32,7 @@ namespace ir_builder {
 namespace ir {
 
 IRModuleFrame IRModule() {
-  ObjectPtr<IRModuleFrameNode> n = make_object<IRModuleFrameNode>();
+  ObjectPtr<IRModuleFrameNode> n = ffi::make_object<IRModuleFrameNode>();
   n->global_var_map.clear();
   n->functions.clear();
   return IRModuleFrame(n);
@@ -49,14 +49,15 @@ inline relax::StructInfo GetGlobalVarStructInfo(const BaseFunc& func) {
   }
 }
 
-GlobalVar DeclFunction(const String& func_name, const BaseFunc& func_signature) {
+GlobalVar DeclFunction(const ffi::String& func_name, const BaseFunc& func_signature) {
   IRModuleFrame frame = FindModuleFrame();
   CHECK(!frame->global_var_map.count(func_name))
       << "ValueError: function " << func_name << " already exists";
 
   auto gvar_type = [&]() -> Type {
     if (auto prim_func = func_signature.as<tir::PrimFuncNode>()) {
-      Array<Type> arg_types = prim_func->params.Map([](const auto& var) { return GetType(var); });
+      ffi::Array<Type> arg_types =
+          prim_func->params.Map([](const auto& var) { return GetType(var); });
       return FuncType(arg_types, prim_func->ret_type);
     }
 
@@ -72,7 +73,7 @@ GlobalVar DeclFunction(const String& func_name, const BaseFunc& func_signature) 
   return gv;
 }
 
-void DefFunction(const String& func_name, const BaseFunc& func) {
+void DefFunction(const ffi::String& func_name, const BaseFunc& func) {
   IRModuleFrame frame = FindModuleFrame();
   auto it = frame->global_var_map.find(func_name);
   CHECK(it != frame->global_var_map.end())
@@ -82,7 +83,7 @@ void DefFunction(const String& func_name, const BaseFunc& func) {
   gv->struct_info_ = GetGlobalVarStructInfo(func);
 }
 
-void ModuleAttrs(Map<String, Any> attrs, bool allow_overwrite) {
+void ModuleAttrs(ffi::Map<ffi::String, Any> attrs, bool allow_overwrite) {
   if (IRBuilder::IsInScope()) {
     // TODO(hongyi): add comments to explain why we need to check if the module frame is in scope
     IRModuleFrame frame = FindModuleFrame("I.ModuleAttr");
@@ -93,7 +94,7 @@ void ModuleAttrs(Map<String, Any> attrs, bool allow_overwrite) {
   }
 }
 
-Optional<ObjectRef> ModuleGetAttr(const String& key) {
+ffi::Optional<ObjectRef> ModuleGetAttr(const ffi::String& key) {
   if (IRBuilder::IsInScope()) {
     IRModuleFrame frame = FindModuleFrame();
     if (frame->attrs.find(key) != frame->attrs.end()) {
@@ -103,7 +104,8 @@ Optional<ObjectRef> ModuleGetAttr(const String& key) {
   return std::nullopt;
 }
 
-void ModuleSetAttr(const String& key, const Optional<ObjectRef>& value, bool allow_override) {
+void ModuleSetAttr(const ffi::String& key, const ffi::Optional<ObjectRef>& value,
+                   bool allow_override) {
   if (IRBuilder::IsInScope()) {
     IRModuleFrame frame = FindModuleFrame();
     if (!allow_override && frame->attrs.find(key) != frame->attrs.end() && value.defined()) {
@@ -119,7 +121,7 @@ void ModuleSetAttr(const String& key, const Optional<ObjectRef>& value, bool all
   }
 }
 
-void ModuleGlobalInfos(Map<String, Array<GlobalInfo>> global_infos) {
+void ModuleGlobalInfos(ffi::Map<ffi::String, ffi::Array<GlobalInfo>> global_infos) {
   if (IRBuilder::IsInScope()) {
     IRModuleFrame frame = FindModuleFrame("I.ModuleGlobalInfos");
     if (!frame->global_infos.empty()) {
@@ -130,13 +132,13 @@ void ModuleGlobalInfos(Map<String, Array<GlobalInfo>> global_infos) {
   }
 }
 
-VDevice LookupVDevice(String target_kind, int device_index) {
+VDevice LookupVDevice(ffi::String target_kind, int device_index) {
   if (IRBuilder::IsInScope()) {
     IRModuleFrame frame = FindModuleFrame();
     if (frame->global_infos.empty()) {
       LOG(FATAL) << "ValueError: The GlobalInfos in the IRModule is not defined.";
     }
-    Array<GlobalInfo> vdevices = frame->global_infos["vdevice"];
+    ffi::Array<GlobalInfo> vdevices = frame->global_infos["vdevice"];
     if (vdevices.empty() || device_index < 0 ||
         static_cast<size_t>(device_index) >= vdevices.size()) {
       LOG(FATAL) << "ValueError: The target VDevice in the GlobalInfos was not found.";

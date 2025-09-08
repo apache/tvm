@@ -49,11 +49,11 @@ using TMixedPrecisionPolicy = int;
 // NType is the message we want to track for vars with nested tensorstructinfo
 // which represents the realization decision of the var.
 // The string is the name of the dtype decision.
-using NType = NestedMsg<String>;
+using NType = NestedMsg<ffi::String>;
 
 struct NTypeEqual {
   bool operator()(const NType& a, const NType& b) const {
-    auto dtype_equal = [](const String& a, const String& b) { return a == b; };
+    auto dtype_equal = [](const ffi::String& a, const ffi::String& b) { return a == b; };
     return Equal(a, b, dtype_equal);
   }
 };
@@ -74,9 +74,9 @@ using VarDTypeMap = std::unordered_map<Var, NType>;
 using FInferMixedPrecision =
     ffi::TypedFunction<Call(const Call& call_node, const DataType& out_dtype)>;
 
-Array<ObjectRef> InferMixedPrecisionFollow(const Call& call, const DataType& out_dtype);
+ffi::Array<ObjectRef> InferMixedPrecisionFollow(const Call& call, const DataType& out_dtype);
 
-Array<ObjectRef> InferMixedPrecisionNever(const Call& call, const DataType& out_dtype);
+ffi::Array<ObjectRef> InferMixedPrecisionNever(const Call& call, const DataType& out_dtype);
 
 }  // namespace relax
 }  // namespace tvm

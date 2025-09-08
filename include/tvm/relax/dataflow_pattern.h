@@ -113,7 +113,7 @@ class DFPattern : public ObjectRef {
   /*! \brief Syntatic Sugar for creating a NotPattern */
   TVM_DLL NotPattern operator~() const;
   /*! \brief Syntatic Sugar for creating an AttrPattern */
-  TVM_DLL AttrPattern HasAttr(const Map<String, Any>& attrs) const;
+  TVM_DLL AttrPattern HasAttr(const ffi::Map<ffi::String, Any>& attrs) const;
   /*! \brief Syntatic Sugar for creating a StructInfoPattern */
   TVM_DLL StructInfoPattern HasStructInfo(const StructInfo& struct_info) const;
   /*! \brief Syntatic Sugar for creating a DataTypePattern with a DataType */
@@ -121,7 +121,7 @@ class DFPattern : public ObjectRef {
   /*! \brief Syntatic Sugar for creating a DataTypePattern with a data type's name */
   TVM_DLL DataTypePattern HasDtype(const std::string& dtype) const;
   /*! \brief Syntatic Sugar for creating a ShapePattern */
-  TVM_DLL ShapePattern HasShape(const Array<PrimExpr>& shape) const;
+  TVM_DLL ShapePattern HasShape(const ffi::Array<PrimExpr>& shape) const;
   /*! \brief Syntatic Sugar for creating a ShapePattern */
   TVM_DLL SameShapeConstraint HasSameShapeAs(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for duplicating the current pattern */
@@ -165,7 +165,7 @@ struct PairCons {
 class DFConstraintNode : public Object {
  public:
   /*! \brief Return the patterns on which the constraint depends */
-  virtual Array<DFPattern> GetDependentPatterns() const = 0;
+  virtual ffi::Array<DFPattern> GetDependentPatterns() const = 0;
 
   /*! \brief Convert the constraint to a PrimExpr
    *
@@ -195,7 +195,7 @@ class DFConstraintNode : public Object {
    *    sufficient for the constraint to be satisfied.
    */
   virtual std::tuple<PrimExpr, bool> AsPrimExpr(
-      std::function<Optional<Var>(const DFPatternNode*)> match_state) const = 0;
+      std::function<ffi::Optional<Var>(const DFPatternNode*)> match_state) const = 0;
 
   static constexpr const char* _type_key = "DFConstraintNode";
   static constexpr const uint32_t _type_child_slots = 1;
@@ -213,7 +213,7 @@ class DFConstraint : public ObjectRef {
  */
 class PatternSeqNode final : public Object {
  public:
-  tvm::Array<DFPattern> patterns;         /*!< The sequence of DFPatterns */
+  tvm::ffi::Array<DFPattern> patterns;    /*!< The sequence of DFPatterns */
   std::vector<PairCons> pair_constraints; /*!< Constraints between the previous and next patterns */
 
   static void RegisterReflection() {
@@ -232,7 +232,7 @@ class PatternSeqNode final : public Object {
 class PatternSeq final : public ObjectRef {
  public:
   TVM_DLL explicit PatternSeq(DFPattern init_pattern);
-  TVM_DLL explicit PatternSeq(tvm::Array<DFPattern> patterns, bool only_used_by = false);
+  TVM_DLL explicit PatternSeq(tvm::ffi::Array<DFPattern> patterns, bool only_used_by = false);
 
   PatternSeq UsedBy(PatternSeq other, int index = -1) const;
   PatternSeq OnlyUsedBy(PatternSeq other, int index = -1) const;
@@ -329,7 +329,7 @@ class PatternContext : public ObjectRef {
   }
 
   /*! \brief Get the constraint context object on the top of the stack */
-  TVM_DLL static Optional<PatternContext> Current();
+  TVM_DLL static ffi::Optional<PatternContext> Current();
 
   /*! \brief The RAII-like entry of a constraint context scope */
   TVM_DLL void EnterWithScope() const;
@@ -374,8 +374,8 @@ class ExprPattern : public DFPattern {
  */
 class VarPatternNode : public DFPatternNode {
  public:
-  String name;
-  const String& name_hint() const { return name; }
+  ffi::String name;
+  const ffi::String& name_hint() const { return name; }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -398,7 +398,7 @@ class VarPattern : public DFPattern {
    *
    * \param name_hint Variable name to match. Any if empty ("").
    */
-  TVM_DLL VarPattern(String name_hint);
+  TVM_DLL VarPattern(ffi::String name_hint);
   TVM_DEFINE_OBJECT_REF_METHODS(VarPattern, DFPattern, VarPatternNode);
 };
 
@@ -424,7 +424,7 @@ class DataflowVarPatternNode : public VarPatternNode {
 class DataflowVarPattern : public DFPattern {
  public:
   /*! \sa VarPattern::VarPattern */
-  TVM_DLL DataflowVarPattern(String name_hint);
+  TVM_DLL DataflowVarPattern(ffi::String name_hint);
   TVM_DEFINE_OBJECT_REF_METHODS(DataflowVarPattern, DFPattern, DataflowVarPatternNode);
 };
 
@@ -444,7 +444,7 @@ class GlobalVarPatternNode : public VarPatternNode {
  */
 class GlobalVarPattern : public DFPattern {
  public:
-  TVM_DLL GlobalVarPattern(String name_hint);
+  TVM_DLL GlobalVarPattern(ffi::String name_hint);
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalVarPattern, DFPattern, GlobalVarPatternNode);
 };
 
@@ -483,8 +483,8 @@ class CallPatternNode : public DFPatternNode {
    *  - relax::Op which corresponds to the primitive operators.
    *  - user defined functions (Function, GlobalVar, Var).
    */
-  DFPattern op;               /*!< The operator (function) being invoked */
-  tvm::Array<DFPattern> args; /*!< The arguments of the function call */
+  DFPattern op;                    /*!< The operator (function) being invoked */
+  tvm::ffi::Array<DFPattern> args; /*!< The arguments of the function call */
   /*!
    * \note If varg_default_wildcard is true. Given args of [pA, pB], when matching a call whose
    * arguments are [A, B, ...], the pattern will still match despite N(args) < N(call.args). That
@@ -508,7 +508,7 @@ class CallPatternNode : public DFPatternNode {
 
 class CallPattern : public DFPattern {
  public:
-  TVM_DLL CallPattern(DFPattern op, Array<DFPattern> args, bool varg_default_wildcard = false);
+  TVM_DLL CallPattern(DFPattern op, ffi::Array<DFPattern> args, bool varg_default_wildcard = false);
   TVM_DEFINE_OBJECT_REF_METHODS(CallPattern, DFPattern, CallPatternNode);
 };
 
@@ -519,7 +519,7 @@ class CallPattern : public DFPattern {
  */
 class PrimArrPatternNode : public DFPatternNode {
  public:
-  Array<PrimExpr> fields; /*!< The array to match */
+  ffi::Array<PrimExpr> fields; /*!< The array to match */
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -536,7 +536,7 @@ class PrimArrPatternNode : public DFPatternNode {
  */
 class PrimArrPattern : public DFPattern {
  public:
-  TVM_DLL PrimArrPattern(Array<PrimExpr> arr);
+  TVM_DLL PrimArrPattern(ffi::Array<PrimExpr> arr);
   TVM_DEFINE_OBJECT_REF_METHODS(PrimArrPattern, DFPattern, PrimArrPatternNode);
 };
 
@@ -547,7 +547,7 @@ class PrimArrPattern : public DFPattern {
  */
 class FunctionPatternNode : public DFPatternNode {
  public:
-  tvm::Array<DFPattern> params; /*!< The parameters of the function */
+  tvm::ffi::Array<DFPattern> params; /*!< The parameters of the function */
   /*!
    * \note Note that in Relax, the function body is a SeqExpr which contains
    * 1) SeqExprNode::blocks, which is a list of blocks of statements; and 2)
@@ -578,7 +578,7 @@ class FunctionPattern : public DFPattern {
    * \param params The parameters of the function.
    * \param body The body of the function.
    */
-  TVM_DLL FunctionPattern(tvm::Array<DFPattern> params, DFPattern body);
+  TVM_DLL FunctionPattern(tvm::ffi::Array<DFPattern> params, DFPattern body);
 
   TVM_DEFINE_OBJECT_REF_METHODS(FunctionPattern, DFPattern, FunctionPatternNode);
 };
@@ -589,7 +589,7 @@ class FunctionPattern : public DFPattern {
  */
 class TuplePatternNode : public DFPatternNode {
  public:
-  tvm::Array<DFPattern> fields; /*!< The fields of the tuple */
+  tvm::ffi::Array<DFPattern> fields; /*!< The fields of the tuple */
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -606,7 +606,7 @@ class TuplePatternNode : public DFPatternNode {
  */
 class TuplePattern : public DFPattern {
  public:
-  TVM_DLL explicit TuplePattern(tvm::Array<DFPattern> fields);
+  TVM_DLL explicit TuplePattern(tvm::ffi::Array<DFPattern> fields);
   TVM_DEFINE_OBJECT_REF_METHODS(TuplePattern, DFPattern, TuplePatternNode);
 };
 
@@ -616,7 +616,7 @@ class TuplePattern : public DFPattern {
  */
 class UnorderedTuplePatternNode : public DFPatternNode {
  public:
-  tvm::Array<DFPattern> fields; /*!< The fields of the tuple */
+  tvm::ffi::Array<DFPattern> fields; /*!< The fields of the tuple */
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -634,7 +634,7 @@ class UnorderedTuplePatternNode : public DFPatternNode {
  */
 class UnorderedTuplePattern : public DFPattern {
  public:
-  TVM_DLL explicit UnorderedTuplePattern(tvm::Array<DFPattern> fields);
+  TVM_DLL explicit UnorderedTuplePattern(tvm::ffi::Array<DFPattern> fields);
   TVM_DEFINE_OBJECT_REF_METHODS(UnorderedTuplePattern, DFPattern, UnorderedTuplePatternNode);
 };
 
@@ -819,8 +819,8 @@ class StructInfoPattern : public DFPattern {
  */
 class ShapePatternNode : public DFPatternNode {
  public:
-  DFPattern pattern;     /*!< The root pattern to match */
-  Array<PrimExpr> shape; /*!< The shape to match */
+  DFPattern pattern;          /*!< The root pattern to match */
+  ffi::Array<PrimExpr> shape; /*!< The shape to match */
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -839,7 +839,7 @@ class ShapePatternNode : public DFPatternNode {
  */
 class ShapePattern : public DFPattern {
  public:
-  TVM_DLL ShapePattern(DFPattern pattern, Array<PrimExpr> type);
+  TVM_DLL ShapePattern(DFPattern pattern, ffi::Array<PrimExpr> type);
   TVM_DEFINE_OBJECT_REF_METHODS(ShapePattern, DFPattern, ShapePatternNode);
 };
 
@@ -849,12 +849,12 @@ class ShapePattern : public DFPattern {
  */
 class SameShapeConstraintNode : public DFConstraintNode {
  public:
-  Array<DFPattern> args; /*!< The patterns with matching shapes */
+  ffi::Array<DFPattern> args; /*!< The patterns with matching shapes */
 
-  Array<DFPattern> GetDependentPatterns() const override { return args; }
+  ffi::Array<DFPattern> GetDependentPatterns() const override { return args; }
 
   std::tuple<PrimExpr, bool> AsPrimExpr(
-      std::function<Optional<Var>(const DFPatternNode*)> match_state) const override;
+      std::function<ffi::Optional<Var>(const DFPatternNode*)> match_state) const override;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -871,7 +871,7 @@ class SameShapeConstraintNode : public DFConstraintNode {
  */
 class SameShapeConstraint : public DFConstraint {
  public:
-  TVM_DLL SameShapeConstraint(Array<DFPattern> args);
+  TVM_DLL SameShapeConstraint(ffi::Array<DFPattern> args);
   TVM_DEFINE_OBJECT_REF_METHODS(SameShapeConstraint, DFConstraint, SameShapeConstraintNode);
 };
 
@@ -942,10 +942,10 @@ class AttrPattern : public DFPattern {
  */
 class ExternFuncPatternNode : public DFPatternNode {
  public:
-  String global_symbol_; /*!< The global symbol name of the external function */
+  ffi::String global_symbol_; /*!< The global symbol name of the external function */
 
   /*! \brief The external function name */
-  const String& global_symbol() const { return global_symbol_; }
+  const ffi::String& global_symbol() const { return global_symbol_; }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -963,12 +963,12 @@ class ExternFuncPatternNode : public DFPatternNode {
  */
 class ExternFuncPattern : public DFPattern {
  public:
-  TVM_DLL ExternFuncPattern(String global_symbol);
+  TVM_DLL ExternFuncPattern(ffi::String global_symbol);
   TVM_DEFINE_OBJECT_REF_METHODS(ExternFuncPattern, DFPattern, ExternFuncPatternNode);
 };
 
 /*! \brief Syntatic Sugar for creating a VarPattern with a name */
-VarPattern IsVar(const String& name);
+VarPattern IsVar(const ffi::String& name);
 /*! \brief Syntatic Sugar for creating a ConstantPattern */
 ConstantPattern IsConst();
 /*! \brief Syntatic Sugar for creating a WildcardPattern */
@@ -976,26 +976,27 @@ WildcardPattern Wildcard();
 /*! \brief Syntatic Sugar for creating a ExprPattern */
 ExprPattern IsExpr(const Expr& expr);
 /*! \brief Syntatic Sugar for creating a ExprPattern base on an Op */
-ExprPattern IsOp(const String& op_name);
+ExprPattern IsOp(const ffi::String& op_name);
 /*! \brief Syntatic Sugar for call_tir (return a tensor) */
 // Todo(relax-team): Dataflow pattern for StructInfo, and match out_sinfo
-CallPattern IsCallTIR(const String& name, Optional<TuplePattern> args = std::nullopt);
+CallPattern IsCallTIR(const ffi::String& name, ffi::Optional<TuplePattern> args = std::nullopt);
 /*! \brief Syntatic Sugar for call_tir (return a tuple of tensor) */
-CallPattern IsCallTIR(const String& name, TuplePattern var_args);
+CallPattern IsCallTIR(const ffi::String& name, TuplePattern var_args);
 /*! \brief Syntatic Sugar for call_dps_packed (return a tensor) */
-CallPattern IsCallDPSPacked(const String& name, Optional<TuplePattern> args = std::nullopt);
+CallPattern IsCallDPSPacked(const ffi::String& name,
+                            ffi::Optional<TuplePattern> args = std::nullopt);
 /*! \brief Syntatic Sugar for call_dps_packed (return a tuple of tensor) */
-CallPattern IsCallDPSPacked(const String& name, TuplePattern var_args);
+CallPattern IsCallDPSPacked(const ffi::String& name, TuplePattern var_args);
 /*! \brief Syntatic Sugar for creating TuplePattern or UnorderedTuplePattern (unordered=true) */
-DFPattern IsTuple(const Array<DFPattern>& fields, bool unordered = false);
+DFPattern IsTuple(const ffi::Array<DFPattern>& fields, bool unordered = false);
 /*! \brief Syntatic Sugar for creating a TupleGetItemPattern */
 TupleGetItemPattern IsTupleGetItem(const DFPattern tuple, int index = -1);
 
 /*! \brief Implementation of the templated CallPattern syntax sugar */
 template <typename... Args>
 CallPattern DFPattern::operator()(Args&&... args) const {
-  return CallPattern(GetRef<DFPattern>(this->get()),
-                     Array<DFPattern>({std::forward<Args>(args)...}));
+  return CallPattern(ffi::GetRef<DFPattern>(this->get()),
+                     ffi::Array<DFPattern>({std::forward<Args>(args)...}));
 }
 
 }  // namespace relax

@@ -152,7 +152,7 @@ Tensor TFLiteRuntime::GetOutput(int index) const {
   return ret;
 }
 
-ffi::Optional<ffi::Function> TFLiteRuntime::GetFunction(const String& name) {
+ffi::Optional<ffi::Function> TFLiteRuntime::GetFunction(const ffi::String& name) {
   ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
   // Return member functions during query.
   if (name == "set_input") {
@@ -180,7 +180,7 @@ ffi::Optional<ffi::Function> TFLiteRuntime::GetFunction(const String& name) {
 }
 
 ffi::Module TFLiteRuntimeCreate(const std::string& tflite_model_bytes, Device dev) {
-  auto exec = make_object<TFLiteRuntime>();
+  auto exec = ffi::make_object<TFLiteRuntime>();
   exec->Init(tflite_model_bytes, dev);
   return ffi::Module(exec);
 }

@@ -52,7 +52,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
   refl::GlobalDef()
       .def_packed("topi.broadcast_to",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = broadcast_to(args[0].cast<te::Tensor>(), args[1].cast<Array<PrimExpr>>());
+                    *rv = broadcast_to(args[0].cast<te::Tensor>(),
+                                       args[1].cast<ffi::Array<PrimExpr>>());
                   })
       .TOPI_DEF_BCAST_OP("topi.add", topi::add)
       .TOPI_DEF_BCAST_OP("topi.subtract", topi::subtract)

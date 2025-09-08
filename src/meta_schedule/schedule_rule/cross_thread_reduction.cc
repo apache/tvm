@@ -30,8 +30,9 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     ICHECK(context->target.defined());
     Target target = context->target.value();
 
-    Optional<Integer> opt_max_threads_per_block = target->GetAttr<Integer>("max_threads_per_block");
-    Optional<Integer> opt_warp_size = target->GetAttr<Integer>("thread_warp_size");
+    ffi::Optional<Integer> opt_max_threads_per_block =
+        target->GetAttr<Integer>("max_threads_per_block");
+    ffi::Optional<Integer> opt_warp_size = target->GetAttr<Integer>("thread_warp_size");
 
     if (!opt_max_threads_per_block.defined()) {
       TVM_PY_LOG(WARNING, context->logger)
@@ -48,7 +49,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
   }
 
   // Inherited from ScheduleRuleNode
-  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
     // Step 0. Check the conditions of this rule.
     if (max_threads_per_block == -1 || warp_size == -1) {
       return {sch};
@@ -75,7 +76,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
 
     // Step 3. Try block fusion.
     int n_candidate = static_cast<int>(thread_extents.size());
-    Array<FloatImm> probs(n_candidate, FloatImm(DataType::Float(32), 1.0 / n_candidate));
+    ffi::Array<FloatImm> probs(n_candidate, FloatImm(DataType::Float(32), 1.0 / n_candidate));
     tir::ExprRV thread_extent = tmp_sch->SampleCategorical(thread_extents, probs);
     if (fusible) {
       ICHECK(target_block.defined());
@@ -87,7 +88,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
       //   the loop before binding.
       // - Otherwise, we search for the extent of "threadIdx.x" and use it as the split factor.
       if (!InThreadScope(tmp_sch, target_block)) {
-        const Array<tir::LoopRV>& split_res =
+        const ffi::Array<tir::LoopRV>& split_res =
             tmp_sch->Split(tgt_block_innermost_loop, {std::nullopt, thread_extent});
         tmp_sch->Bind(split_res[1], "threadIdx.x");
         if (tgt_block_innermost_loop.same_as(target_loop)) {
@@ -108,7 +109,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     tir::LoopRV fused_reduce_loop;
     ReorderAndFuseReductionLoops(tmp_sch, block_rv, &fused_reduce_loop, &num_spatial_loops);
     // Step 5. Split the fused reduction loop and bind the inner one to threadIdx.
-    const Array<tir::LoopRV>& split_res =
+    const ffi::Array<tir::LoopRV>& split_res =
         tmp_sch->Split(fused_reduce_loop, {std::nullopt, thread_extent});
     tmp_sch->Bind(split_res[1], "threadIdx.x");
 
@@ -117,7 +118,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
-    ObjectPtr<CrossThreadReductionNode> n = make_object<CrossThreadReductionNode>(*this);
+    ObjectPtr<CrossThreadReductionNode> n = ffi::make_object<CrossThreadReductionNode>(*this);
     return ScheduleRule(n);
   }
 
@@ -130,7 +131,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
    * \return A boolean indicating whether the block is in thread scope.
    */
   bool InThreadScope(const tir::Schedule& sch, const tir::BlockRV& block) {
-    const Array<tir::LoopRV>& axes = sch->GetLoops(block);
+    const ffi::Array<tir::LoopRV>& axes = sch->GetLoops(block);
     for (const tir::LoopRV& loop_rv : axes) {
       const tir::For& loop = sch->Get(loop_rv);
       runtime::ThreadScope thread_scope = tir::GetThreadScope(loop.get());
@@ -172,7 +173,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
   tir::ExprRV GetThreadIdxExtentFromTrace(const tir::Trace& trace) {
     tir::ExprRV extent{nullptr};
     for (const tir::Instruction& inst : trace->insts) {
-      if (inst->kind->name == "Bind" && Downcast<String>(inst->attrs[0]) == "threadIdx.x") {
+      if (inst->kind->name == "Bind" && Downcast<ffi::String>(inst->attrs[0]) == "threadIdx.x") {
         if (GetLoopRVExtentSource(trace, Downcast<tir::LoopRV>(inst->inputs[0]), &extent)) {
           return extent;
         }
@@ -202,7 +203,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     }
 
     // Step 1. Get all the consumers of the input block.
-    Array<tir::BlockRV> consumers = sch->GetConsumers(block_rv);
+    ffi::Array<tir::BlockRV> consumers = sch->GetConsumers(block_rv);
 
     // Step 2. If the block has no consumer or the first consumer needs multi-level tiling, it is
     // not fusible.
@@ -225,7 +226,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     }
 
     // Step 4. Get the outer loops of the target block, and get the compute-at position index.
-    Array<tir::LoopRV> tgt_block_loops = sch->GetLoops(consumers[0]);
+    ffi::Array<tir::LoopRV> tgt_block_loops = sch->GetLoops(consumers[0]);
     int pos = GetComputePosition(sch, sch->GetLoops(block_rv), tgt_block_loops, lca_sref);
 
     // Step 5. A negative position index means not fusible, and vice-versa.
@@ -248,8 +249,9 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
    * \param lca_sref The lowest common ancestor of all the consumers of the input block
    * \return The compute-at position index of the input block
    */
-  int GetComputePosition(const tir::Schedule& sch, const Array<tir::LoopRV>& block_loops,
-                         const Array<tir::LoopRV>& tgt_block_loops, const tir::StmtSRef& lca_sref) {
+  int GetComputePosition(const tir::Schedule& sch, const ffi::Array<tir::LoopRV>& block_loops,
+                         const ffi::Array<tir::LoopRV>& tgt_block_loops,
+                         const tir::StmtSRef& lca_sref) {
     int n_block_loop = static_cast<int>(block_loops.size());
     int n_tgt_block_loop = static_cast<int>(tgt_block_loops.size());
 
@@ -271,7 +273,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
   /*! \brief The number of threads per warp */
   int warp_size;
   /*! \brief Candidates of thread axis extent (values are required to be positive). */
-  Array<Integer> thread_extents;
+  ffi::Array<Integer> thread_extents;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -285,11 +287,11 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(CrossThreadReductionNode, ScheduleRuleNode);
 };
 
-ScheduleRule ScheduleRule::CrossThreadReduction(Array<Integer> thread_extents) {
+ScheduleRule ScheduleRule::CrossThreadReduction(ffi::Array<Integer> thread_extents) {
   for (const auto& extent : thread_extents) {
     CHECK(extent->value > 0) << "ValueError: The candidates of thread extent must be positive";
   }
-  ObjectPtr<CrossThreadReductionNode> n = make_object<CrossThreadReductionNode>();
+  ObjectPtr<CrossThreadReductionNode> n = ffi::make_object<CrossThreadReductionNode>();
   n->thread_extents = std::move(thread_extents);
   return ScheduleRule(n);
 }

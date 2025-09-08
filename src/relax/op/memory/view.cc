@@ -30,8 +30,9 @@ namespace tvm {
 namespace relax {
 
 /* relax.op.memory.view */
-Expr view(Expr x, Optional<Expr> shape, Optional<Expr> dtype, Optional<Expr> relative_byte_offset) {
-  Tuple void_expr(Array<Expr>{});
+Expr view(Expr x, ffi::Optional<Expr> shape, ffi::Optional<Expr> dtype,
+          ffi::Optional<Expr> relative_byte_offset) {
+  Tuple void_expr(ffi::Array<Expr>{});
 
   static const Op& op = Op::Get("relax.memory.view");
   return Call(op, {
@@ -123,7 +124,7 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
     }
   }();
 
-  auto view_relative_byte_offset = [&]() -> Optional<PrimExpr> {
+  auto view_relative_byte_offset = [&]() -> ffi::Optional<PrimExpr> {
     StructInfo sinfo = GetStructInfo(arg_relative_byte_offset);
 
     if (HasVoidStructInfo(arg_relative_byte_offset)) {
@@ -152,9 +153,9 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
     }
   }();
 
-  Optional<Array<PrimExpr>> input_shape = data_sinfo->GetShape();
+  ffi::Optional<ffi::Array<PrimExpr>> input_shape = data_sinfo->GetShape();
 
-  Optional<Array<PrimExpr>> output_shape = std::nullopt;
+  ffi::Optional<ffi::Array<PrimExpr>> output_shape = std::nullopt;
   int output_ndim = kUnknownNDim;
   if (view_shape_sinfo && view_shape_sinfo->values.defined()) {
     output_shape = view_shape_sinfo->values.value();
@@ -171,7 +172,7 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
   // Helper function, returns the number of bytes per vectorized
   // element.  Cannot use `DataType::bytes`, as it returns the
   // number of bytes per scalar element.
-  auto get_size_bytes = [](const DataType& dtype) -> Optional<IntImm> {
+  auto get_size_bytes = [](const DataType& dtype) -> ffi::Optional<IntImm> {
     if (dtype.is_void()) {
       return std::nullopt;
     } else {
@@ -182,7 +183,8 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
 
   // Helper function, returns the number of elements in an array,
   // given the shape of that array.
-  auto get_num_elements = [&ctx](const Optional<Array<PrimExpr>>& shape) -> Optional<PrimExpr> {
+  auto get_num_elements =
+      [&ctx](const ffi::Optional<ffi::Array<PrimExpr>>& shape) -> ffi::Optional<PrimExpr> {
     if (!shape.defined()) {
       return std::nullopt;
     }
@@ -194,11 +196,11 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
     return ctx->GetAnalyzer()->Simplify(num_elements);
   };
 
-  Optional<PrimExpr> input_nelements = get_num_elements(input_shape);
-  Optional<PrimExpr> output_nelements = get_num_elements(output_shape);
+  ffi::Optional<PrimExpr> input_nelements = get_num_elements(input_shape);
+  ffi::Optional<PrimExpr> output_nelements = get_num_elements(output_shape);
 
-  Optional<IntImm> input_element_size = get_size_bytes(data_sinfo->dtype);
-  Optional<IntImm> output_element_size = get_size_bytes(output_dtype);
+  ffi::Optional<IntImm> input_element_size = get_size_bytes(data_sinfo->dtype);
+  ffi::Optional<IntImm> output_element_size = get_size_bytes(output_dtype);
 
   if (input_nelements && output_nelements && input_element_size && output_element_size &&
       view_relative_byte_offset) {

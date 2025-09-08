@@ -42,8 +42,8 @@ namespace tir {
 
 std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
                                                             arith::Analyzer* analyzer) {
-  Map<Var, arith::IntSet> loop_intervals;
-  Map<Var, Range> loop_ranges;
+  ffi::Map<Var, arith::IntSet> loop_intervals;
+  ffi::Map<Var, Range> loop_ranges;
   PrimExpr total_loop_iterations = 1;
 
   // Walk through the loop nest, stopping at the first loop whose body
@@ -82,8 +82,8 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   // Now, we have a BufferStore whose value is a BufferLoad.  Because
   // non-flat physical indices are target-dependent, only handle cases
   // where the buffer will be flattened to a 1-d physical buffer.
-  Array<PrimExpr> flattened_dst = store->buffer.OffsetOf(store->indices);
-  Array<PrimExpr> flattened_src = load->buffer.OffsetOf(load->indices);
+  ffi::Array<PrimExpr> flattened_dst = store->buffer.OffsetOf(store->indices);
+  ffi::Array<PrimExpr> flattened_src = load->buffer.OffsetOf(load->indices);
 
   if (flattened_dst.size() != 1 || flattened_src.size() != 1) {
     return static_cast<const std::stringstream&>(
@@ -286,19 +286,19 @@ std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop, arith::Analyzer* an
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.analysis._identify_memcpy", [](const Stmt& stmt) {
-    Array<ObjectRef> output;
+    ffi::Array<ObjectRef> output;
 
     struct Visitor : arith::IRVisitorWithAnalyzer {
-      explicit Visitor(Array<ObjectRef>* output) : output(output) {}
-      Array<ObjectRef>* output;
+      explicit Visitor(ffi::Array<ObjectRef>* output) : output(output) {}
+      ffi::Array<ObjectRef>* output;
 
      private:
       using IRVisitorWithAnalyzer::VisitStmt_;
       void VisitStmt_(const ForNode* op) override {
-        For loop = GetRef<For>(op);
+        For loop = ffi::GetRef<For>(op);
         auto result = IdentifyMemCpyImpl(loop, &(Visitor::analyzer_));
         if (auto* ptr = std::get_if<MemCpyDetails>(&result)) {
-          output->push_back(Array{ptr->source, ptr->dest});
+          output->push_back(ffi::Array{ptr->source, ptr->dest});
         } else if (auto* ptr = std::get_if<std::string>(&result)) {
           output->push_back(StringImm(*ptr));
         } else {

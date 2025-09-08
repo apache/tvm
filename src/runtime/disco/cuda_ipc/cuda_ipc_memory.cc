@@ -101,7 +101,7 @@ class CUDAIPCMemoryAllocator final : public memory::PooledAllocator {
         dev, barrier_ptr_size, alignment, DataType::UInt(32), /*reset_memory_to_zero=*/true);
 
     // Create the CUDAIPCMemory object.
-    ObjectPtr<CUDAIPCMemoryObj> ipc_memory = make_object<CUDAIPCMemoryObj>();
+    ObjectPtr<CUDAIPCMemoryObj> ipc_memory = ffi::make_object<CUDAIPCMemoryObj>();
     nccl::CCLThreadLocalContext* nccl_ctx = nccl::CCLThreadLocalContext::Get();
     ipc_memory->remote_data = data_comm_ptrs;
     ipc_memory->barrier_in = barrier_in_comm_ptrs;

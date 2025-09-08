@@ -49,17 +49,17 @@ class DSOLibraryCache {
   std::mutex mutex_;
 };
 
-ffi::Module LoadVMModule(std::string path, Optional<Device> device) {
+ffi::Module LoadVMModule(std::string path, ffi::Optional<Device> device) {
   static DSOLibraryCache cache;
   ffi::Module dso_mod = cache.Open(path);
   Device dev = UseDefaultDeviceIfNone(device);
-  Optional<ffi::Function> vm_load_executable = dso_mod->GetFunction("vm_load_executable");
+  ffi::Optional<ffi::Function> vm_load_executable = dso_mod->GetFunction("vm_load_executable");
   if (!vm_load_executable.has_value()) {
     // not built by RelaxVM, return the dso_mod directly
     return dso_mod;
   }
   auto mod = (*vm_load_executable)().cast<ffi::Module>();
-  Optional<ffi::Function> vm_initialization = mod->GetFunction("vm_initialization");
+  ffi::Optional<ffi::Function> vm_initialization = mod->GetFunction("vm_initialization");
   if (!vm_initialization.has_value()) {
     LOG(FATAL) << "ValueError: File `" << path
                << "` is not built by RelaxVM, because `vm_initialization` does not exist";
@@ -70,7 +70,7 @@ ffi::Module LoadVMModule(std::string path, Optional<Device> device) {
   return mod;
 }
 
-Tensor DiscoEmptyTensor(ffi::Shape shape, DataType dtype, Optional<Device> device) {
+Tensor DiscoEmptyTensor(ffi::Shape shape, DataType dtype, ffi::Optional<Device> device) {
   return Tensor::Empty(shape, dtype, UseDefaultDeviceIfNone(device));
 }
 
@@ -95,11 +95,11 @@ TVM_DLL void BroadcastFromWorker0(Tensor send, bool in_group, Tensor recv) {
   GetCCLFunc("broadcast_from_worker0")(send, in_group, recv);
 }
 
-TVM_DLL void ScatterFromWorker0(Optional<Tensor> send, bool in_group, Tensor recv) {
+TVM_DLL void ScatterFromWorker0(ffi::Optional<Tensor> send, bool in_group, Tensor recv) {
   GetCCLFunc("scatter_from_worker0")(send, in_group, recv);
 }
 
-void GatherToWorker0(Tensor send, bool in_group, Optional<Tensor> recv) {
+void GatherToWorker0(Tensor send, bool in_group, ffi::Optional<Tensor> recv) {
   GetCCLFunc("gather_to_worker0")(send, in_group, recv);
 }
 
@@ -130,8 +130,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
   refl::GlobalDef()
       .def("runtime.disco.load_vm_module", LoadVMModule)
       .def("runtime.disco.empty",
-           [](ffi::Shape shape, DataType dtype, Optional<Device> device, bool worker0_only,
-              bool in_group) -> Optional<Tensor> {
+           [](ffi::Shape shape, DataType dtype, ffi::Optional<Device> device, bool worker0_only,
+              bool in_group) -> ffi::Optional<Tensor> {
              int worker_id = WorkerId();
              int group_size =
                  DiscoWorker::ThreadLocal()->num_workers / DiscoWorker::ThreadLocal()->num_groups;

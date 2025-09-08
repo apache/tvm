@@ -401,7 +401,7 @@ class ThreadSyncInserter : public StmtExprMutator {
   // private functions.
   Stmt InitGlobalBarrier(const AttrStmtNode* op) {
     ICHECK(op != nullptr);
-    Array<PrimExpr> pargs = {StringImm(runtime::symbol::tvm_prepare_global_barrier)};
+    ffi::Array<PrimExpr> pargs = {StringImm(runtime::symbol::tvm_prepare_global_barrier)};
     Stmt prep = Evaluate(Call(DataType::Int(32), builtin::tvm_call_packed(), pargs));
     Stmt body = op->body;
     for (const auto& kv : rw_stats_) {
@@ -463,7 +463,7 @@ Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
 
 namespace transform {
 
-Pass ThreadSync(String storage_scope) {
+Pass ThreadSync(ffi::String storage_scope) {
   auto pass_func = [storage_scope](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = ThreadSync(std::move(n->body), storage_scope);

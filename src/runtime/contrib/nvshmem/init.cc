@@ -80,7 +80,7 @@ void InitNVSHMEM(ffi::Shape uid_64, int num_workers, int worker_id_start) {
            << ", npes=" << nvshmem_n_pes();
 }
 
-void InitNVSHMEMWrapper(String args) {
+void InitNVSHMEMWrapper(ffi::String args) {
   picojson::value v;
   std::string err = picojson::parse(v, args);
   if (!err.empty()) {

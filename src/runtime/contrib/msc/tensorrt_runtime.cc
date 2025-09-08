@@ -62,7 +62,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
    * \param const_names The names of each constant in the sub-graph.
    */
   explicit MSCTensorRTRuntime(const std::string& symbol_name, const std::string& graph_json,
-                              const Array<String>& const_names)
+                              const ffi::Array<ffi::String>& const_names)
       : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
 
   ~MSCTensorRTRuntime() {
@@ -87,7 +87,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
    *
    * \param consts The constant params from compiled model.
    */
-  void Init(const Array<Tensor>& consts) override {
+  void Init(const ffi::Array<Tensor>& consts) override {
     ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
     LoadGlobalOptions();
@@ -122,14 +122,14 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
     if (tool_tag_.size() > 0) {
       const auto pf = tvm::ffi::Function::GetGlobal("msc_tool.callback_step");
       ICHECK(pf.has_value()) << "Cannot find msc_tool.callback_step func.";
-      Map<String, runtime::Tensor> input_datas;
+      ffi::Map<ffi::String, runtime::Tensor> input_datas;
       int device_id = 0;
       for (const auto& pair : input_bindings_) {
         const auto& tensor_name = engine_->getBindingName(pair.first);
         input_datas.Set(tensor_name, device_buffers_[pair.first]);
         device_id = data_entry_[pair.first]->device.device_id;
       }
-      Map<String, Map<String, runtime::Tensor>> context;
+      ffi::Map<ffi::String, ffi::Map<ffi::String, runtime::Tensor>> context;
       context.Set("datas", input_datas);
       (*pf)(context, "before_forward", graph_name_, tool_tag_);
     }
@@ -155,7 +155,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
     if (tool_tag_.size() > 0) {
       const auto pf = tvm::ffi::Function::GetGlobal("msc_tool.callback_step");
       ICHECK(pf.has_value()) << "Cannot find msc_tool.callback_step func.";
-      Map<String, runtime::Tensor> output_datas;
+      ffi::Map<ffi::String, runtime::Tensor> output_datas;
       for (int bid = 0; bid < engine_->getNbBindings(); bid++) {
         if (input_bindings_.count(bid)) {
           continue;
@@ -163,13 +163,13 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
         const auto& tensor_name = engine_->getBindingName(bid);
         output_datas.Set(tensor_name, device_buffers_[bid]);
       }
-      Map<String, Map<String, runtime::Tensor>> context;
+      ffi::Map<ffi::String, ffi::Map<ffi::String, runtime::Tensor>> context;
       context.Set("datas", output_datas);
       (*pf)(context, "after_forward", graph_name_, tool_tag_);
     }
   }
 
-  bool LoadEngine(const String& engine_file) {
+  bool LoadEngine(const ffi::String& engine_file) {
     IRuntime* runtime = createInferRuntime(logger_);
     // build engine
     std::ifstream input(engine_file_, std::ifstream::binary);
@@ -323,15 +323,15 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
                << "Please build with USE_TENSORRT_RUNTIME.";
   }
 
-  bool LoadEngine(const String& engine_file) { return false; }
+  bool LoadEngine(const ffi::String& engine_file) { return false; }
 
   void DestroyEngine() {}
 #endif  // TVM_GRAPH_EXECUTOR_TENSORRT
 
  private:
-  String engine_file_;
-  String tool_tag_;
-  String graph_name_;
+  ffi::String engine_file_;
+  ffi::String tool_tag_;
+  ffi::String graph_name_;
   std::unordered_map<std::string, std::pair<size_t, size_t>> tensor_ids_;
 #ifdef TVM_GRAPH_EXECUTOR_TENSORRT
   TensorRTLogger logger_;
@@ -345,9 +345,9 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
 #endif
 };
 
-ffi::Module MSCTensorRTRuntimeCreate(const String& symbol_name, const String& graph_json,
-                                     const Array<String>& const_names) {
-  auto n = make_object<MSCTensorRTRuntime>(symbol_name, graph_json, const_names);
+ffi::Module MSCTensorRTRuntimeCreate(const ffi::String& symbol_name, const ffi::String& graph_json,
+                                     const ffi::Array<ffi::String>& const_names) {
+  auto n = ffi::make_object<MSCTensorRTRuntime>(symbol_name, graph_json, const_names);
   return ffi::Module(n);
 }
 

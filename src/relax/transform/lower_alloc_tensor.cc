@@ -38,14 +38,14 @@ class Mutator : public ExprMutator {
     if (op->op.same_as(alloc_tensor_op)) {
       CHECK_EQ(op->args.size(), 4) << "Op " << op->op << " should have three arguments, "
                                    << "[shape, dtype, runtime_device_index, storage_scope].  "
-                                   << "However, received " << GetRef<Call>(op);
+                                   << "However, received " << ffi::GetRef<Call>(op);
 
       auto shape_arg = op->args[0];
       auto dtype = Downcast<DataTypeImm>(op->args[1]);
       PrimValue runtime_device_index = Downcast<PrimValue>(op->args[2]);
       StringImm storage_scope = Downcast<StringImm>(op->args[3]);
 
-      auto shape = [&]() -> Array<PrimExpr> {
+      auto shape = [&]() -> ffi::Array<PrimExpr> {
         if (auto ptr = shape_arg.as<ShapeExprNode>()) {
           return ptr->values;
         }

@@ -104,7 +104,7 @@ class CoreMLRuntime : public ffi::ModuleObj {
    * \param sptr_to_self The pointer to the module node.
    * \return The corresponding member function.
    */
-  virtual Optional<ffi::Function> GetFunction(const String& name);
+  virtual ffi::Optional<ffi::Function> GetFunction(const ffi::String& name);
 
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final {

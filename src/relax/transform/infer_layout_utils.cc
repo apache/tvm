@@ -67,7 +67,7 @@ Layout TransposeLike(const Layout& input, const Layout& src, const Layout& dst) 
   return Layout(axes);
 }
 
-String TransposeStrLike(const String& input, const Layout& src, const Layout& dst) {
+ffi::String TransposeStrLike(const ffi::String& input, const Layout& src, const Layout& dst) {
   ICHECK(src.ndim() == dst.ndim() && input.size() == src.ndim())
       << "Layouts must have the same size";
   std::string axes;
@@ -120,7 +120,7 @@ LayoutDecision GetLayoutDecision(const VarLayoutMap& var_layout_map, const Expr&
 NLayout GetNLayout(const VarLayoutMap& var_layout_map, const Expr& arg) {
   auto fmapleaf = [&](const Expr& expr) -> NLayout {
     if (const auto* var = expr.as<VarNode>()) {
-      auto it = var_layout_map.find(GetRef<Var>(var));
+      auto it = var_layout_map.find(ffi::GetRef<Var>(var));
       if (it != var_layout_map.end()) {
         return (*it).second;
       } else {
@@ -134,7 +134,8 @@ NLayout GetNLayout(const VarLayoutMap& var_layout_map, const Expr& arg) {
   return MapToNestedMsg<LayoutDecision>(arg, fmapleaf);
 }
 
-bool NoDesiredLayout(const Call& call, const Map<String, Array<String>>& desired_layouts) {
+bool NoDesiredLayout(const Call& call,
+                     const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts) {
   const OpNode* op_node = call->op.as<OpNode>();
   if (op_node == nullptr) return false;
   const auto& it = desired_layouts.find(op_node->name);

@@ -28,7 +28,7 @@ namespace tir {
  * \param buffer The buffer
  * \return The strides
  */
-Array<PrimExpr> GetStrides(const Buffer& buffer) {
+ffi::Array<PrimExpr> GetStrides(const Buffer& buffer) {
   if (!buffer->strides.empty()) {
     ICHECK_EQ(buffer->strides.size(), buffer->shape.size());
     return buffer->strides;
@@ -37,7 +37,7 @@ Array<PrimExpr> GetStrides(const Buffer& buffer) {
   if (ndim == 0) {
     return {};
   }
-  Array<PrimExpr> strides(ndim, PrimExpr{nullptr});
+  ffi::Array<PrimExpr> strides(ndim, PrimExpr{nullptr});
   PrimExpr stride = make_const(buffer->DefaultIndexType(), 1);
   for (int i = ndim - 1; i >= 0; --i) {
     strides.Set(i, stride);
@@ -75,9 +75,9 @@ class SplitExprCollector {
    * \return The collected split expressions
    */
   static std::vector<SplitExpr> Collect(const PrimExpr& index,
-                                        const Map<Var, Range>& input_iters,  //
-                                        const PrimExpr& predicate,           //
-                                        arith::IterMapLevel check_level,     //
+                                        const ffi::Map<Var, Range>& input_iters,  //
+                                        const PrimExpr& predicate,                //
+                                        arith::IterMapLevel check_level,          //
                                         arith::Analyzer* analyzer) {
     arith::IterMapResult res = arith::DetectIterMap({analyzer->Simplify(index)}, input_iters,
                                                     predicate, check_level, analyzer);
@@ -106,7 +106,7 @@ class SplitExprCollector {
         failed_ = true;
         return;
       }
-      exprs_.push_back(SplitExpr{GetRef<Var>(var), *lower_factor, *extent});
+      exprs_.push_back(SplitExpr{ffi::GetRef<Var>(var), *lower_factor, *extent});
     } else if (auto iter_sum_expr = expr->source->source.as<arith::IterSumExpr>()) {
       Visit(iter_sum_expr.value());
     } else {
@@ -126,13 +126,13 @@ class SplitExprCollector {
   std::vector<SplitExpr> exprs_;
 };
 
-Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const Array<PrimExpr>& indices,
-                                   const Array<For>& loops, const PrimExpr& predicate,
-                                   arith::Analyzer* analyzer) {
+ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<PrimExpr>& indices,
+                                        const ffi::Array<For>& loops, const PrimExpr& predicate,
+                                        arith::Analyzer* analyzer) {
   int ndim = buffer->shape.size();
   int n_loops = loops.size();
   // Step 1. Collect the domains and indices of loop variables
-  Map<Var, Range> input_iters;
+  ffi::Map<Var, Range> input_iters;
   std::unordered_map<const VarNode*, int> var2id;
   var2id.reserve(n_loops);
   for (int i = 0; i < n_loops; ++i) {
@@ -142,7 +142,7 @@ Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const Array<PrimExpr>& 
   }
   // Step 2. Calculate a functor that flattens a multi-dimensional index
   auto f_flatten_index = [ndim, strides = GetStrides(buffer), dtype = buffer->DefaultIndexType()](
-                             const Array<PrimExpr>& indices) -> PrimExpr {
+                             const ffi::Array<PrimExpr>& indices) -> PrimExpr {
     PrimExpr flatten_index = make_const(dtype, 0);
     for (int i = 0; i < ndim; ++i) {
       flatten_index = flatten_index + strides[i] * indices[i];
@@ -179,7 +179,7 @@ Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const Array<PrimExpr>& 
                          &order,                                        //
                              & shape = buffer->shape,                   //
                          analyzer                                       //
-  ](Array<Var> indices) -> Array<PrimExpr> {
+  ](ffi::Array<Var> indices) -> ffi::Array<PrimExpr> {
     ICHECK_EQ(indices.size(), shape.size());
     for (int i = 0, n = indices.size(); i < n; ++i) {
       analyzer->Bind(indices[i], Range::FromMinExtent(0, shape[i]));
@@ -198,7 +198,7 @@ Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const Array<PrimExpr>& 
     }
     std::reverse(split.begin(), split.end());
     // Step 5.3. Reorder the indexing pattern according to `order`
-    Array<PrimExpr> results;
+    ffi::Array<PrimExpr> results;
     results.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
       results.push_back(split[order[i]]);
@@ -207,11 +207,11 @@ Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const Array<PrimExpr>& 
   };
   // Step 6: Create the inverse index mapping.
   auto f_inverse = [&inverse_order, &split_exprs, &shape = buffer->shape,
-                    analyzer](Array<Var> indices) -> Array<PrimExpr> {
+                    analyzer](ffi::Array<Var> indices) -> ffi::Array<PrimExpr> {
     ICHECK_EQ(indices.size(), split_exprs.size());
     // Step 6.1: Reorder the indices according to `inverse_order`. This is the inverse of Step 5.3.
     // After the inverse permutation, indices[i] corresponds to split_exprs[i]
-    Array<Var> inv_permuted_indices;
+    ffi::Array<Var> inv_permuted_indices;
     inv_permuted_indices.reserve(indices.size());
     for (int i = 0, n = indices.size(); i < n; ++i) {
       const Var& index = indices[inverse_order[i]];
@@ -227,14 +227,14 @@ Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const Array<PrimExpr>& 
       stride *= split_exprs[i].extent;
     }
     // Step 6.3: Split the flattened index into multiple indices. This is the inverse of Step 5.1.
-    Array<PrimExpr> result;
+    ffi::Array<PrimExpr> result;
     result.reserve(shape.size());
     for (int i = static_cast<int>(shape.size()) - 1; i >= 0; --i) {
       PrimExpr index = analyzer->Simplify(floormod(flattened_index, shape[i]));
       flattened_index = floordiv(flattened_index, shape[i]);
       result.push_back(index);
     }
-    return Array<PrimExpr>(result.rbegin(), result.rend());
+    return ffi::Array<PrimExpr>(result.rbegin(), result.rend());
   };
   IndexMap inverse_index_map = IndexMap::FromFunc(split_exprs.size(), f_inverse);
   return IndexMap::FromFunc(ndim, f_alter_layout, inverse_index_map);
@@ -242,11 +242,12 @@ Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const Array<PrimExpr>& 
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.schedule.SuggestIndexMap", [](Buffer buffer, Array<PrimExpr> indices,
-                                                           Array<For> loops, PrimExpr predicate) {
-    arith::Analyzer analyzer;
-    return SuggestIndexMap(buffer, indices, loops, predicate, &analyzer);
-  });
+  refl::GlobalDef().def(
+      "tir.schedule.SuggestIndexMap",
+      [](Buffer buffer, ffi::Array<PrimExpr> indices, ffi::Array<For> loops, PrimExpr predicate) {
+        arith::Analyzer analyzer;
+        return SuggestIndexMap(buffer, indices, loops, predicate, &analyzer);
+      });
 });
 
 }  // namespace tir

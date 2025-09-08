@@ -80,7 +80,7 @@ class RNNStateImpObj : public RNNStateObj {
    * \brief The init value for ALL layer in the storage.
    * The array has `num_states_per_layer_` Tensors
    */
-  const Array<Tensor> init_layer_value_;
+  const ffi::Array<Tensor> init_layer_value_;
 
   /*! \brief We fix int32 to be the index dtype of auxiliary data. */
   const DLDataType dtype_aux_ = DLDataType(DataType::Int(32, 1));
@@ -94,7 +94,7 @@ class RNNStateImpObj : public RNNStateObj {
    * \note As `num_states_per_layer_` may vary for different dtype and shape,
    * we use a 2D array to store the Tensors for each layer.
    */
-  Array<Array<Tensor>> storages_;
+  ffi::Array<ffi::Array<Tensor>> storages_;
   /*! \brief The list of ids of released seq slot for reuse. */
   std::vector<int64_t> free_slot_ids_;
   /*! \brief The mapping from sequence ids to sequences. */
@@ -140,7 +140,7 @@ class RNNStateImpObj : public RNNStateObj {
    * \note Each state data per layer may have different dtype and shape, so we use a
    * different function for each state data.
    */
-  Array<ffi::Function> f_gets_;
+  ffi::Array<ffi::Function> f_gets_;
   /*!
    * \brief The function to set the state data to the storage.
    * The function signature is `f_set_(state, seq_slot_ids, history_slot_ids, data, max_history)`.
@@ -151,17 +151,17 @@ class RNNStateImpObj : public RNNStateObj {
    * \note Each state data per layer may have different dtype and shape, so we use a
    * different function for each state data.
    */
-  Array<ffi::Function> f_sets_;
+  ffi::Array<ffi::Function> f_sets_;
 
  public:
   /*! \brief Constructor. Take the cache configuration and initialize the Tensors. */
-  explicit RNNStateImpObj(int64_t num_layers,           //
-                          int64_t reserved_num_seqs,    //
-                          int64_t max_history,          //
-                          DLDevice device,              //
-                          Array<ffi::Function> f_gets,  //
-                          Array<ffi::Function> f_sets,  //
-                          Array<Tensor> init_layer_value)
+  explicit RNNStateImpObj(int64_t num_layers,                //
+                          int64_t reserved_num_seqs,         //
+                          int64_t max_history,               //
+                          DLDevice device,                   //
+                          ffi::Array<ffi::Function> f_gets,  //
+                          ffi::Array<ffi::Function> f_sets,  //
+                          ffi::Array<Tensor> init_layer_value)
       : num_layers_(num_layers),
         reserved_num_seqs_(reserved_num_seqs),
         num_states_per_layer_(init_layer_value.size()),
@@ -172,7 +172,7 @@ class RNNStateImpObj : public RNNStateObj {
     // Allocate the storage for the space state models.
     storages_.reserve(num_layers_);
     for (int64_t layer_id = 0; layer_id < num_layers_; ++layer_id) {
-      Array<Tensor> layer_storages;
+      ffi::Array<Tensor> layer_storages;
       layer_storages.reserve(num_states_per_layer_);
       for (int64_t state_id = 0; state_id < num_states_per_layer_; ++state_id) {
         ffi::Shape state_shape = init_layer_value[state_id].Shape();
@@ -208,7 +208,7 @@ class RNNStateImpObj : public RNNStateObj {
   /************** Interaction **************/
 
   void BeginForward(const ffi::Shape& seq_ids, const ffi::Shape& append_lengths,
-                    const Optional<ffi::Shape>& opt_token_tree_parent_ptr) final {
+                    const ffi::Optional<ffi::Shape>& opt_token_tree_parent_ptr) final {
     CHECK_EQ(seq_ids.size(), append_lengths.size())
         << "The seq_ids size (" << seq_ids.size() << ") and append_lengths size ("
         << append_lengths.size() << ") mismatch.";
@@ -468,12 +468,12 @@ class RNNStateImpObj : public RNNStateObj {
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("vm.builtin.rnn_state_create", [](int64_t num_layers,           //
-                                                          int64_t reserved_num_seqs,    //
-                                                          int64_t max_history,          //
-                                                          Array<ffi::Function> f_gets,  //
-                                                          Array<ffi::Function> f_sets,  //
-                                                          Array<Tensor> init_layer_value) {
+  refl::GlobalDef().def("vm.builtin.rnn_state_create", [](int64_t num_layers,                //
+                                                          int64_t reserved_num_seqs,         //
+                                                          int64_t max_history,               //
+                                                          ffi::Array<ffi::Function> f_gets,  //
+                                                          ffi::Array<ffi::Function> f_sets,  //
+                                                          ffi::Array<Tensor> init_layer_value) {
     CHECK_GT(num_layers, 0) << "The number of layers should be greater than 0.";
     CHECK_GT(reserved_num_seqs, 0) << "The number of reserved sequences should be greater than 0.";
     CHECK_GE(max_history, 0) << "The maximum history length should be greater or equal than 0.";
@@ -492,8 +492,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
         << "The number of state setters should be the same as the number of states per layer, "
         << "but got " << f_sets.size() << " and " << init_layer_value.size() << " respectively.";
     ObjectPtr<RNNStateImpObj> n =
-        make_object<RNNStateImpObj>(num_layers, reserved_num_seqs, max_history, device,
-                                    std::move(f_gets), std::move(f_sets), init_layer_value);
+        ffi::make_object<RNNStateImpObj>(num_layers, reserved_num_seqs, max_history, device,
+                                         std::move(f_gets), std::move(f_sets), init_layer_value);
     return RNNState(std::move(n));
   });
 });

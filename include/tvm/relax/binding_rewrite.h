@@ -46,7 +46,7 @@ class DataflowBlockRewriteNode : public Object {
   /*! \brief Insert a Binding statement. */
   void Add(Binding binding);
   /*! \brief Insert an expression as VarBinding with variable name. */
-  void Add(String var_name, Expr expr, bool is_dfvar = false) {
+  void Add(ffi::String var_name, Expr expr, bool is_dfvar = false) {
     auto var = is_dfvar ? DataflowVar(var_name, GetStructInfo(expr))  //
                         : Var(var_name, GetStructInfo(expr));
     Add(VarBinding(std::move(var), std::move(expr)));
@@ -81,11 +81,11 @@ class DataflowBlockRewriteNode : public Object {
  protected:
   friend class DataflowBlockRewrite;
 
-  DataflowBlock dfb_;                    //!< The rewritten dataflow block.
-  Optional<Function> root_fn_;           //!< The rewritten function.
-  const FunctionNode* original_fn_ptr_;  //!< Pointer to the original function.
-  Map<Var, Array<Var>> to_users_;        //!< Map from variable to its users.
-  Array<Var> fn_outputs_;                //!< Variables required by function outputs.
+  DataflowBlock dfb_;                        //!< The rewritten dataflow block.
+  ffi::Optional<Function> root_fn_;          //!< The rewritten function.
+  const FunctionNode* original_fn_ptr_;      //!< Pointer to the original function.
+  ffi::Map<Var, ffi::Array<Var>> to_users_;  //!< Map from variable to its users.
+  ffi::Array<Var> fn_outputs_;               //!< Variables required by function outputs.
 
  private:
   NameSupply name_supply_;  //!< Name supply for tracking and generating unique names.

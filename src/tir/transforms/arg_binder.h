@@ -79,7 +79,7 @@ class ArgBinder {
    * \param value The target expression value
    * \param arg_name argument name.
    */
-  void BindArray(const Array<PrimExpr>& arg, const Array<PrimExpr>& value,
+  void BindArray(const ffi::Array<PrimExpr>& arg, const ffi::Array<PrimExpr>& value,
                  const std::string& arg_name);
   /*!
    * \brief Bind symbolic buffer to another symbolic buffer
@@ -145,7 +145,7 @@ class ArgBinder {
    */
   const std::vector<Stmt>& init_nest() const { return init_nest_; }
   /*! \return Handle data type of the data */
-  const Map<Var, PrimExpr>& def_handle_dtype() const { return def_handle_dtype_; }
+  const ffi::Map<Var, PrimExpr>& def_handle_dtype() const { return def_handle_dtype_; }
 
  private:
   // Internal bind function
@@ -158,7 +158,7 @@ class ArgBinder {
   /*! \brief Initialize nest */
   std::vector<Stmt> init_nest_;
   /*! \brief handle data type in the defintiions */
-  Map<Var, PrimExpr> def_handle_dtype_;
+  ffi::Map<Var, PrimExpr> def_handle_dtype_;
   /*! \brief asserts generated */
   std::vector<Stmt> asserts_;
   /*! \brief internal analyzer. */

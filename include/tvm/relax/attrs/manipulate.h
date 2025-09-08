@@ -32,7 +32,7 @@ namespace relax {
 
 /*! \brief Attributes used in concat operators */
 struct ConcatAttrs : public AttrsNodeReflAdapter<ConcatAttrs> {
-  Optional<int64_t> axis;
+  ffi::Optional<int64_t> axis;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -47,7 +47,7 @@ struct ConcatAttrs : public AttrsNodeReflAdapter<ConcatAttrs> {
 
 /*! \brief Attributes used in expand_dims operators */
 struct ExpandDimsAttrs : public AttrsNodeReflAdapter<ExpandDimsAttrs> {
-  Array<Integer> axis;
+  ffi::Array<Integer> axis;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -67,20 +67,20 @@ struct LayoutTransformAttrs : public AttrsNodeReflAdapter<LayoutTransformAttrs> 
   tir::IndexMap index_map;
   // pad_value is chosen to be of PrimValue type, as it represents constant TIR POD expression. This
   // needs to be revisited in case PrimValue is evolved to represent symbolic expression in future.
-  Optional<PrimValue> pad_value;
+  ffi::Optional<PrimValue> pad_value;
   /*!
    * axis_separators between input axes when generating flattened output axes. For buffers
    * representing flat 1-d memory (e.g. any buffer in RAM), this should be an empty array.
    * For buffers representing non-flat memory, each entry in axis_separators should be the
    * first input axis that is part of a new flattened axis.
    */
-  Optional<Array<IntImm>> axis_separators;
+  ffi::Optional<ffi::Array<IntImm>> axis_separators;
   /*!
    * axis_separators for input buffers.
    * Needed to identify if the input buffer to layout_transform
    * contains axis separator.
    */
-  Optional<Array<IntImm>> input_axis_separators;
+  ffi::Optional<ffi::Array<IntImm>> input_axis_separators;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -103,7 +103,7 @@ struct LayoutTransformAttrs : public AttrsNodeReflAdapter<LayoutTransformAttrs> 
 
 /*! \brief Attributes used in permute_dims operator */
 struct PermuteDimsAttrs : public AttrsNodeReflAdapter<PermuteDimsAttrs> {
-  Optional<Array<Integer>> axes;
+  ffi::Optional<ffi::Array<Integer>> axes;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -134,7 +134,7 @@ struct SplitAttrs : public AttrsNodeReflAdapter<SplitAttrs> {
 
 /*! \brief Attributes used in squeeze operators */
 struct SqueezeAttrs : public AttrsNodeReflAdapter<SqueezeAttrs> {
-  Optional<Array<Integer>> axis;
+  ffi::Optional<ffi::Array<Integer>> axis;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -151,7 +151,7 @@ struct SqueezeAttrs : public AttrsNodeReflAdapter<SqueezeAttrs> {
 
 /*! \brief Attributes used in stack operators */
 struct StackAttrs : public AttrsNodeReflAdapter<StackAttrs> {
-  Optional<Integer> axis;
+  ffi::Optional<Integer> axis;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -170,7 +170,7 @@ struct StackAttrs : public AttrsNodeReflAdapter<StackAttrs> {
 /*! \brief Attributes used in repeat operators */
 struct RepeatAttrs : public AttrsNodeReflAdapter<RepeatAttrs> {
   int repeats;
-  Optional<int64_t> axis;
+  ffi::Optional<int64_t> axis;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -188,7 +188,7 @@ struct RepeatAttrs : public AttrsNodeReflAdapter<RepeatAttrs> {
 
 /*! \brief Attributes used in tile operators */
 struct TileAttrs : public AttrsNodeReflAdapter<TileAttrs> {
-  Array<Integer> repeats;
+  ffi::Array<Integer> repeats;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -264,7 +264,7 @@ struct IndexPutAttrs : public AttrsNodeReflAdapter<IndexPutAttrs> {
 
 /*! \brief Attribute used in meshgrid operator */
 struct MeshgridAttrs : public AttrsNodeReflAdapter<MeshgridAttrs> {
-  Optional<String> indexing;
+  ffi::Optional<ffi::String> indexing;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -279,7 +279,7 @@ struct MeshgridAttrs : public AttrsNodeReflAdapter<MeshgridAttrs> {
 /*! \brief Attributes used in scatter_elements operators */
 struct ScatterElementsAttrs : public AttrsNodeReflAdapter<ScatterElementsAttrs> {
   Integer axis;
-  String reduction;
+  ffi::String reduction;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -298,7 +298,7 @@ struct ScatterElementsAttrs : public AttrsNodeReflAdapter<ScatterElementsAttrs> 
 
 /*! \brief Attributes used in scatter_nd operators */
 struct ScatterNDAttrs : public AttrsNodeReflAdapter<ScatterNDAttrs> {
-  String reduction;
+  ffi::String reduction;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

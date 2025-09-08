@@ -40,7 +40,7 @@ class VtcmAllocator : public StmtExprMutator {
     std::string storage_scope = GetStorageScope(op->buffer_var);
     if (IsVtcmStorage(storage_scope)) {
       Stmt body = this->VisitStmt(op->body);
-      Array<PrimExpr> args;
+      ffi::Array<PrimExpr> args;
       args.push_back(StringImm(storage_scope));
       args.push_back(IntImm(DataType::Int(64), op->extents.size()));
       args.push_back(Call(DataType::Handle(), builtin::tvm_stack_make_shape(), op->extents));

@@ -46,7 +46,7 @@ class SourceName;
 class SourceNameNode : public Object {
  public:
   /*! \brief The source name. */
-  String name;
+  ffi::String name;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -70,7 +70,7 @@ class SourceName : public ObjectRef {
    * \param name Name of the operator.
    * \return SourceName valid throughout program lifetime.
    */
-  TVM_DLL static SourceName Get(const String& name);
+  TVM_DLL static SourceName Get(const ffi::String& name);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SourceName, ObjectRef, SourceNameNode);
 };
@@ -126,7 +126,7 @@ class Span : public ObjectRef {
 class SequentialSpanNode : public SpanNode {
  public:
   /*! \brief The original source list of spans to construct a sequential span. */
-  Array<Span> spans;
+  ffi::Array<Span> spans;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -143,7 +143,7 @@ class SequentialSpanNode : public SpanNode {
  */
 class SequentialSpan : public Span {
  public:
-  TVM_DLL SequentialSpan(Array<Span> spans);
+  TVM_DLL SequentialSpan(ffi::Array<Span> spans);
 
   TVM_DLL SequentialSpan(std::initializer_list<Span> init);
 
@@ -163,7 +163,7 @@ class SourceNode : public Object {
   SourceName source_name;
 
   /*! \brief The raw source. */
-  String source;
+  ffi::String source;
 
   /*! \brief A mapping of line breaks into the raw source. */
   std::vector<std::pair<int, int>> line_map;
@@ -182,7 +182,7 @@ class SourceNode : public Object {
 class Source : public ObjectRef {
  public:
   TVM_DLL Source(SourceName src_name, std::string source);
-  TVM_DLL tvm::String GetLine(int line);
+  TVM_DLL tvm::ffi::String GetLine(int line);
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Source, ObjectRef, SourceNode);
 };
@@ -197,7 +197,7 @@ class SourceMap;
 class SourceMapObj : public Object {
  public:
   /*! \brief The source mapping. */
-  Map<SourceName, Source> source_map;
+  ffi::Map<SourceName, Source> source_map;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -211,12 +211,12 @@ class SourceMapObj : public Object {
 
 class SourceMap : public ObjectRef {
  public:
-  explicit SourceMap(Map<SourceName, Source> source_map);
+  explicit SourceMap(ffi::Map<SourceName, Source> source_map);
 
   explicit SourceMap(std::initializer_list<std::pair<SourceName, Source>> source_map)
-      : SourceMap(Map<SourceName, Source>(source_map)) {}
+      : SourceMap(ffi::Map<SourceName, Source>(source_map)) {}
 
-  SourceMap() : SourceMap(Map<SourceName, Source>()) {}
+  SourceMap() : SourceMap(ffi::Map<SourceName, Source>()) {}
 
   void Add(const Source& source);
 

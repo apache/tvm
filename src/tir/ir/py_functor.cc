@@ -392,7 +392,7 @@ class PyStmtExprVisitor : public ObjectRef {
                                                          ffi::Function f_visit_int_imm,         //
                                                          ffi::Function f_visit_float_imm,       //
                                                          ffi::Function f_visit_string_imm) {
-    ObjectPtr<PyStmtExprVisitorNode> n = make_object<PyStmtExprVisitorNode>();
+    ObjectPtr<PyStmtExprVisitorNode> n = ffi::make_object<PyStmtExprVisitorNode>();
     n->f_visit_stmt = std::move(f_visit_stmt);
     n->f_visit_expr = std::move(f_visit_expr);
     // Set statement functions
@@ -756,7 +756,7 @@ class PyStmtExprMutator : public ObjectRef {
                                                          ffi::Function f_visit_int_imm,         //
                                                          ffi::Function f_visit_float_imm,       //
                                                          ffi::Function f_visit_string_imm) {
-    ObjectPtr<PyStmtExprMutatorNode> n = make_object<PyStmtExprMutatorNode>();
+    ObjectPtr<PyStmtExprMutatorNode> n = ffi::make_object<PyStmtExprMutatorNode>();
     n->f_visit_stmt = std::move(f_visit_stmt);
     n->f_visit_expr = std::move(f_visit_expr);
     // Statement functions

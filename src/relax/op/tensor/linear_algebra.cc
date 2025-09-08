@@ -41,8 +41,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
 /* relax.matmul */
 
-Expr matmul(Expr x1, Expr x2, Optional<DataType> out_dtype) {
-  ObjectPtr<MatmulAttrs> attrs = make_object<MatmulAttrs>();
+Expr matmul(Expr x1, Expr x2, ffi::Optional<DataType> out_dtype) {
+  ObjectPtr<MatmulAttrs> attrs = ffi::make_object<MatmulAttrs>();
   attrs->out_dtype = out_dtype.value_or(DataType::Void());
 
   static const Op& op = Op::Get("relax.matmul");
@@ -55,7 +55,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   Expr lhs = call->args[0];
   Expr rhs = call->args[1];
   TensorStructInfo x1_sinfo = input_sinfo[0];
@@ -121,11 +121,11 @@ StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
     return TensorStructInfo(out_dtype, output_ndim);
   }
 
-  Array<PrimExpr> x1_shape_prefix{x1_shape->values.begin(),
-                                  x1_shape->values.end() - 2 + x1_prepended};
-  Array<PrimExpr> x2_shape_prefix{x2_shape->values.begin(),
-                                  x2_shape->values.end() - 2 + x2_appended};
-  Optional<Array<PrimExpr>> output_shape_prefix =
+  ffi::Array<PrimExpr> x1_shape_prefix{x1_shape->values.begin(),
+                                       x1_shape->values.end() - 2 + x1_prepended};
+  ffi::Array<PrimExpr> x2_shape_prefix{x2_shape->values.begin(),
+                                       x2_shape->values.end() - 2 + x2_appended};
+  ffi::Optional<ffi::Array<PrimExpr>> output_shape_prefix =
       InferBinaryBroadcastShape(call, ctx, x1_shape_prefix, x2_shape_prefix);
   if (!output_shape_prefix.defined()) {
     if (vdev.defined()) {
@@ -146,7 +146,7 @@ StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
                      << x2_reduction_length << " are not equal.");
   }
 
-  Array<PrimExpr> output_shape = output_shape_prefix.value();
+  ffi::Array<PrimExpr> output_shape = output_shape_prefix.value();
   if (!x1_prepended) {
     output_shape.push_back(x1_shape->values[x1_ndim - 2]);
   }
@@ -175,8 +175,8 @@ TVM_REGISTER_OP("relax.matmul")
 
 /* relax.einsum */
 
-Expr einsum(Expr operands, String subscripts) {
-  ObjectPtr<EinsumAttrs> attrs = make_object<EinsumAttrs>();
+Expr einsum(Expr operands, ffi::String subscripts) {
+  ObjectPtr<EinsumAttrs> attrs = ffi::make_object<EinsumAttrs>();
   attrs->subscripts = std::move(subscripts);
 
   static const Op& op = Op::Get("relax.einsum");
@@ -192,7 +192,7 @@ StructInfo InferStructInfoEinsum(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
     ctx->ReportFatal(Diagnostic::Error(call) << "Einsum op should take 1 argument");
   }
-  Array<TensorStructInfo> operands_tensor_sinfo =
+  ffi::Array<TensorStructInfo> operands_tensor_sinfo =
       GetTensorStructInfoFromTuple(call, ctx, call->args[0]);
   if (operands_tensor_sinfo.empty()) {
     ctx->ReportFatal(Diagnostic::Error(call)
@@ -219,10 +219,10 @@ StructInfo InferStructInfoEinsum(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  String subscripts = attrs->subscripts;
+  ffi::String subscripts = attrs->subscripts;
 
   DataType operand_dtype = operands_tensor_sinfo[0]->dtype;
-  std::vector<Array<PrimExpr>> input_shapes;
+  std::vector<ffi::Array<PrimExpr>> input_shapes;
   input_shapes.reserve(operands_tensor_sinfo.size());
 
   for (TensorStructInfo tensor_sinfo : operands_tensor_sinfo) {
@@ -246,7 +246,7 @@ StructInfo InferStructInfoEinsum(const Call& call, const BlockBuilder& ctx) {
     }
   }
   // Calculate output shape using InferEinsumShape in topi
-  Array<PrimExpr> oshape = topi::InferEinsumShape(subscripts, input_shapes);
+  ffi::Array<PrimExpr> oshape = topi::InferEinsumShape(subscripts, input_shapes);
 
   if (!vdevice_unknown) {
     return TensorStructInfo(ShapeExpr(oshape), operand_dtype, vdev);
@@ -290,7 +290,7 @@ StructInfo InferStructInfoOuter(const Call& call, const BlockBuilder& ctx) {
   if (!x1_shape || !x2_shape) {
     return TensorStructInfo(x1_sinfo->dtype, 2);
   }
-  Array<PrimExpr> output_shape = {x1_shape->values[0], x2_shape->values[0]};
+  ffi::Array<PrimExpr> output_shape = {x1_shape->values[0], x2_shape->values[0]};
   return TensorStructInfo(ShapeExpr(output_shape), x1_sinfo->dtype);
 }
 

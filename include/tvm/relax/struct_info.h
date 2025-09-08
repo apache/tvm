@@ -61,7 +61,7 @@ class ObjectStructInfo : public StructInfo {
 class PrimStructInfoNode : public StructInfoNode {
  public:
   /*! \brief Underlying primitive value, if known */
-  Optional<PrimExpr> value;
+  ffi::Optional<PrimExpr> value;
 
   /*! \brief Underlying data type of the primitive value */
   DataType dtype;
@@ -98,7 +98,7 @@ class PrimStructInfo : public StructInfo {
 class ShapeStructInfoNode : public StructInfoNode {
  public:
   /*! \brief optionally stores the symbolic value patterns of the shape */
-  Optional<Array<PrimExpr>> values;
+  ffi::Optional<ffi::Array<PrimExpr>> values;
   /*!
    * \brief The number of dimension of the shape, can be unknown.
    * \sa kUnknownNDim
@@ -130,7 +130,7 @@ class ShapeStructInfo : public StructInfo {
    * \param values The symbolic shape values
    * \param span The span of the AST.
    */
-  TVM_DLL ShapeStructInfo(Array<PrimExpr> values, Span span = Span());
+  TVM_DLL ShapeStructInfo(ffi::Array<PrimExpr> values, Span span = Span());
   /*!
    * \brief Construction with known unknown symbolic shape patterns.
    * \param ndim Number of dimensions -- can be kUnknownNDim
@@ -150,11 +150,11 @@ class TensorStructInfoNode : public StructInfoNode {
    * \brief optionally store the shape expression of the tensor.
    * \note shape must be normalized: it can only be std::nullopt or ShapeExpr or Var.
    */
-  Optional<Expr> shape;
+  ffi::Optional<Expr> shape;
   /*! \brief The virtual device, indicates where the tensor
    *  is expected to be executed.
    */
-  Optional<VDevice> vdevice;
+  ffi::Optional<VDevice> vdevice;
   /*! \brief The content data type, use void to denote the dtype is unknown. */
   DataType dtype;
   /*!
@@ -170,7 +170,7 @@ class TensorStructInfoNode : public StructInfoNode {
   bool IsUnknownDtype() const { return dtype.is_void(); }
 
   /*! \return Shape if it is known. */
-  Optional<Array<PrimExpr>> GetShape() const {
+  ffi::Optional<ffi::Array<PrimExpr>> GetShape() const {
     if (!shape.defined()) return {};
     ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(this->shape.value()->struct_info_);
     return shape_sinfo->values;
@@ -204,8 +204,8 @@ class TensorStructInfo : public StructInfo {
    *
    * \note shape must already be normalized.
    */
-  TVM_DLL TensorStructInfo(Expr shape, DataType dtype, Optional<VDevice> vdevice = std::nullopt,
-                           Span span = Span());
+  TVM_DLL TensorStructInfo(Expr shape, DataType dtype,
+                           ffi::Optional<VDevice> vdevice = std::nullopt, Span span = Span());
 
   /*!
    * \brief Construction with an unknown shape expression.
@@ -214,7 +214,7 @@ class TensorStructInfo : public StructInfo {
    * \param vdevice The virtual device.
    * \param span The span of the AST.
    */
-  TVM_DLL TensorStructInfo(DataType dtype, int ndim, Optional<VDevice> vdevice = std::nullopt,
+  TVM_DLL TensorStructInfo(DataType dtype, int ndim, ffi::Optional<VDevice> vdevice = std::nullopt,
                            Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(TensorStructInfo, StructInfo, TensorStructInfoNode);
@@ -226,7 +226,7 @@ class TensorStructInfo : public StructInfo {
 class TupleStructInfoNode : public StructInfoNode {
  public:
   /*! \brief The struct info of tuple fields. */
-  Array<StructInfo> fields;
+  ffi::Array<StructInfo> fields;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -248,7 +248,7 @@ class TupleStructInfo : public StructInfo {
    * \param fields Struct info of tuple fields.
    * \param span The span of the AST.
    */
-  TVM_DLL TupleStructInfo(Array<StructInfo> fields, Span span = Span());
+  TVM_DLL TupleStructInfo(ffi::Array<StructInfo> fields, Span span = Span());
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TupleStructInfo, StructInfo, TupleStructInfoNode);
 };
@@ -274,7 +274,7 @@ class FuncStructInfoNode : public StructInfoNode {
    * \note When params is std::nullopt means the function can take arbitrary number of arguments.
    *       We define such functions as Opaque function.
    */
-  Optional<Array<StructInfo>> params;
+  ffi::Optional<ffi::Array<StructInfo>> params;
   /*!
    * \brief The struct info of the function's return value.
    */
@@ -284,7 +284,7 @@ class FuncStructInfoNode : public StructInfoNode {
    * \note When derive_func is not empty, then params should be std::nullopt,
    *       ret should be ObjectStructInfo()
    */
-  Optional<StructInfoDeriveFunc> derive_func;
+  ffi::Optional<StructInfoDeriveFunc> derive_func;
   /*!
    * \brief Whether the function is pure.
    * \note This parameter should be set to true only if the function is pure on all inputs.
@@ -327,7 +327,7 @@ class FuncStructInfo : public StructInfo {
    * \note If the ret contains variables(tir::Var and relax::Var), they must be deducible from
    * params. If you are unsure, you can always erase ret to static.
    */
-  TVM_DLL FuncStructInfo(Array<StructInfo> params, StructInfo ret, bool purity = true,
+  TVM_DLL FuncStructInfo(ffi::Array<StructInfo> params, StructInfo ret, bool purity = true,
                          Span span = Span());
 
   /*!
@@ -369,10 +369,10 @@ class FuncStructInfo : public StructInfo {
  * \tparam T the underlying structure info type
  */
 template <typename T>
-inline Optional<T> MatchStructInfo(const Expr& expr) {
+inline ffi::Optional<T> MatchStructInfo(const Expr& expr) {
   using TNode = typename T::ContainerType;
   if (const TNode* ptr = expr->struct_info_.as<TNode>()) {
-    return GetRef<T>(ptr);
+    return ffi::GetRef<T>(ptr);
   } else {
     return std::nullopt;
   }
@@ -401,7 +401,7 @@ inline const T* GetStructInfoAs(const Expr& expr) {
 inline StructInfo GetStructInfo(const Expr& expr) {
   auto* ptr = expr->struct_info_.as<StructInfoNode>();
   ICHECK(ptr) << "The struct_info is not populated, check if you have normalized the expr";
-  return GetRef<StructInfo>(ptr);
+  return ffi::GetRef<StructInfo>(ptr);
 }
 
 /*!

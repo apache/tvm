@@ -110,7 +110,7 @@ class BasePassInstrument : public PassInstrument {
    * \param run_after_pass_callback Callback to call after a pass run.
    */
   TVM_DLL BasePassInstrument(
-      String name, ffi::TypedFunction<void()> enter_pass_ctx_callback,
+      ffi::String name, ffi::TypedFunction<void()> enter_pass_ctx_callback,
       ffi::TypedFunction<void()> exit_pass_ctx_callback,
       ffi::TypedFunction<bool(const IRModule&, const transform::PassInfo&)> should_run_callback,
       ffi::TypedFunction<void(const IRModule&, const transform::PassInfo&)>
@@ -122,12 +122,12 @@ class BasePassInstrument : public PassInstrument {
 };
 
 BasePassInstrument::BasePassInstrument(
-    String name, ffi::TypedFunction<void()> enter_pass_ctx_callback,
+    ffi::String name, ffi::TypedFunction<void()> enter_pass_ctx_callback,
     ffi::TypedFunction<void()> exit_pass_ctx_callback,
     ffi::TypedFunction<bool(const IRModule&, const transform::PassInfo&)> should_run_callback,
     ffi::TypedFunction<void(const IRModule&, const transform::PassInfo&)> run_before_pass_callback,
     ffi::TypedFunction<void(const IRModule&, const transform::PassInfo&)> run_after_pass_callback) {
-  auto pi = make_object<BasePassInstrumentNode>();
+  auto pi = ffi::make_object<BasePassInstrumentNode>();
   pi->name = std::move(name);
 
   pi->enter_pass_ctx_callback = std::move(enter_pass_ctx_callback);
@@ -180,7 +180,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "instrument.PassInstrument",
-      [](String name, ffi::TypedFunction<void()> enter_pass_ctx,
+      [](ffi::String name, ffi::TypedFunction<void()> enter_pass_ctx,
          ffi::TypedFunction<void()> exit_pass_ctx,
          ffi::TypedFunction<bool(const IRModule&, const transform::PassInfo&)> should_run,
          ffi::TypedFunction<void(const IRModule&, const transform::PassInfo&)> run_before_pass,
@@ -204,7 +204,7 @@ struct PassProfile {
   using Time = std::chrono::time_point<Clock>;
 
   /*! \brief The name of the pass being profiled. */
-  String name;
+  ffi::String name;
   /*! \brief The time when the pass was entered. */
   Time start;
   /*! \brief The time when the pass completed. */
@@ -214,13 +214,13 @@ struct PassProfile {
   /*! \brief PassProfiles for all sub-passes invoked during the execution of the pass. */
   std::vector<PassProfile> children;
 
-  explicit PassProfile(String name)
+  explicit PassProfile(ffi::String name)
       : name(name), start(Clock::now()), end(Clock::now()), children() {}
 
   /*! \brief Gets the PassProfile of the currently executing pass. */
   static PassProfile* Current();
   /*! \brief Pushes a new PassProfile with the given pass name. */
-  static void EnterPass(String name);
+  static void EnterPass(ffi::String name);
   /*! \brief Pops the current PassProfile. */
   static void ExitPass();
 };
@@ -237,7 +237,7 @@ struct PassProfileThreadLocalEntry {
 /*! \brief Thread local store to hold the pass profiling data. */
 typedef dmlc::ThreadLocalStore<PassProfileThreadLocalEntry> PassProfileThreadLocalStore;
 
-void PassProfile::EnterPass(String name) {
+void PassProfile::EnterPass(ffi::String name) {
   PassProfile* cur = PassProfile::Current();
   cur->children.emplace_back(name);
   PassProfileThreadLocalStore::Get()->profile_stack.push(&cur->children.back());
@@ -260,13 +260,13 @@ PassProfile* PassProfile::Current() {
   }
 }
 
-String RenderPassProfiles() {
+ffi::String RenderPassProfiles() {
   PassProfileThreadLocalEntry* entry = PassProfileThreadLocalStore::Get();
   CHECK(entry->profile_stack.empty()) << "cannot print pass profile while still in a pass!";
 
   if (entry->root.children.empty()) {
     LOG(WARNING) << "no passes have been profiled, did you enable pass profiling?";
-    return String();
+    return ffi::String();
   }
 
   // (depth, parent_duration, pass)

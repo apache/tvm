@@ -38,8 +38,8 @@ namespace vm {
 // VM Closure object
 //---------------------------------------------
 
-VMClosure::VMClosure(String func_name, ffi::Function impl) {
-  auto ptr = make_object<VMClosureObj>();
+VMClosure::VMClosure(ffi::String func_name, ffi::Function impl) {
+  auto ptr = ffi::make_object<VMClosureObj>();
   ptr->func_name = func_name;
   ptr->impl = std::move(impl);
   data_ = std::move(ptr);
@@ -103,7 +103,7 @@ Any ConvertObjectToDevice(Any src, const Device& dev, Allocator* alloc) {
     for (size_t i = 0; i < arr.size(); i++) {
       ret.push_back(ConvertObjectToDevice(arr[i], dev, alloc));
     }
-    return Array<Any>(ret.begin(), ret.end());
+    return ffi::Array<Any>(ret.begin(), ret.end());
   } else {
     return src;
   }
@@ -189,7 +189,7 @@ class VirtualMachineImpl : public VirtualMachine {
   void LoadExecutable(ObjectPtr<VMExecutable> exec) final;
   void Init(const std::vector<Device>& devices,
             const std::vector<AllocatorType>& alloc_types) final;
-  VMClosure GetClosure(const String& func_name) final {
+  VMClosure GetClosure(const ffi::String& func_name) final {
     return this->GetClosureInternal(func_name, false).value();
   }
   void InvokeClosurePacked(const ObjectRef& closure_or_packedfunc, ffi::PackedArgs args,
@@ -210,7 +210,7 @@ class VirtualMachineImpl : public VirtualMachine {
   void _SetInputWithParamModule(ffi::PackedArgs args, ffi::Any* rv);
   int _GetFunctionArity(std::string func_name);
   std::string _GetFunctionParamName(std::string func_name, int index);
-  ffi::Function _LookupFunction(const String& name);
+  ffi::Function _LookupFunction(const ffi::String& name);
 
   TVM_MODULE_VTABLE_BEGIN("relax.VirtualMachine");
   TVM_MODULE_VTABLE_ENTRY_PACKED("vm_initialization", &VirtualMachineImpl::_Init);
@@ -236,7 +236,7 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param allow_missing Whether none is allowed.
    * \return The result
    */
-  Optional<VMClosure> GetClosureInternal(const String& func_name, bool allow_missing);
+  ffi::Optional<VMClosure> GetClosureInternal(const ffi::String& func_name, bool allow_missing);
 
   /*!
    * \brief Set inputs to a function.
@@ -276,7 +276,7 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param args The arguments to bound to the function.
    * \note This function is used by RPC server to help benchmarking.
    */
-  void SaveClosure(const String& func_name, const String& save_name, bool include_return,
+  void SaveClosure(const ffi::String& func_name, const ffi::String& save_name, bool include_return,
                    ffi::PackedArgs args);
   /*!
    * \brief Internal function to invoke a closure.
@@ -300,7 +300,7 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param name The name of the function.
    * \return The result function, can return ffi::Function(nullptr) if nothing is found.
    */
-  Optional<ffi::Function> GetFuncFromImports(const String& name) {
+  ffi::Optional<ffi::Function> GetFuncFromImports(const ffi::String& name) {
     for (auto& lib : this->imports_) {
       if (auto opt_func = lib.cast<ffi::Module>()->GetFunction(name, true)) {
         return *opt_func;
@@ -572,7 +572,7 @@ RegType VirtualMachineImpl::InvokeClosureInternal(const ObjectRef& closure_or_pa
   return ret;
 }
 
-void VirtualMachineImpl::SaveClosure(const String& func_name, const String& save_name,
+void VirtualMachineImpl::SaveClosure(const ffi::String& func_name, const ffi::String& save_name,
                                      bool include_return, ffi::PackedArgs args) {
   VMClosure clo = this->GetClosure(func_name);
   std::vector<RegType> inputs(args.size());
@@ -589,8 +589,8 @@ void VirtualMachineImpl::SaveClosure(const String& func_name, const String& save
   saved_closures_[save_name] = VMClosure(save_name, impl);
 }
 
-Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const String& func_name,
-                                                           bool allow_missing) {
+ffi::Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const ffi::String& func_name,
+                                                                bool allow_missing) {
   // look up saved closures.
   auto saved_it = saved_closures_.find(func_name);
   if (saved_it != saved_closures_.end()) {
@@ -621,7 +621,7 @@ Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const String& func_na
   } else {
     ICHECK(finfo.kind == VMFuncInfo::FuncKind::kVMTIRFunc)
         << "Cannot support closure with function kind " << static_cast<int>(finfo.kind);
-    Optional<ffi::Function> tir_func = GetFuncFromImports("__vmtir__" + finfo.name);
+    ffi::Optional<ffi::Function> tir_func = GetFuncFromImports("__vmtir__" + finfo.name);
     ICHECK(tir_func.has_value()) << "Cannot find underlying compiled tir function of VMTIRFunc "
                                  << finfo.name;
     auto impl = ffi::Function([this, finfo, tir_func](ffi::PackedArgs args, ffi::Any* rv) {
@@ -697,7 +697,7 @@ void VirtualMachineImpl::InitFuncPool() {
     const VMFuncInfo& info = exec_->func_table[func_index];
     if (info.kind == VMFuncInfo::FuncKind::kPackedFunc) {
       // only look through imports first
-      Optional<ffi::Function> func = GetFuncFromImports(info.name);
+      ffi::Optional<ffi::Function> func = GetFuncFromImports(info.name);
       if (!func.has_value()) {
         const auto p_func = tvm::ffi::Function::GetGlobal(info.name);
         if (p_func.has_value()) func = *p_func;
@@ -846,7 +846,9 @@ void VirtualMachineImpl::RunLoop() {
   }
 }
 
-ObjectPtr<VirtualMachine> VirtualMachine::Create() { return make_object<VirtualMachineImpl>(); }
+ObjectPtr<VirtualMachine> VirtualMachine::Create() {
+  return ffi::make_object<VirtualMachineImpl>();
+}
 
 //--------------------------------------------------------------------
 // FFI related code
@@ -869,7 +871,7 @@ void VirtualMachineImpl::_Init(ffi::PackedArgs args, ffi::Any* rv) {
 void VirtualMachineImpl::_SaveClosure(ffi::PackedArgs args, ffi::Any* rv) {
   ICHECK_GE(args.size(), 3);
   std::string func_name = args[0].cast<std::string>();
-  this->SaveClosure(func_name, args[1].cast<String>(), args[2].cast<bool>(), args.Slice(3));
+  this->SaveClosure(func_name, args[1].cast<ffi::String>(), args[2].cast<bool>(), args.Slice(3));
 }
 
 void VirtualMachineImpl::_InvokeClosure(ffi::PackedArgs args, ffi::Any* rv) {
@@ -894,7 +896,7 @@ void VirtualMachineImpl::_SetInstrument(ffi::PackedArgs args, ffi::Any* rv) {
   if (args[0].as<ffi::Function>()) {
     this->SetInstrument(args[0].cast<ffi::Function>());
   } else {
-    String func_name = args[0].cast<String>();
+    ffi::String func_name = args[0].cast<ffi::String>();
     const auto factory = tvm::ffi::Function::GetGlobal(func_name);
     CHECK(factory.has_value()) << "Cannot find factory " << func_name;
     ffi::Any rv;
@@ -950,9 +952,9 @@ std::string VirtualMachineImpl::_GetFunctionParamName(std::string func_name, int
   return vm_func.param_names[index];
 }
 
-ffi::Function VirtualMachineImpl::_LookupFunction(const String& name) {
-  if (Optional<VMClosure> opt = this->GetClosureInternal(name, true)) {
-    return ffi::Function([clo = opt.value(), _self = GetRef<ffi::Module>(this)](
+ffi::Function VirtualMachineImpl::_LookupFunction(const ffi::String& name) {
+  if (ffi::Optional<VMClosure> opt = this->GetClosureInternal(name, true)) {
+    return ffi::Function([clo = opt.value(), _self = ffi::GetRef<ffi::Module>(this)](
                              ffi::PackedArgs args, ffi::Any* rv) -> void {
       auto* self = const_cast<VirtualMachineImpl*>(_self.as<VirtualMachineImpl>());
       ICHECK(self);
@@ -973,7 +975,7 @@ ffi::Function VirtualMachineImpl::_LookupFunction(const String& name) {
  */
 class VirtualMachineProfiler : public VirtualMachineImpl {
  public:
-  Optional<ffi::Function> GetFunction(const String& name) override {
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) override {
     ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
     if (name == "profile") {
       return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
@@ -987,7 +989,7 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
           }
         }
 
-        prof_ = profiling::Profiler(devices, {}, {{String("Executor"), String("VM")}});
+        prof_ = profiling::Profiler(devices, {}, {{ffi::String("Executor"), ffi::String("VM")}});
 
         auto inputs = GetInputsFor(f_name);
 
@@ -1074,7 +1076,7 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
 };
 
 ObjectPtr<VirtualMachine> VirtualMachine::CreateProfiler() {
-  return make_object<VirtualMachineProfiler>();
+  return ffi::make_object<VirtualMachineProfiler>();
 }
 
 #else

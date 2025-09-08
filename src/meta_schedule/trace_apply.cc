@@ -56,7 +56,7 @@ void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
   std::unordered_set<std::string> get_block_names;
   for (const auto& inst : anchor_trace->insts) {
     if (inst->kind.same_as(kind_get_block)) {
-      auto block_name = Downcast<String>(inst->attrs[0]);
+      auto block_name = Downcast<ffi::String>(inst->attrs[0]);
       get_block_names.insert(block_name);
     }
   }
@@ -140,9 +140,10 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
       continue;
     }
 
-    Array<Any> inputs = TranslateInputRVs(inst->inputs, rv_map);
+    ffi::Array<Any> inputs = TranslateInputRVs(inst->inputs, rv_map);
 
-    if (inst->kind.same_as(kind_get_block) && !HasBlock(sch, Downcast<String>(inst->attrs[0]))) {
+    if (inst->kind.same_as(kind_get_block) &&
+        !HasBlock(sch, Downcast<ffi::String>(inst->attrs[0]))) {
       // The anchor trace does get_block on a block that is not part of the target schedule.
       auto block = Downcast<BlockRV>(inst->outputs[0]);
       foreign_blocks.insert(block);
@@ -174,7 +175,7 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
     }
 
     Any decision = anchor_trace->GetDecision(inst);
-    Array<Any> outputs = inst->kind->f_apply_to_schedule(sch, inputs, inst->attrs, decision);
+    ffi::Array<Any> outputs = inst->kind->f_apply_to_schedule(sch, inputs, inst->attrs, decision);
 
     if (inst->kind.same_as(kind_get_child_blocks)) {
       // We want to allow a trace generated for a single conv2d block to be applied to
@@ -184,9 +185,9 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
       // new_outputs.size(). We workaround this problem by assuming that the prefix of the "new"
       // outputs matches with the "old" outputs, and truncating the new outputs accordingly.
       ICHECK(inst->outputs.size() <= outputs.size());
-      TranslateAddOutputRVs(inst->outputs,
-                            Array<Any>(outputs.begin(), outputs.begin() + inst->outputs.size()),
-                            &rv_map);
+      TranslateAddOutputRVs(
+          inst->outputs, ffi::Array<Any>(outputs.begin(), outputs.begin() + inst->outputs.size()),
+          &rv_map);
     } else {
       TranslateAddOutputRVs(inst->outputs, outputs, &rv_map);
     }
@@ -248,7 +249,7 @@ void ScheduleUsingAnchorTrace(Schedule sch, const Trace& anchor_trace, const tvm
 
     auto auto_bind_rule =
         ScheduleRule::AutoBind(/*max_threadblocks=*/256,
-                               /*thread_extents*/ Array<Integer>{32, 64, 128, 256, 512, 1024},
+                               /*thread_extents*/ ffi::Array<Integer>{32, 64, 128, 256, 512, 1024},
                                max_threads_per_block.value()->value);
     auto_bind_rule->Apply(sch, last_block);
   }

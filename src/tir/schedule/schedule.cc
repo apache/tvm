@@ -29,9 +29,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
 /**************** Constructor ****************/
 
-BlockRV::BlockRV() { this->data_ = make_object<BlockRVNode>(); }
+BlockRV::BlockRV() { this->data_ = ffi::make_object<BlockRVNode>(); }
 
-LoopRV::LoopRV() { this->data_ = make_object<LoopRVNode>(); }
+LoopRV::LoopRV() { this->data_ = ffi::make_object<LoopRVNode>(); }
 
 /**************** GetSRef ****************/
 
@@ -103,7 +103,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              throw;
            })
       .def("tir.schedule.ScheduleGetSRef",
-           [](Schedule self, ObjectRef obj) -> Optional<ObjectRef> {
+           [](Schedule self, ObjectRef obj) -> ffi::Optional<ObjectRef> {
              if (auto loop_rv = obj.as<LoopRV>()) {
                return self->GetSRef(loop_rv.value());
              }
@@ -250,13 +250,13 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](Schedule self, ObjectRef target, bool preserve_unit_iters) {
              if (auto loop_rv = target.as<LoopRV>()) {
                return self->Blockize(loop_rv.value(), preserve_unit_iters);
-             } else if (auto blocks = target.as<Array<BlockRV>>()) {
+             } else if (auto blocks = target.as<ffi::Array<BlockRV>>()) {
                return self->Blockize(blocks.value(), preserve_unit_iters);
              }
              LOG(FATAL) << "Unsupported target type: " << target->GetTypeKey();
            })
       .def("tir.schedule.ScheduleTensorize",
-           [](Schedule self, ObjectRef rv, String intrin, bool preserve_unit_iters) {
+           [](Schedule self, ObjectRef rv, ffi::String intrin, bool preserve_unit_iters) {
              if (auto block_rv = rv.as<BlockRV>()) {
                self->Tensorize(block_rv.value(), intrin, preserve_unit_iters);
              } else if (auto loop_rv = rv.as<LoopRV>()) {
@@ -273,7 +273,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.schedule.ScheduleAnnotate",
-           [](Schedule self, ObjectRef rv, const String& ann_key, const Any& ann_val) {
+           [](Schedule self, ObjectRef rv, const ffi::String& ann_key, const Any& ann_val) {
              if (auto block_rv = rv.as<BlockRV>()) {
                return self->Annotate(block_rv.value(), ann_key, ann_val);
              }
@@ -285,7 +285,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              throw;
            })
       .def("tir.schedule.ScheduleUnannotate", [](Schedule self, ObjectRef rv,
-                                                 const String& ann_key) {
+                                                 const ffi::String& ann_key) {
         if (auto block_rv = rv.as<BlockRV>()) {
           return self->Unannotate(block_rv.value(), ann_key);
         }
@@ -304,7 +304,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   refl::GlobalDef()
       .def("tir.schedule.ScheduleTransformLayout",
            [](Schedule self, const BlockRV& block_rv, int buffer_index, int buffer_index_type,
-              const IndexMap& index_map, const Optional<IndexMap>& pad_value,
+              const IndexMap& index_map, const ffi::Optional<IndexMap>& pad_value,
               bool assume_injective_transform) {
              return self->TransformLayout(block_rv, buffer_index,
                                           static_cast<BufferIndexType>(buffer_index_type),
@@ -313,7 +313,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_method("tir.schedule.ScheduleTransformBlockLayout", &ScheduleNode::TransformBlockLayout)
       .def("tir.schedule.ScheduleSetAxisSeparator",
            [](Schedule self, const BlockRV& block_rv, int buffer_index, int buffer_index_type,
-              const Array<IntImm>& axis_separators) {
+              const ffi::Array<IntImm>& axis_separators) {
              return self->SetAxisSeparator(block_rv, buffer_index,
                                            static_cast<BufferIndexType>(buffer_index_type),
                                            axis_separators);

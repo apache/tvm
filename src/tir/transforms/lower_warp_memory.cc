@@ -150,7 +150,7 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
   }
 
   void UpdatePattern(const PrimExpr& index) {
-    Array<PrimExpr> m = arith::DetectLinearEquation(index, {warp_index_});
+    ffi::Array<PrimExpr> m = arith::DetectLinearEquation(index, {warp_index_});
     ICHECK_EQ(m.size(), 2U)
         << "LowerWarpMemory failed. Could not simplify the store index `" << index
         << "` into the form ax + by + cz + ... Warp memory is approximated by storing values in "
@@ -254,7 +254,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
 
  protected:
   PrimExpr RewriteIndicesAt(const CallNode* op, const std::vector<int>& indices) {
-    Array<PrimExpr> new_args = op->args;
+    ffi::Array<PrimExpr> new_args = op->args;
     for (int i : indices) {
       if (op->args[i].get() == buffer_) {
         PrimExpr local_index = SplitIndexByGroup(op->args[i + 1]).first;
@@ -426,7 +426,7 @@ class WarpMemoryRewriter : private StmtMutator {
     return stmt;
   }
 
-  std::unordered_map<const VarNode*, String> new_storage_scopes_;
+  std::unordered_map<const VarNode*, ffi::String> new_storage_scopes_;
 
  private:
   Stmt VisitStmt_(const AllocateNode* op) {

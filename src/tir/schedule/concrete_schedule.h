@@ -33,13 +33,13 @@ class ConcreteScheduleNode : public ScheduleNode {
   friend class ScheduleCopier;
 
  public:
-  using TSymbolTable = Map<ObjectRef, ObjectRef>;
+  using TSymbolTable = ffi::Map<ObjectRef, ObjectRef>;
 
  protected:
   /*! \brief The internal state of scheduling */
   ScheduleState state_;
   /*! \brief The function to be worked on. */
-  Optional<GlobalVar> func_working_on_;
+  ffi::Optional<GlobalVar> func_working_on_;
   /*! \brief The level of error rendering */
   ScheduleErrorRenderLevel error_render_level_;
   /*! \brief A symbol table that maps random variables to concrete StmtSRef/Integers */
@@ -58,9 +58,9 @@ class ConcreteScheduleNode : public ScheduleNode {
 
  public:
   ScheduleState state() const final { return state_; }
-  Optional<Trace> trace() const override { return std::nullopt; }
-  Optional<GlobalVar> func_working_on() const final { return func_working_on_; }
-  void WorkOn(const String& func_name) final;
+  ffi::Optional<Trace> trace() const override { return std::nullopt; }
+  ffi::Optional<GlobalVar> func_working_on() const final { return func_working_on_; }
+  void WorkOn(const ffi::String& func_name) final;
   Schedule Copy() override;
   void Seed(support::LinearCongruentialEngine::TRandState seed) final;
   support::LinearCongruentialEngine::TRandState ForkSeed() final;
@@ -73,8 +73,8 @@ class ConcreteScheduleNode : public ScheduleNode {
   inline StmtSRef GetSRef(const BlockRV& block_rv) const final;
   inline StmtSRef GetSRef(const LoopRV& loop_rv) const final;
   inline bool HasBlock(const BlockRV& block_rv) const final;
-  inline Array<StmtSRef> GetSRefs(const Array<BlockRV>& rvs) const;
-  inline Array<StmtSRef> GetSRefs(const Array<LoopRV>& rvs) const;
+  inline ffi::Array<StmtSRef> GetSRefs(const ffi::Array<BlockRV>& rvs) const;
+  inline ffi::Array<StmtSRef> GetSRefs(const ffi::Array<LoopRV>& rvs) const;
   void RemoveRV(const BlockRV& block_rv) final { RemoveFromSymbolTable(block_rv); }
   void RemoveRV(const LoopRV& loop_rv) final { RemoveFromSymbolTable(loop_rv); }
   void RemoveRV(const ExprRV& expr_rv) final { RemoveFromSymbolTable(expr_rv); }
@@ -82,59 +82,63 @@ class ConcreteScheduleNode : public ScheduleNode {
 
  public:
   /******** Schedule: Sampling ********/
-  ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
-                           Optional<Integer> decision = std::nullopt) override;
-  Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
-                                  Optional<Array<Integer>> decision = std::nullopt) override;
-  Array<ExprRV> SamplePartitionedTile(const LoopRV& loop_rv, int n, int partition_pos,
-                                      int innerpart_factor,
-                                      Optional<Array<Integer>> decision = std::nullopt) override;
+  ExprRV SampleCategorical(const ffi::Array<Integer>& candidates, const ffi::Array<FloatImm>& probs,
+                           ffi::Optional<Integer> decision = std::nullopt) override;
+  ffi::Array<ExprRV> SamplePerfectTile(
+      const LoopRV& loop_rv, int n, int max_innermost_factor,
+      ffi::Optional<ffi::Array<Integer>> decision = std::nullopt) override;
+  ffi::Array<ExprRV> SamplePartitionedTile(
+      const LoopRV& loop_rv, int n, int partition_pos, int innerpart_factor,
+      ffi::Optional<ffi::Array<Integer>> decision = std::nullopt) override;
   LoopRV SampleComputeLocation(const BlockRV& block_rv,
-                               Optional<Integer> decision = std::nullopt) override;
+                               ffi::Optional<Integer> decision = std::nullopt) override;
   /******** Schedule: Get blocks & loops ********/
-  BlockRV GetBlock(const String& name, const Optional<String>& func_name) override;
-  Array<LoopRV> GetLoops(const BlockRV& block_rv) override;
-  Array<BlockRV> GetChildBlocks(const BlockRV& block_rv) override;
-  Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) override;
-  Array<BlockRV> GetProducers(const BlockRV& block_rv) override;
-  Array<BlockRV> GetConsumers(const BlockRV& block_rv) override;
-  Array<BlockRV> GetOutputBlocks(const BlockRV& scope_block_rv) override;
+  BlockRV GetBlock(const ffi::String& name, const ffi::Optional<ffi::String>& func_name) override;
+  ffi::Array<LoopRV> GetLoops(const BlockRV& block_rv) override;
+  ffi::Array<BlockRV> GetChildBlocks(const BlockRV& block_rv) override;
+  ffi::Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) override;
+  ffi::Array<BlockRV> GetProducers(const BlockRV& block_rv) override;
+  ffi::Array<BlockRV> GetConsumers(const BlockRV& block_rv) override;
+  ffi::Array<BlockRV> GetOutputBlocks(const BlockRV& scope_block_rv) override;
   /******** Schedule: Transform loops ********/
-  LoopRV Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_iters) override;
-  LoopRV Merge(const Array<LoopRV>& loop_rvs) override;
-  Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors,
-                      bool preserve_unit_iters, bool disable_predication) override;
-  Array<LoopRV> LoopPartition(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors,
-                              bool preserve_unit_iters) override;
-  void Reorder(const Array<LoopRV>& ordered_loop_rvs) override;
-  void ReorderBlockIterVar(const BlockRV& block_rv, const Array<Integer> new_order) override;
+  LoopRV Fuse(const ffi::Array<LoopRV>& loop_rvs, bool preserve_unit_iters) override;
+  LoopRV Merge(const ffi::Array<LoopRV>& loop_rvs) override;
+  ffi::Array<LoopRV> Split(const LoopRV& loop_rv, const ffi::Array<ffi::Optional<ExprRV>>& factors,
+                           bool preserve_unit_iters, bool disable_predication) override;
+  ffi::Array<LoopRV> LoopPartition(const LoopRV& loop_rv,
+                                   const ffi::Array<ffi::Optional<ExprRV>>& factors,
+                                   bool preserve_unit_iters) override;
+  void Reorder(const ffi::Array<LoopRV>& ordered_loop_rvs) override;
+  void ReorderBlockIterVar(const BlockRV& block_rv, const ffi::Array<Integer> new_order) override;
   LoopRV AddUnitLoop(const BlockRV& block_rv) override;
   LoopRV AddUnitLoop(const LoopRV& loop_rv) override;
   /******** Schedule: Manipulate ForKind ********/
   void Parallel(const LoopRV& loop_rv) override;
   void Vectorize(const LoopRV& loop_rv) override;
-  void Bind(const LoopRV& loop_rv, const String& thread_axis) override;
+  void Bind(const LoopRV& loop_rv, const ffi::String& thread_axis) override;
   void Unroll(const LoopRV& loop_rv) override;
   /******** Schedule: Insert cache stages ********/
-  BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index, const String& storage_scope,
-                    const Array<BlockRV> consumer_blocks = {}) override;
-  BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index, const String& storage_scope,
-                     const Array<BlockRV> consumer_blocks = {}) override;
+  BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index,
+                    const ffi::String& storage_scope,
+                    const ffi::Array<BlockRV> consumer_blocks = {}) override;
+  BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
+                     const ffi::String& storage_scope,
+                     const ffi::Array<BlockRV> consumer_blocks = {}) override;
   BlockRV ReindexCacheRead(const BlockRV& block_rv, int read_buffer_index,
-                           const String& storage_scope, const IndexMap& index_map) override;
+                           const ffi::String& storage_scope, const IndexMap& index_map) override;
   BlockRV ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
-                            const String& storage_scope, const IndexMap& index_map) override;
-  Array<BlockRV> CacheInplace(const BlockRV& block_rv, int read_buffer_index,
-                              const String& storage_scope) override;
-  Array<BlockRV> CacheIndex(const BlockRV& block_rv, const String& storage_scope,
-                            int cse_thresh) override;
+                            const ffi::String& storage_scope, const IndexMap& index_map) override;
+  ffi::Array<BlockRV> CacheInplace(const BlockRV& block_rv, int read_buffer_index,
+                                   const ffi::String& storage_scope) override;
+  ffi::Array<BlockRV> CacheIndex(const BlockRV& block_rv, const ffi::String& storage_scope,
+                                 int cse_thresh) override;
   BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
                   BufferIndexType buffer_index_type) override;
   /******** Schedule: Data movement ********/
   BlockRV ReadAt(const LoopRV& loop_rv, const BlockRV& block_rv, int read_buffer_index,
-                 const String& storage_scope) override;
+                 const ffi::String& storage_scope) override;
   BlockRV WriteAt(const LoopRV& loop_rv, const BlockRV& block_rv, int write_buffer_index,
-                  const String& storage_scope) override;
+                  const ffi::String& storage_scope) override;
   /******** Schedule: Compute location ********/
   void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
                  int index = -1) override;
@@ -145,38 +149,41 @@ class ConcreteScheduleNode : public ScheduleNode {
   /******** Schedule: Reduction ********/
   BlockRV RFactor(const LoopRV& loop_rv, int factor_axis) override;
   BlockRV DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) override;
-  void PadEinsum(const BlockRV& block_rv, const Array<Integer>& padding) override;
+  void PadEinsum(const BlockRV& block_rv, const ffi::Array<Integer>& padding) override;
   /******** Schedule: Block annotation ********/
   void StorageAlign(const BlockRV& block_rv, int buffer_index, int axis, int factor,
                     int offset) override;
-  void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) override;
-  void UnsafeSetDType(const BlockRV& block_rv, int buffer_index, const String& dtype) override;
+  void SetScope(const BlockRV& block_rv, int buffer_index,
+                const ffi::String& storage_scope) override;
+  void UnsafeSetDType(const BlockRV& block_rv, int buffer_index, const ffi::String& dtype) override;
   /******** Schedule: Blockize & Tensorize ********/
   BlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) override;
-  BlockRV Blockize(const Array<BlockRV>& blocks, bool preserve_unit_iters) override;
-  void Tensorize(const BlockRV& block_rv, const String& intrin, bool preserve_unit_iters) override;
-  void Tensorize(const LoopRV& loop_rv, const String& intrin, bool preserve_unit_iters) override;
+  BlockRV Blockize(const ffi::Array<BlockRV>& blocks, bool preserve_unit_iters) override;
+  void Tensorize(const BlockRV& block_rv, const ffi::String& intrin,
+                 bool preserve_unit_iters) override;
+  void Tensorize(const LoopRV& loop_rv, const ffi::String& intrin,
+                 bool preserve_unit_iters) override;
   /******** Schedule: Annotation ********/
-  void Annotate(const LoopRV& loop_rv, const String& ann_key, const Any& ann_val) override;
-  void Unannotate(const LoopRV& loop_rv, const String& ann_key) override;
-  void Annotate(const BlockRV& block_rv, const String& ann_key, const Any& ann_val) override;
-  void Unannotate(const BlockRV& block_rv, const String& ann_key) override;
+  void Annotate(const LoopRV& loop_rv, const ffi::String& ann_key, const Any& ann_val) override;
+  void Unannotate(const LoopRV& loop_rv, const ffi::String& ann_key) override;
+  void Annotate(const BlockRV& block_rv, const ffi::String& ann_key, const Any& ann_val) override;
+  void Unannotate(const BlockRV& block_rv, const ffi::String& ann_key) override;
   /******** Schedule: Layout transformation ********/
   void TransformLayout(const BlockRV& block_rv, int buffer_index, BufferIndexType buffer_index_type,
-                       const IndexMap& index_map, const Optional<IndexMap>& pad_value,
+                       const IndexMap& index_map, const ffi::Optional<IndexMap>& pad_value,
                        bool assume_injective_transform = false) override;
   void TransformBlockLayout(const BlockRV& block_rv, const IndexMap& index_map) override;
   void SetAxisSeparator(const BlockRV& block_rv, int buffer_index,
                         BufferIndexType buffer_index_type,
-                        const Array<IntImm>& axis_separators) override;
+                        const ffi::Array<IntImm>& axis_separators) override;
   /******** Schedule: Padding decomposition ********/
   BlockRV DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) override;
   /******** Schedule: Buffer transformation ********/
   void RollingBuffer(const BlockRV& block_rv, int write_buffer_index) override;
   /******** Schedule: Misc ********/
   void EnterPostproc() override {}
-  void UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
-                              const Array<IntImm>& buf_index_array) override;
+  void UnsafeHideBufferAccess(const BlockRV& block_rv, const ffi::String& buf_type,
+                              const ffi::Array<IntImm>& buf_index_array) override;
   void AnnotateBufferAccess(const BlockRV& block_rv, int buffer_index,
                             BufferIndexType buffer_index_type, const IndexMap& index_map) override;
 
@@ -195,7 +202,7 @@ class ConcreteScheduleNode : public ScheduleNode {
    * \return The new random variables created
    */
   template <class T>
-  inline Array<T> CreateRV(const Array<StmtSRef>& srefs);
+  inline ffi::Array<T> CreateRV(const ffi::Array<StmtSRef>& srefs);
   /*!
    * \brief Add an sref as a random variable into the symbol table
    * \tparam T The type of the random variable
@@ -217,8 +224,8 @@ class ConcreteScheduleNode : public ScheduleNode {
    * Which is convention of certain primitives.
    * \return The new random variables created
    */
-  inline Array<ExprRV> CreateRV(const std::vector<int64_t>& value,
-                                bool convert_negone_to_none = false);
+  inline ffi::Array<ExprRV> CreateRV(const std::vector<int64_t>& value,
+                                     bool convert_negone_to_none = false);
   /*! \brief Remove a random variable from the symbol table */
   inline void RemoveFromSymbolTable(const ObjectRef& rv);
   /*!
@@ -237,17 +244,17 @@ class ConcreteScheduleNode : public ScheduleNode {
 inline Block ConcreteScheduleNode::Get(const BlockRV& block_rv) const {
   StmtSRef sref = this->GetSRef(block_rv);
   const BlockNode* block = TVM_SREF_TO_BLOCK(sref);
-  return GetRef<Block>(block);
+  return ffi::GetRef<Block>(block);
 }
 
 inline For ConcreteScheduleNode::Get(const LoopRV& loop_rv) const {
   StmtSRef sref = this->GetSRef(loop_rv);
   const ForNode* loop = TVM_SREF_TO_FOR(sref);
-  return GetRef<For>(loop);
+  return ffi::GetRef<For>(loop);
 }
 
 inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
-  PrimExpr transformed = Substitute(expr_rv, [this](const Var& var) -> Optional<PrimExpr> {
+  PrimExpr transformed = Substitute(expr_rv, [this](const Var& var) -> ffi::Optional<PrimExpr> {
     auto it = this->symbol_table_.find(var);
     if (it == this->symbol_table_.end()) {
       LOG(FATAL) << "IndexError: Cannot find corresponding ExprRV: " << var;
@@ -286,7 +293,7 @@ inline StmtSRef ConcreteScheduleNode::GetSRef(const BlockRV& block_rv) const {
   if (sref->stmt == nullptr) {
     LOG(FATAL) << "ValueError: The block no longer exists in the IRModule";
   }
-  return GetRef<StmtSRef>(sref);
+  return ffi::GetRef<StmtSRef>(sref);
 }
 
 inline StmtSRef ConcreteScheduleNode::GetSRef(const LoopRV& loop_rv) const {
@@ -311,12 +318,13 @@ inline StmtSRef ConcreteScheduleNode::GetSRef(const LoopRV& loop_rv) const {
   if (sref->stmt == nullptr) {
     LOG(FATAL) << "ValueError: The loop no longer exists in the IRModule";
   }
-  return GetRef<StmtSRef>(sref);
+  return ffi::GetRef<StmtSRef>(sref);
 }
 
 template <class T>
-inline Array<StmtSRef> GetSRefsHelper(const ConcreteScheduleNode* sch, const Array<T>& rvs) {
-  Array<StmtSRef> result;
+inline ffi::Array<StmtSRef> GetSRefsHelper(const ConcreteScheduleNode* sch,
+                                           const ffi::Array<T>& rvs) {
+  ffi::Array<StmtSRef> result;
   result.reserve(rvs.size());
   for (const T& rv : rvs) {
     result.push_back(sch->GetSRef(rv));
@@ -324,19 +332,19 @@ inline Array<StmtSRef> GetSRefsHelper(const ConcreteScheduleNode* sch, const Arr
   return result;
 }
 
-inline Array<StmtSRef> ConcreteScheduleNode::GetSRefs(const Array<BlockRV>& rvs) const {
+inline ffi::Array<StmtSRef> ConcreteScheduleNode::GetSRefs(const ffi::Array<BlockRV>& rvs) const {
   return GetSRefsHelper(this, rvs);
 }
 
-inline Array<StmtSRef> ConcreteScheduleNode::GetSRefs(const Array<LoopRV>& rvs) const {
+inline ffi::Array<StmtSRef> ConcreteScheduleNode::GetSRefs(const ffi::Array<LoopRV>& rvs) const {
   return GetSRefsHelper(this, rvs);
 }
 
 /******** Adding/Removing elements in the symbol table ********/
 
 template <class T>
-inline Array<T> ConcreteScheduleNode::CreateRV(const Array<StmtSRef>& srefs) {
-  Array<T> result;
+inline ffi::Array<T> ConcreteScheduleNode::CreateRV(const ffi::Array<StmtSRef>& srefs) {
+  ffi::Array<T> result;
   result.reserve(srefs.size());
   for (const StmtSRef& sref : srefs) {
     T rv;
@@ -359,9 +367,9 @@ inline ExprRV ConcreteScheduleNode::CreateRV(int64_t value) {
   return rv;
 }
 
-inline Array<ExprRV> ConcreteScheduleNode::CreateRV(const std::vector<int64_t>& value,
-                                                    bool convert_negone_to_none) {
-  Array<ExprRV> results;
+inline ffi::Array<ExprRV> ConcreteScheduleNode::CreateRV(const std::vector<int64_t>& value,
+                                                         bool convert_negone_to_none) {
+  ffi::Array<ExprRV> results;
   results.reserve(value.size());
   for (int64_t v : value) {
     if (convert_negone_to_none && v == -1) {
