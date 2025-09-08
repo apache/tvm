@@ -21,6 +21,7 @@
 
 #include "../src/runtime/hexagon/hexagon_device_api.h"
 
+using namespace tvm;
 using namespace tvm::runtime;
 using namespace tvm::runtime::hexagon;
 using namespace tvm::ffi;
