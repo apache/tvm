@@ -168,9 +168,7 @@ class ProcessSessionObj final : public BcastSessionObj {
   ffi::Function process_pool_;
   std::unique_ptr<DiscoWorkerThread> worker_0_;
   std::vector<std::unique_ptr<DiscoProcessChannel>> workers_;
-
-  static constexpr const char* _type_key = "runtime.disco.ProcessSession";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ProcessSessionObj, SessionObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.ProcessSession", ProcessSessionObj, SessionObj);
 };
 
 Session Session::ProcessSession(int num_workers, int num_group, ffi::String process_pool_creator,

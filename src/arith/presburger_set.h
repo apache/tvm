@@ -116,9 +116,7 @@ class PresburgerSetNode : public IntSetNode {
     return std::all_of(disjuncts.begin(), disjuncts.end(),
                        std::mem_fn(&IntegerRelation::isIntegerEmpty));
   }
-
-  static constexpr const char* _type_key = "arith.PresburgerSet";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PresburgerSetNode, IntSetNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.PresburgerSet", PresburgerSetNode, IntSetNode);
 
  private:
   ffi::Array<Var> vars;
@@ -146,7 +144,7 @@ class PresburgerSet : public IntSet {
   TVM_DLL PresburgerSet(const PrimExpr& constraint);
 
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PresburgerSetNode);
-  TVM_DEFINE_OBJECT_REF_METHODS(PresburgerSet, IntSet, PresburgerSetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PresburgerSet, IntSet, PresburgerSetNode);
 };
 #endif  // TVM_MLIR_VERSION >= 150
 #else   // TVM_MLIR_VERSION
@@ -158,9 +156,7 @@ class PresburgerSetNode : public IntSetNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PresburgerSetNode>();
   }
-
-  static constexpr const char* _type_key = "arith.PresburgerSet";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PresburgerSetNode, IntSetNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.PresburgerSet", PresburgerSetNode, IntSetNode);
 };
 
 class PresburgerSet : public IntSet {

@@ -84,9 +84,8 @@ class GlobalVarSupplyNode : public Object {
   /*! \brief The NameSupply used to generate unique name hints to GlobalVars. */
   NameSupply name_supply_;
 
-  static constexpr const char* _type_key = "ir.GlobalVarSupply";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarSupplyNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.GlobalVarSupply", GlobalVarSupplyNode, Object);
 
  private:
   std::unordered_map<std::string, GlobalVar> name_to_var_map_;
@@ -120,8 +119,7 @@ class GlobalVarSupply : public ObjectRef {
    */
   TVM_DLL explicit GlobalVarSupply(const IRModule module);
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(GlobalVarSupply, ObjectRef,
-                                                    GlobalVarSupplyNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(GlobalVarSupply, ObjectRef, GlobalVarSupplyNode);
 };
 
 }  // namespace tvm

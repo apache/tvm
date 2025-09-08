@@ -196,9 +196,8 @@ class SocketSessionObj : public BcastSessionObj {
   }
 
   ~SocketSessionObj() { Shutdown(); }
-
-  static constexpr const char* _type_key = "runtime.disco.SocketSession";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SocketSessionObj, BcastSessionObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.SocketSession", SocketSessionObj,
+                                    BcastSessionObj);
   int num_nodes_;
   int num_workers_per_node_;
   TCPSocket socket_;

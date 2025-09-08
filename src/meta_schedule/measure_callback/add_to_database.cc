@@ -56,9 +56,8 @@ class AddToDatabaseNode : public MeasureCallbackNode {
           /*args_info=*/candidate->args_info));
     }
   }
-
-  static constexpr const char* _type_key = "meta_schedule.AddToDatabase";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AddToDatabaseNode, MeasureCallbackNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.AddToDatabase", AddToDatabaseNode,
+                                    MeasureCallbackNode);
 };
 
 MeasureCallback MeasureCallback::AddToDatabase() {

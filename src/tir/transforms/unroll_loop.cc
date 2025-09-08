@@ -64,14 +64,13 @@ struct UnrollLoopConfigNode : public AttrsNodeReflAdapter<UnrollLoopConfigNode> 
         .def_ro("unroll_local_access", &UnrollLoopConfigNode::unroll_local_access,
                 "Whether to always unroll local access", refl::DefaultValue(false));
   }
-
-  static constexpr const char* _type_key = "tir.transform.UnrollLoopConfig";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(UnrollLoopConfigNode, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.UnrollLoopConfig", UnrollLoopConfigNode,
+                                    BaseAttrsNode);
 };
 
 class UnrollLoopConfig : public Attrs {
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(UnrollLoopConfig, Attrs, UnrollLoopConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(UnrollLoopConfig, Attrs, UnrollLoopConfigNode);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({ UnrollLoopConfigNode::RegisterReflection(); });

@@ -81,9 +81,7 @@ class FunctionPassNode : public tvm::transform::PassNode {
    * \brief Get the pass information/meta data.
    */
   PassInfo Info() const override { return pass_info; }
-
-  static constexpr const char* _type_key = "relax.FunctionPass";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionPassNode, PassNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.FunctionPass", FunctionPassNode, PassNode);
 
  private:
 };
@@ -98,7 +96,7 @@ class FunctionPass : public Pass {
   TVM_DLL FunctionPass(std::function<Function(Function, IRModule, PassContext)> pass_func,
                        PassInfo pass_info);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(FunctionPass, Pass, FunctionPassNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FunctionPass, Pass, FunctionPassNode);
 };
 
 FunctionPass::FunctionPass(std::function<Function(Function, IRModule, PassContext)> pass_func,
@@ -219,9 +217,7 @@ class DataflowBlockPassNode : public tvm::transform::PassNode {
   IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
 
   PassInfo Info() const override { return pass_info; }
-
-  static constexpr const char* _type_key = "relax.DataflowBlockPass";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DataflowBlockPassNode, PassNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DataflowBlockPass", DataflowBlockPassNode, PassNode);
 };
 
 /*! \brief Helper to apply the passed function to dataflow blocks.*/
@@ -320,7 +316,7 @@ class DataflowBlockPass : public Pass {
       std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func,
       PassInfo pass_info);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(DataflowBlockPass, Pass, DataflowBlockPassNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowBlockPass, Pass, DataflowBlockPassNode);
 };
 
 DataflowBlockPass::DataflowBlockPass(

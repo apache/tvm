@@ -56,9 +56,7 @@ class MutateUnrollNode : public MutatorNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MutateUnrollNode>();
   }
-
-  static constexpr const char* _type_key = "meta_schedule.MutateUnroll";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MutateUnrollNode, MutatorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MutateUnroll", MutateUnrollNode, MutatorNode);
 
  public:
   struct Candidate;

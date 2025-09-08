@@ -87,8 +87,7 @@ class ErrorObj : public Object, public TVMFFIErrorCell {
  public:
   /// \cond Doxygen_Suppress
   static constexpr const int32_t _type_index = TypeIndex::kTVMFFIError;
-  static constexpr const char* _type_key = "ffi.Error";
-  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(ErrorObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_STATIC("ffi.Error", ErrorObj, Object);
   /// \endcond
 };
 
@@ -196,7 +195,7 @@ class Error : public ObjectRef, public std::exception {
   }
 
   /// \cond Doxygen_Suppress
-  TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Error, ObjectRef, ErrorObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Error, ObjectRef, ErrorObj);
   /// \endcond
 };
 

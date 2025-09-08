@@ -55,9 +55,7 @@ class TIRFrameNode : public FrameNode {
         .def_ro("tir", &TIRFrameNode::tir)
         .def_ro("allow_concise_scoping", &TIRFrameNode::allow_concise_scoping);
   }
-
-  static constexpr const char* _type_key = "script.printer.TIRFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TIRFrameNode, FrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.TIRFrame", TIRFrameNode, FrameNode);
 };
 
 /*! \brief Managed reference to TIRFrameNode */
@@ -72,7 +70,7 @@ class TIRFrame : public Frame {
     data_ = std::move(n);
   }
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TIRFrame, Frame, TIRFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TIRFrame, Frame, TIRFrameNode);
 };
 
 /*!

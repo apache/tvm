@@ -35,9 +35,8 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
     refl::ObjectDef<ScheduleFnDatabaseNode>().def_ro("schedule_fn",
                                                      &ScheduleFnDatabaseNode::schedule_fn);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.ScheduleFnDatabase";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleFnDatabaseNode, DatabaseNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.ScheduleFnDatabase", ScheduleFnDatabaseNode,
+                                    DatabaseNode);
 
  public:
   ffi::Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,

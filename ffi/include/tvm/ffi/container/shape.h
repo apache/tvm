@@ -53,8 +53,7 @@ class ShapeObj : public Object, public TVMFFIShapeCell {
 
   /// \cond Doxygen_Suppress
   static constexpr const uint32_t _type_index = TypeIndex::kTVMFFIShape;
-  static constexpr const char* _type_key = StaticTypeKey::kTVMFFIShape;
-  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(ShapeObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_STATIC(StaticTypeKey::kTVMFFIShape, ShapeObj, Object);
   /// \endcond
 };
 
@@ -212,7 +211,7 @@ class Shape : public ObjectRef {
   int64_t Product() const { return get()->Product(); }
 
   /// \cond Doxygen_Suppress
-  TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Shape, ObjectRef, ShapeObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Shape, ObjectRef, ShapeObj);
   /// \endcond
 
  private:

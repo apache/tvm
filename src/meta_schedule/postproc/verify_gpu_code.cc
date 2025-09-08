@@ -206,9 +206,7 @@ class VerifyGPUCodeNode : public PostprocNode {
     n->target_constraints_ = this->target_constraints_;
     return Postproc(n);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.VerifyGPUCode";
-  TVM_DECLARE_FINAL_OBJECT_INFO(VerifyGPUCodeNode, PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.VerifyGPUCode", VerifyGPUCodeNode, PostprocNode);
 };
 
 Postproc Postproc::VerifyGPUCode() {

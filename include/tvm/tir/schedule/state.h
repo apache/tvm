@@ -156,8 +156,8 @@ class ScheduleStateNode : public Object {
    */
   TVM_DLL void DebugVerify() const;
 
-  static constexpr const char* _type_key = "tir.ScheduleState";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleStateNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.ScheduleState", ScheduleStateNode, Object);
 
   /******** Property of blocks ********/
   /*! \brief Returns the BlockInfo correpsonding to the block sref */
@@ -218,10 +218,7 @@ class ScheduleState : public ObjectRef {
    */
   TVM_DLL explicit ScheduleState(IRModule mod, int debug_mask = 0, bool enable_check = true);
 
-  /*! \return The mutable pointer to the ScheduleStateNode */
-  ScheduleStateNode* get() const { return static_cast<ScheduleStateNode*>(data_.get()); }
-
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ScheduleState, ObjectRef, ScheduleStateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScheduleState, ObjectRef, ScheduleStateNode);
 };
 
 }  // namespace tir

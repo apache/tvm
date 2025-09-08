@@ -48,15 +48,14 @@ struct OpenCLMLCompilerConfigNode : public AttrsNodeReflAdapter<OpenCLMLCompiler
         "clml_version", &OpenCLMLCompilerConfigNode::clml_version,
         "OpenCLML version as (major, minor, patch).", refl::DefaultValue(Integer(3)));
   }
-
-  static constexpr const char* _type_key = "relax.ext.attrs.OpenCLMLCompilerConfig";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(OpenCLMLCompilerConfigNode, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ext.attrs.OpenCLMLCompilerConfig",
+                                    OpenCLMLCompilerConfigNode, BaseAttrsNode);
 };
 
 class OpenCLMLCompilerConfig : public Attrs {
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(OpenCLMLCompilerConfig, Attrs,
-                                            OpenCLMLCompilerConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(OpenCLMLCompilerConfig, Attrs,
+                                                OpenCLMLCompilerConfigNode);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({ OpenCLMLCompilerConfigNode::RegisterReflection(); });

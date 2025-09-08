@@ -113,8 +113,8 @@ class SpaceGeneratorNode : public runtime::Object {
    */
   virtual SpaceGenerator Clone() const = 0;
 
-  static constexpr const char* _type_key = "meta_schedule.SpaceGenerator";
-  TVM_DECLARE_BASE_OBJECT_INFO(SpaceGeneratorNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.SpaceGenerator", SpaceGeneratorNode, Object);
 };
 
 /*!
@@ -207,7 +207,7 @@ class SpaceGenerator : public runtime::ObjectRef {
       ffi::Function f_block_filter, ffi::Optional<ffi::Array<ScheduleRule>> sch_rules,
       ffi::Optional<ffi::Array<Postproc>> postprocs,
       ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs);
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(SpaceGenerator, ObjectRef, SpaceGeneratorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SpaceGenerator, ObjectRef, SpaceGeneratorNode);
 };
 
 /*! \brief The design space generator with customized methods on the python-side. */
@@ -232,9 +232,8 @@ class PySpaceGeneratorNode : public SpaceGeneratorNode {
   void InitializeWithTuneContext(const TuneContext& context) final;
   ffi::Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final;
   SpaceGenerator Clone() const final;
-
-  static constexpr const char* _type_key = "meta_schedule.PySpaceGenerator";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PySpaceGeneratorNode, SpaceGeneratorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PySpaceGenerator", PySpaceGeneratorNode,
+                                    SpaceGeneratorNode);
 };
 
 }  // namespace meta_schedule

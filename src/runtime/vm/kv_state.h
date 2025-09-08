@@ -105,13 +105,13 @@ class KVStateObj : public Object {
    */
   virtual void EndForward() = 0;
 
-  static constexpr const char* _type_key = "relax.vm.KVState";
-  TVM_DECLARE_BASE_OBJECT_INFO(KVStateObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.vm.KVState", KVStateObj, Object);
 };
 
 class KVState : public ObjectRef {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(KVState, ObjectRef, KVStateObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(KVState, ObjectRef, KVStateObj);
 };
 
 /*!
@@ -294,13 +294,13 @@ class AttentionKVCacheObj : public KVStateObj {
    */
   virtual void DebugSetKV(int64_t seq_id, int64_t start_pos, Tensor k_data, Tensor v_data) = 0;
 
-  static constexpr const char* _type_key = "relax.vm.AttentionKVCache";
-  TVM_DECLARE_BASE_OBJECT_INFO(AttentionKVCacheObj, KVStateObj);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.vm.AttentionKVCache", AttentionKVCacheObj, KVStateObj);
 };
 
 class AttentionKVCache : public KVState {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(AttentionKVCache, KVState, AttentionKVCacheObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttentionKVCache, KVState, AttentionKVCacheObj);
 };
 
 /*!
@@ -337,13 +337,13 @@ class RNNStateObj : public KVStateObj {
    */
   virtual Tensor DebugGet(int64_t layer_id, int64_t state_id, int64_t seq_id) = 0;
 
-  static constexpr const char* _type_key = "relax.vm.RNNState";
-  TVM_DECLARE_BASE_OBJECT_INFO(RNNStateObj, KVStateObj);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.vm.RNNState", RNNStateObj, KVStateObj);
 };
 
 class RNNState : public KVState {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RNNState, KVState, RNNStateObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(RNNState, KVState, RNNStateObj);
 };
 
 }  // namespace vm

@@ -123,8 +123,8 @@ class StateNode : public Object {
    */
   virtual State Copy() const;
 
-  static constexpr const char* _type_key = "meta_schedule.State";
-  TVM_DECLARE_BASE_OBJECT_INFO(StateNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.State", StateNode, Object);
 };
 
 /*! \brief Managed reference to StateNode */
@@ -133,7 +133,7 @@ class State : public ObjectRef {
   /*! \brief Default constructor */
   explicit State(tir::Schedule sch, tir::BlockRV block_rv,
                  ffi::Array<ffi::Array<tir::LoopRV>> tiles = {});
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(State, ObjectRef, StateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(State, ObjectRef, StateNode);
 };
 
 /*!
@@ -227,9 +227,8 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
         .def_ro("tile_binds", &MultiLevelTilingNode::tile_binds)
         .def_ro("max_innermost_factor", &MultiLevelTilingNode::max_innermost_factor);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.MultiLevelTiling";
-  TVM_DECLARE_BASE_OBJECT_INFO(MultiLevelTilingNode, ScheduleRuleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.MultiLevelTiling", MultiLevelTilingNode,
+                              ScheduleRuleNode);
 };
 
 template <typename NodeType>

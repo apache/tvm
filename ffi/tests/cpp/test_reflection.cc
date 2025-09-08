@@ -37,16 +37,13 @@ struct TestObjA : public Object {
   int64_t x;
   int64_t y;
 
-  static constexpr const char* _type_key = "test.TestObjA";
   static constexpr bool _type_mutable = true;
-  TVM_FFI_DECLARE_BASE_OBJECT_INFO(TestObjA, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("test.TestObjA", TestObjA, Object);
 };
 
 struct TestObjADerived : public TestObjA {
   int64_t z;
-
-  static constexpr const char* _type_key = "test.TestObjADerived";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TestObjADerived, TestObjA);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("test.TestObjADerived", TestObjADerived, TestObjA);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({

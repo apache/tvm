@@ -82,9 +82,7 @@ class PrimFuncPassNode : public PassNode {
    * \brief Get the pass information/meta data.
    */
   PassInfo Info() const override { return pass_info; }
-
-  static constexpr const char* _type_key = "tir.PrimFuncPass";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PrimFuncPassNode, PassNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.PrimFuncPass", PrimFuncPassNode, PassNode);
 };
 
 class PrimFuncPass : public Pass {
@@ -97,7 +95,7 @@ class PrimFuncPass : public Pass {
   TVM_DLL PrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
                        PassInfo pass_info);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PrimFuncPass, Pass, PrimFuncPassNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimFuncPass, Pass, PrimFuncPassNode);
 };
 
 PrimFuncPass::PrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,

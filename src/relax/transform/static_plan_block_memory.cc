@@ -119,8 +119,8 @@ class StorageTokenNode : public Object {
     }
   }
 
-  static constexpr const char* _type_key = "relax.transform.StorageToken";
-  TVM_DECLARE_BASE_OBJECT_INFO(StorageTokenNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.StorageToken", StorageTokenNode, Object);
 };
 
 /*!
@@ -148,7 +148,7 @@ class StorageToken : public ObjectRef {
     n->storage_scope = std::move(storage_scope);
     data_ = std::move(n);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(StorageToken, ObjectRef, StorageTokenNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StorageToken, ObjectRef, StorageTokenNode);
 };
 
 // We use NestedMsg to store the tokens used by each Expr.

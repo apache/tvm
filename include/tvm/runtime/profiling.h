@@ -75,8 +75,8 @@ class TimerNode : public Object {
 
   virtual ~TimerNode() {}
 
-  static constexpr const char* _type_key = "runtime.TimerNode";
-  TVM_DECLARE_BASE_OBJECT_INFO(TimerNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("runtime.TimerNode", TimerNode, Object);
 };
 
 /*! \brief Timer for a specific device.
@@ -126,7 +126,7 @@ class Timer : public ObjectRef {
    *    virtual ~CPUTimerNode() {}
    *
    *    static constexpr const char* _type_key = "runtime.CPUTimerNode";
-   *    TVM_DECLARE_FINAL_OBJECT_INFO(CPUTimerNode, TimerNode);
+   *    TVM_FFI_DECLARE_OBJECT_INFO_FINAL(CPUTimerNode, TimerNode);
    *
    *   private:
    *    std::chrono::high_resolution_clock::time_point start_;
@@ -144,7 +144,7 @@ class Timer : public ObjectRef {
    */
   static TVM_DLL Timer Start(Device dev);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Timer, ObjectRef, TimerNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Timer, ObjectRef, TimerNode);
 };
 
 /*!
@@ -166,16 +166,14 @@ struct DeviceWrapperNode : public Object {
 
   /*! Constructor */
   explicit DeviceWrapperNode(Device device) : device(device) {}
-
-  static constexpr const char* _type_key = "runtime.profiling.DeviceWrapper";
-  TVM_DECLARE_BASE_OBJECT_INFO(DeviceWrapperNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("runtime.profiling.DeviceWrapper", DeviceWrapperNode, Object);
 };
 
 /*! \brief Wrapper for `Device`. */
 class DeviceWrapper : public ObjectRef {
  public:
   explicit DeviceWrapper(Device dev) { data_ = ffi::make_object<DeviceWrapperNode>(dev); }
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(DeviceWrapper, ObjectRef, DeviceWrapperNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DeviceWrapper, ObjectRef, DeviceWrapperNode);
 };
 
 /*! \brief Data collected from a profiling run. Includes per-call metrics and per-device metrics.
@@ -256,9 +254,7 @@ class ReportNode : public Object {
    * \endcode
    */
   ffi::String AsJSON() const;
-
-  static constexpr const char* _type_key = "runtime.profiling.Report";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ReportNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.profiling.Report", ReportNode, Object);
 };
 
 class Report : public ObjectRef {
@@ -277,7 +273,7 @@ class Report : public ObjectRef {
    * \returns A Report.
    */
   static Report FromJSON(ffi::String json);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Report, ObjectRef, ReportNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Report, ObjectRef, ReportNode);
 };
 
 /*! \brief Interface for user defined profiling metric collection.
@@ -321,14 +317,14 @@ class MetricCollectorNode : public Object {
 
   virtual ~MetricCollectorNode() {}
 
-  static constexpr const char* _type_key = "runtime.profiling.MetricCollector";
-  TVM_DECLARE_BASE_OBJECT_INFO(MetricCollectorNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("runtime.profiling.MetricCollector", MetricCollectorNode, Object);
 };
 
 /*! \brief Wrapper for `MetricCollectorNode`. */
 class MetricCollector : public ObjectRef {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(MetricCollector, ObjectRef, MetricCollectorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MetricCollector, ObjectRef, MetricCollectorNode);
 };
 
 /*! Information about a single function or operator call. */
@@ -440,9 +436,7 @@ class DurationNode : public Object {
    * \param a The duration in microseconds.
    */
   explicit DurationNode(double a) : microseconds(a) {}
-
-  static constexpr const char* _type_key = "runtime.profiling.Duration";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DurationNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.profiling.Duration", DurationNode, Object);
 };
 
 /* A percentage of something */
@@ -455,9 +449,7 @@ class PercentNode : public Object {
    * \param a The percentage out of 100.
    */
   explicit PercentNode(double a) : percent(a) {}
-
-  static constexpr const char* _type_key = "runtime.profiling.Percent";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PercentNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.profiling.Percent", PercentNode, Object);
 };
 
 /* A count of something */
@@ -470,9 +462,7 @@ class CountNode : public Object {
    * \param a The count.
    */
   explicit CountNode(int64_t a) : value(a) {}
-
-  static constexpr const char* _type_key = "runtime.profiling.Count";
-  TVM_DECLARE_FINAL_OBJECT_INFO(CountNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.profiling.Count", CountNode, Object);
 };
 
 /* \brief A ratio of two things. */
@@ -485,9 +475,7 @@ class RatioNode : public Object {
    * \param a The ratio.
    */
   explicit RatioNode(double a) : ratio(a) {}
-
-  static constexpr const char* _type_key = "runtime.profiling.Ratio";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RatioNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.profiling.Ratio", RatioNode, Object);
 };
 
 /*! \brief ffi::String representation of an array of Tensor shapes

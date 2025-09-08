@@ -754,9 +754,7 @@ class TensorizeInfoNode : public Object {
         .def_ro("desc_loop_indexer", &TensorizeInfoNode::desc_loop_indexer)
         .def_ro("block_iter_paddings", &TensorizeInfoNode::block_iter_paddings);
   }
-
-  static constexpr const char* _type_key = "tir.schedule.TensorizeInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TensorizeInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.schedule.TensorizeInfo", TensorizeInfoNode, Object);
 };
 
 class TensorizeInfo : public ObjectRef {
@@ -764,7 +762,7 @@ class TensorizeInfo : public ObjectRef {
   explicit TensorizeInfo(ObjectPtr<TensorizeInfoNode> data) : ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TensorizeInfo, ObjectRef, TensorizeInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorizeInfo, ObjectRef, TensorizeInfoNode);
 };
 
 /*!
@@ -806,9 +804,8 @@ class AutoTensorizeMappingInfoNode : public Object {
         .def_ro("lhs_iters", &AutoTensorizeMappingInfoNode::lhs_iters)
         .def_ro("rhs_iters", &AutoTensorizeMappingInfoNode::rhs_iters);
   }
-
-  static constexpr const char* _type_key = "tir.schedule.AutoTensorizeMappingInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AutoTensorizeMappingInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.schedule.AutoTensorizeMappingInfo",
+                                    AutoTensorizeMappingInfoNode, Object);
 };
 
 class AutoTensorizeMappingInfo : public ObjectRef {
@@ -817,8 +814,8 @@ class AutoTensorizeMappingInfo : public ObjectRef {
       : ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AutoTensorizeMappingInfo, ObjectRef,
-                                            AutoTensorizeMappingInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AutoTensorizeMappingInfo, ObjectRef,
+                                                AutoTensorizeMappingInfoNode);
 };
 
 /*!

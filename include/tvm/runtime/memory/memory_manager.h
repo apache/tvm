@@ -176,8 +176,8 @@ class StorageObj : public Object {
     }
   }
 
-  static constexpr const char* _type_key = "vm.Storage";
-  TVM_DECLARE_FINAL_OBJECT_INFO(StorageObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("vm.Storage", StorageObj, Object);
 };
 
 /*! \brief reference to storage. */
@@ -185,7 +185,7 @@ class Storage : public ObjectRef {
  public:
   TVM_DLL explicit Storage(Buffer buffer, Allocator* allocator);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Storage, ObjectRef, StorageObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Storage, ObjectRef, StorageObj);
 };
 
 }  // namespace memory

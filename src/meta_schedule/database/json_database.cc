@@ -89,9 +89,7 @@ class JSONDatabaseNode : public DatabaseNode {
         .def_ro("path_workload", &JSONDatabaseNode::path_workload)
         .def_ro("path_tuning_record", &JSONDatabaseNode::path_tuning_record);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.JSONDatabase";
-  TVM_DECLARE_FINAL_OBJECT_INFO(JSONDatabaseNode, DatabaseNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.JSONDatabase", JSONDatabaseNode, DatabaseNode);
 
  public:
   bool HasWorkload(const IRModule& mod) {

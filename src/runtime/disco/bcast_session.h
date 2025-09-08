@@ -102,7 +102,7 @@ class BcastSessionObj : public SessionObj {
  */
 class BcastSession : public Session {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BcastSession, Session, BcastSessionObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BcastSession, Session, BcastSessionObj);
 };
 
 }  // namespace runtime

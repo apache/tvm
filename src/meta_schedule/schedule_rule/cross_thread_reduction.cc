@@ -282,9 +282,8 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
         .def_ro("warp_size", &CrossThreadReductionNode::warp_size)
         .def_ro("thread_extents", &CrossThreadReductionNode::thread_extents);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.CrossThreadReduction";
-  TVM_DECLARE_FINAL_OBJECT_INFO(CrossThreadReductionNode, ScheduleRuleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.CrossThreadReduction", CrossThreadReductionNode,
+                                    ScheduleRuleNode);
 };
 
 ScheduleRule ScheduleRule::CrossThreadReduction(ffi::Array<Integer> thread_extents) {

@@ -69,9 +69,7 @@ class LayoutDecisionNode : public Object {
         .def_ro("is_unknown_dim", &LayoutDecisionNode::is_unknown_dim);
   }
 
-  TVM_DECLARE_BASE_OBJECT_INFO(LayoutDecisionNode, Object);
-
-  static constexpr const char* _type_key = "relax.transform.LayoutDecision";
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.LayoutDecision", LayoutDecisionNode, Object);
 };
 
 class LayoutDecision : public ObjectRef {
@@ -92,7 +90,7 @@ class LayoutDecision : public ObjectRef {
     return operator->()->layout.name();
   }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(LayoutDecision, ObjectRef, LayoutDecisionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LayoutDecision, ObjectRef, LayoutDecisionNode);
 };
 
 using NLayout = NestedMsg<LayoutDecision>;
@@ -119,9 +117,7 @@ class InferLayoutOutputNode : public Object {
         .def_ro("new_args", &InferLayoutOutputNode::new_args);
   }
 
-  TVM_DECLARE_BASE_OBJECT_INFO(InferLayoutOutputNode, Object);
-
-  static constexpr const char* _type_key = "relax.transform.InferLayoutOutput";
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InferLayoutOutput", InferLayoutOutputNode, Object);
 };
 
 class InferLayoutOutput : public ObjectRef {
@@ -135,7 +131,7 @@ class InferLayoutOutput : public ObjectRef {
     n->new_args = std::move(new_args);
     data_ = n;
   }
-  TVM_DEFINE_OBJECT_REF_METHODS(InferLayoutOutput, ObjectRef, InferLayoutOutputNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InferLayoutOutput, ObjectRef, InferLayoutOutputNode);
 };
 
 struct NLayoutEqual {

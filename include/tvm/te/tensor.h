@@ -88,10 +88,9 @@ class TensorNode : public DataProducerNode {
 
   TVM_DLL ffi::String GetNameHint() const final;
 
-  static constexpr const char* _type_key = "te.Tensor";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
 
-  TVM_DECLARE_FINAL_OBJECT_INFO(TensorNode, DataProducerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.Tensor", TensorNode, DataProducerNode);
 };
 
 /*!
@@ -206,7 +205,7 @@ class Tensor : public DataProducer {
    */
   inline Slice operator[](PrimExpr i) const { return Slice(*this, {i}); }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Tensor, DataProducer, TensorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tensor, DataProducer, TensorNode);
 };
 
 // Implementations of inline functions

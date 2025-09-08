@@ -66,9 +66,8 @@ namespace arith {
  */
 class IterMapExprNode : public PrimExprNode {
  public:
-  static constexpr const char* _type_key = "arith.IterMapExpr";
   static constexpr const uint32_t _type_child_slots = 2;
-  TVM_DECLARE_BASE_OBJECT_INFO(IterMapExprNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("arith.IterMapExpr", IterMapExprNode, PrimExprNode);
 };
 
 /*!
@@ -77,7 +76,7 @@ class IterMapExprNode : public PrimExprNode {
  */
 class IterMapExpr : public PrimExpr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(IterMapExpr, PrimExpr, IterMapExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterMapExpr, PrimExpr, IterMapExprNode);
 };
 
 /*!
@@ -106,9 +105,7 @@ class IterMarkNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
-
-  static constexpr const char* _type_key = "arith.IterMark";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IterMarkNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IterMark", IterMarkNode, Object);
 };
 
 /*!
@@ -124,7 +121,7 @@ class IterMark : public ObjectRef {
    */
   TVM_DLL IterMark(PrimExpr source, PrimExpr extent);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IterMark, ObjectRef, IterMarkNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterMark, ObjectRef, IterMarkNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterMarkNode);
 };
 
@@ -154,8 +151,7 @@ class IterSplitExprNode : public IterMapExprNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "arith.IterSplitExpr";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IterSplitExprNode, IterMapExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IterSplitExpr", IterSplitExprNode, IterMapExprNode);
 };
 
 /*!
@@ -185,7 +181,7 @@ class IterSplitExpr : public IterMapExpr {
   TVM_DLL explicit IterSplitExpr(IterMark source, PrimExpr lower_factor, PrimExpr extent,
                                  PrimExpr scale);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IterSplitExpr, IterMapExpr, IterSplitExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterSplitExpr, IterMapExpr, IterSplitExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterSplitExprNode);
 };
 
@@ -209,8 +205,7 @@ class IterSumExprNode : public IterMapExprNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "arith.IterSumExpr";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IterSumExprNode, IterMapExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IterSumExpr", IterSumExprNode, IterMapExprNode);
 };
 
 /*!
@@ -226,7 +221,7 @@ class IterSumExpr : public IterMapExpr {
    */
   TVM_DLL IterSumExpr(ffi::Array<IterSplitExpr> args, PrimExpr base);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IterSumExpr, IterMapExpr, IterSumExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterSumExpr, IterMapExpr, IterSumExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterSumExprNode);
 };
 
@@ -269,9 +264,7 @@ class IterMapResultNode : public Object {
         .def_ro("errors", &IterMapResultNode::errors)
         .def_ro("padding_predicate", &IterMapResultNode::padding_predicate);
   }
-
-  static constexpr const char* _type_key = "arith.IterMapResult";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IterMapResultNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IterMapResult", IterMapResultNode, Object);
 };
 
 /*!

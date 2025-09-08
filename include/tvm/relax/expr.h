@@ -62,9 +62,7 @@ class IdNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
-  static constexpr const char* _type_key = "relax.Id";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(IdNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.Id", IdNode, Object);
 };
 
 class Id : public ObjectRef {
@@ -75,7 +73,7 @@ class Id : public ObjectRef {
    */
   TVM_DLL explicit Id(ffi::String name_hint);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Id, ObjectRef, IdNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Id, ObjectRef, IdNode);
 };
 
 /*!
@@ -122,10 +120,9 @@ class StructInfoNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "ir.StructInfo";
 
   static constexpr const uint32_t _type_child_slots = 7;
-  TVM_DECLARE_BASE_OBJECT_INFO(StructInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.StructInfo", StructInfoNode, Object);
 };
 
 /*!
@@ -134,7 +131,7 @@ class StructInfoNode : public Object {
  */
 class StructInfo : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(StructInfo, ObjectRef, StructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StructInfo, ObjectRef, StructInfoNode);
 };
 
 /*!
@@ -173,9 +170,7 @@ class CallNode : public ExprNode {
         .def_ro("attrs", &CallNode::attrs)
         .def_ro("sinfo_args", &CallNode::sinfo_args);
   }
-
-  static constexpr const char* _type_key = "relax.expr.Call";
-  TVM_DECLARE_FINAL_OBJECT_INFO(CallNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Call", CallNode, ExprNode);
 };
 
 class Call : public Expr {
@@ -191,7 +186,7 @@ class Call : public Expr {
   TVM_DLL Call(Expr op, ffi::Array<Expr> args, Attrs attrs = Attrs(),
                ffi::Array<StructInfo> sinfo_args = ffi::Array<StructInfo>(), Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Call, Expr, CallNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Call, Expr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };
 
@@ -217,9 +212,7 @@ class TupleNode : public ExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TupleNode>().def_ro("fields", &TupleNode::fields);
   }
-
-  static constexpr const char* _type_key = "relax.expr.Tuple";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TupleNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Tuple", TupleNode, ExprNode);
 };
 
 class Tuple : public Expr {
@@ -249,7 +242,7 @@ class Tuple : public Expr {
   TVM_DLL explicit Tuple(tvm::ffi::Array<RelaxExpr> fields, Span span = Span())
       : Tuple(fields.Map([](const RelaxExpr& expr) -> Expr { return expr; }), span) {}
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Tuple, Expr, TupleNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tuple, Expr, TupleNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
 };
 
@@ -276,9 +269,7 @@ class TupleGetItemNode : public ExprNode {
         .def_ro("tuple_value", &TupleGetItemNode::tuple)
         .def_ro("index", &TupleGetItemNode::index);
   }
-
-  static constexpr const char* _type_key = "relax.expr.TupleGetItem";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TupleGetItemNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.TupleGetItem", TupleGetItemNode, ExprNode);
 };
 
 class TupleGetItem : public Expr {
@@ -291,7 +282,7 @@ class TupleGetItem : public Expr {
    */
   TVM_DLL TupleGetItem(Expr tuple, int index, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(TupleGetItem, Expr, TupleGetItemNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TupleGetItem, Expr, TupleGetItemNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleGetItemNode);
 };
 
@@ -311,9 +302,8 @@ TupleGetItem WithFields(TupleGetItem tuple_get_item,
  */
 class LeafExprNode : public ExprNode {
  public:
-  static constexpr const char* _type_key = "relax.expr.LeafExpr";
   static constexpr const uint32_t _type_child_slots = 7;
-  TVM_DECLARE_BASE_OBJECT_INFO(LeafExprNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.LeafExpr", LeafExprNode, ExprNode);
 };
 
 /*!
@@ -322,7 +312,7 @@ class LeafExprNode : public ExprNode {
  */
 class LeafExpr : public Expr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(LeafExpr, Expr, LeafExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LeafExpr, Expr, LeafExprNode);
 };
 
 /*! \brief A shape expression which allows users to construct a shape containing PrimExpr.
@@ -336,15 +326,13 @@ class ShapeExprNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ShapeExprNode>().def_ro("values", &ShapeExprNode::values);
   }
-
-  static constexpr const char* _type_key = "relax.expr.ShapeExpr";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ShapeExprNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.ShapeExpr", ShapeExprNode, LeafExprNode);
 };
 
 class ShapeExpr : public LeafExpr {
  public:
   TVM_DLL explicit ShapeExpr(ffi::Array<PrimExpr> values, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(ShapeExpr, LeafExpr, ShapeExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ShapeExpr, LeafExpr, ShapeExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ShapeExprNode);
 };
 
@@ -382,9 +370,8 @@ class VarNode : public LeafExprNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
-  static constexpr const char* _type_key = "relax.expr.Var";
   static constexpr const uint32_t _type_child_slots = 1;
-  TVM_DECLARE_BASE_OBJECT_INFO(VarNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.Var", VarNode, LeafExprNode);
 };
 
 class Var : public LeafExpr {
@@ -395,7 +382,7 @@ class Var : public LeafExpr {
 
   TVM_DLL explicit Var(Id vid, ffi::Optional<StructInfo> struct_info_annotation,
                        Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(Var, LeafExpr, VarNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Var, LeafExpr, VarNode);
 
   VarNode* CopyOnWrite();
 };
@@ -411,8 +398,7 @@ class DataflowVarNode : public VarNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
-  static constexpr const char* _type_key = "relax.expr.DataflowVar";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DataflowVarNode, VarNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.DataflowVar", DataflowVarNode, VarNode);
 };
 
 class DataflowVar : public Var {
@@ -424,7 +410,7 @@ class DataflowVar : public Var {
   TVM_DLL explicit DataflowVar(Id vid, ffi::Optional<StructInfo> struct_info_annotation,
                                Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(DataflowVar, Var, DataflowVarNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowVar, Var, DataflowVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataflowVarNode);
 };
 
@@ -448,9 +434,7 @@ class ConstantNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ConstantNode>().def_ro("data", &ConstantNode::data);
   }
-
-  static constexpr const char* _type_key = "relax.expr.Constant";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ConstantNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Constant", ConstantNode, LeafExprNode);
 };
 
 class Constant : public LeafExpr {
@@ -466,7 +450,7 @@ class Constant : public LeafExpr {
                             ffi::Optional<StructInfo> struct_info_annotation = std::nullopt,
                             Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Constant, LeafExpr, ConstantNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Constant, LeafExpr, ConstantNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ConstantNode);
 };
 
@@ -484,9 +468,7 @@ class PrimValueNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimValueNode>().def_ro("value", &PrimValueNode::value);
   }
-
-  static constexpr const char* _type_key = "relax.expr.PrimValue";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PrimValueNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.PrimValue", PrimValueNode, LeafExprNode);
 };
 
 /*!
@@ -510,7 +492,7 @@ class PrimValue : public LeafExpr {
    */
   TVM_DLL static PrimValue Int64(int64_t value, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PrimValue, LeafExpr, PrimValueNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimValue, LeafExpr, PrimValueNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimValueNode);
 };
 
@@ -526,9 +508,7 @@ class StringImmNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
   }
-
-  static constexpr const char* _type_key = "relax.expr.StringImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(StringImmNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.StringImm", StringImmNode, LeafExprNode);
 };
 
 /*!
@@ -544,7 +524,7 @@ class StringImm : public LeafExpr {
    */
   TVM_DLL explicit StringImm(ffi::String value, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(StringImm, LeafExpr, StringImmNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StringImm, LeafExpr, StringImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StringImmNode);
 };
 
@@ -560,9 +540,7 @@ class DataTypeImmNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DataTypeImmNode>().def_ro("value", &DataTypeImmNode::value);
   }
-
-  static constexpr const char* _type_key = "relax.expr.DataTypeImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DataTypeImmNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.DataTypeImm", DataTypeImmNode, LeafExprNode);
 };
 
 /*!
@@ -578,7 +556,7 @@ class DataTypeImm : public LeafExpr {
    */
   TVM_DLL explicit DataTypeImm(DataType value, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(DataTypeImm, LeafExpr, DataTypeImmNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataTypeImm, LeafExpr, DataTypeImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataTypeImmNode);
 };
 
@@ -596,10 +574,9 @@ class BindingNode : public Object {
         .def_ro("var", &BindingNode::var, refl::AttachFieldFlag::SEqHashDef());
   }
 
-  static constexpr const char* _type_key = "relax.expr.Binding";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_DECLARE_BASE_OBJECT_INFO(BindingNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.Binding", BindingNode, Object);
 };
 
 class Binding : public ObjectRef {
@@ -635,9 +612,7 @@ class MatchCastNode : public BindingNode {
         .def_ro("value", &MatchCastNode::value)
         .def_ro("struct_info", &MatchCastNode::struct_info, refl::AttachFieldFlag::SEqHashDef());
   }
-
-  static constexpr const char* _type_key = "relax.expr.MatchCast";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MatchCastNode, BindingNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.MatchCast", MatchCastNode, BindingNode);
 };
 
 /*!
@@ -648,7 +623,7 @@ class MatchCast : public Binding {
  public:
   TVM_DLL explicit MatchCast(Var var, Expr value, StructInfo struct_info, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(MatchCast, Binding, MatchCastNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchCast, Binding, MatchCastNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchCastNode);
 };
 
@@ -670,16 +645,13 @@ class VarBindingNode : public BindingNode {
               ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const;
   uint64_t SHash(uint64_t init_hash,
                  ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const;
-
-  static constexpr const char* _type_key = "relax.expr.VarBinding";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(VarBindingNode, BindingNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.VarBinding", VarBindingNode, BindingNode);
 };
 
 class VarBinding : public Binding {
  public:
   TVM_DLL explicit VarBinding(Var var, Expr value, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(VarBinding, Binding, VarBindingNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(VarBinding, Binding, VarBindingNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(VarBindingNode);
 };
 
@@ -697,15 +669,13 @@ class BindingBlockNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "relax.expr.BindingBlock";
-
-  TVM_DECLARE_BASE_OBJECT_INFO(BindingBlockNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.BindingBlock", BindingBlockNode, Object);
 };
 
 class BindingBlock : public ObjectRef {
  public:
   TVM_DLL explicit BindingBlock(ffi::Array<Binding> bindings, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(BindingBlock, ObjectRef, BindingBlockNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BindingBlock, ObjectRef, BindingBlockNode);
 
   BindingBlockNode* CopyOnWrite();
 };
@@ -716,16 +686,14 @@ class DataflowBlockNode : public BindingBlockNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DataflowBlockNode>();
   }
-
-  static constexpr const char* _type_key = "relax.expr.DataflowBlock";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(DataflowBlockNode, BindingBlockNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.DataflowBlock", DataflowBlockNode,
+                                    BindingBlockNode);
 };
 
 class DataflowBlock : public BindingBlock {
  public:
   TVM_DLL explicit DataflowBlock(ffi::Array<Binding> bindings, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(DataflowBlock, BindingBlock, DataflowBlockNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowBlock, BindingBlock, DataflowBlockNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataflowBlockNode);
 };
 
@@ -744,10 +712,7 @@ class SeqExprNode : public ExprNode {
         .def_ro("blocks", &SeqExprNode::blocks)
         .def_ro("body", &SeqExprNode::body);
   }
-
-  static constexpr const char* _type_key = "relax.expr.SeqExpr";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(SeqExprNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.SeqExpr", SeqExprNode, ExprNode);
 };
 
 class SeqExpr : public Expr {
@@ -766,7 +731,7 @@ class SeqExpr : public Expr {
   TVM_DLL SeqExpr(Expr body);  // NOLINT(*)
 
   TVM_DLL explicit SeqExpr(ffi::Array<BindingBlock> blocks, Expr body, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(SeqExpr, Expr, SeqExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SeqExpr, Expr, SeqExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SeqExprNode);
 };
 
@@ -799,8 +764,7 @@ class IfNode : public ExprNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
-  static constexpr const char* _type_key = "relax.expr.If";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IfNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.If", IfNode, ExprNode);
 };
 
 class If : public Expr {
@@ -824,7 +788,7 @@ class If : public Expr {
    */
   TVM_DLL If(Expr cond, Expr true_branch, Expr false_branch, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(If, Expr, IfNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(If, Expr, IfNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IfNode);
 };
 
@@ -860,8 +824,7 @@ class FunctionNode : public BaseFuncNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
-  static constexpr const char* _type_key = "relax.expr.Function";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionNode, BaseFuncNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Function", FunctionNode, BaseFuncNode);
 };
 
 class Function : public BaseFunc {
@@ -899,7 +862,7 @@ class Function : public BaseFunc {
                                       bool is_pure = true, DictAttrs attrs = DictAttrs(),
                                       Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Function, BaseFunc, FunctionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);
 };
 
@@ -944,9 +907,7 @@ class ExternFuncNode : public BaseFuncNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ExternFuncNode>().def_ro("global_symbol", &ExternFuncNode::global_symbol);
   }
-
-  static constexpr const char* _type_key = "relax.expr.ExternFunc";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ExternFuncNode, BaseFuncNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.ExternFunc", ExternFuncNode, BaseFuncNode);
 };
 
 class ExternFunc : public BaseFunc {
@@ -954,7 +915,7 @@ class ExternFunc : public BaseFunc {
   TVM_DLL ExternFunc(ffi::String global_symbol, Span span = Span());
   TVM_DLL ExternFunc(ffi::String global_symbol, StructInfo struct_info, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(ExternFunc, BaseFunc, ExternFuncNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExternFunc, BaseFunc, ExternFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ExternFuncNode);
 };
 

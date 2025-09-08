@@ -60,8 +60,8 @@ class MeasureCallbackNode : public runtime::Object {
                      const ffi::Array<BuilderResult>& builder_results,        //
                      const ffi::Array<RunnerResult>& runner_results) = 0;
 
-  static constexpr const char* _type_key = "meta_schedule.MeasureCallback";
-  TVM_DECLARE_BASE_OBJECT_INFO(MeasureCallbackNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.MeasureCallback", MeasureCallbackNode, Object);
 };
 
 /*! \brief The measure callback with customized methods on the python-side. */
@@ -102,9 +102,8 @@ class PyMeasureCallbackNode : public MeasureCallbackNode {
              const ffi::Array<MeasureCandidate>& measure_candidates,  //
              const ffi::Array<BuilderResult>& builds,                 //
              const ffi::Array<RunnerResult>& results);
-
-  static constexpr const char* _type_key = "meta_schedule.PyMeasureCallback";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyMeasureCallbackNode, MeasureCallbackNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyMeasureCallback", PyMeasureCallbackNode,
+                                    MeasureCallbackNode);
 };
 
 /*!
@@ -138,7 +137,7 @@ class MeasureCallback : public runtime::ObjectRef {
                                                    PyMeasureCallbackNode::FAsString f_as_string);
   /*! \brief The default list of measure callbacks. */
   TVM_DLL static ffi::Array<MeasureCallback, void> Default();
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(MeasureCallback, ObjectRef, MeasureCallbackNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MeasureCallback, ObjectRef, MeasureCallbackNode);
 };
 
 }  // namespace meta_schedule

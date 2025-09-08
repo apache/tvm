@@ -73,8 +73,9 @@ class IRBuilderFrameNode : public runtime::Object {
     // `callbacks` is not registered as it's not visited.
   }
 
-  static constexpr const char* _type_key = "script.ir_builder.IRBuilderFrame";
-  TVM_DECLARE_BASE_OBJECT_INFO(IRBuilderFrameNode, runtime::Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.IRBuilderFrame", IRBuilderFrameNode,
+                              runtime::Object);
 
  public:
   /*! \brief Default destructor. */
@@ -102,7 +103,7 @@ class IRBuilderFrameNode : public runtime::Object {
  */
 class IRBuilderFrame : public runtime::ObjectRef {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IRBuilderFrame, ObjectRef, IRBuilderFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRBuilderFrame, ObjectRef, IRBuilderFrameNode);
 
  protected:
   /*! \brief Disallow direct construction of this object. */
@@ -169,8 +170,8 @@ class IRBuilderNode : public runtime::Object {
         .def_ro("result", &IRBuilderNode::result);
   }
 
-  static constexpr const char* _type_key = "script.ir_builder.IRBuilder";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IRBuilderNode, runtime::Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.IRBuilder", IRBuilderNode, runtime::Object);
 
  public:
   /*!
@@ -205,7 +206,7 @@ class IRBuilder : public runtime::ObjectRef {
  public:
   /*! \brief Creates an IRBuilder. */
   IRBuilder();
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IRBuilder, ObjectRef, IRBuilderNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRBuilder, ObjectRef, IRBuilderNode);
 
  public:
   /*!

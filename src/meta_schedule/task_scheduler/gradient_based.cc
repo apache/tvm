@@ -39,9 +39,8 @@ class GradientBasedNode final : public TaskSchedulerNode {
         .def_ro("alpha", &GradientBasedNode::alpha)
         .def_ro("window_size", &GradientBasedNode::window_size);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.GradientBased";
-  TVM_DECLARE_FINAL_OBJECT_INFO(GradientBasedNode, TaskSchedulerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.GradientBased", GradientBasedNode,
+                                    TaskSchedulerNode);
 
  public:
   void Tune(ffi::Array<TuneContext> tasks, ffi::Array<FloatImm> task_weights, int max_trials_global,

@@ -95,9 +95,7 @@ class AutoInlineNode : public ScheduleRuleNode {
         .def_ro("require_ordered", &AutoInlineNode::require_ordered)
         .def_ro("disallow_op", &AutoInlineNode::disallow_op);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.AutoInline";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AutoInlineNode, ScheduleRuleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.AutoInline", AutoInlineNode, ScheduleRuleNode);
 };
 
 inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
@@ -234,9 +232,8 @@ class InlineConstantScalarsNode : public ScheduleRuleNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<InlineConstantScalarsNode>();
   }
-
-  static constexpr const char* _type_key = "meta_schedule.InlineConstantScalars";
-  TVM_DECLARE_FINAL_OBJECT_INFO(InlineConstantScalarsNode, ScheduleRuleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.InlineConstantScalars",
+                                    InlineConstantScalarsNode, ScheduleRuleNode);
 };
 
 ScheduleRule ScheduleRule::InlineConstantScalars() {

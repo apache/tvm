@@ -39,9 +39,8 @@ using tir::Schedule;
 class MultiLevelTilingWideVectorNode : public MultiLevelTilingNode {
  public:
   size_t vector_length_in_bits;
-
-  static constexpr const char* _type_key = "meta_schedule.MultiLevelTilingWideVector";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MultiLevelTilingWideVectorNode, MultiLevelTilingNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MultiLevelTilingWideVector",
+                                    MultiLevelTilingWideVectorNode, MultiLevelTilingNode);
 
  protected:
   ScheduleRule Clone() const final {

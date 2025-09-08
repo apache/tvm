@@ -81,9 +81,8 @@ struct HoistExpressionConfigNode : public AttrsNodeReflAdapter<HoistExpressionCo
   bool FlagSet(HoistedLetBindings flag) const {
     return static_cast<int>(flag) & hoisted_let_bindings;
   }
-
-  static constexpr const char* _type_key = "tir.transform.HoistExpressionConfig";
-  TVM_DECLARE_FINAL_OBJECT_INFO(HoistExpressionConfigNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.HoistExpressionConfig",
+                                    HoistExpressionConfigNode, Object);
 };
 
 class HoistExpressionConfig : public Attrs {
@@ -94,8 +93,8 @@ class HoistExpressionConfig : public Attrs {
     node->hoisted_let_bindings = hoisted_let_bindings;
     data_ = std::move(node);
   }
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(HoistExpressionConfig, Attrs,
-                                            HoistExpressionConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(HoistExpressionConfig, Attrs,
+                                                HoistExpressionConfigNode);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({ HoistExpressionConfigNode::RegisterReflection(); });
@@ -111,15 +110,14 @@ struct HoistIfThenElseConfigNode : public AttrsNodeReflAdapter<HoistIfThenElseCo
         "support_block_scope_hoisting", &HoistIfThenElseConfigNode::support_block_scope_hoisting,
         "Hoist if cond with block scope variables", refl::DefaultValue(false));
   }
-
-  static constexpr const char* _type_key = "tir.transform.HoistIfThenElseConfig";
-  TVM_DECLARE_FINAL_OBJECT_INFO(HoistIfThenElseConfigNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.HoistIfThenElseConfig",
+                                    HoistIfThenElseConfigNode, Object);
 };
 
 class HoistIfThenElseConfig : public Attrs {
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(HoistIfThenElseConfig, Attrs,
-                                            HoistIfThenElseConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(HoistIfThenElseConfig, Attrs,
+                                                HoistIfThenElseConfigNode);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({ HoistIfThenElseConfigNode::RegisterReflection(); });

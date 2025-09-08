@@ -180,9 +180,8 @@ class ThreadedSessionObj final : public BcastSessionObj {
   ffi::PackedArgs RecvReplyPacked(int worker_id) final {
     return this->workers_.at(worker_id).channel->RecvReply();
   }
-
-  static constexpr const char* _type_key = "runtime.disco.ThreadedSession";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ThreadedSessionObj, SessionObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.ThreadedSession", ThreadedSessionObj,
+                                    SessionObj);
 
   std::vector<DiscoWorkerThread> workers_;
 };

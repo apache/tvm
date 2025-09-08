@@ -41,9 +41,7 @@ class ObjectStructInfoNode : public StructInfoNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ObjectStructInfoNode>();
   }
-
-  static constexpr const char* _type_key = "relax.ObjectStructInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ObjectStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ObjectStructInfo", ObjectStructInfoNode, StructInfoNode);
 };
 
 /*!
@@ -54,7 +52,7 @@ class ObjectStructInfo : public StructInfo {
  public:
   TVM_DLL ObjectStructInfo(Span span = Span());
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ObjectStructInfo, StructInfo, ObjectStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ObjectStructInfo, StructInfo, ObjectStructInfoNode);
 };
 
 /*!
@@ -74,9 +72,7 @@ class PrimStructInfoNode : public StructInfoNode {
         .def_ro("value", &PrimStructInfoNode::value)
         .def_ro("dtype", &PrimStructInfoNode::dtype);
   }
-
-  static constexpr const char* _type_key = "relax.PrimStructInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PrimStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.PrimStructInfo", PrimStructInfoNode, StructInfoNode);
 };
 
 /*!
@@ -91,7 +87,7 @@ class PrimStructInfo : public StructInfo {
   /* Construct a PrimStructInfo with a known value */
   TVM_DLL PrimStructInfo(PrimExpr value, Span span = Span());
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(PrimStructInfo, StructInfo, PrimStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimStructInfo, StructInfo, PrimStructInfoNode);
 };
 
 /*!
@@ -116,9 +112,7 @@ class ShapeStructInfoNode : public StructInfoNode {
         .def_ro("values", &ShapeStructInfoNode::values)
         .def_ro("ndim", &ShapeStructInfoNode::ndim);
   }
-
-  static constexpr const char* _type_key = "relax.ShapeStructInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ShapeStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ShapeStructInfo", ShapeStructInfoNode, StructInfoNode);
 };
 
 /*!
@@ -140,7 +134,7 @@ class ShapeStructInfo : public StructInfo {
    */
   TVM_DLL ShapeStructInfo(int ndim, Span span = Span());
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ShapeStructInfo, StructInfo, ShapeStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ShapeStructInfo, StructInfo, ShapeStructInfoNode);
 };
 
 /*!
@@ -186,9 +180,7 @@ class TensorStructInfoNode : public StructInfoNode {
         .def_ro("vdevice", &TensorStructInfoNode::vdevice)
         .def_ro("ndim", &TensorStructInfoNode::ndim);
   }
-
-  static constexpr const char* _type_key = "relax.TensorStructInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TensorStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TensorStructInfo", TensorStructInfoNode, StructInfoNode);
 };
 
 /*!
@@ -219,7 +211,7 @@ class TensorStructInfo : public StructInfo {
   TVM_DLL TensorStructInfo(DataType dtype, int ndim, ffi::Optional<VDevice> vdevice = std::nullopt,
                            Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(TensorStructInfo, StructInfo, TensorStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorStructInfo, StructInfo, TensorStructInfoNode);
 };
 
 /*!
@@ -234,9 +226,7 @@ class TupleStructInfoNode : public StructInfoNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TupleStructInfoNode>().def_ro("fields", &TupleStructInfoNode::fields);
   }
-
-  static constexpr const char* _type_key = "relax.TupleStructInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TupleStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TupleStructInfo", TupleStructInfoNode, StructInfoNode);
 };
 
 /*!
@@ -252,7 +242,7 @@ class TupleStructInfo : public StructInfo {
    */
   TVM_DLL TupleStructInfo(ffi::Array<StructInfo> fields, Span span = Span());
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TupleStructInfo, StructInfo, TupleStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TupleStructInfo, StructInfo, TupleStructInfoNode);
 };
 
 /*!
@@ -308,9 +298,7 @@ class FuncStructInfoNode : public StructInfoNode {
         .def_ro("derive_func", &FuncStructInfoNode::derive_func)
         .def_ro("purity", &FuncStructInfoNode::purity);
   }
-
-  static constexpr const char* _type_key = "relax.FuncStructInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FuncStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.FuncStructInfo", FuncStructInfoNode, StructInfoNode);
 };
 
 /*!
@@ -364,7 +352,7 @@ class FuncStructInfo : public StructInfo {
   TVM_DLL static FuncStructInfo OpaqueFunc(StructInfo ret = ObjectStructInfo(), bool purity = false,
                                            Span span = Span());
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(FuncStructInfo, StructInfo, FuncStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FuncStructInfo, StructInfo, FuncStructInfoNode);
 };
 
 /*!

@@ -40,8 +40,7 @@ class TestIntPairObj : public tvm::ffi::Object {
   TestIntPairObj(int64_t a, int64_t b) : a(a), b(b) {}
 
   // Required: declare type information
-  static constexpr const char* _type_key = "testing.TestIntPair";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TestIntPairObj, tvm::ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("testing.TestIntPair", TestIntPairObj, tvm::ffi::Object);
 };
 
 // Step 2: Define the reference wrapper (user-facing interface)
@@ -53,7 +52,7 @@ class TestIntPair : public tvm::ffi::ObjectRef {
   }
 
   // Required: define object reference methods
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS(TestIntPair, tvm::ffi::ObjectRef, TestIntPairObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TestIntPair, tvm::ffi::ObjectRef, TestIntPairObj);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({
@@ -76,8 +75,7 @@ class TestObjectBase : public Object {
   // declare as one slot, with float as overflow
   static constexpr bool _type_mutable = true;
   static constexpr uint32_t _type_child_slots = 1;
-  static constexpr const char* _type_key = "testing.TestObjectBase";
-  TVM_FFI_DECLARE_BASE_OBJECT_INFO(TestObjectBase, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("testing.TestObjectBase", TestObjectBase, Object);
 };
 
 class TestObjectDerived : public TestObjectBase {
@@ -86,8 +84,7 @@ class TestObjectDerived : public TestObjectBase {
   Array<Any> v_array;
 
   // declare as one slot, with float as overflow
-  static constexpr const char* _type_key = "testing.TestObjectDerived";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TestObjectDerived, TestObjectBase);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("testing.TestObjectDerived", TestObjectDerived, TestObjectBase);
 };
 
 TVM_FFI_NO_INLINE void TestRaiseError(String kind, String msg) {

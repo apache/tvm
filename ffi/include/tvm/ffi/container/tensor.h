@@ -121,8 +121,7 @@ class TensorObj : public Object, public DLTensor {
  public:
   /// \cond Doxygen_Suppress
   static constexpr const uint32_t _type_index = TypeIndex::kTVMFFITensor;
-  static constexpr const char* _type_key = StaticTypeKey::kTVMFFITensor;
-  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(TensorObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_STATIC(StaticTypeKey::kTVMFFITensor, TensorObj, Object);
   /// \endcond
 
   /*!
@@ -363,7 +362,7 @@ class Tensor : public ObjectRef {
   DLManagedTensorVersioned* ToDLPackVersioned() const { return get_mutable()->ToDLPackVersioned(); }
 
   /// \cond Doxygen_Suppress
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS(Tensor, ObjectRef, TensorObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tensor, ObjectRef, TensorObj);
   /// \endcond
 
  protected:

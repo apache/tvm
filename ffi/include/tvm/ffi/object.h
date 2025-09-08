@@ -154,7 +154,7 @@ TVM_FFI_INLINE bool IsObjectInstance(int32_t object_type_index);
  *       The unique string identifier of the type.
  * - _type_final:
  *       Whether the type is terminal type(there is no subclass of the type in the object system).
- *       This field is automatically set by macro TVM_DECLARE_FINAL_OBJECT_INFO
+ *       This field is automatically set by macro TVM_FFI_DECLARE_OBJECT_INFO_FINAL
  *       It is still OK to sub-class a terminal object type T and construct it using make_object.
  *       But IsInstance check will only show that the object type is T(instead of the sub-class).
  * - _type_mutable:
@@ -177,8 +177,8 @@ TVM_FFI_INLINE bool IsObjectInstance(int32_t object_type_index);
  *       Recommendation: set to false for optimal runtime speed if we know exact number of children.
  *
  * Two macros are used to declare helper functions in the object:
- * - Use TVM_FFI_DECLARE_BASE_OBJECT_INFO for object classes that can be sub-classed.
- * - Use TVM_FFI_DECLARE_FINAL_OBJECT_INFO for object classes that cannot be sub-classed.
+ * - Use TVM_FFI_DECLARE_OBJECT_INFO for object classes that can be sub-classed.
+ * - Use TVM_FFI_DECLARE_OBJECT_INFO_FINAL for object classes that cannot be sub-classed.
  *
  * New objects can be created using make_object function.
  * Which will automatically populate the type_index and deleter of the object.
@@ -276,7 +276,7 @@ class Object {
   /*! \brief The structural equality and hash kind of the type */
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUnsupported;
   // The following functions are provided by macro
-  // TVM_FFI_DECLARE_BASE_OBJECT_INFO and TVM_DECLARE_FINAL_OBJECT_INFO
+  // TVM_FFI_DECLARE_OBJECT_INFO and TVM_FFI_DECLARE_OBJECT_INFO_FINAL
   /*!
    * \brief Get the runtime allocated type index of the type
    * \note Getting this information may need dynamic calls into a global table.
@@ -885,20 +885,24 @@ struct ObjectPtrEqual {
 /// \endcond
 
 /*!
- * \brief Helper macro to declare a object that comes with static type index.
+ * \brief Helper macro to declare object information with static type index.
+ *
+ * \param TypeKey The type key of the current type.
  * \param TypeName The name of the current type.
  * \param ParentType The name of the ParentType
  */
-#define TVM_FFI_DECLARE_STATIC_OBJECT_INFO(TypeName, ParentType)      \
-  static int32_t RuntimeTypeIndex() { return TypeName::_type_index; } \
+#define TVM_FFI_DECLARE_OBJECT_INFO_STATIC(TypeKey, TypeName, ParentType) \
+  static constexpr const char* _type_key = TypeKey;                       \
+  static int32_t RuntimeTypeIndex() { return TypeName::_type_index; }     \
   TVM_FFI_REGISTER_STATIC_TYPE_INFO(TypeName, ParentType)
 
 /*!
- * \brief helper macro to declare a base object type that can be inherited.
+ * \brief Helper macro to declare object information with type key already defined in class.
+ *
  * \param TypeName The name of the current type.
  * \param ParentType The name of the ParentType
  */
-#define TVM_FFI_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)                                \
+#define TVM_FFI_DECLARE_OBJECT_INFO_PREDEFINED_TYPE_KEY(TypeName, ParentType)                 \
   static constexpr int32_t _type_depth = ParentType::_type_depth + 1;                         \
   static int32_t _GetOrAllocRuntimeTypeIndex() {                                              \
     static_assert(!ParentType::_type_final, "ParentType marked as final");                    \
@@ -916,14 +920,27 @@ struct ObjectPtrEqual {
   static inline int32_t _type_index = _GetOrAllocRuntimeTypeIndex()
 
 /*!
- * \brief helper macro to declare type information in a final class.
+ * \brief Helper macro to declare object information with dynamic type index.
+ *
+ * \param TypeKey The type key of the current type.
  * \param TypeName The name of the current type.
  * \param ParentType The name of the ParentType
  */
-#define TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TypeName, ParentType)      \
-  static const constexpr int _type_child_slots [[maybe_unused]] = 0; \
-  static const constexpr bool _type_final [[maybe_unused]] = true;   \
-  TVM_FFI_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)
+#define TVM_FFI_DECLARE_OBJECT_INFO(TypeKey, TypeName, ParentType) \
+  static constexpr const char* _type_key = TypeKey;                \
+  TVM_FFI_DECLARE_OBJECT_INFO_PREDEFINED_TYPE_KEY(TypeName, ParentType)
+
+/*!
+ * \brief Helper macro to declare object information with dynamic type index and is final.
+ *
+ * \param TypeKey The type key of the current type.
+ * \param TypeName The name of the current type.
+ * \param ParentType The name of the ParentType
+ */
+#define TVM_FFI_DECLARE_OBJECT_INFO_FINAL(TypeKey, TypeName, ParentType) \
+  static const constexpr int _type_child_slots [[maybe_unused]] = 0;     \
+  static const constexpr bool _type_final [[maybe_unused]] = true;       \
+  TVM_FFI_DECLARE_OBJECT_INFO(TypeKey, TypeName, ParentType)
 
 /*!
  * \brief Define object reference methods.
@@ -935,13 +952,15 @@ struct ObjectPtrEqual {
  * \note This macro also defines the default constructor that puts the ObjectRef
  *       in undefined state initially.
  */
-#define TVM_FFI_DEFINE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)                    \
-  TypeName() = default;                                                                        \
-  explicit TypeName(::tvm::ffi::ObjectPtr<ObjectName> n) : ParentType(n) {}                    \
-  explicit TypeName(::tvm::ffi::UnsafeInit tag) : ParentType(tag) {}                           \
-  TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName)                                        \
-  const ObjectName* operator->() const { return static_cast<const ObjectName*>(data_.get()); } \
-  const ObjectName* get() const { return operator->(); }                                       \
+#define TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TypeName, ParentType, ObjectName)               \
+  TypeName() = default;                                                                            \
+  explicit TypeName(::tvm::ffi::ObjectPtr<ObjectName> n) : ParentType(n) {}                        \
+  explicit TypeName(::tvm::ffi::UnsafeInit tag) : ParentType(tag) {}                               \
+  TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName)                                            \
+  using __PtrType = std::conditional_t<ObjectName::_type_mutable, ObjectName*, const ObjectName*>; \
+  __PtrType operator->() const { return static_cast<__PtrType>(data_.get()); }                     \
+  __PtrType get() const { return static_cast<__PtrType>(data_.get()); }                            \
+  static constexpr bool _type_is_nullable = true;                                                  \
   using ContainerType = ObjectName
 
 /*!
@@ -951,46 +970,17 @@ struct ObjectPtrEqual {
  * \param ParentType The parent type of the objectref
  * \param ObjectName The type name of the object.
  */
-#define TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)        \
-  explicit TypeName(::tvm::ffi::UnsafeInit tag) : ParentType(tag) {}                           \
-  TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName)                                        \
-  const ObjectName* operator->() const { return static_cast<const ObjectName*>(data_.get()); } \
-  const ObjectName* get() const { return operator->(); }                                       \
-  static constexpr bool _type_is_nullable = false;                                             \
-  using ContainerType = ObjectName
-
-/*!
- * \brief Define object reference methods of whose content is mutable.
- * \param TypeName The object type name
- * \param ParentType The parent type of the objectref
- * \param ObjectName The type name of the object.
- * \note We recommend making objects immutable when possible.
- *       This macro is only reserved for objects that stores runtime states.
- */
-#define TVM_FFI_DEFINE_MUTABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
-  TypeName() = default;                                                             \
-  explicit TypeName(::tvm::ffi::UnsafeInit tag) : ParentType(tag) {}                \
-  TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName)                             \
-  explicit TypeName(::tvm::ffi::ObjectPtr<ObjectName> n) : ParentType(n) {}         \
-  ObjectName* operator->() const { return static_cast<ObjectName*>(data_.get()); }  \
-  using ContainerType = ObjectName
-
-/*!
- * \brief Define object reference methods that is both not nullable and mutable.
- *
- * \param TypeName The object type name
- * \param ParentType The parent type of the objectref
- * \param ObjectName The type name of the object.
- */
-#define TVM_FFI_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
-  explicit TypeName(::tvm::ffi::UnsafeInit tag) : ParentType(tag) {}                            \
-  TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName)                                         \
-  ObjectName* operator->() const { return static_cast<ObjectName*>(data_.get()); }              \
-  ObjectName* get() const { return operator->(); }                                              \
-  static constexpr bool _type_is_nullable = false;                                              \
+#define TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TypeName, ParentType, ObjectName)            \
+  explicit TypeName(::tvm::ffi::UnsafeInit tag) : ParentType(tag) {}                               \
+  TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName)                                            \
+  using __PtrType = std::conditional_t<ObjectName::_type_mutable, ObjectName*, const ObjectName*>; \
+  __PtrType operator->() const { return static_cast<__PtrType>(data_.get()); }                     \
+  __PtrType get() const { return static_cast<__PtrType>(data_.get()); }                            \
+  static constexpr bool _type_is_nullable = false;                                                 \
   using ContainerType = ObjectName
 
 namespace details {
+
 template <typename TargetType>
 TVM_FFI_INLINE bool IsObjectInstance(int32_t object_type_index) {
   static_assert(std::is_base_of_v<Object, TargetType>);

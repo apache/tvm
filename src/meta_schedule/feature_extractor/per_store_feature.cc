@@ -1423,9 +1423,8 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
     support::parallel_for_dynamic(0, candidates.size(), tune_context->num_threads, f);
     return results;
   }
-
-  static constexpr const char* _type_key = "meta_schedule.PerStoreFeature";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PerStoreFeatureNode, FeatureExtractorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PerStoreFeature", PerStoreFeatureNode,
+                                    FeatureExtractorNode);
 };
 
 FeatureExtractor FeatureExtractor::PerStoreFeature(int buffers_per_store,

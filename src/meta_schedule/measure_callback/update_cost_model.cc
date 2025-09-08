@@ -54,9 +54,8 @@ class UpdateCostModelNode : public MeasureCallbackNode {
     }
     cost_model->Update(task->ctx, pruned_candidate, pruned_runner_result);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.UpdateCostModel";
-  TVM_DECLARE_FINAL_OBJECT_INFO(UpdateCostModelNode, MeasureCallbackNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.UpdateCostModel", UpdateCostModelNode,
+                                    MeasureCallbackNode);
 };
 
 MeasureCallback MeasureCallback::UpdateCostModel() {

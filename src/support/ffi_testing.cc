@@ -51,9 +51,7 @@ struct TestAttrs : public AttrsNodeReflAdapter<TestAttrs> {
         .def_ro("func", &TestAttrs::func, "some random env function",
                 refl::DefaultValue(TypedEnvFunc<int(int)>(nullptr)));
   }
-
-  static constexpr const char* _type_key = "attrs.TestAttrs";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TestAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("attrs.TestAttrs", TestAttrs, BaseAttrsNode);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({ TestAttrs::RegisterReflection(); });

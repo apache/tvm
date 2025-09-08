@@ -48,10 +48,7 @@ class RunnerInputNode : public runtime::Object {
         .def_ro("device_type", &RunnerInputNode::device_type)
         .def_ro("args_info", &RunnerInputNode::args_info);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.RunnerInput";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(RunnerInputNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RunnerInput", RunnerInputNode, runtime::Object);
 };
 
 /*!
@@ -68,7 +65,7 @@ class RunnerInput : public runtime::ObjectRef {
    */
   TVM_DLL explicit RunnerInput(ffi::String artifact_path, ffi::String device_type,
                                ffi::Array<ArgInfo> args_info);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(RunnerInput, runtime::ObjectRef, RunnerInputNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RunnerInput, runtime::ObjectRef, RunnerInputNode);
 };
 
 /*! \brief Runner's output containing measurement result of MeasureCandidate or error msg if any. */
@@ -85,10 +82,8 @@ class RunnerResultNode : public runtime::Object {
         .def_ro("run_secs", &RunnerResultNode::run_secs)
         .def_ro("error_msg", &RunnerResultNode::error_msg);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.RunnerResult";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(RunnerResultNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RunnerResult", RunnerResultNode,
+                                    runtime::Object);
 };
 
 /*!
@@ -104,7 +99,7 @@ class RunnerResult : public runtime::ObjectRef {
    */
   TVM_DLL explicit RunnerResult(ffi::Optional<ffi::Array<FloatImm>> run_secs,
                                 ffi::Optional<ffi::String> error_msg);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(RunnerResult, runtime::ObjectRef, RunnerResultNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RunnerResult, runtime::ObjectRef, RunnerResultNode);
 };
 
 /*!
@@ -151,9 +146,8 @@ class RunnerFutureNode : public runtime::Object {
     ICHECK(f_result != nullptr) << "PyRunnerFuture's Result method not implemented!";
     return f_result();
   }
-
-  static constexpr const char* _type_key = "meta_schedule.RunnerFuture";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RunnerFutureNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RunnerFuture", RunnerFutureNode,
+                                    runtime::Object);
 };
 
 /*!
@@ -171,8 +165,7 @@ class RunnerFuture : public runtime::ObjectRef {
    * \param f_result The packed function to fetch runner output if it is ready.
    */
   TVM_DLL explicit RunnerFuture(FDone f_done, FResult f_result);
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(RunnerFuture, runtime::ObjectRef,
-                                                    RunnerFutureNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RunnerFuture, runtime::ObjectRef, RunnerFutureNode);
 };
 
 /*! \brief The abstract runner interface. */
@@ -196,8 +189,8 @@ class RunnerNode : public runtime::Object {
    */
   virtual ffi::Array<RunnerFuture> Run(ffi::Array<RunnerInput> runner_inputs) = 0;
 
-  static constexpr const char* _type_key = "meta_schedule.Runner";
-  TVM_DECLARE_BASE_OBJECT_INFO(RunnerNode, runtime::Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.Runner", RunnerNode, runtime::Object);
 };
 
 /*!
@@ -218,7 +211,7 @@ class Runner : public runtime::ObjectRef {
    * \return The runner created.
    */
   TVM_DLL static Runner PyRunner(FRun f_run);
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Runner, runtime::ObjectRef, RunnerNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Runner, runtime::ObjectRef, RunnerNode);
 };
 
 /*! \brief An abstract runner with customized build method on the python-side. */
@@ -235,9 +228,7 @@ class PyRunnerNode : public RunnerNode {
     ICHECK(f_run != nullptr) << "PyRunner's Run method not implemented!";
     return f_run(runner_inputs);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.PyRunner";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyRunnerNode, RunnerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyRunner", PyRunnerNode, RunnerNode);
 };
 
 }  // namespace meta_schedule

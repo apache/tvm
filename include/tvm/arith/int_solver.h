@@ -72,9 +72,7 @@ class IntGroupBoundsNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-
-  static constexpr const char* _type_key = "arith.IntGroupBounds";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IntGroupBoundsNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IntGroupBounds", IntGroupBoundsNode, Object);
 };
 
 /*!
@@ -123,7 +121,7 @@ class IntGroupBounds : public ObjectRef {
    */
   IntGroupBounds operator+(const Range& r);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IntGroupBounds, ObjectRef, IntGroupBoundsNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntGroupBounds, ObjectRef, IntGroupBoundsNode);
 };
 
 /*!
@@ -152,9 +150,7 @@ class IntConstraintsNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-
-  static constexpr const char* _type_key = "arith.IntConstraints";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IntConstraintsNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IntConstraints", IntConstraintsNode, Object);
 };
 
 /*!
@@ -173,7 +169,7 @@ class IntConstraints : public ObjectRef {
   TVM_DLL IntConstraints(ffi::Array<Var> variables, ffi::Map<Var, Range> ranges,
                          ffi::Array<PrimExpr> relations);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IntConstraints, ObjectRef, IntConstraintsNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntConstraints, ObjectRef, IntConstraintsNode);
 };
 
 /*!
@@ -207,9 +203,8 @@ class IntConstraintsTransformNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-
-  static constexpr const char* _type_key = "arith.IntConstraintsTransform";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IntConstraintsTransformNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IntConstraintsTransform", IntConstraintsTransformNode,
+                                    Object);
 };
 
 /*!
@@ -241,7 +236,8 @@ class IntConstraintsTransform : public ObjectRef {
    */
   IntConstraintsTransform operator+(const IntConstraintsTransform& other) const;
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IntConstraintsTransform, ObjectRef, IntConstraintsTransformNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntConstraintsTransform, ObjectRef,
+                                             IntConstraintsTransformNode);
 };
 
 typedef std::pair<ffi::Map<Var, IntGroupBounds>, ffi::Array<PrimExpr>> PartialSolvedInequalities;

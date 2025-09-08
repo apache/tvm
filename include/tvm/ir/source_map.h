@@ -54,8 +54,7 @@ class SourceNameNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "ir.SourceName";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SourceNameNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.SourceName", SourceNameNode, Object);
 };
 
 /*!
@@ -72,7 +71,7 @@ class SourceName : public ObjectRef {
    */
   TVM_DLL static SourceName Get(const ffi::String& name);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(SourceName, ObjectRef, SourceNameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SourceName, ObjectRef, SourceNameNode);
 };
 
 /*!
@@ -106,8 +105,7 @@ class SpanNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "ir.Span";
-  TVM_DECLARE_BASE_OBJECT_INFO(SpanNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.Span", SpanNode, Object);
 };
 
 class Span : public ObjectRef {
@@ -117,7 +115,7 @@ class Span : public ObjectRef {
   /*! \brief Merge two spans into one which captures the combined regions. */
   TVM_DLL Span Merge(const Span& other) const;
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Span, ObjectRef, SpanNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Span, ObjectRef, SpanNode);
 };
 
 /*!
@@ -132,9 +130,7 @@ class SequentialSpanNode : public SpanNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SequentialSpanNode>().def_ro("spans", &SequentialSpanNode::spans);
   }
-
-  static constexpr const char* _type_key = "ir.SequentialSpan";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SequentialSpanNode, SpanNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.SequentialSpan", SequentialSpanNode, SpanNode);
 };
 
 /*!
@@ -147,7 +143,7 @@ class SequentialSpan : public Span {
 
   TVM_DLL SequentialSpan(std::initializer_list<Span> init);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(SequentialSpan, Span, SequentialSpanNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SequentialSpan, Span, SequentialSpanNode);
 };
 
 /*! \brief A program source in any language.
@@ -174,9 +170,7 @@ class SourceNode : public Object {
         .def_ro("source_name", &SourceNode::source_name)
         .def_ro("source", &SourceNode::source);
   }
-
-  static constexpr const char* _type_key = "ir.Source";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SourceNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Source", SourceNode, Object);
 };
 
 class Source : public ObjectRef {
@@ -184,7 +178,7 @@ class Source : public ObjectRef {
   TVM_DLL Source(SourceName src_name, std::string source);
   TVM_DLL tvm::ffi::String GetLine(int line);
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Source, ObjectRef, SourceNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Source, ObjectRef, SourceNode);
 };
 
 /*!
@@ -205,8 +199,7 @@ class SourceMapObj : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "ir.SourceMap";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SourceMapObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.SourceMap", SourceMapObj, Object);
 };
 
 class SourceMap : public ObjectRef {
@@ -225,7 +218,7 @@ class SourceMap : public ObjectRef {
     return static_cast<SourceMapObj*>(get_mutable());
   }
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(SourceMap, ObjectRef, SourceMapObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SourceMap, ObjectRef, SourceMapObj);
 };
 
 }  // namespace tvm

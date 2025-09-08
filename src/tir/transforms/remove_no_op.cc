@@ -59,14 +59,13 @@ struct RemoveNoOpConfigNode : public AttrsNodeReflAdapter<RemoveNoOpConfigNode> 
                 "For use in debug and testing purposes.",
                 refl::DefaultValue(0));
   }
-
-  static constexpr const char* _type_key = "tir.transform.RemoveNoOpConfig";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(RemoveNoOpConfigNode, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.RemoveNoOpConfig", RemoveNoOpConfigNode,
+                                    BaseAttrsNode);
 };
 
 class RemoveNoOpConfig : public Attrs {
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(RemoveNoOpConfig, Attrs, RemoveNoOpConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RemoveNoOpConfig, Attrs, RemoveNoOpConfigNode);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({ RemoveNoOpConfigNode::RegisterReflection(); });

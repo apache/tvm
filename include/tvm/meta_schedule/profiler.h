@@ -64,8 +64,8 @@ class ProfilerNode : public runtime::Object {
     // `total_timer` is not registered
   }
 
-  static constexpr const char* _type_key = "meta_schedule.Profiler";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ProfilerNode, runtime::Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.Profiler", ProfilerNode, runtime::Object);
 
  public:
   /*! \brief Get the internal stats of the running time */
@@ -81,7 +81,7 @@ class ProfilerNode : public runtime::Object {
 class Profiler : public runtime::ObjectRef {
  public:
   Profiler();
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Profiler, runtime::ObjectRef, ProfilerNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Profiler, runtime::ObjectRef, ProfilerNode);
 
   /*! \brief Entering the scope of the context manager */
   void EnterWithScope();

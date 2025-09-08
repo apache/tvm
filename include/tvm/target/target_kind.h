@@ -88,8 +88,7 @@ class TargetKindNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUniqueInstance;
-  static constexpr const char* _type_key = "target.TargetKind";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TargetKindNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.TargetKind", TargetKindNode, Object);
 
  private:
   /*! \brief Return the index stored in attr registry */
@@ -142,7 +141,7 @@ class TargetKind : public ObjectRef {
   /*! \brief Mutable access to the container class  */
   TargetKindNode* operator->() { return static_cast<TargetKindNode*>(data_.get()); }
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TargetKind, ObjectRef, TargetKindNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TargetKind, ObjectRef, TargetKindNode);
 
  private:
   TVM_DLL static const AttrRegistryMapContainerMap<TargetKind>& GetAttrMapContainer(

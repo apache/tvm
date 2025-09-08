@@ -90,10 +90,7 @@ class TVM_DLL OperationNode : public Object {
         .def_ro("tag", &OperationNode::tag)
         .def_ro("attrs", &OperationNode::attrs);
   }
-
-  static constexpr const char* _type_key = "te.Operation";
-
-  TVM_DECLARE_BASE_OBJECT_INFO(OperationNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("te.Operation", OperationNode, Object);
 };
 
 /*!
@@ -117,10 +114,7 @@ class PlaceholderOpNode : public OperationNode {
         .def_ro("shape", &PlaceholderOpNode::shape)
         .def_ro("dtype", &PlaceholderOpNode::dtype);
   }
-
-  static constexpr const char* _type_key = "te.PlaceholderOp";
-
-  TVM_DECLARE_BASE_OBJECT_INFO(PlaceholderOpNode, OperationNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("te.PlaceholderOp", PlaceholderOpNode, OperationNode);
 };
 
 /*!
@@ -131,7 +125,7 @@ class PlaceholderOp : public Operation {
  public:
   TVM_DLL PlaceholderOp(std::string name, ffi::Array<PrimExpr> shape, DataType dtype);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PlaceholderOp, Operation, PlaceholderOpNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PlaceholderOp, Operation, PlaceholderOpNode);
 };
 
 /*!
@@ -153,10 +147,7 @@ class TVM_DLL BaseComputeOpNode : public OperationNode {
         .def_ro("axis", &BaseComputeOpNode::axis)
         .def_ro("reduce_axis", &BaseComputeOpNode::reduce_axis);
   }
-
-  static constexpr const char* _type_key = "te.BaseComputeOp";
-
-  TVM_DECLARE_BASE_OBJECT_INFO(BaseComputeOpNode, OperationNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("te.BaseComputeOp", BaseComputeOpNode, OperationNode);
 };
 
 /*!
@@ -177,10 +168,7 @@ class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ComputeOpNode>().def_ro("body", &ComputeOpNode::body);
   }
-
-  static constexpr const char* _type_key = "te.ComputeOp";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(ComputeOpNode, BaseComputeOpNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.ComputeOp", ComputeOpNode, BaseComputeOpNode);
 };
 
 /*!
@@ -192,7 +180,7 @@ class ComputeOp : public Operation {
   TVM_DLL ComputeOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi::Any> attrs,
                     ffi::Array<IterVar> axis, ffi::Array<PrimExpr> body);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(ComputeOp, Operation, ComputeOpNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ComputeOp, Operation, ComputeOpNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeOpNode);
 };
 
@@ -242,10 +230,7 @@ class ScanOpNode : public OperationNode {
         .def_ro("inputs", &ScanOpNode::inputs)
         .def_ro("spatial_axis_", &ScanOpNode::spatial_axis_);
   }
-
-  static constexpr const char* _type_key = "te.ScanOp";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(ScanOpNode, OperationNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.ScanOp", ScanOpNode, OperationNode);
 };
 
 /*!
@@ -259,7 +244,7 @@ class ScanOp : public Operation {
                  ffi::Array<Tensor> init, ffi::Array<Tensor> update,
                  ffi::Array<Tensor> state_placeholder, ffi::Array<Tensor> input);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(ScanOp, Operation, ScanOpNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScanOp, Operation, ScanOpNode);
 };
 
 /*!
@@ -292,10 +277,7 @@ class ExternOpNode : public OperationNode {
         .def_ro("output_placeholders", &ExternOpNode::output_placeholders)
         .def_ro("body", &ExternOpNode::body);
   }
-
-  static constexpr const char* _type_key = "te.ExternOp";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(ExternOpNode, OperationNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.ExternOp", ExternOpNode, OperationNode);
 };
 
 /*!
@@ -308,7 +290,7 @@ class ExternOp : public Operation {
                    ffi::Array<Tensor> inputs, ffi::Array<Buffer> input_placeholders,
                    ffi::Array<Buffer> output_placeholders, Stmt body);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(ExternOp, Operation, ExternOpNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExternOp, Operation, ExternOpNode);
 };
 
 /*!

@@ -451,7 +451,7 @@ Multiple ``PassInstrument`` instances can be registed into a single
 
     class PassInstrument : public ObjectRef {
      public:
-      TVM_DEFINE_OBJECT_REF_METHODS(PassInstrument, ObjectRef, PassInstrumentNode);
+      TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInstrument, ObjectRef, PassInstrumentNode);
     };
 
     }  // namespace instrument

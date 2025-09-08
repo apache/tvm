@@ -74,9 +74,7 @@ class DataflowBlockRewriteNode : public Object {
         .def_ro("dfb", &DataflowBlockRewriteNode::dfb_)
         .def_ro("root_fn", &DataflowBlockRewriteNode::root_fn_);
   }
-
-  static constexpr const char* _type_key = "relax.DataflowBlockRewrite";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DataflowBlockRewriteNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DataflowBlockRewrite", DataflowBlockRewriteNode, Object);
 
  protected:
   friend class DataflowBlockRewrite;
@@ -108,7 +106,8 @@ class DataflowBlockRewrite : public ObjectRef {
     return static_cast<DataflowBlockRewriteNode*>(get_mutable());
   }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(DataflowBlockRewrite, ObjectRef, DataflowBlockRewriteNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowBlockRewrite, ObjectRef,
+                                             DataflowBlockRewriteNode);
 };
 
 }  // namespace relax

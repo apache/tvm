@@ -531,9 +531,7 @@ class InplaceOpportunityNode : public Object {
         .def_ro("binding_idx", &InplaceOpportunityNode::binding_idx)
         .def_ro("arg_idxs", &InplaceOpportunityNode::arg_idxs);
   }
-
-  static constexpr const char* _type_key = "relax.transform.InplaceOpportunity";
-  TVM_DECLARE_BASE_OBJECT_INFO(InplaceOpportunityNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InplaceOpportunity", InplaceOpportunityNode, Object);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({ InplaceOpportunityNode::RegisterReflection(); });
@@ -547,7 +545,7 @@ class InplaceOpportunity : public ObjectRef {
     data_ = std::move(node);
   }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(InplaceOpportunity, ObjectRef, InplaceOpportunityNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InplaceOpportunity, ObjectRef, InplaceOpportunityNode);
 };
 
 // Check for in-place eligibility:

@@ -77,16 +77,14 @@ class VMClosureObj : public Object {
    *       the same arguments as the normal function call.
    */
   ffi::Function impl;
-
-  static constexpr const char* _type_key = "relax.vm.Closure";
-  TVM_DECLARE_FINAL_OBJECT_INFO(VMClosureObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.vm.Closure", VMClosureObj, Object);
 };
 
 /*! \brief reference to closure. */
 class VMClosure : public ObjectRef {
  public:
   VMClosure(ffi::String func_name, ffi::Function impl);
-  TVM_DEFINE_OBJECT_REF_METHODS(VMClosure, ObjectRef, VMClosureObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(VMClosure, ObjectRef, VMClosureObj);
 
   /*!
    * \brief Create another ffi::Function with last arguments already bound to last_args.
@@ -109,14 +107,13 @@ class VMClosure : public ObjectRef {
  */
 class VMExtensionNode : public Object {
  protected:
-  static constexpr const char* _type_key = "runtime.VMExtension";
-  TVM_DECLARE_BASE_OBJECT_INFO(VMExtensionNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("runtime.VMExtension", VMExtensionNode, Object);
 };
 
 /*! \brief Managed reference to VM extension. */
 class VMExtension : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(VMExtension, ObjectRef, VMExtensionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(VMExtension, ObjectRef, VMExtensionNode);
 };
 
 /*!

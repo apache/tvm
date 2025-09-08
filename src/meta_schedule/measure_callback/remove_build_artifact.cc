@@ -37,9 +37,8 @@ class RemoveBuildArtifactNode : public MeasureCallbackNode {
       }
     }
   }
-
-  static constexpr const char* _type_key = "meta_schedule.RemoveBuildArtifact";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RemoveBuildArtifactNode, MeasureCallbackNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RemoveBuildArtifact", RemoveBuildArtifactNode,
+                                    MeasureCallbackNode);
 };
 
 MeasureCallback MeasureCallback::RemoveBuildArtifact() {

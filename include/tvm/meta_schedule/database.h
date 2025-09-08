@@ -52,10 +52,7 @@ class WorkloadNode : public runtime::Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<WorkloadNode>().def_ro("mod", &WorkloadNode::mod);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.Workload";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(WorkloadNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.Workload", WorkloadNode, runtime::Object);
 
   /*!
    * \brief Export the workload to a JSON string.
@@ -90,7 +87,7 @@ class Workload : public runtime::ObjectRef {
    */
   TVM_DLL static Workload FromJSON(const ObjectRef& json_obj);
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Workload, runtime::ObjectRef, WorkloadNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Workload, runtime::ObjectRef, WorkloadNode);
 };
 
 /*! \brief The hash method for Workload */
@@ -135,10 +132,8 @@ class TuningRecordNode : public runtime::Object {
         .def_ro("target", &TuningRecordNode::target)
         .def_ro("args_info", &TuningRecordNode::args_info);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.TuningRecord";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(TuningRecordNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.TuningRecord", TuningRecordNode,
+                                    runtime::Object);
 
   /*! \brief Construct the measure candidate given the initial IR module and trace
    * stored in the tuning record. */
@@ -181,7 +176,7 @@ class TuningRecord : public runtime::ObjectRef {
    * \return The tuning record created.
    */
   TVM_DLL static TuningRecord FromJSON(const ObjectRef& json_obj, const Workload& workload);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TuningRecord, runtime::ObjectRef, TuningRecordNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TuningRecord, runtime::ObjectRef, TuningRecordNode);
 };
 
 class Database;
@@ -277,8 +272,8 @@ class DatabaseNode : public runtime::Object {
     return *mod_eq_;
   }
 
-  static constexpr const char* _type_key = "meta_schedule.Database";
-  TVM_DECLARE_BASE_OBJECT_INFO(DatabaseNode, runtime::Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.Database", DatabaseNode, runtime::Object);
 
  private:
   /*! \brief The module equality testing and hashing method */
@@ -457,8 +452,8 @@ class PyDatabaseNode : public DatabaseNode {
     return f_size();
   }
 
-  static constexpr const char* _type_key = "meta_schedule.PyDatabase";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyDatabaseNode, DatabaseNode);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyDatabase", PyDatabaseNode, DatabaseNode);
 };
 
 /*!
@@ -543,7 +538,7 @@ class Database : public runtime::ObjectRef {
   /*! \brief Exiting the scope of the context manager */
   void ExitWithScope();
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Database, runtime::ObjectRef, DatabaseNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Database, runtime::ObjectRef, DatabaseNode);
 };
 
 }  // namespace meta_schedule

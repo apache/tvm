@@ -73,8 +73,8 @@ class CuDNNSDPARunner : public tvm::runtime::ObjectRef {
     return CuDNNSDPARunner(n);
   }
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(CuDNNSDPARunner, tvm::runtime::ObjectRef,
-                                        CuDNNSDPARunnerNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CuDNNSDPARunner, tvm::runtime::ObjectRef,
+                                             CuDNNSDPARunnerNode);
 };
 
 }  // namespace contrib

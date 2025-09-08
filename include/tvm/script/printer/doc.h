@@ -71,10 +71,9 @@ class DocNode : public Object {
     refl::ObjectDef<DocNode>().def_rw("source_paths", &DocNode::source_paths);
   }
 
-  static constexpr const char* _type_key = "script.printer.Doc";
   static constexpr bool _type_mutable = true;
 
-  TVM_DECLARE_BASE_OBJECT_INFO(DocNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("script.printer.Doc", DocNode, Object);
 
  public:
   virtual ~DocNode() = default;
@@ -91,7 +90,7 @@ class Doc : public ObjectRef {
   explicit Doc(ObjectPtr<DocNode> data) : ObjectRef(data) {}
 
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Doc, ObjectRef, DocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Doc, ObjectRef, DocNode);
 };
 
 class ExprDoc;
@@ -135,10 +134,7 @@ class ExprDocNode : public DocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ExprDocNode>();
   }
-
-  static constexpr const char* _type_key = "script.printer.ExprDoc";
-
-  TVM_DECLARE_BASE_OBJECT_INFO(ExprDocNode, DocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("script.printer.ExprDoc", ExprDocNode, DocNode);
 };
 
 /*!
@@ -159,7 +155,7 @@ class ExprDoc : public Doc {
 
   explicit ExprDoc(ObjectPtr<ExprDocNode> data) : Doc(data) { TVM_FFI_ICHECK(data != nullptr); }
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ExprDoc, Doc, ExprDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExprDoc, Doc, ExprDocNode);
 };
 
 /*!
@@ -183,10 +179,7 @@ class StmtDocNode : public DocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<StmtDocNode>().def_rw("comment", &StmtDocNode::comment);
   }
-
-  static constexpr const char* _type_key = "script.printer.StmtDoc";
-
-  TVM_DECLARE_BASE_OBJECT_INFO(StmtDocNode, DocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("script.printer.StmtDoc", StmtDocNode, DocNode);
 };
 
 /*!
@@ -199,7 +192,7 @@ class StmtDoc : public Doc {
   StmtDoc() = default;
 
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(StmtDoc, Doc, StmtDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StmtDoc, Doc, StmtDocNode);
 };
 
 /*!
@@ -217,10 +210,7 @@ class StmtBlockDocNode : public DocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<StmtBlockDocNode>().def_ro("stmts", &StmtBlockDocNode::stmts);
   }
-
-  static constexpr const char* _type_key = "script.printer.StmtBlockDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(StmtBlockDocNode, DocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.StmtBlockDoc", StmtBlockDocNode, DocNode);
 };
 
 /*!
@@ -234,7 +224,7 @@ class StmtBlockDoc : public Doc {
    * \param stmts The list of statements.
    */
   explicit StmtBlockDoc(ffi::Array<StmtDoc> stmts);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(StmtBlockDoc, Doc, StmtBlockDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StmtBlockDoc, Doc, StmtBlockDocNode);
 };
 
 /*!
@@ -259,10 +249,7 @@ class LiteralDocNode : public ExprDocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<LiteralDocNode>().def_ro("value", &LiteralDocNode::value);
   }
-
-  static constexpr const char* _type_key = "script.printer.LiteralDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(LiteralDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.LiteralDoc", LiteralDocNode, ExprDocNode);
 };
 
 /*!
@@ -334,7 +321,7 @@ class LiteralDoc : public ExprDoc {
     return LiteralDoc::Str(os.str(), p);
   }
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(LiteralDoc, ExprDoc, LiteralDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LiteralDoc, ExprDoc, LiteralDocNode);
 };
 
 /*!
@@ -351,10 +338,7 @@ class IdDocNode : public ExprDocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IdDocNode>().def_ro("name", &IdDocNode::name);
   }
-
-  static constexpr const char* _type_key = "script.printer.IdDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(IdDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.IdDoc", IdDocNode, ExprDocNode);
 };
 
 /*!
@@ -370,7 +354,7 @@ class IdDoc : public ExprDoc {
    */
   explicit IdDoc(ffi::String name);
   explicit IdDoc(std::nullptr_t) : ExprDoc(nullptr) {}
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(IdDoc, ExprDoc, IdDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IdDoc, ExprDoc, IdDocNode);
 };
 
 /*!
@@ -391,10 +375,7 @@ class AttrAccessDocNode : public ExprDocNode {
         .def_ro("value", &AttrAccessDocNode::value)
         .def_ro("name", &AttrAccessDocNode::name);
   }
-
-  static constexpr const char* _type_key = "script.printer.AttrAccessDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(AttrAccessDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.AttrAccessDoc", AttrAccessDocNode, ExprDocNode);
 };
 
 /*!
@@ -410,7 +391,7 @@ class AttrAccessDoc : public ExprDoc {
    * \param name The name of attribute to access.
    */
   explicit AttrAccessDoc(ExprDoc value, ffi::String name);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AttrAccessDoc, ExprDoc, AttrAccessDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AttrAccessDoc, ExprDoc, AttrAccessDocNode);
 };
 
 /*!
@@ -437,10 +418,7 @@ class IndexDocNode : public ExprDocNode {
         .def_ro("value", &IndexDocNode::value)
         .def_ro("indices", &IndexDocNode::indices);
   }
-
-  static constexpr const char* _type_key = "script.printer.IndexDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(IndexDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.IndexDoc", IndexDocNode, ExprDocNode);
 };
 
 /*!
@@ -456,7 +434,7 @@ class IndexDoc : public ExprDoc {
    * \param indices The indices to access.
    */
   explicit IndexDoc(ExprDoc value, ffi::Array<Doc> indices);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(IndexDoc, ExprDoc, IndexDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IndexDoc, ExprDoc, IndexDocNode);
 };
 
 /*!
@@ -488,10 +466,7 @@ class CallDocNode : public ExprDocNode {
         .def_ro("kwargs_keys", &CallDocNode::kwargs_keys)
         .def_ro("kwargs_values", &CallDocNode::kwargs_values);
   }
-
-  static constexpr const char* _type_key = "script.printer.CallDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(CallDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.CallDoc", CallDocNode, ExprDocNode);
 };
 
 /*!
@@ -510,7 +485,7 @@ class CallDoc : public ExprDoc {
    */
   CallDoc(ExprDoc callee, ffi::Array<ExprDoc> args, ffi::Array<ffi::String> kwargs_keys,
           ffi::Array<ExprDoc> kwargs_values);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(CallDoc, ExprDoc, CallDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CallDoc, ExprDoc, CallDocNode);
 };
 
 /*!
@@ -572,10 +547,7 @@ class OperationDocNode : public ExprDocNode {
         .def_ro("kind", &OperationDocNode::kind)
         .def_ro("operands", &OperationDocNode::operands);
   }
-
-  static constexpr const char* _type_key = "script.printer.OperationDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(OperationDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.OperationDoc", OperationDocNode, ExprDocNode);
 };
 
 /*!
@@ -591,7 +563,7 @@ class OperationDoc : public ExprDoc {
    * \param operands Operands of this expression.
    */
   explicit OperationDoc(OperationDocNode::Kind kind, ffi::Array<ExprDoc> operands);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(OperationDoc, ExprDoc, OperationDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(OperationDoc, ExprDoc, OperationDocNode);
 };
 
 /*!
@@ -615,10 +587,7 @@ class LambdaDocNode : public ExprDocNode {
         .def_ro("args", &LambdaDocNode::args)
         .def_ro("body", &LambdaDocNode::body);
   }
-
-  static constexpr const char* _type_key = "script.printer.LambdaDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(LambdaDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.LambdaDoc", LambdaDocNode, ExprDocNode);
 };
 
 /*!
@@ -634,7 +603,7 @@ class LambdaDoc : public ExprDoc {
    * \param body Body expression of this function.
    */
   explicit LambdaDoc(ffi::Array<IdDoc> args, ExprDoc body);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(LambdaDoc, ExprDoc, LambdaDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LambdaDoc, ExprDoc, LambdaDocNode);
 };
 
 /*!
@@ -651,10 +620,7 @@ class TupleDocNode : public ExprDocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TupleDocNode>().def_ro("elements", &TupleDocNode::elements);
   }
-
-  static constexpr const char* _type_key = "script.printer.TupleDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(TupleDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.TupleDoc", TupleDocNode, ExprDocNode);
 };
 
 /*!
@@ -673,7 +639,7 @@ class TupleDoc : public ExprDoc {
    * \param elements Elements of tuple.
    */
   explicit TupleDoc(ffi::Array<ExprDoc> elements);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TupleDoc, ExprDoc, TupleDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TupleDoc, ExprDoc, TupleDocNode);
 };
 
 /*!
@@ -690,10 +656,7 @@ class ListDocNode : public ExprDocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ListDocNode>().def_ro("elements", &ListDocNode::elements);
   }
-
-  static constexpr const char* _type_key = "script.printer.ListDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(ListDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.ListDoc", ListDocNode, ExprDocNode);
 };
 
 /*!
@@ -712,7 +675,7 @@ class ListDoc : public ExprDoc {
    * \param elements Elements of list.
    */
   explicit ListDoc(ffi::Array<ExprDoc> elements);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ListDoc, ExprDoc, ListDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ListDoc, ExprDoc, ListDocNode);
 };
 
 /*!
@@ -738,10 +701,7 @@ class DictDocNode : public ExprDocNode {
         .def_ro("keys", &DictDocNode::keys)
         .def_ro("values", &DictDocNode::values);
   }
-
-  static constexpr const char* _type_key = "script.printer.DictDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(DictDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.DictDoc", DictDocNode, ExprDocNode);
 };
 
 /*!
@@ -761,7 +721,7 @@ class DictDoc : public ExprDoc {
    * \param values Values of dictionary, must have same length as `keys`.
    */
   explicit DictDoc(ffi::Array<ExprDoc> keys, ffi::Array<ExprDoc> values);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(DictDoc, ExprDoc, DictDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DictDoc, ExprDoc, DictDocNode);
 };
 
 /*!
@@ -787,10 +747,7 @@ class SliceDocNode : public DocNode {
         .def_ro("stop", &SliceDocNode::stop)
         .def_ro("step", &SliceDocNode::step);
   }
-
-  static constexpr const char* _type_key = "script.printer.SliceDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(SliceDocNode, DocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.SliceDoc", SliceDocNode, DocNode);
 };
 
 /*!
@@ -808,7 +765,7 @@ class SliceDoc : public Doc {
    */
   explicit SliceDoc(ffi::Optional<ExprDoc> start, ffi::Optional<ExprDoc> stop,
                     ffi::Optional<ExprDoc> step);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(SliceDoc, Doc, SliceDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SliceDoc, Doc, SliceDocNode);
 };
 
 /*!
@@ -836,10 +793,7 @@ class AssignDocNode : public StmtDocNode {
         .def_ro("rhs", &AssignDocNode::rhs)
         .def_ro("annotation", &AssignDocNode::annotation);
   }
-
-  static constexpr const char* _type_key = "script.printer.AssignDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(AssignDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.AssignDoc", AssignDocNode, StmtDocNode);
 };
 
 /*!
@@ -856,7 +810,7 @@ class AssignDoc : public StmtDoc {
    * \param annotation The type annotation of this assignment.
    */
   explicit AssignDoc(ExprDoc lhs, ffi::Optional<ExprDoc> rhs, ffi::Optional<ExprDoc> annotation);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AssignDoc, StmtDoc, AssignDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AssignDoc, StmtDoc, AssignDocNode);
 };
 
 /*!
@@ -880,10 +834,7 @@ class IfDocNode : public StmtDocNode {
         .def_ro("then_branch", &IfDocNode::then_branch)
         .def_ro("else_branch", &IfDocNode::else_branch);
   }
-
-  static constexpr const char* _type_key = "script.printer.IfDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(IfDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.IfDoc", IfDocNode, StmtDocNode);
 };
 
 /*!
@@ -901,7 +852,7 @@ class IfDoc : public StmtDoc {
    */
   explicit IfDoc(ExprDoc predicate, ffi::Array<StmtDoc> then_branch,
                  ffi::Array<StmtDoc> else_branch);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(IfDoc, StmtDoc, IfDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IfDoc, StmtDoc, IfDocNode);
 };
 
 /*!
@@ -922,10 +873,7 @@ class WhileDocNode : public StmtDocNode {
         .def_ro("predicate", &WhileDocNode::predicate)
         .def_ro("body", &WhileDocNode::body);
   }
-
-  static constexpr const char* _type_key = "script.printer.WhileDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(WhileDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.WhileDoc", WhileDocNode, StmtDocNode);
 };
 
 /*!
@@ -941,7 +889,7 @@ class WhileDoc : public StmtDoc {
    * \param body The body of the while statement.
    */
   explicit WhileDoc(ExprDoc predicate, ffi::Array<StmtDoc> body);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(WhileDoc, StmtDoc, WhileDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(WhileDoc, StmtDoc, WhileDocNode);
 };
 
 /*!
@@ -969,10 +917,7 @@ class ForDocNode : public StmtDocNode {
         .def_ro("rhs", &ForDocNode::rhs)
         .def_ro("body", &ForDocNode::body);
   }
-
-  static constexpr const char* _type_key = "script.printer.ForDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(ForDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.ForDoc", ForDocNode, StmtDocNode);
 };
 
 /*!
@@ -989,7 +934,7 @@ class ForDoc : public StmtDoc {
    * \param body The body of the for statement.
    */
   explicit ForDoc(ExprDoc lhs, ExprDoc rhs, ffi::Array<StmtDoc> body);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ForDoc, StmtDoc, ForDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ForDoc, StmtDoc, ForDocNode);
 };
 
 /*!
@@ -1018,10 +963,7 @@ class ScopeDocNode : public StmtDocNode {
         .def_ro("rhs", &ScopeDocNode::rhs)
         .def_ro("body", &ScopeDocNode::body);
   }
-
-  static constexpr const char* _type_key = "script.printer.ScopeDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(ScopeDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.ScopeDoc", ScopeDocNode, StmtDocNode);
 };
 
 /*!
@@ -1046,7 +988,7 @@ class ScopeDoc : public StmtDoc {
    */
   explicit ScopeDoc(ExprDoc rhs, ffi::Array<StmtDoc> body);
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ScopeDoc, StmtDoc, ScopeDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ScopeDoc, StmtDoc, ScopeDocNode);
 };
 
 /*!
@@ -1063,10 +1005,7 @@ class ExprStmtDocNode : public StmtDocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ExprStmtDocNode>().def_ro("expr", &ExprStmtDocNode::expr);
   }
-
-  static constexpr const char* _type_key = "script.printer.ExprStmtDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(ExprStmtDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.ExprStmtDoc", ExprStmtDocNode, StmtDocNode);
 };
 
 /*!
@@ -1081,7 +1020,7 @@ class ExprStmtDoc : public StmtDoc {
    * \param expr The expression represented by this doc.
    */
   explicit ExprStmtDoc(ExprDoc expr);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ExprStmtDoc, StmtDoc, ExprStmtDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExprStmtDoc, StmtDoc, ExprStmtDocNode);
 };
 
 /*!
@@ -1102,10 +1041,7 @@ class AssertDocNode : public StmtDocNode {
         .def_ro("test", &AssertDocNode::test)
         .def_ro("msg", &AssertDocNode::msg);
   }
-
-  static constexpr const char* _type_key = "script.printer.AssertDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(AssertDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.AssertDoc", AssertDocNode, StmtDocNode);
 };
 
 /*!
@@ -1121,7 +1057,7 @@ class AssertDoc : public StmtDoc {
    * \param msg The optional error message when assertion failed.
    */
   explicit AssertDoc(ExprDoc test, ffi::Optional<ExprDoc> msg = std::nullopt);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AssertDoc, StmtDoc, AssertDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AssertDoc, StmtDoc, AssertDocNode);
 };
 
 /*!
@@ -1138,10 +1074,7 @@ class ReturnDocNode : public StmtDocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ReturnDocNode>().def_ro("value", &ReturnDocNode::value);
   }
-
-  static constexpr const char* _type_key = "script.printer.ReturnDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(ReturnDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.ReturnDoc", ReturnDocNode, StmtDocNode);
 };
 
 /*!
@@ -1156,7 +1089,7 @@ class ReturnDoc : public StmtDoc {
    * \param value The value to return.
    */
   explicit ReturnDoc(ExprDoc value);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ReturnDoc, StmtDoc, ReturnDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ReturnDoc, StmtDoc, ReturnDocNode);
 };
 
 /*!
@@ -1192,10 +1125,7 @@ class FunctionDocNode : public StmtDocNode {
         .def_ro("return_type", &FunctionDocNode::return_type)
         .def_ro("body", &FunctionDocNode::body);
   }
-
-  static constexpr const char* _type_key = "script.printer.FunctionDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.FunctionDoc", FunctionDocNode, StmtDocNode);
 };
 
 /*!
@@ -1215,7 +1145,7 @@ class FunctionDoc : public StmtDoc {
    */
   explicit FunctionDoc(IdDoc name, ffi::Array<AssignDoc> args, ffi::Array<ExprDoc> decorators,
                        ffi::Optional<ExprDoc> return_type, ffi::Array<StmtDoc> body);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(FunctionDoc, StmtDoc, FunctionDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionDoc, StmtDoc, FunctionDocNode);
 };
 
 /*!
@@ -1239,10 +1169,7 @@ class ClassDocNode : public StmtDocNode {
         .def_ro("decorators", &ClassDocNode::decorators)
         .def_ro("body", &ClassDocNode::body);
   }
-
-  static constexpr const char* _type_key = "script.printer.ClassDoc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(ClassDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.ClassDoc", ClassDocNode, StmtDocNode);
 };
 
 /*!
@@ -1259,7 +1186,7 @@ class ClassDoc : public StmtDoc {
    * \param body The body of class.
    */
   explicit ClassDoc(IdDoc name, ffi::Array<ExprDoc> decorators, ffi::Array<StmtDoc> body);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ClassDoc, StmtDoc, ClassDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ClassDoc, StmtDoc, ClassDocNode);
 };
 
 /*!
@@ -1273,9 +1200,7 @@ class CommentDocNode : public StmtDocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<CommentDocNode>();
   }
-
-  static constexpr const char* _type_key = "script.printer.CommentDoc";
-  TVM_DECLARE_FINAL_OBJECT_INFO(CommentDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.CommentDoc", CommentDocNode, StmtDocNode);
 };
 
 /*!
@@ -1286,7 +1211,7 @@ class CommentDocNode : public StmtDocNode {
 class CommentDoc : public StmtDoc {
  public:
   explicit CommentDoc(ffi::String comment);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(CommentDoc, StmtDoc, CommentDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CommentDoc, StmtDoc, CommentDocNode);
 };
 
 /*!
@@ -1300,9 +1225,7 @@ class DocStringDocNode : public StmtDocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DocStringDocNode>();
   }
-
-  static constexpr const char* _type_key = "script.printer.DocStringDoc";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DocStringDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.DocStringDoc", DocStringDocNode, StmtDocNode);
 };
 
 /*!
@@ -1313,7 +1236,7 @@ class DocStringDocNode : public StmtDocNode {
 class DocStringDoc : public StmtDoc {
  public:
   explicit DocStringDoc(ffi::String docs);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(DocStringDoc, StmtDoc, DocStringDocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DocStringDoc, StmtDoc, DocStringDocNode);
 };
 
 }  // namespace printer

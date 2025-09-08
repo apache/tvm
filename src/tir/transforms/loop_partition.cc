@@ -59,16 +59,16 @@ struct LoopPartitionConfigNode : public AttrsNodeReflAdapter<LoopPartitionConfig
                 "Unroll loops with pragma_loop_partition_hint and no interval",
                 refl::DefaultValue(false));
   }
-
-  static constexpr const char* _type_key = "tir.transform.LoopPartitionConfig";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(LoopPartitionConfigNode, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.LoopPartitionConfig", LoopPartitionConfigNode,
+                                    BaseAttrsNode);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({ LoopPartitionConfigNode::RegisterReflection(); });
 
 class LoopPartitionConfig : public Attrs {
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(LoopPartitionConfig, Attrs, LoopPartitionConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LoopPartitionConfig, Attrs,
+                                                LoopPartitionConfigNode);
 };
 
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.LoopPartition", LoopPartitionConfig);

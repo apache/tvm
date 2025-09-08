@@ -46,9 +46,8 @@ class HexagonTimerNode : public TimerNode {
   virtual void Stop() { end = HAP_perf_get_time_us(); }
   virtual int64_t SyncAndGetElapsedNanos() { return (end - start) * 1e3; }
   virtual ~HexagonTimerNode() {}
-
-  static constexpr const char* _type_key = "runtime.hexagon.HexagonTimerNode";
-  TVM_DECLARE_FINAL_OBJECT_INFO(HexagonTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.hexagon.HexagonTimerNode", HexagonTimerNode,
+                                    TimerNode);
 
  private:
   uint64_t start, end;

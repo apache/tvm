@@ -279,8 +279,7 @@ class PluginAttrNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "msc.core.PluginAttr";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PluginAttrNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.PluginAttr", PluginAttrNode, Object);
 };
 
 /*!
@@ -311,7 +310,7 @@ class PluginAttr : public ObjectRef {
    */
   TVM_DLL PluginAttr(const std::string& json_str);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PluginAttr, ObjectRef, PluginAttrNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PluginAttr, ObjectRef, PluginAttrNode);
 };
 
 /*!
@@ -348,8 +347,7 @@ class PluginTensorNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "msc.core.PluginTensor";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PluginTensorNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.PluginTensor", PluginTensorNode, Object);
 };
 
 /*!
@@ -381,7 +379,7 @@ class PluginTensor : public ObjectRef {
    */
   TVM_DLL PluginTensor(const std::string& json_str);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PluginTensor, ObjectRef, PluginTensorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PluginTensor, ObjectRef, PluginTensorNode);
 };
 
 /*!
@@ -418,8 +416,7 @@ class PluginExternNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "msc.core.PluginExtern";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PluginExternNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.PluginExtern", PluginExternNode, Object);
 };
 
 /*!
@@ -452,7 +449,7 @@ class PluginExtern : public ObjectRef {
    */
   TVM_DLL PluginExtern(const std::string& json_str);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PluginExtern, ObjectRef, PluginExternNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PluginExtern, ObjectRef, PluginExternNode);
 };
 
 /*!
@@ -509,8 +506,7 @@ class PluginNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "msc.core.Plugin";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PluginNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.Plugin", PluginNode, Object);
 };
 
 /*!
@@ -551,7 +547,7 @@ class Plugin : public ObjectRef {
    */
   TVM_DLL Plugin(const std::string& json_str);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Plugin, ObjectRef, PluginNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Plugin, ObjectRef, PluginNode);
 };
 
 class PluginRegistry {

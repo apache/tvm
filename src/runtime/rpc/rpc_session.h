@@ -315,9 +315,8 @@ class RPCObjectRefObj : public Object {
   void* object_handle() const { return object_handle_; }
 
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimeRPCObjectRef;
-  static constexpr const char* _type_key = "runtime.RPCObjectRef";
   static const constexpr bool _type_final = true;
-  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(RPCObjectRefObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_STATIC("runtime.RPCObjectRef", RPCObjectRefObj, Object);
 
  private:
   // The object handle
@@ -336,7 +335,7 @@ class RPCObjectRef : public ObjectRef {
   explicit RPCObjectRef(ObjectPtr<RPCObjectRefObj> data) : ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(RPCObjectRef, ObjectRef, RPCObjectRefObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RPCObjectRef, ObjectRef, RPCObjectRefObj);
 };
 
 /*!

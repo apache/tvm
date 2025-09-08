@@ -458,8 +458,7 @@ class RNNStateImpObj : public RNNStateObj {
   }
 
  public:
-  static constexpr const char* _type_key = "relax.vm.RNNStateImp";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RNNStateImpObj, RNNStateObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.vm.RNNStateImp", RNNStateImpObj, RNNStateObj);
 };
 
 //-------------------------------------------------

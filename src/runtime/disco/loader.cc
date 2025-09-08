@@ -137,9 +137,7 @@ class ShardLoaderObj : public Object {
 
   /*! \brief Slice the given tensor at a specific dimension */
   Tensor Shard(Tensor source, int dim, int num_slices) const;
-
-  static constexpr const char* _type_key = "runtime.disco.ShardLoader";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ShardLoaderObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.ShardLoader", ShardLoaderObj, Object);
 
  public:
   /*! \brief Information of how each weight is stored and sharded */

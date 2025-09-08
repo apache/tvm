@@ -173,9 +173,8 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
         ffi::make_object<DisallowAsyncStridedMemCopyNode>(*this);
     return Postproc(n);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.DisallowAsyncStridedMemCopy";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DisallowAsyncStridedMemCopyNode, PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.DisallowAsyncStridedMemCopy",
+                                    DisallowAsyncStridedMemCopyNode, PostprocNode);
 
  private:
   tvm::Target target;

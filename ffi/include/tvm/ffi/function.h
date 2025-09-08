@@ -116,8 +116,7 @@ class FunctionObj : public Object, public TVMFFIFunctionCell {
   }
   /// \cond Doxygen_Suppress
   static constexpr const uint32_t _type_index = TypeIndex::kTVMFFIFunction;
-  static constexpr const char* _type_key = StaticTypeKey::kTVMFFIFunction;
-  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(FunctionObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_STATIC(StaticTypeKey::kTVMFFIFunction, FunctionObj, Object);
   /// \endcond
 
  protected:
@@ -594,7 +593,7 @@ class Function : public ObjectRef {
   TVM_FFI_INLINE bool operator!=(std::nullptr_t) const { return data_ != nullptr; }
 
   /// \cond Doxygen_Suppress
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS(Function, ObjectRef, FunctionObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Function, ObjectRef, FunctionObj);
   /// \endcond
 
   class Registry;

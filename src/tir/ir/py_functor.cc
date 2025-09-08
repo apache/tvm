@@ -218,8 +218,8 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
     // No fields to register as they are not visited
   }
 
-  static constexpr const char* _type_key = "tir.PyStmtExprVisitor";
-  TVM_DECLARE_BASE_OBJECT_INFO(PyStmtExprVisitorNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("tir.PyStmtExprVisitor", PyStmtExprVisitorNode, Object);
 
  private:
   // Statement functions
@@ -451,8 +451,8 @@ class PyStmtExprVisitor : public ObjectRef {
     return PyStmtExprVisitor(n);
   }
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PyStmtExprVisitor, ObjectRef,
-                                                    PyStmtExprVisitorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PyStmtExprVisitor, ObjectRef,
+                                                PyStmtExprVisitorNode);
 };
 
 /*! \brief The python interface of StmtExprMutator. */
@@ -584,8 +584,8 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
     // No fields to register as they are not visited
   }
 
-  static constexpr const char* _type_key = "tir.PyStmtExprMutator";
-  TVM_DECLARE_BASE_OBJECT_INFO(PyStmtExprMutatorNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("tir.PyStmtExprMutator", PyStmtExprMutatorNode, Object);
 
  private:
   // Statement functions
@@ -818,8 +818,8 @@ class PyStmtExprMutator : public ObjectRef {
     return PyStmtExprMutator(n);
   }
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PyStmtExprMutator, ObjectRef,
-                                                    PyStmtExprMutatorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PyStmtExprMutator, ObjectRef,
+                                                PyStmtExprMutatorNode);
 };
 
 // ================================================

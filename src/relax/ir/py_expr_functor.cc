@@ -142,8 +142,8 @@ class PyExprVisitorNode : public Object, public ExprVisitor {
     // PyExprVisitorNode has no fields to register
   }
 
-  static constexpr const char* _type_key = "expr_functor.PyExprVisitor";
-  TVM_DECLARE_BASE_OBJECT_INFO(PyExprVisitorNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("expr_functor.PyExprVisitor", PyExprVisitorNode, Object);
 
  private:
   // initialize the vtable.
@@ -262,7 +262,7 @@ class PyExprVisitor : public ObjectRef {
     return PyExprVisitor(n);
   }
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PyExprVisitor, ObjectRef, PyExprVisitorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PyExprVisitor, ObjectRef, PyExprVisitorNode);
 };
 
 /*!
@@ -405,8 +405,8 @@ class PyExprMutatorNode : public Object, public ExprMutator {
     refl::ObjectDef<PyExprMutatorNode>().def_ro("builder_", &PyExprMutatorNode::builder_);
   }
 
-  static constexpr const char* _type_key = "expr_functor.PyExprMutator";
-  TVM_DECLARE_BASE_OBJECT_INFO(PyExprMutatorNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("expr_functor.PyExprMutator", PyExprMutatorNode, Object);
 
  private:
   // initialize the vtable.
@@ -549,7 +549,7 @@ class PyExprMutator : public ObjectRef {
     n->f_visit_span = f_visit_span;
     return PyExprMutator(n);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PyExprMutator, ObjectRef, PyExprMutatorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PyExprMutator, ObjectRef, PyExprMutatorNode);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({

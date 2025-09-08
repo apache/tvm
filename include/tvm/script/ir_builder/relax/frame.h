@@ -40,9 +40,8 @@ class RelaxFrameNode : public IRBuilderFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RelaxFrameNode>();
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.relax.RelaxFrame";
-  TVM_DECLARE_BASE_OBJECT_INFO(RelaxFrameNode, IRBuilderFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.relax.RelaxFrame", RelaxFrameNode,
+                              IRBuilderFrameNode);
 };
 
 class RelaxFrame : public IRBuilderFrame {
@@ -51,7 +50,7 @@ class RelaxFrame : public IRBuilderFrame {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(RelaxFrame, IRBuilderFrame, RelaxFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RelaxFrame, IRBuilderFrame, RelaxFrameNode);
 
  protected:
   RelaxFrame() = default;
@@ -73,9 +72,8 @@ class SeqExprFrameNode : public RelaxFrameNode {
         .def_ro("binding_blocks", &SeqExprFrameNode::binding_blocks)
         .def_ro("output", &SeqExprFrameNode::output);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.relax.SeqExprFrame";
-  TVM_DECLARE_BASE_OBJECT_INFO(SeqExprFrameNode, RelaxFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.relax.SeqExprFrame", SeqExprFrameNode,
+                              RelaxFrameNode);
 
  public:
   void EnterWithScope() override;
@@ -87,7 +85,7 @@ class SeqExprFrame : public RelaxFrame {
   explicit SeqExprFrame(ObjectPtr<SeqExprFrameNode> data) : RelaxFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(SeqExprFrame, RelaxFrame, SeqExprFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SeqExprFrame, RelaxFrame, SeqExprFrameNode);
 };
 
 /*! \brief The ir_builder frame for the relax function. */
@@ -132,9 +130,8 @@ class FunctionFrameNode : public SeqExprFrameNode {
         .def_ro("output", &FunctionFrameNode::output);
     // `block_builder` is not registered as it's not visited.
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.relax.FunctionFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionFrameNode, SeqExprFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.relax.FunctionFrame", FunctionFrameNode,
+                                    SeqExprFrameNode);
 
  public:
   void EnterWithScope() final;
@@ -146,7 +143,7 @@ class FunctionFrame : public SeqExprFrame {
   explicit FunctionFrame(ObjectPtr<FunctionFrameNode> data) : SeqExprFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(FunctionFrame, SeqExprFrame, FunctionFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionFrame, SeqExprFrame, FunctionFrameNode);
 };
 
 /*! \brief The ir_builder frame for relax binding blocks. */
@@ -176,9 +173,8 @@ class BlockFrameNode : public RelaxFrameNode {
         .def_ro("output_vars", &BlockFrameNode::output_vars);
     // `block_ended` is not registered as it's not visited.
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.relax.BlockFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BlockFrameNode, RelaxFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.relax.BlockFrame", BlockFrameNode,
+                                    RelaxFrameNode);
 
  public:
   void EnterWithScope() final;
@@ -190,7 +186,7 @@ class BlockFrame : public RelaxFrame {
   explicit BlockFrame(ObjectPtr<BlockFrameNode> data) : RelaxFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockFrame, RelaxFrame, BlockFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockFrame, RelaxFrame, BlockFrameNode);
 };
 
 /*!
@@ -220,9 +216,7 @@ class IfFrameNode : public RelaxFrameNode {
         .def_ro("var", &IfFrameNode::var)
         .def_ro("var_name", &IfFrameNode::var_name);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.relax.IfFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IfFrameNode, RelaxFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.relax.IfFrame", IfFrameNode, RelaxFrameNode);
 
  public:
   /*!
@@ -247,7 +241,7 @@ class IfFrame : public RelaxFrame {
   explicit IfFrame(ObjectPtr<IfFrameNode> data) : RelaxFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IfFrame, RelaxFrame, IfFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IfFrame, RelaxFrame, IfFrameNode);
 };
 
 /*!
@@ -261,9 +255,8 @@ class ThenFrameNode : public SeqExprFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ThenFrameNode>();
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.relax.ThenFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ThenFrameNode, SeqExprFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.relax.ThenFrame", ThenFrameNode,
+                                    SeqExprFrameNode);
 
  public:
   /*!
@@ -288,7 +281,7 @@ class ThenFrame : public SeqExprFrame {
   explicit ThenFrame(ObjectPtr<ThenFrameNode> data) : SeqExprFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ThenFrame, SeqExprFrame, ThenFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ThenFrame, SeqExprFrame, ThenFrameNode);
 };
 
 /*!
@@ -302,9 +295,8 @@ class ElseFrameNode : public SeqExprFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ElseFrameNode>();
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.relax.ElseFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ElseFrameNode, SeqExprFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.relax.ElseFrame", ElseFrameNode,
+                                    SeqExprFrameNode);
 
  public:
   /*!
@@ -329,7 +321,7 @@ class ElseFrame : public SeqExprFrame {
   explicit ElseFrame(ObjectPtr<ElseFrameNode> data) : SeqExprFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ElseFrame, SeqExprFrame, ElseFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ElseFrame, SeqExprFrame, ElseFrameNode);
 };
 
 }  // namespace relax
