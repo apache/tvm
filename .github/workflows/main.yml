@@ -52,7 +52,7 @@ jobs:
         shell: bash -l {0}
         run: |
           pip install scikit-build-core
-          export CMAKE_ARGS="-DUSE_LLVM=ON -DBUILD_TESTING=OFF"
+          export CMAKE_ARGS="-DUSE_LLVM=ON -DUSE_METAL=ON -DBUILD_TESTING=OFF"
           pip wheel --no-deps -w dist . -v
       - name: Install TVM from wheel
         shell: bash -l {0}

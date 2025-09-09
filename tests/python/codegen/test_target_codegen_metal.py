@@ -187,7 +187,7 @@ def test_func_with_trailing_pod_params():
     mod = tvm.IRModule({"main": func})
 
     f = tvm.compile(mod, target="metal")
-    src: str = f.imports[0].inspect_source()
+    src: str = f.mod.imports[0].inspect_source()
     occurrences = src.count("struct func_kernel_args_t")
     assert occurrences == 1, occurrences
 
