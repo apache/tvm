@@ -110,7 +110,7 @@ jobs:
       - name: Install LLVM dependencies
         shell: cmd /C call {0}
         run: |
-          conda install -c conda-forge llvmdev cmake ninja zlib
+          conda install -c conda-forge llvmdev cmake ninja zlib libxml2-devel
       - name: Install TVM
         shell: cmd /C call {0}
         run: |
