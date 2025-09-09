@@ -17,7 +17,7 @@
 
 [project]
 name = "apache-tvm-ffi"
-version = "0.1.0a8"
+version = "0.1.0a9"
 description = "tvm ffi"
 
 authors = [{ name = "TVM FFI team" }]

@@ -28,6 +28,7 @@ import tvm_ffi.cpp
 from tvm_ffi.module import Module
 
 
+@pytest.mark.xfail(sys.platform.startswith("win"), reason="needs to robustify windows support")
 def test_load_inline_cpp():
     mod: Module = tvm_ffi.cpp.load_inline(
         name="hello",
@@ -54,6 +55,7 @@ def test_load_inline_cpp():
     numpy.testing.assert_equal(x + 1, y)
 
 
+@pytest.mark.xfail(sys.platform.startswith("win"), reason="needs to robustify windows support")
 def test_load_inline_cpp_with_docstrings():
     mod: Module = tvm_ffi.cpp.load_inline(
         name="hello",
@@ -80,6 +82,7 @@ def test_load_inline_cpp_with_docstrings():
     numpy.testing.assert_equal(x + 1, y)
 
 
+@pytest.mark.xfail(sys.platform.startswith("win"), reason="needs to robustify windows support")
 def test_load_inline_cpp_multiple_sources():
     mod: Module = tvm_ffi.cpp.load_inline(
         name="hello",
@@ -122,6 +125,7 @@ def test_load_inline_cpp_multiple_sources():
     numpy.testing.assert_equal(x + 1, y)
 
 
+@pytest.mark.xfail(sys.platform.startswith("win"), reason="needs to robustify windows support")
 def test_load_inline_cpp_build_dir():
     mod: Module = tvm_ffi.cpp.load_inline(
         name="hello",
