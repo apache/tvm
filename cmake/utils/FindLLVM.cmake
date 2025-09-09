@@ -211,23 +211,7 @@ macro(find_llvm use_llvm)
         endif()
       elseif("${__flag}" STREQUAL "-lxml2")
         message(STATUS "LLVM links against xml2")
-        if(WIN32)
-          find_library(XML2_LIBRARY 
-            NAMES xml2 libxml2
-            PATHS ${CMAKE_PREFIX_PATH}/Library/lib
-                  ${CMAKE_PREFIX_PATH}/lib
-            NO_DEFAULT_PATH
-          )
-          if(XML2_LIBRARY)
-            list(APPEND LLVM_LIBS "${XML2_LIBRARY}")
-            message(STATUS "Found libxml2: ${XML2_LIBRARY}")
-          else()
-            message(WARNING "libxml2 not found, LLVM linking may fail")
-            list(APPEND LLVM_LIBS "-lxml2")
-          endif()
-        else()
-          list(APPEND LLVM_LIBS "-lxml2")
-        endif()
+        list(APPEND LLVM_LIBS "-lxml2")
       elseif("${__flag}" STREQUAL "zstd.dll.lib")
         message(STATUS "LLVM linker flag under LLVM libdir: ${__llvm_libdir}/zstd.lib")
         list(APPEND LLVM_LIBS "${__llvm_libdir}/zstd.lib")
