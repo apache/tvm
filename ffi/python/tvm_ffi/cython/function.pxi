@@ -29,6 +29,9 @@ else:
     torch = None
 
 
+_torch_dlpack_c_exporter_ptr = None
+
+
 cdef inline object make_ret_small_str(TVMFFIAny result):
     """convert small string to return value."""
     cdef TVMFFIByteArray bytes
@@ -45,7 +48,6 @@ cdef inline object make_ret_small_bytes(TVMFFIAny result):
 
 cdef inline object make_ret(TVMFFIAny result):
     """convert result to return value."""
-   # TODO: Implement
     cdef int32_t type_index
     type_index = result.type_index
     if type_index == kTVMFFITensor:
@@ -55,7 +57,8 @@ cdef inline object make_ret(TVMFFIAny result):
         return make_ret_opaque_object(result)
     elif type_index >= kTVMFFIStaticObjectBegin:
         return make_ret_object(result)
-    elif type_index == kTVMFFINone:
+    # the following code should be optimized to switch case
+    if type_index == kTVMFFINone:
         return None
     elif type_index == kTVMFFIBool:
         return bool(result.v_int64)
@@ -84,197 +87,325 @@ cdef inline object make_ret(TVMFFIAny result):
     raise ValueError("Unhandled type index %d" % type_index)
 
 
-cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args,
-                          int* ctx_dev_type, int* ctx_dev_id, TVMFFIStreamHandle* ctx_stream) except -1:
-    """Pack arguments into c args tvm call accept"""
-    cdef unsigned long long temp_ptr
-    cdef DLTensor* temp_dltensor
-    cdef int is_cuda = 0
-
-    for i, arg in enumerate(py_args):
-        # clear the value to ensure zero padding on 32bit platforms
-        if sizeof(void*) != 8:
-            out[i].v_int64 = 0
-        out[i].zero_padding = 0
-
-        if isinstance(arg, Tensor):
-            if (<Object>arg).chandle != NULL:
-                out[i].type_index = kTVMFFITensor
-                out[i].v_ptr = (<Tensor>arg).chandle
-            else:
-                out[i].type_index = kTVMFFIDLTensorPtr
-                out[i].v_ptr = (<Tensor>arg).cdltensor
-        elif isinstance(arg, Object):
-            out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
-            out[i].v_ptr = (<Object>arg).chandle
-        elif torch is not None and isinstance(arg, torch.Tensor):
-            is_cuda = arg.is_cuda
-            arg = from_dlpack(torch.utils.dlpack.to_dlpack(arg))
-            out[i].type_index = kTVMFFITensor
-            out[i].v_ptr = (<Tensor>arg).chandle
-            temp_dltensor = TVMFFITensorGetDLTensorPtr((<Tensor>arg).chandle)
-            # record the stream and device for torch context
-            if is_cuda and ctx_dev_type != NULL and ctx_dev_type[0] == -1:
-                ctx_dev_type[0] = temp_dltensor.device.device_type
-                ctx_dev_id[0] = temp_dltensor.device.device_id
-                # This is an API that dynamo and other uses to get the raw stream from torch
-                temp_ptr = torch._C._cuda_getCurrentRawStream(temp_dltensor.device.device_id)
-                ctx_stream[0] = <TVMFFIStreamHandle>temp_ptr
-            temp_args.append(arg)
-        elif hasattr(arg, "__dlpack__"):
-            ffi_arg = from_dlpack(arg)
-            out[i].type_index = kTVMFFITensor
-            out[i].v_ptr = (<Tensor>ffi_arg).chandle
-            # record the stream from the source framework context when possible
-            temp_dltensor = TVMFFITensorGetDLTensorPtr((<Tensor>ffi_arg).chandle)
-            if (temp_dltensor.device.device_type != kDLCPU and
-                ctx_dev_type != NULL and
-                ctx_dev_type[0] == -1):
-                # __tvm_ffi_env_stream__ returns the expected stream that should be set
-                # through TVMFFIEnvSetCurrentStream when calling a TVM FFI function
-                if hasattr(arg, "__tvm_ffi_env_stream__"):
-                    # Ideally projects should directly setup their stream context API
-                    # write through by also calling TVMFFIEnvSetCurrentStream
-                    # so we do not need this protocol to do exchange
-                    ctx_dev_type[0] = temp_dltensor.device.device_type
-                    ctx_dev_id[0] = temp_dltensor.device.device_id
-                    temp_ptr= arg.__tvm_ffi_env_stream__()
-                    ctx_stream[0] = <TVMFFIStreamHandle>temp_ptr
-            temp_args.append(ffi_arg)
-        elif isinstance(arg, PyNativeObject) and arg.__tvm_ffi_object__ is not None:
-            arg = arg.__tvm_ffi_object__
-            out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
-            out[i].v_ptr = (<Object>arg).chandle
-        elif isinstance(arg, bool):
-            # A python `bool` is a subclass of `int`, so this check
-            # must occur before `Integral`.
-            out[i].type_index = kTVMFFIBool
-            out[i].v_int64 = arg
-        elif isinstance(arg, Integral):
-            out[i].type_index = kTVMFFIInt
-            out[i].v_int64 = arg
-        elif isinstance(arg, float):
-            out[i].type_index = kTVMFFIFloat
-            out[i].v_float64 = arg
-        elif isinstance(arg, _CLASS_DTYPE):
-            # dtype is a subclass of str, so this check occur before str
-            arg = arg.__tvm_ffi_dtype__
-            out[i].type_index = kTVMFFIDataType
-            out[i].v_dtype = (<DataType>arg).cdtype
-        elif isinstance(arg, _CLASS_DEVICE):
-            out[i].type_index = kTVMFFIDevice
-            out[i].v_device = (<Device>arg).cdevice
-        elif isinstance(arg, str):
-            tstr = c_str(arg)
-            out[i].type_index = kTVMFFIRawStr
-            out[i].v_c_str = tstr
-            temp_args.append(tstr)
-        elif arg is None:
-            out[i].type_index = kTVMFFINone
-            out[i].v_int64 = 0
-        elif isinstance(arg, Real):
-            out[i].type_index = kTVMFFIFloat
-            out[i].v_float64 = arg
-        elif isinstance(arg, (bytes, bytearray)):
-            arg = ByteArrayArg(arg)
-            out[i].type_index = kTVMFFIByteArrayPtr
-            out[i].v_int64 = 0
-            out[i].v_ptr = (<ByteArrayArg>arg).cptr()
-            temp_args.append(arg)
-        elif isinstance(arg, (list, tuple, dict, ObjectConvertible)):
-            arg = _FUNC_CONVERT_TO_OBJECT(arg)
-            out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
-            out[i].v_ptr = (<Object>arg).chandle
-            temp_args.append(arg)
-        elif isinstance(arg, ctypes.c_void_p):
-            out[i].type_index = kTVMFFIOpaquePtr
-            out[i].v_ptr = c_handle(arg)
-        elif isinstance(arg, Exception):
-            arg = _convert_to_ffi_error(arg)
-            out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
-            out[i].v_ptr = (<Object>arg).chandle
-            temp_args.append(arg)
-        elif isinstance(arg, ObjectRValueRef):
-            out[i].type_index = kTVMFFIObjectRValueRef
-            out[i].v_ptr = &((<Object>(arg.obj)).chandle)
-        elif callable(arg):
-            arg = _convert_to_ffi_func(arg)
-            out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
-            out[i].v_ptr = (<Object>arg).chandle
-            temp_args.append(arg)
-        else:
-            arg = _convert_to_opaque_object(arg)
-            out[i].type_index = kTVMFFIOpaquePyObject
-            out[i].v_ptr = (<Object>arg).chandle
-            temp_args.append(arg)
-
-
-cdef inline int FuncCall3(void* chandle,
-                          tuple args,
-                          TVMFFIAny* result,
-                          int* c_api_ret_code) except -1:
-    # fast path with stack alloca for less than 3 args
-    cdef TVMFFIAny[3] packed_args
-    cdef int nargs = len(args)
-    cdef int ctx_dev_type = -1
-    cdef int ctx_dev_id = 0
-    cdef TVMFFIStreamHandle ctx_stream = NULL
-    cdef TVMFFIStreamHandle prev_stream = NULL
-    temp_args = []
-    make_args(args, &packed_args[0], temp_args, &ctx_dev_type, &ctx_dev_id, &ctx_stream)
-    with nogil:
-        if ctx_dev_type != -1:
-            # set the stream based on ctx stream
-            c_api_ret_code[0] = TVMFFIEnvSetCurrentStream(ctx_dev_type, ctx_dev_id, ctx_stream, &prev_stream)
-            if c_api_ret_code[0] != 0:
-                return 0
-        c_api_ret_code[0] = TVMFFIFunctionCall(
-            chandle, &packed_args[0], nargs, result
-        )
-        # restore the original stream if it is not the same as the context stream
-        if ctx_dev_type != -1 and prev_stream != ctx_stream:
-            # restore the original stream
-            c_api_ret_code[0] = TVMFFIEnvSetCurrentStream(ctx_dev_type, ctx_dev_id, prev_stream, NULL)
-            if c_api_ret_code[0] != 0:
-                return 0
+##----------------------------------------------------------------------------
+## Implementation of setters using same naming style as TVMFFIPyArgSetterXXX_
+##----------------------------------------------------------------------------
+cdef int TVMFFIPyArgSetterTensor_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* arg, TVMFFIAny* out
+) except -1:
+    if (<Object>arg).chandle != NULL:
+        out.type_index = kTVMFFITensor
+        out.v_ptr = (<Tensor>arg).chandle
+    else:
+        out.type_index = kTVMFFIDLTensorPtr
+        out.v_ptr = (<Tensor>arg).cdltensor
     return 0
 
 
-cdef inline int FuncCall(void* chandle,
-                         tuple args,
-                         TVMFFIAny* result,
-                         int* c_api_ret_code) except -1:
-    cdef int nargs = len(args)
-    cdef int ctx_dev_type = -1
-    cdef int ctx_dev_id = 0
-    cdef TVMFFIStreamHandle ctx_stream = NULL
-    cdef TVMFFIStreamHandle prev_stream = NULL
+cdef int TVMFFIPyArgSetterObject_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* arg, TVMFFIAny* out
+) except -1:
+    out.type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
+    out.v_ptr = (<Object>arg).chandle
+    return 0
 
-    if nargs <= 3:
-        FuncCall3(chandle, args, result, c_api_ret_code)
+
+cdef int TVMFFIPyArgSetterDLPackCExporter_(
+    TVMFFIPyArgSetter* this, TVMFFIPyCallContext* ctx,
+    PyObject* arg, TVMFFIAny* out
+) except -1:
+    cdef DLManagedTensorVersioned* temp_managed_tensor
+    cdef TVMFFIObjectHandle temp_chandle
+    cdef TVMFFIStreamHandle env_stream = NULL
+
+    if ctx.device_id != -1:
+        # already queried device, do not do it again, pass NULL to stream
+        if (this.dlpack_c_exporter)(arg, &temp_managed_tensor, NULL) != 0:
+            return -1
+    else:
+        # query string on the envrionment stream
+        if (this.dlpack_c_exporter)(arg, &temp_managed_tensor, &env_stream) != 0:
+            return -1
+        # If device is not CPU, we should set the device type and id
+        if temp_managed_tensor.dl_tensor.device.device_type != kDLCPU:
+            ctx.stream = env_stream
+            ctx.device_type = temp_managed_tensor.dl_tensor.device.device_type
+            ctx.device_id = temp_managed_tensor.dl_tensor.device.device_id
+    # run conversion
+    if TVMFFITensorFromDLPackVersioned(temp_managed_tensor, 0, 0, &temp_chandle) != 0:
+        raise BufferError("Failed to convert DLManagedTensorVersioned to ffi.Tensor")
+    out.type_index = kTVMFFITensor
+    out.v_ptr = temp_chandle
+    TVMFFIPyPushTempFFIObject(ctx, temp_chandle)
+    return 0
+
+
+cdef int TVMFFIPyArgSetterTorch_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* py_arg, TVMFFIAny* out
+) except -1:
+    """Current setter for torch.Tensor, go through python and not as fast as c exporter"""
+    cdef object arg = <object>py_arg
+    is_cuda = arg.is_cuda
+    arg = from_dlpack(torch.utils.dlpack.to_dlpack(arg))
+    out.type_index = kTVMFFITensor
+    out.v_ptr = (<Tensor>arg).chandle
+    temp_dltensor = TVMFFITensorGetDLTensorPtr((<Tensor>arg).chandle)
+    # record the stream and device for torch context
+    if is_cuda and ctx.device_type != -1:
+        ctx.device_type = temp_dltensor.device.device_type
+        ctx.device_id = temp_dltensor.device.device_id
+        # This is an API that dynamo and other uses to get the raw stream from torch
+        temp_ptr = torch._C._cuda_getCurrentRawStream(temp_dltensor.device.device_id)
+        ctx.stream = <TVMFFIStreamHandle>temp_ptr
+    # push to temp and clear the handle
+    TVMFFIPyPushTempPyObject(ctx, <PyObject*>arg)
+    return 0
+
+
+cdef int TVMFFIPyArgSetterDLPack_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* py_arg, TVMFFIAny* out
+) except -1:
+    """Setter for __dlpack__ mechanism through python, not as fast as c exporter"""
+    cdef TVMFFIObjectHandle temp_chandle
+    cdef object arg = <object>py_arg
+    _from_dlpack_universal(arg, 0, 0, &temp_chandle)
+    out.type_index = kTVMFFITensor
+    out.v_ptr = temp_chandle
+    # record the stream from the source framework context when possible
+    temp_dltensor = TVMFFITensorGetDLTensorPtr(temp_chandle)
+    if (temp_dltensor.device.device_type != kDLCPU and
+        ctx.device_type != -1):
+        # __tvm_ffi_env_stream__ returns the expected stream that should be set
+        # through TVMFFIEnvSetCurrentStream when calling a TVM FFI function
+        if hasattr(arg, "__tvm_ffi_env_stream__"):
+            # Ideally projects should directly setup their stream context API
+            # write through by also calling TVMFFIEnvSetCurrentStream
+            # so we do not need this protocol to do exchange
+            ctx.device_type = temp_dltensor.device.device_type
+            ctx.device_id = temp_dltensor.device.device_id
+            temp_ptr= arg.__tvm_ffi_env_stream__()
+            ctx.stream = <TVMFFIStreamHandle>temp_ptr
+    TVMFFIPyPushTempFFIObject(ctx, temp_chandle)
+    return 0
+
+
+cdef int TVMFFIPyArgSetterDType_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* py_arg, TVMFFIAny* out
+) except -1:
+    """Setter for dtype"""
+    cdef object arg = <object>py_arg
+    # dtype is a subclass of str, so this check occur before str
+    arg = arg.__tvm_ffi_dtype__
+    out.type_index = kTVMFFIDataType
+    out.v_dtype = (<DataType>arg).cdtype
+    return 0
+
+
+cdef int TVMFFIPyArgSetterDevice_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* py_arg, TVMFFIAny* out
+) except -1:
+    """Setter for device"""
+    cdef object arg = <object>py_arg
+    out.type_index = kTVMFFIDevice
+    out.v_device = (<Device>arg).cdevice
+    return 0
+
+
+cdef int TVMFFIPyArgSetterStr_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* py_arg, TVMFFIAny* out
+) except -1:
+    """Setter for str"""
+    cdef object arg = <object>py_arg
+
+    if isinstance(arg, PyNativeObject) and arg.__tvm_ffi_object__ is not None:
+        arg = arg.__tvm_ffi_object__
+        out.type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
+        out.v_ptr = (<Object>arg).chandle
         return 0
 
-    cdef vector[TVMFFIAny] packed_args
-    packed_args.resize(nargs)
-
-    temp_args = []
-    make_args(args, &packed_args[0], temp_args, &ctx_dev_type, &ctx_dev_id, &ctx_stream)
-
-    with nogil:
-        if ctx_dev_type != -1:
-            c_api_ret_code[0] = TVMFFIEnvSetCurrentStream(ctx_dev_type, ctx_dev_id, ctx_stream, &prev_stream)
-            if c_api_ret_code[0] != 0:
-                return 0
-        c_api_ret_code[0] = TVMFFIFunctionCall(chandle, &packed_args[0], nargs, result)
-        # restore the original stream if it is not the same as the context stream
-        if ctx_dev_type != -1 and prev_stream != ctx_stream:
-            c_api_ret_code[0] = TVMFFIEnvSetCurrentStream(ctx_dev_type, ctx_dev_id, prev_stream, NULL)
-            if c_api_ret_code[0] != 0:
-                return 0
-
+    tstr = c_str(arg)
+    out.type_index = kTVMFFIRawStr
+    out.v_c_str = tstr
+    TVMFFIPyPushTempPyObject(ctx, <PyObject*>tstr)
     return 0
 
 
+cdef int TVMFFIPyArgSetterBytes_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* py_arg, TVMFFIAny* out
+) except -1:
+    """Setter for bytes"""
+    cdef object arg = <object>py_arg
+
+    if isinstance(arg, PyNativeObject) and arg.__tvm_ffi_object__ is not None:
+        arg = arg.__tvm_ffi_object__
+        out.type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
+        out.v_ptr = (<Object>arg).chandle
+        return 0
+
+    arg = ByteArrayArg(arg)
+    out.type_index = kTVMFFIByteArrayPtr
+    out.v_int64 = 0
+    out.v_ptr = (<ByteArrayArg>arg).cptr()
+    TVMFFIPyPushTempPyObject(ctx, <PyObject*>arg)
+    return 0
+
+
+cdef int TVMFFIPyArgSetterCtypesVoidPtr_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* py_arg, TVMFFIAny* out
+) except -1:
+    """Setter for ctypes.c_void_p"""
+    out.type_index = kTVMFFIOpaquePtr
+    out.v_ptr = c_handle(<object>py_arg)
+    return 0
+
+
+cdef int TVMFFIPyArgSetterObjectRValueRef_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* py_arg, TVMFFIAny* out
+) except -1:
+    """Setter for ObjectRValueRef"""
+    cdef object arg = <object>py_arg
+    out.type_index = kTVMFFIObjectRValueRef
+    out.v_ptr = &((<Object>(arg.obj)).chandle)
+    return 0
+
+
+cdef int TVMFFIPyArgSetterCallable_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* py_arg, TVMFFIAny* out
+) except -1:
+    """Setter for Callable"""
+    cdef object arg = <object>py_arg
+    arg = _convert_to_ffi_func(arg)
+    out.type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
+    out.v_ptr = (<Object>arg).chandle
+    TVMFFIPyPushTempPyObject(ctx, <PyObject*>arg)
+    return 0
+
+
+cdef int TVMFFIPyArgSetterException_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* py_arg, TVMFFIAny* out
+) except -1:
+    """Setter for Exception"""
+    cdef object arg = <object>py_arg
+    arg = _convert_to_ffi_error(arg)
+    out.type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
+    out.v_ptr = (<Object>arg).chandle
+    TVMFFIPyPushTempPyObject(ctx, <PyObject*>arg)
+    return 0
+
+
+cdef int TVMFFIPyArgSetterFallback_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* py_arg, TVMFFIAny* out
+) except -1:
+    """Fallback setter for all other types"""
+    cdef object arg = <object>py_arg
+    # fallback must contain PyNativeObject check
+    if isinstance(arg, PyNativeObject) and arg.__tvm_ffi_object__ is not None:
+        arg = arg.__tvm_ffi_object__
+        out.type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
+        out.v_ptr = (<Object>arg).chandle
+    elif isinstance(arg, (list, tuple, dict, ObjectConvertible)):
+        arg = _FUNC_CONVERT_TO_OBJECT(arg)
+        out.type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
+        out.v_ptr = (<Object>arg).chandle
+        TVMFFIPyPushTempPyObject(ctx, <PyObject*>arg)
+    else:
+        arg = _convert_to_opaque_object(arg)
+        out.type_index = kTVMFFIOpaquePyObject
+        out.v_ptr = (<Object>arg).chandle
+        TVMFFIPyPushTempPyObject(ctx, <PyObject*>arg)
+
+
+cdef int TVMFFIPyArgSetterFactory_(PyObject* value, TVMFFIPyArgSetter* out) except -1:
+    """
+    Factory function that creates an argument setter for a given Python argument type.
+    """
+    # NOTE: the order of checks matter here
+    # becase each argument may satisfy multiple checks
+    # priortize native types over external types
+    cdef object arg = <object>value
+    cdef long long temp_ptr
+    if arg is None:
+        out.func = TVMFFIPyArgSetterNone_
+        return 0
+    if isinstance(arg, Tensor):
+        out.func = TVMFFIPyArgSetterTensor_
+        return 0
+    if isinstance(arg, Object):
+        out.func = TVMFFIPyArgSetterObject_
+        return 0
+    if isinstance(arg, ObjectRValueRef):
+        out.func = TVMFFIPyArgSetterObjectRValueRef_
+        return 0
+    # external tensors
+    if hasattr(arg, "__dlpack_c_exporter__"):
+        out.func = TVMFFIPyArgSetterDLPackCExporter_
+        temp_ptr = arg.__dlpack_c_exporter__
+        out.dlpack_c_exporter = <DLPackPyObjectCExporter>temp_ptr
+        return 0
+    if torch is not None and isinstance(arg, torch.Tensor):
+        if _torch_dlpack_c_exporter_ptr is not None:
+            temp_ptr = _torch_dlpack_c_exporter_ptr
+            out.func = TVMFFIPyArgSetterDLPackCExporter_
+            out.dlpack_c_exporter = <DLPackPyObjectCExporter>temp_ptr
+        else:
+            out.func = TVMFFIPyArgSetterTorch_
+        return 0
+    if hasattr(arg, "__dlpack__"):
+        out.func = TVMFFIPyArgSetterDLPack_
+        return 0
+    if isinstance(arg, bool):
+        # A python `bool` is a subclass of `int`, so this check
+        # must occur before `Integral`.
+        out.func = TVMFFIPyArgSetterBool_
+        return 0
+    if isinstance(arg, Integral):
+        out.func = TVMFFIPyArgSetterInt_
+        return 0
+    if isinstance(arg, Real):
+        out.func = TVMFFIPyArgSetterFloat_
+        return 0
+    # dtype is a subclass of str, so this check must occur before str
+    if isinstance(arg, _CLASS_DTYPE):
+        out.func = TVMFFIPyArgSetterDType_
+        return 0
+    if isinstance(arg, _CLASS_DEVICE):
+        out.func = TVMFFIPyArgSetterDevice_
+        return 0
+    if isinstance(arg, str):
+        out.func = TVMFFIPyArgSetterStr_
+        return 0
+    if isinstance(arg, (bytes, bytearray)):
+        out.func = TVMFFIPyArgSetterBytes_
+        return 0
+    if isinstance(arg, ctypes.c_void_p):
+        out.func = TVMFFIPyArgSetterCtypesVoidPtr_
+        return 0
+    if callable(arg):
+        out.func = TVMFFIPyArgSetterCallable_
+        return 0
+    if isinstance(arg, Exception):
+        out.func = TVMFFIPyArgSetterException_
+        return 0
+    # default to opaque object
+    out.func = TVMFFIPyArgSetterFallback_
+    return 0
+
+#---------------------------------------------------------------------------------------------
+## Implementation of function calling
+#---------------------------------------------------------------------------------------------
 cdef inline int ConstructorCall(void* constructor_handle,
                                 tuple args,
                                 void** handle) except -1:
@@ -284,7 +415,7 @@ cdef inline int ConstructorCall(void* constructor_handle,
     # IMPORTANT: caller need to initialize result->type_index to kTVMFFINone
     result.type_index = kTVMFFINone
     result.v_int64 = 0
-    FuncCall(constructor_handle, args, &result, &c_api_ret_code)
+    TVMFFIPyFuncCall(TVMFFIPyArgSetterFactory_, constructor_handle, <PyObject*>args, &result, &c_api_ret_code)
     CHECK_CALL(c_api_ret_code)
     handle[0] = result.v_ptr
     return 0
@@ -304,7 +435,12 @@ class Function(Object):
         # IMPORTANT: caller need to initialize result->type_index to kTVMFFINone
         result.type_index = kTVMFFINone
         result.v_int64 = 0
-        FuncCall((<Object>self).chandle, args, &result, &c_api_ret_code)
+        TVMFFIPyFuncCall(
+            TVMFFIPyArgSetterFactory_,
+            (<Object>self).chandle, <PyObject*>args,
+            &result,
+            &c_api_ret_code
+        )
         # NOTE: logic is same as check_call
         # directly inline here to simplify traceback
         if c_api_ret_code == 0:
@@ -336,13 +472,15 @@ cdef class FieldSetter:
     cdef int64_t offset
 
     def __call__(self, Object obj, value):
-        cdef TVMFFIAny[1] packed_args
         cdef int c_api_ret_code
         cdef void* field_ptr = (<char*>(<Object>obj).chandle) + self.offset
-        cdef int nargs = 1
-        temp_args = []
-        make_args((value,), &packed_args[0], temp_args, NULL, NULL, NULL)
-        c_api_ret_code = self.setter(field_ptr, &packed_args[0])
+        TVMFFIPyCallFieldSetter(
+            TVMFFIPyArgSetterFactory_,
+            self.setter,
+            field_ptr,
+            <PyObject*>value,
+            &c_api_ret_code
+        )
         # NOTE: logic is same as check_call
         # directly inline here to simplify traceback
         if c_api_ret_code == 0:
@@ -466,6 +604,7 @@ cdef int tvm_ffi_callback(void* context,
                           TVMFFIAny* result) noexcept with gil:
     cdef list pyargs
     cdef TVMFFIAny temp_result
+    cdef int c_api_ret_code
     local_pyfunc = <object>(context)
     pyargs = []
     for i in range(num_args):
@@ -474,15 +613,20 @@ cdef int tvm_ffi_callback(void* context,
 
     try:
         rv = local_pyfunc(*pyargs)
+        TVMFFIPyPyObjectToFFIAny(
+            TVMFFIPyArgSetterFactory_,
+            <PyObject*>rv,
+            result,
+            &c_api_ret_code
+        )
+        if c_api_ret_code == 0:
+            return 0
+        elif c_api_ret_code == -2:
+            raise_existing_error()
+        return -1
     except Exception as err:
         set_last_ffi_error(err)
         return -1
-
-    temp_args = []
-    make_args((rv,), &temp_result, temp_args, NULL, NULL, NULL)
-    CHECK_CALL(TVMFFIAnyViewToOwnedAny(&temp_result, result))
-
-    return 0
 
 
 def _convert_to_ffi_func(object pyfunc):
@@ -511,6 +655,12 @@ def _convert_to_opaque_object(object pyobject):
     ret = OpaquePyObject.__new__(OpaquePyObject)
     (<Object>ret).chandle = chandle
     return ret
+
+
+def _print_debug_info():
+    """Get the size of the dispatch map"""
+    cdef size_t size =   TVMFFIPyGetDispatchMapSize()
+    print(f"TVMFFIPyGetDispatchMapSize: {size}")
 
 
 _STR_CONSTRUCTOR = _get_global_func("ffi.String", False)
