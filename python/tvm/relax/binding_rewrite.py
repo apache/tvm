@@ -19,8 +19,8 @@
 
 from typing import Optional
 
-import tvm_ffi
 import tvm
+import tvm_ffi
 from tvm.runtime import Object
 from . import Binding, DataflowBlock, Expr, Function, Var
 from . import _ffi_api
