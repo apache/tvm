@@ -44,11 +44,11 @@ import time
 
 
 def print_speed(name, speed):
-    print(f"{name:<40} {speed} sec/call")
+    print(f"{name:<60} {speed} sec/call")
 
 
 def print_error(name, error):
-    print(f"{name:<40} {error}")
+    print(f"{name:<60} {error}")
 
 
 def baseline_torch_add(repeat):
@@ -122,7 +122,7 @@ def tvm_ffi_nop(repeat):
     nop(x, y, z)
     start = time.time()
     for i in range(repeat):
-        y = tvm_ffi.from_dlpack(x)
+        nop(x, y, z)
     end = time.time()
     print_speed("tvm_ffi.nop", (end - start) / repeat)
 
@@ -275,6 +275,22 @@ def tvm_ffi_nop_autodlpack_from_numpy(repeat):
     bench_tvm_ffi_nop_autodlpack("tvm_ffi.nop.autodlpack(numpy)", x, y, z, repeat)
 
 
+def tvm_ffi_nop_autodlpack_from_dltensor_test_wrapper(repeat, device):
+    """
+    Measures overhead of running dlpack via auto convert by directly
+    take test wrapper as inputs. This effectively measure DLPack exchange in tvm ffi.
+    """
+    x = tvm_ffi.from_dlpack(torch.arange(1, device=device))
+    y = tvm_ffi.from_dlpack(torch.arange(1, device=device))
+    z = tvm_ffi.from_dlpack(torch.arange(1, device=device))
+    x = tvm_ffi.core.DLTensorTestWrapper(x)
+    y = tvm_ffi.core.DLTensorTestWrapper(y)
+    z = tvm_ffi.core.DLTensorTestWrapper(z)
+    bench_tvm_ffi_nop_autodlpack(
+        f"tvm_ffi.nop.autodlpack(DLTensorTestWrapper[{device}])", x, y, z, repeat
+    )
+
+
 def bench_to_dlpack(x, name, repeat):
     x.__dlpack__()
     start = time.time()
@@ -367,7 +383,6 @@ def main():
     baseline_numpy_add(repeat)
     baseline_torch_add(repeat)
     baseline_cupy_add(repeat)
-    tvm_ffi_nop(repeat)
     tvm_ffi_nop_from_torch_dlpack(repeat)
     tvm_ffi_nop_from_numpy_dlpack(repeat)
     tvm_ffi_self_dlpack_nop(repeat)
@@ -377,6 +392,9 @@ def main():
     tvm_ffi_nop_autodlpack_from_torch(repeat, "cuda", stream=True)
 
     tvm_ffi_nop_autodlpack_from_numpy(repeat)
+    tvm_ffi_nop_autodlpack_from_dltensor_test_wrapper(repeat, "cpu")
+    tvm_ffi_nop_autodlpack_from_dltensor_test_wrapper(repeat, "cuda")
+    tvm_ffi_nop(repeat)
     print("-------------------------------")
     print("Benchmark x.__dlpack__ overhead")
     print("-------------------------------")

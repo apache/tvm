@@ -118,13 +118,14 @@ class CUDACaptureStream {
   explicit CUDACaptureStream(cudaGraph_t* graph) : output_graph_(graph) {
     CUDA_CALL(cudaGetDevice(&device_id_));
     TVM_FFI_CHECK_SAFE_CALL(
-        TVMFFIEnvSetStream(kDLCUDA, device_id_, capture_stream_,
-                           reinterpret_cast<TVMFFIStreamHandle*>(&prev_default_stream_)));
+        TVMFFIEnvSetCurrentStream(kDLCUDA, device_id_, capture_stream_,
+                                  reinterpret_cast<TVMFFIStreamHandle*>(&prev_default_stream_)));
     CUDA_CALL(cudaStreamBeginCapture(capture_stream_, cudaStreamCaptureModeGlobal));
   }
   ~CUDACaptureStream() noexcept(false) {
     cudaStreamEndCapture(capture_stream_, output_graph_);
-    TVM_FFI_CHECK_SAFE_CALL(TVMFFIEnvSetStream(kDLCUDA, device_id_, prev_default_stream_, nullptr));
+    TVM_FFI_CHECK_SAFE_CALL(
+        TVMFFIEnvSetCurrentStream(kDLCUDA, device_id_, prev_default_stream_, nullptr));
   }
 
  private:

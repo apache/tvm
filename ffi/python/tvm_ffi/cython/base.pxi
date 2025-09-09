@@ -24,39 +24,24 @@ from cpython cimport PyErr_CheckSignals, PyGILState_Ensure, PyGILState_Release, 
 from cpython cimport pycapsule, PyCapsule_Destructor
 from cpython cimport PyErr_SetNone
 
-
-# Cython binding for TVM FFI C API
-cdef extern from "tvm/ffi/c_api.h":
-    cdef enum TVMFFITypeIndex:
-        kTVMFFIAny = -1
-        kTVMFFINone = 0
-        kTVMFFIInt = 1
-        kTVMFFIBool = 2
-        kTVMFFIFloat = 3
-        kTVMFFIOpaquePtr = 4
-        kTVMFFIDataType = 5
-        kTVMFFIDevice = 6
-        kTVMFFIDLTensorPtr = 7
-        kTVMFFIRawStr = 8
-        kTVMFFIByteArrayPtr = 9
-        kTVMFFIObjectRValueRef = 10
-        kTVMFFISmallStr = 11
-        kTVMFFISmallBytes = 12
-        kTVMFFIStaticObjectBegin = 64
-        kTVMFFIObject = 64
-        kTVMFFIStr = 65
-        kTVMFFIBytes = 66
-        kTVMFFIError = 67
-        kTVMFFIFunction = 68
-        kTVMFFIShape = 69
-        kTVMFFITensor = 70
-        kTVMFFIArray = 71
-        kTVMFFIMap = 72
-        kTVMFFIModule = 73
-        kTVMFFIOpaquePyObject = 74
-
-
-    ctypedef void* TVMFFIObjectHandle
+cdef extern from "dlpack/dlpack.h":
+    cdef enum:
+        kDLCPU = 1,
+        kDLCUDA = 2,
+        kDLCUDAHost = 3,
+        kDLOpenCL = 4,
+        kDLVulkan = 7,
+        kDLMetal = 8,
+        kDLVPI = 9,
+        kDLROCM = 10,
+        kDLROCMHost = 11,
+        kDLExtDev = 12,
+        kDLCUDAManaged = 13,
+        kDLOneAPI = 14,
+        kDLWebGPU = 15,
+        kDLHexagon = 16,
+        kDLMAIA = 17
+        kDLTrn = 18
 
     ctypedef struct DLDataType:
         uint8_t code
@@ -91,6 +76,40 @@ cdef extern from "tvm/ffi/c_api.h":
         void* manager_ctx
         void (*deleter)(DLManagedTensorVersioned* self)
         uint64_t flags
+
+
+# Cython binding for TVM FFI C API
+cdef extern from "tvm/ffi/c_api.h":
+    cdef enum TVMFFITypeIndex:
+        kTVMFFIAny = -1
+        kTVMFFINone = 0
+        kTVMFFIInt = 1
+        kTVMFFIBool = 2
+        kTVMFFIFloat = 3
+        kTVMFFIOpaquePtr = 4
+        kTVMFFIDataType = 5
+        kTVMFFIDevice = 6
+        kTVMFFIDLTensorPtr = 7
+        kTVMFFIRawStr = 8
+        kTVMFFIByteArrayPtr = 9
+        kTVMFFIObjectRValueRef = 10
+        kTVMFFISmallStr = 11
+        kTVMFFISmallBytes = 12
+        kTVMFFIStaticObjectBegin = 64
+        kTVMFFIObject = 64
+        kTVMFFIStr = 65
+        kTVMFFIBytes = 66
+        kTVMFFIError = 67
+        kTVMFFIFunction = 68
+        kTVMFFIShape = 69
+        kTVMFFITensor = 70
+        kTVMFFIArray = 71
+        kTVMFFIMap = 72
+        kTVMFFIModule = 73
+        kTVMFFIOpaquePyObject = 74
+
+
+    ctypedef void* TVMFFIObjectHandle
 
     ctypedef struct TVMFFIObject:
         int32_t type_index
@@ -219,9 +238,9 @@ cdef extern from "tvm/ffi/extra/c_env_api.h":
 
     int TVMFFIEnvRegisterCAPI(const char* name, void* ptr) nogil
     void* TVMFFIEnvGetCurrentStream(int32_t device_type, int32_t device_id) nogil
-    int TVMFFIEnvSetStream(int32_t device_type, int32_t device_id,
-                           TVMFFIStreamHandle stream,
-                           TVMFFIStreamHandle* opt_out_original_stream) nogil
+    int TVMFFIEnvSetCurrentStream(int32_t device_type, int32_t device_id,
+                                  TVMFFIStreamHandle stream,
+                                  TVMFFIStreamHandle* opt_out_original_stream) nogil
 
 
 cdef class ByteArrayArg:

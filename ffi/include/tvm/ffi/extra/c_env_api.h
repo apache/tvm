@@ -49,9 +49,9 @@ typedef void* TVMFFIStreamHandle;
  * \note The stream is a weak reference that is cached/owned by the module.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFIEnvSetStream(int32_t device_type, int32_t device_id,
-                                   TVMFFIStreamHandle stream,
-                                   TVMFFIStreamHandle* opt_out_original_stream);
+TVM_FFI_DLL int TVMFFIEnvSetCurrentStream(int32_t device_type, int32_t device_id,
+                                          TVMFFIStreamHandle stream,
+                                          TVMFFIStreamHandle* opt_out_original_stream);
 
 /*!
  * \brief FFI function to get the current stream for a device
