@@ -222,9 +222,8 @@ class BaseFuncNode : public RelaxExprNode {
     refl::ObjectDef<BaseFuncNode>().def_ro("attrs", &BaseFuncNode::attrs);
   }
 
-  static constexpr const char* _type_key = "ir.BaseFunc";
   static constexpr const uint32_t _type_child_slots = 2;
-  TVM_DECLARE_BASE_OBJECT_INFO(BaseFuncNode, RelaxExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.BaseFunc", BaseFuncNode, RelaxExprNode);
 };
 
 /*!
@@ -233,7 +232,7 @@ class BaseFuncNode : public RelaxExprNode {
  */
 class BaseFunc : public RelaxExpr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(BaseFunc, RelaxExpr, BaseFuncNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BaseFunc, RelaxExpr, BaseFuncNode);
 };
 
 }  // namespace tvm

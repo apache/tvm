@@ -323,9 +323,7 @@ class CUDATimerNode : public TimerNode {
     CUDA_CALL(cudaEventCreate(&start_));
     CUDA_CALL(cudaEventCreate(&stop_));
   }
-
-  static constexpr const char* _type_key = "runtime.cuda.CUDATimerNode";
-  TVM_DECLARE_FINAL_OBJECT_INFO(CUDATimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.cuda.CUDATimerNode", CUDATimerNode, TimerNode);
 
  private:
   cudaEvent_t start_;

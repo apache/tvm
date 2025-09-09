@@ -163,8 +163,7 @@ class IndexMapNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "tir.IndexMap";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IndexMapNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.IndexMap", IndexMapNode, Object);
 };
 
 class IndexMap : public ObjectRef {
@@ -221,7 +220,7 @@ class IndexMap : public ObjectRef {
   std::pair<IndexMap, PrimExpr> NonSurjectiveInverse(ffi::Array<Range> initial_ranges,
                                                      arith::Analyzer* analyzer) const;
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IndexMap, ObjectRef, IndexMapNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IndexMap, ObjectRef, IndexMapNode);
 };
 
 /*! \brief Substitute variables in an index map.

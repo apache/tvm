@@ -590,10 +590,9 @@ class OpenCLTimerNode : public TimerNode {
   OpenCLTimerNode() {}
   explicit OpenCLTimerNode(Device dev) : dev_(dev) {}
 
-  static constexpr const char* _type_key = "runtime.opencl.OpenCLTimerNode";
   static size_t count_timer_execs;
   static std::vector<size_t> event_start_idxs;
-  TVM_DECLARE_FINAL_OBJECT_INFO(OpenCLTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.opencl.OpenCLTimerNode", OpenCLTimerNode, TimerNode);
 
  private:
   int64_t duration;

@@ -52,9 +52,8 @@ class CanonicalExprNode : public PrimExprNode {
    */
   virtual PrimExpr Normalize() const = 0;
 
-  static constexpr const char* _type_key = "arith.CanonicalExpr";
   static constexpr const uint32_t _type_child_slots = 2;
-  TVM_DECLARE_BASE_OBJECT_INFO(CanonicalExprNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("arith.CanonicalExpr", CanonicalExprNode, PrimExprNode);
 };
 
 inline PrimExpr ModImpl(PrimExpr a, PrimExpr b, DivMode mode) {
@@ -204,13 +203,12 @@ class SplitExprNode : public CanonicalExprNode {
 
   /*! \brief positive infty */
   static const constexpr int64_t kPosInf = ConstIntBoundNode::kPosInf;
-  static constexpr const char* _type_key = "arith.SplitExpr";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SplitExprNode, CanonicalExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.SplitExpr", SplitExprNode, CanonicalExprNode);
 };
 
 class SplitExpr : public PrimExpr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(SplitExpr, PrimExpr, SplitExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SplitExpr, PrimExpr, SplitExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SplitExprNode);
 };
 
@@ -390,9 +388,7 @@ class SumExprNode : public CanonicalExprNode {
     }
     this->dtype = dtype;
   }
-
-  static constexpr const char* _type_key = "arith.SumExpr";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SumExprNode, CanonicalExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.SumExpr", SumExprNode, CanonicalExprNode);
 
  private:
   /*!
@@ -524,7 +520,7 @@ class SumExprNode : public CanonicalExprNode {
 
 class SumExpr : public PrimExpr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(SumExpr, PrimExpr, SumExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SumExpr, PrimExpr, SumExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SumExprNode);
 };
 

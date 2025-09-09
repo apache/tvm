@@ -368,16 +368,14 @@ class ModulePassNode : public PassNode {
    * \brief Get the pass information/meta data.
    */
   PassInfo Info() const override { return pass_info; }
-
-  static constexpr const char* _type_key = "transform.ModulePass";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ModulePassNode, PassNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.ModulePass", ModulePassNode, PassNode);
 };
 
 class ModulePass : public Pass {
  public:
   ModulePass(std::function<IRModule(IRModule, PassContext)> pass_func, PassInfo pass_info);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(ModulePass, Pass, ModulePassNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ModulePass, Pass, ModulePassNode);
 };
 
 PassInfo::PassInfo(int opt_level, ffi::String name, tvm::ffi::Array<ffi::String> required,

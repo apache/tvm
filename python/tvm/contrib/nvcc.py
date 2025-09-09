@@ -251,9 +251,10 @@ def get_cuda_version(cuda_path=None):
 def find_nvshmem_paths() -> Tuple[str, str]:
     """
     Searches for the NVSHMEM include and library directories.
-    Returns:
-        A tuple containing the path to the include directory and the library directory.
-        (include_path, lib_path)
+
+    Returns
+    -------
+    A tuple containing the path to the include directory and the library directory.
     """
     candidate_roots = []
 
