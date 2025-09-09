@@ -146,9 +146,9 @@ class TVM_FFI_EXTRA_CXX_API ModuleObj : public Object {
 
   /// \cond Doxygen_Suppress
   static constexpr const int32_t _type_index = TypeIndex::kTVMFFIModule;
-  static constexpr const char* _type_key = StaticTypeKey::kTVMFFIModule;
+  static constexpr const bool _type_mutable = true;
   static const constexpr bool _type_final = true;
-  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(ModuleObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_STATIC(StaticTypeKey::kTVMFFIModule, ModuleObj, Object);
   /// \endcond
 
  protected:
@@ -234,7 +234,7 @@ class Module : public ObjectRef {
       const ffi::TypedFunction<void(String, void*)>& callback);
 
   /// \cond Doxygen_Suppress
-  TVM_FFI_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Module, ObjectRef, ModuleObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Module, ObjectRef, ModuleObj);
   /// \endcond
 };
 

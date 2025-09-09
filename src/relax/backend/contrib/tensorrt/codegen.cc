@@ -70,15 +70,14 @@ struct TensorRTCompilerConfigNode : public AttrsNodeReflAdapter<TensorRTCompiler
         .def_ro("use_uint8", &TensorRTCompilerConfigNode::use_uint8, "Use uint8",
                 refl::DefaultValue(false));
   }
-
-  static constexpr const char* _type_key = "relax.ext.attrs.TensorRTCompilerConfig";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TensorRTCompilerConfigNode, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ext.attrs.TensorRTCompilerConfig",
+                                    TensorRTCompilerConfigNode, BaseAttrsNode);
 };
 
 class TensorRTCompilerConfig : public Attrs {
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TensorRTCompilerConfig, Attrs,
-                                            TensorRTCompilerConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorRTCompilerConfig, Attrs,
+                                                TensorRTCompilerConfigNode);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({ TensorRTCompilerConfigNode::RegisterReflection(); });

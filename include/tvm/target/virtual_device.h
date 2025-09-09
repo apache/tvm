@@ -257,9 +257,7 @@ class VirtualDeviceNode : public AttrsNodeReflAdapter<VirtualDeviceNode> {
                 "The area of memory w.r.t. the virtual device where data is stored.",
                 refl::DefaultValue(""));
   }
-
-  static constexpr const char* _type_key = "target.VirtualDevice";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(VirtualDeviceNode, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.VirtualDevice", VirtualDeviceNode, BaseAttrsNode);
 
   friend class VirtualDevice;
 };
@@ -341,7 +339,7 @@ class VirtualDevice : public ObjectRef {
    */
   static VirtualDevice Default(const VirtualDevice& lhs, const VirtualDevice& rhs);
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(VirtualDevice, ObjectRef, VirtualDeviceNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(VirtualDevice, ObjectRef, VirtualDeviceNode);
 
   friend class VirtualDeviceCache;  // Private implementation helper.
 };

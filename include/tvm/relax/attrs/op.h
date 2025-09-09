@@ -44,9 +44,8 @@ struct CallTIRWithGradAttrs : public AttrsNodeReflAdapter<CallTIRWithGradAttrs> 
         .def_ro("te_grad_kwargs", &CallTIRWithGradAttrs::te_grad_kwargs,
                 "The keyword arguments passed to the te gradient function.");
   }
-
-  static constexpr const char* _type_key = "relax.attrs.CallTIRWithGradAttrs";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(CallTIRWithGradAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.CallTIRWithGradAttrs", CallTIRWithGradAttrs,
+                                    BaseAttrsNode);
 };  // struct CallTIRAttrs
 
 /*! \brief Attributes used in call_tir_inplace */
@@ -65,9 +64,8 @@ struct CallTIRInplaceAttrs : public AttrsNodeReflAdapter<CallTIRInplaceAttrs> {
     refl::ObjectDef<CallTIRInplaceAttrs>().def_ro("inplace_indices",
                                                   &CallTIRInplaceAttrs::inplace_indices);
   }
-
-  static constexpr const char* _type_key = "relax.attrs.CallTIRInplaceAttrs";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(CallTIRInplaceAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.CallTIRInplaceAttrs", CallTIRInplaceAttrs,
+                                    BaseAttrsNode);
 };  // struct CallTIRInplaceAttrs
 
 /*! \brief Attributes used in call_inplace_packed */
@@ -86,9 +84,8 @@ struct CallInplacePackedAttrs : public AttrsNodeReflAdapter<CallInplacePackedAtt
     refl::ObjectDef<CallInplacePackedAttrs>().def_ro("inplace_indices",
                                                      &CallInplacePackedAttrs::inplace_indices);
   }
-
-  static constexpr const char* _type_key = "relax.attrs.CallInplacePackedAttrs";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(CallInplacePackedAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.CallInplacePackedAttrs", CallInplacePackedAttrs,
+                                    BaseAttrsNode);
 };  // struct CallInplacePackedAttrs
 
 /*! \brief Attributes used in to_vdevice */
@@ -100,9 +97,7 @@ struct ToVDeviceAttrs : public AttrsNodeReflAdapter<ToVDeviceAttrs> {
     refl::ObjectDef<ToVDeviceAttrs>().def_ro("dst_vdevice", &ToVDeviceAttrs::dst_vdevice,
                                              "The destination device where the data is copied to.");
   }
-
-  static constexpr const char* _type_key = "relax.attrs.ToVDeviceAttrs";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(ToVDeviceAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ToVDeviceAttrs", ToVDeviceAttrs, BaseAttrsNode);
 };  // struct ToVDeviceAttrs
 
 /*! \brief Attributes used in hint_on_device */
@@ -117,9 +112,8 @@ struct HintOnDeviceAttrs : public AttrsNodeReflAdapter<HintOnDeviceAttrs> {
                 "The device type where the data is supposed to be executed.")
         .def_ro("index", &HintOnDeviceAttrs::index, "The device id.");
   }
-
-  static constexpr const char* _type_key = "relax.attrs.HintOnDeviceAttrs";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(HintOnDeviceAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.HintOnDeviceAttrs", HintOnDeviceAttrs,
+                                    BaseAttrsNode);
 };  // struct HintOnDeviceAttrs
 
 }  // namespace relax

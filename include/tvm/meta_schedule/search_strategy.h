@@ -129,8 +129,8 @@ class SearchStrategyNode : public runtime::Object {
    */
   virtual SearchStrategy Clone() const = 0;
 
-  static constexpr const char* _type_key = "meta_schedule.SearchStrategy";
-  TVM_DECLARE_BASE_OBJECT_INFO(SearchStrategyNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.SearchStrategy", SearchStrategyNode, Object);
 };
 
 /*!
@@ -216,7 +216,7 @@ class SearchStrategy : public runtime::ObjectRef {
                                                    int genetic_max_fail_count,  //
                                                    double eps_greedy);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(SearchStrategy, ObjectRef, SearchStrategyNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SearchStrategy, ObjectRef, SearchStrategyNode);
 };
 
 /*! \brief The python side customizable class for measure candidate generation */
@@ -261,9 +261,8 @@ class PySearchStrategyNode : public SearchStrategyNode {
   void NotifyRunnerResults(const ffi::Array<MeasureCandidate>& measure_candidates,
                            const ffi::Array<RunnerResult>& results);
   SearchStrategy Clone() const final;
-
-  static constexpr const char* _type_key = "meta_schedule.PySearchStrategy";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PySearchStrategyNode, SearchStrategyNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PySearchStrategy", PySearchStrategyNode,
+                                    SearchStrategyNode);
 };
 
 }  // namespace meta_schedule

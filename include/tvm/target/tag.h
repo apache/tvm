@@ -47,10 +47,7 @@ class TargetTagNode : public Object {
         .def_ro("name", &TargetTagNode::name)
         .def_ro("config", &TargetTagNode::config);
   }
-
-  static constexpr const char* _type_key = "target.TargetTag";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(TargetTagNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.TargetTag", TargetTagNode, Object);
 
  private:
   /*! \brief Return the index stored in attr registry */
@@ -93,7 +90,7 @@ class TargetTag : public ObjectRef {
    */
   TVM_DLL static Target AddTag(ffi::String name, ffi::Map<ffi::String, Any> config, bool override);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(TargetTag, ObjectRef, TargetTagNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TargetTag, ObjectRef, TargetTagNode);
 
  private:
   /*! \brief Mutable access to the container class  */

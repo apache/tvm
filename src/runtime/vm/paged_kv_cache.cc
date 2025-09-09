@@ -1691,9 +1691,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   void DebugSetKV(int64_t seq_id, int64_t start_pos, Tensor k_data, Tensor v_data) final {
     ICHECK(false) << "DebugSetKV for PageAttentionKVCache not implemented yet.";
   }
-
-  static constexpr const char* _type_key = "relax.vm.PagedAttentionKVCache";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PagedAttentionKVCacheObj, AttentionKVCacheObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.vm.PagedAttentionKVCache", PagedAttentionKVCacheObj,
+                                    AttentionKVCacheObj);
 
  private:
   /*! \brief Get a new free page and return its id. */

@@ -175,9 +175,8 @@ class TargetNode : public Object {
   /*! \brief Get the keys for this target as an unordered_set of string */
   TVM_DLL std::unordered_set<std::string> GetLibs() const;
 
-  static constexpr const char* _type_key = "target.Target";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_DECLARE_FINAL_OBJECT_INFO(TargetNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.Target", TargetNode, Object);
 
  private:
   /*! \brief Internal string repr. */
@@ -219,7 +218,7 @@ class Target : public ObjectRef {
    * \param host The Target typed object for target host
    */
   TVM_DLL explicit Target(Target target, Target host);
-  TVM_DEFINE_OBJECT_REF_METHODS(Target, ObjectRef, TargetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Target, ObjectRef, TargetNode);
   /*!
    * \brief Create a new Target object with given target (w.o host) and target host.
    * \param target The current Target typed object target, with or without host field.

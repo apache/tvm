@@ -121,9 +121,7 @@ class InstructionKindNode : public runtime::Object {
 
   /*! \brief Checks if the instruction kind is EnterPostproc */
   bool IsPostproc() const;
-
-  static constexpr const char* _type_key = "tir.InstructionKind";
-  TVM_DECLARE_FINAL_OBJECT_INFO(InstructionKindNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.InstructionKind", InstructionKindNode, runtime::Object);
 };
 
 /*!
@@ -138,7 +136,8 @@ class InstructionKind : public runtime::ObjectRef {
    * \return The InstructionKind retrieved
    */
   static InstructionKind Get(const ffi::String& name);
-  TVM_DEFINE_OBJECT_REF_METHODS(InstructionKind, runtime::ObjectRef, InstructionKindNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InstructionKind, runtime::ObjectRef,
+                                             InstructionKindNode);
 };
 
 /*! \brief Schedule instructions each corresponds to a schedule primitive */
@@ -180,9 +179,7 @@ class InstructionNode : public runtime::Object {
         .def_ro("attrs", &InstructionNode::attrs)
         .def_ro("outputs", &InstructionNode::outputs);
   }
-
-  static constexpr const char* _type_key = "tir.Instruction";
-  TVM_DECLARE_FINAL_OBJECT_INFO(InstructionNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Instruction", InstructionNode, runtime::Object);
 };
 
 /*!
@@ -201,7 +198,7 @@ class Instruction : public runtime::ObjectRef {
   explicit Instruction(InstructionKind kind, ffi::Array<Any> inputs, ffi::Array<Any> attrs,
                        ffi::Array<Any> outputs);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Instruction, runtime::ObjectRef, InstructionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Instruction, runtime::ObjectRef, InstructionNode);
 };
 
 /*!

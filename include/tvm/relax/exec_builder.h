@@ -142,8 +142,8 @@ class ExecBuilderNode : public Object {
     refl::ObjectDef<ExecBuilderNode>();
   }
 
-  static constexpr const char* _type_key = "relax.ExecBuilder";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ExecBuilderNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ExecBuilder", ExecBuilderNode, Object);
 
  private:
   /*!
@@ -174,7 +174,7 @@ class ExecBuilderNode : public Object {
 
 class ExecBuilder : public ObjectRef {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ExecBuilder, ObjectRef, ExecBuilderNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExecBuilder, ObjectRef, ExecBuilderNode);
 };
 
 }  // namespace relax

@@ -51,9 +51,7 @@ class FeatureExtractorNode : public runtime::Object {
    */
   virtual ffi::Array<tvm::runtime::Tensor> ExtractFrom(
       const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates) = 0;
-
-  static constexpr const char* _type_key = "meta_schedule.FeatureExtractor";
-  TVM_DECLARE_BASE_OBJECT_INFO(FeatureExtractorNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.FeatureExtractor", FeatureExtractorNode, Object);
 };
 
 /*! \brief The feature extractor with customized methods on the python-side. */
@@ -85,9 +83,8 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
 
   ffi::Array<tvm::runtime::Tensor> ExtractFrom(
       const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates) final;
-
-  static constexpr const char* _type_key = "meta_schedule.PyFeatureExtractor";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyFeatureExtractorNode, FeatureExtractorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyFeatureExtractor", PyFeatureExtractorNode,
+                                    FeatureExtractorNode);
 };
 
 /*!
@@ -119,7 +116,7 @@ class FeatureExtractor : public runtime::ObjectRef {
   TVM_DLL static FeatureExtractor PyFeatureExtractor(
       PyFeatureExtractorNode::FExtractFrom f_extract_from,
       PyFeatureExtractorNode::FAsString f_as_string);
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(FeatureExtractor, ObjectRef, FeatureExtractorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FeatureExtractor, ObjectRef, FeatureExtractorNode);
 };
 
 }  // namespace meta_schedule

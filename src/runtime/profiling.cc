@@ -55,8 +55,7 @@ class DefaultTimerNode : public TimerNode {
   virtual ~DefaultTimerNode() {}
 
   explicit DefaultTimerNode(Device dev) : device_(dev) {}
-  static constexpr const char* _type_key = "runtime.DefaultTimerNode";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DefaultTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.DefaultTimerNode", DefaultTimerNode, TimerNode);
 
  private:
   std::chrono::high_resolution_clock::time_point start_;
@@ -72,9 +71,7 @@ class CPUTimerNode : public TimerNode {
   virtual void Stop() { duration_ = std::chrono::high_resolution_clock::now() - start_; }
   virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
   virtual ~CPUTimerNode() {}
-
-  static constexpr const char* _type_key = "runtime.CPUTimerNode";
-  TVM_DECLARE_FINAL_OBJECT_INFO(CPUTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.CPUTimerNode", CPUTimerNode, TimerNode);
 
  private:
   std::chrono::high_resolution_clock::time_point start_;

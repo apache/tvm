@@ -92,9 +92,8 @@ class AccessStepObj : public Object {
   inline bool StepEqual(const AccessStep& other) const;
 
   /// \cond Doxygen_Suppress
-  static constexpr const char* _type_key = "ffi.reflection.AccessStep";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(AccessStepObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ffi.reflection.AccessStep", AccessStepObj, Object);
   /// \endcond
 };
 
@@ -162,7 +161,7 @@ class AccessStep : public ObjectRef {
   }
 
   /// \cond Doxygen_Suppress
-  TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AccessStep, ObjectRef, AccessStepObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AccessStep, ObjectRef, AccessStepObj);
   /// \endcond
 };
 
@@ -286,9 +285,8 @@ class AccessPathObj : public Object {
   inline bool IsPrefixOf(const AccessPath& other) const;
 
   /// \cond Doxygen_Suppress
-  static constexpr const char* _type_key = "ffi.reflection.AccessPath";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(AccessPathObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ffi.reflection.AccessPath", AccessPathObj, Object);
   /// \endcond
 
  private:
@@ -358,7 +356,7 @@ class AccessPath : public ObjectRef {
   }
 
   /// \cond Doxygen_Suppress
-  TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AccessPath, ObjectRef, AccessPathObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AccessPath, ObjectRef, AccessPathObj);
   /// \endcond
 
  private:

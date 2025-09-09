@@ -50,9 +50,8 @@ class BuilderInputNode : public runtime::Object {
         .def_ro("target", &BuilderInputNode::target)
         .def_ro("params", &BuilderInputNode::params);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.BuilderInput";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BuilderInputNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.BuilderInput", BuilderInputNode,
+                                    runtime::Object);
 };
 
 /*!
@@ -70,7 +69,7 @@ class BuilderInput : public runtime::ObjectRef {
   TVM_DLL explicit BuilderInput(
       IRModule mod, Target target,
       ffi::Optional<ffi::Map<ffi::String, runtime::Tensor>> params = std::nullopt);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BuilderInput, runtime::ObjectRef, BuilderInputNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BuilderInput, runtime::ObjectRef, BuilderInputNode);
 };
 
 /*! \brief The builder's output, containing the artifact path or error message if any. */
@@ -87,9 +86,8 @@ class BuilderResultNode : public runtime::Object {
         .def_ro("artifact_path", &BuilderResultNode::artifact_path)
         .def_ro("error_msg", &BuilderResultNode::error_msg);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.BuilderResult";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BuilderResultNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.BuilderResult", BuilderResultNode,
+                                    runtime::Object);
 };
 
 /*!
@@ -105,7 +103,8 @@ class BuilderResult : public runtime::ObjectRef {
    */
   TVM_DLL explicit BuilderResult(ffi::Optional<ffi::String> artifact_path,
                                  ffi::Optional<ffi::String> error_msg);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BuilderResult, runtime::ObjectRef, BuilderResultNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BuilderResult, runtime::ObjectRef,
+                                                BuilderResultNode);
 };
 
 /*! \brief The abstract builder interface. */
@@ -126,8 +125,8 @@ class BuilderNode : public runtime::Object {
    */
   using FBuild = ffi::TypedFunction<ffi::Array<BuilderResult>(const ffi::Array<BuilderInput>&)>;
 
-  static constexpr const char* _type_key = "meta_schedule.Builder";
-  TVM_DECLARE_BASE_OBJECT_INFO(BuilderNode, runtime::Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.Builder", BuilderNode, runtime::Object);
 };
 
 /*!
@@ -149,7 +148,7 @@ class Builder : public runtime::ObjectRef {
    * \return The Builder created.
    */
   static Builder PyBuilder(BuilderNode::FBuild f_build);
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Builder, runtime::ObjectRef, BuilderNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Builder, runtime::ObjectRef, BuilderNode);
 };
 
 /*! \brief An abstract builder with customized build method on the python-side. */
@@ -167,9 +166,7 @@ class PyBuilderNode : public BuilderNode {
     ICHECK(f_build != nullptr) << "PyBuilder's Build method not implemented!";
     return f_build(build_inputs);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.PyBuilder";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyBuilderNode, BuilderNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyBuilder", PyBuilderNode, BuilderNode);
 };
 
 }  // namespace meta_schedule

@@ -125,9 +125,8 @@ class RewriteReductionBlockNode : public PostprocNode {
     ObjectPtr<RewriteReductionBlockNode> n = ffi::make_object<RewriteReductionBlockNode>(*this);
     return Postproc(n);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.RewriteReductionBlock";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RewriteReductionBlockNode, PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RewriteReductionBlock",
+                                    RewriteReductionBlockNode, PostprocNode);
 };
 
 bool RewriteReductionBlockNode::Apply(const tir::Schedule& sch) {

@@ -60,9 +60,8 @@ class MutateTileSizeNode : public MutatorNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MutateTileSizeNode>();
   }
-
-  static constexpr const char* _type_key = "meta_schedule.MutateTileSize";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MutateTileSizeNode, MutatorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MutateTileSize", MutateTileSizeNode,
+                                    MutatorNode);
 
  public:
   // Inherit from `MutatorNode`

@@ -86,9 +86,7 @@ class CodegenResultNode : public Object {
         .def_ro("code", &CodegenResultNode::code)
         .def_ro("headers", &CodegenResultNode::headers);
   }
-
-  static constexpr const char* _type_key = "contrib.cutlass.CodegenResult";
-  TVM_DECLARE_FINAL_OBJECT_INFO(CodegenResultNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("contrib.cutlass.CodegenResult", CodegenResultNode, Object);
 };
 
 class CodegenResult : public ObjectRef {
@@ -100,7 +98,7 @@ class CodegenResult : public ObjectRef {
     data_ = std::move(n);
   }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(CodegenResult, ObjectRef, CodegenResultNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CodegenResult, ObjectRef, CodegenResultNode);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({ CodegenResultNode::RegisterReflection(); });

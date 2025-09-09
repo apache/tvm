@@ -81,9 +81,8 @@ class ReplayTraceNode : public SearchStrategyNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ReplayTraceNode>().def_ro("max_fail_count", &ReplayTraceNode::max_fail_count);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.ReplayTrace";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ReplayTraceNode, SearchStrategyNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.ReplayTrace", ReplayTraceNode,
+                                    SearchStrategyNode);
 
   void InitializeWithTuneContext(const TuneContext& ctx) final {
     CHECK(ctx->mod.defined()) << "ValueError: TuneContext.mod is not defined";

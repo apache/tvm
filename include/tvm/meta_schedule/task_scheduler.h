@@ -74,8 +74,8 @@ class TaskRecordNode : public runtime::Object {
         .def_ro("runner_futures", &TaskRecordNode::runner_futures);
   }
 
-  static constexpr const char* _type_key = "meta_schedule.TaskRecord";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TaskRecordNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.TaskRecord", TaskRecordNode, Object);
 };
 
 /*!
@@ -87,7 +87,7 @@ class TaskRecord : public runtime::ObjectRef {
   /*! \brief Constructor */
   explicit TaskRecord(TuneContext task, double task_weight);
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TaskRecord, ObjectRef, TaskRecordNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TaskRecord, ObjectRef, TaskRecordNode);
 };
 
 /*!
@@ -201,8 +201,8 @@ class TaskSchedulerNode : public runtime::Object {
   /*! \brief Print out a human-readable format of the tuning statistics. */
   void PrintTuningStatistics();
 
-  static constexpr const char* _type_key = "meta_schedule.TaskScheduler";
-  TVM_DECLARE_BASE_OBJECT_INFO(TaskSchedulerNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.TaskScheduler", TaskSchedulerNode, Object);
 };
 
 class TaskScheduler;
@@ -250,9 +250,8 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
             int max_trials_per_task, int num_trials_per_iter, Builder builder, Runner runner,
             ffi::Array<MeasureCallback> measure_callbacks, ffi::Optional<Database> database,
             ffi::Optional<CostModel> cost_model) final;
-
-  static constexpr const char* _type_key = "meta_schedule.PyTaskScheduler";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyTaskSchedulerNode, TaskSchedulerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyTaskScheduler", PyTaskSchedulerNode,
+                                    TaskSchedulerNode);
 };
 
 /*!
@@ -291,7 +290,7 @@ class TaskScheduler : public runtime::ObjectRef {
   TVM_DLL static TaskScheduler PyTaskScheduler(
       ffi::Function logger, PyTaskSchedulerNode::FNextTaskId f_next_task_id,
       PyTaskSchedulerNode::FJoinRunningTask f_join_running_task, PyTaskSchedulerNode::FTune f_tune);
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TaskScheduler, ObjectRef, TaskSchedulerNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TaskScheduler, ObjectRef, TaskSchedulerNode);
 };
 
 }  // namespace meta_schedule

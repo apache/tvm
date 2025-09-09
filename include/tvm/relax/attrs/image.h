@@ -75,9 +75,7 @@ struct Resize2DAttrs : public AttrsNodeReflAdapter<Resize2DAttrs> {
             "The dtype of the output tensor. It it is not specified, the output will have the same "
             "dtype as input if not specified.");
   }
-
-  static constexpr const char* _type_key = "relax.attrs.Resize2DAttrs";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(Resize2DAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Resize2DAttrs", Resize2DAttrs, BaseAttrsNode);
 };  // struct Resize2dAttrs
 
 }  // namespace relax

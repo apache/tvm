@@ -104,8 +104,7 @@ class OpNode : public RelaxExprNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUniqueInstance;
-  static constexpr const char* _type_key = "ir.Op";
-  TVM_DECLARE_FINAL_OBJECT_INFO(OpNode, RelaxExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Op", OpNode, RelaxExprNode);
 
  private:
   /*! \return the internal attr registry index. */
@@ -154,7 +153,7 @@ class Op : public RelaxExpr {
    */
   TVM_DLL static const Op& Get(const ffi::String& op_name);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Op, RelaxExpr, OpNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Op, RelaxExpr, OpNode);
 
  private:
   /*!

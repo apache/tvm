@@ -43,9 +43,7 @@ class IRFrameNode : public FrameNode {
     namespace refl = tvm::ffi::reflection;
     // global infos is not exposed
   }
-
-  static constexpr const char* _type_key = "script.printer.IRFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IRFrameNode, FrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.IRFrame", IRFrameNode, FrameNode);
 };
 
 class IRFrame : public Frame {
@@ -58,7 +56,7 @@ class IRFrame : public Frame {
     data_ = std::move(n);
   }
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IRFrame, Frame, IRFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRFrame, Frame, IRFrameNode);
 };
 
 /*! \brief Redirected method for the ReprPrinter */

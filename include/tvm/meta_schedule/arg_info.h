@@ -33,8 +33,7 @@ namespace meta_schedule {
 /*! \brief The argument information. */
 class ArgInfoNode : public runtime::Object {
  public:
-  static constexpr const char* _type_key = "meta_schedule.ArgInfo";
-  TVM_DECLARE_BASE_OBJECT_INFO(ArgInfoNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.ArgInfo", ArgInfoNode, runtime::Object);
 
  public:
   /*! \brief Default destructor. */
@@ -69,7 +68,7 @@ class ArgInfo : public runtime::ObjectRef {
    */
   TVM_DLL static ffi::Array<ArgInfo, void> FromEntryFunc(const IRModule& mod, bool remove_preproc);
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ArgInfo, runtime::ObjectRef, ArgInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ArgInfo, runtime::ObjectRef, ArgInfoNode);
 
  protected:
   ArgInfo() = default;
@@ -89,9 +88,7 @@ class TensorInfoNode : public ArgInfoNode {
         .def_ro("dtype", &TensorInfoNode::dtype)
         .def_ro("shape", &TensorInfoNode::shape);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.TensorInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TensorInfoNode, ArgInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.TensorInfo", TensorInfoNode, ArgInfoNode);
 
  public:
   ObjectRef AsJSON() const;
@@ -115,7 +112,7 @@ class TensorInfo : public ArgInfo {
    * \return The argument information parsed.
    */
   TVM_DLL static TensorInfo FromJSON(const ObjectRef& json_obj);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TensorInfo, ArgInfo, TensorInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorInfo, ArgInfo, TensorInfoNode);
 };
 
 }  // namespace meta_schedule

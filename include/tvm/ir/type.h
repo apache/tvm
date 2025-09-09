@@ -88,10 +88,9 @@ class TypeNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "ir.Type";
 
   static constexpr const uint32_t _type_child_slots = 14;
-  TVM_DECLARE_BASE_OBJECT_INFO(TypeNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.Type", TypeNode, Object);
 };
 
 /*!
@@ -100,7 +99,7 @@ class TypeNode : public Object {
  */
 class Type : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(Type, ObjectRef, TypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Type, ObjectRef, TypeNode);
 };
 
 /*!
@@ -122,9 +121,7 @@ class PrimTypeNode : public TypeNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimTypeNode>().def_ro("dtype", &PrimTypeNode::dtype);
   }
-
-  static constexpr const char* _type_key = "ir.PrimType";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PrimTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.PrimType", PrimTypeNode, TypeNode);
 };
 
 /*
@@ -140,7 +137,7 @@ class PrimType : public Type {
    */
   TVM_DLL explicit PrimType(runtime::DataType dtype, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PrimType, Type, PrimTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimType, Type, PrimTypeNode);
 };
 
 /*!
@@ -170,9 +167,7 @@ class PointerTypeNode : public TypeNode {
         .def_ro("element_type", &PointerTypeNode::element_type)
         .def_ro("storage_scope", &PointerTypeNode::storage_scope);
   }
-
-  static constexpr const char* _type_key = "ir.PointerType";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PointerTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.PointerType", PointerTypeNode, TypeNode);
 };
 
 /*
@@ -188,7 +183,7 @@ class PointerType : public Type {
    */
   TVM_DLL explicit PointerType(Type element_type, ffi::String storage_scope = "");
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PointerType, Type, PointerTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PointerType, Type, PointerTypeNode);
 };
 
 /*!
@@ -208,9 +203,7 @@ class TupleTypeNode : public TypeNode {
         .def_ro("fields", &TupleTypeNode::fields)
         .def_ro("span", &TupleTypeNode::span);
   }
-
-  static constexpr const char* _type_key = "ir.TupleType";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TupleTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TupleType", TupleTypeNode, TypeNode);
 };
 
 /*!
@@ -232,7 +225,7 @@ class TupleType : public Type {
    */
   TVM_DLL TupleType static Empty();
 
-  TVM_DEFINE_OBJECT_REF_METHODS(TupleType, Type, TupleTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TupleType, Type, TupleTypeNode);
 };
 
 /*!
@@ -271,9 +264,7 @@ class FuncTypeNode : public TypeNode {
         .def_ro("ret_type", &FuncTypeNode::ret_type)
         .def_ro("span", &FuncTypeNode::span);
   }
-
-  static constexpr const char* _type_key = "ir.FuncType";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FuncTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.FuncType", FuncTypeNode, TypeNode);
 };
 
 /*!
@@ -291,7 +282,7 @@ class FuncType : public Type {
    */
   TVM_DLL FuncType(ffi::Array<Type> arg_types, Type ret_type, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(FuncType, Type, FuncTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FuncType, Type, FuncTypeNode);
 };
 
 /*!
@@ -304,9 +295,7 @@ class TensorMapTypeNode : public TypeNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TensorMapTypeNode>().def_ro("span", &TensorMapTypeNode::span);
   }
-
-  static constexpr const char* _type_key = "ir.TensorMapType";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TensorMapTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TensorMapType", TensorMapTypeNode, TypeNode);
 };
 
 /*!
@@ -317,7 +306,8 @@ class TensorMapType : public Type {
  public:
   TVM_DLL TensorMapType(Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS_WITHOUT_DEFAULT_CONSTRUCTOR(TensorMapType, Type, TensorMapTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE_WITHOUT_DEFAULT_CONSTRUCTOR(TensorMapType, Type,
+                                                                         TensorMapTypeNode);
 };
 
 }  // namespace tvm

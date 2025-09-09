@@ -103,8 +103,7 @@ class ConstIntBoundNode : public Object {
   static const constexpr int64_t kNegInf = -kPosInf;
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "arith.ConstIntBound";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ConstIntBoundNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.ConstIntBound", ConstIntBoundNode, Object);
 };
 
 /*!
@@ -122,7 +121,7 @@ class ConstIntBound : public ObjectRef {
 
   static const constexpr int64_t kPosInf = ConstIntBoundNode::kPosInf;
   static const constexpr int64_t kNegInf = ConstIntBoundNode::kNegInf;
-  TVM_DEFINE_OBJECT_REF_METHODS(ConstIntBound, ObjectRef, ConstIntBoundNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ConstIntBound, ObjectRef, ConstIntBoundNode);
 };
 
 /*!
@@ -216,8 +215,7 @@ class ModularSetNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "arith.ModularSet";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ModularSetNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.ModularSet", ModularSetNode, Object);
 };
 
 /*!
@@ -228,7 +226,7 @@ class ModularSet : public ObjectRef {
  public:
   TVM_DLL ModularSet(int64_t coeff, int64_t base);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(ModularSet, ObjectRef, ModularSetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ModularSet, ObjectRef, ModularSetNode);
 };
 
 /*!

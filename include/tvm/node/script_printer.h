@@ -148,8 +148,8 @@ class PrinterConfigNode : public ffi::Object {
 
   ffi::Array<ffi::String> GetBuiltinKeywords();
 
-  static constexpr const char* _type_key = "script.PrinterConfig";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PrinterConfigNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.PrinterConfig", PrinterConfigNode, Object);
 };
 
 class PrinterConfig : public ObjectRef {
@@ -157,8 +157,8 @@ class PrinterConfig : public ObjectRef {
   explicit PrinterConfig(
       ffi::Map<ffi::String, ffi::Any> config_dict = ffi::Map<ffi::String, ffi::Any>());
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PrinterConfig, runtime::ObjectRef,
-                                                    PrinterConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrinterConfig, runtime::ObjectRef,
+                                                PrinterConfigNode);
 };
 
 /*! \brief Legacy behavior of ReprPrinter. */

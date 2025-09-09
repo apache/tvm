@@ -69,8 +69,8 @@ class TraceNode : public runtime::Object {
         .def_ro("decisions", &TraceNode::decisions);
   }
 
-  static constexpr const char* _type_key = "tir.Trace";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TraceNode, runtime::Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Trace", TraceNode, runtime::Object);
 
  public:
   /*!
@@ -157,7 +157,7 @@ class Trace : public runtime::ObjectRef {
    */
   static void ApplyJSONToSchedule(ObjectRef json, Schedule sch);
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Trace, runtime::ObjectRef, TraceNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Trace, runtime::ObjectRef, TraceNode);
 };
 
 }  // namespace tir

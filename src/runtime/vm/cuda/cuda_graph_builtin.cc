@@ -140,8 +140,6 @@ class CUDACaptureStream {
 /*! \brief The VM extension of CUDA graph. */
 class CUDAGraphExtensionNode : public VMExtensionNode {
  public:
-  TVM_DECLARE_FINAL_OBJECT_INFO(CUDAGraphExtensionNode, VMExtensionNode);
-
   /*!
    * \brief Launch the cuda graph if it has been cached, otherwise execute it in capture mode.
    * \param vm The virtual machine.
@@ -220,7 +218,9 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
     return alloc_result;
   }
 
-  static constexpr const char* _type_key = "vm.CUDAGraphExtension";
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("vm.CUDAGraphExtension", CUDAGraphExtensionNode,
+                                    VMExtensionNode);
 
  private:
   /*!
@@ -240,7 +240,8 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
 /*! Managed reference to CUDAGraphExtensionNode */
 class CUDAGraphExtension : public VMExtension {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(CUDAGraphExtension, VMExtension, CUDAGraphExtensionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CUDAGraphExtension, VMExtension,
+                                             CUDAGraphExtensionNode);
   static CUDAGraphExtension Create() {
     auto data_ = ffi::make_object<CUDAGraphExtensionNode>();
     return CUDAGraphExtension(std::move(data_));

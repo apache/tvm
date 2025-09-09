@@ -88,9 +88,8 @@ class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
  public:
   /*! \brief The name of a tensor intrinsic. */
   ffi::String intrin_name;
-
-  static constexpr const char* _type_key = "meta_schedule.MultiLevelTilingWithIntrin";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MultiLevelTilingWithIntrinNode, MultiLevelTilingNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MultiLevelTilingWithIntrin",
+                                    MultiLevelTilingWithIntrinNode, MultiLevelTilingNode);
 };
 
 ScheduleRule ScheduleRule::MultiLevelTilingWithIntrin(

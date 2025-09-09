@@ -67,8 +67,8 @@ class ScheduleRuleNode : public runtime::Object {
    */
   virtual ScheduleRule Clone() const = 0;
 
-  static constexpr const char* _type_key = "meta_schedule.ScheduleRule";
-  TVM_DECLARE_BASE_OBJECT_INFO(ScheduleRuleNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.ScheduleRule", ScheduleRuleNode, Object);
 };
 
 /*!
@@ -312,7 +312,7 @@ class ScheduleRule : public runtime::ObjectRef {
   /*! \brief Create default schedule rules for RISCV CPU (RVV) */
   TVM_DLL static ffi::Array<ScheduleRule, void> DefaultRISCV(int vlen);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ScheduleRule, ObjectRef, ScheduleRuleNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScheduleRule, ObjectRef, ScheduleRuleNode);
 };
 
 /*! \brief The schedule rule with customized methods on the python-side. */
@@ -342,9 +342,8 @@ class PyScheduleRuleNode : public ScheduleRuleNode {
   void InitializeWithTuneContext(const TuneContext& context) final;
   ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block) final;
   ScheduleRule Clone() const final;
-
-  static constexpr const char* _type_key = "meta_schedule.PyScheduleRule";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyScheduleRuleNode, ScheduleRuleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyScheduleRule", PyScheduleRuleNode,
+                                    ScheduleRuleNode);
 };
 
 }  // namespace meta_schedule

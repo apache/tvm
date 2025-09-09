@@ -385,9 +385,8 @@ class PatternContextRewriterNode : public PatternMatchingRewriterNode {
         .def_ro("pattern", &PatternContextRewriterNode::pattern)
         .def_ro("rewriter_func", &PatternContextRewriterNode::rewriter_func);
   }
-
-  static constexpr const char* _type_key = "relax.dpl.PatternContextRewriter";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PatternContextRewriterNode, PatternMatchingRewriterNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.PatternContextRewriter", PatternContextRewriterNode,
+                                    PatternMatchingRewriterNode);
 
  private:
   ffi::Optional<ffi::Map<Var, Expr>> MatchBindings(const ffi::Array<Binding>& bindings) const {
@@ -414,8 +413,8 @@ class PatternContextRewriter : public PatternMatchingRewriter {
       ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, Expr>)>
           rewriter_func);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PatternContextRewriter, PatternMatchingRewriter,
-                                PatternContextRewriterNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PatternContextRewriter, PatternMatchingRewriter,
+                                             PatternContextRewriterNode);
 };
 
 RewriteSpec PatternContextRewriterNode::RewriteBindings(const ffi::Array<Binding>& bindings) const {

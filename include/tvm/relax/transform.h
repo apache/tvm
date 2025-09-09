@@ -406,9 +406,7 @@ class FusionPatternNode : public Object {
         .def_ro("check", &FusionPatternNode::check)
         .def_ro("attrs_getter", &FusionPatternNode::attrs_getter);
   }
-
-  static constexpr const char* _type_key = "relax.transform.FusionPattern";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FusionPatternNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.transform.FusionPattern", FusionPatternNode, Object);
 };
 
 class FusionPattern : public ObjectRef {
@@ -420,7 +418,7 @@ class FusionPattern : public ObjectRef {
   FusionPattern(ffi::String name, DFPattern pattern)
       : FusionPattern(name, pattern, {}, std::nullopt, std::nullopt) {}
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(FusionPattern, ObjectRef, FusionPatternNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FusionPattern, ObjectRef, FusionPatternNode);
 };
 
 /*!
@@ -466,9 +464,8 @@ class PatternCheckContextNode : public Object {
         .def_ro("var_usages", &PatternCheckContextNode::var_usages)
         .def_ro("value_to_bound_var", &PatternCheckContextNode::value_to_bound_var);
   }
-
-  static constexpr const char* _type_key = "relax.transform.PatternCheckContext";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PatternCheckContextNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.transform.PatternCheckContext", PatternCheckContextNode,
+                                    Object);
 };
 
 class PatternCheckContext : public ObjectRef {
@@ -478,8 +475,8 @@ class PatternCheckContext : public ObjectRef {
                       ffi::Map<Var, ffi::Array<Var>> var_usages,
                       ffi::Map<Expr, Var> value_to_bound_var);
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(PatternCheckContext, ObjectRef,
-                                            PatternCheckContextNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PatternCheckContext, ObjectRef,
+                                                PatternCheckContextNode);
 };
 
 /*!

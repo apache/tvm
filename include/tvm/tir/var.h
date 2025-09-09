@@ -69,9 +69,8 @@ class VarNode : public PrimExprNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
-  static constexpr const char* _type_key = "tir.Var";
   static constexpr const uint32_t _type_child_slots = 1;
-  TVM_DECLARE_BASE_OBJECT_INFO(VarNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tir.Var", VarNode, PrimExprNode);
 };
 
 /*! \brief a named variable in TIR */
@@ -137,8 +136,7 @@ class SizeVarNode : public VarNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SizeVarNode>();
   }
-  static constexpr const char* _type_key = "tir.SizeVar";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SizeVarNode, VarNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.SizeVar", SizeVarNode, VarNode);
 };
 
 /*! \brief a named variable represents a tensor index size */
@@ -286,9 +284,8 @@ class IterVarNode : public PrimExprConvertibleNode {
         .def_ro("thread_tag", &IterVarNode::thread_tag);
   }
 
-  static constexpr const char* _type_key = "tir.IterVar";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_DECLARE_FINAL_OBJECT_INFO(IterVarNode, PrimExprConvertibleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.IterVar", IterVarNode, PrimExprConvertibleNode);
 };
 
 /*!
@@ -306,7 +303,7 @@ class IterVar : public PrimExprConvertible {
    */
   inline operator PrimExpr() const;
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IterVar, PrimExprConvertible, IterVarNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterVar, PrimExprConvertible, IterVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterVarNode);
 };
 

@@ -142,10 +142,9 @@ class BufferNode : public Object {
    */
   ffi::Array<PrimExpr> ElemOffset(ffi::Array<PrimExpr> index) const;
 
-  static constexpr const char* _type_key = "tir.Buffer";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_DECLARE_FINAL_OBJECT_INFO(BufferNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Buffer", BufferNode, Object);
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 };
 
@@ -226,7 +225,7 @@ class Buffer : public ObjectRef {
    */
   TVM_DLL ffi::String scope() const;
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Buffer, ObjectRef, BufferNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Buffer, ObjectRef, BufferNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferNode);
 };
 
@@ -277,9 +276,7 @@ class DataProducerNode : public PrimExprConvertibleNode {
    * \return The data type.
    */
   virtual ffi::String GetNameHint() const = 0;
-
-  static constexpr const char* _type_key = "tir.DataProducer";
-  TVM_DECLARE_BASE_OBJECT_INFO(DataProducerNode, PrimExprConvertibleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tir.DataProducer", DataProducerNode, PrimExprConvertibleNode);
 };
 
 /*!
@@ -288,7 +285,7 @@ class DataProducerNode : public PrimExprConvertibleNode {
  */
 class DataProducer : public PrimExprConvertible {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(DataProducer, PrimExprConvertible, DataProducerNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataProducer, PrimExprConvertible, DataProducerNode);
 };
 
 /*!

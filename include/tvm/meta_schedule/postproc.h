@@ -63,8 +63,8 @@ class PostprocNode : public runtime::Object {
    */
   virtual Postproc Clone() const = 0;
 
-  static constexpr const char* _type_key = "meta_schedule.Postproc";
-  TVM_DECLARE_BASE_OBJECT_INFO(PostprocNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.Postproc", PostprocNode, Object);
 };
 
 /*!
@@ -175,7 +175,7 @@ class Postproc : public runtime::ObjectRef {
   /*! \brief Create default postprocessors for Hexagon */
   TVM_DLL static ffi::Array<Postproc, void> DefaultHexagon();
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Postproc, ObjectRef, PostprocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Postproc, ObjectRef, PostprocNode);
 };
 
 /*! \brief The postprocessor with customized methods on the python-side. */
@@ -204,9 +204,7 @@ class PyPostprocNode : public PostprocNode {
   void InitializeWithTuneContext(const TuneContext& context) final;
   bool Apply(const tir::Schedule& sch) final;
   Postproc Clone() const final;
-
-  static constexpr const char* _type_key = "meta_schedule.PyPostproc";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyPostprocNode, PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyPostproc", PyPostprocNode, PostprocNode);
 };
 
 }  // namespace meta_schedule

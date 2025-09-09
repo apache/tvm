@@ -57,16 +57,13 @@ class MemoryInfoNode : public Object {
         .def_ro("max_simd_bits", &MemoryInfoNode::max_simd_bits)
         .def_ro("head_address", &MemoryInfoNode::head_address);
   }
-
-  static constexpr const char* _type_key = "target.MemoryInfo";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(MemoryInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.MemoryInfo", MemoryInfoNode, Object);
 };
 
 /*! \brief Defines memory info */
 class MemoryInfo : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(MemoryInfo, ObjectRef, MemoryInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MemoryInfo, ObjectRef, MemoryInfoNode);
 };
 
 /*!

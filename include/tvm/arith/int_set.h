@@ -56,9 +56,7 @@ enum SignType { kPositive, kNegative, kZero, kUnknown };
  */
 class IntSetNode : public Object {
  public:
-  static constexpr const char* _type_key = "ir.IntSet";
-
-  TVM_DECLARE_BASE_OBJECT_INFO(IntSetNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.IntSet", IntSetNode, Object);
 };
 
 /*!
@@ -163,7 +161,7 @@ class IntSet : public ObjectRef {
    */
   static IntSet Interval(PrimExpr min, PrimExpr max);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IntSet, ObjectRef, IntSetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntSet, ObjectRef, IntSetNode);
 };
 
 //-----------------------------------------------

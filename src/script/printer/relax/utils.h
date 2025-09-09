@@ -50,9 +50,7 @@ class RelaxFrameNode : public FrameNode {
         .def_ro("is_func", &RelaxFrameNode::is_func)
         .def_ro("module_alias_printed", &RelaxFrameNode::module_alias_printed);
   }
-
-  static constexpr const char* _type_key = "script.printer.RelaxFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RelaxFrameNode, FrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.RelaxFrame", RelaxFrameNode, FrameNode);
 };
 
 class RelaxFrame : public Frame {
@@ -66,7 +64,7 @@ class RelaxFrame : public Frame {
     data_ = std::move(n);
   }
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(RelaxFrame, Frame, RelaxFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RelaxFrame, Frame, RelaxFrameNode);
 };
 
 /*! \brief Redirected method for the ReprPrinter */

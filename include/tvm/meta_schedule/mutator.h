@@ -66,8 +66,8 @@ class MutatorNode : public runtime::Object {
    */
   virtual Mutator Clone() const = 0;
 
-  static constexpr const char* _type_key = "meta_schedule.Mutator";
-  TVM_DECLARE_BASE_OBJECT_INFO(MutatorNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.Mutator", MutatorNode, Object);
 };
 
 /*!
@@ -140,7 +140,7 @@ class Mutator : public runtime::ObjectRef {
   /*! \brief Create default mutators for Hexagon */
   TVM_DLL static ffi::Map<Mutator, FloatImm, void> DefaultHexagon();
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Mutator, ObjectRef, MutatorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Mutator, ObjectRef, MutatorNode);
 };
 
 /*! \brief The mutator with customized methods on the python-side. */
@@ -170,9 +170,7 @@ class PyMutatorNode : public MutatorNode {
   ffi::Optional<tir::Trace> Apply(const tir::Trace& trace,
                                   support::LinearCongruentialEngine::TRandState* rand_state) final;
   Mutator Clone() const final;
-
-  static constexpr const char* _type_key = "meta_schedule.PyMutator";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyMutatorNode, MutatorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyMutator", PyMutatorNode, MutatorNode);
 };
 
 }  // namespace meta_schedule

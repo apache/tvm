@@ -78,9 +78,8 @@ class RewriteTensorizeNode : public PostprocNode {
   }
 
   bool vectorize_init_loop = false;
-
-  static constexpr const char* _type_key = "meta_schedule.RewriteTensorize";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RewriteTensorizeNode, PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RewriteTensorize", RewriteTensorizeNode,
+                                    PostprocNode);
 };
 
 bool RewriteTensorizeNode::Apply(const tir::Schedule& sch) {

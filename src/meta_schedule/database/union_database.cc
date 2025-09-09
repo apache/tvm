@@ -31,9 +31,7 @@ class UnionDatabaseNode : public DatabaseNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<UnionDatabaseNode>().def_ro("databases", &UnionDatabaseNode::databases);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.UnionDatabase";
-  TVM_DECLARE_FINAL_OBJECT_INFO(UnionDatabaseNode, DatabaseNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.UnionDatabase", UnionDatabaseNode, DatabaseNode);
 
  public:
   ffi::Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,

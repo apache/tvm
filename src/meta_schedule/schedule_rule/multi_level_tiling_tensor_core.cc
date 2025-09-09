@@ -90,9 +90,8 @@ class TensorCoreStateNode : public StateNode {
   bool use_async;
 
   State Copy() const final;
-
-  static constexpr const char* _type_key = "meta_schedule.TensorCoreState";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TensorCoreStateNode, StateNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.TensorCoreState", TensorCoreStateNode,
+                                    StateNode);
 };
 
 class TensorCoreState : public State {
@@ -102,7 +101,7 @@ class TensorCoreState : public State {
                            BlockRV block_rv, bool use_async,
                            ffi::Array<ffi::Array<tir::LoopRV>> tiles = {});
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TensorCoreState, State, TensorCoreStateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorCoreState, State, TensorCoreStateNode);
 };
 
 TensorCoreState::TensorCoreState(TensorCoreIntrinGroup intrin_group,
@@ -192,8 +191,8 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
   std::vector<TensorCoreIntrinGroup> intrin_groups;
   /*! \brief Whether to use software pipeline */
   bool use_software_pipeline = false;
-  static constexpr const char* _type_key = "meta_schedule.MultiLevelTilingTensorCore";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MultiLevelTilingTensorCoreNode, MultiLevelTilingNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MultiLevelTilingTensorCore",
+                                    MultiLevelTilingTensorCoreNode, MultiLevelTilingNode);
 
  private:
 };

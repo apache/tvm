@@ -59,9 +59,8 @@ class VerifyVTCMLimitNode : public PostprocNode {
     ObjectPtr<VerifyVTCMLimitNode> n = ffi::make_object<VerifyVTCMLimitNode>(*this);
     return Postproc(n);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.VerifyVTCMLimit";
-  TVM_DECLARE_FINAL_OBJECT_INFO(VerifyVTCMLimitNode, PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.VerifyVTCMLimit", VerifyVTCMLimitNode,
+                                    PostprocNode);
 };
 
 Postproc Postproc::VerifyVTCMLimit() {

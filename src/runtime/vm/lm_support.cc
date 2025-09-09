@@ -227,8 +227,9 @@ class AttentionKVCacheLegacyObj : public Object {
     this->fill_count += value->shape[0];
   }
 
-  static constexpr const char* _type_key = "relax.vm.AttentionKVCacheLegacy";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AttentionKVCacheLegacyObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.vm.AttentionKVCacheLegacy", AttentionKVCacheLegacyObj,
+                                    Object);
 };
 
 /*! \brief reference to closure. */
@@ -251,8 +252,8 @@ class AttentionKVCacheLegacy : public ObjectRef {
     return AttentionKVCacheLegacy(n);
   }
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(AttentionKVCacheLegacy, ObjectRef,
-                                        AttentionKVCacheLegacyObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttentionKVCacheLegacy, ObjectRef,
+                                             AttentionKVCacheLegacyObj);
 };
 
 //-------------------------------------------------

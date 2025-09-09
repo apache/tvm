@@ -60,9 +60,8 @@ class PatternMatchingRewriterNode : public tvm::transform::PassNode {
 
   IRModule operator()(IRModule mod, const tvm::transform::PassContext& pass_ctx) const override;
   tvm::transform::PassInfo Info() const override;
-
-  static constexpr const char* _type_key = "relax.dpl.PatternMatchingRewriter";
-  TVM_DECLARE_BASE_OBJECT_INFO(PatternMatchingRewriterNode, PassNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.dpl.PatternMatchingRewriter", PatternMatchingRewriterNode,
+                              PassNode);
 };
 
 class PatternMatchingRewriter : public tvm::transform::Pass {
@@ -78,7 +77,8 @@ class PatternMatchingRewriter : public tvm::transform::Pass {
   Expr operator()(Expr expr);
   using Pass::operator();
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PatternMatchingRewriter, Pass, PatternMatchingRewriterNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PatternMatchingRewriter, Pass,
+                                             PatternMatchingRewriterNode);
 };
 
 class ExprPatternRewriterNode : public PatternMatchingRewriterNode {
@@ -98,9 +98,8 @@ class ExprPatternRewriterNode : public PatternMatchingRewriterNode {
         .def_ro("pattern", &ExprPatternRewriterNode::pattern)
         .def_ro("func", &ExprPatternRewriterNode::func);
   }
-
-  static constexpr const char* _type_key = "relax.dpl.ExprPatternRewriter";
-  TVM_DECLARE_BASE_OBJECT_INFO(ExprPatternRewriterNode, PatternMatchingRewriterNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.dpl.ExprPatternRewriter", ExprPatternRewriterNode,
+                              PatternMatchingRewriterNode);
 };
 
 class ExprPatternRewriter : public PatternMatchingRewriter {
@@ -110,8 +109,8 @@ class ExprPatternRewriter : public PatternMatchingRewriter {
                       ffi::Optional<ffi::Array<DFPattern>> additional_bindings = std::nullopt,
                       ffi::Map<GlobalVar, BaseFunc> new_subroutines = {});
 
-  TVM_DEFINE_OBJECT_REF_METHODS(ExprPatternRewriter, PatternMatchingRewriter,
-                                ExprPatternRewriterNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExprPatternRewriter, PatternMatchingRewriter,
+                                             ExprPatternRewriterNode);
 };
 
 class OrRewriterNode : public PatternMatchingRewriterNode {
@@ -127,16 +126,14 @@ class OrRewriterNode : public PatternMatchingRewriterNode {
         .def_ro("lhs", &OrRewriterNode::lhs)
         .def_ro("rhs", &OrRewriterNode::rhs);
   }
-
-  static constexpr const char* _type_key = "relax.dpl.OrRewriter";
-  TVM_DECLARE_BASE_OBJECT_INFO(OrRewriterNode, PatternMatchingRewriterNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.dpl.OrRewriter", OrRewriterNode, PatternMatchingRewriterNode);
 };
 
 class OrRewriter : public PatternMatchingRewriter {
  public:
   OrRewriter(PatternMatchingRewriter lhs, PatternMatchingRewriter rhs);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(OrRewriter, PatternMatchingRewriter, OrRewriterNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(OrRewriter, PatternMatchingRewriter, OrRewriterNode);
 };
 
 class TupleRewriterNode : public PatternMatchingRewriterNode {
@@ -154,9 +151,8 @@ class TupleRewriterNode : public PatternMatchingRewriterNode {
         .def_ro("patterns", &TupleRewriterNode::patterns)
         .def_ro("func", &TupleRewriterNode::func);
   }
-
-  static constexpr const char* _type_key = "relax.dpl.TupleRewriter";
-  TVM_DECLARE_BASE_OBJECT_INFO(TupleRewriterNode, PatternMatchingRewriterNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.dpl.TupleRewriter", TupleRewriterNode,
+                              PatternMatchingRewriterNode);
 
  private:
   struct VarInfo {
@@ -180,7 +176,8 @@ class TupleRewriter : public PatternMatchingRewriter {
                 ffi::Optional<ffi::Array<DFPattern>> additional_bindings = std::nullopt,
                 ffi::Map<GlobalVar, BaseFunc> new_subroutines = {});
 
-  TVM_DEFINE_OBJECT_REF_METHODS(TupleRewriter, PatternMatchingRewriter, TupleRewriterNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TupleRewriter, PatternMatchingRewriter,
+                                             TupleRewriterNode);
 };
 
 }  // namespace relax

@@ -72,8 +72,8 @@ class StmtSRefNode : public Object {
     refl::ObjectDef<StmtSRefNode>().def_ro("seq_index", &StmtSRefNode::seq_index);
   }
 
-  static constexpr const char* _type_key = "tir.StmtSRef";
-  TVM_DECLARE_FINAL_OBJECT_INFO(StmtSRefNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.StmtSRef", StmtSRefNode, Object);
 
   /*! \brief Reset the object inplace to the invalid state */
   void Reset() {
@@ -114,10 +114,7 @@ class StmtSRef : public ObjectRef {
    */
   TVM_DLL explicit StmtSRef(const StmtNode* stmt, StmtSRefNode* parent, int64_t seq_index);
 
-  /*! \return The mutable pointer to the StmtSRefNode */
-  StmtSRefNode* get() const { return static_cast<StmtSRefNode*>(data_.get()); }
-
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(StmtSRef, ObjectRef, StmtSRefNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StmtSRef, ObjectRef, StmtSRefNode);
 
  public:
   /*!
@@ -226,9 +223,7 @@ class DependencyNode : public Object {
         .def_ro("dst", &DependencyNode::dst)
         .def_ro("kind", &DependencyNode::kind);
   }
-
-  static constexpr const char* _type_key = "tir.Dependency";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DependencyNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Dependency", DependencyNode, Object);
 };
 
 /*!
@@ -239,7 +234,7 @@ class Dependency : public ObjectRef {
  public:
   /*! \brief Constructor */
   TVM_DLL explicit Dependency(StmtSRef src, StmtSRef dst, DepKind kind);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Dependency, ObjectRef, DependencyNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Dependency, ObjectRef, DependencyNode);
 };
 
 /*!
@@ -271,9 +266,7 @@ class BlockScopeNode : public Object {
   static void RegisterReflection() {
     // No fields to register as they are not visited
   }
-
-  static constexpr const char* _type_key = "tir.BlockScope";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BlockScopeNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BlockScope", BlockScopeNode, Object);
 
  public:
   /******** Dependency ********/
@@ -314,7 +307,7 @@ class BlockScope : public ObjectRef {
    */
   TVM_DLL explicit BlockScope(const ffi::Array<StmtSRef>& child_block_srefs);
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockScope, ObjectRef, BlockScopeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockScope, ObjectRef, BlockScopeNode);
 };
 
 }  // namespace tir

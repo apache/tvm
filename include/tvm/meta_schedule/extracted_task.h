@@ -62,9 +62,9 @@ class ExtractedTaskNode : public runtime::Object {
         .def_ro("weight", &ExtractedTaskNode::weight);
   }
 
-  static constexpr const char* _type_key = "meta_schedule.ExtractedTask";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(ExtractedTaskNode, runtime::Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.ExtractedTask", ExtractedTaskNode,
+                                    runtime::Object);
 };
 
 /*!
@@ -75,8 +75,8 @@ class ExtractedTask : public runtime::ObjectRef {
  public:
   explicit ExtractedTask(ffi::String task_name, IRModule mod, Target target,
                          ffi::Array<IRModule> dispatched, int weight);
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ExtractedTask, runtime::ObjectRef,
-                                                    ExtractedTaskNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExtractedTask, runtime::ObjectRef,
+                                                ExtractedTaskNode);
 };
 
 }  // namespace meta_schedule

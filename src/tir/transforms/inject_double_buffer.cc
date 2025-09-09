@@ -41,15 +41,14 @@ struct InjectDoubleBufferConfigNode : public AttrsNodeReflAdapter<InjectDoubleBu
         "split_loop", &InjectDoubleBufferConfigNode::split_loop, "Split loop factors",
         refl::DefaultValue(1));
   }
-
-  static constexpr const char* _type_key = "tir.transform.InjectDoubleBufferConfig";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(InjectDoubleBufferConfigNode, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.InjectDoubleBufferConfig",
+                                    InjectDoubleBufferConfigNode, BaseAttrsNode);
 };
 
 class InjectDoubleBufferConfig : public Attrs {
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(InjectDoubleBufferConfig, Attrs,
-                                            InjectDoubleBufferConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(InjectDoubleBufferConfig, Attrs,
+                                                InjectDoubleBufferConfigNode);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({ InjectDoubleBufferConfigNode::RegisterReflection(); });

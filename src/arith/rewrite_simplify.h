@@ -64,9 +64,8 @@ struct RewriteSimplifierStatsNode : Object {
         .def_ro("max_recursive_depth", &RewriteSimplifierStatsNode::max_recursive_depth)
         .def_ro("num_recursive_rewrites", &RewriteSimplifierStatsNode::num_recursive_rewrites);
   }
-
-  static constexpr const char* _type_key = "arith.RewriteSimplifierStats";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RewriteSimplifierStatsNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.RewriteSimplifierStats", RewriteSimplifierStatsNode,
+                                    Object);
 };
 
 struct RewriteSimplifierStats : ObjectRef {
@@ -74,7 +73,8 @@ struct RewriteSimplifierStats : ObjectRef {
     data_ = ffi::make_object<RewriteSimplifierStatsNode>(data);
   }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(RewriteSimplifierStats, ObjectRef, RewriteSimplifierStatsNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(RewriteSimplifierStats, ObjectRef,
+                                             RewriteSimplifierStatsNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(RewriteSimplifierStatsNode);
 };
 

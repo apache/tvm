@@ -176,9 +176,8 @@ class MutateParallelNode : public MutatorNode {
     refl::ObjectDef<MutateParallelNode>().def_ro("max_jobs_per_core",
                                                  &MutateParallelNode::max_jobs_per_core);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.MutateParallel";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MutateParallelNode, MutatorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MutateParallel", MutateParallelNode,
+                                    MutatorNode);
 
  public:
   struct Candidate;

@@ -105,9 +105,7 @@ class MyIntPairObj : public tvm::ffi::Object {
 
   // Required: declare type information
   // to register a dynamic type index through the system
-  static constexpr const char* _type_key = "example.MyIntPair";
-  // This macro registers the class with the FFI system to set up the right type index
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(MyIntPairObj, tvm::ffi::Object);
+TVM_FFI_DECLARE_OBJECT_INFO_FINAL("example.MyIntPair", MyIntPairObj, tvm::ffi::Object);
 };
 
 void ExampleObjectPtr() {
@@ -138,7 +136,7 @@ class MyIntPair : public tvm::ffi::ObjectRef {
 
   // Required: define object reference methods
   // This macro provides the necessary methods for ObjectRef functionality
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS(MyIntPair, tvm::ffi::ObjectRef, MyIntPairObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MyIntPair, tvm::ffi::ObjectRef, MyIntPairObj);
 };
 
 void ExampleObjectRef() {

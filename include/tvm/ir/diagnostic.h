@@ -75,8 +75,7 @@ class DiagnosticNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "Diagnostic";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DiagnosticNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("Diagnostic", DiagnosticNode, Object);
 };
 
 class Diagnostic : public ObjectRef {
@@ -101,7 +100,7 @@ class Diagnostic : public ObjectRef {
   static DiagnosticBuilder Note(const Object* loc);
   static DiagnosticBuilder Help(const Object* loc);
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Diagnostic, ObjectRef, DiagnosticNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Diagnostic, ObjectRef, DiagnosticNode);
 };
 
 /*!
@@ -167,9 +166,7 @@ class DiagnosticRendererNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DiagnosticRendererNode>().def_ro("renderer", &DiagnosticRendererNode::renderer);
   }
-
-  static constexpr const char* _type_key = "DiagnosticRenderer";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DiagnosticRendererNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("DiagnosticRenderer", DiagnosticRendererNode, Object);
 };
 
 class DiagnosticRenderer : public ObjectRef {
@@ -185,7 +182,8 @@ class DiagnosticRenderer : public ObjectRef {
     return static_cast<DiagnosticRendererNode*>(get_mutable());
   }
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(DiagnosticRenderer, ObjectRef, DiagnosticRendererNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DiagnosticRenderer, ObjectRef,
+                                                DiagnosticRendererNode);
 };
 
 class DiagnosticContextNode : public Object {
@@ -207,8 +205,7 @@ class DiagnosticContextNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "DiagnosticContext";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DiagnosticContextNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("DiagnosticContext", DiagnosticContextNode, Object);
 };
 
 class DiagnosticContext : public ObjectRef {
@@ -238,7 +235,8 @@ class DiagnosticContext : public ObjectRef {
     return static_cast<DiagnosticContextNode*>(get_mutable());
   }
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(DiagnosticContext, ObjectRef, DiagnosticContextNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DiagnosticContext, ObjectRef,
+                                                DiagnosticContextNode);
 };
 
 DiagnosticRenderer TerminalRenderer(std::ostream& ostream);

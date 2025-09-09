@@ -51,9 +51,8 @@ class PlacementSpecNode : public Object {
         .def_ro("kind", &PlacementSpecNode::kind);
   }
 
-  static constexpr const char* _type_key = "relax.distributed.PlacementSpec";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
-  TVM_DECLARE_BASE_OBJECT_INFO(PlacementSpecNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.distributed.PlacementSpec", PlacementSpecNode, Object);
 };
 
 /*!
@@ -66,7 +65,7 @@ class PlacementSpec : public ObjectRef {
 
   TVM_DLL static PlacementSpec Replica();
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PlacementSpec, ObjectRef, PlacementSpecNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PlacementSpec, ObjectRef, PlacementSpecNode);
 };
 
 class ShardingNode : public PlacementSpecNode {
@@ -79,7 +78,7 @@ class ShardingNode : public PlacementSpecNode {
     refl::ObjectDef<ShardingNode>().def_ro("sharding_dim", &ShardingNode::sharding_dim);
   }
 
-  TVM_DECLARE_FINAL_OBJECT_INFO(ShardingNode, PlacementSpecNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.distributed.Sharding", ShardingNode, PlacementSpecNode);
 };
 
 /*! \brief Describes how data is distributed in each dimension of the device mesh*/
@@ -96,8 +95,7 @@ class PlacementNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
-  static constexpr const char* _type_key = "relax.distributed.Placement";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PlacementNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.distributed.Placement", PlacementNode, Object);
 };
 
 /*!
@@ -109,7 +107,7 @@ class Placement : public ObjectRef {
   TVM_DLL explicit Placement(ffi::Array<PlacementSpec> dim_specs);
   /*! \brief replica dim is printed as "R" and sharding dim is printed as "S[i]".]*/
   static Placement FromText(ffi::String text_repr);
-  TVM_DEFINE_OBJECT_REF_METHODS(Placement, ObjectRef, PlacementNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Placement, ObjectRef, PlacementNode);
 };
 
 /*!
@@ -137,9 +135,8 @@ class DTensorStructInfoNode : public StructInfoNode {
         .def_ro("placement", &DTensorStructInfoNode::placement)
         .def_ro("tensor_sinfo", &DTensorStructInfoNode::tensor_sinfo);
   }
-
-  static constexpr const char* _type_key = "relax.DTensorStructInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DTensorStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DTensorStructInfo", DTensorStructInfoNode,
+                                    StructInfoNode);
 };
 
 /*!
@@ -158,7 +155,7 @@ class DTensorStructInfo : public StructInfo {
   TVM_DLL DTensorStructInfo(TensorStructInfo tensor_sinfo, DeviceMesh device_mesh,
                             Placement placement, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(DTensorStructInfo, StructInfo, DTensorStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DTensorStructInfo, StructInfo, DTensorStructInfoNode);
 };
 
 }  // namespace distributed

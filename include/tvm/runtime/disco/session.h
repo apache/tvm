@@ -149,10 +149,9 @@ class DRefObj : public Object {
    */
   inline void DebugCopyFrom(int worker_id, ffi::AnyView source);
 
-  static constexpr const char* _type_key = "runtime.disco.DRef";
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimeDiscoDRef;
   static const constexpr bool _type_final = true;
-  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(DRefObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_STATIC("runtime.disco.DRef", DRefObj, Object);
 
   /*! \brief The id of the register */
   int64_t reg_id;
@@ -171,7 +170,7 @@ class DRefObj : public Object {
 class DRef : public ObjectRef {
  public:
   explicit DRef(ObjectPtr<DRefObj> data) : ObjectRef(data) { TVM_FFI_ICHECK(data != nullptr); }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(DRef, ObjectRef, DRefObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DRef, ObjectRef, DRefObj);
 };
 
 /*!
@@ -255,8 +254,9 @@ class SessionObj : public Object {
   struct FFI;
   friend struct SessionObj::FFI;
   friend class DRefObj;
-  static constexpr const char* _type_key = "runtime.disco.Session";
-  TVM_DECLARE_BASE_OBJECT_INFO(SessionObj, Object);
+
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("runtime.disco.Session", SessionObj, Object);
 
  protected:
   /*! \brief Deallocate a register id, kill it on all workers, and append it to `free_regs_`. */
@@ -290,7 +290,7 @@ class Session : public ObjectRef {
   TVM_DLL static Session ProcessSession(int num_workers, int num_groups,
                                         ffi::String process_pool_creator, ffi::String entrypoint);
 
-  TVM_FFI_DEFINE_MUTABLE_OBJECT_REF_METHODS(Session, ObjectRef, SessionObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Session, ObjectRef, SessionObj);
 };
 
 /*!

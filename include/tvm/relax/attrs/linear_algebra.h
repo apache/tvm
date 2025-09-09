@@ -38,9 +38,7 @@ struct MatmulAttrs : public AttrsNodeReflAdapter<MatmulAttrs> {
     refl::ObjectDef<MatmulAttrs>().def_ro("out_dtype", &MatmulAttrs::out_dtype,
                                           "The data type of the output tensor");
   }
-
-  static constexpr const char* _type_key = "relax.attrs.MatmulAttrs";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(MatmulAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.MatmulAttrs", MatmulAttrs, BaseAttrsNode);
 };  // struct MatmulAttrs
 
 /*! \brief Attributes used in einsum operator */
@@ -52,9 +50,7 @@ struct EinsumAttrs : public AttrsNodeReflAdapter<EinsumAttrs> {
     refl::ObjectDef<EinsumAttrs>().def_ro("subscripts", &EinsumAttrs::subscripts,
                                           "The einsum expression string");
   }
-
-  static constexpr const char* _type_key = "relax.attrs.EinsumAttrs";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(EinsumAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.EinsumAttrs", EinsumAttrs, BaseAttrsNode);
 };  // struct EinsumAttrs
 
 }  // namespace relax

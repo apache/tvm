@@ -80,9 +80,7 @@ class ScheduleFnNode : public SpaceGeneratorNode {
     CloneRules(this, n.get());
     return SpaceGenerator(n);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.ScheduleFn";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleFnNode, SpaceGeneratorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.ScheduleFn", ScheduleFnNode, SpaceGeneratorNode);
 };
 
 SpaceGenerator SpaceGenerator::ScheduleFn(

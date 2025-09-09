@@ -61,9 +61,8 @@ class FrameNode : public Object {
     refl::ObjectDef<FrameNode>().def_ro("stmts", &FrameNode::stmts);
   }
 
-  static constexpr const char* _type_key = "script.printer.Frame";
-
-  TVM_DECLARE_BASE_OBJECT_INFO(FrameNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("script.printer.Frame", FrameNode, Object);
 
  public:
   virtual ~FrameNode() = default;
@@ -109,7 +108,7 @@ class Frame : public ObjectRef {
   /*! \brief Method that's called when Frame exits the scope. */
   void ExitWithScope() { get()->ExitWithScope(); }
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Frame, ObjectRef, FrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Frame, ObjectRef, FrameNode);
 };
 
 //////////////////////// IRDocsifier ////////////////////////
@@ -165,9 +164,8 @@ class IRDocsifierNode : public Object {
         .def_ro("dispatch_tokens", &IRDocsifierNode::dispatch_tokens);
   }
 
-  static constexpr const char* _type_key = "script.printer.IRDocsifier";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(IRDocsifierNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.IRDocsifier", IRDocsifierNode, Object);
 
  public:
   /*!
@@ -252,7 +250,7 @@ class IRDocsifier : public ObjectRef {
   /*! \brief The registration table for IRDocsifier. */
   TVM_DLL static FType& vtable();
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IRDocsifier, ObjectRef, IRDocsifierNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRDocsifier, ObjectRef, IRDocsifierNode);
 };
 
 //////////////////////// Implementation ////////////////////////

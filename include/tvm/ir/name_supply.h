@@ -85,8 +85,8 @@ class NameSupplyNode : public Object {
   // Prefix for all GlobalVar names. It can be empty.
   std::string prefix_;
 
-  static constexpr const char* _type_key = "ir.NameSupply";
-  TVM_DECLARE_FINAL_OBJECT_INFO(NameSupplyNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.NameSupply", NameSupplyNode, Object);
 
  private:
   /*! \brief Helper function to add the NameSupply prefix to the name. */
@@ -128,7 +128,7 @@ class NameSupply : public ObjectRef {
   TVM_DLL explicit NameSupply(Iter begin, Iter end, Lambda f)
       : NameSupply("", GetNameMap(begin, end, f)) {}
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(NameSupply, ObjectRef, NameSupplyNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(NameSupply, ObjectRef, NameSupplyNode);
 
  private:
   template <typename Iter, typename Lambda>

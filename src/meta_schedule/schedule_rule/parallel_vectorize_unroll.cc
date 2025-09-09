@@ -118,9 +118,8 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
         .def_ro("unroll_max_steps", &ParallelizeVectorizeUnrollNode::unroll_max_steps)
         .def_ro("unroll_explicit", &ParallelizeVectorizeUnrollNode::unroll_explicit);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.ParallelizeVectorizeUnroll";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ParallelizeVectorizeUnrollNode, ScheduleRuleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.ParallelizeVectorizeUnroll",
+                                    ParallelizeVectorizeUnrollNode, ScheduleRuleNode);
 };
 
 ScheduleRule ScheduleRule::ParallelizeVectorizeUnroll(int max_jobs_per_core,

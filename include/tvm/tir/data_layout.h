@@ -114,9 +114,7 @@ class LayoutNode : public Object {
         .def_ro("name", &LayoutNode::name)
         .def_ro("axes", &LayoutNode::axes);
   }
-
-  static constexpr const char* _type_key = "tir.Layout";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LayoutNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Layout", LayoutNode, Object);
 };
 
 /*!
@@ -291,7 +289,7 @@ class Layout : public ObjectRef {
     return os;
   }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Layout, ObjectRef, LayoutNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Layout, ObjectRef, LayoutNode);
 };
 
 // Internal node container BijectiveLayout
@@ -323,9 +321,7 @@ class BijectiveLayoutNode : public Object {
         .def_ro("shape_forward_rule", &BijectiveLayoutNode::shape_forward_rule)
         .def_ro("shape_backward_rule", &BijectiveLayoutNode::shape_backward_rule);
   }
-
-  static constexpr const char* _type_key = "tir.BijectiveLayout";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BijectiveLayoutNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BijectiveLayout", BijectiveLayoutNode, Object);
 };
 
 /*!
@@ -352,7 +348,7 @@ class BijectiveLayout : public ObjectRef {
   // Given the destination indices, recover the source indices.
   TVM_DLL ffi::Array<PrimExpr> BackwardIndex(const ffi::Array<PrimExpr>& dst_index) const;
 
-  TVM_DEFINE_OBJECT_REF_METHODS(BijectiveLayout, ObjectRef, BijectiveLayoutNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BijectiveLayout, ObjectRef, BijectiveLayoutNode);
 };
 
 }  // namespace tir

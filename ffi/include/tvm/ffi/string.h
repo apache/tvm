@@ -61,18 +61,16 @@ class BytesObjBase : public Object, public TVMFFIByteArray {};
 class BytesObj : public BytesObjBase {
  public:
   static constexpr const uint32_t _type_index = TypeIndex::kTVMFFIBytes;
-  static constexpr const char* _type_key = StaticTypeKey::kTVMFFIBytes;
   static const constexpr bool _type_final = true;
-  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(BytesObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_STATIC(StaticTypeKey::kTVMFFIBytes, BytesObj, Object);
 };
 
 /*! \brief An object representing string. This is a POD type. */
 class StringObj : public BytesObjBase {
  public:
   static constexpr const uint32_t _type_index = TypeIndex::kTVMFFIStr;
-  static constexpr const char* _type_key = StaticTypeKey::kTVMFFIStr;
   static const constexpr bool _type_final = true;
-  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(StringObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_STATIC(StaticTypeKey::kTVMFFIStr, StringObj, Object);
 };
 
 // String moved from std::string

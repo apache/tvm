@@ -188,8 +188,7 @@ public:
   TestIntPairObj(int64_t a, int64_t b) : a(a), b(b) {}
 
   // Required: declare type information
-  static constexpr const char* _type_key = "testing.TestIntPair";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TestIntPairObj, tvm::ffi::Object);
+TVM_FFI_DECLARE_OBJECT_INFO_FINAL("testing.TestIntPair", TestIntPairObj, tvm::ffi::Object);
 };
 
 // Step 2: Define the reference wrapper (user-facing interface)
@@ -201,7 +200,7 @@ public:
   }
 
   // Required: define object reference methods
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS(TestIntPair, tvm::ffi::ObjectRef, TestIntPairObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TestIntPair, tvm::ffi::ObjectRef, TestIntPairObj);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({

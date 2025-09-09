@@ -46,13 +46,12 @@ class TNumberObj : public BasePad, public Object {
   // declare as one slot, with float as overflow
   static constexpr uint32_t _type_child_slots = 1;
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "test.Number";
-  TVM_FFI_DECLARE_BASE_OBJECT_INFO(TNumberObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("test.Number", TNumberObj, Object);
 };
 
 class TNumber : public ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS(TNumber, ObjectRef, TNumberObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TNumber, ObjectRef, TNumberObj);
 };
 
 class TIntObj : public TNumberObj {
@@ -64,11 +63,9 @@ class TIntObj : public TNumberObj {
 
   int64_t GetValue() const { return value; }
 
-  static constexpr const char* _type_key = "test.Int";
-
   inline static void RegisterReflection();
 
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TIntObj, TNumberObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("test.Int", TIntObj, TNumberObj);
 };
 
 class TInt : public TNumber {
@@ -77,7 +74,7 @@ class TInt : public TNumber {
 
   static TInt StaticAdd(TInt lhs, TInt rhs) { return TInt(lhs->value + rhs->value); }
 
-  TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TInt, TNumber, TIntObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TInt, TNumber, TIntObj);
 };
 
 inline void TIntObj::RegisterReflection() {
@@ -117,15 +114,14 @@ class TFloatObj : public TNumberObj {
         .def("add", &TFloatObj::Add, "add method");
   }
 
-  static constexpr const char* _type_key = "test.Float";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TFloatObj, TNumberObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("test.Float", TFloatObj, TNumberObj);
 };
 
 class TFloat : public TNumber {
  public:
   explicit TFloat(double value) { data_ = make_object<TFloatObj>(value); }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS(TFloat, TNumber, TFloatObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TFloat, TNumber, TFloatObj);
 };
 
 class TPrimExprObj : public Object {
@@ -146,10 +142,9 @@ class TPrimExprObj : public Object {
         });
   }
 
-  static constexpr const char* _type_key = "test.PrimExpr";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr bool _type_mutable = true;
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TPrimExprObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("test.PrimExpr", TPrimExprObj, Object);
 };
 
 class TPrimExpr : public ObjectRef {
@@ -158,7 +153,7 @@ class TPrimExpr : public ObjectRef {
     data_ = make_object<TPrimExprObj>(dtype, value);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS(TPrimExpr, ObjectRef, TPrimExprObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TPrimExpr, ObjectRef, TPrimExprObj);
 };
 
 class TVarObj : public Object {
@@ -175,16 +170,15 @@ class TVarObj : public Object {
                                       refl::AttachFieldFlag::SEqHashIgnore());
   }
 
-  static constexpr const char* _type_key = "test.Var";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TVarObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("test.Var", TVarObj, Object);
 };
 
 class TVar : public ObjectRef {
  public:
   explicit TVar(std::string name) { data_ = make_object<TVarObj>(name); }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS(TVar, ObjectRef, TVarObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TVar, ObjectRef, TVarObj);
 };
 
 class TFuncObj : public Object {
@@ -206,9 +200,8 @@ class TFuncObj : public Object {
         .def_ro("comment", &TFuncObj::comment, refl::AttachFieldFlag::SEqHashIgnore());
   }
 
-  static constexpr const char* _type_key = "test.Func";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TFuncObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("test.Func", TFuncObj, Object);
 };
 
 class TFunc : public ObjectRef {
@@ -217,7 +210,7 @@ class TFunc : public ObjectRef {
     data_ = make_object<TFuncObj>(params, body, comment);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS(TFunc, ObjectRef, TFuncObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TFunc, ObjectRef, TFuncObj);
 };
 
 class TCustomFuncObj : public Object {
@@ -259,9 +252,8 @@ class TCustomFuncObj : public Object {
         .def("__s_hash__", &TCustomFuncObj::SHash);
   }
 
-  static constexpr const char* _type_key = "test.CustomFunc";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TCustomFuncObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("test.CustomFunc", TCustomFuncObj, Object);
 };
 
 class TCustomFunc : public ObjectRef {
@@ -270,7 +262,7 @@ class TCustomFunc : public ObjectRef {
     data_ = make_object<TCustomFuncObj>(params, body, comment);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS(TCustomFunc, ObjectRef, TCustomFuncObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TCustomFunc, ObjectRef, TCustomFuncObj);
 };
 
 }  // namespace testing

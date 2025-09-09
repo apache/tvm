@@ -65,9 +65,7 @@ class ReplayFuncNode : public SearchStrategyNode {
   static void RegisterReflection() {
     // No fields to register
   }
-
-  static constexpr const char* _type_key = "meta_schedule.ReplayFunc";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ReplayFuncNode, SearchStrategyNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.ReplayFunc", ReplayFuncNode, SearchStrategyNode);
 
   void InitializeWithTuneContext(const TuneContext& ctx) final {
     CHECK(ctx->mod.defined()) << "ValueError: TuneContext.mod is not defined";

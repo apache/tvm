@@ -51,15 +51,14 @@ struct ReduceBranchingThroughOvercomputeConfigNode
         "to statically prove that overcompute is valid.",
         refl::DefaultValue(false));
   }
-
-  static constexpr const char* _type_key = "tir.transform.ReduceBranchingThroughOvercomputeConfig";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(ReduceBranchingThroughOvercomputeConfigNode, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.ReduceBranchingThroughOvercomputeConfig",
+                                    ReduceBranchingThroughOvercomputeConfigNode, BaseAttrsNode);
 };
 
 class ReduceBranchingThroughOvercomputeConfig : public Attrs {
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ReduceBranchingThroughOvercomputeConfig, Attrs,
-                                            ReduceBranchingThroughOvercomputeConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ReduceBranchingThroughOvercomputeConfig, Attrs,
+                                                ReduceBranchingThroughOvercomputeConfigNode);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({ ReduceBranchingThroughOvercomputeConfigNode::RegisterReflection(); });

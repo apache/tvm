@@ -257,8 +257,8 @@ class BlockBuilderNode : public Object {
    */
   virtual arith::Analyzer* GetAnalyzer() = 0;
 
-  static constexpr const char* _type_key = "relax.BlockBuilder";
-  TVM_DECLARE_BASE_OBJECT_INFO(BlockBuilderNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.BlockBuilder", BlockBuilderNode, Object);
 };
 
 class BlockBuilder : public ObjectRef {
@@ -318,7 +318,7 @@ class BlockBuilder : public ObjectRef {
   TVM_DLL static BlockBuilder Create(ffi::Optional<IRModule> ctx_mod,
                                      DisableOperatorSpecificNormalizationForTVMScript tag);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BlockBuilder, ObjectRef, BlockBuilderNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BlockBuilder, ObjectRef, BlockBuilderNode);
 };
 
 }  // namespace relax

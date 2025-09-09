@@ -116,9 +116,7 @@ struct DiscoDebugObject : public Object {
   inline uint64_t GetFFIAnyProtocolBytes() const {
     return sizeof(uint64_t) + this->SaveToStr().size();
   }
-
-  static constexpr const char* _type_key = "runtime.disco.DiscoDebugObject";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DiscoDebugObject, SessionObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.DiscoDebugObject", DiscoDebugObject, SessionObj);
 };
 
 template <class SubClassType>

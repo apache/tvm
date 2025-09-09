@@ -395,9 +395,8 @@ class EvolutionarySearchNode : public SearchStrategyNode {
         .def_ro("genetic_max_fail_count", &EvolutionarySearchNode::genetic_max_fail_count)
         .def_ro("eps_greedy", &EvolutionarySearchNode::eps_greedy);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.EvolutionarySearch";
-  TVM_DECLARE_FINAL_OBJECT_INFO(EvolutionarySearchNode, SearchStrategyNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.EvolutionarySearch", EvolutionarySearchNode,
+                                    SearchStrategyNode);
 
   void InitializeWithTuneContext(const TuneContext& ctx) final {
     CHECK(ctx->num_threads > 0) << "ValueError: `TuneContext.num_threads` must be > 0";
@@ -776,8 +775,8 @@ SearchStrategy SearchStrategy::EvolutionarySearch(int population_size,         /
 
 class EvolutionarySearch : public SearchStrategy {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(EvolutionarySearch, SearchStrategy,
-                                                    EvolutionarySearchNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(EvolutionarySearch, SearchStrategy,
+                                                EvolutionarySearchNode);
 };
 
 ffi::Array<Schedule> EvolutionarySearchSampleInitPopulation(EvolutionarySearch self, int num) {

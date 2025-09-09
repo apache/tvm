@@ -44,9 +44,7 @@ class TIRFrameNode : public IRBuilderFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TIRFrameNode>().def_ro("stmts", &TIRFrameNode::stmts);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.TIRFrame";
-  TVM_DECLARE_BASE_OBJECT_INFO(TIRFrameNode, IRBuilderFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.tir.TIRFrame", TIRFrameNode, IRBuilderFrameNode);
 };
 
 /*!
@@ -56,7 +54,7 @@ class TIRFrameNode : public IRBuilderFrameNode {
  */
 class TIRFrame : public IRBuilderFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TIRFrame, IRBuilderFrame, TIRFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TIRFrame, IRBuilderFrame, TIRFrameNode);
 
  protected:
   TIRFrame() = default;
@@ -99,9 +97,8 @@ class PrimFuncFrameNode : public TIRFrameNode {
         .def_ro("env_threads", &PrimFuncFrameNode::env_threads)
         .def_ro("root_alloc_buffers", &PrimFuncFrameNode::root_alloc_buffers);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.PrimFuncFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PrimFuncFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.PrimFuncFrame", PrimFuncFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -122,7 +119,7 @@ class PrimFuncFrame : public TIRFrame {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PrimFuncFrame, TIRFrame, PrimFuncFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimFuncFrame, TIRFrame, PrimFuncFrameNode);
 };
 
 /*!
@@ -173,9 +170,8 @@ class BlockFrameNode : public TIRFrameNode {
         .def_ro("predicate", &BlockFrameNode::predicate)
         .def_ro("no_realize", &BlockFrameNode::no_realize);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.BlockFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BlockFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.BlockFrame", BlockFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -197,7 +193,7 @@ class BlockFrame : public TIRFrame {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockFrame, TIRFrame, BlockFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockFrame, TIRFrame, BlockFrameNode);
 };
 
 /*!
@@ -211,9 +207,8 @@ class BlockInitFrameNode : public TIRFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BlockInitFrameNode>();
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.BlockInitFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BlockInitFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.BlockInitFrame", BlockInitFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -239,7 +234,7 @@ class BlockInitFrame : public TIRFrame {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockInitFrame, TIRFrame, BlockInitFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockInitFrame, TIRFrame, BlockInitFrameNode);
 };
 
 /*!
@@ -273,9 +268,7 @@ class ForFrameNode : public TIRFrameNode {
         .def_ro("doms", &ForFrameNode::doms);
     // `f_make_for_loop` is not registered as it's not visited.
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.ForFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ForFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.ForFrame", ForFrameNode, TIRFrameNode);
 
  public:
   /*!
@@ -296,7 +289,7 @@ class ForFrame : public TIRFrame {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ForFrame, TIRFrame, ForFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ForFrame, TIRFrame, ForFrameNode);
 };
 
 /*!
@@ -318,9 +311,8 @@ class AssertFrameNode : public TIRFrameNode {
         .def_ro("condition", &AssertFrameNode::condition)
         .def_ro("message", &AssertFrameNode::message);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.AssertFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AssertFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AssertFrame", AssertFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -341,7 +333,7 @@ class AssertFrame : public TIRFrame {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AssertFrame, TIRFrame, AssertFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AssertFrame, TIRFrame, AssertFrameNode);
 };
 
 /*!
@@ -362,9 +354,7 @@ class LetFrameNode : public TIRFrameNode {
         .def_ro("var", &LetFrameNode::var)
         .def_ro("value", &LetFrameNode::value);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.LetFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LetFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.LetFrame", LetFrameNode, TIRFrameNode);
 
  public:
   /*!
@@ -385,7 +375,7 @@ class LetFrame : public TIRFrame {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(LetFrame, TIRFrame, LetFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LetFrame, TIRFrame, LetFrameNode);
 };
 
 /*!
@@ -408,9 +398,8 @@ class LaunchThreadFrameNode : public TIRFrameNode {
         .def_ro("attr_key", &LaunchThreadFrameNode::attr_key)
         .def_ro("iter_var", &LaunchThreadFrameNode::iter_var);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.LaunchThreadFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LaunchThreadFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.LaunchThreadFrame",
+                                    LaunchThreadFrameNode, TIRFrameNode);
 
  public:
   /*!
@@ -431,8 +420,7 @@ class LaunchThreadFrame : public TIRFrame {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(LaunchThreadFrame, TIRFrame,
-                                                    LaunchThreadFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LaunchThreadFrame, TIRFrame, LaunchThreadFrameNode);
 };
 
 /*!
@@ -456,9 +444,8 @@ class RealizeFrameNode : public TIRFrameNode {
         .def_ro("storage_scope", &RealizeFrameNode::storage_scope)
         .def_ro("condition", &RealizeFrameNode::condition);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.RealizeFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RealizeFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.RealizeFrame", RealizeFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -479,7 +466,7 @@ class RealizeFrame : public TIRFrame {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(RealizeFrame, TIRFrame, RealizeFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RealizeFrame, TIRFrame, RealizeFrameNode);
 };
 
 /*!
@@ -512,9 +499,8 @@ class AllocateFrameNode : public TIRFrameNode {
         .def_ro("annotations", &AllocateFrameNode::annotations)
         .def_ro("buffer_var", &AllocateFrameNode::buffer_var);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.AllocateFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AllocateFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AllocateFrame", AllocateFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -535,7 +521,7 @@ class AllocateFrame : public TIRFrame {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AllocateFrame, TIRFrame, AllocateFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AllocateFrame, TIRFrame, AllocateFrameNode);
 };
 
 /*!
@@ -565,9 +551,8 @@ class AllocateConstFrameNode : public TIRFrameNode {
         .def_ro("buffer_var", &AllocateConstFrameNode::buffer_var)
         .def_ro("annotations", &AllocateConstFrameNode::annotations);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.AllocateConstFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AllocateConstFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AllocateConstFrame",
+                                    AllocateConstFrameNode, TIRFrameNode);
 
  public:
   /*!
@@ -589,8 +574,8 @@ class AllocateConstFrame : public TIRFrame {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AllocateConstFrame, TIRFrame,
-                                                    AllocateConstFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AllocateConstFrame, TIRFrame,
+                                                AllocateConstFrameNode);
 };
 /*!
  * \brief A frame that represents attribute node.
@@ -613,9 +598,7 @@ class AttrFrameNode : public TIRFrameNode {
         .def_ro("attr_key", &AttrFrameNode::attr_key)
         .def_ro("value", &AttrFrameNode::value);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.AttrFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AttrFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AttrFrame", AttrFrameNode, TIRFrameNode);
 
  public:
   /*!
@@ -636,7 +619,7 @@ class AttrFrame : public TIRFrame {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AttrFrame, TIRFrame, AttrFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AttrFrame, TIRFrame, AttrFrameNode);
 };
 
 /*!
@@ -653,9 +636,8 @@ class WhileFrameNode : public TIRFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<WhileFrameNode>().def_ro("condition", &WhileFrameNode::condition);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.WhileFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(WhileFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.WhileFrame", WhileFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -676,7 +658,7 @@ class WhileFrame : public TIRFrame {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(WhileFrame, TIRFrame, WhileFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(WhileFrame, TIRFrame, WhileFrameNode);
 };
 
 /*!
@@ -700,9 +682,7 @@ class IfFrameNode : public TIRFrameNode {
         .def_ro("then_stmts", &IfFrameNode::then_stmts)
         .def_ro("else_stmts", &IfFrameNode::else_stmts);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.IfFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IfFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.IfFrame", IfFrameNode, TIRFrameNode);
 
  public:
   /*!
@@ -722,7 +702,7 @@ class IfFrame : public TIRFrame {
   explicit IfFrame(ObjectPtr<IfFrameNode> data) : TIRFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IfFrame, TIRFrame, IfFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IfFrame, TIRFrame, IfFrameNode);
 };
 
 /*!
@@ -736,9 +716,7 @@ class ThenFrameNode : public TIRFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ThenFrameNode>();
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.ThenFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ThenFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.ThenFrame", ThenFrameNode, TIRFrameNode);
 
  public:
   /*!
@@ -763,7 +741,7 @@ class ThenFrame : public TIRFrame {
   explicit ThenFrame(ObjectPtr<ThenFrameNode> data) : TIRFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ThenFrame, TIRFrame, ThenFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ThenFrame, TIRFrame, ThenFrameNode);
 };
 
 /*!
@@ -777,9 +755,7 @@ class ElseFrameNode : public TIRFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ElseFrameNode>();
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.ElseFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ElseFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.ElseFrame", ElseFrameNode, TIRFrameNode);
 
  public:
   /*!
@@ -805,7 +781,7 @@ class ElseFrame : public TIRFrame {
     TVM_FFI_ICHECK(data != nullptr);
   }
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ElseFrame, TIRFrame, ElseFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ElseFrame, TIRFrame, ElseFrameNode);
 };
 
 class DeclBufferFrameNode : public TIRFrameNode {
@@ -821,9 +797,8 @@ class DeclBufferFrameNode : public TIRFrameNode {
         .def_ro("buffer", &DeclBufferFrameNode::buffer)
         .def_ro("allocated", &DeclBufferFrameNode::allocated);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.DeclBufferFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DeclBufferFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.DeclBufferFrame", DeclBufferFrameNode,
+                                    TIRFrameNode);
 
  public:
   void ExitWithScope() final;
@@ -834,7 +809,7 @@ class DeclBufferFrame : public TIRFrame {
   explicit DeclBufferFrame(ObjectPtr<DeclBufferFrameNode> data) : TIRFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(DeclBufferFrame, TIRFrame, DeclBufferFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DeclBufferFrame, TIRFrame, DeclBufferFrameNode);
 };
 
 }  // namespace tir

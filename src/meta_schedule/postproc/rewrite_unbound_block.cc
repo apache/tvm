@@ -114,9 +114,8 @@ class RewriteUnboundBlockNode : public PostprocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RewriteUnboundBlockNode>();
   }
-
-  static constexpr const char* _type_key = "meta_schedule.RewriteUnboundBlock";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RewriteUnboundBlockNode, PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RewriteUnboundBlock", RewriteUnboundBlockNode,
+                                    PostprocNode);
 };
 
 bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch) {

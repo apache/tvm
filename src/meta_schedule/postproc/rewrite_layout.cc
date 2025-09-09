@@ -264,9 +264,7 @@ class RewriteLayoutNode : public PostprocNode {
     ObjectPtr<RewriteLayoutNode> n = ffi::make_object<RewriteLayoutNode>(*this);
     return Postproc(n);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.RewriteLayout";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RewriteLayoutNode, PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RewriteLayout", RewriteLayoutNode, PostprocNode);
 };
 
 Postproc Postproc::RewriteLayout() {

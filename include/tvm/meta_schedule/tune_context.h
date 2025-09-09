@@ -87,8 +87,8 @@ class TuneContextNode : public runtime::Object {
    */
   TuneContext Clone() const;
 
-  static constexpr const char* _type_key = "meta_schedule.TuneContext";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TuneContextNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.TuneContext", TuneContextNode, Object);
 };
 
 /*!
@@ -121,7 +121,7 @@ class TuneContext : public runtime::ObjectRef {
                                ffi::Optional<SearchStrategy> search_strategy,
                                ffi::Optional<ffi::String> task_name, int num_threads,
                                TRandState rand_state, ffi::Function logger);
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TuneContext, ObjectRef, TuneContextNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TuneContext, ObjectRef, TuneContextNode);
 };
 
 }  // namespace meta_schedule

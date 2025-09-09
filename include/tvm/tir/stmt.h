@@ -53,17 +53,16 @@ class StmtNode : public Object {
 
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
-  static constexpr const char* _type_key = "tir.Stmt";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
   static constexpr const uint32_t _type_child_slots = 15;
-  TVM_DECLARE_BASE_OBJECT_INFO(StmtNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tir.Stmt", StmtNode, Object);
 };
 
 /*! \brief Container of all statements */
 class Stmt : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(Stmt, ObjectRef, StmtNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Stmt, ObjectRef, StmtNode);
 };
 
 /*!
@@ -85,9 +84,7 @@ class LetStmtNode : public StmtNode {
         .def_ro("value", &LetStmtNode::value)
         .def_ro("body", &LetStmtNode::body);
   }
-
-  static constexpr const char* _type_key = "tir.LetStmt";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LetStmtNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.LetStmt", LetStmtNode, StmtNode);
 };
 
 /*!
@@ -98,7 +95,7 @@ class LetStmt : public Stmt {
  public:
   TVM_DLL LetStmt(Var var, PrimExpr value, Stmt body, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(LetStmt, Stmt, LetStmtNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LetStmt, Stmt, LetStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(LetStmtNode);
 };
 
@@ -131,9 +128,7 @@ class AttrStmtNode : public StmtNode {
         .def_ro("value", &AttrStmtNode::value)
         .def_ro("body", &AttrStmtNode::body);
   }
-
-  static constexpr const char* _type_key = "tir.AttrStmt";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AttrStmtNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.AttrStmt", AttrStmtNode, StmtNode);
 };
 
 /*!
@@ -145,7 +140,7 @@ class AttrStmt : public Stmt {
   TVM_DLL AttrStmt(ffi::Any node, ffi::String attr_key, PrimExpr value, Stmt body,
                    Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(AttrStmt, Stmt, AttrStmtNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttrStmt, Stmt, AttrStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AttrStmtNode);
 };
 
@@ -171,9 +166,7 @@ class AssertStmtNode : public StmtNode {
         .def_ro("message", &AssertStmtNode::message)
         .def_ro("body", &AssertStmtNode::body);
   }
-
-  static constexpr const char* _type_key = "tir.AssertStmt";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AssertStmtNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.AssertStmt", AssertStmtNode, StmtNode);
 };
 
 /*!
@@ -184,7 +177,7 @@ class AssertStmt : public Stmt {
  public:
   TVM_DLL AssertStmt(PrimExpr condition, PrimExpr message, Stmt body, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(AssertStmt, Stmt, AssertStmtNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AssertStmt, Stmt, AssertStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AssertStmtNode);
 };
 
@@ -217,9 +210,7 @@ class BufferStoreNode : public StmtNode {
         .def_ro("indices", &BufferStoreNode::indices)
         .def_ro("predicate", &BufferStoreNode::predicate);
   }
-
-  static constexpr const char* _type_key = "tir.BufferStore";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BufferStoreNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BufferStore", BufferStoreNode, StmtNode);
 };
 
 /*!
@@ -232,7 +223,7 @@ class BufferStore : public Stmt {
                                ffi::Optional<PrimExpr> predicate = std::nullopt,
                                Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(BufferStore, Stmt, BufferStoreNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferStore, Stmt, BufferStoreNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferStoreNode);
 };
 
@@ -271,9 +262,7 @@ class BufferRealizeNode : public StmtNode {
   BufferRealizeNode(Buffer buffer, ffi::Array<Range> bounds, PrimExpr condition, Stmt body,
                     Span span = Span())
       : StmtNode(span), buffer(buffer), bounds(bounds), condition(condition), body(body) {}
-
-  static constexpr const char* _type_key = "tir.BufferRealize";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BufferRealizeNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BufferRealize", BufferRealizeNode, StmtNode);
 };
 
 /*!
@@ -285,7 +274,7 @@ class BufferRealize : public Stmt {
   TVM_DLL explicit BufferRealize(Buffer buffer, ffi::Array<Range> bounds, PrimExpr condition,
                                  Stmt body, Span span = Span());
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BufferRealize, Stmt, BufferRealizeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BufferRealize, Stmt, BufferRealizeNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRealizeNode);
 };
 
@@ -336,10 +325,7 @@ class AllocateNode : public StmtNode {
    * \return The result.
    */
   TVM_DLL static int64_t ConstantAllocationSize(const ffi::Array<PrimExpr>& extents);
-
-  static constexpr const char* _type_key = "tir.Allocate";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(AllocateNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Allocate", AllocateNode, StmtNode);
 };
 
 /*!
@@ -353,7 +339,7 @@ class Allocate : public Stmt {
                    ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
                    Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Allocate, Stmt, AllocateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Allocate, Stmt, AllocateNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocateNode);
 };
 
@@ -411,9 +397,7 @@ class AllocateConstNode : public StmtNode {
    * \return The result.
    */
   TVM_DLL static int64_t ConstantAllocationSize(const ffi::Array<PrimExpr>& extents);
-
-  static constexpr const char* _type_key = "tir.AllocateConst";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AllocateConstNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.AllocateConst", AllocateConstNode, StmtNode);
 };
 
 /*!
@@ -430,7 +414,7 @@ class AllocateConst : public Stmt {
       Var buffer_var, DataType dtype, ffi::Array<PrimExpr> extents, ObjectRef data_or_idx,
       Stmt body, ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
       Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(AllocateConst, Stmt, AllocateConstNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AllocateConst, Stmt, AllocateConstNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocateConstNode);
 };
 
@@ -448,16 +432,14 @@ class DeclBufferNode : public StmtNode {
         .def_ro("buffer", &DeclBufferNode::buffer)
         .def_ro("body", &DeclBufferNode::body);
   }
-
-  static constexpr const char* _type_key = "tir.DeclBuffer";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DeclBufferNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.DeclBuffer", DeclBufferNode, StmtNode);
 };
 
 /*! \brief Managed reference to DeclBufferNode */
 class DeclBuffer : public Stmt {
  public:
   TVM_DLL DeclBuffer(Buffer buffer, Stmt body, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(DeclBuffer, Stmt, DeclBufferNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DeclBuffer, Stmt, DeclBufferNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DeclBufferNode);
 };
 
@@ -481,9 +463,7 @@ class SeqStmtNode : public StmtNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SeqStmtNode>().def_ro("seq", &SeqStmtNode::seq);
   }
-
-  static constexpr const char* _type_key = "tir.SeqStmt";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SeqStmtNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.SeqStmt", SeqStmtNode, StmtNode);
 };
 
 /*!
@@ -501,9 +481,7 @@ class EvaluateNode : public StmtNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<EvaluateNode>().def_ro("value", &EvaluateNode::value);
   }
-
-  static constexpr const char* _type_key = "tir.Evaluate";
-  TVM_DECLARE_FINAL_OBJECT_INFO(EvaluateNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Evaluate", EvaluateNode, StmtNode);
 };
 
 /*!
@@ -516,7 +494,7 @@ class Evaluate : public Stmt {
 
   explicit Evaluate(int value, Span span = Span()) : Evaluate(PrimExpr(value), span) {}
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Evaluate, Stmt, EvaluateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Evaluate, Stmt, EvaluateNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(EvaluateNode);
 };
 
@@ -667,7 +645,7 @@ class SeqStmt : public Stmt {
     ffi::Array<Stmt>* seq_;
   };
 
-  TVM_DEFINE_OBJECT_REF_METHODS(SeqStmt, Stmt, SeqStmtNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SeqStmt, Stmt, SeqStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SeqStmtNode);
 };
 
@@ -690,9 +668,7 @@ class IfThenElseNode : public StmtNode {
         .def_ro("then_case", &IfThenElseNode::then_case)
         .def_ro("else_case", &IfThenElseNode::else_case);
   }
-
-  static constexpr const char* _type_key = "tir.IfThenElse";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IfThenElseNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.IfThenElse", IfThenElseNode, StmtNode);
 };
 
 /*!
@@ -704,7 +680,7 @@ class IfThenElse : public Stmt {
   TVM_DLL IfThenElse(PrimExpr condition, Stmt then_case,
                      ffi::Optional<Stmt> else_case = std::nullopt, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IfThenElse, Stmt, IfThenElseNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IfThenElse, Stmt, IfThenElseNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IfThenElseNode);
 };
 
@@ -784,9 +760,7 @@ class ForNode : public StmtNode {
         .def_ro("thread_binding", &ForNode::thread_binding)
         .def_ro("annotations", &ForNode::annotations);
   }
-
-  static constexpr const char* _type_key = "tir.For";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ForNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.For", ForNode, StmtNode);
 };
 
 /*!
@@ -800,7 +774,7 @@ class For : public Stmt {
               ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
               Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(For, Stmt, ForNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(For, Stmt, ForNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ForNode);
 };
 
@@ -827,9 +801,7 @@ class WhileNode : public StmtNode {
         .def_ro("condition", &WhileNode::condition)
         .def_ro("body", &WhileNode::body);
   }
-
-  static constexpr const char* _type_key = "tir.While";
-  TVM_DECLARE_FINAL_OBJECT_INFO(WhileNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.While", WhileNode, StmtNode);
 };
 
 /*!
@@ -840,7 +812,7 @@ class While : public Stmt {
  public:
   TVM_DLL While(PrimExpr condition, Stmt body, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(While, Stmt, WhileNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(While, Stmt, WhileNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(WhileNode);
 };
 
@@ -863,9 +835,8 @@ class BufferRegionNode : public PrimExprConvertibleNode {
 
   TVM_DLL PrimExpr ToPrimExpr() const final;
 
-  static constexpr const char* _type_key = "tir.BufferRegion";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_DECLARE_FINAL_OBJECT_INFO(BufferRegionNode, PrimExprConvertibleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BufferRegion", BufferRegionNode, PrimExprConvertibleNode);
 };
 
 /*!
@@ -891,7 +862,7 @@ class BufferRegion : public PrimExprConvertible {
    */
   TVM_DLL static BufferRegion FromPoint(Buffer buffer, ffi::Array<PrimExpr> indices);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(BufferRegion, PrimExprConvertible, BufferRegionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferRegion, PrimExprConvertible, BufferRegionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRegionNode);
 };
 
@@ -918,9 +889,8 @@ class MatchBufferRegionNode : public Object {
         .def_ro("source", &MatchBufferRegionNode::source);
   }
 
-  static constexpr const char* _type_key = "tir.MatchBufferRegion";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_DECLARE_FINAL_OBJECT_INFO(MatchBufferRegionNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.MatchBufferRegion", MatchBufferRegionNode, Object);
 };
 
 /*!
@@ -931,7 +901,7 @@ class MatchBufferRegion : public ObjectRef {
  public:
   TVM_DLL explicit MatchBufferRegion(Buffer buffer, BufferRegion source);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(MatchBufferRegion, ObjectRef, MatchBufferRegionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchBufferRegion, ObjectRef, MatchBufferRegionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchBufferRegionNode);
 };
 
@@ -996,9 +966,7 @@ class BlockNode : public StmtNode {
         .def_ro("init", &BlockNode::init)
         .def_ro("body", &BlockNode::body);
   }
-
-  static constexpr const char* _type_key = "tir.Block";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BlockNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Block", BlockNode, StmtNode);
 };
 
 /*!
@@ -1016,7 +984,7 @@ class Block : public Stmt {
       ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
       Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Block, Stmt, BlockNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Block, Stmt, BlockNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BlockNode);
 };
 
@@ -1042,9 +1010,7 @@ class BlockRealizeNode : public StmtNode {
         .def_ro("predicate", &BlockRealizeNode::predicate)
         .def_ro("block", &BlockRealizeNode::block);
   }
-
-  static constexpr const char* _type_key = "tir.BlockRealize";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BlockRealizeNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BlockRealize", BlockRealizeNode, StmtNode);
 };
 
 /*!
@@ -1056,7 +1022,7 @@ class BlockRealize : public Stmt {
   TVM_DLL explicit BlockRealize(ffi::Array<PrimExpr> iter_values, PrimExpr predicate, Block block,
                                 Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(BlockRealize, Stmt, BlockRealizeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BlockRealize, Stmt, BlockRealizeNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BlockRealizeNode);
 };
 

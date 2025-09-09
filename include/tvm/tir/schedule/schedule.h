@@ -53,9 +53,7 @@ class BlockRVNode : public runtime::Object {
   static void RegisterReflection() {
     // No fields to register as they are not visited
   }
-
-  static constexpr const char* _type_key = "tir.BlockRV";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BlockRVNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BlockRV", BlockRVNode, runtime::Object);
 };
 
 /*!
@@ -66,7 +64,7 @@ class BlockRV : public runtime::ObjectRef {
  public:
   /*! \brief Constructor */
   TVM_DLL BlockRV();
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BlockRV, runtime::ObjectRef, BlockRVNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockRV, runtime::ObjectRef, BlockRVNode);
 };
 
 /**************** Random variable: LoopRV ****************/
@@ -77,9 +75,7 @@ class LoopRVNode : public runtime::Object {
   static void RegisterReflection() {
     // No fields to register as they are not visited
   }
-
-  static constexpr const char* _type_key = "tir.LoopRV";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LoopRVNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.LoopRV", LoopRVNode, runtime::Object);
 };
 
 /*!
@@ -90,7 +86,7 @@ class LoopRV : public runtime::ObjectRef {
  public:
   /*! \brief Constructor */
   TVM_DLL LoopRV();
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(LoopRV, runtime::ObjectRef, LoopRVNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LoopRV, runtime::ObjectRef, LoopRVNode);
 };
 
 /**************** Random variable: ExprRV ****************/
@@ -111,8 +107,8 @@ class ScheduleNode : public runtime::Object {
  public:
   virtual ~ScheduleNode() = default;
 
-  static constexpr const char* _type_key = "tir.Schedule";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleNode, runtime::Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Schedule", ScheduleNode, runtime::Object);
 
  public:
   /*! \brief Get the IRModule associated with this schedule. */
@@ -921,7 +917,7 @@ class Schedule : public runtime::ObjectRef {
   TVM_DLL static Schedule Traced(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
                                  int debug_mask, ScheduleErrorRenderLevel error_render_level,
                                  bool enable_check = true);
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Schedule, runtime::ObjectRef, ScheduleNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Schedule, runtime::ObjectRef, ScheduleNode);
 };
 
 }  // namespace tir

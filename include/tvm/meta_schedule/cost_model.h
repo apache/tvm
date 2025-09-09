@@ -73,8 +73,8 @@ class CostModelNode : public runtime::Object {
   virtual std::vector<double> Predict(const TuneContext& context,
                                       const ffi::Array<MeasureCandidate>& candidates) = 0;
 
-  static constexpr const char* _type_key = "meta_schedule.CostModel";
-  TVM_DECLARE_BASE_OBJECT_INFO(CostModelNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.CostModel", CostModelNode, Object);
 };
 
 /*! \brief The cost model with customized methods on the python-side. */
@@ -130,9 +130,7 @@ class PyCostModelNode : public CostModelNode {
               const ffi::Array<RunnerResult>& results);
   std::vector<double> Predict(const TuneContext& context,
                               const ffi::Array<MeasureCandidate>& candidates);
-
-  static constexpr const char* _type_key = "meta_schedule.PyCostModel";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyCostModelNode, CostModelNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyCostModel", PyCostModelNode, CostModelNode);
 };
 
 /*!
@@ -155,7 +153,7 @@ class CostModel : public runtime::ObjectRef {
                                        PyCostModelNode::FUpdate f_update,    //
                                        PyCostModelNode::FPredict f_predict,  //
                                        PyCostModelNode::FAsString f_as_string);
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(CostModel, ObjectRef, CostModelNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CostModel, ObjectRef, CostModelNode);
 };
 
 }  // namespace meta_schedule
