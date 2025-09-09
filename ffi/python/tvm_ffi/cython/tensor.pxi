@@ -260,6 +260,30 @@ _set_class_tensor(Tensor)
 _register_object_by_index(kTVMFFITensor, Tensor)
 
 
+cdef class DLTensorTestWrapper:
+    """Wrapper of a Tensor that exposes DLPack protocol, only for testing purpose.
+    """
+    cdef Tensor tensor
+    def __init__(self, tensor):
+        self.tensor = tensor
+
+    def __tvm_ffi_env_stream__(self):
+        cdef TVMFFIStreamHandle stream
+        cdef long long stream_as_int
+        cdef int c_api_ret_code
+        with nogil:
+            stream = TVMFFIEnvGetCurrentStream(
+                self.tensor.cdltensor.device.device_type, self.tensor.cdltensor.device.device_id)
+        stream_as_int = <long long>stream
+        return stream_as_int
+
+    def __dlpack_device__(self):
+        return self.tensor.__dlpack_device__()
+
+    def __dlpack__(self, *, **kwargs):
+        return self.tensor.__dlpack__(**kwargs)
+
+
 cdef inline object make_ret_dltensor(TVMFFIAny result):
     cdef DLTensor* dltensor
     dltensor = <DLTensor*>result.v_ptr

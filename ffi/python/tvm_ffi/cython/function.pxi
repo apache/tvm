@@ -122,10 +122,25 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args,
                 ctx_stream[0] = <TVMFFIStreamHandle>temp_ptr
             temp_args.append(arg)
         elif hasattr(arg, "__dlpack__"):
-            arg = from_dlpack(arg)
+            ffi_arg = from_dlpack(arg)
             out[i].type_index = kTVMFFITensor
-            out[i].v_ptr = (<Tensor>arg).chandle
-            temp_args.append(arg)
+            out[i].v_ptr = (<Tensor>ffi_arg).chandle
+            # record the stream from the source framework context when possible
+            temp_dltensor = TVMFFITensorGetDLTensorPtr((<Tensor>ffi_arg).chandle)
+            if (temp_dltensor.device.device_type != kDLCPU and
+                ctx_dev_type != NULL and
+                ctx_dev_type[0] == -1):
+                # __tvm_ffi_env_stream__ returns the expected stream that should be set
+                # through TVMFFIEnvSetCurrentStream when calling a TVM FFI function
+                if hasattr(arg, "__tvm_ffi_env_stream__"):
+                    # Ideally projects should directly setup their stream context API
+                    # write through by also calling TVMFFIEnvSetCurrentStream
+                    # so we do not need this protocol to do exchange
+                    ctx_dev_type[0] = temp_dltensor.device.device_type
+                    ctx_dev_id[0] = temp_dltensor.device.device_id
+                    temp_ptr= arg.__tvm_ffi_env_stream__()
+                    ctx_stream[0] = <TVMFFIStreamHandle>temp_ptr
+            temp_args.append(ffi_arg)
         elif isinstance(arg, PyNativeObject) and arg.__tvm_ffi_object__ is not None:
             arg = arg.__tvm_ffi_object__
             out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
@@ -210,7 +225,7 @@ cdef inline int FuncCall3(void* chandle,
     with nogil:
         if ctx_dev_type != -1:
             # set the stream based on ctx stream
-            c_api_ret_code[0] = TVMFFIEnvSetStream(ctx_dev_type, ctx_dev_id, ctx_stream, &prev_stream)
+            c_api_ret_code[0] = TVMFFIEnvSetCurrentStream(ctx_dev_type, ctx_dev_id, ctx_stream, &prev_stream)
             if c_api_ret_code[0] != 0:
                 return 0
         c_api_ret_code[0] = TVMFFIFunctionCall(
@@ -219,7 +234,7 @@ cdef inline int FuncCall3(void* chandle,
         # restore the original stream if it is not the same as the context stream
         if ctx_dev_type != -1 and prev_stream != ctx_stream:
             # restore the original stream
-            c_api_ret_code[0] = TVMFFIEnvSetStream(ctx_dev_type, ctx_dev_id, prev_stream, NULL)
+            c_api_ret_code[0] = TVMFFIEnvSetCurrentStream(ctx_dev_type, ctx_dev_id, prev_stream, NULL)
             if c_api_ret_code[0] != 0:
                 return 0
     return 0
@@ -247,13 +262,13 @@ cdef inline int FuncCall(void* chandle,
 
     with nogil:
         if ctx_dev_type != -1:
-            c_api_ret_code[0] = TVMFFIEnvSetStream(ctx_dev_type, ctx_dev_id, ctx_stream, &prev_stream)
+            c_api_ret_code[0] = TVMFFIEnvSetCurrentStream(ctx_dev_type, ctx_dev_id, ctx_stream, &prev_stream)
             if c_api_ret_code[0] != 0:
                 return 0
         c_api_ret_code[0] = TVMFFIFunctionCall(chandle, &packed_args[0], nargs, result)
         # restore the original stream if it is not the same as the context stream
         if ctx_dev_type != -1 and prev_stream != ctx_stream:
-            c_api_ret_code[0] = TVMFFIEnvSetStream(ctx_dev_type, ctx_dev_id, prev_stream, NULL)
+            c_api_ret_code[0] = TVMFFIEnvSetCurrentStream(ctx_dev_type, ctx_dev_id, prev_stream, NULL)
             if c_api_ret_code[0] != 0:
                 return 0
 

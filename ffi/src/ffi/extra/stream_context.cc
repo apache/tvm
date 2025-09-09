@@ -66,8 +66,8 @@ class StreamContext {
 }  // namespace ffi
 }  // namespace tvm
 
-int TVMFFIEnvSetStream(int32_t device_type, int32_t device_id, TVMFFIStreamHandle stream,
-                       TVMFFIStreamHandle* out_original_stream) {
+int TVMFFIEnvSetCurrentStream(int32_t device_type, int32_t device_id, TVMFFIStreamHandle stream,
+                              TVMFFIStreamHandle* out_original_stream) {
   TVM_FFI_SAFE_CALL_BEGIN();
   tvm::ffi::StreamContext::ThreadLocal()->SetStream(device_type, device_id, stream,
                                                     out_original_stream);
