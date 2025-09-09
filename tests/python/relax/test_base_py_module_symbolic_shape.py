@@ -61,7 +61,7 @@ def test_infer_concrete_shape_error_when_uninferrable():
 
 
 @I.ir_module
-class AddModuleSymbolic:
+class AddModuleSymbolic(BasePyModule):
     @T.prim_func
     def add_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
         T.func_attr({"global_symbol": "add_tir"})
@@ -74,14 +74,14 @@ class AddModuleSymbolic:
             out[i] = x[i] + y[i]
 
     @R.function
-    def main_relax(x: R.Tensor(("n",), "float32"),
-                   y: R.Tensor(("n",), "float32")) -> R.Tensor(("n",), "float32"):
+    def main_relax(
+        x: R.Tensor(("n",), "float32"), y: R.Tensor(("n",), "float32")
+    ) -> R.Tensor(("n",), "float32"):
         return R.add(x, y)
 
 
 def test_base_py_module_relax_symbolic_end_to_end():
-    mod = AddModuleSymbolic
-    bpm = BasePyModule(mod, device=tvm.cpu(0), target="llvm")
+    bpm = AddModuleSymbolic(device=tvm.cpu(0), target="llvm")
 
     a = np.random.randn(5).astype("float32")
     b = np.random.randn(5).astype("float32")
@@ -98,8 +98,7 @@ def test_base_py_module_relax_symbolic_end_to_end():
 
 
 def test_base_py_module_tir_symbolic_end_to_end():
-    mod = AddModuleSymbolic
-    bpm = BasePyModule(mod, device=tvm.cpu(0), target="llvm")
+    bpm = AddModuleSymbolic(device=tvm.cpu(0), target="llvm")
 
     a = np.random.randn(5).astype("float32")
     b = np.random.randn(5).astype("float32")
@@ -146,7 +145,7 @@ def test_infer_concrete_shape_from_tvm_tensors():
         # Try to create TVM tensor using new API
         x_np = np.zeros((3, 4), dtype="float32")
         x_tvm = tvm.runtime.tensor(x_np)
-        
+
         mod = _make_module()
         bpm = BasePyModule(mod, device=tvm.cpu(0), target="llvm")
 
@@ -192,7 +191,7 @@ def test_infer_concrete_shape_wrong_ndim():
 
 
 @I.ir_module
-class MatrixModuleSymbolic:
+class MatrixModuleSymbolic(BasePyModule):
     @T.prim_func
     def matmul_tir(var_a: T.handle, var_b: T.handle, var_c: T.handle):
         T.func_attr({"global_symbol": "matmul_tir"})
@@ -210,15 +209,15 @@ class MatrixModuleSymbolic:
                     c[i, j] = c[i, j] + a[i, l] * b[l, j]
 
     @R.function
-    def matmul_relax(a: R.Tensor(("m", "k"), "float32"),
-                     b: R.Tensor(("k", "n"), "float32")) -> R.Tensor(("m", "n"), "float32"):
+    def matmul_relax(
+        a: R.Tensor(("m", "k"), "float32"), b: R.Tensor(("k", "n"), "float32")
+    ) -> R.Tensor(("m", "n"), "float32"):
         return R.matmul(a, b)
 
 
 def test_base_py_module_multiple_symbolic_dims():
     """Test BasePyModule with multiple symbolic dimensions."""
-    mod = MatrixModuleSymbolic
-    bpm = BasePyModule(mod, device=tvm.cpu(0), target="llvm")
+    bpm = MatrixModuleSymbolic(device=tvm.cpu(0), target="llvm")
 
     # Test Relax function with multiple symbolic dims
     a = np.random.randn(2, 3).astype("float32")
@@ -260,7 +259,7 @@ def test_base_py_module_call_dps_packed_symbolic():
         out = bpm.call_dps_packed("test_add_packed", [a, b], out_sinfo)
         out_np = out if isinstance(out, np.ndarray) else out.numpy()
         np.testing.assert_allclose(out_np, a + b, rtol=1e-6, atol=1e-6)
-        
+
     except AttributeError as e:
         pytest.skip(f"call_dps_packed test requires register_global_func: {e}")
 
@@ -289,7 +288,7 @@ def test_base_py_module_call_dps_packed_multiple_args():
         out_np = out if isinstance(out, np.ndarray) else out.numpy()
         expected = np.matmul(a, b)
         np.testing.assert_allclose(out_np, expected, rtol=1e-6, atol=1e-6)
-        
+
     except AttributeError as e:
         pytest.skip(f"call_dps_packed test requires register_global_func: {e}")
 
@@ -302,7 +301,7 @@ def test_base_py_module_call_dps_packed_scalar_args():
         def test_add_scalar_packed(x, scalar, out):
             """Add scalar to tensor."""
             x_np = x.numpy()
-            if hasattr(scalar, 'numpy'):
+            if hasattr(scalar, "numpy"):
                 scalar_val = scalar.numpy()
             else:
                 scalar_val = scalar
@@ -322,7 +321,7 @@ def test_base_py_module_call_dps_packed_scalar_args():
         out_np = out if isinstance(out, np.ndarray) else out.numpy()
         expected = x + scalar
         np.testing.assert_allclose(out_np, expected, rtol=1e-6, atol=1e-6)
-        
+
     except AttributeError as e:
         pytest.skip(f"call_dps_packed test requires register_global_func: {e}")
 
@@ -353,16 +352,16 @@ def test_base_py_module_relax_with_pytorch_tensors():
     except ImportError:
         pytest.skip("PyTorch not available")
 
-    mod = AddModuleSymbolic
-    bpm = BasePyModule(mod, device=tvm.cpu(0), target="llvm")
+    bpm = AddModuleSymbolic(device=tvm.cpu(0), target="llvm")
 
     a_torch = torch.randn(5, dtype=torch.float32)
     b_torch = torch.randn(5, dtype=torch.float32)
-    
+
     out = bpm.main_relax(a_torch, b_torch)
     out_np = out if isinstance(out, np.ndarray) else out.numpy()
     expected = a_torch.numpy() + b_torch.numpy()
     np.testing.assert_allclose(out_np, expected, rtol=1e-6, atol=1e-6)
 
 
-
+if __name__ == "__main__":
+    tvm.testing.main()

@@ -19,8 +19,8 @@
 
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
-import tvm
 import tvm_ffi
+import tvm
 from tvm import relax as rx
 from tvm import tir
 from tvm.ir.module import IRModule

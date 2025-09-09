@@ -246,7 +246,6 @@ class BasePyModule:
             if isinstance(sinfo, (tuple, list)) and all(
                 isinstance(x, (int, np.integer)) for x in sinfo
             ):
-            
                 out_tensors.append(torch.zeros(list(map(int, sinfo)), dtype=torch.float32))
                 continue
 
@@ -260,18 +259,13 @@ class BasePyModule:
         return out_tensors
 
     def _infer_concrete_shape_from_args(self, shape, in_args):
-        import tvm
-        from tvm import tir as _tir
-
-        def is_symbolic_dim(dim):
-            return isinstance(dim, (_tir.Var, _tir.PrimExpr)) and not isinstance(dim, _tir.IntImm)
 
         concrete = []
         symbolic_positions = []
         for idx, dim in enumerate(shape):
             if isinstance(dim, (int, np.integer)):
                 concrete.append(int(dim))
-            elif isinstance(dim, _tir.IntImm):
+            elif isinstance(dim, tir.IntImm):
                 concrete.append(int(dim.value))
             else:
                 concrete.append(None)
@@ -285,20 +279,12 @@ class BasePyModule:
             if not isinstance(in_args, (list, tuple)):
                 in_args = [in_args]
             for obj in in_args:
-                try:
-                    import torch
-
-                    if hasattr(obj, "shape") and isinstance(obj.shape, (tuple, list)):
-                        candidates.append(tuple(int(x) for x in obj.shape))
-                        continue
-                except Exception:
-                    pass
-
                 if hasattr(obj, "shape") and isinstance(obj.shape, (tuple, list)):
                     try:
                         candidates.append(tuple(int(x) for x in obj.shape))
                         continue
-                    except Exception:
+                    except (ValueError, TypeError):
+                        # Skip objects with invalid shapes
                         pass
 
         target_ndim = len(shape)
