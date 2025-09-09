@@ -219,6 +219,10 @@ macro(find_llvm use_llvm)
         # If the library file ends in .lib try to also search the llvm_libdir
         message(STATUS "LLVM linker flag under LLVM libdir: ${__llvm_libdir}/${__flag}")
         list(APPEND LLVM_LIBS "${__llvm_libdir}/${__flag}")
+      elseif((__flag MATCHES ".lib$") AND (EXISTS "${__llvm_libdir}/lib${__flag}"))
+        # If the library file ends in .lib try to also search the llvm_libdir with lib prefix
+        message(STATUS "LLVM linker flag under LLVM libdir: ${__llvm_libdir}/lib${__flag}")
+        list(APPEND LLVM_LIBS "${__llvm_libdir}/lib${__flag}")
       else()
         message(STATUS "LLVM linker flag: ${__flag}")
         list(APPEND LLVM_LIBS "${__flag}")
