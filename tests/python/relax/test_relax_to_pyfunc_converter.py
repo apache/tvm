@@ -200,7 +200,7 @@ def create_mock_packed_function():
         return x
 
     # Register the function globally
-    tvm.register_func("my_softmax", mock_softmax)
+    tvm.register_global_func("my_softmax", mock_softmax)
 
 
 class TestRelaxToPyFuncConverter:

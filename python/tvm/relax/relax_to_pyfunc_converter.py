@@ -27,6 +27,7 @@ import torch.nn.functional as F
 
 import tvm
 from tvm import relax
+from tvm.runtime import empty, from_dlpack, Tensor
 from tvm.ir import IRModule, Op
 
 
@@ -608,7 +609,7 @@ class RelaxExpressionConverter:
             for arg in converted_args:
                 if isinstance(arg, torch.Tensor):
                     # Convert PyTorch tensor to TVM NDArray via DLPack
-                    tvm_arg = tvm.nd.from_dlpack(torch.to_dlpack(arg))
+                    tvm_arg = from_dlpack(torch.to_dlpack(arg))
                     tvm_args.append(tvm_arg)
                 else:
                     tvm_args.append(arg)
@@ -627,7 +628,7 @@ class RelaxExpressionConverter:
                 return f"<call_tir_error: {func_name} - Cannot determine output shape>"
 
             # Allocate output tensor
-            output_tensor = tvm.nd.array(tvm.nd.empty(output_shape, dtype="float32"))
+            output_tensor = empty(output_shape, dtype="float32")
             tvm_args.append(output_tensor)
 
             # Call the TIR function
@@ -635,7 +636,7 @@ class RelaxExpressionConverter:
 
             # The result is in the output_tensor we allocated
             # Convert result back to PyTorch tensor via DLPack
-            return torch.from_dlpack(output_tensor.to_dlpack())
+            return torch.from_dlpack(output_tensor)
 
         except (RuntimeError, ValueError, TypeError) as error:
             return f"<call_tir_error: {func_name} - {error}>"
@@ -669,7 +670,7 @@ class RelaxExpressionConverter:
             for arg in converted_args:
                 if isinstance(arg, torch.Tensor):
                     # Convert PyTorch tensor to TVM NDArray via DLPack
-                    tvm_arg = tvm.nd.from_dlpack(torch.to_dlpack(arg))
+                    tvm_arg = from_dlpack(torch.to_dlpack(arg))
                     tvm_args.append(tvm_arg)
                 else:
                     tvm_args.append(arg)
@@ -678,8 +679,9 @@ class RelaxExpressionConverter:
             result = packed_function(*tvm_args)
 
             # Convert result back to PyTorch tensor via DLPack
-            if isinstance(result, tvm.nd.NDArray):
-                return torch.from_dlpack(result.to_dlpack())
+            if isinstance(result, Tensor):
+                # Convert TVM Tensor to PyTorch tensor
+                return torch.from_dlpack(result)
             else:
                 return result
 
