@@ -37,4 +37,4 @@ dependencies:
   - numpy
   - scipy
   - cython
-  - libxml2
+  - libxml2-devel
