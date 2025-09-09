@@ -119,9 +119,7 @@ class PrimFuncNode : public BaseFuncNode {
   TVM_DLL FuncType func_type_annotation() const;
 
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
-
-  static constexpr const char* _type_key = "tir.PrimFunc";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PrimFuncNode, BaseFuncNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.PrimFunc", PrimFuncNode, BaseFuncNode);
 };
 
 /*!
@@ -152,7 +150,7 @@ class PrimFunc : public BaseFunc {
                    ffi::Map<tir::Var, Buffer> buffer_map = ffi::Map<tir::Var, Buffer>(),
                    DictAttrs attrs = DictAttrs(), Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PrimFunc, BaseFunc, PrimFuncNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimFunc, BaseFunc, PrimFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimFuncNode);
 };
 
@@ -172,9 +170,7 @@ class TensorIntrinNode : public Object {
         .def_ro("desc", &TensorIntrinNode::desc)
         .def_ro("impl", &TensorIntrinNode::impl);
   }
-
-  static constexpr const char* _type_key = "tir.TensorIntrin";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TensorIntrinNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.TensorIntrin", TensorIntrinNode, Object);
 };
 
 /*!
@@ -211,7 +207,7 @@ class TensorIntrin : public ObjectRef {
    */
   TVM_DLL static ffi::Optional<TensorIntrin> Get(ffi::String name, bool allow_missing = false);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorIntrin, ObjectRef, TensorIntrinNode);
 };
 
 /*!

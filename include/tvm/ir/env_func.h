@@ -58,9 +58,7 @@ class EnvFuncNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "ir.EnvFunc";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(EnvFuncNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.EnvFunc", EnvFuncNode, Object);
 };
 
 /*!

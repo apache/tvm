@@ -241,10 +241,9 @@ class IRModuleNode : public Object {
 
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
-  static constexpr const char* _type_key = "ir.IRModule";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_DECLARE_FINAL_OBJECT_INFO(IRModuleNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.IRModule", IRModuleNode, Object);
 
  private:
   friend class IRModule;

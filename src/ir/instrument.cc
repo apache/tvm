@@ -83,9 +83,8 @@ class BasePassInstrumentNode : public PassInstrumentNode {
    * \param info The pass information.
    */
   void RunAfterPass(const IRModule& mod, const transform::PassInfo& info) const final;
-
-  static constexpr const char* _type_key = "instrument.PassInstrument";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BasePassInstrumentNode, PassInstrumentNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("instrument.PassInstrument", BasePassInstrumentNode,
+                                    PassInstrumentNode);
 };
 
 /*!
@@ -118,7 +117,8 @@ class BasePassInstrument : public PassInstrument {
       ffi::TypedFunction<void(const IRModule&, const transform::PassInfo&)>
           run_after_pass_callback);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(BasePassInstrument, PassInstrument, BasePassInstrumentNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BasePassInstrument, PassInstrument,
+                                             BasePassInstrumentNode);
 };
 
 BasePassInstrument::BasePassInstrument(

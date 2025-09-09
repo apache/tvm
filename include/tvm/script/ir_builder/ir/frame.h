@@ -60,9 +60,8 @@ class IRModuleFrameNode : public IRBuilderFrameNode {
         .def_ro("attrs", &IRModuleFrameNode::attrs)
         .def_ro("global_infos", &IRModuleFrameNode::global_infos);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.IRModuleFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IRModuleFrameNode, IRBuilderFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.IRModuleFrame", IRModuleFrameNode,
+                                    IRBuilderFrameNode);
 
  public:
   void ExitWithScope() final;
@@ -78,8 +77,7 @@ class IRModuleFrame : public IRBuilderFrame {
   explicit IRModuleFrame(ObjectPtr<IRModuleFrameNode> data) : IRBuilderFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IRModuleFrame, IRBuilderFrame,
-                                                    IRModuleFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRModuleFrame, IRBuilderFrame, IRModuleFrameNode);
 };
 
 }  // namespace ir

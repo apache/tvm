@@ -82,16 +82,15 @@ class AttrFieldInfoNode : public Object {
         .def_ro("description", &AttrFieldInfoNode::description);
   }
 
-  static constexpr const char* _type_key = "ir.AttrFieldInfo";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_DECLARE_FINAL_OBJECT_INFO(AttrFieldInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.AttrFieldInfo", AttrFieldInfoNode, Object);
 };
 
 /*! \brief AttrFieldInfo */
 class AttrFieldInfo : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(AttrFieldInfo, ObjectRef, AttrFieldInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttrFieldInfo, ObjectRef, AttrFieldInfoNode);
 };
 
 /*!
@@ -122,9 +121,7 @@ class BaseAttrsNode : public Object {
                                         bool allow_unknown = false) = 0;
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-
-  static constexpr const char* _type_key = "ir.Attrs";
-  TVM_DECLARE_BASE_OBJECT_INFO(BaseAttrsNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.Attrs", BaseAttrsNode, Object);
 };
 
 /*!
@@ -133,7 +130,7 @@ class BaseAttrsNode : public Object {
  */
 class Attrs : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(Attrs, ObjectRef, BaseAttrsNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Attrs, ObjectRef, BaseAttrsNode);
 };
 
 /*!
@@ -155,8 +152,7 @@ class DictAttrsNode : public BaseAttrsNode {
   void InitByPackedArgs(const ffi::PackedArgs& args, bool allow_unknown) final;
 
   // type info
-  static constexpr const char* _type_key = "ir.DictAttrs";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DictAttrsNode, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.DictAttrs", DictAttrsNode, BaseAttrsNode);
 };
 
 /*!
@@ -238,7 +234,8 @@ class DictAttrs : public Attrs {
     return GetAttr<Integer>(attr_key, 0).value_or(0).IntValue() != 0;
   }
 
-  TVM_DEFINE_OBJECT_REF_METHODS_WITHOUT_DEFAULT_CONSTRUCTOR(DictAttrs, Attrs, DictAttrsNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE_WITHOUT_DEFAULT_CONSTRUCTOR(DictAttrs, Attrs,
+                                                                         DictAttrsNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DictAttrsNode);
 };
 

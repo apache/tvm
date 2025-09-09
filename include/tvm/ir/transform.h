@@ -134,10 +134,7 @@ class PassContextNode : public Object {
         .def_ro("config", &PassContextNode::config)
         .def_ro("diag_ctx", &PassContextNode::diag_ctx);
   }
-
-  static constexpr const char* _type_key = "transform.PassContext";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(PassContextNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.PassContext", PassContextNode, Object);
 };
 
 /*!
@@ -343,10 +340,7 @@ class PassInfoNode : public Object {
         .def_ro("required", &PassInfoNode::required)
         .def_ro("traceable", &PassInfoNode::traceable);
   }
-
-  static constexpr const char* _type_key = "transform.PassInfo";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(PassInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.PassInfo", PassInfoNode, Object);
 };
 
 /*!
@@ -365,7 +359,7 @@ class PassInfo : public ObjectRef {
   TVM_DLL PassInfo(int opt_level, ffi::String name, ffi::Array<ffi::String> required,
                    bool traceable);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PassInfo, ObjectRef, PassInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInfo, ObjectRef, PassInfoNode);
 };
 
 /*!
@@ -400,9 +394,7 @@ class PassNode : public Object {
    * \return The transformed module.
    */
   virtual IRModule operator()(IRModule mod, const PassContext& pass_ctx) const = 0;
-
-  static constexpr const char* _type_key = "transform.Pass";
-  TVM_DECLARE_BASE_OBJECT_INFO(PassNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("transform.Pass", PassNode, Object);
 };
 
 class Pass : public ObjectRef {
@@ -434,7 +426,7 @@ class Pass : public ObjectRef {
    */
   IRModule operator()(IRModule mod, const PassContext& pass_ctx) const;
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Pass, ObjectRef, PassNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Pass, ObjectRef, PassNode);
 
  private:
   IRModule static AssertImmutableModule(const IRModule& mod, const PassNode* node,
@@ -493,9 +485,7 @@ class SequentialNode : public PassNode {
    * \return Return the updated module.
    */
   IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
-
-  static constexpr const char* _type_key = "transform.Sequential";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SequentialNode, PassNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.Sequential", SequentialNode, PassNode);
 };
 
 class Sequential : public Pass {

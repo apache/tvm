@@ -61,12 +61,10 @@ class BaseExprNode : public Object {
                                            refl::AttachFieldFlag::SEqHashIgnore());
   }
 
-  static constexpr const char* _type_key = "ir.BaseExpr";
-
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
   static constexpr const uint32_t _type_child_slots = 64;
-  TVM_DECLARE_BASE_OBJECT_INFO(BaseExprNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.BaseExpr", BaseExprNode, Object);
 };
 
 /*!
@@ -75,7 +73,7 @@ class BaseExprNode : public Object {
  */
 class BaseExpr : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(BaseExpr, ObjectRef, BaseExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BaseExpr, ObjectRef, BaseExprNode);
 };
 
 /*!
@@ -115,9 +113,8 @@ class PrimExprNode : public BaseExprNode {
 
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
-  static constexpr const char* _type_key = "ir.PrimExpr";
   static constexpr const uint32_t _type_child_slots = 40;
-  TVM_DECLARE_BASE_OBJECT_INFO(PrimExprNode, BaseExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExpr", PrimExprNode, BaseExprNode);
 };
 
 /*!
@@ -140,7 +137,7 @@ class PrimExpr : public BaseExpr {
   /*! \return the data type of this expression. */
   DataType dtype() const { return static_cast<const PrimExprNode*>(get())->dtype; }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PrimExpr, BaseExpr, PrimExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimExpr, BaseExpr, PrimExprNode);
 
   /*!
    * \brief construct from string to form a StringImm.
@@ -158,9 +155,7 @@ class PrimExprConvertibleNode : public Object {
  public:
   virtual ~PrimExprConvertibleNode() {}
   virtual PrimExpr ToPrimExpr() const = 0;
-
-  static constexpr const char* _type_key = "ir.PrimExprConvertible";
-  TVM_DECLARE_BASE_OBJECT_INFO(PrimExprConvertibleNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExprConvertible", PrimExprConvertibleNode, Object);
 };
 
 /*!
@@ -169,7 +164,8 @@ class PrimExprConvertibleNode : public Object {
  */
 class PrimExprConvertible : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(PrimExprConvertible, ObjectRef, PrimExprConvertibleNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimExprConvertible, ObjectRef,
+                                             PrimExprConvertibleNode);
 };
 
 namespace ffi {
@@ -432,9 +428,8 @@ class RelaxExprNode : public BaseExprNode {
                                             refl::AttachFieldFlag::SEqHashIgnore());
   }
 
-  static constexpr const char* _type_key = "ir.RelaxExpr";
   static constexpr const uint32_t _type_child_slots = 22;
-  TVM_DECLARE_BASE_OBJECT_INFO(RelaxExprNode, BaseExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.RelaxExpr", RelaxExprNode, BaseExprNode);
 };
 
 /*!
@@ -443,7 +438,7 @@ class RelaxExprNode : public BaseExprNode {
  */
 class RelaxExpr : public BaseExpr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(RelaxExpr, BaseExpr, RelaxExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(RelaxExpr, BaseExpr, RelaxExprNode);
 };
 
 class GlobalVar;
@@ -476,8 +471,7 @@ class GlobalVarNode : public RelaxExprNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
-  static constexpr const char* _type_key = "ir.GlobalVar";
-  TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarNode, RelaxExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.GlobalVar", GlobalVarNode, RelaxExprNode);
 };
 
 /*!
@@ -488,7 +482,7 @@ class GlobalVar : public RelaxExpr {
  public:
   TVM_DLL explicit GlobalVar(ffi::String name_hint, Span span = {});
 
-  TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, RelaxExpr, GlobalVarNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GlobalVar, RelaxExpr, GlobalVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(GlobalVarNode);
 };
 
@@ -505,9 +499,7 @@ class IntImmNode : public PrimExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IntImmNode>().def_ro("value", &IntImmNode::value);
   }
-
-  static constexpr const char* _type_key = "ir.IntImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IntImmNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.IntImm", IntImmNode, PrimExprNode);
 };
 
 /*!
@@ -525,7 +517,7 @@ class IntImm : public PrimExpr {
    */
   TVM_DLL IntImm(DataType dtype, int64_t value, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IntImm, PrimExpr, IntImmNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntImm, PrimExpr, IntImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IntImmNode);
 };
 
@@ -542,9 +534,7 @@ class FloatImmNode : public PrimExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FloatImmNode>().def_ro("value", &FloatImmNode::value);
   }
-
-  static constexpr const char* _type_key = "ir.FloatImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FloatImmNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.FloatImm", FloatImmNode, PrimExprNode);
 };
 
 /*!
@@ -562,7 +552,7 @@ class FloatImm : public PrimExpr {
    */
   TVM_DLL FloatImm(DataType dtype, double value, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(FloatImm, PrimExpr, FloatImmNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FloatImm, PrimExpr, FloatImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FloatImmNode);
 };
 
@@ -578,7 +568,7 @@ class Bool : public IntImm {
   Bool operator!() const { return Bool((*this)->value == 0); }
   operator bool() const { return (*this)->value != 0; }
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Bool, IntImm, IntImmNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Bool, IntImm, IntImmNode);
 };
 
 // Overload operators to make sure we have the most fine grained types.
@@ -690,10 +680,9 @@ class RangeNode : public Object {
         .def_ro("span", &RangeNode::span, refl::AttachFieldFlag::SEqHashIgnore());
   }
 
-  static constexpr const char* _type_key = "ir.Range";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_DECLARE_FINAL_OBJECT_INFO(RangeNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Range", RangeNode, Object);
 };
 
 /*! \brief Range container  */
@@ -718,7 +707,7 @@ class Range : public ObjectRef {
    */
   static Range FromMinExtent(PrimExpr min, PrimExpr extent, Span span = Span());
   // declare range.
-  TVM_DEFINE_OBJECT_REF_METHODS(Range, ObjectRef, RangeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Range, ObjectRef, RangeNode);
 };
 
 namespace ffi {
