@@ -69,6 +69,8 @@ class CUDAIPCMemoryObj : public Object {
   std::vector<void*> barrier_out;
   /*! \brief The integer buffer flag for all-reduce. */
   int barrier_flag;
+
+  static constexpr const bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO("tvm.runtime.disco.cuda_ipc_memory", CUDAIPCMemoryObj, Object);
 };
 

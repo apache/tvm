@@ -151,6 +151,7 @@ class DRefObj : public Object {
 
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimeDiscoDRef;
   static const constexpr bool _type_final = true;
+  static constexpr const bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO_STATIC("runtime.disco.DRef", DRefObj, Object);
 
   /*! \brief The id of the register */
