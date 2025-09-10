@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 def _args_to_device(args, device):
     import numpy as np
 
-    from tvm.runtime.tensor import Tensor, empty
+    from tvm.runtime import Tensor, empty
 
     uploaded_args = []
     for arg in args:
@@ -46,7 +46,7 @@ def _args_to_device(args, device):
 
 
 def _args_to_numpy(args):
-    from tvm.runtime.tensor import Tensor
+    from tvm.runtime import Tensor
 
     downloaded_args = []
     for arg in args:
