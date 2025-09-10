@@ -69,12 +69,25 @@ class SystemLibrary final : public Library {
   explicit SystemLibrary(const String& symbol_prefix) : symbol_prefix_(symbol_prefix) {}
 
   void* GetSymbol(const String& name) final {
+    // The `name` might or might not already contain the symbol prefix.
+    // Therefore, we check both with and without the prefix.
     String name_with_prefix = symbol_prefix_ + name;
-    return reg_->GetSymbol(name_with_prefix);
+    void* symbol = reg_->GetSymbol(name_with_prefix);
+    if (symbol != nullptr) {
+      return symbol;
+    }
+    return reg_->GetSymbol(name);
   }
 
   void* GetSymbolWithSymbolPrefix(const String& name) final {
+    // The `name` might or might not already contain the symbol prefix.
+    // Therefore, we check both with and without the prefix.
     String name_with_prefix = symbol::tvm_ffi_symbol_prefix + symbol_prefix_ + name;
+    void* symbol = reg_->GetSymbol(name_with_prefix);
+    if (symbol != nullptr) {
+      return symbol;
+    }
+    name_with_prefix = symbol::tvm_ffi_symbol_prefix + name;
     return reg_->GetSymbol(name_with_prefix);
   }
 
