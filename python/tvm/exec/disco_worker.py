@@ -24,7 +24,7 @@ from typing import Callable
 import tvm
 from tvm_ffi import get_global_func, register_global_func
 from tvm.runtime import Tensor, ShapeTuple, String
-from tvm.runtime.tensor import tensor
+from tvm.runtime import tensor
 
 
 @register_global_func("tests.disco.add_one", override=True)
