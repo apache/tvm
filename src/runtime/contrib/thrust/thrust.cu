@@ -94,7 +94,7 @@ class WorkspaceMemoryResource : public thrust::mr::memory_resource<void*> {
 auto get_thrust_exec_policy(WorkspaceMemoryResource* memory_resouce) {
   int device_id;
   CUDA_CALL(cudaGetDevice(&device_id));
-  cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, device_id));
+  cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, device_id));
   return thrust::cuda::par_nosync(memory_resouce).on(stream);
 }
 

@@ -125,7 +125,7 @@ void AddOneCUDA(DLTensor* x, DLTensor* y) {
 
   // Get current CUDA stream from environment
   cudaStream_t stream = static_cast<cudaStream_t>(
-      TVMFFIEnvGetCurrentStream(x->device.device_type, x->device.device_id));
+      TVMFFIEnvGetStream(x->device.device_type, x->device.device_id));
 
   // Launch kernel
   AddOneKernel<<<nblock, nthread_per_block, 0, stream>>>(
@@ -136,7 +136,7 @@ TVM_FFI_DLL_EXPORT_TYPED_FUNC(add_one_cuda, tvm_ffi_example::AddOneCUDA);
 ```
 
 **Key Points:**
-- We use `TVMFFIEnvGetCurrentStream` to obtain the current stream from the environement
+- We use `TVMFFIEnvGetStream` to obtain the current stream from the environement
 - When invoking ffi Function from python end with PyTorch tensor as argument,
   the stream will be populated with torch's current stream.
 

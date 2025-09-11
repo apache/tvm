@@ -29,8 +29,9 @@ else:
     torch = None
 
 
-_torch_dlpack_c_exporter_ptr = None
-
+cdef int _RELEASE_GIL_BY_DEFAULT = int(
+  os.environ.get("TVM_FFI_RELEASE_GIL_BY_DEFAULT", "1")
+)
 
 cdef inline object make_ret_small_str(TVMFFIAny result):
     """convert small string to return value."""
@@ -46,13 +47,13 @@ cdef inline object make_ret_small_bytes(TVMFFIAny result):
     return PyBytes_FromStringAndSize(bytes.data, bytes.size)
 
 
-cdef inline object make_ret(TVMFFIAny result):
+cdef inline object make_ret(TVMFFIAny result, DLPackPyObjectImporter c_dlpack_importer = NULL):
     """convert result to return value."""
     cdef int32_t type_index
     type_index = result.type_index
     if type_index == kTVMFFITensor:
         # specially handle Tensor as it needs a special dltensor field
-        return make_tensor_from_any(result)
+        return make_tensor_from_any(result, c_dlpack_importer)
     elif type_index == kTVMFFIOpaquePyObject:
         return make_ret_opaque_object(result)
     elif type_index >= kTVMFFIStaticObjectBegin:
@@ -120,13 +121,18 @@ cdef int TVMFFIPyArgSetterDLPackCExporter_(
     cdef TVMFFIObjectHandle temp_chandle
     cdef TVMFFIStreamHandle env_stream = NULL
 
+    if this.c_dlpack_importer != NULL:
+        ctx.c_dlpack_importer = this.c_dlpack_importer
+    if this.c_dlpack_tensor_allocator != NULL:
+        ctx.c_dlpack_tensor_allocator = this.c_dlpack_tensor_allocator
+
     if ctx.device_id != -1:
         # already queried device, do not do it again, pass NULL to stream
-        if (this.dlpack_c_exporter)(arg, &temp_managed_tensor, NULL) != 0:
+        if (this.c_dlpack_exporter)(arg, &temp_managed_tensor, NULL) != 0:
             return -1
     else:
         # query string on the envrionment stream
-        if (this.dlpack_c_exporter)(arg, &temp_managed_tensor, &env_stream) != 0:
+        if (this.c_dlpack_exporter)(arg, &temp_managed_tensor, &env_stream) != 0:
             return -1
         # If device is not CPU, we should set the device type and id
         if temp_managed_tensor.dl_tensor.device.device_type != kDLCPU:
@@ -142,17 +148,32 @@ cdef int TVMFFIPyArgSetterDLPackCExporter_(
     return 0
 
 
-cdef int TVMFFIPyArgSetterTorch_(
+cdef int TorchDLPackPyObjectImporterFallback_(
+    DLManagedTensorVersioned* dltensor, void** py_obj_out
+) except -1:
+    # a bit convoluted but ok as a fallback
+    cdef TVMFFIObjectHandle temp_chandle
+    TVMFFITensorFromDLPackVersioned(dltensor, 0, 0, &temp_chandle)
+    tensor = make_tensor_from_chandle(temp_chandle)
+    torch_tensor = torch.from_dlpack(tensor)
+    Py_INCREF(torch_tensor)
+    py_obj_out[0] = <void*>(<PyObject*>torch_tensor)
+    return 0
+
+
+cdef int TVMFFIPyArgSetterTorchFallback_(
     TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
     PyObject* py_arg, TVMFFIAny* out
 ) except -1:
     """Current setter for torch.Tensor, go through python and not as fast as c exporter"""
+    # TODO(tqchen): remove this once torch always support fast DLPack importer
     cdef object arg = <object>py_arg
     is_cuda = arg.is_cuda
     arg = from_dlpack(torch.utils.dlpack.to_dlpack(arg))
     out.type_index = kTVMFFITensor
     out.v_ptr = (<Tensor>arg).chandle
     temp_dltensor = TVMFFITensorGetDLTensorPtr((<Tensor>arg).chandle)
+    ctx.c_dlpack_importer = TorchDLPackPyObjectImporterFallback_
     # record the stream and device for torch context
     if is_cuda and ctx.device_type != -1:
         ctx.device_type = temp_dltensor.device.device_type
@@ -180,10 +201,10 @@ cdef int TVMFFIPyArgSetterDLPack_(
     if (temp_dltensor.device.device_type != kDLCPU and
         ctx.device_type != -1):
         # __tvm_ffi_env_stream__ returns the expected stream that should be set
-        # through TVMFFIEnvSetCurrentStream when calling a TVM FFI function
+        # through TVMFFIEnvSetStream when calling a TVM FFI function
         if hasattr(arg, "__tvm_ffi_env_stream__"):
             # Ideally projects should directly setup their stream context API
-            # write through by also calling TVMFFIEnvSetCurrentStream
+            # write through by also calling TVMFFIEnvSetStream
             # so we do not need this protocol to do exchange
             ctx.device_type = temp_dltensor.device.device_type
             ctx.device_id = temp_dltensor.device.device_id
@@ -349,19 +370,21 @@ cdef int TVMFFIPyArgSetterFactory_(PyObject* value, TVMFFIPyArgSetter* out) exce
     if isinstance(arg, ObjectRValueRef):
         out.func = TVMFFIPyArgSetterObjectRValueRef_
         return 0
-    # external tensors
-    if hasattr(arg, "__dlpack_c_exporter__"):
-        out.func = TVMFFIPyArgSetterDLPackCExporter_
-        temp_ptr = arg.__dlpack_c_exporter__
-        out.dlpack_c_exporter = <DLPackPyObjectCExporter>temp_ptr
-        return 0
-    if torch is not None and isinstance(arg, torch.Tensor):
-        if _torch_dlpack_c_exporter_ptr is not None:
-            temp_ptr = _torch_dlpack_c_exporter_ptr
+    if os.environ.get("TVM_FFI_SKIP_C_DLPACK_EXPORTER", "0") != "1":
+        # external tensors
+        if hasattr(arg, "__c_dlpack_exporter__"):
             out.func = TVMFFIPyArgSetterDLPackCExporter_
-            out.dlpack_c_exporter = <DLPackPyObjectCExporter>temp_ptr
-        else:
-            out.func = TVMFFIPyArgSetterTorch_
+            temp_ptr = arg.__c_dlpack_exporter__
+            out.c_dlpack_exporter = <DLPackPyObjectExporter>temp_ptr
+            if hasattr(arg, "__c_dlpack_importer__"):
+                temp_ptr = arg.__c_dlpack_importer__
+                out.c_dlpack_importer = <DLPackPyObjectImporter>temp_ptr
+            if hasattr(arg, "__c_dlpack_tensor_allocator__"):
+                temp_ptr = arg.__c_dlpack_tensor_allocator__
+                out.c_dlpack_tensor_allocator = <DLPackTensorAllocator>temp_ptr
+            return 0
+    if torch is not None and isinstance(arg, torch.Tensor):
+        out.func = TVMFFIPyArgSetterTorchFallback_
         return 0
     if hasattr(arg, "__dlpack__"):
         out.func = TVMFFIPyArgSetterDLPack_
@@ -415,13 +438,16 @@ cdef inline int ConstructorCall(void* constructor_handle,
     # IMPORTANT: caller need to initialize result->type_index to kTVMFFINone
     result.type_index = kTVMFFINone
     result.v_int64 = 0
-    TVMFFIPyFuncCall(TVMFFIPyArgSetterFactory_, constructor_handle, <PyObject*>args, &result, &c_api_ret_code)
+    TVMFFIPyFuncCall(
+        TVMFFIPyArgSetterFactory_, constructor_handle, <PyObject*>args, &result, &c_api_ret_code,
+        False, NULL
+    )
     CHECK_CALL(c_api_ret_code)
     handle[0] = result.v_ptr
     return 0
 
 
-class Function(Object):
+cdef class Function(Object):
     """Python class that wraps a function with tvm-ffi ABI.
 
     See Also
@@ -429,9 +455,22 @@ class Function(Object):
     tvm_ffi.register_global_func: How to register global function.
     tvm_ffi.get_global_func: How to get global function.
     """
+    cdef int c_release_gil
+    cdef dict __dict__
+
+    def __cinit__(self):
+        self.c_release_gil = _RELEASE_GIL_BY_DEFAULT
+
+    property release_gil:
+        def __get__(self):
+            return self.c_release_gil != 0
+        def __set__(self, value):
+            self.c_release_gil = value
+
     def __call__(self, *args):
         cdef TVMFFIAny result
         cdef int c_api_ret_code
+        cdef DLPackPyObjectImporter c_dlpack_importer = NULL
         # IMPORTANT: caller need to initialize result->type_index to kTVMFFINone
         result.type_index = kTVMFFINone
         result.v_int64 = 0
@@ -439,12 +478,14 @@ class Function(Object):
             TVMFFIPyArgSetterFactory_,
             (<Object>self).chandle, <PyObject*>args,
             &result,
-            &c_api_ret_code
+            &c_api_ret_code,
+            self.release_gil,
+            &c_dlpack_importer
         )
         # NOTE: logic is same as check_call
         # directly inline here to simplify traceback
         if c_api_ret_code == 0:
-            return make_ret(result)
+            return make_ret(result, c_dlpack_importer)
         elif c_api_ret_code == -2:
             raise_existing_error()
         raise move_from_last_error().py_error()

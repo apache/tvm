@@ -385,7 +385,7 @@ void TVMPluginCodeGen::CodeGenCompute(const Plugin& plugin, const ffi::String& d
       compute_args.push_back("meta_attr");
       if (device == "cuda") {
         // TODO(tvm-team): update to support get stream from device id
-        stack_.assign("stream", "TVMFFIEnvGetCurrentStream(kDLCUDA, 0)", "auto");
+        stack_.assign("stream", "TVMFFIEnvGetStream(kDLCUDA, 0)", "auto");
         compute_args.push_back("stream");
       }
       CodeGenSafeCall(plugin->externs[device + "_compute"], compute_args);

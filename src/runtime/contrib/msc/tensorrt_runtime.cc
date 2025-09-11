@@ -133,7 +133,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
       context.Set("datas", input_datas);
       (*pf)(context, "before_forward", graph_name_, tool_tag_);
     }
-    auto tvm_stream = TVMFFIEnvGetCurrentStream(kDLCUDA, device_id);
+    auto tvm_stream = TVMFFIEnvGetStream(kDLCUDA, device_id);
 #if TRT_VERSION_GE(6, 0, 1)
     ICHECK(context_->enqueueV2(bindings_.data(), tvm_stream, nullptr))
         << "Running TensorRT failed.";

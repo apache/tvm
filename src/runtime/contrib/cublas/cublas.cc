@@ -558,7 +558,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         cublasLtHandle_t ltHandle;
         CHECK_CUBLAS_ERROR(cublasLtCreate(&ltHandle));
         cudaStream_t stream =
-            static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, A->device.device_id));
+            static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, A->device.device_id));
         CallLtIgemm(args, ret, ltHandle, stream);
         CHECK_CUBLAS_ERROR(cublasLtDestroy(ltHandle));
       });

@@ -64,7 +64,7 @@ def run_add_one_cuda():
     with torch.cuda.stream(stream):
         # tvm-ffi automatically handles DLPack compatible tensors
         # it also handles interactions with torch runtime
-        # torch.cuda.current_stream() will be set and available via TVMFFIEnvGetCurrentStream
+        # torch.cuda.current_stream() will be set and available via TVMFFIEnvGetStream
         # when calling the function
         mod.add_one_cuda(x, y)
     stream.synchronize()

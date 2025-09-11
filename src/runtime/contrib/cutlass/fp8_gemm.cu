@@ -42,8 +42,7 @@ template <typename ElementA, typename ElementB, typename ElementC>
 void tvm_cutlass_fp8_gemm(Tensor x, Tensor weight, Tensor workspace, Tensor alpha, Tensor out) {
   // Workspace is used for storing device-side gemm arguments and cutlass internal workspace.
   // Recommened size is 4MB.
-  cudaStream_t stream =
-      static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, x->device.device_id));
+  cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, x->device.device_id));
 
   CHECK_GE(x->ndim, 2);
   CHECK_EQ(weight->ndim, 2);

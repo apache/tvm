@@ -39,7 +39,7 @@ def instantiate_layer_norm_template(attrs):
     cutlass::TensorRef<data_type, RowMajor> _beta((data_type*)${beta}->data, layout_channels);
     cutlass::TensorRef<data_type, RowMajor> _output((data_type*)out0->data, layout_2D);
 
-    cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, ${input}->device.device_id));
+    cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, ${input}->device.device_id));
 
     cutlass::layernorm(size, _output, _input, _gamma, _beta, stream);
     """

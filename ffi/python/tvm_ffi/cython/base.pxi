@@ -238,27 +238,39 @@ cdef extern from "tvm/ffi/extra/c_env_api.h":
     ctypedef void* TVMFFIStreamHandle
 
     int TVMFFIEnvRegisterCAPI(const char* name, void* ptr) nogil
-    void* TVMFFIEnvGetCurrentStream(int32_t device_type, int32_t device_id) nogil
-    int TVMFFIEnvSetCurrentStream(int32_t device_type, int32_t device_id,
+    void* TVMFFIEnvGetStream(int32_t device_type, int32_t device_id) nogil
+    int TVMFFIEnvSetStream(int32_t device_type, int32_t device_id,
                                   TVMFFIStreamHandle stream,
                                   TVMFFIStreamHandle* opt_out_original_stream) nogil
 
 
 cdef extern from "tvm_ffi_python_helpers.h":
     # no need to expose fields of the call context
+     # setter data structure
+    ctypedef int (*DLPackPyObjectExporter)(
+        void* py_obj, DLManagedTensorVersioned** out, TVMFFIStreamHandle* env_stream
+    ) except -1
+
+    ctypedef int (*DLPackPyObjectImporter)(
+        DLManagedTensorVersioned* tensor, void** py_obj_out
+    ) except -1
+    ctypedef int (*DLPackTensorAllocator)(
+        DLTensor* prototype, DLManagedTensorVersioned** out, void* error_ctx,
+        void (*SetError)(void* error_ctx, const char* kind, const char* message)
+    ) except -1
+
     ctypedef struct TVMFFIPyCallContext:
         int device_type
         int device_id
         TVMFFIStreamHandle stream
-
-     # setter data structure
-    ctypedef int (*DLPackPyObjectCExporter)(
-        void* py_obj, DLManagedTensorVersioned** out, TVMFFIStreamHandle* env_stream
-    ) except -1
+        DLPackPyObjectImporter c_dlpack_importer
+        DLPackTensorAllocator c_dlpack_tensor_allocator
 
     ctypedef struct TVMFFIPyArgSetter:
         int (*func)(TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,  PyObject* py_arg, TVMFFIAny* out) except -1
-        DLPackPyObjectCExporter dlpack_c_exporter
+        DLPackPyObjectExporter c_dlpack_exporter
+        DLPackPyObjectImporter c_dlpack_importer
+        DLPackTensorAllocator c_dlpack_tensor_allocator
 
     ctypedef int (*TVMFFIPyArgSetterFactory)(PyObject* value, TVMFFIPyArgSetter* out) except -1
     # The main call function
@@ -267,7 +279,9 @@ cdef extern from "tvm_ffi_python_helpers.h":
         void* chandle,
         PyObject* py_arg_tuple,
         TVMFFIAny* result,
-        int* c_api_ret_code
+        int* c_api_ret_code,
+        int release_gil,
+        DLPackPyObjectImporter* out_dlpack_importer
     ) except -1
 
     int TVMFFIPyCallFieldSetter(

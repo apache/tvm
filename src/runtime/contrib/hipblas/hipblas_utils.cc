@@ -44,8 +44,7 @@ typedef dmlc::ThreadLocalStore<HipBlasThreadEntry> HipBlasThreadStore;
 
 HipBlasThreadEntry* HipBlasThreadEntry::ThreadLocal(DLDevice curr_device) {
   HipBlasThreadEntry* retval = HipBlasThreadStore::Get();
-  TVMFFIStreamHandle stream =
-      TVMFFIEnvGetCurrentStream(curr_device.device_type, curr_device.device_id);
+  TVMFFIStreamHandle stream = TVMFFIEnvGetStream(curr_device.device_type, curr_device.device_id);
   CHECK_HIPBLAS_ERROR(hipblasSetStream(retval->handle, static_cast<hipStream_t>(stream)));
   return retval;
 }

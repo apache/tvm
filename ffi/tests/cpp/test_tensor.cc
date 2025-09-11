@@ -32,6 +32,23 @@ inline Tensor Empty(Shape shape, DLDataType dtype, DLDevice device) {
   return Tensor::FromNDAlloc(CPUNDAlloc(), shape, dtype, device);
 }
 
+int TestDLPackTensorAllocator(DLTensor* prototype, DLManagedTensorVersioned** out, void* error_ctx,
+                              void (*SetError)(void* error_ctx, const char* kind,
+                                               const char* message)) {
+  Shape shape(prototype->shape, prototype->shape + prototype->ndim);
+  Tensor nd = Empty(shape, prototype->dtype, prototype->device);
+  *out = nd.ToDLPackVersioned();
+  return 0;
+}
+
+int TestDLPackTensorAllocatorError(DLTensor* prototype, DLManagedTensorVersioned** out,
+                                   void* error_ctx,
+                                   void (*SetError)(void* error_ctx, const char* kind,
+                                                    const char* message)) {
+  SetError(error_ctx, "RuntimeError", "TestDLPackTensorAllocatorError");
+  return -1;
+}
+
 TEST(Tensor, Basic) {
   Tensor nd = Empty(Shape({1, 2, 3}), DLDataType({kDLFloat, 32, 1}), DLDevice({kDLCPU, 0}));
   Shape shape = nd.shape();
@@ -116,4 +133,32 @@ TEST(Tensor, DLPackVersioned) {
   }
   EXPECT_EQ(tensor.use_count(), 1);
 }
+
+TEST(Tensor, DLPackAlloc) {
+  // Test successful allocation
+  Tensor tensor = Tensor::FromDLPackAlloc(TestDLPackTensorAllocator, {1, 2, 3},
+                                          DLDataType({kDLFloat, 32, 1}), DLDevice({kDLCPU, 0}));
+  EXPECT_EQ(tensor.use_count(), 1);
+  EXPECT_EQ(tensor.shape().size(), 3);
+  EXPECT_EQ(tensor.shape()[0], 1);
+  EXPECT_EQ(tensor.shape()[1], 2);
+  EXPECT_EQ(tensor.shape()[2], 3);
+  EXPECT_EQ(tensor.dtype().code, kDLFloat);
+  EXPECT_EQ(tensor.dtype().bits, 32);
+  EXPECT_EQ(tensor.dtype().lanes, 1);
+  EXPECT_EQ(tensor->device.device_type, kDLCPU);
+  EXPECT_EQ(tensor->device.device_id, 0);
+  EXPECT_NE(tensor->data, nullptr);
+}
+
+TEST(Tensor, DLPackAllocError) {
+  // Test error handling in DLPackAlloc
+  EXPECT_THROW(
+      {
+        Tensor::FromDLPackAlloc(TestDLPackTensorAllocatorError, {1, 2, 3},
+                                DLDataType({kDLFloat, 32, 1}), DLDevice({kDLCPU, 0}));
+      },
+      tvm::ffi::Error);
+}
+
 }  // namespace

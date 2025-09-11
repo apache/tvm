@@ -116,6 +116,18 @@ def find_include_path():
     raise RuntimeError("Cannot find include path.")
 
 
+def find_python_helper_include_path():
+    """Find header files for C compilation."""
+    candidates = [
+        os.path.join(os.path.dirname(os.path.realpath(__file__)), "include"),
+        os.path.join(os.path.dirname(os.path.realpath(__file__)), "cython"),
+    ]
+    for candidate in candidates:
+        if os.path.isfile(os.path.join(candidate, "tvm_ffi_python_helpers.h")):
+            return candidate
+    raise RuntimeError("Cannot find python helper include path.")
+
+
 def find_dlpack_include_path():
     """Find dlpack header files for C compilation."""
     install_include_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "include")
@@ -142,3 +154,14 @@ def find_cython_lib():
         for path in glob.glob(os.path.join(candidate, f"core*.{suffixes}")):
             return os.path.abspath(path)
     raise RuntimeError("Cannot find tvm cython path.")
+
+
+def include_paths():
+    """Find all include paths needed for FFI related compilation."""
+    include_path = find_include_path()
+    python_helper_include_path = find_python_helper_include_path()
+    dlpack_include_path = find_dlpack_include_path()
+    result = [include_path, dlpack_include_path]
+    if python_helper_include_path != include_path:
+        result.append(python_helper_include_path)
+    return result

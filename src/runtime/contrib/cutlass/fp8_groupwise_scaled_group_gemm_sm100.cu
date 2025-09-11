@@ -38,8 +38,7 @@ void tvm_fp8_groupwise_scaled_group_gemm_sm100(Tensor a, Tensor b, Tensor scales
                                                Tensor out) {
   // Workspace is used for storing device-side group gemm arguments and cutlass internal workspace.
   // Recommended size is 4MB.
-  cudaStream_t stream =
-      static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, a->device.device_id));
+  cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, a->device.device_id));
   CHECK_EQ(a->ndim, 2);
   CHECK_EQ(b->ndim, 3);
   CHECK_EQ(indptr->ndim, 1);
