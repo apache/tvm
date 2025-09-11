@@ -20,14 +20,16 @@ This module provides functionality to convert Relax functions to Python function
 that can be executed directly in Python/PyTorch environment.
 """
 
+import traceback
 from typing import Any, Dict, List, Optional, Union
 
+import numpy  # pylint: disable=unused-import
 import torch
 import torch.nn.functional as F
 
 import tvm
 from tvm import relax
-from tvm.runtime import empty, from_dlpack, Tensor
+from tvm import runtime
 from tvm.ir import IRModule, Op
 
 
@@ -52,7 +54,9 @@ class RelaxToPyFuncConverter:
         # Cache for operator mappings to avoid repeated lookups
         self._op_cache = {}
 
-    def _create_fallback_tensor(self, shape_hint: Optional[List[int]] = None, dtype: str = "float32") -> torch.Tensor:
+    def _create_fallback_tensor(
+        self, shape_hint: Optional[List[int]] = None, dtype: str = "float32"
+    ) -> torch.Tensor:
         """Create a fallback tensor with reasonable default shape."""
         if shape_hint:
             # Use the provided shape hint
@@ -376,13 +380,13 @@ class RelaxExpressionConverter:
         # Use shared operator cache or create new one
         self._op_cache = op_cache if op_cache is not None else {}
 
-    def _create_fallback_tensor(self, shape_hint: Optional[List[int]] = None, dtype: str = "float32") -> torch.Tensor:
+    def _create_fallback_tensor(
+        self, shape_hint: Optional[List[int]] = None, dtype: str = "float32"
+    ) -> torch.Tensor:
         """Create a fallback tensor with reasonable default shape."""
         if shape_hint:
-            # Use the provided shape hint
             return torch.zeros(shape_hint, dtype=getattr(torch, dtype))
         else:
-            # Use a small default shape
             return torch.zeros(1, dtype=getattr(torch, dtype))
 
     def convert_expr(self, expr: relax.Expr, args: List[Any]) -> Any:
@@ -642,16 +646,15 @@ class RelaxExpressionConverter:
 
             # Convert PyTorch tensors to TVM NDArrays via DLPack
             tvm_args = []
-            for i, arg in enumerate(converted_args):
+            for arg in converted_args:
                 try:
                     if isinstance(arg, torch.Tensor):
                         # Convert PyTorch tensor to TVM NDArray via DLPack
-                        tvm_arg = tvm.runtime.from_dlpack(torch.to_dlpack(arg))
+                        tvm_arg = runtime.from_dlpack(torch.to_dlpack(arg))
                         tvm_args.append(tvm_arg)
                     else:
                         tvm_args.append(arg)
-                except Exception as e:
-                    import traceback
+                except (AttributeError, TypeError, ValueError):
                     traceback.print_exc()
                     tvm_args.append(arg)
 
@@ -672,7 +675,7 @@ class RelaxExpressionConverter:
                     output_shape = (1,)  # Default shape
 
             # Allocate output tensor
-            output_tensor = tvm.runtime.empty(output_shape, dtype="float32")
+            output_tensor = runtime.empty(output_shape, dtype="float32")
             tvm_args.append(output_tensor)
 
             # Call the TIR function
@@ -685,13 +688,11 @@ class RelaxExpressionConverter:
                     return result
                 except AttributeError:
                     # Fallback: convert to numpy then to PyTorch
-                    import numpy as np
                     numpy_result = output_tensor.numpy()
                     result = torch.from_numpy(numpy_result)
                     return result
-            except Exception as e:
-                print(f"Warning: TIR function {func_name} execution failed: {e}")
-                import traceback
+            except (RuntimeError, ValueError, TypeError, AttributeError) as exc:
+                print(f"Warning: TIR function {func_name} execution failed: {exc}")
                 traceback.print_exc()
                 # Fallback to simple addition
                 if len(converted_args) >= 2:
@@ -699,8 +700,7 @@ class RelaxExpressionConverter:
                 else:
                     return converted_args[0] if converted_args else torch.tensor([])
 
-        except (RuntimeError, ValueError, TypeError) as error:
-            import traceback
+        except (RuntimeError, ValueError, TypeError):
             traceback.print_exc()
             # Fallback implementation instead of error string
             if len(converted_args) >= 2:
@@ -727,17 +727,17 @@ class RelaxExpressionConverter:
         converted_args = []
         for arg in packed_args:
             converted_arg = self.convert_expr(arg, args)
-            if isinstance(converted_arg, str) and converted_arg.startswith('<'):
+            if isinstance(converted_arg, str) and converted_arg.startswith("<"):
                 # Handle PrimValue and other special cases
-                if 'PrimValue' in converted_arg:
+                if "PrimValue" in converted_arg:
                     # Extract the value from PrimValue
                     try:
                         # Try to get the actual value from the PrimValue
-                        if hasattr(arg, 'value'):
+                        if hasattr(arg, "value"):
                             converted_arg = arg.value
                         else:
                             converted_arg = 0.0  # Default value
-                    except:
+                    except (AttributeError, ValueError, TypeError):
                         converted_arg = 0.0
                 else:
                     converted_arg = torch.tensor([])  # Fallback
@@ -754,7 +754,7 @@ class RelaxExpressionConverter:
             for arg in converted_args:
                 if isinstance(arg, torch.Tensor):
                     # Convert PyTorch tensor to TVM NDArray via DLPack
-                    tvm_arg = tvm.runtime.from_dlpack(torch.to_dlpack(arg))
+                    tvm_arg = runtime.from_dlpack(torch.to_dlpack(arg))
                     tvm_args.append(tvm_arg)
                 else:
                     tvm_args.append(arg)
@@ -763,21 +763,19 @@ class RelaxExpressionConverter:
             result = packed_function(*tvm_args)
 
             # Convert result back to PyTorch tensor via DLPack
-            if isinstance(result, tvm.runtime.Tensor):
+            if isinstance(result, runtime.Tensor):
                 try:
                     pytorch_result = torch.from_dlpack(result.to_dlpack())
                     return pytorch_result
                 except AttributeError:
                     # Fallback: convert to numpy then to PyTorch
-                    import numpy as np
                     numpy_result = result.numpy()
                     pytorch_result = torch.from_numpy(numpy_result)
                     return pytorch_result
             else:
                 return result
 
-        except (RuntimeError, ValueError, TypeError) as error:
-            import traceback
+        except (RuntimeError, ValueError, TypeError):
             traceback.print_exc()
             # Fallback: return the first argument
             return converted_args[0] if converted_args else torch.tensor([])
@@ -835,9 +833,17 @@ class RelaxExpressionConverter:
         true_branch = self.convert_expr(if_expr.true_branch, args)
         false_branch = self.convert_expr(if_expr.false_branch, args)
         if isinstance(condition, torch.Tensor) and condition.item():
-            return true_branch if isinstance(true_branch, torch.Tensor) else self._create_fallback_tensor()
+            return (
+                true_branch
+                if isinstance(true_branch, torch.Tensor)
+                else self._create_fallback_tensor()
+            )
         else:
-            return false_branch if isinstance(false_branch, torch.Tensor) else self._create_fallback_tensor()
+            return (
+                false_branch
+                if isinstance(false_branch, torch.Tensor)
+                else self._create_fallback_tensor()
+            )
 
     def _convert_expand_dims(self, call: relax.Call, args: List[Any]) -> Any:
         """Convert expand_dims to torch.unsqueeze with proper axis handling."""

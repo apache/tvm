@@ -867,6 +867,7 @@ class TestDLPackAndTupleSupport:
 
     def test_dlpack_conversion_fallback(self):
         """Test DLPack conversion with numpy fallback."""
+
         @I.ir_module
         class DLPackTestModule:
             @T.prim_func
@@ -878,8 +879,12 @@ class TestDLPackAndTupleSupport:
                     out[i] = x[i] + y[i]
 
             @R.function
-            def test_func(x: R.Tensor((4,), "float32"), y: R.Tensor((4,), "float32")) -> R.Tensor((4,), "float32"):
-                return R.call_tir(DLPackTestModule.test_tir, (x, y), out_sinfo=R.Tensor((4,), "float32"))
+            def test_func(
+                x: R.Tensor((4,), "float32"), y: R.Tensor((4,), "float32")
+            ) -> R.Tensor((4,), "float32"):
+                return R.call_tir(
+                    DLPackTestModule.test_tir, (x, y), out_sinfo=R.Tensor((4,), "float32")
+                )
 
         converter = RelaxToPyFuncConverter(DLPackTestModule)
         converted_ir_mod = converter.convert(["test_func"])
@@ -894,6 +899,7 @@ class TestDLPackAndTupleSupport:
 
     def test_tuple_return_handling(self):
         """Test proper handling of tuple returns (e.g., split operation)."""
+
         @I.ir_module
         class TupleTestModule:
             @R.function
@@ -914,6 +920,7 @@ class TestDLPackAndTupleSupport:
 
     def test_tvm_runtime_api_compatibility(self):
         """Test compatibility with tvm.runtime API instead of deprecated tvm.nd."""
+
         @I.ir_module
         class RuntimeAPITestModule:
             @T.prim_func
@@ -925,8 +932,12 @@ class TestDLPackAndTupleSupport:
                     out[i] = x[i] * y[i]
 
             @R.function
-            def test_func(x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")) -> R.Tensor((3,), "float32"):
-                return R.call_tir(RuntimeAPITestModule.test_tir, (x, y), out_sinfo=R.Tensor((3,), "float32"))
+            def test_func(
+                x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")
+            ) -> R.Tensor((3,), "float32"):
+                return R.call_tir(
+                    RuntimeAPITestModule.test_tir, (x, y), out_sinfo=R.Tensor((3,), "float32")
+                )
 
         converter = RelaxToPyFuncConverter(RuntimeAPITestModule)
         converted_ir_mod = converter.convert(["test_func"])
@@ -951,7 +962,9 @@ class TestDLPackAndTupleSupport:
         class PackedFuncTestModule:
             @R.function
             def test_dps(x: R.Tensor((4,), "float32")) -> R.Tensor((4,), "float32"):
-                return R.call_dps_packed("test_packed_func", (x, R.const(0)), out_sinfo=R.Tensor((4,), "float32"))
+                return R.call_dps_packed(
+                    "test_packed_func", (x, R.const(0)), out_sinfo=R.Tensor((4,), "float32")
+                )
 
         converter = RelaxToPyFuncConverter(PackedFuncTestModule)
         converted_ir_mod = converter.convert(["test_dps"])
@@ -964,6 +977,7 @@ class TestDLPackAndTupleSupport:
 
     def test_mixed_tir_and_relax_operations(self):
         """Test mixed TIR and Relax operations in a single function."""
+
         @I.ir_module
         class MixedOpsTestModule:
             @T.prim_func
@@ -975,9 +989,13 @@ class TestDLPackAndTupleSupport:
                     out[i] = x[i] + y[i]
 
             @R.function
-            def test_mixed(x: R.Tensor((4,), "float32"), y: R.Tensor((4,), "float32")) -> R.Tensor((4,), "float32"):
+            def test_mixed(
+                x: R.Tensor((4,), "float32"), y: R.Tensor((4,), "float32")
+            ) -> R.Tensor((4,), "float32"):
                 # TIR operation
-                tir_result = R.call_tir(MixedOpsTestModule.add_tir, (x, y), out_sinfo=R.Tensor((4,), "float32"))
+                tir_result = R.call_tir(
+                    MixedOpsTestModule.add_tir, (x, y), out_sinfo=R.Tensor((4,), "float32")
+                )
                 # Relax operations
                 relued = R.nn.relu(tir_result)
                 powered = R.power(relued, R.const(2.0))
@@ -1001,6 +1019,7 @@ class TestDLPackAndTupleSupport:
 
     def test_error_handling_improvements(self):
         """Test improved error handling with tensor fallbacks."""
+
         @I.ir_module
         class ErrorHandlingTestModule:
             @R.function

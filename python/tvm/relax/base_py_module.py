@@ -167,7 +167,9 @@ class BasePyModule:
                         result = self.relax_vm[name](*converted_args, **converted_kwargs)
                         return self._convert_tvm_to_pytorch(result)
 
-                    raise RuntimeError(f"Neither converted Python function nor Relax VM available for {name}")
+                    raise RuntimeError(
+                        f"Neither converted Python function nor Relax VM available for {name}"
+                    )
 
                 wrapper.__name__ = name
                 wrapper.__doc__ = f"Wrapped Relax function: {name}"
