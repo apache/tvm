@@ -101,7 +101,7 @@ macro(find_cuda use_cuda use_cudnn)
         PATH_SUFFIXES lib lib64 targets/x86_64-linux/lib targets/x86_64-linux/lib/stubs lib64/stubs lib/x86_64-linux-gnu
         NO_DEFAULT_PATH)
       find_library(CUDA_NVTX_LIBRARY
-        NAMES nvToolsExt nvTools nvtoolsext nvtools nvtx NVTX
+        NAMES nvToolsExt nvTools nvtoolsext nvtools nvtx NVTX nvtx3interop
         PATHS "${CUDA_CUDART_LIBRARY_DIR}" "${CUDA_TOOLKIT_ROOT_DIR}" ENV LD_LIBRARY_PATH
         PATH_SUFFIXES "lib64" "common/lib64" "common/lib" "lib"
         DOC "Location of the CUDA Toolkit Extension (NVTX) library"
