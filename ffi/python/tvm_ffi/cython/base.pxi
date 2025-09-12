@@ -244,10 +244,8 @@ cdef extern from "tvm/ffi/extra/c_env_api.h":
                                   TVMFFIStreamHandle* opt_out_original_stream) nogil
 
 def _env_set_current_stream(int device_type, int device_id, uint64_t stream, object opt_out_original_stream):
-    print("stream", stream)
     cdef TVMFFIStreamHandle current_stream = <void*>stream
     cdef TVMFFIStreamHandle out_original_stream = <void*>opt_out_original_stream
-    print("current stream", <uint64_t>current_stream)
     CHECK_CALL(TVMFFIEnvSetCurrentStream(
         device_type,
         device_id,
