@@ -44,8 +44,7 @@
  * \note We use void* to avoid dependency on Python.h so this specific type is
  *       not dependent on Python.h and can be copied to dlpack.h
  */
-typedef int (*DLPackPyObjectExporter)(void* py_obj, DLManagedTensorVersioned** out,
-                                      void** env_stream);
+typedef int (*DLPackFromPyObject)(void* py_obj, DLManagedTensorVersioned** out, void** env_stream);
 /*!
  * \brief C-style function pointer to speed convert a DLManagedTensorVersioned to a PyObject Tensor.
  * \param tensor The DLManagedTensorVersioned to convert.
@@ -54,7 +53,7 @@ typedef int (*DLPackPyObjectExporter)(void* py_obj, DLManagedTensorVersioned** o
  * \note We use void* to avoid dependency on Python.h so this specific type is
  *       not dependent on Python.h and can be copied to dlpack.h
  */
-typedef int (*DLPackPyObjectImporter)(DLManagedTensorVersioned* tensor, void** py_obj_out);
+typedef int (*DLPackToPyObject)(DLManagedTensorVersioned* tensor, void** py_obj_out);
 
 ///--------------------------------------------------------------------------------
 /// We deliberately designed the data structure and function to be C-style
@@ -82,7 +81,7 @@ struct TVMFFIPyCallContext {
   /*! \brief the number of temporary arguments */
   int num_temp_py_objects = 0;
   /*! \brief the DLPack exporter, if any */
-  DLPackPyObjectImporter c_dlpack_importer{nullptr};
+  DLPackToPyObject c_dlpack_to_pyobject{nullptr};
   /*! \brief the DLPack allocator, if any */
   DLPackTensorAllocator c_dlpack_tensor_allocator{nullptr};
 };
@@ -102,11 +101,11 @@ struct TVMFFIPyArgSetter {
   /*!
    * \brief Optional DLPack exporter for for setters that leverages DLPack protocol.
    */
-  DLPackPyObjectExporter c_dlpack_exporter{nullptr};
+  DLPackFromPyObject c_dlpack_from_pyobject{nullptr};
   /*!
    * \brief Optional DLPack importer for for setters that leverages DLPack protocol.
    */
-  DLPackPyObjectImporter c_dlpack_importer{nullptr};
+  DLPackToPyObject c_dlpack_to_pyobject{nullptr};
   /*!
    * \brief Optional DLPack allocator for for setters that leverages DLPack protocol.
    */
@@ -273,7 +272,7 @@ class TVMFFIPyCallManager {
    */
   int Call(TVMFFIPyArgSetterFactory setter_factory, void* func_handle, PyObject* py_arg_tuple,
            TVMFFIAny* result, int* c_api_ret_code, bool release_gil,
-           DLPackPyObjectImporter* optional_out_dlpack_importer) {
+           DLPackToPyObject* optional_out_dlpack_importer) {
     int64_t num_args = PyTuple_Size(py_arg_tuple);
     if (num_args == -1) return -1;
     try {
@@ -321,8 +320,8 @@ class TVMFFIPyCallManager {
         c_api_ret_code[0] = TVMFFIEnvSetTensorAllocator(prev_tensor_allocator, 0, nullptr);
         if (c_api_ret_code[0] != 0) return 0;
       }
-      if (optional_out_dlpack_importer != nullptr && ctx.c_dlpack_importer != nullptr) {
-        *optional_out_dlpack_importer = ctx.c_dlpack_importer;
+      if (optional_out_dlpack_importer != nullptr && ctx.c_dlpack_to_pyobject != nullptr) {
+        *optional_out_dlpack_importer = ctx.c_dlpack_to_pyobject;
       }
       return 0;
     } catch (const std::exception& ex) {
@@ -430,7 +429,7 @@ class TVMFFIPyCallManager {
 inline int TVMFFIPyFuncCall(TVMFFIPyArgSetterFactory setter_factory, void* func_handle,
                             PyObject* py_arg_tuple, TVMFFIAny* result, int* c_api_ret_code,
                             bool release_gil = true,
-                            DLPackPyObjectImporter* out_dlpack_importer = nullptr) {
+                            DLPackToPyObject* out_dlpack_importer = nullptr) {
   return TVMFFIPyCallManager::ThreadLocal()->Call(setter_factory, func_handle, py_arg_tuple, result,
                                                   c_api_ret_code, release_gil, out_dlpack_importer);
 }

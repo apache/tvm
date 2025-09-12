@@ -117,9 +117,11 @@ DLDataType getDLDataTypeForDLPackv1(const Tensor& t) {
     case ScalarType::Float8_e8m0fnu:
       dtype.code = DLDataTypeCode::kDLFloat8_e8m0fnu;
       break;
+#if TORCH_VERSION_MAJOR >= 2 && TORCH_VERSION_MINOR >= 8
     case ScalarType::Float4_e2m1fn_x2:
       dtype.code = DLDataTypeCode::kDLFloat4_e2m1fn;
       break;
+#endif
    default:
       TORCH_CHECK(false, "Unsupported scalar type: ");
   }
@@ -311,7 +313,7 @@ at::Tensor fromDLPackImpl(T* src, std::function<void(void*)> deleter) {
 } // namespace
 } // namespace at
 
-int TorchDLPackPyObjectExporter(void* py_obj, DLManagedTensorVersioned** out, void** env_stream) {
+int TorchDLPackFromPyObject(void* py_obj, DLManagedTensorVersioned** out, void** env_stream) {
   try {
     py::handle handle(static_cast<PyObject*>(py_obj));
     at::Tensor tensor = handle.cast<at::Tensor>();
@@ -326,7 +328,7 @@ int TorchDLPackPyObjectExporter(void* py_obj, DLManagedTensorVersioned** out, vo
   }
 }
 
-int TorchDLPackPyObjectImporter(DLManagedTensorVersioned* src, void** py_obj_out) {
+int TorchDLPackToPyObject(DLManagedTensorVersioned* src, void** py_obj_out) {
   try {
     at::Tensor tensor = at::fromDLPackImpl<DLManagedTensorVersioned>(src, nullptr);
     *py_obj_out = THPVariable_Wrap(tensor);
@@ -355,12 +357,12 @@ int TorchDLPackTensorAllocator(
   }
 }
 
-int64_t TorchDLPackPyObjectExporterPtr() {
-  return reinterpret_cast<int64_t>(TorchDLPackPyObjectExporter);
+int64_t TorchDLPackFromPyObjectPtr() {
+  return reinterpret_cast<int64_t>(TorchDLPackFromPyObject);
 }
 
-int64_t TorchDLPackPyObjectImporterPtr() {
-  return reinterpret_cast<int64_t>(TorchDLPackPyObjectImporter);
+int64_t TorchDLPackToPyObjectPtr() {
+  return reinterpret_cast<int64_t>(TorchDLPackToPyObject);
 }
 
 int64_t TorchDLPackTensorAllocatorPtr() {
@@ -376,8 +378,8 @@ int64_t TorchDLPackTensorAllocatorPtr() {
             name="to_dlpack",
             cpp_sources=cpp_source,
             functions=[
-                "TorchDLPackPyObjectExporterPtr",
-                "TorchDLPackPyObjectImporterPtr",
+                "TorchDLPackFromPyObjectPtr",
+                "TorchDLPackToPyObjectPtr",
                 "TorchDLPackTensorAllocatorPtr",
             ],
             extra_cflags=["-O3"],
@@ -385,8 +387,8 @@ int64_t TorchDLPackTensorAllocatorPtr() {
             verbose=True,
         )
         # set the dlpack related flags
-        torch.Tensor.__c_dlpack_exporter__ = mod.TorchDLPackPyObjectExporterPtr()
-        torch.Tensor.__c_dlpack_importer__ = mod.TorchDLPackPyObjectImporterPtr()
+        torch.Tensor.__c_dlpack_from_pyobject__ = mod.TorchDLPackFromPyObjectPtr()
+        torch.Tensor.__c_dlpack_to_pyobject__ = mod.TorchDLPackToPyObjectPtr()
         torch.Tensor.__c_dlpack_tensor_allocator__ = mod.TorchDLPackTensorAllocatorPtr()
         return mod
     except ImportError:

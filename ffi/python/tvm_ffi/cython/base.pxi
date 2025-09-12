@@ -247,11 +247,11 @@ cdef extern from "tvm/ffi/extra/c_env_api.h":
 cdef extern from "tvm_ffi_python_helpers.h":
     # no need to expose fields of the call context
      # setter data structure
-    ctypedef int (*DLPackPyObjectExporter)(
+    ctypedef int (*DLPackFromPyObject)(
         void* py_obj, DLManagedTensorVersioned** out, TVMFFIStreamHandle* env_stream
     ) except -1
 
-    ctypedef int (*DLPackPyObjectImporter)(
+    ctypedef int (*DLPackToPyObject)(
         DLManagedTensorVersioned* tensor, void** py_obj_out
     ) except -1
     ctypedef int (*DLPackTensorAllocator)(
@@ -263,13 +263,13 @@ cdef extern from "tvm_ffi_python_helpers.h":
         int device_type
         int device_id
         TVMFFIStreamHandle stream
-        DLPackPyObjectImporter c_dlpack_importer
+        DLPackToPyObject c_dlpack_to_pyobject
         DLPackTensorAllocator c_dlpack_tensor_allocator
 
     ctypedef struct TVMFFIPyArgSetter:
         int (*func)(TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,  PyObject* py_arg, TVMFFIAny* out) except -1
-        DLPackPyObjectExporter c_dlpack_exporter
-        DLPackPyObjectImporter c_dlpack_importer
+        DLPackFromPyObject c_dlpack_from_pyobject
+        DLPackToPyObject c_dlpack_to_pyobject
         DLPackTensorAllocator c_dlpack_tensor_allocator
 
     ctypedef int (*TVMFFIPyArgSetterFactory)(PyObject* value, TVMFFIPyArgSetter* out) except -1
@@ -281,7 +281,7 @@ cdef extern from "tvm_ffi_python_helpers.h":
         TVMFFIAny* result,
         int* c_api_ret_code,
         int release_gil,
-        DLPackPyObjectImporter* out_dlpack_importer
+        DLPackToPyObject* out_dlpack_importer
     ) except -1
 
     int TVMFFIPyCallFieldSetter(
