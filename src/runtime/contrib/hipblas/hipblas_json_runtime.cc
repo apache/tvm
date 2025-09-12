@@ -89,7 +89,7 @@ class HipblasJSONRuntime : public JSONRuntimeBase {
       ROCM_CALL(hipGetDevice(&device_id));
     }
     auto* entry_ptr = tvm::contrib::HipBlasLtThreadEntry::ThreadLocal(DLDevice{kDLROCM, device_id});
-    hipStream_t stream = static_cast<hipStream_t>(TVMFFIEnvGetCurrentStream(kDLROCM, device_id));
+    hipStream_t stream = static_cast<hipStream_t>(TVMFFIEnvGetStream(kDLROCM, device_id));
 
     auto get_input = [this, &dl_tensors](const JSONGraphNode& node, int idx) {
       ICHECK_LT(idx, node.GetInputs().size());

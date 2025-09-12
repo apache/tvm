@@ -39,6 +39,8 @@ from . import serialization
 from . import access_path
 from . import testing
 
+# optional module to speedup dlpack conversion
+from . import _optional_torch_c_dlpack
 
 __all__ = [
     "dtype",

@@ -27,13 +27,40 @@
 #include <tvm/ffi/c_api.h>
 #include <tvm/ffi/extra/c_env_api.h>
 
+#include <cstring>
 #include <exception>
+#include <iostream>
 #include <unordered_map>
+
+//----------------------------------------------------------
+// Extra support for DLPack
+//----------------------------------------------------------
+/*!
+ * \brief C-style function pointer to speed convert a PyObject Tensor to a DLManagedTensorVersioned.
+ * \param py_obj The Python object to convert, this should be PyObject*
+ * \param out The output DLManagedTensorVersioned.
+ * \param env_stream Outputs the current context stream of the device provided by the tensor.
+ * \return 0 on success, -1 on failure. PyError should be set if -1 is returned.
+ * \note We use void* to avoid dependency on Python.h so this specific type is
+ *       not dependent on Python.h and can be copied to dlpack.h
+ */
+typedef int (*DLPackPyObjectExporter)(void* py_obj, DLManagedTensorVersioned** out,
+                                      void** env_stream);
+/*!
+ * \brief C-style function pointer to speed convert a DLManagedTensorVersioned to a PyObject Tensor.
+ * \param tensor The DLManagedTensorVersioned to convert.
+ * \param py_obj_out The output Python object.
+ * \return 0 on success, -1 on failure. PyError should be set if -1 is returned.
+ * \note We use void* to avoid dependency on Python.h so this specific type is
+ *       not dependent on Python.h and can be copied to dlpack.h
+ */
+typedef int (*DLPackPyObjectImporter)(DLManagedTensorVersioned* tensor, void** py_obj_out);
 
 ///--------------------------------------------------------------------------------
 /// We deliberately designed the data structure and function to be C-style
 //  prefixed with TVMFFIPy so they can be easily invoked through Cython.
 ///--------------------------------------------------------------------------------
+
 /*!
  * \brief Context for each ffi call to track the stream, device and temporary arguments.
  */
@@ -54,19 +81,11 @@ struct TVMFFIPyCallContext {
   void** temp_py_objects = nullptr;
   /*! \brief the number of temporary arguments */
   int num_temp_py_objects = 0;
+  /*! \brief the DLPack exporter, if any */
+  DLPackPyObjectImporter c_dlpack_importer{nullptr};
+  /*! \brief the DLPack allocator, if any */
+  DLPackTensorAllocator c_dlpack_tensor_allocator{nullptr};
 };
-
-/*!
- * \brief C-style function pointer to speed convert a Tensor to a DLManagedTensorVersioned.
- * \param py_obj The Python object to convert, this should be PyObject*
- * \param out The output DLManagedTensorVersioned.
- * \param env_stream Outputs the current context stream of the device provided by the tensor.
- * \return 0 on success, -1 on failure. PyError should be set if -1 is returned.
- * \note We use void* to avoid dependency on Python.h so this specific type is
- *       not dependent on Python.h and can be copied to dlpack.h
- */
-typedef int (*DLPackPyObjectCExporter)(void* py_obj, DLManagedTensorVersioned** out,
-                                       void** env_stream);
 
 /*! \brief Argument setter for a given python argument. */
 struct TVMFFIPyArgSetter {
@@ -83,7 +102,15 @@ struct TVMFFIPyArgSetter {
   /*!
    * \brief Optional DLPack exporter for for setters that leverages DLPack protocol.
    */
-  DLPackPyObjectCExporter dlpack_c_exporter{nullptr};
+  DLPackPyObjectExporter c_dlpack_exporter{nullptr};
+  /*!
+   * \brief Optional DLPack importer for for setters that leverages DLPack protocol.
+   */
+  DLPackPyObjectImporter c_dlpack_importer{nullptr};
+  /*!
+   * \brief Optional DLPack allocator for for setters that leverages DLPack protocol.
+   */
+  DLPackTensorAllocator c_dlpack_tensor_allocator{nullptr};
   /*!
    * \brief Invoke the setter.
    * \param call_ctx The call context.
@@ -239,11 +266,14 @@ class TVMFFIPyCallManager {
    * \param py_arg_tuple The arguments to the function
    * \param result The result of the function
    * \param c_api_ret_code The return code of the C-call
+   * \param release_gil Whether to release the GIL
+   * \param optional_out_dlpack_importer The DLPack importer to be used for the result
    * \return 0 on when there is no python error, -1 on python error
    * \note When an error happens on FFI side, we should return 0 and set c_api_ret_code
    */
   int Call(TVMFFIPyArgSetterFactory setter_factory, void* func_handle, PyObject* py_arg_tuple,
-           TVMFFIAny* result, int* c_api_ret_code) {
+           TVMFFIAny* result, int* c_api_ret_code, bool release_gil,
+           DLPackPyObjectImporter* optional_out_dlpack_importer) {
     int64_t num_args = PyTuple_Size(py_arg_tuple);
     if (num_args == -1) return -1;
     try {
@@ -256,26 +286,43 @@ class TVMFFIPyCallManager {
         if (SetArgument(setter_factory, &ctx, py_arg, c_arg) != 0) return -1;
       }
       TVMFFIStreamHandle prev_stream = nullptr;
+      DLPackTensorAllocator prev_tensor_allocator = nullptr;
       // setup stream context if needed
       if (ctx.device_type != -1) {
         c_api_ret_code[0] =
-            TVMFFIEnvSetCurrentStream(ctx.device_type, ctx.device_id, ctx.stream, &prev_stream);
+            TVMFFIEnvSetStream(ctx.device_type, ctx.device_id, ctx.stream, &prev_stream);
         // setting failed, directly return
         if (c_api_ret_code[0] != 0) return 0;
       }
+      if (ctx.c_dlpack_tensor_allocator != nullptr) {
+        c_api_ret_code[0] =
+            TVMFFIEnvSetTensorAllocator(ctx.c_dlpack_tensor_allocator, 0, &prev_tensor_allocator);
+        if (c_api_ret_code[0] != 0) return 0;
+      }
       // call the function
-      // release the GIL
-      Py_BEGIN_ALLOW_THREADS;
-      c_api_ret_code[0] = TVMFFIFunctionCall(func_handle, ctx.packed_args, num_args, result);
-      Py_END_ALLOW_THREADS;
+      if (release_gil) {
+        // release the GIL
+        Py_BEGIN_ALLOW_THREADS;
+        c_api_ret_code[0] = TVMFFIFunctionCall(func_handle, ctx.packed_args, num_args, result);
+        Py_END_ALLOW_THREADS;
+      } else {
+        c_api_ret_code[0] = TVMFFIFunctionCall(func_handle, ctx.packed_args, num_args, result);
+      }
       // restore the original stream
       if (ctx.device_type != -1 && prev_stream != ctx.stream) {
         // always try recover first, even if error happens
-        if (TVMFFIEnvSetCurrentStream(ctx.device_type, ctx.device_id, prev_stream, nullptr) != 0) {
+        if (TVMFFIEnvSetStream(ctx.device_type, ctx.device_id, prev_stream, nullptr) != 0) {
           // recover failed, set python error
           PyErr_SetString(PyExc_RuntimeError, "Failed to recover stream");
           return -1;
         }
+      }
+      if (prev_tensor_allocator != ctx.c_dlpack_tensor_allocator) {
+        c_api_ret_code[0] = TVMFFIEnvSetTensorAllocator(prev_tensor_allocator, 0, nullptr);
+        if (c_api_ret_code[0] != 0) return 0;
+      }
+      if (optional_out_dlpack_importer != nullptr && ctx.c_dlpack_importer != nullptr) {
+        *optional_out_dlpack_importer = ctx.c_dlpack_importer;
       }
       return 0;
     } catch (const std::exception& ex) {
@@ -376,12 +423,16 @@ class TVMFFIPyCallManager {
  * \param py_arg_tuple The arguments to the function
  * \param result The result of the function
  * \param c_api_ret_code The return code of the function
+ * \param release_gil Whether to release the GIL
+ * \param out_dlpack_exporter The DLPack exporter to be used for the result
  * \return 0 on success, nonzero on failure
  */
 inline int TVMFFIPyFuncCall(TVMFFIPyArgSetterFactory setter_factory, void* func_handle,
-                            PyObject* py_arg_tuple, TVMFFIAny* result, int* c_api_ret_code) {
+                            PyObject* py_arg_tuple, TVMFFIAny* result, int* c_api_ret_code,
+                            bool release_gil = true,
+                            DLPackPyObjectImporter* out_dlpack_importer = nullptr) {
   return TVMFFIPyCallManager::ThreadLocal()->Call(setter_factory, func_handle, py_arg_tuple, result,
-                                                  c_api_ret_code);
+                                                  c_api_ret_code, release_gil, out_dlpack_importer);
 }
 
 /*!

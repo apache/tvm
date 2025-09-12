@@ -55,22 +55,14 @@ def test_shape_object():
     assert isinstance(shape3, tvm_ffi.Shape)
 
 
-@pytest.mark.skipif(torch is None, reason="Torch is not installed")
+@pytest.mark.skipif(torch is None, reason="Fast torch dlpack importer is not enabled")
 def test_tensor_auto_dlpack():
-    def check(x, y):
-        assert isinstance(y, tvm_ffi.Tensor)
-        assert y.shape == (128,)
-        assert y.dtype == tvm_ffi.dtype("int64")
-        assert y.device.dlpack_device_type() == tvm_ffi.DLDeviceType.kDLCPU
-        assert y.device.index == 0
-        x2 = torch.from_dlpack(y)
-        np.testing.assert_equal(x2.numpy(), x.numpy())
-
     x = torch.arange(128)
     fecho = tvm_ffi.get_global_func("testing.echo")
     y = fecho(x)
-    check(x, y)
-
-    # pass in list of tensors
-    y = fecho([x])
-    check(x, y[0])
+    assert isinstance(y, torch.Tensor)
+    assert y.data_ptr() == x.data_ptr()
+    assert y.dtype == x.dtype
+    assert y.shape == x.shape
+    assert y.device == x.device
+    np.testing.assert_equal(y.numpy(), x.numpy())
