@@ -91,8 +91,10 @@ def test_cuda_graph(mod):
         mod.add_one_cuda(x, y)
     torch.cuda.current_stream().wait_stream(s)
 
-    g = torch.cuda.CUDAGraph()
-    with torch.cuda.graph(g):
+    cg = torch.cuda.CUDAGraph()
+    g = torch.cuda.graph(cg)
+    s = g.capture_stream
+    with g, tvm_ffi.stream(str(s.device), s.cuda_stream):
         mod.add_one_cuda(x, y)
 
 

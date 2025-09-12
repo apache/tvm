@@ -69,7 +69,6 @@ class StreamContext {
 int TVMFFIEnvSetCurrentStream(int32_t device_type, int32_t device_id, TVMFFIStreamHandle stream,
                               TVMFFIStreamHandle* out_original_stream) {
   TVM_FFI_SAFE_CALL_BEGIN();
-  printf("set %d %d %lld\n", device_type, device_id, stream);
   tvm::ffi::StreamContext::ThreadLocal()->SetStream(device_type, device_id, stream,
                                                     out_original_stream);
   TVM_FFI_SAFE_CALL_END();
@@ -77,9 +76,6 @@ int TVMFFIEnvSetCurrentStream(int32_t device_type, int32_t device_id, TVMFFIStre
 
 TVMFFIStreamHandle TVMFFIEnvGetCurrentStream(int32_t device_type, int32_t device_id) {
   TVM_FFI_LOG_EXCEPTION_CALL_BEGIN();
-  TVMFFIStreamHandle stream =
-      tvm::ffi::StreamContext::ThreadLocal()->GetStream(device_type, device_id);
-  printf("get %d %d %lld\n", device_type, device_id, stream);
-  return stream;
+  return tvm::ffi::StreamContext::ThreadLocal()->GetStream(device_type, device_id);
   TVM_FFI_LOG_EXCEPTION_CALL_END(TVMFFIEnvGetCurrentStream);
 }
