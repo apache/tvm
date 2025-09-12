@@ -159,9 +159,6 @@ def test_load_inline_cpp_build_dir():
 def test_load_inline_cuda():
     mod: Module = tvm_ffi.cpp.load_inline(
         name="hello",
-        cpp_sources=r"""
-            void add_one_cuda(DLTensor* x, DLTensor* y);
-        """,
         cuda_sources=r"""
             __global__ void AddOneKernel(float* x, float* y, int n) {
               int idx = blockIdx.x * blockDim.x + threadIdx.x;
