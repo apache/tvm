@@ -237,6 +237,7 @@ def bench_tvm_ffi_nop_autodlpack(name, x, y, z, repeat):
     """
     nop = tvm_ffi.get_global_func("testing.nop")
     nop(x, y, z)
+    eps = 1e-6
     start = time.time()
     for i in range(repeat):
         nop(x, y, z)
@@ -375,8 +376,19 @@ def bench_torch_get_current_stream(repeat, name, func):
     print_speed(f"torch.cuda.current_stream[{name}]", speed)
 
 
+def populate_object_table(num_classes):
+    nop = tvm_ffi.get_global_func("testing.nop")
+    dummy_instances = [type(f"DummyClass{i}", (object,), {})() for i in range(num_classes)]
+    for instance in dummy_instances:
+        nop(instance)
+
+
 def main():
     repeat = 10000
+    # measures impact of object dispatch table size
+    # takeaway so far is that there is no impact on the performance
+    num_classes = 0
+    populate_object_table(num_classes)
     print("-----------------------------")
     print("Benchmark f(x, y, z) overhead")
     print("-----------------------------")
@@ -423,6 +435,10 @@ def main():
             repeat, "cpp-extension", load_torch_get_current_cuda_stream()
         )
         bench_torch_get_current_stream(repeat, "python", torch_get_cuda_stream_native)
+    print("---------------------------------------------------")
+    print("Benchmark tvm_ffi.print_helper_info")
+    print("---------------------------------------------------")
+    tvm_ffi.core._print_debug_info()
 
 
 if __name__ == "__main__":

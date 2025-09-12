@@ -30,6 +30,8 @@
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/type_traits.h>
 
+#include <atomic>
+#include <memory>
 #include <utility>
 
 namespace tvm {
@@ -123,18 +125,26 @@ class TensorObj : public Object, public DLTensor {
   static constexpr const uint32_t _type_index = TypeIndex::kTVMFFITensor;
   TVM_FFI_DECLARE_OBJECT_INFO_STATIC(StaticTypeKey::kTVMFFITensor, TensorObj, Object);
   /// \endcond
-
+  ~TensorObj() {
+    // deleting the cached dl managed tensor versioned
+    // need to acquire the value in case it is released by another thread
+    DLManagedTensorVersioned* cached =
+        cached_dl_managed_tensor_versioned_.load(std::memory_order_acquire);
+    if (cached != nullptr) {
+      delete cached;
+    }
+  }
   /*!
    * \brief Move a Tensor to a DLPack managed tensor.
    * \return The converted DLPack managed tensor.
    */
   DLManagedTensor* ToDLPack() const {
+    TensorObj* self = const_cast<TensorObj*>(this);
     DLManagedTensor* ret = new DLManagedTensor();
-    TensorObj* from = const_cast<TensorObj*>(this);
-    ret->dl_tensor = *static_cast<DLTensor*>(from);
-    ret->manager_ctx = from;
+    ret->dl_tensor = *static_cast<DLTensor*>(self);
+    ret->manager_ctx = self;
     ret->deleter = DLManagedTensorDeleter;
-    details::ObjectUnsafe::IncRefObjectHandle(from);
+    details::ObjectUnsafe::IncRefObjectHandle(self);
     return ret;
   }
 
@@ -143,16 +153,40 @@ class TensorObj : public Object, public DLTensor {
    * \return The converted DLPack managed tensor.
    */
   DLManagedTensorVersioned* ToDLPackVersioned() const {
-    DLManagedTensorVersioned* ret = new DLManagedTensorVersioned();
     TensorObj* from = const_cast<TensorObj*>(this);
-    ret->version.major = DLPACK_MAJOR_VERSION;
-    ret->version.minor = DLPACK_MINOR_VERSION;
-    ret->dl_tensor = *static_cast<DLTensor*>(from);
-    ret->manager_ctx = from;
-    ret->deleter = DLManagedTensorVersionedDeleter;
-    ret->flags = 0;
+    // if cache is set, directly return it
+    // we need to use acquire to ensure that write to DLManagedTensorVersioned
+    // from another thread is visible to this thread.
+    DLManagedTensorVersioned* cached =
+        cached_dl_managed_tensor_versioned_.load(std::memory_order_acquire);
+    // if cache is not set, create a new one
+    if (cached == nullptr) {
+      DLManagedTensorVersioned* ret = new DLManagedTensorVersioned();
+      ret->version.major = DLPACK_MAJOR_VERSION;
+      ret->version.minor = DLPACK_MINOR_VERSION;
+      ret->dl_tensor = *static_cast<DLTensor*>(from);
+      ret->manager_ctx = from;
+      ret->deleter = EmbeddedDLManagedTensorVersionedDeleter;
+      ret->flags = 0;
+      DLManagedTensorVersioned* expected = nullptr;
+      // success set must release the new value to all other threads
+      // failure set must acquire, since the expected value is now coming
+      // from another thread that released this value
+      if (std::atomic_compare_exchange_strong_explicit(&cached_dl_managed_tensor_versioned_,
+                                                       &expected, ret, std::memory_order_release,
+                                                       std::memory_order_acquire)) {
+        // set is succes
+        cached = ret;
+      } else {
+        // delete the ret value as another thread raced to set this one first
+        delete ret;
+        cached = expected;
+      }
+      // at this point, cached is the value that officially set to the field
+    }
+    // inc the ref count of the from object
     details::ObjectUnsafe::IncRefObjectHandle(from);
-    return ret;
+    return cached;
   }
 
  protected:
@@ -160,6 +194,8 @@ class TensorObj : public Object, public DLTensor {
   Optional<Shape> shape_data_;
   /*! \brief Internal data to back returning strides. */
   Optional<Shape> strides_data_;
+  /*! \brief cached data to back returning DLManagedTensorVersioned. */
+  mutable std::atomic<DLManagedTensorVersioned*> cached_dl_managed_tensor_versioned_ = nullptr;
 
   /*!
    * \brief Deleter for DLManagedTensor.
@@ -175,10 +211,9 @@ class TensorObj : public Object, public DLTensor {
    * \brief Deleter for DLManagedTensorVersioned.
    * \param tensor The DLManagedTensorVersioned to be deleted.
    */
-  static void DLManagedTensorVersionedDeleter(DLManagedTensorVersioned* tensor) {
+  static void EmbeddedDLManagedTensorVersionedDeleter(DLManagedTensorVersioned* tensor) {
     TensorObj* obj = static_cast<TensorObj*>(tensor->manager_ctx);
     details::ObjectUnsafe::DecRefObjectHandle(obj);
-    delete tensor;
   }
 
   friend class Tensor;
