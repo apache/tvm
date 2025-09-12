@@ -862,5 +862,181 @@ class TestExtendedOperators:
         assert result.shape == (6,)
 
 
+class TestDLPackAndTupleSupport:
+    """Test DLPack conversion, tuple handling, and API compatibility features."""
+
+    def test_dlpack_conversion_fallback(self):
+        """Test DLPack conversion with numpy fallback."""
+
+        @I.ir_module
+        class DLPackTestModule:
+            @T.prim_func
+            def test_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
+                x = T.match_buffer(var_x, (4,), "float32")
+                y = T.match_buffer(var_y, (4,), "float32")
+                out = T.match_buffer(var_out, (4,), "float32")
+                for i in range(4):
+                    out[i] = x[i] + y[i]
+
+            @R.function
+            def test_func(
+                x: R.Tensor((4,), "float32"), y: R.Tensor((4,), "float32")
+            ) -> R.Tensor((4,), "float32"):
+                return R.call_tir(
+                    DLPackTestModule.test_tir, (x, y), out_sinfo=R.Tensor((4,), "float32")
+                )
+
+        converter = RelaxToPyFuncConverter(DLPackTestModule)
+        converted_ir_mod = converter.convert(["test_func"])
+
+        x = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)
+        y = torch.tensor([0.1, 0.2, 0.3, 0.4], dtype=torch.float32)
+
+        result = converted_ir_mod.pyfuncs["test_func"](x, y)
+        expected = torch.add(x, y)
+
+        assert torch.allclose(result, expected), "DLPack conversion with numpy fallback failed"
+
+    def test_tuple_return_handling(self):
+        """Test proper handling of tuple returns (e.g., split operation)."""
+
+        @I.ir_module
+        class TupleTestModule:
+            @R.function
+            def test_split(x: R.Tensor((6,), "float32")) -> R.Tuple:
+                return R.split(x, indices_or_sections=3, axis=0)
+
+        converter = RelaxToPyFuncConverter(TupleTestModule)
+        converted_ir_mod = converter.convert(["test_split"])
+
+        x = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], dtype=torch.float32)
+        result = converted_ir_mod.pyfuncs["test_split"](x)
+        expected = torch.split(x, 2, dim=0)
+
+        assert isinstance(result, tuple), "Split should return tuple"
+        assert len(result) == len(expected), "Split should return correct number of tensors"
+        for r, e in zip(result, expected):
+            assert torch.allclose(r, e), "Split tensor values should match"
+
+    def test_tvm_runtime_api_compatibility(self):
+        """Test compatibility with tvm.runtime API instead of deprecated tvm.nd."""
+
+        @I.ir_module
+        class RuntimeAPITestModule:
+            @T.prim_func
+            def test_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
+                x = T.match_buffer(var_x, (3,), "float32")
+                y = T.match_buffer(var_y, (3,), "float32")
+                out = T.match_buffer(var_out, (3,), "float32")
+                for i in range(3):
+                    out[i] = x[i] * y[i]
+
+            @R.function
+            def test_func(
+                x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")
+            ) -> R.Tensor((3,), "float32"):
+                return R.call_tir(
+                    RuntimeAPITestModule.test_tir, (x, y), out_sinfo=R.Tensor((3,), "float32")
+                )
+
+        converter = RelaxToPyFuncConverter(RuntimeAPITestModule)
+        converted_ir_mod = converter.convert(["test_func"])
+
+        x = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)
+        y = torch.tensor([2.0, 3.0, 4.0], dtype=torch.float32)
+
+        result = converted_ir_mod.pyfuncs["test_func"](x, y)
+        expected = torch.mul(x, y)
+
+        assert torch.allclose(result, expected)
+
+    def test_packed_function_with_primvalue_args(self):
+        """Test packed function calls with PrimValue arguments."""
+        # Register a test packed function
+        def test_packed_func(x, axis):
+            return x  # Simple identity function
+
+        tvm.register_global_func("test_packed_func", test_packed_func)
+
+        @I.ir_module
+        class PackedFuncTestModule:
+            @R.function
+            def test_dps(x: R.Tensor((4,), "float32")) -> R.Tensor((4,), "float32"):
+                return R.call_dps_packed(
+                    "test_packed_func", (x, R.const(0)), out_sinfo=R.Tensor((4,), "float32")
+                )
+
+        converter = RelaxToPyFuncConverter(PackedFuncTestModule)
+        converted_ir_mod = converter.convert(["test_dps"])
+
+        x = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)
+        result = converted_ir_mod.pyfuncs["test_dps"](x)
+        expected = x  # Identity function
+
+        assert torch.allclose(result, expected), "Packed function with PrimValue args failed"
+
+    def test_mixed_tir_and_relax_operations(self):
+        """Test mixed TIR and Relax operations in a single function."""
+
+        @I.ir_module
+        class MixedOpsTestModule:
+            @T.prim_func
+            def add_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
+                x = T.match_buffer(var_x, (4,), "float32")
+                y = T.match_buffer(var_y, (4,), "float32")
+                out = T.match_buffer(var_out, (4,), "float32")
+                for i in range(4):
+                    out[i] = x[i] + y[i]
+
+            @R.function
+            def test_mixed(
+                x: R.Tensor((4,), "float32"), y: R.Tensor((4,), "float32")
+            ) -> R.Tensor((4,), "float32"):
+                # TIR operation
+                tir_result = R.call_tir(
+                    MixedOpsTestModule.add_tir, (x, y), out_sinfo=R.Tensor((4,), "float32")
+                )
+                # Relax operations
+                relued = R.nn.relu(tir_result)
+                powered = R.power(relued, R.const(2.0))
+                return R.nn.gelu(powered)
+
+        converter = RelaxToPyFuncConverter(MixedOpsTestModule)
+        converted_ir_mod = converter.convert(["test_mixed"])
+
+        x = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)
+        y = torch.tensor([0.1, 0.2, 0.3, 0.4], dtype=torch.float32)
+
+        result = converted_ir_mod.pyfuncs["test_mixed"](x, y)
+
+        # Manual computation for expected result
+        added = torch.add(x, y)
+        relued = F.relu(added)
+        powered = torch.pow(relued, 2.0)
+        expected = F.gelu(powered)
+
+        assert torch.allclose(result, expected)
+
+    def test_error_handling_improvements(self):
+        """Test improved error handling with tensor fallbacks."""
+
+        @I.ir_module
+        class ErrorHandlingTestModule:
+            @R.function
+            def test_error_handling(x: R.Tensor((4,), "float32")) -> R.Tensor((4,), "float32"):
+                # This should trigger fallback mechanisms
+                return R.nn.relu(x)
+
+        converter = RelaxToPyFuncConverter(ErrorHandlingTestModule)
+        converted_ir_mod = converter.convert(["test_error_handling"])
+
+        x = torch.tensor([-2.0, -1.0, 0.0, 1.0], dtype=torch.float32)
+        result = converted_ir_mod.pyfuncs["test_error_handling"](x)
+        expected = F.relu(x)
+
+        assert torch.allclose(result, expected), "Error handling with tensor fallbacks failed"
+        assert isinstance(result, torch.Tensor), "Result should be a tensor, not a string"
+
+
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    tvm.testing.main()
