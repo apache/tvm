@@ -130,10 +130,7 @@ def find_lib_path(name=None, search_path=None, optional=False):
         elif sys.platform.startswith("darwin"):
             lib_dll_names = ["libtvm.dylib"]
             runtime_dll_names = ["libtvm_runtime.dylib"]
-            ext_lib_dll_names = [
-                "3rdparty/cutlass_fpA_intB_gemm/cutlass_kernels/libfpA_intB_gemm.dylib",
-                "3rdparty/libflash_attn/src/libflash_attn.dylib",
-            ]
+            ext_lib_dll_names = []
         else:
             lib_dll_names = ["libtvm.so"]
             runtime_dll_names = ["libtvm_runtime.so"]
