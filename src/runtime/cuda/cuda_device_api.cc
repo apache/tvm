@@ -301,7 +301,7 @@ class CUDATimerNode : public TimerNode {
     // cudaEventRecord do some stream synchronization?
     int device_id;
     CUDA_CALL(cudaGetDevice(&device_id));
-    stream_ = TVMFFIEnvGetCurrentStream(kDLCUDA, device_id);
+    stream_ = TVMFFIEnvGetStream(kDLCUDA, device_id);
     CUDA_CALL(cudaEventRecord(start_, static_cast<cudaStream_t>(stream_)));
   }
   virtual void Stop() {
@@ -352,10 +352,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("runtime.GetCudaFreeMemory", GetCudaFreeMemory)
       .def("runtime.get_cuda_stream", []() {
         // TODO(tvm-team): remove once confirms all dep such as flashinfer
-        // migrated to TVMFFIEnvGetCurrentStream
+        // migrated to TVMFFIEnvGetStream
         int device_id;
         CUDA_CALL(cudaGetDevice(&device_id));
-        return static_cast<void*>(TVMFFIEnvGetCurrentStream(kDLCUDA, device_id));
+        return static_cast<void*>(TVMFFIEnvGetStream(kDLCUDA, device_id));
       });
 });
 
