@@ -467,6 +467,8 @@ def test_create():
             )
             zeros_out = op.zeros([10, 10])
             zeros_fp16_out = op.zeros([10, 10], dtype="float16")
+
+            arange_out = op.arange(0, 10, 1, "float32")
             return x
 
     # fmt: off
@@ -480,6 +482,7 @@ def test_create():
             full2: R.Tensor((10, 10), dtype="float32") = R.full(R.shape([10, 10]), R.const(10, "float32"), dtype="float32")
             zeros: R.Tensor((10, 10), dtype="float32") = R.zeros(R.shape([10, 10]), dtype="float32")
             zeros1: R.Tensor((10, 10), dtype="float16") = R.zeros(R.shape([10, 10]), dtype="float16")
+            arange: R.Tensor((10), dtype="float32") = R.arange(R.const(0, "int"), R.const(10, "int"), R.const(1, "int"), dtype="float32")
             gv1: R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tuple(R.Object)) = x, (_io,)
             R.output(gv1)
         return gv1

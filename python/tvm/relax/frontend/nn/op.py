@@ -1222,6 +1222,34 @@ def floor(x: Tensor, name: str = "floor") -> Tensor:
     """
     return wrap_nested(_op.floor(x._expr), name)
 
+def arange(start: int, end: Optional[int] = None, step: int = 1, dtype: Optional[str] = "float32", name: str = "arange") -> Tensor:
+    r"""Construct a tensor with evenly spaced elements.
+
+    Parameters
+    ----------
+    start : int
+        The start of the interval.
+
+    end : Optional[int]
+        The end of the interval. If not given, it will be set to start,
+        and start will be set to 0.
+
+    step : int
+        The step size.
+
+    dtype : Optional[str]
+        The data type of the created tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.arange(start, end, step, dtype), name)
+
 def permute(x: Tensor, axes: Optional[List[int]], name: str = "permute") -> Tensor:
     """Permutes the dimensions of the input tensor.
 
