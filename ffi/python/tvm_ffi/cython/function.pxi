@@ -47,13 +47,13 @@ cdef inline object make_ret_small_bytes(TVMFFIAny result):
     return PyBytes_FromStringAndSize(bytes.data, bytes.size)
 
 
-cdef inline object make_ret(TVMFFIAny result, DLPackPyObjectImporter c_dlpack_importer = NULL):
+cdef inline object make_ret(TVMFFIAny result, DLPackToPyObject c_dlpack_to_pyobject = NULL):
     """convert result to return value."""
     cdef int32_t type_index
     type_index = result.type_index
     if type_index == kTVMFFITensor:
         # specially handle Tensor as it needs a special dltensor field
-        return make_tensor_from_any(result, c_dlpack_importer)
+        return make_tensor_from_any(result, c_dlpack_to_pyobject)
     elif type_index == kTVMFFIOpaquePyObject:
         return make_ret_opaque_object(result)
     elif type_index >= kTVMFFIStaticObjectBegin:
@@ -121,18 +121,18 @@ cdef int TVMFFIPyArgSetterDLPackCExporter_(
     cdef TVMFFIObjectHandle temp_chandle
     cdef TVMFFIStreamHandle env_stream = NULL
 
-    if this.c_dlpack_importer != NULL:
-        ctx.c_dlpack_importer = this.c_dlpack_importer
+    if this.c_dlpack_to_pyobject != NULL:
+        ctx.c_dlpack_to_pyobject = this.c_dlpack_to_pyobject
     if this.c_dlpack_tensor_allocator != NULL:
         ctx.c_dlpack_tensor_allocator = this.c_dlpack_tensor_allocator
 
     if ctx.device_id != -1:
         # already queried device, do not do it again, pass NULL to stream
-        if (this.c_dlpack_exporter)(arg, &temp_managed_tensor, NULL) != 0:
+        if (this.c_dlpack_from_pyobject)(arg, &temp_managed_tensor, NULL) != 0:
             return -1
     else:
         # query string on the envrionment stream
-        if (this.c_dlpack_exporter)(arg, &temp_managed_tensor, &env_stream) != 0:
+        if (this.c_dlpack_from_pyobject)(arg, &temp_managed_tensor, &env_stream) != 0:
             return -1
         # If device is not CPU, we should set the device type and id
         if temp_managed_tensor.dl_tensor.device.device_type != kDLCPU:
@@ -148,7 +148,7 @@ cdef int TVMFFIPyArgSetterDLPackCExporter_(
     return 0
 
 
-cdef int TorchDLPackPyObjectImporterFallback_(
+cdef int TorchDLPackToPyObjectFallback_(
     DLManagedTensorVersioned* dltensor, void** py_obj_out
 ) except -1:
     # a bit convoluted but ok as a fallback
@@ -173,7 +173,7 @@ cdef int TVMFFIPyArgSetterTorchFallback_(
     out.type_index = kTVMFFITensor
     out.v_ptr = (<Tensor>arg).chandle
     temp_dltensor = TVMFFITensorGetDLTensorPtr((<Tensor>arg).chandle)
-    ctx.c_dlpack_importer = TorchDLPackPyObjectImporterFallback_
+    ctx.c_dlpack_to_pyobject = TorchDLPackToPyObjectFallback_
     # record the stream and device for torch context
     if is_cuda and ctx.device_type != -1:
         ctx.device_type = temp_dltensor.device.device_type
@@ -370,15 +370,15 @@ cdef int TVMFFIPyArgSetterFactory_(PyObject* value, TVMFFIPyArgSetter* out) exce
     if isinstance(arg, ObjectRValueRef):
         out.func = TVMFFIPyArgSetterObjectRValueRef_
         return 0
-    if os.environ.get("TVM_FFI_SKIP_C_DLPACK_EXPORTER", "0") != "1":
+    if os.environ.get("TVM_FFI_SKIP_c_dlpack_from_pyobject", "0") != "1":
         # external tensors
-        if hasattr(arg, "__c_dlpack_exporter__"):
+        if hasattr(arg, "__c_dlpack_from_pyobject__"):
             out.func = TVMFFIPyArgSetterDLPackCExporter_
-            temp_ptr = arg.__c_dlpack_exporter__
-            out.c_dlpack_exporter = <DLPackPyObjectExporter>temp_ptr
-            if hasattr(arg, "__c_dlpack_importer__"):
-                temp_ptr = arg.__c_dlpack_importer__
-                out.c_dlpack_importer = <DLPackPyObjectImporter>temp_ptr
+            temp_ptr = arg.__c_dlpack_from_pyobject__
+            out.c_dlpack_from_pyobject = <DLPackFromPyObject>temp_ptr
+            if hasattr(arg, "__c_dlpack_to_pyobject__"):
+                temp_ptr = arg.__c_dlpack_to_pyobject__
+                out.c_dlpack_to_pyobject = <DLPackToPyObject>temp_ptr
             if hasattr(arg, "__c_dlpack_tensor_allocator__"):
                 temp_ptr = arg.__c_dlpack_tensor_allocator__
                 out.c_dlpack_tensor_allocator = <DLPackTensorAllocator>temp_ptr
@@ -470,7 +470,7 @@ cdef class Function(Object):
     def __call__(self, *args):
         cdef TVMFFIAny result
         cdef int c_api_ret_code
-        cdef DLPackPyObjectImporter c_dlpack_importer = NULL
+        cdef DLPackToPyObject c_dlpack_to_pyobject = NULL
         # IMPORTANT: caller need to initialize result->type_index to kTVMFFINone
         result.type_index = kTVMFFINone
         result.v_int64 = 0
@@ -480,12 +480,12 @@ cdef class Function(Object):
             &result,
             &c_api_ret_code,
             self.release_gil,
-            &c_dlpack_importer
+            &c_dlpack_to_pyobject
         )
         # NOTE: logic is same as check_call
         # directly inline here to simplify traceback
         if c_api_ret_code == 0:
-            return make_ret(result, c_dlpack_importer)
+            return make_ret(result, c_dlpack_to_pyobject)
         elif c_api_ret_code == -2:
             raise_existing_error()
         raise move_from_last_error().py_error()

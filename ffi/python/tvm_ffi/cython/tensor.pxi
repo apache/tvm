@@ -275,7 +275,7 @@ _set_class_tensor(Tensor)
 _register_object_by_index(kTVMFFITensor, Tensor)
 
 
-cdef int _dltensor_test_wrapper_c_dlpack_exporter(
+cdef int _dltensor_test_wrapper_c_dlpack_from_pyobject(
     void* obj, DLManagedTensorVersioned** out, TVMFFIStreamHandle* env_stream
 ) except -1:
     cdef PyObject* py_obj = <PyObject*>obj
@@ -291,8 +291,8 @@ cdef int _dltensor_test_wrapper_c_dlpack_exporter(
     return TVMFFITensorToDLPackVersioned(wrapper.tensor.chandle, out)
 
 
-def _dltensor_test_wrapper_c_dlpack_exporter_as_intptr():
-    cdef DLPackPyObjectExporter converter_func = _dltensor_test_wrapper_c_dlpack_exporter
+def _dltensor_test_wrapper_c_dlpack_from_pyobject_as_intptr():
+    cdef DLPackFromPyObject converter_func = _dltensor_test_wrapper_c_dlpack_from_pyobject
     cdef void* temp_ptr = <void*>converter_func
     cdef long long temp_int_ptr = <long long>temp_ptr
     return temp_int_ptr
@@ -301,7 +301,7 @@ def _dltensor_test_wrapper_c_dlpack_exporter_as_intptr():
 cdef class DLTensorTestWrapper:
     """Wrapper of a Tensor that exposes DLPack protocol, only for testing purpose.
     """
-    __c_dlpack_exporter__ = _dltensor_test_wrapper_c_dlpack_exporter_as_intptr()
+    __c_dlpack_from_pyobject__ = _dltensor_test_wrapper_c_dlpack_from_pyobject_as_intptr()
 
     cdef Tensor tensor
     cdef dict __dict__
@@ -333,19 +333,19 @@ cdef inline object make_ret_dltensor(TVMFFIAny result):
     return tensor
 
 
-cdef inline object make_tensor_from_chandle(TVMFFIObjectHandle chandle, DLPackPyObjectImporter c_dlpack_importer = NULL):
+cdef inline object make_tensor_from_chandle(TVMFFIObjectHandle chandle, DLPackToPyObject c_dlpack_to_pyobject = NULL):
     # TODO: Implement
     cdef Tensor tensor
     cdef void* py_obj
     cdef DLManagedTensorVersioned* dlpack
 
-    if c_dlpack_importer != NULL:
+    if c_dlpack_to_pyobject != NULL:
         # try convert and import into the environment array if possible
         if TVMFFITensorToDLPackVersioned(chandle, &dlpack) == 0:
             try:
                 # note that py_obj already holds an extra reference to the tensor
                 # so we need to decref it after the conversion
-                c_dlpack_importer(dlpack, &py_obj)
+                c_dlpack_to_pyobject(dlpack, &py_obj)
                 tensor = <Tensor>(<PyObject*>py_obj)
                 Py_DECREF(tensor)
                 return tensor
@@ -358,5 +358,5 @@ cdef inline object make_tensor_from_chandle(TVMFFIObjectHandle chandle, DLPackPy
     return tensor
 
 
-cdef inline object make_tensor_from_any(TVMFFIAny any, DLPackPyObjectImporter c_dlpack_importer):
-    return make_tensor_from_chandle(any.v_ptr, c_dlpack_importer)
+cdef inline object make_tensor_from_any(TVMFFIAny any, DLPackToPyObject c_dlpack_to_pyobject):
+    return make_tensor_from_chandle(any.v_ptr, c_dlpack_to_pyobject)
