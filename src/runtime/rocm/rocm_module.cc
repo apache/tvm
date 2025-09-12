@@ -172,7 +172,7 @@ class ROCMWrappedFunc {
       fcache_[device_id] = m_->GetFunc(device_id, func_name_);
     }
 
-    hipStream_t strm = static_cast<hipStream_t>(TVMFFIEnvGetCurrentStream(kDLROCM, device_id));
+    hipStream_t strm = static_cast<hipStream_t>(TVMFFIEnvGetStream(kDLROCM, device_id));
 
     ThreadWorkLoad wl = launch_param_config_.Extract(args);
     void* config[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER, packed_args, HIP_LAUNCH_PARAM_BUFFER_SIZE,
