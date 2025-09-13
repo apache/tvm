@@ -99,16 +99,14 @@ def rope_freq_llama4(  # pylint: disable=too-many-arguments,too-many-locals
         threshold_wavelen = tir.const(original_max_position_embeddings / low_freq_factor, "float32")
 
         scaled_freq = tir.if_then_else(
-            wavelength > threshold_wavelen,
-            orig_freq_var / factor,
-            orig_freq_var
+            wavelength > threshold_wavelen, orig_freq_var / factor, orig_freq_var
         )
         smoothed_freq = s * scaled_freq
-        
+
     else:
         # Original smooth interpolation logic
         inv_diff_freq_factor = 1.0 / (high_freq_factor - low_freq_factor)
-        
+
         llama3_alpha = original_max_position_embeddings / (2 * math.pi) * inv_diff_freq_factor
         llama3_beta = low_freq_factor * inv_diff_freq_factor
         smooth = tir.max(0.0, tir.min(1.0, llama3_alpha * orig_freq_var - llama3_beta))
@@ -120,6 +118,7 @@ def rope_freq_llama4(  # pylint: disable=too-many-arguments,too-many-locals
     cos_freq = tir.cos(smoothed_freq_var).astype(dtype)
     sin_freq = tir.sin(smoothed_freq_var).astype(dtype)
     return cos_freq, sin_freq, {smoothed_freq_var: smoothed_freq, orig_freq_var: orig_freq}
+
 
 def rope_freq_llama3(  # pylint: disable=too-many-arguments,too-many-locals
     s: tir.Var,
@@ -668,8 +667,8 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
                 x[s, h, d - 1],
             ).astype("float32")
         else:
-            # Data layout is different for llama4 vs llama3 
-            sin = sin_freq * tir.if_then_else(               
+            # Data layout is different for llama4 vs llama3
+            sin = sin_freq * tir.if_then_else(
                 d % 2 == 0,
                 -x[s, h, d + 1],
                 x[s, h, d - 1],

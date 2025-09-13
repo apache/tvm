@@ -1173,6 +1173,7 @@ def exp(x: Tensor, name: str = "exp") -> Tensor:
     """
     return wrap_nested(_op.exp(x._expr), name)
 
+
 def log(x: Tensor, name: str = "log") -> Tensor:
     r"""Applies the natural logarithm function.
 
@@ -1196,6 +1197,7 @@ def log(x: Tensor, name: str = "log") -> Tensor:
     The input tensor is required to have float dtype
     """
     return wrap_nested(_op.log(x._expr), name)
+
 
 def floor(x: Tensor, name: str = "floor") -> Tensor:
     r"""Computes the floor of the input tensor.
@@ -1222,7 +1224,14 @@ def floor(x: Tensor, name: str = "floor") -> Tensor:
     """
     return wrap_nested(_op.floor(x._expr), name)
 
-def arange(start: int, end: Optional[int] = None, step: int = 1, dtype: Optional[str] = "float32", name: str = "arange") -> Tensor:
+
+def arange(
+    start: int,
+    end: Optional[int] = None,
+    step: int = 1,
+    dtype: Optional[str] = "float32",
+    name: str = "arange",
+) -> Tensor:
     r"""Construct a tensor with evenly spaced elements.
 
     Parameters
@@ -1249,6 +1258,7 @@ def arange(start: int, end: Optional[int] = None, step: int = 1, dtype: Optional
         The computed result.
     """
     return wrap_nested(_op.arange(start, end, step, dtype), name)
+
 
 def permute(x: Tensor, axes: Optional[List[int]], name: str = "permute") -> Tensor:
     """Permutes the dimensions of the input tensor.
@@ -2081,7 +2091,6 @@ def tensor_ir_op(
 
     if len(tir_vars) == 0:
         tir_vars = None
-
 
     return wrap_nested(
         bb.emit(rx.call_tir(global_var, call_tir_args, out_sinfo, tir_vars=tir_vars)),
