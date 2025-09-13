@@ -108,11 +108,11 @@ void DSOLibrary::Unload() {
 }
 #endif
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ffi.Module.load_from_file.so", [](String library_path, String) {
     return CreateLibraryModule(make_object<DSOLibrary>(library_path));
   });
-});
+}
 }  // namespace ffi
 }  // namespace tvm

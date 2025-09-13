@@ -55,14 +55,14 @@ Runner Runner::PyRunner(Runner::FRun f_run) {
 
 /******** FFI ********/
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   RunnerInputNode::RegisterReflection();
   RunnerResultNode::RegisterReflection();
   RunnerFutureNode::RegisterReflection();
   PyRunnerNode::RegisterReflection();
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("meta_schedule.RunnerInput",
@@ -79,7 +79,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_method("meta_schedule.RunnerFutureResult", &RunnerFutureNode::Result)
       .def_method("meta_schedule.RunnerRun", &RunnerNode::Run)
       .def("meta_schedule.RunnerPyRunner", Runner::PyRunner);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

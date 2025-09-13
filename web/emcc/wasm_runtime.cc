@@ -105,7 +105,7 @@ void LogMessageImpl(const std::string& file, int lineno, int level, const std::s
 
 }  // namespace detail
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvmjs.testing.call",
@@ -120,7 +120,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         ffi::Function pf = args[0].cast<ffi::Function>();
         *ret = ffi::TypedFunction<void()>([pf]() { pf(); });
       });
-});
+}
 
 void ArrayDecodeStorage(Tensor cpu_arr, std::string bytes, std::string format, std::string dtype) {
   if (format == "f32-to-bf16" && dtype == "float32") {
@@ -143,13 +143,13 @@ void ArrayDecodeStorage(Tensor cpu_arr, std::string bytes, std::string format, s
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tvmjs.array.decode_storage", ArrayDecodeStorage);
-});
+}
 
 // Concatenate n TVMArrays
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvmjs.runtime.ArrayConcat",
                                [](ffi::PackedArgs args, ffi::Any* ret) {
@@ -165,7 +165,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                                  }
                                  *ret = ffi::Array<Any>(data);
                                });
-});
+}
 
 Tensor ConcatEmbeddings(const std::vector<Tensor>& embeddings) {
   // Get output shape
@@ -202,7 +202,7 @@ Tensor ConcatEmbeddings(const std::vector<Tensor>& embeddings) {
 }
 
 // Concatenate n Tensors
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvmjs.runtime.ConcatEmbeddings",
@@ -223,7 +223,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         nd.CopyToBytes(bytes.data(), size);
         return ffi::Bytes(bytes);
       });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

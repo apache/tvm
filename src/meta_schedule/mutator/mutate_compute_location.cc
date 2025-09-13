@@ -131,13 +131,13 @@ Mutator Mutator::MutateComputeLocation() {
   return Mutator(ffi::make_object<MutateComputeLocationNode>());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ MutateComputeLocationNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { MutateComputeLocationNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.MutatorMutateComputeLocation",
                         Mutator::MutateComputeLocation);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

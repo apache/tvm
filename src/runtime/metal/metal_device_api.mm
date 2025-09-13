@@ -352,7 +352,7 @@ typedef dmlc::ThreadLocalStore<MetalThreadEntry> MetalThreadStore;
 
 MetalThreadEntry* MetalThreadEntry::ThreadLocal() { return MetalThreadStore::Get(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("device_api.metal",
@@ -362,7 +362,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                   })
       .def("metal.ResetGlobalState",
            []() { MetalWorkspace::Global()->ReinitializeDefaultStreams(); });
-});
+}
 
 class MetalTimerNode : public TimerNode {
  public:
@@ -392,11 +392,11 @@ class MetalTimerNode : public TimerNode {
   MTLTimestamp stop_gpu_time_;
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("profiling.timer.metal",
                         [](Device dev) { return Timer(ffi::make_object<MetalTimerNode>(dev)); });
-});
+}
 
 }  // namespace metal
 }  // namespace runtime

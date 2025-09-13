@@ -459,12 +459,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << f_as_string();
     });
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   ScheduleRuleNode::RegisterReflection();
   PyScheduleRuleNode::RegisterReflection();
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("meta_schedule.ScheduleRuleInitializeWithTuneContext",
@@ -477,7 +477,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("meta_schedule.ScheduleRuleDefaultCUDATensorCore", ScheduleRule::DefaultCUDATensorCore)
       .def("meta_schedule.ScheduleRuleDefaultHexagon", ScheduleRule::DefaultHexagon)
       .def("meta_schedule.ScheduleRuleDefaultARM", ScheduleRule::DefaultARM);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -802,9 +802,9 @@ ffi::Array<Schedule> EvolutionarySearchEvolveWithCostModel(EvolutionarySearch se
   return result;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ EvolutionarySearchNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { EvolutionarySearchNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("meta_schedule.SearchStrategyEvolutionarySearch", SearchStrategy::EvolutionarySearch)
@@ -812,7 +812,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
            EvolutionarySearchSampleInitPopulation)
       .def("meta_schedule.SearchStrategyEvolutionarySearchEvolveWithCostModel",
            EvolutionarySearchEvolveWithCostModel);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

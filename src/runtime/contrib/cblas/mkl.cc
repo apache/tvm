@@ -155,7 +155,7 @@ struct MKLDgemmBatchIterativeOp {
 };
 
 // matrix multiplication for row major
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.contrib.mkl.matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
     auto A = args[0].cast<DLTensor*>();
@@ -166,10 +166,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
     else
       CallGemm(args, ret, MKLDgemmOp());
   });
-});
+}
 
 // integer matrix multiplication for row major
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvm.contrib.mkl.matmul_u8s8s32",
@@ -202,6 +202,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
                       CallBatchGemm(args, ret, MKLDgemmBatchIterativeOp());
                     }
                   });
-});
+}
 }  // namespace contrib
 }  // namespace tvm

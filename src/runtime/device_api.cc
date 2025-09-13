@@ -175,7 +175,7 @@ TVMStreamHandle DeviceAPI::GetCurrentStream(Device dev) {
 void DeviceAPI::SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.Device_StreamCreate",
@@ -198,10 +198,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
         DeviceAPIManager::Get(dev)->SyncStreamFromTo(dev, reinterpret_cast<TVMStreamHandle>(src),
                                                      reinterpret_cast<TVMStreamHandle>(dst));
       });
-});
+}
 
 // set device api
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed(tvm::runtime::symbol::tvm_set_device,
@@ -235,7 +235,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         dev.device_id = device_id;
         DeviceAPIManager::Get(dev)->SetStream(dev, stream);
       });
-});
+}
 }  // namespace runtime
 }  // namespace tvm
 

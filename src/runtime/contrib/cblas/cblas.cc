@@ -124,7 +124,7 @@ struct CblasDgemmBatchIterativeOp {
 };
 
 // matrix multiplication for row major
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvm.contrib.cblas.matmul",
@@ -157,6 +157,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
                       CallBatchGemm(args, ret, CblasDgemmBatchIterativeOp());
                     }
                   });
-});
+}
 }  // namespace contrib
 }  // namespace tvm

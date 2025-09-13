@@ -32,10 +32,10 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   StatisticalAttrs::RegisterReflection();
   ScanopAttrs::RegisterReflection();
-});
+}
 
 StructInfo InferStructInfoStatistical(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -192,10 +192,10 @@ Expr cumprod(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DataType> dty
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.cumprod", cumprod);
-});
+}
 
 TVM_REGISTER_OP("relax.cumprod")
     .set_attrs_type<ScanopAttrs>()
@@ -215,10 +215,10 @@ Expr cumsum(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DataType> dtyp
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.cumsum", cumsum);
-});
+}
 
 TVM_REGISTER_OP("relax.cumsum")
     .set_attrs_type<ScanopAttrs>()

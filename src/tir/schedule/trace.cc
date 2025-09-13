@@ -23,7 +23,7 @@
 namespace tvm {
 namespace tir {
 
-TVM_FFI_STATIC_INIT_BLOCK({ TraceNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { TraceNode::RegisterReflection(); }
 
 /**************** Constructors  ****************/
 
@@ -568,7 +568,7 @@ TVM_REGISTER_INST_KIND_TRAITS(EnterPostprocTraits);
 
 /**************** FFI ****************/
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.schedule.Trace",
@@ -592,7 +592,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_method("tir.schedule.TraceWithDecision", &TraceNode::WithDecision)
       .def_method("tir.schedule.TraceSimplified", &TraceNode::Simplified)
       .def("tir.schedule.TraceApplyJSONToSchedule", Trace::ApplyJSONToSchedule);
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

@@ -451,7 +451,7 @@ VulkanDevice& VulkanDeviceAPI::device(size_t device_id) {
   return const_cast<VulkanDevice&>(const_cast<const VulkanDeviceAPI*>(this)->device(device_id));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("device_api.vulkan",
@@ -464,7 +464,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         VulkanDeviceAPI::Global()->GetTargetProperty(dev, property, &rv);
         return rv;
       });
-});
+}
 
 }  // namespace vulkan
 }  // namespace runtime

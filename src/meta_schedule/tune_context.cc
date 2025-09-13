@@ -65,9 +65,9 @@ void TuneContextNode::Initialize() {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ TuneContextNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { TuneContextNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("meta_schedule.TuneContext",
@@ -81,7 +81,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("meta_schedule._SHash2Hex", SHash2Hex)
       .def_method("meta_schedule.TuneContextInitialize", &TuneContextNode::Initialize)
       .def_method("meta_schedule.TuneContextClone", &TuneContextNode::Clone);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

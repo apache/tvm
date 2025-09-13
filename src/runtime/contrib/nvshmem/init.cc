@@ -121,14 +121,14 @@ void NVSHMEMXCumoduleInit(void* cuModule) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.disco.nvshmem.init_nvshmem_uid", InitNVSHMEMUID)
       .def("runtime.disco.nvshmem.init_nvshmem", InitNVSHMEM)
       .def("runtime.disco.nvshmem.init_nvshmem_wrapper", InitNVSHMEMWrapper)
       .def("runtime.nvshmem.cumodule_init", NVSHMEMXCumoduleInit);
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

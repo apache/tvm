@@ -238,13 +238,13 @@ ffi::Module ROCMModuleLoadFromBytes(const ffi::Bytes& bytes) {
   return ROCMModuleCreate(data, fmt, fmap, std::string(), std::string());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ffi.Module.load_from_bytes.hsaco", ROCMModuleLoadFromBytes)
       .def("ffi.Module.load_from_bytes.hip", ROCMModuleLoadFromBytes)
       .def("ffi.Module.load_from_file.hsaco", ROCMModuleLoadFile)
       .def("ffi.Module.load_from_file.hip", ROCMModuleLoadFile);
-});
+}
 }  // namespace runtime
 }  // namespace tvm

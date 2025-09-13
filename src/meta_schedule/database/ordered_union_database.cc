@@ -83,13 +83,13 @@ Database Database::OrderedUnionDatabase(ffi::Array<Database> databases) {
   return Database(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.DatabaseOrderedUnionDatabase",
                         Database::OrderedUnionDatabase);
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({ OrderedUnionDatabaseNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { OrderedUnionDatabaseNode::RegisterReflection(); }
 
 }  // namespace meta_schedule
 }  // namespace tvm

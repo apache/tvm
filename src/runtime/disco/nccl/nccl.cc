@@ -327,7 +327,7 @@ void SyncWorker() {
   StreamSynchronize(stream);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.disco.compiled_ccl", []() -> ffi::String { return TVM_DISCO_CCL_NAME; })
@@ -372,7 +372,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           tvm::runtime::nccl::RecvFromWorker(buffer, 2);
         }
       });
-});
+}
 
 }  // namespace nccl
 }  // namespace runtime

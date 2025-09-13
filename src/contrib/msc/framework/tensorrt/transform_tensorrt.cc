@@ -918,10 +918,10 @@ Pass TransformTensorRT(const ffi::String& config) {
   return CreateFunctionPass(pass_func, 0, "TransformTensorRT", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.TransformTensorRT", TransformTensorRT);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

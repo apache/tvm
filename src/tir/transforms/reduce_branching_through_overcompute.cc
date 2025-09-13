@@ -61,7 +61,7 @@ class ReduceBranchingThroughOvercomputeConfig : public Attrs {
                                                 ReduceBranchingThroughOvercomputeConfigNode);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ ReduceBranchingThroughOvercomputeConfigNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { ReduceBranchingThroughOvercomputeConfigNode::RegisterReflection(); }
 
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.ReduceBranchingThroughOvercompute",
                                 ReduceBranchingThroughOvercomputeConfig);
@@ -175,11 +175,11 @@ Pass ReduceBranchingThroughOvercompute() {
   return CreatePrimFuncPass(pass_func, 0, "tir.ReduceBranchingThroughOvercompute", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.ReduceBranchingThroughOvercompute",
                         ReduceBranchingThroughOvercompute);
-});
+}
 
 }  // namespace transform
 

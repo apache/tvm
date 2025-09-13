@@ -100,10 +100,10 @@ Pass LowerAllocTensor() {
   return CreateFunctionPass(pass_func, /*opt_level=*/0, "LowerAllocTensor", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.LowerAllocTensor", LowerAllocTensor);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

@@ -720,11 +720,11 @@ json::Value Parse(const String& json_str, String* error_msg) {
   return JSONParser::Parse(json_str, error_msg);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ffi.json.Parse",
                         [](const String& json_str) { return json::Parse(json_str); });
-});
+}
 
 }  // namespace json
 }  // namespace ffi

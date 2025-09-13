@@ -109,12 +109,12 @@ Postproc Postproc::RewriteTensorize(bool vectorize_init_loop) {
   return Postproc(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ RewriteTensorizeNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { RewriteTensorizeNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.PostprocRewriteTensorize", Postproc::RewriteTensorize);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -164,7 +164,7 @@ Pass CreateFunctionPass(std::function<Function(Function, IRModule, PassContext)>
   return FunctionPass(std::move(pass_func), pass_info);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.transform.MakeFunctionPass",
@@ -175,7 +175,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         };
         return FunctionPass(wrapped_pass_func, pass_info);
       });
-});
+}
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<FunctionPassNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -386,7 +386,7 @@ Pass CreateDataflowBlockPass(
   return DataflowBlockPass(std::move(pass_func), pass_info);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.transform.MakeDataflowBlockPass",
@@ -398,7 +398,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         };
         return DataflowBlockPass(wrapped_pass_func, pass_info);
       });
-});
+}
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<DataflowBlockPassNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -408,10 +408,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << info->opt_level;
     });
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   FunctionPassNode::RegisterReflection();
   DataflowBlockPassNode::RegisterReflection();
-});
+}
 
 }  // namespace transform
 }  // namespace relax

@@ -48,10 +48,10 @@ Expr unique(Expr x, PrimValue sorted, PrimValue return_index, PrimValue return_i
   return call;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.unique", unique);
-});
+}
 
 StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = Downcast<TensorStructInfo>(call->args[0]->struct_info_);
@@ -149,10 +149,10 @@ Expr nonzero(Expr x) {
   return Call(op, {std::move(x)});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nonzero", nonzero);
-});
+}
 
 StructInfo InferStructInfoNonzero(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetInputTensorStructInfo(call, 0, ctx);

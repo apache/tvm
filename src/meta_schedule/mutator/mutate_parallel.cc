@@ -312,12 +312,12 @@ Mutator Mutator::MutateParallel(int64_t max_jobs_per_core) {
   return Mutator(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ MutateParallelNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { MutateParallelNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.MutatorMutateParallel", Mutator::MutateParallel);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -46,7 +46,7 @@ struct TestObjADerived : public TestObjA {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("test.TestObjADerived", TestObjADerived, TestObjA);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
 
   TIntObj::RegisterReflection();
@@ -58,7 +58,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
   refl::ObjectDef<TestObjA>().def_ro("x", &TestObjA::x).def_rw("y", &TestObjA::y);
   refl::ObjectDef<TestObjADerived>().def_ro("z", &TestObjADerived::z);
-});
+}
 
 TEST(Reflection, GetFieldByteOffset) {
   EXPECT_EQ(reflection::GetFieldByteOffsetToObject(&TestObjA::x), sizeof(TVMFFIObject));
@@ -147,10 +147,10 @@ TEST(Reflection, TypeAttrColumn) {
   EXPECT_EQ(size_attr[TIntObj::_type_index].cast<int>(), sizeof(TIntObj));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_method("testing.Int_GetValue", &TIntObj::GetValue);
-});
+}
 
 TEST(Reflection, FuncRegister) {
   Function fget_value = Function::GetGlobalRequired("testing.Int_GetValue");

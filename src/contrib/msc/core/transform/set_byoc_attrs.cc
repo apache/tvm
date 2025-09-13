@@ -103,10 +103,10 @@ Pass SetBYOCAttrs(const ffi::String& target, const ffi::String& entry_name) {
   return CreateModulePass(pass_func, 0, "SetBYOCAttrs", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.SetBYOCAttrs", SetBYOCAttrs);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

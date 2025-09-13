@@ -1053,7 +1053,7 @@ BlockBuilder BlockBuilder::Create(ffi::Optional<IRModule> mod,
 // User facing function registration.
 //---------------------------------------
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.BlockBuilderCreate",
@@ -1090,6 +1090,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_method("relax.BlockBuilderLookupBinding", &BlockBuilderNode::LookupBinding)
       .def_method("relax.BlockBuilderBeginScope", &BlockBuilderNode::BeginScope)
       .def_method("relax.BlockBuilderEndScope", &BlockBuilderNode::EndScope);
-});
+}
 }  // namespace relax
 }  // namespace tvm

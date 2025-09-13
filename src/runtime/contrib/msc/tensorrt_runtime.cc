@@ -351,13 +351,13 @@ ffi::Module MSCTensorRTRuntimeCreate(const ffi::String& symbol_name, const ffi::
   return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.msc_tensorrt_runtime_create", MSCTensorRTRuntimeCreate)
       .def("ffi.Module.load_from_bytes.msc_tensorrt",
            JSONRuntimeBase::LoadFromBytes<MSCTensorRTRuntime>);
-});
+}
 
 }  // namespace contrib
 }  // namespace runtime

@@ -64,7 +64,7 @@ static ffi::Array<tir::LoopRV> ScheduleDataPack(tir::Schedule sch, tir::BlockRV 
   return {t0[0], t1[0], t0[1], t1[1]};
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("meta_schedule.cuda.conv2d_nhwc_winograd_data_pack",
@@ -161,7 +161,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              }
              return {sch};
            });
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

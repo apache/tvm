@@ -80,10 +80,10 @@ The following example registers PackedFunc in C++ and calls from python.
 .. code:: c
 
     // register a global packed function in c++
-    TVM_FFI_STATIC_INIT_BLOCK({
+    TVM_FFI_STATIC_INIT_BLOCK() {
       namespace refl = tvm::ffi::reflection;
       refl::GlobalDef().def_packed("myadd", MyAdd);
-    });
+    }
 
 .. code:: python
 
@@ -112,13 +112,13 @@ we can pass functions from python (as PackedFunc) to C++.
 
 .. code:: c
 
-    TVM_FFI_STATIC_INIT_BLOCK({
+    TVM_FFI_STATIC_INIT_BLOCK() {
       namespace refl = tvm::ffi::reflection;
       refl::GlobalDef().def_packed("callhello", [](ffi::PackedArgs args, ffi::Any* rv) {
         ffi::Function f = args[0].cast<ffi::Function>();
         f("hello world");
       });
-    });
+    }
 
 .. code:: python
 
@@ -230,7 +230,7 @@ Each ``Object`` subclass will override this to register its members. Here is an 
     TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.IntImm", IntImmNode, PrimExprNode);
   };
   // in cc file
-  TVM_FFI_STATIC_INIT_BLOCK({ IntImmNode::RegisterReflection(); });
+  TVM_FFI_STATIC_INIT_BLOCK() { IntImmNode::RegisterReflection(); }
 
 The RegisterReflection gives us a reflection API to register each member of the object.
 We can use this function to visit the node and serialize any language object recursively.
