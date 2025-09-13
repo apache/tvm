@@ -592,7 +592,7 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
   return HexagonModuleCreate(so_name, "so", ExtractFuncInfo(mod), asm_str, obj_str, ir_str, bc_str);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("target.build.hexagon", BuildHexagon)
@@ -600,7 +600,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                   [](const ffi::PackedArgs& targs, ffi::Any* rv) {
                     *rv = static_cast<void*>(new CodeGenHexagon());
                   });
-});
+}
 
 }  // namespace codegen
 }  // namespace tvm

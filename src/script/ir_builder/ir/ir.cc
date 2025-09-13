@@ -161,7 +161,7 @@ VDevice LookupVDevice(ffi::String target_kind, int device_index) {
   return VDevice();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("script.ir_builder.ir.IRModule", IRModule)
@@ -172,7 +172,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("script.ir_builder.ir.ModuleSetAttr", ModuleSetAttr)
       .def("script.ir_builder.ir.ModuleGlobalInfos", ModuleGlobalInfos)
       .def("script.ir_builder.ir.LookupVDevice", LookupVDevice);
-});
+}
 
 }  // namespace ir
 }  // namespace ir_builder

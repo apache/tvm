@@ -361,14 +361,14 @@ ffi::Module BuildAMDGPU(IRModule mod, Target target) {
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(mod), ll, assembly);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("target.build.rocm", BuildAMDGPU)
       .def_packed("tvm.codegen.llvm.target_rocm", [](const ffi::PackedArgs& targs, ffi::Any* rv) {
         *rv = static_cast<void*>(new CodeGenAMDGPU());
       });
-});
+}
 
 }  // namespace codegen
 }  // namespace tvm

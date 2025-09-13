@@ -73,7 +73,7 @@ class UnrollLoopConfig : public Attrs {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(UnrollLoopConfig, Attrs, UnrollLoopConfigNode);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ UnrollLoopConfigNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { UnrollLoopConfigNode::RegisterReflection(); }
 
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.UnrollLoop", UnrollLoopConfig);
 
@@ -292,10 +292,10 @@ Pass UnrollLoop() {
   return CreatePrimFuncPass(pass_func, 0, "tir.UnrollLoop", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.UnrollLoop", UnrollLoop);
-});
+}
 
 }  // namespace transform
 

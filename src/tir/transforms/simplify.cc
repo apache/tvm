@@ -142,7 +142,7 @@ class SimplifyConfig : public Attrs {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SimplifyConfig, Attrs, SimplifyConfigNode);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ SimplifyConfigNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { SimplifyConfigNode::RegisterReflection(); }
 
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.Simplify", SimplifyConfig);
 
@@ -362,10 +362,10 @@ Pass Simplify() {
   return CreatePrimFuncPass(pass_func, 0, "tir.Simplify", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.Simplify", Simplify);
-});
+}
 
 }  // namespace transform
 }  // namespace tir

@@ -30,7 +30,7 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ir.BaseFunc_Attrs", [](BaseFunc func) { return func->attrs; })
@@ -78,6 +78,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
                TVM_FFI_UNREACHABLE();
              }
            });
-});
+}
 
 }  // namespace tvm

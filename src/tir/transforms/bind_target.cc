@@ -373,10 +373,10 @@ transform::Pass BindTarget(Target target) {
   return tir::transform::CreateModulePass(fpass, 0, "tir.BindTarget", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.BindTarget", BindTarget);
-});
+}
 
 }  // namespace transform
 }  // namespace tir

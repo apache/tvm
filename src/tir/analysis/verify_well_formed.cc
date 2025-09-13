@@ -371,7 +371,7 @@ bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
   return true;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.analysis.VerifyWellFormed", [](const ObjectRef& obj,
                                                             bool assert_mode) {
@@ -384,7 +384,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                  << obj->GetTypeKey();
     }
   });
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

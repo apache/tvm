@@ -35,7 +35,7 @@
 namespace tvm {
 namespace tir {
 
-TVM_FFI_STATIC_INIT_BLOCK({ IndexMapNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { IndexMapNode::RegisterReflection(); }
 
 IndexMap::IndexMap(ffi::Array<Var> initial_indices, ffi::Array<PrimExpr> final_indices,
                    ffi::Optional<IndexMap> inverse_index_map) {
@@ -423,7 +423,7 @@ IndexMap Substitute(const IndexMap& index_map,
   return IndexMap{index_map->initial_indices, new_output, new_inverse_map};
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.IndexMap",
@@ -454,7 +454,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              auto result = forward.NonSurjectiveInverse(initial_ranges, &analyzer);
              return ffi::Array<ObjectRef>{result.first, result.second};
            });
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

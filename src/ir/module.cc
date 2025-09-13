@@ -36,7 +36,7 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK({ IRModuleNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { IRModuleNode::RegisterReflection(); }
 
 IRModule::IRModule(tvm::ffi::Map<GlobalVar, BaseFunc> functions, SourceMap source_map,
                    DictAttrs attrs, ffi::Map<ffi::String, ffi::Array<GlobalInfo>> global_infos) {
@@ -225,7 +225,7 @@ IRModule IRModule::FromExpr(const RelaxExpr& expr,
   return mod;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ir.IRModule",
@@ -312,6 +312,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
            })
       .def("ir.Module_GetAttr",
            [](IRModule mod, ffi::String key) -> ObjectRef { return mod->GetAttr<ObjectRef>(key); });
-});
+}
 
 }  // namespace tvm

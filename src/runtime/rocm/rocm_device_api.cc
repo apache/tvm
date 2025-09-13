@@ -245,7 +245,7 @@ ROCMThreadEntry::ROCMThreadEntry() : pool(kDLROCM, ROCMDeviceAPI::Global()) {}
 
 ROCMThreadEntry* ROCMThreadEntry::ThreadLocal() { return ROCMThreadStore::Get(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("device_api.rocm",
@@ -257,7 +257,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         DeviceAPI* ptr = ROCMDeviceAPI::Global();
         *rv = static_cast<void*>(ptr);
       });
-});
+}
 
 class ROCMTimerNode : public TimerNode {
  public:
@@ -294,7 +294,7 @@ class ROCMTimerNode : public TimerNode {
   TVMStreamHandle stream_;
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("profiling.timer.rocm",
@@ -304,7 +304,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         ROCM_CALL(hipGetDevice(&device_id));
         return static_cast<void*>(TVMFFIEnvGetStream(kDLROCM, device_id));
       });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

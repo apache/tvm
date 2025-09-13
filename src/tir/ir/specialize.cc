@@ -434,10 +434,10 @@ PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<Buffer, Prim
 
 /**************** FFI ****************/
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.Specialize", Specialize);
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

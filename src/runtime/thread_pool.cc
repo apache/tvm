@@ -379,7 +379,7 @@ class ThreadPool {
  * \brief args[0] is the AffinityMode, args[1] is the number of threads.
  *  args2 is a list of CPUs which is used to set the CPU affinity.
  */
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("runtime.config_threadpool",
@@ -399,7 +399,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     threading::Configure(mode, nthreads, cpus);
                   })
       .def("runtime.NumThreads", []() -> int32_t { return threading::NumThreads(); });
-});
+}
 
 namespace threading {
 
