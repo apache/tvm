@@ -1884,8 +1884,7 @@ def ret(val, span=None):
 
 
 def thread_return(span=None):
-    """Return from a GPU thread.
-
+    """Return from a GPU thread
     Parameters
     ----------
     span : Optional[Span]
@@ -1898,6 +1897,40 @@ def thread_return(span=None):
     """
 
     return _ffi_api.thread_return(span)
+
+
+def continue_loop(span=None):
+    """Create a tir intrinsic call to represent continue expression
+
+    Parameters
+    ----------
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    ret : PrimExpr
+        The continue expression
+    """
+
+    return _ffi_api.continue_loop(span)
+
+
+def break_loop(span=None):
+    """Create a tir intrinsic call to represent break expression
+
+    Parameters
+    ----------
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    ret : PrimExpr
+        The break expression
+    """
+
+    return _ffi_api.break_loop(span)
 
 
 def any(*args, span=None):
