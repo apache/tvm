@@ -238,8 +238,6 @@ class BasePyModule:
         if func_name not in self.pyfuncs:
             raise ValueError(f"Python function '{func_name}' not found in module pyfuncs")
         py_func = self.pyfuncs[func_name]
-        # args 已经是 PyTorch 张量，不需要转换
-        # py_func 是绑定到 self 的方法，需要传递 self 作为第一个参数
         return py_func(self, *args)
 
     def _create_output_tensors(self, out_sinfo, in_args=None):

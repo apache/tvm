@@ -30,6 +30,7 @@ from tvm.relax import (
     Expr,
     ExternFunc,
     ShapeExpr,
+    StringImm,
     TupleGetItem,
     Var,
     VarBinding,
@@ -64,6 +65,7 @@ from tvm.relax.op import (
     call_dps_packed,
     call_inplace_packed,
     call_pure_packed,
+    call_py_func as _call_py_func,
     call_tir,
     call_tir_inplace,
     call_tir_with_grad,
@@ -453,15 +455,15 @@ def call_packed(
 
 @args_converter.auto
 def call_py_func(
-    func_name: py_str,
+    py_func_name: py_str,
     *args: Expr,
     out_sinfo: Union[StructInfo, List[StructInfo]],
 ) -> Call:
     """Create a relax Call, which calls a Python function.
-    
+
     Parameters
     ----------
-    func_name: str
+    py_func_name: str
         The name of the Python function to call. This should correspond to a function
         in the IRModule's pyfuncs attribute.
     *args : Expr
@@ -476,9 +478,6 @@ def call_py_func(
     call: Call
         The created Relax Call for call_py_func operator.
     """
-    from tvm.relax.op import call_py_func as _call_py_func
-    from tvm.relax.expr import StringImm
-    
     if isinstance(out_sinfo, py_tuple):  # type: ignore
         out_sinfo = list(out_sinfo)
     elif not isinstance(out_sinfo, list):
@@ -497,9 +496,9 @@ def call_py_func(
 
     # Convert string to StringImm
     try:
-        func_name_imm = StringImm(func_name) if hasattr(func_name, 'strip') else func_name
-    except:
-        func_name_imm = StringImm(func_name)
+        func_name_imm = StringImm(py_func_name) if hasattr(py_func_name, "strip") else py_func_name
+    except Exception:
+        func_name_imm = StringImm(py_func_name)
     return _call_py_func(func_name_imm, args, out_sinfo)
 
 
