@@ -51,9 +51,8 @@ cdef inline object _from_dlpack_intptr(
     cdef int c_api_ret_code
     cdef int c_req_alignment = 0
     cdef int c_req_contiguous = 0
-    with nogil:
-        c_api_ret_code = TVMFFITensorFromDLPack(
-            ptr, c_req_alignment, c_req_contiguous, &chandle)
+    c_api_ret_code = TVMFFITensorFromDLPack(
+        ptr, c_req_alignment, c_req_contiguous, &chandle)
     CHECK_CALL(c_api_ret_code)
     return make_tensor_from_chandle(chandle)
 
@@ -68,9 +67,8 @@ cdef inline int _from_dlpack(
     cdef int c_req_contiguous = require_contiguous
     if pycapsule.PyCapsule_IsValid(dltensor, _c_str_dltensor):
         ptr = <DLManagedTensor*>pycapsule.PyCapsule_GetPointer(dltensor, _c_str_dltensor)
-        with nogil:
-            c_api_ret_code = TVMFFITensorFromDLPack(
-                ptr, c_req_alignment, c_req_contiguous, out)
+        c_api_ret_code = TVMFFITensorFromDLPack(
+            ptr, c_req_alignment, c_req_contiguous, out)
         CHECK_CALL(c_api_ret_code)
         # set name and destructor to be empty
         pycapsule.PyCapsule_SetDestructor(dltensor, NULL)
@@ -90,9 +88,8 @@ cdef inline int _from_dlpack_versioned(
     if pycapsule.PyCapsule_IsValid(dltensor, _c_str_dltensor_versioned):
         ptr = <DLManagedTensorVersioned*>pycapsule.PyCapsule_GetPointer(
             dltensor, _c_str_dltensor_versioned)
-        with nogil:
-            c_api_ret_code = TVMFFITensorFromDLPackVersioned(
-                ptr, c_req_alignment, c_req_contiguous, out)
+        c_api_ret_code = TVMFFITensorFromDLPackVersioned(
+            ptr, c_req_alignment, c_req_contiguous, out)
         CHECK_CALL(c_api_ret_code)
         # set name and destructor to be empty
         pycapsule.PyCapsule_SetDestructor(dltensor, NULL)
@@ -209,18 +206,14 @@ cdef class Tensor(Object):
     def _to_dlpack(self):
         cdef DLManagedTensor* dltensor
         cdef int c_api_ret_code
-
-        with nogil:
-            c_api_ret_code = TVMFFITensorToDLPack(self.chandle, &dltensor)
+        c_api_ret_code = TVMFFITensorToDLPack(self.chandle, &dltensor)
         CHECK_CALL(c_api_ret_code)
         return pycapsule.PyCapsule_New(dltensor, _c_str_dltensor, <PyCapsule_Destructor>_c_dlpack_deleter)
 
     def _to_dlpack_versioned(self):
         cdef DLManagedTensorVersioned* dltensor
         cdef int c_api_ret_code
-
-        with nogil:
-            c_api_ret_code = TVMFFITensorToDLPackVersioned(self.chandle, &dltensor)
+        c_api_ret_code = TVMFFITensorToDLPackVersioned(self.chandle, &dltensor)
         CHECK_CALL(c_api_ret_code)
         return pycapsule.PyCapsule_New(
             dltensor, _c_str_dltensor_versioned, <PyCapsule_Destructor>_c_dlpack_versioned_deleter)
@@ -282,24 +275,24 @@ _set_class_tensor(Tensor)
 _register_object_by_index(kTVMFFITensor, Tensor)
 
 
-
-cdef int _dltensor_test_wrapper_dlpack_c_exporter(
+cdef int _dltensor_test_wrapper_c_dlpack_from_pyobject(
     void* obj, DLManagedTensorVersioned** out, TVMFFIStreamHandle* env_stream
 ) except -1:
-    cdef object ref_obj = <object>(<PyObject*>obj)
-    cdef DLTensorTestWrapper wrapper = <DLTensorTestWrapper>ref_obj
+    cdef PyObject* py_obj = <PyObject*>obj
+    cdef DLTensorTestWrapper wrapper = <DLTensorTestWrapper>py_obj
     cdef TVMFFIStreamHandle current_stream
-
+    cdef DLManagedTensorVersioned* temp_managed_tensor
     if env_stream != NULL:
-        env_stream[0] = TVMFFIEnvGetCurrentStream(
+        env_stream[0] = TVMFFIEnvGetStream(
             wrapper.tensor.cdltensor.device.device_type,
             wrapper.tensor.cdltensor.device.device_id
         )
+
     return TVMFFITensorToDLPackVersioned(wrapper.tensor.chandle, out)
 
 
-def _dltensor_test_wrapper_dlpack_c_exporter_as_intptr():
-    cdef DLPackPyObjectCExporter converter_func = _dltensor_test_wrapper_dlpack_c_exporter
+def _dltensor_test_wrapper_c_dlpack_from_pyobject_as_intptr():
+    cdef DLPackFromPyObject converter_func = _dltensor_test_wrapper_c_dlpack_from_pyobject
     cdef void* temp_ptr = <void*>converter_func
     cdef long long temp_int_ptr = <long long>temp_ptr
     return temp_int_ptr
@@ -308,8 +301,10 @@ def _dltensor_test_wrapper_dlpack_c_exporter_as_intptr():
 cdef class DLTensorTestWrapper:
     """Wrapper of a Tensor that exposes DLPack protocol, only for testing purpose.
     """
-    __dlpack_c_exporter__ = _dltensor_test_wrapper_dlpack_c_exporter_as_intptr()
+    __c_dlpack_from_pyobject__ = _dltensor_test_wrapper_c_dlpack_from_pyobject_as_intptr()
+
     cdef Tensor tensor
+    cdef dict __dict__
     def __init__(self, tensor):
         self.tensor = tensor
 
@@ -317,9 +312,8 @@ cdef class DLTensorTestWrapper:
         cdef TVMFFIStreamHandle stream
         cdef long long stream_as_int
         cdef int c_api_ret_code
-        with nogil:
-            stream = TVMFFIEnvGetCurrentStream(
-                self.tensor.cdltensor.device.device_type, self.tensor.cdltensor.device.device_id)
+        stream = TVMFFIEnvGetStream(
+            self.tensor.cdltensor.device.device_type, self.tensor.cdltensor.device.device_id)
         stream_as_int = <long long>stream
         return stream_as_int
 
@@ -339,14 +333,30 @@ cdef inline object make_ret_dltensor(TVMFFIAny result):
     return tensor
 
 
-cdef inline object make_tensor_from_chandle(TVMFFIObjectHandle chandle):
+cdef inline object make_tensor_from_chandle(TVMFFIObjectHandle chandle, DLPackToPyObject c_dlpack_to_pyobject = NULL):
     # TODO: Implement
     cdef Tensor tensor
+    cdef void* py_obj
+    cdef DLManagedTensorVersioned* dlpack
+
+    if c_dlpack_to_pyobject != NULL:
+        # try convert and import into the environment array if possible
+        if TVMFFITensorToDLPackVersioned(chandle, &dlpack) == 0:
+            try:
+                # note that py_obj already holds an extra reference to the tensor
+                # so we need to decref it after the conversion
+                c_dlpack_to_pyobject(dlpack, &py_obj)
+                tensor = <Tensor>(<PyObject*>py_obj)
+                Py_DECREF(tensor)
+                return tensor
+            except Exception:
+                pass
+    # default return the tensor
     tensor = _CLASS_TENSOR.__new__(_CLASS_TENSOR)
     (<Object>tensor).chandle = chandle
     (<Tensor>tensor).cdltensor = TVMFFITensorGetDLTensorPtr(chandle)
     return tensor
 
 
-cdef inline object make_tensor_from_any(TVMFFIAny any):
-    return make_tensor_from_chandle(any.v_ptr)
+cdef inline object make_tensor_from_any(TVMFFIAny any, DLPackToPyObject c_dlpack_to_pyobject):
+    return make_tensor_from_chandle(any.v_ptr, c_dlpack_to_pyobject)

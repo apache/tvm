@@ -436,9 +436,12 @@ def main():
         )
         bench_torch_get_current_stream(repeat, "python", torch_get_cuda_stream_native)
     print("---------------------------------------------------")
-    print("Benchmark tvm_ffi.print_helper_info")
+    print("Debug information")
     print("---------------------------------------------------")
     tvm_ffi.core._print_debug_info()
+    release_gil = tvm_ffi.get_global_func("testing.nop").release_gil
+    print(f"TVM_FFI_RELEASE_GIL_BY_DEFAULT={int(release_gil)}")
+    print("---------------------------------------------------")
 
 
 if __name__ == "__main__":

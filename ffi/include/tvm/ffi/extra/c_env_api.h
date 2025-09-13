@@ -46,12 +46,11 @@ typedef void* TVMFFIStreamHandle;
  * \param device_id The id of the device.
  * \param stream The stream to set.
  * \param opt_out_original_stream Output original stream if the address is not nullptr.
- * \note The stream is a weak reference that is cached/owned by the module.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFIEnvSetCurrentStream(int32_t device_type, int32_t device_id,
-                                          TVMFFIStreamHandle stream,
-                                          TVMFFIStreamHandle* opt_out_original_stream);
+TVM_FFI_DLL int TVMFFIEnvSetStream(int32_t device_type, int32_t device_id,
+                                   TVMFFIStreamHandle stream,
+                                   TVMFFIStreamHandle* opt_out_original_stream);
 
 /*!
  * \brief FFI function to get the current stream for a device
@@ -60,7 +59,29 @@ TVM_FFI_DLL int TVMFFIEnvSetCurrentStream(int32_t device_type, int32_t device_id
  * \param device_id The id of the device.
  * \return The current stream of the device.
  */
-TVM_FFI_DLL TVMFFIStreamHandle TVMFFIEnvGetCurrentStream(int32_t device_type, int32_t device_id);
+TVM_FFI_DLL TVMFFIStreamHandle TVMFFIEnvGetStream(int32_t device_type, int32_t device_id);
+
+/*!
+ * \brief FFI function to set the current DLPack allocator in thread-local(TLS) context
+ *
+ * \param allocator The allocator to set.
+ * \param write_to_global_context Whether to also set the allocator to the global context.
+ * \param opt_out_original_allocator Output original TLS allocator if the address is not nullptr.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIEnvSetTensorAllocator(DLPackTensorAllocator allocator,
+                                            int write_to_global_context,
+                                            DLPackTensorAllocator* opt_out_original_allocator);
+
+/*!
+ * \brief FFI function get the current DLPack allocator stored in context.
+ *
+ * This function first queries the global context, and if not found,
+ * queries the thread-local context.
+ *
+ * \return The current DLPack allocator.
+ */
+TVM_FFI_DLL DLPackTensorAllocator TVMFFIEnvGetTensorAllocator();
 
 /*!
  * \brief Check if there are any signals raised in the surrounding env.

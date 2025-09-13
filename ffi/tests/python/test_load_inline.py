@@ -159,9 +159,6 @@ def test_load_inline_cpp_build_dir():
 def test_load_inline_cuda():
     mod: Module = tvm_ffi.cpp.load_inline(
         name="hello",
-        cpp_sources=r"""
-            void add_one_cuda(DLTensor* x, DLTensor* y);
-        """,
         cuda_sources=r"""
             __global__ void AddOneKernel(float* x, float* y, int n) {
               int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -186,7 +183,7 @@ def test_load_inline_cuda():
               // it will be set to torch.cuda.current_stream() when calling the function
               // with torch.Tensors
               cudaStream_t stream = static_cast<cudaStream_t>(
-                  TVMFFIEnvGetCurrentStream(x->device.device_type, x->device.device_id));
+                  TVMFFIEnvGetStream(x->device.device_type, x->device.device_id));
               // launch the kernel
               AddOneKernel<<<nblock, nthread_per_block, 0, stream>>>(static_cast<float*>(x->data),
                                                                      static_cast<float*>(y->data), n);
@@ -200,6 +197,66 @@ def test_load_inline_cuda():
         y_cuda = torch.empty_like(x_cuda)
         mod.add_one_cuda(x_cuda, y_cuda)
         torch.testing.assert_close(x_cuda + 1, y_cuda)
+
+
+@pytest.mark.skipif(
+    torch is None or not torch.cuda.is_available(), reason="Requires torch and CUDA"
+)
+def test_load_inline_cuda_with_env_tensor_allocator():
+    if not hasattr(torch.Tensor, "__c_dlpack_tensor_allocator__"):
+        pytest.skip("Torch does not support __c_dlpack_tensor_allocator__")
+    mod: Module = tvm_ffi.cpp.load_inline(
+        name="hello",
+        cpp_sources=r"""
+            #include <tvm/ffi/container/tensor.h>
+
+            tvm::ffi::Tensor return_add_one(DLTensor* x);
+        """,
+        cuda_sources=r"""
+            #include <tvm/ffi/container/tensor.h>
+
+            __global__ void AddOneKernel(float* x, float* y, int n) {
+              int idx = blockIdx.x * blockDim.x + threadIdx.x;
+              if (idx < n) {
+                y[idx] = x[idx] + 1;
+              }
+            }
+            namespace ffi = tvm::ffi;
+
+             ffi::Tensor return_add_one(DLTensor* x) {
+              // implementation of a library function
+              TVM_FFI_ICHECK(x->ndim == 1) << "x must be a 1D tensor";
+              DLDataType f32_dtype{kDLFloat, 32, 1};
+              TVM_FFI_ICHECK(x->dtype == f32_dtype) << "x must be a float tensor";
+              // allocate a new tensor with the env tensor allocator
+              // it will be redirected to torch.empty when calling the function
+              ffi::Tensor y = ffi::Tensor::FromDLPackAlloc(
+                TVMFFIEnvGetTensorAllocator(), ffi::Shape({x->shape[0]}), f32_dtype, x->device);
+              int64_t n = x->shape[0];
+              int64_t nthread_per_block = 256;
+              int64_t nblock = (n + nthread_per_block - 1) / nthread_per_block;
+              // Obtain the current stream from the environment
+              // it will be set to torch.cuda.current_stream() when calling the function
+              // with torch.Tensors
+              cudaStream_t stream = static_cast<cudaStream_t>(
+                  TVMFFIEnvGetStream(x->device.device_type, x->device.device_id));
+              // launch the kernel
+              AddOneKernel<<<nblock, nthread_per_block, 0, stream>>>(static_cast<float*>(x->data),
+                                                                     static_cast<float*>(y->data), n);
+              return y;
+            }
+        """,
+        functions=["return_add_one"],
+    )
+
+    if torch is not None:
+        x_cuda = torch.asarray([1, 2, 3, 4, 5], dtype=torch.float32, device="cuda")
+        y_cuda = mod.return_add_one(x_cuda)
+        assert isinstance(y_cuda, torch.Tensor)
+        assert y_cuda.shape == (5,)
+        assert y_cuda.dtype == torch.float32
+        torch.testing.assert_close(x_cuda + 1, y_cuda)
+        assert y_cuda.is_cuda
 
 
 @pytest.mark.skipif(
@@ -248,7 +305,7 @@ def test_load_inline_both():
               // it will be set to torch.cuda.current_stream() when calling the function
               // with torch.Tensors
               cudaStream_t stream = static_cast<cudaStream_t>(
-                  TVMFFIEnvGetCurrentStream(x->device.device_type, x->device.device_id));
+                  TVMFFIEnvGetStream(x->device.device_type, x->device.device_id));
               // launch the kernel
               AddOneKernel<<<nblock, nthread_per_block, 0, stream>>>(static_cast<float*>(x->data),
                                                                      static_cast<float*>(y->data), n);

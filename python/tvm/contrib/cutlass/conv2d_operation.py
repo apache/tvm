@@ -424,7 +424,7 @@ def instantiate_conv2d_template(attrs):
   TVM_FFI_ICHECK(status == cutlass::Status::kSuccess);
   ${split_k_update}
 
-  cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, ${data_arg}->device.device_id));
+  cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, ${data_arg}->device.device_id));
 
   status = conv2d_op(stream);
   TVM_FFI_ICHECK(status == cutlass::Status::kSuccess);

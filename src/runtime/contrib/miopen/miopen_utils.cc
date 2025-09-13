@@ -56,8 +56,7 @@ typedef dmlc::ThreadLocalStore<MIOpenThreadEntry> MIOpenThreadStore;
 MIOpenThreadEntry* MIOpenThreadEntry::ThreadLocal(Device curr_device) {
   // Need to update stream per fetch to avoid stream switching
   MIOpenThreadEntry* res = MIOpenThreadStore::Get();
-  TVMFFIStreamHandle stream =
-      TVMFFIEnvGetCurrentStream(curr_device.device_type, curr_device.device_id);
+  TVMFFIStreamHandle stream = TVMFFIEnvGetStream(curr_device.device_type, curr_device.device_id);
   MIOPEN_CALL(miopenSetStream(res->handle, stream));
   return res;
 }

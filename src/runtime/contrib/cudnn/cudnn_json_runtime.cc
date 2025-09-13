@@ -164,8 +164,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
     std::function<void()> op_exec = [=]() {
       int device_id;
       CUDA_CALL(cudaGetDevice(&device_id));
-      cudaStream_t stream =
-          static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, device_id));
+      cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, device_id));
       CUDNN_CALL(cudnnSetStream(entry_ptr->handle, stream));
 
       auto get_inputs = [this](const JSONGraphNode& node, bool has_bias) {

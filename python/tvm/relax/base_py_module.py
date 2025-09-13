@@ -151,20 +151,25 @@ class BasePyModule:
 
     def _wrap_relax_functions(self):
         """Wrap Relax functions to be callable from Python with auto conversion."""
-        if self.relax_vm is None:
-            return
-
         for func_name in self.relax_func_names:
 
             def _create_relax_wrapper(name):
                 def wrapper(*args, **kwargs):
                     """Wrapper for Relax function with automatic tensor conversion."""
-                    converted_args = self._convert_pytorch_to_tvm(list(args))
-                    converted_kwargs = {
-                        k: self._convert_pytorch_to_tvm(v) for k, v in kwargs.items()
-                    }
-                    result = self.relax_vm[name](*converted_args, **converted_kwargs)
-                    return self._convert_tvm_to_pytorch(result)
+                    if hasattr(self.ir_mod, "pyfuncs") and name in self.ir_mod.pyfuncs:
+                        return self.ir_mod.pyfuncs[name](*args, **kwargs)
+
+                    if self.relax_vm is not None:
+                        converted_args = self._convert_pytorch_to_tvm(list(args))
+                        converted_kwargs = {
+                            k: self._convert_pytorch_to_tvm(v) for k, v in kwargs.items()
+                        }
+                        result = self.relax_vm[name](*converted_args, **converted_kwargs)
+                        return self._convert_tvm_to_pytorch(result)
+
+                    raise RuntimeError(
+                        f"Neither converted Python function nor Relax VM available for {name}"
+                    )
 
                 wrapper.__name__ = name
                 wrapper.__doc__ = f"Wrapped Relax function: {name}"

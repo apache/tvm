@@ -264,7 +264,7 @@ class ROCMTimerNode : public TimerNode {
   virtual void Start() {
     int device_id;
     ROCM_CALL(hipGetDevice(&device_id));
-    stream_ = TVMFFIEnvGetCurrentStream(kDLROCM, device_id);
+    stream_ = TVMFFIEnvGetStream(kDLROCM, device_id);
     ROCM_CALL(hipEventRecord(start_, static_cast<hipStream_t>(stream_)));
   }
   virtual void Stop() {
@@ -302,7 +302,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("runtime.get_rocm_stream", []() {
         int device_id;
         ROCM_CALL(hipGetDevice(&device_id));
-        return static_cast<void*>(TVMFFIEnvGetCurrentStream(kDLROCM, device_id));
+        return static_cast<void*>(TVMFFIEnvGetStream(kDLROCM, device_id));
       });
 });
 

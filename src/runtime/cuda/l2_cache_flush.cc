@@ -40,7 +40,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     ICHECK(L2Flush::ThreadLocal() != nullptr) << "L2Flush::ThreadLocal do not exist.";
     int device_id;
     CUDA_CALL(cudaGetDevice(&device_id));
-    cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, device_id));
+    cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, device_id));
     L2Flush::ThreadLocal()->Flush(stream);
   });
 });

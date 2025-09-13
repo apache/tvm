@@ -32,6 +32,7 @@
 
 #include <atomic>
 #include <memory>
+#include <string>
 #include <utility>
 
 namespace tvm {
@@ -341,7 +342,60 @@ class Tensor : public ObjectRef {
     return Tensor(make_object<details::TensorObjFromNDAlloc<TNDAlloc>>(
         alloc, shape, dtype, device, std::forward<ExtraArgs>(extra_args)...));
   }
-
+  /*!
+   * \brief Create a Tensor from a DLPackTensorAllocator
+   *
+   * This function can be used together with TVMFFIEnvSetTensorAllocator
+   * in the extra/c_env_api.h to create Tensor from the thread-local
+   * environment allocator.
+   *
+   * \code
+   *
+   * ffi::Tensor tensor = ffi::Tensor::FromDLPackAlloc(
+   *   TVMFFIEnvGetTensorAllocator(), shape, dtype, device
+   * );
+   * \endcode
+   *
+   * \param allocator The DLPack allocator.
+   * \param shape The shape of the Tensor.
+   * \param dtype The data type of the Tensor.
+   * \param device The device of the Tensor.
+   * \return The created Tensor.
+   */
+  static Tensor FromDLPackAlloc(DLPackTensorAllocator allocator, ffi::Shape shape, DLDataType dtype,
+                                DLDevice device) {
+    if (allocator == nullptr) {
+      TVM_FFI_THROW(RuntimeError)
+          << "FromDLPackAlloc: allocator is nullptr, "
+          << "likely because TVMFFIEnvSetTensorAllocator has not been called.";
+    }
+    DLTensor prototype;
+    prototype.device = device;
+    prototype.dtype = dtype;
+    prototype.shape = const_cast<int64_t*>(shape.data());
+    prototype.ndim = static_cast<int>(shape.size());
+    prototype.strides = nullptr;
+    prototype.byte_offset = 0;
+    prototype.data = nullptr;
+    DLManagedTensorVersioned* tensor = nullptr;
+    // error context to be used to propagate error
+    struct ErrorContext {
+      std::string kind;
+      std::string message;
+      static void SetError(void* error_ctx, const char* kind, const char* message) {
+        ErrorContext* error_context = static_cast<ErrorContext*>(error_ctx);
+        error_context->kind = kind;
+        error_context->message = message;
+      }
+    };
+    ErrorContext error_context;
+    int ret = (*allocator)(&prototype, &tensor, &error_context, ErrorContext::SetError);
+    if (ret != 0) {
+      throw ffi::Error(error_context.kind, error_context.message,
+                       TVMFFITraceback(__FILE__, __LINE__, __func__, 0));
+    }
+    return Tensor(make_object<details::TensorObjFromDLPack<DLManagedTensorVersioned>>(tensor));
+  }
   /*!
    * \brief Create a Tensor from a DLPack managed tensor, pre v1.0 API.
    * \param tensor The input DLPack managed tensor.

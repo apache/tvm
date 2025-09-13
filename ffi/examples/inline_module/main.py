@@ -63,7 +63,7 @@ def main():
               // it will be set to torch.cuda.current_stream() when calling the function
               // with torch.Tensors
               cudaStream_t stream = static_cast<cudaStream_t>(
-                  TVMFFIEnvGetCurrentStream(x->device.device_type, x->device.device_id));
+                  TVMFFIEnvGetStream(x->device.device_type, x->device.device_id));
               // launch the kernel
               AddOneKernel<<<nblock, nthread_per_block, 0, stream>>>(static_cast<float*>(x->data),
                                                                      static_cast<float*>(y->data), n);
