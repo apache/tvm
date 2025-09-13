@@ -497,7 +497,7 @@ def call_py_func(
     # Convert string to StringImm
     try:
         func_name_imm = StringImm(py_func_name) if hasattr(py_func_name, "strip") else py_func_name
-    except Exception:
+    except (TypeError, ValueError, AttributeError):
         func_name_imm = StringImm(py_func_name)
     return _call_py_func(func_name_imm, args, out_sinfo)
 
