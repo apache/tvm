@@ -398,6 +398,8 @@ def test_nn():
             rms_norm_out = op.rms_norm(x, weight, axes=[-2, -1])
             rms_norm_with_bias_out = op.rms_norm(x, weight, axes=[-2, -1])
             group_norm_out = op.group_norm(x, num_groups=1, weight=bias, bias=bias)
+            log_out = op.log(x)
+            floor_out = op.floor(x)
             return x
 
     @R.function
@@ -409,6 +411,8 @@ def test_nn():
     ) -> R.Tuple(R.Tensor((2, 3, 4, 5), dtype="float32"), R.Tuple(R.Object)):
         R.func_attr({"num_input": 4})
         with R.dataflow():
+            log: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.log(x)
+            floor: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.floor(x)
             relu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.relu(x)
             relu6: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.relu6(x)
             silu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.silu(x)
@@ -463,6 +467,8 @@ def test_create():
             )
             zeros_out = op.zeros([10, 10])
             zeros_fp16_out = op.zeros([10, 10], dtype="float16")
+
+            arange_out = op.arange(0, 10, 1, "float32")
             return x
 
     # fmt: off
@@ -476,6 +482,7 @@ def test_create():
             full2: R.Tensor((10, 10), dtype="float32") = R.full(R.shape([10, 10]), R.const(10, "float32"), dtype="float32")
             zeros: R.Tensor((10, 10), dtype="float32") = R.zeros(R.shape([10, 10]), dtype="float32")
             zeros1: R.Tensor((10, 10), dtype="float16") = R.zeros(R.shape([10, 10]), dtype="float16")
+            arange: R.Tensor((10), dtype="float32") = R.arange(R.const(0, "int"), R.const(10, "int"), R.const(1, "int"), dtype="float32")
             gv1: R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tuple(R.Object)) = x, (_io,)
             R.output(gv1)
         return gv1
