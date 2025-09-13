@@ -2082,8 +2082,6 @@ def tensor_ir_op(
     if len(tir_vars) == 0:
         tir_vars = None
 
-    # if tir_vars:
-    #     print(f"tir_vars {tir_vars} dtype: {[tir_var.dtype for tir_var in tir_vars]}")
 
     return wrap_nested(
         bb.emit(rx.call_tir(global_var, call_tir_args, out_sinfo, tir_vars=tir_vars)),

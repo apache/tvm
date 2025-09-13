@@ -1276,5 +1276,4 @@ def test_sort_argsort_topk():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_tensor_ir_op()
+    tvm.testing.main()
