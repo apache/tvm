@@ -697,11 +697,7 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
             ).astype("float32")
         else:
             # Data layout is different for llama4 vs llama3 
-            # sin = sin_freq * 0.0
-            sin = sin_freq * tir.if_then_else(
-                # d < rotary_dim // 2,
-                # -x[s, h, d + rotary_dim // 2],
-                # x[s, h, d - rotary_dim // 2],                
+            sin = sin_freq * tir.if_then_else(               
                 d % 2 == 0,
                 -x[s, h, d + 1],
                 x[s, h, d - 1],
