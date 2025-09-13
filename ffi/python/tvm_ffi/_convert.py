@@ -40,13 +40,9 @@ def convert(value: Any) -> Any:
     automatically converted. So this function is mainly
     only used in internal or testing scenarios.
     """
-    if isinstance(value, core.Object):
+    if isinstance(value, (core.Object, core.PyNativeObject, bool, Number)):
         return value
-    elif isinstance(value, core.PyNativeObject):
-        return value
-    elif isinstance(value, (bool, Number)):
-        return value
-    elif isinstance(value, (list, tuple)):
+    elif isinstance(value, (tuple, list)):
         return container.Array(value)
     elif isinstance(value, dict):
         return container.Map(value)
@@ -67,6 +63,3 @@ def convert(value: Any) -> Any:
     else:
         # in this case, it is an opaque python object
         return core._convert_to_opaque_object(value)
-
-
-core._set_func_convert_to_object(convert)
