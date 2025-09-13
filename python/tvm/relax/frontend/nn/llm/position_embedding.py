@@ -87,11 +87,6 @@ def rope_freq_llama4(  # pylint: disable=too-many-arguments,too-many-locals
     original_max_position_embeddings: float,
 ):
     """Compute the inverse frequency of RoPE for llama3 RoPE scaling."""
-    # # LLama3 impl
-    # orig_freq = tir.const(1, "float32") / tir.power(
-    #     theta, d * 2 % d_range / tir.const(d_range, "float32")
-    # )
-    # Modified impl
     orig_freq = tir.const(1, "float32") / tir.power(
         theta, 2 * (d // 2) / tir.const(d_range, "float32")
     )
@@ -100,15 +95,12 @@ def rope_freq_llama4(  # pylint: disable=too-many-arguments,too-many-locals
     llama3_inv_scaling_factor = 1.0 / factor
 
     if high_freq_factor == low_freq_factor:
-        # When factors are equal, use simple threshold-based scaling
-        # Check if wavelength > threshold using TIR conditional
         wavelength = tir.const(2 * math.pi, "float32") / orig_freq_var
         threshold_wavelen = tir.const(original_max_position_embeddings / low_freq_factor, "float32")
-        
-        # Use tir.if_then_else for conditional logic
+
         scaled_freq = tir.if_then_else(
             wavelength > threshold_wavelen,
-            orig_freq_var / factor, #* tir.const(llama3_inv_scaling_factor, "float32"),
+            orig_freq_var / factor,
             orig_freq_var
         )
         smoothed_freq = s * scaled_freq
@@ -145,34 +137,14 @@ def rope_freq_llama3(  # pylint: disable=too-many-arguments,too-many-locals
         theta, d * 2 % d_range / tir.const(d_range, "float32")
     )
     orig_freq_var = tir.Var("orig_freq", "float32")
-
+    inv_diff_freq_factor = 1.0 / (high_freq_factor - low_freq_factor)
     llama3_inv_scaling_factor = 1.0 / factor
-
-    if high_freq_factor == low_freq_factor:
-        # When factors are equal, use simple threshold-based scaling
-        # Check if wavelength > threshold using TIR conditional
-        wavelength = tir.const(2 * math.pi, "float32") / orig_freq_var
-        threshold_wavelen = tir.const(original_max_position_embeddings / low_freq_factor, "float32")
-        
-        # Use tir.if_then_else for conditional logic
-        scaled_freq = tir.if_then_else(
-            wavelength > threshold_wavelen,
-            orig_freq_var / factor, #* tir.const(llama3_inv_scaling_factor, "float32"),
-            orig_freq_var
-        )
-        smoothed_freq = s * scaled_freq
-        
-    else:
-        # Original smooth interpolation logic
-        inv_diff_freq_factor = 1.0 / (high_freq_factor - low_freq_factor)
-        
-        llama3_alpha = original_max_position_embeddings / (2 * math.pi) * inv_diff_freq_factor
-        llama3_beta = low_freq_factor * inv_diff_freq_factor
-        smooth = tir.max(0.0, tir.min(1.0, llama3_alpha * orig_freq_var - llama3_beta))
-        smoothed_freq = s * (
-            (1.0 - smooth) * orig_freq_var * llama3_inv_scaling_factor + smooth * orig_freq_var
-        )
-
+    llama3_alpha = original_max_position_embeddings / (2 * math.pi) * inv_diff_freq_factor
+    llama3_beta = low_freq_factor * inv_diff_freq_factor
+    smooth = tir.max(0.0, tir.min(1.0, llama3_alpha * orig_freq_var - llama3_beta))
+    smoothed_freq = s * (
+        (1.0 - smooth) * orig_freq_var * llama3_inv_scaling_factor + smooth * orig_freq_var
+    )
     smoothed_freq_var = tir.Var("smoothed_freq", "float32")
     cos_freq = tir.cos(smoothed_freq_var).astype(dtype)
     sin_freq = tir.sin(smoothed_freq_var).astype(dtype)
