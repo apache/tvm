@@ -17,89 +17,36 @@
 
 
 import torch
-from torch.utils import cpp_extension
 import tvm_ffi
 import tvm_ffi.cpp
 
 
-torch_mod = cpp_extension.load_inline(
-    name="add_one_cuda",
-    cpp_sources="""
-    void add_one_cuda(torch::Tensor x, torch::Tensor y);
-    """,
-    cuda_sources="""
-    #include <c10/cuda/CUDAGuard.h>
-    #include <c10/cuda/CUDAStream.h>
-
-    __global__ void AddOneKernel(float* x, float* y, int n) {
-        int idx = blockIdx.x * blockDim.x + threadIdx.x;
-        if (idx < n) {
-        y[idx] = x[idx] + 1;
-        }
-    }
-
-    void add_one_cuda(torch::Tensor x, torch::Tensor y) {
-        int64_t n = x.size(0);
-        int64_t nthread_per_block = 256;
-        int64_t nblock = (n + nthread_per_block - 1) / nthread_per_block;
-        const c10::cuda::OptionalCUDAGuard device_guard(x.device());
-        cudaStream_t stream = c10::cuda::getCurrentCUDAStream();
-        AddOneKernel<<<nblock, nthread_per_block, 0, stream>>>(static_cast<float*>(x.data_ptr()),
-                                                                static_cast<float*>(y.data_ptr()), n);
-    }
-    """,
-    functions=["add_one_cuda"],
-    extra_cflags=["-O3"],
-)
-
 ffi_mod = tvm_ffi.cpp.load_inline(
-    name="hello",
+    name="check_stream",
     cpp_sources="""
-        void add_one_cuda(DLTensor* x, DLTensor* y);
+        void check_stream(int device_type, int device_id, uint64_t stream);
     """,
-    cuda_sources="""
-        __global__ void AddOneKernel(float* x, float* y, int n) {
-            int idx = blockIdx.x * blockDim.x + threadIdx.x;
-            if (idx < n) {
-            y[idx] = x[idx] + 1;
-            }
-        }
-
-        void add_one_cuda(DLTensor* x, DLTensor* y) {
-            int64_t n = x->shape[0];
-            int64_t nthread_per_block = 256;
-            int64_t nblock = (n + nthread_per_block - 1) / nthread_per_block;
-            cudaStream_t stream = static_cast<cudaStream_t>(
-                TVMFFIEnvGetCurrentStream(x->device.device_type, x->device.device_id));
-            AddOneKernel<<<nblock, nthread_per_block, 0, stream>>>(static_cast<float*>(x->data),
-                                                                    static_cast<float*>(y->data), n);
+    cuda_sources=r"""
+        void check_stream(int device_type, int device_id, uint64_t stream) {
+            uint64_t cur_stream = reinterpret_cast<uint64_t>(TVMFFIEnvGetStream(device_type, device_id));
+            TVM_FFI_ICHECK_EQ(cur_stream, stream);
         }
     """,
-    functions=["add_one_cuda"],
+    functions=["check_stream"],
 )
 
 
-def test_cuda_graph(mod):
-
-    x = torch.tensor([1, 2, 3, 4, 5], dtype=torch.float32, device="cuda")
-    y = torch.empty_like(x)
-
-    s = torch.cuda.Stream()
-    s.wait_stream(torch.cuda.current_stream())
-    print(s.device_type, s.device_index, s.cuda_stream)
-    with torch.cuda.stream(s), tvm_ffi.stream(str(s.device), s.cuda_stream):
-        mod.add_one_cuda(x, y)
-    torch.cuda.current_stream().wait_stream(s)
-
-    cg = torch.cuda.CUDAGraph()
-    g = torch.cuda.graph(cg)
-    s = g.capture_stream
-    with g, tvm_ffi.stream(str(s.device), s.cuda_stream):
-        mod.add_one_cuda(x, y)
+def test_torch_stream():
+    env_stream = torch.cuda.current_stream()
+    env_dev = env_stream.device
+    new_stream = torch.cuda.Stream(env_dev)
+    with tvm_ffi.DeviceStream(new_stream):
+        assert torch.cuda.current_stream() == new_stream
+        dev = tvm_ffi.device(str(env_dev))
+        ffi_mod.check_stream(dev.dlpack_device_type(), dev.index, new_stream.cuda_stream)
+    assert torch.cuda.current_stream() == env_stream
+    dev = tvm_ffi.device(str(env_dev))
+    ffi_mod.check_stream(dev.dlpack_device_type(), dev.index, env_stream.cuda_stream)
 
 
-print("testing torch")
-test_cuda_graph(torch_mod)
-print()
-print("testing ffi")
-test_cuda_graph(ffi_mod)
+test_torch_stream()

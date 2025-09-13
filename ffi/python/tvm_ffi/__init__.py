@@ -30,7 +30,7 @@ from .registry import (
 from ._dtype import dtype
 from .core import Object, ObjectConvertible, Function
 from ._convert import convert
-from .env import stream
+from .env import DeviceStream
 from .error import register_error
 from ._tensor import Device, device, DLDeviceType
 from ._tensor import from_dlpack, Tensor, Shape
