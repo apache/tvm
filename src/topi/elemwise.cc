@@ -31,7 +31,7 @@ namespace topi {
 using namespace tvm;
 using namespace tvm::runtime;
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("topi.acos", [](ffi::PackedArgs args,
@@ -119,7 +119,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_packed("topi.bitwise_not", [](ffi::PackedArgs args, ffi::Any* rv) {
         *rv = bitwise_not(args[0].cast<te::Tensor>());
       });
-});
+}
 
 }  // namespace topi
 }  // namespace tvm

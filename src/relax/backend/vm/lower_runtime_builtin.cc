@@ -232,10 +232,10 @@ Pass LowerRuntimeBuiltin() {
   return CreateFunctionPass(pass_func, 0, "LowerRuntimeBuiltin", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.LowerRuntimeBuiltin", LowerRuntimeBuiltin);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

@@ -76,10 +76,10 @@ bool EndsWithPattern(const std::string& str, const std::string& pattern) {
   return str.compare(str.length() - pattern.length(), pattern.length(), pattern) == 0;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.contrib.extract_arg_idx", ExtractArgIdx);
-});
+}
 
 }  // namespace backend
 }  // namespace relax

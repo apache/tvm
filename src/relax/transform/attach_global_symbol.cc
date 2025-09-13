@@ -81,10 +81,10 @@ Pass AttachGlobalSymbol() {
   return CreateModulePass(pass_func, 0, "AttachGlobalSymbol", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.AttachGlobalSymbol", AttachGlobalSymbol);
-});
+}
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

@@ -161,12 +161,12 @@ SearchStrategy SearchStrategy::ReplayFunc() {
   return SearchStrategy(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ ReplayFuncNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { ReplayFuncNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.SearchStrategyReplayFunc", SearchStrategy::ReplayFunc);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

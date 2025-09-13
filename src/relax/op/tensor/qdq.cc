@@ -34,7 +34,7 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({ QuantizeAttrs::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { QuantizeAttrs::RegisterReflection(); }
 
 /* relax.quantize */
 
@@ -46,10 +46,10 @@ Expr quantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_dty
   return Call(op, {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.quantize", quantize);
-});
+}
 
 StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<QuantizeAttrs>();
@@ -132,10 +132,10 @@ Expr dequantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_d
   return Call(op, {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.dequantize", dequantize);
-});
+}
 
 StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<QuantizeAttrs>();

@@ -327,12 +327,12 @@ void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
   ExprApplyVisit(fvisit).VisitExpr(e);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.analysis.post_order_visit", [](Expr expr, ffi::Function f) {
     PostOrderVisit(expr, [f](const Expr& n) { f(n); });
   });
-});
+}
 
 // ==================
 // ExprMutatorBase

@@ -145,12 +145,12 @@ Postproc Postproc::RewriteUnboundBlock(int max_threadblocks) {
   return Postproc(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ RewriteUnboundBlockNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { RewriteUnboundBlockNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.PostprocRewriteUnboundBlock", Postproc::RewriteUnboundBlock);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

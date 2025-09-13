@@ -286,13 +286,13 @@ Database Database::PyDatabase(PyDatabaseNode::FHasWorkload f_has_workload,
 
 /******** FFI ********/
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   WorkloadNode::RegisterReflection();
   TuningRecordNode::RegisterReflection();
   PyDatabaseNode::RegisterReflection();
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("meta_schedule.Workload", [](IRModule mod) { return Workload(mod); })
@@ -321,7 +321,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_method("meta_schedule.DatabaseQueryIRModule", &DatabaseNode::QueryIRModule)
       .def_method("meta_schedule.DatabaseDumpPruned", &DatabaseNode::DumpPruned)
       .def("meta_schedule.DatabasePyDatabase", Database::PyDatabase);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

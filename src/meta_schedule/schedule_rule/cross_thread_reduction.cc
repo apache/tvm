@@ -295,13 +295,13 @@ ScheduleRule ScheduleRule::CrossThreadReduction(ffi::Array<Integer> thread_exten
   return ScheduleRule(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ CrossThreadReductionNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { CrossThreadReductionNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ScheduleRuleCrossThreadReduction",
                         ScheduleRule::CrossThreadReduction);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -532,10 +532,10 @@ IRModule VMTIRCodeGen(ExecBuilder exec_builder, IRModule mod) {
   return CodeGenVMTIR::Run(exec_builder, mod);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.VMTIRCodeGen", VMTIRCodeGen);
-});
+}
 
 }  // namespace codegen_vm
 }  // namespace relax

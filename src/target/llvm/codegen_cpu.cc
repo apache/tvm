@@ -1186,13 +1186,13 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.codegen.llvm.target_cpu",
                                [](const ffi::PackedArgs& targs, ffi::Any* rv) {
                                  *rv = static_cast<void*>(new CodeGenCPU());
                                });
-});
+}
 
 }  // namespace codegen
 }  // namespace tvm

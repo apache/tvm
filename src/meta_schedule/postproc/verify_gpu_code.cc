@@ -214,10 +214,10 @@ Postproc Postproc::VerifyGPUCode() {
   return Postproc(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.PostprocVerifyGPUCode", Postproc::VerifyGPUCode);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

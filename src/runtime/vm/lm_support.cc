@@ -259,30 +259,30 @@ class AttentionKVCacheLegacy : public ObjectRef {
 //-------------------------------------------------
 //  Register runtime functions
 //-------------------------------------------------
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.attention_kv_cache_create", AttentionKVCacheLegacy::Create);
-});
+}
 
 AttentionKVCacheLegacy AttentionKVCacheUpdate(AttentionKVCacheLegacy cache, Tensor value) {
   cache->Update(value);
   return cache;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.attention_kv_cache_update", AttentionKVCacheUpdate);
-});
+}
 
 AttentionKVCacheLegacy AttentionKVCacheAppend(AttentionKVCacheLegacy cache, Tensor value) {
   cache->Append(value);
   return cache;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.attention_kv_cache_append", AttentionKVCacheAppend);
-});
+}
 
 AttentionKVCacheLegacy AttentionKVCacheWindowOverride(AttentionKVCacheLegacy cache, Tensor value,
                                                       int64_t max_cache_size) {
@@ -290,11 +290,11 @@ AttentionKVCacheLegacy AttentionKVCacheWindowOverride(AttentionKVCacheLegacy cac
   return cache;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.attention_kv_cache_window_override",
                         AttentionKVCacheWindowOverride);
-});
+}
 
 AttentionKVCacheLegacy AttentionKVCacheWindowOverrideWithSinks(AttentionKVCacheLegacy cache,
                                                                Tensor value, int64_t max_cache_size,
@@ -303,17 +303,17 @@ AttentionKVCacheLegacy AttentionKVCacheWindowOverrideWithSinks(AttentionKVCacheL
   return cache;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.attention_kv_cache_window_override_with_sinks",
                         AttentionKVCacheWindowOverrideWithSinks);
-});
+}
 
 Tensor AttentionKVCacheView(AttentionKVCacheLegacy cache, ffi::Shape shape) {
   return cache->View(shape);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "vm.builtin.attention_kv_cache_view", [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -333,7 +333,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           *rv = cache->View(ffi::Shape(shape));
         }
       });
-});
+}
 
 void AttentionKVCacheArrayPopN(ffi::Array<AttentionKVCacheLegacy> caches, int64_t n) {
   for (AttentionKVCacheLegacy cache : caches) {
@@ -341,10 +341,10 @@ void AttentionKVCacheArrayPopN(ffi::Array<AttentionKVCacheLegacy> caches, int64_
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.attention_kv_cache_array_popn", AttentionKVCacheArrayPopN);
-});
+}
 
 void AttentionKVCacheArrayClear(ffi::Array<AttentionKVCacheLegacy> caches) {
   for (AttentionKVCacheLegacy cache : caches) {
@@ -352,10 +352,10 @@ void AttentionKVCacheArrayClear(ffi::Array<AttentionKVCacheLegacy> caches) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.attention_kv_cache_array_clear", AttentionKVCacheArrayClear);
-});
+}
 
 // NOTE this is a built-in highly related to LM so we put it here.
 int SampleTopPFromLogits(Tensor logits, double temperature, double top_p, double uniform_sample) {
@@ -419,10 +419,10 @@ int SampleTopPFromLogits(Tensor logits, double temperature, double top_p, double
   return data[0].second;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.sample_top_p_from_logits", SampleTopPFromLogits);
-});
+}
 
 int SampleTopPFromProb(Tensor prob, double top_p, double uniform_sample) {
   ICHECK(prob.IsContiguous());
@@ -517,10 +517,10 @@ int SampleTopPFromProb(Tensor prob, double top_p, double uniform_sample) {
   return sampled_index;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.sample_top_p_from_prob", SampleTopPFromProb);
-});
+}
 
 Tensor MultinomialFromUniform(Tensor prob, Tensor uniform_sample) {
   ICHECK(prob.IsContiguous());
@@ -557,10 +557,10 @@ Tensor MultinomialFromUniform(Tensor prob, Tensor uniform_sample) {
   return new_array;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.multinomial_from_uniform", MultinomialFromUniform);
-});
+}
 
 // This is an inplace operation.
 void ApplyRepetitionPenalty(Tensor logits, Tensor token_ids, double penalty) {
@@ -583,10 +583,10 @@ void ApplyRepetitionPenalty(Tensor logits, Tensor token_ids, double penalty) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.apply_repetition_penalty", ApplyRepetitionPenalty);
-});
+}
 
 /*!
  * \brief Apply presence and frequency penalty. This is an inplace operation.
@@ -621,11 +621,11 @@ void ApplyPresenceAndFrequencyPenalty(Tensor logits, Tensor token_ids, Tensor to
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.apply_presence_and_frequency_penalty",
                         ApplyPresenceAndFrequencyPenalty);
-});
+}
 
 // This is an inplace operation.
 void ApplySoftmaxWithTemperature(Tensor logits, double temperature) {
@@ -649,10 +649,10 @@ void ApplySoftmaxWithTemperature(Tensor logits, double temperature) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.apply_softmax_with_temperature", ApplySoftmaxWithTemperature);
-});
+}
 
 }  // namespace vm
 }  // namespace runtime

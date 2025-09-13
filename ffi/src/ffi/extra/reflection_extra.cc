@@ -132,12 +132,12 @@ inline void AccessPathRegisterReflection() {
            [](const AccessPath& self, const AccessPath& other) { return self->PathEqual(other); });
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   AccessStepRegisterReflection();
   AccessPathRegisterReflection();
   refl::GlobalDef().def_packed("ffi.MakeObjectFromPackedArgs", MakeObjectFromPackedArgs);
-});
+}
 
 }  // namespace reflection
 }  // namespace ffi

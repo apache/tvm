@@ -56,7 +56,7 @@ class MapForwardIterFunctor {
   ffi::MapObj::iterator end_;
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("ffi.Array",
@@ -83,6 +83,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("ffi.MapForwardIterFunctor", [](const ffi::MapObj* n) -> ffi::Function {
         return ffi::Function::FromTyped(MapForwardIterFunctor(n->begin(), n->end()));
       });
-});
+}
 }  // namespace ffi
 }  // namespace tvm

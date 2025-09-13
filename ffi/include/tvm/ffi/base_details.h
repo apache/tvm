@@ -72,9 +72,6 @@
 #define TVM_FFI_UNREACHABLE() __builtin_unreachable()
 #endif
 
-/*! \brief helper macro to suppress unused warning */
-#define TVM_FFI_ATTRIBUTE_UNUSED [[maybe_unused]]
-
 #define TVM_FFI_STR_CONCAT_(__x, __y) __x##__y
 #define TVM_FFI_STR_CONCAT(__x, __y) TVM_FFI_STR_CONCAT_(__x, __y)
 
@@ -86,12 +83,39 @@
 #define TVM_FFI_FUNC_SIG __func__
 #endif
 
-#define TVM_FFI_STATIC_INIT_BLOCK_VAR_DEF \
-  TVM_FFI_ATTRIBUTE_UNUSED static inline int __##TVMFFIStaticInitReg
+#if defined(__GNUC__)
+// gcc and clang and attribute constructor
+/// \cond Doxygen_Suppress
+#define TVM_FFI_STATIC_INIT_BLOCK_DEF_(FnName) __attribute__((constructor)) static void FnName()
+/// \endcond
+/*
+ * \brief Macro that defines a block that will be called during static initialization.
+ *
+ * \code
+ * TVM_FFI_STATIC_INIT_BLOCK() {
+ *   RegisterFunctions();
+ * }
+ * \endcode
+ */
+#define TVM_FFI_STATIC_INIT_BLOCK() \
+  TVM_FFI_STATIC_INIT_BLOCK_DEF_(TVM_FFI_STR_CONCAT(__TVMFFIStaticInitFunc, __COUNTER__))
 
-/*! \brief helper macro to run code once during initialization */
-#define TVM_FFI_STATIC_INIT_BLOCK(Body) \
-  TVM_FFI_STR_CONCAT(TVM_FFI_STATIC_INIT_BLOCK_VAR_DEF, __COUNTER__) = []() { Body return 0; }()
+#else
+/// \cond Doxygen_Suppress
+// for other compilers, use the variable trick
+#define TVM_FFI_STATIC_INIT_BLOCK_DEF_(FnName, RegVar) \
+  static void FnName();                                \
+  [[maybe_unused]] static inline int RegVar = []() {   \
+    FnName();                                          \
+    return 0;                                          \
+  }();                                                 \
+  static void FnName()
+
+#define TVM_FFI_STATIC_INIT_BLOCK()                                                       \
+  TVM_FFI_STATIC_INIT_BLOCK_DEF_(TVM_FFI_STR_CONCAT(__TVMFFIStaticInitFunc, __COUNTER__), \
+                                 TVM_FFI_STR_CONCAT(__TVMFFIStaticInitReg, __COUNTER__))
+/// \endcond
+#endif
 
 /*
  * \brief Define the default copy/move constructor and assign operator

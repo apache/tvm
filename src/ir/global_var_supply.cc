@@ -32,7 +32,7 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK({ GlobalVarSupplyNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { GlobalVarSupplyNode::RegisterReflection(); }
 
 GlobalVarSupply::GlobalVarSupply(const NameSupply& name_supply,
                                  std::unordered_map<std::string, GlobalVar> name_to_var_map) {
@@ -94,7 +94,7 @@ GlobalVar GlobalVarSupplyNode::FreshGlobal(ffi::String name, bool add_prefix) {
   return var;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ir.GlobalVarSupply_NameSupply",
@@ -106,6 +106,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_method("ir.GlobalVarSupply_FreshGlobal", &GlobalVarSupplyNode::FreshGlobal)
       .def_method("ir.GlobalVarSupply_UniqueGlobalFor", &GlobalVarSupplyNode::UniqueGlobalFor)
       .def_method("ir.GlobalVarSupply_ReserveGlobalVar", &GlobalVarSupplyNode::ReserveGlobalVar);
-});
+}
 
 }  // namespace tvm

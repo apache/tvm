@@ -62,7 +62,7 @@ TVM_FFI_DLL_EXPORT_TYPED_FUNC(add_one, my_ffi_extension::AddOne);
 
 // The static initialization block is
 // called once when the library is loaded.
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   // In this particular example, we use the reflection mechanisms to
   // register the functions directly into the global function table.
@@ -85,5 +85,5 @@ TVM_FFI_STATIC_INIT_BLOCK({
   // tvm::ffi::Module::LoadFromFile, instead, just load the dll or simply bundle into the
   // final project
   refl::GlobalDef().def("my_ffi_extension.raise_error", RaiseError);
-});
+}
 }  // namespace my_ffi_extension

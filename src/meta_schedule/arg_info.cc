@@ -160,9 +160,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 /******** FFI ********/
-TVM_FFI_STATIC_INIT_BLOCK({ TensorInfoNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { TensorInfoNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("meta_schedule.ArgInfoAsJSON", &ArgInfoNode::AsJSON)
@@ -172,7 +172,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("meta_schedule.TensorInfo", [](runtime::DataType dtype, ffi::Shape shape) -> TensorInfo {
         return TensorInfo(dtype, shape);
       });
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

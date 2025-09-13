@@ -60,7 +60,7 @@ static ffi::Array<tir::LoopRV> ScheduleDataPack(tir::Schedule sch, tir::BlockRV 
   return {t0[0], t1[0], t0[1], t1[1]};
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("meta_schedule.cpu.conv2d_nhwc_winograd_data_pack",
@@ -97,7 +97,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              ScheduleDataPack(sch, block, {0, 1}, {2, 3, 4, 5});
              return {sch};
            });
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

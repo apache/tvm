@@ -929,12 +929,12 @@ ffi::Module DNNLJSONRuntimeCreate(ffi::String symbol_name, ffi::String graph_jso
   return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.DNNLJSONRuntimeCreate", DNNLJSONRuntimeCreate)
       .def("ffi.Module.load_from_bytes.dnnl_json", JSONRuntimeBase::LoadFromBytes<DNNLJSONRuntime>);
-});
+}
 
 }  // namespace contrib
 }  // namespace runtime

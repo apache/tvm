@@ -28,11 +28,11 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   DTensorStructInfoNode::RegisterReflection();
   PlacementNode::RegisterReflection();
   PlacementSpecNode::RegisterReflection();
-});
+}
 
 PlacementSpec PlacementSpec::Sharding(int axis) {
   ObjectPtr<PlacementSpecNode> n = ffi::make_object<PlacementSpecNode>();
@@ -48,12 +48,12 @@ PlacementSpec PlacementSpec::Replica() {
   return PlacementSpec(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.distributed.Sharding", [](int axis) { return PlacementSpec::Sharding(axis); })
       .def("relax.distributed.Replica", []() { return PlacementSpec::Replica(); });
-});
+}
 
 ffi::String PlacementNode::ToString() const {
   std::stringstream ss;
@@ -109,13 +109,13 @@ Placement Placement::FromText(ffi::String text_repr) {
   return Placement(dim_specs);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.distributed.PlacementFromText", Placement::FromText)
       .def("relax.distributed.Placement",
            [](ffi::Array<PlacementSpec> dim_specs) { return Placement(dim_specs); });
-});
+}
 
 // DTensor
 DTensorStructInfo::DTensorStructInfo(TensorStructInfo tensor_sinfo, DeviceMesh device_mesh,
@@ -135,14 +135,14 @@ DTensorStructInfo::DTensorStructInfo(TensorStructInfo tensor_sinfo, DeviceMesh d
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.distributed.DTensorStructInfo",
       [](TensorStructInfo tensor_sinfo, DeviceMesh device_mesh, Placement placement, Span span) {
         return DTensorStructInfo(tensor_sinfo, device_mesh, placement, span);
       });
-});
+}
 
 }  // namespace distributed
 }  // namespace relax

@@ -85,12 +85,12 @@ SearchStrategy SearchStrategy::PySearchStrategy(
   return SearchStrategy(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   MeasureCandidateNode::RegisterReflection();
   PySearchStrategyNode::RegisterReflection();
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("meta_schedule.MeasureCandidate",
@@ -107,7 +107,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_method("meta_schedule.SearchStrategyNotifyRunnerResults",
                   &SearchStrategyNode::NotifyRunnerResults)
       .def_method("meta_schedule.SearchStrategyClone", &SearchStrategyNode::Clone);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

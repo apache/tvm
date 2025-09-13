@@ -341,13 +341,13 @@ ffi::Module PackImportsToLLVM(const ffi::Module& mod, bool system_lib,
       .cast<ffi::Module>();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("target.Build", Build);
-});
+}
 
 // Export a few auxiliary function to the runtime namespace.
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.ModuleImportsBlobName",
@@ -369,7 +369,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
            })
       .def("runtime.ModulePackImportsToC", PackImportsToC)
       .def("runtime.ModulePackImportsToLLVM", PackImportsToLLVM);
-});
+}
 
 }  // namespace codegen
 }  // namespace tvm

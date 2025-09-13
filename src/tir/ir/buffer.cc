@@ -38,7 +38,7 @@
 namespace tvm {
 namespace tir {
 
-TVM_FFI_STATIC_INIT_BLOCK({ BufferNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { BufferNode::RegisterReflection(); }
 
 using IndexMod = tir::FloorModNode;
 using IndexDiv = tir::FloorDivNode;
@@ -644,7 +644,7 @@ tir::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, DataType dtype
                      offset_factor, buffer_type);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tir.Buffer",
@@ -671,7 +671,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_method("tir.BufferVLoad", &Buffer::vload)
       .def_method("tir.BufferVStore", &Buffer::vstore)
       .def_method("tir.BufferStorageScope", &Buffer::scope);
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

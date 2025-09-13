@@ -291,10 +291,10 @@ class RenewDefMutator : public StmtExprMutator {
 
 PrimFunc RenewDefs(const PrimFunc& func) { return RenewDefMutator::Transform(func); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.RenewDefs", RenewDefs);
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

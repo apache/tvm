@@ -267,10 +267,10 @@ Pass KillAfterLastUse() {
   return CreateFunctionPass(pass_func, /*opt_level=*/0, "KillAfterLastUse", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.KillAfterLastUse", KillAfterLastUse);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

@@ -868,10 +868,10 @@ Pass LiftTransformParams(ffi::Variant<Bool, ffi::Array<ffi::String>> shared_tran
       "LiftTransformParams");
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.LiftTransformParams", LiftTransformParams);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

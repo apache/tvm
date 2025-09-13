@@ -27,7 +27,7 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK({ EnvFuncNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { EnvFuncNode::RegisterReflection(); }
 
 using ffi::Any;
 using ffi::Function;
@@ -50,7 +50,7 @@ ObjectPtr<Object> CreateEnvNode(const std::string& name) {
 
 EnvFunc EnvFunc::Get(const ffi::String& name) { return EnvFunc(CreateEnvNode(name)); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ir.EnvFuncGet", EnvFunc::Get)
@@ -69,5 +69,5 @@ TVM_FFI_STATIC_INIT_BLOCK({
              return node->name;
            })
       .def("__data_from_json__", EnvFunc::Get);
-});
+}
 }  // namespace tvm

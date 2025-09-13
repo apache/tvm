@@ -134,12 +134,12 @@ class Timer : public ObjectRef {
    *  };
    *
    *
-   *  TVM_FFI_STATIC_INIT_BLOCK({
+   *  TVM_FFI_STATIC_INIT_BLOCK() {
    *    namespace refl = tvm::ffi::reflection;
    *    refl::GlobalDef().def("profiling.timer.cpu", [](Device dev) {
    *      return Timer(ffi::make_object<CPUTimerNode>());
    *    });
-   *  });
+   *  }
    * \endcode
    */
   static TVM_DLL Timer Start(Device dev);

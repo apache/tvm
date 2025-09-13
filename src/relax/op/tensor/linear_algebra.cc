@@ -34,10 +34,10 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   MatmulAttrs::RegisterReflection();
   EinsumAttrs::RegisterReflection();
-});
+}
 
 /* relax.matmul */
 
@@ -49,10 +49,10 @@ Expr matmul(Expr x1, Expr x2, ffi::Optional<DataType> out_dtype) {
   return Call(op, {std::move(x1), std::move(x2)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.matmul", matmul);
-});
+}
 
 StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -183,10 +183,10 @@ Expr einsum(Expr operands, ffi::String subscripts) {
   return Call(op, {std::move(operands)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.einsum", einsum);
-});
+}
 
 StructInfo InferStructInfoEinsum(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
@@ -268,10 +268,10 @@ Expr outer(Expr x1, Expr x2) {
   return Call(op, {std::move(x1), std::move(x2)}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.outer", outer);
-});
+}
 
 StructInfo InferStructInfoOuter(const Call& call, const BlockBuilder& ctx) {
   auto input_sinfo = GetInputTensorStructInfo(call, ctx);

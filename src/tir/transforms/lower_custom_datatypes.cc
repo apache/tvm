@@ -251,10 +251,10 @@ Pass LowerCustomDatatypes() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerCustomDatatypes", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.LowerCustomDatatypes", LowerCustomDatatypes);
-});
+}
 
 }  // namespace transform
 

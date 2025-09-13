@@ -54,9 +54,9 @@ struct TestAttrs : public AttrsNodeReflAdapter<TestAttrs> {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("attrs.TestAttrs", TestAttrs, BaseAttrsNode);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ TestAttrs::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { TestAttrs::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("testing.GetShapeSize",
@@ -104,7 +104,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                "if the python module is properly loaded";
         *ret = (*identity_func)(args[0]);
       });
-});
+}
 
 // in src/api_test.cc
 void ErrorTest(int x, int y) {
@@ -116,10 +116,10 @@ void ErrorTest(int x, int y) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("testing.ErrorTest", ErrorTest);
-});
+}
 
 class FrontendTestModuleNode : public ffi::ModuleObj {
  public:
@@ -159,7 +159,7 @@ ffi::Module NewFrontendTestModule() {
   return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("testing.FrontendTestModule", NewFrontendTestModule)
@@ -216,7 +216,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         }
         return map;
       });
-});
+}
 
 /**
  * Simple event logger that can be used for testing purposes
@@ -257,7 +257,7 @@ class TestingEventLogger {
   std::vector<Entry> entries_;
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("testing.record_event",
@@ -272,5 +272,5 @@ TVM_FFI_STATIC_INIT_BLOCK({
           "testing.reset_events",
           [](ffi::PackedArgs args, ffi::Any* rv) { TestingEventLogger::ThreadLocal()->Reset(); })
       .def("testing.dump_events", []() { TestingEventLogger::ThreadLocal()->Dump(); });
-});
+}
 }  // namespace tvm

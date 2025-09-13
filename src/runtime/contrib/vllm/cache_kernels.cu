@@ -130,7 +130,7 @@ __global__ void copy_blocks_kernel(int64_t* key_cache_ptrs, int64_t* value_cache
 namespace tvm {
 namespace runtime {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tvm.contrib.vllm.reshape_and_cache",
@@ -229,7 +229,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                               static_cast<int64_t*>(value_cache_ptrs_gpu->data),
                               static_cast<int64_t*>(block_mapping_gpu->data), numel_per_block);
       });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

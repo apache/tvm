@@ -26,14 +26,14 @@
 #include <tvm/ir/type.h>
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   TypeNode::RegisterReflection();
   PrimTypeNode::RegisterReflection();
   PointerTypeNode::RegisterReflection();
   TupleTypeNode::RegisterReflection();
   FuncTypeNode::RegisterReflection();
   TensorMapTypeNode::RegisterReflection();
-});
+}
 
 PrimType::PrimType(runtime::DataType dtype, Span span) {
   ObjectPtr<PrimTypeNode> n = ffi::make_object<PrimTypeNode>();
@@ -42,10 +42,10 @@ PrimType::PrimType(runtime::DataType dtype, Span span) {
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ir.PrimType", [](runtime::DataType dtype) { return PrimType(dtype); });
-});
+}
 
 PointerType::PointerType(Type element_type, ffi::String storage_scope) {
   ObjectPtr<PointerTypeNode> n = ffi::make_object<PointerTypeNode>();
@@ -58,12 +58,12 @@ PointerType::PointerType(Type element_type, ffi::String storage_scope) {
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ir.PointerType", [](Type element_type, ffi::String storage_scope = "") {
     return PointerType(element_type, storage_scope);
   });
-});
+}
 
 FuncType::FuncType(tvm::ffi::Array<Type> arg_types, Type ret_type, Span span) {
   ObjectPtr<FuncTypeNode> n = ffi::make_object<FuncTypeNode>();
@@ -73,12 +73,12 @@ FuncType::FuncType(tvm::ffi::Array<Type> arg_types, Type ret_type, Span span) {
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ir.FuncType", [](tvm::ffi::Array<Type> arg_types, Type ret_type) {
     return FuncType(arg_types, ret_type);
   });
-});
+}
 
 TupleType::TupleType(ffi::Array<Type> fields, Span span) {
   ObjectPtr<TupleTypeNode> n = ffi::make_object<TupleTypeNode>();
@@ -89,12 +89,12 @@ TupleType::TupleType(ffi::Array<Type> fields, Span span) {
 
 TupleType TupleType::Empty() { return TupleType(ffi::Array<Type>()); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ir.TupleType", [](ffi::Array<Type> fields) { return TupleType(fields); })
       .def("ir.TensorMapType", [](Span span) { return TensorMapType(span); });
-});
+}
 
 TensorMapType::TensorMapType(Span span) {
   ObjectPtr<TensorMapTypeNode> n = ffi::make_object<TensorMapTypeNode>();
