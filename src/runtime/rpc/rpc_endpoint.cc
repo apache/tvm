@@ -171,6 +171,12 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     for (int i = 0; i < args.size(); ++i) {
       if (args[i] == nullptr) continue;
       if (args[i].type_index() == ffi::TypeIndex::kTVMFFIModule) continue;
+      if (args[i].type_index() == ffi::TypeIndex::kTVMFFISmallStr ||
+          args[i].type_index() == ffi::TypeIndex::kTVMFFISmallBytes)
+        continue;
+      if (args[i].type_index() == ffi::TypeIndex::kTVMFFIStr ||
+          args[i].type_index() == ffi::TypeIndex::kTVMFFIBytes)
+        continue;
       if (const Object* obj = args[i].as<Object>()) {
         if (!obj->IsInstance<RPCObjectRefObj>()) {
           LOG(FATAL) << "ValueError: Cannot pass argument " << i << ", type " << obj->GetTypeKey()
@@ -221,14 +227,20 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   void WriteFFIAny(const TVMFFIAny* in) {
     // NOTE: for now all remote object are encoded as RPCObjectRef
     // follow the same disco protocol in case we would like to upgrade later
-    //
-    // Rationale note: Only handle remote object allows the same mechanism to work for minRPC
-    // which is needed for wasm and other env that goes through C API
+    // TODO(tqchen): consider merge with disco protocol
     const AnyView* any_view_ptr = reinterpret_cast<const AnyView*>(in);
     if (const auto* ref = any_view_ptr->as<RPCObjectRefObj>()) {
       this->template Write<uint32_t>(runtime::TypeIndex::kRuntimeRPCObjectRef);
       uint64_t handle = reinterpret_cast<uint64_t>(ref->object_handle());
       this->template Write<int64_t>(handle);
+    } else if (auto opt_str = any_view_ptr->as<ffi::String>()) {
+      this->template Write<uint32_t>(ffi::TypeIndex::kTVMFFIStr);
+      this->template Write<uint64_t>((*opt_str).size());
+      this->template WriteArray<char>((*opt_str).data(), (*opt_str).size());
+    } else if (auto opt_bytes = any_view_ptr->as<ffi::Bytes>()) {
+      this->template Write<uint32_t>(ffi::TypeIndex::kTVMFFIBytes);
+      this->template Write<uint64_t>((*opt_bytes).size());
+      this->template WriteArray<char>((*opt_bytes).data(), (*opt_bytes).size());
     } else {
       LOG(FATAL) << "ValueError: Object type is not supported in RPC calling convention: "
                  << any_view_ptr->GetTypeKey() << " (type_index = " << any_view_ptr->type_index()
@@ -239,6 +251,10 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     const AnyView* any_view_ptr = reinterpret_cast<const AnyView*>(in);
     if (any_view_ptr->as<RPCObjectRefObj>()) {
       return sizeof(uint32_t) + sizeof(int64_t);
+    } else if (auto opt_str = any_view_ptr->as<ffi::String>()) {
+      return sizeof(uint32_t) + sizeof(uint64_t) + (*opt_str).size();
+    } else if (auto opt_bytes = any_view_ptr->as<ffi::Bytes>()) {
+      return sizeof(uint32_t) + sizeof(uint64_t) + (*opt_bytes).size();
     } else {
       LOG(FATAL) << "ValueError: Object type is not supported in RPC calling convention: "
                  << any_view_ptr->GetTypeKey() << " (type_index = " << any_view_ptr->type_index()
@@ -266,7 +282,23 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       // Legacy ABI translation
       // TODO(tqchen): remove this once we have upgraded to new ABI
       *reinterpret_cast<AnyView*>(out) = rpc_obj;
-      object_arena_.push_back(rpc_obj);
+      any_arena_.emplace_back(rpc_obj);
+    } else if (type_index == ffi::TypeIndex::kTVMFFIStr) {
+      uint64_t size;
+      this->template Read<uint64_t>(&size);
+      std::string data(size, '\0');
+      this->template ReadArray<char>(data.data(), size);
+      ffi::String ret(std::move(data));
+      *reinterpret_cast<AnyView*>(out) = ret;
+      any_arena_.emplace_back(ret);
+    } else if (type_index == ffi::TypeIndex::kTVMFFIBytes) {
+      uint64_t size;
+      this->template Read<uint64_t>(&size);
+      std::string data(size, '\0');
+      this->template ReadArray<char>(data.data(), size);
+      ffi::Bytes ret(std::move(data));
+      *reinterpret_cast<AnyView*>(out) = ret;
+      any_arena_.emplace_back(ret);
     } else {
       LOG(FATAL) << "ValueError: Object type is not supported in Disco calling convention: "
                  << Object::TypeIndex2Key(type_index) << " (type_index = " << type_index << ")";
@@ -285,7 +317,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
 
   /*! \brief Recycle all the memory used in the arena */
   void RecycleAll() {
-    this->object_arena_.clear();
+    this->any_arena_.clear();
     this->arena_.RecycleAll();
   }
 
@@ -310,7 +342,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   // Internal arena
   support::Arena arena_;
   // internal arena for temp objects
-  std::vector<ObjectRef> object_arena_;
+  std::vector<ffi::Any> any_arena_;
 
   // State switcher
   void SwitchToState(State state) {

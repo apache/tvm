@@ -89,6 +89,27 @@ cdef inline object make_ret(TVMFFIAny result, DLPackToPyObject c_dlpack_to_pyobj
 
 
 ##----------------------------------------------------------------------------
+## Helper to simplify calling constructor
+##----------------------------------------------------------------------------
+cdef inline int ConstructorCall(void* constructor_handle,
+                                PyObject* py_arg_tuple,
+                                void** handle,
+                                TVMFFIPyCallContext* parent_ctx) except -1:
+    """Call contructor of a handle function"""
+    cdef TVMFFIAny result
+    cdef int c_api_ret_code
+    # IMPORTANT: caller need to initialize result->type_index to kTVMFFINone
+    result.type_index = kTVMFFINone
+    result.v_int64 = 0
+    TVMFFIPyConstructorCall(
+        TVMFFIPyArgSetterFactory_, constructor_handle, py_arg_tuple, &result, &c_api_ret_code,
+        parent_ctx
+    )
+    CHECK_CALL(c_api_ret_code)
+    handle[0] = result.v_ptr
+    return 0
+
+##----------------------------------------------------------------------------
 ## Implementation of setters using same naming style as TVMFFIPyArgSetterXXX_
 ##----------------------------------------------------------------------------
 cdef int TVMFFIPyArgSetterTensor_(
@@ -244,18 +265,33 @@ cdef int TVMFFIPyArgSetterStr_(
 ) except -1:
     """Setter for str"""
     cdef object arg = <object>py_arg
+    cdef bytes tstr = arg.encode("utf-8")
+    cdef char* data
+    cdef Py_ssize_t size
+    cdef TVMFFIByteArray cdata
 
-    if isinstance(arg, PyNativeObject) and arg.__tvm_ffi_object__ is not None:
+    PyBytes_AsStringAndSize(tstr, &data, &size)
+    cdata.data = data
+    cdata.size = size
+    CHECK_CALL(TVMFFIStringFromByteArray(&cdata, out))
+    if out.type_index >= kTVMFFIStaticObjectBegin:
+        TVMFFIPyPushTempFFIObject(ctx, out.v_ptr)
+    return 0
+
+
+cdef int TVMFFIPyArgSetterPyNativeObjectStr_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* py_arg, TVMFFIAny* out
+) except -1:
+    """Specially handle String as its __tvm_ffi_object__ may be empty"""
+    cdef object arg = <object>py_arg
+    # need to check if the arg is a large string returned from ffi
+    if arg.__tvm_ffi_object__ is not None:
         arg = arg.__tvm_ffi_object__
         out.type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
         out.v_ptr = (<Object>arg).chandle
         return 0
-
-    tstr = c_str(arg)
-    out.type_index = kTVMFFIRawStr
-    out.v_c_str = tstr
-    TVMFFIPyPushTempPyObject(ctx, <PyObject*>tstr)
-    return 0
+    return TVMFFIPyArgSetterStr_(handle, ctx, py_arg, out)
 
 
 cdef int TVMFFIPyArgSetterBytes_(
@@ -265,17 +301,50 @@ cdef int TVMFFIPyArgSetterBytes_(
     """Setter for bytes"""
     cdef object arg = <object>py_arg
 
-    if isinstance(arg, PyNativeObject) and arg.__tvm_ffi_object__ is not None:
+    if isinstance(arg, bytearray):
+        arg = bytes(arg)
+
+    cdef char* data
+    cdef Py_ssize_t size
+    cdef TVMFFIByteArray cdata
+
+    PyBytes_AsStringAndSize(arg, &data, &size)
+    cdata.data = data
+    cdata.size = size
+    CHECK_CALL(TVMFFIBytesFromByteArray(&cdata, out))
+
+    if out.type_index >= kTVMFFIStaticObjectBegin:
+        TVMFFIPyPushTempFFIObject(ctx, out.v_ptr)
+    return 0
+
+
+cdef int TVMFFIPyArgSetterPyNativeObjectBytes_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* py_arg, TVMFFIAny* out
+) except -1:
+    """Specially handle Bytes as its __tvm_ffi_object__ may be empty"""
+    cdef object arg = <object>py_arg
+    # need to check if the arg is a large bytes returned from ffi
+    if arg.__tvm_ffi_object__ is not None:
         arg = arg.__tvm_ffi_object__
         out.type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
         out.v_ptr = (<Object>arg).chandle
         return 0
+    return TVMFFIPyArgSetterBytes_(handle, ctx, py_arg, out)
 
-    arg = ByteArrayArg(arg)
-    out.type_index = kTVMFFIByteArrayPtr
-    out.v_int64 = 0
-    out.v_ptr = (<ByteArrayArg>arg).cptr()
-    TVMFFIPyPushTempPyObject(ctx, <PyObject*>arg)
+
+cdef int TVMFFIPyArgSetterPyNativeObjectGeneral_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* py_arg, TVMFFIAny* out
+) except -1:
+    """Specially handle Bytes as its __tvm_ffi_object__ may be empty"""
+    cdef object arg = <object>py_arg
+    if arg.__tvm_ffi_object__ is None:
+        raise ValueError(f"__tvm_ffi_object__ is None for {type(arg)}")
+    assert arg.__tvm_ffi_object__ is not None
+    arg = arg.__tvm_ffi_object__
+    out.type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
+    out.v_ptr = (<Object>arg).chandle
     return 0
 
 
@@ -306,10 +375,11 @@ cdef int TVMFFIPyArgSetterCallable_(
 ) except -1:
     """Setter for Callable"""
     cdef object arg = <object>py_arg
-    arg = _convert_to_ffi_func(arg)
-    out.type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
-    out.v_ptr = (<Object>arg).chandle
-    TVMFFIPyPushTempPyObject(ctx, <PyObject*>arg)
+    cdef TVMFFIObjectHandle chandle
+    _convert_to_ffi_func_handle(arg, &chandle)
+    out.type_index = TVMFFIObjectGetTypeIndex(chandle)
+    out.v_ptr = chandle
+    TVMFFIPyPushTempFFIObject(ctx, chandle)
     return 0
 
 
@@ -326,27 +396,79 @@ cdef int TVMFFIPyArgSetterException_(
     return 0
 
 
+cdef int TVMFFIPyArgSetterTuple_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* py_arg, TVMFFIAny* out
+) except -1:
+    """Setter for Tuple"""
+    # recursively construct a new tuple
+    cdef TVMFFIObjectHandle chandle
+    ConstructorCall(_CONSTRUCTOR_ARRAY.chandle, py_arg, &chandle, ctx)
+    out.type_index = TVMFFIObjectGetTypeIndex(chandle)
+    out.v_ptr = chandle
+    TVMFFIPyPushTempFFIObject(ctx, chandle)
+    return 0
+
+
+cdef int TVMFFIPyArgSetterTupleLike_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* py_arg, TVMFFIAny* out
+) except -1:
+    """Setter for TupleLike"""
+    # recursively construct a new tuple
+    cdef tuple tuple_arg = tuple(<object>py_arg)
+    cdef TVMFFIObjectHandle chandle
+    ConstructorCall(_CONSTRUCTOR_ARRAY.chandle, <PyObject*>tuple_arg, &chandle, ctx)
+    out.type_index = TVMFFIObjectGetTypeIndex(chandle)
+    out.v_ptr = chandle
+    TVMFFIPyPushTempFFIObject(ctx, chandle)
+    return 0
+
+
+cdef int TVMFFIPyArgSetterMap_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* py_arg, TVMFFIAny* out
+) except -1:
+    """Setter for Map"""
+    # recursively construct a new map
+    cdef dict dict_arg = <dict>py_arg
+    cdef list list_kvs = []
+    for k, v in dict_arg.items():
+        list_kvs.append(k)
+        list_kvs.append(v)
+    cdef tuple_arg_kvs = tuple(list_kvs)
+    cdef TVMFFIObjectHandle chandle
+    ConstructorCall(_CONSTRUCTOR_MAP.chandle, <PyObject*>tuple_arg_kvs, &chandle, ctx)
+    out.type_index = TVMFFIObjectGetTypeIndex(chandle)
+    out.v_ptr = chandle
+    TVMFFIPyPushTempFFIObject(ctx, chandle)
+    return 0
+
+
+cdef int TVMFFIPyArgSetterObjectConvertible_(
+    TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
+    PyObject* py_arg, TVMFFIAny* out
+) except -1:
+    """Setter for ObjectConvertible"""
+    # recursively construct a new map
+    cdef object arg = <object>py_arg
+    arg = arg.asobject()
+    out.type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
+    out.v_ptr = (<Object>arg).chandle
+    TVMFFIPyPushTempPyObject(ctx, <PyObject*>arg)
+
+
 cdef int TVMFFIPyArgSetterFallback_(
     TVMFFIPyArgSetter* handle, TVMFFIPyCallContext* ctx,
     PyObject* py_arg, TVMFFIAny* out
 ) except -1:
     """Fallback setter for all other types"""
     cdef object arg = <object>py_arg
-    # fallback must contain PyNativeObject check
-    if isinstance(arg, PyNativeObject) and arg.__tvm_ffi_object__ is not None:
-        arg = arg.__tvm_ffi_object__
-        out.type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
-        out.v_ptr = (<Object>arg).chandle
-    elif isinstance(arg, (list, tuple, dict, ObjectConvertible)):
-        arg = _FUNC_CONVERT_TO_OBJECT(arg)
-        out.type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
-        out.v_ptr = (<Object>arg).chandle
-        TVMFFIPyPushTempPyObject(ctx, <PyObject*>arg)
-    else:
-        arg = _convert_to_opaque_object(arg)
-        out.type_index = kTVMFFIOpaquePyObject
-        out.v_ptr = (<Object>arg).chandle
-        TVMFFIPyPushTempPyObject(ctx, <PyObject*>arg)
+    cdef TVMFFIObjectHandle chandle
+    _convert_to_opaque_object_handle(arg, &chandle)
+    out.type_index = kTVMFFIOpaquePyObject
+    out.v_ptr = chandle
+    TVMFFIPyPushTempFFIObject(ctx, chandle)
 
 
 cdef int TVMFFIPyArgSetterFactory_(PyObject* value, TVMFFIPyArgSetter* out) except -1:
@@ -407,11 +529,31 @@ cdef int TVMFFIPyArgSetterFactory_(PyObject* value, TVMFFIPyArgSetter* out) exce
     if isinstance(arg, _CLASS_DEVICE):
         out.func = TVMFFIPyArgSetterDevice_
         return 0
+    if isinstance(arg, PyNativeObject):
+        # check for PyNativeObject
+        # this check must happen before str/bytes/tuple
+        if isinstance(arg, str):
+            out.func = TVMFFIPyArgSetterPyNativeObjectStr_
+            return 0
+        if isinstance(arg, bytes):
+            out.func = TVMFFIPyArgSetterPyNativeObjectBytes_
+            return 0
+        out.func = TVMFFIPyArgSetterPyNativeObjectGeneral_
+        return 0
     if isinstance(arg, str):
         out.func = TVMFFIPyArgSetterStr_
         return 0
     if isinstance(arg, (bytes, bytearray)):
         out.func = TVMFFIPyArgSetterBytes_
+        return 0
+    if isinstance(arg, tuple):
+        out.func = TVMFFIPyArgSetterTuple_
+        return 0
+    if isinstance(arg, list):
+        out.func = TVMFFIPyArgSetterTupleLike_
+        return 0
+    if isinstance(arg, dict):
+        out.func = TVMFFIPyArgSetterMap_
         return 0
     if isinstance(arg, ctypes.c_void_p):
         out.func = TVMFFIPyArgSetterCtypesVoidPtr_
@@ -422,6 +564,9 @@ cdef int TVMFFIPyArgSetterFactory_(PyObject* value, TVMFFIPyArgSetter* out) exce
     if isinstance(arg, Exception):
         out.func = TVMFFIPyArgSetterException_
         return 0
+    if isinstance(arg, ObjectConvertible):
+        out.func = TVMFFIPyArgSetterObjectConvertible_
+        return 0
     # default to opaque object
     out.func = TVMFFIPyArgSetterFallback_
     return 0
@@ -429,24 +574,6 @@ cdef int TVMFFIPyArgSetterFactory_(PyObject* value, TVMFFIPyArgSetter* out) exce
 #---------------------------------------------------------------------------------------------
 ## Implementation of function calling
 #---------------------------------------------------------------------------------------------
-cdef inline int ConstructorCall(void* constructor_handle,
-                                tuple args,
-                                void** handle) except -1:
-    """Call contructor of a handle function"""
-    cdef TVMFFIAny result
-    cdef int c_api_ret_code
-    # IMPORTANT: caller need to initialize result->type_index to kTVMFFINone
-    result.type_index = kTVMFFINone
-    result.v_int64 = 0
-    TVMFFIPyFuncCall(
-        TVMFFIPyArgSetterFactory_, constructor_handle, <PyObject*>args, &result, &c_api_ret_code,
-        False, NULL
-    )
-    CHECK_CALL(c_api_ret_code)
-    handle[0] = result.v_ptr
-    return 0
-
-
 cdef class Function(Object):
     """Python class that wraps a function with tvm-ffi ABI.
 
@@ -670,29 +797,45 @@ cdef int tvm_ffi_callback(void* context,
         return -1
 
 
-def _convert_to_ffi_func(object pyfunc):
-    """Convert a python function to TVM FFI function"""
-    cdef TVMFFIObjectHandle chandle
+cdef inline int _convert_to_ffi_func_handle(
+    object pyfunc, TVMFFIObjectHandle* out_handle
+) except -1:
+    """Convert a python function to TVM FFI function handle"""
     Py_INCREF(pyfunc)
     CHECK_CALL(TVMFFIFunctionCreate(
         <void*>(pyfunc),
         tvm_ffi_callback,
         tvm_ffi_pyobject_deleter,
-        &chandle))
+        out_handle))
+    return 0
+
+
+def _convert_to_ffi_func(object pyfunc):
+    """Convert a python function to TVM FFI function"""
+    cdef TVMFFIObjectHandle chandle
+    _convert_to_ffi_func_handle(pyfunc, &chandle)
     ret = Function.__new__(Function)
     (<Object>ret).chandle = chandle
     return ret
 
 
-def _convert_to_opaque_object(object pyobject):
-    """Convert a python object to TVM FFI opaque object"""
-    cdef TVMFFIObjectHandle chandle
+cdef inline int _convert_to_opaque_object_handle(
+    object pyobject, TVMFFIObjectHandle* out_handle
+) except -1:
+    """Convert a python object to TVM FFI opaque object handle"""
     Py_INCREF(pyobject)
     CHECK_CALL(TVMFFIObjectCreateOpaque(
         <void*>(pyobject),
         kTVMFFIOpaquePyObject,
         tvm_ffi_pyobject_deleter,
-        &chandle))
+        out_handle))
+    return 0
+
+
+def _convert_to_opaque_object(object pyobject):
+    """Convert a python object to TVM FFI opaque object"""
+    cdef TVMFFIObjectHandle chandle
+    _convert_to_opaque_object_handle(pyobject, &chandle)
     ret = OpaquePyObject.__new__(OpaquePyObject)
     (<Object>ret).chandle = chandle
     return ret
@@ -704,7 +847,7 @@ def _print_debug_info():
     print(f"TVMFFIPyGetDispatchMapSize: {size}")
 
 
-_STR_CONSTRUCTOR = _get_global_func("ffi.String", False)
-_BYTES_CONSTRUCTOR = _get_global_func("ffi.Bytes", False)
-_OBJECT_FROM_JSON_GRAPH_STR = _get_global_func("ffi.FromJSONGraphString", True)
-_OBJECT_TO_JSON_GRAPH_STR = _get_global_func("ffi.ToJSONGraphString", True)
+cdef Function _OBJECT_FROM_JSON_GRAPH_STR = _get_global_func("ffi.FromJSONGraphString", True)
+cdef Function _OBJECT_TO_JSON_GRAPH_STR = _get_global_func("ffi.ToJSONGraphString", True)
+cdef Function _CONSTRUCTOR_ARRAY = _get_global_func("ffi.Array", True)
+cdef Function _CONSTRUCTOR_MAP = _get_global_func("ffi.Map", True)

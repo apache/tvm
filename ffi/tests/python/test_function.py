@@ -97,6 +97,39 @@ def test_return_raw_str_bytes():
     assert tvm_ffi.convert(lambda: bytearray(b"hello"))() == b"hello"
 
 
+def test_string_bytes_passing():
+    fecho = tvm_ffi.get_global_func("testing.echo")
+    use_count = tvm_ffi.get_global_func("testing.object_use_count")
+    # small string
+    assert fecho("hello") == "hello"
+    # large string
+    x = "hello" * 100
+    y = fecho(x)
+    assert y == x
+    assert y.__tvm_ffi_object__ is not None
+    use_count(y) == 1
+    # small bytes
+    assert fecho(b"hello") == b"hello"
+    # large bytes
+    x = b"hello" * 100
+    y = fecho(x)
+    assert y == x
+    assert y.__tvm_ffi_object__ is not None
+    fecho(y) == 1
+
+
+def test_nested_container_passing():
+    # test and make sure our ref counting is correct
+    fecho = tvm_ffi.get_global_func("testing.echo")
+    use_count = tvm_ffi.get_global_func("testing.object_use_count")
+    obj = tvm_ffi.convert((1, 2, 3))
+    assert use_count(obj) == 1
+    y = fecho([obj, {"a": 1, "b": obj}])
+    assert use_count(y) == 1
+    assert use_count(obj) == 3
+    assert use_count(y[1]) == 2
+
+
 def test_pyfunc_convert():
     def add(a, b):
         return a + b

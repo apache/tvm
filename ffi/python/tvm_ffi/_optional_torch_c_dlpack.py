@@ -384,7 +384,6 @@ int64_t TorchDLPackTensorAllocatorPtr() {
             ],
             extra_cflags=["-O3"],
             extra_include_paths=libinfo.include_paths() + cpp_extension.include_paths("cuda"),
-            verbose=True,
         )
         # set the dlpack related flags
         torch.Tensor.__c_dlpack_from_pyobject__ = mod.TorchDLPackFromPyObjectPtr()

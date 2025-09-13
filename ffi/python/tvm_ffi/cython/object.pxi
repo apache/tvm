@@ -17,16 +17,11 @@
 import warnings
 
 _CLASS_OBJECT = None
-_FUNC_CONVERT_TO_OBJECT = None
 
 
 def _set_class_object(cls):
     global _CLASS_OBJECT
     _CLASS_OBJECT = cls
-
-def _set_func_convert_to_object(func):
-    global _FUNC_CONVERT_TO_OBJECT
-    _FUNC_CONVERT_TO_OBJECT = func
 
 
 def __object_repr__(obj):
@@ -37,10 +32,6 @@ def __object_repr__(obj):
 def _new_object(cls):
     """Helper function for pickle"""
     return cls.__new__(cls)
-
-
-_OBJECT_FROM_JSON_GRAPH_STR = None
-_OBJECT_TO_JSON_GRAPH_STR = None
 
 
 class ObjectConvertible:
@@ -144,7 +135,7 @@ cdef class Object:
         self.chandle = NULL
         cdef void* chandle
         ConstructorCall(
-            (<Object>fconstructor).chandle, args, &chandle)
+            (<Object>fconstructor).chandle, <PyObject*>args, &chandle, NULL)
         self.chandle = chandle
 
     def same_as(self, other):

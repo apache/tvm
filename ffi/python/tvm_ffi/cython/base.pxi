@@ -212,6 +212,8 @@ cdef extern from "tvm/ffi/c_api.h":
                                          TVMFFIByteArray* traceback) nogil
 
     int TVMFFITypeKeyToIndex(TVMFFIByteArray* type_key, int32_t* out_tindex) nogil
+    int TVMFFIStringFromByteArray(TVMFFIByteArray* input_, TVMFFIAny* out) nogil
+    int TVMFFIBytesFromByteArray(TVMFFIByteArray* input_, TVMFFIAny* out) nogil
     int TVMFFIDataTypeFromString(TVMFFIByteArray* str, DLDataType* out) nogil
     int TVMFFIDataTypeToString(const DLDataType* dtype, TVMFFIAny* out) nogil
     const TVMFFIByteArray* TVMFFITraceback(
@@ -282,6 +284,15 @@ cdef extern from "tvm_ffi_python_helpers.h":
         int* c_api_ret_code,
         int release_gil,
         DLPackToPyObject* out_dlpack_importer
+    ) except -1
+
+    int TVMFFIPyConstructorCall(
+        TVMFFIPyArgSetterFactory setter_factory,
+        void* chandle,
+        PyObject* py_arg_tuple,
+        TVMFFIAny* result,
+        int* c_api_ret_code,
+        TVMFFIPyCallContext* parent_ctx
     ) except -1
 
     int TVMFFIPyCallFieldSetter(

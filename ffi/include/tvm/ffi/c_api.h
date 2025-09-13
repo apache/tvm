@@ -555,6 +555,25 @@ TVM_FFI_DLL int TVMFFITensorFromDLPackVersioned(DLManagedTensorVersioned* from,
  */
 TVM_FFI_DLL int TVMFFITensorToDLPackVersioned(TVMFFIObjectHandle from,
                                               DLManagedTensorVersioned** out);
+//---------------------------------------------------------------
+// Section: string/bytes support APIs.
+// These APIs are used to simplify the string/bytes construction
+//---------------------------------------------------------------
+/*!
+ * \brief Reinterpret the content of TVMFFIByteArray to String.
+ * \param input The TVMFFIByteArray to convert.
+ * \param out The output String owned by the caller, maybe a SmallStr or a Str object.
+ * \return 0 on success, nonzero on failure.
+ */
+TVM_FFI_DLL int TVMFFIStringFromByteArray(const TVMFFIByteArray* input, TVMFFIAny* out);
+
+/*!
+ * \brief Reinterpret the content of TVMFFIByteArray to Bytes.
+ * \param input The TVMFFIByteArray to convert.
+ * \param out The output Bytes owned by the caller, maybe a SmallBytes or a Bytes object.
+ * \return 0 on success, nonzero on failure.
+ */
+TVM_FFI_DLL int TVMFFIBytesFromByteArray(const TVMFFIByteArray* input, TVMFFIAny* out);
 
 //---------------------------------------------------------------
 // Section: dtype string support APIs.
