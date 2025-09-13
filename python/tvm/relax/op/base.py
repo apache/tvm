@@ -305,6 +305,42 @@ def call_dps_packed(
 
 
 @args_converter.auto
+def call_py_func(
+    func_name: str,
+    args: Expr,
+    out_sinfo: Union[TensorStructInfo, List[TensorStructInfo]],
+) -> Call:
+    """
+    Call a Python function and return the output.
+
+    Parameters
+    ----------
+    func_name : str
+        The name of the Python function to call. This should correspond to a function
+        in the IRModule's pyfuncs attribute.
+
+    args : Expr
+        The input arguments.
+
+    out_sinfo : Union[TensorStructInfo, List[TensorStructInfo]]
+        The structure info of the call_py_func output.
+        It should be a single or a list of TensorStructInfo. Each one denotes the
+        structure info of a returned tensor.
+
+    Returns
+    -------
+    ret: Call
+        A call node for the call_py_func operator.
+    """
+    args = _wrap_inline_arg_tuple(args)
+
+    if not isinstance(out_sinfo, list):
+        out_sinfo = [out_sinfo]
+
+    return _ffi_api.call_py_func(func_name, args, out_sinfo)  # type: ignore
+
+
+@args_converter.auto
 def call_builtin_with_ctx(
     func: Union[str, Expr],
     args: Expr,

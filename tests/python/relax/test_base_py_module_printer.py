@@ -758,3 +758,207 @@ def test_python_functions_in_irmodule():
         assert pyfuncs["multiply"].__name__ == "multiply"
     else:
         pytest.fail("pyfuncs attribute not found in IRModule")
+
+
+def test_call_py_func_operator():
+    """Test R.call_py_func operator functionality."""
+    import torch
+
+    @I.ir_module
+    class CallPyFuncTestModule(BasePyModule):
+        """Test module with call_py_func usage."""
+
+        @I.pyfunc
+        def pytorch_add(self, x, y):
+            """Simple PyTorch addition."""
+            return x + y
+
+        @I.pyfunc
+        def pytorch_multiply(self, x, y):
+            """Simple PyTorch multiplication."""
+            return x * y
+
+        @R.function
+        def test_call_py_func(
+            x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")
+        ) -> R.Tensor((5,), "float32"):
+            # Test calling Python function from Relax
+            result = R.call_py_func("pytorch_add", (x, y), out_sinfo=R.Tensor((5,), "float32"))
+            return result
+
+        @R.function
+        def test_call_py_func_chain(
+            x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")
+        ) -> R.Tensor((5,), "float32"):
+            # First call
+            intermediate = R.call_py_func("pytorch_add", (x, y), out_sinfo=R.Tensor((5,), "float32"))
+            # Second call
+            result = R.call_py_func("pytorch_multiply", (intermediate, y), out_sinfo=R.Tensor((5,), "float32"))
+            return result
+
+    # Test basic functionality
+    device = tvm.cpu()
+    module = CallPyFuncTestModule(device)
+
+    # Create test tensors
+    x = torch.randn(5, dtype=torch.float32)
+    y = torch.randn(5, dtype=torch.float32)
+
+    # Test direct Python function calls
+    expected_add = x + y
+    expected_multiply = x * y
+
+    # Test through BasePyModule
+    result_add = module.call_py_func("pytorch_add", [x, y])
+    result_multiply = module.call_py_func("pytorch_multiply", [x, y])
+
+    assert torch.allclose(result_add, expected_add, atol=1e-5)
+    assert torch.allclose(result_multiply, expected_multiply, atol=1e-5)
+
+    # Test that the module has the pyfuncs
+    assert hasattr(module, "pyfuncs")
+    assert "pytorch_add" in module.pyfuncs
+    assert "pytorch_multiply" in module.pyfuncs
+
+
+def test_call_py_func_validation():
+    """Test call_py_func validation and error handling."""
+    import torch
+
+    @I.ir_module
+    class ValidationTestModule(BasePyModule):
+        """Test module for validation."""
+
+        @I.pyfunc
+        def valid_func(self, x):
+            """Valid Python function."""
+            return x * 2
+
+        @R.function
+        def test_invalid_call(
+            x: R.Tensor((5,), "float32")
+        ) -> R.Tensor((5,), "float32"):
+            # This should cause a validation error
+            result = R.call_py_func("non_existent_func", (x,), out_sinfo=R.Tensor((5,), "float32"))
+            return result
+
+    device = tvm.cpu()
+    module = ValidationTestModule(device)
+
+    # Test that calling non-existent function raises error
+    x = torch.randn(5, dtype=torch.float32)
+    
+    with pytest.raises(ValueError, match="Python function 'non_existent_func' not found"):
+        module.call_py_func("non_existent_func", [x])
+
+
+def test_call_py_func_in_relax_function():
+    """Test using call_py_func within Relax functions."""
+    import torch
+
+    @I.ir_module
+    class RelaxCallPyFuncModule(BasePyModule):
+        """Test module with call_py_func in Relax functions."""
+
+        @I.pyfunc
+        def torch_relu(self, x):
+            """PyTorch ReLU implementation."""
+            return torch.relu(x)
+
+        @I.pyfunc
+        def torch_softmax(self, x, dim=0):
+            """PyTorch softmax implementation."""
+            return torch.softmax(x, dim=dim)
+
+        @R.function
+        def mixed_computation(
+            x: R.Tensor((10,), "float32")
+        ) -> R.Tensor((10,), "float32"):
+            # Use Python function for ReLU
+            relu_result = R.call_py_func("torch_relu", (x,), out_sinfo=R.Tensor((10,), "float32"))
+            # Use Python function for softmax
+            final_result = R.call_py_func("torch_softmax", (relu_result,), out_sinfo=R.Tensor((10,), "float32"))
+            return final_result
+
+    device = tvm.cpu()
+    module = RelaxCallPyFuncModule(device)
+
+    # Test the mixed computation
+    x = torch.randn(10, dtype=torch.float32)
+    
+    expected = torch.softmax(torch.relu(x), dim=0)
+    
+    relu_result = module.call_py_func("torch_relu", [x])
+    final_result = module.call_py_func("torch_softmax", [relu_result])
+    
+    assert torch.allclose(final_result, expected, atol=1e-5)
+
+
+def test_call_py_func_operator_creation():
+    """Test R.call_py_func operator creation and basic properties."""
+    from tvm.relax.op import call_py_func
+    from tvm.relax.expr import StringImm
+    from tvm.relax import Var, TensorStructInfo
+    
+    # Create variables
+    x = Var("x", TensorStructInfo((5,), "float32"))
+    y = Var("y", TensorStructInfo((5,), "float32"))
+    
+    # Create call_py_func call
+    call_expr = call_py_func(StringImm("test_func"), (x, y), out_sinfo=R.Tensor((5,), "float32"))
+    
+    # Verify operator properties
+    assert call_expr.op.name == "relax.call_py_func"
+    assert call_expr.args[0].value == "test_func"
+    assert len(call_expr.args) == 2
+
+
+def test_call_py_func_compilation_validation():
+    """Test call_py_func compilation validation."""
+    from tvm.relax.op import call_py_func
+    from tvm.relax import Var, TensorStructInfo
+    
+    # Test operator parameter validation
+    try:
+        call_py_func("invalid", (Var("x", TensorStructInfo((5,), "float32")),), out_sinfo=R.Tensor((5,), "float32"))
+        assert False, "Should raise type error"
+    except Exception as e:
+        assert "Mismatched type" in str(e) or "Expected" in str(e)
+
+
+def test_call_py_func_runtime_execution():
+    """Test call_py_func runtime execution with complex operations."""
+    import torch
+    
+    @I.ir_module
+    class RuntimeTestModule(BasePyModule):
+        """Test module for runtime execution"""
+        
+        @I.pyfunc
+        def pytorch_add(self, x, y):
+            """PyTorch addition function"""
+            return x + y
+        
+        @I.pyfunc
+        def pytorch_relu(self, x):
+            """PyTorch ReLU function"""
+            return torch.relu(x)
+    
+    # Create module instance
+    device = tvm.cpu()
+    module = RuntimeTestModule(device)
+    
+    # Create test tensors
+    x = torch.randn(5, dtype=torch.float32)
+    y = torch.randn(5, dtype=torch.float32)
+    
+    # Test direct Python function calls
+    result_add = module.call_py_func("pytorch_add", [x, y])
+    result_relu = module.call_py_func("pytorch_relu", [x])
+    
+    expected_add = x + y
+    expected_relu = torch.relu(x)
+    
+    # Verify results
+    assert torch.allclose(result_add, expected_add, atol=1e-5)
+    assert torch.allclose(result_relu, expected_relu, atol=1e-5)

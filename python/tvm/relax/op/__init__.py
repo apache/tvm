@@ -27,6 +27,7 @@ from .base import (
     call_dps_packed,
     call_inplace_packed,
     call_pure_packed,
+    call_py_func,
     call_tir,
     call_tir_inplace,
     call_tir_with_grad,

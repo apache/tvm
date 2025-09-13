@@ -858,6 +858,71 @@ TVM_FFI_STATIC_INIT_BLOCK({
   refl::GlobalDef().def("relax.op.call_dps_packed", MakeCallDPSPacked);
 });
 
+// call_py_func
+
+StructInfo InferStructInfoCallPyFunc(const Call& call, const BlockBuilder& ctx) {
+  if (call->sinfo_args.size() != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "sinfo_args should have exact 1 output struct info.");
+  }
+  return call->sinfo_args[0];
+}
+
+void ValidateCallPyFunc(Call call) {
+  // Validate that the function name is a string literal
+  auto func_name = call->args[0];
+  CHECK(func_name->IsInstance<StringImmNode>())
+      << "Operation " << call->op << " expects the first argument to be a string literal "
+      << "specifying the Python function name. However, the first argument " << func_name
+      << " is not a string literal.";
+
+  // Validate that args is a tuple
+  Expr arg_tuple = call->args[1];
+  CHECK(arg_tuple->struct_info_.as<TupleStructInfoNode>())
+      << "Operation " << call->op << " expects the second argument to be a tuple of relax Expr.  "
+      << "However, the second argument " << arg_tuple << " has struct info "
+      << arg_tuple->struct_info_ << ".";
+
+  CHECK(arg_tuple.as<TupleNode>() || arg_tuple.as<VarNode>())
+      << "Operation " << call->op << " must hold its arguments as an in-line tuple.  "
+      << "However, " << call << " has arguments " << arg_tuple
+      << ", which is neither an in-line tuple, "
+      << "nor a variable binding that may be normalized to an in-line tuple.";
+}
+
+TVM_REGISTER_OP("relax.call_py_func")
+    .set_num_inputs(2)
+    .add_argument("func_name", "StringImm", "The name of the Python function to call.")
+    .add_argument("args", "Tuple", "The input arguments.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallPyFunc)
+    .set_attr<FValidate>("FValidate", ValidateCallPyFunc)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+Expr MakeCallPyFunc(StringImm func_name, Tuple args, ffi::Array<TensorStructInfo> out_sinfo_list) {
+  for (const TensorStructInfo& sinfo : out_sinfo_list) {
+    const auto* shape = sinfo->shape.as<ShapeExprNode>();
+    CHECK(shape != nullptr)
+        << "out_sinfo of call_py_func should have defined ShapeExpr as shape. "
+           "However, one given structure info is "
+        << sinfo;
+  }
+
+  StructInfo out_sinfo{nullptr};
+  if (out_sinfo_list.size() == 1) {
+    out_sinfo = out_sinfo_list[0];
+  } else {
+    out_sinfo = TupleStructInfo({out_sinfo_list.begin(), out_sinfo_list.end()});
+  }
+
+  static const Op& op = Op::Get("relax.call_py_func");
+  return Call(op, {func_name, args}, {}, {out_sinfo});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.call_py_func", MakeCallPyFunc);
+});
+
 // call builtin
 StructInfo InferStructInfoCallBuiltinWithCtx(const Call& call, const BlockBuilder& ctx) {
   if (call->sinfo_args.size() == 0) {
