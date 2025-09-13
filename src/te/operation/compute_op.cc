@@ -39,11 +39,11 @@ namespace tvm {
 namespace te {
 using namespace tir;
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   OperationNode::RegisterReflection();
   BaseComputeOpNode::RegisterReflection();
   ComputeOpNode::RegisterReflection();
-});
+}
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ComputeOpNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -153,14 +153,14 @@ ComputeOp::ComputeOp(std::string name, std::string tag, ffi::Map<ffi::String, ff
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("te.ComputeOp", [](std::string name, std::string tag,
                                            ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs,
                                            ffi::Array<IterVar> axis, ffi::Array<PrimExpr> body) {
     return ComputeOp(name, tag, attrs.value_or({}), axis, body);
   });
-});
+}
 
 // The schedule related logics
 ffi::Array<Tensor> ComputeOpNode::InputTensors() const {

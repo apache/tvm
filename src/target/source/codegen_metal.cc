@@ -468,9 +468,9 @@ ffi::Module BuildMetal(IRModule mod, Target target) {
   return MetalModuleCreate(smap, ExtractFuncInfo(mod), fmt, source_maker.str());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("target.build.metal", BuildMetal);
-});
+}
 }  // namespace codegen
 }  // namespace tvm

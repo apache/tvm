@@ -295,10 +295,10 @@ String Stringify(const json::Value& value, Optional<int> indent) {
   return JSONWriter::Stringify(value, indent);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ffi.json.Stringify", Stringify);
-});
+}
 
 }  // namespace json
 }  // namespace ffi

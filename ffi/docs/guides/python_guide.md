@@ -203,7 +203,7 @@ public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TestIntPair, tvm::ffi::ObjectRef, TestIntPairObj);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   // register the object into the system
   // register field accessors and a global static function `__create__` as ffi::Function
@@ -213,7 +213,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     .def_static("__create__", [](int64_t a, int64_t b) -> TestIntPair {
       return TestIntPair(a, b);
     });
-});
+}
 ```
 
 You can then create wrapper classes for objects that are in the library as follows:

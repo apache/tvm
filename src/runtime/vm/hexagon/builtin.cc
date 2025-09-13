@@ -33,7 +33,7 @@ namespace runtime {
 namespace vm {
 // clang-format off
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("vm.builtin.hexagon.dma_copy",
@@ -70,7 +70,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                                QURT_MEM_DCACHE);
         }
       });
-});
+}
 
 // clang-format on
 }  // namespace vm

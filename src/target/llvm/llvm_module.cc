@@ -814,7 +814,7 @@ static void LLVMReflectionRegister() {
            });
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ LLVMReflectionRegister(); });
+TVM_FFI_STATIC_INIT_BLOCK() { LLVMReflectionRegister(); }
 
 }  // namespace codegen
 }  // namespace tvm

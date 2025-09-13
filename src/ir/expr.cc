@@ -33,7 +33,7 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   BaseExprNode::RegisterReflection();
   PrimExprNode::RegisterReflection();
   RelaxExprNode::RegisterReflection();
@@ -42,7 +42,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   IntImmNode::RegisterReflection();
   FloatImmNode::RegisterReflection();
   RangeNode::RegisterReflection();
-});
+}
 
 PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm(DataType::Int(32), value)) {}
 
@@ -78,12 +78,12 @@ IntImm::IntImm(DataType dtype, int64_t value, Span span) {
   data_ = std::move(node);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ir.IntImm", [](DataType dtype, int64_t value, Span span) {
     return IntImm(dtype, value, span);
   });
-});
+}
 
 FloatImm::FloatImm(DataType dtype, double value, Span span) {
   ICHECK_EQ(dtype.lanes(), 1) << "ValueError: FloatImm can only take scalar.";
@@ -181,12 +181,12 @@ FloatImm::FloatImm(DataType dtype, double value, Span span) {
   data_ = std::move(node);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ir.FloatImm", [](DataType dtype, double value, Span span) {
     return FloatImm(dtype, value, span);
   });
-});
+}
 
 Range::Range(PrimExpr begin, PrimExpr end, Span span)
     : Range(ffi::make_object<RangeNode>(begin, tir::is_zero(begin) ? end : (end - begin), span)) {}
@@ -195,7 +195,7 @@ Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Span span) {
   return Range(ffi::make_object<RangeNode>(min, extent, span));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ir.Range_from_min_extent", Range::FromMinExtent)
@@ -206,7 +206,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           return Range(IntImm(begin->dtype, 0), begin, span);
         }
       });
-});
+}
 
 GlobalVar::GlobalVar(ffi::String name_hint, Span span) {
   ObjectPtr<GlobalVarNode> n = ffi::make_object<GlobalVarNode>();
@@ -215,7 +215,7 @@ GlobalVar::GlobalVar(ffi::String name_hint, Span span) {
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ir.GlobalVar", [](ffi::String name) { return GlobalVar(name); })
@@ -224,6 +224,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
         ss << ref;
         return ss.str();
       });
-});
+}
 
 }  // namespace tvm

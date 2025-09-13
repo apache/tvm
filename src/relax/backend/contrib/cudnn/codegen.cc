@@ -151,10 +151,10 @@ ffi::Array<ffi::Module> cuDNNCompiler(ffi::Array<Function> functions,
   return compiled_functions;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.ext.cudnn", cuDNNCompiler);
-});
+}
 
 }  // namespace contrib
 }  // namespace relax

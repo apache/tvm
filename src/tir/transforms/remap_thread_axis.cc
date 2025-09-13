@@ -104,10 +104,10 @@ Pass RemapThreadAxis(ffi::Map<ffi::String, IterVar> thread_map) {
   return CreatePrimFuncPass(pass_func, 0, "tir.RemapThreadAxis", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.RemapThreadAxis", RemapThreadAxis);
-});
+}
 
 }  // namespace transform
 }  // namespace tir

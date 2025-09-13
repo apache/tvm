@@ -113,10 +113,10 @@ void RandomFill(DLTensor* tensor) {
   TVMSynchronize(tensor->device.device_type, tensor->device.device_type, nullptr);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("runtime.contrib.curand.RandomFill", RandomFill);
-});
+}
 
 }  // namespace curand
 }  // namespace runtime

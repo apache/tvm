@@ -69,14 +69,14 @@ ffi::Optional<FusionPattern> GetPattern(const ffi::String& pattern_name) {
   return std::nullopt;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.backend.RegisterPatterns", RegisterPatterns)
       .def("relax.backend.RemovePatterns", RemovePatterns)
       .def("relax.backend.GetPatternsWithPrefix", GetPatternsWithPrefix)
       .def("relax.backend.GetPattern", GetPattern);
-});
+}
 
 }  // namespace backend
 }  // namespace relax

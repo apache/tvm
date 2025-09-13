@@ -1436,7 +1436,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       }
     });
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   MSCTensorNode::RegisterReflection();
   BaseJointNode::RegisterReflection();
   MSCJointNode::RegisterReflection();
@@ -1445,9 +1445,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
   BaseGraphNode::RegisterReflection();
   MSCGraphNode::RegisterReflection();
   WeightGraphNode::RegisterReflection();
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("msc.core.MSCTensor",
@@ -1521,10 +1521,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
               const ffi::Map<ffi::String, ffi::String>& relation_wtypes) -> WeightGraph {
              return WeightGraph(graph, main_wtypes, relation_wtypes);
            });
-});
+}
 
 // MSC Graph APIS
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("msc.core.MSCGraphHasNode",
@@ -1580,10 +1580,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](const ffi::String& graph_json) -> MSCGraph { return MSCGraph(graph_json); })
       .def("msc.core.MSCGraphToPrototxt",
            [](const MSCGraph& graph) -> ffi::String { return graph->ToPrototxt(); });
-});
+}
 
 // Weight Graph APIS
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("msc.core.WeightGraphHasNode",
@@ -1646,7 +1646,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("msc.core.PruneWeights",
            [](const MSCGraph& graph, const ffi::Map<ffi::String, MSCTensor>& pruned_tensors)
                -> MSCGraph { return PruneWeights(graph, pruned_tensors); });
-});
+}
 
 }  // namespace msc
 }  // namespace contrib

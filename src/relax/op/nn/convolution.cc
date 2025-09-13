@@ -31,13 +31,13 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   Conv1DAttrs::RegisterReflection();
   Conv2DAttrs::RegisterReflection();
   Conv3DAttrs::RegisterReflection();
   Conv1DTransposeAttrs::RegisterReflection();
   Conv2DTransposeAttrs::RegisterReflection();
-});
+}
 
 /* relax.nn.conv1d */
 
@@ -61,10 +61,10 @@ Expr conv1d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntIm
                                out_dtype.value_or(DataType::Void()), /*op_name=*/"relax.nn.conv1d");
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.conv1d", conv1d);
-});
+}
 
 StructInfo InferStructInfoConv1d(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -228,10 +228,10 @@ Expr conv2d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntIm
                                out_dtype.value_or(DataType::Void()), /*op_name=*/"relax.nn.conv2d");
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.conv2d", conv2d);
-});
+}
 
 StructInfo InferStructInfoConv2d(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -433,10 +433,10 @@ Expr conv3d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntIm
                                out_dtype.value_or(DataType::Void()), /*op_name=*/"relax.nn.conv3d");
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.conv3d", conv3d);
-});
+}
 
 StructInfo InferStructInfoConv3d(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -616,10 +616,10 @@ Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<IntImm> strides,
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.conv1d_transpose", conv1d_transpose);
-});
+}
 
 StructInfo InferStructInfoConv1dTranspose(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -757,10 +757,10 @@ Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<IntImm> strides,
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.conv2d_transpose", conv2d_transpose);
-});
+}
 
 StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);

@@ -251,12 +251,12 @@ Pass DecomposeOpsForTraining(ffi::Optional<ffi::String> func_name) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.transform.DecomposeOpsForInference", DecomposeOpsForInference)
       .def("relax.transform.DecomposeOpsForTraining", DecomposeOpsForTraining);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

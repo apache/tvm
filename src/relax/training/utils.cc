@@ -216,10 +216,10 @@ Pass AppendLoss(ffi::String func_name, Function loss_function, int num_backbone_
                           /*required=*/{});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.training.AppendLoss", AppendLoss);
-});
+}
 
 }  // namespace transform
 

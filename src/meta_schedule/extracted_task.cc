@@ -39,16 +39,16 @@ ExtractedTask::ExtractedTask(ffi::String task_name, IRModule mod, Target target,
   data_ = n;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ ExtractedTaskNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { ExtractedTaskNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ExtractedTask",
                         [](ffi::String task_name, IRModule mod, Target target,
                            ffi::Array<IRModule> dispatched, int weight) -> ExtractedTask {
                           return ExtractedTask(task_name, mod, target, dispatched, weight);
                         });
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

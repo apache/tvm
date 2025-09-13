@@ -255,11 +255,11 @@ ffi::Module ConstLoaderModuleCreate(
   return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ffi.Module.load_from_bytes.const_loader",
                         ConstLoaderModuleObj::LoadFromBytes);
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

@@ -59,11 +59,11 @@ ffi::Map<Var, Expr> AnalyzeVar2Value(const IRModule& m) {
   return std::move(var2val_analysis.var2value_);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.analysis.get_var2val",
                         [](const Function& f) { return AnalyzeVar2Value(f); });
-});
+}
 
 class Name2BindingAnalysis : public relax::ExprVisitor {
  public:
@@ -89,10 +89,10 @@ ffi::Map<ffi::String, ffi::Array<Binding>> NameToBinding(const Function& fn) {
       std::make_move_iterator(analysis.name2bindings_.end()));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.analysis.name_to_binding", NameToBinding);
-});
+}
 
 }  // namespace relax
 }  // namespace tvm

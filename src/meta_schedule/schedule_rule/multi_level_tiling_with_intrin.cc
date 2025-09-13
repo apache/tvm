@@ -106,11 +106,11 @@ ScheduleRule ScheduleRule::MultiLevelTilingWithIntrin(
   return ScheduleRule(node);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ScheduleRuleMultiLevelTilingWithIntrin",
                         ScheduleRule::MultiLevelTilingWithIntrin);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

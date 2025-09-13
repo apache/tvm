@@ -35,7 +35,7 @@ namespace miopen {
 
 using namespace runtime;
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed(
@@ -226,7 +226,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
             entry_ptr->conv_entry.fwd_algo, &beta, entry_ptr->conv_entry.output_desc, y->data,
             entry_ptr->conv_entry.workspace, entry_ptr->conv_entry.workspace_size));
       });
-});
+}
 
 }  // namespace miopen
 }  // namespace contrib

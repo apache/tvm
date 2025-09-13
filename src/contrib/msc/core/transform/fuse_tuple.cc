@@ -232,10 +232,10 @@ Pass FuseTuple(const ffi::String& target, const ffi::String& entry_name) {
   return CreateModulePass(pass_func, 0, "FuseTuple", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.FuseTuple", FuseTuple);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

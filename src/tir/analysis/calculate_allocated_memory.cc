@@ -99,7 +99,7 @@ tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > CalculateAlloca
   return results;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "tir.analysis.calculate_allocated_bytes",
@@ -114,7 +114,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           throw;
         }
       });
-});
+}
 
 bool VerifyVTCMLimit(const IRModule& mod, Integer limit) {
   auto all_sizes = CalculateAllocatedBytes(mod);
@@ -162,11 +162,11 @@ ffi::Array<tvm::transform::Pass> GetVTCMCompactionPasses() {
   return pass_list;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.analysis.get_vtcm_compaction_passes",
                         []() { return GetVTCMCompactionPasses(); });
-});
+}
 
 namespace transform {
 
@@ -200,10 +200,10 @@ Pass VerifyVTCMLimit(ffi::Optional<Target> default_target) {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.calculate_allocated_bytes", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.VerifyVTCMLimit", VerifyVTCMLimit);
-});
+}
 
 }  // namespace transform
 }  // namespace tir

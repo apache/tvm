@@ -462,10 +462,10 @@ Pass LowerWarpMemory() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerWarpMemory", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.LowerWarpMemory", LowerWarpMemory);
-});
+}
 
 }  // namespace transform
 

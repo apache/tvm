@@ -41,7 +41,7 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("node.StructuralHash",
                         [](const Any& object, bool map_free_vars) -> int64_t {
@@ -78,7 +78,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         ICHECK(temp.Load(&b64strm));
         return temp;
       });
-});
+}
 
 uint64_t StructuralHash::operator()(const ffi::Any& object) const {
   return ffi::StructuralHash::Hash(object, false);
@@ -100,7 +100,7 @@ struct ReportNodeTrait {
   }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ ReportNodeTrait::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { ReportNodeTrait::RegisterReflection(); }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::ReportNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -116,7 +116,7 @@ struct CountNodeTrait {
   }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ CountNodeTrait::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { CountNodeTrait::RegisterReflection(); }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::CountNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -132,7 +132,7 @@ struct DurationNodeTrait {
   }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ DurationNodeTrait::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { DurationNodeTrait::RegisterReflection(); }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::DurationNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -148,7 +148,7 @@ struct PercentNodeTrait {
   }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ PercentNodeTrait::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { PercentNodeTrait::RegisterReflection(); }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::PercentNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -164,7 +164,7 @@ struct RatioNodeTrait {
   }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ RatioNodeTrait::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { RatioNodeTrait::RegisterReflection(); }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::RatioNode>([](const ObjectRef& node, ReprPrinter* p) {

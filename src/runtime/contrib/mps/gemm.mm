@@ -25,7 +25,7 @@ namespace contrib {
 
 using namespace runtime;
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.contrib.mps.matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
     auto A = args[0].cast<DLTensor*>();
@@ -95,7 +95,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     [sgemm encodeToCommandBuffer:cb leftMatrix:matrixA rightMatrix:matrixB resultMatrix:matrixC];
     [cb commit];
   });
-});
+}
 
 }  // namespace contrib
 }  // namespace tvm

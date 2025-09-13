@@ -456,7 +456,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   return transform;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "arith.SolveLinearEquations", [](ffi::PackedArgs args, ffi::Any* ret) {
@@ -473,7 +473,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           LOG(FATAL) << "arith.SolveLinearEquations expects 1 or 3 arguments, gets " << args.size();
         }
       });
-});
+}
 
 }  // namespace arith
 }  // namespace tvm

@@ -786,7 +786,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
   return CreatePrimFuncWithConstants(arg_list, {}, index_dtype_override);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("te.CreatePrimFunc", [](ffi::PackedArgs args, ffi::Any* ret) {
     ffi::Array<ObjectRef> arg_list = args[0].cast<ffi::Array<ObjectRef>>();
@@ -797,7 +797,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     }
     *ret = CreatePrimFunc(arg_list, index_dtype_override);
   });
-});
+}
 
 // Relax version impl
 PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ObjectRef>& arg_tir_var_list,

@@ -1364,10 +1364,10 @@ Pass SetExprLayout(bool allow_missing, const ffi::String& entry_name) {
   return CreateModulePass(pass_func, 0, "SetExprLayout", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.SetExprLayout", SetExprLayout);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

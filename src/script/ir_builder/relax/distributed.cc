@@ -56,10 +56,10 @@ Expr MakeCallTIRDist(Expr func, Tuple args,
   return call;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("script.ir_builder.relax.distributed.call_tir_dist", MakeCallTIRDist);
-});
+}
 
 }  // namespace relax
 }  // namespace tvm

@@ -159,13 +159,13 @@ ffi::Module CublasJSONRuntimeCreate(ffi::String symbol_name, ffi::String graph_j
   return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.CublasJSONRuntimeCreate", CublasJSONRuntimeCreate)
       .def("ffi.Module.load_from_bytes.cublas_json",
            JSONRuntimeBase::LoadFromBytes<CublasJSONRuntime>);
-});
+}
 
 }  // namespace contrib
 }  // namespace runtime

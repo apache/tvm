@@ -201,7 +201,7 @@ ffi::Array<Var> UndefinedVars(const PrimExpr& expr, const ffi::Array<Var>& args)
   return m.undefined_;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tir.analysis.UndefinedVars", [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -213,6 +213,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
           LOG(FATAL) << "either UndefinedVars(stmt, args) or UndefinedVars(expr, args) is expected";
         }
       });
-});
+}
 }  // namespace tir
 }  // namespace tvm

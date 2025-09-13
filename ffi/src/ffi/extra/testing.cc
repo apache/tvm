@@ -55,14 +55,14 @@ class TestIntPair : public tvm::ffi::ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TestIntPair, tvm::ffi::ObjectRef, TestIntPairObj);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<TestIntPairObj>()
       .def_ro("a", &TestIntPairObj::a)
       .def_ro("b", &TestIntPairObj::b)
       .def_static("__create__",
                   [](int64_t a, int64_t b) -> TestIntPair { return TestIntPair(a, b); });
-});
+}
 
 class TestObjectBase : public Object {
  public:
@@ -98,7 +98,7 @@ TVM_FFI_NO_INLINE void TestApply(PackedArgs args, Any* ret) {
   f.CallPacked(args.Slice(1), ret);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
 
   refl::ObjectDef<TestObjectBase>()
@@ -127,7 +127,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              std::cout << "Function finished without catching signal" << std::endl;
            })
       .def("testing.object_use_count", [](const Object* obj) { return obj->use_count(); });
-});
+}
 
 }  // namespace ffi
 }  // namespace tvm

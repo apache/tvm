@@ -270,7 +270,7 @@ PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
   return res;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("arith.CreateAnalyzer", [](ffi::PackedArgs args, ffi::Any* ret) {
     using ffi::Function;
@@ -365,7 +365,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     };
     *ret = ffi::TypedFunction<ffi::Function(std::string)>(f);
   });
-});
+}
 
 }  // namespace arith
 }  // namespace tvm

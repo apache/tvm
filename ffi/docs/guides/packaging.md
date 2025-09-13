@@ -161,11 +161,11 @@ void RaiseError(ffi::String msg) {
   TVM_FFI_THROW(RuntimeError) << msg;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
     .def("my_ffi_extension.raise_error", RaiseError);
-});
+}
 ```
 
 Make sure to have a unique name across all registered functions when registering a global function.

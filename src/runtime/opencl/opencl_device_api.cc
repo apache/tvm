@@ -761,7 +761,7 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
   initialized_ = true;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("device_api.opencl.alloc_nd",
@@ -809,13 +809,13 @@ TVM_FFI_STATIC_INIT_BLOCK({
         DeviceAPI* ptr = OpenCLWorkspace::Global();
         *rv = static_cast<void*>(ptr);
       });
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("profiling.timer.opencl",
                         [](Device dev) { return Timer(ffi::make_object<OpenCLTimerNode>(dev)); });
-});
+}
 
 class OpenCLPooledAllocator final : public memory::PooledAllocator {
  public:
@@ -897,13 +897,13 @@ class OpenCLPooledAllocator final : public memory::PooledAllocator {
   }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("DeviceAllocator.opencl", [](ffi::PackedArgs args, ffi::Any* rv) {
     Allocator* alloc = new OpenCLPooledAllocator();
     *rv = static_cast<void*>(alloc);
   });
-});
+}
 
 }  // namespace cl
 size_t OpenCLTimerNode::count_timer_execs = 0;

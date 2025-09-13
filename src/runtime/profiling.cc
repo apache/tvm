@@ -78,11 +78,11 @@ class CPUTimerNode : public TimerNode {
   std::chrono::duration<int64_t, std::nano> duration_;
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("profiling.timer.cpu",
                         [](Device dev) { return Timer(ffi::make_object<CPUTimerNode>()); });
-});
+}
 
 // keep track of which timers are not defined but we have already warned about
 std::set<DLDeviceType> seen_devices;
@@ -111,10 +111,10 @@ Timer Timer::Start(Device dev) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("profiling.start_timer", Timer::Start);
-});
+}
 
 namespace profiling {
 
@@ -782,7 +782,7 @@ Report Report::FromJSON(ffi::String json) {
   return Report(calls, device_metrics, configuration);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("runtime.profiling.AsTable", &ReportNode::AsTable)
@@ -790,7 +790,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("runtime.profiling.AsJSON", [](Report n) { return n->AsJSON(); })
       .def("runtime.profiling.FromJSON", Report::FromJSON)
       .def("runtime.profiling.DeviceWrapper", [](Device dev) { return DeviceWrapper(dev); });
-});
+}
 
 ffi::Function ProfileFunction(ffi::Module mod, std::string func_name, int device_type,
                               int device_id, int warmup_iters,
@@ -840,7 +840,7 @@ ffi::Function ProfileFunction(ffi::Module mod, std::string func_name, int device
   });
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "runtime.profiling.ProfileFunction",
@@ -855,7 +855,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           return ProfileFunction(mod, func_name, device_type, device_id, warmup_iters, collectors);
         }
       });
-});
+}
 
 ffi::Function WrapTimeEvaluator(ffi::Function pf, Device dev, int number, int repeat,
                                 int min_repeat_ms, int limit_zero_time_iterations,
@@ -922,7 +922,7 @@ ffi::Function WrapTimeEvaluator(ffi::Function pf, Device dev, int number, int re
   return ffi::Function::FromPacked(ftimer);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.profiling.Report",
@@ -939,7 +939,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](double duration) { return ObjectRef(ffi::make_object<DurationNode>(duration)); })
       .def("runtime.profiling.Ratio",
            [](double ratio) { return ObjectRef(ffi::make_object<RatioNode>(ratio)); });
-});
+}
 
 }  // namespace profiling
 }  // namespace runtime

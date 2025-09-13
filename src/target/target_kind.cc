@@ -36,7 +36,7 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TargetKindNode::RegisterReflection();
   refl::TypeAttrDef<TargetKindNode>()
@@ -50,7 +50,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         ICHECK(kind.has_value()) << "Cannot find target kind \'" << name << '\'';
         return kind.value();
       });
-});
+}
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TargetKindNode>([](const ObjectRef& obj, ReprPrinter* p) {
@@ -446,7 +446,7 @@ TVM_REGISTER_TARGET_KIND("test", kDLCPU)  // line break
 
 /**********  Registry  **********/
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("target.TargetKindGetAttr",
@@ -464,6 +464,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
         TargetKind kind = TargetKind::Get(target_kind_name).value();
         return TargetKindRegEntry::ListTargetKindOptions(kind);
       });
-});
+}
 
 }  // namespace tvm

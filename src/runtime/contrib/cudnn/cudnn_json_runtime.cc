@@ -243,13 +243,13 @@ ffi::Module cuDNNJSONRuntimeCreate(ffi::String symbol_name, ffi::String graph_js
   return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.cuDNNJSONRuntimeCreate", cuDNNJSONRuntimeCreate)
       .def("ffi.Module.load_from_bytes.cudnn_json",
            JSONRuntimeBase::LoadFromBytes<cuDNNJSONRuntime>);
-});
+}
 
 }  // namespace contrib
 }  // namespace runtime

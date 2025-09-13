@@ -113,10 +113,10 @@ void CustomAllReduce(DLTensor* send, int strategy, DLTensor* recv) {
                                 ctx->GetDefaultStream());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("runtime.disco.cuda_ipc.custom_allreduce", CustomAllReduce);
-});
+}
 
 }  // namespace cuda_ipc
 }  // namespace nccl

@@ -68,7 +68,7 @@ class RemoveNoOpConfig : public Attrs {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RemoveNoOpConfig, Attrs, RemoveNoOpConfigNode);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ RemoveNoOpConfigNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { RemoveNoOpConfigNode::RegisterReflection(); }
 
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.RemoveNoOp", RemoveNoOpConfig);
 
@@ -332,10 +332,10 @@ Pass RemoveNoOp() {
   return CreatePrimFuncPass(pass_func, 0, "tir.RemoveNoOp", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.RemoveNoOp", RemoveNoOp);
-});
+}
 
 }  // namespace transform
 

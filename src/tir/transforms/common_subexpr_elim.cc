@@ -638,10 +638,10 @@ Pass CommonSubexprElimTIR(bool enable_cse_tir, bool identify_equiv_terms) {
 }
 
 // The pass can now be invoked via the pass infrastructure, but we also add a Python binding for it
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.CommonSubexprElimTIR", CommonSubexprElimTIR);
-});
+}
 
 }  // namespace transform
 }  // namespace tir

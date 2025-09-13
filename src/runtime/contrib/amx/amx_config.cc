@@ -76,7 +76,7 @@ void init_tile_config(__tilecfg_u* dst, uint16_t cols, uint8_t rows) {
   _tile_loadconfig(dst->a);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("runtime.amx_tileconfig", [](ffi::PackedArgs args, ffi::Any* rv) {
     int rows = args[0].cast<int>();
@@ -89,10 +89,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
     *rv = 1;
     return;
   });
-});
+}
 
 // register a global packed function in c++，to init the system for AMX config
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("runtime.amx_init", [](ffi::PackedArgs args, ffi::Any* rv) {
     // -----------Detect and request for AMX control----------------------
@@ -134,7 +134,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     *rv = 1;
     return;
   });
-});
+}
 
 #endif
 }  // namespace runtime

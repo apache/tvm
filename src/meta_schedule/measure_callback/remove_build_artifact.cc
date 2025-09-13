@@ -46,11 +46,11 @@ MeasureCallback MeasureCallback::RemoveBuildArtifact() {
   return MeasureCallback(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.MeasureCallbackRemoveBuildArtifact",
                         MeasureCallback::RemoveBuildArtifact);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -428,12 +428,12 @@ Optional<reflection::AccessPathPair> StructuralEqual::GetFirstMismatch(const Any
   return reflection::AccessPathPair(lhs_path, rhs_path);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ffi.GetFirstStructuralMismatch", StructuralEqual::GetFirstMismatch);
   // ensure the type attribute column is presented in the system even if it is empty.
   refl::EnsureTypeAttrColumn("__s_equal__");
-});
+}
 
 }  // namespace ffi
 }  // namespace tvm

@@ -1832,12 +1832,12 @@ ffi::Module CLMLRuntimeCreate(const ffi::String& symbol_name, const ffi::String&
   return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.clml_runtime_create", CLMLRuntimeCreate)
       .def("ffi.Module.load_from_bytes.clml", JSONRuntimeBase::LoadFromBytes<CLMLRuntime>);
-});
+}
 }  //  namespace contrib
 }  //  namespace runtime
 }  //  namespace tvm

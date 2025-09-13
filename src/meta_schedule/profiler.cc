@@ -122,9 +122,9 @@ ffi::Optional<Profiler> Profiler::Current() {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ ProfilerNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { ProfilerNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("meta_schedule.Profiler", []() -> Profiler { return Profiler(); })
@@ -134,7 +134,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_method("meta_schedule.ProfilerGet", &ProfilerNode::Get)
       .def_method("meta_schedule.ProfilerTable", &ProfilerNode::Table)
       .def("meta_schedule.ProfilerTimedScope", ProfilerTimedScope);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

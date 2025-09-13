@@ -33,7 +33,7 @@
 namespace tvm {
 namespace instrument {
 
-TVM_FFI_STATIC_INIT_BLOCK({ PassInstrumentNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { PassInstrumentNode::RegisterReflection(); }
 
 /*!
  * \brief Base PassInstrument implementation
@@ -176,7 +176,7 @@ void BasePassInstrumentNode::RunAfterPass(const IRModule& ir_module,
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "instrument.PassInstrument",
@@ -188,7 +188,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         return BasePassInstrument(name, enter_pass_ctx, exit_pass_ctx, should_run, run_before_pass,
                                   run_after_pass);
       });
-});
+}
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<BasePassInstrumentNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -312,7 +312,7 @@ ffi::String RenderPassProfiles() {
   return os.str();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("instrument.RenderTimePassProfiles", RenderPassProfiles)
@@ -332,7 +332,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                                   /* enter_pass_ctx */ nullptr, exit_pass_ctx,
                                   /* should_run */ nullptr, run_before_pass, run_after_pass);
       });
-});
+}
 
 }  // namespace instrument
 }  // namespace tvm

@@ -163,12 +163,12 @@ ffi::Map<Buffer, ffi::Array<ObjectRef>> DomainTouchedAccessMap(const PrimFunc& f
   return ret;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("arith.DomainTouched", DomainTouched)
       .def("arith.DomainTouchedAccessMap", DomainTouchedAccessMap);
-});
+}
 
 }  // namespace arith
 }  // namespace tvm

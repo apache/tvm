@@ -101,15 +101,15 @@ class CodegenResult : public ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CodegenResult, ObjectRef, CodegenResultNode);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ CodegenResultNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { CodegenResultNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("contrib.cutlass.CodegenResult",
                         [](ffi::String code, ffi::Array<ffi::String> headers) {
                           return CodegenResult(code, headers);
                         });
-});
+}
 
 GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string& ext_func_id,
                                 const std::vector<std::string>& output_types,
@@ -391,10 +391,10 @@ ffi::Array<ffi::Module> CUTLASSCompiler(ffi::Array<Function> functions,
   return {cutlass_mod};
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.ext.cutlass", CUTLASSCompiler);
-});
+}
 
 }  // namespace contrib
 }  // namespace relax

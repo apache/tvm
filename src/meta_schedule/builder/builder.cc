@@ -50,13 +50,13 @@ Builder Builder::PyBuilder(BuilderNode::FBuild f_build) {
 
 /******** FFI ********/
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   BuilderInputNode::RegisterReflection();
   BuilderResultNode::RegisterReflection();
   PyBuilderNode::RegisterReflection();
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("meta_schedule.BuilderInput",
@@ -69,7 +69,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                -> BuilderResult { return BuilderResult(artifact_path, error_msg); })
       .def_method("meta_schedule.BuilderBuild", &BuilderNode::Build)
       .def("meta_schedule.BuilderPyBuilder", Builder::PyBuilder);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -343,7 +343,7 @@ Pass TopologicalSort(TraversalOrder order, StartingLocation starting_location) {
   return relax::transform::CreateFunctionPass(pass_func, 0, "TopologicalSort", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.transform.TopologicalSort",
@@ -374,7 +374,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
         return TopologicalSort(order, starting_location);
       });
-});
+}
 
 }  // namespace transform
 

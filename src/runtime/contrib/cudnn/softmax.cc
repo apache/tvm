@@ -79,7 +79,7 @@ void softmax_impl(cudnnSoftmaxAlgorithm_t alg, ffi::PackedArgs args, ffi::Any* r
                                  entry_ptr->softmax_entry.shape_desc, y->data));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvm.contrib.cudnn.softmax.forward",
@@ -89,7 +89,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_packed("tvm.contrib.cudnn.log_softmax.forward", [](ffi::PackedArgs args, ffi::Any* ret) {
         softmax_impl(CUDNN_SOFTMAX_LOG, args, ret);
       });
-});
+}
 
 }  // namespace contrib
 }  // namespace tvm

@@ -105,10 +105,10 @@ Pass UpdateParamStructInfo(ffi::TypedFunction<ffi::Optional<StructInfo>(Var)> si
   return tvm::transform::CreateModulePass(pass_func, 1, "UpdateParamStructInfo", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.UpdateParamStructInfo", UpdateParamStructInfo);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

@@ -70,7 +70,7 @@ RandomThreadLocalEntry* RandomThreadLocalEntry::ThreadLocal() {
   return RandomThreadLocalStore::Get();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvm.contrib.random.randint",
@@ -142,7 +142,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     RandomThreadLocalEntry* entry = RandomThreadLocalEntry::ThreadLocal();
                     entry->random_engine.RandomFillForMeasure(out);
                   });
-});
+}
 
 }  // namespace contrib
 }  // namespace tvm

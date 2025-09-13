@@ -73,12 +73,12 @@ bool NodeStructuralEqualAdapter(const Any& lhs, const Any& rhs, bool assert_mode
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("node.StructuralEqual", NodeStructuralEqualAdapter)
       .def("node.GetFirstStructuralMismatch", ffi::StructuralEqual::GetFirstMismatch);
-});
+}
 
 bool StructuralEqual::operator()(const ffi::Any& lhs, const ffi::Any& rhs,
                                  bool map_free_params) const {

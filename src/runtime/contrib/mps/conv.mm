@@ -25,7 +25,7 @@ namespace contrib {
 
 using namespace runtime;
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvm.contrib.mps.buffer2img",
@@ -161,7 +161,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
         (*f_img2buf)(&tmp_out, output);
       });
-});
+}
 
 }  // namespace contrib
 }  // namespace tvm

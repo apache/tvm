@@ -58,7 +58,7 @@ class OpenCLMLCompilerConfig : public Attrs {
                                                 OpenCLMLCompilerConfigNode);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ OpenCLMLCompilerConfigNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { OpenCLMLCompilerConfigNode::RegisterReflection(); }
 
 TVM_REGISTER_PASS_CONFIG_OPTION("relax.ext.clml.options", OpenCLMLCompilerConfig);
 
@@ -329,10 +329,10 @@ ffi::Array<ffi::Module> OpenCLMLCompiler(ffi::Array<Function> functions,
   return compiled_functions;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.ext.openclml", OpenCLMLCompiler);
-});
+}
 
 /*!
  * \brief Check whether OpenCLML graph executor is enabled.
@@ -358,12 +358,12 @@ Integer GetOpenCLMLVersion() {
 #endif  // TVM_GRAPH_EXECUTOR_CLML
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.is_openclml_runtime_enabled", IsOpenCLMLRuntimeEnabled)
       .def("relax.get_openclml_version", GetOpenCLMLVersion);
-});
+}
 
 }  // namespace contrib
 }  // namespace relax

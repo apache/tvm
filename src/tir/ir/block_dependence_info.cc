@@ -24,7 +24,7 @@
 namespace tvm {
 namespace tir {
 
-TVM_FFI_STATIC_INIT_BLOCK({ BlockDependenceInfoNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { BlockDependenceInfoNode::RegisterReflection(); }
 
 /**
  * @brief A helper class to collect and build Block Dependences using BlockScope class
@@ -87,7 +87,7 @@ BlockDependenceInfo::BlockDependenceInfo(IRModule mod) {
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.BlockDependenceInfo",
@@ -98,7 +98,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              auto it = self->stmt2ref.find(stmt.get());
              return it != self->stmt2ref.end() ? it->second : ffi::Optional<StmtSRef>(std::nullopt);
            });
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

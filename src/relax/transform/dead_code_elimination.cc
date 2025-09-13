@@ -142,10 +142,10 @@ Pass DeadCodeElimination(ffi::Array<ffi::String> entry_functions) {
   return CreateModulePass(pass_func, 1, "DeadCodeElimination", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.DeadCodeElimination", DeadCodeElimination);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

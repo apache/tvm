@@ -185,7 +185,7 @@ ffi::Module TFLiteRuntimeCreate(const std::string& tflite_model_bytes, Device de
   return ffi::Module(exec);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvm.tflite_runtime.create",
@@ -193,6 +193,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     *rv = TFLiteRuntimeCreate(args[0].cast<std::string>(), args[1].cast<Device>());
                   })
       .def("target.runtime.tflite", TFLiteRuntimeCreate);
-});
+}
 }  // namespace runtime
 }  // namespace tvm

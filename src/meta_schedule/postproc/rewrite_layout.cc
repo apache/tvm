@@ -272,10 +272,10 @@ Postproc Postproc::RewriteLayout() {
   return Postproc(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.PostprocRewriteLayout", Postproc::RewriteLayout);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

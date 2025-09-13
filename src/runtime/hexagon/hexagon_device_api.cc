@@ -191,7 +191,7 @@ void HexagonDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void
   memcpy(static_cast<char*>(to) + to_offset, static_cast<const char*>(from) + from_offset, size);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("device_api.hexagon.dma_copy_dltensor",
@@ -309,7 +309,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         DeviceAPI* ptr = HexagonDeviceAPI::Global();
         *rv = static_cast<void*>(ptr);
       });
-});
+}
 
 }  // namespace hexagon
 }  // namespace runtime

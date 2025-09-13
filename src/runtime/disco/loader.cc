@@ -402,7 +402,7 @@ ffi::Array<Tensor> ShardLoaderObj::LoadAllPresharded() const {
   return params;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.disco.ShardLoader", ShardLoaderObj::Create)
@@ -441,7 +441,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                  << "TypeError: Expected ShardLoaderObj, but gets: " << loader_obj->GetTypeKey();
              return loader->LoadParamOnWorker0(param_index);
            });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

@@ -576,7 +576,7 @@ const ffi::Map<ffi::String, ffi::String> TensorRTCodeGen::GetStepCtx() {
   return step_ctx;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("msc.framework.tensorrt.GetTensorRTSources",
@@ -593,7 +593,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   return "";
 #endif
       });
-});
+}
 
 /*!
  * \brief Create runtime modules for MSC TensorRT.
@@ -623,10 +623,10 @@ ffi::Array<ffi::Module> MSCTensorRTCompiler(ffi::Array<Function> functions,
   return compiled_functions;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.ext.msc_tensorrt", MSCTensorRTCompiler);
-});
+}
 
 }  // namespace msc
 }  // namespace contrib

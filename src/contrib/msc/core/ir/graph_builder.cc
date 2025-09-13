@@ -839,7 +839,7 @@ void WeightsExtractor::VisitExpr_(const CallNode* op) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("msc.core.BuildFromRelax",
@@ -858,7 +858,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
             const auto& func = Downcast<Function>(module->Lookup(entry_name));
             return WeightsExtractor(module).GetWeights(func);
           });
-});
+}
 
 }  // namespace msc
 }  // namespace contrib

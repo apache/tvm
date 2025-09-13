@@ -81,14 +81,14 @@ ffi::Array<Operation> PostDFSOrder(const ffi::Array<Operation>& roots, const Rea
   return post_order;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("schedule.CreateReadGraph", CreateReadGraph)
       .def("schedule.PostDFSOrder", [](const ffi::Array<Operation>& roots, const ReadGraph& g) {
         return PostDFSOrder(roots, g);
       });
-});
+}
 
 }  // namespace te
 }  // namespace tvm

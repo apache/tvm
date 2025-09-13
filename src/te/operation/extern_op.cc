@@ -31,7 +31,7 @@ namespace tvm {
 namespace te {
 using namespace tir;
 
-TVM_FFI_STATIC_INIT_BLOCK({ ExternOpNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { ExternOpNode::RegisterReflection(); }
 
 // ExternOpNode
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -74,7 +74,7 @@ ExternOp::ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi:
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "te.ExternOp",
@@ -84,7 +84,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         return ExternOp(name, tag, attrs.value_or({}), inputs, input_placeholders,
                         output_placeholders, body);
       });
-});
+}
 
 ffi::Array<Tensor> ExternOpNode::InputTensors() const { return inputs; }
 

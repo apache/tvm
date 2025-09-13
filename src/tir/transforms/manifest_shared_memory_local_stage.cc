@@ -277,11 +277,11 @@ Pass ManifestSharedMemoryLocalStage() {
   return CreatePrimFuncPass(pass_func, 0, "tir.ManifestSharedMemoryLocalStage", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.ManifestSharedMemoryLocalStage",
                         ManifestSharedMemoryLocalStage);
-});
+}
 
 }  // namespace transform
 }  // namespace tir

@@ -35,10 +35,10 @@ using tir::IterVar;
 using tir::IterVarNode;
 using tir::Var;
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   LayoutNode::RegisterReflection();
   BijectiveLayoutNode::RegisterReflection();
-});
+}
 
 const LayoutAxis LayoutAxis::UPPER_CASE[] = {
     LayoutAxis('A'), LayoutAxis('B'), LayoutAxis('C'), LayoutAxis('D'), LayoutAxis('E'),
@@ -430,7 +430,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ")";
     });
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.Layout", [](std::string name, DataType dtype) { return Layout(name, dtype); })
@@ -456,6 +456,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_method("tir.BijectiveLayoutBackwardIndex", &BijectiveLayout::BackwardIndex)
       .def_method("tir.BijectiveLayoutForwardShape", &BijectiveLayout::ForwardShape)
       .def_method("tir.BijectiveLayoutBackwardShape", &BijectiveLayout::BackwardShape);
-});
+}
 }  // namespace tir
 }  // namespace tvm

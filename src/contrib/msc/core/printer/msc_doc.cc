@@ -87,7 +87,7 @@ LambdaDoc::LambdaDoc(IdDoc name, ffi::Array<AssignDoc> args, ffi::Array<ExprDoc>
   this->data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   DeclareDocNode::RegisterReflection();
   StrictListDocNode::RegisterReflection();
   PointerDocNode::RegisterReflection();
@@ -95,7 +95,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   ConstructorDocNode::RegisterReflection();
   SwitchDocNode::RegisterReflection();
   LambdaDocNode::RegisterReflection();
-});
+}
 
 }  // namespace msc
 }  // namespace contrib

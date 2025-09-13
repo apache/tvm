@@ -34,7 +34,7 @@ typedef dmlc::ThreadLocalStore<L2Flush> L2FlushStore;
 
 L2Flush* L2Flush::ThreadLocal() { return L2FlushStore::Get(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("l2_cache_flush_cuda", [](ffi::PackedArgs args, ffi::Any* rv) {
     ICHECK(L2Flush::ThreadLocal() != nullptr) << "L2Flush::ThreadLocal do not exist.";
@@ -43,7 +43,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, device_id));
     L2Flush::ThreadLocal()->Flush(stream);
   });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

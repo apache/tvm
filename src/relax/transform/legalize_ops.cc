@@ -406,10 +406,10 @@ Pass LegalizeOps(ffi::Optional<ffi::Map<ffi::String, ffi::Function>> cmap, bool 
                           /*required=*/{});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.LegalizeOps", LegalizeOps);
-});
+}
 
 }  // namespace transform
 

@@ -534,7 +534,7 @@ class InplaceOpportunityNode : public Object {
   TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InplaceOpportunity", InplaceOpportunityNode, Object);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ InplaceOpportunityNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { InplaceOpportunityNode::RegisterReflection(); }
 
 class InplaceOpportunity : public ObjectRef {
  public:
@@ -1019,7 +1019,7 @@ ffi::Array<ffi::Array<InplaceOpportunity>> DataflowInplaceAnalysis(const Dataflo
 }
 
 // these are exposed only for testing
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.testing.transform.DataflowLivenessAnalysis", DataflowLivenessAnalysis)
@@ -1032,13 +1032,13 @@ TVM_FFI_STATIC_INIT_BLOCK({
              auto ret_call = transformer.CreateInplaceCall(call, inplace_indices);
              return ffi::Array<ObjectRef>{ret_call, transformer.CurrentMod()};
            });
-});
+}
 
 // actually exposed
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.DataflowUseInplaceCalls", DataflowUseInplaceCalls);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

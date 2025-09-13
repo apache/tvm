@@ -47,7 +47,7 @@ using namespace tvm::runtime;
     }                                                                             \
   })
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("topi.broadcast_to",
@@ -80,7 +80,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .TOPI_DEF_BCAST_OP("topi.not_equal", topi::not_equal)
       .TOPI_DEF_BCAST_OP("topi.greater_equal", topi::greater_equal)
       .TOPI_DEF_BCAST_OP("topi.less_equal", topi::less_equal);
-});
+}
 
 }  // namespace topi
 }  // namespace tvm

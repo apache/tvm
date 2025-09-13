@@ -248,7 +248,7 @@ class CUDAGraphExtension : public VMExtension {
   }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("vm.builtin.cuda_graph.run_or_capture",
@@ -274,7 +274,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         int64_t entry_index = args[2].cast<int64_t>();
         *rv = extension->GetCachedAllocation(vm, alloc_func, entry_index);
       });
-});
+}
 
 }  // namespace vm
 }  // namespace runtime

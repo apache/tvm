@@ -395,12 +395,12 @@ ffi::Module OpenCLModuleLoadFromBytes(const ffi::Bytes& bytes) {
   return OpenCLModuleCreate(data, fmt, fmap, std::string());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ffi.Module.load_from_file.cl", OpenCLModuleLoadFile)
       .def("ffi.Module.load_from_file.clbin", OpenCLModuleLoadFile)
       .def("ffi.Module.load_from_bytes.opencl", OpenCLModuleLoadFromBytes);
-});
+}
 }  // namespace runtime
 }  // namespace tvm

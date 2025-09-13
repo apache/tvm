@@ -24,7 +24,7 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-TVM_FFI_STATIC_INIT_BLOCK({ DeviceMeshNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { DeviceMeshNode::RegisterReflection(); }
 
 DeviceMesh::DeviceMesh(ffi::Shape shape, ffi::Array<Integer> device_ids) {
   int prod = 1;
@@ -59,7 +59,7 @@ DeviceMesh::DeviceMesh(ffi::Shape shape, Range device_range) {
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.distributed.DeviceMesh",
@@ -69,7 +69,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         else
           return DeviceMesh(shape, device_ids);
       });
-});
+}
 
 }  // namespace distributed
 }  // namespace relax

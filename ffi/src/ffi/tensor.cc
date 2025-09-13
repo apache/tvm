@@ -28,7 +28,7 @@
 namespace tvm {
 namespace ffi {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("ffi.Shape", [](ffi::PackedArgs args, Any* ret) {
     int64_t* mutable_data;
@@ -42,7 +42,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     }
     *ret = details::ObjectUnsafe::ObjectRefFromObjectPtr<Shape>(shape);
   });
-});
+}
 
 }  // namespace ffi
 }  // namespace tvm
