@@ -901,10 +901,9 @@ TVM_REGISTER_OP("relax.call_py_func")
 Expr MakeCallPyFunc(StringImm func_name, Tuple args, ffi::Array<TensorStructInfo> out_sinfo_list) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
-    CHECK(shape != nullptr)
-        << "out_sinfo of call_py_func should have defined ShapeExpr as shape. "
-           "However, one given structure info is "
-        << sinfo;
+    CHECK(shape != nullptr) << "out_sinfo of call_py_func should have defined ShapeExpr as shape. "
+                               "However, one given structure info is "
+                            << sinfo;
   }
 
   StructInfo out_sinfo{nullptr};
