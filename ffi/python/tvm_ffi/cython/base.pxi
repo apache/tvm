@@ -243,6 +243,14 @@ cdef extern from "tvm/ffi/extra/c_env_api.h":
                                   TVMFFIStreamHandle stream,
                                   TVMFFIStreamHandle* opt_out_original_stream) nogil
 
+def _env_set_current_stream(int device_type, int device_id, uint64_t stream):
+    cdef TVMFFIStreamHandle prev_stream = NULL
+    CHECK_CALL(TVMFFIEnvSetStream(
+        device_type,
+        device_id,
+        <void*>stream,
+        &prev_stream))
+    return <uint64_t>prev_stream
 
 cdef extern from "tvm_ffi_python_helpers.h":
     # no need to expose fields of the call context
