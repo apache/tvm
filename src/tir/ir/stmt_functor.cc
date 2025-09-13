@@ -835,7 +835,7 @@ PrimExpr SubstituteWithDataTypeLegalization(
   return IRSubstituteWithDataTypeLegalization(vmap)(std::move(expr));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.IRTransform", IRTransform)
@@ -854,7 +854,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           return Substitute(Downcast<PrimExpr>(node), vmap);
         }
       });
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

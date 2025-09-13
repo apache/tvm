@@ -37,11 +37,11 @@ ffi::Module BuildSPIRV(IRModule mod, Target target) {
   return runtime::VulkanModuleCreate(smap, ExtractFuncInfo(mod), spirv_text);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("target.build.vulkan",
                         [](IRModule mod, Target target) { return BuildSPIRV(mod, target); });
-});
+}
 
 }  // namespace codegen
 }  // namespace tvm

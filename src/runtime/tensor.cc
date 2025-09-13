@@ -216,7 +216,7 @@ void Tensor::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle stre
 
 using namespace tvm::runtime;
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.TVMTensorAllocWithScope", Tensor::Empty)
@@ -227,4 +227,4 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](DLTensor* arr, void* data, size_t nbytes) { Tensor::CopyToBytes(arr, data, nbytes); })
       .def("runtime.TVMTensorCopyFromTo",
            [](DLTensor* from, DLTensor* to) { Tensor::CopyFromTo(from, to); });
-});
+}

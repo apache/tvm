@@ -409,9 +409,9 @@ ffi::Module BuildCHost(IRModule mod, Target target) {
   return CSourceModuleCreate(code, "c", cg.GetFunctionNames());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("target.build.c", BuildCHost);
-});
+}
 }  // namespace codegen
 }  // namespace tvm

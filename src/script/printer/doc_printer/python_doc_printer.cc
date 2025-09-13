@@ -728,10 +728,10 @@ ffi::String DocToPythonScript(Doc doc, const PrinterConfig& cfg) {
   return result.substr(0, last_space);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("script.printer.DocToPythonScript", DocToPythonScript);
-});
+}
 
 }  // namespace printer
 }  // namespace script

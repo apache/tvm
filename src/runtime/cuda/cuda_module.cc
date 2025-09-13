@@ -305,12 +305,12 @@ ffi::Module CUDAModuleLoadFromBytes(const ffi::Bytes& bytes) {
   return CUDAModuleCreate(data, fmt, fmap, std::string());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ffi.Module.load_from_file.cuda", CUDAModuleLoadFile)
       .def("ffi.Module.load_from_file.ptx", CUDAModuleLoadFile)
       .def("ffi.Module.load_from_bytes.cuda", CUDAModuleLoadFromBytes);
-});
+}
 }  // namespace runtime
 }  // namespace tvm

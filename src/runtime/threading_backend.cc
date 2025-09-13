@@ -438,14 +438,14 @@ int MaxConcurrency() {
 
 // This global function can be used by disco runtime to bind processes
 // to CPUs.
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "tvm.runtime.threading.set_current_thread_affinity", [](ffi::Shape cpu_ids) {
         SetThreadAffinity(CURRENT_THREAD_HANDLE,
                           std::vector<unsigned int>{cpu_ids.begin(), cpu_ids.end()});
       });
-});
+}
 
 }  // namespace threading
 }  // namespace runtime

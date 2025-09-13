@@ -25,10 +25,10 @@ namespace tvm {
 namespace script {
 namespace ir_builder {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   IRBuilderFrameNode::RegisterReflection();
   IRBuilderNode::RegisterReflection();
-});
+}
 
 void IRBuilderFrameNode::EnterWithScope() {
   IRBuilder::Current()->frames.push_back(ffi::GetRef<IRBuilderFrame>(this));
@@ -105,7 +105,7 @@ void Namer::Name(ObjectRef node, ffi::String name) {
 
 }  // namespace details
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("script.ir_builder.IRBuilderFrameEnter", &IRBuilderFrameNode::EnterWithScope)
@@ -118,7 +118,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("script.ir_builder.IRBuilderIsInScope", IRBuilder::IsInScope)
       .def_method("script.ir_builder.IRBuilderGet", &IRBuilderNode::Get<ObjectRef>)
       .def("script.ir_builder.IRBuilderName", IRBuilder::Name<ObjectRef>);
-});
+}
 
 }  // namespace ir_builder
 }  // namespace script

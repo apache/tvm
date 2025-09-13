@@ -43,7 +43,7 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK({ TargetNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { TargetNode::RegisterReflection(); }
 
 class TargetInternal {
  public:
@@ -999,7 +999,7 @@ std::unordered_map<ffi::String, ffi::Any> TargetInternal::QueryDevice(int device
 
 /**********  Registry  **********/
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("target.Target", TargetInternal::ConstructorDispatcher)
@@ -1018,7 +1018,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                return Any();
              }
            });
-});
+}
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TargetNode>([](const ObjectRef& obj, ReprPrinter* p) {

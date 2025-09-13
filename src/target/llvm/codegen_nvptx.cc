@@ -377,14 +377,14 @@ ffi::Module BuildNVPTX(IRModule mod, Target target) {
   return CUDAModuleCreate(ptx, "ptx", ExtractFuncInfo(mod), ll);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("target.build.nvptx", BuildNVPTX)
       .def_packed("tvm.codegen.llvm.target_nvptx", [](const ffi::PackedArgs& targs, ffi::Any* rv) {
         *rv = static_cast<void*>(new CodeGenNVPTX());
       });
-});
+}
 
 }  // namespace codegen
 }  // namespace tvm
