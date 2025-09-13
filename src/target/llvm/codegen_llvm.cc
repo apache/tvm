@@ -132,9 +132,9 @@ std::unique_ptr<CodeGenLLVM> CodeGenLLVM::Create(LLVMTarget* llvm_target) {
   }
   if (handle) {
     return std::unique_ptr<CodeGenLLVM>(static_cast<CodeGenLLVM*>(handle));
-  } else {
-    LOG(FATAL) << "unable to create codegen for target " << target;
   }
+  LOG(FATAL) << "unable to create codegen for target " << target;
+  throw;
 }
 
 void CodeGenLLVM::Init(const std::string& module_name, LLVMTarget* llvm_target,
@@ -403,9 +403,15 @@ void CodeGenLLVM::AddMainFunction(const std::string& entry_func_name) {
   LOG(FATAL) << "not implemented";
 }
 
-llvm::Value* CodeGenLLVM::GetThreadIndex(const IterVar& iv) { LOG(FATAL) << "not implemented"; }
+llvm::Value* CodeGenLLVM::GetThreadIndex(const IterVar& iv) {
+  LOG(FATAL) << "not implemented";
+  throw;
+}
 
-llvm::Value* CodeGenLLVM::CreateStorageSync(const CallNode* op) { LOG(FATAL) << "not implemented"; }
+llvm::Value* CodeGenLLVM::CreateStorageSync(const CallNode* op) {
+  LOG(FATAL) << "not implemented";
+  throw;
+}
 
 #if TVM_LLVM_VERSION >= 160
 
@@ -640,9 +646,9 @@ llvm::Type* CodeGenLLVM::GetLLVMType(const Type& type) const {
     return t_void_;
   } else if (type->IsInstance<TensorMapTypeNode>()) {
     return t_tvm_tensormap_;
-  } else {
-    LOG(FATAL) << "Type " << type << " does not have a corresponding LLVM Type";
   }
+  LOG(FATAL) << "Type " << type << " does not have a corresponding LLVM Type";
+  throw;
 }
 
 llvm::Type* CodeGenLLVM::GetLLVMType(const PrimExpr& expr) const {
@@ -1517,9 +1523,9 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
                                          {builder_->getInt32Ty(), builder_->getInt32Ty()});
     return builder_->CreateCall(f, {MakeValue(op->args[0]), MakeValue(op->args[1])});
 #endif
-  } else {
-    LOG(FATAL) << "unknown intrinsic " << op->op;
   }
+  LOG(FATAL) << "unknown intrinsic " << op->op;
+  throw;
 }
 
 void CodeGenLLVM::Scalarize(const PrimExpr& e, std::function<void(int i, llvm::Value* v)> f) {
@@ -1878,10 +1884,9 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
       arg_value.push_back(MakeValue(arg));
     }
     return builder_->CreateCall(callee, arg_value);
-
-  } else {
-    LOG(FATAL) << "Unsupported operation in CallNode: " << op->op;
   }
+  LOG(FATAL) << "Unsupported operation in CallNode: " << op->op;
+  throw;
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const RampNode* op) {
@@ -2284,21 +2289,53 @@ void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_va
 
   auto* di_loc = llvm::DILocation::get(*llvm_target_->GetContext(), 0, 0, di_subprogram_);
 
-  if (insert_before) {
+  // NOTE: if the llvm_value is a SSA value, we need to dereference it to get the actual value.
+  // Or otherwise it is address based, which doesn't
+  // - If llvm_value is a pointer *and* the TIR var is not a pointer type, meaning that
+  //   llvm_value is an SSA value, we need to dereference it with DW_OP_deref.
+  // - Otherwise, the llvm_value is address based, and we treat llvm_value as the value itself.
+  bool llvm_is_ptr = llvm_value->getType()->isPointerTy();
+  bool tir_is_ptr = IsPointerType(GetType(tir_var), tir_var->dtype);
+  llvm::DIExpression* expr = (llvm_is_ptr && !tir_is_ptr)
+                                 ? dbg_info_->di_builder_->createExpression(
+                                       llvm::ArrayRef<uint64_t>{llvm::dwarf::DW_OP_deref})
+                                 : dbg_info_->di_builder_->createExpression();
+
+  // Use insertDbgValueIntrinsic (llvm.dbg.value) instead of insertDeclare (llvm.dbg.declare):
+  // - dbg.declare requires the location to be an address (pointer/int).
+  // - Many TIR vars lower to SSA scalars (e.g., float %x), which are not address-like.
+  // - Emitting dbg.declare on an SSA value triggers LLVM verifier errors.
+  // dbg.value works for both SSA values and memory-backed variables (with DW_OP_deref).
 #if TVM_LLVM_VERSION >= 200
-    dbg_info_->di_builder_->insertDeclare(
-        llvm_value, local_var, dbg_info_->di_builder_->createExpression(), llvm::DebugLoc(di_loc),
-        llvm::BasicBlock::iterator(insert_before));
-#else
-    dbg_info_->di_builder_->insertDeclare(llvm_value, local_var,
-                                          dbg_info_->di_builder_->createExpression(),
-                                          llvm::DebugLoc(di_loc), insert_before);
-#endif
+  // LLVM 20+: iterator-based overloads
+  if (insert_before) {
+    dbg_info_->di_builder_->insertDbgValueIntrinsic(llvm_value, local_var, expr,
+                                                    llvm::DebugLoc(di_loc),
+                                                    llvm::BasicBlock::iterator(insert_before));
   } else {
-    dbg_info_->di_builder_->insertDeclare(llvm_value, local_var,
-                                          dbg_info_->di_builder_->createExpression(),
-                                          llvm::DebugLoc(di_loc), builder_->GetInsertBlock());
+    // Insert at current IP; if block is empty, fall back to end()
+    auto ip = builder_->GetInsertPoint();
+    dbg_info_->di_builder_->insertDbgValueIntrinsic(llvm_value, local_var, expr,
+                                                    llvm::DebugLoc(di_loc), ip);
   }
+#else
+  // LLVM <= 19: Instruction*-based overload
+  llvm::Instruction* where = insert_before;
+  if (!where) {
+    // Use current insertion point if possible, or the terminator as a fallback
+    auto ip = builder_->GetInsertPoint();
+    if (ip != builder_->GetInsertBlock()->end()) {
+      where = &*ip;
+    } else {
+      where = builder_->GetInsertBlock()->getTerminator();
+      if (!where && !builder_->GetInsertBlock()->empty()) {
+        where = &builder_->GetInsertBlock()->back();
+      }
+    }
+  }
+  dbg_info_->di_builder_->insertDbgValueIntrinsic(llvm_value, local_var, expr,
+                                                  llvm::DebugLoc(di_loc), where);
+#endif  // TVM_LLVM_VERSION
 #endif
 }
 

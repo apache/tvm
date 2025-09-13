@@ -14,12 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
+import pytest
+import tvm_ffi
+
 import tvm
 import tvm.testing
-import numpy as np
 from tvm.script import tir as T
-
-import pytest
 
 
 @T.prim_func
@@ -96,7 +97,11 @@ def optional_metal_compile_callback(define_metal_compile_callback):
 
         @tvm.register_global_func(name, override=True)
         def compile_metal(src, target):
-            return tvm.contrib.xcode.compile_metal(src, sdk="macosx")
+            from tvm.contrib.xcode import (  # pylint: disable=import-outside-toplevel
+                compile_metal,
+            )
+
+            return compile_metal(src, sdk="macosx")
 
     yield
 
