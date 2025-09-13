@@ -51,7 +51,7 @@ class InjectDoubleBufferConfig : public Attrs {
                                                 InjectDoubleBufferConfigNode);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ InjectDoubleBufferConfigNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { InjectDoubleBufferConfigNode::RegisterReflection(); }
 
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.InjectDoubleBuffer", InjectDoubleBufferConfig);
 
@@ -326,10 +326,10 @@ Pass InjectDoubleBuffer() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectDoubleBuffer", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.InjectDoubleBuffer", InjectDoubleBuffer);
-});
+}
 
 }  // namespace transform
 

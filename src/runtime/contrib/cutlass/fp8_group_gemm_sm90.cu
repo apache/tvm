@@ -67,7 +67,7 @@ void tvm_cutlass_fp8_group_gemm(Tensor x, Tensor weight, Tensor indptr, Tensor w
                           static_cast<ElementC*>(out->data), stream);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def(
@@ -79,7 +79,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("cutlass.group_gemm_e4m3_e4m3_fp16",
            tvm_cutlass_fp8_group_gemm<cutlass::float_e4m3_t, cutlass::float_e4m3_t,
                                       cutlass::half_t>);
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

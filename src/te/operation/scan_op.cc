@@ -30,7 +30,7 @@ namespace tvm {
 namespace te {
 using namespace tir;
 
-TVM_FFI_STATIC_INIT_BLOCK({ ScanOpNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { ScanOpNode::RegisterReflection(); }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ScanOpNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -100,7 +100,7 @@ ScanOp::ScanOp(std::string name, std::string tag,
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "te.ScanOp",
@@ -109,7 +109,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
          ffi::Array<Tensor> state_placeholder, ffi::Array<Tensor> inputs) {
         return ScanOp(name, tag, attrs, axis, init, update, state_placeholder, inputs);
       });
-});
+}
 
 ffi::Array<Tensor> scan(ffi::Array<Tensor> init, ffi::Array<Tensor> update,
                         ffi::Array<Tensor> state_placeholder, ffi::Array<Tensor> inputs,

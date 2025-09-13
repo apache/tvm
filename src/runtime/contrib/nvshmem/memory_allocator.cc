@@ -90,20 +90,20 @@ Tensor NVSHMEMEmpty(ffi::Shape shape, DataType dtype, Device device) {
   return NVSHMEMAllocator::Global()->Empty(shape, dtype, UseDefaultDeviceIfNone(device));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("runtime.disco.nvshmem.empty", NVSHMEMEmpty);
-});
+}
 
 void NVSHMEMFinalize() {
   NVSHMEMAllocator::Global()->Clear();
   nvshmem_finalize();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("runtime.disco.nvshmem.finalize_nvshmem", NVSHMEMFinalize);
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

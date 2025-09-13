@@ -201,10 +201,10 @@ Pass MakeUnpackedAPI() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.MakeUnpackedAPI", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.MakeUnpackedAPI", MakeUnpackedAPI);
-});
+}
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

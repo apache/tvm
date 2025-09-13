@@ -308,14 +308,14 @@ const Plugin GetPlugin(const ffi::String& name) { return PluginRegistry::Global(
 
 bool IsPlugin(const ffi::String& name) { return PluginRegistry::Global()->Registered(name); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   PluginAttrNode::RegisterReflection();
   PluginTensorNode::RegisterReflection();
   PluginExternNode::RegisterReflection();
   PluginNode::RegisterReflection();
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("msc.core.RegisterPlugin",
@@ -327,7 +327,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("msc.core.GetPlugin", [](const ffi::String& name) -> Plugin { return GetPlugin(name); })
       .def("msc.core.IsPlugin",
            [](const ffi::String& name) -> Bool { return Bool(IsPlugin(name)); });
-});
+}
 
 }  // namespace msc
 }  // namespace contrib

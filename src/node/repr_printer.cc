@@ -127,12 +127,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << Downcast<ffi::reflection::AccessStep>(node);
     });
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("node.AsRepr", [](ffi::Any obj) {
     std::ostringstream os;
     os << obj;
     return os.str();
   });
-});
+}
 }  // namespace tvm

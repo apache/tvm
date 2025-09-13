@@ -93,10 +93,10 @@ ffi::Array<Var> ComputableAtCompileTime(const Function& func) {
   return CompileTimeCollector::Collect(func);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.analysis.computable_at_compile_time", ComputableAtCompileTime);
-});
+}
 
 }  // namespace relax
 }  // namespace tvm

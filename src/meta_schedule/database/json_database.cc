@@ -213,12 +213,12 @@ Database Database::JSONDatabase(ffi::String path_workload, ffi::String path_tuni
   return Database(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ JSONDatabaseNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { JSONDatabaseNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.DatabaseJSONDatabase", Database::JSONDatabase);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

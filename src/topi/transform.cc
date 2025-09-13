@@ -37,7 +37,7 @@ namespace topi {
 using namespace tvm;
 using namespace tvm::runtime;
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("topi.expand_dims",
@@ -268,7 +268,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                   })
       .def("topi.adv_index",
            [](te::Tensor x, ffi::Array<te::Tensor> indices) { return adv_index(x, indices); });
-});
+}
 
 }  // namespace topi
 }  // namespace tvm

@@ -293,10 +293,10 @@ void RemoteSocketSessionEntryPoint(const ffi::String& server_host, int server_po
   proxy.MainLoop();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("runtime.disco.RemoteSocketSession", RemoteSocketSessionEntryPoint);
-});
+}
 
 Session SocketSession(int num_nodes, int num_workers_per_node, int num_groups,
                       const ffi::String& host, int port) {
@@ -305,7 +305,7 @@ Session SocketSession(int num_nodes, int num_workers_per_node, int num_groups,
   return Session(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.disco.SocketSession", SocketSession)
@@ -319,7 +319,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              worker->worker_id = worker->worker_id + node_id * num_workers_per_node;
              worker->num_workers = num_nodes * num_workers_per_node;
            });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

@@ -396,7 +396,7 @@ void TVMPluginCodeGen::CodeGenCompute(const Plugin& plugin, const ffi::String& d
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("msc.plugin.GetTVMPluginSources",
                         [](const ffi::String& codegen_config, const ffi::String& print_config,
@@ -410,7 +410,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                           }
                           return ffi::Map<ffi::String, ffi::String>();
                         });
-});
+}
 
 }  // namespace msc
 }  // namespace contrib

@@ -45,7 +45,7 @@ using namespace tvm;
 using namespace tvm::runtime;
 
 /* Ops from nn.h */
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed(
@@ -84,44 +84,44 @@ TVM_FFI_STATIC_INIT_BLOCK({
             nll_loss(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(),
                      args[2].cast<te::Tensor>(), args[3].cast<std::string>(), args[4].cast<int>());
       });
-});
+}
 
 /* Ops from nn/dense.h */
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("topi.nn.dense", [](ffi::PackedArgs args, ffi::Any* rv) {
     *rv = nn::dense(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(),
                     args[2].cast<te::Tensor>(), args[3].cast<DataType>());
   });
-});
+}
 
 /* Ops from nn/bias_add.h */
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("topi.nn.bias_add", [](ffi::PackedArgs args, ffi::Any* rv) {
     *rv = nn::bias_add(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(), args[2].cast<int>());
   });
-});
+}
 
 /* Ops from nn/dilate.h */
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("topi.nn.dilate", [](ffi::PackedArgs args, ffi::Any* rv) {
     *rv = nn::dilate(args[0].cast<te::Tensor>(), args[1].cast<ffi::Array<Integer>>(),
                      args[2].cast<double>());
   });
-});
+}
 
 /* Ops from nn/flatten.h */
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("topi.nn.flatten", [](ffi::PackedArgs args, ffi::Any* rv) {
     *rv = nn::flatten(args[0].cast<te::Tensor>());
   });
-});
+}
 
 /* Ops from nn/mapping.h */
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("topi.nn.scale_shift_nchw",
@@ -134,10 +134,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
         *rv = nn::scale_shift_nhwc(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(),
                                    args[2].cast<te::Tensor>());
       });
-});
+}
 
 /* Ops from nn/pooling.h */
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("topi.nn.pool_grad",
@@ -201,10 +201,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
                          static_cast<nn::PoolType>(args[5].cast<int>()), args[6].cast<bool>(),
                          args[7].cast<std::string>(), args[8].cast<bool>());
       });
-});
+}
 
 /* Ops from nn/softmax.h */
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("topi.nn.softmax",
@@ -219,10 +219,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
         *rv = nn::lrn(args[0].cast<te::Tensor>(), args[1].cast<int>(), args[2].cast<int>(),
                       args[3].cast<double>(), args[4].cast<double>(), args[5].cast<double>());
       });
-});
+}
 
 /* Ops from nn/bnn.h */
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("topi.nn.binarize_pack",
@@ -232,46 +232,46 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_packed("topi.nn.binary_dense", [](ffi::PackedArgs args, ffi::Any* rv) {
         *rv = nn::binary_dense(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>());
       });
-});
+}
 
 /* Ops from nn/layer_norm.h */
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("topi.nn.layer_norm", [](ffi::PackedArgs args, ffi::Any* rv) {
     *rv = nn::layer_norm(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(),
                          args[2].cast<te::Tensor>(), args[3].cast<ffi::Array<Integer>>(),
                          args[4].cast<double>());
   });
-});
+}
 
 /* Ops from nn/group_norm.h */
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("topi.nn.group_norm", [](ffi::PackedArgs args, ffi::Any* rv) {
     *rv = nn::group_norm(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(),
                          args[2].cast<te::Tensor>(), args[3].cast<int>(), args[4].cast<int>(),
                          args[5].cast<ffi::Array<Integer>>(), args[6].cast<double>());
   });
-});
+}
 
 /* Ops from nn/instance_norm.h */
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("topi.nn.instance_norm", [](ffi::PackedArgs args, ffi::Any* rv) {
     *rv = nn::instance_norm(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(),
                             args[2].cast<te::Tensor>(), args[3].cast<int>(),
                             args[4].cast<ffi::Array<Integer>>(), args[5].cast<double>());
   });
-});
+}
 
 /* Ops from nn/rms_norm.h */
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("topi.nn.rms_norm", [](ffi::PackedArgs args, ffi::Any* rv) {
     *rv = nn::rms_norm(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(),
                        args[2].cast<ffi::Array<Integer>>(), args[3].cast<double>());
   });
-});
+}
 
 }  // namespace topi
 }  // namespace tvm

@@ -22,7 +22,7 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({ MatchResultNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { MatchResultNode::RegisterReflection(); }
 
 MatchResult::MatchResult(TIRPattern pattern, ffi::Array<PrimExpr> symbol_values,
                          ffi::Array<tir::Buffer> matched_buffers) {

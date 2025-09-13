@@ -40,8 +40,8 @@ Any LoadJSON(std::string json_str) {
   return ffi::FromJSONGraph(jgraph);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("node.SaveJSON", SaveJSON).def("node.LoadJSON", LoadJSON);
-});
+}
 }  // namespace tvm

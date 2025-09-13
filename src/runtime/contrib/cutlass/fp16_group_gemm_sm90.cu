@@ -46,10 +46,10 @@ void tvm_cutlass_group_gemm_sm90(Tensor x, Tensor weight, Tensor indptr, Tensor 
   tvm_cutlass_group_gemm_impl<90>(x, weight, indptr, workspace, out);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("cutlass.group_gemm", tvm_cutlass_group_gemm_sm90);
-});
+}
 
 #endif  // CUTLASS_ARCH_MMA_MODIFIABLE_TMA_SM90_SUPPORTED
 

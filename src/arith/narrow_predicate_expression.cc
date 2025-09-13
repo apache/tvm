@@ -214,10 +214,10 @@ PrimExpr NarrowPredicateExpression(PrimExpr expr, ffi::Map<Var, Range> free_para
   return ExpressionNarrower::Apply(std::move(expr), std::move(free_parameters));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("arith.NarrowPredicateExpression", NarrowPredicateExpression);
-});
+}
 
 }  // namespace arith
 }  // namespace tvm

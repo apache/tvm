@@ -73,10 +73,10 @@ Pass LowerVtcmAlloc() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerVtcmAlloc", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.LowerVtcmAlloc", LowerVtcmAlloc);
-});
+}
 
 }  // namespace transform
 

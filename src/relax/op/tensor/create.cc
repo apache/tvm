@@ -35,10 +35,10 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   InitAttrs::RegisterReflection();
   TriluAttrs::RegisterReflection();
-});
+}
 
 /* Initialization operators */
 
@@ -62,10 +62,10 @@ Expr full(ffi::Variant<Expr, ffi::Array<PrimExpr>> shape, Expr fill_value,
   return Call(op, {std::move(shape_in_expr), std::move(fill_value)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.full", full);
-});
+}
 
 StructInfo InferStructInfoFull(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
@@ -107,10 +107,10 @@ Expr full_like(Expr x, Expr fill_value, ffi::Optional<DataType> dtype) {
   return Call(op, {std::move(x), std::move(fill_value)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.full_like", full_like);
-});
+}
 
 StructInfo InferStructInfoFullLike(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -188,10 +188,10 @@ Expr ones_like(Expr x, ffi::Optional<DataType> dtype) {
   return Call(op, {std::move(x)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.ones", ones).def("relax.op.ones_like", ones_like);
-});
+}
 
 TVM_REGISTER_OP("relax.ones")
     .set_attrs_type<InitAttrs>()
@@ -225,10 +225,10 @@ Expr zeros_like(Expr x, ffi::Optional<DataType> dtype) {
   return Call(op, {std::move(x)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.zeros", zeros).def("relax.op.zeros_like", zeros_like);
-});
+}
 
 TVM_REGISTER_OP("relax.zeros")
     .set_attrs_type<InitAttrs>()
@@ -260,10 +260,10 @@ Expr eye_like(Expr x, PrimValue k, ffi::Optional<DataType> dtype) {
   return Call(op, {std::move(x), std::move(k)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.eye", eye).def("relax.op.eye_like", eye_like);
-});
+}
 
 StructInfo InferStructInfoEye(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 3) {
@@ -339,10 +339,10 @@ Expr arange(PrimValue start, PrimValue stop, PrimValue step, DataType dtype) {
   return Call(op, {std::move(start), std::move(stop), std::move(step)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.arange", arange);
-});
+}
 
 StructInfo InferStructInfoArange(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 3) {
@@ -396,10 +396,10 @@ Expr hamming_window(PrimValue window_size, PrimValue periodic, PrimValue alpha, 
               Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.hamming_window", hamming_window);
-});
+}
 
 StructInfo InferStructInfoHammingWindow(const Call& call, const BlockBuilder& ctx) {
   DataType dtype = call->attrs.as<InitAttrs>()->dtype;
@@ -456,12 +456,12 @@ Expr triu(Expr x, Expr k) {
 
 Expr triu(Expr x, int k) { return triu(x, relax::PrimValue::Int64(k)); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.op.tril", static_cast<Expr (*)(Expr, Expr)>(tril))
       .def("relax.op.triu", static_cast<Expr (*)(Expr, Expr)>(triu));
-});
+}
 
 StructInfo InferStructInfoTrilTriu(const Call& call, const BlockBuilder& ctx) {
   auto [data_sinfo, offset] = GetArgStructInfo<TensorStructInfo, PrimStructInfo>(call, ctx);

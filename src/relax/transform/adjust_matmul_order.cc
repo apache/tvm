@@ -214,10 +214,10 @@ Pass AdjustMatmulOrder() {
   return CreateFunctionPass(pass_func, 1, "AdjustMatmulOrder", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.AdjustMatmulOrder", AdjustMatmulOrder);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

@@ -1370,7 +1370,7 @@ std::optional<HEXAPI_Nullptr> SimulatorRPCChannel::to_nullptr(const detail::Mayb
       .Default(std::nullopt);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tvm.contrib.hexagon.create_hexagon_session", [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -1385,7 +1385,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         std::shared_ptr<RPCSession> session = CreateClientSession(endpoint);
         *rv = CreateRPCSessionModule(session);
       });
-});
+}
 
 }  // namespace hexagon
 }  // namespace runtime

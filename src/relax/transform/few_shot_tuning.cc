@@ -174,10 +174,10 @@ Pass FewShotTuning(int valid_count, bool benchmark) {
                           /*required=*/{});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.FewShotTuning", FewShotTuning);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

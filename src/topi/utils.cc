@@ -28,7 +28,7 @@
 
 namespace tvm {
 namespace topi {
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("topi.utils.is_empty_shape",
@@ -46,7 +46,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                                            args[1].cast<ffi::Array<PrimExpr>>(),
                                            args[2].cast<PrimExpr>(), args[3].cast<PrimExpr>());
       });
-});
+}
 
 }  // namespace topi
 }  // namespace tvm

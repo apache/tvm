@@ -284,10 +284,10 @@ Pass InstrumentProfileIntrinsics() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.InstrumentProfileIntrinsics", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.InstrumentProfileIntrinsics", InstrumentProfileIntrinsics);
-});
+}
 
 }  // namespace transform
 

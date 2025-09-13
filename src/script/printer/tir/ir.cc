@@ -24,7 +24,7 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-TVM_FFI_STATIC_INIT_BLOCK({ TIRFrameNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { TIRFrameNode::RegisterReflection(); }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<IntImm>("", [](IntImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {

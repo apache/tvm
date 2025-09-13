@@ -45,9 +45,9 @@ ffi::Function CreateEventDrivenServer(ffi::Function fsend, std::string name,
   });
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("rpc.CreateEventDrivenServer", CreateEventDrivenServer);
-});
+}
 }  // namespace runtime
 }  // namespace tvm

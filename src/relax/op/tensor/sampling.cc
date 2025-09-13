@@ -32,7 +32,7 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({ MultinomialFromUniformAttrs::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { MultinomialFromUniformAttrs::RegisterReflection(); }
 
 /* relax.multinomial_from_uniform */
 
@@ -45,10 +45,10 @@ Expr multinomial_from_uniform(Expr prob, Expr uniform_sample, Expr sample_indice
               Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.multinomial_from_uniform", multinomial_from_uniform);
-});
+}
 
 StructInfo InferStructInfoMultinomialFromUniform(const Call& call, const BlockBuilder& ctx) {
   CheckNumArguments(call, ctx);

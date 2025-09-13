@@ -472,10 +472,10 @@ Pass ThreadSync(ffi::String storage_scope) {
   return CreatePrimFuncPass(pass_func, 0, "tir.ThreadSync", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.ThreadSync", ThreadSync);
-});
+}
 
 }  // namespace transform
 }  // namespace tir

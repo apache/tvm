@@ -328,7 +328,7 @@ __attribute__((weak)) void _Get_eh_data() {}
 __attribute__((weak)) void _Parse_fde_instr() {}
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvm.hexagon.load_module",
@@ -349,7 +349,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
               *rv = false;
             }
           });
-});
+}
 
 void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
   std::ofstream fs(file_name, std::ios::out | std::ios::binary);
@@ -357,7 +357,7 @@ void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
   fs.write(&data[0], data.length());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.rpc.server.upload",
                                [](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
@@ -365,4 +365,4 @@ TVM_FFI_STATIC_INIT_BLOCK({
                                  auto data = args[1].cast<std::string>();
                                  SaveBinaryToFile(file_name, data);
                                });
-});
+}

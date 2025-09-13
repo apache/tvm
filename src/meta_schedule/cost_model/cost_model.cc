@@ -71,7 +71,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << f_as_string();
     });
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("meta_schedule.CostModelLoad", &CostModelNode::Load)
@@ -86,7 +86,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              std::copy(result.begin(), result.end(), static_cast<double*>(p_addr));
            })
       .def("meta_schedule.CostModelPyCostModel", CostModel::PyCostModel);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

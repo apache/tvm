@@ -261,10 +261,10 @@ Pass LazyGetInput() {
                             /*required=*/{});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.LazyGetInput", LazyGetInput);
-});
+}
 
 Pass LazySetOutput() {
   auto pass_func = [](Function func, IRModule, PassContext) -> Function {
@@ -279,10 +279,10 @@ Pass LazySetOutput() {
                             /*required=*/{});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.LazySetOutput", LazySetOutput);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

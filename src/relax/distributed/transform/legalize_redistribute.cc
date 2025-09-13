@@ -116,10 +116,10 @@ Pass LegalizeRedistribute() {
   };
   return CreateModulePass(pass_func, 1, "LegalizeRedistribute", {});
 }
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.distributed.transform.LegalizeRedistribute", LegalizeRedistribute);
-});
+}
 }  // namespace transform
 
 }  // namespace distributed

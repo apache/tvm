@@ -66,13 +66,13 @@ void tvm_cutlass_fp8_groupwise_scaled_bmm_sm90(Tensor a, Tensor b, Tensor scales
       a, b, scales_a, scales_b, workspace, block_size_0, block_size_1, out);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("cutlass.groupwise_scaled_gemm_e4m3fn_e4m3fn",
            tvm_cutlass_fp8_groupwise_scaled_gemm_sm90)
       .def("cutlass.groupwise_scaled_bmm_e4m3fn_e4m3fn", tvm_cutlass_fp8_groupwise_scaled_bmm_sm90);
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

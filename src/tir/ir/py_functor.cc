@@ -826,20 +826,20 @@ class PyStmtExprMutator : public ObjectRef {
 // TVM Register
 // ================================================
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   PyStmtExprVisitorNode::RegisterReflection();
   PyStmtExprMutatorNode::RegisterReflection();
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.MakePyStmtExprVisitor", PyStmtExprVisitor::MakePyStmtExprVisitor)
       .def("tir.MakePyStmtExprMutator", PyStmtExprMutator::MakePyStmtExprMutator);
-});
+}
 
 // StmtExprVisitor
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.PyStmtExprVisitorDefaultVisitExpr",
@@ -850,10 +850,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](PyStmtExprVisitor visitor, const Stmt& stmt) { visitor->VisitStmt(stmt); })
       .def("tir.PyStmtExprVisitorVisitExpr",
            [](PyStmtExprVisitor visitor, const PrimExpr& expr) { visitor->VisitExpr(expr); });
-});
+}
 
 // StmtExprMutator
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.PyStmtExprMutatorDefaultVisitExpr",
@@ -868,7 +868,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](PyStmtExprMutator mutator, const PrimExpr& expr) { return mutator->VisitExpr(expr); })
       .def("tir.PyStmtExprMutatorVisitStmt",
            [](PyStmtExprMutator mutator, const Stmt& stmt) { return mutator->VisitStmt(stmt); });
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

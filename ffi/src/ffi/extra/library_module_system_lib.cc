@@ -124,7 +124,7 @@ class SystemLibModuleRegistry {
   Map<String, ffi::Module> lib_map_;
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("ffi.SystemLib", [](ffi::PackedArgs args, ffi::Any* rv) {
     String symbol_prefix = "";
@@ -133,7 +133,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     }
     *rv = SystemLibModuleRegistry::Global()->GetOrCreateModule(symbol_prefix);
   });
-});
+}
 }  // namespace ffi
 }  // namespace tvm
 

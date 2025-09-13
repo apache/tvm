@@ -30,7 +30,7 @@ namespace vm {
 // Register Object Type
 
 // KV State base methods
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("vm.builtin.kv_state_clear", &KVStateObj::Clear)
@@ -52,10 +52,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     kv_state->BeginForward(seq_ids, append_lengths, token_tree_parent_ptr);
                   })
       .def_method("vm.builtin.kv_state_end_forward", &KVStateObj::EndForward);
-});
+}
 
 // Attention KV Cache methods
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("vm.builtin.kv_cache_disagg_prepare_recv",
@@ -106,10 +106,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
                  std::move(o_self_attn), std::move(lse_self_attn), std::move(o_cross_attn),
                  std::move(lse_cross_attn));
            });
-});
+}
 
 // RNN State methods
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("vm.builtin.rnn_state_get", &RNNStateObj::Get)
@@ -119,7 +119,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              return state;
            })
       .def_method("vm.builtin.rnn_state_debug_get", &RNNStateObj::DebugGet);
-});
+}
 
 }  // namespace vm
 }  // namespace runtime

@@ -34,7 +34,7 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK({ OpNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { OpNode::RegisterReflection(); }
 
 using ffi::Any;
 using ffi::Function;
@@ -80,7 +80,7 @@ void OpRegEntry::UpdateAttr(const ffi::String& key, ffi::Any value, int plevel) 
 }
 
 // Frontend APIs
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ir.ListOpNames", []() { return OpRegistry::Global()->ListAllNames(); })
@@ -159,7 +159,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              return node->name;
            })
       .def("__data_from_json__", [](const ffi::String& name) -> Op { return Op::Get(name); });
-});
+}
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<OpNode>([](const ObjectRef& ref, ReprPrinter* p) {

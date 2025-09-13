@@ -532,7 +532,7 @@ const DataType ExprUtils::GetDataType(const Expr& expr) {
   return Downcast<TensorStructInfo>(GetStructInfo(expr))->dtype;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("msc.core.SpanGetAttr", SpanUtils::GetAttr)
@@ -552,7 +552,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
            })
       .def("msc.core.ToAttrKey",
            [](const ffi::String& key) -> ffi::String { return CommonUtils::ToAttrKey(key); });
-});
+}
 
 }  // namespace msc
 }  // namespace contrib

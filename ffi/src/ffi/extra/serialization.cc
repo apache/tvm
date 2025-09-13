@@ -415,7 +415,7 @@ String ToJSONGraphString(const Any& value, const Any& metadata) {
   return json::Stringify(ToJSONGraph(value, metadata));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ffi.ToJSONGraph", ToJSONGraph)
@@ -424,7 +424,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("ffi.FromJSONGraphString", FromJSONGraphString);
   refl::EnsureTypeAttrColumn("__data_to_json__");
   refl::EnsureTypeAttrColumn("__data_from_json__");
-});
+}
 
 }  // namespace ffi
 }  // namespace tvm

@@ -427,10 +427,10 @@ IRModule VMCodeGen(ExecBuilder exec_builder, IRModule mod) {
   return CodeGenVM::Run(exec_builder, mod);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.VMCodeGen", VMCodeGen);
-});
+}
 
 /*!
  * \brief Link the modules together, possibly create a constant module.
@@ -496,10 +496,10 @@ ffi::Module VMLink(ExecBuilder builder, Target target, ffi::Optional<ffi::Module
   return ffi::Module(executable);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.VMLink", VMLink);
-});
+}
 
 }  // namespace codegen_vm
 }  // namespace relax

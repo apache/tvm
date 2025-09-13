@@ -30,10 +30,10 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   FrameNode::RegisterReflection();
   IRDocsifierNode::RegisterReflection();
-});
+}
 
 IdDoc IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame,
                               const ffi::String& name_hint) {

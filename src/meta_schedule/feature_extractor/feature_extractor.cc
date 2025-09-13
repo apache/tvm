@@ -47,18 +47,18 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << f_as_string();
     });
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   FeatureExtractorNode::RegisterReflection();
   PyFeatureExtractorNode::RegisterReflection();
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("meta_schedule.FeatureExtractorExtractFrom", &FeatureExtractorNode::ExtractFrom)
       .def("meta_schedule.FeatureExtractorPyFeatureExtractor",
            FeatureExtractor::PyFeatureExtractor);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

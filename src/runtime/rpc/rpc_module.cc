@@ -393,7 +393,7 @@ inline void CPUCacheFlush(int begin_index, const ffi::PackedArgs& args) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.RPCTimeEvaluator",
@@ -443,10 +443,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
            })
       .def_packed("cache_flush_cpu_non_first_arg",
                   [](ffi::PackedArgs args, ffi::Any* rv) { CPUCacheFlush(1, args); });
-});
+}
 
 // server function registration.
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tvm.rpc.server.ImportModule",
@@ -455,10 +455,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](ffi::Module parent, std::string name, bool query_imports) {
              return parent->GetFunction(name, query_imports);
            });
-});
+}
 
 // functions to access an RPC module.
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("rpc.LoadRemoteModule",
@@ -486,7 +486,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              return TensorFromRemoteOpaqueHandle(RPCModuleGetSession(mod), remote_array,
                                                  template_tensor, dev, tensor_handle);
            });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

@@ -28,7 +28,7 @@ namespace tvm {
 
 using AccessPath = ffi::reflection::AccessPath;
 
-TVM_FFI_STATIC_INIT_BLOCK({ PrinterConfigNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { PrinterConfigNode::RegisterReflection(); }
 
 TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
   static FType inst;
@@ -145,12 +145,12 @@ ffi::Array<ffi::String> PrinterConfigNode::GetBuiltinKeywords() {
   return result;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("node.PrinterConfig",
            [](ffi::Map<ffi::String, Any> config_dict) { return PrinterConfig(config_dict); })
       .def("node.TVMScriptPrinterScript", TVMScriptPrinter::Script);
-});
+}
 
 }  // namespace tvm

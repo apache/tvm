@@ -58,12 +58,12 @@ Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr s
               {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.op.nn.attention", attention)
       .def("relax.op.nn.attention_var_len", attention_var_len);
-});
+}
 
 StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -186,7 +186,7 @@ TVM_REGISTER_OP("relax.nn.attention_var_len")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)
     .set_attr<Bool>("FPurity", Bool(true));
 
-TVM_FFI_STATIC_INIT_BLOCK({ AttentionAttrs::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { AttentionAttrs::RegisterReflection(); }
 
 }  // namespace relax
 }  // namespace tvm

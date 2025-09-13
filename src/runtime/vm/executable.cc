@@ -212,12 +212,12 @@ ffi::Module VMExecutable::LoadFromFile(const ffi::String& file_name) {
   return VMExecutable::LoadFromBytes(ffi::Bytes(data));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ffi.Module.load_from_file.relax.VMExecutable", VMExecutable::LoadFromFile)
       .def("ffi.Module.load_from_bytes.relax.VMExecutable", VMExecutable::LoadFromBytes);
-});
+}
 
 void VMFuncInfo::Save(dmlc::Stream* strm) const {
   int32_t temp_kind = static_cast<int32_t>(kind);
@@ -552,10 +552,10 @@ ffi::String VMExecutable::AsPython() const {
   return ffi::String(os.str());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.ExecutableLoadFromFile", VMExecutable::LoadFromFile);
-});
+}
 
 }  // namespace vm
 }  // namespace runtime

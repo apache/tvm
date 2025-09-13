@@ -84,12 +84,12 @@ Database Database::UnionDatabase(ffi::Array<Database> databases) {
   return Database(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.DatabaseUnionDatabase", Database::UnionDatabase);
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({ UnionDatabaseNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { UnionDatabaseNode::RegisterReflection(); }
 
 }  // namespace meta_schedule
 }  // namespace tvm

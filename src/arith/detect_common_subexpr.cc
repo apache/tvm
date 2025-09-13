@@ -70,9 +70,9 @@ ffi::Map<PrimExpr, Integer> DetectCommonSubExpr(const PrimExpr& e, int thresh) {
   return results;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("arith.DetectCommonSubExpr", DetectCommonSubExpr);
-});
+}
 }  // namespace arith
 }  // namespace tvm

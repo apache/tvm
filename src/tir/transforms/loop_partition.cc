@@ -63,7 +63,7 @@ struct LoopPartitionConfigNode : public AttrsNodeReflAdapter<LoopPartitionConfig
                                     BaseAttrsNode);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ LoopPartitionConfigNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { LoopPartitionConfigNode::RegisterReflection(); }
 
 class LoopPartitionConfig : public Attrs {
  public:
@@ -819,10 +819,10 @@ Pass LoopPartition() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LoopPartition", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.LoopPartition", LoopPartition);
-});
+}
 
 }  // namespace transform
 

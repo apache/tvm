@@ -151,10 +151,10 @@ IRModule ModuleBindSymbolicVars(
 }
 }  // namespace
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.FunctionBindSymbolicVars", FunctionBindSymbolicVars);
-});
+}
 
 namespace transform {
 
@@ -177,10 +177,10 @@ Pass BindSymbolicVars(ffi::Map<ffi::Variant<tir::Var, ffi::String>, PrimExpr> bi
   return tvm::transform::CreateModulePass(pass_func, 1, "relax.BindSymbolicVars", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.BindSymbolicVars", BindSymbolicVars);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

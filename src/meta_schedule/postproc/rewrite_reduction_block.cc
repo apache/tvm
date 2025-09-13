@@ -176,13 +176,13 @@ Postproc Postproc::RewriteReductionBlock() {
   return Postproc(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.PostprocRewriteReductionBlock",
                         Postproc::RewriteReductionBlock);
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({ RewriteReductionBlockNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { RewriteReductionBlockNode::RegisterReflection(); }
 
 }  // namespace meta_schedule
 }  // namespace tvm

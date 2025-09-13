@@ -190,7 +190,7 @@ void BackwardFilterFindAlgo(int format, int dims, int groups, const int pad[], c
   ret[0] = static_cast<int>(best_algo);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvm.contrib.cudnn.conv2d.backward_data",
@@ -269,7 +269,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     BackwardFilterFindAlgo(format, dims, groups, pad, stride, dilation, dy_dim,
                                            x_dim, dw_dim, data_dtype, conv_dtype, verbose, ret);
                   });
-});
+}
 
 }  // namespace contrib
 }  // namespace tvm

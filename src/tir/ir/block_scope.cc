@@ -23,11 +23,11 @@
 namespace tvm {
 namespace tir {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   StmtSRefNode::RegisterReflection();
   DependencyNode::RegisterReflection();
   BlockScopeNode::RegisterReflection();
-});
+}
 
 /******** Utility functions ********/
 
@@ -193,7 +193,7 @@ void SRefTreeCreator::VisitStmt_(const SeqStmtNode* seq_stmt) {
 
 /******** FFI ********/
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.StmtSRefStmt",
@@ -208,7 +208,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("tir.StmtSRefInlineMark", StmtSRef::InlineMark)
       .def_method("tir.BlockScopeGetDepsBySrc", &BlockScopeNode::GetDepsBySrc)
       .def_method("tir.BlockScopeGetDepsByDst", &BlockScopeNode::GetDepsByDst);
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

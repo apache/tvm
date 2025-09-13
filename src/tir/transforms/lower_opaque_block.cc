@@ -215,10 +215,10 @@ Pass LowerOpaqueBlock() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerOpaqueBlock", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.LowerOpaqueBlock", LowerOpaqueBlock);
-});
+}
 }  // namespace transform
 
 }  // namespace tir

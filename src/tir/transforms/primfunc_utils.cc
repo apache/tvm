@@ -79,12 +79,12 @@ transform::Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond) {
   return tir::transform::CreatePrimFuncPass(fpass, 0, "tir.Filter", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.transform.AnnotateEntryFunc", AnnotateEntryFunc)
       .def("tir.transform.Filter", Filter);
-});
+}
 
 }  // namespace transform
 }  // namespace tir

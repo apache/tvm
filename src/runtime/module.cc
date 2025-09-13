@@ -72,7 +72,7 @@ bool RuntimeEnabled(const ffi::String& target_str) {
   TVM_FFI_CHECK_SAFE_CALL(              \
       TVMFFIEnvModRegisterContextSymbol("__" #FuncName, reinterpret_cast<void*>(FuncName)))
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
 
   // Initialize the functions
@@ -85,7 +85,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   TVM_INIT_CONTEXT_FUNC(TVMBackendParallelBarrier);
 
   refl::GlobalDef().def("runtime.RuntimeEnabled", RuntimeEnabled);
-});
+}
 
 #undef TVM_INIT_CONTEXT_FUNC
 

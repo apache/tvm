@@ -686,14 +686,14 @@ class TVMUtils {
 };
 
 #define TVM_MSC_PLUGIN_REGISTER_GLOBAL_DEF(FuncName, Body)  \
-  TVM_FFI_STATIC_INIT_BLOCK({                               \
+  TVM_FFI_STATIC_INIT_BLOCK() {                             \
     tvm::ffi::reflection::GlobalDef().def(FuncName, Body);  \
-  })
+  }
 
 #define TVM_MSC_PLUGIN_REGISTER_GLOBAL_DEF_PACKED(FuncName, Body)  \
-  TVM_FFI_STATIC_INIT_BLOCK({                                      \
+  TVM_FFI_STATIC_INIT_BLOCK() {                                    \
     tvm::ffi::reflection::GlobalDef().def_packed(FuncName, Body);  \
-  })
+  }
 
 #endif  // PLUGIN_SUPPORT_TVM
 """
@@ -1162,4 +1162,7 @@ def get_plugin_sources() -> Dict[str, str]:
         The base utils sources.
     """
 
-    return {"plugin_base.h": get_plugin_base_h_code(), "plugin_utils.h": get_plugin_utils_h_code()}
+    return {
+        "plugin_base.h": get_plugin_base_h_code(),
+        "plugin_utils.h": get_plugin_utils_h_code(),
+    }

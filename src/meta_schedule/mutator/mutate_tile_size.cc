@@ -272,12 +272,12 @@ ffi::Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* r
 
 Mutator Mutator::MutateTileSize() { return Mutator(ffi::make_object<MutateTileSizeNode>()); }
 
-TVM_FFI_STATIC_INIT_BLOCK({ MutateTileSizeNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { MutateTileSizeNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.MutatorMutateTileSize", Mutator::MutateTileSize);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

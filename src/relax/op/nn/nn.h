@@ -41,9 +41,9 @@ namespace relax {
  * \param RequireFloatDtype A boolean indicating if the input is required to have float dtype.
  */
 #define RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(OpName, OpRegName, RequireFloatDtype) \
+  RELAX_UNARY_OP_INTERFACE(OpName, OpRegName)                                     \
   RELAX_REGISTER_UNARY_OP(OpRegName).set_attr<FInferStructInfo>(                  \
-      "FInferStructInfo", InferStructInfoUnaryArith<RequireFloatDtype>);          \
-  RELAX_UNARY_OP_INTERFACE(OpName, OpRegName);
+      "FInferStructInfo", InferStructInfoUnaryArith<RequireFloatDtype>)
 
 /*! \brief Rectified linear unit. */
 Expr relu(Expr data);

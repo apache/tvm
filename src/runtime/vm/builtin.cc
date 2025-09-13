@@ -64,10 +64,10 @@ Tensor AllocShapeHeap(void* ctx_ptr, int64_t size) {
   return alloc->Empty({size}, DLDataType{kDLInt, 64, 1}, vm->devices[host_device_index]);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.alloc_shape_heap", AllocShapeHeap);
-});
+}
 
 /*!
  * \brief Builtin match R.Prim function.
@@ -107,10 +107,10 @@ void MatchPrimValue(int64_t input_value, DLTensor* heap, int code_value, int64_t
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.match_prim_value", MatchPrimValue);
-});
+}
 
 /*!
  * \brief Builtin match shape function.
@@ -161,10 +161,10 @@ void MatchShape(ffi::PackedArgs args, ffi::Any* rv) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("vm.builtin.match_shape", MatchShape);
-});
+}
 
 /*!
  * \brief Builtin make prim value function.
@@ -188,10 +188,10 @@ int64_t MakePrimValue(DLTensor* heap, int shape_code, int64_t reg) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.make_prim_value", MakePrimValue);
-});
+}
 
 /*!
  * \brief Builtin make shape function.
@@ -222,10 +222,10 @@ void MakeShape(ffi::PackedArgs args, ffi::Any* rv) {
   *rv = ffi::Shape(std::move(shape));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("vm.builtin.make_shape", MakeShape);
-});
+}
 
 /*!
  * \brief Builtin function to check if arg is Tensor(dtype, ndim)
@@ -265,10 +265,10 @@ void CheckTensorInfo(ffi::PackedArgs args, ffi::Any* rv) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("vm.builtin.check_tensor_info", CheckTensorInfo);
-});
+}
 
 /*!
  * \brief Builtin function to check if arg is Shape(ndim)
@@ -288,10 +288,10 @@ void CheckShapeInfo(ObjectRef arg, int ndim, ffi::Optional<ffi::String> err_ctx)
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.check_shape_info", CheckShapeInfo);
-});
+}
 
 /*!
  * \brief Builtin function to check if arg is PrimValue(dtype)
@@ -318,10 +318,10 @@ void CheckPrimValueInfo(ffi::AnyView arg, DataType dtype, ffi::Optional<ffi::Str
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.check_prim_value_info", CheckPrimValueInfo);
-});
+}
 
 /*!
  * \brief Builtin function to check if arg is Tuple with size elements.
@@ -339,10 +339,10 @@ void CheckTupleInfo(ObjectRef arg, int64_t size, ffi::Optional<ffi::String> err_
       << " but get a Tuple with " << ptr->size() << " elements.";
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.check_tuple_info", CheckTupleInfo);
-});
+}
 
 /*!
  * \brief Builtin function to check if arg is a callable function.
@@ -356,10 +356,10 @@ void CheckFuncInfo(ObjectRef arg, ffi::Optional<ffi::String> err_ctx) {
                  << arg->GetTypeKey();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.check_func_info", CheckFuncInfo);
-});
+}
 
 //-------------------------------------------------
 //  Storage management.
@@ -384,17 +384,17 @@ Storage VMAllocStorage(void* ctx_ptr, ffi::Shape buffer_shape, Index device_inde
   return Storage(buffer, alloc);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("vm.builtin.alloc_storage", VMAllocStorage)
       .def_method("vm.builtin.alloc_tensor", &StorageObj::AllocTensor);
-});
+}
 
 //-------------------------------------------------
 //  Closure function handling, calling convention
 //-------------------------------------------------
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("vm.builtin.make_closure",
@@ -428,12 +428,12 @@ TVM_FFI_STATIC_INIT_BLOCK({
         }
         func.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), rv);
       });
-});
+}
 
 //-------------------------------------
 //  Builtin runtime operators.
 //-------------------------------------
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("vm.builtin.shape_of", &Tensor::Shape)
@@ -446,7 +446,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         Device dst_device = {(DLDeviceType)dev_type, dev_id};
         return data.CopyTo(dst_device);
       });
-});
+}
 
 /*!
  * \brief Load the scalar value in cond and return the result value.
@@ -491,16 +491,16 @@ bool ReadIfCond(ffi::AnyView cond) {
   return result != 0;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.read_if_cond", ReadIfCond);
-});
+}
 
 //-------------------------------------
 //  Debugging API
 //-------------------------------------
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "vm.builtin.invoke_debug_func", [](ffi::PackedArgs args, ffi::Any* rv) -> void {
@@ -524,12 +524,12 @@ TVM_FFI_STATIC_INIT_BLOCK({
         debug_func->CallPacked(ffi::PackedArgs(call_args.data(), call_args.size()), rv);
         *rv = io_effect;
       });
-});
+}
 
 //-------------------------------------
 //  Data structure API
 //-------------------------------------
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("vm.builtin.tuple_getitem",
@@ -598,7 +598,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           return new_array;
         }
       });
-});
+}
 
 }  // namespace vm
 }  // namespace runtime

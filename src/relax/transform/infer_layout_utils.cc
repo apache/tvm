@@ -157,10 +157,10 @@ LayoutDecision FollowDecision(const LayoutDecision& src, int dst_ndim) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   LayoutDecisionNode::RegisterReflection();
   InferLayoutOutputNode::RegisterReflection();
-});
+}
 
 }  // namespace relax
 }  // namespace tvm

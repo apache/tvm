@@ -202,10 +202,10 @@ Pass AllocateWorkspace() {
   return CreateModulePass(pass_func, 0, "AllocateWorkspace", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.AllocateWorkspace", AllocateWorkspace);
-});
+}
 
 }  // namespace transform
 }  // namespace tvm

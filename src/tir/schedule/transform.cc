@@ -446,10 +446,10 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::
   return reorder_suffix[0];
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.schedule.TileWithTensorIntrin", TileWithTensorIntrin);
-});
+}
 
 /******** BlockBufferAccessSimplifier ********/
 void BlockBufferAccessSimplifier::SimplifyAccessRegion(
@@ -568,10 +568,10 @@ ffi::Optional<ObjectRef> NormalizePrimFunc(Schedule sch) {
   return ffi::Array<ObjectRef>{leaf_blocks, block_loops, block_iters, block_is_reduction};
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.schedule.NormalizePrimFunc", NormalizePrimFunc);
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

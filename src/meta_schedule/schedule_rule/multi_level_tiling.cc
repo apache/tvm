@@ -55,7 +55,7 @@ using tir::IterVarType;
 using tir::LoopRV;
 using tir::Schedule;
 
-TVM_FFI_STATIC_INIT_BLOCK({ MultiLevelTilingNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { MultiLevelTilingNode::RegisterReflection(); }
 
 State::State(tir::Schedule sch, tir::BlockRV block_rv, ffi::Array<ffi::Array<tir::LoopRV>> tiles) {
   ObjectPtr<StateNode> node = ffi::make_object<StateNode>();
@@ -407,11 +407,11 @@ ScheduleRule ScheduleRule::MultiLevelTiling(
   return ScheduleRule(node);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ScheduleRuleMultiLevelTiling",
                         ScheduleRule::MultiLevelTiling);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

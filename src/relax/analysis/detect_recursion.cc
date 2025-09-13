@@ -393,10 +393,10 @@ tvm::ffi::Array<tvm::ffi::Array<GlobalVar>> DetectRecursion(const IRModule& m) {
   return ret;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.analysis.detect_recursion", DetectRecursion);
-});
+}
 
 }  // namespace relax
 }  // namespace tvm

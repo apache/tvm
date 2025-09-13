@@ -222,10 +222,10 @@ Pass EliminateCommonSubexpr(bool call_only) {
   return CreateFunctionPass(pass_func, 1, "EliminateCommonSubexpr", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.EliminateCommonSubexpr", EliminateCommonSubexpr);
-});
+}
 
 }  // namespace transform
 

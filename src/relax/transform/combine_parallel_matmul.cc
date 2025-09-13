@@ -388,10 +388,10 @@ Pass CombineParallelMatmul(FCheck check) {
                             /*required=*/{});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.CombineParallelMatmul", CombineParallelMatmul);
-});
+}
 
 }  // namespace transform
 

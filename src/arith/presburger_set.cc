@@ -46,7 +46,7 @@ namespace arith {
 #ifdef TVM_MLIR_VERSION
 #if TVM_MLIR_VERSION >= 150
 
-TVM_FFI_STATIC_INIT_BLOCK({ PresburgerSetNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { PresburgerSetNode::RegisterReflection(); }
 using namespace tir;
 
 static void Update(const PrimExpr& constraint, PresburgerSetNode* intset) {
@@ -275,10 +275,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 PresburgerSet MakePresburgerSet(const PrimExpr& constraint) { return PresburgerSet(constraint); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("arith.PresburgerSet", MakePresburgerSet);
-});
+}
 
 }  // namespace arith
 }  // namespace tvm

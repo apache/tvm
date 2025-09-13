@@ -31,10 +31,10 @@
 namespace tvm {
 namespace tir {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   PrimFuncNode::RegisterReflection();
   TensorIntrinNode::RegisterReflection();
-});
+}
 
 namespace {
 relax::StructInfo InferStructInfo(const PrimFunc& prim_func) {
@@ -157,7 +157,7 @@ ffi::Optional<TensorIntrin> TensorIntrin::Get(ffi::String name, bool allow_missi
   return (*it).second;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.PrimFunc",
@@ -170,7 +170,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
            })
       .def("tir.TensorIntrinRegister", TensorIntrin::Register)
       .def("tir.TensorIntrinGet", TensorIntrin::Get);
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

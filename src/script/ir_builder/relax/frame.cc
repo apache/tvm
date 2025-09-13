@@ -30,7 +30,7 @@ namespace script {
 namespace ir_builder {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   RelaxFrameNode::RegisterReflection();
   SeqExprFrameNode::RegisterReflection();
   FunctionFrameNode::RegisterReflection();
@@ -38,7 +38,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   IfFrameNode::RegisterReflection();
   ThenFrameNode::RegisterReflection();
   ElseFrameNode::RegisterReflection();
-});
+}
 
 void SeqExprFrameNode::ExitWithScope() {
   // At this moment, there should be at most one BlockFrame which hasn't ended. In this case, call

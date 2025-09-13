@@ -30,7 +30,7 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   StructInfoNode::RegisterReflection();
   ObjectStructInfoNode::RegisterReflection();
   PrimStructInfoNode::RegisterReflection();
@@ -38,7 +38,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   TensorStructInfoNode::RegisterReflection();
   TupleStructInfoNode::RegisterReflection();
   FuncStructInfoNode::RegisterReflection();
-});
+}
 
 ObjectStructInfo::ObjectStructInfo(Span span) {
   ObjectPtr<ObjectStructInfoNode> n = ffi::make_object<ObjectStructInfoNode>();
@@ -46,10 +46,10 @@ ObjectStructInfo::ObjectStructInfo(Span span) {
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.ObjectStructInfo", [](Span span) { return ObjectStructInfo(span); });
-});
+}
 
 // Prim
 PrimStructInfo::PrimStructInfo(PrimExpr value, Span span) {
@@ -68,14 +68,14 @@ PrimStructInfo::PrimStructInfo(DataType dtype, Span span) {
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.PrimStructInfoFromDtype",
            [](DataType dtype, Span span) { return PrimStructInfo(dtype, span); })
       .def("relax.PrimStructInfoFromValue",
            [](PrimExpr value, Span span) { return PrimStructInfo(value, span); });
-});
+}
 
 // Shape
 ShapeStructInfo::ShapeStructInfo(ffi::Array<PrimExpr> values, Span span) {
@@ -101,7 +101,7 @@ ShapeStructInfo::ShapeStructInfo(int ndim, Span span) {
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.ShapeStructInfo", [](ffi::Optional<ffi::Array<PrimExpr>> values, int ndim, Span span) {
@@ -112,7 +112,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           return ShapeStructInfo(ndim, span);
         }
       });
-});
+}
 
 // Tensor
 TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, ffi::Optional<VDevice> vdevice,
@@ -144,7 +144,7 @@ TensorStructInfo::TensorStructInfo(DataType dtype, int ndim, ffi::Optional<VDevi
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.TensorStructInfo", [](ffi::Optional<Expr> shape, ffi::Optional<DataType> dtype,
@@ -156,7 +156,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           return TensorStructInfo(dtype.value_or(DataType::Void()), ndim, vdevice, span);
         }
       });
-});
+}
 
 // Tuple
 TupleStructInfo::TupleStructInfo(ffi::Array<StructInfo> fields, Span span) {
@@ -166,12 +166,12 @@ TupleStructInfo::TupleStructInfo(ffi::Array<StructInfo> fields, Span span) {
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.TupleStructInfo", [](ffi::Array<StructInfo> fields, Span span) {
     return TupleStructInfo(fields, span);
   });
-});
+}
 
 // Func
 FuncStructInfo::FuncStructInfo(ffi::Array<StructInfo> params, StructInfo ret, bool purity,
@@ -202,7 +202,7 @@ FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfo ret, bool purity, Span span
   return FuncStructInfo(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.FuncStructInfo",
@@ -219,7 +219,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                return FuncStructInfo::OpaqueFunc(ret.value_or(ObjectStructInfo()), purity, span);
              }
            });
-});
+}
 
 // Helper functions
 void UpdateStructInfo(Expr expr, StructInfo struct_info) {
@@ -232,13 +232,13 @@ void UpdateStructInfo(Expr expr, StructInfo struct_info) {
   expr->struct_info_ = struct_info;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.UpdateStructInfo",
            [](Expr expr, StructInfo struct_info) { UpdateStructInfo(expr, struct_info); })
       .def("ir.ExprStructInfo", [](Expr expr) { return GetStructInfo(expr); });
-});
+}
 
 }  // namespace relax
 }  // namespace tvm

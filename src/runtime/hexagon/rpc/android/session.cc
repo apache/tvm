@@ -110,7 +110,7 @@ class HexagonTransportChannel : public RPCChannel {
   remote_handle64 _handle = AEE_EUNKNOWN;
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tvm.contrib.hexagon.create_hexagon_session", [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -128,7 +128,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         auto sess = CreateClientSession(ep);
         *rv = CreateRPCSessionModule(sess);
       });
-});
+}
 
 }  // namespace hexagon
 }  // namespace runtime

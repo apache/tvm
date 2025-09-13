@@ -113,7 +113,7 @@ ffi::Module CreatePipeClient(std::vector<std::string> cmd) {
   return CreateRPCSessionModule(CreateClientSession(endpt));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("rpc.CreatePipeClient", [](ffi::PackedArgs args, ffi::Any* rv) {
     std::vector<std::string> cmd;
@@ -122,7 +122,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     }
     *rv = CreatePipeClient(cmd);
   });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm
