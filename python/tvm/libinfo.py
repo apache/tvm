@@ -231,9 +231,12 @@ def find_include_path(name=None, search_path=None, optional=False):
         dmlc_include_path = []
     else:
         tvm_include_path = [os.path.join(p, "include") for p in header_path]
-        tvm_ffi_include_path = [os.path.join(p, "ffi", "include") for p in header_path]
+        tvm_ffi_include_path = [
+            os.path.join(p, "3rdparty", "tvm-ffi", "include") for p in header_path
+        ]
         dlpack_include_path = [
-            os.path.join(p, "ffi", "3rdparty", "dlpack", "include") for p in header_path
+            os.path.join(p, "3rdparty", "tvm-ffi", "3rdparty", "dlpack", "include")
+            for p in header_path
         ]
         dmlc_include_path = [
             os.path.join(p, "3rdparty", "dmlc-core", "include") for p in header_path
