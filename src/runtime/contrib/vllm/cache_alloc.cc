@@ -49,10 +49,10 @@ ffi::Array<Tensor> AllocateKVCache(int head_size, int num_layers, int num_heads,
   return cache;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tvm.contrib.vllm.allocate_kv_cache", AllocateKVCache);
-});
+}
 
 }  // namespace vllm
 }  // namespace runtime

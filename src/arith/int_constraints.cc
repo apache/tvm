@@ -39,11 +39,11 @@
 namespace tvm {
 namespace arith {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   IntGroupBoundsNode::RegisterReflection();
   IntConstraintsNode::RegisterReflection();
   IntConstraintsTransformNode::RegisterReflection();
-});
+}
 
 ffi::Array<PrimExpr> AsConditions(const ffi::Array<Var>& variables,
                                   const ffi::Map<Var, IntGroupBounds>& bounds,
@@ -201,7 +201,7 @@ Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) co
   return Range::FromMinExtent(best_lower, analyzer.Simplify(best_diff_over + 1));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("arith.IntGroupBounds",
@@ -217,7 +217,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           *ret = bounds.FindBestRange(args[1].cast<ffi::Map<Var, Range>>());
         }
       });
-});
+}
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IntGroupBoundsNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -246,14 +246,14 @@ IntConstraints::IntConstraints(ffi::Array<Var> variables, ffi::Map<Var, Range> r
   data_ = std::move(node);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "arith.IntConstraints",
       [](ffi::Array<Var> variables, ffi::Map<Var, Range> ranges, ffi::Array<PrimExpr> relations) {
         return IntConstraints(variables, ranges, relations);
       });
-});
+}
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IntConstraintsNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -293,14 +293,14 @@ IntConstraintsTransform IntConstraintsTransform::operator+(
   return IntConstraintsTransform(operator->()->src, other->dst, src_to_dst, dst_to_src);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("arith.IntConstraintsTransform",
                         [](IntConstraints src, IntConstraints dst,
                            ffi::Map<Var, PrimExpr> src_to_dst, ffi::Map<Var, PrimExpr> dst_to_src) {
                           return IntConstraintsTransform(src, dst, src_to_dst, dst_to_src);
                         });
-});
+}
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IntConstraintsTransformNode>([](const ObjectRef& node, ReprPrinter* p) {

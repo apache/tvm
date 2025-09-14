@@ -500,10 +500,10 @@ Pass LambdaLift() {
   return tvm::transform::CreateModulePass(pass_func, 1, "LambdaLift", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.LambdaLift", LambdaLift);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

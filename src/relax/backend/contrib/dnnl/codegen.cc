@@ -99,10 +99,10 @@ ffi::Array<ffi::Module> DNNLCompiler(ffi::Array<Function> functions,
   return compiled_functions;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.ext.dnnl", DNNLCompiler);
-});
+}
 
 }  // namespace contrib
 }  // namespace relax

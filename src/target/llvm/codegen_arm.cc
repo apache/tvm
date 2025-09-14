@@ -128,13 +128,13 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode* call) {
   return tir::Call(call->dtype, builtin_call_llvm_pure_intrin_, vcnt64_args);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.codegen.llvm.target_arm",
                                [](const ffi::PackedArgs& targs, ffi::Any* rv) {
                                  *rv = static_cast<void*>(new CodeGenARM());
                                });
-});
+}
 
 }  // namespace codegen
 }  // namespace tvm

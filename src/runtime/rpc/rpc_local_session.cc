@@ -149,11 +149,11 @@ DeviceAPI* LocalSession::GetDeviceAPI(Device dev, bool allow_missing) {
   return DeviceAPI::Get(dev, allow_missing);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("rpc.LocalSession",
                         []() { return CreateRPCSessionModule(std::make_shared<LocalSession>()); });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

@@ -187,10 +187,10 @@ std::vector<ffi::String> VerifyMemory_(const PrimFunc& func) {
 
 bool VerifyMemory(const PrimFunc& func) { return VerifyMemory_(func).size() == 0; }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.analysis.verify_memory", VerifyMemory);
-});
+}
 
 namespace transform {
 
@@ -215,10 +215,10 @@ Pass VerifyMemory() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.VerifyMemory", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.VerifyMemory", VerifyMemory);
-});
+}
 
 }  // namespace transform
 }  // namespace tir

@@ -493,3 +493,21 @@ const TVMFFITypeInfo* TVMFFIGetTypeInfo(int32_t type_index) {
   return tvm::ffi::TypeTable::Global()->GetTypeEntry(type_index);
   TVM_FFI_LOG_EXCEPTION_CALL_END(TVMFFIGetTypeInfo);
 }
+
+// string APIs, we blend into object.cc to keep things simple
+int TVMFFIStringFromByteArray(const TVMFFIByteArray* input, TVMFFIAny* out) {
+  TVM_FFI_SAFE_CALL_BEGIN();
+  // must set to none first
+  out->type_index = kTVMFFINone;
+  tvm::ffi::TypeTraits<tvm::ffi::String>::MoveToAny(tvm::ffi::String(input->data, input->size),
+                                                    out);
+  TVM_FFI_SAFE_CALL_END();
+}
+
+int TVMFFIBytesFromByteArray(const TVMFFIByteArray* input, TVMFFIAny* out) {
+  TVM_FFI_SAFE_CALL_BEGIN();
+  // must set to none first
+  out->type_index = kTVMFFINone;
+  tvm::ffi::TypeTraits<tvm::ffi::Bytes>::MoveToAny(tvm::ffi::Bytes(input->data, input->size), out);
+  TVM_FFI_SAFE_CALL_END();
+}

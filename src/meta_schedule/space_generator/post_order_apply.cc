@@ -115,13 +115,13 @@ SpaceGenerator SpaceGenerator::PostOrderApply(
   return SpaceGenerator(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ PostOrderApplyNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { PostOrderApplyNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.SpaceGeneratorPostOrderApply",
                         SpaceGenerator::PostOrderApply);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

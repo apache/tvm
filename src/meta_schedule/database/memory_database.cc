@@ -99,12 +99,12 @@ Database Database::MemoryDatabase(ffi::String mod_eq_name) {
   return Database(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.DatabaseMemoryDatabase", Database::MemoryDatabase);
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({ MemoryDatabaseNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { MemoryDatabaseNode::RegisterReflection(); }
 
 }  // namespace meta_schedule
 }  // namespace tvm

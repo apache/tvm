@@ -78,8 +78,3 @@ class Bytes(bytes, PyNativeObject):
 
 
 _register_object_by_index(kTVMFFIBytes, Bytes)
-
-# We special handle str/bytes constructor in cython to avoid extra cyclic deps
-# as the str/bytes construction must be done in the inner loop of function call
-_STR_CONSTRUCTOR = None
-_BYTES_CONSTRUCTOR = None

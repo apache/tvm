@@ -80,7 +80,7 @@ class TensorRTCompilerConfig : public Attrs {
                                                 TensorRTCompilerConfigNode);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ TensorRTCompilerConfigNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { TensorRTCompilerConfigNode::RegisterReflection(); }
 
 TVM_REGISTER_PASS_CONFIG_OPTION("relax.ext.tensorrt.options", TensorRTCompilerConfig);
 
@@ -244,10 +244,10 @@ ffi::Array<ffi::Module> TensorRTCompiler(ffi::Array<Function> functions,
   return compiled_functions;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.ext.tensorrt", TensorRTCompiler);
-});
+}
 
 /*!
  * \brief Check whether TensorRT graph executor is enabled.
@@ -274,12 +274,12 @@ ffi::Array<Integer> GetTensorRTVersion() {
 #endif  // TVM_GRAPH_EXECUTOR_TENSORRT
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.is_tensorrt_runtime_enabled", IsTensorRTRuntimeEnabled)
       .def("relax.get_tensorrt_version", GetTensorRTVersion);
-});
+}
 
 }  // namespace contrib
 }  // namespace relax

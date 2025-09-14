@@ -183,10 +183,10 @@ ffi::Module CSourceModuleCreate(const ffi::String& code, const ffi::String& fmt,
   return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ffi.Module.load_from_bytes.c", CSourceModuleNode::LoadFromBytes);
-});
+}
 
 /*!
  * \brief A concrete class to get access to base methods of CodegenSourceBase.
@@ -263,7 +263,7 @@ ffi::Module DeviceSourceModuleCreate(std::string data, std::string fmt,
   return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.SourceModuleCreate", SourceModuleCreate)
@@ -272,7 +272,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                                              ffi::Optional<ffi::Array<ffi::String>> const_vars) {
         return CSourceModuleCreate(code, fmt, func_names.value_or({}), const_vars.value_or({}));
       });
-});
+}
 
 }  // namespace codegen
 }  // namespace tvm

@@ -36,10 +36,10 @@ tvm::transform::Pass ApplyEmptyCppMutator() {
                                                    "relax.testing.ApplyEmptyCppMutator", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.testing.transform.ApplyEmptyCppMutator", ApplyEmptyCppMutator);
-});
+}
 
 }  // namespace testing
 }  // namespace relax

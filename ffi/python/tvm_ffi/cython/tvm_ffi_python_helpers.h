@@ -226,10 +226,7 @@ class TVMFFIPyCallManager {
       try {
         // recycle the temporary arguments if any
         for (int i = 0; i < this->num_temp_ffi_objects; ++i) {
-          TVMFFIObject* obj = static_cast<TVMFFIObject*>(this->temp_ffi_objects[i]);
-          if (obj->deleter != nullptr) {
-            obj->deleter(obj, kTVMFFIObjectDeleterFlagBitMaskBoth);
-          }
+          TVMFFIObjectDecRef(this->temp_ffi_objects[i]);
         }
         for (int i = 0; i < this->num_temp_py_objects; ++i) {
           Py_DecRef(static_cast<PyObject*>(this->temp_py_objects[i]));
@@ -270,9 +267,9 @@ class TVMFFIPyCallManager {
    * \return 0 on when there is no python error, -1 on python error
    * \note When an error happens on FFI side, we should return 0 and set c_api_ret_code
    */
-  int Call(TVMFFIPyArgSetterFactory setter_factory, void* func_handle, PyObject* py_arg_tuple,
-           TVMFFIAny* result, int* c_api_ret_code, bool release_gil,
-           DLPackToPyObject* optional_out_dlpack_importer) {
+  int FuncCall(TVMFFIPyArgSetterFactory setter_factory, void* func_handle, PyObject* py_arg_tuple,
+               TVMFFIAny* result, int* c_api_ret_code, bool release_gil,
+               DLPackToPyObject* optional_out_dlpack_importer) {
     int64_t num_args = PyTuple_Size(py_arg_tuple);
     if (num_args == -1) return -1;
     try {
@@ -322,6 +319,64 @@ class TVMFFIPyCallManager {
       }
       if (optional_out_dlpack_importer != nullptr && ctx.c_dlpack_to_pyobject != nullptr) {
         *optional_out_dlpack_importer = ctx.c_dlpack_to_pyobject;
+      }
+      return 0;
+    } catch (const std::exception& ex) {
+      // very rare, catch c++ exception and set python error
+      PyErr_SetString(PyExc_RuntimeError, ex.what());
+      return -1;
+    }
+  }
+
+  /*
+   * \brief Call a constructor with a variable number of arguments
+   *
+   * This function is similar to FuncCall, but it will not set the
+   * stream and tensor allocator, instead, it will synchronize the TVMFFIPyCallContext
+   * with the parent context. This behavior is needed for nested conversion of arguments
+   * where detected argument setting needs to be synchronized with final call.
+   *
+   * This function will also not release  the GIL since constructor call is usually cheap.
+   *
+   * \param setter_factory The factory function to create the setter
+   * \param func_handle The handle of the constructor to call
+   * \param py_arg_tuple The arguments to the constructor
+   * \param result The result of the constructor
+   * \param c_api_ret_code The return code of the constructor
+   * \param parent_ctx The parent call context to
+   * \return 0 on success, -1 on failure
+   */
+  int ConstructorCall(TVMFFIPyArgSetterFactory setter_factory, void* func_handle,
+                      PyObject* py_arg_tuple, TVMFFIAny* result, int* c_api_ret_code,
+                      TVMFFIPyCallContext* parent_ctx) {
+    int64_t num_args = PyTuple_Size(py_arg_tuple);
+    if (num_args == -1) return -1;
+    try {
+      // allocate a call stack
+      CallStack ctx(this, num_args);
+      // Iterate over the arguments and set them
+      for (int64_t i = 0; i < num_args; ++i) {
+        PyObject* py_arg = PyTuple_GetItem(py_arg_tuple, i);
+        TVMFFIAny* c_arg = ctx.packed_args + i;
+        if (SetArgument(setter_factory, &ctx, py_arg, c_arg) != 0) return -1;
+      }
+      c_api_ret_code[0] = TVMFFIFunctionCall(func_handle, ctx.packed_args, num_args, result);
+      // propagate the call context to the parent context
+      if (parent_ctx != nullptr) {
+        // stream and current device information
+        if (parent_ctx->device_type == -1) {
+          parent_ctx->device_type = ctx.device_type;
+          parent_ctx->device_id = ctx.device_id;
+          parent_ctx->stream = ctx.stream;
+        }
+        // DLPack allocator
+        if (parent_ctx->c_dlpack_tensor_allocator == nullptr) {
+          parent_ctx->c_dlpack_tensor_allocator = ctx.c_dlpack_tensor_allocator;
+        }
+        // DLPack importer
+        if (parent_ctx->c_dlpack_to_pyobject == nullptr) {
+          parent_ctx->c_dlpack_to_pyobject = ctx.c_dlpack_to_pyobject;
+        }
       }
       return 0;
     } catch (const std::exception& ex) {
@@ -430,8 +485,36 @@ inline int TVMFFIPyFuncCall(TVMFFIPyArgSetterFactory setter_factory, void* func_
                             PyObject* py_arg_tuple, TVMFFIAny* result, int* c_api_ret_code,
                             bool release_gil = true,
                             DLPackToPyObject* out_dlpack_importer = nullptr) {
-  return TVMFFIPyCallManager::ThreadLocal()->Call(setter_factory, func_handle, py_arg_tuple, result,
-                                                  c_api_ret_code, release_gil, out_dlpack_importer);
+  return TVMFFIPyCallManager::ThreadLocal()->FuncCall(setter_factory, func_handle, py_arg_tuple,
+                                                      result, c_api_ret_code, release_gil,
+                                                      out_dlpack_importer);
+}
+
+/*!
+ * \brief Call a constructor function with a variable number of arguments
+ *
+ * This function is similar to TVMFFIPyFuncCall, but it will not set the
+ * stream and tensor allocator. Instead, it will synchronize the TVMFFIPyCallContext
+ * with the parent context. This behavior is needed for nested conversion of arguments
+ * where detected argument settings need to be synchronized with the final call.
+ *
+ * This function will also not release the GIL since constructor call is usually cheap.
+ *
+ * \param setter_factory The factory function to create the setter
+ * \param func_handle The handle of the function to call
+ * \param py_arg_tuple The arguments to the constructor
+ * \param result The result of the constructor
+ * \param c_api_ret_code The return code of the constructor
+ * \param parent_ctx The parent call context
+ * \param release_gil Whether to release the GIL
+ * \param out_dlpack_exporter The DLPack exporter to be used for the result
+ * \return 0 on success, nonzero on failure
+ */
+inline int TVMFFIPyConstructorCall(TVMFFIPyArgSetterFactory setter_factory, void* func_handle,
+                                   PyObject* py_arg_tuple, TVMFFIAny* result, int* c_api_ret_code,
+                                   TVMFFIPyCallContext* parent_ctx) {
+  return TVMFFIPyCallManager::ThreadLocal()->ConstructorCall(
+      setter_factory, func_handle, py_arg_tuple, result, c_api_ret_code, parent_ctx);
 }
 
 /*!

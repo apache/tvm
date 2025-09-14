@@ -191,12 +191,12 @@ ffi::Module CoreMLRuntimeCreate(const std::string& symbol, const std::string& mo
   return ffi::Module(exec);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.coreml_runtime.create", [](ffi::PackedArgs args, ffi::Any* rv) {
     *rv = CoreMLRuntimeCreate(args[0], args[1]);
   });
-});
+}
 
 ffi::Bytes CoreMLRuntime::SaveToBytes() const {
   std::string buffer;
@@ -255,10 +255,10 @@ ffi::Module CoreMLRuntimeLoadFromBytes(const ffi::Bytes& bytes) {
   return ffi::Module(exec);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ffi.Module.load_from_bytes.coreml", CoreMLRuntimeLoadFromBytes);
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

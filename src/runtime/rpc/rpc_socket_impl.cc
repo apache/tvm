@@ -122,7 +122,7 @@ void RPCServerLoop(ffi::Function fsend, ffi::Function frecv) {
       ->ServerLoop();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("rpc.Connect",
@@ -140,7 +140,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           RPCServerLoop(args[0].cast<tvm::ffi::Function>(), args[1].cast<tvm::ffi::Function>());
         }
       });
-});
+}
 
 class SimpleSockHandler : public dmlc::Stream {
   // Things that will interface with user directly.
@@ -167,14 +167,14 @@ class SimpleSockHandler : public dmlc::Stream {
   support::TCPSocket sock_;
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("rpc.ReturnException", [](int sockfd, ffi::String msg) {
     auto handler = SimpleSockHandler(sockfd);
     RPCReference::ReturnException(msg.c_str(), &handler);
     return;
   });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

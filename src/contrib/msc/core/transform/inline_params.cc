@@ -186,10 +186,10 @@ Pass InlineParams(const ffi::String& entry_name) {
   return CreateModulePass(pass_func, 0, "InlineParams", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.InlineParams", InlineParams);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

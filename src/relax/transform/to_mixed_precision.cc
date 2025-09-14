@@ -620,10 +620,10 @@ Pass ToMixedPrecision(const DataType& out_dtype,
   return CreateFunctionPass(pass_func, 0, "ToMixedPrecision", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.ToMixedPrecision", ToMixedPrecision);
-});
+}
 
 }  // namespace transform
 

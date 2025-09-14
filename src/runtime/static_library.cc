@@ -132,12 +132,12 @@ ffi::Module LoadStaticLibrary(const std::string& filename, ffi::Array<ffi::Strin
   return ffi::Module(node);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.ModuleLoadStaticLibrary", LoadStaticLibrary)
       .def("ffi.Module.load_from_bytes.static_library", StaticLibraryNode::LoadFromBytes);
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

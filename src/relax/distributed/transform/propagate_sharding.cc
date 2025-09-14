@@ -617,10 +617,10 @@ Pass PropagateSharding() {
   };
   return CreateModulePass(pass_func, 1, "PropagateSharding", {});
 }
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.distributed.transform.PropagateSharding", PropagateSharding);
-});
+}
 }  // namespace transform
 
 }  // namespace distributed

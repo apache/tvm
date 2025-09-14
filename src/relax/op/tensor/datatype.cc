@@ -31,10 +31,10 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   AstypeAttrs::RegisterReflection();
   WrapParamAttrs::RegisterReflection();
-});
+}
 
 /* relax.astype */
 
@@ -46,10 +46,10 @@ Expr astype(Expr x, DataType dtype) {
   return Call(op, {std::move(x)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.astype", astype);
-});
+}
 
 StructInfo InferStructInfoAstype(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -78,10 +78,10 @@ Expr MakeWrapParam(Expr data, DataType dtype) {
   return Call(op, {std::move(data)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.wrap_param", MakeWrapParam);
-});
+}
 
 StructInfo InferStructInfoWrapParam(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo sinfo = GetUnaryInputTensorStructInfo(call, ctx);

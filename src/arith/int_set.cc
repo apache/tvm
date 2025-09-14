@@ -44,7 +44,7 @@ using tir::is_zero;
 using tir::make_const;
 using tir::make_zero;
 
-TVM_FFI_STATIC_INIT_BLOCK({ IntervalSetNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { IntervalSetNode::RegisterReflection(); }
 
 PrimExpr SymbolicLimits::pos_inf_ = Var("pos_inf", DataType::Handle());
 PrimExpr SymbolicLimits::neg_inf_ = Var("neg_inf", DataType::Handle());
@@ -60,10 +60,10 @@ IntervalSet MakeIntervalSet(PrimExpr min_value, PrimExpr max_value) {
   return IntervalSet(min_value, max_value);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("arith.IntervalSet", MakeIntervalSet);
-});
+}
 
 IntervalSet Intersect(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
   PrimExpr max_value = min(a->max_value, b->max_value);
@@ -1198,7 +1198,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << "[" << op->min_value << ", " << op->max_value << ']';
     });
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("arith.intset_single_point", IntSet::SinglePoint)
@@ -1229,7 +1229,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("arith.PosInf", []() { return SymbolicLimits::pos_inf_; })
       .def("arith.NegInf", []() { return SymbolicLimits::neg_inf_; })
       .def("arith.UnionLowerBound", UnionLowerBound);
-});
+}
 
 }  // namespace arith
 }  // namespace tvm

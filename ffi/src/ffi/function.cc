@@ -200,7 +200,7 @@ int TVMFFIFunctionCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_arg
 #endif
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ffi.FunctionRemoveGlobal",
@@ -226,4 +226,4 @@ TVM_FFI_STATIC_INIT_BLOCK({
            })
       .def("ffi.String", [](tvm::ffi::String val) -> tvm::ffi::String { return val; })
       .def("ffi.Bytes", [](tvm::ffi::Bytes val) -> tvm::ffi::Bytes { return val; });
-});
+}

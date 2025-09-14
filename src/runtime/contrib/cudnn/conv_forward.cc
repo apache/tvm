@@ -156,7 +156,7 @@ void FindAlgo(int format, int dims, int groups, const int pad[], const int strid
   ret[0] = static_cast<int>(best_algo);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvm.contrib.cudnn.conv2d.forward",
@@ -240,7 +240,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     FindAlgo(format, dims, groups, pad, stride, dilation, x_dim, w_dim, y_dim,
                              data_dtype, conv_dtype, verbose, ret);
                   });
-});
+}
 
 }  // namespace contrib
 }  // namespace tvm

@@ -790,10 +790,10 @@ Pass Gradient(ffi::String func_name, ffi::Optional<ffi::Array<Var>> require_grad
                           /*required=*/{});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.Gradient", Gradient);
-});
+}
 
 }  // namespace transform
 

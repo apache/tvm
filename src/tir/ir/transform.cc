@@ -145,9 +145,9 @@ Pass CreatePrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)>
   return PrimFuncPass(std::move(pass_func), pass_info);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ PrimFuncPassNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { PrimFuncPassNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "tir.transform.CreatePrimFuncPass",
@@ -158,7 +158,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         };
         return PrimFuncPass(wrapped_pass_func, pass_info);
       });
-});
+}
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PrimFuncPassNode>([](const ObjectRef& ref, ReprPrinter* p) {

@@ -376,10 +376,10 @@ Python when needed.
       return CreateFunctionPass(pass_func, 0, "FoldConstant", {});
     }
 
-    TVM_FFI_STATIC_INIT_BLOCK({
+    TVM_FFI_STATIC_INIT_BLOCK() {
       namespace refl = tvm::ffi::reflection;
       refl::GlobalDef().def("relax.transform.FoldConstant", FoldConstant);
-    });
+    }
 
     }  // namespace transform
 

@@ -207,13 +207,10 @@ def test_load_inline_cuda_with_env_tensor_allocator():
         pytest.skip("Torch does not support __c_dlpack_tensor_allocator__")
     mod: Module = tvm_ffi.cpp.load_inline(
         name="hello",
-        cpp_sources=r"""
-            #include <tvm/ffi/container/tensor.h>
-
-            tvm::ffi::Tensor return_add_one(DLTensor* x);
-        """,
         cuda_sources=r"""
             #include <tvm/ffi/container/tensor.h>
+            #include <tvm/ffi/container/tuple.h>
+            #include <tvm/ffi/container/map.h>
 
             __global__ void AddOneKernel(float* x, float* y, int n) {
               int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -223,7 +220,8 @@ def test_load_inline_cuda_with_env_tensor_allocator():
             }
             namespace ffi = tvm::ffi;
 
-             ffi::Tensor return_add_one(DLTensor* x) {
+            ffi::Tensor return_add_one(ffi::Map<ffi::String, ffi::Tuple<ffi::Tensor>> kwargs) {
+              ffi::Tensor x = kwargs["x"].get<0>();
               // implementation of a library function
               TVM_FFI_ICHECK(x->ndim == 1) << "x must be a 1D tensor";
               DLDataType f32_dtype{kDLFloat, 32, 1};
@@ -251,7 +249,8 @@ def test_load_inline_cuda_with_env_tensor_allocator():
 
     if torch is not None:
         x_cuda = torch.asarray([1, 2, 3, 4, 5], dtype=torch.float32, device="cuda")
-        y_cuda = mod.return_add_one(x_cuda)
+        # test support for nested container passing
+        y_cuda = mod.return_add_one({"x": [x_cuda]})
         assert isinstance(y_cuda, torch.Tensor)
         assert y_cuda.shape == (5,)
         assert y_cuda.dtype == torch.float32

@@ -166,10 +166,10 @@ Function FunctionInlineFunctions(
   return Downcast<Function>(mutator(std::move(func)));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.FunctionInlineFunctions", FunctionInlineFunctions);
-});
+}
 
 namespace transform {
 
@@ -224,10 +224,10 @@ Pass InlinePrivateFunctions() {
   return tvm::transform::CreateModulePass(pass_func, 0, "InlinePrivateFunctions", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.InlinePrivateFunctions", InlinePrivateFunctions);
-});
+}
 
 }  // namespace transform
 

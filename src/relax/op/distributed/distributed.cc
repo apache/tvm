@@ -37,7 +37,7 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({ DistributionAttrs::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { DistributionAttrs::RegisterReflection(); }
 
 /* relax.dist.annotate_sharding */
 
@@ -51,10 +51,10 @@ Expr annotate_sharding(Expr input, distributed::DeviceMesh device_mesh,
   return Call(op, {std::move(input)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.dist.annotate_sharding", annotate_sharding);
-});
+}
 
 StructInfo InferStructInfoAnnotateSharding(const Call& call, const BlockBuilder& ctx) {
   return GetStructInfo(call->args[0]);
@@ -79,10 +79,10 @@ Expr redistribute(Expr input, distributed::DeviceMesh device_mesh,
   return Call(op, {std::move(input)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.dist.redistribute", redistribute);
-});
+}
 
 StructInfo InferDistStructInfoRedistribute(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<DistributionAttrs>();
@@ -148,10 +148,10 @@ Expr MakeCallTIRLocalView(Expr func, Tuple args,
   return call;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.dist.call_tir_local_view", MakeCallTIRLocalView);
-});
+}
 
 StructInfo InferStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -220,11 +220,11 @@ Expr redistribute_replica_to_shard(Expr input, int num_workers, int axis) {
   return Call(op, {std::move(input)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.dist.redistribute_replica_to_shard",
                         redistribute_replica_to_shard);
-});
+}
 
 TVM_REGISTER_OP("relax.dist.redistribute_replica_to_shard")
     .set_num_inputs(1)

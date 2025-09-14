@@ -175,11 +175,11 @@ Pass ReorderPermuteDimsAfterConcat() {
   return CreateFunctionPass(pass_func, 1, "ReorderPermuteDimsAfterConcat", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.ReorderPermuteDimsAfterConcat",
                         ReorderPermuteDimsAfterConcat);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

@@ -36,7 +36,7 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({ DataflowBlockRewriteNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { DataflowBlockRewriteNode::RegisterReflection(); }
 
 DataflowBlockRewrite::DataflowBlockRewrite(DataflowBlock dfb, Function root_fn) {
   auto n = ffi::make_object<DataflowBlockRewriteNode>();
@@ -52,12 +52,12 @@ DataflowBlockRewrite::DataflowBlockRewrite(DataflowBlock dfb, Function root_fn) 
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.DataflowBlockRewrite", [](DataflowBlock dfb, Function root_fn) {
     return DataflowBlockRewrite(dfb, root_fn);
   });
-});
+}
 
 void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
   class ReplaceAllUsePass : public ExprMutator {
@@ -113,13 +113,13 @@ void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.dfb_rewrite_replace_all_uses",
                         [](DataflowBlockRewrite rwt, Var old_var, Var new_var) {
                           rwt->ReplaceAllUses(old_var, new_var);
                         });
-});
+}
 
 class UpdateDFB : public ExprMutator {
  private:
@@ -184,7 +184,7 @@ void DataflowBlockRewriteNode::Add(Binding binding) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.dfb_rewrite_add_binding",
@@ -197,7 +197,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                rwt->Add(expr, is_dfvar);
              }
            });
-});
+}
 
 std::set<Var> GetUnusedVars(ffi::Map<Var, ffi::Array<Var>> users_map, ffi::Array<Var> fn_outputs) {
   std::vector<Var> unused;
@@ -246,7 +246,7 @@ class RemoveUnusedVars : public ExprMutator {
   std::set<Var> unused_vars;
   ffi::Optional<DataflowBlock> caught_rewrite = std::nullopt;
 
-  RemoveUnusedVars(std::set<Var> unused_vars) : unused_vars(std::move(unused_vars)) {}
+  explicit RemoveUnusedVars(std::set<Var> unused_vars) : unused_vars(std::move(unused_vars)) {}
 
   RemoveUnusedVars(ffi::Map<Var, ffi::Array<Var>> users, ffi::Array<Var> fn_outputs)
       : RemoveUnusedVars(GetUnusedVars(users, fn_outputs)) {}
@@ -301,13 +301,13 @@ void DataflowBlockRewriteNode::RemoveUnused(Var unused, bool allow_undef) {
   to_users_.erase(unused);  // update use-def chain.
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.dfb_rewrite_remove_unused",
                         [](DataflowBlockRewrite rwt, Var unused, bool allow_undef) {
                           rwt->RemoveUnused(unused, allow_undef);
                         });
-});
+}
 
 void DataflowBlockRewriteNode::RemoveAllUnused() {
   RemoveUnusedVars remover(to_users_, fn_outputs_);
@@ -326,11 +326,11 @@ void DataflowBlockRewriteNode::RemoveAllUnused() {
   for (const auto& unused : remover.unused_vars) to_users_.erase(unused);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.dfb_rewrite_remove_all_unused",
                         [](DataflowBlockRewrite rwt) { rwt->RemoveAllUnused(); });
-});
+}
 
 Expr RemoveAllUnused(Expr expr) {
   auto var_usage = CollectVarUsage(expr);
@@ -349,10 +349,10 @@ Expr RemoveAllUnused(Expr expr) {
   return remover.VisitExpr(std::move(expr));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.analysis.remove_all_unused", RemoveAllUnused);
-});
+}
 
 IRModule DataflowBlockRewriteNode::MutateIRModule(IRModule irmod) {
   BlockBuilder builder = BlockBuilder::Create(irmod);
@@ -367,12 +367,12 @@ IRModule DataflowBlockRewriteNode::MutateIRModule(IRModule irmod) {
   return builder->GetContextIRModule();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.dfb_rewrite_mutate_irmodule",
       [](DataflowBlockRewrite rwt, IRModule irmod) { return rwt->MutateIRModule(irmod); });
-});
+}
 
 }  // namespace relax
 }  // namespace tvm

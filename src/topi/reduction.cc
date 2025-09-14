@@ -32,7 +32,7 @@ namespace topi {
 using namespace tvm;
 using namespace tvm::runtime;
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("topi.sum",
@@ -78,7 +78,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_packed("topi.collapse_sum", [](ffi::PackedArgs args, ffi::Any* rv) {
         *rv = topi::collapse_sum(args[0].cast<te::Tensor>(), args[1].cast<ffi::Array<Integer>>());
       });
-});
+}
 
 }  // namespace topi
 }  // namespace tvm
