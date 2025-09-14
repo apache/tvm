@@ -21,7 +21,7 @@ set -euxo pipefail
 source tests/scripts/setup-pytest-env.sh
 
 # setup tvm-ffi into python folder
-python3 -m pip install  -v --target=python ./ffi
+python3 -m pip install  -v --target=python ./3rdparty/tvm-ffi/
 
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f

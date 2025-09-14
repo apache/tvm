@@ -310,8 +310,8 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
         results = [
             tvm_home / "include",
             tvm_home / "3rdparty/dmlc-core/include",
-            tvm_home / "ffi/include",
-            tvm_home / "ffi/3rdparty/dlpack/include",
+            tvm_home / "3rdparty/tvm-ffi/include",
+            tvm_home / "3rdparty/tvm-ffi/3rdparty/dlpack/include",
         ]
         if tvm_pkg:
             for relative in tvm_pkg:
@@ -387,12 +387,14 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
                 options=self.compile_options,
                 cc=self.compiler,
                 cwd=temp_dir,
-                ccache_env={
-                    "CCACHE_COMPILERCHECK": "content",
-                    "CCACHE_NOHASHDIR": "1",
-                }
-                if shutil.which("ccache")
-                else None,
+                ccache_env=(
+                    {
+                        "CCACHE_COMPILERCHECK": "content",
+                        "CCACHE_NOHASHDIR": "1",
+                    }
+                    if shutil.which("ccache")
+                    else None
+                ),
             )
             shutil.move(str(object_path), str(output_path))
 

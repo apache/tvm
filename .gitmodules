@@ -28,3 +28,6 @@
 [submodule "ffi/3rdparty/dlpack"]
 	path = ffi/3rdparty/dlpack
 	url = https://github.com/dmlc/dlpack.git
+[submodule "3rdparty/tvm-ffi"]
+	path = 3rdparty/tvm-ffi
+	url = https://github.com/apache/tvm-ffi

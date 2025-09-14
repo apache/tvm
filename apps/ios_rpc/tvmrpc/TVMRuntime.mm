@@ -33,7 +33,7 @@
 
 #if defined(USE_CUSTOM_DSO_LOADER) && USE_CUSTOM_DSO_LOADER == 1
 // internal TVM header to achieve Library class
-#include <../../../ffi/src/ffi/extra/library_module.h>
+#include <../../../3rdparty/tvm-ffi/src/ffi/extra/library_module.h>
 #include <custom_dlfcn.h>
 #endif
 

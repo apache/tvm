@@ -28,7 +28,7 @@ fi
 source tests/scripts/setup-pytest-env.sh
 
 # setup tvm-ffi into python folder
-python3 -m pip install  -v --target=python ./ffi
+python3 -m pip install  -v --target=python ./3rdparty/tvm-ffi/
 
 # disable hexagon tests for now
 exit 0
