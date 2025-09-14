@@ -567,7 +567,7 @@ if(USE_IOS_RPC)
   add_subdirectory("apps/ios_rpc")
 endif()
 
-add_subdirectory(ffi)
+add_subdirectory(3rdparty/tvm-ffi)
 
 if(TVM_DEBUG_WITH_ABI_CHANGE)
   message(STATUS "Building with debug code that may cause ABI changes...")
