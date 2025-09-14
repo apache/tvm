@@ -30,12 +30,12 @@ from .registry import (
 from ._dtype import dtype
 from .core import Object, ObjectConvertible, Function
 from ._convert import convert
-from .env import DeviceStream
 from .error import register_error
 from ._tensor import Device, device, DLDeviceType
 from ._tensor import from_dlpack, Tensor, Shape
 from .container import Array, Map
 from .module import Module, system_lib, load_module
+from .stream import use_raw_stream, use_torch_stream
 from . import serialization
 from . import access_path
 from . import testing

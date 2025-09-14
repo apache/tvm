@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
-import torch
+import pytest
 import tvm_ffi
 import tvm_ffi.cpp
 
@@ -36,17 +35,80 @@ ffi_mod = tvm_ffi.cpp.load_inline(
 )
 
 
+def test_raw_stream():
+    device = tvm_ffi.device("cuda:0")
+    stream_1 = 123456789
+    stream_2 = 987654321
+    with tvm_ffi.use_raw_stream(device, stream_1):
+        ffi_mod.check_stream(device.dlpack_device_type(), device.index, stream_1)
+
+        with tvm_ffi.use_raw_stream(device, stream_2):
+            ffi_mod.check_stream(device.dlpack_device_type(), device.index, stream_2)
+
+        ffi_mod.check_stream(device.dlpack_device_type(), device.index, stream_1)
+
+
 def test_torch_stream():
-    env_stream = torch.cuda.current_stream()
-    env_dev = env_stream.device
-    new_stream = torch.cuda.Stream(env_dev)
-    with tvm_ffi.DeviceStream(new_stream):
-        assert torch.cuda.current_stream() == new_stream
-        dev = tvm_ffi.device(str(env_dev))
-        ffi_mod.check_stream(dev.dlpack_device_type(), dev.index, new_stream.cuda_stream)
-    assert torch.cuda.current_stream() == env_stream
-    dev = tvm_ffi.device(str(env_dev))
-    ffi_mod.check_stream(dev.dlpack_device_type(), dev.index, env_stream.cuda_stream)
+    torch = pytest.importorskip("torch")
+
+    if not torch.cuda.is_available():
+        pytest.skip("torch.cuda.is_available() is False")
+
+    device_id = torch.cuda.current_device()
+    device = tvm_ffi.device("cuda", device_id)
+    device_type = device.dlpack_device_type()
+    stream_1 = torch.cuda.Stream(device_id)
+    stream_2 = torch.cuda.Stream(device_id)
+    with tvm_ffi.use_torch_stream(torch.cuda.stream(stream_1)):
+        assert torch.cuda.current_stream() == stream_1
+        ffi_mod.check_stream(device_type, device_id, stream_1.cuda_stream)
+
+        with tvm_ffi.use_torch_stream(torch.cuda.stream(stream_2)):
+            assert torch.cuda.current_stream() == stream_2
+            ffi_mod.check_stream(device_type, device_id, stream_2.cuda_stream)
+
+        assert torch.cuda.current_stream() == stream_1
+        ffi_mod.check_stream(device_type, device_id, stream_1.cuda_stream)
 
 
-test_torch_stream()
+def test_torch_current_stream():
+
+    torch = pytest.importorskip("torch")
+
+    if not torch.cuda.is_available():
+        pytest.skip("torch.cuda.is_available() is False")
+
+    device_id = torch.cuda.current_device()
+    device = tvm_ffi.device("cuda", device_id)
+    device_type = device.dlpack_device_type()
+    stream_1 = torch.cuda.Stream(device_id)
+    stream_2 = torch.cuda.Stream(device_id)
+    with torch.cuda.stream(stream_1):
+        assert torch.cuda.current_stream() == stream_1
+        with tvm_ffi.use_torch_stream():
+            ffi_mod.check_stream(device_type, device_id, stream_1.cuda_stream)
+
+        with torch.cuda.stream(stream_2):
+            assert torch.cuda.current_stream() == stream_2
+            with tvm_ffi.use_torch_stream():
+                ffi_mod.check_stream(device_type, device_id, stream_2.cuda_stream)
+
+        assert torch.cuda.current_stream() == stream_1
+        with tvm_ffi.use_torch_stream():
+            ffi_mod.check_stream(device_type, device_id, stream_1.cuda_stream)
+
+
+def test_torch_graph():
+    torch = pytest.importorskip("torch")
+
+    if not torch.cuda.is_available():
+        pytest.skip("torch.cuda.is_available() is False")
+
+    device_id = torch.cuda.current_device()
+    device = tvm_ffi.device("cuda", device_id)
+    device_type = device.dlpack_device_type()
+    graph = torch.cuda.CUDAGraph()
+    stream = torch.cuda.Stream(device_id)
+    with tvm_ffi.use_torch_stream(torch.cuda.graph(graph, stream=stream)):
+        assert torch.cuda.current_stream() == stream
+        ffi_mod.check_stream(device_type, device_id, stream.cuda_stream)
