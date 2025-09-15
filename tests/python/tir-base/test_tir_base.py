@@ -161,7 +161,6 @@ def test_continue_loop():
 
     func = build_tir_func(func)
     b = np.zeros([2], "int32")
-    b = tvm.nd.array(b)
     func(b)
     assert b[0] == 34
     assert b[1] == 5  # 6, 12, 18, 24, 30
