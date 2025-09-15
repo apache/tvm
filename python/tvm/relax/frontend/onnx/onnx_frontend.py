@@ -3386,6 +3386,77 @@ class SequenceAt(OnnxOpConverter):
         return input_sequence[position]
 
 
+class AllClassNMS(OnnxOpConverter):
+    """Converts an onnx AllClassNMS node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        """
+        AllClassNMS performs non-maximum suppression (NMS) on all classes.
+        
+        Inputs:
+        - boxes: (N, 4) tensor of bounding boxes in format [x1, y1, x2, y2]
+        - scores: (N, C) tensor of scores for each box and class
+        - max_output_boxes_per_class: maximum number of boxes to keep per class
+        - iou_threshold: IoU threshold for NMS
+        - score_threshold: score threshold for filtering
+        
+        Outputs:
+        - selected_indices: (M, 3) tensor with [batch_idx, class_idx, box_idx]
+        """
+        boxes = inputs[0]
+        scores = inputs[1]
+        max_output_boxes_per_class = inputs[2] if len(inputs) > 2 else None
+        iou_threshold = inputs[3] if len(inputs) > 3 else None
+        score_threshold = inputs[4] if len(inputs) > 4 else None
+        
+        # Extract attributes
+        center_point_box = attr.get("center_point_box", 0)
+        
+        # Convert constant inputs to values
+        if max_output_boxes_per_class is not None and isinstance(max_output_boxes_per_class, relax.Constant):
+            max_output_boxes_per_class = int(max_output_boxes_per_class.data.numpy())
+        else:
+            max_output_boxes_per_class = 100  # Default value
+            
+        if iou_threshold is not None and isinstance(iou_threshold, relax.Constant):
+            iou_threshold = float(iou_threshold.data.numpy())
+        else:
+            iou_threshold = 0.5  # Default value
+            
+        if score_threshold is not None and isinstance(score_threshold, relax.Constant):
+            score_threshold = float(score_threshold.data.numpy())
+        else:
+            score_threshold = 0.0  # Default value
+        
+        # Handle center_point_box format conversion
+        if center_point_box != 0:
+            # Convert from center format to corner format
+            xc, yc, w, h = relax.op.split(boxes, 4, axis=2)
+            half_w = w / relax.const(2.0, boxes.struct_info.dtype)
+            half_h = h / relax.const(2.0, boxes.struct_info.dtype)
+            x1 = xc - half_w
+            x2 = xc + half_w
+            y1 = yc - half_h
+            y2 = yc + half_h
+            boxes = relax.op.concat([y1, x1, y2, x2], axis=2)
+        
+        # Use the vision.all_class_non_max_suppression operation
+        nms_out = bb.normalize(
+            relax.op.vision.all_class_non_max_suppression(
+                boxes,
+                scores,
+                relax.const(max_output_boxes_per_class, dtype="int64"),
+                relax.const(iou_threshold, dtype="float32"),
+                relax.const(score_threshold, dtype="float32"),
+                output_format="onnx"
+            )
+        )
+        
+        # Return the selected indices (first element of the tuple)
+        return nms_out[0]
+
+
 def _get_convert_map():
     return {
         # defs/experimental
@@ -3537,6 +3608,7 @@ def _get_convert_map():
         # "MaxRoiPool": MaxRoiPool,
         # "RoiAlign": RoiAlign,
         # "NonMaxSuppression": NonMaxSuppression,
+        "AllClassNMS": AllClassNMS,
         # "GridSample": GridSample,
         "Upsample": Upsample,
         # others

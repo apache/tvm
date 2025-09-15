@@ -14,21 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Legalize high-level operator calls in Relax functions to call_tir."""
-from . import binary
-from . import ccl
-from . import create
-from . import datatype
-from . import distributed
-from . import grad
-from . import image
-from . import index
-from . import inspect_op
-from . import linear_algebra
-from . import manipulate
-from . import nn
-from . import qdq
-from . import search
-from . import statistical
-from . import unary
-from . import vision
+"""Default legalization function for vision network related operators."""
+from tvm import topi
+from ...block_builder import BlockBuilder
+from ...expr import Call, Expr
+from .common import register_legalize
+
+
+@register_legalize("relax.vision.all_class_non_max_suppression")
+def _vision_all_class_non_max_suppression(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(
+        topi.vision.all_class_non_max_suppression,
+        call.args[0],
+        call.args[1],
+        call.args[2],
+        call.args[3],
+        call.args[4],
+        output_format=call.attrs.output_format,
+    )

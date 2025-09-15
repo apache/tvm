@@ -3169,5 +3169,40 @@ def test_shape_dim_string_expression_graph_div_2():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
+def test_allclassnms():
+    """Test AllClassNMS operator conversion."""
+    allclassnms_node = helper.make_node(
+        "AllClassNMS",
+        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
+        ["selected_indices"],
+        center_point_box=0
+    )
+
+    boxes_shape = [1, 10, 4]  # batch_size, num_boxes, 4
+    scores_shape = [1, 3, 10]  # batch_size, num_classes, num_boxes
+
+    graph = helper.make_graph(
+        [allclassnms_node],
+        "allclassnms_test",
+        inputs=[
+            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
+            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
+        ],
+        initializer=[
+            helper.make_tensor("max_output_boxes_per_class", TensorProto.INT64, [1], [5]),
+            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.5]),
+            helper.make_tensor("score_threshold", TensorProto.FLOAT, [1], [0.1]),
+        ],
+        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [0, 3])],
+    )
+
+    model = helper.make_model(graph, producer_name="allclassnms_test")
+    inputs = {
+        "boxes": np.random.rand(1, 10, 4).astype("float32"),
+        "scores": np.random.rand(1, 3, 10).astype("float32"),
+    }
+    check_correctness(model, inputs, opset=1)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
