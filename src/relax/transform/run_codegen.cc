@@ -224,10 +224,10 @@ Pass RunCodegen(
   return CreateModulePass(pass_func, 0, "RunCodegen", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.RunCodegen", RunCodegen);
-});
+}
 
 }  // namespace transform
 }  // namespace tvm

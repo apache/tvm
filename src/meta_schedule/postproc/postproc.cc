@@ -119,12 +119,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << f_as_string();
     });
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   PostprocNode::RegisterReflection();
   PyPostprocNode::RegisterReflection();
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("meta_schedule.PostprocInitializeWithTuneContext",
@@ -136,7 +136,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("meta_schedule.PostprocDefaultCUDA", Postproc::DefaultCUDA)
       .def("meta_schedule.PostprocDefaultCUDATensorCore", Postproc::DefaultCUDATensorCore)
       .def("meta_schedule.PostprocDefaultHexagon", Postproc::DefaultHexagon);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

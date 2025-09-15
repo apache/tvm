@@ -28,12 +28,12 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   ShapeTypeNode::RegisterReflection();
   TensorTypeNode::RegisterReflection();
   ObjectTypeNode::RegisterReflection();
   PackedFuncTypeNode::RegisterReflection();
-});
+}
 
 ShapeType::ShapeType(int ndim, Span span) {
   ObjectPtr<ShapeTypeNode> n = ffi::make_object<ShapeTypeNode>();
@@ -42,11 +42,11 @@ ShapeType::ShapeType(int ndim, Span span) {
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.ShapeType",
                         [](int ndim, Span span) { return ShapeType(ndim, span); });
-});
+}
 
 ObjectType::ObjectType(Span span) {
   ObjectPtr<ObjectTypeNode> n = ffi::make_object<ObjectTypeNode>();
@@ -54,10 +54,10 @@ ObjectType::ObjectType(Span span) {
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.ObjectType", [](Span span) { return ObjectType(span); });
-});
+}
 
 TensorType::TensorType(int ndim, DataType dtype, Span span) {
   ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>();
@@ -75,12 +75,12 @@ TensorType TensorType::CreateUnknownNDim(DataType dtype, Span span) {
   return TensorType(std::move(n));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.TensorType", [](int ndim, DataType dtype, Span span) {
     return TensorType(ndim, dtype, span);
   });
-});
+}
 
 PackedFuncType::PackedFuncType(Span span) {
   ObjectPtr<PackedFuncTypeNode> n = ffi::make_object<PackedFuncTypeNode>();
@@ -88,10 +88,10 @@ PackedFuncType::PackedFuncType(Span span) {
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.PackedFuncType", [](Span span) { return PackedFuncType(span); });
-});
+}
 
 }  // namespace relax
 }  // namespace tvm

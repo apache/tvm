@@ -87,10 +87,10 @@ Pass ForceNarrowIndexToInt32() {
   return CreatePrimFuncPass(pass_func, 0, "tir.NarrowDataType", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.ForceNarrowIndexToInt32", ForceNarrowIndexToInt32);
-});
+}
 
 }  // namespace transform
 }  // namespace tir

@@ -146,13 +146,13 @@ ffi::Module HipblasJSONRuntimeCreate(ffi::String symbol_name, ffi::String graph_
   return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.HipblasJSONRuntimeCreate", HipblasJSONRuntimeCreate)
       .def("ffi.Module.load_from_bytes.hipblas_json",
            JSONRuntimeBase::LoadFromBytes<HipblasJSONRuntime>);
-});
+}
 
 }  // namespace contrib
 }  // namespace runtime

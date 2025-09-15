@@ -157,12 +157,12 @@ ffi::Module MarvellSimulatorModuleRuntimeCreate(const ffi::String& symbol_name,
   return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.mrvl_runtime_create", MarvellSimulatorModuleRuntimeCreate)
       .def("ffi.Module.load_from_bytes.mrvl_sim", MarvellSimulatorModuleNode::LoadFromBytes);
-});
+}
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm

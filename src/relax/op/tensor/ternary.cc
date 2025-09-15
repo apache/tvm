@@ -145,10 +145,10 @@ Expr ewise_fma(Expr x1, Expr x2, Expr x3) {
   return Call(op, {x1, x2, x3}, Attrs(), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.ewise_fma", ewise_fma);
-});
+}
 
 }  // namespace relax
 }  // namespace tvm

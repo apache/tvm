@@ -80,12 +80,12 @@ ScheduleRule ScheduleRule::AutoBind(int max_threadblocks, ffi::Array<Integer> th
   return ScheduleRule(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ AutoBindNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { AutoBindNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ScheduleRuleAutoBind", ScheduleRule::AutoBind);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -192,7 +192,7 @@ void RewriteSpec::Append(RewriteSpec other) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.dpl.PatternMatchingRewriterFromPattern",
@@ -213,7 +213,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                LOG(FATAL) << "Unreachable: object does not contain either variant type";
              }
            });
-});
+}
 
 RewriteSpec ExprPatternRewriterNode::RewriteBindings(const ffi::Array<Binding>& bindings) const {
   ffi::Map<Var, Expr> variable_rewrites;
@@ -257,7 +257,7 @@ ffi::Optional<Expr> ExprPatternRewriterNode::RewriteExpr(
   return std::nullopt;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.dpl.PatternRewriter",
@@ -265,7 +265,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
          ffi::TypedFunction<ffi::Optional<Expr>(Expr, ffi::Map<DFPattern, Expr>)> func) {
         return ExprPatternRewriter(pattern, func);
       });
-});
+}
 
 ExprPatternRewriter::ExprPatternRewriter(
     DFPattern pattern,
@@ -310,13 +310,13 @@ RewriteSpec OrRewriterNode::RewriteBindings(const ffi::Array<Binding>& bindings)
   return lhs_match;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.dpl.OrRewriter",
                         [](PatternMatchingRewriter lhs, PatternMatchingRewriter rhs) {
                           return OrRewriter(lhs, rhs);
                         });
-});
+}
 
 OrRewriter::OrRewriter(PatternMatchingRewriter lhs, PatternMatchingRewriter rhs) {
   auto node = ffi::make_object<OrRewriterNode>();
@@ -608,7 +608,7 @@ std::optional<std::vector<Expr>> TupleRewriterNode::TryMatchByBindingIndex(
   return rewrites;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.dpl.TupleRewriter",
@@ -616,7 +616,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
          ffi::TypedFunction<ffi::Optional<Expr>(Expr, ffi::Map<DFPattern, Expr>)> func) {
         return TupleRewriter(patterns, func);
       });
-});
+}
 
 TupleRewriter::TupleRewriter(
     ffi::Array<DFPattern> patterns,
@@ -807,19 +807,19 @@ ffi::Optional<ffi::Map<DFPattern, Expr>> ExtractMatchedExpr(
   return matcher.GetMemo();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.dpl.extract_matched_expr", ExtractMatchedExpr);
-});
+}
 
 bool MatchExpr(DFPattern pattern, Expr expr, ffi::Optional<ffi::Map<Var, Expr>> bindings_opt) {
   return static_cast<bool>(ExtractMatchedExpr(pattern, expr, bindings_opt));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.dpl.match_expr", MatchExpr);
-});
+}
 
 /*!
  * \brief Apply pattern matching to each expression, replacing
@@ -829,7 +829,8 @@ class PatternMatchingMutator : public ExprMutator {
  public:
   using ExprMutator::VisitExpr_;
 
-  PatternMatchingMutator(const PatternMatchingRewriterNode* rewriter) : rewriter_(rewriter) {}
+  explicit PatternMatchingMutator(const PatternMatchingRewriterNode* rewriter)
+      : rewriter_(rewriter) {}
 
   ffi::Map<GlobalVar, BaseFunc> GetNewSubroutines() const { return new_subroutines_; }
 
@@ -1092,17 +1093,17 @@ Function RewriteCall(const DFPattern& pat,
   return Downcast<Function>(PatternMatchingRewriter::FromPattern(pat, rewriter)(func));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.dpl.rewrite_call", RewriteCall);
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   PatternMatchingRewriterNode::RegisterReflection();
   ExprPatternRewriterNode::RegisterReflection();
   OrRewriterNode::RegisterReflection();
   TupleRewriterNode::RegisterReflection();
-});
+}
 
 }  // namespace relax
 }  // namespace tvm

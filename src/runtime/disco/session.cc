@@ -30,7 +30,7 @@ struct SessionObj::FFI {
   }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.disco.SessionThreaded", Session::ThreadedSession)
@@ -48,7 +48,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     *rv = SessionObj::FFI::CallWithPacked(self, args.Slice(1));
                   })
       .def_method("runtime.disco.SessionShutdown", &SessionObj::Shutdown);
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

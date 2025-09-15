@@ -80,7 +80,7 @@ Which eventually jumps to the following line in C++, which creates a RPC client 
 [https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L123-L129](https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L123-L129)
 
 ```cpp
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("rpc.Connect", [](ffi::PackedArgs args, ffi::Any* rv) {
     auto url = args[0].cast<std::string>();
@@ -89,7 +89,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     *rv = RPCClientConnect(url, port, key,
                           ffi::PackedArgs(args.values + 3, args.type_codes + 3, args.size() - 3));
   });
-});
+}
 ```
 
 `tvm.contrib.hexagon.create_hexagon_session` is defined here. It establishes a link between android and hexagon, this code runs on android.
@@ -98,7 +98,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
 ```cpp
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tvm.contrib.hexagon.create_hexagon_session", [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -111,7 +111,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       auto sess = CreateClientSession(ep);
       *rv = CreateRPCSessionModule(sess);
     });
-});
+}
 ```
 
 `HexagonTransportChannel` is the one that actually knows how to talk to Hexagon. It uses functions such as `hexagon_rpc_send`, `hexagon_rpc_receive` defined in

@@ -146,7 +146,7 @@ void FuncRetValue(const tvm::relax::Expr& value) {
   frame->output = std::move(normalized_value);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("script.ir_builder.relax.Function", Function)
@@ -155,7 +155,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("script.ir_builder.relax.FuncAttrs", FuncAttrs)
       .def("script.ir_builder.relax.FuncRetStructInfo", FuncRetStructInfo)
       .def("script.ir_builder.relax.FuncRetValue", FuncRetValue);
-});
+}
 
 ///////////////////////////// BindingBlock //////////////////////////////
 
@@ -197,13 +197,13 @@ void DataflowBlockOutput(const ffi::Array<tvm::relax::Var>& vars) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("script.ir_builder.relax.Dataflow", Dataflow)
       .def("script.ir_builder.relax.BindingBlock", BindingBlock)
       .def("script.ir_builder.relax.DataflowBlockOutput", DataflowBlockOutput);
-});
+}
 
 /////////////////////////////// Bindings ///////////////////////////////
 
@@ -245,13 +245,13 @@ tvm::relax::Var EmitVarBinding(const tvm::relax::VarBinding& binding) {
   return binding->var;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("script.ir_builder.relax.Emit", Emit)
       .def("script.ir_builder.relax.EmitMatchCast", EmitMatchCast)
       .def("script.ir_builder.relax.EmitVarBinding", EmitVarBinding);
-});
+}
 
 /////////////////////////////// SeqExpr ///////////////////////////////
 
@@ -260,10 +260,10 @@ SeqExprFrame SeqExpr() {
   return SeqExprFrame(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("script.ir_builder.relax.SeqExpr", SeqExpr);
-});
+}
 
 ///////////////////////////// If Then Else /////////////////////////////
 
@@ -285,13 +285,13 @@ ElseFrame Else() {
   return ElseFrame(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("script.ir_builder.relax.If", If)
       .def("script.ir_builder.relax.Then", Then)
       .def("script.ir_builder.relax.Else", Else);
-});
+}
 
 }  // namespace relax
 }  // namespace ir_builder

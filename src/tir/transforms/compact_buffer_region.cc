@@ -757,10 +757,10 @@ Pass CompactBufferAllocation(bool is_strict) {
   return CreatePrimFuncPass(pass_func, 0, "tir.CompactBufferAllocation", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.CompactBufferAllocation", CompactBufferAllocation);
-});
+}
 }  // namespace transform
 
 }  // namespace tir

@@ -135,7 +135,7 @@ Therefore, after we finish the build, we need to install the tvm-ffi package.
 
 .. code-block:: bash
 
-    cd ffi; pip install .; cd ..
+    cd 3rdparty/tvm-ffi; pip install .; cd ..
 
 
 Leaving the build environment ``tvm-build-venv``, there are two ways to install the successful build into your environment:

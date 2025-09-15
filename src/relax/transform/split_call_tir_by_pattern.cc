@@ -779,10 +779,10 @@ Pass SplitCallTIRByPattern(ffi::Array<TIRPattern> patterns, FCodegen fcodegen) {
                           /*pass_name=*/"SplitCallTIRByPattern",  //
                           /*required=*/{});
 }
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.SplitCallTIRByPattern", SplitCallTIRByPattern);
-});
+}
 
 }  // namespace transform
 

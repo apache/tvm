@@ -36,7 +36,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "rxplaceholder(" << op->name << ", " << op << ")";
     });
 
-TVM_FFI_STATIC_INIT_BLOCK({ RXPlaceholderOpNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { RXPlaceholderOpNode::RegisterReflection(); }
 
 te::Tensor TETensor(Expr value, ffi::Map<tir::Var, PrimExpr> tir_var_map, std::string name) {
   auto n = ffi::make_object<RXPlaceholderOpNode>();
@@ -73,10 +73,10 @@ te::Tensor TETensor(Expr value, ffi::Map<tir::Var, PrimExpr> tir_var_map, std::s
   return te::PlaceholderOp(n).output(0);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.TETensor", TETensor);
-});
+}
 
 }  // namespace relax
 }  // namespace tvm

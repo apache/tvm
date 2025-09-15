@@ -23,11 +23,11 @@
 namespace tvm {
 namespace meta_schedule {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   TaskRecordNode::RegisterReflection();
   TaskSchedulerNode::RegisterReflection();
   PyTaskSchedulerNode::RegisterReflection();
-});
+}
 
 TaskRecord::TaskRecord(TuneContext ctx, double task_weight) {
   ObjectPtr<TaskRecordNode> n = ffi::make_object<TaskRecordNode>();
@@ -371,7 +371,7 @@ void PyTaskSchedulerNode::Tune(ffi::Array<TuneContext> tasks, ffi::Array<FloatIm
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("meta_schedule.TaskSchedulerPyTaskScheduler", TaskScheduler::PyTaskScheduler)
@@ -382,7 +382,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_method("meta_schedule.TaskSchedulerTouchTask", &TaskSchedulerNode::TouchTask)
       .def_method("meta_schedule.TaskSchedulerPrintTuningStatistics",
                   &TaskSchedulerNode::PrintTuningStatistics);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

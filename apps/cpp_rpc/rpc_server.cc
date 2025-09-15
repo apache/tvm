@@ -399,9 +399,9 @@ void RPCServerCreate(std::string host, int port, int port_end, std::string track
   rpc.Start();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("rpc.ServerCreate", RPCServerCreate);
-});
+}
 }  // namespace runtime
 }  // namespace tvm

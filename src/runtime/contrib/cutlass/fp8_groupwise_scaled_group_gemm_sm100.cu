@@ -85,11 +85,11 @@ void tvm_fp8_groupwise_scaled_group_gemm_sm100(Tensor a, Tensor b, Tensor scales
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("cutlass.groupwise_scaled_group_gemm_e4m3fn_e4m3fn",
                         tvm_fp8_groupwise_scaled_group_gemm_sm100);
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

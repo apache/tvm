@@ -465,7 +465,7 @@ class RNNStateImpObj : public RNNStateObj {
 //  Register runtime functions
 //-------------------------------------------------
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.rnn_state_create", [](int64_t num_layers,                //
                                                           int64_t reserved_num_seqs,         //
@@ -495,7 +495,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                                          std::move(f_gets), std::move(f_sets), init_layer_value);
     return RNNState(std::move(n));
   });
-});
+}
 
 }  // namespace vm
 }  // namespace runtime

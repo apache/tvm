@@ -84,10 +84,10 @@ TVM_SCRIPT_REPR(relax::ShapeTypeNode, ReprPrintRelax);
 TVM_SCRIPT_REPR(relax::ObjectTypeNode, ReprPrintRelax);
 TVM_SCRIPT_REPR(relax::TensorTypeNode, ReprPrintRelax);
 TVM_SCRIPT_REPR(relax::PackedFuncTypeNode, ReprPrintRelax);
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("script.printer.ReprPrintRelax", ReprPrintRelax);
-});
+}
 
 }  // namespace printer
 }  // namespace script

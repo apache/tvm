@@ -142,7 +142,7 @@ sdist.include = [
     "/CMakeLists.txt",
     "/pyproject.toml",
     "/cmake/**/*",
-    "/3rdparty/**/*",
+    "/  */*",
 
     # Source code
     "/src/**/*.cc",

@@ -33,7 +33,7 @@
 
 #if defined(USE_CUSTOM_DSO_LOADER) && USE_CUSTOM_DSO_LOADER == 1
 // internal TVM header to achieve Library class
-#include <../../../ffi/src/ffi/extra/library_module.h>
+#include <../../../3rdparty/tvm-ffi/src/ffi/extra/library_module.h>
 #include <custom_dlfcn.h>
 #endif
 
@@ -52,7 +52,7 @@ void LogMessageImpl(const std::string& file, int lineno, int level, const std::s
 
 }  // namespace detail
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvm.rpc.server.workpath",
@@ -85,7 +85,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         *rv = Module::LoadFromFile(name, fmt);
         LOG(INFO) << "Load module from " << name << " ...";
       });
-});
+}
 
 #if defined(USE_CUSTOM_DSO_LOADER) && USE_CUSTOM_DSO_LOADER == 1
 
@@ -112,7 +112,7 @@ class UnsignedDSOLoader final : public Library {
 };
 
 // Add UnsignedDSOLoader plugin in global registry
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("ffi.Module.load_from_file.dylib_custom",
                                [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -120,7 +120,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                                  n->Init(args[0]);
                                  *rv = tvm::ffi::CreateLibraryModule(n);
                                });
-});
+}
 
 #endif
 

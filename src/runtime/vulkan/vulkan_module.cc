@@ -67,12 +67,12 @@ ffi::Module VulkanModuleLoadFromBytes(const ffi::Bytes& bytes) {
   return VulkanModuleCreate(smap, fmap, "");
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ffi.Module.load_from_file.vulkan", VulkanModuleLoadFile)
       .def("ffi.Module.load_from_bytes.vulkan", VulkanModuleLoadFromBytes);
-});
+}
 
 }  // namespace vulkan
 }  // namespace runtime

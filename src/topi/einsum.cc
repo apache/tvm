@@ -362,12 +362,12 @@ ffi::Array<PrimExpr> InferEinsumShape(const std::string& subscripts,
   return einsum_builder.InferShape();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("topi.einsum", [](ffi::PackedArgs args, ffi::Any* rv) {
     *rv = einsum(args[0].cast<std::string>(), args[1].cast<ffi::Array<Tensor>>());
   });
-});
+}
 
 }  // namespace topi
 }  // namespace tvm
