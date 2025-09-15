@@ -622,12 +622,10 @@ class RelaxExpressionConverter:
                 for global_var, func in self.ir_module.functions.items():
                     if global_var.name_hint == func_name and hasattr(func, "body"):
                         try:
-                            # Use Relax VM to execute the TIR function
+                            # Compile the TIR function
                             target = tvm.target.Target("llvm")
                             with tvm.target.Target(target):
-                                # Compile the entire IRModule and get the TIR function
-                                exec_mod = tvm.compile(self.ir_module, target=target)
-                                tir_function = exec_mod[func_name]
+                                tir_function = tvm.compile(func, target=target)
                             break
                         except (RuntimeError, ValueError, TypeError) as compile_e:
                             print(
