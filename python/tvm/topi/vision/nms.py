@@ -147,7 +147,13 @@ def _get_valid_box_count(scores, score_threshold):
         valid_count = ib.buffer_ptr(valid_count)
 
         with ib.for_range(0, batch_classes, name="i", kind="parallel") as i:
-            binary_search(ib, i, num_boxes, scores, score_threshold, valid_count)
+            # Convert score_threshold to scalar if it's a tensor
+            if hasattr(score_threshold, 'shape') and len(score_threshold.shape) > 0:
+                # If score_threshold is a tensor, extract the scalar value
+                score_thresh_scalar = score_threshold[0] if score_threshold.shape[0] > 0 else 0.0
+            else:
+                score_thresh_scalar = score_threshold
+            binary_search(ib, i, num_boxes, scores, score_thresh_scalar, valid_count)
 
         return ib.get()
 

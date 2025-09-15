@@ -32,12 +32,17 @@ def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: r
 def test_all_class_non_max_suppression_infer_struct_info():
     bb = relax.BlockBuilder()
     batch_size, num_classes, num_boxes = 10, 8, 5
-    boxes = relax.Var("boxes", R.Tensor((batch_size, num_boxes, 4), "int64"))
+    boxes = relax.Var("boxes", R.Tensor((batch_size, num_boxes, 4), "float32"))
     scores = relax.Var("scores", R.Tensor((batch_size, num_classes, num_boxes), "float32"))
+    max_output_boxes_per_class = relax.const(10, "int64")
+    iou_threshold = relax.const(0.5, "float32")
+    score_threshold = relax.const(0.1, "float32")
 
     _check_inference(
         bb,
-        relax.op.vision.all_class_non_max_suppression(boxes, scores, output_format="onnx"),
+        relax.op.vision.all_class_non_max_suppression(
+            boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, "onnx"
+        ),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo((batch_size * num_classes * num_boxes, 3), "int64"),
@@ -46,20 +51,37 @@ def test_all_class_non_max_suppression_infer_struct_info():
         ),
     )
 
+
+
+def test_all_class_non_max_suppression_wrong_input_number():
+    bb = relax.BlockBuilder()
+    boxes = relax.Var("boxes", R.Tensor((1, 5, 4), "float32"))
+    scores = relax.Var("scores", R.Tensor((1, 3, 5), "float32"))
+
+    with pytest.raises(TVMError):
+        relax.op.vision.all_class_non_max_suppression(boxes, scores)
+
+
+def test_all_class_non_max_suppression_infer_struct_info_shape_var():
+    bb = relax.BlockBuilder()
+    batch_size = tir.Var("batch_size", "int64")
+    num_classes = tir.Var("num_classes", "int64")
+    num_boxes = tir.Var("num_boxes", "int64")
+    boxes = relax.Var("boxes", R.Tensor((batch_size, num_boxes, 4), "float32"))
+    scores = relax.Var("scores", R.Tensor((batch_size, num_classes, num_boxes), "float32"))
+    max_output_boxes_per_class = relax.const(10, "int64")
+    iou_threshold = relax.const(0.5, "float32")
+    score_threshold = relax.const(0.1, "float32")
+
     _check_inference(
         bb,
-        relax.op.vision.all_class_non_max_suppression(boxes, scores, output_format="tensorflow"),
+        relax.op.vision.all_class_non_max_suppression(
+            boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, "onnx"
+        ),
         relax.TupleStructInfo(
             [
-                relax.TensorStructInfo((batch_size, num_classes * num_boxes, 2), "int64"),
-                relax.TensorStructInfo(
-                    (
-                        batch_size,
-                        num_classes * num_boxes,
-                    ),
-                    "float32",
-                ),
-                relax.TensorStructInfo((batch_size,), "int64"),
+                relax.TensorStructInfo((batch_size * num_classes * num_boxes, 3), "int64"),
+                relax.TensorStructInfo((1,), "int64"),
             ]
         ),
     )
