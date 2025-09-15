@@ -135,6 +135,8 @@ def test_break_loop():
     func = build_tir_func(func)
     a = np.asarray([49, 8], "int32")
     b = np.zeros([2], "int32")
+    if not hasattr(b, "__dlpack__"):
+        return
     func(a, b)
     assert b[0] == 13
     assert b[1] == 9
@@ -161,6 +163,8 @@ def test_continue_loop():
 
     func = build_tir_func(func)
     b = np.zeros([2], "int32")
+    if not hasattr(b, "__dlpack__"):
+        return
     func(b)
     assert b[0] == 34
     assert b[1] == 5  # 6, 12, 18, 24, 30
