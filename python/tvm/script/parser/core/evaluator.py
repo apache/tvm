@@ -19,6 +19,8 @@
 import ast
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
 
+import tvm
+
 from . import dispatch, doc
 from .error import ParserError
 
@@ -55,6 +57,7 @@ DEFAULT_OP: Dict[Type, Callable[..., Any]] = {
     doc.Not: lambda a: not a,
     doc.UAdd: lambda a: +a,
     doc.USub: lambda a: -a,
+    doc.IfExp: tvm.tir.op.if_then_else,
 }
 
 
@@ -180,9 +183,12 @@ class ExprEvaluator:
                 args = [node.operand]
             elif isinstance(node, doc.Compare):
                 args = [node.left, *node.comparators]
+            elif isinstance(node, doc.IfExp):
+                args = [node.test, node.body, node.orelse]
+            elif isinstance(node, doc.Call):
+                args = node.args
             elif isinstance(node, doc.BoolOp):
                 args = node.values
-
         for arg in args:
             if isinstance(arg, doc.Subscript) and isinstance(arg.slice, (doc.Slice, doc.Tuple)):
                 if isinstance(arg.slice, doc.Slice):
@@ -254,6 +260,8 @@ class ExprEvaluator:
                 value = self._eval_unary_op(fields)
             elif isinstance(node, doc.BinOp):
                 value = self._eval_bin_op(fields)
+            elif isinstance(node, doc.IfExp):
+                value = self._eval_if_exp(fields)
             elif isinstance(node, doc.Slice):
                 value = self._eval_slice(fields)
             else:
@@ -359,6 +367,29 @@ class ExprEvaluator:
             values=[
                 self._eval_expr(fields["left"]),
                 self._eval_expr(fields["right"]),
+            ],
+        )
+
+    def _eval_if_exp(self, fields: Dict[str, Any]) -> Any:
+        """The doc AST if-else expression node evaluating method.
+
+        Parameters
+        ----------
+        fields : Dict[str, Any]
+            The dictionary of if-else expression information,
+            e.g., test, body, orelse.
+
+        Returns
+        -------
+        res : Any
+            The evaluation result.
+        """
+        return _eval_op(
+            doc.IfExp,
+            values=[
+                self._eval_expr(fields["test"]),
+                self._eval_expr(fields["body"]),
+                self._eval_expr(fields["orelse"]),
             ],
         )
 
@@ -490,14 +521,14 @@ def _eval_expr(
 
 
 def _eval_op(
-    op: doc.AST,
+    op_or_type: Union[doc.AST, Type],
     values: List[Any],
 ):
     """Operation expression evaluation implementation for TVMScript parser.
 
     Parameters
     ----------
-    op : doc.AST
+    op_or_type : Union[doc.AST, Type]
         The root node of AST tree node of operation expression to evaluate.
 
     values : List[Any]
@@ -508,7 +539,9 @@ def _eval_op(
     res : Any
         The evaluation result.
     """
-    op_type = type(op)  # pylint: disable=protected-access
+    op_type = (
+        type(op_or_type) if isinstance(op_or_type, doc.AST) else op_or_type
+    )  # pylint: disable=protected-access
     for i, v in enumerate(values):
         v_type = getattr(type(v), "_dispatch_type", None)
         if v_type is None:
