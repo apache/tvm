@@ -430,6 +430,19 @@ def AnnotateDeviceRegions():
     return _ffi_api.AnnotateDeviceRegions()  # type: ignore
 
 
+def AnnotateIrregularLoop():
+    """Annotate irregular loop mark. Loop transformations like
+    peeling, partition, unroll, etc is not allowed on irregular
+    loop with internal loop continuation and breaks.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.AnnotateIrregularLoop()  # type: ignore
+
+
 def SplitHostDevice():
     """Split the function into a host function and device functions.
 
