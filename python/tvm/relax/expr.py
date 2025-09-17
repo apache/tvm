@@ -1157,7 +1157,7 @@ def const(
     - other using the same default rule as numpy.
     """
     # Needed for bf16 and fp8 support (does not come with numpy)
-    import ml_dtypes  # pylint: disable=unused-import
+    import ml_dtypes  # pylint: disable=unused-import,import-outside-toplevel
 
     if isinstance(value, (Number, (bool, list))):
         value = _np.array(value, dtype=dtype)
