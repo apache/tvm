@@ -19,10 +19,6 @@
 #include "nms.h"
 
 #include <tvm/relax/op/vision/nms.h>
-
-#include <utility>
-#include <vector>
-
 #include <tvm/relax/attrs/vision.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/ffi/string.h>
@@ -31,6 +27,9 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/runtime/object.h>
 #include <tvm/ffi/reflection/registry.h>
+
+#include <utility>
+#include <vector>
 
 namespace tvm {
 namespace relax {
