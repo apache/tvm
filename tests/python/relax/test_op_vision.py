@@ -52,7 +52,6 @@ def test_all_class_non_max_suppression_infer_struct_info():
     )
 
 
-
 def test_all_class_non_max_suppression_wrong_input_number():
     bb = relax.BlockBuilder()
     boxes = relax.Var("boxes", R.Tensor((1, 5, 4), "float32"))

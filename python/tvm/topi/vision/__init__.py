@@ -16,5 +16,3 @@
 # under the License.
 """Vision operators."""
 from .nms import *
-
-

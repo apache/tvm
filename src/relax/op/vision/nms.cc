@@ -32,9 +32,10 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK()
+{
   AllClassNonMaximumSuppressionAttrs::RegisterReflection();
-});
+}
 
 /* relax.vision.all_class_non_max_suppression */
 
@@ -50,10 +51,11 @@ Expr all_class_non_max_suppression(Expr boxes, Expr scores, Expr max_output_boxe
               Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK()
+{
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.vision.all_class_non_max_suppression", all_class_non_max_suppression);
-});
+}
 
 StructInfo InferStructInfoAllClassNMS(const Call& call, const BlockBuilder& ctx) {
   tvm::ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);

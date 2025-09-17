@@ -76,7 +76,15 @@ def binary_search(ib, y, num_boxes, scores, score_threshold, out):
     out[y] = lo[0]
 
 
-def collect_selected_indices(num_class, selected_indices, num_detections, row_offsets, ir):
+def collect_selected_indices(
+    num_class,
+    selected_indices,
+    num_detections,
+    row_offsets,
+    ir,
+    max_output_boxes_per_class=None,
+    output_shape=None,
+):
     """Collect selected indices from the core NMS loop into one linear output
     Parameters
     ----------
@@ -100,10 +108,76 @@ def collect_selected_indices(num_class, selected_indices, num_detections, row_of
         first, in descending of scores, followed by boxes from batch 0, class 1 etc.
     """
     batch_class, num_boxes = selected_indices.shape
+
+    # If output_shape is provided, use it for dynamic shape
+    if output_shape is not None:
+        return te.extern(
+            [output_shape],
+            [selected_indices, num_detections, row_offsets],
+            lambda ins, outs: ir(
+                num_class, ins[0], ins[1], ins[2], outs[0], max_output_boxes_per_class
+            ),
+            dtype=["int64"],
+            name="collect_indices",
+            tag="collect_indices",
+        )
+
+    # If max_output_boxes_per_class is provided as a Python int, fix output blocks per class
+    if isinstance(max_output_boxes_per_class, int):
+        # Use the actual max_boxes_per_class value, but this should be the maximum possible
+        # The actual number of selected boxes will be determined by the NMS algorithm
+        out_rows = batch_class * max_output_boxes_per_class
+        return te.extern(
+            [(out_rows, 3)],
+            [selected_indices, num_detections, row_offsets],
+            lambda ins, outs: ir(
+                num_class, ins[0], ins[1], ins[2], outs[0], max_output_boxes_per_class
+            ),
+            dtype=["int64"],
+            name="collect_indices",
+            tag="collect_indices",
+        )
+
+    # If max_output_boxes_per_class is a te.Tensor, we need to handle it dynamically
+    if isinstance(max_output_boxes_per_class, te.Tensor):
+        # Try to extract the value from the tensor at compile time
+        try:
+            if len(max_output_boxes_per_class.shape) == 0:
+                # 0D tensor - scalar
+                max_boxes_val = int(max_output_boxes_per_class.data.numpy())
+            elif (
+                len(max_output_boxes_per_class.shape) == 1
+                and max_output_boxes_per_class.shape[0] == 1
+            ):
+                # 1D tensor with one element
+                max_boxes_val = int(max_output_boxes_per_class.data.numpy()[0])
+            else:
+                # Fallback to conservative upper bound
+                max_boxes_val = num_boxes
+        except:
+            # If we can't extract the value at compile time, use conservative upper bound
+            max_boxes_val = num_boxes
+
+        # Use the actual max_boxes_val instead of num_boxes
+        out_rows = batch_class * max_boxes_val
+        return te.extern(
+            [(out_rows, 3)],
+            [selected_indices, num_detections, row_offsets],
+            lambda ins, outs: ir(
+                num_class, ins[0], ins[1], ins[2], outs[0], max_output_boxes_per_class
+            ),
+            dtype=["int64"],
+            name="collect_indices",
+            tag="collect_indices",
+        )
+
+    # Fallback: keep legacy variable-sized rows per class (num_boxes)
     return te.extern(
         [(batch_class * num_boxes, 3)],
         [selected_indices, num_detections, row_offsets],
-        lambda ins, outs: ir(num_class, ins[0], ins[1], ins[2], outs[0]),
+        lambda ins, outs: ir(
+            num_class, ins[0], ins[1], ins[2], outs[0], max_output_boxes_per_class
+        ),
         dtype=["int64"],
         name="collect_indices",
         tag="collect_indices",
@@ -164,6 +238,7 @@ def _all_class_nms_ir(
     selected_scores,
     num_valid_boxes,
     nms_loop,
+    score_threshold=None,
 ):
     ib = tvm.tir.ir_builder.create()
     boxes = ib.buffer_ptr(boxes)
@@ -178,9 +253,29 @@ def _all_class_nms_ir(
 
     if isinstance(iou_threshold, float):
         iou_threshold = tvm.tir.FloatImm("float32", iou_threshold)
+    elif isinstance(iou_threshold, te.Tensor):
+        # Handle tensor iou_threshold
+        if len(iou_threshold.shape) == 0:
+            iou_threshold = iou_threshold()
+        elif len(iou_threshold.shape) == 1 and iou_threshold.shape[0] == 1:
+            iou_threshold = iou_threshold[0]
+        else:
+            iou_threshold = tvm.tir.FloatImm("float32", 0.5)  # Fallback
 
     if isinstance(max_output_size_per_class, int):
         max_output_size_per_class = tvm.tir.const(max_output_size_per_class)
+    elif isinstance(max_output_size_per_class, te.Tensor):
+        # For tensor, we need to access the first element
+        # Handle both 0D scalar tensors and 1D tensors with single element
+        if len(max_output_size_per_class.shape) == 0:
+            # 0D scalar tensor
+            max_output_size_per_class = max_output_size_per_class()
+        elif len(max_output_size_per_class.shape) == 1 and max_output_size_per_class.shape[0] == 1:
+            # 1D tensor with single element
+            max_output_size_per_class = max_output_size_per_class[0]
+        else:
+            # Fallback: use a constant value
+            max_output_size_per_class = tvm.tir.const(1000)  # Large number as fallback
 
     def calc_overlap(i, j, k):
         offset_j = sorted_indices[i, j] * 4
@@ -206,6 +301,9 @@ def _all_class_nms_ir(
     def needs_bbox_check(*_):
         return tvm.tir.const(True)
 
+    # Score threshold filtering is now handled in the NMS loop itself
+    # No need to pre-filter scores here
+
     return nms_loop(
         ib,
         batch_class,
@@ -219,6 +317,7 @@ def _all_class_nms_ir(
         calc_overlap,
         sorted_scores,
         num_valid_boxes,
+        score_threshold,
     )
 
 
@@ -231,6 +330,7 @@ def run_all_class_nms(
     iou_threshold,
     nms_loop,
     return_scores=False,
+    score_threshold=None,
 ):
     """The core all class NMS routine
     Parameters
@@ -272,11 +372,16 @@ def run_all_class_nms(
             (batch_class, num_boxes), "int32", "all_class_nms0", data_alignment=8
         )
         all_class_num1_buf = tvm.tir.decl_buffer(
-            (1, batch_class), "int32", "all_class_nms1", data_alignment=8
+            (batch_class,), "int32", "all_class_nms1", data_alignment=8
         )
+        # Prepare inputs for te.extern
+        extern_inputs = [boxes, sorted_scores, sorted_indices, valid_count]
+        if score_threshold is not None:
+            extern_inputs.append(score_threshold)
+
         selected_indices, num_detections = te.extern(
-            [(batch_class, num_boxes), (1, batch_class)],
-            [boxes, sorted_scores, sorted_indices, valid_count],
+            [(batch_class, num_boxes), (batch_class,)],
+            extern_inputs,
             lambda ins, outs: _all_class_nms_ir(
                 ins[0],  # boxes
                 ins[1],  # sorted_scores
@@ -291,6 +396,7 @@ def run_all_class_nms(
                 None,  # scores
                 outs[1],  # num_selected_boxes
                 nms_loop,
+                ins[4] if score_threshold is not None else None,  # score_threshold
             ),
             out_buffers=[all_class_num0_buf, all_class_num1_buf],
             dtype=["int32", "int32"],
@@ -299,9 +405,14 @@ def run_all_class_nms(
         )
         return selected_indices, None, num_detections
 
+    # Prepare inputs for te.extern
+    extern_inputs = [boxes, sorted_scores, sorted_indices, valid_count]
+    if score_threshold is not None:
+        extern_inputs.append(score_threshold)
+
     return te.extern(
-        [(batch_class, num_boxes), (batch_class, num_boxes), (1, batch_class)],
-        [boxes, sorted_scores, sorted_indices, valid_count],
+        [(batch_class, num_boxes), (batch_class, num_boxes), (batch_class,)],
+        extern_inputs,
         lambda ins, outs: _all_class_nms_ir(
             ins[0],  # boxes
             ins[1],  # sorted_scores
@@ -316,6 +427,7 @@ def run_all_class_nms(
             outs[1],  # selected scores
             outs[2],  # num_selected_boxes
             nms_loop,
+            ins[4] if score_threshold is not None else None,  # score_threshold
         ),
         dtype=["int32", "float32", "int32"],
         name="all_class_nms",

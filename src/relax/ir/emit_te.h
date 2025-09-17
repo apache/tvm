@@ -41,6 +41,8 @@ class RXPlaceholderOpNode : public te::PlaceholderOpNode {
   /*! \brief The relax expression. */
   Expr value;
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RXPlaceholderOpNode>()

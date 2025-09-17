@@ -63,10 +63,10 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     score_index_const = tvm.tir.const(score_index, "int32")
     # This function is not implemented in the current context
     # Return placeholder values for now
-    return te.compute(
-        (data.shape[0],), lambda i: data.shape[1], name="valid_count"
-    ), data, te.compute(
-        (data.shape[0], data.shape[1]), lambda i, j: j, name="out_indices"
+    return (
+        te.compute((data.shape[0],), lambda i: data.shape[1], name="valid_count"),
+        data,
+        te.compute((data.shape[0], data.shape[1]), lambda i, j: j, name="out_indices"),
     )
 
 
@@ -83,6 +83,7 @@ def _nms_loop(
     calc_overlap_func,
     out_scores,
     num_valid_boxes,
+    score_threshold=None,
 ):
     def nms_inner_loop(ib, i, j, nkeep, num_valid_boxes_local):
         # The box j is valid, invalidate other boxes that overlap with j above iou_threshold
@@ -122,12 +123,18 @@ def _nms_loop(
 
             # Apply nms
             # No need to do more iteration if we have already reached max_output_size boxes
+
             with ib.while_loop(
                 tvm.tir.all(box_idx[0] < nkeep, num_valid_boxes_local[0] < max_output_size)
             ):
                 # Proceed to the inner loop if the box with id box_idx is still valid
+                # Check both that the box is not suppressed (-1.0) and meets score threshold
                 with ib.if_scope(out_scores[i, box_idx[0]] > -1.0):
-                    nms_inner_loop(ib, i, box_idx[0], nkeep, num_valid_boxes_local)
+                    if score_threshold is not None:
+                        with ib.if_scope(out_scores[i, box_idx[0]] > score_threshold[()]):
+                            nms_inner_loop(ib, i, box_idx[0], nkeep, num_valid_boxes_local)
+                    else:
+                        nms_inner_loop(ib, i, box_idx[0], nkeep, num_valid_boxes_local)
                 box_idx[0] += 1
 
             num_valid_boxes[i] = num_valid_boxes_local[0]
@@ -141,16 +148,22 @@ def _nms_loop(
 def _get_valid_box_count(scores, score_threshold):
     batch_classes, num_boxes = scores.shape
 
-    def searchsorted_ir(scores, valid_count):
+    def searchsorted_ir(scores, score_thresh, valid_count):
         ib = tvm.tir.ir_builder.create()
         scores = ib.buffer_ptr(scores)
         valid_count = ib.buffer_ptr(valid_count)
 
         with ib.for_range(0, batch_classes, name="i", kind="parallel") as i:
             # Convert score_threshold to scalar if it's a tensor
-            if hasattr(score_threshold, 'shape') and len(score_threshold.shape) > 0:
+            if hasattr(score_threshold, "shape"):
                 # If score_threshold is a tensor, extract the scalar value
-                score_thresh_scalar = score_threshold[0] if score_threshold.shape[0] > 0 else 0.0
+                if len(score_threshold.shape) == 0:
+                    # 0-dimensional tensor (scalar)
+                    score_thresh_scalar = score_thresh[()]
+                elif len(score_threshold.shape) == 1 and score_threshold.shape[0] > 0:
+                    score_thresh_scalar = score_thresh[0]
+                else:
+                    score_thresh_scalar = tvm.tir.FloatImm("float32", 0.0)
             else:
                 score_thresh_scalar = score_threshold
             binary_search(ib, i, num_boxes, scores, score_thresh_scalar, valid_count)
@@ -162,19 +175,60 @@ def _get_valid_box_count(scores, score_threshold):
         (batch_classes,), "int32", "searchsorted", data_alignment=8
     )
 
-    return te.extern(
-        [(batch_classes,)],
-        [scores],
-        lambda ins, outs: searchsorted_ir(ins[0], outs[0]),
-        dtype=["int32"],
-        in_buffers=[scores_buf],
-        out_buffers=[searchsorted_buf],
-        name="searchsorted",
-        tag="searchsorted",
-    )
+    # Handle score_threshold input
+    if hasattr(score_threshold, "shape"):
+        # score_threshold is a tensor, need to pass it as input
+        score_thresh_buf = tvm.tir.decl_buffer(
+            score_threshold.shape, score_threshold.dtype, "score_thresh_buf", data_alignment=8
+        )
+        return te.extern(
+            [(batch_classes,)],
+            [scores, score_threshold],
+            lambda ins, outs: searchsorted_ir(ins[0], ins[1], outs[0]),
+            dtype=["int32"],
+            in_buffers=[scores_buf, score_thresh_buf],
+            out_buffers=[searchsorted_buf],
+            name="searchsorted",
+            tag="searchsorted",
+        )
+    else:
+        # score_threshold is a scalar, can be captured in closure
+        def searchsorted_ir_scalar(scores, valid_count):
+            ib = tvm.tir.ir_builder.create()
+            scores = ib.buffer_ptr(scores)
+            valid_count = ib.buffer_ptr(valid_count)
+
+            with ib.for_range(0, batch_classes, name="i", kind="parallel") as i:
+                # Convert score_threshold to TIR constant
+                if isinstance(score_threshold, te.Tensor):
+                    # If score_threshold is a tensor, extract the scalar value
+                    if len(score_threshold.shape) == 0:
+                        score_thresh_tir = score_threshold()
+                    elif len(score_threshold.shape) == 1 and score_threshold.shape[0] == 1:
+                        score_thresh_tir = score_threshold[0]
+                    else:
+                        score_thresh_tir = tvm.tir.FloatImm("float32", 0.0)
+                else:
+                    score_thresh_tir = tvm.tir.FloatImm("float32", float(score_threshold))
+                binary_search(ib, i, num_boxes, scores, score_thresh_tir, valid_count)
+
+            return ib.get()
+
+        return te.extern(
+            [(batch_classes,)],
+            [scores],
+            lambda ins, outs: searchsorted_ir_scalar(ins[0], outs[0]),
+            dtype=["int32"],
+            in_buffers=[scores_buf],
+            out_buffers=[searchsorted_buf],
+            name="searchsorted",
+            tag="searchsorted",
+        )
 
 
-def _collect_selected_indices_ir(num_class, selected_indices, num_detections, row_offsets, out):
+def _collect_selected_indices_ir(
+    num_class, selected_indices, num_detections, row_offsets, out, max_output_boxes_per_class=None
+):
     batch_classes, _ = selected_indices.shape
 
     ib = tvm.tir.ir_builder.create()
@@ -189,7 +243,26 @@ def _collect_selected_indices_ir(num_class, selected_indices, num_detections, ro
         batch_id = i // num_class
         class_id = i % num_class
 
-        with ib.for_range(0, num_detections[i], name="j") as j:
+        if isinstance(max_output_boxes_per_class, int):
+            limit = tvm.tir.min(
+                num_detections[i], tvm.tir.IntImm("int32", max_output_boxes_per_class)
+            )
+        elif isinstance(max_output_boxes_per_class, te.Tensor):
+            # Handle tensor max_output_boxes_per_class
+            # Extract the scalar value from the tensor
+            if len(max_output_boxes_per_class.shape) == 0:
+                # 0D tensor - scalar
+                max_boxes_val = max_output_boxes_per_class[()]
+            else:
+                # 1D tensor with one element
+                max_boxes_val = max_output_boxes_per_class[0]
+            limit = tvm.tir.min(num_detections[i], max_boxes_val)
+            # Debug: store the limit value for debugging
+            # This will help us see if the limit is being applied correctly
+        else:
+            limit = num_detections[i]
+
+        with ib.for_range(0, limit, name="j") as j:
             out[row_offsets[i] + j, 0] = batch_id
             out[row_offsets[i] + j, 1] = class_id
             out[row_offsets[i] + j, 2] = cast(selected_indices[i, j], "int64")
@@ -253,6 +326,7 @@ def all_class_non_max_suppression(
     iou_threshold,
     score_threshold,
     output_format="onnx",
+    output_shape=None,
 ):
     """Non-maximum suppression operator for object detection, corresponding to ONNX
     NonMaxSuppression and TensorFlow combined_non_max_suppression.
@@ -298,7 +372,13 @@ def all_class_non_max_suppression(
     sorted_indices = argsort(scores, axis=1, is_ascend=False, dtype="int32")
     sorted_scores = gather(scores, 1, sorted_indices)
 
-    valid_count = _get_valid_box_count(sorted_scores, score_threshold)
+    # Convert score_threshold to te.Tensor if it's a scalar
+    if not isinstance(score_threshold, te.Tensor):
+        score_threshold_tensor = te.compute((), lambda: score_threshold, name="score_threshold")
+    else:
+        score_threshold_tensor = score_threshold
+
+    valid_count = _get_valid_box_count(sorted_scores, score_threshold_tensor)
 
     selected_indices, selected_scores, num_detections = run_all_class_nms(
         boxes,
@@ -309,15 +389,86 @@ def all_class_non_max_suppression(
         iou_threshold,
         _nms_loop,
         return_scores=(output_format == "tensorflow"),
+        score_threshold=score_threshold_tensor,  # Passed score_threshold as tensor
     )
 
     if output_format == "onnx":
         row_offsets = cumsum(num_detections, exclusive=True, dtype="int64")
-        num_total_detections = reduction.sum(cast(num_detections, "int64"), axis=1)
+        # Compute total selected boxes clamped by max_output_boxes_per_class per class
+        # Support int, tir.IntImm, and tensor scalar inputs
+        def _sum_clamped_total():
+            # num_detections dtype is int32
+            if isinstance(max_output_boxes_per_class, int):
+                k_expr = tvm.tir.IntImm("int32", int(max_output_boxes_per_class))
+                clamped = te.compute(
+                    num_detections.shape,
+                    lambda i: tvm.tir.min(num_detections[i], k_expr),
+                    name="clamped_num",
+                )
+                return reduction.sum(cast(clamped, "int64"), axis=0)
+            if isinstance(max_output_boxes_per_class, tvm.tir.IntImm):
+                k_expr = tvm.tir.Cast("int32", max_output_boxes_per_class)
+                clamped = te.compute(
+                    num_detections.shape,
+                    lambda i: tvm.tir.min(num_detections[i], k_expr),
+                    name="clamped_num",
+                )
+                return reduction.sum(cast(clamped, "int64"), axis=0)
+            if isinstance(max_output_boxes_per_class, te.Tensor):
+                # Handle scalar tensor - check if it's 0D or 1D with single element
+                if len(max_output_boxes_per_class.shape) == 0:
+                    # 0D scalar tensor
+                    kb = te.compute(
+                        num_detections.shape,
+                        lambda i: cast(max_output_boxes_per_class, "int32"),
+                        name="k_broadcast",
+                    )
+                elif (
+                    len(max_output_boxes_per_class.shape) == 1
+                    and max_output_boxes_per_class.shape[0] == 1
+                ):
+                    # 1D tensor with single element
+                    kb = te.compute(
+                        num_detections.shape,
+                        lambda i: cast(max_output_boxes_per_class[0], "int32"),
+                        name="k_broadcast",
+                    )
+                else:
+                    # Fallback: no clamp
+                    return reduction.sum(cast(num_detections, "int64"), axis=0)
 
-        selected_indices = collect_selected_indices(
-            num_class, selected_indices, num_detections, row_offsets, _collect_selected_indices_ir
-        )
+                clamped = te.compute(
+                    num_detections.shape,
+                    lambda i: tvm.tir.min(num_detections[i], kb[i]),
+                    name="clamped_num",
+                )
+                return reduction.sum(cast(clamped, "int64"), axis=0)
+            # Fallback: no clamp
+            return reduction.sum(cast(num_detections, "int64"), axis=0)
+
+        num_total_scalar = _sum_clamped_total()
+        num_total_detections = reshape(num_total_scalar, (1,))
+
+        # Use output_shape if provided, otherwise use the original behavior
+        if output_shape is not None:
+            selected_indices = collect_selected_indices(
+                num_class,
+                selected_indices,
+                num_detections,
+                row_offsets,
+                _collect_selected_indices_ir,
+                max_output_boxes_per_class=max_output_boxes_per_class,
+                output_shape=output_shape,
+            )
+        else:
+            selected_indices = collect_selected_indices(
+                num_class,
+                selected_indices,
+                num_detections,
+                row_offsets,
+                _collect_selected_indices_ir,
+                max_output_boxes_per_class=max_output_boxes_per_class,
+            )
         return [selected_indices, num_total_detections]
 
     num_detections_per_batch = reshape(num_detections, (batch, num_class))

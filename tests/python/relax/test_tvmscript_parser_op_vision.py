@@ -63,15 +63,17 @@ def test_all_class_non_max_suppression():
     score_threshold = relax.Var("score_threshold", R.Tensor((), "float32"))
 
     bb = relax.BlockBuilder()
-    with bb.function("foo", [boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold]):
-        gv = bb.emit(relax.op.vision.all_class_non_max_suppression(
-            boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, "onnx"
-        ))
+    with bb.function(
+        "foo", [boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold]
+    ):
+        gv = bb.emit(
+            relax.op.vision.all_class_non_max_suppression(
+                boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, "onnx"
+            )
+        )
         bb.emit_func_output(gv)
 
     _check(foo, bb.get()["foo"])
-
-
 
 
 if __name__ == "__main__":
