@@ -22,7 +22,6 @@ from typing import Any, Callable, Dict, List, Optional, Union, Mapping
 import numpy as _np  # type: ignore
 
 import tvm_ffi
-import ml_dtypes
 
 import tvm
 import tvm.ffi
@@ -1157,6 +1156,9 @@ def const(
     - bool maps to "bool"
     - other using the same default rule as numpy.
     """
+    # Needed for bf16 and fp8 support (does not come with numpy)
+    import ml_dtypes # pylint: disable=unused-import
+
     if isinstance(value, (Number, (bool, list))):
         value = _np.array(value, dtype=dtype)
 
