@@ -227,12 +227,14 @@ def _collect_selected_indices_ir(
     out = ib.buffer_ptr(out)
 
     # Initialize output buffer to zero
-    # We need to get the output shape from the function signature
-    # For now, we'll initialize only the first few rows that we know will be used
-    # This is a temporary fix - the proper solution would be to pass shape info
-    with ib.for_range(
-        0, batch_classes * 10, name="init_i"
-    ) as init_i:  # Initialize up to 10 rows per batch_class
+    # Calculate the actual output shape based on max_output_boxes_per_class
+    if isinstance(max_output_boxes_per_class, int):
+        max_output_rows = batch_classes * max_output_boxes_per_class
+    else:
+        # Fallback to a reasonable default if max_output_boxes_per_class is not an integer
+        max_output_rows = batch_classes * 10
+    
+    with ib.for_range(0, max_output_rows, name="init_i") as init_i:
         with ib.for_range(0, 3, name="init_j") as init_j:  # 3 columns
             out[init_i, init_j] = cast(0, "int64")
 
