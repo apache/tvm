@@ -3393,14 +3393,14 @@ class NonMaxSuppression(OnnxOpConverter):
     def _impl_v10(cls, bb, inputs, attr, params):
         """
         NonMaxSuppression performs non-maximum suppression (NMS) on all classes.
-        
+
         Inputs:
         - boxes: (N, 4) tensor of bounding boxes in format [x1, y1, x2, y2]
         - scores: (N, C) tensor of scores for each box and class
         - max_output_boxes_per_class: maximum number of boxes to keep per class
         - iou_threshold: IoU threshold for NMS
         - score_threshold: score threshold for filtering
-        
+
         Outputs:
         - selected_indices: (M, 3) tensor with [batch_idx, class_idx, box_idx]
         """
@@ -3409,26 +3409,30 @@ class NonMaxSuppression(OnnxOpConverter):
         max_output_boxes_per_class = inputs[2] if len(inputs) > 2 else None
         iou_threshold = inputs[3] if len(inputs) > 3 else None
         score_threshold = inputs[4] if len(inputs) > 4 else None
-        
+
         center_point_box = attr.get("center_point_box", 0)
-        
-        if max_output_boxes_per_class is not None and isinstance(max_output_boxes_per_class, relax.Constant):
+
+        if max_output_boxes_per_class is not None and isinstance(
+            max_output_boxes_per_class, relax.Constant
+        ):
             max_output_boxes_per_class = int(max_output_boxes_per_class.data.numpy())
-        elif max_output_boxes_per_class is not None and isinstance(max_output_boxes_per_class, relax.Var):
+        elif max_output_boxes_per_class is not None and isinstance(
+            max_output_boxes_per_class, relax.Var
+        ):
             var_name = max_output_boxes_per_class.name_hint
             if var_name in params[1]:
-                param_var, param_value = params[1][var_name]
+                _, param_value = params[1][var_name]
                 max_output_boxes_per_class = int(param_value.numpy().item())
             else:
                 max_output_boxes_per_class = 100  # Default value
         else:
             max_output_boxes_per_class = 100  # Default value
-            
+
         if iou_threshold is not None and isinstance(iou_threshold, relax.Constant):
             iou_threshold = float(iou_threshold.data.numpy())
         else:
             iou_threshold = 0.5  # Default value
-            
+
         if score_threshold is not None and isinstance(score_threshold, relax.Constant):
             score_threshold = float(score_threshold.data.numpy())
         elif score_threshold is not None and isinstance(score_threshold, relax.Var):
@@ -3440,7 +3444,7 @@ class NonMaxSuppression(OnnxOpConverter):
                 score_threshold = 0.0  # Default value
         else:
             score_threshold = 0.0  # Default value
-        
+
         if center_point_box != 0:
             split_result = relax.op.split(boxes, 4, axis=2)
             xc = split_result[0]
@@ -3454,7 +3458,7 @@ class NonMaxSuppression(OnnxOpConverter):
             y1 = yc - half_h
             y2 = yc + half_h
             boxes = relax.op.concat([y1, x1, y2, x2], axis=2)
-        
+
         nms_out = bb.normalize(
             relax.op.vision.all_class_non_max_suppression(
                 boxes,
@@ -3462,12 +3466,12 @@ class NonMaxSuppression(OnnxOpConverter):
                 relax.const(max_output_boxes_per_class, dtype="int64"),
                 relax.const(iou_threshold, dtype="float32"),
                 relax.const(score_threshold, dtype="float32"),
-                output_format="onnx"
+                output_format="onnx",
             )
         )
-        
+
         selected_indices = bb.emit(relax.TupleGetItem(nms_out, 0))
-        
+
         return selected_indices
 
 
@@ -3478,14 +3482,14 @@ class AllClassNMS(OnnxOpConverter):
     def _impl_v1(cls, bb, inputs, attr, params):
         """
         AllClassNMS performs non-maximum suppression (NMS) on all classes.
-        
+
         Inputs:
         - boxes: (N, 4) tensor of bounding boxes in format [x1, y1, x2, y2]
         - scores: (N, C) tensor of scores for each box and class
         - max_output_boxes_per_class: maximum number of boxes to keep per class
         - iou_threshold: IoU threshold for NMS
         - score_threshold: score threshold for filtering
-        
+
         Outputs:
         - selected_indices: (M, 3) tensor with [batch_idx, class_idx, box_idx]
         """
@@ -3494,26 +3498,30 @@ class AllClassNMS(OnnxOpConverter):
         max_output_boxes_per_class = inputs[2] if len(inputs) > 2 else None
         iou_threshold = inputs[3] if len(inputs) > 3 else None
         score_threshold = inputs[4] if len(inputs) > 4 else None
-        
+
         center_point_box = attr.get("center_point_box", 0)
-        
-        if max_output_boxes_per_class is not None and isinstance(max_output_boxes_per_class, relax.Constant):
+
+        if max_output_boxes_per_class is not None and isinstance(
+            max_output_boxes_per_class, relax.Constant
+        ):
             max_output_boxes_per_class = int(max_output_boxes_per_class.data.numpy())
-        elif max_output_boxes_per_class is not None and isinstance(max_output_boxes_per_class, relax.Var):
+        elif max_output_boxes_per_class is not None and isinstance(
+            max_output_boxes_per_class, relax.Var
+        ):
             var_name = max_output_boxes_per_class.name_hint
             if var_name in params[1]:
-                param_var, param_value = params[1][var_name]
+                _, param_value = params[1][var_name]
                 max_output_boxes_per_class = int(param_value.numpy().item())
             else:
                 max_output_boxes_per_class = 100  # Default value
         else:
             max_output_boxes_per_class = 100  # Default value
-            
+
         if iou_threshold is not None and isinstance(iou_threshold, relax.Constant):
             iou_threshold = float(iou_threshold.data.numpy())
         else:
             iou_threshold = 0.5  # Default value
-            
+
         if score_threshold is not None and isinstance(score_threshold, relax.Constant):
             score_threshold = float(score_threshold.data.numpy())
         elif score_threshold is not None and isinstance(score_threshold, relax.Var):
@@ -3525,7 +3533,7 @@ class AllClassNMS(OnnxOpConverter):
                 score_threshold = 0.0  # Default value
         else:
             score_threshold = 0.0  # Default value
-        
+
         if center_point_box != 0:
             split_result = relax.op.split(boxes, 4, axis=2)
             xc = split_result[0]
@@ -3539,7 +3547,7 @@ class AllClassNMS(OnnxOpConverter):
             y1 = yc - half_h
             y2 = yc + half_h
             boxes = relax.op.concat([y1, x1, y2, x2], axis=2)
-        
+
         nms_out = bb.normalize(
             relax.op.vision.all_class_non_max_suppression(
                 boxes,
@@ -3547,10 +3555,10 @@ class AllClassNMS(OnnxOpConverter):
                 relax.const(max_output_boxes_per_class, dtype="int64"),
                 relax.const(iou_threshold, dtype="float32"),
                 relax.const(score_threshold, dtype="float32"),
-                output_format="onnx"
+                output_format="onnx",
             )
         )
-        
+
         return nms_out
 
 

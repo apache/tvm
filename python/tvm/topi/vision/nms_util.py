@@ -78,7 +78,7 @@ def binary_search(ib, y, num_boxes, scores, score_threshold, out):
 
 def _estimate_max_detections(batch_class, input_image_size=None):
     """Estimate maximum detections based on input image size and number of classes.
-    
+
     This provides a more intelligent default for production environments.
     """
     if input_image_size is not None:
@@ -86,7 +86,7 @@ def _estimate_max_detections(batch_class, input_image_size=None):
         if len(input_image_size) >= 2:
             height, width = input_image_size[-2], input_image_size[-1]
             total_pixels = height * width
-            
+
             # Base estimation per class based on image size
             if total_pixels < 300000:  # Small images (< 300k pixels)
                 base_detections_per_class = min(50, max(10, total_pixels // 2000))
@@ -94,7 +94,7 @@ def _estimate_max_detections(batch_class, input_image_size=None):
                 base_detections_per_class = min(100, max(25, total_pixels // 3000))
             else:  # Large images (>= 1M pixels)
                 base_detections_per_class = min(200, max(50, total_pixels // 4000))
-            
+
             # Scale down for many classes (more realistic for multi-class scenarios)
             if batch_class > 20:
                 # For many classes, reduce per-class detections to avoid explosion
@@ -108,10 +108,10 @@ def _estimate_max_detections(batch_class, input_image_size=None):
         if batch_class == 1:
             detections_per_class = 100  # Single class detection
         elif batch_class <= 10:
-            detections_per_class = 50   # Small multi-class
+            detections_per_class = 50  # Small multi-class
         else:
-            detections_per_class = 25   # Large multi-class (COCO-like)
-    
+            detections_per_class = 25  # Large multi-class (COCO-like)
+
     return batch_class * detections_per_class
 
 
@@ -162,16 +162,14 @@ def collect_selected_indices(
             tag="collect_indices",
         )
 
-    # If num_total_detections is provided, use it to determine output size
+    # TODO: Implement dynamic trimming based on num_total_detections
     if num_total_detections is not None:
-        # For now, fall back to the standard approach but with a note
-        # The actual trimming will be handled at a higher level
         if isinstance(max_output_boxes_per_class, int):
             out_rows = batch_class * max_output_boxes_per_class
         else:
             # Smart fallback based on input image size and typical production scenarios
             out_rows = _estimate_max_detections(batch_class, input_image_size)
-        
+
         return te.extern(
             [(out_rows, 3)],
             [selected_indices, num_detections, row_offsets],
@@ -182,7 +180,6 @@ def collect_selected_indices(
             name="collect_indices",
             tag="collect_indices",
         )
-
 
     if isinstance(max_output_boxes_per_class, int):
         out_rows = batch_class * max_output_boxes_per_class
@@ -208,7 +205,7 @@ def collect_selected_indices(
                 max_boxes_val = int(max_output_boxes_per_class.data.numpy()[0])
             else:
                 max_boxes_val = num_boxes
-        except:
+        except (ValueError, IndexError, AttributeError):
             max_boxes_val = num_boxes
 
         out_rows = batch_class * max_boxes_val
@@ -345,7 +342,6 @@ def _all_class_nms_ir(
 
     def needs_bbox_check(*_):
         return tvm.tir.const(True)
-
 
     return nms_loop(
         ib,

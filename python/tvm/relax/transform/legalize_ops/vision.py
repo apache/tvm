@@ -15,12 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Default legalization function for vision network related operators."""
-import tvm
-from tvm import topi, te, tir
-import tvm.relax as relax
-from tvm.tir import if_then_else
-from tvm.relax.op.base import call_pure_packed
-from tvm.relax.struct_info import ShapeStructInfo
+from tvm import topi, te
+from tvm import relax
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
 from .common import register_legalize
@@ -30,9 +26,9 @@ def _create_onnx_nms_te(boxes, scores, max_output_boxes_per_class, iou_threshold
     """Create a proper NMS implementation that follows the correct algorithm"""
     scores_shape = list(scores.shape)
     if len(scores_shape) == 3:
-        batch, num_classes, num_boxes = scores_shape
+        batch, num_classes, _ = scores_shape
     elif len(scores_shape) == 2:
-        num_classes, num_boxes = scores_shape
+        num_classes, _ = scores_shape
         batch = 1
     else:
         raise ValueError(f"Unexpected scores shape: {scores_shape}")
@@ -44,8 +40,7 @@ def _create_onnx_nms_te(boxes, scores, max_output_boxes_per_class, iou_threshold
 
     expected_detections = batch * num_classes * max_boxes
 
-
-    selected_indices_full, num_total_detections = topi.vision.all_class_non_max_suppression(
+    selected_indices_full, _ = topi.vision.all_class_non_max_suppression(
         boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, "onnx"
     )
 
@@ -65,13 +60,13 @@ def _create_onnx_nms_te(boxes, scores, max_output_boxes_per_class, iou_threshold
 
 
 @register_legalize("relax.vision.all_class_non_max_suppression")
-def _all_class_non_max_suppression(bb: BlockBuilder, call: Call) -> Expr:
+def _all_class_non_max_suppression(block_builder: BlockBuilder, call: Call) -> Expr:
     """Legalize all_class_non_max_suppression with fixed shape output.
-    
+
     Note: This implementation outputs fixed-size tensors with trailing garbage data.
     Only the first `num_total_detection` rows contain valid data. Users should use
     the `valid_count` tensor to determine how many rows are actually valid.
-    
+
     For complete ONNX compatibility, users can post-process the output:
     ```python
     selected_indices, valid_count = nms_output
@@ -88,10 +83,9 @@ def _all_class_non_max_suppression(bb: BlockBuilder, call: Call) -> Expr:
 
     scores_shape = scores.struct_info.shape
     if len(scores_shape) == 3:
-        batch, num_classes, num_boxes = scores_shape
+        _, _, num_boxes = scores_shape
     elif len(scores_shape) == 2:
-        num_classes, num_boxes = scores_shape
-        batch = 1
+        _, num_boxes = scores_shape
     else:
         raise ValueError(f"Unexpected scores shape: {scores_shape}")
 
@@ -101,7 +95,7 @@ def _all_class_non_max_suppression(bb: BlockBuilder, call: Call) -> Expr:
         max_boxes_val = int(num_boxes)
 
     # Get NMS result with fixed shape from TOPI
-    nms_result = bb.call_te(
+    nms_result = block_builder.call_te(
         topi.vision.all_class_non_max_suppression,
         boxes,
         scores,
@@ -118,9 +112,9 @@ def _all_class_non_max_suppression(bb: BlockBuilder, call: Call) -> Expr:
     # 2. Custom Relax operator with true dynamic shapes
     # 3. VM builtin functions for runtime shape adjustment
     # 4. Symbolic shape inference in Relax IR
-    # 
+    #
     # For now, users should trim manually:
     # actual_count = int(num_total_detections.numpy()[0])
     # valid_indices = selected_indices.numpy()[:actual_count, :]
-    
+
     return nms_result

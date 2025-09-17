@@ -34,7 +34,9 @@ from .nms_util import (
 )
 
 
-def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
+def get_valid_counts(
+    data, score_threshold=0, id_index=0, score_index=1
+):  # pylint: disable=unused-argument
     """Get valid count of bounding boxes given a score threshold.
     Also moves valid boxes to the top of input data.
     Parameters
@@ -59,8 +61,8 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     """
     if isinstance(score_threshold, (float, int)):
         score_threshold = tvm.tir.const(score_threshold, dtype=data.dtype)
-    id_index_const = tvm.tir.const(id_index, "int32")
-    score_index_const = tvm.tir.const(score_index, "int32")
+    # id_index_const = tvm.tir.const(id_index, "int32")  # Unused
+    # score_index_const = tvm.tir.const(score_index, "int32")  # Unused
     return (
         te.compute((data.shape[0],), lambda i: data.shape[1], name="valid_count"),
         data,
@@ -116,7 +118,6 @@ def _nms_loop(
             box_idx = ib.allocate("int32", (1,), name="box_idx", scope="local")
             num_valid_boxes_local[0] = 0
             box_idx[0] = 0
-
 
             with ib.while_loop(
                 tvm.tir.all(box_idx[0] < nkeep, num_valid_boxes_local[0] < max_output_size)
@@ -179,6 +180,7 @@ def _get_valid_box_count(scores, score_threshold):
             tag="searchsorted",
         )
     else:
+
         def searchsorted_ir_scalar(scores, valid_count):
             ib = tvm.tir.ir_builder.create()
             scores = ib.buffer_ptr(scores)
@@ -334,12 +336,13 @@ def all_class_non_max_suppression(
         first, in descending of scores, followed by boxes from batch 0, class 1 etc. Out of
         `batch_size * num_class* num_boxes` rows of indices, only the first `num_total_detection`
         rows are valid.
-        
+
         .. note::
             **Important**: The output tensor has a fixed size based on `max_output_boxes_per_class`,
             but only the first `num_total_detection` rows contain valid data. The remaining rows
             may contain garbage values. When comparing with ONNX Runtime or other implementations
-            that output dynamic shapes, you should only compare the first `num_total_detection` rows.
+            that output dynamic shapes, you should only compare the first
+            `num_total_detection` rows.
             Example:
             ```python
             selected_indices, valid_count = nms_output
@@ -383,6 +386,7 @@ def all_class_non_max_suppression(
 
     if output_format == "onnx":
         row_offsets = cumsum(num_detections, exclusive=True, dtype="int64")
+
         def _sum_clamped_total():
             if isinstance(max_output_boxes_per_class, int):
                 k_expr = tvm.tir.IntImm("int32", int(max_output_boxes_per_class))
@@ -444,17 +448,17 @@ def all_class_non_max_suppression(
             # Use num_total_detections to enable dynamic trimming
             # Pass image size for intelligent default estimation
             input_image_size = None
-            if hasattr(scores, 'shape') and len(scores.shape) >= 3:
+            if hasattr(scores, "shape") and len(scores.shape) >= 3:
                 # Extract image size from scores shape: (batch, num_classes, num_boxes)
                 # We can estimate image size from num_boxes (more boxes = larger image)
                 input_image_size = (scores.shape[2],)  # Use num_boxes as proxy for image size
-                
+
                 # TODO: Improve image size estimation by:
                 # 1. Accepting actual image dimensions as parameters
                 # 2. Using model metadata to infer typical image sizes
                 # 3. Learning from historical detection patterns
                 # 4. Providing user-configurable estimation strategies
-            
+
             selected_indices = collect_selected_indices(
                 num_class,
                 selected_indices,

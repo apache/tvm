@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Non-maximum suppression operator"""
-from tvm import relax
+# from tvm import relax  # Unused import
 from . import _ffi_api
 
 
@@ -57,7 +57,7 @@ def all_class_non_max_suppression(
         first, in descending of scores, followed by boxes from batch 0, class 1 etc. Out of
         `batch_size * num_class* num_boxes` rows of indices, only the first `num_total_detection`
         rows are valid.
-    
+
         TODO: Implement true dynamic output shapes to match ONNX Runtime behavior exactly.
         This would eliminate the need for manual trimming and improve memory efficiency.
         If `output_format` is "tensorflow", the output is three tensors, the first

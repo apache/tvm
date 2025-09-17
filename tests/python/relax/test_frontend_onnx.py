@@ -3378,7 +3378,7 @@ def test_nms_max_boxes_limit():
 
 def test_nms_score_threshold():
     """Test that NMS correctly filters boxes based on score threshold.
-    
+
     Note: This test uses a low score threshold (0.05) to ensure both TVM and ONNX Runtime
     output the same fixed shape [3,3], allowing use of the standard check_correctness function.
     """
@@ -3413,9 +3413,7 @@ def test_nms_score_threshold():
         initializer=[
             helper.make_tensor("max_output_boxes_per_class", TensorProto.INT64, [1], [3]),
             helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.1]),
-            helper.make_tensor(
-                "score_threshold", TensorProto.FLOAT, [1], [0.05]
-            ),
+            helper.make_tensor("score_threshold", TensorProto.FLOAT, [1], [0.05]),
         ],
         outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [3, 3])],
     )
