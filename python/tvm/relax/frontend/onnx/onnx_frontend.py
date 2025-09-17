@@ -3438,7 +3438,7 @@ class NonMaxSuppression(OnnxOpConverter):
         elif score_threshold is not None and isinstance(score_threshold, relax.Var):
             var_name = score_threshold.name_hint
             if var_name in params[1]:
-                param_var, param_value = params[1][var_name]
+                _, param_value = params[1][var_name]
                 score_threshold = float(param_value.numpy().item())
             else:
                 score_threshold = 0.0  # Default value
@@ -3527,7 +3527,7 @@ class AllClassNMS(OnnxOpConverter):
         elif score_threshold is not None and isinstance(score_threshold, relax.Var):
             var_name = score_threshold.name_hint
             if var_name in params[1]:
-                param_var, param_value = params[1][var_name]
+                _, param_value = params[1][var_name]
                 score_threshold = float(param_value.numpy().item())
             else:
                 score_threshold = 0.0  # Default value
