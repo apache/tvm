@@ -23,11 +23,11 @@
 #ifndef TVM_RELAX_ATTRS_VISION_H_
 #define TVM_RELAX_ATTRS_VISION_H_
 
-#include <tvm/relax/expr.h>
-#include <tvm/ir/attrs.h>
 #include <tvm/ffi/string.h>
-#include <tvm/runtime/object.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/ir/type.h>
+#include <tvm/relax/expr.h>
+#include <tvm/runtime/object.h>
 
 namespace tvm {
 namespace relax {
@@ -39,14 +39,13 @@ struct AllClassNonMaximumSuppressionAttrs
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AllClassNonMaximumSuppressionAttrs>()
-        .def_ro("output_format", &AllClassNonMaximumSuppressionAttrs::output_format,
-                "Output format, onnx or tensorflow. Returns outputs in a way that can be easily "
-                "consumed by each frontend.");
+    refl::ObjectDef<AllClassNonMaximumSuppressionAttrs>().def_ro(
+        "output_format", &AllClassNonMaximumSuppressionAttrs::output_format,
+        "Output format, onnx or tensorflow. Returns outputs in a way that can be easily "
+        "consumed by each frontend.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL(
-      "relax.attrs.AllClassNonMaximumSuppressionAttrs",
-      AllClassNonMaximumSuppressionAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllClassNonMaximumSuppressionAttrs",
+                                    AllClassNonMaximumSuppressionAttrs, BaseAttrsNode);
 };  // struct AllClassNonMaximumSuppressionAttrs
 
 }  // namespace relax
