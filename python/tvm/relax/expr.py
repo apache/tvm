@@ -23,8 +23,6 @@ import numpy as _np  # type: ignore
 
 import tvm_ffi
 
-import tvm
-import tvm.ffi
 import tvm.ir
 import tvm.relax
 from tvm import DataType
