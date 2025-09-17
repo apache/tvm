@@ -24,8 +24,8 @@
 #ifndef TVM_RELAX_OP_VISION_NMS_H_
 #define TVM_RELAX_OP_VISION_NMS_H_
 
-#include <tvm/relax/attrs/vision.h>
 #include <tvm/ffi/string.h>
+#include <tvm/relax/attrs/vision.h>
 #include <tvm/runtime/object.h>
 
 #include "../op_common.h"
@@ -34,9 +34,9 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Compute All Class NonMaximumSuppression. */
-Expr all_class_non_max_suppression(Expr boxes, Expr scores,
-                                   Expr max_output_boxes_per_class, Expr iou_threshold,
-                                   Expr score_threshold, ffi::String output_format);
+Expr all_class_non_max_suppression(Expr boxes, Expr scores, Expr max_output_boxes_per_class,
+                                   Expr iou_threshold, Expr score_threshold,
+                                   ffi::String output_format);
 
 }  // namespace relax
 }  // namespace tvm
