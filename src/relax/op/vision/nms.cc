@@ -18,8 +18,11 @@
  */
 #include "nms.h"
 
+#include <tvm/relax/op/vision/nms.h>
+
 #include <utility>
 #include <vector>
+
 #include <tvm/relax/attrs/vision.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/ffi/string.h>
@@ -32,29 +35,30 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK()
-{
+TVM_FFI_STATIC_INIT_BLOCK() {
   AllClassNonMaximumSuppressionAttrs::RegisterReflection();
 }
 
 /* relax.vision.all_class_non_max_suppression */
 
-Expr all_class_non_max_suppression(Expr boxes, Expr scores, Expr max_output_boxes_per_class,
-                                   Expr iou_threshold, Expr score_threshold, ffi::String output_format) {
+Expr all_class_non_max_suppression(Expr boxes, Expr scores,
+                                   Expr max_output_boxes_per_class, Expr iou_threshold,
+                                   Expr score_threshold, ffi::String output_format) {
   auto attrs = tvm::ffi::make_object<AllClassNonMaximumSuppressionAttrs>();
   attrs->output_format = output_format;
 
   static const Op& op = Op::Get("relax.vision.all_class_non_max_suppression");
   return Call(op,
-              {std::move(boxes), std::move(scores), std::move(max_output_boxes_per_class),
-               std::move(iou_threshold), std::move(score_threshold)},
+              {std::move(boxes), std::move(scores),
+               std::move(max_output_boxes_per_class), std::move(iou_threshold),
+               std::move(score_threshold)},
               Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK()
-{
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.vision.all_class_non_max_suppression", all_class_non_max_suppression);
+  refl::GlobalDef().def("relax.op.vision.all_class_non_max_suppression",
+                        all_class_non_max_suppression);
 }
 
 StructInfo InferStructInfoAllClassNMS(const Call& call, const BlockBuilder& ctx) {
@@ -64,7 +68,8 @@ StructInfo InferStructInfoAllClassNMS(const Call& call, const BlockBuilder& ctx)
   ICHECK(!boxes_sinfo->IsUnknownNdim()) << "Only support known ndim";
   ICHECK(!scores_sinfo->IsUnknownNdim()) << "Only support known ndim";
   ICHECK_EQ(boxes_sinfo->ndim, 3) << "AllClassNMS input boxes should be 3-D.";
-  ICHECK_EQ(scores_sinfo->ndim, 3) << "AllClassNMS input scores count should be 3-D.";
+  ICHECK_EQ(scores_sinfo->ndim, 3)
+      << "AllClassNMS input scores count should be 3-D.";
 
   const auto batch = boxes_sinfo->shape.as<ShapeExprNode>()->values[0];
   const auto num_classes = scores_sinfo->shape.as<ShapeExprNode>()->values[1];

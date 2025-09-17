@@ -33,7 +33,8 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in AllClassNonMaximumSuppression operator */
-struct AllClassNonMaximumSuppressionAttrs : public AttrsNodeReflAdapter<AllClassNonMaximumSuppressionAttrs> {
+struct AllClassNonMaximumSuppressionAttrs
+    : public AttrsNodeReflAdapter<AllClassNonMaximumSuppressionAttrs> {
   ffi::String output_format;
 
   static void RegisterReflection() {
@@ -43,8 +44,9 @@ struct AllClassNonMaximumSuppressionAttrs : public AttrsNodeReflAdapter<AllClass
                 "Output format, onnx or tensorflow. Returns outputs in a way that can be easily "
                 "consumed by each frontend.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllClassNonMaximumSuppressionAttrs", AllClassNonMaximumSuppressionAttrs,
-                                    BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL(
+      "relax.attrs.AllClassNonMaximumSuppressionAttrs",
+      AllClassNonMaximumSuppressionAttrs, BaseAttrsNode);
 };  // struct AllClassNonMaximumSuppressionAttrs
 
 }  // namespace relax

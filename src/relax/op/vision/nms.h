@@ -34,8 +34,9 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Compute All Class NonMaximumSuppression. */
-Expr all_class_non_max_suppression(Expr boxes, Expr scores, Expr max_output_boxes_per_class,
-                                   Expr iou_threshold, Expr score_threshold, ffi::String output_format);
+Expr all_class_non_max_suppression(Expr boxes, Expr scores,
+                                   Expr max_output_boxes_per_class, Expr iou_threshold,
+                                   Expr score_threshold, ffi::String output_format);
 
 }  // namespace relax
 }  // namespace tvm
