@@ -233,7 +233,6 @@ def _collect_selected_indices_ir(
     else:
         # Fallback to a reasonable default if max_output_boxes_per_class is not an integer
         max_output_rows = batch_classes * 10
-    
     with ib.for_range(0, max_output_rows, name="init_i") as init_i:
         with ib.for_range(0, 3, name="init_j") as init_j:  # 3 columns
             out[init_i, init_j] = cast(0, "int64")
