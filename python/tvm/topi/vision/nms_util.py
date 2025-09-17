@@ -319,7 +319,6 @@ def _all_class_nms_ir(
             max_output_size_per_class = max_output_size_per_class[0]
         else:
             max_output_size_per_class = tvm.tir.const(1000)
-    
 
     def calc_overlap(i, j, k):
         offset_j = sorted_indices[i, j] * 4

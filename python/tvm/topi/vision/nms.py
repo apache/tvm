@@ -88,7 +88,6 @@ def _nms_loop(
     def nms_inner_loop(ib, i, j, nkeep, num_valid_boxes_local):
         on_new_valid_box_func(ib, 0, num_valid_boxes_local[0], i, j)
         num_valid_boxes_local[0] += 1
-        
 
         num_boxes_to_check = nkeep - (j + 1)
 
@@ -112,7 +111,6 @@ def _nms_loop(
         nkeep = if_then_else(tvm.tir.all(top_k > 0, top_k < valid_count[i]), top_k, valid_count[i])
         # Use max_output_size directly without if_then_else
         # max_output_size = if_then_else(max_output_size > te.const(0), max_output_size, nkeep)
-        
 
         with ib.if_scope(tvm.tir.all(iou_threshold > te.const(0), valid_count[i] > te.const(0))):
             num_valid_boxes_local = ib.allocate(

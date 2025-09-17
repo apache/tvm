@@ -3199,54 +3199,47 @@ def test_nms():
 
     model = helper.make_model(graph, producer_name="nms_test")
     model.opset_import[0].version = 11
-    
+
     # Use deterministic random inputs for consistent testing
     bg = np.random.MT19937(0)
     rg = np.random.Generator(bg)
     boxes = rg.standard_normal(size=boxes_shape).astype(np.float32)
     scores = rg.standard_normal(size=scores_shape).astype(np.float32)
     inputs = {"boxes": boxes, "scores": scores}
-    
+
     # Run ONNX Runtime
     ort_session = onnxruntime.InferenceSession(
         model.SerializeToString(), providers=["CPUExecutionProvider"]
     )
     ort_output = ort_session.run([], inputs)
-    
+
     # Run TVM
     tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
     tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
     tvm_model = relax.transform.LegalizeOps()(tvm_model)
     tvm_model, params = relax.frontend.detach_params(tvm_model)
-    
+
     with tvm.transform.PassContext(opt_level=3):
         ex = tvm.compile(tvm_model, target="llvm")
         vm = relax.VirtualMachine(ex, tvm.cpu())
-    
+
     input_list = [
         inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs
     ]
     if params:
         input_list += params["main"]
-    
+
     vm.set_input("main", *input_list)
     vm.invoke_stateful("main")
     tvm_output = vm.get_outputs("main")
-    
-    # Custom NMS output comparison
-    # TVM outputs fixed shape (6,3), ONNX Runtime outputs dynamic shape (varies)
-    # We only compare the valid rows based on the actual output count
+
     if isinstance(tvm_output, (list, tuple)):
         tvm_selected = tvm_output[0].numpy()
     else:
         tvm_selected = tvm_output.numpy()
     ort_selected = ort_output[0]
-    
-    # For NMS, compare only the number of valid rows
-    # TVM may output more rows with garbage data, but the first N rows should match
+
     min_rows = min(tvm_selected.shape[0], ort_selected.shape[0])
-    
-    # Compare the first min_rows rows
     if min_rows > 0:
         tvm.testing.assert_allclose(
             tvm_selected[:min_rows], ort_selected[:min_rows], rtol=1e-5, atol=1e-5
