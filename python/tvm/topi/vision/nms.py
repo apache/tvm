@@ -441,6 +441,14 @@ def all_class_non_max_suppression(
                 output_shape=output_shape,
             )
         else:
+            # Use num_total_detections to enable dynamic trimming
+            # Pass image size for intelligent default estimation
+            input_image_size = None
+            if hasattr(scores, 'shape') and len(scores.shape) >= 3:
+                # Extract image size from scores shape: (batch, num_classes, num_boxes)
+                # We can estimate image size from num_boxes (more boxes = larger image)
+                input_image_size = (scores.shape[2],)  # Use num_boxes as proxy for image size
+            
             selected_indices = collect_selected_indices(
                 num_class,
                 selected_indices,
@@ -448,6 +456,8 @@ def all_class_non_max_suppression(
                 row_offsets,
                 _collect_selected_indices_ir,
                 max_output_boxes_per_class=max_output_boxes_per_class,
+                num_total_detections=num_total_detections,
+                input_image_size=input_image_size,
             )
         return [selected_indices, num_total_detections]
 
