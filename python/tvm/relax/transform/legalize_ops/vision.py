@@ -111,4 +111,16 @@ def _all_class_non_max_suppression(bb: BlockBuilder, call: Call) -> Expr:
         output_format,
     )
 
+    # TODO: Implement dynamic output trimming for better memory efficiency
+    # Current approach returns fixed-size output with trailing garbage data
+    # Future improvements could include:
+    # 1. Dynamic strided_slice based on num_total_detections
+    # 2. Custom Relax operator with true dynamic shapes
+    # 3. VM builtin functions for runtime shape adjustment
+    # 4. Symbolic shape inference in Relax IR
+    # 
+    # For now, users should trim manually:
+    # actual_count = int(num_total_detections.numpy()[0])
+    # valid_indices = selected_indices.numpy()[:actual_count, :]
+    
     return nms_result

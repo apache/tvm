@@ -448,6 +448,12 @@ def all_class_non_max_suppression(
                 # Extract image size from scores shape: (batch, num_classes, num_boxes)
                 # We can estimate image size from num_boxes (more boxes = larger image)
                 input_image_size = (scores.shape[2],)  # Use num_boxes as proxy for image size
+                
+                # TODO: Improve image size estimation by:
+                # 1. Accepting actual image dimensions as parameters
+                # 2. Using model metadata to infer typical image sizes
+                # 3. Learning from historical detection patterns
+                # 4. Providing user-configurable estimation strategies
             
             selected_indices = collect_selected_indices(
                 num_class,
