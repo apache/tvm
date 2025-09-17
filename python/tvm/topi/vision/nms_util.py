@@ -315,9 +315,11 @@ def _all_class_nms_ir(
         if len(max_output_size_per_class.shape) == 0:
             max_output_size_per_class = max_output_size_per_class()
         elif len(max_output_size_per_class.shape) == 1 and max_output_size_per_class.shape[0] == 1:
+            # Use tensor indexing to get the first element
             max_output_size_per_class = max_output_size_per_class[0]
         else:
             max_output_size_per_class = tvm.tir.const(1000)
+    
 
     def calc_overlap(i, j, k):
         offset_j = sorted_indices[i, j] * 4

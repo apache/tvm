@@ -88,6 +88,7 @@ def _nms_loop(
     def nms_inner_loop(ib, i, j, nkeep, num_valid_boxes_local):
         on_new_valid_box_func(ib, 0, num_valid_boxes_local[0], i, j)
         num_valid_boxes_local[0] += 1
+        
 
         num_boxes_to_check = nkeep - (j + 1)
 
@@ -109,26 +110,25 @@ def _nms_loop(
 
     with ib.for_range(0, batch_size, name="i") as i:
         nkeep = if_then_else(tvm.tir.all(top_k > 0, top_k < valid_count[i]), top_k, valid_count[i])
-        max_output_size = if_then_else(max_output_size > te.const(0), max_output_size, nkeep)
+        # Use max_output_size directly without if_then_else
+        # max_output_size = if_then_else(max_output_size > te.const(0), max_output_size, nkeep)
+        
 
         with ib.if_scope(tvm.tir.all(iou_threshold > te.const(0), valid_count[i] > te.const(0))):
             num_valid_boxes_local = ib.allocate(
                 "int32", (1,), name="num_valid_boxes_local", scope="local"
             )
-            box_idx = ib.allocate("int32", (1,), name="box_idx", scope="local")
             num_valid_boxes_local[0] = 0
-            box_idx[0] = 0
 
-            with ib.while_loop(
-                tvm.tir.all(box_idx[0] < nkeep, num_valid_boxes_local[0] < max_output_size)
-            ):
-                with ib.if_scope(out_scores[i, box_idx[0]] > -1.0):
+            # Use for_range with min to limit iterations, similar to _collect_selected_indices_ir
+            loop_limit = tvm.tir.min(nkeep, max_output_size)
+            with ib.for_range(0, loop_limit, name="j") as j:
+                with ib.if_scope(out_scores[i, j] > -1.0):
                     if score_threshold is not None:
-                        with ib.if_scope(out_scores[i, box_idx[0]] > score_threshold[()]):
-                            nms_inner_loop(ib, i, box_idx[0], nkeep, num_valid_boxes_local)
+                        with ib.if_scope(out_scores[i, j] > score_threshold[()]):
+                            nms_inner_loop(ib, i, j, nkeep, num_valid_boxes_local)
                     else:
-                        nms_inner_loop(ib, i, box_idx[0], nkeep, num_valid_boxes_local)
-                box_idx[0] += 1
+                        nms_inner_loop(ib, i, j, nkeep, num_valid_boxes_local)
 
             num_valid_boxes[i] = num_valid_boxes_local[0]
 
