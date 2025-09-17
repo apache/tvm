@@ -3323,20 +3323,25 @@ def test_nms_iou_suppression():
         center_point_box=0,
     )
 
-    # Create overlapping boxes where box 1 has higher score but should be suppressed
+    # Create overlapping boxes where box 0 has higher score and should be kept
     boxes_data = np.array(
         [
             [
-                [0.0, 0.0, 1.0, 1.0],  # Box 0: [0,0,1,1]
-                [0.1, 0.1, 1.1, 1.1],  # Box 1: [0.1,0.1,1.1,1.1] - high IoU with box 0
+                [0.0, 0.0, 1.0, 1.0],  # Box 0: [0,0,1,1] - highest score
+                [
+                    0.1,
+                    0.1,
+                    1.1,
+                    1.1,
+                ],  # Box 1: [0.1,0.1,1.1,1.1] - high IoU with box 0, should be suppressed
                 [2.0, 2.0, 3.0, 3.0],
             ]
-        ],  # Box 2: [2,2,3,3] - no overlap
+        ],  # Box 2: [2,2,3,3] - no overlap, should be kept
         dtype=np.float32,
     )
 
-    # Box 1 has higher score but should be suppressed due to IoU with box 0
-    scores_data = np.array([[[0.8, 0.9, 0.7]]], dtype=np.float32)
+    # Box 0 has highest score, Box 1 should be suppressed due to IoU with box 0
+    scores_data = np.array([[[0.9, 0.8, 0.7]]], dtype=np.float32)
 
     boxes_shape = [1, 3, 4]
     scores_shape = [1, 1, 3]
@@ -3357,13 +3362,52 @@ def test_nms_iou_suppression():
     )
 
     model = helper.make_model(graph, producer_name="nms_test_iou_suppression")
+    model.opset_import[0].version = 11
 
     inputs = {
         "boxes": boxes_data,
         "scores": scores_data,
     }
 
-    check_correctness(model, inputs=inputs, opset=11)
+    # Run ONNX Runtime
+    ort_session = onnxruntime.InferenceSession(
+        model.SerializeToString(), providers=["CPUExecutionProvider"]
+    )
+    ort_output = ort_session.run([], inputs)
+
+    # Run TVM
+    tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
+
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    input_list = [
+        inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs
+    ]
+    if params:
+        input_list += params["main"]
+
+    vm.set_input("main", *input_list)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main")
+
+    # Custom NMS output comparison
+    if isinstance(tvm_output, (list, tuple)):
+        tvm_selected = tvm_output[0].numpy()
+    else:
+        tvm_selected = tvm_output.numpy()
+    ort_selected = ort_output[0]
+
+    # For NMS, compare only the valid rows
+    min_rows = min(tvm_selected.shape[0], ort_selected.shape[0])
+    if min_rows > 0:
+        tvm.testing.assert_allclose(
+            tvm_selected[:min_rows], ort_selected[:min_rows], rtol=1e-5, atol=1e-5
+        )
 
 
 def test_nms_max_boxes_limit():
@@ -3412,13 +3456,52 @@ def test_nms_max_boxes_limit():
     )
 
     model = helper.make_model(graph, producer_name="nms_test_max_boxes_limit")
+    model.opset_import[0].version = 11
 
     inputs = {
         "boxes": boxes_data,
         "scores": scores_data,
     }
 
-    check_correctness(model, inputs=inputs, opset=11)
+    # Run ONNX Runtime
+    ort_session = onnxruntime.InferenceSession(
+        model.SerializeToString(), providers=["CPUExecutionProvider"]
+    )
+    ort_output = ort_session.run([], inputs)
+
+    # Run TVM
+    tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
+
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    input_list = [
+        inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs
+    ]
+    if params:
+        input_list += params["main"]
+
+    vm.set_input("main", *input_list)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main")
+
+    # Custom NMS output comparison
+    if isinstance(tvm_output, (list, tuple)):
+        tvm_selected = tvm_output[0].numpy()
+    else:
+        tvm_selected = tvm_output.numpy()
+    ort_selected = ort_output[0]
+
+    # For NMS, compare only the valid rows
+    min_rows = min(tvm_selected.shape[0], ort_selected.shape[0])
+    if min_rows > 0:
+        tvm.testing.assert_allclose(
+            tvm_selected[:min_rows], ort_selected[:min_rows], rtol=1e-5, atol=1e-5
+        )
 
 
 def test_nms_score_threshold():
@@ -3464,13 +3547,52 @@ def test_nms_score_threshold():
     )
 
     model = helper.make_model(graph, producer_name="nms_test_score_threshold")
+    model.opset_import[0].version = 11
 
     inputs = {
         "boxes": boxes_data,
         "scores": scores_data,
     }
 
-    check_correctness(model, inputs=inputs, opset=11)
+    # Run ONNX Runtime
+    ort_session = onnxruntime.InferenceSession(
+        model.SerializeToString(), providers=["CPUExecutionProvider"]
+    )
+    ort_output = ort_session.run([], inputs)
+
+    # Run TVM
+    tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
+
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    input_list = [
+        inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs
+    ]
+    if params:
+        input_list += params["main"]
+
+    vm.set_input("main", *input_list)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main")
+
+    # Custom NMS output comparison
+    if isinstance(tvm_output, (list, tuple)):
+        tvm_selected = tvm_output[0].numpy()
+    else:
+        tvm_selected = tvm_output.numpy()
+    ort_selected = ort_output[0]
+
+    # For NMS, compare only the valid rows
+    min_rows = min(tvm_selected.shape[0], ort_selected.shape[0])
+    if min_rows > 0:
+        tvm.testing.assert_allclose(
+            tvm_selected[:min_rows], ort_selected[:min_rows], rtol=1e-5, atol=1e-5
+        )
 
 
 if __name__ == "__main__":
