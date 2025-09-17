@@ -61,8 +61,6 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
         score_threshold = tvm.tir.const(score_threshold, dtype=data.dtype)
     id_index_const = tvm.tir.const(id_index, "int32")
     score_index_const = tvm.tir.const(score_index, "int32")
-    # This function is not implemented in the current context
-    # Return placeholder values for now
     return (
         te.compute((data.shape[0],), lambda i: data.shape[1], name="valid_count"),
         data,
@@ -86,7 +84,6 @@ def _nms_loop(
     score_threshold=None,
 ):
     def nms_inner_loop(ib, i, j, nkeep, num_valid_boxes_local):
-        # The box j is valid, invalidate other boxes that overlap with j above iou_threshold
         on_new_valid_box_func(ib, 0, num_valid_boxes_local[0], i, j)
         num_valid_boxes_local[0] += 1
 
@@ -105,7 +102,6 @@ def _nms_loop(
                 iou = calc_overlap_func(i, j, k)
 
                 with ib.if_scope(iou >= iou_threshold):
-                    # invalidate the box k
                     out_scores[i, k] = -1.0
                     on_new_invalidated_box_func(i, k)
 
@@ -121,14 +117,10 @@ def _nms_loop(
             num_valid_boxes_local[0] = 0
             box_idx[0] = 0
 
-            # Apply nms
-            # No need to do more iteration if we have already reached max_output_size boxes
 
             with ib.while_loop(
                 tvm.tir.all(box_idx[0] < nkeep, num_valid_boxes_local[0] < max_output_size)
             ):
-                # Proceed to the inner loop if the box with id box_idx is still valid
-                # Check both that the box is not suppressed (-1.0) and meets score threshold
                 with ib.if_scope(out_scores[i, box_idx[0]] > -1.0):
                     if score_threshold is not None:
                         with ib.if_scope(out_scores[i, box_idx[0]] > score_threshold[()]):
@@ -154,11 +146,8 @@ def _get_valid_box_count(scores, score_threshold):
         valid_count = ib.buffer_ptr(valid_count)
 
         with ib.for_range(0, batch_classes, name="i", kind="parallel") as i:
-            # Convert score_threshold to scalar if it's a tensor
             if hasattr(score_threshold, "shape"):
-                # If score_threshold is a tensor, extract the scalar value
                 if len(score_threshold.shape) == 0:
-                    # 0-dimensional tensor (scalar)
                     score_thresh_scalar = score_thresh[()]
                 elif len(score_threshold.shape) == 1 and score_threshold.shape[0] > 0:
                     score_thresh_scalar = score_thresh[0]
@@ -175,9 +164,7 @@ def _get_valid_box_count(scores, score_threshold):
         (batch_classes,), "int32", "searchsorted", data_alignment=8
     )
 
-    # Handle score_threshold input
     if hasattr(score_threshold, "shape"):
-        # score_threshold is a tensor, need to pass it as input
         score_thresh_buf = tvm.tir.decl_buffer(
             score_threshold.shape, score_threshold.dtype, "score_thresh_buf", data_alignment=8
         )
@@ -192,16 +179,13 @@ def _get_valid_box_count(scores, score_threshold):
             tag="searchsorted",
         )
     else:
-        # score_threshold is a scalar, can be captured in closure
         def searchsorted_ir_scalar(scores, valid_count):
             ib = tvm.tir.ir_builder.create()
             scores = ib.buffer_ptr(scores)
             valid_count = ib.buffer_ptr(valid_count)
 
             with ib.for_range(0, batch_classes, name="i", kind="parallel") as i:
-                # Convert score_threshold to TIR constant
                 if isinstance(score_threshold, te.Tensor):
-                    # If score_threshold is a tensor, extract the scalar value
                     if len(score_threshold.shape) == 0:
                         score_thresh_tir = score_threshold()
                     elif len(score_threshold.shape) == 1 and score_threshold.shape[0] == 1:
@@ -248,17 +232,11 @@ def _collect_selected_indices_ir(
                 num_detections[i], tvm.tir.IntImm("int32", max_output_boxes_per_class)
             )
         elif isinstance(max_output_boxes_per_class, te.Tensor):
-            # Handle tensor max_output_boxes_per_class
-            # Extract the scalar value from the tensor
             if len(max_output_boxes_per_class.shape) == 0:
-                # 0D tensor - scalar
                 max_boxes_val = max_output_boxes_per_class[()]
             else:
-                # 1D tensor with one element
                 max_boxes_val = max_output_boxes_per_class[0]
             limit = tvm.tir.min(num_detections[i], max_boxes_val)
-            # Debug: store the limit value for debugging
-            # This will help us see if the limit is being applied correctly
         else:
             limit = num_detections[i]
 
@@ -356,6 +334,18 @@ def all_class_non_max_suppression(
         first, in descending of scores, followed by boxes from batch 0, class 1 etc. Out of
         `batch_size * num_class* num_boxes` rows of indices, only the first `num_total_detection`
         rows are valid.
+        
+        .. note::
+            **Important**: The output tensor has a fixed size based on `max_output_boxes_per_class`,
+            but only the first `num_total_detection` rows contain valid data. The remaining rows
+            may contain garbage values. When comparing with ONNX Runtime or other implementations
+            that output dynamic shapes, you should only compare the first `num_total_detection` rows.
+            Example:
+            ```python
+            selected_indices, valid_count = nms_output
+            actual_count = int(valid_count.numpy()[0])
+            valid_indices = selected_indices.numpy()[:actual_count, :]
+            ```
         If `output_format` is "tensorflow", the output is three tensors, the first
         is `indices` of size `(batch_size, num_class * num_boxes , 2)`, the second is `scores` of
         size `(batch_size, num_class * num_boxes)`, and the third is `num_total_detection` of size
@@ -372,7 +362,6 @@ def all_class_non_max_suppression(
     sorted_indices = argsort(scores, axis=1, is_ascend=False, dtype="int32")
     sorted_scores = gather(scores, 1, sorted_indices)
 
-    # Convert score_threshold to te.Tensor if it's a scalar
     if not isinstance(score_threshold, te.Tensor):
         score_threshold_tensor = te.compute((), lambda: score_threshold, name="score_threshold")
     else:
@@ -394,10 +383,7 @@ def all_class_non_max_suppression(
 
     if output_format == "onnx":
         row_offsets = cumsum(num_detections, exclusive=True, dtype="int64")
-        # Compute total selected boxes clamped by max_output_boxes_per_class per class
-        # Support int, tir.IntImm, and tensor scalar inputs
         def _sum_clamped_total():
-            # num_detections dtype is int32
             if isinstance(max_output_boxes_per_class, int):
                 k_expr = tvm.tir.IntImm("int32", int(max_output_boxes_per_class))
                 clamped = te.compute(
@@ -415,9 +401,7 @@ def all_class_non_max_suppression(
                 )
                 return reduction.sum(cast(clamped, "int64"), axis=0)
             if isinstance(max_output_boxes_per_class, te.Tensor):
-                # Handle scalar tensor - check if it's 0D or 1D with single element
                 if len(max_output_boxes_per_class.shape) == 0:
-                    # 0D scalar tensor
                     kb = te.compute(
                         num_detections.shape,
                         lambda i: cast(max_output_boxes_per_class, "int32"),
@@ -427,14 +411,12 @@ def all_class_non_max_suppression(
                     len(max_output_boxes_per_class.shape) == 1
                     and max_output_boxes_per_class.shape[0] == 1
                 ):
-                    # 1D tensor with single element
                     kb = te.compute(
                         num_detections.shape,
                         lambda i: cast(max_output_boxes_per_class[0], "int32"),
                         name="k_broadcast",
                     )
                 else:
-                    # Fallback: no clamp
                     return reduction.sum(cast(num_detections, "int64"), axis=0)
 
                 clamped = te.compute(
@@ -443,13 +425,11 @@ def all_class_non_max_suppression(
                     name="clamped_num",
                 )
                 return reduction.sum(cast(clamped, "int64"), axis=0)
-            # Fallback: no clamp
             return reduction.sum(cast(num_detections, "int64"), axis=0)
 
         num_total_scalar = _sum_clamped_total()
         num_total_detections = reshape(num_total_scalar, (1,))
 
-        # Use output_shape if provided, otherwise use the original behavior
         if output_shape is not None:
             selected_indices = collect_selected_indices(
                 num_class,

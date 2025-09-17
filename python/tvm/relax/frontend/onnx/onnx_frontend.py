@@ -3412,11 +3412,9 @@ class NonMaxSuppression(OnnxOpConverter):
         
         center_point_box = attr.get("center_point_box", 0)
         
-        # Convert constant inputs to values
         if max_output_boxes_per_class is not None and isinstance(max_output_boxes_per_class, relax.Constant):
             max_output_boxes_per_class = int(max_output_boxes_per_class.data.numpy())
         elif max_output_boxes_per_class is not None and isinstance(max_output_boxes_per_class, relax.Var):
-            # Try to get the value from params
             var_name = max_output_boxes_per_class.name_hint
             if var_name in params[1]:
                 param_var, param_value = params[1][var_name]
@@ -3434,7 +3432,6 @@ class NonMaxSuppression(OnnxOpConverter):
         if score_threshold is not None and isinstance(score_threshold, relax.Constant):
             score_threshold = float(score_threshold.data.numpy())
         elif score_threshold is not None and isinstance(score_threshold, relax.Var):
-            # Try to get the value from params
             var_name = score_threshold.name_hint
             if var_name in params[1]:
                 param_var, param_value = params[1][var_name]
@@ -3444,9 +3441,7 @@ class NonMaxSuppression(OnnxOpConverter):
         else:
             score_threshold = 0.0  # Default value
         
-        # Handle center_point_box format conversion
         if center_point_box != 0:
-            # Convert from center format to corner format
             split_result = relax.op.split(boxes, 4, axis=2)
             xc = split_result[0]
             yc = split_result[1]
@@ -3460,7 +3455,6 @@ class NonMaxSuppression(OnnxOpConverter):
             y2 = yc + half_h
             boxes = relax.op.concat([y1, x1, y2, x2], axis=2)
         
-        # Use the vision.all_class_non_max_suppression operation
         nms_out = bb.normalize(
             relax.op.vision.all_class_non_max_suppression(
                 boxes,
@@ -3472,10 +3466,8 @@ class NonMaxSuppression(OnnxOpConverter):
             )
         )
         
-        # Extract selected_indices from the tuple
         selected_indices = bb.emit(relax.TupleGetItem(nms_out, 0))
         
-        # Return only selected_indices with dynamic shape
         return selected_indices
 
 
@@ -3503,14 +3495,11 @@ class AllClassNMS(OnnxOpConverter):
         iou_threshold = inputs[3] if len(inputs) > 3 else None
         score_threshold = inputs[4] if len(inputs) > 4 else None
         
-        # Extract attributes
         center_point_box = attr.get("center_point_box", 0)
         
-        # Convert constant inputs to values
         if max_output_boxes_per_class is not None and isinstance(max_output_boxes_per_class, relax.Constant):
             max_output_boxes_per_class = int(max_output_boxes_per_class.data.numpy())
         elif max_output_boxes_per_class is not None and isinstance(max_output_boxes_per_class, relax.Var):
-            # Try to get the value from params
             var_name = max_output_boxes_per_class.name_hint
             if var_name in params[1]:
                 param_var, param_value = params[1][var_name]
@@ -3528,7 +3517,6 @@ class AllClassNMS(OnnxOpConverter):
         if score_threshold is not None and isinstance(score_threshold, relax.Constant):
             score_threshold = float(score_threshold.data.numpy())
         elif score_threshold is not None and isinstance(score_threshold, relax.Var):
-            # Try to get the value from params
             var_name = score_threshold.name_hint
             if var_name in params[1]:
                 param_var, param_value = params[1][var_name]
@@ -3538,9 +3526,7 @@ class AllClassNMS(OnnxOpConverter):
         else:
             score_threshold = 0.0  # Default value
         
-        # Handle center_point_box format conversion
         if center_point_box != 0:
-            # Convert from center format to corner format
             split_result = relax.op.split(boxes, 4, axis=2)
             xc = split_result[0]
             yc = split_result[1]
@@ -3554,7 +3540,6 @@ class AllClassNMS(OnnxOpConverter):
             y2 = yc + half_h
             boxes = relax.op.concat([y1, x1, y2, x2], axis=2)
         
-        # Use the vision.all_class_non_max_suppression operation
         nms_out = bb.normalize(
             relax.op.vision.all_class_non_max_suppression(
                 boxes,
@@ -3566,7 +3551,6 @@ class AllClassNMS(OnnxOpConverter):
             )
         )
         
-        # Return the complete tuple (indices and count)
         return nms_out
 
 

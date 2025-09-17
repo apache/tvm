@@ -28,7 +28,6 @@ from .common import register_legalize
 
 def _create_onnx_nms_te(boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold):
     """Create a proper NMS implementation that follows the correct algorithm"""
-    # Get input shapes
     scores_shape = list(scores.shape)
     if len(scores_shape) == 3:
         batch, num_classes, num_boxes = scores_shape
@@ -38,7 +37,6 @@ def _create_onnx_nms_te(boxes, scores, max_output_boxes_per_class, iou_threshold
     else:
         raise ValueError(f"Unexpected scores shape: {scores_shape}")
 
-    # Get max_boxes value
     if hasattr(max_output_boxes_per_class, "data"):
         max_boxes = int(max_output_boxes_per_class.data.numpy())
     else:
@@ -46,27 +44,19 @@ def _create_onnx_nms_te(boxes, scores, max_output_boxes_per_class, iou_threshold
 
     expected_detections = batch * num_classes * max_boxes
 
-    # Use the proper TOPI NMS implementation that does the real algorithm
-    # This will do: score sorting, IoU calculation, loop suppression
+
     selected_indices_full, num_total_detections = topi.vision.all_class_non_max_suppression(
         boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, "onnx"
     )
 
-    # The TOPI implementation already does the correct NMS algorithm
-    # We just need to ensure the output shape matches ONNX expectations
-    # TOPI returns (batch * num_classes * num_boxes, 3) but ONNX expects (batch * num_classes * max_boxes, 3)
-
-    # Create a function to slice the results to the expected ONNX shape
     def slice_to_onnx_shape(data, expected_size):
         def compute_element(i, j):
             return tvm.tir.if_then_else(i < expected_size, data[i, j], tvm.tir.Cast("int64", 0))
 
         return te.compute((expected_size, 3), compute_element, name="sliced_indices")
 
-    # Slice the indices to the expected ONNX shape
     sliced_indices = slice_to_onnx_shape(selected_indices_full, expected_detections)
 
-    # Create the correct num_total_detections
     actual_detections = te.compute(
         (1,), lambda i: tvm.tir.Cast("int64", expected_detections), name="actual_detections"
     )
@@ -76,7 +66,7 @@ def _create_onnx_nms_te(boxes, scores, max_output_boxes_per_class, iou_threshold
 
 @register_legalize("relax.vision.all_class_non_max_suppression")
 def _all_class_non_max_suppression(bb: BlockBuilder, call: Call) -> Expr:
-    """Legalize all_class_non_max_suppression with practical dynamic trimming"""
+    """Legalize all_class_non_max_suppression with dynamic trimming to match ONNX output shape"""
     boxes = call.args[0]
     scores = call.args[1]
     max_output_boxes_per_class = call.args[2]
@@ -84,7 +74,6 @@ def _all_class_non_max_suppression(bb: BlockBuilder, call: Call) -> Expr:
     score_threshold = call.args[4]
     output_format = call.attrs.output_format
 
-    # Get input shapes
     scores_shape = scores.struct_info.shape
     if len(scores_shape) == 3:
         batch, num_classes, num_boxes = scores_shape
@@ -94,28 +83,47 @@ def _all_class_non_max_suppression(bb: BlockBuilder, call: Call) -> Expr:
     else:
         raise ValueError(f"Unexpected scores shape: {scores_shape}")
 
-    # Extract max_boxes value
     if isinstance(max_output_boxes_per_class, relax.Constant):
         max_boxes_val = int(max_output_boxes_per_class.data.numpy())
     else:
-        # If it's not a constant, use a conservative upper bound
         max_boxes_val = int(num_boxes)
 
-    # Calculate expected detections
-    expected_detections = int(batch) * int(num_classes) * max_boxes_val
-
-    # Call TOPI NMS with fixed output shape
+    # Get NMS result with fixed shape
     nms_result = bb.call_te(
         topi.vision.all_class_non_max_suppression,
         boxes,
         scores,
-        max_boxes_val,  # Pass the extracted integer value instead of the original parameter
+        max_boxes_val,
         iou_threshold,
         score_threshold,
         output_format,
     )
 
-    # For now, return the full output with num_total_detections
-    # The user can use num_total_detections to slice the output as needed
-    # This is the most practical approach given TVM's current limitations
-    return nms_result
+    selected_indices, valid_count = nms_result[0], nms_result[1]
+    
+    # Extract actual detection count from valid_count
+    actual_count = bb.emit(
+        relax.op.call_pure_packed(
+            "vm.builtin.tensor_to_shape", 
+            valid_count, 
+            sinfo_args=[relax.ShapeStructInfo([1])]
+        )
+    )
+    
+    # Convert to shape and extract the count value
+    actual_count_var = relax.Var("actual_count", relax.ShapeStructInfo([relax.PrimValue(0)]))
+    bb.match_cast(actual_count, relax.ShapeStructInfo([actual_count_var]))
+    
+    # Use dynamic strided_slice to trim to actual size
+    # This creates output shape [actual_count, 3] instead of [max_boxes, 3]
+    trimmed_indices = bb.emit(
+        relax.op.dynamic_strided_slice(
+            selected_indices,
+            begin=[relax.const(0, "int64")],
+            end=[actual_count_var],
+            strides=[relax.const(1, "int64")],
+            axes=[0]
+        )
+    )
+    
+    return relax.Tuple([trimmed_indices, valid_count])
