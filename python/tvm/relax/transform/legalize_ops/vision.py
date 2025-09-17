@@ -66,7 +66,19 @@ def _create_onnx_nms_te(boxes, scores, max_output_boxes_per_class, iou_threshold
 
 @register_legalize("relax.vision.all_class_non_max_suppression")
 def _all_class_non_max_suppression(bb: BlockBuilder, call: Call) -> Expr:
-    """Legalize all_class_non_max_suppression with dynamic trimming to match ONNX output shape"""
+    """Legalize all_class_non_max_suppression with fixed shape output.
+    
+    Note: This implementation outputs fixed-size tensors with trailing garbage data.
+    Only the first `num_total_detection` rows contain valid data. Users should use
+    the `valid_count` tensor to determine how many rows are actually valid.
+    
+    For complete ONNX compatibility, users can post-process the output:
+    ```python
+    selected_indices, valid_count = nms_output
+    actual_count = int(valid_count.numpy()[0])
+    valid_indices = selected_indices.numpy()[:actual_count, :]
+    ```
+    """
     boxes = call.args[0]
     scores = call.args[1]
     max_output_boxes_per_class = call.args[2]
@@ -88,7 +100,7 @@ def _all_class_non_max_suppression(bb: BlockBuilder, call: Call) -> Expr:
     else:
         max_boxes_val = int(num_boxes)
 
-    # Get NMS result with fixed shape
+    # Get NMS result with fixed shape from TOPI
     nms_result = bb.call_te(
         topi.vision.all_class_non_max_suppression,
         boxes,
@@ -99,31 +111,4 @@ def _all_class_non_max_suppression(bb: BlockBuilder, call: Call) -> Expr:
         output_format,
     )
 
-    selected_indices, valid_count = nms_result[0], nms_result[1]
-    
-    # Extract actual detection count from valid_count
-    actual_count = bb.emit(
-        relax.op.call_pure_packed(
-            "vm.builtin.tensor_to_shape", 
-            valid_count, 
-            sinfo_args=[relax.ShapeStructInfo([1])]
-        )
-    )
-    
-    # Convert to shape and extract the count value
-    actual_count_var = relax.Var("actual_count", relax.ShapeStructInfo([relax.PrimValue(0)]))
-    bb.match_cast(actual_count, relax.ShapeStructInfo([actual_count_var]))
-    
-    # Use dynamic strided_slice to trim to actual size
-    # This creates output shape [actual_count, 3] instead of [max_boxes, 3]
-    trimmed_indices = bb.emit(
-        relax.op.dynamic_strided_slice(
-            selected_indices,
-            begin=[relax.const(0, "int64")],
-            end=[actual_count_var],
-            strides=[relax.const(1, "int64")],
-            axes=[0]
-        )
-    )
-    
-    return relax.Tuple([trimmed_indices, valid_count])
+    return nms_result
