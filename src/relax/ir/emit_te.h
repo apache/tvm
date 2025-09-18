@@ -41,11 +41,6 @@ class RXPlaceholderOpNode : public te::PlaceholderOpNode {
   /*! \brief The relax expression. */
   Expr value;
 
-  // Required for TVM FFI system to enable structural equality and hashing
-  // This tells the FFI that this object should be compared as a tree node,
-  // where structural equality is determined by recursively comparing all fields
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RXPlaceholderOpNode>()
@@ -56,6 +51,12 @@ class RXPlaceholderOpNode : public te::PlaceholderOpNode {
         .def_ro("shape", &RXPlaceholderOpNode::shape)
         .def_ro("dtype", &RXPlaceholderOpNode::dtype);
   }
+
+ private:
+  // FFI system configuration for structural equality and hashing
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+
+ public:
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TEPlaceholderOp", RXPlaceholderOpNode,
                                     te::PlaceholderOpNode);
 };
