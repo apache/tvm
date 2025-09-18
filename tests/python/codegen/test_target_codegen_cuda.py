@@ -804,6 +804,7 @@ def test_cuda_device_func_call():
 @tvm.testing.requires_cuda
 def test_cuda_float_const_hex_format():
     """Test that float constants are emitted in hexadecimal format for precision"""
+
     @I.ir_module
     class Module:
         @T.prim_func
@@ -817,6 +818,7 @@ def test_cuda_float_const_hex_format():
     lib = tvm.compile(Module, target="cuda")
     cuda_code = lib.mod.imports[0].inspect_source()
     assert "0x1.2f684bda12f68p-5f" in cuda_code
+
 
 @tvm.testing.requires_cuda
 def test_device_host_call_same_func():
