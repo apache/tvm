@@ -52,11 +52,9 @@ class RXPlaceholderOpNode : public te::PlaceholderOpNode {
         .def_ro("dtype", &RXPlaceholderOpNode::dtype);
   }
 
- private:
   // FFI system configuration for structural equality and hashing
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
- public:
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TEPlaceholderOp", RXPlaceholderOpNode,
                                     te::PlaceholderOpNode);
 };
