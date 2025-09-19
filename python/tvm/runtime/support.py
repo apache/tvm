@@ -18,7 +18,7 @@
 """Runtime support infra of TVM."""
 
 import re
-from typing import TypeVar
+from typing import TypeVar, Type
 
 import tvm.ffi
 
@@ -73,7 +73,7 @@ def _regex_match(regex_pattern: str, match_against: str) -> bool:
 T = TypeVar("T")
 
 
-def derived_object(cls: type[T]) -> type[T]:
+def derived_object(cls: Type[T]) -> Type[T]:
     """A decorator to register derived subclasses for TVM objects.
 
     Parameters
