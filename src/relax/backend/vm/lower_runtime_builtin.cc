@@ -146,27 +146,14 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     ICHECK(call_node->args.size() == 2);
     ICHECK(call_node->struct_info_.defined());
 
-    // Get function name from first argument (StringImm)
-    auto func_name = Downcast<StringImm>(call_node->args[0])->value;
-    
-    // Get arguments from second argument (Tuple)
-    auto args_tuple = Downcast<Tuple>(call_node->args[1]);
-    
-    // Create extern function for Python function call
-    auto py_func_extern = ExternFunc("vm.builtin.call_py_func");
-    
-    // Create new arguments: [py_func_extern, (func_name, args_tuple)]
-    ffi::Array<Expr> new_args;
-    new_args.push_back(py_func_extern);
-    
-    // Create tuple with function name and arguments
+    // Create tuple with function name and arguments tuple
     ffi::Array<Expr> tuple_fields;
     tuple_fields.push_back(call_node->args[0]);  // function name
     tuple_fields.push_back(call_node->args[1]);  // arguments tuple
-    new_args.push_back(Tuple(tuple_fields));
+    auto combined_tuple = Tuple(tuple_fields);
     
-    // Create call_builtin_with_ctx call
-    return Call(call_builtin_with_ctx_op_, new_args, call_node->attrs, call_node->sinfo_args, call_node->span);
+    // Direct call to vm.builtin.call_py_func
+    return Call(builtin_call_py_func_, {combined_tuple}, call_node->attrs, call_node->sinfo_args, call_node->span);
   }
 
   Expr ToDevice(const Call& call_node) {

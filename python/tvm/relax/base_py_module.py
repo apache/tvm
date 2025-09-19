@@ -100,6 +100,7 @@ class BasePyModule:
         self._compile_functions()
         self._wrap_tir_functions()
         self._wrap_relax_functions()
+        self._register_python_functions()
 
     def _collect_function_names(self):
         """Collect names of TIR and Relax functions from IRModule."""
@@ -176,6 +177,39 @@ class BasePyModule:
                 return wrapper
 
             setattr(self, func_name, _create_relax_wrapper(func_name))
+
+    def _register_python_functions(self):
+        """Register Python functions with the VM runtime for call_py_func support."""
+        if not hasattr(self.ir_mod, 'pyfuncs') or not self.ir_mod.pyfuncs:
+            return
+            
+        # Get the register function from TVM
+        try:
+            register_py_func = tvm.get_global_func("vm.builtin.register_py_func")
+        except ValueError:
+            # Function not available, skip registration
+            return
+            
+        for func_name, py_func in self.ir_mod.pyfuncs.items():
+            # Create a wrapper that handles TVM tensor conversion
+            def create_py_func_wrapper(name, original_func):
+                def wrapper(*args, **kwargs):
+                    # Convert TVM tensors to PyTorch tensors for Python function
+                    converted_args = [self._convert_tvm_to_pytorch(arg) for arg in args]
+                    converted_kwargs = {k: self._convert_tvm_to_pytorch(v) for k, v in kwargs.items()}
+                    
+                    # Call the original Python function
+                    result = original_func(self, *converted_args, **converted_kwargs)
+                    
+                    # Convert result back to TVM format
+                    return self._convert_pytorch_to_tvm(result)
+                
+                wrapper.__name__ = name
+                return wrapper
+            
+            # Register the wrapped function
+            wrapped_func = create_py_func_wrapper(func_name, py_func)
+            register_py_func(func_name, wrapped_func)
 
     def call_tir(self, tir_func, args, out_sinfo):
         """Call a TIR function with PyTorch tensors."""
