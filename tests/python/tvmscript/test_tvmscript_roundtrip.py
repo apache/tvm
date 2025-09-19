@@ -4002,6 +4002,22 @@ def func_attr_with_list():
     return func
 
 
+def func_with_loop_jumps():
+    @T.prim_func
+    def func(In: T.Buffer((1,), "int32"), Out: T.Buffer((2,), "int32")):
+        Out[0] = 0
+        Out[1] = 0
+        for i in range(1000):
+            if i % 13 == 0:
+                Out[1] = Out[1] + 1
+                continue
+            Out[0] = Out[0] + 1
+            if Out[0] >= In[0]:
+                break
+
+    return func
+
+
 def op_of_literal():
     op_list = [
         (T.exp, 0),
@@ -4220,6 +4236,7 @@ ir_generator = tvm.testing.parameter(
     return_zero_private,
     return_zero_private_with_attr,
     func_attr_with_list,
+    func_with_loop_jumps,
     *op_of_literal(),
     *relax_match_cast_struct_info_proxy(),
     relax_symbolic_size_var,
