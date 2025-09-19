@@ -234,12 +234,11 @@ class BasePyModule:
         return out[0] if len(out) == 1 else out
 
     def call_py_func(self, func_name: str, args):
-        """Call a Python function stored in the IRModule's pyfuncs."""
-        if func_name not in self.ir_mod.pyfuncs:
-            raise ValueError(f"Python function '{func_name}' not found in IRModule pyfuncs")
-        py_func = self.ir_mod.pyfuncs[func_name]
-        converted_args = self._convert_tvm_to_pytorch(args)
-        return py_func(*converted_args)
+        """Call a Python function stored in the module's pyfuncs."""
+        if func_name not in self.pyfuncs:
+            raise ValueError(f"Python function '{func_name}' not found in module pyfuncs")
+        py_func = self.pyfuncs[func_name]
+        return py_func(self, *args)
 
     def _create_output_tensors(self, out_sinfo, in_args=None):
         # pylint: disable=import-outside-toplevel

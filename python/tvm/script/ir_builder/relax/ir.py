@@ -30,6 +30,7 @@ from tvm.relax import (
     Expr,
     ExternFunc,
     ShapeExpr,
+    StringImm,
     TupleGetItem,
     Var,
     VarBinding,
@@ -64,6 +65,7 @@ from tvm.relax.op import (
     call_dps_packed,
     call_inplace_packed,
     call_pure_packed,
+    call_py_func as _call_py_func,
     call_tir,
     call_tir_inplace,
     call_tir_with_grad,
@@ -451,6 +453,57 @@ def call_packed(
     return Call(op, args, attrs=attrs, sinfo_args=sinfo_args)
 
 
+@args_converter.auto
+def call_py_func(
+    py_func_name: py_str,
+    *args: Expr,
+    out_sinfo: Union[StructInfo, List[StructInfo]],
+) -> Call:
+    """Create a relax Call, which calls a Python function.
+
+    Parameters
+    ----------
+    py_func_name: str
+        The name of the Python function to call. This should correspond to a function
+        in the IRModule's pyfuncs attribute.
+    *args : Expr
+        The arguments.
+    out_sinfo: Union[StructInfo, List[StructInfo]]
+        The structure info of the call_py_func output.
+        It should be a single or a list of TensorStructInfo. Each one denotes the
+        structure info of a returned tensor.
+
+    Returns
+    -------
+    call: Call
+        The created Relax Call for call_py_func operator.
+    """
+    if isinstance(out_sinfo, py_tuple):  # type: ignore
+        out_sinfo = list(out_sinfo)
+    elif not isinstance(out_sinfo, list):
+        out_sinfo = [out_sinfo]
+
+    out_sinfo = [
+        (
+            sinfo()
+            if callable(sinfo)
+            else sinfo.asobject()
+            if isinstance(sinfo, ObjectConvertible)
+            else sinfo
+        )
+        for sinfo in out_sinfo
+    ]
+
+    # Convert string to StringImm
+    try:
+        func_name_imm = (
+            StringImm(py_func_name) if isinstance(py_func_name, py_str) else py_func_name
+        )
+    except (TypeError, ValueError, AttributeError):
+        func_name_imm = StringImm(py_func_name)
+    return _call_py_func(func_name_imm, args, out_sinfo)
+
+
 def _sinfo_arg_wrapper(func):
     """A wrapper to convert StructInfoProxies to StructInfo for builtin operators with sinfo_args"""
 
@@ -743,6 +796,7 @@ __all__ = [
     "call_tir_inplace",
     "call_tir_with_grad",
     "call_dps_packed",
+    "call_py_func",
     "call_builtin_with_ctx",
     "ceil",
     "clip",
