@@ -1046,5 +1046,34 @@ def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
     _assert_print(main, expected_output)
 
 
+def test_func_with_loop_jumps():
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def main(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (4,), "float32")
+        B = T.match_buffer(b, (4,), "float32")
+        for i in range(1000):
+            if i % 13 == 0:
+                A[1] = A[1] + 1
+                continue
+            if A[0] >= B[0]:
+                break
+
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func
+def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
+    for i in range(1000):
+        if i % 13 == 0:
+            A[1] = A[1] + T.float32(1.0)
+            T.continue_loop()
+        if A[0] >= B[0]:
+            T.break_loop()
+    """
+    _assert_print(main, expected_output)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
