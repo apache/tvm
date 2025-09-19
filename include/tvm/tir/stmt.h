@@ -1310,6 +1310,9 @@ constexpr const char* explicit_read_region = "explicit_read_region";
  */
 constexpr const char* explicit_write_region = "explicit_write_region";
 
+/*! \brief ,ark a ForNode represent an irregular loop of non-structural control flow edges. */
+constexpr const char* irregular_loop_mark = "irregular_loop_mark";
+
 /*!
  * \brief Check if attr_key is a pragma key extension
  * \param attr_key The attr key to be compared

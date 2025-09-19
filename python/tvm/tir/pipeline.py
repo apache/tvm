@@ -43,6 +43,7 @@ def default_tir_pipeline():
             tir.transform.LowerMatchBuffer(),
             tir.transform.Simplify(),
             tir.transform.InjectPermutedLayout(),
+            tir.transform.AnnotateIrregularLoop(),
             tir.transform.InjectSoftwarePipeline(),
             tir.transform.TransformMmaBufferLayout(),
             tir.transform.LowerOpaqueBlock(),

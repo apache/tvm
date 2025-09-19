@@ -28,10 +28,10 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   AttrFieldInfoNode::RegisterReflection();
   DictAttrsNode::RegisterReflection();
-});
+}
 
 DictAttrs WithAttrs(DictAttrs attrs, ffi::Map<ffi::String, ffi::Any> new_attrs) {
   if (new_attrs.empty()) {
@@ -69,11 +69,11 @@ DictAttrs::DictAttrs(ffi::Map<ffi::String, Any> dict) {
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ tvm::ffi::reflection::ObjectDef<BaseAttrsNode>(); });
+TVM_FFI_STATIC_INIT_BLOCK() { tvm::ffi::reflection::ObjectDef<BaseAttrsNode>(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ir.DictAttrsGetDict", [](DictAttrs attrs) { return attrs->dict; });
-});
+}
 
 }  // namespace tvm

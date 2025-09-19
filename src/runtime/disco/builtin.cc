@@ -125,7 +125,7 @@ void SyncWorker() {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.disco.load_vm_module", LoadVMModule)
@@ -169,7 +169,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
             "tvm.runtime.threading.set_current_thread_affinity");
         f_set_thread_affinity(ffi::Shape{cpu_ids[worker_id]});
       });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

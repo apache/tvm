@@ -536,7 +536,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
   return transform;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed(
@@ -585,7 +585,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                      << args.size();
         }
       });
-});
+}
 
 }  // namespace arith
 }  // namespace tvm

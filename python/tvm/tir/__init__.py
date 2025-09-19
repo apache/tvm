@@ -50,7 +50,13 @@ from .op import call_llvm_intrin, call_llvm_pure_intrin, ret, all, any, min_valu
 from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
 from .op import tvm_tuple, handle_add_byte_offset, tvm_struct_get, tvm_struct_set
 from .op import address_of, lookup_param, assume, undef
-from .op import tvm_thread_allreduce, type_annotation, tvm_access_ptr, tvm_throw_last_error
+from .op import continue_loop, break_loop
+from .op import (
+    tvm_thread_allreduce,
+    type_annotation,
+    tvm_access_ptr,
+    tvm_throw_last_error,
+)
 from .op import (
     tvm_load_matrix_sync,
     tvm_store_matrix_sync,
@@ -86,7 +92,18 @@ from .op import cos, cosh, acos, acosh
 from .op import tan, tanh, atan, atan2, atanh
 from .op import bitwise_and, bitwise_not, bitwise_or, bitwise_xor
 from .op import erf, sigmoid, sqrt, rsqrt, floor, ceil, hypot
-from .op import trunc, abs, round, nextafter, nearbyint, power, pow, popcount, fmod, if_then_else
+from .op import (
+    trunc,
+    abs,
+    round,
+    nextafter,
+    nearbyint,
+    power,
+    pow,
+    popcount,
+    fmod,
+    if_then_else,
+)
 from .op import likely, isnan, isnullptr, isfinite, isinf, copysign
 from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, ceildiv, logaddexp
 from .op import comm_reducer, min, max, sum

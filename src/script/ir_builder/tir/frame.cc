@@ -28,7 +28,7 @@ namespace script {
 namespace ir_builder {
 namespace tir {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   TIRFrameNode::RegisterReflection();
   PrimFuncFrameNode::RegisterReflection();
   BlockFrameNode::RegisterReflection();
@@ -46,7 +46,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   ThenFrameNode::RegisterReflection();
   ElseFrameNode::RegisterReflection();
   DeclBufferFrameNode::RegisterReflection();
-});
+}
 
 void PrimFuncFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();

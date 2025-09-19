@@ -116,10 +116,10 @@ Pass BundleModelParams(ffi::Optional<ffi::String> param_tuple_name) {
   return CreateModulePass(pass_func, 1, "BundleModelParams", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.BundleModelParams", BundleModelParams);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

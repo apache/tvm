@@ -411,12 +411,12 @@ ffi::Array<ffi::Array<BufferRegion>> GetBlockReadWriteRegion(
   return {reads, writes};
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.analysis.GetBlockAccessRegion", GetBlockAccessRegion)
       .def("tir.analysis.GetBlockReadWriteRegion", GetBlockReadWriteRegion);
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

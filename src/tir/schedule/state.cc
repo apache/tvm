@@ -23,7 +23,7 @@
 namespace tvm {
 namespace tir {
 
-TVM_FFI_STATIC_INIT_BLOCK({ ScheduleStateNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { ScheduleStateNode::RegisterReflection(); }
 
 template <class K, class V>
 using SMap = std::unordered_map<K, V, ObjectPtrHash, ObjectPtrEqual>;
@@ -1016,7 +1016,7 @@ TVM_DLL ffi::Array<Bool> GetCachedFlags(const ScheduleState& self, const StmtSRe
 
 /**************** FFI ****************/
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.schedule.ScheduleState",
@@ -1031,7 +1031,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              return it != self->stmt2ref.end() ? it->second : ffi::Optional<StmtSRef>(std::nullopt);
            })
       .def("tir.schedule.ScheduleStateGetCachedFlags", GetCachedFlags);
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

@@ -241,7 +241,7 @@ ffi::Module WebGPUModuleLoadFromBytes(const ffi::Bytes& bytes) {
 }
 
 // for now webgpu is hosted via a vulkan module.
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ffi.Module.load_from_bytes.webgpu", WebGPUModuleLoadFromBytes)
@@ -249,7 +249,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         DeviceAPI* ptr = WebGPUDeviceAPI::Global();
         *rv = static_cast<void*>(ptr);
       });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

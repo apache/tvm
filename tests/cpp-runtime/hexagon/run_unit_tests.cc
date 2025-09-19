@@ -80,7 +80,7 @@ class GtestPrinter : public testing::EmptyTestEventListener {
   std::string GetOutput() { return gtest_out_.str(); }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("hexagon.run_unit_tests", [](ffi::PackedArgs args, ffi::Any* rv) {
     // gtest args are passed into this packed func as a singular string
@@ -118,7 +118,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     *rv = gtest_error_code_and_output.str();
     delete gprinter;
   });
-});
+}
 
 }  // namespace hexagon
 }  // namespace runtime

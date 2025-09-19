@@ -135,13 +135,13 @@ ScheduleRule ScheduleRule::ParallelizeVectorizeUnroll(int max_jobs_per_core,
   return ScheduleRule(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ ParallelizeVectorizeUnrollNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { ParallelizeVectorizeUnrollNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ScheduleRuleParallelizeVectorizeUnroll",
                         ScheduleRule::ParallelizeVectorizeUnroll);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

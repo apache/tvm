@@ -775,6 +775,12 @@ std::unique_ptr<CodeGenLLVM::DebugInfo> CodeGenLLVM::CreateDebugInfo(llvm::Modul
   return debug_info;
 }
 
+void CodeGenLLVM::PushLoopFrame(llvm::BasicBlock* backedge_tgt, llvm::BasicBlock* exit_tgt) {
+  loop_frame_jump_tgts_.emplace_back(backedge_tgt, exit_tgt);
+}
+
+void CodeGenLLVM::PopLoopFrame() { loop_frame_jump_tgts_.pop_back(); }
+
 llvm::Value* CodeGenLLVM::CreateVecSlice(llvm::Value* vec, int begin, int extent) {
   int num_elems = GetVectorNumElements(vec);
   if (extent == num_elems && begin == 0) return vec;
@@ -878,6 +884,7 @@ void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Va
   auto* for_begin = llvm::BasicBlock::Create(*ctx, "for_begin_" + loop_var_name, function_);
   auto* for_body = llvm::BasicBlock::Create(*ctx, "for_body_" + loop_var_name, function_);
   auto* for_end = llvm::BasicBlock::Create(*ctx, "for_end_" + loop_var_name, function_);
+  auto* for_next = llvm::BasicBlock::Create(*ctx, "for_next_" + loop_var_name, function_);
   builder_->CreateBr(for_begin);
   builder_->SetInsertPoint(for_begin);
 
@@ -892,8 +899,13 @@ void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Va
   builder_->SetInsertPoint(for_body);
   EmitDebugLocation(body->span);
 
+  PushLoopFrame(for_next, for_end);
   this->VisitStmt(body);
+  PopLoopFrame();
   var_map_.erase(loop_var.get());
+
+  builder_->CreateBr(for_next);
+  builder_->SetInsertPoint(for_next);
   llvm::Value* loop_next = CreateAdd(loop_var.dtype(), loop_value, stride);
   loop_value->addIncoming(loop_next, builder_->GetInsertBlock());
   builder_->CreateBr(for_begin);
@@ -1466,6 +1478,26 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
         llvm::BasicBlock::Create(*llvm_target_->GetContext(), "ret_dummy", function_);
     builder_->SetInsertPoint(ret_dummy);
     return ret_dummy;
+  } else if (op->op.same_as(builtin::continue_loop())) {
+    ICHECK(!loop_frame_jump_tgts_.empty())
+        << "the tir.continue_loop should be inserted under at least one For or While stmts.";
+    builder_->CreateBr(loop_frame_jump_tgts_.back().first);
+    // LLVM allows exactly one terminator in a single basic block
+    // append a new dummy basic block to avoid error.
+    llvm::BasicBlock* post_dummy =
+        llvm::BasicBlock::Create(*llvm_target_->GetContext(), "post_cont_dummy", function_);
+    builder_->SetInsertPoint(post_dummy);
+    return post_dummy;
+  } else if (op->op.same_as(builtin::break_loop())) {
+    ICHECK(!loop_frame_jump_tgts_.empty())
+        << "the tir.break_loop should be inserted under at least one For or While stmts.";
+    builder_->CreateBr(loop_frame_jump_tgts_.back().second);
+    // LLVM allows exactly one terminator in a single basic block
+    // append a new dummy basic block to avoid error.
+    llvm::BasicBlock* post_dummy =
+        llvm::BasicBlock::Create(*llvm_target_->GetContext(), "post_break_dummy", function_);
+    builder_->SetInsertPoint(post_dummy);
+    return post_dummy;
   } else if (op->op.same_as(builtin::reinterpret())) {
     llvm::Type* target = DTypeToLLVMType(op->dtype);
     return builder_->CreateBitCast(MakeValue(op->args[0]), target);
@@ -2010,7 +2042,9 @@ void CodeGenLLVM::VisitStmt_(const WhileNode* op) {
   builder_->SetInsertPoint(while_cond);
   builder_->CreateCondBr(MakeValue(op->condition), while_body, while_merge);
   builder_->SetInsertPoint(while_body);
+  PushLoopFrame(while_cond, while_merge);
   this->VisitStmt(op->body);
+  PopLoopFrame();
   builder_->CreateBr(while_cond);
   builder_->SetInsertPoint(while_merge);
 }
@@ -2384,7 +2418,7 @@ static void CodegenLLVMRegisterReflection() {
       });
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ CodegenLLVMRegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { CodegenLLVMRegisterReflection(); }
 
 }  // namespace codegen
 }  // namespace tvm

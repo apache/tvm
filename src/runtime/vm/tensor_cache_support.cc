@@ -267,7 +267,7 @@ class TensorCache {
   ffi::Map<ffi::String, Tensor> pool_;
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("vm.builtin.tensor_cache.get", TensorCache::Get)
@@ -298,7 +298,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("vm.builtin.tensor_cache.remove", TensorCache::Remove)
       .def("vm.builtin.tensor_cache.clear", TensorCache::Clear)
       .def("vm.builtin.tensor_cache.load", TensorCache::Load);
-});
+}
 
 // This param module node can be useful to get param dict in RPC mode
 // when the remote already have loaded parameters from file.
@@ -359,7 +359,7 @@ class ParamModuleNode : public ffi::ModuleObj {
   ffi::Array<Tensor> params_;
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("vm.builtin.param_module_from_cache", ParamModuleNode::Create)
@@ -379,7 +379,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     }
                     *rv = ParamModuleNode::GetParamByName(names);
                   });
-});
+}
 
 }  // namespace vm
 }  // namespace runtime

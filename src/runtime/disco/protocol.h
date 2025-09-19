@@ -49,7 +49,7 @@ struct DiscoProtocol {
 
   /*! \brief Recycle all the memory used in the arena */
   inline void RecycleAll() {
-    this->object_arena_.clear();
+    this->any_arena_.clear();
     this->arena_.RecycleAll();
   }
 
@@ -81,7 +81,7 @@ struct DiscoProtocol {
   }
 
   support::Arena arena_;
-  std::vector<Any> object_arena_;
+  std::vector<Any> any_arena_;
   friend struct RPCReference;
 };
 
@@ -213,7 +213,7 @@ inline void DiscoProtocol<SubClassType>::ReadFFIAny(TVMFFIAny* out) {
                << Object::TypeIndex2Key(type_index) << " (type_index = " << type_index << ")";
   }
   *reinterpret_cast<ffi::AnyView*>(out) = result;
-  object_arena_.push_back(result);
+  any_arena_.push_back(result);
 }
 
 inline std::string DiscoDebugObject::SaveToStr() const {

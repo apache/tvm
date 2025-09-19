@@ -240,7 +240,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<P
   return IndexMap::FromFunc(ndim, f_alter_layout, inverse_index_map);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "tir.schedule.SuggestIndexMap",
@@ -248,7 +248,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         arith::Analyzer analyzer;
         return SuggestIndexMap(buffer, indices, loops, predicate, &analyzer);
       });
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

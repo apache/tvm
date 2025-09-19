@@ -815,11 +815,11 @@ Pass VMShapeLower(bool emit_err_ctx) {
   return CreateModulePass(pass_func, 0, "VMShapeLower", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.VMShapeLower",
                         [](bool emit_err_ctx) { return VMShapeLower(emit_err_ctx); });
-});
+}
 
 }  // namespace transform
 }  // namespace relax

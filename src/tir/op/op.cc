@@ -246,19 +246,26 @@ PrimExpr ret(PrimExpr value, Span span) {
   return tir::Call(value.dtype(), tir::builtin::ret(), {value}, span);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.ret", ret);
-});
-
 PrimExpr thread_return(Span span) {
   return tir::Call(DataType::Void(), tir::builtin::thread_return(), {}, span);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+PrimExpr continue_loop(Span span) {
+  return tir::Call(DataType::Void(), tir::builtin::continue_loop(), {}, span);
+}
+
+PrimExpr break_loop(Span span) {
+  return tir::Call(DataType::Void(), tir::builtin::break_loop(), {}, span);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.thread_return", thread_return);
-});
+  refl::GlobalDef()
+      .def("tir.ret", ret)
+      .def("tir.thread_return", thread_return)
+      .def("tir.continue_loop", continue_loop)
+      .def("tir.break_loop", break_loop);
+};
 
 // maximum and min limits
 PrimExpr max_value(const DataType& dtype, Span span) {
@@ -815,11 +822,11 @@ PrimExpr bitwise_neg(PrimExpr a, Span span) {
   return tir::Call(a.dtype(), tir::builtin::bitwise_not(), {a}, span);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.bitwise_not",
                         [](PrimExpr a, Span span) { return bitwise_neg(a, span); });
-});
+}
 
 // pow
 PrimExpr pow(PrimExpr x, PrimExpr y, Span span) {
@@ -1127,7 +1134,7 @@ TVM_TIR_REGISTER_OP("TVMBackendFreeWorkspace")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 // expose basic functions to node namespace
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("node._const",
@@ -1158,7 +1165,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("tir.trunc", tvm::trunc)
       .def("tir._cast", tvm::cast)
       .def("tir.reinterpret", tvm::reinterpret);
-});
+}
 
 // operator overloading, smarter than make
 #define DEF_MAKE_BINARY_OP(Node, Func) \
@@ -1177,7 +1184,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     }                                                                                          \
   })
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir._OpIfThenElse",
@@ -1214,7 +1221,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .DEF_MAKE_BIT_OP(bitwise_xor, bitwise_xor)
       .DEF_MAKE_BIT_OP(left_shift, left_shift)  // NOLINT(*)
       .DEF_MAKE_BIT_OP(right_shift, right_shift);
-});
+}
 
 PrimExpr fast_erf_float_expr(PrimExpr arg, int bits) {
   auto plus_4 = make_const(DataType::Float(bits), 4.f);

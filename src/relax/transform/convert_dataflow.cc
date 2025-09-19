@@ -160,10 +160,10 @@ Pass ConvertToDataflow(int min_size) {
   return tvm::transform::Sequential({pass, CanonicalizeBindings()});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.ConvertToDataflow", ConvertToDataflow);
-});
+}
 
 }  // namespace transform
 

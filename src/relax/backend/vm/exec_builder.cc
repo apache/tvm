@@ -30,7 +30,7 @@ namespace relax {
 
 using namespace vm;
 
-TVM_FFI_STATIC_INIT_BLOCK({ ExecBuilderNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { ExecBuilderNode::RegisterReflection(); }
 
 ExecBuilder ExecBuilderNode::Create() {
   ExecBuilder ret(ffi::make_object<ExecBuilderNode>());
@@ -319,7 +319,7 @@ void ExecBuilderNode::Formalize() {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.ExecBuilderCreate", ExecBuilderNode::Create)
@@ -377,7 +377,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         ObjectPtr<VMExecutable> p_exec = builder->Get();
         return ffi::Module(p_exec);
       });
-});
+}
 
 }  // namespace relax
 }  // namespace tvm

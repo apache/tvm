@@ -552,7 +552,7 @@ class PyExprMutator : public ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PyExprMutator, ObjectRef, PyExprMutatorNode);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.MakePyExprVisitor", PyExprVisitor::MakePyExprVisitor)
@@ -660,12 +660,12 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](PyExprMutator mutator, Id id, Var var) { return mutator->var_remap_[id] = var; })
       .def("relax.PyExprMutatorGetVarRemap",
            [](PyExprMutator mutator, Id id) { return mutator->var_remap_[id]; });
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   PyExprVisitorNode::RegisterReflection();
   PyExprMutatorNode::RegisterReflection();
-});
+}
 
 }  // namespace relax
 }  // namespace tvm

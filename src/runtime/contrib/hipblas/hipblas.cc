@@ -408,7 +408,7 @@ inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, hipblasHandle_t
 }
 
 // matrix multiplication for row major
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvm.contrib.hipblas.matmul",
@@ -455,7 +455,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           CallBatchGemmEx(args, ret, entry_ptr->handle);
         }
       });
-});
+}
 
 }  // namespace contrib
 }  // namespace tvm

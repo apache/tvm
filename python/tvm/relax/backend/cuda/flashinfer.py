@@ -141,8 +141,8 @@ def _compile_flashinfer_kernels(
         )
         include_paths += [
             Path(tvm_home).resolve() / "include",
-            Path(tvm_home).resolve() / "ffi" / "include",
-            Path(tvm_home).resolve() / "ffi" / "3rdparty" / "dlpack" / "include",
+            Path(tvm_home).resolve() / "3rdparty" / "tvm-ffi" / "include",
+            Path(tvm_home).resolve() / "3rdparty" / "tvm-ffi" / "3rdparty" / "dlpack" / "include",
             Path(tvm_home).resolve() / "3rdparty" / "dmlc-core" / "include",
         ]
     else:
@@ -160,8 +160,13 @@ def _compile_flashinfer_kernels(
             # The package is installed from source.
             include_paths += [
                 tvm_package_path.parent.parent / "include",
-                tvm_package_path.parent.parent / "ffi" / "include",
-                tvm_package_path.parent.parent / "ffi" / "3rdparty" / "dlpack" / "include",
+                tvm_package_path.parent.parent / "3rdparty" / "tvm-ffi" / "include",
+                tvm_package_path.parent.parent
+                / "3rdparty"
+                / "tvm-ffi"
+                / "3rdparty"
+                / "dlpack"
+                / "include",
                 tvm_package_path.parent.parent / "3rdparty" / "dmlc-core" / "include",
             ]
         else:

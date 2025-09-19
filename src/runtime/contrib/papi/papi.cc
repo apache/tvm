@@ -286,13 +286,13 @@ MetricCollector CreatePAPIMetricCollector(
   return PAPIMetricCollector(metrics);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("runtime.profiling.PAPIMetricCollector",
                         [](ffi::Map<DeviceWrapper, ffi::Array<ffi::String>> metrics) {
                           return PAPIMetricCollector(metrics);
                         });
-});
+}
 
 }  // namespace profiling
 }  // namespace runtime

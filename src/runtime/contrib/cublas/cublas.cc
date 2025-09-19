@@ -516,7 +516,7 @@ inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, cublasHandle_t 
 }
 
 // matrix multiplication for row major
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tvm.contrib.cublas.matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
@@ -541,10 +541,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
           CallGemmEx(args, ret, entry_ptr->handle);
         }
       });
-});
+}
 
 #if CUDART_VERSION >= 10010
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tvm.contrib.cublaslt.matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
@@ -562,10 +562,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
         CallLtIgemm(args, ret, ltHandle, stream);
         CHECK_CUBLAS_ERROR(cublasLtDestroy(ltHandle));
       });
-});
+}
 #endif  // CUDART_VERSION >= 10010
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tvm.contrib.cublas.batch_matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
@@ -589,7 +589,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           CallBatchGemmEx(args, ret, entry_ptr->handle);
         }
       });
-});
+}
 
 }  // namespace contrib
 }  // namespace tvm

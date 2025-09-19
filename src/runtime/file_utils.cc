@@ -251,7 +251,7 @@ std::string SaveParams(const ffi::Map<ffi::String, Tensor>& params) {
   return bytes;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.SaveParams",
@@ -269,7 +269,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         tvm::runtime::SimpleBinaryFileStream strm(path, "rb");
         return LoadParams(&strm);
       });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

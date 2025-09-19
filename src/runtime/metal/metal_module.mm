@@ -290,7 +290,7 @@ ffi::Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
   return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("runtime.module.create_metal_module",
                         [](ffi::Map<ffi::String, ffi::String> smap, std::string fmap_json,
@@ -304,7 +304,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                                                        smap.begin(), smap.end()),
                                                    fmap, fmt, source);
                         });
-});
+}
 
 ffi::Module MetalModuleLoadFromBytes(const ffi::Bytes& bytes) {
   dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
@@ -324,9 +324,9 @@ ffi::Module MetalModuleLoadFromBytes(const ffi::Bytes& bytes) {
   return MetalModuleCreate(smap, fmap, fmt, "");
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ffi.Module.load_from_bytes.metal", MetalModuleLoadFromBytes);
-});
+}
 }  // namespace runtime
 }  // namespace tvm

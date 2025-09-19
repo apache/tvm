@@ -90,8 +90,10 @@ class OpaqueBlockLower : public StmtExprMutator {
       // handling unit loop
       unit_loop_vars_[op->loop_var] = min;
     }
+
     // Step 2. Visit recursively
     Stmt body = this->VisitStmt(op->body);
+
     // Step 3. Handle annotations
     std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
     ffi::Map<ffi::String, ffi::Any> new_annotations =
@@ -102,7 +104,8 @@ class OpaqueBlockLower : public StmtExprMutator {
       ICHECK(op->thread_binding.defined());
       ffi::String thread_tag = op->thread_binding.value()->thread_tag;
       body = MakeLaunchThread(min, extent, op->loop_var, thread_tag, body);
-    } else if (is_one(extent) && op->annotations.empty()) {
+    } else if (is_one(extent) && op->annotations.empty() &&
+               !op->annotations.count(attr::irregular_loop_mark)) {
       // Case 2. Unit loop
       return body;
     } else {
@@ -215,10 +218,10 @@ Pass LowerOpaqueBlock() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerOpaqueBlock", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.LowerOpaqueBlock", LowerOpaqueBlock);
-});
+}
 }  // namespace transform
 
 }  // namespace tir

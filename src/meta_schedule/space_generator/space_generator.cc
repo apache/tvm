@@ -201,12 +201,12 @@ SpaceGenerator SpaceGenerator::PySpaceGenerator(
   return SpaceGenerator(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   SpaceGeneratorNode::RegisterReflection();
   PySpaceGeneratorNode::RegisterReflection();
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("meta_schedule.SpaceGeneratorInitializeWithTuneContext",
@@ -215,7 +215,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                   &SpaceGeneratorNode::GenerateDesignSpace)
       .def("meta_schedule.SpaceGeneratorPySpaceGenerator", SpaceGenerator::PySpaceGenerator)
       .def_method("meta_schedule.SpaceGeneratorClone", &SpaceGeneratorNode::Clone);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

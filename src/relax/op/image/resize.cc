@@ -31,7 +31,7 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({ Resize2DAttrs::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { Resize2DAttrs::RegisterReflection(); }
 
 /* relax.resize2d */
 
@@ -54,10 +54,10 @@ Expr resize2d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout
   return Call(op, {std::move(data), std::move(size)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.image.resize2d", resize2d);
-});
+}
 
 StructInfo InferStructInfoResize2D(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1 && call->args.size() != 2) {

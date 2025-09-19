@@ -44,10 +44,10 @@ ffi::Map<GlobalVar, ffi::Array<GlobalVar>> CollectCallMap(const IRModule& mod) {
   return call_map;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ir.analysis.CollectCallMap", CollectCallMap);
-});
+}
 
 }  // namespace ir
 }  // namespace tvm

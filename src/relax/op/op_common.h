@@ -176,13 +176,14 @@ std::tuple<ArgTypes...> GetArgStructInfo(const Call& call, const BlockBuilder& c
  * be prepended with a prefix "relax.op." as the FFI identifier string for the make function,
  * \param OpRegName The identifier of the operator in the registry.
  */
-#define RELAX_UNARY_OP_INTERFACE(OpName, OpRegName)    \
-  Expr OpName(Expr x) {                                \
-    static const Op& op = Op::Get("relax." OpRegName); \
-    return Call(op, {std::move(x)}, Attrs(), {});      \
-  }                                                    \
-  TVM_FFI_STATIC_INIT_BLOCK(                           \
-      { tvm::ffi::reflection::GlobalDef().def("relax.op." OpRegName, OpName); })
+#define RELAX_UNARY_OP_INTERFACE(OpName, OpRegName)                       \
+  Expr OpName(Expr x) {                                                   \
+    static const Op& op = Op::Get("relax." OpRegName);                    \
+    return Call(op, {std::move(x)}, Attrs(), {});                         \
+  }                                                                       \
+  TVM_FFI_STATIC_INIT_BLOCK() {                                           \
+    tvm::ffi::reflection::GlobalDef().def("relax.op." OpRegName, OpName); \
+  }
 
 /************ Utilities ************/
 

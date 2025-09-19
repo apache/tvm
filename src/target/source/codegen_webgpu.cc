@@ -784,11 +784,11 @@ ffi::Module BuildWebGPU(IRModule mod, Target target) {
   return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("target.build.webgpu",
                         [](IRModule mod, Target target) { return BuildWebGPU(mod, target); });
-});
+}
 
 }  // namespace codegen
 }  // namespace tvm

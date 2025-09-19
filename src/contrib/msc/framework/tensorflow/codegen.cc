@@ -152,7 +152,7 @@ const ffi::Array<Doc> TensorflowCodeGen::GetOpCodes(const MSCJoint& node) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("msc.framework.tensorflow.GetTensorflowSources",
                         [](const MSCGraph& graph, const ffi::String& codegen_config,
@@ -161,7 +161,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                           codegen.Init();
                           return codegen.GetSources(print_config);
                         });
-});
+}
 
 }  // namespace msc
 }  // namespace contrib

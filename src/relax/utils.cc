@@ -247,10 +247,10 @@ Expr GetBoundValue(const Binding& b) {
  */
 Function CopyWithNewVars(Function func) { return FunctionCopier().Copy(func); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.CopyWithNewVars", CopyWithNewVars);
-});
+}
 
 }  // namespace relax
 }  // namespace tvm

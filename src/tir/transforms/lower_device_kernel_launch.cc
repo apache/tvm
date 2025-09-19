@@ -370,10 +370,10 @@ Pass LowerDeviceKernelLaunch() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.LowerDeviceKernelLaunch", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.LowerDeviceKernelLaunch", LowerDeviceKernelLaunch);
-});
+}
 
 }  // namespace transform
 }  // namespace tir

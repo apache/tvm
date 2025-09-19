@@ -125,12 +125,12 @@ ScheduleRule ScheduleRule::RandomComputeLocation() {
   return ScheduleRule(ffi::make_object<RandomComputeLocationNode>());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ RandomComputeLocationNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { RandomComputeLocationNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ScheduleRuleRandomComputeLocation",
                         ScheduleRule::RandomComputeLocation);
-});
+}
 }  // namespace meta_schedule
 }  // namespace tvm

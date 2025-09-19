@@ -511,6 +511,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
       std::swap(analyzer_, parent_->analyzer_);
       std::swap(var_map_, parent_->var_map_);
       std::swap(di_subprogram_, parent_->di_subprogram_);
+      std::swap(loop_frame_jump_tgts_, parent_->loop_frame_jump_tgts_);
     }
 
     void ExitWithScope() {
@@ -518,11 +519,13 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
       std::swap(analyzer_, parent_->analyzer_);
       std::swap(var_map_, parent_->var_map_);
       std::swap(di_subprogram_, parent_->di_subprogram_);
+      std::swap(loop_frame_jump_tgts_, parent_->loop_frame_jump_tgts_);
     }
 
     llvm::Function* function_{nullptr};
     llvm::DISubprogram* di_subprogram_{nullptr};
     std::unordered_map<const VarNode*, llvm::Value*> var_map_;
+    std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*>> loop_frame_jump_tgts_;
     std::unique_ptr<arith::Analyzer> analyzer_{std::make_unique<arith::Analyzer>()};
     CodeGenCPU* parent_;
   };
@@ -1186,13 +1189,13 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.codegen.llvm.target_cpu",
                                [](const ffi::PackedArgs& targs, ffi::Any* rv) {
                                  *rv = static_cast<void*>(new CodeGenCPU());
                                });
-});
+}
 
 }  // namespace codegen
 }  // namespace tvm

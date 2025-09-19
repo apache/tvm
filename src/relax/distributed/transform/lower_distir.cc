@@ -264,10 +264,10 @@ Pass LowerDistIR() {
   auto pass_func = [=](IRModule m, PassContext pc) { return DistIRSharder::LowerDistIR(m); };
   return CreateModulePass(pass_func, 1, "LowerDistIR", {});
 }
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.distributed.transform.LowerDistIR", LowerDistIR);
-});
+}
 }  // namespace transform
 
 }  // namespace distributed

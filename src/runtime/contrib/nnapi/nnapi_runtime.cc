@@ -241,12 +241,12 @@ ffi::Module NNAPIRuntimeCreate(const ffi::String& symbol_name, const ffi::String
   return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.nnapi_runtime_create", NNAPIRuntimeCreate)
       .def("ffi.Module.load_from_bytes.nnapi", JSONRuntimeBase::LoadFromBytes<NNAPIRuntime>);
-});
+}
 
 }  // namespace contrib
 }  // namespace runtime

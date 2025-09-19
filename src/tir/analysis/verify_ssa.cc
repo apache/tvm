@@ -140,10 +140,10 @@ bool VerifySSA(const PrimFunc& func) {
   return visitor.is_ssa_;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.analysis.verify_ssa", VerifySSA);
-});
+}
 
 namespace transform {
 
@@ -159,10 +159,10 @@ Pass VerifySSA() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.VerifySSA", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.VerifySSA", VerifySSA);
-});
+}
 
 }  // namespace transform
 

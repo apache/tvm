@@ -2433,7 +2433,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 //  Register runtime functions
 //-------------------------------------------------
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "vm.builtin.paged_attention_kv_cache_create", [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -2537,7 +2537,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
             std::move(f_copy_single_page), std::move(f_debug_get_kv));
         *rv = AttentionKVCache(std::move(n));
       });
-});
+}
 
 }  // namespace vm
 }  // namespace runtime

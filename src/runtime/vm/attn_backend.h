@@ -176,7 +176,8 @@ class FlashInferPagedPrefillFunc : public PagedPrefillFunc {
           plan_func_(float_workspace_buffer, int_workspace_buffer, page_locked_int_workspace_buffer,
                      qo_indptr->as_tensor(), page_indptr->as_tensor(), IntTuple(std::move(kv_len)),
                      total_qo_len, batch_size, num_qo_heads, num_kv_heads, page_size,
-                     /*enable_cuda_graph=*/false, qk_head_dim, v_head_dim, causal, copy_stream)
+                     /*enable_cuda_graph=*/false, qk_head_dim, v_head_dim, causal,
+                     /*window_left=*/-1, copy_stream)
               .cast<IntTuple>();
     } else if (attn_kind == AttnKind::kMLA) {
       plan_info_vec =
@@ -280,7 +281,8 @@ class FlashInferRaggedPrefillFunc : public RaggedPrefillFunc {
         plan_func_(float_workspace_buffer, int_workspace_buffer, page_locked_int_workspace_buffer,
                    qo_indptr->as_tensor(), kv_indptr->as_tensor(), IntTuple(std::move(kv_len)),
                    total_qo_len, batch_size, num_qo_heads, num_kv_heads, /*page_size=*/1,
-                   /*enable_cuda_graph=*/false, qk_head_dim, v_head_dim, causal, copy_stream)
+                   /*enable_cuda_graph=*/false, qk_head_dim, v_head_dim, causal,
+                   /*window_left=*/-1, copy_stream)
             .cast<IntTuple>();
   }
 

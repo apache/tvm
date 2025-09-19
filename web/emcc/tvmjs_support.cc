@@ -302,12 +302,12 @@ class AsyncLocalSession : public LocalSession {
   }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("wasm.LocalSession", []() {
     return CreateRPCSessionModule(std::make_shared<AsyncLocalSession>());
   });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

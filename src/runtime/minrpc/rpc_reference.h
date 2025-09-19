@@ -472,7 +472,9 @@ struct RPCReference {
           break;
         }
         default: {
-          if (type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+          if (type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin ||
+              type_index == ffi::TypeIndex::kTVMFFISmallStr ||
+              type_index == ffi::TypeIndex::kTVMFFISmallBytes) {
             channel->ReadFFIAny(&(packed_args[i]));
           } else {
             channel->ThrowError(RPCServerStatus::kUnknownTypeIndex);

@@ -153,10 +153,10 @@ then be registered with the following steps.
 
 #. Register the function to the tvm registry::
 
-     TVM_FFI_STATIC_INIT_BLOCK({
+     TVM_FFI_STATIC_INIT_BLOCK() {
        namespace refl = tvm::ffi::reflection;
        refl::GlobalDef().def("device_api.foo", FooDeviceAPI::Global);
-     });
+     }
 
 .. _base.h: https://github.com/apache/tvm/blob/main/include/tvm/runtime/base.h
 
@@ -228,10 +228,10 @@ the same name as was used in the ``TVM_REGISTER_TARGET_KIND``
 definition above. ::
 
   tvm::runtime::Module GeneratorFooCode(IRModule mod, Target target);
-  TVM_FFI_STATIC_INIT_BLOCK({
+  TVM_FFI_STATIC_INIT_BLOCK() {
     namespace refl = tvm::ffi::reflection;
     refl::GlobalDef().def("target.build.foo", GeneratorFooCode);
-  });
+  }
 
 The code generator takes two arguments.  The first is the ``IRModule``
 to compile, and the second is the ``Target`` that describes the device

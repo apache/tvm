@@ -37,7 +37,7 @@ void TensorNode::RegisterReflection() {
       .def_ro("value_index", &TensorNode::value_index);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ TensorNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { TensorNode::RegisterReflection(); }
 
 IterVar thread_axis(Range dom, std::string tag) {
   return IterVar(dom, Var(tag, dom.defined() ? dom->extent.dtype() : DataType::Int(32)),
@@ -113,13 +113,13 @@ Tensor::Tensor(ffi::Array<PrimExpr> shape, DataType dtype, Operation op, int val
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "te.Tensor", [](ffi::Array<PrimExpr> shape, DataType dtype, Operation op, int value_index) {
         return Tensor(shape, dtype, op, value_index);
       });
-});
+}
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TensorNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -128,7 +128,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // Other tensor ops.
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("te.TensorEqual", &Tensor::operator==)
@@ -140,7 +140,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](Operation op, int64_t output) { return op.output(static_cast<size_t>(output)); })
       .def_method("te.OpNumOutputs", &OperationNode::num_outputs)
       .def_method("te.OpInputTensors", &OperationNode::InputTensors);
-});
+}
 
 }  // namespace te
 }  // namespace tvm
