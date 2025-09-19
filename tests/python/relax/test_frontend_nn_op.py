@@ -384,6 +384,8 @@ def test_chunk():
 def test_nn():
     class Model(Module):
         def test(self, x: Tensor, weight: Tensor, bias: Tensor):
+            log_out = op.log(x)
+            floor_out = op.floor(x)
             relu_out = op.relu(x)
             relu6_out = op.relu6(x)
             silu_out = op.silu(x)
@@ -398,8 +400,6 @@ def test_nn():
             rms_norm_out = op.rms_norm(x, weight, axes=[-2, -1])
             rms_norm_with_bias_out = op.rms_norm(x, weight, axes=[-2, -1])
             group_norm_out = op.group_norm(x, num_groups=1, weight=bias, bias=bias)
-            log_out = op.log(x)
-            floor_out = op.floor(x)
             return x
 
     @R.function
@@ -411,8 +411,8 @@ def test_nn():
     ) -> R.Tuple(R.Tensor((2, 3, 4, 5), dtype="float32"), R.Tuple(R.Object)):
         R.func_attr({"num_input": 4})
         with R.dataflow():
-            log: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.log(x)
-            floor: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.floor(x)
+            log: R.Tensor((2, 3, 4, 5), dtype="float32") = R.log(x)
+            floor: R.Tensor((2, 3, 4, 5), dtype="float32") = R.floor(x)
             relu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.relu(x)
             relu6: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.relu6(x)
             silu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.silu(x)
@@ -482,7 +482,7 @@ def test_create():
             full2: R.Tensor((10, 10), dtype="float32") = R.full(R.shape([10, 10]), R.const(10, "float32"), dtype="float32")
             zeros: R.Tensor((10, 10), dtype="float32") = R.zeros(R.shape([10, 10]), dtype="float32")
             zeros1: R.Tensor((10, 10), dtype="float16") = R.zeros(R.shape([10, 10]), dtype="float16")
-            arange: R.Tensor((10), dtype="float32") = R.arange(R.const(0, "int"), R.const(10, "int"), R.const(1, "int"), dtype="float32")
+            arange: R.Tensor((10,), dtype="float32") = R.arange(T.int64(0), T.int64(10), T.int64(1), dtype="float32")
             gv1: R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tuple(R.Object)) = x, (_io,)
             R.output(gv1)
         return gv1
@@ -511,7 +511,7 @@ def test_timestep_embedding():
             lv1: R.Tensor((3,), dtype="float32") = R.astype(x, dtype="float32")
             lv2: R.Tensor((3, 1), dtype="float32") = R.expand_dims(lv1, axis=[1])
             lv3: R.Tensor((5,), dtype="float32") = R.arange(
-                R.prim_value(0), R.prim_value(5), R.prim_value(1), dtype="float32"
+                R.prim_value(T.int64(0)), R.prim_value(T.int64(5)), R.prim_value(T.int64(1)), dtype="float32"
             )
             lv4: R.Tensor((5,), dtype="float32") = R.multiply(
                 R.const(-9.2103404998779297, "float32"), lv3
