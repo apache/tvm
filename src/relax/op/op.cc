@@ -917,10 +917,10 @@ Expr MakeCallPyFunc(StringImm func_name, Tuple args, ffi::Array<TensorStructInfo
   return Call(op, {func_name, args}, {}, {out_sinfo});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
+TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.call_py_func", MakeCallPyFunc);
-}
+});
 
 // call builtin
 StructInfo InferStructInfoCallBuiltinWithCtx(const Call& call, const BlockBuilder& ctx) {

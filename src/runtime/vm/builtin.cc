@@ -431,6 +431,24 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 //-------------------------------------
+//  Python function call support
+//-------------------------------------
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("vm.builtin.call_py_func", [](ffi::PackedArgs args, ffi::Any* rv) {
+    // This is a placeholder implementation
+    // In a real implementation, this would:
+    // 1. Get the function name from args[0]
+    // 2. Get the arguments from args[1]
+    // 3. Look up the Python function in the global registry
+    // 4. Convert TVM tensors to Python objects
+    // 5. Call the Python function
+    // 6. Convert the result back to TVM format
+    LOG(FATAL) << "vm.builtin.call_py_func not implemented yet - Python function calls not supported in VM runtime";
+  });
+});
+
+//-------------------------------------
 //  Builtin runtime operators.
 //-------------------------------------
 TVM_FFI_STATIC_INIT_BLOCK({
