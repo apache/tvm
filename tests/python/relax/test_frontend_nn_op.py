@@ -341,9 +341,7 @@ def test_chunk():
             return chunk
 
     @R.function
-    def test(
-        x: R.Tensor((8,), dtype="float32"), _io: R.Object
-    ) -> R.Tuple(
+    def test(x: R.Tensor((8,), dtype="float32"), _io: R.Object) -> R.Tuple(
         R.Tuple(
             R.Tensor((2,), dtype="float32"),
             R.Tensor((2,), dtype="float32"),
@@ -511,7 +509,10 @@ def test_timestep_embedding():
             lv1: R.Tensor((3,), dtype="float32") = R.astype(x, dtype="float32")
             lv2: R.Tensor((3, 1), dtype="float32") = R.expand_dims(lv1, axis=[1])
             lv3: R.Tensor((5,), dtype="float32") = R.arange(
-                R.prim_value(T.int64(0)), R.prim_value(T.int64(5)), R.prim_value(T.int64(1)), dtype="float32"
+                R.prim_value(T.int64(0)),
+                R.prim_value(T.int64(5)),
+                R.prim_value(T.int64(1)),
+                dtype="float32",
             )
             lv4: R.Tensor((5,), dtype="float32") = R.multiply(
                 R.const(-9.2103404998779297, "float32"), lv3
@@ -553,9 +554,9 @@ def test_scaled_dot_product_attention():
     ) -> R.Tuple(R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tuple(R.Object)):
         R.func_attr({"num_input": 4})
         with R.dataflow():
-            scaled_dot_product_attention: R.Tensor(
-                (1, 32, 32, 32), dtype="float32"
-            ) = R.nn.attention(query, key, value, scale=None, causal_mask=None)
+            scaled_dot_product_attention: R.Tensor((1, 32, 32, 32), dtype="float32") = (
+                R.nn.attention(query, key, value, scale=None, causal_mask=None)
+            )
             gv1: R.Tuple(R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tuple(R.Object)) = (
                 scaled_dot_product_attention,
                 (_io,),
