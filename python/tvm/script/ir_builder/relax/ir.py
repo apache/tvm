@@ -496,7 +496,9 @@ def call_py_func(
 
     # Convert string to StringImm
     try:
-        func_name_imm = StringImm(py_func_name) if isinstance(py_func_name, py_str) else py_func_name
+        func_name_imm = (
+            StringImm(py_func_name) if isinstance(py_func_name, py_str) else py_func_name
+        )
     except (TypeError, ValueError, AttributeError):
         func_name_imm = StringImm(py_func_name)
     return _call_py_func(func_name_imm, args, out_sinfo)
