@@ -441,18 +441,14 @@ static std::unordered_map<std::string, ffi::Function> py_func_registry;
 /*!
  * \brief Clear the Python function registry on shutdown
  */
-void ClearPyFuncRegistry() {
-  py_func_registry.clear();
-}
+void ClearPyFuncRegistry() { py_func_registry.clear(); }
 
 /*!
  * \brief Register a Python function for call_py_func
  * \param name The function name
  * \param func The Python function wrapped as ffi::Function
  */
-void RegisterPyFunc(const std::string& name, ffi::Function func) {
-  py_func_registry[name] = func;
-}
+void RegisterPyFunc(const std::string& name, ffi::Function func) { py_func_registry[name] = func; }
 
 /*!
  * \brief Get a registered Python function
