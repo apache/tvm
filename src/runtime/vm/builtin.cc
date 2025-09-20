@@ -33,6 +33,7 @@
 #include <tvm/runtime/vm/builtin.h>
 #include <tvm/runtime/vm/bytecode.h>
 #include <tvm/runtime/vm/vm.h>
+#include <unordered_map>
 
 namespace tvm {
 namespace runtime {
@@ -433,20 +434,78 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 //-------------------------------------
 //  Python function call support
 //-------------------------------------
-TVM_FFI_STATIC_INIT_BLOCK({
+
+// Global registry for Python functions
+static std::unordered_map<std::string, ffi::Function> py_func_registry;
+
+/*!
+ * \brief Clear the Python function registry on shutdown
+ */
+void ClearPyFuncRegistry() {
+  py_func_registry.clear();
+}
+
+/*!
+ * \brief Register a Python function for call_py_func
+ * \param name The function name
+ * \param func The Python function wrapped as ffi::Function
+ */
+void RegisterPyFunc(const std::string& name, ffi::Function func) {
+  py_func_registry[name] = func;
+}
+
+/*!
+ * \brief Get a registered Python function
+ * \param name The function name
+ * \return The Python function
+ */
+ffi::Function GetPyFunc(const std::string& name) {
+  auto it = py_func_registry.find(name);
+  if (it == py_func_registry.end()) {
+    LOG(FATAL) << "Python function '" << name << "' not found in registry";
+  }
+  return it->second;
+}
+
+/*!
+ * \brief Call a Python function from VM
+ * \param args The packed function arguments (tuple containing function name and arguments)
+ * \param rv The return value
+ */
+void CallPyFunc(ffi::PackedArgs args, ffi::Any* rv) {
+  // args[0] should be a tuple containing (func_name, args_tuple)
+  if (args.size() != 1) {
+    LOG(FATAL) << "vm.builtin.call_py_func expects exactly 1 argument (tuple)";
+  }
+
+  auto tuple_arg = args[0].cast<ffi::Array<ffi::Any>>();
+  if (tuple_arg.size() != 2) {
+    LOG(FATAL) << "vm.builtin.call_py_func tuple should contain (func_name, args)";
+  }
+
+  // Get function name
+  std::string func_name = tuple_arg[0].cast<ffi::String>();
+
+  // Get arguments tuple
+  auto func_args = tuple_arg[1].cast<ffi::Array<ffi::Any>>();
+
+  // Look up Python function in registry
+  ffi::Function py_func = GetPyFunc(func_name);
+
+  // Call the Python function with the arguments
+  std::vector<ffi::AnyView> py_args_vec(func_args.begin(), func_args.end());
+  ffi::PackedArgs py_args(py_args_vec.data(), py_args_vec.size());
+  py_func.CallPacked(py_args, rv);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("vm.builtin.call_py_func", [](ffi::PackedArgs args, ffi::Any* rv) {
-    // This is a placeholder implementation
-    // In a real implementation, this would:
-    // 1. Get the function name from args[0]
-    // 2. Get the arguments from args[1]
-    // 3. Look up the Python function in the global registry
-    // 4. Convert TVM tensors to Python objects
-    // 5. Call the Python function
-    // 6. Convert the result back to TVM format
-    LOG(FATAL) << "vm.builtin.call_py_func not implemented yet - Python function calls not supported in VM runtime";
-  });
-});
+  refl::GlobalDef()
+      .def_packed("vm.builtin.call_py_func", CallPyFunc)
+      .def("vm.builtin.register_py_func", RegisterPyFunc)
+      .def("vm.builtin.get_py_func", GetPyFunc)
+      .def("vm.builtin.clear_py_func_registry", ClearPyFuncRegistry);
+}
 
 //-------------------------------------
 //  Builtin runtime operators.
