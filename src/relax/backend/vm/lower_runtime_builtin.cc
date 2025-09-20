@@ -151,7 +151,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     tuple_fields.push_back(call_node->args[0]);  // function name
     tuple_fields.push_back(call_node->args[1]);  // arguments tuple
     auto combined_tuple = Tuple(tuple_fields);
-    
+
     // Direct call to vm.builtin.call_py_func
     return Call(builtin_call_py_func_, {combined_tuple}, call_node->attrs, call_node->sinfo_args, call_node->span);
   }
