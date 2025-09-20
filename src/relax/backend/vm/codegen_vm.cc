@@ -368,8 +368,6 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
     builder_->EmitCall(func, args, dst_reg);
   }
-
-
   void EmitNormalCall(const Call& call_node, RegName dst_reg) {
     Instruction::Arg func = VisitExpr(call_node->op);
     std::vector<Instruction::Arg> args = VisitArray(call_node->args);

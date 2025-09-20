@@ -24,10 +24,10 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/backend.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/type.h>
-#include <tvm/relax/expr.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/tir/op.h>
 
