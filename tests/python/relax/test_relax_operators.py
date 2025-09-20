@@ -411,103 +411,91 @@ def test_op_call_inplace_packed(exec_mode):
 
 def test_op_call_py_func(exec_mode):
     """Test R.call_py_func operator functionality."""
-    
+
     # Define Python functions for testing
     def add_one(x):
         """Add one to input tensor."""
-        if hasattr(x, 'numpy'):
+        if isinstance(x, tvm.runtime.Tensor):
             x_np = x.numpy()
-        elif hasattr(x, 'asnumpy'):
+        elif hasattr(x, "asnumpy"):  # Keep hasattr for backward compatibility
             x_np = x.asnumpy()
         else:
             # Convert TVM Array to NumPy
             x_np = np.array(x)
             # If it's still a Tensor, convert to numpy
-            if hasattr(x_np, 'numpy'):
+            if isinstance(x_np, tvm.runtime.Tensor):
                 x_np = x_np.numpy()
             # If the array contains Tensor objects, extract their values
-            if len(x_np) > 0 and hasattr(x_np[0], 'numpy'):
+            if len(x_np) > 0 and isinstance(x_np[0], tvm.runtime.Tensor):
                 x_np = np.array([t.numpy() for t in x_np])
                 # Flatten if needed to match expected shape
                 if x_np.ndim > 1:
                     x_np = x_np.flatten()
         result = x_np + 1.0
         return tvm.runtime.tensor(result)
-    
+
     def multiply_by_two(x):
         """Multiply input tensor by two."""
-        if hasattr(x, 'numpy'):
+        if isinstance(x, tvm.runtime.Tensor):
             x_np = x.numpy()
-        elif hasattr(x, 'asnumpy'):
+        elif hasattr(x, "asnumpy"):  # Keep hasattr for backward compatibility
             x_np = x.asnumpy()
         else:
             # Convert TVM Array to NumPy
             x_np = np.array(x)
             # If it's still a Tensor, convert to numpy
-            if hasattr(x_np, 'numpy'):
+            if isinstance(x_np, tvm.runtime.Tensor):
                 x_np = x_np.numpy()
             # If the array contains Tensor objects, extract their values
-            if len(x_np) > 0 and hasattr(x_np[0], 'numpy'):
+            if len(x_np) > 0 and isinstance(x_np[0], tvm.runtime.Tensor):
                 x_np = np.array([t.numpy() for t in x_np])
                 # Flatten if needed to match expected shape
                 if x_np.ndim > 1:
                     x_np = x_np.flatten()
         result = x_np * 2.0
         return tvm.runtime.tensor(result)
-    
+
     # Register Python functions
     register_func = tvm.get_global_func("vm.builtin.register_py_func")
     register_func("add_one", add_one)
     register_func("multiply_by_two", multiply_by_two)
-    
+
     @tvm.script.ir_module
     class CallPyFuncTest:
         @R.function
         def simple_call(x: R.Tensor((3,), "float32")):
             # Simple call_py_func test
-            result = R.call_py_func(
-                R.str("add_one"), 
-                (x,), 
-                out_sinfo=R.Tensor((3,), "float32")
-            )
+            result = R.call_py_func(R.str("add_one"), (x,), out_sinfo=R.Tensor((3,), "float32"))
             return result
-        
+
         @R.function
         def multiple_calls(x: R.Tensor((2,), "float32")):
             # Multiple call_py_func calls
-            y = R.call_py_func(
-                R.str("add_one"), 
-                (x,), 
-                out_sinfo=R.Tensor((2,), "float32")
-            )
-            z = R.call_py_func(
-                R.str("multiply_by_two"), 
-                (y,), 
-                out_sinfo=R.Tensor((2,), "float32")
-            )
+            y = R.call_py_func(R.str("add_one"), (x,), out_sinfo=R.Tensor((2,), "float32"))
+            z = R.call_py_func(R.str("multiply_by_two"), (y,), out_sinfo=R.Tensor((2,), "float32"))
             return z
-    
+
     try:
         # Test simple call
         x_data = np.array([1.0, 2.0, 3.0], dtype=np.float32)
         x_tvm = tvm.runtime.tensor(x_data)
-        
+
         result = run_cpu(CallPyFuncTest, "simple_call", x_tvm, exec_mode=exec_mode)
-        
+
         # Verify result
         expected = x_data + 1.0
         np.testing.assert_allclose(result.numpy(), expected, rtol=1e-5, atol=1e-5)
-        
+
         # Test multiple calls
         y_data = np.array([0.5, 1.5], dtype=np.float32)
         y_tvm = tvm.runtime.tensor(y_data)
-        
+
         result2 = run_cpu(CallPyFuncTest, "multiple_calls", y_tvm, exec_mode=exec_mode)
-        
+
         # Verify result (should be (y + 1) * 2)
         expected2 = (y_data + 1.0) * 2.0
         np.testing.assert_allclose(result2.numpy(), expected2, rtol=1e-5, atol=1e-5)
-        
+
     finally:
         # Clean up - clear Python function registry
         try:
