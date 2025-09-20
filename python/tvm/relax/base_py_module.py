@@ -45,6 +45,14 @@ class BasePyModule:
     Only IRModules that inherit from this class are allowed to contain Python functions.
     """
 
+    def __del__(self):
+        """Clean up registered Python functions on module destruction."""
+        try:
+            clear_func = tvm.get_global_func("vm.builtin.clear_py_func_registry")
+            clear_func()
+        except (ValueError, AttributeError):
+            pass
+
     def __init__(
         self,
         ir_mod: IRModule,
