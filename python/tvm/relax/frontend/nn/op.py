@@ -1174,6 +1174,92 @@ def exp(x: Tensor, name: str = "exp") -> Tensor:
     return wrap_nested(_op.exp(x._expr), name)
 
 
+def log(x: Tensor, name: str = "log") -> Tensor:
+    r"""Applies the natural logarithm function.
+
+    .. math::
+        \text{Log}(x) = \log(x)
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data to the operator.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return wrap_nested(_op.log(x._expr), name)
+
+
+def floor(x: Tensor, name: str = "floor") -> Tensor:
+    r"""Computes the floor of the input tensor.
+
+    .. math::
+        \text{Floor}(x) = \floor(x)
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data to the operator.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return wrap_nested(_op.floor(x._expr), name)
+
+
+def arange(
+    start: int,
+    end: Optional[int] = None,
+    step: int = 1,
+    dtype: Optional[str] = "float32",
+    name: str = "arange",
+) -> Tensor:
+    r"""Construct a tensor with evenly spaced elements.
+
+    Parameters
+    ----------
+    start : int
+        The start of the interval.
+
+    end : Optional[int]
+        The end of the interval. If not given, it will be set to start,
+        and start will be set to 0.
+
+    step : int
+        The step size.
+
+    dtype : Optional[str]
+        The data type of the created tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.arange(start, end, step, dtype), name)
+
+
 def permute(x: Tensor, axes: Optional[List[int]], name: str = "permute") -> Tensor:
     """Permutes the dimensions of the input tensor.
 
