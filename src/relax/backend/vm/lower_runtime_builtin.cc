@@ -153,8 +153,8 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     auto combined_tuple = Tuple(tuple_fields);
 
     // Direct call to vm.builtin.call_py_func
-    return Call(builtin_call_py_func_, {combined_tuple}, call_node->attrs,
-                call_node->sinfo_args, call_node->span);
+    return Call(builtin_call_py_func_, {combined_tuple}, call_node->attrs, call_node->sinfo_args,
+                call_node->span);
   }
 
   Expr ToDevice(const Call& call_node) {
