@@ -650,7 +650,10 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
   // reads/writes filled in.
 
   BufferSubstituter substituter(var_map, input_buffer_map);
-  Stmt body = substituter(extern_op->body);
+  Stmt substituted_body = substituter(extern_op->body);
+
+  ProducerToBufferTransformer transformer(info->tensor2buffers);
+  Stmt body = transformer(substituted_body);
 
   // Step 4. Generate opaque block as body.
   return BlockRealize(/*iter_values=*/{},
