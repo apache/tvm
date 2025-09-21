@@ -865,7 +865,6 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     cur_seq_ids_ = seq_ids;
     cur_append_lengths_ = append_lengths;
     cur_seqlen_padding_factor_ = seqlen_padding_factor;
-    LOG(INFO) << cur_seqlen_padding_factor_;
 
     // - Collect sequence/block/page information for attention.
     std::vector<Sequence*> sequences;
@@ -1305,7 +1304,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     CHECK_EQ(qkv_data->shape[2], qk_head_dim_);
     int64_t total_seq_length = 0;
     for (int64_t seq_id = 0; seq_id < cur_batch_size_; ++seq_id) {
-      total_seq_length += cur_append_lengths_[seq_id];
+      int actual_len = cur_append_lengths_[seq_id];
+      int padded_len = ((actual_len + cur_seqlen_padding_factor_ - 1) / cur_seqlen_padding_factor_) * cur_seqlen_padding_factor_;
+      total_seq_length += padded_len;
     }
     CHECK_LE(total_seq_length, qkv_data->shape[0]);
     // Sync the copy stream and the compute stream.
@@ -2306,6 +2307,13 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     // - Reset the copy.
     aux_data_manager_->ResetAttnAuxDataCopy();
 
+    int64_t padded_seq_length = 0;
+    for (int64_t seq_id = 0; seq_id < cur_batch_size_; ++seq_id) {
+      int actual_len = cur_append_lengths_[seq_id];
+      int padded_len = ((actual_len + cur_seqlen_padding_factor_ - 1) / cur_seqlen_padding_factor_) * cur_seqlen_padding_factor_;
+      padded_seq_length += padded_len;
+    }
+
     // 1. q_rope_position_map
     // q_rope_position_map has to be synced first so that it has a 0 byte offset
     ICHECK_EQ(q_rope_position_map_host_.size(), total_append_length);
@@ -2314,10 +2322,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         int actual_len = cur_append_lengths_[i];
         int padded_len = ((actual_len + cur_seqlen_padding_factor_ - 1) / cur_seqlen_padding_factor_) * cur_seqlen_padding_factor_;
         int length_to_pad = padded_len - actual_len;
-        LOG(INFO) << "Q Rope Position Info, Actual Len: " << actual_len << ", Padded Len: " << padded_len << ", Length to Pad: " << length_to_pad;
+        // LOG(INFO) << "Q Rope Position Info, Actual Len: " << actual_len << ", Padded Len: " << padded_len << ", Length to Pad: " << length_to_pad << ", Position Map Length " << q_rope_position_map_host_.size() << ", Pointer: " << q_rope_position_map_host_.data();
+        // CHECK(reinterpret_cast<uintptr_t>(q_rope_position_map_host_.data()) % 128 == 0) << "Pointer is not properly aligned!";
         for (int j = 0; j < length_to_pad; ++j) {
-          LOG(INFO) << "ADDING SINGLE ROPE POSITION PAD";
-          q_rope_position_map_host_.push_back(0);
+          // LOG(INFO) << "ADDING SINGLE ROPE POSITION PAD";
+          q_rope_position_map_host_.push_back(-1);
         }
       }
     }
@@ -2414,9 +2423,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         int actual_len = cur_append_lengths_[i];
         int padded_len = ((actual_len + cur_seqlen_padding_factor_ - 1) / cur_seqlen_padding_factor_) * cur_seqlen_padding_factor_;
         int length_to_pad = padded_len - actual_len;
-        LOG(INFO) << "Position Map Info, Actual Len: " << actual_len << ", Padded Len: " << padded_len << ", Length to Pad: " << length_to_pad;
+        // LOG(INFO) << "Position Map Info, Actual Len: " << actual_len << ", Padded Len: " << padded_len << ", Length to Pad: " << length_to_pad << ", Position Map Length " << append_position_map_host_.size() << ", Pointer: " << append_position_map_host_.data();
+        // CHECK(reinterpret_cast<uintptr_t>(append_position_map_host_.data()) % 128 == 0) << "Pointer is not properly aligned!";
         for (int j = 0; j < length_to_pad; ++j) {
-          LOG(INFO) << "ADDING SINGLE POSITION PAD";
           append_position_map_host_.push_back(-1);  // -1 indicates padding token
         }
       }
@@ -2424,6 +2433,30 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
     append_position_map_view_ =
         aux_data_manager_->CopyAppendPositionMapAsync(&append_position_map_host_);
+
+    // if (cur_seqlen_padding_factor_ > 1) {
+    //   for (int i = 0; i < num_sequences; ++i) {
+    //     int actual_len = cur_append_lengths_[i];
+    //     int padded_len = ((actual_len + cur_seqlen_padding_factor_ - 1) / cur_seqlen_padding_factor_) * cur_seqlen_padding_factor_;
+    //     int length_to_pad = padded_len - actual_len;
+    //     for (int j = 0; j < length_to_pad; ++j) {
+    //       kv_transfer_remote_position_map_host_.push_back(-1);
+    //       kv_transfer_recver_id_host_.push_back(-1);
+    //     }
+    //   }
+    // }
+
+    // LOG debug info for shapes
+    // LOG(INFO) << "Prefill Chunk Size: " << prefill_chunk_size_;
+    // LOG(INFO) << "Q Rope Position Map Shape: " << q_rope_position_map_host_.size();
+    // LOG(INFO) << "Cur Append Pos Length Indptr Shape: " << cur_append_lengths_indptr_host_.size();
+    // LOG(INFO) << "Append Position Map Shape: " << append_position_map_host_.size();
+    // LOG(INFO) << "KV_Transfer Remote Position Map Shape: " << kv_transfer_remote_position_map_host_.size();
+    // LOG(INFO) << "KV_Transfer Recver ID Shape: " << kv_transfer_recver_id_host_.size();
+    // LOG(INFO) << "KV_Transfer Page2Page Local Position Map Shape: " << kv_transfer_page_to_page_local_position_map_host_.size();
+    // LOG(INFO) << "KV_Transfer Page2Page Remote Position Map Shape: " << kv_transfer_page_to_page_remote_position_map_host_.size();
+    // LOG(INFO) << "KV_Transfer Page2Page Recver ID Shape: " << kv_transfer_page_to_page_recver_id_host_.size();
+
     // 10. kv_transfer_remote_position_map
     kv_transfer_remote_position_map_view_ = aux_data_manager_->CopyKVTransferRemotePositionMapAsync(
         &kv_transfer_remote_position_map_host_);
@@ -2454,8 +2487,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
     // 16. Create view for temporary arrays for attention computation.
     temp_attn_output_view_ = temp_attn_output_device_.CreateView(
-        {total_append_length, num_qo_heads_, v_head_dim_}, temp_attn_output_device_->dtype);
-    temp_attn_lse_view_ = temp_attn_lse_device_.CreateView({total_append_length, num_qo_heads_},
+        {padded_seq_length, num_qo_heads_, v_head_dim_}, temp_attn_output_device_->dtype);
+    temp_attn_lse_view_ = temp_attn_lse_device_.CreateView({padded_seq_length, num_qo_heads_},
                                                            temp_attn_lse_device_->dtype);
     merged_attn_lse_view_ = merged_attn_lse_device_.CreateView({total_append_length, num_qo_heads_},
                                                                merged_attn_lse_device_->dtype);
