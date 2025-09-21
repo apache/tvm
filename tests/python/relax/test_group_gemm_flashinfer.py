@@ -69,6 +69,7 @@ def calc_diff(x: np.ndarray, y: np.ndarray):
 
 def quantize_fp8(x, scale_shape, tile_shape, scale_major_mode):
     from einops import rearrange, reduce, repeat
+
     """
     Quantizes a 2D or 3D tensor to FP8.
 
@@ -159,6 +160,7 @@ def quantize_fp8(x, scale_shape, tile_shape, scale_major_mode):
 
 def dequantize_fp8(x, x_scale, scale_major_mode):
     from einops import rearrange, reduce, repeat
+
     """
     Quantizes a 2D or 3D tensor to FP8.
 
