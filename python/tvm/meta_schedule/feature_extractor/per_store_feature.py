@@ -18,7 +18,7 @@
 """We extract one feature vector per BufferStoreNode statement in a TIR Stmt,
 so we call this feature as "per-store" feature.
 """
-from tvm.ffi import register_object
+from tvm_ffi import register_object
 
 from .. import _ffi_api
 from .feature_extractor import FeatureExtractor

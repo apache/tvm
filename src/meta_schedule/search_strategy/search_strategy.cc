@@ -23,8 +23,8 @@
 namespace tvm {
 namespace meta_schedule {
 
-MeasureCandidate::MeasureCandidate(tir::Schedule sch, Array<ArgInfo> args_info) {
-  ObjectPtr<MeasureCandidateNode> n = make_object<MeasureCandidateNode>();
+MeasureCandidate::MeasureCandidate(tir::Schedule sch, ffi::Array<ArgInfo> args_info) {
+  ObjectPtr<MeasureCandidateNode> n = ffi::make_object<MeasureCandidateNode>();
   n->sch = sch;
   n->args_info = args_info;
   data_ = std::move(n);
@@ -37,9 +37,9 @@ void PySearchStrategyNode::InitializeWithTuneContext(const TuneContext& context)
 }
 
 void PySearchStrategyNode::PreTuning(int max_trials, int num_trials_per_iter,
-                                     const Array<tir::Schedule>& design_spaces,
-                                     const Optional<Database>& database,
-                                     const Optional<CostModel>& cost_model) {
+                                     const ffi::Array<tir::Schedule>& design_spaces,
+                                     const ffi::Optional<Database>& database,
+                                     const ffi::Optional<CostModel>& cost_model) {
   ICHECK(f_pre_tuning != nullptr) << "PySearchStrategy's PreTuning method not implemented!";
   f_pre_tuning(max_trials, num_trials_per_iter, design_spaces, database, cost_model);
 }
@@ -49,14 +49,15 @@ void PySearchStrategyNode::PostTuning() {
   f_post_tuning();
 }
 
-Optional<Array<MeasureCandidate>> PySearchStrategyNode::GenerateMeasureCandidates() {
+ffi::Optional<ffi::Array<MeasureCandidate>> PySearchStrategyNode::GenerateMeasureCandidates() {
   ICHECK(f_generate_measure_candidates != nullptr)
       << "PySearchStrategy's GenerateMeasureCandidates method not implemented!";
   return f_generate_measure_candidates();
 }
 
-void PySearchStrategyNode::NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
-                                               const Array<RunnerResult>& results) {
+void PySearchStrategyNode::NotifyRunnerResults(
+    const ffi::Array<MeasureCandidate>& measure_candidates,
+    const ffi::Array<RunnerResult>& results) {
   ICHECK(f_notify_runner_results != nullptr)
       << "PySearchStrategy's NotifyRunnerResults method not implemented!";
   f_notify_runner_results(measure_candidates, results);
@@ -74,7 +75,7 @@ SearchStrategy SearchStrategy::PySearchStrategy(
     PySearchStrategyNode::FGenerateMeasureCandidates f_generate_measure_candidates,   //
     PySearchStrategyNode::FNotifyRunnerResults f_notify_runner_results,               //
     PySearchStrategyNode::FClone f_clone) {
-  ObjectPtr<PySearchStrategyNode> n = make_object<PySearchStrategyNode>();
+  ObjectPtr<PySearchStrategyNode> n = ffi::make_object<PySearchStrategyNode>();
   n->f_initialize_with_tune_context = f_initialize_with_tune_context;
   n->f_pre_tuning = f_pre_tuning;
   n->f_post_tuning = f_post_tuning;
@@ -84,16 +85,16 @@ SearchStrategy SearchStrategy::PySearchStrategy(
   return SearchStrategy(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   MeasureCandidateNode::RegisterReflection();
   PySearchStrategyNode::RegisterReflection();
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("meta_schedule.MeasureCandidate",
-           [](tir::Schedule sch, Optional<Array<ArgInfo>> args_info) -> MeasureCandidate {
+           [](tir::Schedule sch, ffi::Optional<ffi::Array<ArgInfo>> args_info) -> MeasureCandidate {
              return MeasureCandidate(sch, args_info.value_or({}));
            })
       .def("meta_schedule.SearchStrategyPySearchStrategy", SearchStrategy::PySearchStrategy)
@@ -106,7 +107,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_method("meta_schedule.SearchStrategyNotifyRunnerResults",
                   &SearchStrategyNode::NotifyRunnerResults)
       .def_method("meta_schedule.SearchStrategyClone", &SearchStrategyNode::Clone);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

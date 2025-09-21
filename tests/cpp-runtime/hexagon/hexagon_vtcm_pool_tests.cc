@@ -21,6 +21,7 @@
 
 #include "../src/runtime/hexagon/hexagon_device_api.h"
 
+using namespace tvm;
 using namespace tvm::runtime;
 using namespace tvm::runtime::hexagon;
 using namespace tvm::ffi;
@@ -256,28 +257,28 @@ TEST_F(HexagonVtcmPoolTest, vtcm_alignment) {
   void* ptr;
 
   // Invalid alignments
-  EXPECT_THROW(test_hexbuffs->AllocateHexagonBuffer(min_bytes, 128 + 1, String("global")),
+  EXPECT_THROW(test_hexbuffs->AllocateHexagonBuffer(min_bytes, 128 + 1, ffi::String("global")),
                InternalError);
-  EXPECT_THROW(test_hexbuffs->AllocateHexagonBuffer(min_bytes, 2048 + 1, String("global")),
+  EXPECT_THROW(test_hexbuffs->AllocateHexagonBuffer(min_bytes, 2048 + 1, ffi::String("global")),
                InternalError);
 
   // Valid alignments, sizes need to be adjusted
-  ptr = test_hexbuffs->AllocateHexagonBuffer(1, 128, String("global"));
+  ptr = test_hexbuffs->AllocateHexagonBuffer(1, 128, ffi::String("global"));
   CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0) << "Must be multiple of 128 " << ptr;
 
-  ptr = test_hexbuffs->AllocateHexagonBuffer(127, 128, String("global"));
+  ptr = test_hexbuffs->AllocateHexagonBuffer(127, 128, ffi::String("global"));
   CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0) << "Must be multiple of 128 " << ptr;
 
-  ptr = test_hexbuffs->AllocateHexagonBuffer(129, 128, String("global"));
+  ptr = test_hexbuffs->AllocateHexagonBuffer(129, 128, ffi::String("global"));
   CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0) << "Must be multiple of 128 " << ptr;
 
-  ptr = test_hexbuffs->AllocateHexagonBuffer(1, 2048, String("global"));
+  ptr = test_hexbuffs->AllocateHexagonBuffer(1, 2048, ffi::String("global"));
   CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0) << "Must be multiple of 2k " << ptr;
 
-  ptr = test_hexbuffs->AllocateHexagonBuffer(2047, 2048, String("global"));
+  ptr = test_hexbuffs->AllocateHexagonBuffer(2047, 2048, ffi::String("global"));
   CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0) << "Must be multiple of 2k " << ptr;
 
-  ptr = test_hexbuffs->AllocateHexagonBuffer(2049, 2048, String("global"));
+  ptr = test_hexbuffs->AllocateHexagonBuffer(2049, 2048, ffi::String("global"));
   CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0) << "Must be multiple of 2k " << ptr;
 
   test_hexbuffs.reset();

@@ -133,7 +133,7 @@ The main goal of TVM's runtime is to provide a minimal API for loading and execu
     import tvm
     # Example runtime execution program in python, with type annotated
     mod: tvm.runtime.Module = tvm.runtime.load_module("compiled_artifact.so")
-    arr: tvm.runtime.NDArray = tvm.nd.array([1, 2, 3], device=tvm.cuda(0))
+    arr: tvm.runtime.Tensor = tvm.runtime.tensor([1, 2, 3], device=tvm.cuda(0))
     fun: tvm.runtime.PackedFunc = mod["addone"]
     fun(arr)
     print(arr.numpy())
@@ -142,7 +142,7 @@ The main goal of TVM's runtime is to provide a minimal API for loading and execu
 :py:class:`tvm.runtime.Module` encapsulates the result of compilation. A runtime.Module contains a GetFunction method to obtain PackedFuncs by name.
 
 :py:class:`tvm.runtime.PackedFunc` is a type-erased function interface for both the generated functions. A runtime.PackedFunc can take arguments and return values with the
-following types: POD types(int, float), string, runtime.PackedFunc, runtime.Module, runtime.NDArray, and other sub-classes of runtime.Object.
+following types: POD types(int, float), string, runtime.PackedFunc, runtime.Module, runtime.Tensor, and other sub-classes of runtime.Object.
 
 :py:class:`tvm.runtime.Module` and :py:class:`tvm.runtime.PackedFunc` are powerful mechanisms to modularize the runtime. For example, to get the above `addone` function on CUDA, we can use LLVM to generate the host-side code to compute the launching parameters(e.g. size of the thread groups) and then call into another PackedFunc from a CUDAModule that is backed by the CUDA driver API. The same mechanism can be used for OpenCL kernels.
 
@@ -155,7 +155,7 @@ The above example only deals with a simple `addone` function. The code snippet b
    factory: tvm.runtime.Module = tvm.runtime.load_module("resnet18.so")
    # Create a stateful graph execution module for resnet18 on cuda(0)
    gmod: tvm.runtime.Module = factory["resnet18"](tvm.cuda(0))
-   data: tvm.runtime.NDArray = get_input_data()
+   data: tvm.runtime.Tensor = get_input_data()
    # set input
    gmod["set_input"](0, data)
    # execute the model

@@ -35,7 +35,7 @@ using namespace runtime;
 void ConvolutionForward(int mode, int format, int algo, int dims, int groups, const int pad[],
                         const int stride[], const int dilation[], const DLTensor* x,
                         const DLTensor* w, const DLTensor* y, const std::string& conv_dtype) {
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
+  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(x->device);
   // Set Mode
   entry_ptr->conv_entry.mode = static_cast<cudnnConvolutionMode_t>(mode);
   SetConvDescriptors(entry_ptr, format, dims, groups, pad, stride, dilation, x->shape, w->shape,
@@ -69,7 +69,7 @@ void ConvolutionBiasActivationForward(int mode, int format, int algo, int dims, 
                                       const int dilation[], const DLTensor* x, const DLTensor* w,
                                       const DLTensor* y, const DLTensor* bias,
                                       const std::string& conv_dtype) {
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
+  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(x->device);
   // Set Mode
   entry_ptr->conv_entry.mode = static_cast<cudnnConvolutionMode_t>(mode);
   CUDNN_CALL(cudnnSetActivationDescriptor(entry_ptr->conv_entry.activation_desc,
@@ -110,7 +110,9 @@ void FindAlgo(int format, int dims, int groups, const int pad[], const int strid
               const int dilation[], const int x_dim[], const int w_dim[], const int y_dim[],
               const std::string& data_dtype, const std::string& conv_dtype, bool verbose,
               ffi::Any* ret) {
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
+  int device_id;
+  CUDA_CALL(cudaGetDevice(&device_id));
+  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
   const int full_dims = dims + 2;
   std::vector<int64_t> x_dim_int64(full_dims);
   std::vector<int64_t> w_dim_int64(full_dims);
@@ -154,7 +156,7 @@ void FindAlgo(int format, int dims, int groups, const int pad[], const int strid
   ret[0] = static_cast<int>(best_algo);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvm.contrib.cudnn.conv2d.forward",
@@ -238,7 +240,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     FindAlgo(format, dims, groups, pad, stride, dilation, x_dim, w_dim, y_dim,
                              data_dtype, conv_dtype, verbose, ret);
                   });
-});
+}
 
 }  // namespace contrib
 }  // namespace tvm

@@ -22,14 +22,16 @@
  * \brief A simple JSON runtime for HIPBLAS.
  */
 
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <cstddef>
 #include <string>
 #include <vector>
 
+#include "../../rocm/rocm_common.h"
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 #include "hipblas_utils.h"
@@ -42,32 +44,30 @@ using namespace tvm::runtime::json;
 class HipblasJSONRuntime : public JSONRuntimeBase {
  public:
   HipblasJSONRuntime(const std::string& symbol_name, const std::string& graph_json,
-                     const Array<String> const_names)
+                     const ffi::Array<ffi::String> const_names)
       : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
 
-  void Init(const Array<NDArray>& consts) override {}
+  void Init(const ffi::Array<Tensor>& consts) override {}
 
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) override {
     // JSONRuntimeBase::SetInputOutputBuffers(...) is not thread safe. Since HipblasJSONRuntime
     // can be used by multiple GPUs running on different threads, we avoid using that function
     // and directly call hipBLAS on the inputs from ffi::PackedArgs.
+    ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
     if (this->symbol_name_ == name) {
       return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         ICHECK(this->initialized_) << "The module has not been initialized";
         this->Run(args);
       });
     } else {
-      return JSONRuntimeBase::GetFunction(name, sptr_to_self);
+      return JSONRuntimeBase::GetFunction(name);
     }
   }
 
-  const char* type_key() const override { return "hipblas_json"; }  // May be overridden
+  const char* kind() const override { return "hipblas_json"; }  // May be overridden
 
   void Run(ffi::PackedArgs args) {
-    auto* entry_ptr = tvm::contrib::HipBlasLtThreadEntry::ThreadLocal();
-    static auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_rocm_stream");
-    hipStream_t stream = static_cast<hipStream_t>(func().cast<void*>());
-
+    int device_id = -1;
     std::vector<const DLTensor*> dl_tensors(NumEntries());
 
     for (size_t i = 0; i < static_cast<size_t>(args.size()); i++) {
@@ -75,15 +75,21 @@ class HipblasJSONRuntime : public JSONRuntimeBase {
                                            : EntryID(outputs_[i - input_var_eid_.size()]);
 
       const DLTensor* arg;
-      if (auto opt_nd = args[i].as<NDArray>()) {
-        NDArray arr = opt_nd.value();
+      if (auto opt_nd = args[i].as<Tensor>()) {
+        Tensor arr = opt_nd.value();
         arg = arr.operator->();
       } else {
         arg = args[i].cast<DLTensor*>();
       }
 
       dl_tensors[eid] = arg;
+      device_id = arg->device.device_id;
     }
+    if (device_id == -1) {
+      ROCM_CALL(hipGetDevice(&device_id));
+    }
+    auto* entry_ptr = tvm::contrib::HipBlasLtThreadEntry::ThreadLocal(DLDevice{kDLROCM, device_id});
+    hipStream_t stream = static_cast<hipStream_t>(TVMFFIEnvGetStream(kDLROCM, device_id));
 
     auto get_input = [this, &dl_tensors](const JSONGraphNode& node, int idx) {
       ICHECK_LT(idx, node.GetInputs().size());
@@ -134,19 +140,19 @@ class HipblasJSONRuntime : public JSONRuntimeBase {
   void Run() override { LOG(FATAL) << "Unreachable"; }
 };
 
-runtime::Module HipblasJSONRuntimeCreate(String symbol_name, String graph_json,
-                                         const Array<String>& const_names) {
-  auto n = make_object<HipblasJSONRuntime>(symbol_name, graph_json, const_names);
-  return runtime::Module(n);
+ffi::Module HipblasJSONRuntimeCreate(ffi::String symbol_name, ffi::String graph_json,
+                                     const ffi::Array<ffi::String>& const_names) {
+  auto n = ffi::make_object<HipblasJSONRuntime>(symbol_name, graph_json, const_names);
+  return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.HipblasJSONRuntimeCreate", HipblasJSONRuntimeCreate)
-      .def("runtime.module.loadbinary_hipblas_json",
-           JSONRuntimeBase::LoadFromBinary<HipblasJSONRuntime>);
-});
+      .def("ffi.Module.load_from_bytes.hipblas_json",
+           JSONRuntimeBase::LoadFromBytes<HipblasJSONRuntime>);
+}
 
 }  // namespace contrib
 }  // namespace runtime

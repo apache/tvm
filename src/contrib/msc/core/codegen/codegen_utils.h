@@ -86,39 +86,42 @@ using namespace tvm::script::printer;
            this->DescribePrim(prim->ParentAt(1)) + ")";                                \
   }
 
-#define CODEGEN_MEMBERS                                                                            \
- public:                                                                                           \
-  virtual const String DType(const DataType& dtype) { return runtime::DLDataTypeToString(dtype); } \
-                                                                                                   \
- protected:                                                                                        \
-  const std::shared_ptr<ConfigType> config() { return config_; }                                   \
-  const Map<String, String> prims() { return prims_; }                                             \
-  const String IdxNodeBase(const MSCJoint& node) {                                                 \
-    return helper_.IdxNodeBase(node, config()->prefix, "");                                        \
-  }                                                                                                \
-  const String IdxInputBase(const MSCJoint& node, int idx = 0, bool process = true) {              \
-    return helper_.IdxInputBase(node, config()->prefix, idx, "", process && config()->use_tools);  \
-  }                                                                                                \
-  const String IdxOutputBase(const MSCJoint& node, int idx = 0, bool mark_exit = false) {          \
-    return helper_.IdxOutputBase(node, config()->prefix, idx, "",                                  \
-                                 mark_exit && config()->use_tools);                                \
-  }                                                                                                \
-  const String IdxWeightBase(const MSCJoint& node, const String& wtype, bool process = true) {     \
-    return helper_.IdxWeightBase(node, wtype, "", process && config()->use_tools);                 \
-  }                                                                                                \
-  const Array<String> GetPrims(const MSCTensor& tensor) {                                          \
-    return CodeGenUtils::GetPrims(tensor, prims_);                                                 \
-  }                                                                                                \
-  const String Comment(const MSCJoint& node) {                                                     \
-    return helper_.Comment(node, config()->prefix, prims_);                                        \
-  }                                                                                                \
-  int CompareVersion(size_t major, size_t minor, size_t patch) {                                   \
-    return CommonUtils::CompareVersion(config()->version, {major, minor, patch});                  \
-  }                                                                                                \
-                                                                                                   \
- private:                                                                                          \
-  std::shared_ptr<ConfigType> config_;                                                             \
-  Map<String, String> prims_;                                                                      \
+#define CODEGEN_MEMBERS                                                                           \
+ public:                                                                                          \
+  virtual const ffi::String DType(const DataType& dtype) {                                        \
+    return runtime::DLDataTypeToString(dtype);                                                    \
+  }                                                                                               \
+                                                                                                  \
+ protected:                                                                                       \
+  const std::shared_ptr<ConfigType> config() { return config_; }                                  \
+  const ffi::Map<ffi::String, ffi::String> prims() { return prims_; }                             \
+  const ffi::String IdxNodeBase(const MSCJoint& node) {                                           \
+    return helper_.IdxNodeBase(node, config()->prefix, "");                                       \
+  }                                                                                               \
+  const ffi::String IdxInputBase(const MSCJoint& node, int idx = 0, bool process = true) {        \
+    return helper_.IdxInputBase(node, config()->prefix, idx, "", process && config()->use_tools); \
+  }                                                                                               \
+  const ffi::String IdxOutputBase(const MSCJoint& node, int idx = 0, bool mark_exit = false) {    \
+    return helper_.IdxOutputBase(node, config()->prefix, idx, "",                                 \
+                                 mark_exit && config()->use_tools);                               \
+  }                                                                                               \
+  const ffi::String IdxWeightBase(const MSCJoint& node, const ffi::String& wtype,                 \
+                                  bool process = true) {                                          \
+    return helper_.IdxWeightBase(node, wtype, "", process && config()->use_tools);                \
+  }                                                                                               \
+  const ffi::Array<ffi::String> GetPrims(const MSCTensor& tensor) {                               \
+    return CodeGenUtils::GetPrims(tensor, prims_);                                                \
+  }                                                                                               \
+  const ffi::String Comment(const MSCJoint& node) {                                               \
+    return helper_.Comment(node, config()->prefix, prims_);                                       \
+  }                                                                                               \
+  int CompareVersion(size_t major, size_t minor, size_t patch) {                                  \
+    return CommonUtils::CompareVersion(config()->version, {major, minor, patch});                 \
+  }                                                                                               \
+                                                                                                  \
+ private:                                                                                         \
+  std::shared_ptr<ConfigType> config_;                                                            \
+  ffi::Map<ffi::String, ffi::String> prims_;                                                      \
   HelperType helper_;
 
 /*!
@@ -130,42 +133,42 @@ class CodeGenUtils {
    * \brief Get indexed node string.
    * \return The String.
    */
-  TVM_DLL static const String IdxNode(const MSCJoint& node, const String& prefix,
-                                      const String& suffix = "");
+  TVM_DLL static const ffi::String IdxNode(const MSCJoint& node, const ffi::String& prefix,
+                                           const ffi::String& suffix = "");
 
   /*!
    * \brief Get indexed output string.
    * \return The String.
    */
-  TVM_DLL static const String IdxOutput(const MSCJoint& node, const String& prefix, int idx = 0,
-                                        const String& suffix = "");
+  TVM_DLL static const ffi::String IdxOutput(const MSCJoint& node, const ffi::String& prefix,
+                                             int idx = 0, const ffi::String& suffix = "");
 
   /*!
    * \brief Get indexed input string.
    * \return The String.
    */
-  TVM_DLL static const String IdxInput(const MSCJoint& node, const String& prefix, int idx = 0,
-                                       const String& suffix = "");
+  TVM_DLL static const ffi::String IdxInput(const MSCJoint& node, const ffi::String& prefix,
+                                            int idx = 0, const ffi::String& suffix = "");
 
   /*!
    * \brief Get indexed weight string.
    * \return The String.
    */
-  TVM_DLL static const String IdxWeight(const MSCJoint& node, const String& wtype,
-                                        const String& suffix = "");
+  TVM_DLL static const ffi::String IdxWeight(const MSCJoint& node, const ffi::String& wtype,
+                                             const ffi::String& suffix = "");
 
   /*!
    * \brief Infer prims of tensor.
    * \return The prims.
    */
-  TVM_DLL static const Array<String> GetPrims(const MSCTensor& tensor,
-                                              const Map<String, String>& prims);
+  TVM_DLL static const ffi::Array<ffi::String> GetPrims(
+      const MSCTensor& tensor, const ffi::Map<ffi::String, ffi::String>& prims);
   /*!
    * \brief Get comment of a node.
    * \return The String.
    */
-  TVM_DLL static const String CommentNode(const MSCJoint& node, const String& prefix,
-                                          const Map<String, String>& prims);
+  TVM_DLL static const ffi::String CommentNode(const MSCJoint& node, const ffi::String& prefix,
+                                               const ffi::Map<ffi::String, ffi::String>& prims);
 };
 
 /*!
@@ -173,16 +176,17 @@ class CodeGenUtils {
  */
 class BaseCodeGenHelper {
  public:
-  const String GetSuffix(const MSCJoint& node, bool process = false) {
+  const ffi::String GetSuffix(const MSCJoint& node, bool process = false) {
     return process ? "c" + std::to_string(node->index) : "";
   }
 
-  virtual const String IdxNodeBase(const MSCJoint& node, const String& prefix = "",
-                                   const String& suffix = "") {
+  virtual const ffi::String IdxNodeBase(const MSCJoint& node, const ffi::String& prefix = "",
+                                        const ffi::String& suffix = "") {
     return CodeGenUtils::IdxNode(node, prefix, suffix);
   }
-  virtual const String IdxInputBase(const MSCJoint& node, const String& prefix = "", int idx = 0,
-                                    const String& suffix = "", bool process = false) {
+  virtual const ffi::String IdxInputBase(const MSCJoint& node, const ffi::String& prefix = "",
+                                         int idx = 0, const ffi::String& suffix = "",
+                                         bool process = false) {
     const auto& pair = node->ProducerAndIdxOf(idx);
     size_t output_size = pair.first->outputs.size();
     if (process && (output_size > 1 || pair.first->optype == "tuple")) {
@@ -190,8 +194,9 @@ class BaseCodeGenHelper {
     }
     return CodeGenUtils::IdxInput(node, prefix, idx, suffix + GetSuffix(node, process));
   }
-  virtual const String IdxOutputBase(const MSCJoint& node, const String& prefix = "", int idx = 0,
-                                     const String& suffix = "", bool mark_exit = false) {
+  virtual const ffi::String IdxOutputBase(const MSCJoint& node, const ffi::String& prefix = "",
+                                          int idx = 0, const ffi::String& suffix = "",
+                                          bool mark_exit = false) {
     if (mark_exit) {
       if (node->outputs.size() > 1 || node->optype == "tuple") {
         return CodeGenUtils::IdxNode(node, prefix, suffix) + "_" + std::to_string(idx) + "_exit";
@@ -200,12 +205,13 @@ class BaseCodeGenHelper {
     }
     return CodeGenUtils::IdxOutput(node, prefix, idx, suffix);
   }
-  virtual const String IdxWeightBase(const MSCJoint& node, const String& wtype,
-                                     const String& suffix = "", bool process = false) {
+  virtual const ffi::String IdxWeightBase(const MSCJoint& node, const ffi::String& wtype,
+                                          const ffi::String& suffix = "", bool process = false) {
     return CodeGenUtils::IdxWeight(node, wtype, suffix + GetSuffix(node, process));
   }
-  virtual const String Comment(const MSCJoint& node, const String& prefix = "",
-                               const Map<String, String>& prims = Map<String, String>()) {
+  virtual const ffi::String Comment(
+      const MSCJoint& node, const ffi::String& prefix = "",
+      const ffi::Map<ffi::String, ffi::String>& prims = ffi::Map<ffi::String, ffi::String>()) {
     return CodeGenUtils::CommentNode(node, prefix, prims);
   }
 };

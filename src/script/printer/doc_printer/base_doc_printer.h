@@ -81,7 +81,7 @@ class DocPrinter {
    *
    * \sa Append
    */
-  String GetString() const;
+  ffi::String GetString() const;
 
  protected:
   /*!
@@ -267,7 +267,7 @@ class DocPrinter {
   std::vector<size_t> line_starts_;
 
   /*! \brief Path of the object that we would like to underline */
-  Array<AccessPath> path_to_underline_;
+  ffi::Array<AccessPath> path_to_underline_;
 
   /*!
    * \brief Candidate spans to be underlined, until we find a better match.

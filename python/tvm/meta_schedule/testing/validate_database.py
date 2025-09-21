@@ -22,10 +22,11 @@ import itertools
 from statistics import mean
 from typing import Callable, Tuple, Union, List, Any
 import numpy as np  # type: ignore
+from tvm_ffi import get_global_func, register_global_func
+
 
 import tvm
 from tvm import meta_schedule as ms
-from tvm.ffi import get_global_func, register_func
 from tvm.ir import IRModule
 from tvm.support import describe
 from tvm.target import Target
@@ -202,24 +203,24 @@ class OriginalModule:
 def initializer() -> None:
     """Initializer function to register the functions on PopenWorker."""
 
-    @register_func("tvm.meta_schedule.testing.default_check_metric")
+    @register_global_func("tvm.meta_schedule.testing.default_check_metric")
     def default_check_metric(  # pylint: disable=unused-variable,unreachable-code
-        lhs: List[tvm.nd.NDArray], rhs: List[tvm.nd.NDArray]
+        lhs: List[tvm.runtime.Tensor], rhs: List[tvm.runtime.Tensor]
     ) -> bool:
         """Check if the outputs are equal
 
         Parameters
         ----------
-        lhs : List[tvm.nd.NDArray]
-            The first list of NDArrays to compare.
+        lhs : List[tvm.runtime.Tensor]
+            The first list of Tensors to compare.
 
-        rhs : List[tvm.nd.NDArray]
-            The second list of NDArrays to compare.
+        rhs : List[tvm.runtime.Tensor]
+            The second list of Tensors to compare.
 
         Returns
         -------
         is_equal : bool
-            Whether the two lists of NDArrays are equal.
+            Whether the two lists of Tensors are equal.
         """
         assert len(lhs) == len(rhs), "Different number of outputs from two modules"
         for i in range(len(lhs)):  # pylint: disable=consider-using-enumerate
@@ -228,10 +229,10 @@ def initializer() -> None:
         return True
 
 
-@register_func("tvm.meta_schedule.testing.default_input_generator")
+@register_global_func("tvm.meta_schedule.testing.default_input_generator")
 def default_input_generator(  # pylint: disable=unused-variable
     mod: IRModule,
-) -> List[tvm.nd.NDArray]:
+) -> List[tvm.runtime.Tensor]:
     """Default input generator function
 
     Parameters
@@ -241,25 +242,27 @@ def default_input_generator(  # pylint: disable=unused-variable
 
     Returns
     -------
-    inputs : List[tvm.nd.NDArray]
+    inputs : List[tvm.runtime.Tensor]
         The generated input data.
     """
 
     args_info = ms.arg_info.TensorInfo.from_prim_func(mod["main"])
     inputs = [
-        tvm.nd.array(generate_input_data(input_shape=arg_info.shape, input_dtype=arg_info.dtype))
+        tvm.runtime.tensor(
+            generate_input_data(input_shape=arg_info.shape, input_dtype=arg_info.dtype)
+        )
         for arg_info in args_info
     ]
     return inputs
 
 
-def to_numpy(a: List[tvm.nd.NDArray]) -> List[np.ndarray]:
-    """Convert a list of TVM NDArray to a list of numpy array
+def to_numpy(a: List[tvm.runtime.Tensor]) -> List[np.ndarray]:
+    """Convert a list of TVM Tensor to a list of numpy array
 
     Parameters
     ----------
-    a : List[tvm.nd.NDArray]
-        The list of TVM NDArray to be converted
+    a : List[tvm.runtime.Tensor]
+        The list of TVM Tensor to be converted
 
     Returns
     -------
@@ -270,8 +273,8 @@ def to_numpy(a: List[tvm.nd.NDArray]) -> List[np.ndarray]:
     return [x.numpy() for x in a]
 
 
-def to_tvm_ndarray(a: List[np.ndarray]) -> List[tvm.nd.NDArray]:
-    """Convert a list of numpy array to a list of TVM NDArray
+def to_tvm_tensor(a: List[np.ndarray]) -> List[tvm.runtime.Tensor]:
+    """Convert a list of numpy array to a list of TVM Tensor
 
     Parameters
     ----------
@@ -280,11 +283,11 @@ def to_tvm_ndarray(a: List[np.ndarray]) -> List[tvm.nd.NDArray]:
 
     Returns
     -------
-    b : List[tvm.nd.NDArray]
-        The list of TVM NDArray.
+    b : List[tvm.runtime.Tensor]
+        The list of TVM Tensor.
     """
-    assert a is not None, "Empty result cannot be converted to TVM NDArray"
-    return [tvm.nd.array(x) for x in a]
+    assert a is not None, "Empty result cannot be converted to TVM Tensor"
+    return [tvm.runtime.tensor(x) for x in a]
 
 
 def is_failed_record(record: ms.database.TuningRecord) -> bool:
@@ -435,7 +438,9 @@ def make_alloc_arg_and_check(
         args_list : List[T_ARGUMENT_LIST]
             The list of argument lists.
         """
-        return [[tvm.nd.array(arg, device=device) for arg in inputs] for _ in range(alloc_repeat)]
+        return [
+            [tvm.runtime.tensor(arg, device=device) for arg in inputs] for _ in range(alloc_repeat)
+        ]
 
     def f_with_args_run_evaluator_common(
         rt_mod: tvm.runtime.Module,
@@ -486,8 +491,8 @@ def make_alloc_arg_and_check(
         # fetch comparison function
         passed = check_and_run(
             ARGS.check_metric_func,
-            to_tvm_ndarray(original_res),
-            to_tvm_ndarray(scheduled_res),
+            to_tvm_tensor(original_res),
+            to_tvm_tensor(scheduled_res),
         )
 
         print_result(
@@ -555,7 +560,7 @@ def local_build_and_run(
     """
     # potential memory leak https://github.com/apache/tvm/issues/11096
     lib = tvm.compile(mod, target=target)
-    tvm_inputs = [tvm.nd.array(inp, device=device) for inp in inputs]
+    tvm_inputs = [tvm.runtime.tensor(inp, device=device) for inp in inputs]
     device.sync()
     func = lib.time_evaluator(lib.entry_name, dev=device, number=ARGS.number, repeat=ARGS.repeat)
     benchmark_res = func(*tvm_inputs)

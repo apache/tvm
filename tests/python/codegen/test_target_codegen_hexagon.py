@@ -46,7 +46,7 @@ def test_basic():
         C = tvm.te.compute((128,), lambda i: A[i] + B[i], name="C")
         mod = tvm.IRModule.from_expr(te.create_prim_func([C, A, B]))
         hexm = tvm.compile(mod, target=tvm.target.Target(target, target))
-        asm = hexm.get_source("s")
+        asm = hexm.inspect_source("s")
         vadds = re.findall(r"v[0-9]+.b = vadd\(v[0-9]+.b,v[0-9]+.b\)", asm)
         assert vadds  # Check that it's non-empty
 
@@ -61,7 +61,7 @@ def test_llvm_target_features():
     C = tvm.te.compute((128,), lambda i: A[i] + 1, name="C")
     mod = tvm.IRModule.from_expr(te.create_prim_func([C, A]).with_attr("global_symbol", "add_one"))
     m = tvm.compile(mod, target=tvm.target.Target(target, target))
-    llvm_ir = m.get_source("ll")
+    llvm_ir = m.inspect_source("ll")
     # Make sure we find +hvx-length128b in "attributes".
     fs = re.findall(r"attributes.*\+hvx-length128b", llvm_ir)
     assert fs  # Check that it's non-empty

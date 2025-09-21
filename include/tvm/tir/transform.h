@@ -56,8 +56,8 @@ using tvm::transform::Sequential;
  * \return The created function pass.
  */
 TVM_DLL Pass CreatePrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
-                                int opt_level, String name, tvm::Array<String> required,
-                                bool traceable = false);
+                                int opt_level, ffi::String name,
+                                tvm::ffi::Array<ffi::String> required, bool traceable = false);
 
 /*!
  * \brief partition loops in the stmt.
@@ -197,7 +197,7 @@ TVM_DLL Pass MakeUnpackedAPI();
  *
  * \return The pass.
  */
-TVM_DLL Pass RemapThreadAxis(Map<String, IterVar> axis_map);
+TVM_DLL Pass RemapThreadAxis(ffi::Map<ffi::String, IterVar> axis_map);
 
 /*!
  * \brief Lower custom datatypes.
@@ -273,7 +273,7 @@ TVM_DLL Pass SkipAssert();
  * \param storage_scope The storage scope considered.
  * \return The pass.
  */
-TVM_DLL Pass ThreadSync(String storage_scope);
+TVM_DLL Pass ThreadSync(ffi::String storage_scope);
 
 /*!
  * \brief Lower cross thread alleduce.
@@ -361,7 +361,7 @@ TVM_DLL Pass BF16ComputeLegalize();
  * \note Must be run after BindTarget, as it relies on target attributes for PrimFuncs
  * \return The pass.
  */
-TVM_DLL Pass FP8ComputeLegalize(String promote_dtype_str = "float16");
+TVM_DLL Pass FP8ComputeLegalize(ffi::String promote_dtype_str = "float16");
 
 /*!
  * \brief Legalize bf16 storage types to u16.
@@ -676,7 +676,7 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  */
 TVM_DLL Pass InjectSoftwarePipeline();
 
-TVM_DLL Pass BindParams(const Array<runtime::NDArray>& constants);
+TVM_DLL Pass BindParams(const ffi::Array<runtime::Tensor>& constants);
 
 /*!
  * \brief Pass to collect tir non-scalar constants into module's 'Constants' attribute.
@@ -729,17 +729,17 @@ TVM_DLL Pass InjectPTXLDG32(bool enable_ptx_ldg32 = true);
 
 /*!
  * \brief Remove the weight layout rewrite block
- * \param skip_ndarray_rewrite If True, exact rewrite of NDArray, according to the given index map,
- *  will be skipped. Only the shape of the NDArray is transformed correctly, and the content of
+ * \param skip_tensor_rewrite If True, exact rewrite of Tensor, according to the given index map,
+ *  will be skipped. Only the shape of the Tensor is transformed correctly, and the content of
  *  the destination array will be filled with random values.
  *
- *  When this pass is called many times during MetaSchedule tuning, the raw data of NDArray,
- *  before and after rewrite, does not matter. Since NDArray layout rewrite, using IndexMap's
- *  MapNDArray, is currently slow, skipping the exact rewrite is sometimes necessary.
+ *  When this pass is called many times during MetaSchedule tuning, the raw data of Tensor,
+ *  before and after rewrite, does not matter. Since Tensor layout rewrite, using IndexMap's
+ *  MapTensor, is currently slow, skipping the exact rewrite is sometimes necessary.
  *
  * \return The pass.
  */
-TVM_DLL Pass RemoveWeightLayoutRewriteBlock(bool skip_ndarray_rewrite = false);
+TVM_DLL Pass RemoveWeightLayoutRewriteBlock(bool skip_tensor_rewrite = false);
 
 /*!
  * \brief Add the explicit local stage for the shared memory access on GPU.

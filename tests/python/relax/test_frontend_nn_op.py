@@ -899,7 +899,7 @@ def test_extern():
 
 
 def test_empty():
-    @tvm.register_func("test_empty_assert", override=True)
+    @tvm.register_global_func("test_empty_assert", override=True)
     def test_empty_assert(_lineo, x):
         assert x.shape == (10, 10)
         assert x.dtype == "float32"
@@ -976,10 +976,12 @@ def test_multinomial_from_uniform():
     np_rand = np.random.rand(*prob_shape).astype(np.float32)
     # normalize it to get the random prob
     np_prob = np_rand / np_rand.sum(axis=1, keepdims=True)
-    nd_prob = tvm.nd.array(np_prob, dev)
+    nd_prob = tvm.runtime.tensor(np_prob, dev)
     # special sample to get deterministic results
-    nd_sample = tvm.nd.array(np.array([[1], [0], [1], [1], [0], [1]]).astype(np.float32), dev)
-    nd_sample_indices = tvm.nd.array(np.array([[0], [1], [1], [2], [2], [2]]).astype(np.int64), dev)
+    nd_sample = tvm.runtime.tensor(np.array([[1], [0], [1], [1], [0], [1]]).astype(np.float32), dev)
+    nd_sample_indices = tvm.runtime.tensor(
+        np.array([[0], [1], [1], [2], [2], [2]]).astype(np.int64), dev
+    )
     inputs = [nd_prob, nd_sample, nd_sample_indices, effects]
     res = vm["foo"](*inputs)
     tvm.testing.assert_allclose(
@@ -1104,12 +1106,14 @@ def test_sample_top_p_top_k_from_sorted_prob():
     vm = relax.VirtualMachine(ex, dev)
 
     effects = vm["_initialize_effect"]()
-    sorted_prob = tvm.nd.array(np.array([[0.5, 0.4, 0.1], [0.4, 0.3, 0.3]]).astype(np.float32), dev)
-    indices = tvm.nd.array(np.array([[2, 1, 0], [2, 0, 1]]).astype(np.int64), dev)
-    top_p = tvm.nd.array(np.array([[0.6], [0.9]]).astype(np.float32), dev)
-    top_k = tvm.nd.array(np.array([[3], [2]]).astype(np.int64), dev)
-    usample = tvm.nd.array(np.array([[0.5], [0.6], [0.7]]).astype(np.float32), dev)
-    sample_indices = tvm.nd.array(np.array([[0], [1], [1]]).astype(np.int64), dev)
+    sorted_prob = tvm.runtime.tensor(
+        np.array([[0.5, 0.4, 0.1], [0.4, 0.3, 0.3]]).astype(np.float32), dev
+    )
+    indices = tvm.runtime.tensor(np.array([[2, 1, 0], [2, 0, 1]]).astype(np.int64), dev)
+    top_p = tvm.runtime.tensor(np.array([[0.6], [0.9]]).astype(np.float32), dev)
+    top_k = tvm.runtime.tensor(np.array([[3], [2]]).astype(np.int64), dev)
+    usample = tvm.runtime.tensor(np.array([[0.5], [0.6], [0.7]]).astype(np.float32), dev)
+    sample_indices = tvm.runtime.tensor(np.array([[0], [1], [1]]).astype(np.int64), dev)
 
     inputs = [sorted_prob, indices, top_p, top_k, usample, sample_indices, effects]
 
@@ -1220,10 +1224,12 @@ def test_renormalize_top_p_top_k_prob():
     vm = relax.VirtualMachine(ex, dev)
 
     effects = vm["_initialize_effect"]()
-    prob = tvm.nd.array(np.array([[0.2, 0.3, 0.5], [0.3, 0.3, 0.4]]).astype(np.float32), dev)
-    sorted_prob = tvm.nd.array(np.array([[0.5, 0.3, 0.2], [0.4, 0.3, 0.3]]).astype(np.float32), dev)
-    top_p = tvm.nd.array(np.array([[0.6], [0.9]]).astype(np.float32), dev)
-    top_k = tvm.nd.array(np.array([[3], [2]]).astype(np.int64), dev)
+    prob = tvm.runtime.tensor(np.array([[0.2, 0.3, 0.5], [0.3, 0.3, 0.4]]).astype(np.float32), dev)
+    sorted_prob = tvm.runtime.tensor(
+        np.array([[0.5, 0.3, 0.2], [0.4, 0.3, 0.3]]).astype(np.float32), dev
+    )
+    top_p = tvm.runtime.tensor(np.array([[0.6], [0.9]]).astype(np.float32), dev)
+    top_k = tvm.runtime.tensor(np.array([[3], [2]]).astype(np.int64), dev)
 
     inputs = [prob, sorted_prob, top_p, top_k, effects]
 

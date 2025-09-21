@@ -141,9 +141,9 @@ ex = tvm.compile(mod, target)
 device = tvm.cpu()
 vm = relax.VirtualMachine(ex, device)
 data = np.random.rand(1, 784).astype("float32")
-tvm_data = tvm.nd.array(data, device=device)
+tvm_data = tvm.runtime.tensor(data, device=device)
 params = [np.random.rand(*param.shape).astype("float32") for _, param in param_spec]
-params = [tvm.nd.array(param, device=device) for param in params]
+params = [tvm.runtime.tensor(param, device=device) for param in params]
 print(vm["forward"](tvm_data, *params).numpy())
 
 ################################################################################
@@ -158,15 +158,15 @@ print(vm["forward"](tvm_data, *params).numpy())
 #       prefill_logits = vm["prefill"](inputs, weight, kv_cache)
 #       decoded_logits = vm["decode"](inputs, weight, kv_cache)
 #
-# - TVM runtime comes with native data structures, such as NDArray, can also have zero
+# - TVM runtime comes with native data structures, such as Tensor, can also have zero
 #   copy exchange with existing ecosystem (DLPack exchange with PyTorch)
 #
 #   .. code-block:: Python
 #
-#       # Convert PyTorch tensor to TVM NDArray
-#       x_tvm = tvm.nd.from_dlpack(x_torch.to_dlpack())
-#       # Convert TVM NDArray to PyTorch tensor
-#       x_torch = torch.from_dlpack(x_tvm.to_dlpack())
+#       # Convert PyTorch tensor to TVM Tensor
+#       x_tvm = tvm.runtime.from_dlpack(x_torch)
+#       # Convert TVM Tensor to PyTorch tensor
+#       x_torch = torch.from_dlpack(x_tvm)
 #
 # - TVM runtime works in non-python environments, so it works on settings such as mobile
 #
@@ -175,14 +175,14 @@ print(vm["forward"](tvm_data, *params).numpy())
 #       // C++ snippet
 #       runtime::Module vm = ex.GetFunction("load_executable")();
 #       vm.GetFunction("init")(...);
-#       NDArray out = vm.GetFunction("prefill")(data, weight, kv_cache);
+#       Tensor out = vm.GetFunction("prefill")(data, weight, kv_cache);
 #
 #   .. code-block:: Java
 #
 #       // Java snippet
 #       Module vm = ex.getFunction("load_executable").invoke();
 #       vm.getFunction("init").pushArg(...).invoke;
-#       NDArray out = vm.getFunction("prefill").pushArg(data).pushArg(weight).pushArg(kv_cache).invoke();
+#       Tensor out = vm.getFunction("prefill").pushArg(data).pushArg(weight).pushArg(kv_cache).invoke();
 #
 
 ################################################################################

@@ -138,9 +138,9 @@ TEST(NestedMsg, Equal) {
 
   EXPECT_FALSE(Equal(M(std::nullopt), M(x), fequal));
 
-  EXPECT_FALSE(Equal(M(x), M(Array<M>({x})), fequal));
+  EXPECT_FALSE(Equal(M(x), M(ffi::Array<M>({x})), fequal));
 
-  EXPECT_FALSE(Equal(M(Array<M>({x})), M(x), fequal));
+  EXPECT_FALSE(Equal(M(ffi::Array<M>({x})), M(x), fequal));
 }
 
 TEST(NestedMsg, MapAndDecompose) {
@@ -232,7 +232,7 @@ TEST(NestedMsg, NestedMsgToExpr) {
   relax::Var x("x", sf0), y("y", sf0), z("z", sf0);
 
   NestedMsg<Integer> msg = {c0, {c0, c1}, {c0, {c1, c2}}};
-  auto expr = NestedMsgToExpr<Integer>(msg, [&](Optional<Integer> leaf) {
+  auto expr = NestedMsgToExpr<Integer>(msg, [&](ffi::Optional<Integer> leaf) {
     ICHECK(leaf.defined());
     int value = leaf.value().IntValue();
     switch (value) {
@@ -251,7 +251,7 @@ TEST(NestedMsg, NestedMsgToExpr) {
   // test simplified
   relax::Var t("t", sf1);
   NestedMsg<Expr> msg1 = {TupleGetItem(t, 0), TupleGetItem(t, 1)};
-  auto expr1 = NestedMsgToExpr<Expr>(msg1, [](Optional<Expr> leaf) { return leaf.value(); });
+  auto expr1 = NestedMsgToExpr<Expr>(msg1, [](ffi::Optional<Expr> leaf) { return leaf.value(); });
   EXPECT_TRUE(StructuralEqual()(expr1, t));
 }
 

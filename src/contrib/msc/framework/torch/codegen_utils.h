@@ -39,8 +39,8 @@ namespace msc {
 class TorchCodeGenHelper : public BaseCodeGenHelper {
  public:
   /*! \brief Get describe for default node input*/
-  const String IdxOutputBase(const MSCJoint& node, const String& prefix = "", int idx = 0,
-                             const String& suffix = "", bool mark_exit = false) final {
+  const ffi::String IdxOutputBase(const MSCJoint& node, const ffi::String& prefix = "", int idx = 0,
+                                  const ffi::String& suffix = "", bool mark_exit = false) final {
     if ((node->optype == "max" || node->optype == "min") && node->OutputAt(0)->Ndim() > 0) {
       ICHECK(idx == 0) << "max and min op only support 1 outputs, get " << node;
       return IdxNodeBase(node, prefix, suffix) + ".values";

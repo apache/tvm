@@ -40,10 +40,10 @@ class DeviceMeshNode : public GlobalInfoNode {
   ffi::Shape shape;
 
   /*! \brief device ids in the mesh*/
-  Array<Integer> device_ids;
+  ffi::Array<Integer> device_ids;
 
   /*! \brief Optionally use range to represent device_ids*/
-  Optional<Range> device_range;
+  ffi::Optional<Range> device_range;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -52,9 +52,7 @@ class DeviceMeshNode : public GlobalInfoNode {
         .def_ro("device_ids", &DeviceMeshNode::device_ids)
         .def_ro("device_range", &DeviceMeshNode::device_range);
   }
-
-  static constexpr const char* _type_key = "relax.distributed.DeviceMesh";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DeviceMeshNode, GlobalInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.distributed.DeviceMesh", DeviceMeshNode, GlobalInfoNode);
 };
 
 /*!
@@ -63,9 +61,9 @@ class DeviceMeshNode : public GlobalInfoNode {
  */
 class DeviceMesh : public GlobalInfo {
  public:
-  TVM_DLL DeviceMesh(ffi::Shape shape, Array<Integer> device_ids);
+  TVM_DLL DeviceMesh(ffi::Shape shape, ffi::Array<Integer> device_ids);
   TVM_DLL DeviceMesh(ffi::Shape shape, Range device_range);
-  TVM_DEFINE_OBJECT_REF_METHODS(DeviceMesh, GlobalInfo, DeviceMeshNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DeviceMesh, GlobalInfo, DeviceMeshNode);
 };
 
 }  // namespace distributed

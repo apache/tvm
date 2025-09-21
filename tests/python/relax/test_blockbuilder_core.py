@@ -31,7 +31,7 @@ from tvm.tir.function import PrimFunc
 
 @pytest.fixture(scope="module")
 def register_nop():
-    @tvm.register_func("test.blockbuilder.nop")
+    @tvm.register_global_func("test.blockbuilder.nop")
     def nop():
         pass
 

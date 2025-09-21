@@ -41,7 +41,8 @@ namespace tir {
  * \param attr_value The annotation value to be added
  * \return A new block with the given annotation as its last annotation
  */
-Block WithAnnotation(const BlockNode* block, const String& attr_key, const ObjectRef& attr_value);
+Block WithAnnotation(const BlockNode* block, const ffi::String& attr_key,
+                     const ObjectRef& attr_value);
 
 /******** Buffer Related ********/
 
@@ -51,7 +52,7 @@ Block WithAnnotation(const BlockNode* block, const String& attr_key, const Objec
  * \param scope The target storage scope.
  * \return The new buffer with target storage scope.
  */
-Buffer WithScope(const Buffer& buffer, const String& scope);
+Buffer WithScope(const Buffer& buffer, const ffi::String& scope);
 
 /*!
  * \brief Create a new buffer by changint the data type.
@@ -68,8 +69,8 @@ Buffer WithDType(const Buffer& buffer, const DataType& dtype);
  * \param target The buffer to be replaced to
  * \return The new sequence of regions after replacement
  */
-Array<BufferRegion> ReplaceBuffer(Array<BufferRegion> regions, const Buffer& source,
-                                  const Buffer& target);
+ffi::Array<BufferRegion> ReplaceBuffer(ffi::Array<BufferRegion> regions, const Buffer& source,
+                                       const Buffer& target);
 
 /*!
  * \brief Replaces the buffer within the specific sequence of regions
@@ -77,8 +78,8 @@ Array<BufferRegion> ReplaceBuffer(Array<BufferRegion> regions, const Buffer& sou
  * \param buffer_map The mapping from old buffers to new buffers
  * \return The new sequence of regions after replacement
  */
-Array<BufferRegion> ReplaceBuffer(Array<BufferRegion> regions,
-                                  const Map<Buffer, Buffer>& buffer_map);
+ffi::Array<BufferRegion> ReplaceBuffer(ffi::Array<BufferRegion> regions,
+                                       const ffi::Map<Buffer, Buffer>& buffer_map);
 
 /*!
  * \brief Replaces the buffer within the specific sequence of match_buffers
@@ -87,8 +88,8 @@ Array<BufferRegion> ReplaceBuffer(Array<BufferRegion> regions,
  * \param target The buffer to be replaced to
  * \return The new sequence of match_buffers after replacement
  */
-Array<MatchBufferRegion> ReplaceBuffer(Array<MatchBufferRegion> match_buffers, const Buffer& source,
-                                       const Buffer& target);
+ffi::Array<MatchBufferRegion> ReplaceBuffer(ffi::Array<MatchBufferRegion> match_buffers,
+                                            const Buffer& source, const Buffer& target);
 
 /*!
  * \brief Replaces the buffer region within the specific sequence of regions
@@ -97,8 +98,9 @@ Array<MatchBufferRegion> ReplaceBuffer(Array<MatchBufferRegion> match_buffers, c
  * \param target The buffer region to be replaced to
  * \return The new sequence of regions after replacement
  */
-Array<BufferRegion> ReplaceBufferRegion(Array<BufferRegion> regions, const Buffer& source_buffer,
-                                        const BufferRegion& target);
+ffi::Array<BufferRegion> ReplaceBufferRegion(ffi::Array<BufferRegion> regions,
+                                             const Buffer& source_buffer,
+                                             const BufferRegion& target);
 
 /*!
  * \brief Replaces the buffer region within the specific sequence of match_buffers
@@ -107,9 +109,9 @@ Array<BufferRegion> ReplaceBufferRegion(Array<BufferRegion> regions, const Buffe
  * \param target The buffer region to be replaced to
  * \return The new sequence of match_buffers after replacement
  */
-Array<MatchBufferRegion> ReplaceBufferRegion(Array<MatchBufferRegion> match_buffers,
-                                             const Buffer& source_buffer,
-                                             const BufferRegion& target);
+ffi::Array<MatchBufferRegion> ReplaceBufferRegion(ffi::Array<MatchBufferRegion> match_buffers,
+                                                  const Buffer& source_buffer,
+                                                  const BufferRegion& target);
 
 /*!
  * \brief A helper mutator which recursively replaces the old buffer with the new buffer and
@@ -129,9 +131,10 @@ class ReplaceBufferMutator : public StmtExprMutator {
    *        sref.
    */
   ReplaceBufferMutator(const Buffer& old_buffer, Buffer new_buffer,
-                       Map<Block, Block>* block_sref_reuse);
+                       ffi::Map<Block, Block>* block_sref_reuse);
 
-  ReplaceBufferMutator(const Map<Buffer, Buffer>& buffer_map, Map<Block, Block>* block_sref_reuse);
+  ReplaceBufferMutator(const ffi::Map<Buffer, Buffer>& buffer_map,
+                       ffi::Map<Block, Block>* block_sref_reuse);
 
  protected:
   using StmtExprMutator::VisitExpr_;
@@ -162,7 +165,7 @@ class ReplaceBufferMutator : public StmtExprMutator {
    */
   std::unordered_map<const VarNode*, Buffer> buffer_var_map_;
   /*! \brief The block sref reuse map for the following replacement */
-  Map<Block, Block>* block_sref_reuse_;
+  ffi::Map<Block, Block>* block_sref_reuse_;
 };
 
 /******** Block Removal ********/
@@ -214,8 +217,10 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
  * \return LoopRV corresponding to the outermost loop of a
  * block tiled according to the given intrin, std::nullopt if a valid loop mapping is not found
  */
-Optional<tir::LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::BlockRV& block_rv,
-                                           const String& intrin_name, bool allow_padding = false);
+ffi::Optional<tir::LoopRV> TileWithTensorIntrin(const tir::Schedule& sch,
+                                                const tir::BlockRV& block_rv,
+                                                const ffi::String& intrin_name,
+                                                bool allow_padding = false);
 
 /******** Block mutation ********/
 
@@ -242,8 +247,8 @@ class BlockBufferAccessSimplifier : public arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitExpr_;
   using IRMutatorWithAnalyzer::VisitStmt_;
 
-  void SimplifyAccessRegion(Array<BufferRegion>* old_access_regions);
-  void SimplifyBufferIndices(Array<PrimExpr>* indices);
+  void SimplifyAccessRegion(ffi::Array<BufferRegion>* old_access_regions);
+  void SimplifyBufferIndices(ffi::Array<PrimExpr>* indices);
 
   Stmt VisitStmt_(const BlockNode* op) final;
   Stmt VisitStmt_(const BufferStoreNode* op) final;

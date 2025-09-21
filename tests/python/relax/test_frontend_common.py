@@ -25,7 +25,7 @@ def test_detach_params():
     def func(x: R.Tensor((2, 3), "float32")):
         return x
 
-    param = tvm.nd.empty((3,), "float32")
+    param = tvm.runtime.empty((3,), "float32")
     mod = tvm.IRModule({"func": func.with_attr("params", [param])})
     detached_mod, detached_params = detach_params(mod)
 

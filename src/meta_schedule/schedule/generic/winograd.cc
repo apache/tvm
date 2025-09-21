@@ -29,8 +29,8 @@ using namespace tvm::tir;
  * \return The only producer block.
  */
 BlockRV GetWinogradProducerAndInlineConst(Schedule sch, BlockRV block) {
-  Array<BlockRV> producers = sch->GetProducers(block);
-  Array<BlockRV> results;
+  ffi::Array<BlockRV> producers = sch->GetProducers(block);
+  ffi::Array<BlockRV> results;
   for (const BlockRV& producer : producers) {
     if (sch->Get(producer)->reads.empty()) {
       sch->ComputeInline(producer);

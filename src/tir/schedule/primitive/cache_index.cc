@@ -38,17 +38,17 @@ struct IndexInfo {
   /*! \brief The expr to be precomputed */
   std::vector<PrimExpr> index_exprs;
   /*! \brief The range of the loop vars relating to index computation */
-  Map<Var, Range> range_map;
+  ffi::Map<Var, Range> range_map;
   /*! \brief The binding table of the block var and the loop var */
-  Map<Var, PrimExpr> var_binding;
+  ffi::Map<Var, PrimExpr> var_binding;
   /*! \brief The block var of the target block */
-  std::vector<Array<Var>> origin_block_vars;
+  std::vector<ffi::Array<Var>> origin_block_vars;
   /*! \brief The index to insert the cache stage. */
   size_t loc_pos;
   /*! \brief The cache stage to be inserted. */
   Stmt cache_stage;
   /*! \brief The map used for ScheduleStateNode::Replace. */
-  Map<Block, Block> block_reuse;
+  ffi::Map<Block, Block> block_reuse;
 };
 
 /*!
@@ -79,7 +79,7 @@ class IndexInfoCollector : public StmtExprVisitor {
   static void Collect(const ScheduleState& self, const StmtSRef& block_sref,
                       const StmtSRef& scope_sref, IndexInfo* info) {
     IndexInfoCollector collector(self, block_sref, scope_sref, info->cse_thresh);
-    collector(GetRef<Stmt>(scope_sref->stmt));
+    collector(ffi::GetRef<Stmt>(scope_sref->stmt));
     info->loc_pos = collector.loc_pos_;
     info->index_exprs = collector.exprs_;
     info->range_map = collector.range_map_;
@@ -150,7 +150,7 @@ class IndexInfoCollector : public StmtExprVisitor {
 
       // Analyze sub expr candidates
       ComputationTable table_syntactic_comp_done_by_stmt =
-          ComputationsDoneBy::GetComputationsDoneBy(GetRef<Stmt>(store), IsEligibleComputation,
+          ComputationsDoneBy::GetComputationsDoneBy(ffi::GetRef<Stmt>(store), IsEligibleComputation,
                                                     [](const PrimExpr& expr) { return true; });
       std::vector<std::pair<PrimExpr, size_t>> semantic_comp_done_by_stmt =
           SyntacticToSemanticComputations(table_syntactic_comp_done_by_stmt, true);
@@ -211,7 +211,7 @@ class IndexInfoCollector : public StmtExprVisitor {
   /*! \brief The flag indicating the right scope to update seq pos */
   bool update_seq_pos_{false};
   /*! \brief Record the ranges of iter vars */
-  Map<Var, Range> range_map_;
+  ffi::Map<Var, Range> range_map_;
 };
 
 /*!
@@ -220,9 +220,9 @@ class IndexInfoCollector : public StmtExprVisitor {
  * \param storage_scope The storage scope of the cached buffer (only used in naming here)
  * \returns A block indicating the body of the loop nesting.
  */
-Array<Block> MakeIndexCacheStage(IndexInfo* info, const String& storage_scope) {
-  Array<Block> blocks;
-  Array<Stmt> bodies;
+ffi::Array<Block> MakeIndexCacheStage(IndexInfo* info, const ffi::String& storage_scope) {
+  ffi::Array<Block> blocks;
+  ffi::Array<Stmt> bodies;
   bodies.reserve(info->index_exprs.size());
   info->cache_buffer.reserve(info->index_exprs.size());
 
@@ -235,7 +235,7 @@ Array<Block> MakeIndexCacheStage(IndexInfo* info, const String& storage_scope) {
     PostOrderVisit(index_expr, [&info, &expr_index](const ObjectRef& node) {
       if (node->IsInstance<VarNode>()) {
         Var iter_var = Downcast<Var>(node);
-        const Array<Var>& origin_block_var = info->origin_block_vars[expr_index];
+        const ffi::Array<Var>& origin_block_var = info->origin_block_vars[expr_index];
         auto find_result = std::find_if(origin_block_var.begin(), origin_block_var.end(),
                                         [&](Var it) { return it.get() == iter_var.get(); });
         if (find_result == origin_block_var.end()) {
@@ -262,7 +262,7 @@ Array<Block> MakeIndexCacheStage(IndexInfo* info, const String& storage_scope) {
     DataType data_type = index_expr.dtype();
     Var index_buffer_var("index_var_" + std::to_string(expr_index),
                          PointerType(PrimType(data_type), storage_scope));
-    Array<PrimExpr> buffer_shape;
+    ffi::Array<PrimExpr> buffer_shape;
     for (const Var& it : info->origin_block_vars[expr_index]) {
       buffer_shape.push_back(
           arith::EvalSet(info->var_binding.at(it), arith::AsIntSet(info->range_map)).max() + 1);
@@ -272,7 +272,7 @@ Array<Block> MakeIndexCacheStage(IndexInfo* info, const String& storage_scope) {
 
     // Create loop vars and block vars' binding_value
     std::vector<Var> loop_vars;
-    Map<Var, Var> replace_table;
+    ffi::Map<Var, Var> replace_table;
     for (const Var& it : iter_vars) {
       DataType data_type = DetermineDatatype(arith::IntSet::FromRange(info->range_map.at(it)));
       Var loop_var("ax" + std::to_string(replace_table.size()), data_type);
@@ -285,12 +285,12 @@ Array<Block> MakeIndexCacheStage(IndexInfo* info, const String& storage_scope) {
       iter_values.push_back(Substitute(info->var_binding.at(it), replace_table));
     }
     // block variables
-    Array<IterVar> block_vars;
+    ffi::Array<IterVar> block_vars;
     // block access region for write buffers
     Region access_region;
     // indices used in block body
-    Array<PrimExpr> access_indices;
-    Map<Var, Var> block_var_map;
+    ffi::Array<PrimExpr> access_indices;
+    ffi::Map<Var, Var> block_var_map;
     // Create block vars, block's accessed region and accessing indices
     for (size_t i = 0; i < info->origin_block_vars[expr_index].size(); i++) {
       const Var& block_var = info->origin_block_vars[expr_index][i];
@@ -348,15 +348,15 @@ Array<Block> MakeIndexCacheStage(IndexInfo* info, const String& storage_scope) {
  */
 Stmt InsertIndexStage(const Stmt& stmt, int pos, const Stmt& stage) {
   if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
-    ObjectPtr<SeqStmtNode> result = make_object<SeqStmtNode>(*seq_stmt);
+    ObjectPtr<SeqStmtNode> result = ffi::make_object<SeqStmtNode>(*seq_stmt);
     result->seq.insert(result->seq.begin() + pos, stage);
     return SeqStmt(result);
   }
   if (pos == 0) {
-    return SeqStmt::Flatten<Array<Stmt>>({stage, stmt});
+    return SeqStmt::Flatten<ffi::Array<Stmt>>({stage, stmt});
   }
   ICHECK_EQ(pos, 1);
-  return SeqStmt::Flatten<Array<Stmt>>({stmt, stage});
+  return SeqStmt::Flatten<ffi::Array<Stmt>>({stmt, stage});
 }
 
 /*! \brief Mutator for CacheIndex. */
@@ -370,14 +370,14 @@ class CacheIndexRewriter : public StmtExprMutator {
    */
   static Stmt Rewrite(const StmtSRef& scope_sref, IndexInfo* info) {
     CacheIndexRewriter rewriter(scope_sref, info);
-    return rewriter(GetRef<Stmt>(scope_sref->stmt));
+    return rewriter(ffi::GetRef<Stmt>(scope_sref->stmt));
   }
 
  private:
   explicit CacheIndexRewriter(const StmtSRef& scope_sref, IndexInfo* info)
       : scope_sref_(scope_sref), info_(info) {
     cache_indices_.reserve(info_->origin_block_vars.size());
-    for (const Array<Var>& group_it : info_->origin_block_vars) {
+    for (const ffi::Array<Var>& group_it : info_->origin_block_vars) {
       cache_indices_.push_back({});
       for (const Var& it : group_it) {
         cache_indices_.back().push_back(it);
@@ -386,7 +386,7 @@ class CacheIndexRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BlockNode* block) final {
-    Block old_stmt = GetRef<Block>(block);
+    Block old_stmt = ffi::GetRef<Block>(block);
     // Mutate the body
     visiting_target_block = static_cast<bool>(block == info_->target_block->stmt);
     Block stmt = Downcast<Block>(StmtMutator::VisitStmt_(block));
@@ -395,7 +395,7 @@ class CacheIndexRewriter : public StmtExprMutator {
     // Check if it is the block corresponding to the parent scope
     if (block == scope_sref_->stmt) {
       // If so, put buffer allocation and insert cache stages on the parent scope
-      ObjectPtr<BlockNode> n = make_object<BlockNode>(*stmt.as<BlockNode>());
+      ObjectPtr<BlockNode> n = ffi::make_object<BlockNode>(*stmt.as<BlockNode>());
       n->body = InsertIndexStage(n->body, info_->loc_pos, info_->cache_stage);
       for (const Buffer& it : info_->cache_buffer) {
         n->alloc_buffers.push_back(it);
@@ -431,13 +431,13 @@ class CacheIndexRewriter : public StmtExprMutator {
   /*! \brief The info for inserting cache stage */
   IndexInfo* info_;
   /*! \brief The indices for the cache buffer */
-  std::vector<Array<PrimExpr>> cache_indices_;
+  std::vector<ffi::Array<PrimExpr>> cache_indices_;
   /*! \brief Indicating whether cache stage is inserted, only do index replacement afterwards*/
   bool visiting_target_block{false};
 };
 
-Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
-                           const String& storage_scope, int cse_thresh) {
+ffi::Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
+                                const ffi::String& storage_scope, int cse_thresh) {
   /*!
    * Check:
    *   - The index is in the array of block reading region
@@ -460,14 +460,14 @@ Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
   // Step 2. Create cache stages and rewrite the stmt.
   BlockRealize realize = GetBlockRealize(self, block_sref);
   info.var_binding = GetBindings(realize);
-  Array<Block> cache_stages = MakeIndexCacheStage(&info, storage_scope);
+  ffi::Array<Block> cache_stages = MakeIndexCacheStage(&info, storage_scope);
   Stmt new_scope = CacheIndexRewriter::Rewrite(/*scope_sref=*/scope_sref, /*info=*/&info);
 
   bool old_stage_pipeline = self->block_info[block_sref].stage_pipeline;
 
   // Step 3. Replacing and updating flags.
   self->Replace(scope_sref, new_scope, info.block_reuse);
-  Array<StmtSRef> result_block_srefs;
+  ffi::Array<StmtSRef> result_block_srefs;
   for (const Block& it : cache_stages) {
     StmtSRef result_block_sref = self->stmt2ref.at(it.get());
     result_block_srefs.push_back(result_block_sref);
@@ -478,7 +478,7 @@ Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
       affine_binding = true;
     } else {
       arith::Analyzer analyzer;
-      StmtSRef parent_sref = GetRef<StmtSRef>(result_block_sref->parent);
+      StmtSRef parent_sref = ffi::GetRef<StmtSRef>(result_block_sref->parent);
       affine_binding = IsAffineBinding(/*realize=*/GetBlockRealize(self, result_block_sref),
                                        /*loop_var_ranges=*/LoopDomainOfSRefTreePath(parent_sref),
                                        /*analyzer=*/&analyzer);
@@ -503,13 +503,14 @@ struct CacheIndexTraits : public UnpackedInstTraits<CacheIndexTraits> {
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static Array<BlockRV> UnpackedApplyToSchedule(Schedule sch, BlockRV block, String storage_scope,
-                                                Integer cse_thresh) {
+  static ffi::Array<BlockRV> UnpackedApplyToSchedule(Schedule sch, BlockRV block,
+                                                     ffi::String storage_scope,
+                                                     Integer cse_thresh) {
     return sch->CacheIndex(block, storage_scope, cse_thresh->value);
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String block, String storage_scope,
-                                 Integer cse_thresh) {
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
+                                      ffi::String storage_scope, Integer cse_thresh) {
     PythonAPICall py("cache_index");
     py.Input("block", block);
     py.Input("storage_scope", storage_scope);

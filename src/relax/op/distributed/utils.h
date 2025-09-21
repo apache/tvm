@@ -42,8 +42,8 @@ namespace distributed {
  * \return The dtensor struct info of each input.
  * \note This function require every input tensor to be DTensor.
  */
-Array<distributed::DTensorStructInfo> GetInputDTensorStructInfo(const Call& call,
-                                                                const BlockBuilder& ctx);
+ffi::Array<distributed::DTensorStructInfo> GetInputDTensorStructInfo(const Call& call,
+                                                                     const BlockBuilder& ctx);
 
 /*!
  * \brief Perform a local sharding spec propagation to infer the output dtensor

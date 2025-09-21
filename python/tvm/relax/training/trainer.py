@@ -22,7 +22,7 @@ import numpy as np  # type: ignore
 import tvm
 from tvm import relax, TVMError
 from tvm.ir.module import IRModule
-from tvm.runtime.ndarray import NDArray
+from tvm.runtime._tensor import Tensor
 
 
 class Trainer:
@@ -100,12 +100,12 @@ class Trainer:
             )
         ]
 
-        self._params: List[Optional[NDArray]] = [None] * self._param_num
+        self._params: List[Optional[Tensor]] = [None] * self._param_num
         self._param_name_to_pos: Dict[str, int] = {
             p.name_hint: i for i, p in enumerate(self._param_vars)
         }
 
-        self._states: List[Optional[NDArray]] = [None] * self._state_num
+        self._states: List[Optional[Tensor]] = [None] * self._state_num
         self._state_name_to_pos: Dict[str, int] = {
             s.name_hint: i for i, s in enumerate(self._state_vars)
         }
@@ -129,7 +129,7 @@ class Trainer:
         for p in self._param_vars:
             shape, dtype = self._get_shape_list(p), p.struct_info.dtype
             self._params.append(
-                tvm.nd.array(
+                tvm.runtime.tensor(
                     (np.sqrt(6.0 / np.sum(shape)) * np.random.uniform(-1.0, 1.0, shape)).astype(
                         dtype
                     ),
@@ -140,27 +140,27 @@ class Trainer:
     def zero_init_params(self):
         """Zero initialize all parameters. Requires all parameters have static shapes."""
         self._params = [
-            tvm.nd.array(np.zeros(self._get_shape_list(p), p.struct_info.dtype), self.device)
+            tvm.runtime.tensor(np.zeros(self._get_shape_list(p), p.struct_info.dtype), self.device)
             for p in self._param_vars
         ]
 
     def zero_init_states(self):
         """Zero initialize all states. Requires all states have static shapes."""
         self._states = [
-            tvm.nd.array(np.zeros(self._get_shape_list(s), s.struct_info.dtype), self.device)
+            tvm.runtime.tensor(np.zeros(self._get_shape_list(s), s.struct_info.dtype), self.device)
             for s in self._state_vars
         ]
 
     def load_params(
         self,
-        params: Union[List[Union[np.ndarray, NDArray]], Dict[str, Union[np.ndarray, NDArray]]],
+        params: Union[List[Union[np.ndarray, Tensor]], Dict[str, Union[np.ndarray, Tensor]]],
     ):
-        """Load parameters from a dict or a list. Will convert parameters into tvm.runtime.NDArray
+        """Load parameters from a dict or a list. Will convert parameters into tvm.runtime.Tensor
         in self.device.
 
         Parameters
         ----------
-        params : List[Union[np.ndarray, NDArray]], Dict[str, Union[np.ndarray, NDArray]]
+        params : List[Union[np.ndarray, Tensor]], Dict[str, Union[np.ndarray, Tensor]]
             The numerical value of the parameters.
 
             If params is a list, its length should be param_num. The value of parameters at the
@@ -176,25 +176,25 @@ class Trainer:
                     f"The length of extern parameters is {len(params)}, which does not "
                     f"match the number of parameters {self._param_num}"
                 )
-            self._params = [tvm.nd.array(v, self.device) for v in params]
+            self._params = [tvm.runtime.tensor(v, self.device) for v in params]
         elif isinstance(params, dict):
             for key, val in params.items():
                 if key not in self._param_name_to_pos:
                     raise ValueError(f"Parameter {key} is not found in the model")
-                self._params[self._param_name_to_pos[key]] = tvm.nd.array(val, self.device)
+                self._params[self._param_name_to_pos[key]] = tvm.runtime.tensor(val, self.device)
         else:
             raise ValueError("The type of extern_params should be either list or dict")
 
     def load_states(
         self,
-        states: Union[List[Union[np.ndarray, NDArray]], Dict[str, Union[np.ndarray, NDArray]]],
+        states: Union[List[Union[np.ndarray, Tensor]], Dict[str, Union[np.ndarray, Tensor]]],
     ):
-        """Load model states from a dict or a list. Will convert states into tvm.runtime.NDArray
+        """Load model states from a dict or a list. Will convert states into tvm.runtime.Tensor
         in self.device.
 
         Parameters
         ----------
-        states : List[Union[np.ndarray, NDArray]], Dict[str, Union[np.ndarray, NDArray]]
+        states : List[Union[np.ndarray, Tensor]], Dict[str, Union[np.ndarray, Tensor]]
             The numerical value of the model states.
 
             If states is a list, its length should be state_num. The value of states at the
@@ -210,31 +210,31 @@ class Trainer:
                     f"The length of extern states is {len(states)}, which does not match "
                     f"the number of model states {self._state_num}"
                 )
-            self._states = [tvm.nd.array(v, self.device) for v in states]
+            self._states = [tvm.runtime.tensor(v, self.device) for v in states]
         elif isinstance(states, dict):
             for key, val in states.items():
                 if key not in self._param_name_to_pos:
                     raise ValueError(f"Parameter {key} is not found in the model")
-                self._states[self._param_name_to_pos[key]] = tvm.nd.array(val, self.device)
+                self._states[self._param_name_to_pos[key]] = tvm.runtime.tensor(val, self.device)
         else:
             raise ValueError("The type of extern_states should be either list or dict")
 
-    def export_params(self) -> Dict[str, NDArray]:
-        """Export parameters to a dict (parameter name -> NDArray).
+    def export_params(self) -> Dict[str, Tensor]:
+        """Export parameters to a dict (parameter name -> Tensor).
 
         Returns
         -------
-        exported_dict : Dict[str, NDArray]
+        exported_dict : Dict[str, Tensor]
             The exported dictionary of parameters.
         """
         return {key: self._params[pos] for key, pos in self._param_name_to_pos.items()}
 
-    def export_states(self) -> Dict[str, NDArray]:
-        """Export model states to a dict (parameter name -> NDArray).
+    def export_states(self) -> Dict[str, Tensor]:
+        """Export model states to a dict (parameter name -> Tensor).
 
         Returns
         -------
-        exported_dict : Dict[str, NDArray]
+        exported_dict : Dict[str, Tensor]
             The exported dictionary of model states.
         """
         return {key: self._states[pos] for key, pos in self._state_name_to_pos.items()}
@@ -255,26 +255,28 @@ class Trainer:
                 "inference."
             )
 
-    def predict(self, *input_instances: Union[np.ndarray, NDArray]) -> NDArray:
+    def predict(self, *input_instances: Union[np.ndarray, Tensor]) -> Tensor:
         """Call the `backbone` function and return the prediction result of the backbone.
 
         Parameters
         ----------
-        *input_instances : Union[np.ndarray, NDArray]
+        *input_instances : Union[np.ndarray, Tensor]
             The values corresponding to the input_instances part of the backbone function.
             Parameters and model states are not needed to provide.
 
         Returns
         -------
-        output : NDArray
+        output : Tensor
             The result of the backbone function. If the backbone contains model states, the updated
             states WILL NOT be returned.
         """
         self._check_inited()
         if len(input_instances) != self._input_num:
             raise ValueError("The length of the input does not match the backbone")
-        all_inputs: List[NDArray] = (
-            [tvm.nd.array(i, self.device) for i in input_instances] + self._params + self._states
+        all_inputs: List[Tensor] = (
+            [tvm.runtime.tensor(i, self.device) for i in input_instances]
+            + self._params
+            + self._states
         )
         res = self.vm[self.BACKBONE_FUNC](*all_inputs)
 
@@ -287,9 +289,9 @@ class Trainer:
 
     def update(
         self,
-        input_instances: Union[np.ndarray, NDArray, List[Union[np.ndarray, NDArray]]],
-        targets: Union[np.ndarray, NDArray, List[Union[np.ndarray, NDArray]]],
-    ) -> NDArray:
+        input_instances: Union[np.ndarray, Tensor, List[Union[np.ndarray, Tensor]]],
+        targets: Union[np.ndarray, Tensor, List[Union[np.ndarray, Tensor]]],
+    ) -> Tensor:
         """Update parameters and model states. It will calculate the gradients of parameters
         and update them using the `optimizer` function.
 
@@ -298,21 +300,21 @@ class Trainer:
 
         Parameters
         ----------
-        input_instances : Union[np.ndarray, NDArray, List[Union[np.ndarray, NDArray]]]
+        input_instances : Union[np.ndarray, Tensor, List[Union[np.ndarray, Tensor]]]
             The values corresponding to the input_instances part of the backbone function.
             Parameters and model states are not needed to provide.
 
             If there are more than one input instances, you can provide a list.
 
-        targets : Union[np.ndarray, NDArray, List[Union[np.ndarray, NDArray]]]
+        targets : Union[np.ndarray, Tensor, List[Union[np.ndarray, Tensor]]]
             The values corresponding to the targets part of the backbone function.
 
             If there are more than one targets, you can provide a list.
 
         Returns
         -------
-        loss : NDArray
-            The loss stored in tvm.runtime.NDArray.
+        loss : Tensor
+            The loss stored in tvm.runtime.Tensor.
         """
         self._check_inited()
 
@@ -325,11 +327,11 @@ class Trainer:
         if len(input_instances) != self._input_num:
             raise ValueError("The length of the input does not match the backbone")
 
-        all_inputs: List[NDArray] = (
-            [tvm.nd.array(i, self.device) for i in input_instances]
+        all_inputs: List[Tensor] = (
+            [tvm.runtime.tensor(i, self.device) for i in input_instances]
             + self._params
             + self._states
-            + [tvm.nd.array(i, self.device) for i in targets]
+            + [tvm.runtime.tensor(i, self.device) for i in targets]
         )
         ret, grads = self.vm[self.ADJOINT_FUNC](*all_inputs)
 
@@ -348,21 +350,21 @@ class Trainer:
 
     def profile_adjoint(
         self,
-        input_instances: List[Union[np.ndarray, NDArray]],
-        targets: List[Union[np.ndarray, NDArray]],
+        input_instances: List[Union[np.ndarray, Tensor]],
+        targets: List[Union[np.ndarray, Tensor]],
     ) -> tvm.runtime.profiling.Report:
         """Profile the adjoint function. It requires the VM to be constructed with `profile=True`,
         and runs `tvm.relax.VirtualMachine.profile()` internally.
 
         Parameters
         ----------
-        input_instances : Union[np.ndarray, NDArray, List[Union[np.ndarray, NDArray]]]
+        input_instances : Union[np.ndarray, Tensor, List[Union[np.ndarray, Tensor]]]
             The values corresponding to the input_instances part of the backbone function.
             Parameters and model states are not needed to provide.
 
             If there are more than one input instances, you can provide a list.
 
-        targets : Union[np.ndarray, NDArray, List[Union[np.ndarray, NDArray]]]
+        targets : Union[np.ndarray, Tensor, List[Union[np.ndarray, Tensor]]]
             The values corresponding to the targets part of the backbone function.
 
             If there are more than one targets, you can provide a list.
@@ -383,11 +385,11 @@ class Trainer:
         if len(input_instances) != self._input_num:
             raise ValueError("The length of the input does not match the backbone")
 
-        all_inputs: List[NDArray] = (
-            [tvm.nd.array(i) for i in input_instances]
+        all_inputs: List[Tensor] = (
+            [tvm.runtime.tensor(i) for i in input_instances]
             + self._params
             + self._states
-            + [tvm.nd.array(i) for i in targets]
+            + [tvm.runtime.tensor(i) for i in targets]
         )
         all_inputs = [i.copyto(self.device) for i in all_inputs]
         return self.vm.profile(self.ADJOINT_FUNC, *all_inputs)

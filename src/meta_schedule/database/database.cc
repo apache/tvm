@@ -46,20 +46,20 @@ ObjectRef WorkloadNode::AsJSON() const {
   // Dump the JSON string to base64
   std::string b64_mod = Base64Encode(json_mod);
   // Output
-  return Array<ffi::Any>{SHash2Str(this->shash), String(b64_mod)};
+  return ffi::Array<ffi::Any>{SHash2Str(this->shash), ffi::String(b64_mod)};
 }
 
 Workload Workload::FromJSON(const ObjectRef& json_obj) {
-  IRModule mod{nullptr};
+  IRModule mod{ffi::UnsafeInit()};
   THashCode shash = 0;
   try {
     const ffi::ArrayObj* json_array = json_obj.as<ffi::ArrayObj>();
     CHECK(json_array && json_array->size() == 2);
     // Load json[0] => shash
-    String str_shash = json_array->at(0).cast<String>();
+    ffi::String str_shash = json_array->at(0).cast<ffi::String>();
     // Load json[1] => mod
     {
-      String b64_mod = json_array->at(1).cast<String>();
+      ffi::String b64_mod = json_array->at(1).cast<ffi::String>();
       std::string json_mod = Base64Decode(b64_mod);
       mod = LoadJSON(json_mod).cast<IRModule>();
       std::stringstream(str_shash) >> shash;
@@ -73,9 +73,11 @@ Workload Workload::FromJSON(const ObjectRef& json_obj) {
 
 /******** TuningRecord ********/
 
-TuningRecord::TuningRecord(tir::Trace trace, Workload workload, Optional<Array<FloatImm>> run_secs,
-                           Optional<Target> target, Optional<Array<ArgInfo>> args_info) {
-  ObjectPtr<TuningRecordNode> n = make_object<TuningRecordNode>();
+TuningRecord::TuningRecord(tir::Trace trace, Workload workload,
+                           ffi::Optional<ffi::Array<FloatImm>> run_secs,
+                           ffi::Optional<Target> target,
+                           ffi::Optional<ffi::Array<ArgInfo>> args_info) {
+  ObjectPtr<TuningRecordNode> n = ffi::make_object<TuningRecordNode>();
   n->trace = trace;
   n->workload = workload;
   n->run_secs = run_secs;
@@ -96,10 +98,10 @@ MeasureCandidate TuningRecordNode::AsMeasureCandidate() const {
 }
 
 ObjectRef TuningRecordNode::AsJSON() const {
-  Optional<Array<ObjectRef>> json_args_info;
-  Optional<ObjectRef> json_target;
+  ffi::Optional<ffi::Array<ObjectRef>> json_args_info;
+  ffi::Optional<ObjectRef> json_target;
   if (args_info.defined()) {
-    Array<ObjectRef> info;
+    ffi::Array<ObjectRef> info;
     info.reserve(args_info.value().size());
     for (const ArgInfo& arg_info : args_info.value()) {
       info.push_back(arg_info->AsJSON());
@@ -109,10 +111,10 @@ ObjectRef TuningRecordNode::AsJSON() const {
   if (target.defined()) {
     json_target = target.value()->Export();
   }
-  return Array<ObjectRef>{trace->AsJSON(false),  //
-                          run_secs,              //
-                          json_target,           //
-                          json_args_info};
+  return ffi::Array<ObjectRef>{trace->AsJSON(false),  //
+                               run_secs,              //
+                               json_target,           //
+                               json_args_info};
 }
 
 bool TuningRecordNode::IsValid() const {
@@ -131,10 +133,10 @@ bool TuningRecordNode::IsValid() const {
 }
 
 TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& workload) {
-  tir::Trace trace{nullptr};
-  Optional<Array<FloatImm>> run_secs;
-  Optional<Target> target;
-  Optional<Array<ArgInfo>> args_info;
+  tir::Trace trace{ffi::UnsafeInit()};
+  ffi::Optional<ffi::Array<FloatImm>> run_secs;
+  ffi::Optional<Target> target;
+  ffi::Optional<ffi::Array<ArgInfo>> args_info;
   try {
     const ffi::ArrayObj* json_array = json_obj.as<ffi::ArrayObj>();
     CHECK(json_array && json_array->size() == 4);
@@ -144,12 +146,12 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
     }
     // Load json[2] => target
     if (json_array->at(2) != nullptr) {
-      target = Target(json_array->at(2).cast<Map<String, ffi::Any>>());
+      target = Target(json_array->at(2).cast<ffi::Map<ffi::String, ffi::Any>>());
     }
     // Load json[3] => args_info
     if (json_array->at(3) != nullptr) {
       const ffi::ArrayObj* json_args_info = json_array->at(3).cast<const ffi::ArrayObj*>();
-      Array<ArgInfo> info;
+      ffi::Array<ArgInfo> info;
       info.reserve(json_args_info->size());
       for (Any json_arg_info : *json_args_info) {
         info.push_back(ArgInfo::FromJSON(json_arg_info.cast<ObjectRef>()));
@@ -173,15 +175,18 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
 }
 
 /******** Database ********/
-DatabaseNode::DatabaseNode(String mod_eq_name) { mod_eq_ = ModuleEquality::Create(mod_eq_name); }
+DatabaseNode::DatabaseNode(ffi::String mod_eq_name) {
+  mod_eq_ = ModuleEquality::Create(mod_eq_name);
+}
 DatabaseNode::~DatabaseNode() = default;
 
-Optional<TuningRecord> DatabaseNode::QueryTuningRecord(const IRModule& mod, const Target& target,
-                                                       const String& workload_name) {
+ffi::Optional<TuningRecord> DatabaseNode::QueryTuningRecord(const IRModule& mod,
+                                                            const Target& target,
+                                                            const ffi::String& workload_name) {
   if (!this->HasWorkload(mod)) {
     return std::nullopt;
   }
-  Array<TuningRecord> records = this->GetTopK(this->CommitWorkload(mod), 1);
+  ffi::Array<TuningRecord> records = this->GetTopK(this->CommitWorkload(mod), 1);
   if (records.empty()) {
     return std::nullopt;
   }
@@ -189,9 +194,10 @@ Optional<TuningRecord> DatabaseNode::QueryTuningRecord(const IRModule& mod, cons
   return records[0];
 }
 
-Optional<tir::Schedule> DatabaseNode::QuerySchedule(const IRModule& mod, const Target& target,
-                                                    const String& workload_name) {
-  if (Optional<TuningRecord> opt_record = this->QueryTuningRecord(mod, target, workload_name)) {
+ffi::Optional<tir::Schedule> DatabaseNode::QuerySchedule(const IRModule& mod, const Target& target,
+                                                         const ffi::String& workload_name) {
+  if (ffi::Optional<TuningRecord> opt_record =
+          this->QueryTuningRecord(mod, target, workload_name)) {
     TuningRecord record = opt_record.value();
     tir::Schedule sch =
         tir::Schedule::Traced(record->workload->mod, /*seed=*/-1, /*debug_mask=*/0,
@@ -203,9 +209,9 @@ Optional<tir::Schedule> DatabaseNode::QuerySchedule(const IRModule& mod, const T
   }
 }
 
-Optional<IRModule> DatabaseNode::QueryIRModule(const IRModule& mod, const Target& target,
-                                               const String& workload_name) {
-  if (Optional<tir::Schedule> opt_sch = this->QuerySchedule(mod, target, workload_name)) {
+ffi::Optional<IRModule> DatabaseNode::QueryIRModule(const IRModule& mod, const Target& target,
+                                                    const ffi::String& workload_name) {
+  if (ffi::Optional<tir::Schedule> opt_sch = this->QuerySchedule(mod, target, workload_name)) {
     return opt_sch.value()->mod();
   } else {
     return std::nullopt;
@@ -244,7 +250,7 @@ void Database::EnterWithScope() { ThreadLocalDatabases()->push_back(*this); }
 
 void Database::ExitWithScope() { ThreadLocalDatabases()->pop_back(); }
 
-Optional<Database> Database::Current() {
+ffi::Optional<Database> Database::Current() {
   std::vector<Database>* tls = ThreadLocalDatabases();
   if (tls->empty()) {
     return std::nullopt;
@@ -254,7 +260,7 @@ Optional<Database> Database::Current() {
 }
 
 /******** PyDatabase ********/
-PyDatabaseNode::PyDatabaseNode(String mod_eq_name) : DatabaseNode(mod_eq_name) {}
+PyDatabaseNode::PyDatabaseNode(ffi::String mod_eq_name) : DatabaseNode(mod_eq_name) {}
 
 Database Database::PyDatabase(PyDatabaseNode::FHasWorkload f_has_workload,
                               PyDatabaseNode::FCommitWorkload f_commit_workload,
@@ -264,8 +270,8 @@ Database Database::PyDatabase(PyDatabaseNode::FHasWorkload f_has_workload,
                               PyDatabaseNode::FQueryTuningRecord f_query_tuning_record,
                               PyDatabaseNode::FQuerySchedule f_query_schedule,
                               PyDatabaseNode::FQueryIRModule f_query_ir_module,
-                              PyDatabaseNode::FSize f_size, String mod_eq_name) {
-  ObjectPtr<PyDatabaseNode> n = make_object<PyDatabaseNode>(mod_eq_name);
+                              PyDatabaseNode::FSize f_size, ffi::String mod_eq_name) {
+  ObjectPtr<PyDatabaseNode> n = ffi::make_object<PyDatabaseNode>(mod_eq_name);
   n->f_has_workload = f_has_workload;
   n->f_commit_workload = f_commit_workload;
   n->f_commit_tuning_record = f_commit_tuning_record;
@@ -280,21 +286,21 @@ Database Database::PyDatabase(PyDatabaseNode::FHasWorkload f_has_workload,
 
 /******** FFI ********/
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   WorkloadNode::RegisterReflection();
   TuningRecordNode::RegisterReflection();
   PyDatabaseNode::RegisterReflection();
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("meta_schedule.Workload", [](IRModule mod) { return Workload(mod); })
       .def_method("meta_schedule.WorkloadAsJSON", &WorkloadNode::AsJSON)
       .def("meta_schedule.WorkloadFromJSON", &Workload::FromJSON)
       .def("meta_schedule.TuningRecord",
-           [](tir::Trace trace, Workload workload, Optional<Array<FloatImm>> run_secs,
-              Optional<Target> target, Optional<Array<ArgInfo>> args_info) {
+           [](tir::Trace trace, Workload workload, ffi::Optional<ffi::Array<FloatImm>> run_secs,
+              ffi::Optional<Target> target, ffi::Optional<ffi::Array<ArgInfo>> args_info) {
              return TuningRecord(trace, workload, run_secs, target, args_info);
            })
       .def_method("meta_schedule.TuningRecordAsMeasureCandidate",
@@ -315,7 +321,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_method("meta_schedule.DatabaseQueryIRModule", &DatabaseNode::QueryIRModule)
       .def_method("meta_schedule.DatabaseDumpPruned", &DatabaseNode::DumpPruned)
       .def("meta_schedule.DatabasePyDatabase", Database::PyDatabase);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -39,10 +39,10 @@ namespace tvm {
  * Abstract label for an area of memory.
  *
  * Currently uninterpreted and arbitrary. Likely to be replaced by a structured representation
- * of a memory pool in the future. Please try to use this alias instead of String to aid future
+ * of a memory pool in the future. Please try to use this alias instead of ffi::String to aid future
  * code migration.
  */
-using MemoryScope = String;
+using MemoryScope = ffi::String;
 
 // NOTE: cannot use enum as they are out of bound of the original enum
 // and results in an undefined behavior
@@ -257,9 +257,7 @@ class VirtualDeviceNode : public AttrsNodeReflAdapter<VirtualDeviceNode> {
                 "The area of memory w.r.t. the virtual device where data is stored.",
                 refl::DefaultValue(""));
   }
-
-  static constexpr const char* _type_key = "target.VirtualDevice";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(VirtualDeviceNode, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.VirtualDevice", VirtualDeviceNode, BaseAttrsNode);
 
   friend class VirtualDevice;
 };
@@ -333,7 +331,7 @@ class VirtualDevice : public ObjectRef {
    * \p lhs and \p rhs on all their constrained fields. Returns the null optional if no such
    * join exists, ie there's disagreement on at least one constrained field.
    */
-  static Optional<VirtualDevice> Join(const VirtualDevice& lhs, const VirtualDevice& rhs);
+  static ffi::Optional<VirtualDevice> Join(const VirtualDevice& lhs, const VirtualDevice& rhs);
 
   /*!
    * \brief Returns the 'default' of \p lhs and \p rhs. The result will be \p lhs, except any
@@ -341,7 +339,7 @@ class VirtualDevice : public ObjectRef {
    */
   static VirtualDevice Default(const VirtualDevice& lhs, const VirtualDevice& rhs);
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(VirtualDevice, ObjectRef, VirtualDeviceNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(VirtualDevice, ObjectRef, VirtualDeviceNode);
 
   friend class VirtualDeviceCache;  // Private implementation helper.
 };

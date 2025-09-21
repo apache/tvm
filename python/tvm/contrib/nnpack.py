@@ -17,7 +17,7 @@
 """External function interface to NNPACK libraries."""
 import tvm
 from tvm import te
-import tvm.ffi
+import tvm_ffi
 
 
 def is_available():
@@ -232,4 +232,4 @@ def convolution_inference_weight_transform(
     )
 
 
-tvm.ffi._init_api("tvm.contrib.nnpack")
+tvm_ffi.init_ffi_api("tvm.contrib.nnpack")

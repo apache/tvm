@@ -32,6 +32,7 @@
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 #include <tvm/ffi/dtype.h>
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 
@@ -91,7 +92,10 @@ class WorkspaceMemoryResource : public thrust::mr::memory_resource<void*> {
 };
 
 auto get_thrust_exec_policy(WorkspaceMemoryResource* memory_resouce) {
-  return thrust::cuda::par_nosync(memory_resouce).on(GetCUDAStream());
+  int device_id;
+  CUDA_CALL(cudaGetDevice(&device_id));
+  cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, device_id));
+  return thrust::cuda::par_nosync(memory_resouce).on(stream);
 }
 
 // Performs sorting along axis -1 and returns both sorted values and indices.
@@ -234,7 +238,7 @@ void thrust_sort_common(DLTensor* input, DLTensor* values_out, DLTensor* indices
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.contrib.thrust.sort", [](ffi::PackedArgs args, ffi::Any* ret) {
     ICHECK_GE(args.size(), 4);
@@ -254,7 +258,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     thrust_sort_common(input, values_out, indices_out, is_ascend, n_values, data_dtype, out_dtype,
                        workspace);
   });
-});
+}
 
 template <typename KeyType, typename ValueType>
 void thrust_stable_sort_by_key(DLTensor* keys_in, DLTensor* values_in, DLTensor* keys_out,
@@ -283,7 +287,7 @@ void thrust_stable_sort_by_key(DLTensor* keys_in, DLTensor* values_in, DLTensor*
   thrust::stable_sort_by_key(policy, keys_out_ptr, keys_out_ptr + size, values_out_ptr);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tvm.contrib.thrust.stable_sort_by_key", [](ffi::PackedArgs args, ffi::Any* ret) {
@@ -344,7 +348,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           LOG(FATAL) << "Unsupported key dtype: " << key_dtype;
         }
       });
-});
+}
 
 template <typename InType, typename OutType>
 void thrust_scan(DLTensor* data, DLTensor* output, bool exclusive, DLTensor* workspace) {
@@ -401,7 +405,7 @@ void thrust_scan(DLTensor* data, DLTensor* output, bool exclusive, DLTensor* wor
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tvm.contrib.thrust.sum_scan", [](ffi::PackedArgs args, ffi::Any* ret) {
@@ -480,7 +484,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                      << ". Supported input dtypes are bool, int32, int64, float32, and float64";
         }
       });
-});
+}
 
 }  // namespace contrib
 }  // namespace tvm

@@ -33,9 +33,7 @@ class RoundRobinNode final : public TaskSchedulerNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RoundRobinNode>().def_ro("task_id", &RoundRobinNode::task_id);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.RoundRobin";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RoundRobinNode, TaskSchedulerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RoundRobin", RoundRobinNode, TaskSchedulerNode);
 
  protected:
   int NextTaskId() final {
@@ -58,18 +56,18 @@ class RoundRobinNode final : public TaskSchedulerNode {
 };
 
 TaskScheduler TaskScheduler::RoundRobin(ffi::Function logger) {
-  ObjectPtr<RoundRobinNode> n = make_object<RoundRobinNode>();
+  ObjectPtr<RoundRobinNode> n = ffi::make_object<RoundRobinNode>();
   n->logger = logger;
   n->task_id = -1;
   return TaskScheduler(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ RoundRobinNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { RoundRobinNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.TaskSchedulerRoundRobin", TaskScheduler::RoundRobin);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

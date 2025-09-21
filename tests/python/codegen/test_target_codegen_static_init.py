@@ -36,7 +36,7 @@ def test_static_callback():
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "ramp"))
     f = tvm.driver.build(mod, target="llvm")
-    a = tvm.nd.array(np.zeros(10, dtype=dtype))
+    a = tvm.runtime.tensor(np.zeros(10, dtype=dtype))
     f(a)
     f(a)
     np.testing.assert_equal(a.numpy(), np.ones(a.shape[0]))
@@ -51,7 +51,7 @@ def test_static_init():
     handle = tvm.tir.call_intrin("handle", "tir.tvm_static_handle")
     ib.emit(tvm.tir.call_packed("test_static_callback", handle, Ab))
 
-    @tvm.register_func("test_static_callback")
+    @tvm.register_global_func("test_static_callback")
     def test_cb(sh, A):
         assert isinstance(sh, ctypes.c_void_p)
         return sh
@@ -59,7 +59,7 @@ def test_static_init():
     stmt = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "ramp"))
     f = tvm.driver.build(mod, target="llvm")
-    a = tvm.nd.array(np.zeros(10, dtype=dtype))
+    a = tvm.runtime.tensor(np.zeros(10, dtype=dtype))
     f(a)
 
 

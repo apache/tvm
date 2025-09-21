@@ -20,7 +20,7 @@ from collections import namedtuple
 from enum import IntEnum
 from typing import Dict, Optional, Union
 
-from tvm.ffi import register_object
+from tvm_ffi import register_object
 from tvm.ir import IRModule
 from tvm.runtime import Object
 from tvm.tir import Block, BlockRealize, For, PrimFunc

@@ -45,19 +45,19 @@ TVM_DLL FunctionFrame Function(const Bool& is_pure, const Bool& is_private);
  * \param struct_info The struct_info of the parameter.
  * \return The created function parameter var.
  */
-TVM_DLL tvm::relax::Var Arg(const String& name, const tvm::relax::StructInfo& struct_info);
+TVM_DLL tvm::relax::Var Arg(const ffi::String& name, const tvm::relax::StructInfo& struct_info);
 
 /*!
  * \brief Specify the name of the last function frame.
  * \param name The function name.
  */
-TVM_DLL void FuncName(const String& name);
+TVM_DLL void FuncName(const ffi::String& name);
 
 /*!
  * \brief Specify the attrs of the last function frame.
  * \param attrs The function attrs.
  */
-TVM_DLL void FuncAttrs(Map<String, Any> attrs);
+TVM_DLL void FuncAttrs(ffi::Map<ffi::String, Any> attrs);
 
 /*!
  * \brief Specify the return struct info of the last function frame.
@@ -89,7 +89,7 @@ TVM_DLL BlockFrame Dataflow();
  * \brief Expose the dataflow block output variables as global ones
  * \param vars The output variables of a dataflow block
  */
-TVM_DLL void DataflowBlockOutput(const Array<tvm::relax::Var>& vars);
+TVM_DLL void DataflowBlockOutput(const ffi::Array<tvm::relax::Var>& vars);
 
 ////////////////////////////// Bindings ////////////////////////////////
 
@@ -101,7 +101,7 @@ TVM_DLL void DataflowBlockOutput(const Array<tvm::relax::Var>& vars);
  */
 TVM_DLL tvm::relax::Var Emit(
     const tvm::relax::Expr& value,
-    const Optional<tvm::relax::StructInfo>& annotate_struct_info = std::nullopt);
+    const ffi::Optional<tvm::relax::StructInfo>& annotate_struct_info = std::nullopt);
 
 /*!
  * \brief Emit a match_cast binding to the last binding block frame.

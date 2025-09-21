@@ -40,7 +40,7 @@ void TensorflowCodeGen::CodeGenHelper() {
       .func_arg("name", "str")
       .func_arg("shape", "List[int]")
       .func_arg("dtype", "str")
-      .func_arg("weights", "Dict[str, tvm.nd.array]")
+      .func_arg("weights", "Dict[str, tvm.runtime.Tensor]")
       .func_start()
       .cond_if("name in weights")
       .func_call("tf_v1.get_variable", "var")
@@ -63,7 +63,7 @@ void TensorflowCodeGen::CodeGenGraph() {
     const auto& pair = graph()->FindProducerAndIdx(i);
     stack_.func_arg(IdxOutputBase(pair.first, pair.second), "tf_v1.Tensor");
   }
-  stack_.func_arg("weights", "Dict[str, tvm.nd.array]").func_start();
+  stack_.func_arg("weights", "Dict[str, tvm.runtime.Tensor]").func_start();
   // define weights
   stack_.comment("Define the weights");
   for (const auto& n : graph()->node_names) {
@@ -88,7 +88,7 @@ void TensorflowCodeGen::CodeGenGraph() {
     }
     CodeGenNode(node, config()->use_tools);
   }
-  Array<String> idx_outputs;
+  ffi::Array<ffi::String> idx_outputs;
   for (const auto& o : graph()->GetOutputs()) {
     const auto& pair = graph()->FindProducerAndIdx(o);
     idx_outputs.push_back(IdxOutputBase(pair.first, pair.second));
@@ -139,7 +139,7 @@ void TensorflowCodeGen::CodeGenInference() {
       .scope_end();
 }
 
-const Array<Doc> TensorflowCodeGen::GetOpCodes(const MSCJoint& node) {
+const ffi::Array<Doc> TensorflowCodeGen::GetOpCodes(const MSCJoint& node) {
   const auto& ops_map = GetTFV1OpCodes();
   auto it = ops_map->find(node->optype);
   ICHECK(it != ops_map->end()) << "Unsupported tensorflow op(" << node->optype << "): " << node;
@@ -152,16 +152,16 @@ const Array<Doc> TensorflowCodeGen::GetOpCodes(const MSCJoint& node) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("msc.framework.tensorflow.GetTensorflowSources",
-                        [](const MSCGraph& graph, const String& codegen_config,
-                           const String& print_config) -> Map<String, String> {
+                        [](const MSCGraph& graph, const ffi::String& codegen_config,
+                           const ffi::String& print_config) -> ffi::Map<ffi::String, ffi::String> {
                           TensorflowCodeGen codegen = TensorflowCodeGen(graph, codegen_config);
                           codegen.Init();
                           return codegen.GetSources(print_config);
                         });
-});
+}
 
 }  // namespace msc
 }  // namespace contrib

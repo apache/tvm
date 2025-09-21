@@ -45,19 +45,20 @@ namespace tvm {
 template <typename SubRef, typename BaseRef,
           typename = std::enable_if_t<std::is_base_of_v<ffi::ObjectRef, BaseRef>>>
 inline SubRef Downcast(BaseRef ref) {
+  using ContainerType = typename SubRef::ContainerType;
   if (ref.defined()) {
-    if (!ref->template IsInstance<typename SubRef::ContainerType>()) {
+    if (!ref->template IsInstance<ContainerType>()) {
       TVM_FFI_THROW(TypeError) << "Downcast from " << ref->GetTypeKey() << " to "
                                << SubRef::ContainerType::_type_key << " failed.";
     }
-    return SubRef(ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<ffi::Object>(std::move(ref)));
+    return ffi::details::ObjectUnsafe::ObjectRefFromObjectPtr<SubRef>(
+        ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<ffi::Object>(std::move(ref)));
   } else {
     if constexpr (ffi::is_optional_type_v<SubRef> || SubRef::_type_is_nullable) {
-      return SubRef(ffi::ObjectPtr<ffi::Object>(nullptr));
+      return ffi::details::ObjectUnsafe::ObjectRefFromObjectPtr<SubRef>(nullptr);
     }
-    TVM_FFI_THROW(TypeError) << "Downcast from undefined(nullptr) to `"
-                             << SubRef::ContainerType::_type_key
-                             << "` is not allowed. Use Downcast<Optional<T>> instead.";
+    TVM_FFI_THROW(TypeError) << "Downcast from undefined(nullptr) to `" << ContainerType::_type_key
+                             << "` is not allowed. Use Downcast<ffi::Optional<T>> instead.";
     TVM_FFI_UNREACHABLE();
   }
 }

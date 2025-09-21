@@ -37,7 +37,7 @@ bool AtTopLevelFunction(const IRDocsifier& d) {
   return d->frames.size() == 3;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ RelaxFrameNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { RelaxFrameNode::RegisterReflection(); }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Function>("", [](relax::Function n, AccessPath n_p, IRDocsifier d) -> Doc {
@@ -47,7 +47,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       IdDoc func_name("");
       // if we are binding a local definition, then calling d->Define
       // will result in a repeated definition and an incorrect displayed name
-      if (Optional<String> name = GetBindingName(d)) {
+      if (ffi::Optional<ffi::String> name = GetBindingName(d)) {
         func_name = IdDoc(name.value());
       } else {
         func_name = IdDoc(FindFunctionName(d, n).value_or("main"));
@@ -56,13 +56,13 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       (*f)->is_func = true;
       (*f)->func_vars = &func_vars;
       // Step 1. Print the return type
-      Optional<ExprDoc> ret_type = std::nullopt;
+      ffi::Optional<ExprDoc> ret_type = std::nullopt;
       if (const auto& func_sinfo = relax::MatchStructInfo<relax::FuncStructInfo>(n)) {
         ret_type = d->AsDoc<ExprDoc>(func_sinfo.value()->ret,  //
                                      n_p->Attr("struct_info_")->Attr("ret"));
       }
       // Step 2. Print params
-      Array<AssignDoc> params;
+      ffi::Array<AssignDoc> params;
       {
         AccessPath params_p = n_p->Attr("params");
         for (int i = 0, l = n->params.size(); i < l; ++i) {
@@ -81,8 +81,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         // For a function without an IR module whose global symbol
         // doesn't match the function name, we should still print the global symbol attribute.
         if (AtTopLevelFunction(d) && n->attrs->dict.count(tvm::attr::kGlobalSymbol) &&
-            Downcast<String>(n->attrs->dict.at(tvm::attr::kGlobalSymbol)) == func_name->name) {
-          Map<String, Any> new_attrs;
+            Downcast<ffi::String>(n->attrs->dict.at(tvm::attr::kGlobalSymbol)) == func_name->name) {
+          ffi::Map<ffi::String, Any> new_attrs;
           for (auto kv : n->attrs->dict) {
             if (kv.first != tvm::attr::kGlobalSymbol) {
               new_attrs.Set(kv.first, kv.second);
@@ -101,26 +101,26 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       }
       // Step 5. Prepare the decorator (include purity if it's impure)
       ExprDoc decorator = Relax(d, "function");
-      Array<ExprDoc, void> pos_args = {};
-      Array<String, void> dec_keys;
-      Array<ExprDoc, void> dec_values;
+      ffi::Array<ExprDoc, void> pos_args = {};
+      ffi::Array<ffi::String, void> dec_keys;
+      ffi::Array<ExprDoc, void> dec_values;
       if (!n->is_pure) {
         dec_keys.push_back("pure");
-        dec_values.push_back(LiteralDoc::Boolean(false, Optional<AccessPath>()));
+        dec_values.push_back(LiteralDoc::Boolean(false, ffi::Optional<AccessPath>()));
       }
       // if the function is global or is not in a module and does not have a global symbol,
       // indicate that it's private
       if (AtTopLevelFunction(d) &&
           (!n->attrs.defined() || !n->attrs->dict.count(tvm::attr::kGlobalSymbol))) {
         dec_keys.push_back("private");
-        dec_values.push_back(LiteralDoc::Boolean(true, Optional<AccessPath>()));
+        dec_values.push_back(LiteralDoc::Boolean(true, ffi::Optional<AccessPath>()));
       }
       if (dec_keys.size()) {
         decorator = decorator->Call(pos_args, dec_keys, dec_values);
       }
 
       // Step 6. Print body
-      Array<StmtDoc> body = PrintSeqExpr(n->body, n_p->Attr("body"), d, /*use_ret=*/true);
+      ffi::Array<StmtDoc> body = PrintSeqExpr(n->body, n_p->Attr("body"), d, /*use_ret=*/true);
       (*f)->stmts.insert((*f)->stmts.end(), body.begin(), body.end());
       return HeaderWrapper(d, FunctionDoc(func_name, params, {decorator}, ret_type, (*f)->stmts));
     });

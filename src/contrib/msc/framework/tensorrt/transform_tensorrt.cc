@@ -58,7 +58,7 @@ struct TensorRTTransConfig {
   }
 };
 
-const TensorRTTransConfig ParseConfig(const String& config_str) {
+const TensorRTTransConfig ParseConfig(const ffi::String& config_str) {
   TensorRTTransConfig config;
   if (config_str.size() > 0) {
     std::istringstream is(config_str);
@@ -70,12 +70,12 @@ const TensorRTTransConfig ParseConfig(const String& config_str) {
 
 using FRewriteTensorRT =
     ffi::TypedFunction<Expr(BlockBuilder builder, const Var& var, const Call& src_call,
-                            const Map<Expr, Call>& new_calls, const String& config)>;
+                            const ffi::Map<Expr, Call>& new_calls, const ffi::String& config)>;
 
-const Array<PrimExpr> BroadcastShape(const Array<PrimExpr>& src_shape,
-                                     const Array<PrimExpr>& out_shape) {
+const ffi::Array<PrimExpr> BroadcastShape(const ffi::Array<PrimExpr>& src_shape,
+                                          const ffi::Array<PrimExpr>& out_shape) {
   size_t diff = out_shape.size() - src_shape.size();
-  Array<PrimExpr> leading_shape, tailing_shape;
+  ffi::Array<PrimExpr> leading_shape, tailing_shape;
   for (size_t i = 0; i < diff; i++) {
     leading_shape.push_back(Integer(1));
   }
@@ -95,7 +95,7 @@ const Array<PrimExpr> BroadcastShape(const Array<PrimExpr>& src_shape,
 }
 
 Expr RewriteElemwise(BlockBuilder builder, const Var& var, const Call& src_call,
-                     const Map<Expr, Call>& new_calls, const String& config) {
+                     const ffi::Map<Expr, Call>& new_calls, const ffi::String& config) {
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   const auto& shape_a = ExprUtils::GetShape(call->args[0]);
   const auto& shape_b = ExprUtils::GetShape(call->args[1]);
@@ -118,7 +118,7 @@ Expr RewriteElemwise(BlockBuilder builder, const Var& var, const Call& src_call,
 }
 
 Expr RewriteAdd(BlockBuilder builder, const Var& var, const Call& src_call,
-                const Map<Expr, Call>& new_calls, const String& config) {
+                const ffi::Map<Expr, Call>& new_calls, const ffi::String& config) {
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   if (new_calls.count(call->args[0]) &&
       new_calls[call->args[0]]->op == Op::Get("relax.nn.conv1d")) {
@@ -135,7 +135,7 @@ Expr RewriteAdd(BlockBuilder builder, const Var& var, const Call& src_call,
     const auto* conv_attrs = conv2d->attrs.as<Conv2DAttrs>();
     if (conv_attrs->data_layout == "NCHW") {
       // expand bias reshape
-      Array<PrimExpr> exp_bias_shape{bias_shape[0], bias_shape[1], Integer(1), bias_shape[2]};
+      ffi::Array<PrimExpr> exp_bias_shape{bias_shape[0], bias_shape[1], Integer(1), bias_shape[2]};
       static const Op& reshape_op = Op::Get("relax.reshape");
       const auto& exp_bias =
           RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "exp_bias"), reshape_op,
@@ -155,14 +155,14 @@ Expr RewriteAdd(BlockBuilder builder, const Var& var, const Call& src_call,
 }
 
 Expr RewriteArgmaxmin(BlockBuilder builder, const Var& var, const Call& src_call,
-                      const Map<Expr, Call>& new_calls, const String& config) {
+                      const ffi::Map<Expr, Call>& new_calls, const ffi::String& config) {
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   const auto& out_dtype = ExprUtils::GetDataType(var);
   const auto* src_attrs = src_call->attrs.as<ArgmaxArgminAttrs>();
   ICHECK(out_dtype == DataType::Int(32) || out_dtype == DataType::Int(64))
       << "Unexpected out dtype " << out_dtype;
   static const Op& topk_op = Op::Get("relax.topk");
-  auto topk_attrs = make_object<TopKAttrs>();
+  auto topk_attrs = ffi::make_object<TopKAttrs>();
   topk_attrs->k = 1;
   if (src_attrs->axis.has_value()) {
     topk_attrs->axis = src_attrs->axis.value();
@@ -187,7 +187,7 @@ Expr RewriteArgmaxmin(BlockBuilder builder, const Var& var, const Call& src_call
 }
 
 Expr RewriteAttention(BlockBuilder builder, const Var& var, const Call& src_call,
-                      const Map<Expr, Call>& new_calls, const String& config) {
+                      const ffi::Map<Expr, Call>& new_calls, const ffi::String& config) {
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   const auto& in_dtype = ExprUtils::GetDataType(call->args[0]);
   const auto* src_attrs = src_call->attrs.as<AttentionAttrs>();
@@ -218,8 +218,8 @@ Expr RewriteAttention(BlockBuilder builder, const Var& var, const Call& src_call
   static const Op& exp_op = Op::Get("relax.exp");
 
   // prepare q,k,v
-  auto permute_attrs = make_object<PermuteDimsAttrs>();
-  Array<Integer> axes{Integer(0), Integer(2), Integer(1), Integer(3)};
+  auto permute_attrs = ffi::make_object<PermuteDimsAttrs>();
+  ffi::Array<Integer> axes{Integer(0), Integer(2), Integer(1), Integer(3)};
   permute_attrs->axes = axes;
   const auto& q_trans =
       RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "q_trans"), permute_dims_op,
@@ -230,17 +230,17 @@ Expr RewriteAttention(BlockBuilder builder, const Var& var, const Call& src_call
   const auto& v_trans =
       RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "v_trans"), permute_dims_op,
                              {call->args[2]}, Attrs(permute_attrs));
-  Array<PrimExpr> q_shape({batch_size * num_head, seq_len, head_dim});
+  ffi::Array<PrimExpr> q_shape({batch_size * num_head, seq_len, head_dim});
   const auto& q_reshape = RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "q_reshape"),
                                                  reshape_op, {q_trans, ShapeExpr(q_shape)});
-  Array<PrimExpr> k_shape({batch_size * num_head, seq_len_kv, head_dim});
+  ffi::Array<PrimExpr> k_shape({batch_size * num_head, seq_len_kv, head_dim});
   const auto& k_reshape = RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "k_reshape"),
                                                  reshape_op, {k_trans, ShapeExpr(k_shape)});
-  Array<PrimExpr> v_shape({batch_size * num_head, seq_len_kv, head_dim_v});
+  ffi::Array<PrimExpr> v_shape({batch_size * num_head, seq_len_kv, head_dim_v});
   const auto& v_reshape = RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "v_reshape"),
                                                  reshape_op, {v_trans, ShapeExpr(v_shape)});
-  auto reduce_permute_attrs = make_object<PermuteDimsAttrs>();
-  Array<Integer> v_axes{Integer(0), Integer(2), Integer(1)};
+  auto reduce_permute_attrs = ffi::make_object<PermuteDimsAttrs>();
+  ffi::Array<Integer> v_axes{Integer(0), Integer(2), Integer(1)};
   reduce_permute_attrs->axes = v_axes;
   // transpose for batch_matmul
   const auto& k_reshape_trans =
@@ -248,7 +248,7 @@ Expr RewriteAttention(BlockBuilder builder, const Var& var, const Call& src_call
                              permute_dims_op, {k_reshape}, Attrs(reduce_permute_attrs));
 
   // calculate product
-  auto matmul_attrs = make_object<MatmulAttrs>();
+  auto matmul_attrs = ffi::make_object<MatmulAttrs>();
   matmul_attrs->out_dtype = in_dtype;
   const auto& qk_prod =
       RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "qk_prod"), matmul_op,
@@ -273,8 +273,8 @@ Expr RewriteAttention(BlockBuilder builder, const Var& var, const Call& src_call
   // bias
   Expr prod = p_scale;
   if (call->args.size() == 4) {
-    Array<PrimExpr> exp_shape{batch_size, num_head, seq_len, seq_len_kv};
-    Array<PrimExpr> reduce_shape{batch_size * num_head, seq_len, seq_len_kv};
+    ffi::Array<PrimExpr> exp_shape{batch_size, num_head, seq_len, seq_len_kv};
+    ffi::Array<PrimExpr> reduce_shape{batch_size * num_head, seq_len, seq_len_kv};
     const auto& prod_exp = RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "prod_exp"),
                                                   reshape_op, {prod, ShapeExpr(exp_shape)});
     const auto& prod_add = RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "prod_add"),
@@ -286,7 +286,7 @@ Expr RewriteAttention(BlockBuilder builder, const Var& var, const Call& src_call
   // causal_mask
   Expr s_value;
   if (!src_attrs->causal_mask.has_value()) {
-    auto softmax_attrs = make_object<SoftmaxAttrs>();
+    auto softmax_attrs = ffi::make_object<SoftmaxAttrs>();
     softmax_attrs->axis = 2;
     s_value = RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "act"), softmax_op,
                                      {prod}, Attrs(softmax_attrs));
@@ -302,8 +302,8 @@ Expr RewriteAttention(BlockBuilder builder, const Var& var, const Call& src_call
     }
     const auto& p_masked = RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "p_masked"),
                                                   tril_op, {prod, tril_k});
-    auto reduce_attrs = make_object<StatisticalAttrs>();
-    Array<Integer> axis{Integer(2)};
+    auto reduce_attrs = ffi::make_object<StatisticalAttrs>();
+    ffi::Array<Integer> axis{Integer(2)};
     reduce_attrs->axis = axis;
     reduce_attrs->keepdims = true;
     const auto& p_max = RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "p_max"),
@@ -324,18 +324,18 @@ Expr RewriteAttention(BlockBuilder builder, const Var& var, const Call& src_call
   // final calculation
   const auto& o_prod = RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "o_prod"),
                                               matmul_op, {s_value, v_reshape}, Attrs(matmul_attrs));
-  Array<PrimExpr> o_shape{batch_size, num_head, seq_len, head_dim_v};
+  ffi::Array<PrimExpr> o_shape{batch_size, num_head, seq_len, head_dim_v};
   return Call(reshape_op, {o_prod, ShapeExpr(o_shape)}, Attrs(), call->sinfo_args, call->span);
 }
 
 Expr RewriteBatchNorm(BlockBuilder builder, const Var& var, const Call& src_call,
-                      const Map<Expr, Call>& new_calls, const String& config) {
+                      const ffi::Map<Expr, Call>& new_calls, const ffi::String& config) {
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   const auto& input_shape = ExprUtils::GetShape(call->args[0]);
   const auto& in_dtype = ExprUtils::GetDataType(call->args[0]);
   const auto* src_attrs = src_call->attrs.as<BatchNormAttrs>();
   // define expand shape
-  Array<PrimExpr> exp_shape(input_shape.size(), Integer(1));
+  ffi::Array<PrimExpr> exp_shape(input_shape.size(), Integer(1));
   exp_shape.Set(src_attrs->axis, input_shape[src_attrs->axis]);
 
   // create eps constant
@@ -380,11 +380,11 @@ Expr RewriteBatchNorm(BlockBuilder builder, const Var& var, const Call& src_call
     res = RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "offset"), add_op,
                                  {res, exp_offset});
   }
-  return Tuple(Array<Expr>{res}, call->span);
+  return Tuple(ffi::Array<Expr>{res}, call->span);
 }
 
 Expr RewriteBroadcastTo(BlockBuilder builder, const Var& var, const Call& src_call,
-                        const Map<Expr, Call>& new_calls, const String& config) {
+                        const ffi::Map<Expr, Call>& new_calls, const ffi::String& config) {
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   const auto& input_shape = ExprUtils::GetShape(call->args[0]);
   const auto& output_shape = ExprUtils::GetShape(var);
@@ -394,8 +394,8 @@ Expr RewriteBroadcastTo(BlockBuilder builder, const Var& var, const Call& src_ca
     int64_t in_dim = Downcast<Integer>(input_shape[i])->value;
     int64_t out_dim = Downcast<Integer>(output_shape[i])->value;
     if (in_dim != out_dim) {
-      Array<Expr> concat_inputs(out_dim / in_dim, concat_input);
-      auto concat_attrs = make_object<ConcatAttrs>();
+      ffi::Array<Expr> concat_inputs(out_dim / in_dim, concat_input);
+      auto concat_attrs = ffi::make_object<ConcatAttrs>();
       concat_attrs->axis = i;
       concat_input = RewriteUtils::MakeCall(
           builder, ExprUtils::GetSpanName(call, "concat_" + std::to_string(i)), concat_op,
@@ -406,17 +406,19 @@ Expr RewriteBroadcastTo(BlockBuilder builder, const Var& var, const Call& src_ca
 }
 
 Expr RewriteConv1d(BlockBuilder builder, const Var& var, const Call& src_call,
-                   const Map<Expr, Call>& new_calls, const String& config) {
+                   const ffi::Map<Expr, Call>& new_calls, const ffi::String& config) {
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   const auto* src_attrs = src_call->attrs.as<Conv1DAttrs>();
   const auto& input_shape = ExprUtils::GetShape(call->args[0]);
   const auto& weight_shape = ExprUtils::GetShape(call->args[1]);
   const auto& output_shape = ExprUtils::GetShape(var);
   if (src_attrs->data_layout == "NCW") {
-    Array<Expr> new_args;
+    ffi::Array<Expr> new_args;
     // expand inputs
-    Array<PrimExpr> exp_input_shape{input_shape[0], input_shape[1], Integer(1), input_shape[2]};
-    Array<PrimExpr> exp_weight_shape{weight_shape[0], weight_shape[1], Integer(1), weight_shape[2]};
+    ffi::Array<PrimExpr> exp_input_shape{input_shape[0], input_shape[1], Integer(1),
+                                         input_shape[2]};
+    ffi::Array<PrimExpr> exp_weight_shape{weight_shape[0], weight_shape[1], Integer(1),
+                                          weight_shape[2]};
     static const Op& reshape_op = Op::Get("relax.reshape");
     new_args.push_back(RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "exp_input"),
                                               reshape_op,
@@ -426,11 +428,11 @@ Expr RewriteConv1d(BlockBuilder builder, const Var& var, const Call& src_call,
                                               {call->args[1], ShapeExpr(exp_weight_shape)}));
     // change to conv2d
     static const Op& conv2d_op = Op::Get("relax.nn.conv2d");
-    auto conv_attrs = make_object<Conv2DAttrs>();
-    conv_attrs->strides = Array<IntImm>{src_attrs->strides[0], Integer(1)};
+    auto conv_attrs = ffi::make_object<Conv2DAttrs>();
+    conv_attrs->strides = ffi::Array<IntImm>{src_attrs->strides[0], Integer(1)};
     conv_attrs->padding =
-        Array<IntImm>{Integer(0), src_attrs->padding[0], Integer(0), src_attrs->padding[1]};
-    conv_attrs->dilation = Array<IntImm>{src_attrs->dilation[0], Integer(1)};
+        ffi::Array<IntImm>{Integer(0), src_attrs->padding[0], Integer(0), src_attrs->padding[1]};
+    conv_attrs->dilation = ffi::Array<IntImm>{src_attrs->dilation[0], Integer(1)};
     conv_attrs->groups = src_attrs->groups;
     conv_attrs->data_layout = "NCHW";
     conv_attrs->kernel_layout = "OIHW";
@@ -448,7 +450,7 @@ Expr RewriteConv1d(BlockBuilder builder, const Var& var, const Call& src_call,
 }
 
 Expr RewriteGelu(BlockBuilder builder, const Var& var, const Call& src_call,
-                 const Map<Expr, Call>& new_calls, const String& config) {
+                 const ffi::Map<Expr, Call>& new_calls, const ffi::String& config) {
   // 0.5 * x * (1 + erf(sqrt(0.5) * x))
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   size_t in_dim = ExprUtils::GetShape(call->args[0]).size();
@@ -476,7 +478,7 @@ Expr RewriteGelu(BlockBuilder builder, const Var& var, const Call& src_call,
 }
 
 Expr RewriteGeluTanh(BlockBuilder builder, const Var& var, const Call& src_call,
-                     const Map<Expr, Call>& new_calls, const String& config) {
+                     const ffi::Map<Expr, Call>& new_calls, const ffi::String& config) {
   // 0.5 * x * (1 + tanh(sqrt(2/pi) * (0.044715F * pow(x, 3) + x)))
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   size_t in_dim = ExprUtils::GetShape(call->args[0]).size();
@@ -517,13 +519,13 @@ Expr RewriteGeluTanh(BlockBuilder builder, const Var& var, const Call& src_call,
 }
 
 Expr RewriteGroupNorm(BlockBuilder builder, const Var& var, const Call& src_call,
-                      const Map<Expr, Call>& new_calls, const String& config) {
+                      const ffi::Map<Expr, Call>& new_calls, const ffi::String& config) {
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   const auto& input_shape = ExprUtils::GetShape(call->args[0]);
   const auto& in_dtype = ExprUtils::GetDataType(call->args[0]);
   const auto* src_attrs = src_call->attrs.as<GroupNormAttrs>();
-  Array<PrimExpr> group_shape = input_shape;
-  Array<PrimExpr> exp_shape(input_shape.size(), Integer(1));
+  ffi::Array<PrimExpr> group_shape = input_shape;
+  ffi::Array<PrimExpr> exp_shape(input_shape.size(), Integer(1));
   size_t axis = CommonUtils::GetIndex(src_attrs->channel_axis, input_shape.size());
   int64_t channel_dim = Downcast<Integer>(input_shape[axis])->value *
                         Downcast<Integer>(input_shape[axis + 1])->value / src_attrs->num_groups;
@@ -551,7 +553,7 @@ Expr RewriteGroupNorm(BlockBuilder builder, const Var& var, const Call& src_call
                              {call->args[0], ShapeExpr(group_shape)});
 
   // mean(input)
-  auto mean_attrs = make_object<StatisticalAttrs>();
+  auto mean_attrs = ffi::make_object<StatisticalAttrs>();
   mean_attrs->axis = src_attrs->axes;
   mean_attrs->keepdims = true;
   const auto& mean = RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "mean"), mean_op,
@@ -566,7 +568,7 @@ Expr RewriteGroupNorm(BlockBuilder builder, const Var& var, const Call& src_call
                                                 mean_op, {square}, Attrs(mean_attrs));
 
   // sqrt(var + epsilon)
-  Array<PrimExpr> exp_eps_shape(input_shape.size(), Integer(1));
+  ffi::Array<PrimExpr> exp_eps_shape(input_shape.size(), Integer(1));
   const auto& exp_eps = RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "exp_eps"),
                                                reshape_op, {eps, ShapeExpr(exp_eps_shape)});
   const auto& eps_add = RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "eps_add"),
@@ -599,12 +601,12 @@ Expr RewriteGroupNorm(BlockBuilder builder, const Var& var, const Call& src_call
 }
 
 Expr RewriteLayerNorm(BlockBuilder builder, const Var& var, const Call& src_call,
-                      const Map<Expr, Call>& new_calls, const String& config) {
+                      const ffi::Map<Expr, Call>& new_calls, const ffi::String& config) {
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   const auto& input_shape = ExprUtils::GetShape(call->args[0]);
   const auto& in_dtype = ExprUtils::GetDataType(call->args[0]);
   const auto* src_attrs = src_call->attrs.as<LayerNormAttrs>();
-  Array<PrimExpr> exp_shape(input_shape.size(), Integer(1));
+  ffi::Array<PrimExpr> exp_shape(input_shape.size(), Integer(1));
   for (const auto& a : src_attrs->axes) {
     size_t index = CommonUtils::GetIndex(static_cast<int>(a->value), input_shape.size());
     exp_shape.Set(index, input_shape[index]);
@@ -624,7 +626,7 @@ Expr RewriteLayerNorm(BlockBuilder builder, const Var& var, const Call& src_call
   static const Op& subtract_op = Op::Get("relax.subtract");
 
   // mean(input)
-  auto mean_attrs = make_object<StatisticalAttrs>();
+  auto mean_attrs = ffi::make_object<StatisticalAttrs>();
   mean_attrs->axis = src_attrs->axes;
   mean_attrs->keepdims = true;
   const auto& mean = RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "mean"), mean_op,
@@ -639,7 +641,7 @@ Expr RewriteLayerNorm(BlockBuilder builder, const Var& var, const Call& src_call
                                                 mean_op, {square}, Attrs(mean_attrs));
 
   // sqrt(var + epsilon)
-  Array<PrimExpr> exp_eps_shape(input_shape.size(), Integer(1));
+  ffi::Array<PrimExpr> exp_eps_shape(input_shape.size(), Integer(1));
   const auto& exp_eps = RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "exp_eps"),
                                                reshape_op, {eps, ShapeExpr(exp_eps_shape)});
   const auto& eps_add = RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "eps_add"),
@@ -676,7 +678,7 @@ Expr RewriteLayerNorm(BlockBuilder builder, const Var& var, const Call& src_call
 }
 
 Expr RewriteMatmul(BlockBuilder builder, const Var& var, const Call& src_call,
-                   const Map<Expr, Call>& new_calls, const String& config) {
+                   const ffi::Map<Expr, Call>& new_calls, const ffi::String& config) {
   const auto& trt_config = ParseConfig(config);
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   const auto& shape_a = ExprUtils::GetShape(call->args[0]);
@@ -686,27 +688,27 @@ Expr RewriteMatmul(BlockBuilder builder, const Var& var, const Call& src_call,
       trt_config.linear_to_conv) {
     const auto& out_shape = ExprUtils::GetShape(var);
     PrimExpr accumulate = ArrayUtils::Accumulate(shape_a, shape_a.size() - 1);
-    Array<PrimExpr> exp_shape{accumulate, shape_a[shape_a.size() - 1], Integer(1), Integer(1)};
+    ffi::Array<PrimExpr> exp_shape{accumulate, shape_a[shape_a.size() - 1], Integer(1), Integer(1)};
     const auto& exp_in = RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "exp_in"),
                                                 reshape_op, {call->args[0], ShapeExpr(exp_shape)});
     // transpose and expand weight to OIHW
     static const Op& permute_dims_op = Op::Get("relax.permute_dims");
-    auto permute_attrs = make_object<PermuteDimsAttrs>();
-    Array<Integer> axes{Integer(1), Integer(0)};
+    auto permute_attrs = ffi::make_object<PermuteDimsAttrs>();
+    ffi::Array<Integer> axes{Integer(1), Integer(0)};
     permute_attrs->axes = axes;
     const auto& trans_weight =
         RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "trans_weight"),
                                permute_dims_op, {call->args[1]}, Attrs(permute_attrs));
-    Array<PrimExpr> weight_shape{shape_b[1], shape_b[0], Integer(1), Integer(1)};
+    ffi::Array<PrimExpr> weight_shape{shape_b[1], shape_b[0], Integer(1), Integer(1)};
     const auto& exp_weight =
         RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "exp_weight"), reshape_op,
                                {trans_weight, ShapeExpr(weight_shape)});
     // to conv2d
     static const Op& conv2d_op = Op::Get("relax.nn.conv2d");
-    auto conv_attrs = make_object<Conv2DAttrs>();
-    conv_attrs->strides = Array<IntImm>{Integer(1), Integer(1)};
-    conv_attrs->padding = Array<IntImm>{Integer(0), Integer(0), Integer(0), Integer(0)};
-    conv_attrs->dilation = Array<IntImm>{Integer(1), Integer(1)};
+    auto conv_attrs = ffi::make_object<Conv2DAttrs>();
+    conv_attrs->strides = ffi::Array<IntImm>{Integer(1), Integer(1)};
+    conv_attrs->padding = ffi::Array<IntImm>{Integer(0), Integer(0), Integer(0), Integer(0)};
+    conv_attrs->dilation = ffi::Array<IntImm>{Integer(1), Integer(1)};
     conv_attrs->groups = 1;
     conv_attrs->data_layout = "NCHW";
     conv_attrs->kernel_layout = "OIHW";
@@ -717,7 +719,7 @@ Expr RewriteMatmul(BlockBuilder builder, const Var& var, const Call& src_call,
     return Call(reshape_op, {conv2d, ShapeExpr(out_shape)}, Attrs(), call->sinfo_args, call->span);
   }
   if (shape_a.size() > shape_b.size()) {
-    Array<PrimExpr> exp_shape(shape_a.size(), Integer(1));
+    ffi::Array<PrimExpr> exp_shape(shape_a.size(), Integer(1));
     size_t diff = shape_a.size() - shape_b.size();
     for (size_t i = diff; i < shape_a.size(); i++) {
       exp_shape.Set(i, shape_b[i - diff]);
@@ -728,7 +730,7 @@ Expr RewriteMatmul(BlockBuilder builder, const Var& var, const Call& src_call,
     return Call(call->op, {call->args[0], expand_b}, call->attrs, call->sinfo_args, call->span);
   }
   if (shape_a.size() < shape_b.size()) {
-    Array<PrimExpr> exp_shape(shape_b.size(), Integer(1));
+    ffi::Array<PrimExpr> exp_shape(shape_b.size(), Integer(1));
     size_t diff = shape_b.size() - shape_a.size();
     for (size_t i = diff; i < shape_b.size(); i++) {
       exp_shape.Set(i, shape_a[i - diff]);
@@ -742,7 +744,7 @@ Expr RewriteMatmul(BlockBuilder builder, const Var& var, const Call& src_call,
 }
 
 Expr RewriteRsqrt(BlockBuilder builder, const Var& var, const Call& src_call,
-                  const Map<Expr, Call>& new_calls, const String& config) {
+                  const ffi::Map<Expr, Call>& new_calls, const ffi::String& config) {
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   const auto& input_shape = ExprUtils::GetShape(call->args[0]);
   const auto& in_dtype = ExprUtils::GetDataType(call->args[0]);
@@ -761,7 +763,7 @@ Expr RewriteRsqrt(BlockBuilder builder, const Var& var, const Call& src_call,
 }
 
 Expr RewriteSilu(BlockBuilder builder, const Var& var, const Call& src_call,
-                 const Map<Expr, Call>& new_calls, const String& config) {
+                 const ffi::Map<Expr, Call>& new_calls, const ffi::String& config) {
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   // create ops
   static const Op& multiply_op = Op::Get("relax.multiply");
@@ -773,7 +775,7 @@ Expr RewriteSilu(BlockBuilder builder, const Var& var, const Call& src_call,
 }
 
 Expr RewriteShapeLike(BlockBuilder builder, const Var& var, const Call& src_call,
-                      const Map<Expr, Call>& new_calls, const String& config) {
+                      const ffi::Map<Expr, Call>& new_calls, const ffi::String& config) {
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   const auto& output_shape = ExprUtils::GetShape(var);
   static const Op& reshape_op = Op::Get("relax.reshape");
@@ -782,7 +784,7 @@ Expr RewriteShapeLike(BlockBuilder builder, const Var& var, const Call& src_call
 }
 
 Expr RewriteSplit(BlockBuilder builder, const Var& var, const Call& src_call,
-                  const Map<Expr, Call>& new_calls, const String& config) {
+                  const ffi::Map<Expr, Call>& new_calls, const ffi::String& config) {
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   const auto& input_shape = ExprUtils::GetShape(call->args[0]);
   const auto* src_attrs = src_call->attrs.as<SplitAttrs>();
@@ -797,7 +799,7 @@ Expr RewriteSplit(BlockBuilder builder, const Var& var, const Call& src_call,
       split_ends.push_back(i * size + size);
     }
   } else if (src_attrs->indices_or_sections->IsInstance<ffi::ArrayObj>()) {
-    const auto& indices = Downcast<Array<Integer>>(src_attrs->indices_or_sections);
+    const auto& indices = Downcast<ffi::Array<Integer>>(src_attrs->indices_or_sections);
     int64_t last_index = 0;
     for (size_t i = 0; i < indices.size(); ++i) {
       split_begins.push_back(last_index);
@@ -811,14 +813,15 @@ Expr RewriteSplit(BlockBuilder builder, const Var& var, const Call& src_call,
               << src_attrs->indices_or_sections->GetTypeKey() << ")";
   }
   // create strided_slices
-  Array<Expr> outputs;
+  ffi::Array<Expr> outputs;
   for (size_t i = 0; i < split_begins.size(); i++) {
     static const Op& strided_slice_op = Op::Get("relax.strided_slice");
-    const auto& axes = Tuple(Array<Expr>{PrimValue(IntImm(DataType::Int(64), axis))});
-    const auto& begin = Tuple(Array<Expr>{PrimValue(IntImm(DataType::Int(64), split_begins[i]))});
-    const auto& end = Tuple(Array<Expr>{PrimValue(IntImm(DataType::Int(64), split_ends[i]))});
-    const auto& strides = Tuple(Array<Expr>{PrimValue(IntImm(DataType::Int(64), 1))});
-    auto attrs = make_object<StridedSliceAttrs>();
+    const auto& axes = Tuple(ffi::Array<Expr>{PrimValue(IntImm(DataType::Int(64), axis))});
+    const auto& begin =
+        Tuple(ffi::Array<Expr>{PrimValue(IntImm(DataType::Int(64), split_begins[i]))});
+    const auto& end = Tuple(ffi::Array<Expr>{PrimValue(IntImm(DataType::Int(64), split_ends[i]))});
+    const auto& strides = Tuple(ffi::Array<Expr>{PrimValue(IntImm(DataType::Int(64), 1))});
+    auto attrs = ffi::make_object<StridedSliceAttrs>();
     attrs->assume_inbound = true;
     const auto& slice = RewriteUtils::MakeCall(
         builder, ExprUtils::GetSpanName(call, "slice_" + std::to_string(i)), strided_slice_op,
@@ -872,17 +875,17 @@ TVM_REGISTER_OP("relax.split").set_attr<FRewriteTensorRT>("FRewriteTensorRT", Re
 
 class TensorRTTransformer : public ExprMutator {
  public:
-  explicit TensorRTTransformer(IRModule ctx_module, const String& config)
+  explicit TensorRTTransformer(IRModule ctx_module, const ffi::String& config)
       : ExprMutator(ctx_module) {
     config_ = config;
   }
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call_node) final {
     if (const auto* op_node = call_node->op.as<OpNode>()) {
-      const auto& op = Downcast<Op>(GetRef<Op>(op_node));
+      const auto& op = Downcast<Op>(ffi::GetRef<Op>(op_node));
       const auto& rewrite_map = Op::GetAttrMap<FRewriteTensorRT>("FRewriteTensorRT");
       if (rewrite_map.count(op)) {
-        const auto& call = GetRef<Call>(call_node);
+        const auto& call = ffi::GetRef<Call>(call_node);
         FRewriteTensorRT f = rewrite_map[op];
         const auto& new_call = f(builder_, binding->var, call, new_calls_, config_);
         if (new_call != call) {
@@ -897,27 +900,28 @@ class TensorRTTransformer : public ExprMutator {
   }
 
  private:
-  Map<Expr, Call> new_calls_;
-  String config_;
+  ffi::Map<Expr, Call> new_calls_;
+  ffi::String config_;
 };
 
-Function TransformTensorRT(const Function& func, const IRModule& module, const String& config) {
+Function TransformTensorRT(const Function& func, const IRModule& module,
+                           const ffi::String& config) {
   return Downcast<Function>(TensorRTTransformer(module, config).VisitExpr(func));
 }
 
 namespace transform {
 
-Pass TransformTensorRT(const String& config) {
+Pass TransformTensorRT(const ffi::String& config) {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
     return relax::TransformTensorRT(f, m, config);
   };
   return CreateFunctionPass(pass_func, 0, "TransformTensorRT", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.TransformTensorRT", TransformTensorRT);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

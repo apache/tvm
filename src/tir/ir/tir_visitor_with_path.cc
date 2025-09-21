@@ -43,7 +43,7 @@ void TIRVisitorWithPath::Visit(const IRModule& mod, AccessPath path) {
   std::unordered_set<GlobalVar> externally_exposed;
   for (const auto& [gvar, func] : mod->functions) {
     gvars.push_back(gvar);
-    if (func->GetAttr<String>(tvm::attr::kGlobalSymbol).has_value()) {
+    if (func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value()) {
       externally_exposed.insert(gvar);
     }
   }
@@ -193,7 +193,7 @@ void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, AccessPath path) {
     // `tir::Buffer buffer_view`, its `tir::Var` data pointer, and any
     // symbolic shapes used within `buffer_view that are not already
     // defined.
-    Array<ObjectRef> arr = Downcast<Array<ObjectRef>>(op->node);
+    ffi::Array<ObjectRef> arr = Downcast<ffi::Array<ObjectRef>>(op->node);
     ICHECK_EQ(arr.size(), 2U);
     Buffer buffer_view = Downcast<Buffer>(arr[0]);
     Buffer orig_buffer = Downcast<Buffer>(arr[1]);

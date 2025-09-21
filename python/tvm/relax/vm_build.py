@@ -99,6 +99,10 @@ def _auto_attach_system_lib_prefix(
     return tir_mod
 
 
+def _is_device_module(mod: tvm.runtime.Module) -> bool:
+    return mod.kind in ["cuda", "opencl", "metal", "hip", "vulkan", "webgpu"]
+
+
 def _vmlink(
     builder: "relax.ExecBuilder",
     target: Optional[Union[str, tvm.target.Target]],
@@ -153,7 +157,7 @@ def _vmlink(
         tir_mod = _auto_attach_system_lib_prefix(tir_mod, target, system_lib)
         lib = tvm.tir.build(tir_mod, target=target, pipeline=tir_pipeline)
     for ext_mod in ext_libs:
-        if ext_mod.is_device_module:
+        if _is_device_module(ext_mod):
             tir_ext_libs.append(ext_mod)
         else:
             relax_ext_libs.append(ext_mod)

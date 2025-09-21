@@ -29,9 +29,9 @@ namespace tvm {
 namespace contrib {
 namespace msc {
 
-DeclareDoc::DeclareDoc(Optional<ExprDoc> type, ExprDoc variable, Array<ExprDoc> init_args,
+DeclareDoc::DeclareDoc(ffi::Optional<ExprDoc> type, ExprDoc variable, ffi::Array<ExprDoc> init_args,
                        bool use_constructor) {
-  ObjectPtr<DeclareDocNode> n = make_object<DeclareDocNode>();
+  ObjectPtr<DeclareDocNode> n = ffi::make_object<DeclareDocNode>();
   n->type = type;
   n->variable = variable;
   n->init_args = init_args;
@@ -40,45 +40,46 @@ DeclareDoc::DeclareDoc(Optional<ExprDoc> type, ExprDoc variable, Array<ExprDoc> 
 }
 
 StrictListDoc::StrictListDoc(ListDoc list, bool allow_empty) {
-  ObjectPtr<StrictListDocNode> n = make_object<StrictListDocNode>();
+  ObjectPtr<StrictListDocNode> n = ffi::make_object<StrictListDocNode>();
   n->list = list;
   n->allow_empty = allow_empty;
   this->data_ = std::move(n);
 }
 
-PointerDoc::PointerDoc(String name) {
-  ObjectPtr<PointerDocNode> n = make_object<PointerDocNode>();
+PointerDoc::PointerDoc(ffi::String name) {
+  ObjectPtr<PointerDocNode> n = ffi::make_object<PointerDocNode>();
   n->name = name;
   this->data_ = std::move(n);
 }
 
-StructDoc::StructDoc(IdDoc name, Array<ExprDoc> decorators, Array<StmtDoc> body) {
-  ObjectPtr<StructDocNode> n = make_object<StructDocNode>();
+StructDoc::StructDoc(IdDoc name, ffi::Array<ExprDoc> decorators, ffi::Array<StmtDoc> body) {
+  ObjectPtr<StructDocNode> n = ffi::make_object<StructDocNode>();
   n->name = name;
   n->decorators = decorators;
   n->body = body;
   this->data_ = std::move(n);
 }
 
-ConstructorDoc::ConstructorDoc(IdDoc name, Array<AssignDoc> args, Array<StmtDoc> body) {
-  ObjectPtr<ConstructorDocNode> n = make_object<ConstructorDocNode>();
+ConstructorDoc::ConstructorDoc(IdDoc name, ffi::Array<AssignDoc> args, ffi::Array<StmtDoc> body) {
+  ObjectPtr<ConstructorDocNode> n = ffi::make_object<ConstructorDocNode>();
   n->name = name;
   n->args = args;
   n->body = body;
   this->data_ = std::move(n);
 }
 
-SwitchDoc::SwitchDoc(Array<ExprDoc> predicates, Array<Array<StmtDoc>> branchs,
-                     Array<StmtDoc> default_branch) {
-  ObjectPtr<SwitchDocNode> n = make_object<SwitchDocNode>();
+SwitchDoc::SwitchDoc(ffi::Array<ExprDoc> predicates, ffi::Array<ffi::Array<StmtDoc>> branchs,
+                     ffi::Array<StmtDoc> default_branch) {
+  ObjectPtr<SwitchDocNode> n = ffi::make_object<SwitchDocNode>();
   n->predicates = predicates;
   n->branchs = branchs;
   n->default_branch = default_branch;
   this->data_ = std::move(n);
 }
 
-LambdaDoc::LambdaDoc(IdDoc name, Array<AssignDoc> args, Array<ExprDoc> refs, Array<StmtDoc> body) {
-  ObjectPtr<LambdaDocNode> n = make_object<LambdaDocNode>();
+LambdaDoc::LambdaDoc(IdDoc name, ffi::Array<AssignDoc> args, ffi::Array<ExprDoc> refs,
+                     ffi::Array<StmtDoc> body) {
+  ObjectPtr<LambdaDocNode> n = ffi::make_object<LambdaDocNode>();
   n->name = name;
   n->args = args;
   n->refs = refs;
@@ -86,7 +87,7 @@ LambdaDoc::LambdaDoc(IdDoc name, Array<AssignDoc> args, Array<ExprDoc> refs, Arr
   this->data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   DeclareDocNode::RegisterReflection();
   StrictListDocNode::RegisterReflection();
   PointerDocNode::RegisterReflection();
@@ -94,7 +95,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   ConstructorDocNode::RegisterReflection();
   SwitchDocNode::RegisterReflection();
   LambdaDocNode::RegisterReflection();
-});
+}
 
 }  // namespace msc
 }  // namespace contrib

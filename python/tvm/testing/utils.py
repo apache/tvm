@@ -87,7 +87,6 @@ import tvm
 import tvm.arith
 import tvm.tir
 import tvm.te
-import tvm.ffi
 
 from tvm.target import codegen
 from tvm.contrib import nvcc, cudnn, rocm
@@ -325,7 +324,7 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
             return tvm.tir.stmt_functor.substitute(expr, vmap)
 
         A = tvm.te.compute([r.extent.value for v, r in vranges.items()], _compute_body)
-        args = [tvm.nd.empty(A.shape, A.dtype)]
+        args = [tvm.runtime.empty(A.shape, A.dtype)]
         mod = tvm.compile(tvm.IRModule.from_expr(tvm.te.create_prim_func([A])))
         mod(*args)
         return args[0].numpy()

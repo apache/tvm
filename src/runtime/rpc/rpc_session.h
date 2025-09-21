@@ -55,8 +55,8 @@ class RPCSession {
   /*! \brief Module handle in the remote. */
   using ModuleHandle = void*;
 
-  /*! \brief NDArray handle in the remote. */
-  using NDArrayHandle = void*;
+  /*! \brief Tensor handle in the remote. */
+  using TensorHandle = void*;
 
   /*!
    * \brief Callback to send an encoded return values via encode_args.
@@ -66,7 +66,7 @@ class RPCSession {
    * Encoding convention (as list of arguments):
    * - str/float/int/byte: [tcode: int, value: TVMValue] value follows ffi::Function convention.
    * - ffi::Function/Module: [tcode: int, handle: void*]
-   * - NDArray: [tcode: int,  meta: DLTensor*, nd_handle: void*]
+   * - Tensor: [tcode: int,  meta: DLTensor*, nd_handle: void*]
    *            DLTensor* contains the meta-data as well as handle into the remote data.
    *            nd_handle can be used for deletion.
    */
@@ -98,7 +98,7 @@ class RPCSession {
    *  - type_code is follows the ffi::Function convention.
    *  - int/float/string/bytes follows the ffi::Function convention, all data are local.
    *  - ffi::Function/Module and future remote objects: pass remote handle instead.
-   *  - NDArray/DLTensor: pass a DLTensor pointer, the data field of DLTensor
+   *  - Tensor/DLTensor: pass a DLTensor pointer, the data field of DLTensor
    *                      points to a remote data handle returned by the Device API.
    *                      The meta-data of the DLTensor sits on local.
    *
@@ -109,8 +109,8 @@ class RPCSession {
    *
    *  The callee need to store the return value into ret_value.
    *  - ffi::Function/Module are stored as void*
-   *  - NDArray is stored as local NDArray, whose data field is a remote handle.
-   *    Notably the NDArray's deleter won't delete remote handle.
+   *  - Tensor is stored as local Tensor, whose data field is a remote handle.
+   *    Notably the Tensor's deleter won't delete remote handle.
    *    It is up to the user of the RPCSession to such wrapping.
    *  - In short, remote handles are "moved" as return values
    *    and the callee needs to explicitly manage them by calling
@@ -267,7 +267,7 @@ class RPCSession {
   /*! \brief Insert the current session to the session table.*/
   static void InsertToSessionTable(std::shared_ptr<RPCSession> sess);
   // friend declaration
-  friend Module CreateRPCSessionModule(std::shared_ptr<RPCSession> sess);
+  friend ffi::Module CreateRPCSessionModule(std::shared_ptr<RPCSession> sess);
 };
 
 /*!
@@ -315,9 +315,8 @@ class RPCObjectRefObj : public Object {
   void* object_handle() const { return object_handle_; }
 
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimeRPCObjectRef;
-  static constexpr const char* _type_key = "runtime.RPCObjectRef";
   static const constexpr bool _type_final = true;
-  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(RPCObjectRefObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_STATIC("runtime.RPCObjectRef", RPCObjectRefObj, Object);
 
  private:
   // The object handle
@@ -333,7 +332,10 @@ class RPCObjectRefObj : public Object {
  */
 class RPCObjectRef : public ObjectRef {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(RPCObjectRef, ObjectRef, RPCObjectRefObj);
+  explicit RPCObjectRef(ObjectPtr<RPCObjectRefObj> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RPCObjectRef, ObjectRef, RPCObjectRefObj);
 };
 
 /*!
@@ -341,14 +343,14 @@ class RPCObjectRef : public ObjectRef {
  * \param sess The RPC session of the global module.
  * \return The created module.
  */
-Module CreateRPCSessionModule(std::shared_ptr<RPCSession> sess);
+ffi::Module CreateRPCSessionModule(std::shared_ptr<RPCSession> sess);
 
 /*!
  * \brief Get the session module from a RPC session Module.
  * \param mod The input module(must be an RPCModule).
  * \return The internal RPCSession.
  */
-std::shared_ptr<RPCSession> RPCModuleGetSession(Module mod);
+std::shared_ptr<RPCSession> RPCModuleGetSession(ffi::Module mod);
 
 }  // namespace runtime
 }  // namespace tvm

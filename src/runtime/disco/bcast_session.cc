@@ -38,7 +38,7 @@ struct BcastSessionObj::Internal {
   }
 
   static DRef MakeDRef(int reg_id, Session session) {
-    ObjectPtr<DRefObj> p = make_object<DRefObj>();
+    ObjectPtr<DRefObj> p = ffi::make_object<DRefObj>();
     p->reg_id = reg_id;
     p->session = session;
     return DRef(std::move(p));
@@ -48,17 +48,17 @@ struct BcastSessionObj::Internal {
 DRef BcastSessionObj::GetGlobalFunc(const std::string& name) {
   int reg_id = AllocateReg();
   BcastSessionObj::Internal::BroadcastUnpacked(this, DiscoAction::kGetGlobalFunc, reg_id, name);
-  return BcastSessionObj::Internal::MakeDRef(reg_id, GetRef<Session>(this));
+  return BcastSessionObj::Internal::MakeDRef(reg_id, ffi::GetRef<Session>(this));
 }
 
-void BcastSessionObj::CopyFromWorker0(const NDArray& host_array, const DRef& remote_array) {
-  this->AppendHostNDArray(host_array);
+void BcastSessionObj::CopyFromWorker0(const Tensor& host_array, const DRef& remote_array) {
+  this->AppendHostTensor(host_array);
   BcastSessionObj::Internal::BroadcastUnpacked(this, DiscoAction::kCopyFromWorker0,
                                                remote_array->reg_id);
 }
 
-void BcastSessionObj::CopyToWorker0(const NDArray& host_array, const DRef& remote_array) {
-  this->AppendHostNDArray(host_array);
+void BcastSessionObj::CopyToWorker0(const Tensor& host_array, const DRef& remote_array) {
+  this->AppendHostTensor(host_array);
   BcastSessionObj::Internal::BroadcastUnpacked(this, DiscoAction::kCopyToWorker0,
                                                remote_array->reg_id);
 }
@@ -67,11 +67,11 @@ void BcastSessionObj::Shutdown() {
   BcastSessionObj::Internal::BroadcastUnpacked(this, DiscoAction::kShutDown, 0);
 }
 
-void BcastSessionObj::InitCCL(String ccl, ffi::Shape device_ids) {
+void BcastSessionObj::InitCCL(ffi::String ccl, ffi::Shape device_ids) {
   const auto pf = tvm::ffi::Function::GetGlobal("runtime.disco." + ccl + ".init_ccl");
   CHECK(pf.has_value()) << "ValueError: Cannot initialize CCL `" << ccl
                         << "`, because cannot find function: runtime.disco." << ccl << ".init_ccl";
-  (*pf)(GetRef<Session>(this), device_ids);
+  (*pf)(ffi::GetRef<Session>(this), device_ids);
 }
 
 void BcastSessionObj::SyncWorker(int worker_id) {
@@ -97,7 +97,7 @@ DRef BcastSessionObj::CallWithPacked(const ffi::PackedArgs& args) {
     args_vec[2] = func->reg_id;
   }
   this->BroadcastPacked(ffi::PackedArgs(args_vec, args.size()));
-  return BcastSessionObj::Internal::MakeDRef(reg_id, GetRef<Session>(this));
+  return BcastSessionObj::Internal::MakeDRef(reg_id, ffi::GetRef<Session>(this));
 }
 
 void BcastSessionObj::DeallocReg(int reg_id) {
@@ -114,7 +114,7 @@ int BcastSessionObj::AllocateReg() {
   return reg_id;
 }
 
-void BcastSessionObj::AppendHostNDArray(const NDArray& host_array) {
+void BcastSessionObj::AppendHostTensor(const Tensor& host_array) {
   std::lock_guard<std::mutex> lock(worker_zero_data_.queue_mutex_);
   worker_zero_data_.host_arrays.push(host_array);
 }

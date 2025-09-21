@@ -24,6 +24,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import List
 
+import tvm_ffi
+
 import tvm
 from tvm.target import Target
 
@@ -124,16 +126,55 @@ def _compile_flashinfer_kernels(
     # ------------------------------------------------------------------------
     # 2) Include paths
     # ------------------------------------------------------------------------
-    tvm_home = os.environ["TVM_SOURCE_DIR"]
     include_paths = [
         FLASHINFER_INCLUDE_DIR,
         FLASHINFER_CSRC_DIR,
         FLASHINFER_TVM_BINDING_DIR,
-        Path(tvm_home).resolve() / "include",
-        Path(tvm_home).resolve() / "ffi" / "include",
-        Path(tvm_home).resolve() / "3rdparty" / "dlpack" / "include",
-        Path(tvm_home).resolve() / "3rdparty" / "dmlc-core" / "include",
     ] + CUTLASS_INCLUDE_DIRS
+
+    if os.environ.get("TVM_SOURCE_DIR", None) or os.environ.get("TVM_HOME", None):
+        # Respect TVM_SOURCE_DIR and TVM_HOME if they are set
+        tvm_home = (
+            os.environ["TVM_SOURCE_DIR"]
+            if os.environ.get("TVM_SOURCE_DIR", None)
+            else os.environ["TVM_HOME"]
+        )
+        include_paths += [
+            Path(tvm_home).resolve() / "include",
+            Path(tvm_home).resolve() / "3rdparty" / "tvm-ffi" / "include",
+            Path(tvm_home).resolve() / "3rdparty" / "tvm-ffi" / "3rdparty" / "dlpack" / "include",
+            Path(tvm_home).resolve() / "3rdparty" / "dmlc-core" / "include",
+        ]
+    else:
+        # If TVM_SOURCE_DIR and TVM_HOME are not set, use the default TVM package path
+        tvm_package_path = Path(tvm.__file__).resolve().parent
+        if (tvm_package_path / "include").exists():
+            # The package is installed from pip.
+            tvm_ffi_package_path = Path(tvm_ffi.__file__).resolve().parent
+            include_paths += [
+                tvm_package_path / "include",
+                tvm_package_path / "3rdparty" / "dmlc-core" / "include",
+                tvm_ffi_package_path / "include",
+            ]
+        elif (tvm_package_path.parent.parent / "include").exists():
+            # The package is installed from source.
+            include_paths += [
+                tvm_package_path.parent.parent / "include",
+                tvm_package_path.parent.parent / "3rdparty" / "tvm-ffi" / "include",
+                tvm_package_path.parent.parent
+                / "3rdparty"
+                / "tvm-ffi"
+                / "3rdparty"
+                / "dlpack"
+                / "include",
+                tvm_package_path.parent.parent / "3rdparty" / "dmlc-core" / "include",
+            ]
+        else:
+            # warning: TVM is not installed in the system.
+            print(
+                "Warning: Include path for TVM cannot be found. "
+                "FlashInfer kernel compilation may fail due to missing headers."
+            )
 
     # ------------------------------------------------------------------------
     # 3) Function to compile a single source file

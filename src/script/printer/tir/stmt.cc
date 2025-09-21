@@ -23,8 +23,8 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-Doc DoConciseScoping(const Optional<ExprDoc>& lhs, const ExprDoc& rhs, Array<StmtDoc>* stmts,
-                     bool concise_scoping) {
+Doc DoConciseScoping(const ffi::Optional<ExprDoc>& lhs, const ExprDoc& rhs,
+                     ffi::Array<StmtDoc>* stmts, bool concise_scoping) {
   if (concise_scoping) {
     if (lhs.defined()) {
       stmts->insert(stmts->begin(), AssignDoc(lhs.value(), rhs, std::nullopt));
@@ -64,7 +64,7 @@ bool IsAncestorOfAllVarUse(const tir::Stmt& node, const ObjectRef& var, const IR
   return false;
 }
 
-Optional<PrimExpr> FindReturnValue(const tir::Stmt& node) {
+ffi::Optional<PrimExpr> FindReturnValue(const tir::Stmt& node) {
   auto eval = node.as<tir::EvaluateNode>();
   if (!eval) return std::nullopt;
 
@@ -99,8 +99,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::LetStmt>("", [](tir::LetStmt stmt, AccessPath p, IRDocsifier d) -> Doc {
       bool concise = AllowConciseScoping(d, stmt);
       // Step 1. Type annotation
-      Optional<ExprDoc> type_doc = d->AsDoc<ExprDoc>(stmt->var->type_annotation,  //
-                                                     p->Attr("var")->Attr("type_annotation"));
+      ffi::Optional<ExprDoc> type_doc = d->AsDoc<ExprDoc>(stmt->var->type_annotation,  //
+                                                          p->Attr("var")->Attr("type_annotation"));
       if (const auto* tuple_type = stmt->var->type_annotation.as<TupleTypeNode>()) {
         if (tuple_type->fields.empty()) {
           type_doc = std::nullopt;
@@ -110,7 +110,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       ExprDoc rhs = d->AsDoc<ExprDoc>(stmt->value, p->Attr("value"));
       // Step 3. LHS and body
       With<TIRFrame> f(d, stmt);
-      Array<StmtDoc>* stmts = &(*f)->stmts;
+      ffi::Array<StmtDoc>* stmts = &(*f)->stmts;
       bool var_defined = d->IsVarDefined(stmt->var);
       if (!var_defined) {
         DefineVar(stmt->var, *f, d);
@@ -139,7 +139,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           With<TIRFrame> f(d, stmt);
           AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
           if (concise) {
-            Array<StmtDoc>* stmts = &(*f)->stmts;
+            ffi::Array<StmtDoc>* stmts = &(*f)->stmts;
             stmts->insert(stmts->begin(), AssertDoc(cond, msg));
             return StmtBlockDoc(*stmts);
           }
@@ -177,8 +177,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::IfThenElse>(  //
         "", [](tir::IfThenElse stmt, AccessPath p, IRDocsifier d) -> Doc {
           ExprDoc cond = d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"));
-          Array<StmtDoc> then_branch;
-          Array<StmtDoc> else_branch;
+          ffi::Array<StmtDoc> then_branch;
+          ffi::Array<StmtDoc> else_branch;
           if (stmt->then_case.defined()) {
             With<TIRFrame> f(d, stmt->then_case);
             AsDocBody(stmt->then_case, p->Attr("then_case"), f->get(), d);
@@ -226,9 +226,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             return DeclBufferDoc(Downcast<tir::DeclBuffer>(stmt->body), stmt_p->Attr("body"), d,
                                  BufferVarDefinition::DataPointer);
           }
-          Array<ExprDoc> args;
-          Array<String> kwargs_keys;
-          Array<ExprDoc> kwargs_values;
+          ffi::Array<ExprDoc> args;
+          ffi::Array<ffi::String> kwargs_keys;
+          ffi::Array<ExprDoc> kwargs_values;
           args.push_back(d->AsDoc<ExprDoc>(stmt->extents, stmt_p->Attr("extents")));
           args.push_back(LiteralDoc::DataType(stmt->dtype, stmt_p->Attr("dtype")));
           args.push_back(LiteralDoc::Str(tir::GetPtrStorageScope(stmt->buffer_var),
@@ -252,7 +252,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 template <typename T>
-ExprDoc PrintNDArray(::tvm::runtime::NDArray arr) {
+ExprDoc PrintTensor(::tvm::runtime::Tensor arr) {
   // FIXME(@junrushao): this is a hack and can be wrong in most of the cases
   constexpr int NUM_PRINT = 200;
   int ndim = arr->ndim;
@@ -260,7 +260,7 @@ ExprDoc PrintNDArray(::tvm::runtime::NDArray arr) {
   for (int i = 0; i < ndim; i++) {
     tot_dim *= arr->shape[i];
   }
-  Array<ExprDoc> result;
+  ffi::Array<ExprDoc> result;
   T* data_ptr = reinterpret_cast<T*>(arr->data);
   runtime::DataType dtype = arr.DataType();
   for (int i = 0; i < tot_dim; i++) {
@@ -280,42 +280,42 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::AllocateConst>(
         "", [](tir::AllocateConst stmt, AccessPath stmt_p, IRDocsifier d) -> Doc {
           bool concise = AllowConciseScoping(d, stmt);
-          String storage_scope = tir::GetPtrStorageScope(stmt->buffer_var);
-          Array<ExprDoc> args;
-          Array<String> kwargs_keys;
-          Array<ExprDoc> kwargs_values;
-          ExprDoc data_doc{nullptr};
+          ffi::String storage_scope = tir::GetPtrStorageScope(stmt->buffer_var);
+          ffi::Array<ExprDoc> args;
+          ffi::Array<ffi::String> kwargs_keys;
+          ffi::Array<ExprDoc> kwargs_values;
+          ExprDoc data_doc{ffi::UnsafeInit()};
           if (stmt->dtype.is_int()) {
             if (stmt->dtype.bits() == 8) {
-              data_doc = PrintNDArray<int8_t>(stmt->data.value());
+              data_doc = PrintTensor<int8_t>(stmt->data.value());
             } else if (stmt->dtype.bits() == 16) {
-              data_doc = PrintNDArray<int16_t>(stmt->data.value());
+              data_doc = PrintTensor<int16_t>(stmt->data.value());
             } else if (stmt->dtype.bits() == 32) {
-              data_doc = PrintNDArray<int32_t>(stmt->data.value());
+              data_doc = PrintTensor<int32_t>(stmt->data.value());
             } else if (stmt->dtype.bits() == 64) {
-              data_doc = PrintNDArray<int64_t>(stmt->data.value());
+              data_doc = PrintTensor<int64_t>(stmt->data.value());
             } else {
               LOG(FATAL) << "DataType not supported";
             }
           } else if (stmt->dtype.is_uint()) {
             if (stmt->dtype.bits() == 8) {
-              data_doc = PrintNDArray<uint8_t>(stmt->data.value());
+              data_doc = PrintTensor<uint8_t>(stmt->data.value());
             } else if (stmt->dtype.bits() == 16) {
-              data_doc = PrintNDArray<uint16_t>(stmt->data.value());
+              data_doc = PrintTensor<uint16_t>(stmt->data.value());
             } else if (stmt->dtype.bits() == 32) {
-              data_doc = PrintNDArray<uint32_t>(stmt->data.value());
+              data_doc = PrintTensor<uint32_t>(stmt->data.value());
             } else if (stmt->dtype.bits() == 64) {
-              data_doc = PrintNDArray<uint64_t>(stmt->data.value());
+              data_doc = PrintTensor<uint64_t>(stmt->data.value());
             } else {
               LOG(FATAL) << "DataType not supported";
             }
           } else if (stmt->dtype.is_float()) {
             if (stmt->dtype.bits() == 16) {
-              data_doc = PrintNDArray<int16_t>(stmt->data.value());
+              data_doc = PrintTensor<int16_t>(stmt->data.value());
             } else if (stmt->dtype.bits() == 32) {
-              data_doc = PrintNDArray<float>(stmt->data.value());
+              data_doc = PrintTensor<float>(stmt->data.value());
             } else if (stmt->dtype.bits() == 64) {
-              data_doc = PrintNDArray<double>(stmt->data.value());
+              data_doc = PrintTensor<double>(stmt->data.value());
             } else {
               LOG(FATAL) << "DataType not supported";
             }
@@ -332,11 +332,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
         });
 
-ExprDoc DocsifyBufferRealize(const tir::BufferRealizeNode* stmt, Optional<ExprDoc> value,  //
+ExprDoc DocsifyBufferRealize(const tir::BufferRealizeNode* stmt, ffi::Optional<ExprDoc> value,  //
                              AccessPath p, IRDocsifier d) {
   ExprDoc buffer = d->AsDoc<ExprDoc>(stmt->buffer, p->Attr("buffer"));
   {
-    Array<Doc> bounds;
+    ffi::Array<Doc> bounds;
     bounds.reserve(stmt->bounds.size());
     for (int i = 0, n = stmt->bounds.size(); i < n; ++i) {
       Range range = stmt->bounds[i];
@@ -348,9 +348,9 @@ ExprDoc DocsifyBufferRealize(const tir::BufferRealizeNode* stmt, Optional<ExprDo
     }
     buffer = buffer[bounds];
   }
-  Array<ExprDoc> args{buffer};
-  Array<String> kwargs_keys;
-  Array<ExprDoc> kwargs_values;
+  ffi::Array<ExprDoc> args{buffer};
+  ffi::Array<ffi::String> kwargs_keys;
+  ffi::Array<ExprDoc> kwargs_values;
   if (value.defined()) {
     args.push_back(value.value());
   }
@@ -373,11 +373,11 @@ void InsertEnvThread(const tir::IterVar& iter_var, const AccessPath& iter_var_p,
 }
 
 ExprDoc DocsifyLaunchThread(const tir::AttrStmt& attr_stmt, const AccessPath& attr_stmt_p,
-                            Optional<tir::Var>* define_var, const IRDocsifier& d) {
+                            ffi::Optional<tir::Var>* define_var, const IRDocsifier& d) {
   tir::IterVar iter_var = Downcast<tir::IterVar>(attr_stmt->node);
   AccessPath iter_var_p = attr_stmt_p->Attr("node");
 
-  ExprDoc var_doc{nullptr};
+  ExprDoc var_doc{ffi::UnsafeInit()};
   if (d->IsVarDefined(iter_var->var)) {
     var_doc = d->AsDoc<ExprDoc>(iter_var->var, iter_var_p->Attr("var"));
   } else if (IsAncestorOfAllVarUse(attr_stmt, iter_var->var, d)) {
@@ -408,9 +408,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::AttrStmt>(  //
         "", [](tir::AttrStmt stmt, AccessPath stmt_p, IRDocsifier d) -> Doc {
           bool concise = AllowConciseScoping(d, stmt);
-          Optional<ExprDoc> lhs = std::nullopt;
-          Optional<ExprDoc> rhs = std::nullopt;
-          Optional<tir::Var> define_var = std::nullopt;
+          ffi::Optional<ExprDoc> lhs = std::nullopt;
+          ffi::Optional<ExprDoc> rhs = std::nullopt;
+          ffi::Optional<tir::Var> define_var = std::nullopt;
           tir::Stmt body = stmt->body;
           AccessPath body_p = stmt_p->Attr("body");
           if (stmt->attr_key == "realize_scope") {

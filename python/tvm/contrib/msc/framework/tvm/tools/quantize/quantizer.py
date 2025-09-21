@@ -85,8 +85,8 @@ class TVMQuantizerFactory(object):
                 return super()._execute_after_build(output + gather_tensors)
 
             def _execute_after_forward(
-                self, outputs: List[tvm.runtime.NDArray]
-            ) -> Union[tvm.runtime.NDArray, List[tvm.runtime.NDArray]]:
+                self, outputs: List[tvm.runtime.Tensor]
+            ) -> Union[tvm.runtime.Tensor, List[tvm.runtime.Tensor]]:
                 """Execute after model forward
 
                 Parameters

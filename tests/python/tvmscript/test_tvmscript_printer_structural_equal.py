@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 from tvm.ir import assert_structural_equal
-from tvm.ffi.access_path import AccessPath
+from tvm_ffi.access_path import AccessPath
 from tvm.script import ir as I, tir as T
 
 

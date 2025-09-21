@@ -25,7 +25,7 @@ import numpy as np
 import pytest
 import tvm
 import tvm.testing
-from tvm.ffi import register_func
+from tvm_ffi import register_global_func
 from tvm.meta_schedule.arg_info import TensorInfo
 from tvm.meta_schedule.builder import BuilderInput, LocalBuilder
 from tvm.meta_schedule.runner import (
@@ -454,7 +454,7 @@ def test_meta_schedule_local_runner_time_out():
     )
 
     def initializer():
-        @register_func("meta_schedule.runner.test_time_out")
+        @register_global_func("meta_schedule.runner.test_time_out")
         def timeout_session_creator(  # pylint: disable=unused-variable
             device: Device,  # pylint: disable=unused-argument
             args_info: T_ARG_INFO_JSON_OBJ_LIST,  # pylint: disable=unused-argument
@@ -492,7 +492,7 @@ def test_meta_schedule_rpc_runner_exception():
     """Test meta schedule RPC Runner exception"""
 
     def initializer():
-        @register_func("meta_schedule.runner.test_exception")
+        @register_global_func("meta_schedule.runner.test_exception")
         def exception_session_creator(  # pylint: disable=unused-variable
             rpc_config: RPCConfig,  # pylint: disable=unused-argument
         ) -> RPCSession:
@@ -556,7 +556,7 @@ def test_meta_schedule_local_runner_exception():
     )
 
     def initializer():
-        @register_func("meta_schedule.runner.test_exception")
+        @register_global_func("meta_schedule.runner.test_exception")
         def timeout_session_creator(  # pylint: disable=unused-variable
             device: Device,  # pylint: disable=unused-argument
             args_info: T_ARG_INFO_JSON_OBJ_LIST,  # pylint: disable=unused-argument

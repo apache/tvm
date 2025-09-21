@@ -30,11 +30,12 @@ namespace tir {
 class ScheduleError : public tvm::runtime::Error {
  public:
   /*! \brief Base constructor */
-  ScheduleError() : tvm::runtime::Error("ScheduleError", "", TVM_FFI_TRACEBACK_HERE) {}
+  ScheduleError()
+      : tvm::runtime::Error("ScheduleError", "", TVMFFITraceback(nullptr, 0, nullptr, 0)) {}
   /*! \brief The error occurred in this IRModule */
   virtual IRModule mod() const = 0;
   /*! \brief The locations of interest that we want to point out */
-  virtual Array<ObjectRef> LocationsOfInterest() const = 0;
+  virtual ffi::Array<ObjectRef> LocationsOfInterest() const = 0;
   /*!
    * \brief Returns an error string template for rendering, corresponds to the "detail" mode.
    * \sa ScheduleErrorRenderLevel
@@ -44,14 +45,14 @@ class ScheduleError : public tvm::runtime::Error {
    * now it only printed out all the locations in plain text, but in the future, we may want to mark
    * the IR with underscores and attach names to each location of interest.
    */
-  virtual String DetailRenderTemplate() const = 0;
+  virtual ffi::String DetailRenderTemplate() const = 0;
   /*!
    * \brief Returns an error string without needing to render, corresponds to the "fast" mode
    * \sa ScheduleErrorRenderLevel
    */
-  virtual String FastErrorString() const = 0;
+  virtual ffi::String FastErrorString() const = 0;
   /*! \brief Render the ScheduleError with the template provided by `DetailRenderTemplate` */
-  String RenderReport(const String& primitive) const;
+  ffi::String RenderReport(const ffi::String& primitive) const;
 };
 
 class LoopPositionError : public ScheduleError {
@@ -62,11 +63,11 @@ class LoopPositionError : public ScheduleError {
         block_(std::move(block)),
         primitive_(primitive) {}
 
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return "ScheduleError: " + primitive_ + " expect the loop to be an ancestor of block";
   }
 
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "ScheduleError: The input loop {0} of " << primitive_
        << " is required to be an ancestor of block {1}.";
@@ -74,7 +75,7 @@ class LoopPositionError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {loop_, block_}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {loop_, block_}; }
 
   IRModule mod_;
   For loop_;

@@ -39,15 +39,16 @@
 namespace tvm {
 namespace arith {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   IntGroupBoundsNode::RegisterReflection();
   IntConstraintsNode::RegisterReflection();
   IntConstraintsTransformNode::RegisterReflection();
-});
+}
 
-Array<PrimExpr> AsConditions(const Array<Var>& variables, const Map<Var, IntGroupBounds>& bounds,
-                             const Array<PrimExpr>& relations) {
-  Array<PrimExpr> res;
+ffi::Array<PrimExpr> AsConditions(const ffi::Array<Var>& variables,
+                                  const ffi::Map<Var, IntGroupBounds>& bounds,
+                                  const ffi::Array<PrimExpr>& relations) {
+  ffi::Array<PrimExpr> res;
   // use variables to keep the order of iteration
   // so as to get rid of any non-determinism.
   ICHECK_EQ(variables.size(), bounds.size());
@@ -71,11 +72,11 @@ Array<PrimExpr> AsConditions(const Array<Var>& variables, const Map<Var, IntGrou
   return res;
 }
 
-IntGroupBounds::IntGroupBounds(PrimExpr coef, Array<PrimExpr> lower, Array<PrimExpr> equal,
-                               Array<PrimExpr> upper) {
+IntGroupBounds::IntGroupBounds(PrimExpr coef, ffi::Array<PrimExpr> lower,
+                               ffi::Array<PrimExpr> equal, ffi::Array<PrimExpr> upper) {
   ICHECK(coef.dtype().is_int() || coef.dtype().is_uint())
       << "Coefficient in IntGroupBounds must be integers";
-  ObjectPtr<IntGroupBoundsNode> node = make_object<IntGroupBoundsNode>();
+  ObjectPtr<IntGroupBoundsNode> node = ffi::make_object<IntGroupBoundsNode>();
   node->coef = std::move(coef);
   node->lower = std::move(lower);
   node->equal = std::move(equal);
@@ -86,9 +87,9 @@ IntGroupBounds::IntGroupBounds(PrimExpr coef, Array<PrimExpr> lower, Array<PrimE
 IntGroupBounds IntGroupBounds::FromRange(const Range& r) {
   Analyzer analyzer;
   PrimExpr coef = tir::make_const(r->min.dtype(), 1);
-  Array<PrimExpr> equal;
-  Array<PrimExpr> lower;
-  Array<PrimExpr> upper;
+  ffi::Array<PrimExpr> equal;
+  ffi::Array<PrimExpr> lower;
+  ffi::Array<PrimExpr> upper;
   if (tir::is_one(r->extent)) {
     equal.push_back(r->min);
   } else {
@@ -100,9 +101,9 @@ IntGroupBounds IntGroupBounds::FromRange(const Range& r) {
 
 IntGroupBounds IntGroupBounds::operator+(const Range& r) {
   Analyzer analyzer;
-  Array<PrimExpr> equal;
-  Array<PrimExpr> lower;
-  Array<PrimExpr> upper;
+  ffi::Array<PrimExpr> equal;
+  ffi::Array<PrimExpr> lower;
+  ffi::Array<PrimExpr> upper;
   const PrimExpr& coef = operator->()->coef;
   if (tir::is_one(r->extent)) {
     equal.push_back(analyzer.Simplify(r->min * coef));
@@ -116,7 +117,7 @@ IntGroupBounds IntGroupBounds::operator+(const Range& r) {
   return IntGroupBounds(coef, lower, equal, upper);
 }
 
-IntGroupBounds IntGroupBounds::Substitute(const Map<Var, PrimExpr>& subst) const {
+IntGroupBounds IntGroupBounds::Substitute(const ffi::Map<Var, PrimExpr>& subst) const {
   auto apply_fun = [&subst](const PrimExpr& e) { return tir::Substitute(e, subst); };
   return IntGroupBounds(tir::Substitute(operator->()->coef, subst),
                         tir::UpdateArray(operator->()->lower, apply_fun),
@@ -124,7 +125,7 @@ IntGroupBounds IntGroupBounds::Substitute(const Map<Var, PrimExpr>& subst) const
                         tir::UpdateArray(operator->()->upper, apply_fun));
 }
 
-Range IntGroupBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
+Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) const {
   Analyzer analyzer;
   analyzer.Bind(vranges_addl);
 
@@ -133,7 +134,7 @@ Range IntGroupBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
     var_intsets[kv.first.get()] = IntSet::FromRange(kv.second);
   }
 
-  const Array<PrimExpr>& equal = operator->()->equal;
+  const ffi::Array<PrimExpr>& equal = operator->()->equal;
   const PrimExpr& coef = operator->()->coef;
 
   std::vector<PrimExpr> lowers(equal.begin(), equal.end());
@@ -161,7 +162,7 @@ Range IntGroupBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
   for (const PrimExpr& low : lowers) {
     for (const PrimExpr& upp : uppers) {
       // Since diff may depend on some other variables, we compute its overapproximation
-      Optional<PrimExpr> diff_over;
+      ffi::Optional<PrimExpr> diff_over;
       PrimExpr diff_1 = analyzer.Simplify(floordiv(upp - low, coef), 3);
       IntSet diff_set1 = EvalSet(diff_1, var_intsets);
       if (diff_set1.HasUpperBound()) {
@@ -200,13 +201,12 @@ Range IntGroupBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
   return Range::FromMinExtent(best_lower, analyzer.Simplify(best_diff_over + 1));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("arith.IntGroupBounds",
-           [](PrimExpr coef, Array<PrimExpr> lower, Array<PrimExpr> equal, Array<PrimExpr> upper) {
-             return IntGroupBounds(coef, lower, equal, upper);
-           })
+           [](PrimExpr coef, ffi::Array<PrimExpr> lower, ffi::Array<PrimExpr> equal,
+              ffi::Array<PrimExpr> upper) { return IntGroupBounds(coef, lower, equal, upper); })
       .def("arith.IntGroupBounds_from_range", IntGroupBounds::FromRange)
       .def_packed("arith.IntGroupBounds_FindBestRange", [](ffi::PackedArgs args, ffi::Any* ret) {
         ICHECK(args.size() == 1 || args.size() == 2);
@@ -214,10 +214,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
         if (args.size() == 1) {
           *ret = bounds.FindBestRange();
         } else if (args.size() == 2) {
-          *ret = bounds.FindBestRange(args[1].cast<Map<Var, Range>>());
+          *ret = bounds.FindBestRange(args[1].cast<ffi::Map<Var, Range>>());
         }
       });
-});
+}
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IntGroupBoundsNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -226,14 +226,14 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ", equal=" << op->equal << ", upper=" << op->upper << ")";
     });
 
-IntConstraints::IntConstraints(Array<Var> variables, Map<Var, Range> ranges,
-                               Array<PrimExpr> relations) {
-  ObjectPtr<IntConstraintsNode> node = make_object<IntConstraintsNode>();
+IntConstraints::IntConstraints(ffi::Array<Var> variables, ffi::Map<Var, Range> ranges,
+                               ffi::Array<PrimExpr> relations) {
+  ObjectPtr<IntConstraintsNode> node = ffi::make_object<IntConstraintsNode>();
   if (!variables.defined()) {
-    variables = Array<Var>();
+    variables = ffi::Array<Var>();
   }
   if (!ranges.defined()) {
-    ranges = Map<Var, Range>();
+    ranges = ffi::Map<Var, Range>();
   }
   ICHECK(relations.defined());
   for (const auto& var : variables) {
@@ -246,13 +246,14 @@ IntConstraints::IntConstraints(Array<Var> variables, Map<Var, Range> ranges,
   data_ = std::move(node);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("arith.IntConstraints", [](Array<Var> variables, Map<Var, Range> ranges,
-                                                   Array<PrimExpr> relations) {
-    return IntConstraints(variables, ranges, relations);
-  });
-});
+  refl::GlobalDef().def(
+      "arith.IntConstraints",
+      [](ffi::Array<Var> variables, ffi::Map<Var, Range> ranges, ffi::Array<PrimExpr> relations) {
+        return IntConstraints(variables, ranges, relations);
+      });
+}
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IntConstraintsNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -262,9 +263,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 IntConstraintsTransform::IntConstraintsTransform(IntConstraints src, IntConstraints dst,
-                                                 Map<Var, PrimExpr> src_to_dst,
-                                                 Map<Var, PrimExpr> dst_to_src) {
-  ObjectPtr<IntConstraintsTransformNode> node = make_object<IntConstraintsTransformNode>();
+                                                 ffi::Map<Var, PrimExpr> src_to_dst,
+                                                 ffi::Map<Var, PrimExpr> dst_to_src) {
+  ObjectPtr<IntConstraintsTransformNode> node = ffi::make_object<IntConstraintsTransformNode>();
   node->src = std::move(src);
   node->dst = std::move(dst);
   node->src_to_dst = std::move(src_to_dst);
@@ -275,8 +276,8 @@ IntConstraintsTransform::IntConstraintsTransform(IntConstraints src, IntConstrai
 IntConstraintsTransform IntConstraintsTransform::operator+(
     const IntConstraintsTransform& other) const {
   ICHECK(other->src.same_as(operator->()->dst));
-  Map<Var, PrimExpr> dst_to_src;
-  Map<Var, PrimExpr> src_to_dst;
+  ffi::Map<Var, PrimExpr> dst_to_src;
+  ffi::Map<Var, PrimExpr> src_to_dst;
 
   Analyzer ana_first;
   ana_first.Bind(operator->()->src->ranges);
@@ -292,14 +293,14 @@ IntConstraintsTransform IntConstraintsTransform::operator+(
   return IntConstraintsTransform(operator->()->src, other->dst, src_to_dst, dst_to_src);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("arith.IntConstraintsTransform",
-                        [](IntConstraints src, IntConstraints dst, Map<Var, PrimExpr> src_to_dst,
-                           Map<Var, PrimExpr> dst_to_src) {
+                        [](IntConstraints src, IntConstraints dst,
+                           ffi::Map<Var, PrimExpr> src_to_dst, ffi::Map<Var, PrimExpr> dst_to_src) {
                           return IntConstraintsTransform(src, dst, src_to_dst, dst_to_src);
                         });
-});
+}
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IntConstraintsTransformNode>([](const ObjectRef& node, ReprPrinter* p) {

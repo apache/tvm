@@ -19,13 +19,13 @@ import inspect
 import functools
 from typing import Callable, List, Optional, Union
 
-import tvm.ffi
+import tvm_ffi
 from tvm.ir.transform import Pass, PassInfo
 
 from . import _ffi_api
 
 
-@tvm.ffi.register_object("tir.PrimFuncPass")
+@tvm_ffi.register_object("tir.PrimFuncPass")
 class PrimFuncPass(Pass):
     """A pass that works on each :py:func:`tvm.tir.PrimFunc` in a module. A function
     pass class should be created through py:func:`tvm.tir.transform.function_pass`.

@@ -40,7 +40,7 @@ inline tir::PrimFunc FindEntryFunc(const IRModule& mod) {
     if (const auto* func = base_func.as<tir::PrimFuncNode>()) {
       last_func = func;
       if (func->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
-        return GetRef<tir::PrimFunc>(func);
+        return ffi::GetRef<tir::PrimFunc>(func);
       }
       if (gv->name_hint == "main") {
         main_func = func;
@@ -50,7 +50,7 @@ inline tir::PrimFunc FindEntryFunc(const IRModule& mod) {
   }
   // Priority 2: PrimFunc whose name is `main`
   if (main_func != nullptr) {
-    return GetRef<tir::PrimFunc>(main_func);
+    return ffi::GetRef<tir::PrimFunc>(main_func);
   }
   // Priority 3: The only PrimFunc in the IRModule
   if (num_prim_func == 0) {
@@ -61,7 +61,7 @@ inline tir::PrimFunc FindEntryFunc(const IRModule& mod) {
                   "annotated with `kIsEntryFunc`, i.e. `tir.is_entry_func`"
                << mod;
   }
-  return GetRef<tir::PrimFunc>(last_func);
+  return ffi::GetRef<tir::PrimFunc>(last_func);
 }
 /******** ArgInfo ********/
 
@@ -69,11 +69,11 @@ ArgInfo ArgInfo::FromJSON(const ObjectRef& json_obj) {
   // The JSON object is always an array whose first element is a tag. For example:
   // `['TENSOR', 'float32', [1, 224, 224, 3]]
   // Step 1. Extract the tag
-  Optional<String> tag{std::nullopt};
+  ffi::Optional<ffi::String> tag{std::nullopt};
   try {
     const ffi::ArrayObj* json_array = json_obj.as<ffi::ArrayObj>();
     CHECK(json_array && json_array->size() >= 1);
-    tag = json_array->at(0).cast<String>();
+    tag = json_array->at(0).cast<ffi::String>();
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
     LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
                << "\nThe error is: " << e.what();
@@ -86,12 +86,12 @@ ArgInfo ArgInfo::FromJSON(const ObjectRef& json_obj) {
   throw;
 }
 
-Array<ArgInfo> ArgInfo::FromPrimFunc(const tir::PrimFunc& func) {
+ffi::Array<ArgInfo> ArgInfo::FromPrimFunc(const tir::PrimFunc& func) {
   using support::AsVector;
-  Array<ArgInfo> result;
+  ffi::Array<ArgInfo> result;
   result.reserve(func->params.size());
   for (const tir::Var& arg : func->params) {
-    if (Optional<tir::Buffer> _buffer = func->buffer_map.Get(arg)) {
+    if (ffi::Optional<tir::Buffer> _buffer = func->buffer_map.Get(arg)) {
       tir::Buffer buffer = _buffer.value();
       result.push_back(TensorInfo(/*dtype=*/buffer->dtype,
                                   /*shape=*/AsVector<PrimExpr, int64_t>(buffer->shape)));
@@ -102,10 +102,10 @@ Array<ArgInfo> ArgInfo::FromPrimFunc(const tir::PrimFunc& func) {
   return result;
 }
 
-Array<ArgInfo> ArgInfo::FromEntryFunc(const IRModule& mod, bool remove_preproc) {
+ffi::Array<ArgInfo> ArgInfo::FromEntryFunc(const IRModule& mod, bool remove_preproc) {
   if (remove_preproc) {
     IRModule new_mod =
-        tir::transform::RemoveWeightLayoutRewriteBlock(/*skip_ndarray_rewrite*/ true)(mod);
+        tir::transform::RemoveWeightLayoutRewriteBlock(/*skip_tensor_rewrite*/ true)(mod);
     return ArgInfo::FromPrimFunc(FindEntryFunc(new_mod));
   }
   return ArgInfo::FromPrimFunc(FindEntryFunc(mod));
@@ -114,28 +114,28 @@ Array<ArgInfo> ArgInfo::FromEntryFunc(const IRModule& mod, bool remove_preproc) 
 /******** TensorInfo ********/
 
 TensorInfo::TensorInfo(runtime::DataType dtype, ffi::Shape shape) {
-  ObjectPtr<TensorInfoNode> n = make_object<TensorInfoNode>();
+  ObjectPtr<TensorInfoNode> n = ffi::make_object<TensorInfoNode>();
   n->dtype = dtype;
   n->shape = shape;
   this->data_ = std::move(n);
 }
 
 ObjectRef TensorInfoNode::AsJSON() const {
-  static String tag = "TENSOR";
-  String dtype = DLDataTypeToString(this->dtype);
-  Array<Integer> shape = support::AsArray(this->shape);
-  return Array<ffi::Any>{tag, dtype, shape};
+  static ffi::String tag = "TENSOR";
+  ffi::String dtype = DLDataTypeToString(this->dtype);
+  ffi::Array<Integer> shape = support::AsArray(this->shape);
+  return ffi::Array<ffi::Any>{tag, dtype, shape};
 }
 
 TensorInfo TensorInfo::FromJSON(const ObjectRef& json_obj) {
   DLDataType dtype;
-  Array<Integer> shape;
+  ffi::Array<Integer> shape;
   try {
     const ffi::ArrayObj* json_array = json_obj.as<ffi::ArrayObj>();
     CHECK(json_array && json_array->size() == 3);
     // Load json[1] => dtype
     {
-      String dtype_str = json_array->at(1).cast<String>();
+      ffi::String dtype_str = json_array->at(1).cast<ffi::String>();
       dtype = StringToDLDataType(dtype_str);
     }
     // Load json[2] => shape
@@ -160,9 +160,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 /******** FFI ********/
-TVM_FFI_STATIC_INIT_BLOCK({ TensorInfoNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { TensorInfoNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("meta_schedule.ArgInfoAsJSON", &ArgInfoNode::AsJSON)
@@ -172,7 +172,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("meta_schedule.TensorInfo", [](runtime::DataType dtype, ffi::Shape shape) -> TensorInfo {
         return TensorInfo(dtype, shape);
       });
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

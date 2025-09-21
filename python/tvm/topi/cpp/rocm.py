@@ -15,6 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI for Rocm TOPI ops and schedules"""
-import tvm.ffi
+import tvm_ffi
 
-tvm.ffi._init_api("topi.rocm", "tvm.topi.cpp.rocm")
+tvm_ffi.init_ffi_api("topi.rocm", "tvm.topi.cpp.rocm")

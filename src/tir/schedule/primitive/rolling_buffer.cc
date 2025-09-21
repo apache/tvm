@@ -32,14 +32,14 @@ struct RollingBufferInfo {
   int rolling_axis;
   PrimExpr rolling_extent;
   std::vector<int> axis_overlaps;
-  std::vector<Optional<Var>> axis_iter_vars;
+  std::vector<ffi::Optional<Var>> axis_iter_vars;
   /*! \brief The map used for ScheduleStateNode::Replace. */
-  Map<Block, Block> block_reuse;
+  ffi::Map<Block, Block> block_reuse;
 };
 
 BufferRegion GetRelaxedBufferRegion(const BlockRealize& realize, const BufferRegion& buffer_region,
-                                    const Map<Var, arith::IntSet>& dom_map) {
-  Array<arith::IntSet> relaxed_intsets =
+                                    const ffi::Map<Var, arith::IntSet>& dom_map) {
+  ffi::Array<arith::IntSet> relaxed_intsets =
       arith::EvalSet(Substitute(buffer_region->region, GetBindings(realize)), dom_map);
   Region relaxed_region;
   relaxed_region.reserve(relaxed_intsets.size());
@@ -55,16 +55,16 @@ class RollingBufferDependencyError : public ScheduleError {
   explicit RollingBufferDependencyError(IRModule mod, Block block)
       : mod_(mod), block_(std::move(block)) {}
 
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return "ScheduleError: The target block is required to have only RAW dependencies";
   }
 
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     return "The target block {0} is required to have only RAW dependencies";
   }
 
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
   /*!
    * \brief Check if the block has only RAW dependencies.
@@ -79,13 +79,13 @@ class RollingBufferDependencyError : public ScheduleError {
     for (const Dependency& producers : scope->GetDepsByDst(block_sref)) {
       if (!(producers->kind == DepKind::kRAW)) {
         const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
-        throw RollingBufferDependencyError(self->mod, GetRef<Block>(block));
+        throw RollingBufferDependencyError(self->mod, ffi::GetRef<Block>(block));
       }
     }
     for (const Dependency& consumers : scope->GetDepsBySrc(block_sref)) {
       if (!(consumers->kind == DepKind::kRAW)) {
         const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
-        throw RollingBufferDependencyError(self->mod, GetRef<Block>(block));
+        throw RollingBufferDependencyError(self->mod, ffi::GetRef<Block>(block));
       }
     }
   }
@@ -99,11 +99,11 @@ class RollingBufferMatchError : public ScheduleError {
  public:
   RollingBufferMatchError(IRModule mod, Block block, BufferRegion buffer_region)
       : mod_(mod), block_(block), buffer_region_(buffer_region) {}
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return "ScheduleError: rolling_buffer expect the buffer region to have at least one dimention"
            "matching the rolling pattern such as: hh.outer * stride + hh.inner";
   }
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "The target buffer " << buffer_region_->buffer->name << " with region "
        << buffer_region_->region
@@ -113,7 +113,7 @@ class RollingBufferMatchError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
  private:
   IRModule mod_;
@@ -125,12 +125,12 @@ class RollingBufferInsertionError : public ScheduleError {
  public:
   RollingBufferInsertionError(IRModule mod, Buffer buffer, Block block)
       : mod_(mod), buffer_(std::move(buffer)), block_(block) {}
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return "ScheduleError: rolling_buffer injection is invalid, the lca of the access "
            "location of the target buffer is not a for loop. ";
   }
 
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "rolling_buffer injection is invalid. The block {0} should be tiled so that "
        << "the lca of the access location of the target buffer " << buffer_->name
@@ -138,7 +138,7 @@ class RollingBufferInsertionError : public ScheduleError {
     return os.str();
   }
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
  private:
   IRModule mod_;
@@ -154,7 +154,7 @@ class RollingBufferInfoCollector {
     RollingBufferInfoCollector collector;
     if (!collector.MatchRollingBuffer(block_sref, buffer_region)) {
       const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
-      throw RollingBufferMatchError(mod, GetRef<Block>(block), buffer_region);
+      throw RollingBufferMatchError(mod, ffi::GetRef<Block>(block), buffer_region);
     }
     return collector.info_;
   }
@@ -164,7 +164,7 @@ class RollingBufferInfoCollector {
     const Buffer& buffer = buffer_region->buffer;
     const Region& region = buffer_region->region;
 
-    std::vector<Optional<Var>> bound_iter_vars;
+    std::vector<ffi::Optional<Var>> bound_iter_vars;
     std::vector<int> bound_overlaps;
 
     arith::PVar<Var> p_var;
@@ -173,7 +173,7 @@ class RollingBufferInfoCollector {
       auto stride = 0;
       auto divisor = 1;
 
-      Optional<Var> iter_var;
+      ffi::Optional<Var> iter_var;
       if (floordiv((p_var * p_stride), p_divisor).Match(bound->min)) {
         // Handle the case of fractional strides
         // They take this form: floordiv(hh.outer, 2)
@@ -211,17 +211,17 @@ class RollingBufferInfoCollector {
       bound_overlaps.push_back(bound_overlap);
     }
 
-    Array<StmtSRef> loop_srefs = GetLoops(block_sref);
+    ffi::Array<StmtSRef> loop_srefs = GetLoops(block_sref);
     // Pick the outermost iter_var that's mentioned in the bounds
     // to be the rolling axis
-    Optional<Var> roll_iter_var;
+    ffi::Optional<Var> roll_iter_var;
     int roll_axis = 0;
     for (const tir::StmtSRef& loop_sref : loop_srefs) {
       auto loop_var = loop_sref->StmtAs<ForNode>()->loop_var;
 
-      auto it{std::find_if(bound_iter_vars.begin(), bound_iter_vars.end(), [&](Optional<Var> var) {
-        return var && (var.get() == loop_var.get());
-      })};
+      auto it{std::find_if(
+          bound_iter_vars.begin(), bound_iter_vars.end(),
+          [&](ffi::Optional<Var> var) { return var && (var.get() == loop_var.get()); })};
       if (it != bound_iter_vars.end()) {
         auto i = std::distance(bound_iter_vars.begin(), it);
         roll_iter_var = loop_var;
@@ -233,7 +233,7 @@ class RollingBufferInfoCollector {
     if (!roll_iter_var.defined()) {
       return false;
     }
-    Array<PrimExpr> new_shape = buffer->shape;
+    ffi::Array<PrimExpr> new_shape = buffer->shape;
     new_shape.Set(roll_axis, region[roll_axis]->extent);
     Buffer new_buffer = buffer;
     new_buffer.CopyOnWrite()->shape = new_shape;
@@ -255,15 +255,15 @@ class RollingBufferRewriter : public StmtExprMutator {
  public:
   static Stmt Rewrite(const StmtSRef& scope_sref, RollingBufferInfo* info) {
     RollingBufferRewriter rewriter(scope_sref, info);
-    return rewriter(GetRef<Stmt>(scope_sref->stmt));
+    return rewriter(ffi::GetRef<Stmt>(scope_sref->stmt));
   }
 
  private:
   explicit RollingBufferRewriter(const StmtSRef& scope_sref, RollingBufferInfo* info)
       : scope_sref_(scope_sref), info_(info) {}
 
-  void RewriteAccessRegion(Array<BufferRegion>* old_access_regions,
-                           const Array<BufferRegion>& infered_access_regions) {
+  void RewriteAccessRegion(ffi::Array<BufferRegion>* old_access_regions,
+                           const ffi::Array<BufferRegion>& infered_access_regions) {
     auto fmutate = [this, &infered_access_regions](const BufferRegion& buffer_region) {
       if (buffer_region->buffer.same_as(info_->old_buffer)) {
         ICHECK(infered_access_regions.size() == 1);
@@ -274,8 +274,8 @@ class RollingBufferRewriter : public StmtExprMutator {
     (*old_access_regions).MutateByApply(fmutate);
   }
 
-  void RewriteBufferAccess(Buffer* buffer, Array<PrimExpr>* indices) const {
-    Array<PrimExpr> new_indices;
+  void RewriteBufferAccess(Buffer* buffer, ffi::Array<PrimExpr>* indices) const {
+    ffi::Array<PrimExpr> new_indices;
     new_indices.reserve(indices->size());
     // First modify the access indices to use modulo arithmetic
     // for the rolling axis
@@ -292,11 +292,11 @@ class RollingBufferRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BlockNode* block) final {
-    Block old_stmt = GetRef<Block>(block);
+    Block old_stmt = ffi::GetRef<Block>(block);
     Block stmt = Downcast<Block>(StmtExprMutator::VisitStmt_(block));
     BlockNode* n = stmt.CopyOnWrite();
     if (block == scope_sref_->stmt) {
-      Array<Buffer> new_alloc_buffers;
+      ffi::Array<Buffer> new_alloc_buffers;
       for (const Buffer& buffer : stmt->alloc_buffers) {
         if (buffer != info_->old_buffer) {
           new_alloc_buffers.push_back(buffer);
@@ -306,7 +306,7 @@ class RollingBufferRewriter : public StmtExprMutator {
       }
       n->alloc_buffers = std::move(new_alloc_buffers);
     } else {
-      Array<IterVar> new_iter_vars;
+      ffi::Array<IterVar> new_iter_vars;
       for (size_t i = 0; i < stmt->iter_vars.size(); ++i) {
         auto old_iter_var = stmt->iter_vars[i];
         if (static_cast<int>(i) == info_->rolling_axis) {
@@ -323,7 +323,7 @@ class RollingBufferRewriter : public StmtExprMutator {
           new_iter_vars.push_back(old_iter_var);
         }
       }
-      Map<Var, Buffer> buffer_data_to_buffer = {{info_->new_buffer->data, info_->new_buffer}};
+      ffi::Map<Var, Buffer> buffer_data_to_buffer = {{info_->new_buffer->data, info_->new_buffer}};
       auto infered_access_regions = GetBlockReadWriteRegion(stmt, buffer_data_to_buffer);
 
       n->iter_vars = std::move(new_iter_vars);
@@ -344,7 +344,8 @@ class RollingBufferRewriter : public StmtExprMutator {
         auto iter_var = info_->axis_iter_vars[i];
         if (iter_var && info_->axis_overlaps[i] > 0) {
           Var var = iter_var.value();
-          const Map<Var, arith::IntSet> dmap = {std::make_pair(var, arith::IntSet::Interval(0, 0))};
+          const ffi::Map<Var, arith::IntSet> dmap = {
+              std::make_pair(var, arith::IntSet::Interval(0, 0))};
           auto iter_value = realize->iter_values[i];
           arith::Analyzer analyzer;
           auto term_2 = analyzer.int_set(iter_value, dmap).min();
@@ -399,7 +400,7 @@ void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buf
    *      indices to circularize the buffer along the rolling dimension.
    *    - Append block predicate to avoid recomputing overlapping elements.
    */
-  Map<Var, arith::IntSet> dom_map;
+  ffi::Map<Var, arith::IntSet> dom_map;
   const BlockRealize& realize = GetBlockRealize(self, block_sref);
   const Block& block = realize->block;
 
@@ -412,8 +413,8 @@ void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buf
   RollingBufferDependencyError::Check(self, block_sref, scope_root_sref);
 
   // Step 3. Find the lca of the access location of the target buffer and relax the buffer
-  Array<StmtSRef> loop_srefs = GetLoops(block_sref);
-  Array<StmtSRef> consumers_sref = GetConsumers(self, block_sref);
+  ffi::Array<StmtSRef> loop_srefs = GetLoops(block_sref);
+  ffi::Array<StmtSRef> consumers_sref = GetConsumers(self, block_sref);
   consumers_sref.push_back(block_sref);
   StmtSRef lca = GetSRefLowestCommonAncestor(consumers_sref);
   if (!lca->StmtAs<ForNode>()) {
@@ -426,7 +427,7 @@ void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buf
     if (stmt == lca) {
       break;
     }
-    For cur_loop = GetRef<For>(stmt->StmtAs<ForNode>());
+    For cur_loop = ffi::GetRef<For>(stmt->StmtAs<ForNode>());
     Range range = Range::FromMinExtent(cur_loop->min, cur_loop->extent);
     dom_map.Set(cur_loop->loop_var, arith::IntSet::FromRange(range));
   }
@@ -458,7 +459,8 @@ struct RollingBufferTraits : public UnpackedInstTraits<RollingBufferTraits> {
     return sch->RollingBuffer(block, write_buffer_index.IntValue());
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String block, Integer write_buffer_index) {
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
+                                      Integer write_buffer_index) {
     PythonAPICall py("rolling_buffer");
     py.Input("block", block);
     py.Input("write_buffer_index", write_buffer_index);

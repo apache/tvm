@@ -36,7 +36,7 @@
 namespace tvm {
 namespace tir {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   VarNode::RegisterReflection();
   SizeVarNode::RegisterReflection();
   IterVarNode::RegisterReflection();
@@ -70,7 +70,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   ShuffleNode::RegisterReflection();
   CommReducerNode::RegisterReflection();
   ReduceNode::RegisterReflection();
-});
+}
 
 /* \brief Convert an object to a PrimExpr
  *
@@ -80,11 +80,11 @@ TVM_FFI_STATIC_INIT_BLOCK({
  * `expr.dtype` field), this function allows the FFI conversions to be
  * explicitly invoked.
  */
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.convert",
-                        [](Variant<PrimExpr, Array<PrimExpr>> expr) { return expr; });
-});
+                        [](ffi::Variant<PrimExpr, ffi::Array<PrimExpr>> expr) { return expr; });
+}
 
 #define TVM_DEFINE_BINOP_CONSTRUCTOR(Name)                                                   \
   Name::Name(PrimExpr a, PrimExpr b, Span span) {                                            \
@@ -93,7 +93,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     ICHECK(b.defined()) << "ValueError: b is undefined\n";                                   \
     CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types. " << a.dtype() << " vs. " \
                                   << b.dtype() << "\n";                                      \
-    ObjectPtr<T> node = make_object<T>();                                                    \
+    ObjectPtr<T> node = ffi::make_object<T>();                                               \
     node->dtype = a.dtype();                                                                 \
     node->a = std::move(a);                                                                  \
     node->b = std::move(b);                                                                  \
@@ -108,7 +108,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     ICHECK(b.defined()) << "ValueError: b is undefined\n";                                   \
     CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types. " << a.dtype() << " vs. " \
                                   << b.dtype() << "\n";                                      \
-    ObjectPtr<T> node = make_object<T>();                                                    \
+    ObjectPtr<T> node = ffi::make_object<T>();                                               \
     DataType a_dtype = a.dtype();                                                            \
     node->dtype =                                                                            \
         DataType::Bool(a_dtype.get_lanes_or_vscale_factor(), a_dtype.is_scalable_vector());  \
@@ -119,8 +119,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
   }
 
 // Var
-Var::Var(String name_hint, DataType dtype, Span span) {
-  auto n = make_object<VarNode>();
+Var::Var(ffi::String name_hint, DataType dtype, Span span) {
+  auto n = ffi::make_object<VarNode>();
   n->name_hint = std::move(name_hint);
   n->type_annotation = GetTypeFromRuntimeDataType(dtype);
   n->dtype = std::move(dtype);
@@ -128,8 +128,8 @@ Var::Var(String name_hint, DataType dtype, Span span) {
   data_ = std::move(n);
 }
 
-Var::Var(String name_hint, Type type_annotation, Span span) {
-  auto n = make_object<VarNode>();
+Var::Var(ffi::String name_hint, Type type_annotation, Span span) {
+  auto n = ffi::make_object<VarNode>();
   n->name_hint = std::move(name_hint);
   n->dtype = GetRuntimeDataType(type_annotation);
   n->type_annotation = std::move(type_annotation);
@@ -137,19 +137,19 @@ Var::Var(String name_hint, Type type_annotation, Span span) {
   data_ = std::move(n);
 }
 
-Var Var::copy_with_name(const String& name) const {
+Var Var::copy_with_name(const ffi::String& name) const {
   const VarNode* node = get();
   ObjectPtr<VarNode> new_ptr;
   if (auto* ptr = this->as<SizeVarNode>()) {
-    new_ptr = make_object<SizeVarNode>(*ptr);
+    new_ptr = ffi::make_object<SizeVarNode>(*ptr);
   } else {
-    new_ptr = make_object<VarNode>(*node);
+    new_ptr = ffi::make_object<VarNode>(*node);
   }
   new_ptr->name_hint = name;
   return Var(new_ptr);
 }
 
-Var Var::copy_with_suffix(const String& suffix) const {
+Var Var::copy_with_suffix(const ffi::String& suffix) const {
   return this->copy_with_name(get()->name_hint + suffix);
 }
 
@@ -157,29 +157,29 @@ Var Var::copy_with_dtype(DataType dtype) const {
   const VarNode* node = get();
   ObjectPtr<VarNode> new_ptr;
   if (auto* ptr = this->as<SizeVarNode>()) {
-    new_ptr = make_object<SizeVarNode>(*ptr);
+    new_ptr = ffi::make_object<SizeVarNode>(*ptr);
   } else {
-    new_ptr = make_object<VarNode>(*node);
+    new_ptr = ffi::make_object<VarNode>(*node);
   }
   new_ptr->type_annotation = GetTypeFromRuntimeDataType(dtype);
   new_ptr->dtype = std::move(dtype);
   return Var(new_ptr);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Var", [](String name_hint, ffi::AnyView type, Span span) {
+  refl::GlobalDef().def("tir.Var", [](ffi::String name_hint, ffi::AnyView type, Span span) {
     if (type.as<Type>()) {
       return Var(name_hint, type.cast<Type>(), span);
     } else {
       return Var(name_hint, type.cast<DataType>(), span);
     }
   });
-});
+}
 
 // SizeVar
-SizeVar::SizeVar(String name_hint, DataType dtype, Span span) {
-  auto n = make_object<SizeVarNode>();
+SizeVar::SizeVar(ffi::String name_hint, DataType dtype, Span span) {
+  auto n = ffi::make_object<SizeVarNode>();
   n->name_hint = std::move(name_hint);
   n->type_annotation = GetTypeFromRuntimeDataType(dtype);
   n->dtype = std::move(dtype);
@@ -187,8 +187,8 @@ SizeVar::SizeVar(String name_hint, DataType dtype, Span span) {
   data_ = std::move(n);
 }
 
-SizeVar::SizeVar(String name_hint, Type type_annotation, Span span) {
-  auto n = make_object<SizeVarNode>();
+SizeVar::SizeVar(ffi::String name_hint, Type type_annotation, Span span) {
+  auto n = ffi::make_object<SizeVarNode>();
   n->name_hint = std::move(name_hint);
   n->dtype = GetRuntimeDataType(type_annotation);
   n->type_annotation = std::move(type_annotation);
@@ -196,15 +196,15 @@ SizeVar::SizeVar(String name_hint, Type type_annotation, Span span) {
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.SizeVar",
-                        [](String s, DataType t, Span span) { return SizeVar(s, t, span); });
-});
+                        [](ffi::String s, DataType t, Span span) { return SizeVar(s, t, span); });
+}
 
 // IterVar
-IterVar::IterVar(Range dom, Var var, IterVarType t, String thread_tag, Span span) {
-  ObjectPtr<IterVarNode> n = make_object<IterVarNode>();
+IterVar::IterVar(Range dom, Var var, IterVarType t, ffi::String thread_tag, Span span) {
+  ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>();
   if (dom.defined() && dom->extent.defined()) {
     CHECK(dom->extent.dtype().is_int())
         << "The dtype of the domain of an IterVar must be an integer type. However, the domain's "
@@ -222,176 +222,176 @@ IterVar::IterVar(Range dom, Var var, IterVarType t, String thread_tag, Span span
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tir.IterVar", [](Range dom, Var var, int iter_type, String thread_tag, Span span) {
+      "tir.IterVar", [](Range dom, Var var, int iter_type, ffi::String thread_tag, Span span) {
         return IterVar(dom, var, static_cast<IterVarType>(iter_type), thread_tag, span);
       });
-});
+}
 
 // StringImm
-StringImm::StringImm(String value, Span span) {
-  ObjectPtr<StringImmNode> node = make_object<StringImmNode>();
+StringImm::StringImm(ffi::String value, Span span) {
+  ObjectPtr<StringImmNode> node = ffi::make_object<StringImmNode>();
   node->dtype = DataType::Handle();
   node->value = std::move(value);
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.StringImm",
-                        [](String value, Span span) { return StringImm(value, span); });
-});
+                        [](ffi::String value, Span span) { return StringImm(value, span); });
+}
 
 // Cast
 Cast::Cast(DataType t, PrimExpr value, Span span) {
   ICHECK(value.defined());
   ICHECK_EQ(t.get_lanes_or_vscale_factor(), value.dtype().get_lanes_or_vscale_factor());
   ICHECK(t.is_scalable_vector() == value.dtype().is_scalable_vector());
-  ObjectPtr<CastNode> node = make_object<CastNode>();
+  ObjectPtr<CastNode> node = ffi::make_object<CastNode>();
   node->dtype = t;
   node->value = std::move(value);
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.Cast", [](DataType dtype, PrimExpr value, Span span) {
     return Cast(dtype, value, span);
   });
-});
+}
 
 // Add
 TVM_DEFINE_BINOP_CONSTRUCTOR(Add);
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.Add",
                         [](PrimExpr a, PrimExpr b, Span span) { return Add(a, b, span); });
-});
+}
 
 // Sub
 TVM_DEFINE_BINOP_CONSTRUCTOR(Sub);
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.Sub",
                         [](PrimExpr a, PrimExpr b, Span span) { return Sub(a, b, span); });
-});
+}
 
 // Mul
 TVM_DEFINE_BINOP_CONSTRUCTOR(Mul);
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.Mul",
                         [](PrimExpr a, PrimExpr b, Span span) { return Mul(a, b, span); });
-});
+}
 
 // Div
 TVM_DEFINE_BINOP_CONSTRUCTOR(Div);
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.Div",
                         [](PrimExpr a, PrimExpr b, Span span) { return Div(a, b, span); });
-});
+}
 
 // Mod
 TVM_DEFINE_BINOP_CONSTRUCTOR(Mod);
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.Mod",
                         [](PrimExpr a, PrimExpr b, Span span) { return Mod(a, b, span); });
-});
+}
 
 // FloorDiv
 TVM_DEFINE_BINOP_CONSTRUCTOR(FloorDiv);
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.FloorDiv",
                         [](PrimExpr a, PrimExpr b, Span span) { return FloorDiv(a, b, span); });
-});
+}
 
 // FloorMod
 TVM_DEFINE_BINOP_CONSTRUCTOR(FloorMod);
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.FloorMod",
                         [](PrimExpr a, PrimExpr b, Span span) { return FloorMod(a, b, span); });
-});
+}
 
 // Min
 TVM_DEFINE_BINOP_CONSTRUCTOR(Min);
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.Min",
                         [](PrimExpr a, PrimExpr b, Span span) { return Min(a, b, span); });
-});
+}
 
 // Max
 TVM_DEFINE_BINOP_CONSTRUCTOR(Max);
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.Max",
                         [](PrimExpr a, PrimExpr b, Span span) { return Max(a, b, span); });
-});
+}
 
 // EQ
 TVM_DEFINE_CMPOP_CONSTRUCTOR(EQ);
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.EQ", [](PrimExpr a, PrimExpr b, Span span) { return EQ(a, b, span); });
-});
+}
 
 // NE
 TVM_DEFINE_CMPOP_CONSTRUCTOR(NE);
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.NE", [](PrimExpr a, PrimExpr b, Span span) { return NE(a, b, span); });
-});
+}
 
 // LT
 TVM_DEFINE_CMPOP_CONSTRUCTOR(LT);
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.LT", [](PrimExpr a, PrimExpr b, Span span) { return LT(a, b, span); });
-});
+}
 
 // LE
 TVM_DEFINE_CMPOP_CONSTRUCTOR(LE);
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.LE", [](PrimExpr a, PrimExpr b, Span span) { return LE(a, b, span); });
-});
+}
 
 // GT
 TVM_DEFINE_CMPOP_CONSTRUCTOR(GT);
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.GT", [](PrimExpr a, PrimExpr b, Span span) { return GT(a, b, span); });
-});
+}
 
 // GE
 TVM_DEFINE_CMPOP_CONSTRUCTOR(GE);
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.GE", [](PrimExpr a, PrimExpr b, Span span) { return GE(a, b, span); });
-});
+}
 
 // And
 And::And(PrimExpr a, PrimExpr b, Span span) {
@@ -401,7 +401,7 @@ And::And(PrimExpr a, PrimExpr b, Span span) {
   ICHECK(b.dtype().is_bool());
   ICHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types";
 
-  ObjectPtr<AndNode> node = make_object<AndNode>();
+  ObjectPtr<AndNode> node = ffi::make_object<AndNode>();
   node->dtype =
       DataType::Bool(a.dtype().get_lanes_or_vscale_factor(), a.dtype().is_scalable_vector());
   node->a = std::move(a);
@@ -410,11 +410,11 @@ And::And(PrimExpr a, PrimExpr b, Span span) {
   data_ = std::move(node);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.And",
                         [](PrimExpr a, PrimExpr b, Span span) { return And(a, b, span); });
-});
+}
 
 // Or
 Or::Or(PrimExpr a, PrimExpr b, Span span) {
@@ -424,7 +424,7 @@ Or::Or(PrimExpr a, PrimExpr b, Span span) {
   ICHECK(b.dtype().is_bool());
   ICHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types";
 
-  ObjectPtr<OrNode> node = make_object<OrNode>();
+  ObjectPtr<OrNode> node = ffi::make_object<OrNode>();
   node->dtype =
       DataType::Bool(a.dtype().get_lanes_or_vscale_factor(), a.dtype().is_scalable_vector());
   node->a = std::move(a);
@@ -433,17 +433,17 @@ Or::Or(PrimExpr a, PrimExpr b, Span span) {
   data_ = std::move(node);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.Or", [](PrimExpr a, PrimExpr b, Span span) { return Or(a, b, span); });
-});
+}
 
 // Not
 Not::Not(PrimExpr a, Span span) {
   ICHECK(a.defined()) << "ValueError: a is undefined";
   ICHECK(a.dtype().is_bool());
 
-  ObjectPtr<NotNode> node = make_object<NotNode>();
+  ObjectPtr<NotNode> node = ffi::make_object<NotNode>();
   DataType a_dtype = a.dtype();
   node->dtype = DataType::Bool(a_dtype.get_lanes_or_vscale_factor(), a_dtype.is_scalable_vector());
   node->a = std::move(a);
@@ -451,10 +451,10 @@ Not::Not(PrimExpr a, Span span) {
   data_ = std::move(node);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.Not", [](PrimExpr a, Span span) { return Not(a, span); });
-});
+}
 
 // Select
 Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Span span) {
@@ -469,7 +469,7 @@ Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Sp
       << "TypeError: mismatched types. "
       << "False type: " << false_value.dtype() << "; True type: " << true_value.dtype();
 
-  ObjectPtr<SelectNode> node = make_object<SelectNode>();
+  ObjectPtr<SelectNode> node = ffi::make_object<SelectNode>();
   node->dtype = true_value.dtype();
   node->condition = std::move(condition);
   node->true_value = std::move(true_value);
@@ -478,13 +478,13 @@ Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Sp
   data_ = std::move(node);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "tir.Select", [](PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Span span) {
         return Select(condition, true_value, false_value, span);
       });
-});
+}
 
 // Ramp
 Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
@@ -496,7 +496,7 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
     stride = cast(base.dtype(), stride);
   }
 
-  ObjectPtr<RampNode> node = make_object<RampNode>();
+  ObjectPtr<RampNode> node = ffi::make_object<RampNode>();
   auto* lanes_as_int = lanes.as<IntImmNode>();
   if (lanes_as_int) {
     int lanes = static_cast<int>(lanes_as_int->value);
@@ -518,19 +518,19 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
   data_ = std::move(node);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.Ramp", [](PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
     return Ramp(base, stride, lanes, span);
   });
-});
+}
 
 // Broadcast
 Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
   ICHECK(value.defined());
   ICHECK(value.dtype().is_scalar());
 
-  ObjectPtr<BroadcastNode> node = make_object<BroadcastNode>();
+  ObjectPtr<BroadcastNode> node = ffi::make_object<BroadcastNode>();
   auto* lanes_int = lanes.as<IntImmNode>();
   if (lanes_int) {
     int lanes = static_cast<int>(lanes_int->value);
@@ -551,12 +551,12 @@ Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
   data_ = node;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.Broadcast", [](PrimExpr value, PrimExpr lanes, Span span) {
     return Broadcast(value, lanes, span);
   });
-});
+}
 
 // Let
 Let::Let(Var var, PrimExpr value, PrimExpr body, Span span) {
@@ -564,7 +564,7 @@ Let::Let(Var var, PrimExpr value, PrimExpr body, Span span) {
   ICHECK(body.defined());
   ICHECK_EQ(value.dtype(), var.dtype());
 
-  ObjectPtr<LetNode> node = make_object<LetNode>();
+  ObjectPtr<LetNode> node = ffi::make_object<LetNode>();
   node->dtype = body.dtype();
   node->var = std::move(var);
   node->value = std::move(value);
@@ -573,20 +573,20 @@ Let::Let(Var var, PrimExpr value, PrimExpr body, Span span) {
   data_ = std::move(node);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.Let", [](Var var, PrimExpr value, PrimExpr body, Span span) {
     return Let(var, value, body, span);
   });
-});
+}
 
 // Call
-Call::Call(DataType dtype, RelaxExpr op, Array<PrimExpr> args, Span span) {
+Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span) {
   for (size_t i = 0; i < args.size(); ++i) {
     ICHECK(args[i].defined()) << "arg " << i << " is not defined()";
   }
 
-  ObjectPtr<CallNode> node = make_object<CallNode>();
+  ObjectPtr<CallNode> node = ffi::make_object<CallNode>();
   node->dtype = dtype;
   node->op = std::move(op);
   node->args = std::move(args);
@@ -594,22 +594,23 @@ Call::Call(DataType dtype, RelaxExpr op, Array<PrimExpr> args, Span span) {
   data_ = std::move(node);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "tir.Call",
-      [](Optional<DataType> dtype, RelaxExpr op,
-         Array<Variant<String, DLDataType, IterVar, BufferRegion, PrimExpr>> args, Span span) {
-        Array<PrimExpr> prim_expr_args;
+      [](ffi::Optional<DataType> dtype, RelaxExpr op,
+         ffi::Array<ffi::Variant<ffi::String, DLDataType, IterVar, BufferRegion, PrimExpr>> args,
+         Span span) {
+        ffi::Array<PrimExpr> prim_expr_args;
         for (const auto& it : args) {
-          if (auto opt_str = it.as<String>()) {
+          if (auto opt_str = it.as<ffi::String>()) {
             prim_expr_args.push_back(StringImm(opt_str.value()));
           } else if (auto opt_dtype = it.as<DLDataType>()) {
             prim_expr_args.push_back(StringImm(ffi::DLDataTypeToString(opt_dtype.value())));
           } else if (const auto* iter_var = it.as<IterVarNode>()) {
             prim_expr_args.push_back(iter_var->var);
           } else if (const auto* br = it.as<BufferRegionNode>()) {
-            Array<PrimExpr> indices;
+            ffi::Array<PrimExpr> indices;
             for (Range r : br->region) {
               if (is_one(r->extent)) {
                 indices.push_back(r->min);
@@ -617,7 +618,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                 indices.push_back(tir::Ramp(r->min, make_const(r->min->dtype, 1), r->extent));
               } else {
                 LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: "
-                           << GetRef<BufferRegion>(br);
+                           << ffi::GetRef<BufferRegion>(br);
               }
             }
             prim_expr_args.push_back(BufferLoad(br->buffer, indices));
@@ -627,10 +628,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
         }
         return Call(dtype.value_or(DataType::Void()), op, prim_expr_args, span);
       });
-});
+}
 
 // Shuffle
-Shuffle::Shuffle(Array<PrimExpr> vectors, Array<PrimExpr> indices, Span span) {
+Shuffle::Shuffle(ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Span span) {
   ICHECK_NE(vectors.size(), 0U);
   ICHECK_NE(indices.size(), 0U);
 
@@ -643,7 +644,7 @@ Shuffle::Shuffle(Array<PrimExpr> vectors, Array<PrimExpr> indices, Span span) {
   }
   ICHECK_LE(indices.size(), static_cast<size_t>(total_lanes));
 
-  ObjectPtr<ShuffleNode> node = make_object<ShuffleNode>();
+  ObjectPtr<ShuffleNode> node = ffi::make_object<ShuffleNode>();
   node->dtype = base_type.with_lanes(static_cast<int>(indices.size()));
   node->vectors = std::move(vectors);
   node->indices = std::move(indices);
@@ -651,12 +652,12 @@ Shuffle::Shuffle(Array<PrimExpr> vectors, Array<PrimExpr> indices, Span span) {
   data_ = node;
 }
 
-PrimExpr Shuffle::Concat(Array<PrimExpr> vectors, Span span) {
+PrimExpr Shuffle::Concat(ffi::Array<PrimExpr> vectors, Span span) {
   ICHECK_NE(vectors.size(), 0);
   if (vectors.size() == 1) {
     return vectors[0];
   }
-  Array<PrimExpr> indices;
+  ffi::Array<PrimExpr> indices;
   int index = 0;
   for (const PrimExpr& e : vectors) {
     for (int i = 0; i < e.dtype().lanes(); ++i) {
@@ -670,15 +671,17 @@ PrimExpr Shuffle::ExtractElement(PrimExpr vector, int index, Span span) {
   return Shuffle({vector}, {Integer(index)}, span);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Shuffle", [](Array<PrimExpr> vectors, Array<PrimExpr> indices,
-                                          Span span) { return Shuffle(vectors, indices, span); });
-});
+  refl::GlobalDef().def("tir.Shuffle",
+                        [](ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Span span) {
+                          return Shuffle(vectors, indices, span);
+                        });
+}
 
 // CommReducer
-CommReducer::CommReducer(Array<Var> lhs, Array<Var> rhs, Array<PrimExpr> result,
-                         Array<PrimExpr> identity_element, Span span) {
+CommReducer::CommReducer(ffi::Array<Var> lhs, ffi::Array<Var> rhs, ffi::Array<PrimExpr> result,
+                         ffi::Array<PrimExpr> identity_element, Span span) {
   size_t n_group = result.size();
   CHECK_EQ(lhs.size(), n_group) << "ValueError: The number of vars in `lhs` must equal to the "
                                    "number of elements in `results`";
@@ -708,7 +711,7 @@ CommReducer::CommReducer(Array<Var> lhs, Array<Var> rhs, Array<PrimExpr> result,
     p_result->SetItem(i, Substitute(result[i], var_map));
   }
 
-  auto node = make_object<CommReducerNode>();
+  auto node = ffi::make_object<CommReducerNode>();
   node->lhs = lhs;
   node->rhs = rhs;
   node->result = result;
@@ -717,11 +720,12 @@ CommReducer::CommReducer(Array<Var> lhs, Array<Var> rhs, Array<PrimExpr> result,
   data_ = std::move(node);
 }
 
-Array<PrimExpr> CommReducerNode::operator()(Array<PrimExpr> a, Array<PrimExpr> b) const {
+ffi::Array<PrimExpr> CommReducerNode::operator()(ffi::Array<PrimExpr> a,
+                                                 ffi::Array<PrimExpr> b) const {
   ICHECK_EQ(a.size(), b.size());
   ICHECK_EQ(lhs.size(), a.size());
   ICHECK_EQ(rhs.size(), b.size());
-  Map<Var, PrimExpr> value_map;
+  ffi::Map<Var, PrimExpr> value_map;
   for (size_t i = 0; i < a.size(); ++i) {
     value_map.Set(lhs[i], a[i]);
     value_map.Set(rhs[i], b[i]);
@@ -729,26 +733,26 @@ Array<PrimExpr> CommReducerNode::operator()(Array<PrimExpr> a, Array<PrimExpr> b
   return Substitute(this->result, value_map);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.CommReducer",
-           [](Array<Var> lhs, Array<Var> rhs, Array<PrimExpr> result,
-              Array<PrimExpr> identity_element,
+           [](ffi::Array<Var> lhs, ffi::Array<Var> rhs, ffi::Array<PrimExpr> result,
+              ffi::Array<PrimExpr> identity_element,
               Span span) { return CommReducer(lhs, rhs, result, identity_element, span); })
       .def_method("tir.CommReducerCombine", &tir::CommReducerNode::operator());
-});
+}
 
 // Reduce
-Reduce::Reduce(CommReducer combiner, Array<PrimExpr> source, Array<IterVar> axis,
-               PrimExpr condition, int value_index, Array<PrimExpr> init, Span span) {
+Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<IterVar> axis,
+               PrimExpr condition, int value_index, ffi::Array<PrimExpr> init, Span span) {
   for (size_t i = 0; i < axis.size(); ++i) {
     ICHECK_EQ(axis[i]->iter_type, kCommReduce) << "Can only take axis created by reduce_axis";
   }
   if (!condition.defined()) {
     condition = const_true();
   }
-  auto n = make_object<ReduceNode>();
+  auto n = ffi::make_object<ReduceNode>();
   ICHECK(source.defined());
   for (size_t i = 0; i < axis.size(); ++i) {
     ICHECK(axis[i].defined());
@@ -774,14 +778,14 @@ Reduce::Reduce(CommReducer combiner, Array<PrimExpr> source, Array<IterVar> axis
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Reduce",
-                        [](CommReducer combiner, Array<PrimExpr> source, Array<IterVar> axis,
-                           PrimExpr condition, int value_index, Array<PrimExpr> init, Span span) {
-                          return Reduce(combiner, source, axis, condition, value_index, init, span);
-                        });
-});
+  refl::GlobalDef().def(
+      "tir.Reduce", [](CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<IterVar> axis,
+                       PrimExpr condition, int value_index, ffi::Array<PrimExpr> init, Span span) {
+        return Reduce(combiner, source, axis, condition, value_index, init, span);
+      });
+}
 
 // BufferLoad
 void BufferLoadNode::LegalizeDType() {
@@ -812,8 +816,8 @@ void BufferLoadNode::LegalizeDType() {
   }
 }
 
-BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Optional<PrimExpr> predicate,
-                       Span span) {
+BufferLoad::BufferLoad(Buffer buffer, ffi::Array<PrimExpr> indices,
+                       ffi::Optional<PrimExpr> predicate, Span span) {
   ICHECK_EQ(buffer->shape.size(), indices.size())
       << "Buffer " << buffer->name << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
@@ -841,7 +845,7 @@ BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Optional<PrimExpr
         << ".";
   }
 
-  ObjectPtr<BufferLoadNode> node = make_object<BufferLoadNode>();
+  ObjectPtr<BufferLoadNode> node = ffi::make_object<BufferLoadNode>();
   node->buffer = std::move(buffer);
   node->indices = std::move(indices);
   node->predicate = std::move(predicate);
@@ -850,16 +854,17 @@ BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Optional<PrimExpr
   data_ = std::move(node);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.BufferLoad",
-                        [](Buffer buffer, Array<PrimExpr> indices, Optional<PrimExpr> predicate,
-                           Span span) { return BufferLoad(buffer, indices, predicate, span); });
-});
+  refl::GlobalDef().def("tir.BufferLoad", [](Buffer buffer, ffi::Array<PrimExpr> indices,
+                                             ffi::Optional<PrimExpr> predicate, Span span) {
+    return BufferLoad(buffer, indices, predicate, span);
+  });
+}
 
 // ProducerLoad
-ProducerLoad::ProducerLoad(DataProducer producer, Array<PrimExpr> indices, Span span) {
-  ObjectPtr<ProducerLoadNode> node = make_object<ProducerLoadNode>();
+ProducerLoad::ProducerLoad(DataProducer producer, ffi::Array<PrimExpr> indices, Span span) {
+  ObjectPtr<ProducerLoadNode> node = ffi::make_object<ProducerLoadNode>();
   node->dtype = producer->GetDataType();
   node->producer = std::move(producer);
   node->indices = std::move(indices);
@@ -867,13 +872,13 @@ ProducerLoad::ProducerLoad(DataProducer producer, Array<PrimExpr> indices, Span 
   data_ = std::move(node);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.ProducerLoad",
-                        [](DataProducer producer, Array<PrimExpr> indices, Span span) {
+                        [](DataProducer producer, ffi::Array<PrimExpr> indices, Span span) {
                           return ProducerLoad(producer, indices, span);
                         });
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

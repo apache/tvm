@@ -49,7 +49,7 @@ namespace relax {
  *         Additional return values depend on `return_index`, `return_inverse`, and `return_counts`.
  */
 Expr unique(Expr x, PrimValue sorted, PrimValue return_index, PrimValue return_inverse,
-            PrimValue return_counts, Optional<PrimValue> axis);
+            PrimValue return_counts, ffi::Optional<PrimValue> axis);
 
 /*!
  * \brief Returns the indices of the non-zero elements of the input tensor.

@@ -123,7 +123,7 @@ class TVM_DLL TypeMutator : public TypeFunctor<Type(const Type& n)> {
   Type VisitType_(const PointerTypeNode* op) override;
 
  private:
-  Array<Type> MutateArray(Array<Type> arr);
+  ffi::Array<Type> MutateArray(ffi::Array<Type> arr);
 };
 
 }  // namespace tvm

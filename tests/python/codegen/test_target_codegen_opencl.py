@@ -39,8 +39,8 @@ def test_opencl_ternary_expression():
         (x,) = sch.get_loops(sch.get_block("C"))
         sch.bind(x, "threadIdx.x")
         fun = tvm.tir.build(sch.mod, target=target)
-        a = tvm.nd.empty((n,), A.dtype, dev)
-        c = tvm.nd.empty((n,), A.dtype, dev)
+        a = tvm.runtime.empty((n,), A.dtype, dev)
+        c = tvm.runtime.empty((n,), A.dtype, dev)
         # Only need to test compiling here
         fun(a, c)
 
@@ -57,8 +57,8 @@ def test_opencl_ternary_expression():
         sch.bind(x, "threadIdx.x")
         fun = tvm.tir.build(sch.mod, target=target)
 
-        a = tvm.nd.empty((n,), A.dtype, dev)
-        c = tvm.nd.empty((n,), A.dtype, dev)
+        a = tvm.runtime.empty((n,), A.dtype, dev)
+        c = tvm.runtime.empty((n,), A.dtype, dev)
         # Only need to test compiling here
         fun(a, c)
 
@@ -86,8 +86,8 @@ def test_opencl_inf_nan():
         (x,) = sch.get_loops(sch.get_block("C"))
         sch.bind(x, "threadIdx.x")
         fun = tvm.tir.build(sch.mod, target=target)
-        a = tvm.nd.empty((n,), A.dtype, dev)
-        c = tvm.nd.empty((n,), A.dtype, dev)
+        a = tvm.runtime.empty((n,), A.dtype, dev)
+        c = tvm.runtime.empty((n,), A.dtype, dev)
         # Only need to test compiling here
         fun(a, c)
 
@@ -115,8 +115,8 @@ def test_opencl_max():
         sch.bind(x, "threadIdx.x")
         fun = tvm.tir.build(sch.mod, target=target)
 
-        a = tvm.nd.empty((n,), A.dtype, dev)
-        c = tvm.nd.empty((n,), A.dtype, dev)
+        a = tvm.runtime.empty((n,), A.dtype, dev)
+        c = tvm.runtime.empty((n,), A.dtype, dev)
         # Only need to test compiling here
         fun(a, c)
 
@@ -140,7 +140,7 @@ def test_opencl_erf():
         sch.bind(x, "threadIdx.x")
         fun = tvm.tir.build(sch.mod, target=target)
 
-        source_str = fun.imported_modules[0].get_source()
+        source_str = fun.imports[0].inspect_source()
         matches = re.findall("erf", source_str)
         error_matches = re.findall("erff", source_str)
         assert len(matches) == 1 and len(error_matches) == 0
@@ -179,8 +179,8 @@ def test_opencl_type_casting():
         sch.vectorize(vx)
 
         fun = tvm.tir.build(sch.mod, target=target)
-        c = tvm.nd.empty((n,), dtype, ctx)
-        assembly = fun.imported_modules[0].get_source()
+        c = tvm.runtime.empty((n,), dtype, ctx)
+        assembly = fun.imports[0].inspect_source()
         lcond = "convert_int4(((convert_uint4(((uint4)(((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3)))))"
         rcond = "(convert_uint4(((((int4)(((convert_int(get_local_id(0))))+(1*0), ((convert_int(get_local_id(0))))+(1*1), ((convert_int(get_local_id(0))))+(1*2), ((convert_int(get_local_id(0))))+(1*3))) % ((int4)(3, 3, 3, 3))) == ((int4)(1, 1, 1, 1))))))))"
         pattern_cond = "({} && {})".format(lcond, rcond)
@@ -211,7 +211,7 @@ def test_opencl_ceil_log2(target):
             sch.bind(x, "threadIdx.x")
 
             fun = tvm.tir.build(sch.mod, target=target)
-            assembly = fun.imported_modules[0].get_source()
+            assembly = fun.imports[0].inspect_source()
             if "adreno" in target:
                 pattern = "convert_float"
             else:

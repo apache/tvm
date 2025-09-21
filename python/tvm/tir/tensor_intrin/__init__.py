@@ -20,4 +20,4 @@ from tvm.runtime import enabled
 from . import cuda
 
 if enabled("llvm"):
-    from . import arm_cpu, x86, rocm, hexagon
+    from . import arm_cpu, x86, rocm, hexagon, riscv_cpu

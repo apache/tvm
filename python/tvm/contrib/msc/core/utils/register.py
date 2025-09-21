@@ -58,7 +58,7 @@ class MSCRegistery:
         cls.REGISTERY = {}
 
 
-def register_func(name: str, func: callable, framework: str = MSCFramework.MSC):
+def register_global_func(name: str, func: callable, framework: str = MSCFramework.MSC):
     """Register a func for framework.
 
     Parameters

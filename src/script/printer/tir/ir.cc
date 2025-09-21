@@ -24,7 +24,7 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-TVM_FFI_STATIC_INIT_BLOCK({ TIRFrameNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { TIRFrameNode::RegisterReflection(); }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<IntImm>("", [](IntImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
@@ -66,7 +66,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<PointerType>("", [](PointerType ty, AccessPath ty_p, IRDocsifier d) -> Doc {
-      ExprDoc element_type{nullptr};
+      ExprDoc element_type{ffi::UnsafeInit()};
       if (const auto* prim_type = ty->element_type.as<PrimTypeNode>()) {
         element_type = LiteralDoc::DataType(prim_type->dtype,  //
                                             ty_p->Attr("element_type")->Attr("dtype"));
@@ -91,7 +91,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<Target>("", [](Target target, AccessPath p, IRDocsifier d) -> Doc {
-      Map<String, ffi::Any> config = target->Export();
+      ffi::Map<ffi::String, ffi::Any> config = target->Export();
       return TIR(d, "target")->Call({d->AsDoc<ExprDoc>(config, p)});
     });
 

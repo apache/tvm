@@ -17,7 +17,7 @@
 """Union of meta Schedule design space generators."""
 from typing import List
 
-from tvm.ffi import register_object
+from tvm_ffi import register_object
 
 from .. import _ffi_api
 from .space_generator import (

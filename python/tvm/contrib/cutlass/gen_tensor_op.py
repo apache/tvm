@@ -24,7 +24,7 @@ import re
 import subprocess
 import tempfile
 
-import tvm.ffi
+import tvm_ffi
 from tvm.runtime import Object
 from tvm.tir import IntImm
 
@@ -461,7 +461,7 @@ def _get_optional_int_annotation(annotations, key, default=None):
     return int(value)
 
 
-@tvm.ffi.register_func("contrib.cutlass.instantiate_template")
+@tvm_ffi.register_global_func("contrib.cutlass.instantiate_template")
 def instantiate_template(func_name, annotations, func_args):
     """Return CUTLASS host code based on a template and the provided annotations.
 
@@ -487,7 +487,7 @@ def instantiate_template(func_name, annotations, func_args):
         if k in annotations:
             attrs[k] = annotations[k]
 
-    headers = ["tvm/ffi/function.h"]
+    headers = ["tvm/ffi/function.h", "tvm/ffi/extra/c_env_api.h"]
 
     if "relu" in func_name:
         headers.append("cutlass/epilogue/thread/linear_combination_bias_relu.h")

@@ -17,9 +17,8 @@
 """Detect target."""
 from typing import Union
 
-from ..ffi import get_global_func
-from ..runtime import Device
-from ..runtime.ndarray import device
+from tvm_ffi import get_global_func
+from ..runtime import Device, device
 from . import Target
 
 
@@ -124,7 +123,7 @@ def detect_target_from_device(dev: Union[str, Device]) -> Target:
     """
     if isinstance(dev, str):
         dev = device(dev)
-    device_type = Device.DEVICE_TYPE_TO_NAME[dev.device_type]
+    device_type = Device._DEVICE_TYPE_TO_NAME[dev.dlpack_device_type()]
     if device_type not in SUPPORT_DEVICE:
         raise ValueError(
             f"Auto detection for device `{device_type}` is not supported. "

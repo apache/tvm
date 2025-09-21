@@ -23,11 +23,10 @@ import shutil
 import tempfile
 import base64
 import numpy as np
-import tvm
-import tvm.ffi
+import tvm_ffi
 
 
-@tvm.ffi.register_func("tvm.mrvl.find_value_in_KV_pair")
+@tvm_ffi.register_global_func("tvm.mrvl.find_value_in_KV_pair")
 def find_value_in_KV_pair(json_input: str, key_to_find: str) -> str:
     """This function takes the graph_json string and key to be searched in
     the json string, using json parser routine it loads the json string
@@ -54,7 +53,7 @@ def find_value_in_KV_pair(json_input: str, key_to_find: str) -> str:
     return value
 
 
-@tvm.ffi.register_func("tvm.mrvl.GetNodesJSONString")
+@tvm_ffi.register_global_func("tvm.mrvl.GetNodesJSONString")
 def get_nodes_json_string(graph_json):
     """This takes the graph_json string from MrvlJSONSerializer and adds / modifies
     the json string to a form suitable for the Marvell Backend.
@@ -206,7 +205,7 @@ def get_nodes_json_string(graph_json):
     return nodes_json_string
 
 
-@tvm.ffi.register_func("tvm.mrvl.ModifyConstNames")
+@tvm_ffi.register_global_func("tvm.mrvl.ModifyConstNames")
 def modify_const_names(nodes_json_str, consts_json_str):
     """This takes the graph module returned by build an generates nodes and constant
        meta data suitable for compilation by the back end.
@@ -329,7 +328,7 @@ def get_working_dir():
     return os.getcwd()
 
 
-@tvm.ffi.register_func("tvm.mrvl.WriteJsonFile")
+@tvm_ffi.register_global_func("tvm.mrvl.WriteJsonFile")
 def write_json_file(json_string, json_filename):
     """Generate json file under working directory"""
     working_dir = get_working_dir()
@@ -351,7 +350,7 @@ def delete_temp_files(symbol_name):
         shutil.rmtree(bin_folder)
 
 
-@tvm.ffi.register_func("tvm.mrvl.CompileModel")
+@tvm_ffi.register_global_func("tvm.mrvl.CompileModel")
 def compile_model(
     symbol_name,
     nodes_json_string,
@@ -414,7 +413,7 @@ def compile_model(
         raise RuntimeError(error_msg)
 
 
-@tvm.ffi.register_func("tvm.mrvl.CleanUpSim")
+@tvm_ffi.register_global_func("tvm.mrvl.CleanUpSim")
 def clean_up_sim(bin_file, input_json, input_bin, out_bin_prefix, num_outputs):
     os.remove(bin_file)
     os.remove(input_json)
@@ -424,7 +423,7 @@ def clean_up_sim(bin_file, input_json, input_bin, out_bin_prefix, num_outputs):
         os.remove(out_bin)
 
 
-@tvm.ffi.register_func("tvm.mrvl.SearchPath")
+@tvm_ffi.register_global_func("tvm.mrvl.SearchPath")
 def search_path(file_name):
     path = shutil.which(file_name)
     if path is None:
@@ -432,7 +431,7 @@ def search_path(file_name):
     return os.path.dirname(path)
 
 
-@tvm.ffi.register_func("tvm.mrvl.JsonToBin")
+@tvm_ffi.register_global_func("tvm.mrvl.JsonToBin")
 def convert_json_to_bin(json_file, input_bin_file):
     with open(json_file) as input_json:
         data = json.load(input_json)
@@ -442,7 +441,7 @@ def convert_json_to_bin(json_file, input_bin_file):
             f.write(data_b)
 
 
-@tvm.ffi.register_func("tvm.mrvl.RunSim")
+@tvm_ffi.register_global_func("tvm.mrvl.RunSim")
 def run_simulation(run_command, sim_directory):
     cwd_path = get_working_dir()
     os.mkdir(sim_directory)
@@ -452,6 +451,6 @@ def run_simulation(run_command, sim_directory):
     shutil.rmtree(sim_directory)
 
 
-@tvm.ffi.register_func("tvm.mrvl.TempDir")
+@tvm_ffi.register_global_func("tvm.mrvl.TempDir")
 def get_temp_dir():
     return tempfile.gettempdir()

@@ -71,7 +71,7 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
     // Only analyze externally exposed functions as potential callers
     // since they represent the entry points where host/device calls originate
     for (const auto& [gvar, func] : mod->functions) {
-      bool is_externally_exposed = func->GetAttr<String>(tvm::attr::kGlobalSymbol).has_value();
+      bool is_externally_exposed = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
       const auto* prim_func = func.as<PrimFuncNode>();
 
       if (is_externally_exposed && prim_func != nullptr) {
@@ -144,7 +144,7 @@ class CallSubstitutor : public StmtExprMutator {
    * \brief Constructor with function replacement mapping.
    * \param replacements Map from original GlobalVar to host-specific GlobalVar
    */
-  explicit CallSubstitutor(const Map<GlobalVar, GlobalVar>& replacements)
+  explicit CallSubstitutor(const ffi::Map<GlobalVar, GlobalVar>& replacements)
       : replacements_(replacements) {}
 
   /*!
@@ -212,7 +212,7 @@ class CallSubstitutor : public StmtExprMutator {
   /*! \brief Whether the current statement is under a GPU scope */
   bool is_under_gpu_scope_ = false;
   /*! \brief Mapping from original functions to host-specific duplicates */
-  Map<GlobalVar, GlobalVar> replacements_;
+  ffi::Map<GlobalVar, GlobalVar> replacements_;
 };
 
 /*!
@@ -238,7 +238,7 @@ IRModule BindTarget(IRModule mod, const Target& target) {
   auto target_without_host = target.WithoutHost();
 
   auto mod_copy_on_write = mod.CopyOnWrite();
-  auto new_mod = GetRef<IRModule>(mod_copy_on_write);
+  auto new_mod = ffi::GetRef<IRModule>(mod_copy_on_write);
 
   // Step 1: Analyze function call patterns
   auto [host_called_global_vars, device_called_global_vars] =
@@ -257,7 +257,7 @@ IRModule BindTarget(IRModule mod, const Target& target) {
   //    2.4 If the function is not called by any host or device, skip binding
 
   // Track duplicated functions for call replacement
-  Map<GlobalVar, GlobalVar> host_function_replacements;
+  ffi::Map<GlobalVar, GlobalVar> host_function_replacements;
   GlobalVarSupply gvar_supply(new_mod);
 
   for (auto [gvar, func] : mod->functions) {
@@ -266,9 +266,10 @@ IRModule BindTarget(IRModule mod, const Target& target) {
       // Skip non-PrimFunc entries
       continue;
     }
-    auto prim_func = GetRef<PrimFunc>(prim_func_node);
+    auto prim_func = ffi::GetRef<PrimFunc>(prim_func_node);
 
-    bool is_externally_exposed = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol).has_value();
+    bool is_externally_exposed =
+        prim_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
 
     if (auto func_target = func->GetAttr<Target>(tvm::attr::kTarget)) {
       // Rule 1: If the function has a target, and the target has a host, and the function does not
@@ -308,7 +309,7 @@ IRModule BindTarget(IRModule mod, const Target& target) {
 
         // Create duplicate with host target for host callers
         host_func = WithAttr(std::move(host_func), tvm::attr::kTarget, target_host);
-        String host_func_name = gvar->name_hint + "_host";
+        ffi::String host_func_name = gvar->name_hint + "_host";
         GlobalVar host_gvar = gvar_supply->FreshGlobal(host_func_name, false);
 
         new_mod->Add(host_gvar, host_func);
@@ -341,7 +342,8 @@ IRModule BindTarget(IRModule mod, const Target& target) {
         continue;
       }
 
-      bool is_externally_exposed = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol).has_value();
+      bool is_externally_exposed =
+          prim_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
       if (is_externally_exposed) {
         // Update calls in externally exposed functions to use host duplicates
         PrimFunc new_func = substitutor.Substitute(Downcast<PrimFunc>(func));
@@ -371,10 +373,10 @@ transform::Pass BindTarget(Target target) {
   return tir::transform::CreateModulePass(fpass, 0, "tir.BindTarget", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.BindTarget", BindTarget);
-});
+}
 
 }  // namespace transform
 }  // namespace tir

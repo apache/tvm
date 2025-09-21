@@ -41,16 +41,16 @@ namespace ir {
 class IRModuleFrameNode : public IRBuilderFrameNode {
  public:
   /*! \brief A map from string names to global variables that ensures global uniqueness. */
-  Map<String, GlobalVar> global_var_map;
+  ffi::Map<ffi::String, GlobalVar> global_var_map;
   /*!
    * \brief A map from GlobalVar to all global functions.
    * \note Only defined functions are in the map, while declared functions are not included.
    */
-  Map<GlobalVar, BaseFunc> functions;
+  ffi::Map<GlobalVar, BaseFunc> functions;
   /*! \brief IRModule's attributes. */
-  Map<String, Any> attrs;
+  ffi::Map<ffi::String, Any> attrs;
   /*! \brief IRModule's global_infos */
-  Map<String, Array<GlobalInfo>> global_infos;
+  ffi::Map<ffi::String, ffi::Array<GlobalInfo>> global_infos;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -60,9 +60,8 @@ class IRModuleFrameNode : public IRBuilderFrameNode {
         .def_ro("attrs", &IRModuleFrameNode::attrs)
         .def_ro("global_infos", &IRModuleFrameNode::global_infos);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.IRModuleFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IRModuleFrameNode, IRBuilderFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.IRModuleFrame", IRModuleFrameNode,
+                                    IRBuilderFrameNode);
 
  public:
   void ExitWithScope() final;
@@ -75,8 +74,10 @@ class IRModuleFrameNode : public IRBuilderFrameNode {
  */
 class IRModuleFrame : public IRBuilderFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IRModuleFrame, IRBuilderFrame,
-                                                    IRModuleFrameNode);
+  explicit IRModuleFrame(ObjectPtr<IRModuleFrameNode> data) : IRBuilderFrame(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRModuleFrame, IRBuilderFrame, IRModuleFrameNode);
 };
 
 }  // namespace ir

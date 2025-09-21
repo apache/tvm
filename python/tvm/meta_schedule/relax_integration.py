@@ -23,10 +23,10 @@ from typing_extensions import Literal
 
 # isort: on
 
-from tvm.ffi import get_global_func, register_func
+from tvm_ffi import get_global_func, register_global_func
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext
-from tvm.runtime import NDArray
+from tvm.runtime import Tensor
 from tvm.target import Target
 from tvm.tir.expr import IntImm
 
@@ -56,7 +56,7 @@ _extract_task_func = get_global_func(  # pylint: disable=invalid-name
 def extract_tasks(
     mod: Union[IRModule, "relax.Function"],
     target: Target,
-    params: Optional[Dict[str, NDArray]] = None,
+    params: Optional[Dict[str, Tensor]] = None,
     module_equality: str = "structural",
 ) -> List[ExtractedTask]:
     """Extract tuning tasks from a relax program.
@@ -67,16 +67,16 @@ def extract_tasks(
         The module or function to tune
     target : tvm.target.Target
         The compilation target
-    params : Optional[Dict[str, tvm.runtime.NDArray]]
+    params : Optional[Dict[str, tvm.runtime.Tensor]]
         The associated parameters of the program
     module_equality : Optional[str]
         A string to specify the module equality testing and hashing method.
         It must be one of the followings:
           - "structural": Use StructuralEqual/Hash
-          - "ignore-ndarray": Same as "structural", but ignore ndarray raw data during
+          - "ignore-tensor": Same as "structural", but ignore tensor raw data during
                               equality testing and hashing.
           - "anchor-block": Apply equality testing and hashing on the anchor block extracted from a
-                            given module. The "ignore-ndarray" varint is used for the extracted
+                            given module. The "ignore-tensor" varint is used for the extracted
                             blocks or in case no anchor block is found.
                             For the definition of the anchor block, see tir/analysis/analysis.py.
 
@@ -159,7 +159,7 @@ def extracted_tasks_to_tune_contexts(
 
 def tune_relax(
     mod: Union[IRModule, "relax.Function"],
-    params: Dict[str, NDArray],
+    params: Dict[str, Tensor],
     target: Union[str, Target],
     work_dir: str,
     max_trials_global: int,
@@ -184,7 +184,7 @@ def tune_relax(
     ----------
     mod : Union[IRModule, relax.Function]
         The module or function to tune
-    params : Optional[Dict[str, tvm.runtime.NDArray]]
+    params : Optional[Dict[str, tvm.runtime.Tensor]]
         The associated parameters of the program
     target : Union[Target, str]
         The compilation target
@@ -221,10 +221,10 @@ def tune_relax(
         A string to specify the module equality testing and hashing method.
         It must be one of the followings:
           - "structural": Use StructuralEqual/Hash
-          - "ignore-ndarray": Same as "structural", but ignore ndarray raw data during
+          - "ignore-tensor": Same as "structural", but ignore tensor raw data during
                               equality testing and hashing.
           - "anchor-block": Apply equality testing and hashing on the anchor block extracted from a
-                            given module. The "ignore-ndarray" variant is used for the extracted
+                            given module. The "ignore-tensor" variant is used for the extracted
                             blocks or in case no anchor block is found.
                             For the definition of the anchor block, see tir/analysis/analysis.py.
 
@@ -269,10 +269,10 @@ def tune_relax(
     )
 
 
-@register_func("tvm.meta_schedule.tune_relax")
+@register_global_func("tvm.meta_schedule.tune_relax")
 def _tune_relax(
     mod: Union[IRModule, "relax.Function"],
-    params: Dict[str, NDArray],
+    params: Dict[str, Tensor],
     target: Union[str, Target],
     work_dir: str,
     max_trials_global: int,
@@ -297,7 +297,7 @@ def _tune_relax(
     ----------
     mod : Union[IRModule, relax.Function]
         The module or function to tune
-    params : Optional[Dict[str, tvm.runtime.NDArray]]
+    params : Optional[Dict[str, tvm.runtime.Tensor]]
         The associated parameters of the program
     target : Union[Target, str]
         The compilation target
@@ -334,10 +334,10 @@ def _tune_relax(
         A string to specify the module equality testing and hashing method.
         It must be one of the followings:
           - "structural": Use StructuralEqual/Hash
-          - "ignore-ndarray": Same as "structural", but ignore ndarray raw data during
+          - "ignore-tensor": Same as "structural", but ignore tensor raw data during
                               equality testing and hashing.
           - "anchor-block": Apply equality testing and hashing on the anchor block extracted from a
-                            given module. The "ignore-ndarray" varint is used for the extracted
+                            given module. The "ignore-tensor" varint is used for the extracted
                             blocks or in case no anchor block is found.
                             For the definition of the anchor block, see tir/analysis/analysis.py.
 
@@ -380,7 +380,7 @@ def compile_relax(
     database: Database,
     mod: IRModule,
     target: Union[Target, str],
-    params: Optional[Dict[str, NDArray]],
+    params: Optional[Dict[str, Tensor]],
     enable_warning: bool = False,
 ) -> "relax.VMExecutable":
     """Compile a relax program with a MetaSchedule database.
@@ -393,7 +393,7 @@ def compile_relax(
         The Relax program to be compiled
     target : tvm.target.Target
         The compilation target
-    params : Optional[Dict[str, tvm.runtime.NDArray]]
+    params : Optional[Dict[str, tvm.runtime.Tensor]]
         The associated parameters of the program
     enable_warning : bool
         A boolean value indicating if to print warnings for TIR functions not

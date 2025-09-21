@@ -76,7 +76,6 @@ tvm_option(USE_ALTERNATIVE_LINKER "Use 'mold' or 'lld' if found when invoking co
 tvm_option(USE_CCACHE "Use ccache if found when invoking compiler" AUTO)
 
 # 3rdparty libraries
-tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
 tvm_option(DMLC_PATH "Path to DMLC" "3rdparty/dmlc-core/include")
 tvm_option(RANG_PATH "Path to RANG" "3rdparty/rang/include")
 tvm_option(COMPILER_RT_PATH "Path to COMPILER-RT" "3rdparty/compiler-rt")
@@ -122,10 +121,12 @@ tvm_option(USE_MSC "Enable Multi-System Compiler" OFF)
 tvm_option(USE_MRVL "Build with MRVL TVM support" OFF)
 tvm_option(USE_NVSHMEM "Build with NVSHMEM support" OFF)
 
+# Python package options
+tvm_option(TVM_BUILD_PYTHON_MODULE "Build Python module with scikit-build-core" OFF)
+
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
 include_directories("include")
-include_directories(SYSTEM ${DLPACK_PATH})
 include_directories(SYSTEM ${DMLC_PATH})
 include_directories(SYSTEM ${RANG_PATH})
 include_directories(SYSTEM ${COMPILER_RT_PATH})
@@ -501,7 +502,7 @@ if(NOT BUILD_DUMMY_LIBTVM)
     $<TARGET_OBJECTS:tvm_libinfo_objs>
     ${TVM_RUNTIME_EXT_OBJS}
   )
-
+  target_link_libraries(tvm PUBLIC tvm_ffi_shared)
 else()
   # dummy version of libtvm that can be used by downstream to specify dependencies
   # the real runner still need a full version of libtvm
@@ -510,6 +511,7 @@ else()
     $<TARGET_OBJECTS:tvm_libinfo_objs>
     ${TVM_RUNTIME_EXT_OBJS}
   )
+  target_link_libraries(tvm PUBLIC tvm_ffi_shared)
 endif()
 
 target_include_directories(tvm PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
@@ -519,7 +521,6 @@ if(BUILD_STATIC_RUNTIME)
   add_library(tvm_runtime STATIC
     $<TARGET_OBJECTS:tvm_runtime_objs>
     $<TARGET_OBJECTS:tvm_libinfo_objs>
-    $<TARGET_OBJECTS:tvm_ffi_objs>
     ${TVM_RUNTIME_EXT_OBJS}
   )
   set(NOTICE_MULTILINE
@@ -528,6 +529,7 @@ if(BUILD_STATIC_RUNTIME)
   string(CONCAT NOTICE ${NOTICE_MULTILINE})
   add_custom_command(TARGET tvm_runtime POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --yellow --bold ${NOTICE})
+  target_link_libraries(tvm_runtime PUBLIC tvm_ffi_static)
 else()
   add_library(tvm_runtime SHARED
     $<TARGET_OBJECTS:tvm_runtime_objs>
@@ -535,6 +537,7 @@ else()
     ${TVM_RUNTIME_EXT_OBJS}
   )
   set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
+  target_link_libraries(tvm_runtime PUBLIC tvm_ffi_shared)
 endif()
 
 
@@ -564,8 +567,7 @@ if(USE_IOS_RPC)
   add_subdirectory("apps/ios_rpc")
 endif()
 
-add_subdirectory(ffi)
-
+add_subdirectory(3rdparty/tvm-ffi)
 
 if(TVM_DEBUG_WITH_ABI_CHANGE)
   message(STATUS "Building with debug code that may cause ABI changes...")
@@ -602,10 +604,6 @@ endif()
 target_link_libraries(tvm PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 
-target_link_libraries(tvm PUBLIC tvm_ffi_objs)
-target_link_libraries(tvm_runtime PUBLIC tvm_ffi_objs)
-
-
 if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
   include(FetchContent)
   FetchContent_Declare(googletest SOURCE_DIR "${USE_HEXAGON_GTEST}")
@@ -633,6 +631,7 @@ if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   add_library(tvm_allvisible SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
   target_include_directories(tvm_allvisible PUBLIC "$<TARGET_PROPERTY:tvm,INCLUDE_DIRECTORIES>")
   target_link_libraries(tvm_allvisible PRIVATE "$<TARGET_PROPERTY:tvm,LINK_LIBRARIES>")
+  target_link_libraries(tvm_allvisible PUBLIC tvm_ffi_shared)
   set(TVM_TEST_LIBRARY_NAME tvm_allvisible)
 
   set(HIDE_SYMBOLS_LINKER_FLAGS "-Wl,--exclude-libs,ALL")
@@ -643,7 +642,6 @@ if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   target_link_libraries(tvm_runtime PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
   target_compile_definitions(tvm_allvisible PUBLIC $<TARGET_PROPERTY:tvm,INTERFACE_COMPILE_DEFINITONS>)
   target_compile_definitions(tvm_allvisible PRIVATE $<TARGET_PROPERTY:tvm,COMPILE_DEFINITONS>)
-  target_link_libraries(tvm_allvisible PUBLIC tvm_ffi_objs)
 endif()
 
 # Create the `cpptest` target if we can find GTest.  If not, we create dummy
@@ -687,19 +685,6 @@ endif()
 # Custom targets
 add_custom_target(runtime DEPENDS tvm_runtime)
 
-# By default add cython to all build
-find_package(Python)
-if(NOT DEFINED ENV{CONDA_BUILD})
-  message(STATUS ${CMAKE_CURRENT_BINARY_DIR})
-  add_custom_target(
-    tvm_cython ALL
-    ${Python_EXECUTABLE} setup.py build_ext --inplace
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/python
-  )
-  add_dependencies(tvm_cython tvm)
-  message("Add Cython build into the default build step")
-endif()
-
 # Installation rules
 install(TARGETS tvm DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
@@ -713,11 +698,6 @@ if (INSTALL_DEV)
     FILES_MATCHING
     PATTERN "*.h"
   )
-  install(
-    DIRECTORY "3rdparty/dlpack/include/" DESTINATION "include"
-    FILES_MATCHING
-    PATTERN "*.h"
-    )
   install(
     DIRECTORY "3rdparty/dmlc-core/include/" DESTINATION "include"
     FILES_MATCHING
@@ -779,8 +759,8 @@ if(TVM_IS_DEBUG_BUILD)
   endif()
 endif()
 
-add_dsymutil(tvm)
-add_dsymutil(tvm_runtime)
+tvm_ffi_add_apple_dsymutil(tvm)
+tvm_ffi_add_apple_dsymutil(tvm_runtime)
 
 if(BUILD_FOR_HEXAGON)
   # Wrap pthread_create to allow setting custom stack size.
@@ -789,7 +769,8 @@ if(BUILD_FOR_HEXAGON)
   # Link tvm_runtime into the RPC skel library. Make sure it's built
   # as a part of the "runtime" target.
   if(USE_HEXAGON_RPC)
-    target_link_libraries(hexagon_rpc_skel -Wl,--whole-archive tvm_runtime -Wl,--no-whole-archive)
+    target_link_libraries(
+      hexagon_rpc_skel -Wl,--whole-archive tvm_runtime tvm_ffi_static -Wl,--no-whole-archive)
     add_dependencies(runtime hexagon_rpc_skel)
   endif()
 endif()
@@ -838,4 +819,91 @@ endif()
 if(USE_ROCM AND USE_RCCL)
   target_link_libraries(tvm PRIVATE rccl)
   target_link_libraries(tvm_runtime PRIVATE rccl)
+endif()
+
+# Python package installation configuration
+# This section ensures that all necessary files are installed for the Python wheel
+if(TVM_BUILD_PYTHON_MODULE)
+  message(STATUS "Configuring Python package installation")
+
+  # Set RPATH for tvm and tvm_runtime to find other libraries relatively
+  if(APPLE)
+    # macOS uses @loader_path
+    set_target_properties(tvm PROPERTIES INSTALL_RPATH "@loader_path")
+    set_target_properties(tvm_runtime PROPERTIES INSTALL_RPATH "@loader_path")
+  elseif(LINUX)
+    # Linux uses $ORIGIN
+    set_target_properties(tvm PROPERTIES INSTALL_RPATH "\$ORIGIN")
+    set_target_properties(tvm_runtime PROPERTIES INSTALL_RPATH "\$ORIGIN")
+  endif()
+
+  # Install compiled shared libraries
+  install(TARGETS tvm DESTINATION ".")
+  install(TARGETS tvm_runtime DESTINATION ".")
+
+  # Install third-party compiled dependencies
+  if(TARGET fpA_intB_gemm)
+    install(TARGETS fpA_intB_gemm DESTINATION ".")
+  endif()
+  if(TARGET flash_attn)
+    install(TARGETS flash_attn DESTINATION ".")
+  endif()
+
+  # Install minimal header files needed by Python extensions
+  install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/tvm/runtime/"
+    DESTINATION "include/tvm/runtime/"
+    FILES_MATCHING
+    PATTERN "*.h"
+  )
+
+  # Install minimal CMake configuration
+  install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils/"
+    DESTINATION "cmake/utils/"
+    FILES_MATCHING
+    PATTERN "*.cmake"
+  )
+
+  # Install CUTLASS headers only if available
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/cutlass/include")
+    install(
+      DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/cutlass/include/"
+      DESTINATION "3rdparty/cutlass/include/"
+      FILES_MATCHING
+      PATTERN "*.h"
+      PATTERN "*.hpp"
+    )
+  endif()
+
+  # Install minimal source files
+  install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/"
+    DESTINATION "src/runtime/"
+    FILES_MATCHING
+    PATTERN "*.cc"
+    PATTERN "*.h"
+  )
+
+  # Install essential configuration files
+  install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/configs/"
+    DESTINATION "configs/"
+  )
+
+  # Install licenses (required for distribution)
+  install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/licenses/"
+    DESTINATION "licenses/"
+  )
+
+  # Install essential metadata files
+  install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
+    "${CMAKE_CURRENT_SOURCE_DIR}/NOTICE"
+    DESTINATION "."
+  )
+
+  message(STATUS "Python package installation configured")
 endif()

@@ -39,7 +39,7 @@ namespace llvm {
 using tir::FLowerIntrinsic;
 
 inline PrimExpr TVMExternCall(const tir::CallNode* call, const std::string& fname) {
-  Array<PrimExpr> new_args = {tir::StringImm(fname)};
+  ffi::Array<PrimExpr> new_args = {tir::StringImm(fname)};
   for (PrimExpr arg : call->args) {
     new_args.push_back(arg);
   }
@@ -51,7 +51,7 @@ inline PrimExpr DispatchTVMQHLWrapperFp16(const PrimExpr& e) {
   using namespace tir;
   const CallNode* call = e.as<CallNode>();
   ICHECK(call != nullptr);
-  Array<PrimExpr> new_args;
+  ffi::Array<PrimExpr> new_args;
 #if ENABLE_QHL
   // Check target for qfloat enablement
   const auto f = tvm::ffi::Function::GetGlobal("target.TargetCurrent");
@@ -183,7 +183,7 @@ TVM_REGISTER_OP("tir.sigmoid")
       const PrimExpr v1 = tir::Max(x, MinBound);
       const PrimExpr v2 = tir::Min(v1, MaxBound);
 
-      Array<tvm::PrimExpr> new_args = {v2};
+      ffi::Array<tvm::PrimExpr> new_args = {v2};
       const tir::Call new_call = tir::Call(call->dtype, call->op, new_args);
 
       // Enable QHL library for FP16 data type

@@ -52,8 +52,8 @@ def test_save_load_float8(dtype):
     arr = np.arange(16, dtype=np_dtype)
 
     with tempfile.TemporaryDirectory(prefix="tvm_") as temp_dir:
-        tvmjs.dump_ndarray_cache({"arr": arr}, temp_dir)
-        cache, _ = tvmjs.load_ndarray_cache(temp_dir, tvm.cpu())
+        tvmjs.dump_tensor_cache({"arr": arr}, temp_dir)
+        cache, _ = tvmjs.load_tensor_cache(temp_dir, tvm.cpu())
 
     after_roundtrip = cache["arr"].numpy()
 

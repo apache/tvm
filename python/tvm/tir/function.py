@@ -21,19 +21,20 @@ import collections
 import inspect
 from typing import Callable, List, Mapping, Optional, Tuple, Union
 
+import tvm_ffi
+
 import tvm
-import tvm.ffi
 import tvm.runtime
 from tvm.ir import BaseFunc, Range
 from tvm.runtime import Object, Scriptable
 
-from ..runtime.ndarray import NDArray
+from ..runtime._tensor import Tensor
 from . import _ffi_api
 from .buffer import Buffer
 from .expr import PrimExpr, Var
 
 
-@tvm.ffi.register_object("tir.PrimFunc")
+@tvm_ffi.register_object("tir.PrimFunc")
 class PrimFunc(BaseFunc, Scriptable):
     """A function declaration expression.
 
@@ -174,7 +175,7 @@ class PrimFunc(BaseFunc, Scriptable):
         return _ffi_api.Specialize(self, param_map)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.TensorIntrin")
+@tvm_ffi.register_object("tir.TensorIntrin")
 class TensorIntrin(Object):
     """A tensor intrinsic.
 
@@ -230,7 +231,7 @@ class TensorIntrin(Object):
         return _ffi_api.TensorIntrinGet(name, allow_missing)  # pylint: type: ignore
 
 
-@tvm.ffi.register_object("tir.IndexMap")
+@tvm_ffi.register_object("tir.IndexMap")
 class IndexMap(Object):
     """A mapping from multi-dimensional indices to another set of multi-dimensional indices
 
@@ -489,20 +490,20 @@ class IndexMap(Object):
         """
         return _ffi_api.IndexMapMapShape(self, shape)
 
-    def map_ndarray(self, arr_src: NDArray) -> NDArray:
-        """Apply thie index map to transform the layout of the input NDArray
+    def map_tensor(self, arr_src: Tensor) -> Tensor:
+        """Apply thie index map to transform the layout of the input Tensor
 
         Parameters
         ----------
-        arr_src : runtime.NDArray
-            The NDArray to be transformed
+        arr_src : runtime.Tensor
+            The Tensor to be transformed
 
         Returns
         -------
-        arr_dst : runtime.NDArray
-            The transformed NDArray
+        arr_dst : runtime.Tensor
+            The transformed Tensor
         """
-        return _ffi_api.IndexMapMapNDArray(self, arr_src)
+        return _ffi_api.IndexMapMapTensor(self, arr_src)
 
     def inverse(self, shape: List[Union[Range, PrimExpr]]) -> "IndexMap":
         """Return the inverse of the map

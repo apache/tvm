@@ -17,7 +17,7 @@
 """Add-rfactor Rule that add-rfactor to some blocks if needed"""
 from typing import Optional
 
-from tvm.ffi import register_object
+from tvm_ffi import register_object
 
 from .. import _ffi_api
 from .schedule_rule import ScheduleRule

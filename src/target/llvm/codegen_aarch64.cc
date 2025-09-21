@@ -85,7 +85,7 @@ void CodeGenAArch64::VisitStmt_(const AttrStmtNode* op) {
   }
 
   const auto* attr_value = op->value.as<StringImmNode>();
-  ICHECK(attr_value) << "Expect " << attr_key << " to have a String value but was "
+  ICHECK(attr_value) << "Expect " << attr_key << " to have a ffi::String value but was "
                      << op->value->GetTypeKey();
 
   std::string aarch64_attr_key = attr_key.substr(7);
@@ -107,13 +107,13 @@ void CodeGenAArch64::VisitStmt_(const AttrStmtNode* op) {
   this->VisitStmt(op->body);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.codegen.llvm.target_aarch64",
                                [](const ffi::PackedArgs& targs, ffi::Any* rv) {
                                  *rv = static_cast<void*>(new CodeGenAArch64());
                                });
-});
+}
 
 }  // namespace codegen
 }  // namespace tvm

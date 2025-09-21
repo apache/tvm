@@ -100,9 +100,9 @@ def build_and_run(inputs, func, target: str, target_host: str, *args, **kwargs):
     dev = tvm.device(target)
     tensors = []
     for tensor in inputs:
-        tensors.append(tvm.nd.array(tensor, dev))
+        tensors.append(tvm.runtime.tensor(tensor, dev))
     tensors.append(
-        tvm.nd.array(
+        tvm.runtime.tensor(
             numpy.zeros([i.value for i in placeholders[-1].shape], dtype=placeholders[-1].dtype),
             dev,
         )

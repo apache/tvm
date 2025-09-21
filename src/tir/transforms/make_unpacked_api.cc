@@ -45,8 +45,8 @@ namespace {
 
 class SubroutineCallRewriter : public StmtExprMutator {
  public:
-  static Optional<Stmt> Apply(const std::unordered_set<const GlobalVarNode*>& external_methods,
-                              Stmt stmt) {
+  static ffi::Optional<Stmt> Apply(const std::unordered_set<const GlobalVarNode*>& external_methods,
+                                   Stmt stmt) {
     SubroutineCallRewriter rewriter(external_methods);
     stmt = rewriter.VisitStmt(std::move(stmt));
     if (rewriter.made_change_) {
@@ -65,7 +65,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
 
     if (auto gvar = node->op.as<GlobalVarNode>()) {
       if (external_methods_.count(gvar)) {
-        Array<PrimExpr> args = node->args.Map([](const PrimExpr& arg) -> PrimExpr {
+        ffi::Array<PrimExpr> args = node->args.Map([](const PrimExpr& arg) -> PrimExpr {
           if (auto* as_call = arg.as<CallNode>()) {
             if (as_call->op.same_as(builtin::tvm_stack_make_array())) {
               PrimExpr data_ptr = as_call->args[0];
@@ -102,7 +102,7 @@ PrimFunc MakeUnpackedAPI(PrimFunc func) {
   }
 
   // Internal function calls do not need API updates
-  auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
   if (!global_symbol.has_value()) {
     return func;
   }
@@ -133,7 +133,7 @@ PrimFunc MakeUnpackedAPI(PrimFunc func) {
   std::vector<Stmt> device_init;
 
   // Collect variables and buffers to map between
-  Array<Var> args;
+  ffi::Array<Var> args;
 
   for (const Var& param : func->params) {
     // Ideally all func params should have Buffers defined in the buffer_map
@@ -156,7 +156,7 @@ PrimFunc MakeUnpackedAPI(PrimFunc func) {
   func_ptr->body = body;
   func_ptr->params = args;
   func_ptr->ret_type = PrimType(DataType::Int(32));
-  func_ptr->buffer_map = Map<Var, Buffer>();
+  func_ptr->buffer_map = ffi::Map<Var, Buffer>();
 
   // return the function.
   return WithAttrs(std::move(func), {{tvm::attr::kTarget, target_host}});
@@ -169,7 +169,7 @@ Pass MakeUnpackedAPI() {
     std::unordered_set<const GlobalVarNode*> external_methods;
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto* prim_func = base_func.as<PrimFuncNode>()) {
-        if (prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+        if (prim_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
           external_methods.insert(gvar.get());
         }
       }
@@ -201,10 +201,10 @@ Pass MakeUnpackedAPI() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.MakeUnpackedAPI", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.MakeUnpackedAPI", MakeUnpackedAPI);
-});
+}
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

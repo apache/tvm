@@ -61,10 +61,10 @@ TEST(TextureCopy, HostDeviceRT) {
   (void)tvm::runtime::memory::MemoryManager::GetOrCreateAllocator(
       thr->device, tvm::runtime::memory::AllocatorType::kPooled);
   std::vector<int64_t> shape{16, 16, 4};
-  auto cpu_arr0 = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  auto cpu_arr1 = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  String mem_scope = "global.texture";
-  auto opencl_txarr0 = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLOpenCL, 0}, mem_scope);
+  auto cpu_arr0 = runtime::Tensor::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto cpu_arr1 = runtime::Tensor::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  ffi::String mem_scope = "global.texture";
+  auto opencl_txarr0 = runtime::Tensor::Empty(shape, {kDLFloat, 32, 1}, {kDLOpenCL, 0}, mem_scope);
 
   size_t size = 1;
   for (size_t i = 0; i < shape.size(); ++i) {
@@ -94,19 +94,19 @@ TEST_F(TextureCopyTest, ViewBufferAsBuffer) {
   using namespace tvm;
   std::vector<int64_t> shape{1, 16, 16, 8};
   std::vector<int64_t> same_shape{1, 8, 16, 16};
-  auto cpu_arr = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  auto cpu_arr_ret = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto cpu_arr = runtime::Tensor::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto cpu_arr_ret = runtime::Tensor::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
-  String mem_scope = "global";
+  ffi::String mem_scope = "global";
 
   DLDevice cl_dev = {kDLOpenCL, 0};
   auto allocator = MemoryManager::GetOrCreateAllocator(cl_dev, AllocatorType::kPooled);
   auto buffer = allocator->Alloc(cl_dev, ffi::Shape(shape), {kDLFloat, 32, 1});
   auto stor = Storage(buffer, allocator);
 
-  auto opencl_memobj = stor->AllocNDArrayScoped(0, ffi::Shape(shape), {kDLFloat, 32, 1}, mem_scope);
+  auto opencl_memobj = stor->AllocTensorScoped(0, ffi::Shape(shape), {kDLFloat, 32, 1}, mem_scope);
   auto opencl_memview =
-      stor->AllocNDArrayScoped(0, ffi::Shape(same_shape), {kDLFloat, 32, 1}, mem_scope);
+      stor->AllocTensorScoped(0, ffi::Shape(same_shape), {kDLFloat, 32, 1}, mem_scope);
 
   std::random_device dev;
   std::mt19937 mt(dev());
@@ -153,17 +153,17 @@ TEST_F(TextureCopyTest, ViewBufferAsImage) {
   // Shape that doesn't cause padding for image row
   std::vector<int64_t> shape{1, 16, 16, 8, 4};
   std::vector<int64_t> same_shape{1, 8, 16, 16, 4};
-  auto cpu_arr = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  auto cpu_arr_ret = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto cpu_arr = runtime::Tensor::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto cpu_arr_ret = runtime::Tensor::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
   DLDevice cl_dev = {kDLOpenCL, 0};
   auto allocator = MemoryManager::GetOrCreateAllocator(cl_dev, AllocatorType::kPooled);
   auto buffer = allocator->Alloc(cl_dev, ffi::Shape(shape), {kDLFloat, 32, 1});
   auto stor = Storage(buffer, allocator);
 
-  auto opencl_buf_obj = stor->AllocNDArrayScoped(0, ffi::Shape(shape), {kDLFloat, 32, 1}, "global");
+  auto opencl_buf_obj = stor->AllocTensorScoped(0, ffi::Shape(shape), {kDLFloat, 32, 1}, "global");
   auto opencl_img_obj =
-      stor->AllocNDArrayScoped(0, ffi::Shape(same_shape), {kDLFloat, 32, 1}, "global.texture");
+      stor->AllocTensorScoped(0, ffi::Shape(same_shape), {kDLFloat, 32, 1}, "global.texture");
 
   std::random_device dev;
   std::mt19937 mt(dev());
@@ -210,8 +210,8 @@ TEST_F(TextureCopyTest, ViewImageAsBuffer) {
   // Shape that doesn't cause padding for image row
   std::vector<int64_t> shape{1, 16, 16, 8, 4};
   std::vector<int64_t> same_shape{1, 8, 16, 16, 4};
-  auto cpu_arr = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  auto cpu_arr_ret = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto cpu_arr = runtime::Tensor::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto cpu_arr_ret = runtime::Tensor::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
   DLDevice cl_dev = {kDLOpenCL, 0};
   auto allocator = MemoryManager::GetOrCreateAllocator(cl_dev, AllocatorType::kPooled);
@@ -219,9 +219,9 @@ TEST_F(TextureCopyTest, ViewImageAsBuffer) {
   auto stor = Storage(buffer, allocator);
 
   auto opencl_img_obj =
-      stor->AllocNDArrayScoped(0, ffi::Shape(shape), {kDLFloat, 32, 1}, "global.texture");
+      stor->AllocTensorScoped(0, ffi::Shape(shape), {kDLFloat, 32, 1}, "global.texture");
   auto opencl_buf_obj =
-      stor->AllocNDArrayScoped(0, ffi::Shape(same_shape), {kDLFloat, 32, 1}, "global");
+      stor->AllocTensorScoped(0, ffi::Shape(same_shape), {kDLFloat, 32, 1}, "global");
 
   std::random_device dev;
   std::mt19937 mt(dev());
@@ -268,8 +268,8 @@ TEST_F(TextureCopyTest, ViewImageAsImage) {
   // Shape that doesn't cause padding for image row
   std::vector<int64_t> shape{1, 16, 16, 8, 4};
   std::vector<int64_t> same_shape{1, 8, 16, 16, 4};
-  auto cpu_arr = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  auto cpu_arr_ret = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto cpu_arr = runtime::Tensor::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto cpu_arr_ret = runtime::Tensor::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
   DLDevice cl_dev = {kDLOpenCL, 0};
   auto allocator = MemoryManager::GetOrCreateAllocator(cl_dev, AllocatorType::kPooled);
@@ -277,9 +277,9 @@ TEST_F(TextureCopyTest, ViewImageAsImage) {
   auto stor = Storage(buffer, allocator);
 
   auto opencl_img_obj_1 =
-      stor->AllocNDArrayScoped(0, ffi::Shape(shape), {kDLFloat, 32, 1}, "global.texture");
+      stor->AllocTensorScoped(0, ffi::Shape(shape), {kDLFloat, 32, 1}, "global.texture");
   auto opencl_img_obj_2 =
-      stor->AllocNDArrayScoped(0, ffi::Shape(same_shape), {kDLFloat, 32, 1}, "global.texture");
+      stor->AllocTensorScoped(0, ffi::Shape(same_shape), {kDLFloat, 32, 1}, "global.texture");
 
   std::random_device dev;
   std::mt19937 mt(dev());

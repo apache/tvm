@@ -135,12 +135,11 @@ cl::OpenCLWorkspace* OpenCLModuleNodeBase::GetGlobalWorkspace() {
   return cl::OpenCLWorkspace::Global();
 }
 
-ffi::Function OpenCLModuleNodeBase::GetFunction(const String& name,
-                                                const ObjectPtr<Object>& sptr_to_self) {
+ffi::Optional<ffi::Function> OpenCLModuleNodeBase::GetFunction(const ffi::String& name) {
+  ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
   ICHECK_EQ(sptr_to_self.get(), this);
-  ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   auto it = fmap_.find(name);
-  if (it == fmap_.end()) return ffi::Function();
+  if (it == fmap_.end()) return std::nullopt;
   const FunctionInfo& info = it->second;
   OpenCLWrappedFunc f;
   std::vector<size_t> arg_size(info.arg_types.size());
@@ -161,7 +160,7 @@ ffi::Function OpenCLModuleNodeBase::GetFunction(const String& name,
   return PackFuncVoidAddr(f, info.arg_types);
 }
 
-void OpenCLModuleNode::SaveToFile(const String& file_name, const String& format) {
+void OpenCLModuleNode::WriteToFile(const ffi::String& file_name, const ffi::String& format) const {
   std::string fmt = GetFileFormat(file_name, format);
   ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
   std::string meta_file = GetMetaFilePath(file_name);
@@ -169,13 +168,17 @@ void OpenCLModuleNode::SaveToFile(const String& file_name, const String& format)
   SaveBinaryToFile(file_name, data_);
 }
 
-void OpenCLModuleNode::SaveToBinary(dmlc::Stream* stream) {
+ffi::Bytes OpenCLModuleNode::SaveToBytes() const {
+  std::string buffer;
+  dmlc::MemoryStringStream ms(&buffer);
+  dmlc::Stream* stream = &ms;
   stream->Write(fmt_);
   stream->Write(fmap_);
   stream->Write(data_);
+  return ffi::Bytes(buffer);
 }
 
-String OpenCLModuleNode::GetSource(const String& format) {
+ffi::String OpenCLModuleNode::InspectSource(const ffi::String& format) const {
   if (format == fmt_) return data_;
   if (fmt_ == "cl") {
     return data_;
@@ -202,7 +205,7 @@ void OpenCLModuleNode::Init() {
   }
 
   // split into source artifacts for each kernel
-  parsed_kernels_ = SplitKernels(GetSource("cl"));
+  parsed_kernels_ = SplitKernels(InspectSource("cl"));
   ICHECK(!parsed_kernels_.empty()) << "The OpenCL module expects a kernel delimited "
                                    << "source from code generation, but no kernel "
                                    << "delimiter was found.";
@@ -346,8 +349,8 @@ std::string OpenCLModuleNode::GetPreCompiledPrograms() {
   return data;
 }
 
-ffi::Function OpenCLModuleNode::GetFunction(const String& name,
-                                            const ObjectPtr<Object>& sptr_to_self) {
+ffi::Optional<ffi::Function> OpenCLModuleNode::GetFunction(const ffi::String& name) {
+  ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
   ICHECK_EQ(sptr_to_self.get(), this);
   if (name == "opencl.GetPreCompiledPrograms") {
     return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
@@ -358,18 +361,19 @@ ffi::Function OpenCLModuleNode::GetFunction(const String& name,
       this->SetPreCompiledPrograms(args[0].cast<std::string>());
     });
   }
-  return OpenCLModuleNodeBase::GetFunction(name, sptr_to_self);
+  return OpenCLModuleNodeBase::GetFunction(name);
 }
 
-Module OpenCLModuleCreate(std::string data, std::string fmt,
-                          std::unordered_map<std::string, FunctionInfo> fmap, std::string source) {
-  auto n = make_object<OpenCLModuleNode>(data, fmt, fmap, source);
+ffi::Module OpenCLModuleCreate(std::string data, std::string fmt,
+                               std::unordered_map<std::string, FunctionInfo> fmap,
+                               std::string source) {
+  auto n = ffi::make_object<OpenCLModuleNode>(data, fmt, fmap, source);
   n->Init();
-  return Module(n);
+  return ffi::Module(n);
 }
 
 // Load module from module.
-Module OpenCLModuleLoadFile(const std::string& file_name, const String& format) {
+ffi::Module OpenCLModuleLoadFile(const std::string& file_name, const ffi::String& format) {
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
@@ -379,8 +383,9 @@ Module OpenCLModuleLoadFile(const std::string& file_name, const String& format) 
   return OpenCLModuleCreate(data, fmt, fmap, std::string());
 }
 
-Module OpenCLModuleLoadBinary(void* strm) {
-  dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+ffi::Module OpenCLModuleLoadFromBytes(const ffi::Bytes& bytes) {
+  dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
+  dmlc::Stream* stream = &ms;
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt;
@@ -390,12 +395,12 @@ Module OpenCLModuleLoadBinary(void* strm) {
   return OpenCLModuleCreate(data, fmt, fmap, std::string());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.module.loadfile_cl", OpenCLModuleLoadFile)
-      .def("runtime.module.loadfile_clbin", OpenCLModuleLoadFile)
-      .def("runtime.module.loadbinary_opencl", OpenCLModuleLoadBinary);
-});
+      .def("ffi.Module.load_from_file.cl", OpenCLModuleLoadFile)
+      .def("ffi.Module.load_from_file.clbin", OpenCLModuleLoadFile)
+      .def("ffi.Module.load_from_bytes.opencl", OpenCLModuleLoadFromBytes);
+}
 }  // namespace runtime
 }  // namespace tvm

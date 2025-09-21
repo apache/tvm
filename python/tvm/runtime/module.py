@@ -18,12 +18,17 @@
 # pylint: disable=invalid-name, unused-import, import-outside-toplevel, inconsistent-return-statements
 """Runtime Module namespace."""
 import os
-import ctypes
 import struct
 from typing import Sequence
-import numpy as np
 
-import tvm.ffi
+import numpy as np
+from tvm_ffi import (
+    Module as _Module,
+    load_module as _load_module,
+    register_object as _register_object,
+    system_lib,
+)
+
 from tvm.base import _RUNTIME_ONLY
 from tvm.libinfo import find_include_path
 
@@ -89,211 +94,214 @@ class BenchmarkResult:
         )
 
 
-class ModulePropertyMask(object):
-    """Runtime Module Property Mask."""
-
-    BINARY_SERIALIZABLE = 0b001
-    RUNNABLE = 0b010
-    DSO_EXPORTABLE = 0b100
-
-
-@tvm.ffi.register_object("runtime.Module")
-class Module(tvm.ffi.Object):
+# override the Module class in ffi.Module
+@_register_object("ffi.Module")
+class Module(_Module):
     """Runtime Module."""
 
-    def __new__(cls):
-        instance = super(Module, cls).__new__(cls)  # pylint: disable=no-value-for-parameter
-        instance.entry_name = "__tvm_main__"
-        instance._entry = None
-        return instance
-
-    @property
-    def entry_func(self):
-        """Get the entry function
-
-        Returns
-        -------
-        f : tvm.runtime.PackedFunc
-            The entry function if exist
-        """
-        if self._entry:
-            return self._entry
-        self._entry = self.get_function("__tvm_main__")
-        return self._entry
-
-    def implements_function(self, name, query_imports=False):
-        """Returns True if the module has a definition for the global function with name. Note
-        that has_function(name) does not imply get_function(name) is non-null since the module
-        may be, eg, a CSourceModule which cannot supply a packed-func implementation of the function
-        without further compilation. However, get_function(name) non null should always imply
-        has_function(name).
+    def _collect_from_import_tree(self, filter_func):
+        """Helper function to collect modules from the tree matching a filter_func, then return it.
 
         Parameters
         ----------
-        name : str
-            The name of the function
-
-        query_imports : bool
-            Whether to also query modules imported by this module.
+        filter_func : Callable[[Module], bool]
+            A function which is invoked for each Module discovered in the import tree (including
+            self).
 
         Returns
         -------
-        b : Bool
-            True if module (or one of its imports) has a definition for name.
+        list[Module] :
+            A list of matching Module.
         """
-        return _ffi_api.ModuleImplementsFunction(self, name, query_imports)
+        visited, stack, dso_modules = set(), [], []
+        # append root module
+        visited.add(self)
+        stack.append(self)
+        while stack:
+            module = stack.pop()
+            assert (
+                module.is_compilation_exportable() or module.is_binary_serializable()
+            ), f"Module {module.kind} should be either dso exportable or binary serializable."
 
-    def get_function(self, name, query_imports=False):
-        """Get function from the module.
+            if filter_func(module):
+                dso_modules.append(module)
+            for m in module.imports:
+                if m not in visited:
+                    visited.add(m)
+                    stack.append(m)
+        return dso_modules
 
-        Parameters
-        ----------
-        name : str
-            The name of the function
+    def _collect_dso_modules(self):
+        """Collect all compilation exportable modules from the import tree."""
+        return self._collect_from_import_tree(lambda m: m.is_compilation_exportable())
 
-        query_imports : bool
-            Whether also query modules imported by this module.
-
-        Returns
-        -------
-        f : tvm.runtime.PackedFunc
-            The result function.
+    def export_library(
+        self,
+        file_name,
+        *,
+        fcompile=None,
+        fpack_imports=None,
+        addons=None,
+        workspace_dir=None,
+        **kwargs,
+    ):
         """
-        func = _ffi_api.ModuleGetFunction(self, name, query_imports)
-        if func is None:
-            raise AttributeError(f"Module has no function '{name}'")
-        return func
+        Export the module and all imported modules into a single device library.
 
-    def import_module(self, module):
-        """Add module to the import list of current one.
-
-        Parameters
-        ----------
-        module : tvm.runtime.Module
-            The other module.
-        """
-        _ffi_api.ModuleImport(self, module)
-
-    def __getitem__(self, name):
-        if not isinstance(name, str):
-            raise ValueError("Can only take string as function name")
-        return self.get_function(name)
-
-    def __call__(self, *args):
-        if self._entry:
-            return self._entry(*args)
-        # pylint: disable=not-callable
-        return self.entry_func(*args)
-
-    @property
-    def type_key(self):
-        """Get type key of the module."""
-        return _ffi_api.ModuleGetTypeKey(self)
-
-    @property
-    def format(self):
-        """Get the format of the module."""
-        return _ffi_api.ModuleGetFormat(self)
-
-    def get_source(self, fmt=""):
-        """Get source code from module, if available.
-
-        Parameters
-        ----------
-        fmt : str, optional
-            The specified format.
-
-        Returns
-        -------
-        source : str
-            The result source code.
-        """
-        return _ffi_api.ModuleGetSource(self, fmt)
-
-    @property
-    def imported_modules(self):
-        """Get imported modules
-
-        Returns
-        ----------
-        modules : list of Module
-            The module
-        """
-        nmod = _ffi_api.ModuleImportsSize(self)
-        return [_ffi_api.ModuleGetImport(self, i) for i in range(nmod)]
-
-    def get_property_mask(self):
-        """Get the runtime module property mask. The mapping is stated in ModulePropertyMask.
-
-        Returns
-        -------
-        mask : int
-            Bitmask of runtime module property
-        """
-        return _ffi_api.ModuleGetPropertyMask(self)
-
-    @property
-    def is_binary_serializable(self):
-        """Returns true if module is 'binary serializable', ie can be serialzed into binary
-         stream and loaded back to the runtime module.
-
-        Returns
-        -------
-        b : Bool
-            True if the module is binary serializable.
-        """
-        return (self.get_property_mask() & ModulePropertyMask.BINARY_SERIALIZABLE) != 0
-
-    @property
-    def is_runnable(self):
-        """Returns true if module is 'runnable'. ie can be executed without any extra
-        compilation/linking steps.
-
-        Returns
-        -------
-        b : Bool
-            True if the module is runnable.
-        """
-        return (self.get_property_mask() & ModulePropertyMask.RUNNABLE) != 0
-
-    @property
-    def is_device_module(self):
-        return self.type_key in ["cuda", "opencl", "metal", "hip", "vulkan", "webgpu"]
-
-    @property
-    def is_dso_exportable(self):
-        """Returns true if module is 'DSO exportable', ie can be included in result of
-        export_library by the external compiler directly.
-
-        Returns
-        -------
-        b : Bool
-            True if the module is DSO exportable.
-        """
-        return (self.get_property_mask() & ModulePropertyMask.DSO_EXPORTABLE) != 0
-
-    def clear_imports(self):
-        """Remove all imports of the module."""
-        _ffi_api.ModuleClearImports(self)
-
-    def save(self, file_name, fmt=""):
-        """Save the module to file.
-
-        This do not save the dependent device modules.
-        See also export_shared
+        This function only works on host LLVM modules, other runtime::Module
+        subclasses will work with this API but they must support implement
+        the save and load mechanisms of modules completely including saving
+        from streams and files. This will pack your non-shared library module
+        into a single shared library which can later be loaded by TVM.
 
         Parameters
         ----------
         file_name : str
-            The name of the file.
-        fmt : str
-            The format of the file.
+            The name of the shared library.
 
-        See Also
-        --------
-        runtime.Module.export_library : export the module to shared library.
+        fcompile : function(target, file_list, kwargs), optional
+            The compilation function to use create the final library object during
+            export.
+
+            For example, when fcompile=_cc.create_shared, or when it is not supplied but
+            module is "llvm," this is used to link all produced artifacts
+            into a final dynamic library.
+
+            This behavior is controlled by the type of object exported.
+            If fcompile has attribute object_format, will compile host library
+            to that format. Otherwise, will use default format "o".
+
+        fpack_imports: function(mod: runtime.Module, is_system_lib: bool, symbol_prefix: str,
+                                workspace_dir: str) -> str
+            Function used to pack imported modules from `mod` into a file suitable for passing
+            to fcompile as an input file. The result can be a C source, or an .o object file,
+            or any other file that the fcompile function can handle. The function returns the
+            name of the created file.
+
+            If not provided, the imported modules will be serialized either via packing to an
+            LLVM module, or to a C source file.
+
+        workspace_dir : str, optional
+            The path of the directory used to create the intermediate
+            artifacts when exporting the module.
+            If this is not provided a temporary dir will be created.
+
+        kwargs : dict, optional
+            Additional arguments passed to fcompile
+
+        Returns
+        -------
+        result of fcompile()  : unknown, optional
+            If the compilation function returns an artifact it would be returned via
+            export_library, if any.
         """
-        _ffi_api.ModuleSaveToFile(self, file_name, fmt)
+        # NOTE: this function depends on contrib library features
+        # which are only available in when TVM function is available.
+        if _RUNTIME_ONLY:
+            raise RuntimeError("Cannot call export_library in runtime only mode")
+
+        # Extra dependencies during runtime.
+        from pathlib import Path
+        from tvm.contrib import cc as _cc, tar as _tar, tvmjs as _tvmjs, utils as _utils
+
+        if isinstance(file_name, Path):
+            file_name = str(file_name)
+
+        modules = self._collect_dso_modules()
+        if workspace_dir is None:
+            temp = _utils.tempdir()
+            workspace_dir = temp.temp_dir
+        files = addons if addons else []
+        is_system_lib = False
+        has_c_module = False
+        system_lib_prefix = None
+        llvm_target_string = None
+        global_object_format = "o"
+
+        def get_source_format_from_module(module):
+            for fmt in module.get_write_formats():
+                if fmt in ["c", "cc", "cpp", "cu"]:
+                    return fmt
+            raise ValueError(f"Module {module.kind} does not exporting to c, cc, cpp or cu.")
+
+        for index, module in enumerate(modules):
+            if fcompile is not None and hasattr(fcompile, "object_format"):
+                if module.kind == "c":
+                    object_format = get_source_format_from_module(module)
+                    has_c_module = True
+                else:
+                    global_object_format = object_format = fcompile.object_format
+            else:
+                if module.kind == "c":
+                    if len(module.get_write_formats()) > 0:
+                        object_format = get_source_format_from_module(module)
+                    else:
+                        object_format = "c"
+                    if "cc" in kwargs:
+                        if kwargs["cc"] == "nvcc":
+                            object_format = "cu"
+                    has_c_module = True
+                else:
+                    assert module.is_compilation_exportable()
+                    global_object_format = object_format = "o"
+
+            path_obj = os.path.join(workspace_dir, f"lib{index}.{object_format}")
+            module.write_to_file(path_obj)
+            files.append(path_obj)
+            if module.kind == "llvm":
+                is_system_lib = module.get_function("__tvm_is_system_module")()
+                llvm_target_string = module.get_function("_get_target_string")()
+                system_lib_prefix = module.get_function("__tvm_get_system_lib_prefix")()
+
+        if not fcompile:
+            if file_name.endswith(".tar"):
+                fcompile = _tar.tar
+            elif file_name.endswith(".wasm"):
+                fcompile = _tvmjs.create_tvmjs_wasm
+            else:
+                fcompile = _cc.create_shared
+
+        if llvm_target_string is None and hasattr(fcompile, "get_target_triple"):
+            triple = fcompile.get_target_triple()
+            assert triple, "Target triple should not be empty"
+            llvm_target_string = "llvm -mtriple " + triple
+
+        if getattr(fcompile, "need_system_lib", False) and not is_system_lib:
+            raise ValueError(f"{str(fcompile)} need --system-lib option")
+
+        if self.imports:
+            pack_lib_prefix = system_lib_prefix if system_lib_prefix else ""
+
+            if fpack_imports is not None:
+                path_out = fpack_imports(self, is_system_lib, pack_lib_prefix, workspace_dir)
+                files.append(path_out)
+            elif _ffi_api.RuntimeEnabled("llvm") and llvm_target_string:
+                path_obj = os.path.join(
+                    workspace_dir, f"{pack_lib_prefix}devc.{global_object_format}"
+                )
+                m = _ffi_api.ModulePackImportsToLLVM(
+                    self, is_system_lib, llvm_target_string, pack_lib_prefix
+                )
+                m.write_to_file(path_obj)
+                files.append(path_obj)
+            else:
+                path_cc = os.path.join(workspace_dir, f"{pack_lib_prefix}devc.c")
+                with open(path_cc, "w") as f:
+                    f.write(_ffi_api.ModulePackImportsToC(self, is_system_lib, pack_lib_prefix))
+                files.append(path_cc)
+
+        # The imports could contain a c module but the object format could be tar
+        # Thus, it would not recognize the following include paths as options
+        # which are there assuming a c compiler is the fcompile.
+        if has_c_module and not file_name.endswith(".tar"):
+            options = []
+            if "options" in kwargs:
+                opts = kwargs["options"]
+                options = opts if isinstance(opts, (list, tuple)) else [opts]
+            opts = options + ["-I" + path for path in find_include_path()]
+            kwargs.update({"options": opts})
+
+        return fcompile(file_name, files, **kwargs)
 
     def time_evaluator(
         self,
@@ -369,8 +377,8 @@ class Module(tvm.ffi.Object):
             feval = _ffi_api.RPCTimeEvaluator(
                 self,
                 func_name,
-                dev.device_type,
-                dev.device_id,
+                dev.dlpack_device_type(),
+                dev.index,
                 number,
                 repeat,
                 min_repeat_ms,
@@ -393,252 +401,14 @@ class Module(tvm.ffi.Object):
         except NameError:
             raise NameError("time_evaluator is only supported when RPC is enabled")
 
-    def _collect_from_import_tree(self, filter_func):
-        """Helper function to collect modules from the tree matching a filter_func, then return it.
 
-        Parameters
-        ----------
-        filter_func : Callable[[Module], bool]
-            A function which is invoked for each Module discovered in the import tree (including
-            self).
-
-        Returns
-        -------
-        list[Module] :
-            A list of matching Module.
-        """
-        visited, stack, dso_modules = set(), [], []
-        # append root module
-        visited.add(self)
-        stack.append(self)
-        while stack:
-            module = stack.pop()
-            assert (
-                module.is_dso_exportable or module.is_binary_serializable
-            ), f"Module {module.type_key} should be either dso exportable or binary serializable."
-
-            if filter_func(module):
-                dso_modules.append(module)
-            for m in module.imported_modules:
-                if m not in visited:
-                    visited.add(m)
-                    stack.append(m)
-        return dso_modules
-
-    def _collect_dso_modules(self):
-        return self._collect_from_import_tree(lambda m: m.is_dso_exportable)
-
-    def export_library(
-        self,
-        file_name,
-        *,
-        fcompile=None,
-        fpack_imports=None,
-        addons=None,
-        workspace_dir=None,
-        **kwargs,
-    ):
-        """
-        Export the module and all imported modules into a single device library.
-
-        This function only works on host LLVM modules, other runtime::Module
-        subclasses will work with this API but they must support implement
-        the save and load mechanisms of modules completely including saving
-        from streams and files. This will pack your non-shared library module
-        into a single shared library which can later be loaded by TVM.
-
-        Parameters
-        ----------
-        file_name : str
-            The name of the shared library.
-
-        fcompile : function(target, file_list, kwargs), optional
-            The compilation function to use create the final library object during
-            export.
-
-            For example, when fcompile=_cc.create_shared, or when it is not supplied but
-            module is "llvm," this is used to link all produced artifacts
-            into a final dynamic library.
-
-            This behavior is controlled by the type of object exported.
-            If fcompile has attribute object_format, will compile host library
-            to that format. Otherwise, will use default format "o".
-
-        fpack_imports: function(mod: runtime.Module, is_system_lib: bool, symbol_prefix: str,
-                                workspace_dir: str) -> str
-            Function used to pack imported modules from `mod` into a file suitable for passing
-            to fcompile as an input file. The result can be a C source, or an .o object file,
-            or any other file that the fcompile function can handle. The function returns the
-            name of the created file.
-
-            If not provided, the imported modules will be serialized either via packing to an
-            LLVM module, or to a C source file.
-
-        workspace_dir : str, optional
-            The path of the directory used to create the intermediate
-            artifacts when exporting the module.
-            If this is not provided a temporary dir will be created.
-
-        kwargs : dict, optional
-            Additional arguments passed to fcompile
-
-        Returns
-        -------
-        result of fcompile()  : unknown, optional
-            If the compilation function returns an artifact it would be returned via
-            export_library, if any.
-        """
-        # NOTE: this function depends on contrib library features
-        # which are only available in when TVM function is available.
-        if _RUNTIME_ONLY:
-            raise RuntimeError("Cannot call export_library in runtime only mode")
-        # Extra dependencies during runtime.
-        from pathlib import Path
-        from tvm.contrib import cc as _cc, tar as _tar, utils as _utils, tvmjs as _tvmjs
-
-        if isinstance(file_name, Path):
-            file_name = str(file_name)
-
-        modules = self._collect_dso_modules()
-        if workspace_dir is None:
-            temp = _utils.tempdir()
-            workspace_dir = temp.temp_dir
-        files = addons if addons else []
-        is_system_lib = False
-        has_c_module = False
-        system_lib_prefix = None
-        llvm_target_string = None
-        global_object_format = "o"
-        for index, module in enumerate(modules):
-            if fcompile is not None and hasattr(fcompile, "object_format"):
-                if module.type_key == "c":
-                    assert module.format in [
-                        "c",
-                        "cc",
-                        "cpp",
-                        "cu",
-                    ], "The module.format needs to be either c, cc, cpp or cu."
-                    object_format = module.format
-                    has_c_module = True
-                else:
-                    global_object_format = object_format = fcompile.object_format
-            else:
-                if module.type_key == "c":
-                    if len(module.format) > 0:
-                        assert module.format in [
-                            "c",
-                            "cc",
-                            "cpp",
-                            "cu",
-                        ], "The module.format needs to be either c, cc, cpp, or cu."
-                        object_format = module.format
-                    else:
-                        object_format = "c"
-                    if "cc" in kwargs:
-                        if kwargs["cc"] == "nvcc":
-                            object_format = "cu"
-                    has_c_module = True
-                else:
-                    assert module.is_dso_exportable
-                    global_object_format = object_format = "o"
-
-            path_obj = os.path.join(workspace_dir, f"lib{index}.{object_format}")
-            module.save(path_obj)
-            files.append(path_obj)
-            if module.type_key == "llvm":
-                is_system_lib = module.get_function("__tvm_is_system_module")()
-                llvm_target_string = module.get_function("_get_target_string")()
-                system_lib_prefix = module.get_function("__tvm_get_system_lib_prefix")()
-
-        if not fcompile:
-            if file_name.endswith(".tar"):
-                fcompile = _tar.tar
-            elif file_name.endswith(".wasm"):
-                fcompile = _tvmjs.create_tvmjs_wasm
-            else:
-                fcompile = _cc.create_shared
-
-        if llvm_target_string is None and hasattr(fcompile, "get_target_triple"):
-            triple = fcompile.get_target_triple()
-            assert triple, "Target triple should not be empty"
-            llvm_target_string = "llvm -mtriple " + triple
-
-        if getattr(fcompile, "need_system_lib", False) and not is_system_lib:
-            raise ValueError(f"{str(fcompile)} need --system-lib option")
-
-        if self.imported_modules:
-            pack_lib_prefix = system_lib_prefix if system_lib_prefix else ""
-
-            if fpack_imports is not None:
-                path_out = fpack_imports(self, is_system_lib, pack_lib_prefix, workspace_dir)
-                files.append(path_out)
-            elif enabled("llvm") and llvm_target_string:
-                path_obj = os.path.join(
-                    workspace_dir, f"{pack_lib_prefix}devc.{global_object_format}"
-                )
-                m = _ffi_api.ModulePackImportsToLLVM(
-                    self, is_system_lib, llvm_target_string, pack_lib_prefix
-                )
-                m.save(path_obj)
-                files.append(path_obj)
-            else:
-                path_cc = os.path.join(workspace_dir, f"{pack_lib_prefix}devc.c")
-                with open(path_cc, "w") as f:
-                    f.write(_ffi_api.ModulePackImportsToC(self, is_system_lib, pack_lib_prefix))
-                files.append(path_cc)
-
-        # The imports could contain a c module but the object format could be tar
-        # Thus, it would not recognize the following include paths as options
-        # which are there assuming a c compiler is the fcompile.
-        if has_c_module and not file_name.endswith(".tar"):
-            options = []
-            if "options" in kwargs:
-                opts = kwargs["options"]
-                options = opts if isinstance(opts, (list, tuple)) else [opts]
-            opts = options + ["-I" + path for path in find_include_path()]
-            kwargs.update({"options": opts})
-
-        return fcompile(file_name, files, **kwargs)
-
-
-def system_lib(symbol_prefix=""):
-    """Get system-wide library module singleton.
-
-    System lib is a global module that contains self register functions in startup.
-    Unlike normal dso modules which need to be loaded explicitly.
-    It is useful in environments where dynamic loading api like dlopen is banned.
-
-    To build system lib function, simply specify target option ```llvm --system-lib```
-    The system lib will be available as long as the result code is linked by the program.
-
-    The system lib is intended to be linked and loaded during the entire life-cyle of the program.
-    If you want dynamic loading features, use dso modules instead.
-
-    Parameters
-    ----------
-    symbol_prefix: Optional[str]
-        Optional symbol prefix that can be used for search. When we lookup a symbol
-        symbol_prefix + name will first be searched, then the name without symbol_prefix.
-
-    Returns
-    -------
-    module : runtime.Module
-        The system-wide library module.
-    """
-    return _ffi_api.SystemLib(symbol_prefix)
-
-
-def load_module(path, fmt=""):
+def load_module(path):
     """Load module from file.
 
     Parameters
     ----------
     path : str
         The path to the module file.
-
-    fmt : str, optional
-        The format of the file, if not specified
-        it will be inferred from suffix of the file.
 
     Returns
     -------
@@ -673,7 +443,7 @@ def load_module(path, fmt=""):
         _cc.create_shared(path + ".so", files)
         path += ".so"
     # Redirect to the load API
-    return _ffi_api.ModuleLoadFromFile(path, fmt)
+    return _load_module(path)
 
 
 def load_static_library(path, func_names):

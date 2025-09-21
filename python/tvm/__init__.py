@@ -20,18 +20,18 @@ import multiprocessing
 import sys
 import os
 
-# top-level alias
-# tvm._ffi
-from .base import TVMError, __version__, _RUNTIME_ONLY
+# ffi module must load first
+from tvm_ffi import register_object, register_global_func, get_global_func
 
-from .ffi import register_object, register_func, get_global_func
+# top-level alias
+from .base import TVMError, __version__, _RUNTIME_ONLY
 
 # top-level alias
 # tvm.runtime
 from .runtime.object import Object
-from .runtime.ndarray import device, cpu, cuda, opencl, vulkan, metal
-from .runtime.ndarray import vpi, rocm, ext_dev, hexagon
-from .runtime import ndarray as nd, DataType, DataTypeCode
+from .runtime._tensor import device, cpu, cuda, opencl, vulkan, metal
+from .runtime._tensor import vpi, rocm, ext_dev, hexagon
+from .runtime import DataType, DataTypeCode
 
 # tvm.error
 from . import error

@@ -48,10 +48,10 @@ Pass AnnotateTIROpPattern() {
   return tir::transform::CreatePrimFuncPass(pass_func, 0, "AnnotateTIROpPattern", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.AnnotateTIROpPattern", AnnotateTIROpPattern);
-});
+}
 
 }  // namespace transform
 

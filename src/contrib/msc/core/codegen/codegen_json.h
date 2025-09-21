@@ -69,7 +69,7 @@ class MSCJSONSerializer : public JSONSerializer {
    * \brief Constructor
    * \param constant_names The names of all constants in the original module.
    */
-  explicit MSCJSONSerializer(const Map<Constant, String>& constant_names,
+  explicit MSCJSONSerializer(const ffi::Map<Constant, ffi::String>& constant_names,
                              const std::string& options)
       : JSONSerializer(constant_names) {
     MSCCompileConfig config;
@@ -86,19 +86,19 @@ class MSCJSONSerializer : public JSONSerializer {
 
   std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* call_node) final;
 
-  const String GetOption(const String& key) {
+  const ffi::String GetOption(const ffi::String& key) {
     ICHECK(options_.count(key)) << "Can not find option " << key;
     return options_[key];
   }
 
-  const Map<String, String> GetOptions() { return options_; }
+  const ffi::Map<ffi::String, ffi::String> GetOptions() { return options_; }
 
  protected:
-  void AddNodeAttr(JSONGraphObjectPtr node, const String& key, const String& value);
+  void AddNodeAttr(JSONGraphObjectPtr node, const ffi::String& key, const ffi::String& value);
 
  private:
   MSCGraph graph_;
-  Map<String, String> options_;
+  ffi::Map<ffi::String, ffi::String> options_;
   bool global_options_set_;
 };
 

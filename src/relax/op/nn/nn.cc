@@ -27,7 +27,7 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   SoftmaxAttrs::RegisterReflection();
   LeakyReluAttrs::RegisterReflection();
   SoftplusAttrs::RegisterReflection();
@@ -41,7 +41,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   DropoutAttrs::RegisterReflection();
   PadAttrs::RegisterReflection();
   PixelShuffleAttrs::RegisterReflection();
-});
+}
 
 /* relax.nn.relu */
 RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(relu, "nn.relu", /*require_float_dtype=*/false);
@@ -61,16 +61,16 @@ RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(silu, "nn.silu", /*require_float_dtype=*/tru
 /* relax.nn.leakyrelu */
 
 Expr leakyrelu(Expr data, double alpha) {
-  auto attrs = make_object<LeakyReluAttrs>();
+  auto attrs = ffi::make_object<LeakyReluAttrs>();
   attrs->alpha = alpha;
   static const Op& op = Op::Get("relax.nn.leakyrelu");
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.leakyrelu", leakyrelu);
-});
+}
 
 TVM_REGISTER_OP("relax.nn.leakyrelu")
     .set_num_inputs(1)
@@ -83,17 +83,17 @@ TVM_REGISTER_OP("relax.nn.leakyrelu")
 /* relax.nn.softplus */
 
 Expr softplus(Expr data, double beta, double threshold) {
-  auto attrs = make_object<SoftplusAttrs>();
+  auto attrs = ffi::make_object<SoftplusAttrs>();
   attrs->beta = beta;
   attrs->threshold = threshold;
   static const Op& op = Op::Get("relax.nn.softplus");
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.softplus", softplus);
-});
+}
 
 TVM_REGISTER_OP("relax.nn.softplus")
     .set_num_inputs(1)
@@ -106,16 +106,16 @@ TVM_REGISTER_OP("relax.nn.softplus")
 /* relax.nn.prelu */
 
 Expr prelu(Expr data, Expr alpha, int axis = 1) {
-  auto attrs = make_object<PReluAttrs>();
+  auto attrs = ffi::make_object<PReluAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("relax.nn.prelu");
   return Call(op, {data, alpha}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.prelu", prelu);
-});
+}
 
 StructInfo InferStructInfoPRelu(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -133,9 +133,9 @@ StructInfo InferStructInfoPRelu(const Call& call, const BlockBuilder& ctx) {
   return data_sinfo;
 }
 
-InferLayoutOutput InferLayoutPRelu(const Call& call,
-                                   const Map<String, Array<String>>& desired_layouts,
-                                   const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutPRelu(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
   const auto* attrs = call->attrs.as<PReluAttrs>();
   ICHECK(attrs) << "Invalid Call";
@@ -151,7 +151,7 @@ InferLayoutOutput InferLayoutPRelu(const Call& call,
     layout = LayoutDecision(InitialLayout(ndim));
   }
 
-  ObjectPtr<PReluAttrs> new_attrs = make_object<PReluAttrs>(*attrs);
+  ObjectPtr<PReluAttrs> new_attrs = ffi::make_object<PReluAttrs>(*attrs);
   new_attrs->axis = FindAxis(layout->layout, attrs->axis);
 
   LayoutDecision alpha_layout = GetLayoutDecision(var_layout_map, call->args[1]);
@@ -170,16 +170,16 @@ TVM_REGISTER_OP("relax.nn.prelu")
 /* relax.nn.softmax */
 
 Expr softmax(Expr data, int axis) {
-  auto attrs = make_object<SoftmaxAttrs>();
+  auto attrs = ffi::make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("relax.nn.softmax");
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.softmax", softmax);
-});
+}
 
 StructInfo InferStructInfoSoftmax(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -198,9 +198,9 @@ StructInfo InferStructInfoSoftmax(const Call& call, const BlockBuilder& ctx) {
   return data_sinfo;
 }
 
-InferLayoutOutput InferLayoutSoftmax(const Call& call,
-                                     const Map<String, Array<String>>& desired_layouts,
-                                     const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutSoftmax(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
   const auto* attrs = call->attrs.as<SoftmaxAttrs>();
   ICHECK(attrs) << "Invalid Call";
@@ -216,7 +216,7 @@ InferLayoutOutput InferLayoutSoftmax(const Call& call,
     layout = LayoutDecision(InitialLayout(ndim));
   }
 
-  ObjectPtr<SoftmaxAttrs> new_attrs = make_object<SoftmaxAttrs>(*attrs);
+  ObjectPtr<SoftmaxAttrs> new_attrs = ffi::make_object<SoftmaxAttrs>(*attrs);
   new_attrs->axis = FindAxis(layout->layout, attrs->axis);
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
@@ -231,16 +231,16 @@ TVM_REGISTER_OP("relax.nn.softmax")
 
 /* relax.nn.log_softmax */
 Expr log_softmax(Expr data, int axis) {
-  auto attrs = make_object<SoftmaxAttrs>();
+  auto attrs = ffi::make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("relax.nn.log_softmax");
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.log_softmax", log_softmax);
-});
+}
 
 TVM_REGISTER_OP("relax.nn.log_softmax")
     .set_num_inputs(1)
@@ -251,8 +251,8 @@ TVM_REGISTER_OP("relax.nn.log_softmax")
 
 /* relax.nn.pad */
 
-Expr pad(Expr data, Array<Integer> pad_width, String pad_mode, double pad_value) {
-  auto attrs = make_object<PadAttrs>();
+Expr pad(Expr data, ffi::Array<Integer> pad_width, ffi::String pad_mode, double pad_value) {
+  auto attrs = ffi::make_object<PadAttrs>();
   attrs->pad_width = std::move(pad_width);
   attrs->pad_mode = std::move(pad_mode);
   attrs->pad_value = pad_value;
@@ -260,19 +260,19 @@ Expr pad(Expr data, Array<Integer> pad_width, String pad_mode, double pad_value)
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.pad", pad);
-});
+}
 
 StructInfo InferStructInfoPad(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   const auto* attrs = call->attrs.as<PadAttrs>();
   int ndim = input_sinfo[0]->ndim;
-  Array<Integer> pad_width = attrs->pad_width;
+  ffi::Array<Integer> pad_width = attrs->pad_width;
   ICHECK(static_cast<int>(pad_width.size()) == 2 * ndim) << "Illegal pad_width";
 
-  Array<PrimExpr> out_shape;
+  ffi::Array<PrimExpr> out_shape;
   if (input_sinfo[0]->shape.defined()) {
     // Compute output shape by adding corresponding pad width to each axis.
     const auto* data_shape = input_sinfo[0]->shape.as<ShapeExprNode>();
@@ -299,19 +299,19 @@ TVM_REGISTER_OP("relax.nn.pad")
 /* relax.nn.pixel_shuffle */
 
 Expr pixel_shuffle(Expr data, int upscale_factor) {
-  auto attrs = make_object<PixelShuffleAttrs>();
+  auto attrs = ffi::make_object<PixelShuffleAttrs>();
   attrs->upscale_factor = upscale_factor;
   static const Op& op = Op::Get("relax.nn.pixel_shuffle");
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.pixel_shuffle", pixel_shuffle);
-});
+}
 
 StructInfo InferStructInfoPixelShuffle(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   const auto* attrs = call->attrs.as<PixelShuffleAttrs>();
   int r = attrs->upscale_factor;
   ICHECK_GT(r, 0) << "Upscale factor must be positive";
@@ -325,7 +325,7 @@ StructInfo InferStructInfoPixelShuffle(const Call& call, const BlockBuilder& ctx
   }
 
   const auto* shape = input->shape.as<ShapeExprNode>();
-  Array<PrimExpr> in_shape = shape->values;
+  ffi::Array<PrimExpr> in_shape = shape->values;
 
   int channel_idx = ndim - 3;
   int h_idx = ndim - 2;
@@ -345,7 +345,7 @@ StructInfo InferStructInfoPixelShuffle(const Call& call, const BlockBuilder& ctx
       << "Number of input channels must be divisible by the square of the upscale factor";
 
   // Output shape:
-  Array<PrimExpr> out_shape;
+  ffi::Array<PrimExpr> out_shape;
   for (int i = 0; i < ndim; ++i) {
     if (i == channel_idx) {
       out_shape.push_back(c_in / r_squared);
@@ -370,7 +370,8 @@ TVM_REGISTER_OP("relax.nn.pixel_shuffle")
 
 /* relax.nn.batchnorm */
 bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
-                            const Array<TensorStructInfo>& input_sinfo, Array<Integer> axes) {
+                            const ffi::Array<TensorStructInfo>& input_sinfo,
+                            ffi::Array<Integer> axes) {
   Op op = Downcast<Op>(call->op);
   int n_input = op->arguments.size();
 
@@ -405,7 +406,7 @@ bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
     }
   }
 
-  std::vector<Array<PrimExpr>> axis_lengths;
+  std::vector<ffi::Array<PrimExpr>> axis_lengths;
   axis_lengths.reserve(n_input);
   if (const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>()) {
     std::vector<PrimExpr> lengths;
@@ -442,7 +443,7 @@ bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
 
 Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_var,  //
                 int axis, double epsilon, bool center, bool scale, double momentum, bool training) {
-  ObjectPtr<BatchNormAttrs> attrs = make_object<BatchNormAttrs>();
+  ObjectPtr<BatchNormAttrs> attrs = ffi::make_object<BatchNormAttrs>();
   attrs->axis = axis;
   attrs->epsilon = epsilon;
   attrs->center = center;
@@ -456,13 +457,13 @@ Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_
                std::move(moving_var)},
               Attrs{attrs}, {});
 }
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.batch_norm", batch_norm);
-});
+}
 
 StructInfo InferStructInfoBatchNorm(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
 
   const auto* attrs = call->attrs.as<BatchNormAttrs>();
   bool unknown_shape = NormCheckDtypeAndShape(call, ctx, input_sinfo, {attrs->axis});
@@ -478,9 +479,9 @@ StructInfo InferStructInfoBatchNorm(const Call& call, const BlockBuilder& ctx) {
   }
 }
 
-InferLayoutOutput InferLayoutBatchNorm(const Call& call,
-                                       const Map<String, Array<String>>& desired_layouts,
-                                       const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutBatchNorm(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
   std::vector<NLayout> initial_layouts;
   for (size_t i = 0; i < 5; ++i) {
@@ -502,7 +503,7 @@ InferLayoutOutput InferLayoutBatchNorm(const Call& call,
     layout = LayoutDecision(InitialLayout(ndim));
   }
 
-  ObjectPtr<BatchNormAttrs> new_attrs = make_object<BatchNormAttrs>(*attrs);
+  ObjectPtr<BatchNormAttrs> new_attrs = ffi::make_object<BatchNormAttrs>(*attrs);
   new_attrs->axis = FindAxis(layout->layout, (attrs->axis + ndim) % ndim);
   return InferLayoutOutput(
       {layout, initial_layouts[1], initial_layouts[2], initial_layouts[3], initial_layouts[4]},
@@ -523,9 +524,9 @@ TVM_REGISTER_OP("relax.nn.batch_norm")
 
 /* relax.nn.layer_norm */
 
-Expr layer_norm(Expr data, Expr gamma, Expr beta, Array<Integer> axes, double epsilon, bool center,
-                bool scale) {
-  ObjectPtr<LayerNormAttrs> attrs = make_object<LayerNormAttrs>();
+Expr layer_norm(Expr data, Expr gamma, Expr beta, ffi::Array<Integer> axes, double epsilon,
+                bool center, bool scale) {
+  ObjectPtr<LayerNormAttrs> attrs = ffi::make_object<LayerNormAttrs>();
   attrs->axes = std::move(axes);
   attrs->epsilon = epsilon;
   attrs->center = center;
@@ -535,13 +536,13 @@ Expr layer_norm(Expr data, Expr gamma, Expr beta, Array<Integer> axes, double ep
   return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.layer_norm", layer_norm);
-});
+}
 
 StructInfo InferStructInfoLayerNorm(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
 
   const auto* attrs = call->attrs.as<LayerNormAttrs>();
   bool unknown_shape = NormCheckDtypeAndShape(call, ctx, input_sinfo, attrs->axes);
@@ -551,9 +552,9 @@ StructInfo InferStructInfoLayerNorm(const Call& call, const BlockBuilder& ctx) {
                        : input_sinfo[0];
 }
 
-InferLayoutOutput InferLayoutLayerNorm(const Call& call,
-                                       const Map<String, Array<String>>& desired_layouts,
-                                       const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutLayerNorm(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
   std::vector<NLayout> initial_layouts;
   for (size_t i = 0; i < 3; ++i) {
@@ -566,7 +567,7 @@ InferLayoutOutput InferLayoutLayerNorm(const Call& call,
   ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ObjectPtr<LayerNormAttrs> new_attrs = make_object<LayerNormAttrs>(*attrs);
+  ObjectPtr<LayerNormAttrs> new_attrs = ffi::make_object<LayerNormAttrs>(*attrs);
   const auto* input_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
   int ndim = input_sinfo->ndim;
   std::vector<Integer> new_axis;
@@ -592,8 +593,8 @@ TVM_REGISTER_OP("relax.nn.layer_norm")
 /* relax.nn.group_norm */
 
 Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_axis,
-                Array<Integer> axes, double epsilon, bool center, bool scale) {
-  ObjectPtr<GroupNormAttrs> attrs = make_object<GroupNormAttrs>();
+                ffi::Array<Integer> axes, double epsilon, bool center, bool scale) {
+  ObjectPtr<GroupNormAttrs> attrs = ffi::make_object<GroupNormAttrs>();
   attrs->num_groups = num_groups;
   attrs->channel_axis = channel_axis;
   attrs->axes = std::move(axes);
@@ -605,14 +606,14 @@ Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_ax
   return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.group_norm", group_norm);
-});
+}
 
 StructInfo InferStructInfoGroupNorm(const Call& call, const BlockBuilder& ctx) {
   Op op = Downcast<Op>(call->op);
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   const auto* attrs = call->attrs.as<GroupNormAttrs>();
 
   TensorStructInfo data_sinfo = input_sinfo[0];
@@ -666,9 +667,9 @@ StructInfo InferStructInfoGroupNorm(const Call& call, const BlockBuilder& ctx) {
   return data_sinfo;
 }
 
-InferLayoutOutput InferLayoutGroupNorm(const Call& call,
-                                       const Map<String, Array<String>>& desired_layouts,
-                                       const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutGroupNorm(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
   std::vector<NLayout> initial_layouts;
   for (size_t i = 0; i < 3; ++i) {
@@ -681,7 +682,7 @@ InferLayoutOutput InferLayoutGroupNorm(const Call& call,
   ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ObjectPtr<GroupNormAttrs> new_attrs = make_object<GroupNormAttrs>(*attrs);
+  ObjectPtr<GroupNormAttrs> new_attrs = ffi::make_object<GroupNormAttrs>(*attrs);
   std::vector<Integer> new_axes;
   for (const auto& axis : attrs->axes) {
     new_axes.push_back(FindAxis(layout->layout, axis->value));
@@ -705,9 +706,9 @@ TVM_REGISTER_OP("relax.nn.group_norm")
 
 /* relax.nn.instance_norm */
 
-Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, Array<Integer> axes,
+Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, ffi::Array<Integer> axes,
                    double epsilon, bool center, bool scale) {
-  ObjectPtr<InstanceNormAttrs> attrs = make_object<InstanceNormAttrs>();
+  ObjectPtr<InstanceNormAttrs> attrs = ffi::make_object<InstanceNormAttrs>();
   attrs->channel_axis = std::move(channel_axis);
   attrs->axes = std::move(axes);
   attrs->epsilon = epsilon;
@@ -718,14 +719,14 @@ Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, Array<Int
   return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.instance_norm", instance_norm);
-});
+}
 
 StructInfo InferStructInfoInstanceNorm(const Call& call, const BlockBuilder& ctx) {
   Op op = Downcast<Op>(call->op);
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   const auto* attrs = call->attrs.as<InstanceNormAttrs>();
   ICHECK(attrs) << "Invalid Call";
   TensorStructInfo data_sinfo = input_sinfo[0];
@@ -769,9 +770,9 @@ StructInfo InferStructInfoInstanceNorm(const Call& call, const BlockBuilder& ctx
   return data_sinfo;
 }
 
-InferLayoutOutput InferLayoutInstanceNorm(const Call& call,
-                                          const Map<String, Array<String>>& desired_layouts,
-                                          const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutInstanceNorm(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
   std::vector<NLayout> initial_layouts;
   for (size_t i = 0; i < 3; ++i) {
@@ -784,7 +785,7 @@ InferLayoutOutput InferLayoutInstanceNorm(const Call& call,
   ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ObjectPtr<InstanceNormAttrs> new_attrs = make_object<InstanceNormAttrs>(*attrs);
+  ObjectPtr<InstanceNormAttrs> new_attrs = ffi::make_object<InstanceNormAttrs>(*attrs);
   std::vector<Integer> new_axes;
   for (const auto& axis : attrs->axes) {
     new_axes.push_back(FindAxis(layout->layout, (axis->value)));
@@ -807,8 +808,8 @@ TVM_REGISTER_OP("relax.nn.instance_norm")
     .set_attr<Bool>("FPurity", Bool(true));
 /* relax.nn.rms_norm */
 
-Expr rms_norm(Expr data, Expr weight, Array<Integer> axes, double epsilon) {
-  ObjectPtr<RMSNormAttrs> attrs = make_object<RMSNormAttrs>();
+Expr rms_norm(Expr data, Expr weight, ffi::Array<Integer> axes, double epsilon) {
+  ObjectPtr<RMSNormAttrs> attrs = ffi::make_object<RMSNormAttrs>();
   attrs->axes = std::move(axes);
   attrs->epsilon = epsilon;
 
@@ -816,13 +817,13 @@ Expr rms_norm(Expr data, Expr weight, Array<Integer> axes, double epsilon) {
   return Call(op, {std::move(data), std::move(weight)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.rms_norm", rms_norm);
-});
+}
 
 StructInfo InferStructInfoRMSNorm(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
 
   const auto* attrs = call->attrs.as<RMSNormAttrs>();
   bool unknown_shape = NormCheckDtypeAndShape(call, ctx, input_sinfo, attrs->axes);
@@ -832,9 +833,9 @@ StructInfo InferStructInfoRMSNorm(const Call& call, const BlockBuilder& ctx) {
                        : input_sinfo[0];
 }
 
-InferLayoutOutput InferLayoutRMSNorm(const Call& call,
-                                     const Map<String, Array<String>>& desired_layouts,
-                                     const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutRMSNorm(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
   std::vector<NLayout> initial_layouts;
   for (size_t i = 0; i < 2; ++i) {
@@ -847,14 +848,13 @@ InferLayoutOutput InferLayoutRMSNorm(const Call& call,
   ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ObjectPtr<RMSNormAttrs> new_attrs = make_object<RMSNormAttrs>(*attrs);
-  std::vector<Integer> new_axis;
+  ObjectPtr<RMSNormAttrs> new_attrs = ffi::make_object<RMSNormAttrs>(*attrs);
+  std::vector<Integer> new_axes;
   for (const auto& axis : attrs->axes) {
-    new_axis.push_back(FindAxis(layout->layout, axis->value));
+    new_axes.push_back(FindAxis(layout->layout, axis->value));
   }
-  new_attrs->axes = std::move(new_axis);
-  return InferLayoutOutput({layout, initial_layouts[1], initial_layouts[2]}, {layout},
-                           Attrs(new_attrs));
+  new_attrs->axes = std::move(new_axes);
+  return InferLayoutOutput({layout, initial_layouts[1]}, {layout}, Attrs(new_attrs));
 }
 
 TVM_REGISTER_OP("relax.nn.rms_norm")
@@ -870,17 +870,17 @@ TVM_REGISTER_OP("relax.nn.rms_norm")
 /* relax.nn.dropout */
 
 Expr dropout(Expr data, double rate) {
-  ObjectPtr<DropoutAttrs> attrs = make_object<DropoutAttrs>();
+  ObjectPtr<DropoutAttrs> attrs = ffi::make_object<DropoutAttrs>();
   attrs->rate = rate;
 
   static const Op& op = Op::Get("relax.nn.dropout");
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.dropout", dropout);
-});
+}
 
 StructInfo InferStructInfoDropout(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -898,7 +898,7 @@ TVM_REGISTER_OP("relax.nn.dropout")
 
 /* relax.nn.cross_entropy_with_logits */
 StructInfo InferStructInfoCrossEntropy(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   TensorStructInfo pred_sinfo = input_sinfo[0];
   TensorStructInfo label_sinfo = input_sinfo[1];
 
@@ -906,7 +906,7 @@ StructInfo InferStructInfoCrossEntropy(const Call& call, const BlockBuilder& ctx
   DataType dtype = InferBinaryArithOpOutDtype(call, ctx, pred_sinfo, label_sinfo);
 
   // infer vdevice
-  Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, pred_sinfo, label_sinfo);
+  ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, pred_sinfo, label_sinfo);
 
   // infer ndim
   if (!pred_sinfo->IsUnknownNdim() && !label_sinfo->IsUnknownNdim() &&
@@ -917,12 +917,12 @@ StructInfo InferStructInfoCrossEntropy(const Call& call, const BlockBuilder& ctx
                      << pred_sinfo->ndim << " while the ndim of labels is " << label_sinfo->ndim);
   }
 
-  Optional<Array<PrimExpr>> pred_shape_value;
+  ffi::Optional<ffi::Array<PrimExpr>> pred_shape_value;
   if (pred_sinfo->shape.defined()) {
     pred_shape_value = GetStructInfoAs<ShapeStructInfoNode>(pred_sinfo->shape.value())->values;
   }
 
-  Optional<Array<PrimExpr>> label_shape_value;
+  ffi::Optional<ffi::Array<PrimExpr>> label_shape_value;
   if (label_sinfo->shape.defined()) {
     label_shape_value = GetStructInfoAs<ShapeStructInfoNode>(label_sinfo->shape.value())->values;
   }
@@ -940,7 +940,7 @@ StructInfo InferStructInfoCrossEntropy(const Call& call, const BlockBuilder& ctx
       }
     }
   }
-  return TensorStructInfo(ShapeExpr(Array<PrimExpr>()), dtype, vdevice);
+  return TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>()), dtype, vdevice);
 }
 
 Expr cross_entropy_with_logits(Expr predictions, Expr labels) {
@@ -948,10 +948,10 @@ Expr cross_entropy_with_logits(Expr predictions, Expr labels) {
   return Call(op, {std::move(predictions), std::move(labels)}, {}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.cross_entropy_with_logits", cross_entropy_with_logits);
-});
+}
 
 TVM_REGISTER_OP("relax.nn.cross_entropy_with_logits")
     .set_num_inputs(2)
@@ -962,9 +962,9 @@ TVM_REGISTER_OP("relax.nn.cross_entropy_with_logits")
 
 /* relax.nn.nll_loss */
 
-Expr nll_loss(Expr predictions, Expr targets, Optional<Expr> weights, String reduction,
+Expr nll_loss(Expr predictions, Expr targets, ffi::Optional<Expr> weights, ffi::String reduction,
               int ignore_index) {
-  ObjectPtr<NLLLossAttrs> attrs = make_object<NLLLossAttrs>();
+  ObjectPtr<NLLLossAttrs> attrs = ffi::make_object<NLLLossAttrs>();
 
   ICHECK(reduction == "none" || reduction == "sum" || reduction == "mean")
       << "The argument reduction of NLLLoss should be one of the following "
@@ -983,10 +983,10 @@ Expr nll_loss(Expr predictions, Expr targets, Optional<Expr> weights, String red
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.nll_loss", nll_loss);
-});
+}
 
 StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() < 2 || call->args.size() > 3) {
@@ -1021,12 +1021,12 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
 
   // infer dtype, vdevice
   DataType output_dtype;
-  Optional<VDevice> vdevice;
+  ffi::Optional<VDevice> vdevice;
   if (wgt_sinfo != nullptr) {
-    output_dtype = InferBinaryArithOpOutDtype(call, ctx, GetRef<TensorStructInfo>(pred_sinfo),
-                                              GetRef<TensorStructInfo>(wgt_sinfo));
-    vdevice = InferBinaryArithOpOutVDevice(call, ctx, GetRef<TensorStructInfo>(pred_sinfo),
-                                           GetRef<TensorStructInfo>(wgt_sinfo));
+    output_dtype = InferBinaryArithOpOutDtype(call, ctx, ffi::GetRef<TensorStructInfo>(pred_sinfo),
+                                              ffi::GetRef<TensorStructInfo>(wgt_sinfo));
+    vdevice = InferBinaryArithOpOutVDevice(call, ctx, ffi::GetRef<TensorStructInfo>(pred_sinfo),
+                                           ffi::GetRef<TensorStructInfo>(wgt_sinfo));
   } else {
     output_dtype = pred_sinfo->dtype;
     vdevice = pred_sinfo->vdevice;
@@ -1067,11 +1067,11 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
   }
 
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
-  Optional<PrimExpr> N;
-  Optional<PrimExpr> C;
-  Array<PrimExpr> output_shape;  // N, d1, d2, ..., dk
+  ffi::Optional<PrimExpr> N;
+  ffi::Optional<PrimExpr> C;
+  ffi::Array<PrimExpr> output_shape;  // N, d1, d2, ..., dk
 
-  Optional<Array<PrimExpr>> pred_shape_value;
+  ffi::Optional<ffi::Array<PrimExpr>> pred_shape_value;
   if (pred_sinfo->shape.defined()) {
     pred_shape_value = GetStructInfoAs<ShapeStructInfoNode>(pred_sinfo->shape.value())->values;
   }
@@ -1086,7 +1086,7 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
       ICHECK(pred_sinfo->ndim == static_cast<int>(pred_shape_value.value().size()));
       N = pred_shape_value.value()[0];
       C = pred_shape_value.value()[1];
-      output_shape = Array<PrimExpr>();
+      output_shape = ffi::Array<PrimExpr>();
       output_shape.push_back(N.value());
       for (size_t i = 2; i < pred_shape_value.value().size(); ++i) {
         output_shape.push_back(pred_shape_value.value()[i]);
@@ -1094,7 +1094,7 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  Optional<Array<PrimExpr>> tgt_shape_value;
+  ffi::Optional<ffi::Array<PrimExpr>> tgt_shape_value;
   if (tgt_sinfo->shape.defined()) {
     tgt_shape_value = GetStructInfoAs<ShapeStructInfoNode>(tgt_sinfo->shape.value())->values;
   }
@@ -1149,7 +1149,7 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
   }
 
   if (wgt_sinfo != nullptr) {
-    Optional<Array<PrimExpr>> wgt_shape_value;
+    ffi::Optional<ffi::Array<PrimExpr>> wgt_shape_value;
     if (wgt_sinfo->shape.defined()) {
       wgt_shape_value = GetStructInfoAs<ShapeStructInfoNode>(wgt_sinfo->shape.value())->values;
     }
@@ -1167,7 +1167,7 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
   }
 
   const auto* attrs = call->attrs.as<NLLLossAttrs>();
-  String reduction = attrs->reduction;
+  ffi::String reduction = attrs->reduction;
 
   if (reduction == "none") {
     // () or (N,) or (N, d1, d2, ..., dk)
@@ -1179,7 +1179,7 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
     }
   } else {
     // sum or mean. output is scalar
-    return TensorStructInfo(/*shape=*/ShapeExpr(Array<PrimExpr>()), output_dtype, vdevice);
+    return TensorStructInfo(/*shape=*/ShapeExpr(ffi::Array<PrimExpr>()), output_dtype, vdevice);
   }
 }
 
@@ -1188,7 +1188,7 @@ TVM_REGISTER_OP("relax.nn.nll_loss")
     .set_num_inputs(3)
     .add_argument("predictions", "Tensor", "The prediction tensor.")
     .add_argument("targets", "Tensor", "The target tensor.")
-    .add_argument("weights", "Optional<Tensor>", "The weight of each target values.")
+    .add_argument("weights", "ffi::Optional<Tensor>", "The weight of each target values.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNLLLoss)
     .set_attr<Bool>("FPurity", Bool(true));
 

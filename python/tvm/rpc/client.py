@@ -22,11 +22,12 @@ import stat
 import struct
 import time
 
-import tvm.ffi
+import tvm_ffi
+from tvm_ffi import DLDeviceType
+
+import tvm.runtime
 from tvm.base import TVMError
 from tvm.contrib import utils
-from tvm.runtime import ndarray as nd
-from tvm.runtime import Device
 
 from . import _ffi_api, base, server
 
@@ -55,7 +56,7 @@ class RPCSession(object):
         --------
         tvm.runtime.system_lib
         """
-        return self.get_function("runtime.SystemLib")()
+        return self.get_function("ffi.SystemLib")()
 
     def get_function(self, name):
         """Get function from the session.
@@ -86,9 +87,9 @@ class RPCSession(object):
         dev: Device
             The corresponding encoded remote device.
         """
-        dev = nd.device(dev_type, dev_id)
+        dev = tvm.runtime.device(dev_type, dev_id)
         encode = (self._tbl_index + 1) * base.RPC_SESS_MASK
-        dev = nd.device(dev.device_type + encode, dev.device_id)
+        dev = tvm.runtime.device(dev.dlpack_device_type() + encode, dev.index)
         dev._rpc_sess = self
         return dev
 
@@ -216,39 +217,39 @@ class RPCSession(object):
 
     def cpu(self, dev_id=0):
         """Construct CPU device."""
-        return self.device(Device.kDLCPU, dev_id)
+        return self.device(DLDeviceType.kDLCPU, dev_id)
 
     def cuda(self, dev_id=0):
         """Construct CUDA GPU device."""
-        return self.device(Device.kDLCUDA, dev_id)
+        return self.device(DLDeviceType.kDLCUDA, dev_id)
 
     def cl(self, dev_id=0):
         """Construct OpenCL device."""
-        return self.device(Device.kDLOpenCL, dev_id)
+        return self.device(DLDeviceType.kDLOpenCL, dev_id)
 
     def vulkan(self, dev_id=0):
         """Construct Vulkan device."""
-        return self.device(Device.kDLVulkan, dev_id)
+        return self.device(DLDeviceType.kDLVulkan, dev_id)
 
     def metal(self, dev_id=0):
         """Construct Metal device."""
-        return self.device(Device.kDLMetal, dev_id)
+        return self.device(DLDeviceType.kDLMetal, dev_id)
 
     def rocm(self, dev_id=0):
         """Construct ROCm device."""
-        return self.device(Device.kDLROCM, dev_id)
+        return self.device(DLDeviceType.kDLROCM, dev_id)
 
     def ext_dev(self, dev_id=0):
         """Construct extension device."""
-        return self.device(Device.kDLExtDev, dev_id)
+        return self.device(DLDeviceType.kDLExtDev, dev_id)
 
     def hexagon(self, dev_id=0):
         """Construct Hexagon device."""
-        return self.device(Device.kDLHexagon, dev_id)
+        return self.device(DLDeviceType.kDLHexagon, dev_id)
 
     def webgpu(self, dev_id=0):
         """Construct WebGPU device."""
-        return self.device(Device.kDLWebGPU, dev_id)
+        return self.device(DLDeviceType.kDLWebGPU, dev_id)
 
 
 class LocalSession(RPCSession):
@@ -263,7 +264,7 @@ class LocalSession(RPCSession):
         RPCSession.__init__(self, _ffi_api.LocalSession())
 
 
-@tvm.ffi.register_func("rpc.PopenSession")
+@tvm_ffi.register_global_func("rpc.PopenSession")
 def _popen_session(binary):
     temp = utils.tempdir()
 
@@ -380,7 +381,12 @@ class TrackerSession(object):
         return res
 
     def request(
-        self, key, priority=1, session_timeout=0, max_retry=5, session_constructor_args=None
+        self,
+        key,
+        priority=1,
+        session_timeout=0,
+        max_retry=5,
+        session_constructor_args=None,
     ):
         """Request a new connection from the tracker.
 
@@ -474,7 +480,12 @@ class TrackerSession(object):
 
 
 def connect(
-    url, port, key="", session_timeout=0, session_constructor_args=None, enable_logging=False
+    url,
+    port,
+    key="",
+    session_timeout=0,
+    session_constructor_args=None,
+    enable_logging=False,
 ):
     """Connect to RPC Server
 

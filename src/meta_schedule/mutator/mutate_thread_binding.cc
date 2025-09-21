@@ -37,9 +37,8 @@ class MutateThreadBindingNode : public MutatorNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MutateThreadBindingNode>();
   }
-
-  static constexpr const char* _type_key = "meta_schedule.MutateThreadBinding";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MutateThreadBindingNode, MutatorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MutateThreadBinding", MutateThreadBindingNode,
+                                    MutatorNode);
 
  public:
   // Inherit from `MutatorNode`
@@ -47,10 +46,10 @@ class MutateThreadBindingNode : public MutatorNode {
     this->json_mod_ = SaveJSON(context->mod.value());
   }
   // Inherit from `MutatorNode`
-  Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
+  ffi::Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
   // Inherit from `MutatorNode`
   Mutator Clone() const final {
-    ObjectPtr<MutateThreadBindingNode> n = make_object<MutateThreadBindingNode>(*this);
+    ObjectPtr<MutateThreadBindingNode> n = ffi::make_object<MutateThreadBindingNode>(*this);
     return Mutator(n);
   }
 
@@ -111,7 +110,7 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
     }
     ICHECK_EQ(inst->inputs.size(), 1);
     ICHECK_EQ(inst->attrs.size(), 1);
-    if (Downcast<String>(inst->attrs[0]) != "threadIdx.x") return false;
+    if (Downcast<ffi::String>(inst->attrs[0]) != "threadIdx.x") return false;
 
     return sampled_split_insts.find(Downcast<tir::LoopRV>(inst->inputs[0]).get()) !=
            sampled_split_insts.end();
@@ -143,17 +142,17 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
     ICHECK(sample_it != sample_insts.end());
     const InstructionNode* sample_inst = sample_it->second;
 
-    int decision = Downcast<IntImm>(trace->decisions[GetRef<Instruction>(sample_inst)])->value;
+    int decision = Downcast<IntImm>(trace->decisions[ffi::GetRef<Instruction>(sample_inst)])->value;
 
     std::vector<double> probs =
-        support::AsVector<FloatImm, double>(Downcast<Array<FloatImm>>(sample_inst->attrs[1]));
+        support::AsVector<FloatImm, double>(Downcast<ffi::Array<FloatImm>>(sample_inst->attrs[1]));
 
-    candidates.emplace_back(GetRef<Instruction>(sample_inst), probs, decision);
+    candidates.emplace_back(ffi::GetRef<Instruction>(sample_inst), probs, decision);
   }
   return candidates;
 }
 
-Optional<Trace> MutateThreadBindingNode::Apply(const Trace& trace, TRandState* rand_state) {
+ffi::Optional<Trace> MutateThreadBindingNode::Apply(const Trace& trace, TRandState* rand_state) {
   std::vector<Candidate> candidates = FindCandidates(trace, rand_state);
   if (candidates.empty()) {
     return std::nullopt;
@@ -168,14 +167,16 @@ Optional<Trace> MutateThreadBindingNode::Apply(const Trace& trace, TRandState* r
   return trace->WithDecision(candidate.inst, Integer(result), /*remove_postproc=*/true);
 }
 
-Mutator Mutator::MutateThreadBinding() { return Mutator(make_object<MutateThreadBindingNode>()); }
+Mutator Mutator::MutateThreadBinding() {
+  return Mutator(ffi::make_object<MutateThreadBindingNode>());
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({ MutateThreadBindingNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { MutateThreadBindingNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.MutateThreadBinding", Mutator::MutateThreadBinding);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

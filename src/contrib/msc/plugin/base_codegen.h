@@ -66,13 +66,15 @@ class BasePluginCodeGen {
   virtual ~BasePluginCodeGen() = default;
 
   /*! \brief Get plugin sources*/
-  virtual const Map<String, String> GetBuildSources(const std::string& print_options = "") {
-    Map<String, String> sources;
+  virtual const ffi::Map<ffi::String, ffi::String> GetBuildSources(
+      const std::string& print_options = "") {
+    ffi::Map<ffi::String, ffi::String> sources;
     // plugin sources
     for (const auto& name : ListPluginNames()) {
       const auto& plugin = GetPlugin(name);
       // attr declare
-      const String& attr_macro = "TVM_CONTRIB_MSC_" + StringUtils::Upper(plugin->name) + "_ATTR_H_";
+      const ffi::String& attr_macro =
+          "TVM_CONTRIB_MSC_" + StringUtils::Upper(plugin->name) + "_ATTR_H_";
       this->stack_.line("#ifndef " + attr_macro)
           .line("#define " + attr_macro)
           .line()
@@ -90,7 +92,8 @@ class BasePluginCodeGen {
       EndNamespace();
       sources.Set(plugin->name + "_attr.cc", ToCppSource(print_options));
       // op decalre
-      const String& op_macro = "TVM_CONTRIB_MSC_" + StringUtils::Upper(plugin->name) + "_OP_H_";
+      const ffi::String& op_macro =
+          "TVM_CONTRIB_MSC_" + StringUtils::Upper(plugin->name) + "_OP_H_";
       this->stack_.line("#ifndef " + op_macro).line("#define " + op_macro).line();
       CodeGenOpHeader(plugin);
       StartNamespace();
@@ -114,7 +117,7 @@ class BasePluginCodeGen {
       }
     }
     // cmakelists
-    std::set<String> devices;
+    std::set<ffi::String> devices;
     for (const auto& name : ListPluginNames()) {
       const auto& plugin = GetPlugin(name);
       for (const auto& pair : plugin->externs) {
@@ -129,8 +132,9 @@ class BasePluginCodeGen {
   }
 
   /*! \brief Get manager sources*/
-  virtual const Map<String, String> GetManagerSources(const std::string& print_options = "") {
-    Map<String, String> sources;
+  virtual const ffi::Map<ffi::String, ffi::String> GetManagerSources(
+      const std::string& print_options = "") {
+    ffi::Map<ffi::String, ffi::String> sources;
     CodeGenManagerDepends();
     this->stack_.class_def("PluginManager(object)").class_start();
     CodeGenManagerMethods();
@@ -138,7 +142,7 @@ class BasePluginCodeGen {
       CodeGenOpBuilder(GetPlugin(name));
     }
     if (this->config()->need_convert) {
-      Map<Plugin, String> symbols;
+      ffi::Map<Plugin, ffi::String> symbols;
       this->stack_.func_def("get_convert_map")
           .func_decorator("classmethod")
           .func_arg("cls", "object")
@@ -165,7 +169,7 @@ class BasePluginCodeGen {
   /*! \brief Header of plugin files*/
   virtual void CodeGenOpHeader(const Plugin& plugin) {
     this->stack_.line("#include \"" + plugin->name + "_attr.h\"");
-    std::set<String> include_headers;
+    std::set<ffi::String> include_headers;
     for (const auto& pair : plugin->externs) {
       if (pair.second->header.size() > 0 && !include_headers.count(pair.second->header)) {
         this->stack_.line("#include \"" + pair.second->header + "\"");
@@ -194,7 +198,8 @@ class BasePluginCodeGen {
 
   /*! \brief Codegen safe call extern*/
   void CodeGenSafeCall(const PluginExtern& extern_func,
-                       const Array<String>& call_args = Array<String>(), const String& ret = "") {
+                       const ffi::Array<ffi::String>& call_args = ffi::Array<ffi::String>(),
+                       const ffi::String& ret = "") {
     this->stack_.scope_start("try {").func_call(extern_func->name, ret);
     for (const auto& arg : call_args) {
       this->stack_.call_arg(arg);
@@ -244,14 +249,15 @@ class BasePluginCodeGen {
   virtual void CodeGenOpRuntime(const Plugin& plugin) {}
 
   /*! \brief Codegen cmake file*/
-  virtual void CodeGenCmake(const std::set<String>& devices) {
+  virtual void CodeGenCmake(const std::set<ffi::String>& devices) {
     CodeGenPreCmake(devices);
     CodeGenPostCmake(devices);
   }
 
   /*! \brief Codegen cmake start*/
-  void CodeGenPreCmake(const std::set<String>& devices,
-                       const Map<String, String>& extra_flags = Map<String, String>()) {
+  void CodeGenPreCmake(const std::set<ffi::String>& devices,
+                       const ffi::Map<ffi::String, ffi::String>& extra_flags =
+                           ffi::Map<ffi::String, ffi::String>()) {
     const auto& p_name = this->config()->project_name;
     stack_.line("cmake_minimum_required(VERSION " + this->config()->cmake_version + " FATAL_ERROR)")
         .line("project(" + p_name + ")");
@@ -277,9 +283,9 @@ class BasePluginCodeGen {
   }
 
   /*! \brief Codegen cmake end*/
-  void CodeGenPostCmake(const std::set<String>& devices,
-                        const Array<String>& extra_includes = Array<String>(),
-                        const Array<String>& extra_libs = Array<String>()) {
+  void CodeGenPostCmake(const std::set<ffi::String>& devices,
+                        const ffi::Array<ffi::String>& extra_includes = ffi::Array<ffi::String>(),
+                        const ffi::Array<ffi::String>& extra_libs = ffi::Array<ffi::String>()) {
     const auto& p_name = this->config()->project_name;
     stack_.line()
         .line("file(GLOB_RECURSE PLUGIN_HEADERS src/*.h)")
@@ -293,7 +299,7 @@ class BasePluginCodeGen {
       stack_.line("add_library(" + p_name + " SHARED ${PLUGIN_CC_SRCS})");
     }
     // define includes
-    String includes = StringUtils::Join(extra_includes, " ");
+    ffi::String includes = StringUtils::Join(extra_includes, " ");
     if (this->config()->includes.size() > 0) {
       includes = includes + " " + StringUtils::Join(this->config()->includes, " ");
     }
@@ -301,7 +307,7 @@ class BasePluginCodeGen {
       stack_.line("target_include_directories(" + p_name + " PUBLIC " + includes + ")");
     }
     // define libs
-    String link_libs = StringUtils::Join(extra_libs, " ");
+    ffi::String link_libs = StringUtils::Join(extra_libs, " ");
     const auto& libs = StringUtils::Join(this->config()->libs, " ");
     if (libs.size() > 0) {
       link_libs = link_libs + " " + libs;
@@ -496,10 +502,10 @@ class BasePluginCodeGen {
   }
 
   /*! \brief Codegen convert function for plugin*/
-  virtual const String CodeGenOpConvert(const Plugin& plugin) { return plugin->name; }
+  virtual const ffi::String CodeGenOpConvert(const Plugin& plugin) { return plugin->name; }
 
   /*! \brief Change code stack to cpp source*/
-  const String ToCppSource(const std::string& print_options = "") {
+  const ffi::String ToCppSource(const std::string& print_options = "") {
     CppPrinter printer(print_options);
     for (const auto& d : this->stack_.GetDocs()) {
       printer.Append(d);
@@ -509,7 +515,7 @@ class BasePluginCodeGen {
   }
 
   /*! \brief Change code stack to python source*/
-  const String ToPySource(const std::string& print_options = "") {
+  const ffi::String ToPySource(const std::string& print_options = "") {
     PythonPrinter printer(print_options);
     for (const auto& d : this->stack_.GetDocs()) {
       printer.Append(d);
@@ -518,23 +524,23 @@ class BasePluginCodeGen {
     return printer.GetString();
   }
 
-  std::vector<std::unordered_map<int, String>> GetDtypeMatrix(const Plugin& plugin) {
-    std::vector<std::unordered_map<int, String>> matrix;
+  std::vector<std::unordered_map<int, ffi::String>> GetDtypeMatrix(const Plugin& plugin) {
+    std::vector<std::unordered_map<int, ffi::String>> matrix;
     if (plugin->support_dtypes.size() == 0) {
-      std::unordered_map<int, String> dtypes;
+      std::unordered_map<int, ffi::String> dtypes;
       for (size_t i = 0; i < plugin->inputs.size(); i++) {
         dtypes[i] = plugin->inputs[i]->dtype;
       }
       matrix.push_back(dtypes);
     } else {
-      Array<String> templates;
-      Array<Array<String>> condidates;
+      ffi::Array<ffi::String> templates;
+      ffi::Array<ffi::Array<ffi::String>> condidates;
       for (const auto& pair : plugin->support_dtypes) {
         templates.push_back(pair.first);
         condidates.push_back(pair.second);
       }
       for (const auto& t_dtypes : ArrayUtils::Product(condidates)) {
-        std::unordered_map<int, String> dtypes;
+        std::unordered_map<int, ffi::String> dtypes;
         for (size_t i = 0; i < templates.size(); i++) {
           for (size_t in_idx = 0; in_idx < plugin->inputs.size(); in_idx++) {
             if (plugin->inputs[in_idx]->dtype == templates[i]) {
@@ -554,11 +560,11 @@ class BasePluginCodeGen {
     return matrix;
   }
 
-  const Map<String, String> GetTensorDtypes(const Plugin& plugin,
-                                            const std::unordered_map<int, String>& dtypes) {
-    Map<String, String> tensor_dtypes;
+  const ffi::Map<ffi::String, ffi::String> GetTensorDtypes(
+      const Plugin& plugin, const std::unordered_map<int, ffi::String>& dtypes) {
+    ffi::Map<ffi::String, ffi::String> tensor_dtypes;
     for (const auto& pair : dtypes) {
-      const String& ref_dtype = plugin->inputs[pair.first]->dtype;
+      const ffi::String& ref_dtype = plugin->inputs[pair.first]->dtype;
       for (const auto& t : plugin->inputs) {
         if (t->dtype == ref_dtype) {
           tensor_dtypes.Set(t->name, pair.second);
@@ -579,8 +585,8 @@ class BasePluginCodeGen {
   }
 
   /*! \brief Change plugin comment in python*/
-  const String GetPyComment(const Plugin& plugin) {
-    String comment = "Python wrapper for " + plugin->name + "\nInputs\n------";
+  const ffi::String GetPyComment(const Plugin& plugin) {
+    ffi::String comment = "Python wrapper for " + plugin->name + "\nInputs\n------";
     for (const auto& t : plugin->inputs) {
       comment = comment + "\n" + t->name + ": " + t->dtype + "\n  " + t->describe;
     }
@@ -598,16 +604,16 @@ class BasePluginCodeGen {
   }
 
   /*! \brief Get class name for meta attrs*/
-  const String MetaAttrCls(const Plugin& plugin) const { return plugin->name + "MetaAttr"; }
+  const ffi::String MetaAttrCls(const Plugin& plugin) const { return plugin->name + "MetaAttr"; }
 
   /*! \brief Get converter name for plugin*/
-  const String ConverterName(const Plugin& plugin) const { return plugin->name + "Converter"; }
+  const ffi::String ConverterName(const Plugin& plugin) const { return plugin->name + "Converter"; }
 
   /*! \brief Check if the type is list type. */
-  bool IsListType(const String& type) { return StringUtils::StartsWith(type, "list"); }
+  bool IsListType(const ffi::String& type) { return StringUtils::StartsWith(type, "list"); }
 
   /*! \brief Get type of element. */
-  const String GetEleType(const String& type) {
+  const ffi::String GetEleType(const ffi::String& type) {
     if (!IsListType(type)) {
       return "";
     }
@@ -615,7 +621,7 @@ class BasePluginCodeGen {
   }
 
   /*! \brief Type name in cpp*/
-  virtual const String ToCppType(const String& type) {
+  virtual const ffi::String ToCppType(const ffi::String& type) {
     if (IsListType(type)) {
       const auto& ele_type = GetEleType(type);
       return "std::vector<" + ToCppType(ele_type) + ">";
@@ -636,7 +642,7 @@ class BasePluginCodeGen {
   }
 
   /*! \brief Type name in python*/
-  virtual const String ToPyType(const String& type) {
+  virtual const ffi::String ToPyType(const ffi::String& type) {
     if (IsListType(type)) {
       const auto& ele_type = GetEleType(type);
       return "List[" + ToPyType(ele_type) + "]";

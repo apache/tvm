@@ -196,15 +196,15 @@ void CopyFile(const std::string& src_file_name, const std::string& dest_file_nam
                << " dest='" << dest_file_name << "'";
 }
 
-Map<String, NDArray> LoadParams(const std::string& param_blob) {
+ffi::Map<ffi::String, Tensor> LoadParams(const std::string& param_blob) {
   dmlc::MemoryStringStream strm(const_cast<std::string*>(&param_blob));
   return LoadParams(&strm);
 }
-Map<String, NDArray> LoadParams(dmlc::Stream* strm) {
-  Map<String, NDArray> params;
+ffi::Map<ffi::String, Tensor> LoadParams(dmlc::Stream* strm) {
+  ffi::Map<ffi::String, Tensor> params;
   uint64_t header, reserved;
   ICHECK(strm->Read(&header)) << "Invalid parameters file format";
-  ICHECK(header == kTVMNDArrayListMagic) << "Invalid parameters file format";
+  ICHECK(header == kTVMTensorListMagic) << "Invalid parameters file format";
   ICHECK(strm->Read(&reserved)) << "Invalid parameters file format";
 
   std::vector<std::string> names;
@@ -214,15 +214,15 @@ Map<String, NDArray> LoadParams(dmlc::Stream* strm) {
   size_t size = static_cast<size_t>(sz);
   ICHECK(size == names.size()) << "Invalid parameters file format";
   for (size_t i = 0; i < size; ++i) {
-    // The data_entry is allocated on device, NDArray.load always load the array into CPU.
-    NDArray temp;
+    // The data_entry is allocated on device, Tensor.load always load the array into CPU.
+    Tensor temp;
     temp.Load(strm);
     params.Set(names[i], temp);
   }
   return params;
 }
 
-void SaveParams(dmlc::Stream* strm, const Map<String, NDArray>& params) {
+void SaveParams(dmlc::Stream* strm, const ffi::Map<ffi::String, Tensor>& params) {
   std::vector<std::string> names;
   std::vector<const DLTensor*> arrays;
   for (auto& p : params) {
@@ -230,7 +230,7 @@ void SaveParams(dmlc::Stream* strm, const Map<String, NDArray>& params) {
     arrays.push_back(p.second.operator->());
   }
 
-  uint64_t header = kTVMNDArrayListMagic, reserved = 0;
+  uint64_t header = kTVMTensorListMagic, reserved = 0;
   strm->Write(header);
   strm->Write(reserved);
   strm->Write(names);
@@ -243,7 +243,7 @@ void SaveParams(dmlc::Stream* strm, const Map<String, NDArray>& params) {
   }
 }
 
-std::string SaveParams(const Map<String, NDArray>& params) {
+std::string SaveParams(const ffi::Map<ffi::String, Tensor>& params) {
   std::string bytes;
   dmlc::MemoryStringStream strm(&bytes);
   dmlc::Stream* fo = &strm;
@@ -251,25 +251,25 @@ std::string SaveParams(const Map<String, NDArray>& params) {
   return bytes;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.SaveParams",
-           [](const Map<String, NDArray>& params) {
+           [](const ffi::Map<ffi::String, Tensor>& params) {
              std::string s = ::tvm::runtime::SaveParams(params);
              return ffi::Bytes(std::move(s));
            })
       .def("runtime.SaveParamsToFile",
-           [](const Map<String, NDArray>& params, const String& path) {
+           [](const ffi::Map<ffi::String, Tensor>& params, const ffi::String& path) {
              tvm::runtime::SimpleBinaryFileStream strm(path, "wb");
              SaveParams(&strm, params);
            })
       .def("runtime.LoadParams", [](const ffi::Bytes& s) { return ::tvm::runtime::LoadParams(s); })
-      .def("runtime.LoadParamsFromFile", [](const String& path) {
+      .def("runtime.LoadParamsFromFile", [](const ffi::String& path) {
         tvm::runtime::SimpleBinaryFileStream strm(path, "rb");
         return LoadParams(&strm);
       });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

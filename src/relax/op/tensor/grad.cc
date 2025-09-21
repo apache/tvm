@@ -37,10 +37,10 @@ Expr no_grad(Expr input) {
   return Call(op, {std::move(input)}, {}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.grad.no_grad", no_grad);
-});
+}
 
 StructInfo InferStructInfoNoGrad(const Call& call, const BlockBuilder& ctx) {
   return GetStructInfo(call->args[0]);
@@ -58,10 +58,10 @@ Expr start_checkpoint(Expr input) {
   return Call(op, {std::move(input)}, {}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.grad.start_checkpoint", start_checkpoint);
-});
+}
 
 StructInfo InferStructInfoStartCheckpoint(const Call& call, const BlockBuilder& ctx) {
   if (!call->args[0].as<VarNode>()) {
@@ -83,10 +83,10 @@ Expr end_checkpoint(Expr input) {
   return Call(op, {std::move(input)}, {}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.grad.end_checkpoint", end_checkpoint);
-});
+}
 
 StructInfo InferStructInfoEndCheckpoint(const Call& call, const BlockBuilder& ctx) {
   if (!call->args[0].as<VarNode>()) {
@@ -103,9 +103,9 @@ TVM_REGISTER_OP("relax.grad.end_checkpoint")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.grad.nll_loss_backward */
-Expr nll_loss_backward(Expr output_grad, Expr predictions, Expr targets, Optional<Expr> weights,
-                       String reduction, int ignore_index) {
-  ObjectPtr<NLLLossAttrs> attrs = make_object<NLLLossAttrs>();
+Expr nll_loss_backward(Expr output_grad, Expr predictions, Expr targets,
+                       ffi::Optional<Expr> weights, ffi::String reduction, int ignore_index) {
+  ObjectPtr<NLLLossAttrs> attrs = ffi::make_object<NLLLossAttrs>();
 
   attrs->reduction = reduction;
   attrs->ignore_index = ignore_index;
@@ -121,10 +121,10 @@ Expr nll_loss_backward(Expr output_grad, Expr predictions, Expr targets, Optiona
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.grad.nll_loss_backward", nll_loss_backward);
-});
+}
 
 StructInfo InferStructInfoNLLLossBackward(const Call& call, const BlockBuilder& ctx) {
   return GetStructInfo(call->args[1]);
@@ -136,16 +136,16 @@ TVM_REGISTER_OP("relax.grad.nll_loss_backward")
     .add_argument("output_grad", "Tensor", "The output gradient.")
     .add_argument("predictions", "Tensor", "The prediction tensor.")
     .add_argument("targets", "Tensor", "The target tensor.")
-    .add_argument("weights", "Optional<Tensor>", "The weight of each target values.")
+    .add_argument("weights", "ffi::Optional<Tensor>", "The weight of each target values.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNLLLossBackward)
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.grad.max_pool2d_backward */
-Expr max_pool2d_backward(Expr output_grad, Expr data, Array<IntImm> pool_size,
-                         Array<IntImm> strides, Array<IntImm> padding, Array<IntImm> dilation,
-                         bool ceil_mode, bool count_include_pad, String layout,
-                         Optional<String> out_layout) {
-  auto attrs = make_object<Pool2DAttrs>();
+Expr max_pool2d_backward(Expr output_grad, Expr data, ffi::Array<IntImm> pool_size,
+                         ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
+                         ffi::Array<IntImm> dilation, bool ceil_mode, bool count_include_pad,
+                         ffi::String layout, ffi::Optional<ffi::String> out_layout) {
+  auto attrs = ffi::make_object<Pool2DAttrs>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = ConvertIntImmToInt64(strides);
   attrs->padding = ConvertIntImmToInt64(padding);
@@ -158,10 +158,10 @@ Expr max_pool2d_backward(Expr output_grad, Expr data, Array<IntImm> pool_size,
   return Call(op, {std::move(output_grad), std::move(data)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.grad.max_pool2d_backward", max_pool2d_backward);
-});
+}
 
 StructInfo InferStructInfoMaxPool2DBackward(const Call& call, const BlockBuilder& ctx) {
   return GetStructInfo(call->args[1]);
@@ -176,11 +176,11 @@ TVM_REGISTER_OP("relax.grad.max_pool2d_backward")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.grad.avg_pool2d_backward */
-Expr avg_pool2d_backward(Expr output_grad, Expr data, Array<IntImm> pool_size,
-                         Array<IntImm> strides, Array<IntImm> padding, Array<IntImm> dilation,
-                         bool ceil_mode, bool count_include_pad, String layout,
-                         Optional<String> out_layout) {
-  auto attrs = make_object<Pool2DAttrs>();
+Expr avg_pool2d_backward(Expr output_grad, Expr data, ffi::Array<IntImm> pool_size,
+                         ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
+                         ffi::Array<IntImm> dilation, bool ceil_mode, bool count_include_pad,
+                         ffi::String layout, ffi::Optional<ffi::String> out_layout) {
+  auto attrs = ffi::make_object<Pool2DAttrs>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = ConvertIntImmToInt64(strides);
   attrs->padding = ConvertIntImmToInt64(padding);
@@ -193,10 +193,10 @@ Expr avg_pool2d_backward(Expr output_grad, Expr data, Array<IntImm> pool_size,
   return Call(op, {std::move(output_grad), std::move(data)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.grad.avg_pool2d_backward", avg_pool2d_backward);
-});
+}
 
 StructInfo InferStructInfoAvgPool2DBackward(const Call& call, const BlockBuilder& ctx) {
   return GetStructInfo(call->args[1]);
@@ -212,18 +212,18 @@ TVM_REGISTER_OP("relax.grad.avg_pool2d_backward")
 
 /* relax.grad.take_backward */
 
-Expr take_backward(Expr output_grad, Expr x, Expr indices, Optional<int64_t> axis) {
-  ObjectPtr<TakeAttrs> attrs = make_object<TakeAttrs>();
+Expr take_backward(Expr output_grad, Expr x, Expr indices, ffi::Optional<int64_t> axis) {
+  ObjectPtr<TakeAttrs> attrs = ffi::make_object<TakeAttrs>();
   attrs->axis = std::move(axis);
 
   static const Op& op = Op::Get("relax.grad.take_backward");
   return Call(op, {std::move(output_grad), std::move(x), std::move(indices)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.grad.take_backward", take_backward);
-});
+}
 
 StructInfo InferStructInfoTakeBackward(const Call& call, const BlockBuilder& ctx) {
   return GetStructInfo(call->args[1]);

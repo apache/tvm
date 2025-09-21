@@ -73,8 +73,8 @@ def test_add_pipeline():
         dev = tvm.device(target, 0)
         # launch the kernel.
         n = nn
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
+        c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
         f(a, c)
         tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
@@ -97,7 +97,7 @@ def test_pack_buffer_simple():
     # Create IRModule directly
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, C]))
 
-    @tvm.register_func
+    @tvm.register_global_func
     def my_extern_array_func1(aa, bb):
         aa.copyto(bb)
 
@@ -109,8 +109,8 @@ def test_pack_buffer_simple():
         dev = tvm.cpu(0)
         # launch the kernel.
         n = nn
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
+        c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
 
         f(a, c)
         tvm.testing.assert_allclose(c.numpy(), a.numpy())
@@ -140,10 +140,10 @@ def test_pack_buffer_intermediate():
         dev = tvm.cpu(0)
         # launch the kernel.
         n = nn
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
+        c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
 
-        @tvm.register_func
+        @tvm.register_global_func
         def my_extern_array_func2(aa, bb):
             assert aa.shape == a.shape
             tvm.testing.assert_allclose(aa.numpy(), a.numpy() + 1)

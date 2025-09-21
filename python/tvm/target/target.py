@@ -20,8 +20,8 @@ import re
 import warnings
 from typing import Union
 
-import tvm.ffi
-from tvm.ffi import register_func as _register_func
+import tvm_ffi
+from tvm_ffi import register_global_func as _register_global_func
 from tvm.runtime import Device
 from tvm.runtime import Object, convert
 from tvm.runtime.container import String
@@ -30,7 +30,7 @@ from tvm.ir.container import Map, Array
 from . import _ffi_api
 
 
-@tvm.ffi.register_object("target.TargetKind")
+@tvm_ffi.register_object("target.TargetKind")
 class TargetKind(Object):
     """Kind of a compilation target"""
 
@@ -53,7 +53,7 @@ class TargetFeatures:
         return _ffi_api.TargetGetFeature(self.target, name)
 
 
-@tvm.ffi.register_object("target.Target")
+@tvm_ffi.register_object("target.Target")
 class Target(Object):
     """Target device information, use through TVM API.
 
@@ -637,6 +637,14 @@ def riscv_cpu(model="sifive-u54", options=None):
             "-mabi=lp64d",
             # cc: riscv64-unknown-linux-gnu-g++ -march=rv64gc -mabi=lp64d -mcpu=sifive-u74
         ],
+        "licheepi3a": [
+            "-num-cores=8",
+            "-mtriple=riscv64-unknown-linux-gnu",
+            "-mcpu=spacemit-x60",
+            "-mfloat-abi=hard",
+            "-mabi=lp64d",
+            # cc: riscv64-unknown-linux-gnu-g++ -march=rv64gcv -mabi=lp64d -mcpu=spacemit-x60
+        ],
     }
     pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
 
@@ -853,7 +861,7 @@ def create(target):
     return Target(target)
 
 
-@_register_func("target._load_config_dict")
+@_register_global_func("target._load_config_dict")
 def _load_config_dict(config_dict_str):
     try:
         config = json.loads(config_dict_str)

@@ -54,7 +54,7 @@ inline Tensor flatten(const Tensor& x, std::string name = "tensor", std::string 
     dim = dim * ishape[i];
   }
 
-  Array<PrimExpr> oshape({ishape[0], dim});
+  ffi::Array<PrimExpr> oshape({ishape[0], dim});
 
   std::vector<PrimExpr> extra_shape;
   for (size_t i = 1; i < ishape.size(); ++i) {

@@ -29,7 +29,7 @@ namespace tvm {
 namespace contrib {
 namespace msc {
 
-const Array<Doc> RelaxOpCode::GetDocs() {
+const ffi::Array<Doc> RelaxOpCode::GetDocs() {
   stack_.Config(this);
   CodeGenBuild();
   bool emit_var = true;
@@ -43,14 +43,14 @@ const Array<Doc> RelaxOpCode::GetDocs() {
   return stack_.GetDocs();
 }
 
-void RelaxOpCode::BuilderEmit(const String& ret, const String& name) {
+void RelaxOpCode::BuilderEmit(const ffi::String& ret, const ffi::String& name) {
   stack_.func_call("block_builder.emit", ret).call_arg(ret);
   if (name.size() > 0) {
     stack_.call_arg(DocUtils::ToStr(name), "name_hint");
   }
 }
 
-const ExprDoc RelaxOpCode::GetOutDtype(const String& key, int input_idx) {
+const ExprDoc RelaxOpCode::GetOutDtype(const ffi::String& key, int input_idx) {
   if (config()->use_tools && input_idx >= 0 &&
       node()->inputs.size() > static_cast<size_t>(input_idx)) {
     return DocUtils::ToDoc(IdxInput(input_idx) + ".struct_info.dtype");
@@ -62,7 +62,7 @@ const ExprDoc RelaxOpCode::GetOutDtype(const String& key, int input_idx) {
   return DocUtils::ToStr(out_dtype);
 }
 
-const std::vector<int> RelaxOpCode::GetAxes(const String& key) {
+const std::vector<int> RelaxOpCode::GetAxes(const ffi::String& key) {
   std::vector<int> axes;
   int axis;
   if (!node()->GetAttr(key, &axes) && node()->GetAttr(key, &axis)) {
@@ -73,7 +73,7 @@ const std::vector<int> RelaxOpCode::GetAxes(const String& key) {
 
 #define RELAX_OP_CODEGEN_METHODS(TypeName) \
  public:                                   \
-  TypeName(const String& func_name) : RelaxOpCode(func_name) {}
+  TypeName(const ffi::String& func_name) : RelaxOpCode(func_name) {}
 
 class RelaxAdaptivePool2dCodeGen : public RelaxOpCode {
   RELAX_OP_CODEGEN_METHODS(RelaxAdaptivePool2dCodeGen)
@@ -101,7 +101,7 @@ class RelaxAttentionCodeGen : public RelaxOpCode {
  protected:
   void CodeGenBuild() final {
     for (size_t i = 0; i < 3; i++) {
-      const String& axes_key = i == 0 ? "axes" : "axes_" + std::to_string(i);
+      const ffi::String& axes_key = i == 0 ? "axes" : "axes_" + std::to_string(i);
       stack_.op_call("relax.op.permute_dims", IdxInput(i))
           .op_input_arg(i)
           .op_list_arg<int>(axes_key, "axes");
@@ -129,7 +129,7 @@ class RelaxAxesCodeGen : public RelaxOpCode {
 
  protected:
   void CodeGenBuild() final {
-    const String& key = node()->HasAttr("axes") ? "axes" : "axis";
+    const ffi::String& key = node()->HasAttr("axes") ? "axes" : "axis";
     stack_.op_call().op_input_arg().call_arg(DocUtils::ToList(GetAxes(key)), key);
   }
 };
@@ -210,7 +210,7 @@ class RelaxBiasAddCodeGen : public RelaxOpCode {
  protected:
   void CodeGenBuild() final {
     int axis = CommonUtils::GetIndex(node()->GetTypeAttr<int>("axis"), node()->OutputAt(0)->Ndim());
-    Array<Integer> expand_shape;
+    ffi::Array<Integer> expand_shape;
     for (size_t i = 0; i < node()->InputAt(0)->Ndim(); i++) {
       if (i == static_cast<size_t>(axis)) {
         expand_shape.push_back(node()->InputAt(0)->DimAt(i));
@@ -263,7 +263,7 @@ class RelaxConstantCodeGen : public RelaxOpCode {
 
 class RelaxConvCodeGen : public RelaxOpCode {
  public:
-  RelaxConvCodeGen(const String& func_name, bool use_bias)
+  RelaxConvCodeGen(const ffi::String& func_name, bool use_bias)
       : RelaxOpCode(func_name), use_bias_(use_bias) {}
 
  protected:
@@ -286,7 +286,7 @@ class RelaxConvCodeGen : public RelaxOpCode {
             << "out_layout or data_layout should be given, get " << node();
       }
       const auto& out_layout = tir::Layout(out_layout_str);
-      Array<Integer> expand_shape;
+      ffi::Array<Integer> expand_shape;
       for (size_t i = 0; i < node()->OutputAt(0)->Ndim(); i++) {
         if (out_layout[i].name() == "C") {
           expand_shape.push_back(node()->OutputAt(0)->DimAt(i));
@@ -335,7 +335,7 @@ class RelaxEinsumCodeGen : public RelaxOpCode {
 
  protected:
   void CodeGenBuild() final {
-    const String& key = config()->from_relay ? "equation" : "subscripts";
+    const ffi::String& key = config()->from_relay ? "equation" : "subscripts";
     stack_.op_call().op_inputs_arg().op_str_arg(key, "subscripts");
   }
 };
@@ -480,12 +480,12 @@ class RelaxPadCodeGen : public RelaxOpCode {
 
  protected:
   void CodeGenBuild() final {
-    Array<String> pad_width;
+    ffi::Array<ffi::String> pad_width;
     const auto& attr_pad_width = node()->GetTypeArrayAttr<int>("pad_width");
     ICHECK(attr_pad_width.size() % 2 == 0) << "pad_width should be multiple of 2, get " << node();
     for (size_t i = 0; i < attr_pad_width.size(); i += 2) {
-      const String& cur_pad = "[" + std::to_string(attr_pad_width[i]) + ", " +
-                              std::to_string(attr_pad_width[i + 1]) + "]";
+      const ffi::String& cur_pad = "[" + std::to_string(attr_pad_width[i]) + ", " +
+                                   std::to_string(attr_pad_width[i + 1]) + "]";
       pad_width.push_back(cur_pad);
     }
     stack_.op_call()
@@ -530,7 +530,7 @@ class RelaxPermuteDimsCodeGen : public RelaxOpCode {
 
 class RelaxReduceAxisCodeGen : public RelaxOpCode {
  public:
-  RelaxReduceAxisCodeGen(const String& func_name, bool as_list)
+  RelaxReduceAxisCodeGen(const ffi::String& func_name, bool as_list)
       : RelaxOpCode(func_name), as_list_(as_list) {}
 
  protected:
@@ -602,7 +602,7 @@ class RelaxResize2dCodeGen : public RelaxOpCode {
  protected:
   void CodeGenBuild() final {
     // roi has forced to be float list
-    Array<String> roi_list;
+    ffi::Array<ffi::String> roi_list;
     std::vector<float> roi = node()->GetTypeArrayAttr<float>("roi");
     for (const auto& r : roi) {
       roi_list.push_back("float(" + std::to_string(r) + ")");
@@ -680,7 +680,7 @@ class RelaxTileCodeGen : public RelaxOpCode {
 
  protected:
   void CodeGenBuild() final {
-    const String& key = config()->from_relay ? "reps" : "repeats";
+    const ffi::String& key = config()->from_relay ? "reps" : "repeats";
     stack_.op_call().op_input_arg().op_list_arg<int>(key, "repeats");
   }
 };
@@ -698,7 +698,7 @@ class RelaxTriCodeGen : public RelaxOpCode {
  protected:
   void CodeGenBuild() final {
     if (node()->optype == "trilu") {
-      const String& func_name =
+      const ffi::String& func_name =
           node()->GetTypeAttr<bool>("upper") ? "relax.op.triu" : "relax.op.tril";
       stack_.op_call(func_name).op_input_arg().op_arg<int>("k");
     } else {
@@ -720,8 +720,10 @@ class RelaxPluginOpCodeGen : public RelaxOpCode {
   }
 };
 
-const std::shared_ptr<std::unordered_map<String, std::shared_ptr<RelaxOpCode>>> GetRelaxOpCodes() {
-  static auto map = std::make_shared<std::unordered_map<String, std::shared_ptr<RelaxOpCode>>>();
+const std::shared_ptr<std::unordered_map<ffi::String, std::shared_ptr<RelaxOpCode>>>
+GetRelaxOpCodes() {
+  static auto map =
+      std::make_shared<std::unordered_map<ffi::String, std::shared_ptr<RelaxOpCode>>>();
   if (!map->empty()) return map;
   // binary && unary ops
   map->emplace("abs", std::make_shared<RelaxSimpleCodeGen>("relax.op.abs"));

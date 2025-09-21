@@ -20,6 +20,7 @@
 /*!
  * \file make_packed_api.cc Lower PrimFunc to use the packed function API.
  */
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
@@ -124,7 +125,8 @@ class ReturnRewriter : public StmtMutator {
 
 class SubroutineCallRewriter : public StmtExprMutator {
  public:
-  static Optional<Stmt> Apply(const Map<GlobalVar, String>& packed_func_methods, Stmt stmt) {
+  static ffi::Optional<Stmt> Apply(const ffi::Map<GlobalVar, ffi::String>& packed_func_methods,
+                                   Stmt stmt) {
     SubroutineCallRewriter rewriter(packed_func_methods);
     stmt = rewriter.VisitStmt(std::move(stmt));
     if (rewriter.made_change_) {
@@ -135,16 +137,16 @@ class SubroutineCallRewriter : public StmtExprMutator {
   }
 
  private:
-  explicit SubroutineCallRewriter(const Map<GlobalVar, String>& packed_func_methods)
+  explicit SubroutineCallRewriter(const ffi::Map<GlobalVar, ffi::String>& packed_func_methods)
       : packed_func_methods(packed_func_methods) {}
 
   PrimExpr VisitExpr_(const CallNode* op) override {
     auto node = Downcast<Call>(StmtExprMutator::VisitExpr_(op));
 
     if (auto* gvar_ptr = node->op.as<GlobalVarNode>()) {
-      auto gvar = GetRef<GlobalVar>(gvar_ptr);
+      auto gvar = ffi::GetRef<GlobalVar>(gvar_ptr);
       if (auto symbol = packed_func_methods.Get(gvar)) {
-        Array<PrimExpr> cpacked_args;
+        ffi::Array<PrimExpr> cpacked_args;
         cpacked_args.push_back(tir::StringImm(symbol.value()));
         for (auto arg : node->args) {
           cpacked_args.push_back(arg);
@@ -159,7 +161,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
 
     return node;
   }
-  const Map<GlobalVar, String>& packed_func_methods;
+  const ffi::Map<GlobalVar, ffi::String>& packed_func_methods;
   bool made_change_{false};
 };
 
@@ -181,7 +183,7 @@ inline Stmt MakeAssertNotNull(PrimExpr ptr, std::string msg) {
  * \returns The global_symbol to be used for the function at call
  * sites, or std::nullopt if the function is to remain unchanged.
  */
-Optional<String> RequiresPackedAPI(const PrimFunc& func) {
+ffi::Optional<ffi::String> RequiresPackedAPI(const PrimFunc& func) {
   // A function with an explicit calling convention has already been
   // lowered, and should not be modified.
   if (auto opt = func->GetAttr<Integer>(tvm::attr::kCallingConv)) {
@@ -191,12 +193,12 @@ Optional<String> RequiresPackedAPI(const PrimFunc& func) {
   }
 
   // Internal function calls do not need the ffi::Function API
-  auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
   if (!global_symbol.has_value()) {
     return std::nullopt;
   }
 
-  return global_symbol;
+  return global_symbol.value();
 }
 
 PrimFunc MakePackedAPI(PrimFunc func) {
@@ -223,6 +225,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   }
 
   auto* func_ptr = func.CopyOnWrite();
+  // set the global symbol to the packed function name
   const Stmt nop = Evaluate(0);
   int num_args = static_cast<int>(func_ptr->params.size());
 
@@ -246,8 +249,8 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   // local function definitions
   // load i-th argument as type t
   auto f_load_arg_value = [&](DataType arg_type, int i) {
-    Array<PrimExpr> call_args{v_packed_args, IntImm(DataType::Int(32), i),
-                              IntImm(DataType::Int(32), builtin::kTVMFFIAnyUnionValue)};
+    ffi::Array<PrimExpr> call_args{v_packed_args, IntImm(DataType::Int(32), i),
+                                   IntImm(DataType::Int(32), builtin::kTVMFFIAnyUnionValue)};
     // load 64 bit version
     DataType api_type = APIType(arg_type);
     PrimExpr res = Call(api_type, builtin::tvm_struct_get(), call_args);
@@ -297,14 +300,16 @@ PrimFunc MakePackedAPI(PrimFunc func) {
                                            type_index == ffi::TypeIndex::kTVMFFIDLTensorPtr ||
                                            type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin,
                                        tvm::tir::StringImm(msg.str()), nop));
-      // if type_index is NDArray, we need to add the offset of the DLTensor header
+      // if type_index is Tensor, we need to add the offset of the DLTensor header
       // which always equals 16 bytes, this ensures that T.handle always shows up as a DLTensor*
+      const int64_t object_cell_offset = sizeof(TVMFFIObject);
+      static_assert(object_cell_offset == 24);
       arg_value = f_load_arg_value(param.dtype(), i);
-      PrimExpr handle_from_ndarray =
+      PrimExpr handle_from_tensor =
           Call(DataType::Handle(), tir::builtin::handle_add_byte_offset(),
-               {arg_value, IntImm(DataType::Int(32), 16)});
+               {arg_value, IntImm(DataType::Int(32), object_cell_offset)});
       arg_value =
-          Select(type_index == ffi::TypeIndex::kTVMFFINDArray, handle_from_ndarray, arg_value);
+          Select(type_index == ffi::TypeIndex::kTVMFFITensor, handle_from_tensor, arg_value);
     } else if (dtype.is_bool()) {
       std::ostringstream msg;
       msg << name_hint << ": Expect arg[" << i << "] to be boolean";
@@ -337,13 +342,13 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     var_def.emplace_back(arg_value, param);
     if (func_ptr->buffer_map.count(param)) {
       // buffer binding now depends on type index
-      // if the index is NDArray handle, we need to offset to get the DLTensor*
+      // if the index is Tensor handle, we need to offset to get the DLTensor*
       buffer_def.emplace_back(param, func_ptr->buffer_map[param]);
     }
   }
 
   // signature: (void* handle, TVMFFIAny* packed_args, int num_args, TVMFFIAny* v_result)
-  Array<Var> args{v_self_handle, v_packed_args, v_num_packed_args, v_result};
+  ffi::Array<Var> args{v_self_handle, v_packed_args, v_num_packed_args, v_result};
 
   // Arg definitions are defined before buffer binding to avoid the use before
   // def errors.
@@ -360,10 +365,12 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     binder.BindDLTensor(buffer, device_type, device_id, var, name_hint + "." + var->name_hint);
     arg_buffer_declarations.push_back(DeclBuffer(buffer, nop));
   }
-
-  func = WithAttrs(std::move(func),
-                   {{tvm::attr::kCallingConv, static_cast<int>(CallingConv::kCPackedFunc)},
-                    {tvm::attr::kTarget, target_host}});
+  // reset global symbol to attach prefix
+  func = WithAttrs(
+      std::move(func),
+      {{tvm::attr::kCallingConv, static_cast<int>(CallingConv::kCPackedFunc)},
+       {tvm::attr::kTarget, target_host},
+       {tvm::attr::kGlobalSymbol, ffi::symbol::tvm_ffi_symbol_prefix + global_symbol.value()}});
 
   Stmt body = ReturnRewriter(v_result)(func_ptr->body);
   body = AttrStmt(make_zero(DataType::Int(32)), attr::compute_scope,
@@ -390,11 +397,11 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   func_ptr->body = body;
   func_ptr->params = args;
 
-  Array<Var> undefined = UndefinedVars(func_ptr->body, func_ptr->params);
+  ffi::Array<Var> undefined = UndefinedVars(func_ptr->body, func_ptr->params);
   ICHECK_EQ(undefined.size(), 0) << "In PrimFunc " << name_hint << " variables " << undefined
                                  << " are used, but are not passed in as API arguments";
 
-  func_ptr->buffer_map = Map<Var, Buffer>();
+  func_ptr->buffer_map = ffi::Map<Var, Buffer>();
   func_ptr->ret_type = PrimType(DataType::Int(32));
 
   // return the function.
@@ -405,7 +412,7 @@ namespace transform {
 
 Pass MakePackedAPI() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
-    Map<GlobalVar, String> packed_func_methods;
+    ffi::Map<GlobalVar, ffi::String> packed_func_methods;
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<PrimFunc>()) {
         auto prim_func = opt.value();
@@ -444,10 +451,10 @@ Pass MakePackedAPI() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.MakePackedAPI", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.MakePackedAPI", []() { return MakePackedAPI(); });
-});
+}
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

@@ -29,7 +29,8 @@
 
 namespace tvm {
 namespace tir {
-Var GetShardingVarFromIndex(PrimExpr index, Map<Var, Range> var_range, arith::Analyzer* analyzer) {
+Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
+                            arith::Analyzer* analyzer) {
   if (index.as<VarNode>()) {
     return Downcast<Var>(index);
   }
@@ -47,12 +48,12 @@ Var GetShardingVarFromIndex(PrimExpr index, Map<Var, Range> var_range, arith::An
     return Var();
   }
   // the floormod must take no effect
-  if (!analyzer->CanProve(
-          floordiv(var_range[GetRef<Var>(source_var)]->extent, highest_iter_split->lower_factor) <=
-          highest_iter_split->extent)) {
+  if (!analyzer->CanProve(floordiv(var_range[ffi::GetRef<Var>(source_var)]->extent,
+                                   highest_iter_split->lower_factor) <=
+                          highest_iter_split->extent)) {
     return Var();
   }
-  return GetRef<Var>(source_var);
+  return ffi::GetRef<Var>(source_var);
 }
 }  // namespace tir
 }  // namespace tvm
@@ -75,7 +76,7 @@ const TensorStructInfoNode* GetTensorStructInfo(Expr tensor) {
   throw;
 }
 
-void UnaryOpHelper(Array<Expr> tensor_list, distributed::AxisGroupGraph* axis_group_graph) {
+void UnaryOpHelper(ffi::Array<Expr> tensor_list, distributed::AxisGroupGraph* axis_group_graph) {
   int n_dim = GetTensorStructInfo(tensor_list[0])->ndim;
   for (const auto& tensor : tensor_list) {
     ICHECK(GetTensorStructInfo(tensor)->ndim == n_dim);
@@ -91,7 +92,7 @@ void UnaryOpHelper(Array<Expr> tensor_list, distributed::AxisGroupGraph* axis_gr
 
 void BuildAxisGraphUnary(const Var& output_var, const Call& call,
                          distributed::AxisGroupGraph* axis_group_graph) {
-  Array<Expr> tensor_list;  // vars in param and output
+  ffi::Array<Expr> tensor_list;  // vars in param and output
   if (call->args[0]->IsInstance<VarNode>()) {
     tensor_list.push_back(call->args[0]);
   }
@@ -101,7 +102,7 @@ void BuildAxisGraphUnary(const Var& output_var, const Call& call,
 
 void BuildAxisGraphBinary(const Var& output_var, const Call& call,
                           distributed::AxisGroupGraph* axis_group_graph) {
-  Array<Expr> tensor_list;  // vars in param and output
+  ffi::Array<Expr> tensor_list;  // vars in param and output
   if (call->args[0]->struct_info_.as<TensorStructInfoNode>() ||
       call->args[0]->struct_info_.as<DTensorStructInfoNode>()) {
     tensor_list.push_back(call->args[0]);
@@ -162,7 +163,7 @@ void BuildAxisGraphBinary(const Var& output_var, const Call& call,
 void BuildAxisGraphReduce(const Var& output_var, const Call& call,
                           distributed::AxisGroupGraph* axis_group_graph) {
   Expr input_tensor = call->args[0];
-  Array<Integer> axes;
+  ffi::Array<Integer> axes;
   bool keepdims;
   if (const auto* attrs = call->attrs.as<StatisticalAttrs>()) {
     if (attrs->axis.defined()) {
@@ -228,10 +229,10 @@ void BuildAxisGraphMatmul(const Var& output_var, const Call& call,
   const auto* x1_shape = x1_sinfo->shape.as<ShapeExprNode>();
   const auto* x2_shape = x2_sinfo->shape.as<ShapeExprNode>();
   ICHECK(x1_shape && x2_shape);
-  Array<PrimExpr> x1_shape_prefix{x1_shape->values.begin(),
-                                  x1_shape->values.end() - 2 + x1_prepended};
-  Array<PrimExpr> x2_shape_prefix{x2_shape->values.begin(),
-                                  x2_shape->values.end() - 2 + x2_appended};
+  ffi::Array<PrimExpr> x1_shape_prefix{x1_shape->values.begin(),
+                                       x1_shape->values.end() - 2 + x1_prepended};
+  ffi::Array<PrimExpr> x2_shape_prefix{x2_shape->values.begin(),
+                                       x2_shape->values.end() - 2 + x2_appended};
 
   int x1_prefix_ndim = x1_shape_prefix.size();
   int x2_prefix_ndim = x2_shape_prefix.size();
@@ -311,8 +312,8 @@ void BuildAxisGraphReshape(const Var& output_var, const Call& call,
   const auto* new_shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
   const auto* old_shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(tensor_sinfo->shape.value());
   ICHECK_NOTNULL(old_shape_sinfo);
-  Array<PrimExpr> old_shape_values = old_shape_sinfo->values.value();
-  Array<PrimExpr> new_shape_values = new_shape_sinfo->values.value();
+  ffi::Array<PrimExpr> old_shape_values = old_shape_sinfo->values.value();
+  ffi::Array<PrimExpr> new_shape_values = new_shape_sinfo->values.value();
   int i = old_shape_values.size();
   int j = new_shape_values.size();
   PrimExpr old_shape_product = 1, new_shape_product = 1;
@@ -349,8 +350,8 @@ inline int GetNumOutput(Call call) {
 void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tir::PrimFunc& func,
                            distributed::AxisGroupGraph* axis_group_graph) {
   auto tir_var_axis_group_list = tir::BufferAxisGraphExtractor::GetTIRVarAxisGraph(func);
-  Map<tir::Var, Expr> input_var_to_relax_expr;
-  Array<Expr> input_list = Downcast<Tuple>(call->args[1])->fields;
+  ffi::Map<tir::Var, Expr> input_var_to_relax_expr;
+  ffi::Array<Expr> input_list = Downcast<Tuple>(call->args[1])->fields;
   input_list.push_back(output_var);
   for (int i = 0; i < static_cast<int>(input_list.size()); i++) {
     if (func->buffer_map.count(func->params[i])) {

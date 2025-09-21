@@ -40,9 +40,9 @@ def test_matmul():
             return
         dev = tvm.rocm(0)
         f = tvm.compile(te.create_prim_func([A, B, C]), target=target)
-        a = tvm.nd.array(np.random.uniform(size=(n, l)).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=(l, m)).astype(B.dtype), dev)
-        c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=(n, l)).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.random.uniform(size=(l, m)).astype(B.dtype), dev)
+        c = tvm.runtime.tensor(np.zeros((n, m), dtype=C.dtype), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(c.numpy(), np.dot(a.numpy(), b.numpy()), rtol=1e-5)
 
@@ -73,9 +73,9 @@ def verify_batch_matmul(batch, m, k, n, lib, transa=False, transb=False, dtype="
             return
         dev = tvm.rocm(0)
         f = tvm.compile(te.create_prim_func([A, B, C]), target=target)
-        a = tvm.nd.array(np.random.uniform(size=ashape).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=bshape).astype(B.dtype), dev)
-        c = tvm.nd.array(np.zeros((batch, m, n), dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=ashape).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.random.uniform(size=bshape).astype(B.dtype), dev)
+        c = tvm.runtime.tensor(np.zeros((batch, m, n), dtype=C.dtype), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(
             c.numpy(), get_numpy(a.numpy(), b.numpy(), transa, transb), rtol=1e-5

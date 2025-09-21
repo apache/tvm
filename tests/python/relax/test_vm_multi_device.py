@@ -79,9 +79,9 @@ def test_multi_cpu():
     np_ipt2 = np.random.rand(4, 5).astype(np.float32)
     np_res = np.matmul(np.matmul(np_ipt0, np_ipt1), np_ipt2)
 
-    ipt0 = tvm.nd.array(np_ipt0, devices[0])
-    ipt1 = tvm.nd.array(np_ipt1, devices[0])
-    ipt2 = tvm.nd.array(np_ipt2, devices[1])
+    ipt0 = tvm.runtime.tensor(np_ipt0, devices[0])
+    ipt1 = tvm.runtime.tensor(np_ipt1, devices[0])
+    ipt2 = tvm.runtime.tensor(np_ipt2, devices[1])
     res = vm["foo"](ipt0, ipt1, ipt2)
     tvm.testing.assert_allclose(res.numpy(), np_res)
 
@@ -134,10 +134,10 @@ def test_multi_gpu():
     np_ipt3 = np.random.rand(5, 6).astype(np.float32)
     np_res = np.matmul(np.matmul(np.matmul(np_ipt0, np_ipt1), np_ipt2), np_ipt3)
 
-    ipt0 = tvm.nd.array(np_ipt0, devices[0])
-    ipt1 = tvm.nd.array(np_ipt1, devices[0])
-    ipt2 = tvm.nd.array(np_ipt2, devices[1])
-    ipt3 = tvm.nd.array(np_ipt3, devices[2])
+    ipt0 = tvm.runtime.tensor(np_ipt0, devices[0])
+    ipt1 = tvm.runtime.tensor(np_ipt1, devices[0])
+    ipt2 = tvm.runtime.tensor(np_ipt2, devices[1])
+    ipt3 = tvm.runtime.tensor(np_ipt3, devices[2])
     res = vm["foo"](ipt0, ipt1, ipt2, ipt3)
     tvm.testing.assert_allclose(res.numpy(), np_res)
 
@@ -179,9 +179,9 @@ def test_multi_device():
     np_ipt2 = np.random.rand(4, 5).astype(np.float32)
     np_res = np.matmul(np.matmul(np_ipt0, np_ipt1), np_ipt2)
 
-    ipt0 = tvm.nd.array(np_ipt0, devices[1])
-    ipt1 = tvm.nd.array(np_ipt1, devices[1])
-    ipt2 = tvm.nd.array(np_ipt2, devices[0])
+    ipt0 = tvm.runtime.tensor(np_ipt0, devices[1])
+    ipt1 = tvm.runtime.tensor(np_ipt1, devices[1])
+    ipt2 = tvm.runtime.tensor(np_ipt2, devices[0])
     res = vm["foo"](ipt0, ipt1, ipt2)
     tvm.testing.assert_allclose(res.numpy(), np_res, rtol=1e-4, atol=1e-4)
 

@@ -36,10 +36,11 @@ namespace tvm {
 namespace relax {
 
 template <typename T>
-inline Expr MakeConv(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
-                     Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
-                     String out_layout, DataType out_dtype, std::string op_name) {
-  auto attrs = make_object<T>();
+inline Expr MakeConv(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
+                     ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+                     ffi::String kernel_layout, ffi::String out_layout, DataType out_dtype,
+                     std::string op_name) {
+  auto attrs = ffi::make_object<T>();
   attrs->strides = ConvertIntImmToInt64(strides);
   attrs->padding = ConvertIntImmToInt64(padding);
   attrs->dilation = ConvertIntImmToInt64(dilation);
@@ -53,19 +54,22 @@ inline Expr MakeConv(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm
 }
 
 /*! \brief 1D convolution */
-Expr conv1d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
-            Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
-            Optional<String> out_layout, Optional<DataType> out_dtype);
+Expr conv1d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
+            ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+            ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
+            ffi::Optional<DataType> out_dtype);
 
 /*! \brief 2D convolution */
-Expr conv2d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
-            Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
-            Optional<String> out_layout, Optional<DataType> out_dtype);
+Expr conv2d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
+            ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+            ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
+            ffi::Optional<DataType> out_dtype);
 
 /*! \brief 3D convolution */
-Expr conv3d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
-            Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
-            Optional<String> out_layout, Optional<DataType> out_dtype);
+Expr conv3d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
+            ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+            ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
+            ffi::Optional<DataType> out_dtype);
 
 /*!
  * \brief One dimensional transposed convolution operator.
@@ -73,10 +77,11 @@ Expr conv3d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding
  * This operator is intended to be the backward operator of conv1d. It can be used to calculate the
  * gradient of the result of conv1d w.r.t. the input of conv1d.
  */
-Expr conv1d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
-                      Array<IntImm> output_padding, Array<IntImm> dilation, int groups,
-                      String data_layout, String kernel_layout, Optional<String> out_layout,
-                      Optional<DataType> out_dtype);
+Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<IntImm> strides,
+                      ffi::Array<IntImm> padding, ffi::Array<IntImm> output_padding,
+                      ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+                      ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
+                      ffi::Optional<DataType> out_dtype);
 
 /*!
  * \brief Two dimensional transposed convolution operator.
@@ -84,10 +89,11 @@ Expr conv1d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntIm
  * This operator is intended to be the backward operator of conv2d. It can be used to calculate the
  * gradient of the result of conv2d w.r.t. the input of conv2d.
  */
-Expr conv2d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
-                      Array<IntImm> output_padding, Array<IntImm> dilation, int groups,
-                      String data_layout, String kernel_layout, Optional<String> out_layout,
-                      Optional<DataType> out_dtype);
+Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<IntImm> strides,
+                      ffi::Array<IntImm> padding, ffi::Array<IntImm> output_padding,
+                      ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+                      ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
+                      ffi::Optional<DataType> out_dtype);
 
 }  // namespace relax
 }  // namespace tvm

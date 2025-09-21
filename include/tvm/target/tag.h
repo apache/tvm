@@ -37,9 +37,9 @@ namespace tvm {
 class TargetTagNode : public Object {
  public:
   /*! \brief Name of the target */
-  String name;
+  ffi::String name;
   /*! \brief Config map to generate the target */
-  Map<String, Any> config;
+  ffi::Map<ffi::String, Any> config;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -47,16 +47,13 @@ class TargetTagNode : public Object {
         .def_ro("name", &TargetTagNode::name)
         .def_ro("config", &TargetTagNode::config);
   }
-
-  static constexpr const char* _type_key = "target.TargetTag";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(TargetTagNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.TargetTag", TargetTagNode, Object);
 
  private:
   /*! \brief Return the index stored in attr registry */
   uint32_t AttrRegistryIndex() const { return index_; }
   /*! \brief Return the name stored in attr registry */
-  String AttrRegistryName() const { return name; }
+  ffi::String AttrRegistryName() const { return name; }
   /*! \brief Index used for internal lookup of attribute registry */
   uint32_t index_;
 
@@ -78,12 +75,12 @@ class TargetTag : public ObjectRef {
    * \param target_tag_name Name of the target tag
    * \return The Target requested
    */
-  TVM_DLL static Optional<Target> Get(const String& target_tag_name);
+  TVM_DLL static ffi::Optional<Target> Get(const ffi::String& target_tag_name);
   /*!
    * \brief List all names of the existing target tags
    * \return A dictionary that maps tag name to the concrete target it corresponds to
    */
-  TVM_DLL static Map<String, Target> ListTags();
+  TVM_DLL static ffi::Map<ffi::String, Target> ListTags();
   /*!
    * \brief Add a tag into the registry
    * \param name Name of the tag
@@ -91,9 +88,9 @@ class TargetTag : public ObjectRef {
    * \param override Allow overriding existing tags
    * \return Target created with the tag
    */
-  TVM_DLL static Target AddTag(String name, Map<String, Any> config, bool override);
+  TVM_DLL static Target AddTag(ffi::String name, ffi::Map<ffi::String, Any> config, bool override);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(TargetTag, ObjectRef, TargetTagNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TargetTag, ObjectRef, TargetTagNode);
 
  private:
   /*! \brief Mutable access to the container class  */
@@ -107,13 +104,13 @@ class TargetTagRegEntry {
    * \brief Set the config dict corresponding to the target tag
    * \param config The config dict for target creation
    */
-  inline TargetTagRegEntry& set_config(Map<String, Any> config);
+  inline TargetTagRegEntry& set_config(ffi::Map<ffi::String, Any> config);
   /*!
    * \brief Add a key-value pair to the config dict
    * \param key The attribute name
    * \param value The attribute value
    */
-  inline TargetTagRegEntry& with_config(String key, Any value);
+  inline TargetTagRegEntry& with_config(ffi::String key, Any value);
   /*! \brief Set name of the TargetTag to be the same as registry if it is empty */
   inline TargetTagRegEntry& set_name();
   /*!
@@ -121,14 +118,14 @@ class TargetTagRegEntry {
    * \param target_tag_name The name of the TargetTag.
    * \return the corresponding entry.
    */
-  TVM_DLL static TargetTagRegEntry& RegisterOrGet(const String& target_tag_name);
+  TVM_DLL static TargetTagRegEntry& RegisterOrGet(const ffi::String& target_tag_name);
 
  private:
   TargetTag tag_;
-  String name;
+  ffi::String name;
 
   /*! \brief private constructor */
-  explicit TargetTagRegEntry(uint32_t reg_index) : tag_(make_object<TargetTagNode>()) {
+  explicit TargetTagRegEntry(uint32_t reg_index) : tag_(ffi::make_object<TargetTagNode>()) {
     tag_->index_ = reg_index;
   }
   template <typename, typename>
@@ -136,12 +133,12 @@ class TargetTagRegEntry {
   friend class TargetTag;
 };
 
-inline TargetTagRegEntry& TargetTagRegEntry::set_config(Map<String, Any> config) {
+inline TargetTagRegEntry& TargetTagRegEntry::set_config(ffi::Map<ffi::String, Any> config) {
   tag_->config = std::move(config);
   return *this;
 }
 
-inline TargetTagRegEntry& TargetTagRegEntry::with_config(String key, ffi::Any value) {
+inline TargetTagRegEntry& TargetTagRegEntry::with_config(ffi::String key, ffi::Any value) {
   tag_->config.Set(key, value);
   return *this;
 }

@@ -18,7 +18,7 @@
 from typing import Optional
 
 import pytest
-from tvm.ffi.access_path import AccessPath
+from tvm_ffi.access_path import AccessPath
 from tvm.script.printer.doc import (
     ExprStmtDoc,
     IdDoc,

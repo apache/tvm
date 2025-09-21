@@ -67,13 +67,13 @@ def normalize_inputs(inputs: List[tuple]) -> List[tuple]:
 
 
 def normalize_weights(
-    t_weights: Dict[MSCTensor, tvm.nd.array], graph: MSCGraph
-) -> Dict[str, tvm.nd.array]:
+    t_weights: Dict[MSCTensor, tvm.runtime.Tensor], graph: MSCGraph
+) -> Dict[str, tvm.runtime.Tensor]:
     """Normalize the weghts.
 
     Parameters
     ----------
-    t_weights: dict of <MSCTensor, tvm.nd.array>
+    t_weights: dict of <MSCTensor, tvm.runtime.tensor>
         The weights extracted from IRModule.
     graph: tvm.contrib.msc.core.ir.MSCGraph
         The translated graph.
@@ -88,7 +88,7 @@ def normalize_weights(
         weight_t = graph.find_tensor(ref_t.name)
         if weight_t.ndim == 1:
             if ref_t.ndim != weight_t.ndim:
-                return tvm.nd.array(data.numpy().reshape(weight_t.get_shape()))
+                return tvm.runtime.tensor(data.numpy().reshape(weight_t.get_shape()))
             return data
         if ref_t.layout and weight_t.layout:
             ref_layout, weight_layout = ref_t.layout.name, weight_t.layout.name
@@ -97,7 +97,7 @@ def normalize_weights(
                     l in ref_layout for l in weight_layout
                 ), "layout mismatch {} compare to {}".format(ref_t, weight_t)
                 permute = [ref_layout.index(l) for l in weight_layout]
-                return tvm.nd.array(data.numpy().transpose(*permute))
+                return tvm.runtime.tensor(data.numpy().transpose(*permute))
         return data
 
     weights = {t.name: _to_data(t, d) for t, d in t_weights.items() if graph.has_tensor(t.name)}
@@ -111,11 +111,11 @@ def normalize_weights(
 
 def from_relax(
     mod: tvm.IRModule,
-    params: Optional[Dict[str, tvm.nd.array]] = None,
+    params: Optional[Dict[str, tvm.runtime.Tensor]] = None,
     trans_config: Optional[Dict[str, str]] = None,
     build_config: Optional[Dict[str, str]] = None,
     opt_config: Optional[Dict[str, str]] = None,
-) -> Tuple[MSCGraph, Dict[str, tvm.nd.array]]:
+) -> Tuple[MSCGraph, Dict[str, tvm.runtime.Tensor]]:
     """Change IRModule to MSCGraph.
 
     Parameters
@@ -195,10 +195,10 @@ class BYOCChecker(PyExprVisitor):
 def byoc_partition(
     target: str,
     mod: tvm.IRModule,
-    params: Optional[Dict[str, tvm.nd.array]] = None,
+    params: Optional[Dict[str, tvm.runtime.Tensor]] = None,
     trans_config: Optional[Dict[str, str]] = None,
     build_config: Optional[Dict[str, str]] = None,
-) -> Tuple[tvm.IRModule, List[Tuple[MSCGraph, Dict[str, tvm.nd.array]]]]:
+) -> Tuple[tvm.IRModule, List[Tuple[MSCGraph, Dict[str, tvm.runtime.Tensor]]]]:
     """Partition module to target sub functions.
 
     Parameters

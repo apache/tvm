@@ -29,7 +29,7 @@
 namespace tvm {
 namespace relax {
 
-bool CanProveShapeEqual(const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs,
+bool CanProveShapeEqual(const ffi::Array<PrimExpr>& lhs, const ffi::Array<PrimExpr>& rhs,
                         arith::Analyzer* ana) {
   if (lhs.same_as(rhs)) return true;
   if (lhs.size() != rhs.size()) return false;

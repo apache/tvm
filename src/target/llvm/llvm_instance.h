@@ -51,6 +51,21 @@
 #define llvmGetPointerTo(arg, offset) (arg->getPointerTo(offset))
 #endif
 
+#if TVM_LLVM_VERSION >= 130
+#define llvmGetIntrinName(id) \
+  std::string(llvm::Intrinsic::getBaseName(static_cast<llvm::Intrinsic::ID>(id)))
+#elif TVM_LLVM_VERSION >= 40
+// This is the version of Intrinsic::getName that works for overloaded
+// intrinsics. Helpfully, if we provide no types to this function, it
+// will give us the overloaded name without the types appended. This
+// should be enough information for most uses.
+#define llvmGetIntrinName(id) \
+  std::string(llvm::Intrinsic::getName(static_cast<llvm::Intrinsic::ID>(id), {}))
+#else
+// Nothing to do, just return the intrinsic id number
+#define llvmGetIntrinName(id) std::to_string(id)
+#endif
+
 namespace llvm {
 class LLVMContext;
 class MemoryBuffer;
@@ -309,14 +324,14 @@ class LLVMTargetInfo {
    * \brief Get all supported targets from the LLVM backend
    * \return list with all valid targets
    */
-  const Array<String> GetAllLLVMTargets() const;
+  const ffi::Array<ffi::String> GetAllLLVMTargets() const;
 
   /*!
    * \brief Get all CPU arches from target
    * \return list with all valid cpu architectures
    * \note The arches are fetched from the LLVM backend using the target `-mtriple`.
    */
-  const Array<String> GetAllLLVMTargetArches() const;
+  const ffi::Array<ffi::String> GetAllLLVMTargetArches() const;
 
   /*!
    * \brief Get all CPU features from target
@@ -325,7 +340,7 @@ class LLVMTargetInfo {
    * \note The features are fetched from the LLVM backend using the target `-mtriple`
    *       and the `-mcpu` architecture, but also consider the `-mattr` attributes.
    */
-  const Map<String, String> GetAllLLVMCpuFeatures() const;
+  const ffi::Map<ffi::String, ffi::String> GetAllLLVMCpuFeatures() const;
 
   /*!
    * \brief Check the target if has a specific cpu feature

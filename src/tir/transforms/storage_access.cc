@@ -171,7 +171,7 @@ void StorageAccessVisitor::VisitStmt_(const ForNode* op) {
     for (AccessEntry& e : s.access) {
       if (e.buffer.defined()) {
         ICHECK(e.touched.size());
-        Array<arith::IntSet> new_touched;
+        ffi::Array<arith::IntSet> new_touched;
         for (const auto& touched : e.touched) {
           new_touched.push_back(arith::EvalSet(touched, relax_map));
         }
@@ -250,7 +250,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
     PrimExpr offset = op->args[2];
     PrimExpr extent = op->args[3];
     const IntImmNode* flag = op->args[4].as<IntImmNode>();
-    StorageScope scope = GetScope(GetRef<Var>(buffer));
+    StorageScope scope = GetScope(ffi::GetRef<Var>(buffer));
     // The buffer scope.
     if (Enabled(buffer, scope)) {
       ICHECK(allow_append_);

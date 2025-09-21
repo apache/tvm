@@ -85,7 +85,7 @@ class TIRVisitorWithPath
 
   // Utility to visit an array of nodes
   template <typename T>
-  inline void Visit(const Array<T>& arr, ffi::reflection::AccessPath path) {
+  inline void Visit(const ffi::Array<T>& arr, ffi::reflection::AccessPath path) {
     for (size_t i = 0; i < arr.size(); i++) {
       Visit(arr[i], path->ArrayItem(i));
     }
@@ -93,7 +93,7 @@ class TIRVisitorWithPath
 
   // Utility to visit an optional node nodes
   template <typename T>
-  inline void Visit(const Optional<T>& opt, ffi::reflection::AccessPath path) {
+  inline void Visit(const ffi::Optional<T>& opt, ffi::reflection::AccessPath path) {
     if (opt) {
       Visit(opt.value(), path);
     }
@@ -229,7 +229,7 @@ class TIRVisitorWithPath
       }
     };
     auto try_visit_implicit_var_def_array = [&try_visit_implicit_var_def](
-                                                const Array<PrimExpr>& arr,
+                                                const ffi::Array<PrimExpr>& arr,
                                                 ffi::reflection::AccessPath path) {
       for (size_t i = 0; i < arr.size(); i++) {
         try_visit_implicit_var_def(arr[i], path->ArrayItem(i));

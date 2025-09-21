@@ -26,7 +26,7 @@
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <algorithm>
 #include <numeric>
@@ -111,7 +111,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   /*! \brief The RoPE theta. */
   const double rotary_theta_;
   /*! \brief The optional RoPE extension factors for RoPE scaling. */
-  const Optional<NDArray> rope_ext_factors_;
+  const ffi::Optional<Tensor> rope_ext_factors_;
 
   /*! \brief The KV cache dtype. */
   const DataType kv_dtype_;
@@ -122,15 +122,15 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
   /*!
    * \brief The KV data managed by the KV cache.
-   * If KV transfer function is specifed, pages_ will be allocated by NVSHMEM as a whole NDArray.
+   * If KV transfer function is specifed, pages_ will be allocated by NVSHMEM as a whole Tensor.
    * pages_ will contain tensor view of each layer.
-   * Otherwise, pages_ has `num_layers` NDArrays, each of them
+   * Otherwise, pages_ has `num_layers` Tensors, each of them
    * has layout (num_pages, 2, num_heads, page_size, qk_head_dim).
    * Along on the "2" dimension, index 0 stands for K and 1 stands for V.
    */
-  std::vector<NDArray> pages_;
+  std::vector<Tensor> pages_;
   /*! \brief The whole KV cache allocated by NVSHMEM*/
-  NDArray nvshmem_pages_;
+  Tensor nvshmem_pages_;
   /*! \brief The list of ids of released pages for page reuse. */
   std::vector<int32_t> free_page_ids_;
   /*! \brief The mapping from sequence ids to sequences. */
@@ -183,15 +183,15 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   std::unique_ptr<PagedKVCacheAuxDataManager> aux_data_manager_;
 
   // Temporary arrays to store intermediate attention results.
-  NDArray temp_attn_q_device_;
-  NDArray temp_attn_k_device_;
-  NDArray temp_attn_v_device_;
-  NDArray temp_attn_output_device_;
-  NDArray temp_attn_lse_device_;
-  NDArray merged_attn_lse_device_;
-  std::vector<NDArray> temp_int_attn_workspace_;
-  std::vector<NDArray> temp_int_pinned_attn_workspace_;
-  NDArray temp_float_attn_workspace_;
+  Tensor temp_attn_q_device_;
+  Tensor temp_attn_k_device_;
+  Tensor temp_attn_v_device_;
+  Tensor temp_attn_output_device_;
+  Tensor temp_attn_lse_device_;
+  Tensor merged_attn_lse_device_;
+  std::vector<Tensor> temp_int_attn_workspace_;
+  std::vector<Tensor> temp_int_pinned_attn_workspace_;
+  Tensor temp_float_attn_workspace_;
 
   //-------------------------------------------
   // Below are the auxiliary data structure on CPU.
@@ -229,34 +229,34 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   // after each synchronization and pass these views as input for
   // attention/append.
   //-------------------------------------------
-  NDArray cur_append_length_indptr_view_;
-  NDArray k_ragged_rope_pos_offset_view_;
-  NDArray q_rope_position_map_view_;
-  NDArray append_position_map_view_;
-  NDArray kv_transfer_remote_position_map_view_;
-  NDArray kv_transfer_recver_id_view_;
-  NDArray kv_transfer_page_to_page_local_position_map_view_;
-  NDArray kv_transfer_page_to_page_remote_position_map_view_;
-  NDArray kv_transfer_page_to_page_recver_id_view_;
-  NDArray temp_attn_output_view_;
-  NDArray temp_attn_lse_view_;
-  NDArray merged_attn_lse_view_;
-  std::vector<NDArray> qo_indptr_on_depths_view_;
-  std::vector<NDArray> page_indptr_on_depths_view_;
-  std::vector<NDArray> page_indices_on_depths_view_;
-  std::vector<NDArray> page_indptr_sliding_window_on_depths_view_;
-  std::vector<NDArray> page_indices_sliding_window_on_depths_view_;
-  std::vector<NDArray> length_info_on_depths_view_;
-  std::vector<NDArray> layer_sliding_window_length_info_on_depths_view_;
-  std::vector<NDArray> k_rope_pos_offset_view_;
-  std::vector<NDArray> k_rope_pos_offset_sliding_window_view_;
-  std::vector<NDArray> tree_attn_mask_view_;
-  std::vector<NDArray> tree_attn_mn_indptr_view_;
+  Tensor cur_append_length_indptr_view_;
+  Tensor k_ragged_rope_pos_offset_view_;
+  Tensor q_rope_position_map_view_;
+  Tensor append_position_map_view_;
+  Tensor kv_transfer_remote_position_map_view_;
+  Tensor kv_transfer_recver_id_view_;
+  Tensor kv_transfer_page_to_page_local_position_map_view_;
+  Tensor kv_transfer_page_to_page_remote_position_map_view_;
+  Tensor kv_transfer_page_to_page_recver_id_view_;
+  Tensor temp_attn_output_view_;
+  Tensor temp_attn_lse_view_;
+  Tensor merged_attn_lse_view_;
+  std::vector<Tensor> qo_indptr_on_depths_view_;
+  std::vector<Tensor> page_indptr_on_depths_view_;
+  std::vector<Tensor> page_indices_on_depths_view_;
+  std::vector<Tensor> page_indptr_sliding_window_on_depths_view_;
+  std::vector<Tensor> page_indices_sliding_window_on_depths_view_;
+  std::vector<Tensor> length_info_on_depths_view_;
+  std::vector<Tensor> layer_sliding_window_length_info_on_depths_view_;
+  std::vector<Tensor> k_rope_pos_offset_view_;
+  std::vector<Tensor> k_rope_pos_offset_sliding_window_view_;
+  std::vector<Tensor> tree_attn_mask_view_;
+  std::vector<Tensor> tree_attn_mn_indptr_view_;
 
-  Optional<ffi::Function> f_transpose_append_mha_;
-  Optional<ffi::Function> f_transpose_append_mla_;
-  Optional<ffi::Function> f_transfer_kv_;
-  Optional<ffi::Function> f_transfer_kv_page_to_page_ = std::nullopt;
+  ffi::Optional<ffi::Function> f_transpose_append_mha_;
+  ffi::Optional<ffi::Function> f_transpose_append_mla_;
+  ffi::Optional<ffi::Function> f_transfer_kv_;
+  ffi::Optional<ffi::Function> f_transfer_kv_page_to_page_ = std::nullopt;
   ffi::Function f_compact_copy_;
   std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged_;
   std::unique_ptr<PagedPrefillFunc> f_attention_prefill_;
@@ -266,10 +266,10 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   std::unique_ptr<PagedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask_paged_kv_;
   std::unique_ptr<RaggedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask_;
   std::unique_ptr<PagedPrefillFunc> f_mla_prefill_;
-  Array<ffi::Function> f_merge_inplace_;
+  ffi::Array<ffi::Function> f_merge_inplace_;
   ffi::Function f_split_rotary_;
   ffi::Function f_copy_single_page_;
-  Optional<ffi::Function> f_debug_get_kv_;
+  ffi::Optional<ffi::Function> f_debug_get_kv_;
 
   /*! \brief The device this PagedKVCache runs on. */
   Device device_;
@@ -281,16 +281,16 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   TVMStreamHandle kv_transfer_stream_ = nullptr;
 
  public:
-  /*! \brief Constructor. Take the cache configuration and initialize the NDArrays. */
+  /*! \brief Constructor. Take the cache configuration and initialize the Tensors. */
   explicit PagedAttentionKVCacheObj(
       int64_t page_size, int64_t num_layers, int64_t layer_id_begin_offset,
       int64_t layer_id_end_offset, int64_t num_qo_heads, int64_t num_kv_heads, int64_t qk_head_dim,
       int64_t v_head_dim, std::vector<AttnKind> attn_kinds, int64_t reserved_num_seqs,
       int64_t num_total_pages, int64_t prefill_chunk_size, bool support_sliding_window,
       RoPEMode rope_mode, double rotary_scale, double rotary_theta,
-      Optional<NDArray> rope_ext_factors, bool enable_kv_transfer, DLDataType dtype, Device device,
-      Optional<ffi::Function> f_transpose_append_mha,
-      Optional<ffi::Function> f_transpose_append_mla, ffi::Function f_compact_copy,
+      ffi::Optional<Tensor> rope_ext_factors, bool enable_kv_transfer, DLDataType dtype,
+      Device device, ffi::Optional<ffi::Function> f_transpose_append_mha,
+      ffi::Optional<ffi::Function> f_transpose_append_mla, ffi::Function f_compact_copy,
       std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged,
       std::unique_ptr<PagedPrefillFunc> f_attention_prefill,
       std::unique_ptr<PagedDecodeFunc> f_attention_decode,
@@ -298,7 +298,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       std::unique_ptr<PagedDecodeFunc> f_attention_decode_sliding_window,
       std::unique_ptr<PagedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask_paged_kv,
       std::unique_ptr<RaggedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask,
-      std::unique_ptr<PagedPrefillFunc> f_mla_prefill, Array<ffi::Function> f_merge_inplace,
+      std::unique_ptr<PagedPrefillFunc> f_mla_prefill, ffi::Array<ffi::Function> f_merge_inplace,
       ffi::Function f_split_rotary, ffi::Function f_copy_single_page, ffi::Function f_debug_get_kv)
       : page_size_(page_size),
         num_layers_(num_layers),
@@ -362,7 +362,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
           (*f_nvshmem_empty)(
               ffi::Shape({num_layers, num_total_pages, 2, num_kv_heads, page_size, qk_head_dim}),
               dtype, device)
-              .cast<NDArray>();
+              .cast<Tensor>();
       for (int i = 0; i < num_layers; ++i) {
         pages_.push_back(nvshmem_pages_.CreateView(
             {num_total_pages_, 2, num_kv_heads_, page_size_, qk_head_dim_}, nvshmem_pages_->dtype,
@@ -382,7 +382,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         ffi::Shape kv_cache_shape =
             GetKVCacheShape(attn_kinds_[layer_id_begin_offset_ + i], num_total_pages,
                             reserved_num_seqs, num_kv_heads, page_size, qk_head_dim, v_head_dim);
-        pages_.push_back(NDArray::Empty(kv_cache_shape, dtype, device));
+        pages_.push_back(Tensor::Empty(kv_cache_shape, dtype, device));
       }
     }
 
@@ -444,47 +444,47 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     for (int d = 0; d < kPagedKVCacheMaxBlockDepth; ++d) {
       if (NeedKernelBeginForward()) {
         temp_int_attn_workspace_.push_back(
-            NDArray::Empty({kIntAttnWorkspaceByte}, DataType::UInt(8), device));
-        temp_int_pinned_attn_workspace_.push_back(NDArray::Empty(
+            Tensor::Empty({kIntAttnWorkspaceByte}, DataType::UInt(8), device));
+        temp_int_pinned_attn_workspace_.push_back(Tensor::Empty(
             {kIntAttnWorkspaceByte}, DataType::UInt(8), GetPreferredHostDevice(device)));
       }
-      qo_indptr_on_depths_view_.push_back(NDArray());
-      page_indptr_on_depths_view_.push_back(NDArray());
-      page_indices_on_depths_view_.push_back(NDArray());
-      page_indptr_sliding_window_on_depths_view_.push_back(NDArray());
-      page_indices_sliding_window_on_depths_view_.push_back(NDArray());
-      length_info_on_depths_view_.push_back(NDArray());
-      layer_sliding_window_length_info_on_depths_view_.push_back(NDArray());
-      k_rope_pos_offset_view_.push_back(NDArray());
-      k_rope_pos_offset_sliding_window_view_.push_back(NDArray());
-      tree_attn_mask_view_.push_back(NDArray());
-      tree_attn_mn_indptr_view_.push_back(NDArray());
+      qo_indptr_on_depths_view_.push_back(Tensor());
+      page_indptr_on_depths_view_.push_back(Tensor());
+      page_indices_on_depths_view_.push_back(Tensor());
+      page_indptr_sliding_window_on_depths_view_.push_back(Tensor());
+      page_indices_sliding_window_on_depths_view_.push_back(Tensor());
+      length_info_on_depths_view_.push_back(Tensor());
+      layer_sliding_window_length_info_on_depths_view_.push_back(Tensor());
+      k_rope_pos_offset_view_.push_back(Tensor());
+      k_rope_pos_offset_sliding_window_view_.push_back(Tensor());
+      tree_attn_mask_view_.push_back(Tensor());
+      tree_attn_mn_indptr_view_.push_back(Tensor());
       is_chain_on_depths_.push_back(true);
     }
     // Additional workspace for the "prefill with ragged kv" kernel.
     if (NeedKernelBeginForward()) {
       temp_int_attn_workspace_.push_back(
-          NDArray::Empty({kIntAttnWorkspaceByte}, DataType::UInt(8), device));
-      temp_int_pinned_attn_workspace_.push_back(NDArray::Empty(
+          Tensor::Empty({kIntAttnWorkspaceByte}, DataType::UInt(8), device));
+      temp_int_pinned_attn_workspace_.push_back(Tensor::Empty(
           {kIntAttnWorkspaceByte}, DataType::UInt(8), GetPreferredHostDevice(device)));
       temp_float_attn_workspace_ =
-          NDArray::Empty({kFloatAttnWorkspaceByte}, DataType::UInt(8), device);
+          Tensor::Empty({kFloatAttnWorkspaceByte}, DataType::UInt(8), device);
     }
 
     if (std::find(attn_kinds_.begin(), attn_kinds_.end(), AttnKind::kMHA) != attn_kinds_.end()) {
       temp_attn_q_device_ =
-          NDArray::Empty({prefill_chunk_size_, num_qo_heads, qk_head_dim}, dtype, device);
+          Tensor::Empty({prefill_chunk_size_, num_qo_heads, qk_head_dim}, dtype, device);
       temp_attn_k_device_ =
-          NDArray::Empty({prefill_chunk_size_, num_kv_heads, qk_head_dim}, dtype, device);
+          Tensor::Empty({prefill_chunk_size_, num_kv_heads, qk_head_dim}, dtype, device);
       temp_attn_v_device_ =
-          NDArray::Empty({prefill_chunk_size_, num_kv_heads, v_head_dim}, dtype, device);
+          Tensor::Empty({prefill_chunk_size_, num_kv_heads, v_head_dim}, dtype, device);
     }
     temp_attn_output_device_ =
-        NDArray::Empty({prefill_chunk_size_, num_qo_heads, v_head_dim}, dtype, device);
+        Tensor::Empty({prefill_chunk_size_, num_qo_heads, v_head_dim}, dtype, device);
     temp_attn_lse_device_ =
-        NDArray::Empty({prefill_chunk_size_, num_qo_heads}, DataType::Float(32), device);
+        Tensor::Empty({prefill_chunk_size_, num_qo_heads}, DataType::Float(32), device);
     merged_attn_lse_device_ =
-        NDArray::Empty({prefill_chunk_size_, num_qo_heads}, DataType::Float(32), device);
+        Tensor::Empty({prefill_chunk_size_, num_qo_heads}, DataType::Float(32), device);
     for (int64_t page_id = num_total_pages - 1; page_id >= 0; --page_id) {
       free_page_ids_.push_back(page_id);
     }
@@ -696,7 +696,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       DeviceAPI::Get(device_)->SetStream(device_, copy_stream_);
     }
     for (int layer = 0; layer < num_layers_; ++layer) {
-      NDArray page_layer_view = pages_[layer];
+      Tensor page_layer_view = pages_[layer];
       f_copy_single_page_(page_layer_view, src_page_id, tgt_page_id, copy_length);
     }
     if (copy_stream_ != compute_stream_) {
@@ -714,9 +714,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
     // Copy indptr/src/dst arrays to GPU.
     aux_data_manager_->ResetCompactKVAuxDataCopy();
-    NDArray commit_copy_length_indptr_view =
+    Tensor commit_copy_length_indptr_view =
         aux_data_manager_->CopyCommitLengthIndptrAsync(&commit_copy_length_indptr_host_);
-    NDArray commit_copy_src_dst_pos_in_page_table_view =
+    Tensor commit_copy_src_dst_pos_in_page_table_view =
         aux_data_manager_->CopyCommitSrcDstPosInPageTableAsync(
             &commit_copy_src_pos_in_page_table_host_, &commit_copy_dst_pos_in_page_table_host_);
     aux_data_manager_->CommitCompactKVAuxDataCopy();
@@ -852,7 +852,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
   void BeginForward(const ffi::Shape& seq_ids, const ffi::Shape& append_lengths,
                     const int64_t seqlen_padding_factor,
-                    const Optional<ffi::Shape>& opt_token_tree_parent_ptr) final {
+                    const ffi::Optional<ffi::Shape>& opt_token_tree_parent_ptr) final {
     // Note: MLA does not supported tree attention for now.
     if (attn_kinds_[0] == AttnKind::kMLA) {
       CHECK(!opt_token_tree_parent_ptr.defined()) << "Tree attention is not supported yet for MLA";
@@ -1275,13 +1275,13 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
                  sequence->kv_transfer_metadata.local_position_map.end());
   }
 
-  void AttentionWithFusedQKV(int64_t layer_id, NDArray qkv_data, Optional<NDArray> mask,
-                             NDArray o_data, double sm_scale) final {
+  void AttentionWithFusedQKV(int64_t layer_id, Tensor qkv_data, ffi::Optional<Tensor> mask,
+                             Tensor o_data, double sm_scale) final {
     // Part 1. Shape and dtype check.
     int64_t local_layer_id = layer_id - layer_id_begin_offset_;
     CHECK_GE(local_layer_id, 0);
     CHECK_LT(local_layer_id, num_layers_);
-    NDArray pages = pages_[local_layer_id];
+    Tensor pages = pages_[local_layer_id];
     CHECK(qkv_data.DataType() == pages.DataType());
     CHECK(o_data.DataType() == pages.DataType());
     CHECK(attn_kinds_[layer_id] == AttnKind::kMHA ||
@@ -1314,15 +1314,15 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     // The auxiliary data structure on device must have been synchronized.
     ICHECK(!dirty_aux_data_device_);
 
-    NDArray q_data = temp_attn_q_device_.CreateView({total_seq_length, num_qo_heads_, qk_head_dim_},
-                                                    qkv_data->dtype);
-    NDArray k_data = temp_attn_k_device_.CreateView({total_seq_length, num_kv_heads_, qk_head_dim_},
-                                                    qkv_data->dtype);
-    NDArray v_data = temp_attn_v_device_.CreateView({total_seq_length, num_kv_heads_, qk_head_dim_},
-                                                    qkv_data->dtype);
+    Tensor q_data = temp_attn_q_device_.CreateView({total_seq_length, num_qo_heads_, qk_head_dim_},
+                                                   qkv_data->dtype);
+    Tensor k_data = temp_attn_k_device_.CreateView({total_seq_length, num_kv_heads_, qk_head_dim_},
+                                                   qkv_data->dtype);
+    Tensor v_data = temp_attn_v_device_.CreateView({total_seq_length, num_kv_heads_, qk_head_dim_},
+                                                   qkv_data->dtype);
 
-    NDArray qkv_data_view = qkv_data;
-    NDArray o_data_view = o_data;
+    Tensor qkv_data_view = qkv_data;
+    Tensor o_data_view = o_data;
     if (total_seq_length != qkv_data->shape[0]) {
       qkv_data_view = qkv_data.CreateView(
           {total_seq_length, qkv_data->shape[1], qkv_data->shape[2]}, qkv_data->dtype);
@@ -1378,13 +1378,13 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
-  void SelfAttention(int64_t layer_id, NDArray q_data, NDArray k_data, NDArray v_data,
-                     NDArray o_data, NDArray lse_data, double sm_scale) final {
+  void SelfAttention(int64_t layer_id, Tensor q_data, Tensor k_data, Tensor v_data, Tensor o_data,
+                     Tensor lse_data, double sm_scale) final {
     // Shape and dtype check.
     int64_t local_layer_id = layer_id - layer_id_begin_offset_;
     CHECK_GE(local_layer_id, 0);
     CHECK_LT(local_layer_id, num_layers_);
-    NDArray pages = pages_[local_layer_id];
+    Tensor pages = pages_[local_layer_id];
     CHECK(q_data.DataType() == pages.DataType());
     CHECK(k_data.DataType() == pages.DataType());
     CHECK(v_data.DataType() == pages.DataType());
@@ -1423,13 +1423,13 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
-  void CrossAttention(int64_t layer_id, NDArray q_data, NDArray o_data, NDArray lse_data,
+  void CrossAttention(int64_t layer_id, Tensor q_data, Tensor o_data, Tensor lse_data,
                       double sm_scale) final {
     // Shape and dtype check.
     int64_t local_layer_id = layer_id - layer_id_begin_offset_;
     CHECK_GE(local_layer_id, 0);
     CHECK_LT(local_layer_id, num_layers_);
-    NDArray pages = pages_[local_layer_id];
+    Tensor pages = pages_[local_layer_id];
     CHECK(q_data.DataType() == pages.DataType());
     CHECK(o_data.DataType() == pages.DataType());
     AttnKind attn_kind = attn_kinds_[layer_id];
@@ -1465,12 +1465,12 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
-  void AppendMLAKV(int64_t layer_id, NDArray kv_data) final {
+  void AppendMLAKV(int64_t layer_id, Tensor kv_data) final {
     // Shape and dtype check.
     int64_t local_layer_id = layer_id - layer_id_begin_offset_;
     CHECK_GE(local_layer_id, 0);
     CHECK_LT(local_layer_id, num_layers_);
-    NDArray pages = pages_[local_layer_id];
+    Tensor pages = pages_[local_layer_id];
     CHECK(kv_data.DataType() == pages.DataType());
     CHECK(attn_kinds_[layer_id] == AttnKind::kMLA);
 
@@ -1493,14 +1493,14 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     f_transpose_append_mla_.value()(pages_[local_layer_id], kv_data, append_position_map_view_);
   }
 
-  Array<NDArray> MergeAttnOutputInplace(NDArray o_self_attn, NDArray lse_self_attn,
-                                        NDArray o_cross_attn, NDArray lse_cross_attn) final {
+  ffi::Array<Tensor> MergeAttnOutputInplace(Tensor o_self_attn, Tensor lse_self_attn,
+                                            Tensor o_cross_attn, Tensor lse_cross_attn) final {
     CHECK_GE(f_merge_inplace_.size(), 2) << "The general attention merge function is not defined.";
     f_merge_inplace_[1](o_self_attn, lse_self_attn, o_cross_attn, lse_cross_attn);
     return {o_self_attn, lse_self_attn};
   }
 
-  void LinearAttention(int64_t layer_id, NDArray q_data, NDArray k_data, NDArray v_data,
+  void LinearAttention(int64_t layer_id, Tensor q_data, Tensor k_data, Tensor v_data,
                        double sm_scale) {
     // Todo(ruihang): implement it
   }
@@ -1598,7 +1598,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
-  NDArray GetQueryPositions() final {
+  Tensor GetQueryPositions() final {
     // Sync the copy stream and the compute stream.
     ComputeStreamWaitForCopyStream();
     // The auxiliary data structure on device must have been synchronized.
@@ -1606,8 +1606,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     return q_rope_position_map_view_;
   };
 
-  void DebugGetKV(int64_t seq_id, int64_t start_pos, int64_t end_pos, NDArray k_data,
-                  NDArray v_data) final {
+  void DebugGetKV(int64_t seq_id, int64_t start_pos, int64_t end_pos, Tensor k_data,
+                  Tensor v_data) final {
     CHECK(f_debug_get_kv_.defined())
         << "PageAttentionKVCache requires the `f_debug_get_kv` to be explicitly passed in when "
            "initialization. Please construct the KV cache with `f_debug_get_kv`.";
@@ -1621,8 +1621,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     static constexpr const char* error_msg =
         "DebugGetKV expects the k_data in layout (num_layers, seq_length, num_kv_heads, "
         "qk_head_dim).";
-    std::vector<NDArray*> vec_kv_data = {&k_data, &v_data};
-    for (const NDArray* data_ptr : vec_kv_data) {
+    std::vector<Tensor*> vec_kv_data = {&k_data, &v_data};
+    for (const Tensor* data_ptr : vec_kv_data) {
       CHECK_EQ((*data_ptr)->ndim, 4) << error_msg;
       CHECK_EQ((*data_ptr)->shape[0], num_layers_)
           << error_msg << " The number of layers mismatches.";
@@ -1647,7 +1647,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         append_position_map.push_back(page_id * page_size_ + page_offset);
       }
     }
-    NDArray position_map_device = NDArray::Empty({end_pos - start_pos}, dtype_aux_, device_);
+    Tensor position_map_device = Tensor::Empty({end_pos - start_pos}, dtype_aux_, device_);
     position_map_device.CopyFromBytes(
         append_position_map.data() + start_pos,
         (end_pos - start_pos) * ((dtype_aux_.bits * dtype_aux_.lanes + 7) / 8));
@@ -1657,7 +1657,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
-  void DebugGetKVMLA(int64_t seq_id, int64_t start_pos, int64_t end_pos, NDArray kv_data) final {
+  void DebugGetKVMLA(int64_t seq_id, int64_t start_pos, int64_t end_pos, Tensor kv_data) final {
     CHECK(f_debug_get_kv_.defined())
         << "PageAttentionKVCache requires the `f_debug_get_kv` to be explicitly passed in when "
            "initialization. Please construct the KV cache with `f_debug_get_kv`.";
@@ -1690,7 +1690,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         append_position_map.push_back(page_id * page_size_ + page_offset);
       }
     }
-    NDArray position_map_device = NDArray::Empty({end_pos - start_pos}, dtype_aux_, device_);
+    Tensor position_map_device = Tensor::Empty({end_pos - start_pos}, dtype_aux_, device_);
     position_map_device.CopyFromBytes(
         append_position_map.data() + start_pos,
         (end_pos - start_pos) * ((dtype_aux_.bits * dtype_aux_.lanes + 7) / 8));
@@ -1700,12 +1700,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
-  void DebugSetKV(int64_t seq_id, int64_t start_pos, NDArray k_data, NDArray v_data) final {
+  void DebugSetKV(int64_t seq_id, int64_t start_pos, Tensor k_data, Tensor v_data) final {
     ICHECK(false) << "DebugSetKV for PageAttentionKVCache not implemented yet.";
   }
-
-  static constexpr const char* _type_key = "relax.vm.PagedAttentionKVCache";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PagedAttentionKVCacheObj, AttentionKVCacheObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.vm.PagedAttentionKVCache", PagedAttentionKVCacheObj,
+                                    AttentionKVCacheObj);
 
  private:
   /*! \brief Get a new free page and return its id. */
@@ -2092,8 +2091,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
    * \brief Compute attention for between the input q data and the
    * input k/v data and the k/v data in cache on the given layer.
    */
-  void AttentionInternal(int64_t layer_id, NDArray q_data, NDArray k_data, NDArray v_data,
-                         NDArray output, double sm_scale) {
+  void AttentionInternal(int64_t layer_id, Tensor q_data, Tensor k_data, Tensor v_data,
+                         Tensor output, double sm_scale) {
     int64_t local_layer_id = layer_id - layer_id_begin_offset_;
     CHECK_GE(local_layer_id, 0);
     CHECK_LT(local_layer_id, num_layers_);
@@ -2111,8 +2110,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         << "Both self-attention and cross-attention are not computed.";
   }
 
-  void MHASelfAttnInternal(NDArray q_data, NDArray k_data, NDArray v_data, NDArray o_data,
-                           NDArray lse_data, double sm_scale) {
+  void MHASelfAttnInternal(Tensor q_data, Tensor k_data, Tensor v_data, Tensor o_data,
+                           Tensor lse_data, double sm_scale) {
     if (is_chain_on_depths_[0]) {
       // If the batch does not form a tree, use raggedness prefill kernel.
       ICHECK_NOTNULL(f_attention_prefill_ragged_);
@@ -2133,8 +2132,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
-  void MLASelfAttnInternal(NDArray q_data, NDArray k_data, NDArray v_data, NDArray o_data,
-                           NDArray lse_data, double sm_scale) {
+  void MLASelfAttnInternal(Tensor q_data, Tensor k_data, Tensor v_data, Tensor o_data,
+                           Tensor lse_data, double sm_scale) {
     CHECK(is_chain_on_depths_[0]) << "Tree attn not able for MLA for now.";
     // If the batch does not form a tree, use raggedness prefill kernel.
     ICHECK_NOTNULL(f_attention_prefill_ragged_);
@@ -2145,8 +2144,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   }
 
   /*! \brief Compute cross-attention for MHA. Return if there is effective computation. */
-  bool MHACrossAttnInternal(int64_t local_layer_id, NDArray q_data, NDArray o_data,
-                            NDArray lse_data, double sm_scale, bool is_first_kernel) {
+  bool MHACrossAttnInternal(int64_t local_layer_id, Tensor q_data, Tensor o_data, Tensor lse_data,
+                            double sm_scale, bool is_first_kernel) {
     std::unique_ptr<PagedPrefillFunc>& f_prefill =
         (!support_sliding_window_ &&
          attn_kinds_[local_layer_id + layer_id_begin_offset_] != AttnKind::kMHASliding)
@@ -2164,8 +2163,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       if (page_indices_on_depths_view_[d]->shape[0] == 0) {
         continue;
       }
-      NDArray attn_output;
-      NDArray attn_lse;
+      Tensor attn_output;
+      Tensor attn_lse;
       if (is_first_kernel) {
         attn_output = o_data;
         attn_lse = lse_data;
@@ -2174,10 +2173,10 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         attn_lse = temp_attn_lse_view_;
       }
       // If layer is sliding window, use sliding window index pointer/indices
-      NDArray page_indptr;
-      NDArray page_indices;
-      NDArray length_info;
-      NDArray k_rope_pos;
+      Tensor page_indptr;
+      Tensor page_indices;
+      Tensor length_info;
+      Tensor k_rope_pos;
       double rotary_theta;
       double rotary_scale;
 
@@ -2231,8 +2230,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   }
 
   /*! \brief Compute cross-attention for MLA. Return if there is effective computation. */
-  bool MLACrossAttnInternal(int64_t local_layer_id, NDArray q_data, NDArray o_data,
-                            NDArray lse_data, double sm_scale) {
+  bool MLACrossAttnInternal(int64_t local_layer_id, Tensor q_data, Tensor o_data, Tensor lse_data,
+                            double sm_scale) {
     CHECK_GE(num_depths_, 1) << "The number of effective depths must be greater or equal to 1.";
 
     bool is_first_kernel = true;
@@ -2240,8 +2239,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       if (page_indices_on_depths_view_[d]->shape[0] == 0) {
         continue;
       }
-      NDArray attn_output;
-      NDArray attn_lse;
+      Tensor attn_output;
+      Tensor attn_lse;
       if (is_first_kernel) {
         attn_output = o_data;
         attn_lse = lse_data;
@@ -2271,7 +2270,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       // If the auxiliary data is already synced, return and no need to sync again.
       return;
     }
-    // - Sync NDArrays to GPU.
+    // - Sync Tensors to GPU.
     SyncAuxArrayToDevice();
     KernelBeginForward();
     // - Clear the dirty flag.
@@ -2504,7 +2503,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 //  Register runtime functions
 //-------------------------------------------------
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "vm.builtin.paged_attention_kv_cache_create", [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -2533,36 +2532,36 @@ TVM_FFI_STATIC_INIT_BLOCK({
         int rope_mode = args[8].cast<int>();
         double rotary_scale = args[9].cast<double>();
         double rotary_theta = args[10].cast<double>();
-        Optional<NDArray> rope_ext_factors = std::nullopt;  // args[11]
-        NDArray init = args[12].cast<NDArray>();
-        Optional<ffi::Function> f_transpose_append_mha = std::nullopt;  // args[13]
-        Optional<ffi::Function> f_transpose_append_mla = std::nullopt;  // args[14]
+        ffi::Optional<Tensor> rope_ext_factors = std::nullopt;  // args[11]
+        Tensor init = args[12].cast<Tensor>();
+        ffi::Optional<ffi::Function> f_transpose_append_mha = std::nullopt;  // args[13]
+        ffi::Optional<ffi::Function> f_transpose_append_mla = std::nullopt;  // args[14]
         std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged =
-            ConvertRaggedPrefillFunc(args[15].cast<Array<ffi::Any>>(), AttnKind::kMHA);
+            ConvertRaggedPrefillFunc(args[15].cast<ffi::Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<PagedPrefillFunc> f_attention_prefill =
-            ConvertPagedPrefillFunc(args[16].cast<Array<ffi::Any>>(), AttnKind::kMHA);
+            ConvertPagedPrefillFunc(args[16].cast<ffi::Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<PagedDecodeFunc> f_attention_decode =
-            ConvertPagedDecodeFunc(args[17].cast<Array<ffi::Any>>(), AttnKind::kMHA);
+            ConvertPagedDecodeFunc(args[17].cast<ffi::Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<PagedPrefillFunc> f_attention_prefill_sliding_window =
-            ConvertPagedPrefillFunc(args[18].cast<Array<ffi::Any>>(), AttnKind::kMHA);
+            ConvertPagedPrefillFunc(args[18].cast<ffi::Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<PagedDecodeFunc> f_attention_decode_sliding_window =
-            ConvertPagedDecodeFunc(args[19].cast<Array<ffi::Any>>(), AttnKind::kMHA);
+            ConvertPagedDecodeFunc(args[19].cast<ffi::Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<PagedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask_paged_kv =
-            ConvertPagedPrefillTreeMaskFunc(args[20].cast<Array<ffi::Any>>(), AttnKind::kMHA);
+            ConvertPagedPrefillTreeMaskFunc(args[20].cast<ffi::Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<RaggedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask =
-            ConvertRaggedPrefillTreeMaskFunc(args[21].cast<Array<ffi::Any>>(), AttnKind::kMHA);
+            ConvertRaggedPrefillTreeMaskFunc(args[21].cast<ffi::Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<PagedPrefillFunc> f_mla_prefill =
-            ConvertPagedPrefillFunc(args[22].cast<Array<ffi::Any>>(), AttnKind::kMLA);
-        Array<ffi::Function> f_merge_inplace = args[23].cast<Array<ffi::Function>>();
+            ConvertPagedPrefillFunc(args[22].cast<ffi::Array<ffi::Any>>(), AttnKind::kMLA);
+        ffi::Array<ffi::Function> f_merge_inplace = args[23].cast<ffi::Array<ffi::Function>>();
         ffi::Function f_split_rotary = args[24].cast<ffi::Function>();
         ffi::Function f_copy_single_page = args[25].cast<ffi::Function>();
         ffi::Function f_debug_get_kv = args[26].cast<ffi::Function>();
         ffi::Function f_compact_copy = args[27].cast<ffi::Function>();
 
-        if (auto opt_nd = args[11].as<NDArray>()) {
+        if (auto opt_nd = args[11].as<Tensor>()) {
           rope_ext_factors = opt_nd.value();
         }
-        auto f_convert_optional_packed_func = [&args](int arg_idx) -> Optional<ffi::Function> {
+        auto f_convert_optional_packed_func = [&args](int arg_idx) -> ffi::Optional<ffi::Function> {
           if (auto opt_func = args[arg_idx].as<ffi::Function>()) {
             return opt_func.value();
           }
@@ -2591,7 +2590,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         }
         // NOTE: We will remove this legacy construction after finishing the transition phase.
         // Some `ffi::Function()` here are placeholders that will be filled.
-        ObjectPtr<PagedAttentionKVCacheObj> n = make_object<PagedAttentionKVCacheObj>(
+        ObjectPtr<PagedAttentionKVCacheObj> n = ffi::make_object<PagedAttentionKVCacheObj>(
             page_size, num_layers, layer_id_begin_offset, layer_id_end_offset, num_qo_heads,
             num_kv_heads, qk_head_dim, v_head_dim, attn_kinds_vec, reserved_num_seqs,
             num_total_pages, prefill_chunk_size, support_sliding_window, RoPEMode(rope_mode),
@@ -2608,7 +2607,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
             std::move(f_copy_single_page), std::move(f_debug_get_kv));
         *rv = AttentionKVCache(std::move(n));
       });
-});
+}
 
 }  // namespace vm
 }  // namespace runtime

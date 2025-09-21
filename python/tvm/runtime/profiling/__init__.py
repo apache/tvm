@@ -266,7 +266,7 @@ def profile_function(mod, dev, collectors, func_name=None, warmup_iters=10):
     if func_name is None:
         func_name = mod.entry_name
     return _ffi_api.ProfileFunction(
-        mod, func_name, dev.device_type, dev.device_id, warmup_iters, collectors
+        mod, func_name, dev.dlpack_device_type(), dev.index, warmup_iters, collectors
     )
 
 

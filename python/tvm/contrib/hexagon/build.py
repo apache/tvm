@@ -35,7 +35,7 @@ import tempfile
 from typing import Union
 
 from tvm.contrib.hexagon.hexagon_profiler import HexagonProfiler
-from ...ffi import libinfo
+from tvm_ffi import libinfo
 from .session import Session
 from .tools import HEXAGON_SIMULATOR_NAME
 

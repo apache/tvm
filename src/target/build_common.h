@@ -60,12 +60,12 @@ inline std::unordered_map<std::string, runtime::FunctionInfo> ExtractFuncInfo(co
                                         ? runtime::FunctionInfo::ArgExtraTags::kTensorMap
                                         : runtime::FunctionInfo::ArgExtraTags::kNone);
     }
-    if (auto opt = f->GetAttr<Array<String>>(tir::attr::kKernelLaunchParams)) {
+    if (auto opt = f->GetAttr<ffi::Array<ffi::String>>(tir::attr::kKernelLaunchParams)) {
       for (const auto& tag : opt.value()) {
         info.launch_param_tags.push_back(tag);
       }
     }
-    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     if (global_symbol) {
       fmap[static_cast<std::string>(global_symbol.value())] = info;
     }

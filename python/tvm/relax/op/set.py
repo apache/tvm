@@ -84,15 +84,15 @@ def unique(
     )
 
 
-@tvm.register_func("relax.run.unique")
+@tvm.register_global_func("relax.run.unique")
 def numpy_unique(
-    x: tvm.nd.array,
+    x: tvm.runtime.tensor,
     sorted: int,
     return_index: int,
     return_inverse: int,
     return_counts: int,
     axis: Optional[int] = None,
-) -> tvm.nd.array:
+) -> tvm.runtime.tensor:
     """Returns the unique elements of the input tensor.
 
     Uses numpy.unique to compute unique elements.
@@ -107,9 +107,9 @@ def numpy_unique(
     output_sorted_numpy, indices = np.unique(x_numpy, return_index=True, axis=axis)
 
     if sorted:
-        return tvm.nd.array(output_sorted_numpy)
+        return tvm.runtime.tensor(output_sorted_numpy)
     output_numpy = np.take(x_numpy, builtins.sorted(indices), axis=axis)
-    return tvm.nd.array(output_numpy)
+    return tvm.runtime.tensor(output_numpy)
 
 
 def nonzero(x: Expr) -> Expr:
@@ -143,7 +143,7 @@ def nonzero(x: Expr) -> Expr:
     return _ffi_api.nonzero(x)  # type: ignore
 
 
-@tvm.register_func("relax.run.nonzero")
-def numpy_nonzero(x: tvm.nd.array) -> tvm.nd.array:
+@tvm.register_global_func("relax.run.nonzero")
+def numpy_nonzero(x: tvm.runtime.tensor) -> tvm.runtime.tensor:
     np_result = np.atleast_1d(x.numpy()).nonzero()
-    return tvm.nd.array(np.stack(np_result, axis=0))
+    return tvm.runtime.tensor(np.stack(np_result, axis=0))

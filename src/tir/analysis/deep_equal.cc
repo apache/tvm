@@ -66,7 +66,7 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const PrimExpr&, const Pri
   }
 
  private:
-  bool ArrayDeepEqual(const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs) {
+  bool ArrayDeepEqual(const ffi::Array<PrimExpr>& lhs, const ffi::Array<PrimExpr>& rhs) {
     if (lhs.size() != rhs.size()) return false;
     for (size_t i = 0; i < lhs.size(); i++) {
       if (!VisitExpr(lhs[i], rhs[i])) return false;
@@ -74,7 +74,7 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const PrimExpr&, const Pri
     return true;
   }
 
-  bool ArrayDeepEqual(const Array<IterVar>& lhs, const Array<IterVar>& rhs) {
+  bool ArrayDeepEqual(const ffi::Array<IterVar>& lhs, const ffi::Array<IterVar>& rhs) {
     // for iter var, we require pointer equality
     if (lhs.size() != rhs.size()) return false;
     for (size_t i = 0; i < lhs.size(); i++) {
@@ -83,7 +83,7 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const PrimExpr&, const Pri
     return true;
   }
 
-  bool OptionalDeepEqual(const Optional<PrimExpr>& lhs, const Optional<PrimExpr>& rhs) {
+  bool OptionalDeepEqual(const ffi::Optional<PrimExpr>& lhs, const ffi::Optional<PrimExpr>& rhs) {
     if (lhs.same_as(rhs)) return true;
     if (!lhs.defined() && rhs.defined()) return false;
     if (lhs.defined() && !rhs.defined()) return false;
@@ -196,12 +196,12 @@ bool ExprDeepEqual::operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {
   return ExprDeepEqualChecker::Check(lhs, rhs);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "tir.analysis.expr_deep_equal",
       [](const PrimExpr& lhs, const PrimExpr& rhs) { return ExprDeepEqual()(lhs, rhs); });
-});
+}
 
 }  // namespace tir
 }  // namespace tvm
