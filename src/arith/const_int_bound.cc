@@ -102,6 +102,7 @@ struct ConstIntBoundAnalyzer::Entry {
 class ConstIntBoundAnalyzer::Impl
     : public ExprFunctor<ConstIntBoundAnalyzer::Entry(const PrimExpr&)> {
  public:
+  explicit Impl(Analyzer* parent) : parent_(parent) {}
   /*! \brief additional bound info about expr in bound */
   struct BoundInfo {
     /*! \brief The expr */
@@ -129,8 +130,7 @@ class ConstIntBoundAnalyzer::Impl
       auto it = var_map_.find(var);
       if (it != var_map_.end()) {
         ICHECK(it->second == info)
-            << "Trying to update var \'" << var << "\'"
-            << " with a different const bound: "
+            << "Trying to update var \'" << var << "\'" << " with a different const bound: "
             << "original=" << ConstIntBound(it->second.min_value, it->second.max_value)
             << ", new=" << ConstIntBound(info.min_value, info.max_value);
       }
@@ -278,6 +278,25 @@ class ConstIntBoundAnalyzer::Impl
 
     if (b.min_value > 0) {
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
+
+      // Try to get tighter bounds using modular set information
+      if (parent_ && b.min_value == b.max_value) {
+        ModularSet mod_a = parent_->modular_set(op->a);
+        int64_t modulus = b.min_value;
+        int64_t gcd_coeff_mod = ComputeGCD(mod_a->coeff, modulus);
+
+        // If gcd_coeff_mod > 1, we can get tighter bounds
+        // The result will be of the form gcd_coeff_mod * k + (base % modulus)
+        // where k ranges to cover [0, modulus - gcd_coeff_mod]
+        if (gcd_coeff_mod > 1) {
+          int64_t base_mod = mod_a->base % modulus;
+          if (base_mod < 0) base_mod += modulus;
+          int64_t tight_max = modulus - gcd_coeff_mod + base_mod;
+          if (tight_max >= modulus) tight_max -= modulus;
+          return MakeBound(base_mod, tight_max);
+        }
+      }
+
       if (a.min_value >= 0) {
         // 0 <= [a_min, a_max] < b_min
         if (a.max_value < b.min_value) return a;
@@ -324,6 +343,24 @@ class ConstIntBoundAnalyzer::Impl
 
     if (b.min_value > 0) {
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
+      // Try to get tighter bounds using modular set information
+      if (parent_ && b.min_value == b.max_value) {
+        ModularSet mod_a = parent_->modular_set(op->a);
+        int64_t modulus = b.min_value;
+        int64_t gcd_coeff_mod = ComputeGCD(mod_a->coeff, modulus);
+
+        // If gcd_coeff_mod > 1, we can get tighter bounds
+        // The result will be of the form gcd_coeff_mod * k + (base % modulus)
+        // where k ranges to cover [0, modulus - gcd_coeff_mod]
+        if (gcd_coeff_mod > 1) {
+          int64_t base_mod = mod_a->base % modulus;
+          if (base_mod < 0) base_mod += modulus;
+          int64_t tight_max = modulus - gcd_coeff_mod + base_mod;
+          if (tight_max >= modulus) tight_max -= modulus;
+          return MakeBound(base_mod, tight_max);
+        }
+      }
+
       if (a.min_value >= 0) {
         // 0 <= [a_min, a_max] < b_min
         if (a.max_value < b.min_value) return a;
@@ -458,6 +495,8 @@ class ConstIntBoundAnalyzer::Impl
 
  private:
   friend class ConstIntBoundAnalyzer;
+  // parent analyzer
+  Analyzer* parent_;
   // internal variable map
   std::unordered_map<Var, Entry> var_map_;
   // additional bound info
@@ -524,6 +563,22 @@ class ConstIntBoundAnalyzer::Impl
     }
     // If the range of b does not have 0, use BinaryOpBoundary.
     return BinaryOpBoundary(a, b, op);
+  }
+  /*!
+   * \brief Compute GCD of two integers.
+   * \param a The first integer.
+   * \param b The second integer.
+   * \return the result.
+   */
+  static int64_t ComputeGCD(int64_t a, int64_t b) {
+    a = std::abs(a);
+    b = std::abs(b);
+    while (b != 0) {
+      int64_t temp = b;
+      b = a % b;
+      a = temp;
+    }
+    return a;
   }
   /*!
    * \brief Compute x + y, aware of inf.
@@ -805,7 +860,7 @@ std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const PrimExpr& con
   return impl_->EnterConstraint(constraint);
 }
 
-ConstIntBoundAnalyzer::ConstIntBoundAnalyzer(Analyzer* parent) : impl_(new Impl()) {}
+ConstIntBoundAnalyzer::ConstIntBoundAnalyzer(Analyzer* parent) : impl_(new Impl(parent)) {}
 
 ConstIntBoundAnalyzer::~ConstIntBoundAnalyzer() { delete impl_; }
 
