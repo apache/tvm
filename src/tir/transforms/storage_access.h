@@ -56,7 +56,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
   /*! \brief An access entry */
   struct AccessEntry {
     /*! \brief The thread index that access this entry */
-    Array<IterVar> threads;
+    ffi::Array<IterVar> threads;
     /*! \brief The buffer variable, if any */
     Var buffer = NullValue<Var>();
     /*! \brief The access data type */
@@ -65,7 +65,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
      *
      * Has one IntSet for each index in the buffer being accessed.
      */
-    Array<arith::IntSet> touched;
+    ffi::Array<arith::IntSet> touched;
     /*! \brief The type of access */
     AccessType type;
     /*! \brief The storage scope */
@@ -98,7 +98,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
   /*! \return whether we are in device environment. */
   bool in_device_env() const { return in_device_env_; }
   /*! \return environment threads */
-  const Array<IterVar>& env_threads() const { return env_threads_; }
+  const ffi::Array<IterVar>& env_threads() const { return env_threads_; }
   /*!
    * \brief Whether we need analyze the buffer in current scope.
    * \param buffer The buffer to be checked
@@ -138,7 +138,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
   // the current free stmt entry.
   StmtEntry curr_stmt_;
   // The involving threads
-  Array<IterVar> env_threads_;
+  ffi::Array<IterVar> env_threads_;
 };
 }  // namespace tir
 }  // namespace tvm

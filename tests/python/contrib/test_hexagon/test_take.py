@@ -322,7 +322,7 @@ dtype = "uint8"
 
 # Quantizing input : scale is returned as float64 and zp is returned as int32
 inp_quant, inp_scale, inp_zero_point = quantize_np(data, dtype)
-inp_quant = tvm.nd.array(inp_quant.astype(np.uint8))
+inp_quant = tvm.runtime.tensor(inp_quant.astype(np.uint8))
 
 
 # Test the implementations value output with numpy data. First the IR is runn through pass

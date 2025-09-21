@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Rule that randomly select a compute-at location for a free block"""
-from tvm.ffi import register_object
+from tvm_ffi import register_object
 
 from .. import _ffi_api
 from .schedule_rule import ScheduleRule

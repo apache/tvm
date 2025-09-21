@@ -428,7 +428,7 @@ def test_dispatch_cumsum_gpu(target, dev):
         mod = DispatchSortScan()(Module)
         ex = tvm.compile(mod, target)
         vm = tvm.relax.VirtualMachine(ex, dev)
-        tvm_data = tvm.nd.array(np_data, dev)
+        tvm_data = tvm.runtime.tensor(np_data, dev)
         cumsum = vm["main"](tvm_data)
         tvm.testing.assert_allclose(cumsum.numpy(), np_cumsum)
 

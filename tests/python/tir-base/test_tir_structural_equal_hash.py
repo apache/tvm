@@ -18,7 +18,7 @@ import tvm
 import numpy as np
 import pytest
 from tvm import te
-from tvm.ffi.access_path import AccessPath
+from tvm_ffi.access_path import AccessPath
 from tvm.script import tir as T, ir as I
 
 
@@ -120,8 +120,8 @@ def test_prim_func():
     func1 = tvm.ir.load_json(tvm.ir.save_json(func0))
     tvm.ir.assert_structural_equal(func0, func1)
 
-    data0 = tvm.nd.array([1, 2, 3])
-    data1 = tvm.nd.array([1, 2, 3])
+    data0 = tvm.runtime.tensor([1, 2, 3])
+    data1 = tvm.runtime.tensor([1, 2, 3])
     # attributes and ndarrays
     func0 = func0.with_attr("data", data0)
     func1 = func1.with_attr("data", data1)
@@ -174,15 +174,15 @@ def test_prim_func_body_mismatch():
 
 def test_array():
     x = np.arange(10)
-    nx = tvm.nd.array(x)
-    ny = tvm.nd.array(x)
-    nz = tvm.nd.array(x.reshape(2, 5))
+    nx = tvm.runtime.tensor(x)
+    ny = tvm.runtime.tensor(x)
+    nz = tvm.runtime.tensor(x.reshape(2, 5))
     assert consistent_equal(nx, ny)
     assert not consistent_equal(nx, nz)
 
 
 def test_env_func():
-    @tvm.register_func("test.sequal.env_func")
+    @tvm.register_global_func("test.sequal.env_func")
     def test(x):
         return x + 1
 

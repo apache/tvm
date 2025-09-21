@@ -37,7 +37,7 @@ namespace topi {
 using namespace tvm;
 using namespace tvm::runtime;
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("topi.expand_dims",
@@ -48,13 +48,13 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_packed("topi.transpose",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = transpose(args[0].cast<te::Tensor>(),
-                                    args[1].cast<Optional<Array<Integer>>>());
+                                    args[1].cast<ffi::Optional<ffi::Array<Integer>>>());
                   })
       .def_packed("topi.flip",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     // pass empty seq_lengths tensor to reverse_sequence
-                    *rv =
-                        reverse_sequence(args[0].cast<te::Tensor>(), Tensor(), args[1].cast<int>());
+                    *rv = reverse_sequence(args[0].cast<te::Tensor>(), te::Tensor(),
+                                           args[1].cast<int>());
                   })
       .def_packed("topi.reverse_sequence",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -63,13 +63,13 @@ TVM_FFI_STATIC_INIT_BLOCK({
                   })
       .def_packed("topi.reshape",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = reshape(args[0].cast<te::Tensor>(), args[1].cast<Array<PrimExpr>>());
+                    *rv = reshape(args[0].cast<te::Tensor>(), args[1].cast<ffi::Array<PrimExpr>>());
                   })
       .def_packed("topi.sliding_window",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = sliding_window(args[0].cast<te::Tensor>(), args[1].cast<int>(),
-                                         args[2].cast<Array<Integer>>(),
-                                         args[3].cast<Array<Integer>>());
+                                         args[2].cast<ffi::Array<Integer>>(),
+                                         args[3].cast<ffi::Array<Integer>>());
                   })
       .def_packed("topi.squeeze",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -77,19 +77,19 @@ TVM_FFI_STATIC_INIT_BLOCK({
                   })
       .def_packed("topi.concatenate",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = concatenate(args[0].cast<Array<te::Tensor>>(), args[1].cast<int>());
+                    *rv = concatenate(args[0].cast<ffi::Array<te::Tensor>>(), args[1].cast<int>());
                   })
       .def_packed("topi.stack",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = stack(args[0].cast<Array<te::Tensor>>(), args[1].cast<int>());
+                    *rv = stack(args[0].cast<ffi::Array<te::Tensor>>(), args[1].cast<int>());
                   })
       .def_packed("topi.shape",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = shape(args[0].cast<te::Tensor>(), args[1].cast<DataType>());
                   })
-      .def_packed("topi.ndarray_size",
+      .def_packed("topi.tensor_size",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = ndarray_size(args[0].cast<te::Tensor>(), args[1].cast<DataType>());
+                    *rv = tensor_size(args[0].cast<te::Tensor>(), args[1].cast<DataType>());
                   })
       .def_packed("topi.split",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -97,9 +97,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
                       *rv = split_n_sections(args[0].cast<te::Tensor>(), args[1].cast<int>(),
                                              args[2].cast<int>());
                     } else {
-                      *rv =
-                          split_indices_array(args[0].cast<te::Tensor>(),
-                                              args[1].cast<Array<Integer>>(), args[2].cast<int>());
+                      *rv = split_indices_array(args[0].cast<te::Tensor>(),
+                                                args[1].cast<ffi::Array<Integer>>(),
+                                                args[2].cast<int>());
                     }
                   })
       .def_packed("topi.layout_transform",
@@ -144,7 +144,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
                   })
       .def_packed("topi.meshgrid",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = meshgrid(args[0].cast<Array<te::Tensor>>(), args[1].cast<std::string>());
+                    *rv = meshgrid(args[0].cast<ffi::Array<te::Tensor>>(),
+                                   args[1].cast<std::string>());
                   })
       .def_packed("topi.repeat",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -153,7 +154,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                   })
       .def_packed("topi.tile",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = tile(args[0].cast<te::Tensor>(), args[1].cast<Array<Integer>>());
+                    *rv = tile(args[0].cast<te::Tensor>(), args[1].cast<ffi::Array<Integer>>());
                   })
       .def_packed("topi.gather",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -172,9 +173,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
                   })
       .def_packed("topi.sparse_to_dense",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv =
-                        sparse_to_dense(args[0].cast<te::Tensor>(), args[1].cast<Array<PrimExpr>>(),
-                                        args[2].cast<te::Tensor>(), args[3].cast<PrimExpr>());
+                    *rv = sparse_to_dense(args[0].cast<te::Tensor>(),
+                                          args[1].cast<ffi::Array<PrimExpr>>(),
+                                          args[2].cast<te::Tensor>(), args[3].cast<PrimExpr>());
                   })
       .def_packed("topi.matmul",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -202,25 +203,25 @@ TVM_FFI_STATIC_INIT_BLOCK({
                       *rv = tensordot(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(),
                                       args[2].cast<int>());
                     } else {
-                      Array<PrimExpr> axes = args[3].cast<Array<PrimExpr>>();
+                      ffi::Array<PrimExpr> axes = args[3].cast<ffi::Array<PrimExpr>>();
                       *rv = tensordot(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(),
-                                      args[2].cast<Array<PrimExpr>>(), axes);
+                                      args[2].cast<ffi::Array<PrimExpr>>(), axes);
                     }
                   })
       .def_packed(
           "topi.strided_slice",
           [](ffi::PackedArgs args, ffi::Any* rv) {
-            Tensor x = args[0].cast<te::Tensor>();
-            Array<PrimExpr> begin = args[1].cast<Array<PrimExpr>>();
-            Array<PrimExpr> end = args[2].cast<Array<PrimExpr>>();
-            Array<PrimExpr> strides = args[3].cast<Array<PrimExpr>>();
-            Array<Integer> axes = args[4].cast<Array<Integer>>();
+            te::Tensor x = args[0].cast<te::Tensor>();
+            ffi::Array<PrimExpr> begin = args[1].cast<ffi::Array<PrimExpr>>();
+            ffi::Array<PrimExpr> end = args[2].cast<ffi::Array<PrimExpr>>();
+            ffi::Array<PrimExpr> strides = args[3].cast<ffi::Array<PrimExpr>>();
+            ffi::Array<Integer> axes = args[4].cast<ffi::Array<Integer>>();
             bool assume_inbound = args[6].cast<bool>();
             if (IsConstIntArray(begin) && IsConstIntArray(end) && IsConstIntArray(strides) &&
                 IsConstIntArray(x->shape)) {
-              Array<Integer> begin_static = args[1].cast<Array<Integer>>();
-              Array<Integer> end_static = args[2].cast<Array<Integer>>();
-              Array<Integer> strides_static = args[3].cast<Array<Integer>>();
+              ffi::Array<Integer> begin_static = args[1].cast<ffi::Array<Integer>>();
+              ffi::Array<Integer> end_static = args[2].cast<ffi::Array<Integer>>();
+              ffi::Array<Integer> strides_static = args[3].cast<ffi::Array<Integer>>();
               auto slice_mode = args[5].cast<std::string>();
               if (axes.size()) {
                 *rv = strided_slice_with_axes(x, begin_static, end_static, strides_static, axes,
@@ -245,7 +246,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                   })
       .def("topi.relax_dynamic_strided_slice",
            [](te::Tensor x, te::Tensor begin, te::Tensor end, te::Tensor strides,
-              Array<PrimExpr> output_shape) {
+              ffi::Array<PrimExpr> output_shape) {
              return relax::dynamic_strided_slice(x, begin, end, strides, output_shape);
            })
       .def_packed("topi.one_hot",
@@ -266,8 +267,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
                                           k1, k2, super_diag_right_align, sub_diag_right_align);
                   })
       .def("topi.adv_index",
-           [](te::Tensor x, Array<te::Tensor> indices) { return adv_index(x, indices); });
-});
+           [](te::Tensor x, ffi::Array<te::Tensor> indices) { return adv_index(x, indices); });
+}
 
 }  // namespace topi
 }  // namespace tvm

@@ -32,36 +32,36 @@ using namespace tvm;
 TVM_REGISTER_TARGET_KIND("TestTargetKind", kDLCPU)
     .set_attr<std::string>("Attr1", "Value1")
     .add_attr_option<bool>("my_bool")
-    .add_attr_option<Array<String>>("your_names")
-    .add_attr_option<Map<String, int64_t>>("her_maps");
+    .add_attr_option<ffi::Array<ffi::String>>("your_names")
+    .add_attr_option<ffi::Map<ffi::String, int64_t>>("her_maps");
 
 TargetJSON TestTargetParser(TargetJSON target) {
-  String mcpu = Downcast<String>(target.at("mcpu"));
-  target.Set("mcpu", String("super_") + mcpu);
-  target.Set("keys", Array<String>({"super"}));
-  target.Set("features", Map<String, ffi::Any>{{"test", true}});
+  ffi::String mcpu = Downcast<ffi::String>(target.at("mcpu"));
+  target.Set("mcpu", ffi::String("super_") + mcpu);
+  target.Set("keys", ffi::Array<ffi::String>({"super"}));
+  target.Set("features", ffi::Map<ffi::String, ffi::Any>{{"test", true}});
   return target;
 }
 
-Map<String, ffi::Any> TestAttrsPreProcessor(Map<String, ffi::Any> attrs) {
-  attrs.Set("mattr", String("woof"));
+ffi::Map<ffi::String, ffi::Any> TestAttrsPreProcessor(ffi::Map<ffi::String, ffi::Any> attrs) {
+  attrs.Set("mattr", ffi::String("woof"));
   return attrs;
 }
 
 TVM_REGISTER_TARGET_KIND("TestTargetParser", kDLCPU)
-    .add_attr_option<String>("mattr")
-    .add_attr_option<String>("mcpu")
+    .add_attr_option<ffi::String>("mattr")
+    .add_attr_option<ffi::String>("mcpu")
     .set_default_keys({"cpu"})
     .set_target_parser(TestTargetParser);
 
 TVM_REGISTER_TARGET_KIND("TestAttrsPreprocessor", kDLCPU)
-    .add_attr_option<String>("mattr")
+    .add_attr_option<ffi::String>("mattr")
     .set_default_keys({"cpu"})
     .set_attrs_preprocessor(TestAttrsPreProcessor);
 
 TVM_REGISTER_TARGET_KIND("TestClashingPreprocessor", kDLCPU)
-    .add_attr_option<String>("mattr")
-    .add_attr_option<String>("mcpu")
+    .add_attr_option<ffi::String>("mattr")
+    .add_attr_option<ffi::String>("mcpu")
     .set_default_keys({"cpu"})
     .set_attrs_preprocessor(TestAttrsPreProcessor)
     .set_target_parser(TestTargetParser);
@@ -74,13 +74,13 @@ TEST(TargetKind, GetAttrMap) {
 }
 
 TEST(TargetCreation, NestedConfig) {
-  Map<String, ffi::Any> config = {
+  ffi::Map<ffi::String, ffi::Any> config = {
       {"my_bool", true},
-      {"your_names", Array<String>{"junru", "jian"}},
-      {"kind", String("TestTargetKind")},
+      {"your_names", ffi::Array<ffi::String>{"junru", "jian"}},
+      {"kind", ffi::String("TestTargetKind")},
       {
           "her_maps",
-          Map<String, int64_t>{
+          ffi::Map<ffi::String, int64_t>{
               {"a", 1},
               {"b", 2},
           },
@@ -92,25 +92,27 @@ TEST(TargetCreation, NestedConfig) {
   ICHECK(target->keys.empty());
   bool my_bool = target->GetAttr<bool>("my_bool").value();
   ICHECK_EQ(my_bool, true);
-  Array<String> your_names = target->GetAttr<Array<String>>("your_names").value();
+  ffi::Array<ffi::String> your_names =
+      target->GetAttr<ffi::Array<ffi::String>>("your_names").value();
   ICHECK_EQ(your_names.size(), 2U);
   ICHECK_EQ(your_names[0], "junru");
   ICHECK_EQ(your_names[1], "jian");
-  Map<String, int64_t> her_maps = target->GetAttr<Map<String, int64_t>>("her_maps").value();
+  ffi::Map<ffi::String, int64_t> her_maps =
+      target->GetAttr<ffi::Map<ffi::String, int64_t>>("her_maps").value();
   ICHECK_EQ(her_maps.size(), 2U);
   ICHECK_EQ(her_maps["a"], 1);
   ICHECK_EQ(her_maps["b"], 2);
 }
 
 TEST(TargetCreationFail, UnrecognizedConfigOption) {
-  Map<String, ffi::Any> config = {
+  ffi::Map<ffi::String, ffi::Any> config = {
       {"my_bool", true},
-      {"your_names", Array<String>{"junru", "jian"}},
-      {"kind", String("TestTargetKind")},
+      {"your_names", ffi::Array<ffi::String>{"junru", "jian"}},
+      {"kind", ffi::String("TestTargetKind")},
       {"bad", ObjectRef(nullptr)},
       {
           "her_maps",
-          Map<String, int64_t>{
+          ffi::Map<ffi::String, int64_t>{
               {"a", 1},
               {"b", 2},
           },
@@ -126,13 +128,13 @@ TEST(TargetCreationFail, UnrecognizedConfigOption) {
 }
 
 TEST(TargetCreationFail, TypeMismatch) {
-  Map<String, ffi::Any> config = {
-      {"my_bool", String("true")},
-      {"your_names", Array<String>{"junru", "jian"}},
-      {"kind", String("TestTargetKind")},
+  ffi::Map<ffi::String, ffi::Any> config = {
+      {"my_bool", ffi::String("true")},
+      {"your_names", ffi::Array<ffi::String>{"junru", "jian"}},
+      {"kind", ffi::String("TestTargetKind")},
       {
           "her_maps",
-          Map<String, int64_t>{
+          ffi::Map<ffi::String, int64_t>{
               {"a", 1},
               {"b", 2},
           },
@@ -148,12 +150,12 @@ TEST(TargetCreationFail, TypeMismatch) {
 }
 
 TEST(TargetCreationFail, TargetKindNotFound) {
-  Map<String, ffi::Any> config = {
+  ffi::Map<ffi::String, ffi::Any> config = {
       {"my_bool", "true"},
-      {"your_names", Array<String>{"junru", "jian"}},
+      {"your_names", ffi::Array<ffi::String>{"junru", "jian"}},
       {
           "her_maps",
-          Map<String, int64_t>{
+          ffi::Map<ffi::String, int64_t>{
               {"a", 1},
               {"b", 2},
           },
@@ -170,7 +172,7 @@ TEST(TargetCreationFail, TargetKindNotFound) {
 
 TEST(TargetCreation, TargetParser) {
   Target test_target("TestTargetParser -mcpu=woof");
-  ASSERT_EQ(test_target->GetAttr<String>("mcpu").value(), "super_woof");
+  ASSERT_EQ(test_target->GetAttr<ffi::String>("mcpu").value(), "super_woof");
   ASSERT_EQ(test_target->keys.size(), 1);
   ASSERT_EQ(test_target->keys[0], "super");
 }
@@ -185,10 +187,10 @@ TEST(TargetCreation, TargetFeatures) {
 }
 
 TEST(TargetCreation, TargetFeaturesBeforeParser) {
-  Map<String, ffi::Any> features = {{"test", true}};
-  Map<String, ffi::Any> config = {
-      {"kind", String("TestTargetParser")},
-      {"mcpu", String("woof")},
+  ffi::Map<ffi::String, ffi::Any> features = {{"test", true}};
+  ffi::Map<ffi::String, ffi::Any> config = {
+      {"kind", ffi::String("TestTargetParser")},
+      {"mcpu", ffi::String("woof")},
       {"features", features},
   };
   EXPECT_THROW(Target test(config), ffi::Error);
@@ -196,7 +198,7 @@ TEST(TargetCreation, TargetFeaturesBeforeParser) {
 
 TEST(TargetCreation, TargetAttrsPreProcessor) {
   Target test_target("TestAttrsPreprocessor -mattr=cake");
-  ASSERT_EQ(test_target->GetAttr<String>("mattr").value(), "woof");
+  ASSERT_EQ(test_target->GetAttr<ffi::String>("mattr").value(), "woof");
 }
 
 TEST(TargetCreation, ClashingTargetProcessing) {
@@ -204,45 +206,46 @@ TEST(TargetCreation, ClashingTargetProcessing) {
 }
 
 TVM_REGISTER_TARGET_KIND("TestStringKind", kDLCPU)
-    .add_attr_option<String>("single")
-    .add_attr_option<Array<String>>("array")
-    .add_attr_option<Array<Array<String>>>("nested-array")
-    .add_attr_option<Array<Array<Array<String>>>>("nested2-array");
+    .add_attr_option<ffi::String>("single")
+    .add_attr_option<ffi::Array<ffi::String>>("array")
+    .add_attr_option<ffi::Array<ffi::Array<ffi::String>>>("nested-array")
+    .add_attr_option<ffi::Array<ffi::Array<ffi::Array<ffi::String>>>>("nested2-array");
 
 TEST(TargetCreation, ProcessStrings) {
   Target test_target1("TestStringKind -single='\\'string with single quote'");
-  ASSERT_TRUE(test_target1->GetAttr<String>("single"));
-  String string1 = test_target1->GetAttr<String>("single").value();
+  ASSERT_TRUE(test_target1->GetAttr<ffi::String>("single"));
+  ffi::String string1 = test_target1->GetAttr<ffi::String>("single").value();
   ASSERT_EQ(string1, "'string with single quote");
 
   Target test_target2("TestStringKind -single='\\\'\\\\\\'blah\\\\\\'\\\''");
-  ASSERT_TRUE(test_target2->GetAttr<String>("single"));
-  String string2 = test_target2->GetAttr<String>("single").value();
+  ASSERT_TRUE(test_target2->GetAttr<ffi::String>("single"));
+  ffi::String string2 = test_target2->GetAttr<ffi::String>("single").value();
   ASSERT_EQ(string2, "'\\\'blah\\\''");
 
   Target test_target3("TestStringKind -array=-danny,-sammy=1,-kirby='string with space'");
-  ASSERT_TRUE(test_target3->GetAttr<Array<String>>("array"));
-  Array<String> array3 = test_target3->GetAttr<Array<String>>("array").value();
+  ASSERT_TRUE(test_target3->GetAttr<ffi::Array<ffi::String>>("array"));
+  ffi::Array<ffi::String> array3 = test_target3->GetAttr<ffi::Array<ffi::String>>("array").value();
   ASSERT_EQ(array3[0], "-danny");
   ASSERT_EQ(array3[1], "-sammy=1");
   ASSERT_EQ(array3[2], "-kirby='string with space'");
 
   Target test_target4("TestStringKind -array='fred, foo, bar',baz");
-  ASSERT_TRUE(test_target4->GetAttr<Array<String>>("array"));
-  Array<String> array4 = test_target4->GetAttr<Array<String>>("array").value();
+  ASSERT_TRUE(test_target4->GetAttr<ffi::Array<ffi::String>>("array"));
+  ffi::Array<ffi::String> array4 = test_target4->GetAttr<ffi::Array<ffi::String>>("array").value();
   ASSERT_EQ(array4[0], "fred, foo, bar");
   ASSERT_EQ(array4[1], "baz");
 
   Target test_target5("TestStringKind -array='fr\\'ed','f\\'oo',' bar,baz '");
-  ASSERT_TRUE(test_target5->GetAttr<Array<String>>("array"));
-  Array<String> array5 = test_target5->GetAttr<Array<String>>("array").value();
+  ASSERT_TRUE(test_target5->GetAttr<ffi::Array<ffi::String>>("array"));
+  ffi::Array<ffi::String> array5 = test_target5->GetAttr<ffi::Array<ffi::String>>("array").value();
   ASSERT_EQ(array5[0], "fr'ed");
   ASSERT_EQ(array5[1], "f'oo");
   ASSERT_EQ(array5[2], "bar,baz");
 
   Target test_target6("TestStringKind -nested-array='foo0,foo1,foo2','bar0,bar1,bar2','baz0,baz1'");
-  ASSERT_TRUE(test_target6->GetAttr<Array<Array<String>>>("nested-array"));
-  Array<Array<String>> array6 = test_target6->GetAttr<Array<Array<String>>>("nested-array").value();
+  ASSERT_TRUE(test_target6->GetAttr<ffi::Array<ffi::Array<ffi::String>>>("nested-array"));
+  ffi::Array<ffi::Array<ffi::String>> array6 =
+      test_target6->GetAttr<ffi::Array<ffi::Array<ffi::String>>>("nested-array").value();
   ASSERT_EQ(array6[0][0], "foo0");
   ASSERT_EQ(array6[0][1], "foo1");
   ASSERT_EQ(array6[0][2], "foo2");
@@ -257,9 +260,11 @@ TEST(TargetCreation, ProcessStrings) {
       "'\\'foo0,foo1\\',\\'bar0,bar1\\',\\'baz0,baz1\\'',"
       "'\\'zing0,zing1\\',\\'fred\\''");
 
-  ASSERT_TRUE(test_target7->GetAttr<Array<Array<Array<String>>>>("nested2-array"));
-  Array<Array<Array<String>>> array7 =
-      test_target7->GetAttr<Array<Array<Array<String>>>>("nested2-array").value();
+  ASSERT_TRUE(
+      test_target7->GetAttr<ffi::Array<ffi::Array<ffi::Array<ffi::String>>>>("nested2-array"));
+  ffi::Array<ffi::Array<ffi::Array<ffi::String>>> array7 =
+      test_target7->GetAttr<ffi::Array<ffi::Array<ffi::Array<ffi::String>>>>("nested2-array")
+          .value();
   // {
   //   {foo0, foo1},
   //   {bar0, bar1},
@@ -449,8 +454,8 @@ TEST(TargetCreation, LLVMCommandLineSaveRestore) {
 }
 
 TEST(TargetCreation, DetectSystemTriple) {
-  Map<String, ffi::Any> config = {
-      {"kind", String("llvm")},
+  ffi::Map<ffi::String, ffi::Any> config = {
+      {"kind", ffi::String("llvm")},
   };
 
   Target target = Target(config);
@@ -461,17 +466,17 @@ TEST(TargetCreation, DetectSystemTriple) {
     GTEST_SKIP() << "LLVM is not available, skipping test";
   }
 
-  Optional<String> mtriple = target->GetAttr<String>("mtriple");
-  ASSERT_TRUE(mtriple.value() == (*pf)().cast<String>());
+  ffi::Optional<ffi::String> mtriple = target->GetAttr<ffi::String>("mtriple");
+  ASSERT_TRUE(mtriple.value() == (*pf)().cast<ffi::String>());
 }
 
 #endif
 
 TEST(TargetCreation, DeduplicateKeys) {
-  Map<String, ffi::Any> config = {
-      {"kind", String("llvm")},
-      {"keys", Array<String>{"cpu", "arm_cpu"}},
-      {"device", String("arm_cpu")},
+  ffi::Map<ffi::String, ffi::Any> config = {
+      {"kind", ffi::String("llvm")},
+      {"keys", ffi::Array<ffi::String>{"cpu", "arm_cpu"}},
+      {"device", ffi::String("arm_cpu")},
   };
   Target target = Target(config);
   ICHECK_EQ(target->kind, TargetKind::Get("llvm").value());
@@ -480,17 +485,17 @@ TEST(TargetCreation, DeduplicateKeys) {
   ICHECK_EQ(target->keys[0], "cpu");
   ICHECK_EQ(target->keys[1], "arm_cpu");
   ICHECK_EQ(target->attrs.size(), 2U);
-  ICHECK_EQ(target->GetAttr<String>("device"), "arm_cpu");
+  ICHECK_EQ(target->GetAttr<ffi::String>("device"), "arm_cpu");
 }
 
 TEST(TargetKindRegistry, ListTargetKinds) {
-  Array<String> names = TargetKindRegEntry::ListTargetKinds();
+  ffi::Array<ffi::String> names = TargetKindRegEntry::ListTargetKinds();
   ICHECK_EQ(names.empty(), false);
   ICHECK_EQ(std::count(std::begin(names), std::end(names), "llvm"), 1);
 }
 
 TEST(TargetKindRegistry, ListTargetOptions) {
   TargetKind llvm = TargetKind::Get("llvm").value();
-  Map<String, String> attrs = TargetKindRegEntry::ListTargetKindOptions(llvm);
+  ffi::Map<ffi::String, ffi::String> attrs = TargetKindRegEntry::ListTargetKindOptions(llvm);
   ICHECK_EQ(attrs.empty(), false);
 }

@@ -59,24 +59,24 @@ class BaseStack {
   }
 
   /*! \brief Get the docs*/
-  const Array<Doc> GetDocs() const;
+  const ffi::Array<Doc> GetDocs() const;
 
  protected:
   /*! \brief Push Id Doc*/
   void Line(const Doc& doc);
-  void Line(const String& line = "");
+  void Line(const ffi::String& line = "");
 
   /*! \brief Push Comment Doc*/
-  void Comment(const String& comment, bool attach = false);
+  void Comment(const ffi::String& comment, bool attach = false);
 
   /*! \brief Push Assign Doc*/
   template <typename LT, typename RT>
-  inline void Assign(const LT& lhs, const RT& rhs, const String& annotation = "") {
+  inline void Assign(const LT& lhs, const RT& rhs, const ffi::String& annotation = "") {
     PushDoc(DocUtils::ToAssign(lhs, rhs, annotation));
   }
 
   /*! \brief Push declare Doc*/
-  void Declare(const String& type, const String& variable, size_t len = 0,
+  void Declare(const ffi::String& type, const ffi::String& variable, size_t len = 0,
                bool use_constructor = true);
 
   /*! \brief Cache declare argument*/
@@ -89,10 +89,10 @@ class BaseStack {
   }
 
   /*! \brief Cache class Doc*/
-  void ClassDef(const String& class_name);
+  void ClassDef(const ffi::String& class_name);
 
   /*! \brief Cache class decorator*/
-  void ClassDecorator(const String& decorator);
+  void ClassDecorator(const ffi::String& decorator);
 
   /*! \brief Start class body block*/
   void ClassStart();
@@ -101,19 +101,20 @@ class BaseStack {
   void ClassEnd();
 
   /*! \brief Start struct body block*/
-  void StructStart(const String& struct_name);
+  void StructStart(const ffi::String& struct_name);
 
   /*! \brief End struct body block*/
   void StructEnd();
 
   /*! \brief Cache function Doc*/
-  void FuncDef(const String& func_name, const String& ret_type = "");
+  void FuncDef(const ffi::String& func_name, const ffi::String& ret_type = "");
 
   /*! \brief Cache function argument*/
-  void FuncArg(const String& arg, const String& annotation = "", const String& value = "");
+  void FuncArg(const ffi::String& arg, const ffi::String& annotation = "",
+               const ffi::String& value = "");
 
   /*! \brief Cache function decorator*/
-  void FuncDecorator(const String& decorator);
+  void FuncDecorator(const ffi::String& decorator);
 
   /*! \brief Start function body block*/
   void FuncStart();
@@ -128,10 +129,11 @@ class BaseStack {
   }
 
   /*! \brief Cache constructor Doc*/
-  void ConstructorDef(const String& constructor_name);
+  void ConstructorDef(const ffi::String& constructor_name);
 
   /*! \brief Cache constructor argument*/
-  void ConstructorArg(const String& arg, const String& annotation = "", const String& value = "");
+  void ConstructorArg(const ffi::String& arg, const ffi::String& annotation = "",
+                      const ffi::String& value = "");
 
   /*! \brief Start constructor body block*/
   void ConstructorStart();
@@ -140,52 +142,55 @@ class BaseStack {
   void ConstructorEnd();
 
   /*! \brief Cache lambda Doc*/
-  void LambdaDef(const String& lambda_name);
+  void LambdaDef(const ffi::String& lambda_name);
 
   /*! \brief Cache lambda argument*/
-  void LambdaArg(const String& arg, const String& annotation = "", const String& value = "");
+  void LambdaArg(const ffi::String& arg, const ffi::String& annotation = "",
+                 const ffi::String& value = "");
 
   /*! \brief Cache lambda reference*/
-  void LambdaRef(const String& ref);
+  void LambdaRef(const ffi::String& ref);
 
   /*! \brief Start lambda body block*/
   void LambdaStart();
 
   /*! \brief End lambda body block*/
-  void LambdaEnd(const String& ret_val = "");
+  void LambdaEnd(const ffi::String& ret_val = "");
   void LambdaEnd(const ExprDoc& ret_val);
 
   /*! \brief Push call and maybe assign Doc*/
-  void FuncCall(const String& callee, Optional<ExprDoc> assign_to,
-                Optional<ExprDoc> caller = std::nullopt);
-  void FuncCall(const String& callee, const String& assign_to = "", const String& caller = "");
+  void FuncCall(const ffi::String& callee, ffi::Optional<ExprDoc> assign_to,
+                ffi::Optional<ExprDoc> caller = std::nullopt);
+  void FuncCall(const ffi::String& callee, const ffi::String& assign_to = "",
+                const ffi::String& caller = "");
 
   /*! \brief Push method call Doc*/
-  void MethodCall(const String& callee, bool new_line = false);
+  void MethodCall(const ffi::String& callee, bool new_line = false);
 
   /*! \brief Push inplace call and maybe assign Doc*/
-  void InplaceStart(const String& callee, Optional<ExprDoc> assign_to,
-                    Optional<ExprDoc> caller = std::nullopt);
-  void InplaceStart(const String& callee, const String& assign_to = "", const String& caller = "");
+  void InplaceStart(const ffi::String& callee, ffi::Optional<ExprDoc> assign_to,
+                    ffi::Optional<ExprDoc> caller = std::nullopt);
+  void InplaceStart(const ffi::String& callee, const ffi::String& assign_to = "",
+                    const ffi::String& caller = "");
 
   /*! \brief End inplace call*/
   void InplaceEnd();
 
   /*! \brief Push nested expr to last Doc*/
-  void PopNest(const String& key = "");
+  void PopNest(const ffi::String& key = "");
 
   /*! \brief Cache call typed argument*/
-  void CallArgBase(const ExprDoc& value, const String& key = "");
+  void CallArgBase(const ExprDoc& value, const ffi::String& key = "");
 
   /*! \brief Cache call normal argument*/
   template <typename T>
-  inline void CallArg(T value, const String& key = "") {
+  inline void CallArg(T value, const ffi::String& key = "") {
     const auto& doc_value = DocUtils::ToDoc(value);
     if (doc_value.defined()) {
       CallArgBase(doc_value, key);
     }
   }
-  inline void CallArg(const Array<ExprDoc>& values) {
+  inline void CallArg(const ffi::Array<ExprDoc>& values) {
     for (const auto& v : values) {
       if (v.defined()) {
         CallArgBase(v);
@@ -194,7 +199,7 @@ class BaseStack {
   }
 
   /*! \brief Push if to cache and start if block*/
-  void ConditionIf(const String& predicate);
+  void ConditionIf(const ffi::String& predicate);
 
   /*! \brief Push then branch to cached and start block*/
   void ConditionElse();
@@ -205,15 +210,15 @@ class BaseStack {
   /*! \brief Push for to cache and start for block*/
   template <typename LT, typename RT>
   void ForStart(const LT& lhs, const RT& rhs) {
-    PushDoc(ForDoc(DocUtils::ToDoc(lhs), DocUtils::ToDoc(rhs), Array<StmtDoc>()));
+    PushDoc(ForDoc(DocUtils::ToDoc(lhs), DocUtils::ToDoc(rhs), ffi::Array<StmtDoc>()));
     BlockStart();
   }
 
   /*! \brief Push for range to cache and start for block*/
   template <typename ST, typename ET>
-  void ForStart(const String& lhs, const ST& start, const ET& end) {
-    Array<ExprDoc> range{DocUtils::ToDoc(start), DocUtils::ToDoc(end)};
-    PushDoc(ForDoc(IdDoc(lhs), TupleDoc(range), Array<StmtDoc>()));
+  void ForStart(const ffi::String& lhs, const ST& start, const ET& end) {
+    ffi::Array<ExprDoc> range{DocUtils::ToDoc(start), DocUtils::ToDoc(end)};
+    PushDoc(ForDoc(IdDoc(lhs), TupleDoc(range), ffi::Array<StmtDoc>()));
     BlockStart();
   }
 
@@ -221,16 +226,16 @@ class BaseStack {
   void ForEnd();
 
   /*! \brief Push while to cache and start while block*/
-  void WhileStart(const String& predicate);
+  void WhileStart(const ffi::String& predicate);
 
   /*! \brief End a while block*/
   void WhileEnd();
 
   /*! \brief Push switch to cache and start switch block*/
-  void SwitchStart(const String& predicate);
+  void SwitchStart(const ffi::String& predicate);
 
   /*! \brief Add new case to switch*/
-  void SwitchCase(const String& predicate = "");
+  void SwitchCase(const ffi::String& predicate = "");
 
   /*! \brief Push switch to cached*/
   void SwitchEnd();
@@ -242,7 +247,7 @@ class BaseStack {
   void BlockEnd(bool block_docs = true);
 
   /*! \brief Start a new scope*/
-  void ScopeStart(const String& scope_def = "", const String& scope_ref = "");
+  void ScopeStart(const ffi::String& scope_def = "", const ffi::String& scope_ref = "");
 
   /*! \brief End a scope*/
   void ScopeEnd();
@@ -252,10 +257,10 @@ class BaseStack {
   bool HasBlock() const;
 
   /*! \brief Get the last the block*/
-  const Array<Doc> TopBlock() const;
+  const ffi::Array<Doc> TopBlock() const;
 
   /*! \brief Pop last the block*/
-  const Array<Doc> PopBlock();
+  const ffi::Array<Doc> PopBlock();
 
   /*! \brief Check if doc left*/
   bool HasDoc();
@@ -274,237 +279,239 @@ class BaseStack {
   void PushDoc(const Doc& doc);
 
   /*! \brief The blocks, each has docs array*/
-  std::stack<Array<Doc>> blocks_;
+  std::stack<ffi::Array<Doc>> blocks_;
 };
 
-#define COMMON_WRAPPERS(Stack)                                                                    \
-  Stack& line(const Doc& doc) {                                                                   \
-    Line(doc);                                                                                    \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& line(const String& line = "") {                                                          \
-    Line(line);                                                                                   \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& comment(const String& comment, bool attach = false) {                                    \
-    Comment(comment, attach);                                                                     \
-    return *this;                                                                                 \
-  }                                                                                               \
-  template <typename LT, typename RT>                                                             \
-  Stack& assign(const LT& lhs, const RT& rhs, const String& annotation = "") {                    \
-    Assign(lhs, rhs, annotation);                                                                 \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& declare(const String& type, const String& variable, size_t len = 0,                      \
-                 bool use_constructor = true) {                                                   \
-    Declare(type, variable, len, use_constructor);                                                \
-    return *this;                                                                                 \
-  }                                                                                               \
-  template <typename T>                                                                           \
-  Stack& declare_arg(const T& value) {                                                            \
-    DeclareArg(value);                                                                            \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& class_def(const String& class_name) {                                                    \
-    ClassDef(class_name);                                                                         \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& class_decorator(const String& decorator) {                                               \
-    ClassDecorator(decorator);                                                                    \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& class_start() {                                                                          \
-    ClassStart();                                                                                 \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& class_end() {                                                                            \
-    ClassEnd();                                                                                   \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& struct_start(const String& struct_name) {                                                \
-    StructStart(struct_name);                                                                     \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& struct_end() {                                                                           \
-    StructEnd();                                                                                  \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& func_def(const String& func_name, const String& ret_type = "") {                         \
-    FuncDef(func_name, ret_type);                                                                 \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& func_arg(const String& arg, const String& annotation = "", const String& value = "") {   \
-    FuncArg(arg, annotation, value);                                                              \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& func_decorator(const String& decorator) {                                                \
-    FuncDecorator(decorator);                                                                     \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& func_start() {                                                                           \
-    FuncStart();                                                                                  \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& func_end() {                                                                             \
-    FuncEnd();                                                                                    \
-    return *this;                                                                                 \
-  }                                                                                               \
-  template <typename T>                                                                           \
-  Stack& func_end(const T& ret_val) {                                                             \
-    FuncEnd(ret_val);                                                                             \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& func_call(const String& callee, Optional<ExprDoc> assign_to,                             \
-                   Optional<ExprDoc> caller = std::nullopt) {                                     \
-    FuncCall(callee, assign_to, caller);                                                          \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& func_call(const String& callee, const String& assign_to = "",                            \
-                   const String& caller = "") {                                                   \
-    FuncCall(callee, assign_to, caller);                                                          \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& method_call(const String& callee, bool new_line = false) {                               \
-    MethodCall(callee, new_line);                                                                 \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& inplace_start(const String& callee, Optional<ExprDoc> assign_to,                         \
-                       Optional<ExprDoc> caller = std::nullopt) {                                 \
-    InplaceStart(callee, assign_to, caller);                                                      \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& inplace_start(const String& callee, const String& assign_to = "",                        \
-                       const String& caller = "") {                                               \
-    InplaceStart(callee, assign_to, caller);                                                      \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& inplace_end() {                                                                          \
-    InplaceEnd();                                                                                 \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& constructor_def(const String& func_name) {                                               \
-    ConstructorDef(func_name);                                                                    \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& constructor_arg(const String& arg, const String& annotation = "",                        \
-                         const String& value = "") {                                              \
-    ConstructorArg(arg, annotation, value);                                                       \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& constructor_start() {                                                                    \
-    ConstructorStart();                                                                           \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& constructor_end() {                                                                      \
-    ConstructorEnd();                                                                             \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& lambda_def(const String& lambda_name) {                                                  \
-    LambdaDef(lambda_name);                                                                       \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& lambda_arg(const String& arg, const String& annotation = "", const String& value = "") { \
-    LambdaArg(arg, annotation, value);                                                            \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& lambda_ref(const String& ref) {                                                          \
-    LambdaRef(ref);                                                                               \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& lambda_start() {                                                                         \
-    LambdaStart();                                                                                \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& lambda_end(const String& ret_val = "") {                                                 \
-    LambdaEnd(ret_val);                                                                           \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& lambda_end(const ExprDoc& ret_val) {                                                     \
-    LambdaEnd(ret_val);                                                                           \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& pop_nest(const String& key = "") {                                                       \
-    PopNest(key);                                                                                 \
-    return *this;                                                                                 \
-  }                                                                                               \
-  template <typename T>                                                                           \
-  Stack& call_arg(T value, const String& key = "") {                                              \
-    CallArg(value, key);                                                                          \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& call_arg(const ExprDoc& value, const String& key = "") {                                 \
-    CallArg(value, key);                                                                          \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& call_arg(const Array<ExprDoc>& values) {                                                 \
-    CallArg(values);                                                                              \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& cond_if(const String& predicate) {                                                       \
-    ConditionIf(predicate);                                                                       \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& cond_else() {                                                                            \
-    ConditionElse();                                                                              \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& cond_end() {                                                                             \
-    ConditionEnd();                                                                               \
-    return *this;                                                                                 \
-  }                                                                                               \
-  template <typename LT, typename RT>                                                             \
-  Stack& for_start(const LT& lhs, const RT& rhs) {                                                \
-    ForStart(lhs, rhs);                                                                           \
-    return *this;                                                                                 \
-  }                                                                                               \
-  template <typename ST, typename ET>                                                             \
-  Stack& for_start(const String& lhs, const ST& start, const ET& end) {                           \
-    ForStart(lhs, start, end);                                                                    \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& for_start(const String& lhs, const String& start, const String& end) {                   \
-    ForStart(lhs, start, end);                                                                    \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& for_end() {                                                                              \
-    ForEnd();                                                                                     \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& while_start(const String& predicate) {                                                   \
-    WhileStart(predicate);                                                                        \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& while_end() {                                                                            \
-    WhileEnd();                                                                                   \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& switch_start(const String& predicate) {                                                  \
-    SwitchStart(predicate);                                                                       \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& switch_case(const String& predicate = "") {                                              \
-    SwitchCase(predicate);                                                                        \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& switch_end() {                                                                           \
-    SwitchEnd();                                                                                  \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& block_start() {                                                                          \
-    BlockStart();                                                                                 \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& block_end(bool block_docs = true) {                                                      \
-    BlockEnd(block_docs);                                                                         \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& scope_start(const String& scope_def = "", const String& scope_ref = "") {                \
-    ScopeStart(scope_def, scope_ref);                                                             \
-    return *this;                                                                                 \
-  }                                                                                               \
-  Stack& scope_end() {                                                                            \
-    ScopeEnd();                                                                                   \
-    return *this;                                                                                 \
+#define COMMON_WRAPPERS(Stack)                                                                 \
+  Stack& line(const Doc& doc) {                                                                \
+    Line(doc);                                                                                 \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& line(const ffi::String& line = "") {                                                  \
+    Line(line);                                                                                \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& comment(const ffi::String& comment, bool attach = false) {                            \
+    Comment(comment, attach);                                                                  \
+    return *this;                                                                              \
+  }                                                                                            \
+  template <typename LT, typename RT>                                                          \
+  Stack& assign(const LT& lhs, const RT& rhs, const ffi::String& annotation = "") {            \
+    Assign(lhs, rhs, annotation);                                                              \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& declare(const ffi::String& type, const ffi::String& variable, size_t len = 0,         \
+                 bool use_constructor = true) {                                                \
+    Declare(type, variable, len, use_constructor);                                             \
+    return *this;                                                                              \
+  }                                                                                            \
+  template <typename T>                                                                        \
+  Stack& declare_arg(const T& value) {                                                         \
+    DeclareArg(value);                                                                         \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& class_def(const ffi::String& class_name) {                                            \
+    ClassDef(class_name);                                                                      \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& class_decorator(const ffi::String& decorator) {                                       \
+    ClassDecorator(decorator);                                                                 \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& class_start() {                                                                       \
+    ClassStart();                                                                              \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& class_end() {                                                                         \
+    ClassEnd();                                                                                \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& struct_start(const ffi::String& struct_name) {                                        \
+    StructStart(struct_name);                                                                  \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& struct_end() {                                                                        \
+    StructEnd();                                                                               \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& func_def(const ffi::String& func_name, const ffi::String& ret_type = "") {            \
+    FuncDef(func_name, ret_type);                                                              \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& func_arg(const ffi::String& arg, const ffi::String& annotation = "",                  \
+                  const ffi::String& value = "") {                                             \
+    FuncArg(arg, annotation, value);                                                           \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& func_decorator(const ffi::String& decorator) {                                        \
+    FuncDecorator(decorator);                                                                  \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& func_start() {                                                                        \
+    FuncStart();                                                                               \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& func_end() {                                                                          \
+    FuncEnd();                                                                                 \
+    return *this;                                                                              \
+  }                                                                                            \
+  template <typename T>                                                                        \
+  Stack& func_end(const T& ret_val) {                                                          \
+    FuncEnd(ret_val);                                                                          \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& func_call(const ffi::String& callee, ffi::Optional<ExprDoc> assign_to,                \
+                   ffi::Optional<ExprDoc> caller = std::nullopt) {                             \
+    FuncCall(callee, assign_to, caller);                                                       \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& func_call(const ffi::String& callee, const ffi::String& assign_to = "",               \
+                   const ffi::String& caller = "") {                                           \
+    FuncCall(callee, assign_to, caller);                                                       \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& method_call(const ffi::String& callee, bool new_line = false) {                       \
+    MethodCall(callee, new_line);                                                              \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& inplace_start(const ffi::String& callee, ffi::Optional<ExprDoc> assign_to,            \
+                       ffi::Optional<ExprDoc> caller = std::nullopt) {                         \
+    InplaceStart(callee, assign_to, caller);                                                   \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& inplace_start(const ffi::String& callee, const ffi::String& assign_to = "",           \
+                       const ffi::String& caller = "") {                                       \
+    InplaceStart(callee, assign_to, caller);                                                   \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& inplace_end() {                                                                       \
+    InplaceEnd();                                                                              \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& constructor_def(const ffi::String& func_name) {                                       \
+    ConstructorDef(func_name);                                                                 \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& constructor_arg(const ffi::String& arg, const ffi::String& annotation = "",           \
+                         const ffi::String& value = "") {                                      \
+    ConstructorArg(arg, annotation, value);                                                    \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& constructor_start() {                                                                 \
+    ConstructorStart();                                                                        \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& constructor_end() {                                                                   \
+    ConstructorEnd();                                                                          \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& lambda_def(const ffi::String& lambda_name) {                                          \
+    LambdaDef(lambda_name);                                                                    \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& lambda_arg(const ffi::String& arg, const ffi::String& annotation = "",                \
+                    const ffi::String& value = "") {                                           \
+    LambdaArg(arg, annotation, value);                                                         \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& lambda_ref(const ffi::String& ref) {                                                  \
+    LambdaRef(ref);                                                                            \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& lambda_start() {                                                                      \
+    LambdaStart();                                                                             \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& lambda_end(const ffi::String& ret_val = "") {                                         \
+    LambdaEnd(ret_val);                                                                        \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& lambda_end(const ExprDoc& ret_val) {                                                  \
+    LambdaEnd(ret_val);                                                                        \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& pop_nest(const ffi::String& key = "") {                                               \
+    PopNest(key);                                                                              \
+    return *this;                                                                              \
+  }                                                                                            \
+  template <typename T>                                                                        \
+  Stack& call_arg(T value, const ffi::String& key = "") {                                      \
+    CallArg(value, key);                                                                       \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& call_arg(const ExprDoc& value, const ffi::String& key = "") {                         \
+    CallArg(value, key);                                                                       \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& call_arg(const ffi::Array<ExprDoc>& values) {                                         \
+    CallArg(values);                                                                           \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& cond_if(const ffi::String& predicate) {                                               \
+    ConditionIf(predicate);                                                                    \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& cond_else() {                                                                         \
+    ConditionElse();                                                                           \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& cond_end() {                                                                          \
+    ConditionEnd();                                                                            \
+    return *this;                                                                              \
+  }                                                                                            \
+  template <typename LT, typename RT>                                                          \
+  Stack& for_start(const LT& lhs, const RT& rhs) {                                             \
+    ForStart(lhs, rhs);                                                                        \
+    return *this;                                                                              \
+  }                                                                                            \
+  template <typename ST, typename ET>                                                          \
+  Stack& for_start(const ffi::String& lhs, const ST& start, const ET& end) {                   \
+    ForStart(lhs, start, end);                                                                 \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& for_start(const ffi::String& lhs, const ffi::String& start, const ffi::String& end) { \
+    ForStart(lhs, start, end);                                                                 \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& for_end() {                                                                           \
+    ForEnd();                                                                                  \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& while_start(const ffi::String& predicate) {                                           \
+    WhileStart(predicate);                                                                     \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& while_end() {                                                                         \
+    WhileEnd();                                                                                \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& switch_start(const ffi::String& predicate) {                                          \
+    SwitchStart(predicate);                                                                    \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& switch_case(const ffi::String& predicate = "") {                                      \
+    SwitchCase(predicate);                                                                     \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& switch_end() {                                                                        \
+    SwitchEnd();                                                                               \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& block_start() {                                                                       \
+    BlockStart();                                                                              \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& block_end(bool block_docs = true) {                                                   \
+    BlockEnd(block_docs);                                                                      \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& scope_start(const ffi::String& scope_def = "", const ffi::String& scope_ref = "") {   \
+    ScopeStart(scope_def, scope_ref);                                                          \
+    return *this;                                                                              \
+  }                                                                                            \
+  Stack& scope_end() {                                                                         \
+    ScopeEnd();                                                                                \
+    return *this;                                                                              \
   }
 
 /*!
@@ -542,35 +549,37 @@ class OpCodeStack : public BaseStack {
   COMMON_WRAPPERS(OpCodeStack<OpCodeGenType>)
 
   /*! \brief Push op_call Doc*/
-  OpCodeStack<OpCodeGenType>& op_call(const String& callee = "msc::auto",
-                                      const String& assign_to = "msc::auto") {
-    const String& v_callee = callee == "msc::auto" ? codegen_->callee_name() : callee;
-    const String& v_assign = assign_to == "msc::auto" ? codegen_->ret_name() : assign_to;
+  OpCodeStack<OpCodeGenType>& op_call(const ffi::String& callee = "msc::auto",
+                                      const ffi::String& assign_to = "msc::auto") {
+    const ffi::String& v_callee = callee == "msc::auto" ? codegen_->callee_name() : callee;
+    const ffi::String& v_assign = assign_to == "msc::auto" ? codegen_->ret_name() : assign_to;
     return func_call(v_callee, v_assign);
   }
 
   /*! \brief Push op comment Doc*/
-  OpCodeStack<OpCodeGenType>& op_comment(const String& comment_str = "msc::auto") {
-    const String& v_comment = (comment_str == "msc::auto" ? codegen_->Comment() : comment_str);
+  OpCodeStack<OpCodeGenType>& op_comment(const ffi::String& comment_str = "msc::auto") {
+    const ffi::String& v_comment = (comment_str == "msc::auto" ? codegen_->Comment() : comment_str);
     return comment(v_comment);
   }
 
   /*! \brief Cache typed attribute as argument*/
   template <typename T>
-  OpCodeStack<OpCodeGenType>& op_arg(const String& attr_key, const String& key = "msc::auto") {
+  OpCodeStack<OpCodeGenType>& op_arg(const ffi::String& attr_key,
+                                     const ffi::String& key = "msc::auto") {
     T attr_val;
     if (codegen_->node()->GetAttr(attr_key, &attr_val)) {
-      const String& valid_key = key == "msc::auto" ? attr_key : key;
+      const ffi::String& valid_key = key == "msc::auto" ? attr_key : key;
       return call_arg(attr_val, valid_key);
     }
     return *this;
   }
 
   /*! \brief Cache str attribute as argument*/
-  OpCodeStack<OpCodeGenType>& op_str_arg(const String& attr_key, const String& key = "msc::auto") {
+  OpCodeStack<OpCodeGenType>& op_str_arg(const ffi::String& attr_key,
+                                         const ffi::String& key = "msc::auto") {
     std::string attr_val;
     if (codegen_->node()->GetAttr(attr_key, &attr_val)) {
-      const String& valid_key = key == "msc::auto" ? attr_key : key;
+      const ffi::String& valid_key = key == "msc::auto" ? attr_key : key;
       return call_arg(DocUtils::ToStr(attr_val), valid_key);
     }
     return *this;
@@ -578,24 +587,25 @@ class OpCodeStack : public BaseStack {
 
   /*! \brief Cache list attribute as argument*/
   template <typename T>
-  OpCodeStack<OpCodeGenType>& op_list_arg(const String& attr_key, const String& key = "msc::auto",
+  OpCodeStack<OpCodeGenType>& op_list_arg(const ffi::String& attr_key,
+                                          const ffi::String& key = "msc::auto",
                                           bool allow_empty = false) {
     std::vector<T> attr_val;
     if (codegen_->node()->GetAttr(attr_key, &attr_val)) {
-      const String& valid_key = key == "msc::auto" ? attr_key : key;
+      const ffi::String& valid_key = key == "msc::auto" ? attr_key : key;
       return call_arg(DocUtils::ToList(attr_val, allow_empty), valid_key);
     }
     return *this;
   }
 
   /*! \brief Cache input as argument*/
-  OpCodeStack<OpCodeGenType>& op_input_arg(int idx = 0, const String& key = "") {
+  OpCodeStack<OpCodeGenType>& op_input_arg(int idx = 0, const ffi::String& key = "") {
     return call_arg(codegen_->IdxInput(idx, true), key);
   }
 
   /*! \brief Cache inputs as argument*/
-  OpCodeStack<OpCodeGenType>& op_inputs_arg(bool as_list = true, const String& key = "") {
-    Array<String> inputs;
+  OpCodeStack<OpCodeGenType>& op_inputs_arg(bool as_list = true, const ffi::String& key = "") {
+    ffi::Array<ffi::String> inputs;
     for (size_t i = 0; i < codegen_->node()->inputs.size(); i++) {
       inputs.push_back(codegen_->IdxInput(i, true));
     }
@@ -607,12 +617,12 @@ class OpCodeStack : public BaseStack {
   }
 
   /*! \brief Cache output as argument*/
-  OpCodeStack<OpCodeGenType>& op_output_arg(int idx = 0, const String& key = "") {
+  OpCodeStack<OpCodeGenType>& op_output_arg(int idx = 0, const ffi::String& key = "") {
     return call_arg(codegen_->IdxOutput(idx), key);
   }
 
   /*! \brief Cache weight as argument*/
-  OpCodeStack<OpCodeGenType>& op_weight_arg(const String& wtype, const String& key = "") {
+  OpCodeStack<OpCodeGenType>& op_weight_arg(const ffi::String& wtype, const ffi::String& key = "") {
     if (codegen_->node()->weights.count(wtype)) {
       return call_arg(codegen_->IdxWeight(wtype, true), key);
     }
@@ -620,15 +630,15 @@ class OpCodeStack : public BaseStack {
   }
 
   /*! \brief Cache name as argument*/
-  OpCodeStack<OpCodeGenType>& op_name_arg(const String& key = "msc::auto",
-                                          const String& name = "msc::auto") {
-    const String& valid_key = key == "msc::auto" ? "name" : key;
-    const String& valid_name = name == "msc::auto" ? codegen_->node()->name : name;
+  OpCodeStack<OpCodeGenType>& op_name_arg(const ffi::String& key = "msc::auto",
+                                          const ffi::String& name = "msc::auto") {
+    const ffi::String& valid_key = key == "msc::auto" ? "name" : key;
+    const ffi::String& valid_name = name == "msc::auto" ? codegen_->node()->name : name;
     return call_arg(DocUtils::ToStr(valid_name), valid_key);
     return *this;
   }
 
-  OpCodeStack<OpCodeGenType>& op_dtype_arg(const DataType& dtype, const String& key = "") {
+  OpCodeStack<OpCodeGenType>& op_dtype_arg(const DataType& dtype, const ffi::String& key = "") {
     return call_arg(codegen_->DType(dtype), key);
   }
 

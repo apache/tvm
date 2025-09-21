@@ -20,8 +20,8 @@
 #ifndef TVM_RUNTIME_HEXAGON_HEXAGON_MODULE_H_
 #define TVM_RUNTIME_HEXAGON_HEXAGON_MODULE_H_
 
+#include <tvm/ffi/extra/module.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/module.h>
 
 #include <array>
 #include <memory>
@@ -39,14 +39,15 @@ namespace runtime {
  * \param data          The module data.
  * \param fmt           The format of the data, can be "obj".
  * \param fmap          The function information map of each function.
- * \param asm_str       String with the generated assembly source.
- * \param obj_str       String with the object file data.
- * \param ir_str        String with the disassembled LLVM IR source.
- * \param bc_str        String with the bitcode LLVM IR.
+ * \param asm_str       ffi::String with the generated assembly source.
+ * \param obj_str       ffi::String with the object file data.
+ * \param ir_str        ffi::String with the disassembled LLVM IR source.
+ * \param bc_str        ffi::String with the bitcode LLVM IR.
  */
-Module HexagonModuleCreate(std::string data, std::string fmt,
-                           std::unordered_map<std::string, FunctionInfo> fmap, std::string asm_str,
-                           std::string obj_str, std::string ir_str, std::string bc_str);
+ffi::Module HexagonModuleCreate(std::string data, std::string fmt,
+                                std::unordered_map<std::string, FunctionInfo> fmap,
+                                std::string asm_str, std::string obj_str, std::string ir_str,
+                                std::string bc_str);
 
 /*!
   \brief Module implementation for compiled Hexagon binaries. It is suitable
@@ -54,21 +55,21 @@ Module HexagonModuleCreate(std::string data, std::string fmt,
          See docstring for HexagonModuleCreate for
          construction parameter details.
  */
-class HexagonModuleNode : public runtime::ModuleNode {
+class HexagonModuleNode : public ffi::ModuleObj {
  public:
   HexagonModuleNode(std::string data, std::string fmt,
                     std::unordered_map<std::string, FunctionInfo> fmap, std::string asm_str,
                     std::string obj_str, std::string ir_str, std::string bc_str);
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override;
-  String GetSource(const String& format) override;
-  const char* type_key() const final { return "hexagon"; }
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final;
+  ffi::String InspectSource(const ffi::String& format) const final;
+  const char* kind() const final { return "hexagon"; }
   /*! \brief Get the property of the runtime module .*/
-  int GetPropertyMask() const override {
-    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kDSOExportable |
-           ModulePropertyMask::kRunnable;
+  int GetPropertyMask() const final {
+    return ffi::Module::kBinarySerializable | ffi::Module::kCompilationExportable |
+           ffi::Module::kRunnable;
   }
-  void SaveToFile(const String& file_name, const String& format) override;
-  void SaveToBinary(dmlc::Stream* stream) override;
+  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final;
+  ffi::Bytes SaveToBytes() const final;
 
  protected:
   std::string data_;

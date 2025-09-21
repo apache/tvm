@@ -44,7 +44,7 @@ namespace tir {
 class MmaBufferLayoutTransformer : public StmtExprMutator {
  public:
   Stmt VisitStmt_(const BlockNode* op) {
-    Block block = GetRef<Block>(op);
+    Block block = ffi::GetRef<Block>(op);
     auto* n = block.CopyOnWrite();
     auto fmutate = [this](const Buffer& buffer) {
       // m16n8k8.matrix[A/B/C] buffers are composed ofseveral small blocks. Assume the block's
@@ -164,10 +164,10 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const VarNode* op) {
-    if (buffer_var_map_.count(GetRef<Var>(op))) {
-      return buffer_var_map_[GetRef<Var>(op)];
+    if (buffer_var_map_.count(ffi::GetRef<Var>(op))) {
+      return buffer_var_map_[ffi::GetRef<Var>(op)];
     }
-    return GetRef<Var>(op);
+    return ffi::GetRef<Var>(op);
   }
 
  private:
@@ -187,10 +187,10 @@ Pass TransformMmaBufferLayout() {
   return CreatePrimFuncPass(pass_func, 0, "tir.TransformMmaBufferLayout", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.TransformMmaBufferLayout", TransformMmaBufferLayout);
-});
+}
 }  // namespace transform
 
 }  // namespace tir

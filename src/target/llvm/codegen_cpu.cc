@@ -71,7 +71,7 @@ CodeGenCPU::CodeGenCPU() = default;
 CodeGenCPU::~CodeGenCPU() = default;
 
 void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
-                      Optional<String> system_lib_prefix, bool dynamic_lookup,
+                      ffi::Optional<ffi::String> system_lib_prefix, bool dynamic_lookup,
                       bool target_c_runtime) {
   CodeGenLLVM::Init(module_name, llvm_target, system_lib_prefix, dynamic_lookup, target_c_runtime);
   system_lib_prefix_ = system_lib_prefix;
@@ -146,10 +146,10 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   if (system_lib_prefix_.has_value() && !target_c_runtime) {
     // We will need this in environment for backward registration.
     // Defined in include/tvm/runtime/c_backend_api.h:
-    // int TVMBackendRegisterSystemLibSymbol(const char* name, void* ptr);
+    // int TVMFFIEnvModRegisterSystemLibSymbol(const char* name, void* ptr);
     f_tvm_register_system_symbol_ = llvm::Function::Create(
         llvm::FunctionType::get(t_int_, {llvmGetPointerTo(t_char_, 0), t_void_p_}, false),
-        llvm::Function::ExternalLinkage, "TVMBackendRegisterSystemLibSymbol", module_.get());
+        llvm::Function::ExternalLinkage, "TVMFFIEnvModRegisterSystemLibSymbol", module_.get());
   } else {
     f_tvm_register_system_symbol_ = nullptr;
   }
@@ -175,7 +175,7 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
 }
 
 llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(llvm::StringRef name,
-                                                    const Array<Type>& param_types,
+                                                    const ffi::Array<Type>& param_types,
                                                     const Type& return_type) {
 #if TVM_LLVM_VERSION < 50
   return nullptr;
@@ -211,7 +211,7 @@ llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(llvm::StringRef name,
 }
 
 llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const GlobalVar& gvar, const PrimFunc& func) {
-  std::string name = func->GetAttr<String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
+  std::string name = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
   return CreateDebugFunction(name, func->params.Map(GetType), func->ret_type);
 }
 
@@ -220,7 +220,7 @@ void CodeGenCPU::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   EmitDebugLocation(func->span);
   CodeGenLLVM::AddFunction(gvar, func);
   if (f_tvm_register_system_symbol_ != nullptr) {
-    if (auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+    if (auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
       export_system_symbols_.emplace_back(
           std::make_pair(global_symbol.value().operator std::string(), function_));
     }
@@ -229,28 +229,47 @@ void CodeGenCPU::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
 }
 
 void CodeGenCPU::AddMainFunction(const std::string& entry_func_name) {
-  llvm::Function* f = module_->getFunction(entry_func_name);
-  ICHECK(f) << "Function " << entry_func_name << "does not in module";
-  llvm::Type* type = llvm::ArrayType::get(t_char_, entry_func_name.length() + 1);
-  llvm::GlobalVariable* global =
-      new llvm::GlobalVariable(*module_, type, true, llvm::GlobalValue::WeakAnyLinkage, nullptr,
-                               runtime::symbol::tvm_module_main);
-#if TVM_LLVM_VERSION >= 100
-  global->setAlignment(llvm::Align(1));
-#else
-  global->setAlignment(1);
-#endif
-  // comdat is needed for windows select any linking to work
-  // set comdat to Any(weak linking)
+  if (module_->getFunction(ffi::symbol::tvm_ffi_main) != nullptr) {
+    // main already exists, no need to create a wrapper function
+    // main takes precedence over other entry functions
+    return;
+  }
+  // create a wrapper function with tvm_ffi_main name and redirects to the entry function
+  llvm::Function* target_func = module_->getFunction(entry_func_name);
+  ICHECK(target_func) << "Function " << entry_func_name << " does not exist in module";
+
+  // Create wrapper function
+  llvm::Function* wrapper_func =
+      llvm::Function::Create(target_func->getFunctionType(), llvm::Function::WeakAnyLinkage,
+                             ffi::symbol::tvm_ffi_main, module_.get());
+
+  // Set attributes (Windows comdat, DLL export, etc.)
   if (llvm_target_->GetOrCreateTargetMachine()->getTargetTriple().isOSWindows()) {
-    llvm::Comdat* comdat = module_->getOrInsertComdat(runtime::symbol::tvm_module_main);
+    llvm::Comdat* comdat = module_->getOrInsertComdat(ffi::symbol::tvm_ffi_main);
     comdat->setSelectionKind(llvm::Comdat::Any);
-    global->setComdat(comdat);
+    wrapper_func->setComdat(comdat);
   }
 
-  global->setInitializer(
-      llvm::ConstantDataArray::getString(*llvm_target_->GetContext(), entry_func_name));
-  global->setDLLStorageClass(llvm::GlobalVariable::DLLExportStorageClass);
+  wrapper_func->setCallingConv(llvm::CallingConv::C);
+  wrapper_func->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
+
+  // Create simple tail call
+  llvm::BasicBlock* entry =
+      llvm::BasicBlock::Create(*llvm_target_->GetContext(), "entry", wrapper_func);
+  builder_->SetInsertPoint(entry);
+
+  // Forward all arguments to target function
+  std::vector<llvm::Value*> call_args;
+  for (llvm::Value& arg : wrapper_func->args()) {
+    call_args.push_back(&arg);
+  }
+
+  llvm::Value* result = builder_->CreateCall(target_func, call_args);
+  if (target_func->getReturnType()->isVoidTy()) {
+    builder_->CreateRetVoid();
+  } else {
+    builder_->CreateRet(result);
+  }
 }
 
 std::unique_ptr<llvm::Module> CodeGenCPU::Finish() {
@@ -371,8 +390,8 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value
   }
 }
 
-llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, String global_symbol,
-                                          const Array<PrimExpr>& args, bool skip_first_arg) {
+llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, ffi::String global_symbol,
+                                          const ffi::Array<PrimExpr>& args, bool skip_first_arg) {
   std::vector<llvm::Value*> arg_values;
   for (size_t i = static_cast<size_t>(skip_first_arg); i < args.size(); ++i) {
     arg_values.push_back(MakeValue(args[i]));
@@ -440,8 +459,7 @@ llvm::Value* CodeGenCPU::GetContextPtr(llvm::GlobalVariable* gv) {
 }
 
 void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
-  std::string ctx_symbol =
-      system_lib_prefix_.value_or("") + tvm::runtime::symbol::tvm_ffi_library_ctx;
+  std::string ctx_symbol = system_lib_prefix_.value_or("") + ffi::symbol::tvm_ffi_library_ctx;
   // Module context
   gv_mod_ctx_ = InitContextPtr(t_void_p_, ctx_symbol);
   // Register back the locations.
@@ -493,6 +511,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
       std::swap(analyzer_, parent_->analyzer_);
       std::swap(var_map_, parent_->var_map_);
       std::swap(di_subprogram_, parent_->di_subprogram_);
+      std::swap(loop_frame_jump_tgts_, parent_->loop_frame_jump_tgts_);
     }
 
     void ExitWithScope() {
@@ -500,11 +519,13 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
       std::swap(analyzer_, parent_->analyzer_);
       std::swap(var_map_, parent_->var_map_);
       std::swap(di_subprogram_, parent_->di_subprogram_);
+      std::swap(loop_frame_jump_tgts_, parent_->loop_frame_jump_tgts_);
     }
 
     llvm::Function* function_{nullptr};
     llvm::DISubprogram* di_subprogram_{nullptr};
     std::unordered_map<const VarNode*, llvm::Value*> var_map_;
+    std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*>> loop_frame_jump_tgts_;
     std::unique_ptr<arith::Analyzer> analyzer_{std::make_unique<arith::Analyzer>()};
     CodeGenCPU* parent_;
   };
@@ -513,7 +534,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   // - Make sure the generated compute function is clearly separately(though it can get inlined)
   // - Set noalias on all the pointer arguments, some of them are loaded from ffi::PackedArgs.
   //   This is easier than set the alias scope manually.
-  Array<Var> vargs = tir::UndefinedVars(op->body, {});
+  ffi::Array<Var> vargs = tir::UndefinedVars(op->body, {});
   std::vector<llvm::Value*> arg_values;
   std::vector<llvm::Type*> arg_types;
   for (Var v : vargs) {
@@ -580,7 +601,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   AddDebugInformation(fcompute, vargs.Map(GetType));
 }
 
-CodeGenLLVM::TypedPointer CodeGenCPU::PackClosureData(const Array<Var>& vfields,
+CodeGenLLVM::TypedPointer CodeGenCPU::PackClosureData(const ffi::Array<Var>& vfields,
                                                       uint64_t* num_bytes,
                                                       std::string struct_name) {
   if (vfields.size() == 0) {
@@ -606,7 +627,7 @@ CodeGenLLVM::TypedPointer CodeGenCPU::PackClosureData(const Array<Var>& vfields,
   return TypedPointer(ctype, cvalue);
 }
 
-void CodeGenCPU::UnpackClosureData(TypedPointer cdata, const Array<Var>& vfields,
+void CodeGenCPU::UnpackClosureData(TypedPointer cdata, const ffi::Array<Var>& vfields,
                                    std::unordered_map<const VarNode*, llvm::Value*>* vmap) {
   for (size_t i = 0; i < vfields.size(); ++i) {
     llvm::Type* field_type = cdata.type->getStructElementType(i);
@@ -626,7 +647,7 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::strin
   SetTargetAttributes(f);
 
   // allocate and setup the closure, call the closure.
-  Array<Var> vfields = tir::UndefinedVars(body, {});
+  ffi::Array<Var> vfields = tir::UndefinedVars(body, {});
   uint64_t nbytes;
   TypedPointer cdata = PackClosureData(vfields, &nbytes, "closure_" + name);
 #if TVM_LLVM_VERSION >= 90
@@ -702,7 +723,7 @@ void CodeGenCPU::CreateStaticInit(const std::string& init_fname, const Stmt& bod
   }
   // allocate and setup the closure, call the closure.
   uint64_t nbytes;
-  Array<Var> vfields = tir::UndefinedVars(body, {});
+  ffi::Array<Var> vfields = tir::UndefinedVars(body, {});
   TypedPointer cdata = PackClosureData(vfields, &nbytes);
   llvm::BasicBlock* init_end = CheckCallSuccess(builder_->CreateCall(
       finit, {gv, f, builder_->CreatePointerCast(cdata.addr, t_void_p_), ConstInt32(nbytes)}));
@@ -812,7 +833,7 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
   return phi;
 }
 
-CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& args,
+CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<PrimExpr>& args,
                                                          const DataType& r_type,
                                                          const int64_t begin, const int64_t end,
                                                          bool use_env_lookup) {
@@ -844,8 +865,9 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
     call_args.push_back(GetPackedFuncHandle(func_name));
     call_args.insert(call_args.end(), {packed_args, ConstInt32(nargs), result});
   } else {
+    // directly call into symbol, needs to prefix with tvm_ffi_symbol_prefix
     callee_ftype = ftype_tvm_ffi_c_func_;
-    callee_value = module_->getFunction(func_name);
+    callee_value = module_->getFunction(ffi::symbol::tvm_ffi_symbol_prefix + func_name);
     if (callee_value == nullptr) {
       callee_value = llvm::Function::Create(ftype_tvm_ffi_c_func_, llvm::Function::ExternalLinkage,
                                             func_name, module_.get());
@@ -1167,13 +1189,13 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.codegen.llvm.target_cpu",
                                [](const ffi::PackedArgs& targs, ffi::Any* rv) {
                                  *rv = static_cast<void*>(new CodeGenCPU());
                                });
-});
+}
 
 }  // namespace codegen
 }  // namespace tvm

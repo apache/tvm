@@ -49,7 +49,7 @@ struct DiscoProtocol {
 
   /*! \brief Recycle all the memory used in the arena */
   inline void RecycleAll() {
-    this->object_arena_.clear();
+    this->any_arena_.clear();
     this->arena_.RecycleAll();
   }
 
@@ -81,27 +81,27 @@ struct DiscoProtocol {
   }
 
   support::Arena arena_;
-  std::vector<Any> object_arena_;
+  std::vector<Any> any_arena_;
   friend struct RPCReference;
 };
 
 /*!
  * \brief The debug extension of the communication protocol that allows serialization and
- * deserialization of NDArrays and reflection-capable TVM objects.
+ * deserialization of Tensors and reflection-capable TVM objects.
  */
 struct DiscoDebugObject : public Object {
  public:
   /*! \brief The data to be serialized */
   ffi::Any data;
 
-  /*! \brief Wrap an NDArray or reflection-capable TVM object into the debug extension. */
+  /*! \brief Wrap an Tensor or reflection-capable TVM object into the debug extension. */
   static ObjectRef Wrap(const ffi::Any& data) {
-    ObjectPtr<DiscoDebugObject> n = make_object<DiscoDebugObject>();
+    ObjectPtr<DiscoDebugObject> n = ffi::make_object<DiscoDebugObject>();
     n->data = data;
     return ObjectRef(n);
   }
 
-  /*! \brief Wrap an NDArray or reflection-capable TVM object into the debug extension. */
+  /*! \brief Wrap an Tensor or reflection-capable TVM object into the debug extension. */
   static ObjectRef Wrap(const ffi::AnyView& data) {
     ffi::Any rv;
     rv = data;
@@ -116,9 +116,7 @@ struct DiscoDebugObject : public Object {
   inline uint64_t GetFFIAnyProtocolBytes() const {
     return sizeof(uint64_t) + this->SaveToStr().size();
   }
-
-  static constexpr const char* _type_key = "runtime.disco.DiscoDebugObject";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DiscoDebugObject, SessionObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.DiscoDebugObject", DiscoDebugObject, SessionObj);
 };
 
 template <class SubClassType>
@@ -182,7 +180,7 @@ inline void DiscoProtocol<SubClassType>::ReadFFIAny(TVMFFIAny* out) {
   uint32_t type_index;
   self->template Read<uint32_t>(&type_index);
   if (type_index == TypeIndex::kRuntimeDiscoDRef) {
-    ObjectPtr<DRefObj> dref = make_object<DRefObj>();
+    ObjectPtr<DRefObj> dref = ffi::make_object<DRefObj>();
     self->template Read<int64_t>(&dref->reg_id);
     dref->session = Session{nullptr};
     result = ObjectRef(std::move(dref));
@@ -191,7 +189,7 @@ inline void DiscoProtocol<SubClassType>::ReadFFIAny(TVMFFIAny* out) {
     self->template Read<uint64_t>(&size);
     std::string data(size, '\0');
     self->template ReadArray<char>(data.data(), size);
-    result = String(std::move(data));
+    result = ffi::String(std::move(data));
   } else if (type_index == ffi::TypeIndex::kTVMFFIBytes) {
     uint64_t size = 0;
     self->template Read<uint64_t>(&size);
@@ -215,12 +213,12 @@ inline void DiscoProtocol<SubClassType>::ReadFFIAny(TVMFFIAny* out) {
                << Object::TypeIndex2Key(type_index) << " (type_index = " << type_index << ")";
   }
   *reinterpret_cast<ffi::AnyView*>(out) = result;
-  object_arena_.push_back(result);
+  any_arena_.push_back(result);
 }
 
 inline std::string DiscoDebugObject::SaveToStr() const {
-  if (auto opt_nd = this->data.as<NDArray>()) {
-    NDArray array = opt_nd.value();
+  if (auto opt_nd = this->data.as<Tensor>()) {
+    Tensor array = opt_nd.value();
     std::string result;
     {
       dmlc::MemoryStringStream mstrm(&result);
@@ -247,7 +245,7 @@ inline ObjectPtr<DiscoDebugObject> DiscoDebugObject::LoadFromStr(std::string jso
   ICHECK(!json_str.empty());
   char control_bit = json_str.back();
   json_str.pop_back();
-  ObjectPtr<DiscoDebugObject> result = make_object<DiscoDebugObject>();
+  ObjectPtr<DiscoDebugObject> result = ffi::make_object<DiscoDebugObject>();
   if (control_bit == '0') {
     const auto f = tvm::ffi::Function::GetGlobal("node.LoadJSON");
     CHECK(f.has_value()) << "ValueError: Cannot deserialize object in non-debugging mode";
@@ -256,7 +254,7 @@ inline ObjectPtr<DiscoDebugObject> DiscoDebugObject::LoadFromStr(std::string jso
     dmlc::MemoryStringStream mstrm(&json_str);
     support::Base64InStream b64strm(&mstrm);
     b64strm.InitPosition();
-    runtime::NDArray array;
+    runtime::Tensor array;
     ICHECK(array.Load(&b64strm));
     result->data = std::move(array);
   } else {

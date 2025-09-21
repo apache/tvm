@@ -214,8 +214,8 @@ def test_function_call_with_null_data_pointer():
 
     built = tvm.compile(func, target="llvm")
 
-    A = tvm.nd.array(np.zeros([16], dtype="int32"))
-    B = tvm.nd.empty([16, 16], "int32", tvm.cpu())
+    A = tvm.runtime.tensor(np.zeros([16], dtype="int32"))
+    B = tvm.runtime.empty([16, 16], "int32", tvm.cpu())
 
     with pytest.raises(tvm.TVMError):
         built(A, B)
@@ -231,8 +231,8 @@ def test_function_call_with_wrong_dimensionality():
 
     built = tvm.compile(func, target="llvm")
 
-    A = tvm.nd.array(np.zeros([16], dtype="int32"))
-    B = tvm.nd.empty([16], "int32", tvm.cpu())
+    A = tvm.runtime.tensor(np.zeros([16], dtype="int32"))
+    B = tvm.runtime.empty([16], "int32", tvm.cpu())
 
     with pytest.raises(tvm.TVMError):
         built(A, B)
@@ -261,6 +261,7 @@ def test_zero_arg_function():
                 {
                     "calling_conv": 1,
                     "target": T.target("llvm"),
+                    "global_symbol": "__tvm_ffi_func_without_arg",
                 }
             )
             assert num_args == 0, "func_without_arg: num_args should be 0"
@@ -315,6 +316,7 @@ def test_int_parameter():
                 {
                     "calling_conv": 1,
                     "target": T.target("llvm"),
+                    "global_symbol": "__tvm_ffi_main",
                 }
             )
             assert num_args == 1, "main: num_args should be 1"
@@ -372,6 +374,7 @@ def test_bool_parameter():
                 {
                     "calling_conv": 1,
                     "target": T.target("llvm"),
+                    "global_symbol": "__tvm_ffi_main",
                 }
             )
             assert num_args == 1, "main: num_args should be 1"

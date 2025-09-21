@@ -78,8 +78,8 @@ class RPCEndpoint {
    *  Shutdown has no effect if the connection has already been shut down.
    *  Shutdown will wait for all output currently queued from the RPC connection (i.e. The user
    * doesn't need to wait for completion before calling Shutdown.) Any further use of objects that
-   * depended on the endpoint (e.g. A tvm.nd.array allocated on the remote RPC session) may throw an
-   * exception when used.
+   * depended on the endpoint (e.g. A tvm.runtime.tensor allocated on the remote RPC session) may
+   * throw an exception when used.
    */
   void Shutdown();
 

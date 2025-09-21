@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test different strategies for loading data into vtcm before running HVX workloads. """
+"""Test different strategies for loading data into vtcm before running HVX workloads."""
 
 import numpy as np
 import tvm
@@ -87,7 +87,6 @@ def vrmpy(operations):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[vn_ind, T.ramp(0, 1, 32)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.128B"),
-                    T.uint32(2),
                     T.reinterpret(a_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     T.reinterpret(b_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     dtype="int32x32",
@@ -124,7 +123,6 @@ def preloaded_vrmpy(operations):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[T.ramp(T.cast(vn_ind, "int32") * 32, 1, 32)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.128B"),
-                    T.uint32(2),
                     T.reinterpret(
                         a_buffer[T.ramp(T.cast(vn_ind, "int32") * 128, 1, 128)], dtype="int32x32"
                     ),
@@ -168,7 +166,6 @@ def preallocated_vrmpy(operations):
                 vn_ind = T.axis.remap("S", [n])
                 c_global_vtcm[T.ramp(T.cast(vn_ind, "int32") * 32, 1, 32)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.128B"),
-                    T.uint32(2),
                     T.reinterpret(
                         a_global_vtcm[T.ramp(T.cast(vn_ind, "int32") * 128, 1, 128)],
                         dtype="int32x32",
@@ -267,7 +264,6 @@ def preallocated_single_dma_vrmpy(operations):
                 vn_ind = T.axis.remap("S", [n])
                 c_global_vtcm[T.ramp(T.cast(vn_ind, "int32") * 32, 1, 32)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.128B"),
-                    T.uint32(2),
                     T.reinterpret(
                         a_global_vtcm[T.ramp(T.cast(vn_ind, "int32") * 128, 1, 128)],
                         dtype="int32x32",
@@ -322,17 +318,15 @@ def setup_and_run(hexagon_session, sch, a, b, c, operations, mem_scope="global")
     func_tir = tvm.compile(sch.mod["main"], target=get_hexagon_target("v69"))
     module = hexagon_session.load_module(func_tir)
 
-    a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device, mem_scope=mem_scope)
-    b_hexagon = tvm.runtime.ndarray.array(b, device=hexagon_session.device, mem_scope=mem_scope)
-    c_hexagon = tvm.runtime.ndarray.array(c, device=hexagon_session.device, mem_scope=mem_scope)
+    a_hexagon = tvm.runtime.tensor(a, device=hexagon_session.device, mem_scope=mem_scope)
+    b_hexagon = tvm.runtime.tensor(b, device=hexagon_session.device, mem_scope=mem_scope)
+    c_hexagon = tvm.runtime.tensor(c, device=hexagon_session.device, mem_scope=mem_scope)
 
     # These are reduced for CI but number=100 and repeat=10 does a good job of removing noise.
     number = 1
     repeat = 1
 
-    timer = module.time_evaluator(
-        "__tvm_main__", hexagon_session.device, number=number, repeat=repeat
-    )
+    timer = module.time_evaluator("main", hexagon_session.device, number=number, repeat=repeat)
     time = timer(a_hexagon, b_hexagon, c_hexagon)
     gops = round(operations * 128 * 3 / time.mean / 1e9, 4)
     return gops, c_hexagon.numpy()
@@ -347,16 +341,16 @@ def setup_and_run_preallocated(hexagon_session, sch, a, b, c, operations):
     b_vtcm = np.zeros((b.size), dtype="uint8")
     c_vtcm = np.zeros((c.size), dtype="int32")
 
-    a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device, mem_scope="global")
-    b_hexagon = tvm.runtime.ndarray.array(b, device=hexagon_session.device, mem_scope="global")
-    c_hexagon = tvm.runtime.ndarray.array(c, device=hexagon_session.device, mem_scope="global")
-    a_vtcm_hexagon = tvm.runtime.ndarray.array(
+    a_hexagon = tvm.runtime.tensor(a, device=hexagon_session.device, mem_scope="global")
+    b_hexagon = tvm.runtime.tensor(b, device=hexagon_session.device, mem_scope="global")
+    c_hexagon = tvm.runtime.tensor(c, device=hexagon_session.device, mem_scope="global")
+    a_vtcm_hexagon = tvm.runtime.tensor(
         a_vtcm, device=hexagon_session.device, mem_scope="global.vtcm"
     )
-    b_vtcm_hexagon = tvm.runtime.ndarray.array(
+    b_vtcm_hexagon = tvm.runtime.tensor(
         b_vtcm, device=hexagon_session.device, mem_scope="global.vtcm"
     )
-    c_vtcm_hexagon = tvm.runtime.ndarray.array(
+    c_vtcm_hexagon = tvm.runtime.tensor(
         c_vtcm, device=hexagon_session.device, mem_scope="global.vtcm"
     )
 
@@ -364,9 +358,7 @@ def setup_and_run_preallocated(hexagon_session, sch, a, b, c, operations):
     number = 1
     repeat = 1
 
-    timer = module.time_evaluator(
-        "__tvm_main__", hexagon_session.device, number=number, repeat=repeat
-    )
+    timer = module.time_evaluator("main", hexagon_session.device, number=number, repeat=repeat)
     time = timer(a_hexagon, b_hexagon, c_hexagon, a_vtcm_hexagon, b_vtcm_hexagon, c_vtcm_hexagon)
     gops = round(operations * 128 * 3 / time.mean / 1e9, 4)
     return gops, c_hexagon.numpy()

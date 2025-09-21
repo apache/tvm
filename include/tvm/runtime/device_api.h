@@ -225,7 +225,7 @@ class TVM_DLL DeviceAPI {
    * \param dev The device to set stream.
    * \param stream The stream to be set.
    */
-  virtual void SetStream(Device dev, TVMStreamHandle stream) {}
+  virtual void SetStream(Device dev, TVMStreamHandle stream);
   /*!
    * \brief Get the current stream
    * \param dev The device to get stream.

@@ -36,7 +36,7 @@ std::string RPCGetPath(const std::string& name) {
   return (*f)(name).cast<std::string>();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvm.rpc.server.upload",
@@ -57,7 +57,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         std::string file_name = RPCGetPath(args[0].cast<std::string>());
         RemoveFile(file_name);
       });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

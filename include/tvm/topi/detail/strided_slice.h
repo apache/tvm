@@ -50,8 +50,8 @@ inline int64_t CanonicalizeIndex(int64_t index, int64_t extent, int64_t stride) 
 }
 
 inline std::tuple<std::vector<int64_t>, std::vector<int64_t>, std::vector<int64_t>> ConvertToVec(
-    const Array<Integer>& begin, const Array<Integer>& end, const Array<Integer>& strides,
-    std::string slice_mode) {
+    const ffi::Array<Integer>& begin, const ffi::Array<Integer>& end,
+    const ffi::Array<Integer>& strides, std::string slice_mode) {
   std::vector<int64_t> stride_vec(strides.size(), 1);
   if (slice_mode == "end") {
     for (size_t i = 0; i < strides.size(); ++i) {
@@ -88,12 +88,13 @@ inline std::tuple<std::vector<int64_t>, std::vector<int64_t>, std::vector<int64_
   return std::make_tuple(begin_vec, end_vec, stride_vec);
 }
 
-inline Array<PrimExpr> StridedSliceCanonicalizeBegin(const Array<PrimExpr>& ishape,
-                                                     const std::vector<int64_t>& begin,
-                                                     const std::vector<int64_t>& strides,
-                                                     const Array<Integer>& axes, DataType dtype,
-                                                     std::string slice_mode = "end") {
-  Array<PrimExpr> begin_expr;
+inline ffi::Array<PrimExpr> StridedSliceCanonicalizeBegin(const ffi::Array<PrimExpr>& ishape,
+                                                          const std::vector<int64_t>& begin,
+                                                          const std::vector<int64_t>& strides,
+                                                          const ffi::Array<Integer>& axes,
+                                                          DataType dtype,
+                                                          std::string slice_mode = "end") {
+  ffi::Array<PrimExpr> begin_expr;
   for (size_t i = 0; i < axes.size(); ++i) {
     if (ishape[axes[i].IntValue()]->IsInstance<tvm::IntImmNode>()) {
       int64_t dim_i = GetConstInt(ishape[axes[i].IntValue()]);
@@ -115,16 +116,14 @@ inline Array<PrimExpr> StridedSliceCanonicalizeBegin(const Array<PrimExpr>& isha
   return begin_expr;
 }
 
-inline Array<PrimExpr> StridedSliceOutputShape(const Array<PrimExpr>& ishape,
-                                               const std::vector<int64_t>& begin,
-                                               const std::vector<int64_t>& end,
-                                               const std::vector<int64_t>& strides,
-                                               const Array<Integer>& axes, std::string slice_mode,
-                                               const Array<PrimExpr>& begin_canonicalized,
-                                               bool use_any = false) {
+inline ffi::Array<PrimExpr> StridedSliceOutputShape(
+    const ffi::Array<PrimExpr>& ishape, const std::vector<int64_t>& begin,
+    const std::vector<int64_t>& end, const std::vector<int64_t>& strides,
+    const ffi::Array<Integer>& axes, std::string slice_mode,
+    const ffi::Array<PrimExpr>& begin_canonicalized, bool use_any = false) {
   ICHECK(!use_any) << "StridedSliceOutputShape does not legacy use_any";
   const size_t src_tensor_dim = ishape.size();
-  Array<PrimExpr> out_shape;
+  ffi::Array<PrimExpr> out_shape;
   for (size_t i = 0; i < src_tensor_dim; ++i) {
     out_shape.push_back(ishape[i]);
   }

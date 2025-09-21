@@ -45,7 +45,7 @@ using namespace tvm::te;
  * \return An array of 4 elements, representing padding sizes for
  * each individual side. The array is in the order { top, left, bottom, right }
  */
-inline Array<PrimExpr> GetPadTuple(PrimExpr pad_h, PrimExpr pad_w) {
+inline ffi::Array<PrimExpr> GetPadTuple(PrimExpr pad_h, PrimExpr pad_w) {
   pad_h *= 2;
   pad_w *= 2;
 

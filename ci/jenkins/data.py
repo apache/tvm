@@ -30,7 +30,12 @@ files_to_stash = {
     # runtime files
     "tvm_runtime": ["build/libtvm_runtime.so", "build/config.cmake"],
     # compiler files
-    "tvm_lib": ["build/libtvm.so", "build/libtvm_runtime.so", "build/config.cmake"],
+    "tvm_lib": [
+        "build/libtvm.so",
+        "build/libtvm_runtime.so",
+        "build/lib/libtvm_ffi.so",
+        "build/config.cmake",
+    ],
     # gpu related compiler files
     "tvm_lib_gpu_extra": [
         "build/3rdparty/libflash_attn/src/libflash_attn.so",

@@ -19,8 +19,8 @@
 from enum import IntEnum, unique
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
-from tvm.ffi import register_object
-from tvm.ffi.access_path import AccessPath
+from tvm_ffi import register_object
+from tvm_ffi.access_path import AccessPath
 from tvm.runtime import Object
 from tvm.tir import FloatImm, IntImm
 

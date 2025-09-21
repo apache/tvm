@@ -79,7 +79,7 @@ class PurityChecker : TIRVisitorWithPath {
       LOG_IF(FATAL, assert_on_error_)
           << "AssertionError: "
           << "Pure functions must not contain calls to impure operators, "
-          << "but " << GetRef<PrimExpr>(call) << " calls operator " << call->op
+          << "but " << ffi::GetRef<PrimExpr>(call) << " calls operator " << call->op
           << ", which has side effect " << effect;
     }
   }
@@ -94,10 +94,10 @@ bool IsPureFunction(const PrimFunc& func, bool assert_on_error) {
   return PurityChecker::Check(func, assert_on_error);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.analysis.is_pure_function", IsPureFunction);
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

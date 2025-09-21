@@ -40,7 +40,7 @@ def find_example_resource():
     # recursively apend things in www, up to two levels
     resource_bases = [
         os.path.join(base_path, "web", "dist", "www"),
-        os.path.join(base_path, "web", ".ndarray_cache"),
+        os.path.join(base_path, "web", ".tensor_cache"),
     ]
     for base in resource_bases:
         if not os.path.isdir(base):

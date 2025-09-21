@@ -248,7 +248,7 @@ void PythonPrinter::MaybePrintComment(const StmtDoc& stmt, bool multi_lines) {
   }
 }
 
-void PythonPrinter::PrintIndentedBlock(const Array<StmtDoc>& docs) {
+void PythonPrinter::PrintIndentedBlock(const ffi::Array<StmtDoc>& docs) {
   IncreaseIndent();
   for (const StmtDoc& d : docs) {
     PrintDoc(d);
@@ -259,7 +259,7 @@ void PythonPrinter::PrintIndentedBlock(const Array<StmtDoc>& docs) {
   DecreaseIndent();
 }
 
-void PythonPrinter::PrintDecorators(const Array<ExprDoc>& decorators) {
+void PythonPrinter::PrintDecorators(const ffi::Array<ExprDoc>& decorators) {
   for (const ExprDoc& decorator : decorators) {
     output_ << "@";
     PrintDoc(decorator, false);

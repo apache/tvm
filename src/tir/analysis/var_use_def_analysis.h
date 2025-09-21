@@ -40,12 +40,12 @@ namespace tir {
  */
 class VarUseDefAnalyzer : public StmtExprVisitor {
  public:
-  explicit VarUseDefAnalyzer(const Array<Var>& defined_vars, bool visit_thread_extent = true);
+  explicit VarUseDefAnalyzer(const ffi::Array<Var>& defined_vars, bool visit_thread_extent = true);
   // The fields are publically readible to
   // be accessible to the users.
   bool visit_thread_extent_{true};
-  Array<Var> undefined_;
-  Array<Buffer> undefined_buffers_;
+  ffi::Array<Var> undefined_;
+  ffi::Array<Buffer> undefined_buffers_;
 
   std::unordered_map<const VarNode*, int> use_count_;
   std::unordered_map<const VarNode*, int> def_count_;

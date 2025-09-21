@@ -22,41 +22,41 @@ import tvm
 
 
 # RPC test functions to be registered for unit-tests purposes
-@tvm.register_func("rpc.test.addone")
+@tvm.register_global_func("rpc.test.addone")
 def _addone(x):
     return x + 1
 
 
-@tvm.register_func("rpc.test.strcat")
+@tvm.register_global_func("rpc.test.strcat")
 def _strcat(name, x):
     return f"{name}:{x}"
 
 
-@tvm.register_func("rpc.test.except")
+@tvm.register_global_func("rpc.test.except")
 def _remotethrow(name):
     raise ValueError(f"{name}")
 
 
-@tvm.register_func("rpc.test.runtime_str_concat")
+@tvm.register_global_func("rpc.test.runtime_str_concat")
 def _strcat(x, y):
     return x + y
 
 
-@tvm.register_func("rpc.test.remote_array_func")
-def _remote_array_func(y):
+@tvm.register_global_func("rpc.test.remote_tensor_func")
+def _remote_tensor_func(y):
     x = np.ones((3, 4))
     np.testing.assert_equal(y.numpy(), x)
 
 
-@tvm.register_func("rpc.test.add_to_lhs")
+@tvm.register_global_func("rpc.test.add_to_lhs")
 def _add_to_lhs(x):
     return lambda y: x + y
 
 
-@tvm.register_func("rpc.test.remote_return_nd")
+@tvm.register_global_func("rpc.test.remote_return_nd")
 def _my_module(name):
     # Use closure to check the ref counter correctness
-    nd = tvm.nd.array(np.zeros(10).astype("float32"))
+    nd = tvm.runtime.tensor(np.zeros(10).astype("float32"))
 
     if name == "get_arr":
         return lambda: nd

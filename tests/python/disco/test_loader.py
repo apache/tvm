@@ -25,7 +25,7 @@ import tvm
 import tvm.testing
 from tvm import dlight as dl
 from tvm import relax as rx
-from tvm.ffi import register_func
+from tvm_ffi import register_global_func
 from tvm.contrib import tvmjs
 from tvm.runtime import ShapeTuple
 from tvm.runtime import disco as di
@@ -35,19 +35,19 @@ from tvm.target import Target
 from tvm.contrib import tvmjs
 
 
-@register_func("tests.disco.shard_dim_0", override=True)
+@register_global_func("tests.disco.shard_dim_0", override=True)
 def _shard_dim_0(src, num_shards, tgt):
     s_0, s_1 = src.shape
     tgt.copyfrom(src.numpy().reshape(num_shards, s_0 // num_shards, s_1))
 
 
-@register_func("tests.disco.shard_dim_1", override=True)
+@register_global_func("tests.disco.shard_dim_1", override=True)
 def _shard_dim_1(src, num_shards, tgt):
     s_0, s_1 = src.shape
     tgt.copyfrom(src.numpy().reshape(s_0, num_shards, s_1 // num_shards).transpose(1, 0, 2))
 
 
-@register_func("tests.disco.shard_qkv_0", override=True)
+@register_global_func("tests.disco.shard_qkv_0", override=True)
 def _shard_qkv_0(src, num_shards, q_heads, kv_heads, tgt):
     total_dim, hidden_size = src.shape
     head_dim = total_dim // (q_heads + kv_heads + kv_heads)
@@ -75,19 +75,19 @@ def _shard_qkv_0(src, num_shards, q_heads, kv_heads, tgt):
     tgt.copyfrom(w_qkv)
 
 
-@register_func("tests.disco.shard_qkv_1", override=True)
+@register_global_func("tests.disco.shard_qkv_1", override=True)
 def _shard_qkv_1(src, tgt):
     s, _, _, h = src.shape  # pylint: disable=invalid-name
     tgt.copyfrom(src.numpy().reshape(s, -1, h))
 
 
 def _create_loader(sess, path, param_dict, shard_info):
-    path_ndarray_cache = path + "/ndarray-cache.json"
-    tvmjs.dump_ndarray_cache(param_dict, path, encode_format="raw")
-    with open(path_ndarray_cache, "r", encoding="utf-8") as i_f:
-        ndarray_cache = i_f.read()
+    path_tensor_cache = path + "/tensor-cache.json"
+    tvmjs.dump_tensor_cache(param_dict, path, encode_format="raw")
+    with open(path_tensor_cache, "r", encoding="utf-8") as i_f:
+        tensor_cache = i_f.read()
     loader_create = sess.get_global_func("runtime.disco.ShardLoader")
-    loader = loader_create(path_ndarray_cache, ndarray_cache, json.dumps(shard_info), None)
+    loader = loader_create(path_tensor_cache, tensor_cache, json.dumps(shard_info), None)
     return loader
 
 
@@ -100,7 +100,8 @@ def _simulate_presharded_weights(base_path, param_dict, num_shards, shard_info):
         assert key in shard_info, f"ShardInfo lacks shard info about param: {key}"
         shard_dim = shard_info[key]
         sharded_params[key] = [
-            tvm.nd.array(np_shard) for np_shard in np.split(ndarray, num_shards, axis=shard_dim)
+            tvm.runtime.tensor(np_shard)
+            for np_shard in np.split(ndarray, num_shards, axis=shard_dim)
         ]
 
     # Re-order so that the parameter order is sorted first by shard,
@@ -113,7 +114,7 @@ def _simulate_presharded_weights(base_path, param_dict, num_shards, shard_info):
         for key, shards in sharded_params.items()
     }
 
-    tvmjs.dump_ndarray_cache(
+    tvmjs.dump_tensor_cache(
         sharded_params,
         base_path,
         encode_format="raw",
@@ -169,11 +170,11 @@ def test_load_shard():
 
 
 def _create_presharded_loader(sess, path):
-    path_ndarray_cache = path + "/ndarray-cache.json"
-    with open(path_ndarray_cache, "r", encoding="utf-8") as i_f:
-        ndarray_cache = i_f.read()
+    path_tensor_cache = path + "/tensor-cache.json"
+    with open(path_tensor_cache, "r", encoding="utf-8") as i_f:
+        tensor_cache = i_f.read()
     loader_create = sess.get_global_func("runtime.disco.ShardLoader")
-    loader = loader_create(path_ndarray_cache, ndarray_cache, json.dumps({}), None)
+    loader = loader_create(path_tensor_cache, tensor_cache, json.dumps({}), None)
     return loader
 
 

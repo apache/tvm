@@ -40,8 +40,8 @@ namespace msc {
 class TensorRTCodeGenHelper : public BaseCodeGenHelper {
  public:
   /*! \brief Get describe for default node input*/
-  const String IdxInputBase(const MSCJoint& node, const String& prefix = "", int idx = 0,
-                            const String& suffix = "", bool process = false) final {
+  const ffi::String IdxInputBase(const MSCJoint& node, const ffi::String& prefix = "", int idx = 0,
+                                 const ffi::String& suffix = "", bool process = false) final {
     const auto& pair = node->ProducerAndIdxOf(idx);
     if (pair.first->optype == "input") {
       return "*" + IdxNodeBase(pair.first, prefix, suffix);
@@ -53,8 +53,8 @@ class TensorRTCodeGenHelper : public BaseCodeGenHelper {
   }
 
   /*! \brief Get describe for default node output*/
-  const String IdxOutputBase(const MSCJoint& node, const String& prefix = "", int idx = 0,
-                             const String& suffix = "", bool mark_exit = false) final {
+  const ffi::String IdxOutputBase(const MSCJoint& node, const ffi::String& prefix = "", int idx = 0,
+                                  const ffi::String& suffix = "", bool mark_exit = false) final {
     if (node->optype == "argmax" || node->optype == "argmin") {
       ICHECK_EQ(idx, 0) << "argmax and argmin only has 1 output, get " << idx;
       return IdxNodeBase(node, prefix, suffix) + "->getOutput(1)";
@@ -70,8 +70,8 @@ class TensorRTCodeGenHelper : public BaseCodeGenHelper {
   }
 
   /*! \brief Get describe for default node weight*/
-  const String IdxWeightBase(const MSCJoint& node, const String& wtype, const String& suffix = "",
-                             bool process = false) final {
+  const ffi::String IdxWeightBase(const MSCJoint& node, const ffi::String& wtype,
+                                  const ffi::String& suffix = "", bool process = false) final {
     return "mWeights[\"" + node->WeightAt(wtype)->name + "\"]";
   }
 };

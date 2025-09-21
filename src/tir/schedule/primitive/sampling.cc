@@ -163,8 +163,8 @@ std::vector<int32_t> SampleWithoutReplacement(
 }
 
 int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_state,
-                          const Array<Integer>& candidates, const Array<FloatImm>& probs,
-                          Optional<Integer>* decision) {
+                          const ffi::Array<Integer>& candidates, const ffi::Array<FloatImm>& probs,
+                          ffi::Optional<Integer>* decision) {
   CHECK(candidates.size() == probs.size())
       << "ValueError: number of candidates does not match number of probabilities.";
   int32_t i = -1;
@@ -309,7 +309,7 @@ std::vector<int64_t> SamplePerfectTile(support::LinearCongruentialEngine::TRandS
 std::vector<int64_t> SamplePerfectTile(
     support::LinearCongruentialEngine::TRandState* rand_state,  //
     const tir::StmtSRef& loop_sref, int32_t n_splits, int32_t max_innermost_factor,
-    Optional<Array<Integer>>* decision) {
+    ffi::Optional<ffi::Array<Integer>>* decision) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   const int64_t* extent = GetLoopIntExtent(loop);
   std::vector<int64_t> result;
@@ -370,7 +370,7 @@ TVM_DLL std::vector<int64_t> SamplePartitionedTile(
 std::vector<int64_t> SamplePartitionedTile(
     support::LinearCongruentialEngine::TRandState* rand_state,  //
     const tir::StmtSRef& loop_sref, int32_t n_splits, int32_t partition_pos,
-    int32_t innerpart_factor, Optional<Array<Integer>>* decision) {
+    int32_t innerpart_factor, ffi::Optional<ffi::Array<Integer>>* decision) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   const int64_t* extent = GetLoopIntExtent(loop);
   std::vector<int64_t> result;
@@ -419,7 +419,7 @@ std::vector<int64_t> SamplePartitionedTile(
 
 tir::StmtSRef SampleComputeLocation(tir::ScheduleState self,
                                     support::LinearCongruentialEngine::TRandState* rand_state,
-                                    const StmtSRef& block_sref, Optional<Integer>* decision) {
+                                    const StmtSRef& block_sref, ffi::Optional<Integer>* decision) {
   // Step 1. Collect all possible compute-at locations.
   auto [location_srefs, location_indices] = CollectComputeLocation(self, block_sref);
   ICHECK_EQ(location_srefs.size(), location_indices.size());
@@ -460,17 +460,17 @@ struct SampleCategoricalTraits : public UnpackedInstTraits<SampleCategoricalTrai
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 1;
 
-  static ExprRV UnpackedApplyToSchedule(Schedule sch,               //
-                                        Array<Integer> candidates,  //
-                                        Array<FloatImm> probs,      //
-                                        Optional<Integer> decision) {
+  static ExprRV UnpackedApplyToSchedule(Schedule sch,                    //
+                                        ffi::Array<Integer> candidates,  //
+                                        ffi::Array<FloatImm> probs,      //
+                                        ffi::Optional<Integer> decision) {
     return sch->SampleCategorical(candidates, probs, decision);
   }
 
-  static String UnpackedAsPython(Array<String> outputs,      //
-                                 Array<Integer> candidates,  //
-                                 Array<FloatImm> probs,      //
-                                 Optional<Integer> decision) {
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs,  //
+                                      ffi::Array<Integer> candidates,   //
+                                      ffi::Array<FloatImm> probs,       //
+                                      ffi::Optional<Integer> decision) {
     PythonAPICall py("sample_categorical");
     py.Input("candidates", candidates);
     py.Input("probs", probs);
@@ -492,14 +492,15 @@ struct SamplePerfectTileTraits : public UnpackedInstTraits<SamplePerfectTileTrai
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 1;
 
-  static Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, Integer n,
-                                               Integer max_innermost_factor,
-                                               Optional<Array<Integer>> decision) {
+  static ffi::Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, Integer n,
+                                                    Integer max_innermost_factor,
+                                                    ffi::Optional<ffi::Array<Integer>> decision) {
     return sch->SamplePerfectTile(loop_rv, n->value, max_innermost_factor->value, decision);
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Integer n,
-                                 Integer max_innermost_factor, Optional<Array<Integer>> decision) {
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop_rv,
+                                      Integer n, Integer max_innermost_factor,
+                                      ffi::Optional<ffi::Array<Integer>> decision) {
     PythonAPICall py("sample_perfect_tile");
     py.Input("loop", loop_rv);
     py.Input("n", n->value);
@@ -522,16 +523,16 @@ struct SamplePartitionedTileTraits : public UnpackedInstTraits<SamplePartitioned
   static constexpr size_t kNumAttrs = 3;
   static constexpr size_t kNumDecisions = 1;
 
-  static Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, Integer n,
-                                               Integer partition_pos, Integer innerpart_factor,
-                                               Optional<Array<Integer>> decision) {
+  static ffi::Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, Integer n,
+                                                    Integer partition_pos, Integer innerpart_factor,
+                                                    ffi::Optional<ffi::Array<Integer>> decision) {
     return sch->SamplePartitionedTile(loop_rv, n->value, partition_pos->value,
                                       innerpart_factor->value, decision);
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Integer n,
-                                 Integer partition_pos, Integer innerpart_factor,
-                                 Optional<Array<Integer>> decision) {
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop_rv,
+                                      Integer n, Integer partition_pos, Integer innerpart_factor,
+                                      ffi::Optional<ffi::Array<Integer>> decision) {
     PythonAPICall py("sample_partitioned_tile");
     py.Input("loop", loop_rv);
     py.Input("n", n->value);
@@ -557,13 +558,13 @@ struct SampleComputeLocationTraits : public UnpackedInstTraits<SampleComputeLoca
 
   static LoopRV UnpackedApplyToSchedule(Schedule sch,      //
                                         BlockRV block_rv,  //
-                                        Optional<Integer> decision) {
+                                        ffi::Optional<Integer> decision) {
     return sch->SampleComputeLocation(block_rv, decision);
   }
 
-  static String UnpackedAsPython(Array<String> outputs,  //
-                                 String block_rv,        //
-                                 Optional<Integer> decision) {
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs,  //
+                                      ffi::String block_rv,             //
+                                      ffi::Optional<Integer> decision) {
     PythonAPICall py("sample_compute_location");
     py.Input("block", block_rv);
     py.Decision(decision);

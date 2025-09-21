@@ -15,9 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common base structures."""
-import tvm.ffi
 import tvm.error
-from tvm.ffi import get_global_func, register_object
+from tvm_ffi import get_global_func, register_object
 from tvm.runtime import Object, _ffi_node_api
 
 from . import _ffi_api, json_compact
@@ -196,7 +195,7 @@ def structural_equal(lhs, rhs, map_free_vars=False):
     return bool(_ffi_node_api.StructuralEqual(lhs, rhs, False, map_free_vars))  # type: ignore # pylint: disable=no-member
 
 
-def get_first_structural_mismatch(lhs, rhs, map_free_vars=False, skip_ndarray_content=False):
+def get_first_structural_mismatch(lhs, rhs, map_free_vars=False, skip_tensor_content=False):
     """Like structural_equal(), but returns the AccessPath pair of the first detected mismatch.
 
     Parameters
@@ -211,7 +210,7 @@ def get_first_structural_mismatch(lhs, rhs, map_free_vars=False, skip_ndarray_co
         Whether free variables (i.e. variables without a definition site) should be mapped
         as equal to each other.
 
-    skip_ndarray_content : bool
+    skip_tensor_content : bool
         Whether to skip the content of ndarray.
 
     Returns
@@ -222,7 +221,7 @@ def get_first_structural_mismatch(lhs, rhs, map_free_vars=False, skip_ndarray_co
     """
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
-    return _ffi_node_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars, skip_ndarray_content)  # type: ignore # pylint: disable=no-member
+    return _ffi_node_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars, skip_tensor_content)  # type: ignore # pylint: disable=no-member
 
 
 def assert_structural_equal(lhs, rhs, map_free_vars=False):

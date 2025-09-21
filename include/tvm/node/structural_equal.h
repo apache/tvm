@@ -58,10 +58,10 @@ class BaseValueEqual {
 
   bool operator()(const int64_t& lhs, const int64_t& rhs) const { return lhs == rhs; }
   bool operator()(const uint64_t& lhs, const uint64_t& rhs) const { return lhs == rhs; }
-  bool operator()(const Optional<int64_t>& lhs, const Optional<int64_t>& rhs) const {
+  bool operator()(const ffi::Optional<int64_t>& lhs, const ffi::Optional<int64_t>& rhs) const {
     return lhs == rhs;
   }
-  bool operator()(const Optional<double>& lhs, const Optional<double>& rhs) const {
+  bool operator()(const ffi::Optional<double>& lhs, const ffi::Optional<double>& rhs) const {
     return lhs == rhs;
   }
   bool operator()(const int& lhs, const int& rhs) const { return lhs == rhs; }

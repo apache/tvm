@@ -73,8 +73,8 @@ using namespace topi::detail;
  *
  * \return A Tensor whose op member is the sliding_window operation
  */
-inline Tensor sliding_window(const Tensor& x, int axis, Array<Integer> window_shape,
-                             Array<Integer> strides, std::string name = "T_sliding_window",
+inline Tensor sliding_window(const Tensor& x, int axis, ffi::Array<Integer> window_shape,
+                             ffi::Array<Integer> strides, std::string name = "T_sliding_window",
                              std::string tag = "") {
   CHECK_GE(axis, 0);
   auto _axis = size_t(axis);
@@ -85,7 +85,7 @@ inline Tensor sliding_window(const Tensor& x, int axis, Array<Integer> window_sh
   CHECK_EQ(strides.size(), window_shape.size()) << "Windows and strides should be the same length.";
 
   // Compute the new shape.
-  Array<PrimExpr> new_shape;
+  ffi::Array<PrimExpr> new_shape;
   // Dimensions up until `axis` remain the same.
   for (size_t i = 0; i < _axis; ++i) {
     new_shape.push_back(x->shape[i]);
@@ -113,9 +113,9 @@ inline Tensor sliding_window(const Tensor& x, int axis, Array<Integer> window_sh
 
   return compute(
       new_shape,
-      [&](const Array<Var>& indices) {
+      [&](const ffi::Array<Var>& indices) {
         // The index at which to index the old tensor x.
-        Array<PrimExpr> idx;
+        ffi::Array<PrimExpr> idx;
 
         // Dimensions up until `axis` remain the same.
         for (size_t i = 0; i < _axis; ++i) {
@@ -164,7 +164,7 @@ inline Tensor expand_dims(const Tensor& x, int axis, int num_newaxis = 1,
     // Calculate offset from last dimension
     axis = ndim + axis + 1;
   }
-  Array<PrimExpr> new_shape;
+  ffi::Array<PrimExpr> new_shape;
   for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
     new_shape.push_back(x->shape[i]);
   }
@@ -177,8 +177,8 @@ inline Tensor expand_dims(const Tensor& x, int axis, int num_newaxis = 1,
 
   return compute(
       new_shape,
-      [&](const Array<Var>& indices) {
-        Array<PrimExpr> idx;
+      [&](const ffi::Array<Var>& indices) {
+        ffi::Array<PrimExpr> idx;
         for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
           idx.push_back(indices[i]);
         }
@@ -201,16 +201,16 @@ inline Tensor expand_dims(const Tensor& x, int axis, int num_newaxis = 1,
  *
  * \return A Tensor whose op member is the transpose operation
  */
-inline Tensor transpose(const Tensor& x, Optional<Array<Integer>> opt_axes,
+inline Tensor transpose(const Tensor& x, ffi::Optional<ffi::Array<Integer>> opt_axes,
                         std::string name = "T_transpose", std::string tag = kInjective) {
-  Array<Integer> axes = opt_axes.value_or({});
+  ffi::Array<Integer> axes = opt_axes.value_or({});
   if (axes.size() == 0) {
     for (int i = static_cast<int>(x->shape.size()) - 1; i >= 0; --i) {
       axes.push_back(i);
     }
   }
 
-  Array<PrimExpr> new_shape;
+  ffi::Array<PrimExpr> new_shape;
   for (size_t i = 0; i < axes.size(); ++i) {
     int axis = static_cast<int>(axes[i]->value);
     int new_axis = axis;
@@ -232,7 +232,7 @@ inline Tensor transpose(const Tensor& x, Optional<Array<Integer>> opt_axes,
 
   return compute(
       new_shape,
-      [&](const Array<Var>& indices) {
+      [&](const ffi::Array<Var>& indices) {
         std::vector<PrimExpr> idx;
         for (size_t i = 0; i < axes.size(); ++i) {
           idx.push_back(1);
@@ -292,8 +292,8 @@ inline Tensor reverse_sequence(const Tensor& x, const Tensor& seq_lengths, int s
       << "seq_axis=" << seq_axis_inp << " is invalid for the " << static_cast<int>(x->shape.size())
       << "-dimensional input tensor";
 
-  auto func = [&](const Array<Var>& indices) {
-    Array<PrimExpr> real_indices;
+  auto func = [&](const ffi::Array<Var>& indices) {
+    ffi::Array<PrimExpr> real_indices;
     for (size_t i = 0; i < src_tensor_dim; ++i) {
       if (i == static_cast<size_t>(seq_axis)) {
         if (seq_lengths.defined()) {
@@ -325,10 +325,10 @@ inline Tensor reverse_sequence(const Tensor& x, const Tensor& seq_lengths, int s
  *
  * \return A Tensor whose op member is the reshape operation
  */
-inline Tensor reshape(const Tensor& x, Array<PrimExpr> newshape, std::string name = "T_reshape",
-                      std::string tag = kInjective) {
+inline Tensor reshape(const Tensor& x, ffi::Array<PrimExpr> newshape,
+                      std::string name = "T_reshape", std::string tag = kInjective) {
   auto x_shape = x->shape;
-  Array<PrimExpr> target_shape;
+  ffi::Array<PrimExpr> target_shape;
 
   for (const auto& ele : newshape) {
     target_shape.push_back(ele);
@@ -337,13 +337,15 @@ inline Tensor reshape(const Tensor& x, Array<PrimExpr> newshape, std::string nam
   // If either the input shape or the target shape contains a zero, return an empty tensor.
   if (is_empty_shape(target_shape) || is_empty_shape(x->shape)) {
     return compute(
-        target_shape, [&](const Array<Var>& indices) { return tvm::cast(x->dtype, 0); }, name, tag);
+        target_shape, [&](const ffi::Array<Var>& indices) { return tvm::cast(x->dtype, 0); }, name,
+        tag);
   } else {
     return compute(
         target_shape,
-        [&](const Array<Var>& indices) {
+        [&](const ffi::Array<Var>& indices) {
           return x(UnravelIndex(
-              RavelIndex(Array<PrimExpr>{indices.begin(), indices.end()}, target_shape), x_shape));
+              RavelIndex(ffi::Array<PrimExpr>{indices.begin(), indices.end()}, target_shape),
+              x_shape));
         },
         name, tag);
   }
@@ -365,13 +367,13 @@ inline Tensor unravel_index(const Tensor& x, const Tensor& shape, std::string na
   auto x_shape = x->shape;
   auto shape_shape = shape->shape;
 
-  Array<PrimExpr> oshape;
+  ffi::Array<PrimExpr> oshape;
   oshape.push_back(shape_shape[0]);
   if (x_shape.size() != 0) {
     oshape.push_back(x_shape[0]);
   }
 
-  auto func = [&](const Array<Var>& indices) {
+  auto func = [&](const ffi::Array<Var>& indices) {
     auto i = indices[0];
     std::vector<PrimExpr> indices_divs;
     PrimExpr ret = 0;
@@ -408,8 +410,9 @@ inline Tensor unravel_index(const Tensor& x, const Tensor& shape, std::string na
  *
  * \return A Tensor whose op member is the squeeze operation
  */
-inline Tensor squeeze(const Tensor& x, Optional<Array<Integer>> opt_axes, bool atleast1d = false,
-                      std::string name = "T_squeeze", std::string tag = kInjective) {
+inline Tensor squeeze(const Tensor& x, ffi::Optional<ffi::Array<Integer>> opt_axes,
+                      bool atleast1d = false, std::string name = "T_squeeze",
+                      std::string tag = kInjective) {
   auto ndim = x->shape.size();
   std::vector<int> axis_val;
   if (!opt_axes.has_value()) {
@@ -419,7 +422,7 @@ inline Tensor squeeze(const Tensor& x, Optional<Array<Integer>> opt_axes, bool a
       }
     }
   } else {
-    Array<Integer> axis = *std::move(opt_axes);
+    ffi::Array<Integer> axis = *std::move(opt_axes);
     for (size_t i = 0; i < axis.size(); ++i) {
       int64_t val = axis[i]->value;
       if (val < 0) {
@@ -434,7 +437,7 @@ inline Tensor squeeze(const Tensor& x, Optional<Array<Integer>> opt_axes, bool a
 
   std::unordered_set<int> axis_set(axis_val.begin(), axis_val.end());
 
-  Array<PrimExpr> out_shape;
+  ffi::Array<PrimExpr> out_shape;
   for (size_t i = 0; i < ndim; ++i) {
     if (axis_set.count(static_cast<int>(i)) == 0) {
       out_shape.push_back(x->shape[i]);
@@ -446,8 +449,8 @@ inline Tensor squeeze(const Tensor& x, Optional<Array<Integer>> opt_axes, bool a
 
   return compute(
       out_shape,
-      [&](const Array<Var>& indices) {
-        Array<PrimExpr> real_indices;
+      [&](const ffi::Array<Var>& indices) {
+        ffi::Array<PrimExpr> real_indices;
         int flag = 0;
         for (size_t i = 0; i < ndim; ++i) {
           if (axis_set.count(static_cast<int>(i)) == 0) {
@@ -472,8 +475,8 @@ inline Tensor squeeze(const Tensor& x, Optional<Array<Integer>> opt_axes, bool a
  *
  * \return A Tensor whose op member is the concatenate operation
  */
-inline Tensor concatenate(const Array<Tensor>& inputs, int axis = 0, std::string name = "T_concat",
-                          std::string tag = kInjective) {
+inline Tensor concatenate(const ffi::Array<Tensor>& inputs, int axis = 0,
+                          std::string name = "T_concat", std::string tag = kInjective) {
   int ndim = static_cast<int>(inputs[0]->shape.size());
   ICHECK(-ndim <= axis && axis < ndim) << "concatenate only accepts `axis` in [-ndim, ndim)"
                                        << ", but got axis = " << axis << ", and ndim = " << ndim;
@@ -482,7 +485,7 @@ inline Tensor concatenate(const Array<Tensor>& inputs, int axis = 0, std::string
   }
   ICHECK_LT(axis, inputs[0]->shape.size()) << "axis out of bounds";
 
-  Array<PrimExpr> axis_sizes;
+  ffi::Array<PrimExpr> axis_sizes;
   for (auto t : inputs) {
     axis_sizes.push_back(t->shape[axis]);
   }
@@ -492,20 +495,20 @@ inline Tensor concatenate(const Array<Tensor>& inputs, int axis = 0, std::string
     join_size += axis_sizes[i];
   }
   join_size = analyzer.Simplify(join_size);
-  Array<PrimExpr> out_shape;
+  ffi::Array<PrimExpr> out_shape;
   for (size_t i = 0; i < inputs[0]->shape.size(); ++i) {
     out_shape.push_back(i == static_cast<size_t>(axis) ? join_size : inputs[0]->shape[i]);
   }
 
   return compute(
       out_shape,
-      [&](const Array<Var>& indices) {
+      [&](const ffi::Array<Var>& indices) {
         auto ret = inputs[0](indices);
         auto ind = indices[axis];
         for (size_t i = 0; i < inputs.size() - 1; ++i) {
           ind -= axis_sizes[i];
 
-          Array<PrimExpr> idx;
+          ffi::Array<PrimExpr> idx;
           for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
             idx.push_back(indices[i]);
           }
@@ -531,7 +534,7 @@ inline Tensor concatenate(const Array<Tensor>& inputs, int axis = 0, std::string
  *
  * \return A Tensor whose op member is the stack operation
  */
-inline Tensor stack(const Array<Tensor>& inputs, int axis = 0, std::string name = "T_stack",
+inline Tensor stack(const ffi::Array<Tensor>& inputs, int axis = 0, std::string name = "T_stack",
                     std::string tag = kInjective) {
   int ndim = static_cast<int>(inputs[0]->shape.size());
   ICHECK(-ndim - 1 <= axis && axis <= ndim)
@@ -543,7 +546,7 @@ inline Tensor stack(const Array<Tensor>& inputs, int axis = 0, std::string name 
   ICHECK_LT(axis, inputs[0]->shape.size() + 1) << "axis out of bounds";
 
   const int stack_size = static_cast<int>(inputs.size());
-  Array<PrimExpr> out_shape;
+  ffi::Array<PrimExpr> out_shape;
   for (size_t i = 0; i < static_cast<size_t>(axis); ++i) out_shape.push_back(inputs[0]->shape[i]);
   out_shape.push_back(stack_size);
   for (size_t i = static_cast<size_t>(axis); i < static_cast<size_t>(ndim); ++i)
@@ -551,8 +554,8 @@ inline Tensor stack(const Array<Tensor>& inputs, int axis = 0, std::string name 
 
   return compute(
       out_shape,
-      [&](const Array<Var>& indices) {
-        Array<PrimExpr> idx;
+      [&](const ffi::Array<Var>& indices) {
+        ffi::Array<PrimExpr> idx;
         for (size_t i = 0; i < indices.size(); ++i)
           if (i != static_cast<size_t>(axis)) idx.push_back(indices[i]);
         auto ind = indices[axis];
@@ -577,9 +580,9 @@ inline Tensor stack(const Array<Tensor>& inputs, int axis = 0, std::string name 
  *
  * \return A Tensor whose op member is the split operation
  */
-inline Array<Tensor> split_indices_array(const Tensor& x, Array<PrimExpr> split_indices, int axis,
-                                         std::string name = "T_split",
-                                         std::string tag = kInjective) {
+inline ffi::Array<Tensor> split_indices_array(const Tensor& x, ffi::Array<PrimExpr> split_indices,
+                                              int axis, std::string name = "T_split",
+                                              std::string tag = kInjective) {
   if (axis < 0) {
     axis += static_cast<int>(x->shape.size());
   }
@@ -598,7 +601,7 @@ inline Array<Tensor> split_indices_array(const Tensor& x, Array<PrimExpr> split_
     begin_ids.push_back(idx);
   }
 
-  Array<Array<PrimExpr>> out_shapes;
+  ffi::Array<ffi::Array<PrimExpr>> out_shapes;
   for (size_t i = 0; i < begin_ids.size(); ++i) {
     PrimExpr out_axis_size;
     if (i == begin_ids.size() - 1) {
@@ -607,7 +610,7 @@ inline Array<Tensor> split_indices_array(const Tensor& x, Array<PrimExpr> split_
       out_axis_size = begin_ids[i + 1] - begin_ids[i];
     }
 
-    Array<PrimExpr> shape;
+    ffi::Array<PrimExpr> shape;
     for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
       shape.push_back(x->shape[i]);
     }
@@ -619,13 +622,13 @@ inline Array<Tensor> split_indices_array(const Tensor& x, Array<PrimExpr> split_
     out_shapes.push_back(shape);
   }
 
-  Array<Tensor> result;
+  ffi::Array<Tensor> result;
   for (size_t i = 0; i < begin_ids.size(); ++i) {
     result.push_back(compute(
         out_shapes[i],
-        [&](const Array<Var>& indices) {
+        [&](const ffi::Array<Var>& indices) {
           auto begin = begin_ids[i];
-          Array<PrimExpr> real_indices;
+          ffi::Array<PrimExpr> real_indices;
           for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
             real_indices.push_back(indices[j]);
           }
@@ -706,10 +709,11 @@ inline PrimExpr GetLength(PrimExpr begin, PrimExpr end, PrimExpr stride, PrimExp
  *
  * \return A Tensor whose op member is the dynamic_strided_slice operation
  */
-inline Tensor dynamic_strided_slice_with_axes(
-    const Tensor& x, const Array<PrimExpr>& begin, const Array<PrimExpr>& end,
-    const Array<PrimExpr>& strides, const Array<Integer>& axes, bool assume_inbound = true,
-    std::string name = "T_dynamic_strided_slice_with_axes", std::string tag = kInjective) {
+inline te::Tensor dynamic_strided_slice_with_axes(
+    const te::Tensor& x, const ffi::Array<PrimExpr>& begin, const ffi::Array<PrimExpr>& end,
+    const ffi::Array<PrimExpr>& strides, const ffi::Array<Integer>& axes,
+    bool assume_inbound = true, std::string name = "T_dynamic_strided_slice_with_axes",
+    std::string tag = kInjective) {
   const size_t src_tensor_dim = x->shape.size();
   ICHECK_EQ(begin.size(), end.size());
   ICHECK_EQ(begin.size(), strides.size());
@@ -723,7 +727,7 @@ inline Tensor dynamic_strided_slice_with_axes(
 
   arith::Analyzer analyzer;
 
-  Array<PrimExpr> out_shape = x->shape;
+  ffi::Array<PrimExpr> out_shape = x->shape;
   for (size_t i = 0; i < begin.size(); i++) {
     int axis = axes[i]->value;
     PrimExpr new_shape =
@@ -733,8 +737,9 @@ inline Tensor dynamic_strided_slice_with_axes(
 
   return te::compute(
       out_shape,
-      [&](const Array<tvm::tir::Var>& indices) {
-        Array<PrimExpr> real_indices = indices.Map([](const auto& var) -> PrimExpr { return var; });
+      [&](const ffi::Array<tvm::tir::Var>& indices) {
+        ffi::Array<PrimExpr> real_indices =
+            indices.Map([](const auto& var) -> PrimExpr { return var; });
 
         for (size_t i = 0; i < begin.size(); i++) {
           int axis = axes[i]->value;
@@ -761,9 +766,9 @@ inline Tensor dynamic_strided_slice_with_axes(
  *
  * \return A Tensor whose op member is the dynamic_strided_slice operation
  */
-inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begin,
-                                    const Array<PrimExpr>& end, const Array<PrimExpr>& strides,
-                                    bool assume_inbound = true,
+inline Tensor dynamic_strided_slice(const Tensor& x, const ffi::Array<PrimExpr>& begin,
+                                    const ffi::Array<PrimExpr>& end,
+                                    const ffi::Array<PrimExpr>& strides, bool assume_inbound = true,
                                     std::string name = "T_dynamic_strided_slice",
                                     std::string tag = kInjective) {
   const size_t src_tensor_dim = x->shape.size();
@@ -774,7 +779,7 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begi
   ICHECK_EQ(begin.size(), strides.size());
 
   const size_t num_slice_axes = begin.size();
-  Array<PrimExpr> out_shape;
+  ffi::Array<PrimExpr> out_shape;
 
   arith::Analyzer analyzer;
   for (size_t i = 0; i < num_slice_axes; ++i) {
@@ -794,8 +799,8 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begi
 
   return te::compute(
       out_shape,
-      [&](const Array<tvm::tir::Var>& indices) {
-        Array<PrimExpr> real_indices;
+      [&](const ffi::Array<tvm::tir::Var>& indices) {
+        ffi::Array<PrimExpr> real_indices;
         for (size_t i = 0; i < num_slice_axes; ++i) {
           real_indices.push_back(indices[i] * strides[i] + tvm::min(begin[i], x->shape[i] - 1));
         }
@@ -832,7 +837,7 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
   ICHECK_EQ(end->shape[0].as<IntImmNode>()->value, num_dynamic_axes);
   ICHECK_EQ(strides->shape[0].as<IntImmNode>()->value, num_dynamic_axes);
 
-  Array<PrimExpr> begin_expr, end_expr, strides_expr;
+  ffi::Array<PrimExpr> begin_expr, end_expr, strides_expr;
   for (int64_t i = 0; i < num_dynamic_axes; ++i) {
     auto ind = make_const(index_dtype, i);
     begin_expr.push_back(begin(ind));
@@ -856,9 +861,12 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
  *
  * \return The output shape of strided_slice using the arguments above
  */
-inline Array<PrimExpr> StridedSliceOutputShape(
-    const Array<PrimExpr>& ishape, const Array<Integer>& begin, const Array<Integer>& end,
-    const Array<Integer>& strides, const Array<Integer>& axes, const std::string& slice_mode) {
+inline ffi::Array<PrimExpr> StridedSliceOutputShape(const ffi::Array<PrimExpr>& ishape,
+                                                    const ffi::Array<Integer>& begin,
+                                                    const ffi::Array<Integer>& end,
+                                                    const ffi::Array<Integer>& strides,
+                                                    const ffi::Array<Integer>& axes,
+                                                    const std::string& slice_mode) {
   ICHECK(axes.size() == begin.size() && axes.size() == end.size() && axes.size() == strides.size());
   std::vector<int64_t> begin_vec, end_vec, strides_vec;
   std::tie(begin_vec, end_vec, strides_vec) = ConvertToVec(begin, end, strides, slice_mode);
@@ -884,9 +892,11 @@ inline Array<PrimExpr> StridedSliceOutputShape(
  *
  * \return A Tensor whose op member is the sstrided_slice operation
  */
-inline Tensor strided_slice_with_axes(const Tensor& x, const Array<Integer>& begin,
-                                      const Array<Integer>& end, const Array<Integer>& strides,
-                                      const Array<Integer>& axes, std::string slice_mode = "end",
+inline Tensor strided_slice_with_axes(const Tensor& x, const ffi::Array<Integer>& begin,
+                                      const ffi::Array<Integer>& end,
+                                      const ffi::Array<Integer>& strides,
+                                      const ffi::Array<Integer>& axes,
+                                      std::string slice_mode = "end",
                                       std::string name = "T_strided_slice_with_axes",
                                       std::string tag = kInjective) {
   const size_t src_tensor_dim = x->shape.size();
@@ -903,8 +913,8 @@ inline Tensor strided_slice_with_axes(const Tensor& x, const Array<Integer>& beg
 
   return te::compute(
       out_shape,
-      [&](const Array<tir::Var>& indices) {
-        Array<PrimExpr> real_indices;
+      [&](const ffi::Array<tir::Var>& indices) {
+        ffi::Array<PrimExpr> real_indices;
         for (size_t i = 0; i < out_shape.size(); ++i) real_indices.push_back(indices[i]);
         for (size_t i = 0; i < axes.size(); ++i) {
           auto stride = make_const(strides[i].dtype(), strides_vec[i]);
@@ -930,15 +940,16 @@ inline Tensor strided_slice_with_axes(const Tensor& x, const Array<Integer>& beg
  *
  * \return A Tensor whose op member is the strided_slice operation
  */
-inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const Array<Integer>& end,
-                            const Array<Integer>& strides, std::string slice_mode = "end",
-                            std::string name = "T_strided_slice", std::string tag = kInjective) {
+inline Tensor strided_slice(const Tensor& x, const ffi::Array<Integer>& begin,
+                            const ffi::Array<Integer>& end, const ffi::Array<Integer>& strides,
+                            std::string slice_mode = "end", std::string name = "T_strided_slice",
+                            std::string tag = kInjective) {
   size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
-  Array<Integer> axes;
+  ffi::Array<Integer> axes;
   for (size_t i = 0; i < src_tensor_dim; ++i) axes.push_back(i);
-  Array<Integer> begin_full(begin);
-  Array<Integer> end_full(end);
-  Array<Integer> strides_full(strides);
+  ffi::Array<Integer> begin_full(begin);
+  ffi::Array<Integer> end_full(end);
+  ffi::Array<Integer> strides_full(strides);
 
   DataType index_dtype = begin.size() > 0 ? begin[0]->dtype : DataType::Int(64);
   const IntImm one = IntImm(index_dtype, 1);
@@ -971,9 +982,9 @@ inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const 
  *
  * \return A Tensor whose op member is the split operation
  */
-inline Array<Tensor> split_n_sections(const Tensor& x, int num_sections, int axis,
-                                      std::string name = "T_split_sections",
-                                      std::string tag = kInjective) {
+inline ffi::Array<Tensor> split_n_sections(const Tensor& x, int num_sections, int axis,
+                                           std::string name = "T_split_sections",
+                                           std::string tag = kInjective) {
   if (axis < 0) {
     axis += static_cast<int>(x->shape.size());
   }
@@ -983,7 +994,7 @@ inline Array<Tensor> split_n_sections(const Tensor& x, int num_sections, int axi
 
   ICHECK_GT(num_sections, 0) << "Slice count must be > 0";
 
-  Array<PrimExpr> split_indices;
+  ffi::Array<PrimExpr> split_indices;
   auto seg_size = indexdiv(src_axis_size + num_sections - 1, num_sections);
   for (int i = 0; i < num_sections; ++i) {
     // region at index 0 is added by split()
@@ -1010,8 +1021,8 @@ inline Array<Tensor> split_n_sections(const Tensor& x, int num_sections, int axi
 inline Tensor take(const Tensor& a, const Tensor& indices, int batch_dims,
                    std::string mode = "fast", std::string name = "T_take",
                    std::string tag = kInjective) {
-  Array<PrimExpr> a_shape = a->shape;
-  Array<PrimExpr> out_shape = indices->shape;
+  ffi::Array<PrimExpr> a_shape = a->shape;
+  ffi::Array<PrimExpr> out_shape = indices->shape;
   PrimExpr a_size = 1;
   for (size_t i = 0; i < a_shape.size(); ++i) {
     a_size = a_size * a_shape[i];
@@ -1020,7 +1031,7 @@ inline Tensor take(const Tensor& a, const Tensor& indices, int batch_dims,
   if (mode == "clip") {
     return compute(
         out_shape,
-        [&](const Array<Var>& out_index) {
+        [&](const ffi::Array<Var>& out_index) {
           auto idx = tvm::min(tvm::max(0, indices(out_index)), a_size - 1);
           return a(UnravelIndex(idx, a_shape));
         },
@@ -1030,12 +1041,14 @@ inline Tensor take(const Tensor& a, const Tensor& indices, int batch_dims,
                     "Make sure input indices are in bound";
     return compute(
         out_shape,
-        [&](const Array<Var>& out_index) { return a(UnravelIndex(indices(out_index), a_shape)); },
+        [&](const ffi::Array<Var>& out_index) {
+          return a(UnravelIndex(indices(out_index), a_shape));
+        },
         name, tag);
   } else if (mode == "nan") {
     return compute(
         out_shape,
-        [&](const Array<Var>& out_index) {
+        [&](const ffi::Array<Var>& out_index) {
           auto idx = tvm::if_then_else(
               indices(out_index) < 0 || indices(out_index) >= a_size,
               tvm::FloatImm(a->dtype, std::numeric_limits<float>::quiet_NaN()), indices(out_index));
@@ -1045,7 +1058,7 @@ inline Tensor take(const Tensor& a, const Tensor& indices, int batch_dims,
   } else {  // mode == "wrap"
     return compute(
         out_shape,
-        [&](const Array<Var>& out_index) {
+        [&](const ffi::Array<Var>& out_index) {
           auto idx = truncmod(truncmod(indices(out_index), a_size) + a_size, a_size);
           return a(UnravelIndex(idx, a_shape));
         },
@@ -1072,11 +1085,11 @@ inline Tensor sequence_mask(const Tensor& data, const Tensor& valid_length, doub
   ICHECK_EQ(valid_length->shape.size(), 1) << "valid_length must have ndim=1, i.e., (batch_size,).";
   auto length_dim = data->shape[axis];
   auto batch_dim = data->shape[1 - axis];
-  Array<PrimExpr> out_shape = data->shape;
+  ffi::Array<PrimExpr> out_shape = data->shape;
   Tensor out = compute(
       out_shape,
-      [&](const Array<Var>& out_index) {
-        Array<PrimExpr> len_index;
+      [&](const ffi::Array<Var>& out_index) {
+        ffi::Array<PrimExpr> len_index;
         auto tid = out_index[axis];
         auto bid = out_index[1 - axis];
         len_index.push_back(bid);
@@ -1103,8 +1116,8 @@ inline Tensor sequence_mask(const Tensor& data, const Tensor& valid_length, doub
  *
  * \return A Tensor whose op member is the take operation
  */
-inline Tensor take(const Tensor& a, Variant<Tensor, PrimExpr> indices, int batch_dims, int axis,
-                   std::string mode = "fast", std::string name = "T_take",
+inline Tensor take(const Tensor& a, ffi::Variant<Tensor, PrimExpr> indices, int batch_dims,
+                   int axis, std::string mode = "fast", std::string name = "T_take",
                    std::string tag = kInjective) {
   if (axis < 0) {
     axis += static_cast<int>(a->shape.size());
@@ -1112,7 +1125,7 @@ inline Tensor take(const Tensor& a, Variant<Tensor, PrimExpr> indices, int batch
   ICHECK_GE(axis, 0) << "axis out of bounds";
   ICHECK_LT(axis, a->shape.size()) << "axis out of bounds";
   auto axis_dim = a->shape[axis];
-  auto indices_shape = [&]() -> Array<PrimExpr> {
+  auto indices_shape = [&]() -> ffi::Array<PrimExpr> {
     if (auto tensor = indices.as<TensorNode>()) {
       return tensor->shape;
     } else {
@@ -1145,7 +1158,7 @@ inline Tensor take(const Tensor& a, Variant<Tensor, PrimExpr> indices, int batch
   // The result shape is a.shape[:axis] + indices.shape[batch_dims:] +
   // a.shape[axis + 1:].
 
-  Array<PrimExpr> out_shape;
+  ffi::Array<PrimExpr> out_shape;
   for (int i = 0; i < batch_dims_; ++i) {
     out_shape.push_back(a->shape[i]);
   }
@@ -1159,7 +1172,7 @@ inline Tensor take(const Tensor& a, Variant<Tensor, PrimExpr> indices, int batch
     out_shape.push_back(a->shape[i]);
   }
 
-  auto get_index = [&](const Array<PrimExpr>& indices_position) -> PrimExpr {
+  auto get_index = [&](const ffi::Array<PrimExpr>& indices_position) -> PrimExpr {
     if (auto tensor = indices.as<Tensor>()) {
       return tensor.value()(indices_position);
     } else if (auto prim = indices.as<PrimExpr>()) {
@@ -1174,12 +1187,12 @@ inline Tensor take(const Tensor& a, Variant<Tensor, PrimExpr> indices, int batch
     if (batch_dims_ == 0) {
       return compute(
           out_shape,
-          [&](const Array<Var>& out_index) {
-            Array<PrimExpr> indices_position;
+          [&](const ffi::Array<Var>& out_index) {
+            ffi::Array<PrimExpr> indices_position;
             for (size_t j = axis; j < static_cast<size_t>(axis + indices_len); ++j) {
               indices_position.push_back(out_index[j]);
             }
-            Array<PrimExpr> real_indices;
+            ffi::Array<PrimExpr> real_indices;
             for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
               real_indices.push_back(out_index[j]);
             }
@@ -1194,15 +1207,15 @@ inline Tensor take(const Tensor& a, Variant<Tensor, PrimExpr> indices, int batch
     } else {
       return compute(
           out_shape,
-          [&](const Array<Var>& out_index) {
-            Array<PrimExpr> indices_position;
+          [&](const ffi::Array<Var>& out_index) {
+            ffi::Array<PrimExpr> indices_position;
             for (size_t j = 0; j < static_cast<size_t>(batch_dims_); ++j) {
               indices_position.push_back(out_index[j]);
             }
             for (size_t j = axis; j < static_cast<size_t>(axis + indices_len - batch_dims_); ++j) {
               indices_position.push_back(out_index[j]);
             }
-            Array<PrimExpr> real_indices;
+            ffi::Array<PrimExpr> real_indices;
             for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
               real_indices.push_back(out_index[j]);
             }
@@ -1220,12 +1233,12 @@ inline Tensor take(const Tensor& a, Variant<Tensor, PrimExpr> indices, int batch
                     "Make sure input indices are in bound";
     return compute(
         out_shape,
-        [&](const Array<Var>& out_index) {
-          Array<PrimExpr> indices_position;
+        [&](const ffi::Array<Var>& out_index) {
+          ffi::Array<PrimExpr> indices_position;
           for (size_t j = axis; j < static_cast<size_t>(axis + indices_len); ++j) {
             indices_position.push_back(out_index[j]);
           }
-          Array<PrimExpr> real_indices;
+          ffi::Array<PrimExpr> real_indices;
           for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
             real_indices.push_back(out_index[j]);
           }
@@ -1239,12 +1252,12 @@ inline Tensor take(const Tensor& a, Variant<Tensor, PrimExpr> indices, int batch
   } else if (mode == "nan") {
     return compute(
         out_shape,
-        [&](const Array<Var>& out_index) {
-          Array<PrimExpr> indices_position;
+        [&](const ffi::Array<Var>& out_index) {
+          ffi::Array<PrimExpr> indices_position;
           for (size_t j = axis; j < static_cast<size_t>(axis + indices_len); ++j) {
             indices_position.push_back(out_index[j]);
           }
-          Array<PrimExpr> real_indices;
+          ffi::Array<PrimExpr> real_indices;
           for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
             real_indices.push_back(out_index[j]);
           }
@@ -1262,12 +1275,12 @@ inline Tensor take(const Tensor& a, Variant<Tensor, PrimExpr> indices, int batch
   } else {  // mode == "wrap"
     return compute(
         out_shape,
-        [&](const Array<Var>& out_index) {
-          Array<PrimExpr> indices_position;
+        [&](const ffi::Array<Var>& out_index) {
+          ffi::Array<PrimExpr> indices_position;
           for (size_t j = axis; j < static_cast<size_t>(axis + indices_len); ++j) {
             indices_position.push_back(out_index[j]);
           }
-          Array<PrimExpr> real_indices;
+          ffi::Array<PrimExpr> real_indices;
           for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
             real_indices.push_back(out_index[j]);
           }
@@ -1299,9 +1312,9 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
                                 << y->dtype;
   auto get_out_shape = [&]() {
     auto bh1 = detail::BroadcastShape(x->shape, y->shape);
-    Array<PrimExpr> common_shape1(bh1.common_shape.begin(), bh1.common_shape.end());
+    ffi::Array<PrimExpr> common_shape1(bh1.common_shape.begin(), bh1.common_shape.end());
     auto bh2 = detail::BroadcastShape(condition->shape, common_shape1);
-    Array<PrimExpr> common_shape2(bh2.common_shape.begin(), bh2.common_shape.end());
+    ffi::Array<PrimExpr> common_shape2(bh2.common_shape.begin(), bh2.common_shape.end());
     return common_shape2;
   };
 
@@ -1311,7 +1324,7 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
   auto x_bh = detail::BroadcastShape(x->shape, oshape);
   auto y_bh = detail::BroadcastShape(y->shape, oshape);
 
-  auto select = [&](tvm::Array<tvm::tir::Var> ovars) {
+  auto select = [&](tvm::ffi::Array<tvm::tir::Var> ovars) {
     auto c = condition(InputIndexFromBroadcast(ovars, condition, c_bh.vars1, c_bh.all_vars));
     auto true_val = x(InputIndexFromBroadcast(ovars, x, x_bh.vars1, x_bh.all_vars));
     auto false_val = y(InputIndexFromBroadcast(ovars, y, y_bh.vars1, y_bh.all_vars));
@@ -1345,7 +1358,7 @@ inline Tensor repeat(const Tensor& x, int repeats, int axis, std::string name = 
     // Calculate offset from last dimension
     axis += ndim;
   }
-  Array<PrimExpr> new_shape;
+  ffi::Array<PrimExpr> new_shape;
   for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
     new_shape.push_back(x->shape[i]);
   }
@@ -1356,8 +1369,8 @@ inline Tensor repeat(const Tensor& x, int repeats, int axis, std::string name = 
 
   return compute(
       new_shape,
-      [&](const Array<Var>& indices) {
-        Array<PrimExpr> idx;
+      [&](const ffi::Array<Var>& indices) {
+        ffi::Array<PrimExpr> idx;
         for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
           idx.push_back(indices[i]);
         }
@@ -1380,14 +1393,14 @@ inline Tensor repeat(const Tensor& x, int repeats, int axis, std::string name = 
  *
  * \return A Tensor whose op member is the tile operation
  */
-inline Tensor tile(const Tensor& x, Array<Integer> reps, std::string name = "T_tile",
+inline Tensor tile(const Tensor& x, ffi::Array<Integer> reps, std::string name = "T_tile",
                    std::string tag = kBroadcast) {
   size_t ndim = x->shape.size();
   size_t rdim = reps.size();
   size_t tdim = (ndim > rdim) ? ndim : rdim;
-  Array<PrimExpr> data_shape;
-  Array<PrimExpr> reps_shape;
-  Array<PrimExpr> new_shape;
+  ffi::Array<PrimExpr> data_shape;
+  ffi::Array<PrimExpr> reps_shape;
+  ffi::Array<PrimExpr> new_shape;
   if (ndim == rdim) {
     for (size_t i = 0; i < ndim; ++i) {
       data_shape.push_back(x->shape[i]);
@@ -1406,12 +1419,13 @@ inline Tensor tile(const Tensor& x, Array<Integer> reps, std::string name = "T_t
 
   if (is_empty_shape(new_shape)) {
     return compute(
-        new_shape, [&](const Array<Var>& indices) { return tvm::cast(x->dtype, 0); }, name, tag);
+        new_shape, [&](const ffi::Array<Var>& indices) { return tvm::cast(x->dtype, 0); }, name,
+        tag);
   } else {
     return compute(
         new_shape,
-        [&](const Array<Var>& indices) {
-          Array<PrimExpr> idx;
+        [&](const ffi::Array<Var>& indices) {
+          ffi::Array<PrimExpr> idx;
           if (ndim >= rdim) {
             for (size_t i = 0; i < ndim; ++i) idx.push_back(indexmod(indices[i], x->shape[i]));
           } else {
@@ -1435,17 +1449,18 @@ inline Tensor tile(const Tensor& x, Array<Integer> reps, std::string name = "T_t
  *
  * \return A Tensor whose op member is the tile operation
  */
-inline Tensor dyn_tile(const Tensor& x, Array<PrimExpr> new_shape, size_t rdim,
+inline Tensor dyn_tile(const Tensor& x, ffi::Array<PrimExpr> new_shape, size_t rdim,
                        std::string name = "T_tile", std::string tag = kBroadcast) {
   size_t ndim = x->shape.size();
   if (is_empty_shape(new_shape)) {
     return compute(
-        new_shape, [&](const Array<Var>& indices) { return tvm::cast(x->dtype, 0); }, name, tag);
+        new_shape, [&](const ffi::Array<Var>& indices) { return tvm::cast(x->dtype, 0); }, name,
+        tag);
   } else {
     return compute(
         new_shape,
-        [&](const Array<Var>& indices) {
-          Array<PrimExpr> idx;
+        [&](const ffi::Array<Var>& indices) {
+          ffi::Array<PrimExpr> idx;
           if (ndim >= rdim) {
             for (size_t i = 0; i < ndim; ++i) {
               idx.push_back(indexmod(indices[i], x->shape[i]));
@@ -1489,19 +1504,19 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
   }
   ICHECK(indices->dtype.is_int() || indices->dtype.is_uint());
 
-  Array<PrimExpr> out_shape;
+  ffi::Array<PrimExpr> out_shape;
   for (size_t i = 0; i < ndim_i; ++i) {
     out_shape.push_back(indices->shape[i]);
   }
 
   return compute(
       out_shape,
-      [&](const Array<Var>& out_index) {
-        Array<PrimExpr> indices_position;
+      [&](const ffi::Array<Var>& out_index) {
+        ffi::Array<PrimExpr> indices_position;
         for (size_t i = 0; i < ndim_i; ++i) {
           indices_position.push_back(out_index[i]);
         }
-        Array<PrimExpr> real_indices;
+        ffi::Array<PrimExpr> real_indices;
         for (size_t i = 0; i < ndim_i; ++i) {
           if (i == static_cast<size_t>(axis)) {
             real_indices.push_back(indices(indices_position));
@@ -1533,7 +1548,7 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
   size_t indices_dim0 = static_cast<size_t>(GetConstInt(indices->shape[0]));
   ICHECK_LE(indices_dim0, ndim_d) << "dim 0 of indices tensor must be no more "
                                   << "than dimensions of data tensor";
-  Array<PrimExpr> out_shape;
+  ffi::Array<PrimExpr> out_shape;
   for (size_t i = 1; i < ndim_i; ++i) {
     out_shape.push_back(indices->shape[i]);
   }
@@ -1542,13 +1557,13 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
   }
   return compute(
       out_shape,
-      [&](const Array<Var>& out_index) {
-        Array<PrimExpr> indices_position;
+      [&](const ffi::Array<Var>& out_index) {
+        ffi::Array<PrimExpr> indices_position;
         indices_position.push_back(0);
         for (size_t i = 0; i < ndim_i - 1; ++i) {
           indices_position.push_back(out_index[i]);
         }
-        Array<PrimExpr> real_indices;
+        ffi::Array<PrimExpr> real_indices;
         for (size_t i = 0; i < static_cast<size_t>(batch_dims); ++i) {
           real_indices.push_back(out_index[i]);
         }
@@ -1589,7 +1604,7 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
 inline tvm::te::Tensor matmul(const tvm::te::Tensor& A, const tvm::te::Tensor& B,
                               bool trans_a = false, bool trans_b = false,
                               std::string name = "T_matmul", std::string tag = kMatMul) {
-  tvm::Array<tvm::PrimExpr> output_shape{A->shape[trans_a ? 1 : 0], B->shape[trans_b ? 0 : 1]};
+  tvm::ffi::Array<tvm::PrimExpr> output_shape{A->shape[trans_a ? 1 : 0], B->shape[trans_b ? 0 : 1]};
   auto k = tvm::te::reduce_axis(tvm::Range{0, A->shape[trans_a ? 0 : 1]}, "k");
   auto l = [&](tvm::tir::Var i, tvm::tir::Var j) {
     return tvm::sum((trans_a ? A[k][i] : A[i][k]) * (trans_b ? B[j][k] : B[k][j]), {k});
@@ -1613,19 +1628,19 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, int axes = 2,
   ICHECK_GE(A->shape.size(), axes);
   ICHECK_GE(B->shape.size(), axes);
 
-  Array<PrimExpr> output_shape(A->shape.begin(), A->shape.end() + (-axes));
+  ffi::Array<PrimExpr> output_shape(A->shape.begin(), A->shape.end() + (-axes));
   for (auto it = B->shape.begin() + axes; it != B->shape.end(); ++it) output_shape.push_back(*it);
 
-  Array<IterVar> iter_vars;
+  ffi::Array<IterVar> iter_vars;
   for (int i = 0; i < axes; ++i)
     iter_vars.push_back(reduce_axis(Range(0, B->shape[i]), "k" + std::to_string(i)));
 
-  auto func = [&A, &B, &iter_vars, axes](const Array<Var>& input_indices) {
-    Array<PrimExpr> A_indices(input_indices.begin(),
-                              input_indices.begin() + (A->shape.size() - axes));
+  auto func = [&A, &B, &iter_vars, axes](const ffi::Array<Var>& input_indices) {
+    ffi::Array<PrimExpr> A_indices(input_indices.begin(),
+                                   input_indices.begin() + (A->shape.size() - axes));
     for (auto& v : iter_vars) A_indices.push_back(v);
 
-    Array<PrimExpr> B_indices;
+    ffi::Array<PrimExpr> B_indices;
     for (auto& v : iter_vars) B_indices.push_back(v);
 
     auto it = input_indices.begin() + (A->shape.size() - axes);
@@ -1654,15 +1669,15 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, int axes = 2,
  *
  * \return A Tensor computing the result
  */
-inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, Array<PrimExpr> A_axes,
-                        Array<PrimExpr> B_axes, std::string name = "T_tensordot",
+inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, ffi::Array<PrimExpr> A_axes,
+                        ffi::Array<PrimExpr> B_axes, std::string name = "T_tensordot",
                         std::string tag = kMatMul) {
   ICHECK_EQ(A_axes.size(), B_axes.size());
 
   auto A_axes_val = GetConstIntValues(A_axes, "A_axes");
   auto B_axes_val = GetConstIntValues(B_axes, "B_axes");
 
-  Array<PrimExpr> output_shape;
+  ffi::Array<PrimExpr> output_shape;
   for (unsigned i = 0; i < A->shape.size(); ++i)
     if (std::find(A_axes_val.begin(), A_axes_val.end(), i) == A_axes_val.end())
       output_shape.push_back(A->shape[i]);
@@ -1670,13 +1685,13 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, Array<PrimExp
     if (std::find(B_axes_val.begin(), B_axes_val.end(), i) == B_axes_val.end())
       output_shape.push_back(B->shape[i]);
 
-  Array<IterVar> iter_vars;
+  ffi::Array<IterVar> iter_vars;
   for (unsigned i = 0; i < B_axes_val.size(); ++i)
     iter_vars.push_back(reduce_axis(Range(0, B->shape[B_axes_val[i]]), "k" + std::to_string(i)));
 
-  auto func = [&A, &B, &iter_vars, A_axes_val, B_axes_val](const Array<Var>& input_indices) {
+  auto func = [&A, &B, &iter_vars, A_axes_val, B_axes_val](const ffi::Array<Var>& input_indices) {
     int idx_input = 0;
-    Array<PrimExpr> A_indices;
+    ffi::Array<PrimExpr> A_indices;
     for (unsigned i = 0; i < A->shape.size(); ++i) {
       auto axes_pos = std::find(A_axes_val.begin(), A_axes_val.end(), i);
       if (axes_pos == A_axes_val.end()) {
@@ -1686,7 +1701,7 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, Array<PrimExp
       }
     }
 
-    Array<PrimExpr> B_indices;
+    ffi::Array<PrimExpr> B_indices;
     for (unsigned i = 0; i < B->shape.size(); ++i) {
       auto axes_pos = std::find(B_axes_val.begin(), B_axes_val.end(), i);
       if (axes_pos == B_axes_val.end()) {
@@ -1720,8 +1735,8 @@ inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr
 
   return compute(
       {num_elem},
-      [&](const Array<Var>& indices) { return tvm::cast(dtype, start + step * indices[0]); }, name,
-      tag);
+      [&](const ffi::Array<Var>& indices) { return tvm::cast(dtype, start + step * indices[0]); },
+      name, tag);
 }
 
 /*!
@@ -1734,22 +1749,22 @@ inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr
  *
  * \return A Tensor whose op member is the meshgrid operation
  */
-inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& indexing,
-                              std::string name = "T_meshgrid", std::string tag = kInjective) {
+inline ffi::Array<Tensor> meshgrid(const ffi::Array<Tensor>& inputs, const std::string& indexing,
+                                   std::string name = "T_meshgrid", std::string tag = kInjective) {
   const bool cartesian_indexing = indexing == "xy" && inputs.size() >= 2;
-  Array<PrimExpr> out_shape;
+  ffi::Array<PrimExpr> out_shape;
   for (size_t i = 0; i < inputs.size(); ++i) {
     const int src_index = (cartesian_indexing && i < 2) ? 1 - i : i;
     out_shape.push_back(inputs[src_index]->shape.size() == 0 ? 1 : inputs[src_index]->shape[0]);
   }
-  Array<Tensor> result;
+  ffi::Array<Tensor> result;
   for (size_t i = 0; i < inputs.size(); ++i) {
     result.push_back(compute(
         out_shape,
-        [&](const Array<Var>& indices) {
+        [&](const ffi::Array<Var>& indices) {
           const int src_index = (cartesian_indexing && i < 2) ? 1 - i : i;
           auto ndim = inputs[i]->GetShape().size();
-          Array<PrimExpr> real_indices = {};
+          ffi::Array<PrimExpr> real_indices = {};
           if (ndim > 0) {
             real_indices = {indices[src_index]};
           }
@@ -1789,19 +1804,19 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
   ICHECK(layout_converter.defined())
       << "cannot convert from " << src_layout << " to " << dst_layout;
 
-  Array<PrimExpr> dst_shape = layout_converter.ForwardShape(src->shape);
+  ffi::Array<PrimExpr> dst_shape = layout_converter.ForwardShape(src->shape);
 
-  Map<String, ffi::Any> attrs = {{"schedule_rule", String(schedule_rule)},
-                                 // Information about layouts needed for the schedule rule
-                                 {"src_layout", String(src_layout)},
-                                 {"dst_layout", String(dst_layout)},
-                                 {"input_shape", src->shape}};
+  ffi::Map<ffi::String, ffi::Any> attrs = {{"schedule_rule", ffi::String(schedule_rule)},
+                                           // Information about layouts needed for the schedule rule
+                                           {"src_layout", ffi::String(src_layout)},
+                                           {"dst_layout", ffi::String(dst_layout)},
+                                           {"input_shape", src->shape}};
 
   return compute(
       dst_shape,
-      [&](const Array<Var>& dst_indices) {
-        Array<PrimExpr> dst_indices_expr(dst_indices.begin(), dst_indices.end());
-        Array<PrimExpr> src_indices = layout_converter.BackwardIndex(dst_indices_expr);
+      [&](const ffi::Array<Var>& dst_indices) {
+        ffi::Array<PrimExpr> dst_indices_expr(dst_indices.begin(), dst_indices.end());
+        ffi::Array<PrimExpr> src_indices = layout_converter.BackwardIndex(dst_indices_expr);
         PrimExpr in_range = PrimExpr(1) > PrimExpr(0);  // init with dtype=bool and value=true
         for (size_t i = 0; i < src.ndim(); ++i) {
           in_range = in_range && (src_indices[i] < src->shape[i]);
@@ -1812,7 +1827,7 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
 }
 
 /*! \brief Utility function for auto_scheduler_layout_transform */
-inline void parse_auto_scheduler_layout(const String& layout, Array<PrimExpr>* shape,
+inline void parse_auto_scheduler_layout(const ffi::String& layout, ffi::Array<PrimExpr>* shape,
                                         std::vector<std::string>* axes) {
   int32_t factor = 0;
   std::string axis = "";
@@ -1848,22 +1863,21 @@ inline void parse_auto_scheduler_layout(const String& layout, Array<PrimExpr>* s
  * \param tag output tensor tag.
  * \return A tensor with shape in \p dst_layout
  */
-inline Tensor auto_scheduler_layout_transform(const Tensor& src, const String& src_layout,
-                                              const String& dst_layout,
-                                              const String name = "T_auto_scheduler_layout_trans",
-                                              const String tag = kInjective) {
-  Array<PrimExpr> src_shape;
+inline Tensor auto_scheduler_layout_transform(
+    const Tensor& src, const ffi::String& src_layout, const ffi::String& dst_layout,
+    const ffi::String name = "T_auto_scheduler_layout_trans", const ffi::String tag = kInjective) {
+  ffi::Array<PrimExpr> src_shape;
   std::vector<std::string> src_axes;
-  Array<PrimExpr> dst_shape;
+  ffi::Array<PrimExpr> dst_shape;
   std::vector<std::string> dst_axes;
 
   parse_auto_scheduler_layout(src_layout, &src_shape, &src_axes);
   parse_auto_scheduler_layout(dst_layout, &dst_shape, &dst_axes);
   return compute(
       dst_shape,
-      [&](const Array<Var>& dst_indices) {
-        Array<PrimExpr> dst_indices_expr(dst_indices.begin(), dst_indices.end());
-        Array<PrimExpr> src_indices;
+      [&](const ffi::Array<Var>& dst_indices) {
+        ffi::Array<PrimExpr> dst_indices_expr(dst_indices.begin(), dst_indices.end());
+        ffi::Array<PrimExpr> src_indices;
         for (const std::string& src_axis : src_axes) {
           PrimExpr src_index = 0;
           CHECK_EQ(dst_indices_expr.size(), dst_axes.size());
@@ -1915,21 +1929,22 @@ inline Tensor auto_scheduler_layout_transform(const Tensor& src, const String& s
  *  In this case, the transformation pattern is:
  *    A'[a, b, c, d] = A[a * 4 + c, b * 16 + d]
  */
-inline Tensor meta_schedule_layout_transform(const Tensor& src, const tir::IndexMap& index_map,
-                                             const String name = "T_meta_schedule_layout_trans",
-                                             const String tag = kInjective) {
+inline Tensor meta_schedule_layout_transform(
+    const Tensor& src, const tir::IndexMap& index_map,
+    const ffi::String name = "T_meta_schedule_layout_trans", const ffi::String tag = kInjective) {
   arith::Analyzer analyzer;
-  Array<Range> iter_domain;
+  ffi::Array<Range> iter_domain;
   iter_domain.reserve(src->shape.size());
   for (const PrimExpr& e : src->shape) {
     iter_domain.push_back(Range::FromMinExtent(make_zero(e->dtype), e));
   }
-  Array<PrimExpr> post_transform_shape = index_map->MapShape(src->shape, &analyzer);
+  ffi::Array<PrimExpr> post_transform_shape = index_map->MapShape(src->shape, &analyzer);
   return compute(
       post_transform_shape,
       [src, inv = index_map.Inverse(iter_domain, &analyzer),
-       &analyzer](const Array<Var>& indices) -> PrimExpr {
-        return src(inv->MapIndices(Array<PrimExpr>{indices.begin(), indices.end()}, &analyzer));
+       &analyzer](const ffi::Array<Var>& indices) -> PrimExpr {
+        return src(
+            inv->MapIndices(ffi::Array<PrimExpr>{indices.begin(), indices.end()}, &analyzer));
       },
       name, tag);
 }
@@ -1945,10 +1960,10 @@ inline Tensor meta_schedule_layout_transform(const Tensor& src, const tir::Index
 inline Tensor shape(const Tensor& src, DataType dtype, const std::string name = "T_shape",
                     const std::string tag = kInjective) {
   int ndim = static_cast<int>(src->shape.size());
-  Array<PrimExpr> out_shape{ndim};
+  ffi::Array<PrimExpr> out_shape{ndim};
   return compute(
       out_shape,
-      [&](const Array<Var>& indices) {
+      [&](const ffi::Array<Var>& indices) {
         auto idx = indices[0];
         PrimExpr ret = 0;
         for (int i = 0; i < ndim; ++i) {
@@ -1967,14 +1982,14 @@ inline Tensor shape(const Tensor& src, DataType dtype, const std::string name = 
  * \param tag output tensor tag.
  * \return Tensor of input shape.
  */
-inline Tensor ndarray_size(const Tensor& src, const DataType& dtype,
-                           const std::string& name = "ndarray_size",
-                           const std::string& tag = kInjective) {
+inline te::Tensor tensor_size(const te::Tensor& src, const DataType& dtype,
+                              const std::string& name = "tensor_size",
+                              const std::string& tag = kInjective) {
   int ndim = static_cast<int>(src->shape.size());
-  Array<PrimExpr> out_ndarray_size = {};
+  ffi::Array<PrimExpr> out_tensor_size = {};
   return compute(
-      out_ndarray_size,
-      [&](const Array<Var>& indices) {
+      out_tensor_size,
+      [&](const ffi::Array<Var>& indices) {
         PrimExpr ret = 1;
         for (int i = 0; i < ndim; ++i) {
           ret *= src->shape[i];
@@ -2000,7 +2015,7 @@ inline Tensor ndarray_size(const Tensor& src, const DataType& dtype,
  */
 inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const PrimExpr off_value,
                       int depth, int axis, const DataType& dtype,
-                      Array<PrimExpr> oshape = Array<PrimExpr>(),
+                      ffi::Array<PrimExpr> oshape = ffi::Array<PrimExpr>(),
                       const std::string name = "T_one_hot", const std::string tag = kInjective) {
   int true_axis = (axis == -1) ? indices->shape.size() : axis;
   if (oshape.size() == 0) {
@@ -2019,8 +2034,8 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
   PrimExpr off_value_cast = cast(dtype, off_value);
   return compute(
       oshape,
-      [&](const Array<Var>& iter_vars) {
-        Array<Var> indices_indices;
+      [&](const ffi::Array<Var>& iter_vars) {
+        ffi::Array<Var> indices_indices;
         for (size_t i = 0; i < iter_vars.size(); i++) {
           if (static_cast<int>(i) == true_axis) {
             continue;
@@ -2045,8 +2060,9 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
  * \param tag output tensor tag.
  * \return Tensor of output_shape.
  */
-inline Tensor sparse_to_dense(const Tensor& sparse_indices, const Array<PrimExpr>& output_shape,
-                              const Tensor& sparse_values, const PrimExpr& default_value,
+inline Tensor sparse_to_dense(const Tensor& sparse_indices,
+                              const ffi::Array<PrimExpr>& output_shape, const Tensor& sparse_values,
+                              const PrimExpr& default_value,
                               const std::string name = "T_sparse_to_dense",
                               const std::string tag = kInjective) {
   ICHECK(sparse_indices->dtype.is_int()) << "sparse_indices only accepts integer values";
@@ -2055,13 +2071,13 @@ inline Tensor sparse_to_dense(const Tensor& sparse_indices, const Array<PrimExpr
   ICHECK_LE(sparse_values->shape.size(), 2) << "sparse_values tensor should be 0D or 1D only";
 
   const auto rank_sparse_indices = static_cast<int>(sparse_indices->shape.size());
-  Array<PrimExpr> oshape;
+  ffi::Array<PrimExpr> oshape;
   for (auto l : output_shape) {
     oshape.push_back(l);
   }
   return compute(
       oshape,
-      [&](const Array<Var>& indices) {
+      [&](const ffi::Array<Var>& indices) {
         PrimExpr ret = default_value;
         if (0 == rank_sparse_indices) {
           ret = if_then_else(indices[0] == sparse_indices(), sparse_values(), ret);
@@ -2106,9 +2122,9 @@ inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, int k
 
   return compute(
       input->shape,
-      [&](const Array<Var>& iter_vars) {
+      [&](const ffi::Array<Var>& iter_vars) {
         auto get_diag = [&]() {
-          Array<PrimExpr> diagonal_indices;
+          ffi::Array<PrimExpr> diagonal_indices;
           PrimExpr k, offset = 0;
           for (size_t i = 0; i < ndim - 1; i++) {
             diagonal_indices.push_back(iter_vars[i]);
@@ -2152,18 +2168,18 @@ inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, int k
  * \param tag output tensor tag.
  * \return Output tensor.
  */
-inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
+inline Tensor adv_index(const Tensor& data, const ffi::Array<Tensor>& indices,
                         const std::string name = "advanced_index",
                         const std::string tag = kInjective) {
   ICHECK_LE(indices.size(), data->shape.size()) << "too many indices for data!";
-  Array<PrimExpr> oshape;
-  Array<PrimExpr> broadcast_shape;
-  Array<Tensor> bindices;
+  ffi::Array<PrimExpr> oshape;
+  ffi::Array<PrimExpr> broadcast_shape;
+  ffi::Array<Tensor> bindices;
 
   broadcast_shape = indices[0]->shape;
   for (size_t i = 1; i < indices.size(); ++i) {
     auto bh = detail::BroadcastShape(broadcast_shape, indices[i]->shape);
-    broadcast_shape = Array<PrimExpr>(bh.common_shape.begin(), bh.common_shape.end());
+    broadcast_shape = ffi::Array<PrimExpr>(bh.common_shape.begin(), bh.common_shape.end());
   }
   if (indices.size() == 1) {
     // quick path
@@ -2184,12 +2200,12 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
 
   return compute(
       oshape,
-      [&](const Array<Var>& iter_var) {
-        Array<PrimExpr> tensor_indices;
+      [&](const ffi::Array<Var>& iter_var) {
+        ffi::Array<PrimExpr> tensor_indices;
         for (size_t i = 0; i < broadcast_shape.size(); ++i) {
           tensor_indices.push_back(iter_var[i]);
         }
-        Array<PrimExpr> real_indices;
+        ffi::Array<PrimExpr> real_indices;
         for (size_t i = 0; i < bindices.size(); ++i) {
           real_indices.push_back(bindices[i](tensor_indices));
         }
@@ -2206,7 +2222,7 @@ namespace relax {
 // relax dynamic slice
 inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& begin,
                                         const te::Tensor& end, const te::Tensor& strides,
-                                        Array<PrimExpr> output_shape,
+                                        ffi::Array<PrimExpr> output_shape,
                                         std::string name = "T_strided_slice_dynamic",
                                         std::string tag = kInjective) {
   const size_t num_dynamic_axes = x.ndim();
@@ -2225,8 +2241,8 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
 
   return te::compute(
       output_shape,
-      [&](const Array<tvm::tir::Var>& indices) {
-        Array<PrimExpr> real_indices;
+      [&](const ffi::Array<tvm::tir::Var>& indices) {
+        ffi::Array<PrimExpr> real_indices;
         for (size_t i = 0; i < num_dynamic_axes; ++i) {
           auto ind = make_const(DataType::Int(64), i);
           real_indices.push_back(indices[i] * strides(ind) + tvm::min(begin(ind), x->shape[i] - 1));

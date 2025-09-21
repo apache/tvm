@@ -49,8 +49,8 @@ def test_cuda_vectorize_add():
         fun = tvm.compile(sch.mod, target="cuda")
 
         dev = tvm.cuda(0)
-        a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
-        c = tvm.nd.empty((n,), B.dtype, dev)
+        a = tvm.runtime.empty((n,), A.dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
+        c = tvm.runtime.empty((n,), B.dtype, dev)
         fun(a, c)
         tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
@@ -105,10 +105,10 @@ def test_cuda_bf16_vectorize_add():
         dev = tvm.cuda(0)
         np_a = np.random.uniform(size=(n, lanes)).astype("float32")
         np_a = np_bf162np_float(np_float2np_bf16(np_a))
-        a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np_float2np_bf16(np_a))
-        c = tvm.nd.empty((n,), B.dtype, dev)
+        a = tvm.runtime.empty((n,), A.dtype, dev).copyfrom(np_float2np_bf16(np_a))
+        c = tvm.runtime.empty((n,), B.dtype, dev)
         fun(a, c)
-        c = tvm.nd.empty((n, lanes), "uint16", dev).copyfrom(c)
+        c = tvm.runtime.empty((n, lanes), "uint16", dev).copyfrom(c)
         tvm.testing.assert_allclose(c.numpy(), np_float2np_bf16(np_a + 1))
 
     check_cuda(64, 2)
@@ -143,10 +143,10 @@ def test_cuda_multiply_add():
         np_c = np.random.randint(low=0, high=127, size=(n,))
         np_d = [sum(x * y) + z for x, y, z in zip(np_a, np_b, np_c)]
         dev = tvm.cuda(0)
-        a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np_a)
-        b = tvm.nd.empty((n,), B.dtype, dev).copyfrom(np_b)
-        c = tvm.nd.empty((n,), C.dtype, dev).copyfrom(np_c)
-        d = tvm.nd.empty((n,), D.dtype, dev)
+        a = tvm.runtime.empty((n,), A.dtype, dev).copyfrom(np_a)
+        b = tvm.runtime.empty((n,), B.dtype, dev).copyfrom(np_b)
+        c = tvm.runtime.empty((n,), C.dtype, dev).copyfrom(np_c)
+        d = tvm.runtime.empty((n,), D.dtype, dev)
         fun(a, b, c, d)
         tvm.testing.assert_allclose(d.numpy(), np_d)
 
@@ -170,8 +170,8 @@ def test_cuda_vectorize_load():
         fun = tvm.compile(sch.mod, target="cuda")
 
         np_a = np.random.randint(low=-128, high=127, size=(n, lanes))
-        a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np_a)
-        b = tvm.nd.empty((n,), B.dtype, dev)
+        a = tvm.runtime.empty((n,), A.dtype, dev).copyfrom(np_a)
+        b = tvm.runtime.empty((n,), B.dtype, dev)
         fun(a, b)
         tvm.testing.assert_allclose(a.numpy(), b.numpy())
 
@@ -197,7 +197,7 @@ def test_cuda_make_int8():
         fun = tvm.compile(sch.mod, target="cuda")
 
         np_a = np.full((n, lanes), value, dtype=dtype)
-        a = tvm.nd.empty(np_a.shape, dtype, dev)
+        a = tvm.runtime.empty(np_a.shape, dtype, dev)
         fun(a)
         np.testing.assert_equal(a.numpy(), np_a)
 
@@ -228,8 +228,8 @@ def test_cuda_inf_nan():
         sch.bind(xi, "threadIdx.x")
         fun = tvm.compile(sch.mod, target="cuda")
 
-        a = tvm.nd.empty((n,), A.dtype, dev)
-        c = tvm.nd.empty((n,), A.dtype, dev)
+        a = tvm.runtime.empty((n,), A.dtype, dev)
+        c = tvm.runtime.empty((n,), A.dtype, dev)
         # Only need to test compiling here
         fun(a, c)
 
@@ -267,8 +267,8 @@ def test_crossthread_reduction1(target, dev):
         vals = [nthd - 1, nthd, nthd + 1]
         for kk in [x for x in vals]:
             size = (nn, kk)
-            a = tvm.nd.array(np.random.uniform(size=size).astype(A.dtype), dev)
-            b = tvm.nd.array(np.zeros(nn, dtype=B.dtype), dev)
+            a = tvm.runtime.tensor(np.random.uniform(size=size).astype(A.dtype), dev)
+            b = tvm.runtime.tensor(np.zeros(nn, dtype=B.dtype), dev)
             func(a, b)
             tvm.testing.assert_allclose(b.numpy(), np.sum(a.numpy(), axis=1), rtol=1e-3)
 
@@ -306,8 +306,8 @@ def test_crossthread_reduction2(target, dev):
         vy = [nthdy - 1, nthdy, nthdy + 1]
         for kk0, kk1 in [(x, y) for x in vx for y in vy]:
             size = (nn, kk0, kk1)
-            a = tvm.nd.array(np.random.uniform(size=size).astype(A.dtype), dev)
-            b = tvm.nd.array(np.zeros(nn, dtype=B.dtype), dev)
+            a = tvm.runtime.tensor(np.random.uniform(size=size).astype(A.dtype), dev)
+            b = tvm.runtime.tensor(np.zeros(nn, dtype=B.dtype), dev)
             func(a, b)
             tvm.testing.assert_allclose(b.numpy(), np.sum(a.numpy(), axis=(1, 2)), rtol=1e-3)
 
@@ -352,8 +352,8 @@ def test_cuda_const_float_to_half():
     dev = tvm.cuda(0)
     a_np = np.random.uniform(size=shape).astype(a.dtype)
     c_np = np.zeros(shape=shape, dtype=c.dtype)
-    a = tvm.nd.array(a_np, dev)
-    c = tvm.nd.array(c_np, dev)
+    a = tvm.runtime.tensor(a_np, dev)
+    c = tvm.runtime.tensor(c_np, dev)
     func(a, c)
     np.testing.assert_equal(c.numpy(), a_np > b.value)
 
@@ -379,8 +379,8 @@ def test_cuda_floordiv_with_vectorization():
         dev = tvm.cuda(0)
         a_np = np.random.uniform(size=(n,)).astype(A.dtype)
         b_np = np.array([a_np[i // k] for i in range(0, n)])
-        a_nd = tvm.nd.array(a_np, dev)
-        b_nd = tvm.nd.array(np.zeros(b_np.shape, dtype=b_np.dtype), dev)
+        a_nd = tvm.runtime.tensor(a_np, dev)
+        b_nd = tvm.runtime.tensor(np.zeros(b_np.shape, dtype=b_np.dtype), dev)
         func(a_nd, b_nd)
         tvm.testing.assert_allclose(b_nd.numpy(), b_np, rtol=1e-3)
 
@@ -405,8 +405,8 @@ def test_cuda_floormod_with_vectorization():
         dev = tvm.cuda(0)
         a_np = np.random.uniform(size=(n,)).astype(A.dtype)
         b_np = np.array([a_np[i % k] for i in range(0, n)])
-        a_nd = tvm.nd.array(a_np, dev)
-        b_nd = tvm.nd.array(np.zeros(b_np.shape, dtype=b_np.dtype), dev)
+        a_nd = tvm.runtime.tensor(a_np, dev)
+        b_nd = tvm.runtime.tensor(np.zeros(b_np.shape, dtype=b_np.dtype), dev)
         func(a_nd, b_nd)
         tvm.testing.assert_allclose(b_nd.numpy(), b_np, rtol=1e-3)
 
@@ -438,9 +438,9 @@ def test_vectorized_casts():
         a_np = np.random.randint(low, high, size=n).astype(A.dtype)
         b_np = np.random.randint(low, high, size=n).astype(B.dtype)
         c_np = (a_np + b_np).astype(A.dtype)
-        a_nd = tvm.nd.array(a_np, dev)
-        b_nd = tvm.nd.array(b_np, dev)
-        c_nd = tvm.nd.array(np.zeros(c_np.shape, dtype=c_np.dtype), dev)
+        a_nd = tvm.runtime.tensor(a_np, dev)
+        b_nd = tvm.runtime.tensor(b_np, dev)
+        c_nd = tvm.runtime.tensor(np.zeros(c_np.shape, dtype=c_np.dtype), dev)
         func(a_nd, b_nd, c_nd)
         tvm.testing.assert_allclose(c_nd.numpy(), c_np, rtol=1e-3)
 
@@ -535,8 +535,8 @@ def test_vectorized_intrin1():
         B = te.compute((n,), lambda *i: tvm_intrin(A(*i)), name="B")
         f = sched(A, B)
         dev = tvm.cuda(0)
-        a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(shape=(n,)).astype(A.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(0, 1, size=n).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(shape=(n,)).astype(A.dtype), dev)
         f(a, b)
         tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=1e-3, rtol=1e-3)
 
@@ -560,8 +560,8 @@ def test_vectorized_intrin2(dtype="float32"):
         B = te.compute((n,), lambda i: tvm_intrin(A[i], c2), name="B")
         f = sched(A, B)
         dev = tvm.cuda(0)
-        a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(shape=(n,)).astype(A.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(0, 1, size=n).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(shape=(n,)).astype(A.dtype), dev)
         f(a, b)
         tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=1e-3, rtol=1e-3)
 
@@ -585,8 +585,8 @@ def test_vectorized_popcount():
         B = te.compute((n,), lambda i: tvm.tir.popcount(A[i]), name="B")
         f = sched(A, B)
         dev = tvm.cuda(0)
-        a = tvm.nd.array(np.random.randint(0, 100000, size=n).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(shape=(n,)).astype(B.dtype), dev)
+        a = tvm.runtime.tensor(np.random.randint(0, 100000, size=n).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(shape=(n,)).astype(B.dtype), dev)
         f(a, b)
         ref = np.vectorize(ref_popcount)(a.numpy())
         tvm.testing.assert_allclose(b.numpy(), ref)
@@ -623,8 +623,8 @@ def test_cuda_vectorize_load_permute_pad():
         fun = tvm.compile(sch.mod, target="cuda")
 
         np_a = np.random.randint(low=-128, high=127, size=(n, l)).astype(A.dtype)
-        a = tvm.nd.empty((n, l), A.dtype, dev).copyfrom(np_a)
-        b = tvm.nd.empty((n // lanes, l + padding * 2, lanes), B.dtype, dev)
+        a = tvm.runtime.empty((n, l), A.dtype, dev).copyfrom(np_a)
+        b = tvm.runtime.empty((n // lanes, l + padding * 2, lanes), B.dtype, dev)
         fun(a, b)
         np_a_reshape = np_a.reshape(n // lanes, lanes, l).transpose(0, 2, 1)
         ref = np.pad(
@@ -663,11 +663,11 @@ def test_try_unaligned_vector_load():
 
         f = tvm.tir.build(sch.mod, target="cuda")
 
-        kernel_source = f.imported_modules[0].get_source()
+        kernel_source = f.imports[0].inspect_source()
         dev = tvm.cuda()
         a_data = np.arange(0, N).astype(A.dtype)
-        a = tvm.nd.array(a_data, dev)
-        c = tvm.nd.array(np.zeros(C_N, dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(a_data, dev)
+        c = tvm.runtime.tensor(np.zeros(C_N, dtype=C.dtype), dev)
         f(a, c)
 
         return a_data, c.numpy(), kernel_source
@@ -774,7 +774,7 @@ extern "C" __global__ void __launch_bounds__(128) main_kernel(float* __restrict_
     A[0] = ((float)(*(double *)(&(A_map))));
   }
 }""".strip()
-        in mod.mod.imported_modules[0].get_source()
+        in mod.mod.imports[0].inspect_source()
     )
 
 
@@ -797,8 +797,27 @@ def test_cuda_device_func_call():
                     C[bx, tx] = Module.add(A[bx, tx], B[bx, tx])
 
     lib = tvm.compile(Module, target="cuda")
-    cuda_code = lib.mod.imported_modules[0].get_source()
+    cuda_code = lib.mod.imports[0].inspect_source()
     assert 'extern "C" __device__ float add(float a, float b) {\n  return (a + b);\n}' in cuda_code
+
+
+@tvm.testing.requires_cuda
+def test_cuda_float_const_hex_format():
+    """Test that float constants are emitted in hexadecimal format for precision"""
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(
+            A: T.Buffer((1024, 1024), "float32"),
+        ):
+            for bx in T.thread_binding(1024, "blockIdx.x"):
+                for tx in T.thread_binding(1024, "threadIdx.x"):
+                    A[bx, tx] = T.float32(1 / 27)
+
+    lib = tvm.compile(Module, target="cuda")
+    cuda_code = lib.mod.imports[0].inspect_source()
+    assert "0x1.2f684bda12f68p-5f" in cuda_code
 
 
 @tvm.testing.requires_cuda
@@ -827,16 +846,16 @@ def test_device_host_call_same_func():
     #    in order to avoid checking a function is host or device based on the "cpu" substring.
     target = tvm.target.Target({"kind": "cuda", "mcpu": "dummy_mcpu"}, host="c")
     lib = tvm.compile(Module, target=target)
-    cuda_code = lib.mod.imported_modules[0].get_source()
+    cuda_code = lib.mod.imports[0].inspect_source()
     assert 'extern "C" __device__ int add(int a, int b) {\n  return (a + b);\n}' in cuda_code
 
     # Run a simple test
     dev = tvm.cuda(0)
     a_np = np.random.randint(0, 10, (128, 128), dtype="int32")
     b_np = np.random.randint(0, 10, (128, 128), dtype="int32")
-    a_tvm = tvm.nd.array(a_np, device=dev)
-    b_tvm = tvm.nd.array(b_np, device=dev)
-    c_tvm = tvm.nd.empty((128, 128), dtype="int32", device=dev)
+    a_tvm = tvm.runtime.tensor(a_np, device=dev)
+    b_tvm = tvm.runtime.tensor(b_np, device=dev)
+    c_tvm = tvm.runtime.empty((128, 128), dtype="int32", device=dev)
     lib["main"](a_tvm, b_tvm, c_tvm)
     tvm.testing.assert_allclose(c_tvm.numpy(), a_np + b_np)
 
@@ -854,7 +873,7 @@ def test_thread_return():
                     B[bx, tx] = A[bx, tx]
 
     lib = tvm.compile(Module, target="cuda")
-    cuda_code = lib.mod.imported_modules[0].get_source()
+    cuda_code = lib.mod.imports[0].inspect_source()
     assert "return;" in cuda_code
 
 

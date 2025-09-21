@@ -32,28 +32,28 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   ArgmaxArgminAttrs::RegisterReflection();
   BucketizeAttrs::RegisterReflection();
-});
+}
 
 /* relax.bucketize */
 
 Expr bucketize(Expr input_tensor, Expr boundaries, bool out_int32, bool right) {
-  auto attrs = make_object<BucketizeAttrs>();
+  auto attrs = ffi::make_object<BucketizeAttrs>();
   attrs->out_int32 = std::move(out_int32);
   attrs->right = std::move(right);
   static const Op& op = Op::Get("relax.bucketize");
   return Call(op, {std::move(input_tensor), std::move(boundaries)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.bucketize", bucketize);
-});
+}
 
 StructInfo InferStructInfoBucketize(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   TensorStructInfo input_tensor_info = input_sinfo[0];
   TensorStructInfo boundaries_info = input_sinfo[1];
 
@@ -93,13 +93,13 @@ Expr where(Expr condition, Expr x1, Expr x2) {
   return Call(op, {std::move(condition), std::move(x1), std::move(x2)}, Attrs(), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.where", where);
-});
+}
 
 StructInfo InferStructInfoWhere(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   TensorStructInfo cond_sinfo = input_sinfo[0];
   TensorStructInfo x1_sinfo = input_sinfo[1];
   TensorStructInfo x2_sinfo = input_sinfo[2];
@@ -139,7 +139,7 @@ StructInfo InferStructInfoWhere(const Call& call, const BlockBuilder& ctx) {
   const auto* x2_shape = x2_sinfo->shape.as<ShapeExprNode>();
   if (cond_shape && x1_shape && x2_shape) {
     // Step 1. Compute the broadcasted shape of x1's and x2's
-    Optional<Array<PrimExpr>> broadcasted_shape =
+    ffi::Optional<ffi::Array<PrimExpr>> broadcasted_shape =
         InferBinaryBroadcastShape(call, ctx, x1_shape->values, x2_shape->values);
     if (!broadcasted_shape.defined()) {
       if (vdev.defined()) {
@@ -220,12 +220,13 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
     if (!attrs->axis.has_value() && attrs->keepdims && out_ndim != kUnknownNDim) {
-      return TensorStructInfo(ShapeExpr(Array<PrimExpr>(out_ndim, IntImm(out_dtype, /*value=*/1))),
-                              out_dtype, data_sinfo->vdevice);
+      return TensorStructInfo(
+          ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm(out_dtype, /*value=*/1))), out_dtype,
+          data_sinfo->vdevice);
     } else {
-      return out_ndim == 0
-                 ? TensorStructInfo(ShapeExpr(Array<PrimExpr>()), out_dtype, data_sinfo->vdevice)
-                 : TensorStructInfo(out_dtype, out_ndim, data_sinfo->vdevice);
+      return out_ndim == 0 ? TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>()), out_dtype,
+                                              data_sinfo->vdevice)
+                           : TensorStructInfo(out_dtype, out_ndim, data_sinfo->vdevice);
     }
   }
 
@@ -233,7 +234,7 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
     out_dtype = data_shape->values[0]->dtype;
   }
 
-  Array<PrimExpr> out_shape;
+  ffi::Array<PrimExpr> out_shape;
   out_shape.reserve(out_ndim);
   for (int i = 0; i < data_sinfo->ndim; ++i) {
     if (attrs->axis.has_value() && i != axis) {
@@ -247,15 +248,16 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
 }
 
 #define RELAX_REGISTER_ARGMAX_ARGMIN_OP(OpName)                                    \
-  Expr OpName(Expr x, Optional<int64_t> axis, bool keepdims) {                     \
-    ObjectPtr<ArgmaxArgminAttrs> attrs = make_object<ArgmaxArgminAttrs>();         \
+  Expr OpName(Expr x, ffi::Optional<int64_t> axis, bool keepdims) {                \
+    ObjectPtr<ArgmaxArgminAttrs> attrs = ffi::make_object<ArgmaxArgminAttrs>();    \
     attrs->axis = std::move(axis);                                                 \
     attrs->keepdims = std::move(keepdims);                                         \
     static const Op& op = Op::Get("relax." #OpName);                               \
     return Call(op, {std::move(x)}, Attrs(attrs));                                 \
   }                                                                                \
-  TVM_FFI_STATIC_INIT_BLOCK(                                                       \
-      { tvm::ffi::reflection::GlobalDef().def("relax.op." #OpName, OpName); });    \
+  TVM_FFI_STATIC_INIT_BLOCK() {                                                    \
+    tvm::ffi::reflection::GlobalDef().def("relax.op." #OpName, OpName);            \
+  }                                                                                \
   TVM_REGISTER_OP("relax." #OpName)                                                \
       .set_num_inputs(1)                                                           \
       .add_argument("x", "Tensor", "The input data tensor")                        \

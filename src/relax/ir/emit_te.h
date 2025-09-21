@@ -51,9 +51,8 @@ class RXPlaceholderOpNode : public te::PlaceholderOpNode {
         .def_ro("shape", &RXPlaceholderOpNode::shape)
         .def_ro("dtype", &RXPlaceholderOpNode::dtype);
   }
-
-  static constexpr const char* _type_key = "relax.TEPlaceholderOp";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RXPlaceholderOpNode, te::PlaceholderOpNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TEPlaceholderOp", RXPlaceholderOpNode,
+                                    te::PlaceholderOpNode);
 };
 
 /*!
@@ -64,7 +63,7 @@ class RXPlaceholderOpNode : public te::PlaceholderOpNode {
  * shape of the input Expr.
  * \param name The name of the created tensor.
  */
-te::Tensor TETensor(Expr value, Map<tir::Var, PrimExpr> tir_var_map, std::string name);
+te::Tensor TETensor(Expr value, ffi::Map<tir::Var, PrimExpr> tir_var_map, std::string name);
 
 }  // namespace relax
 }  // namespace tvm

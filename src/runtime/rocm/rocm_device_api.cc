@@ -24,6 +24,7 @@
 #include <dmlc/thread_local.h>
 #include <hip/hip_runtime_api.h>
 #include <hsa/hsa.h>
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
@@ -214,14 +215,6 @@ class ROCMDeviceAPI final : public DeviceAPI {
     ROCM_CALL(hipStreamSynchronize(static_cast<hipStream_t>(stream)));
   }
 
-  void SetStream(Device dev, TVMStreamHandle stream) final {
-    ROCMThreadEntry::ThreadLocal()->stream = static_cast<hipStream_t>(stream);
-  }
-
-  TVMStreamHandle GetCurrentStream(Device dev) final {
-    return static_cast<TVMStreamHandle>(ROCMThreadEntry::ThreadLocal()->stream);
-  }
-
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
     return ROCMThreadEntry::ThreadLocal()->pool.AllocWorkspace(dev, size);
   }
@@ -252,7 +245,7 @@ ROCMThreadEntry::ROCMThreadEntry() : pool(kDLROCM, ROCMDeviceAPI::Global()) {}
 
 ROCMThreadEntry* ROCMThreadEntry::ThreadLocal() { return ROCMThreadStore::Get(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("device_api.rocm",
@@ -264,14 +257,21 @@ TVM_FFI_STATIC_INIT_BLOCK({
         DeviceAPI* ptr = ROCMDeviceAPI::Global();
         *rv = static_cast<void*>(ptr);
       });
-});
+}
 
 class ROCMTimerNode : public TimerNode {
  public:
   virtual void Start() {
-    ROCM_CALL(hipEventRecord(start_, ROCMThreadEntry::ThreadLocal()->stream));
+    int device_id;
+    ROCM_CALL(hipGetDevice(&device_id));
+    stream_ = TVMFFIEnvGetStream(kDLROCM, device_id);
+    ROCM_CALL(hipEventRecord(start_, static_cast<hipStream_t>(stream_)));
   }
-  virtual void Stop() { ROCM_CALL(hipEventRecord(stop_, ROCMThreadEntry::ThreadLocal()->stream)); }
+  virtual void Stop() {
+    int device_id;
+    ROCM_CALL(hipGetDevice(&device_id));
+    ROCM_CALL(hipEventRecord(stop_, static_cast<hipStream_t>(stream_)));
+  }
   virtual int64_t SyncAndGetElapsedNanos() {
     ROCM_CALL(hipEventSynchronize(stop_));
     float milliseconds = 0;
@@ -286,22 +286,25 @@ class ROCMTimerNode : public TimerNode {
     ROCM_CALL(hipEventCreate(&start_));
     ROCM_CALL(hipEventCreate(&stop_));
   }
-
-  static constexpr const char* _type_key = "runtime.rocm.ROCMTimerNode";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ROCMTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.rocm.ROCMTimerNode", ROCMTimerNode, TimerNode);
 
  private:
   hipEvent_t start_;
   hipEvent_t stop_;
+  TVMStreamHandle stream_;
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("profiling.timer.rocm", [](Device dev) { return Timer(make_object<ROCMTimerNode>()); })
-      .def("runtime.get_rocm_stream",
-           []() { return static_cast<void*>(ROCMThreadEntry::ThreadLocal()->stream); });
-});
+      .def("profiling.timer.rocm",
+           [](Device dev) { return Timer(ffi::make_object<ROCMTimerNode>()); })
+      .def("runtime.get_rocm_stream", []() {
+        int device_id;
+        ROCM_CALL(hipGetDevice(&device_id));
+        return static_cast<void*>(TVMFFIEnvGetStream(kDLROCM, device_id));
+      });
+}
 
 }  // namespace runtime
 }  // namespace tvm

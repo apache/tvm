@@ -24,7 +24,7 @@
 #ifndef TVM_RUNTIME_VM_ATTN_UTILS_H_
 #define TVM_RUNTIME_VM_ATTN_UTILS_H_
 
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <algorithm>
 #include <limits>
@@ -355,14 +355,14 @@ class HostMemoryVector {
   explicit HostMemoryVector(int64_t reserved_size, DLDataType dtype, Device device)
       : reserved_size_(reserved_size) {
     ICHECK(DataType(dtype) == DataType::Int(32));
-    data_ = NDArray::Empty({reserved_size}, dtype, device);
+    data_ = Tensor::Empty({reserved_size}, dtype, device);
   }
 
   void push_back(int32_t value) {
     ICHECK_LE(current_size_, reserved_size_);
     if (current_size_ == reserved_size_) {
       reserved_size_ *= 2;
-      NDArray new_data = NDArray::Empty({reserved_size_}, data_->dtype, data_->device);
+      Tensor new_data = Tensor::Empty({reserved_size_}, data_->dtype, data_->device);
       std::memcpy(new_data->data, data_->data, current_size_ * DataType(data_->dtype).bytes());
       data_ = new_data;
     }
@@ -386,8 +386,8 @@ class HostMemoryVector {
 
   void clear() { current_size_ = 0; }
 
-  /*! \brief Return the vector as an NDArray. */
-  NDArray as_ndarray() { return data_.CreateView({current_size_}, data_->dtype); }
+  /*! \brief Return the vector as an Tensor. */
+  Tensor as_tensor() { return data_.CreateView({current_size_}, data_->dtype); }
 
   IntTuple as_int_tuple() const {
     std::vector<int64_t> values;
@@ -401,7 +401,7 @@ class HostMemoryVector {
  private:
   int64_t reserved_size_ = 0;
   int64_t current_size_ = 0;
-  NDArray data_{nullptr};
+  Tensor data_{nullptr};
 };
 
 /*!
@@ -411,12 +411,12 @@ class HostMemoryVector {
  *
  * The core functions of this class is `CopyXXXAsync` and `CommitAttnAuxDataCopy`.
  * `CopyXXXAsync` takes the input data on CPU host, and copy the input data
- * to GPU in an asynchronous way, and returns the NDArray view of the data
+ * to GPU in an asynchronous way, and returns the Tensor view of the data
  * on GPU device.
  *
  * Being asynchronous here means the `CopyXXXAsync` function may not perform
  * data copy from CPU to GPU at the time of being called. Therefore, the
- * returned NDArray view may have wrong result, until `CommitAttnAuxDataCopy` is
+ * returned Tensor view may have wrong result, until `CommitAttnAuxDataCopy` is
  * explicitly invoked and the data copy stream is synchronized.
  *
  * We design this manager class in order to reduce the data copy overhead.
@@ -436,16 +436,16 @@ class PagedKVCacheAuxDataManager {
   /*! \brief Reset the attention auxiliary data status of copy manager. */
   virtual void ResetAttnAuxDataCopy() = 0;
   /*! \brief Copy the indptr array of append lengths after coalescing. (see GetChunkedBlockIds) */
-  virtual NDArray CopyQOIndptrOnDepthAsync(HostMemoryVector* data, int depth) = 0;
+  virtual Tensor CopyQOIndptrOnDepthAsync(HostMemoryVector* data, int depth) = 0;
   /*! \brief Copy the indptr array of page table. */
-  virtual NDArray CopyPageIndptrOnDepthAsync(HostMemoryVector* data, int depth) = 0;
+  virtual Tensor CopyPageIndptrOnDepthAsync(HostMemoryVector* data, int depth) = 0;
   /*! \brief Copy the indices array of page table. */
-  virtual NDArray CopyPageIndicesOnDepthAsync(HostMemoryVector* data, int depth) = 0;
+  virtual Tensor CopyPageIndicesOnDepthAsync(HostMemoryVector* data, int depth) = 0;
   /*! \brief Copy the array of KV slot number used in the last page of the seq. */
-  virtual NDArray CopyLastPageLenOnDepthAsync(HostMemoryVector* data, int depth) = 0;
+  virtual Tensor CopyLastPageLenOnDepthAsync(HostMemoryVector* data, int depth) = 0;
   /*!
    * \brief Copy the length information of the sequences.
-   * Each NDArray is in shape `(3, n)`. "n" is the number of sequences.
+   * Each Tensor is in shape `(3, n)`. "n" is the number of sequences.
    * For a sequence "i", location
    * - "(0, i)" is the number of KV slots used in the last page of the seq ("last_page_len"),
    * - "(1, i)" is the starting offset of the sliding window in the seq,
@@ -453,51 +453,51 @@ class PagedKVCacheAuxDataManager {
    * \note When sliding window is not enabled, only the
    * "last_page_len" (a.k.a., the first "n" elements) will be effectively used.
    */
-  virtual NDArray CopyLengthInfoOnDepthAsync(HostMemoryVector* last_page_len,
-                                             HostMemoryVector* sliding_window_offset,
-                                             HostMemoryVector* sink_size, int depth) = 0;
+  virtual Tensor CopyLengthInfoOnDepthAsync(HostMemoryVector* last_page_len,
+                                            HostMemoryVector* sliding_window_offset,
+                                            HostMemoryVector* sink_size, int depth) = 0;
   /*! \brief Copy the k position offset of applying RoPE for each sequence. */
-  virtual NDArray CopyKRoPEPosOffsetOnDepthAsync(HostMemoryVector* data, int depth) = 0;
+  virtual Tensor CopyKRoPEPosOffsetOnDepthAsync(HostMemoryVector* data, int depth) = 0;
   /*!
    * \brief Copy the append length indptr array on device.
    * \note Since the Q/K/V data may have raggedness in terms of lengths,
    * we represent the append lengths in CSR format.
    */
-  virtual NDArray CopyCurAppendLengthIndptrAsync(HostMemoryVector* data) = 0;
+  virtual Tensor CopyCurAppendLengthIndptrAsync(HostMemoryVector* data) = 0;
   /*! \brief Copy the k position offset of applying RoPE for each sequence. */
-  virtual NDArray CopyKRaggedRoPEPosOffsetAsync(HostMemoryVector* data) = 0;
+  virtual Tensor CopyKRaggedRoPEPosOffsetAsync(HostMemoryVector* data) = 0;
   /*! \brief Copy the q position mapping of applying RoPE for each sequence. */
-  virtual NDArray CopyQRoPEPosMapAsync(HostMemoryVector* data) = 0;
+  virtual Tensor CopyQRoPEPosMapAsync(HostMemoryVector* data) = 0;
   /*!
    * \brief Copy the corresponding position in global KV cache (pages)
    * for each position along the length dimension of K/V data when
    * appending new K/V data.
    */
-  virtual NDArray CopyAppendPositionMapAsync(HostMemoryVector* data) = 0;
+  virtual Tensor CopyAppendPositionMapAsync(HostMemoryVector* data) = 0;
   /*! \brief Copy the remote position map for KV transfer. */
-  virtual NDArray CopyKVTransferRemotePositionMapAsync(HostMemoryVector* data) = 0;
+  virtual Tensor CopyKVTransferRemotePositionMapAsync(HostMemoryVector* data) = 0;
   /*! \brief Copy the receiver id for KV transfer. */
-  virtual NDArray CopyKVTransferRecverIDAsync(HostMemoryVector* data) = 0;
+  virtual Tensor CopyKVTransferRecverIDAsync(HostMemoryVector* data) = 0;
   /*! \brief Copy the local position map for KV page-to-page transfer. */
-  virtual NDArray CopyKVTransferPage2PageLocalPositionMapAsync(HostMemoryVector* data) = 0;
+  virtual Tensor CopyKVTransferPage2PageLocalPositionMapAsync(HostMemoryVector* data) = 0;
   /*! \brief Copy the remote position map for KV page-to-page transfer. */
-  virtual NDArray CopyKVTransferPage2PageRemotePositionMapAsync(HostMemoryVector* data) = 0;
+  virtual Tensor CopyKVTransferPage2PageRemotePositionMapAsync(HostMemoryVector* data) = 0;
   /*! \brief Copy the receiver id for KV page-to-page transfer. */
-  virtual NDArray CopyKVTransferPage2PageRecverIDAsync(HostMemoryVector* data) = 0;
+  virtual Tensor CopyKVTransferPage2PageRecverIDAsync(HostMemoryVector* data) = 0;
   /*! \brief Copy the tree attention mask. */
-  virtual NDArray CopyTreeAttnMaskOnDepthAsync(HostMemoryVector* data, int depth) = 0;
+  virtual Tensor CopyTreeAttnMaskOnDepthAsync(HostMemoryVector* data, int depth) = 0;
   /*! \brief Copy the mn indptr of the tree attention mask. */
-  virtual NDArray CopyTreeAttnMNIndptrOnDepthAsync(HostMemoryVector* data, int depth) = 0;
+  virtual Tensor CopyTreeAttnMNIndptrOnDepthAsync(HostMemoryVector* data, int depth) = 0;
   /*! \brief Commit all the attention auxiliary data copy operations since the last commit. */
   virtual void CommitAttnAuxDataCopy() = 0;
 
   /*! \brief Reset the compact KV auxiliary data status of copy manager. */
   virtual void ResetCompactKVAuxDataCopy() = 0;
   /*! \brief Copy the length indptr array of KV data copy for each sequence. */
-  virtual NDArray CopyCommitLengthIndptrAsync(HostMemoryVector* data) = 0;
+  virtual Tensor CopyCommitLengthIndptrAsync(HostMemoryVector* data) = 0;
   /*! \brief Copy the src/dst position arrays for each sequence. */
-  virtual NDArray CopyCommitSrcDstPosInPageTableAsync(HostMemoryVector* src_data,
-                                                      HostMemoryVector* dst_data) = 0;
+  virtual Tensor CopyCommitSrcDstPosInPageTableAsync(HostMemoryVector* src_data,
+                                                     HostMemoryVector* dst_data) = 0;
   /*! \brief Commit all the compact KV auxiliary data copy operations since the last commit. */
   virtual void CommitCompactKVAuxDataCopy() = 0;
 
@@ -525,144 +525,144 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
       : PagedKVCacheAuxDataManager(dtype_aux, device, preferred_host_device, copy_stream) {
     for (int d = 0; d < kPagedKVCacheMaxBlockDepth; ++d) {
       qo_indptr_on_depths_device_.push_back(
-          NDArray::Empty({reserved_num_seqs + 1}, dtype_aux_, device));
+          Tensor::Empty({reserved_num_seqs + 1}, dtype_aux_, device));
       page_indptr_on_depths_device_.push_back(
-          NDArray::Empty({reserved_num_seqs + 1}, dtype_aux_, device));
+          Tensor::Empty({reserved_num_seqs + 1}, dtype_aux_, device));
       page_indices_on_depths_device_.push_back(
-          NDArray::Empty({num_total_pages}, dtype_aux_, device));
+          Tensor::Empty({num_total_pages}, dtype_aux_, device));
       length_info_on_depths_device_.push_back(
-          NDArray::Empty({3, reserved_num_seqs}, dtype_aux_, device));
+          Tensor::Empty({3, reserved_num_seqs}, dtype_aux_, device));
       k_rope_pos_offset_on_depths_device_.push_back(
-          NDArray::Empty({reserved_num_seqs}, dtype_aux_, device));
-      tree_attn_mask_device_.push_back(NDArray::Empty(
+          Tensor::Empty({reserved_num_seqs}, dtype_aux_, device));
+      tree_attn_mask_device_.push_back(Tensor::Empty(
           {kTreeAttnMaxTreeSize * kTreeAttnMaxTreeSize * reserved_num_seqs}, dtype_aux_, device));
       tree_attn_mn_indptr_device_.push_back(
-          NDArray::Empty({reserved_num_seqs + 1}, dtype_aux_, device));
+          Tensor::Empty({reserved_num_seqs + 1}, dtype_aux_, device));
     }
-    cur_append_length_indptr_device_ = NDArray::Empty({reserved_num_seqs + 1}, dtype_aux_, device);
-    k_ragged_rope_pos_offset_device_ = NDArray::Empty({reserved_num_seqs}, dtype_aux_, device);
-    q_rope_position_map_device_ = NDArray::Empty({prefill_chunk_size}, dtype_aux_, device);
-    append_position_map_device_ = NDArray::Empty({prefill_chunk_size}, dtype_aux_, device);
+    cur_append_length_indptr_device_ = Tensor::Empty({reserved_num_seqs + 1}, dtype_aux_, device);
+    k_ragged_rope_pos_offset_device_ = Tensor::Empty({reserved_num_seqs}, dtype_aux_, device);
+    q_rope_position_map_device_ = Tensor::Empty({prefill_chunk_size}, dtype_aux_, device);
+    append_position_map_device_ = Tensor::Empty({prefill_chunk_size}, dtype_aux_, device);
     kv_transfer_remote_position_map_device =
-        NDArray::Empty({prefill_chunk_size}, dtype_aux_, device);
-    kv_transfer_recver_id_device = NDArray::Empty({prefill_chunk_size}, dtype_aux_, device);
+        Tensor::Empty({prefill_chunk_size}, dtype_aux_, device);
+    kv_transfer_recver_id_device = Tensor::Empty({prefill_chunk_size}, dtype_aux_, device);
     kv_transfer_page_to_page_local_position_map_device =
         kv_transfer_page_to_page_remote_position_map_device =
-            NDArray::Empty({prefill_chunk_size}, dtype_aux_, device);
+            Tensor::Empty({prefill_chunk_size}, dtype_aux_, device);
     kv_transfer_page_to_page_recver_id_device =
-        NDArray::Empty({prefill_chunk_size}, dtype_aux_, device);
-    commit_copy_length_indptr_device_ = NDArray::Empty({reserved_num_seqs + 1}, dtype_aux_, device);
+        Tensor::Empty({prefill_chunk_size}, dtype_aux_, device);
+    commit_copy_length_indptr_device_ = Tensor::Empty({reserved_num_seqs + 1}, dtype_aux_, device);
     commit_copy_src_dst_pos_in_page_table_device_ =
-        NDArray::Empty({2, std::min(kTreeAttnMaxTreeSize * reserved_num_seqs, prefill_chunk_size)},
-                       dtype_aux_, device);
+        Tensor::Empty({2, std::min(kTreeAttnMaxTreeSize * reserved_num_seqs, prefill_chunk_size)},
+                      dtype_aux_, device);
   }
 
   // The reset of the plain auxiliary data manager is no-op.
   void ResetAttnAuxDataCopy() final {}
-  NDArray CopyQOIndptrOnDepthAsync(HostMemoryVector* data, int depth) final {
-    NDArray view = qo_indptr_on_depths_device_[depth].CreateView(
+  Tensor CopyQOIndptrOnDepthAsync(HostMemoryVector* data, int depth) final {
+    Tensor view = qo_indptr_on_depths_device_[depth].CreateView(
         {static_cast<int64_t>(data->size())}, dtype_aux_);
     CopyVecDataToArray(view, data->data());
     return view;
   }
-  NDArray CopyPageIndptrOnDepthAsync(HostMemoryVector* data, int depth) final {
-    NDArray view = page_indptr_on_depths_device_[depth].CreateView(
+  Tensor CopyPageIndptrOnDepthAsync(HostMemoryVector* data, int depth) final {
+    Tensor view = page_indptr_on_depths_device_[depth].CreateView(
         {static_cast<int64_t>(data->size())}, dtype_aux_);
     CopyVecDataToArray(view, data->data());
     return view;
   }
-  NDArray CopyPageIndicesOnDepthAsync(HostMemoryVector* data, int depth) final {
-    NDArray view = page_indices_on_depths_device_[depth].CreateView(
+  Tensor CopyPageIndicesOnDepthAsync(HostMemoryVector* data, int depth) final {
+    Tensor view = page_indices_on_depths_device_[depth].CreateView(
         {static_cast<int64_t>(data->size())}, dtype_aux_);
     CopyVecDataToArray(view, data->data());
     return view;
   }
-  NDArray CopyLastPageLenOnDepthAsync(HostMemoryVector* data, int depth) final {
-    NDArray view = length_info_on_depths_device_[depth].CreateView(
+  Tensor CopyLastPageLenOnDepthAsync(HostMemoryVector* data, int depth) final {
+    Tensor view = length_info_on_depths_device_[depth].CreateView(
         {static_cast<int64_t>(data->size())}, dtype_aux_);
     CopyVecDataToArray(view, data->data());
     return view;
   }
-  NDArray CopyKRoPEPosOffsetOnDepthAsync(HostMemoryVector* data, int depth) final {
-    NDArray view = k_rope_pos_offset_on_depths_device_[depth].CreateView(
+  Tensor CopyKRoPEPosOffsetOnDepthAsync(HostMemoryVector* data, int depth) final {
+    Tensor view = k_rope_pos_offset_on_depths_device_[depth].CreateView(
         {static_cast<int64_t>(data->size())}, dtype_aux_);
     CopyVecDataToArray(view, data->data());
     return view;
   }
-  NDArray CopyCurAppendLengthIndptrAsync(HostMemoryVector* data) final {
-    NDArray view = cur_append_length_indptr_device_.CreateView({static_cast<int64_t>(data->size())},
-                                                               dtype_aux_);
+  Tensor CopyCurAppendLengthIndptrAsync(HostMemoryVector* data) final {
+    Tensor view = cur_append_length_indptr_device_.CreateView({static_cast<int64_t>(data->size())},
+                                                              dtype_aux_);
     CopyVecDataToArray(view, data->data());
     return view;
   }
-  NDArray CopyKRaggedRoPEPosOffsetAsync(HostMemoryVector* data) final {
-    NDArray view = k_ragged_rope_pos_offset_device_.CreateView({static_cast<int64_t>(data->size())},
-                                                               dtype_aux_);
+  Tensor CopyKRaggedRoPEPosOffsetAsync(HostMemoryVector* data) final {
+    Tensor view = k_ragged_rope_pos_offset_device_.CreateView({static_cast<int64_t>(data->size())},
+                                                              dtype_aux_);
     CopyVecDataToArray(view, data->data());
     return view;
   }
-  NDArray CopyQRoPEPosMapAsync(HostMemoryVector* data) final {
-    NDArray view =
+  Tensor CopyQRoPEPosMapAsync(HostMemoryVector* data) final {
+    Tensor view =
         q_rope_position_map_device_.CreateView({static_cast<int64_t>(data->size())}, dtype_aux_);
     CopyVecDataToArray(view, data->data());
     return view;
   }
-  NDArray CopyAppendPositionMapAsync(HostMemoryVector* data) final {
-    NDArray view =
+  Tensor CopyAppendPositionMapAsync(HostMemoryVector* data) final {
+    Tensor view =
         append_position_map_device_.CreateView({static_cast<int64_t>(data->size())}, dtype_aux_);
     CopyVecDataToArray(view, data->data());
     return view;
   }
-  NDArray CopyKVTransferRemotePositionMapAsync(HostMemoryVector* data) final {
-    NDArray view = kv_transfer_remote_position_map_device.CreateView(
+  Tensor CopyKVTransferRemotePositionMapAsync(HostMemoryVector* data) final {
+    Tensor view = kv_transfer_remote_position_map_device.CreateView(
         {static_cast<int64_t>(data->size())}, dtype_aux_);
     CopyVecDataToArray(view, data->data());
     return view;
   }
-  NDArray CopyKVTransferRecverIDAsync(HostMemoryVector* data) final {
-    NDArray view =
+  Tensor CopyKVTransferRecverIDAsync(HostMemoryVector* data) final {
+    Tensor view =
         kv_transfer_recver_id_device.CreateView({static_cast<int64_t>(data->size())}, dtype_aux_);
     CopyVecDataToArray(view, data->data());
     return view;
   }
-  NDArray CopyKVTransferPage2PageLocalPositionMapAsync(HostMemoryVector* data) final {
-    NDArray view = kv_transfer_page_to_page_local_position_map_device.CreateView(
+  Tensor CopyKVTransferPage2PageLocalPositionMapAsync(HostMemoryVector* data) final {
+    Tensor view = kv_transfer_page_to_page_local_position_map_device.CreateView(
         {static_cast<int64_t>(data->size())}, dtype_aux_);
     CopyVecDataToArray(view, data->data());
     return view;
   }
-  NDArray CopyKVTransferPage2PageRemotePositionMapAsync(HostMemoryVector* data) final {
-    NDArray view = kv_transfer_page_to_page_remote_position_map_device.CreateView(
+  Tensor CopyKVTransferPage2PageRemotePositionMapAsync(HostMemoryVector* data) final {
+    Tensor view = kv_transfer_page_to_page_remote_position_map_device.CreateView(
         {static_cast<int64_t>(data->size())}, dtype_aux_);
     CopyVecDataToArray(view, data->data());
     return view;
   }
-  NDArray CopyKVTransferPage2PageRecverIDAsync(HostMemoryVector* data) final {
-    NDArray view = kv_transfer_page_to_page_recver_id_device.CreateView(
+  Tensor CopyKVTransferPage2PageRecverIDAsync(HostMemoryVector* data) final {
+    Tensor view = kv_transfer_page_to_page_recver_id_device.CreateView(
         {static_cast<int64_t>(data->size())}, dtype_aux_);
     CopyVecDataToArray(view, data->data());
     return view;
   }
 
-  NDArray CopyTreeAttnMaskOnDepthAsync(HostMemoryVector* data, int depth) final {
-    NDArray view =
+  Tensor CopyTreeAttnMaskOnDepthAsync(HostMemoryVector* data, int depth) final {
+    Tensor view =
         tree_attn_mask_device_[depth].CreateView({static_cast<int64_t>(data->size())}, dtype_aux_);
     CopyVecDataToArray(view, data->data());
     return view;
   }
-  NDArray CopyTreeAttnMNIndptrOnDepthAsync(HostMemoryVector* data, int depth) final {
-    NDArray view = tree_attn_mn_indptr_device_[depth].CreateView(
+  Tensor CopyTreeAttnMNIndptrOnDepthAsync(HostMemoryVector* data, int depth) final {
+    Tensor view = tree_attn_mn_indptr_device_[depth].CreateView(
         {static_cast<int64_t>(data->size())}, dtype_aux_);
     CopyVecDataToArray(view, data->data());
     return view;
   }
 
-  NDArray CopyLengthInfoOnDepthAsync(HostMemoryVector* last_page_len,
-                                     HostMemoryVector* sliding_window_offset,
-                                     HostMemoryVector* sink_size, int depth) final {
+  Tensor CopyLengthInfoOnDepthAsync(HostMemoryVector* last_page_len,
+                                    HostMemoryVector* sliding_window_offset,
+                                    HostMemoryVector* sink_size, int depth) final {
     int n_elem = last_page_len->size();
     ICHECK_GT(n_elem, 0);
-    NDArray view = length_info_on_depths_device_[depth].CreateView({3, n_elem}, dtype_aux_);
+    Tensor view = length_info_on_depths_device_[depth].CreateView({3, n_elem}, dtype_aux_);
     ffi::Shape copy_shape{n_elem};
     CopyVecDataToArray(view, last_page_len->data(), copy_shape);
     CopyVecDataToArray(view, sliding_window_offset->data(), copy_shape,
@@ -678,18 +678,17 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
   // The reset of the plain auxiliary data manager is no-op.
   void ResetCompactKVAuxDataCopy() final {}
 
-  NDArray CopyCommitLengthIndptrAsync(HostMemoryVector* data) final {
-    NDArray view = commit_copy_length_indptr_device_.CreateView(
-        {static_cast<int64_t>(data->size())}, dtype_aux_);
+  Tensor CopyCommitLengthIndptrAsync(HostMemoryVector* data) final {
+    Tensor view = commit_copy_length_indptr_device_.CreateView({static_cast<int64_t>(data->size())},
+                                                               dtype_aux_);
     CopyVecDataToArray(view, data->data());
     return view;
   }
-  NDArray CopyCommitSrcDstPosInPageTableAsync(HostMemoryVector* src_data,
-                                              HostMemoryVector* dst_data) final {
+  Tensor CopyCommitSrcDstPosInPageTableAsync(HostMemoryVector* src_data,
+                                             HostMemoryVector* dst_data) final {
     int n_elem = src_data->size();
     ICHECK_GT(n_elem, 0);
-    NDArray view =
-        commit_copy_src_dst_pos_in_page_table_device_.CreateView({2, n_elem}, dtype_aux_);
+    Tensor view = commit_copy_src_dst_pos_in_page_table_device_.CreateView({2, n_elem}, dtype_aux_);
     ffi::Shape copy_shape{n_elem};
     CopyVecDataToArray(view, src_data->data(), copy_shape);
     CopyVecDataToArray(view, dst_data->data(), copy_shape,
@@ -702,12 +701,12 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
 
  private:
   /*!
-   * \brief Copy a vector of data to the input NDArray.
+   * \brief Copy a vector of data to the input Tensor.
    * It optionally supports specifying the shape of copy and the element
-   * offset to the destination NDArray.
+   * offset to the destination Tensor.
    */
-  void CopyVecDataToArray(NDArray array, int32_t* vec_data,
-                          Optional<ffi::Shape> shape = std::nullopt, int dst_elem_offset = 0) {
+  void CopyVecDataToArray(Tensor array, int32_t* vec_data,
+                          ffi::Optional<ffi::Shape> shape = std::nullopt, int dst_elem_offset = 0) {
     if (array->shape[0] == 0) {
       return;
     }
@@ -743,27 +742,27 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     copy_src.shape = copy_dst.shape;
     copy_src.strides = nullptr;
     copy_src.byte_offset = 0;
-    NDArray::CopyFromTo(&copy_src, &copy_dst, copy_stream_);
+    Tensor::CopyFromTo(&copy_src, &copy_dst, copy_stream_);
   }
 
-  std::vector<NDArray> qo_indptr_on_depths_device_;
-  std::vector<NDArray> page_indptr_on_depths_device_;
-  std::vector<NDArray> page_indices_on_depths_device_;
-  std::vector<NDArray> length_info_on_depths_device_;
-  std::vector<NDArray> k_rope_pos_offset_on_depths_device_;
-  std::vector<NDArray> tree_attn_mask_device_;
-  std::vector<NDArray> tree_attn_mn_indptr_device_;
-  NDArray cur_append_length_indptr_device_;
-  NDArray k_ragged_rope_pos_offset_device_;
-  NDArray q_rope_position_map_device_;
-  NDArray append_position_map_device_;
-  NDArray kv_transfer_remote_position_map_device;
-  NDArray kv_transfer_recver_id_device;
-  NDArray kv_transfer_page_to_page_local_position_map_device;
-  NDArray kv_transfer_page_to_page_remote_position_map_device;
-  NDArray kv_transfer_page_to_page_recver_id_device;
-  NDArray commit_copy_length_indptr_device_;
-  NDArray commit_copy_src_dst_pos_in_page_table_device_;
+  std::vector<Tensor> qo_indptr_on_depths_device_;
+  std::vector<Tensor> page_indptr_on_depths_device_;
+  std::vector<Tensor> page_indices_on_depths_device_;
+  std::vector<Tensor> length_info_on_depths_device_;
+  std::vector<Tensor> k_rope_pos_offset_on_depths_device_;
+  std::vector<Tensor> tree_attn_mask_device_;
+  std::vector<Tensor> tree_attn_mn_indptr_device_;
+  Tensor cur_append_length_indptr_device_;
+  Tensor k_ragged_rope_pos_offset_device_;
+  Tensor q_rope_position_map_device_;
+  Tensor append_position_map_device_;
+  Tensor kv_transfer_remote_position_map_device;
+  Tensor kv_transfer_recver_id_device;
+  Tensor kv_transfer_page_to_page_local_position_map_device;
+  Tensor kv_transfer_page_to_page_remote_position_map_device;
+  Tensor kv_transfer_page_to_page_recver_id_device;
+  Tensor commit_copy_length_indptr_device_;
+  Tensor commit_copy_src_dst_pos_in_page_table_device_;
 };
 
 /*!
@@ -790,7 +789,7 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     merged_attn_aux_data_host_ =
         HostMemoryVector(attn_aux_data_cache_size, dtype_aux, preferred_host_device);
     // - Initialize the device auxiliary data buffer.
-    merged_attn_aux_data_device_ = NDArray::Empty({attn_aux_data_cache_size}, dtype_aux, device);
+    merged_attn_aux_data_device_ = Tensor::Empty({attn_aux_data_cache_size}, dtype_aux, device);
 
     // - Calculate cache size of all the compact KV auxiliary arrays in
     // local cache and the large on-device array.
@@ -800,60 +799,60 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     merged_compact_kv_aux_data_host_ =
         HostMemoryVector(compact_kv_aux_data_cache_size, dtype_aux, preferred_host_device);
     merged_compact_kv_aux_data_device_ =
-        NDArray::Empty({compact_kv_aux_data_cache_size}, dtype_aux, device);
+        Tensor::Empty({compact_kv_aux_data_cache_size}, dtype_aux, device);
   }
 
   void ResetAttnAuxDataCopy() final { attn_aux_data_copy_offset_ = 0; }
-  NDArray CopyQOIndptrOnDepthAsync(HostMemoryVector* data, int depth) final {
+  Tensor CopyQOIndptrOnDepthAsync(HostMemoryVector* data, int depth) final {
     return CopyAttnAuxVecToCache(data);
   }
-  NDArray CopyPageIndptrOnDepthAsync(HostMemoryVector* data, int depth) final {
+  Tensor CopyPageIndptrOnDepthAsync(HostMemoryVector* data, int depth) final {
     return CopyAttnAuxVecToCache(data);
   }
-  NDArray CopyPageIndicesOnDepthAsync(HostMemoryVector* data, int depth) final {
+  Tensor CopyPageIndicesOnDepthAsync(HostMemoryVector* data, int depth) final {
     return CopyAttnAuxVecToCache(data);
   }
-  NDArray CopyLastPageLenOnDepthAsync(HostMemoryVector* data, int depth) final {
+  Tensor CopyLastPageLenOnDepthAsync(HostMemoryVector* data, int depth) final {
     return CopyAttnAuxVecToCache(data);
   }
-  NDArray CopyKRoPEPosOffsetOnDepthAsync(HostMemoryVector* data, int depth) final {
+  Tensor CopyKRoPEPosOffsetOnDepthAsync(HostMemoryVector* data, int depth) final {
     return CopyAttnAuxVecToCache(data);
   }
-  NDArray CopyCurAppendLengthIndptrAsync(HostMemoryVector* data) final {
+  Tensor CopyCurAppendLengthIndptrAsync(HostMemoryVector* data) final {
     return CopyAttnAuxVecToCache(data);
   }
-  NDArray CopyKRaggedRoPEPosOffsetAsync(HostMemoryVector* data) final {
+  Tensor CopyKRaggedRoPEPosOffsetAsync(HostMemoryVector* data) final {
     return CopyAttnAuxVecToCache(data);
   }
-  NDArray CopyQRoPEPosMapAsync(HostMemoryVector* data) final { return CopyAttnAuxVecToCache(data); }
-  NDArray CopyAppendPositionMapAsync(HostMemoryVector* data) final {
+  Tensor CopyQRoPEPosMapAsync(HostMemoryVector* data) final { return CopyAttnAuxVecToCache(data); }
+  Tensor CopyAppendPositionMapAsync(HostMemoryVector* data) final {
     return CopyAttnAuxVecToCache(data);
   }
-  NDArray CopyKVTransferRemotePositionMapAsync(HostMemoryVector* data) final {
+  Tensor CopyKVTransferRemotePositionMapAsync(HostMemoryVector* data) final {
     return CopyAttnAuxVecToCache(data);
   }
-  NDArray CopyKVTransferRecverIDAsync(HostMemoryVector* data) final {
+  Tensor CopyKVTransferRecverIDAsync(HostMemoryVector* data) final {
     return CopyAttnAuxVecToCache(data);
   }
-  NDArray CopyKVTransferPage2PageLocalPositionMapAsync(HostMemoryVector* data) final {
+  Tensor CopyKVTransferPage2PageLocalPositionMapAsync(HostMemoryVector* data) final {
     return CopyAttnAuxVecToCache(data);
   }
-  NDArray CopyKVTransferPage2PageRemotePositionMapAsync(HostMemoryVector* data) final {
+  Tensor CopyKVTransferPage2PageRemotePositionMapAsync(HostMemoryVector* data) final {
     return CopyAttnAuxVecToCache(data);
   }
-  NDArray CopyKVTransferPage2PageRecverIDAsync(HostMemoryVector* data) final {
+  Tensor CopyKVTransferPage2PageRecverIDAsync(HostMemoryVector* data) final {
     return CopyAttnAuxVecToCache(data);
   }
-  NDArray CopyTreeAttnMaskOnDepthAsync(HostMemoryVector* data, int depth) final {
-    NDArray mask_1d = CopyAttnAuxVecToCache(data);
+  Tensor CopyTreeAttnMaskOnDepthAsync(HostMemoryVector* data, int depth) final {
+    Tensor mask_1d = CopyAttnAuxVecToCache(data);
     return mask_1d.CreateView({static_cast<int64_t>(data->size() / 2), 2}, mask_1d->dtype);
   }
-  NDArray CopyTreeAttnMNIndptrOnDepthAsync(HostMemoryVector* data, int depth) final {
+  Tensor CopyTreeAttnMNIndptrOnDepthAsync(HostMemoryVector* data, int depth) final {
     return CopyAttnAuxVecToCache(data);
   }
-  NDArray CopyLengthInfoOnDepthAsync(HostMemoryVector* last_page_len,
-                                     HostMemoryVector* sliding_window_offset,
-                                     HostMemoryVector* sink_size, int depth) final {
+  Tensor CopyLengthInfoOnDepthAsync(HostMemoryVector* last_page_len,
+                                    HostMemoryVector* sliding_window_offset,
+                                    HostMemoryVector* sink_size, int depth) final {
     int64_t n_elem = last_page_len->size();
     std::memcpy(merged_attn_aux_data_host_.data() + attn_aux_data_copy_offset_,
                 last_page_len->data(), n_elem * elem_byte_size_);
@@ -861,7 +860,7 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
                 sliding_window_offset->data(), n_elem * elem_byte_size_);
     std::memcpy(merged_attn_aux_data_host_.data() + attn_aux_data_copy_offset_ + 2 * n_elem,
                 sink_size->data(), n_elem * elem_byte_size_);
-    NDArray view = merged_attn_aux_data_device_.CreateView(
+    Tensor view = merged_attn_aux_data_device_.CreateView(
         {3, n_elem}, dtype_aux_, attn_aux_data_copy_offset_ * elem_byte_size_);
     attn_aux_data_copy_offset_ += CeilDivElemAlignment(3 * n_elem);
     return view;
@@ -881,22 +880,22 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     DLTensor copy_src = copy_dst;
     copy_src.data = merged_attn_aux_data_host_.data();
     copy_src.device = Device{kDLCPU, 0};
-    NDArray::CopyFromTo(&copy_src, &copy_dst, copy_stream_);
+    Tensor::CopyFromTo(&copy_src, &copy_dst, copy_stream_);
   }
 
   void ResetCompactKVAuxDataCopy() final { compact_kv_aux_data_copy_offset_ = 0; }
 
-  NDArray CopyCommitLengthIndptrAsync(HostMemoryVector* data) final {
+  Tensor CopyCommitLengthIndptrAsync(HostMemoryVector* data) final {
     return CopyCompactKVAuxVecToCache(data);
   }
-  NDArray CopyCommitSrcDstPosInPageTableAsync(HostMemoryVector* src_data,
-                                              HostMemoryVector* dst_data) final {
+  Tensor CopyCommitSrcDstPosInPageTableAsync(HostMemoryVector* src_data,
+                                             HostMemoryVector* dst_data) final {
     int64_t n_elem = src_data->size();
     std::memcpy(merged_compact_kv_aux_data_host_.data() + compact_kv_aux_data_copy_offset_,
                 src_data->data(), n_elem * elem_byte_size_);
     std::memcpy(merged_compact_kv_aux_data_host_.data() + compact_kv_aux_data_copy_offset_ + n_elem,
                 dst_data->data(), n_elem * elem_byte_size_);
-    NDArray view = merged_compact_kv_aux_data_device_.CreateView(
+    Tensor view = merged_compact_kv_aux_data_device_.CreateView(
         {2, n_elem}, dtype_aux_, compact_kv_aux_data_copy_offset_ * elem_byte_size_);
     compact_kv_aux_data_copy_offset_ += CeilDivElemAlignment(2 * n_elem);
     return view;
@@ -916,7 +915,7 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     DLTensor copy_src = copy_dst;
     copy_src.data = merged_compact_kv_aux_data_host_.data();
     copy_src.device = Device{kDLCPU, 0};
-    NDArray::CopyFromTo(&copy_src, &copy_dst, copy_stream_);
+    Tensor::CopyFromTo(&copy_src, &copy_dst, copy_stream_);
   }
 
  private:
@@ -985,23 +984,23 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
 
   /*!
    * \brief Copy the input data to the cache at the given offset.
-   * And return the NDArray view of the cache starting at the offset.
+   * And return the Tensor view of the cache starting at the offset.
    */
-  NDArray CopyAttnAuxVecToCache(HostMemoryVector* data) {
+  Tensor CopyAttnAuxVecToCache(HostMemoryVector* data) {
     int64_t n_elem = data->size();
     std::memcpy(merged_attn_aux_data_host_.data() + attn_aux_data_copy_offset_, data->data(),
                 n_elem * elem_byte_size_);
-    NDArray view = merged_attn_aux_data_device_.CreateView(
+    Tensor view = merged_attn_aux_data_device_.CreateView(
         {n_elem}, dtype_aux_, attn_aux_data_copy_offset_ * elem_byte_size_);
     attn_aux_data_copy_offset_ += CeilDivElemAlignment(n_elem);
     return view;
   }
 
-  NDArray CopyCompactKVAuxVecToCache(HostMemoryVector* data) {
+  Tensor CopyCompactKVAuxVecToCache(HostMemoryVector* data) {
     int64_t n_elem = data->size();
     std::memcpy(merged_compact_kv_aux_data_host_.data() + compact_kv_aux_data_copy_offset_,
                 data->data(), n_elem * elem_byte_size_);
-    NDArray view = merged_compact_kv_aux_data_device_.CreateView(
+    Tensor view = merged_compact_kv_aux_data_device_.CreateView(
         {n_elem}, dtype_aux_, compact_kv_aux_data_copy_offset_ * elem_byte_size_);
     compact_kv_aux_data_copy_offset_ += CeilDivElemAlignment(n_elem);
     return view;
@@ -1020,8 +1019,8 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
   int64_t compact_kv_aux_data_copy_offset_ = 0;
   HostMemoryVector merged_attn_aux_data_host_;
   HostMemoryVector merged_compact_kv_aux_data_host_;
-  NDArray merged_attn_aux_data_device_;
-  NDArray merged_compact_kv_aux_data_device_;
+  Tensor merged_attn_aux_data_device_;
+  Tensor merged_compact_kv_aux_data_device_;
 };
 
 }  // namespace vm

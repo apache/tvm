@@ -576,12 +576,12 @@ void RegisterTopk() {
   });
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterArgsortNMS();
   RegisterArgsort();
   RegisterSort();
   RegisterTopk();
-});
+}
 
 }  // namespace contrib
 }  // namespace tvm

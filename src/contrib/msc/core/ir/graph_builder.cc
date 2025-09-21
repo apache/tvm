@@ -34,7 +34,7 @@ namespace msc {
 
 using namespace tvm::relax;
 
-const std::string GetScalarStr(const runtime::NDArray& data, int float_precision) {
+const std::string GetScalarStr(const runtime::Tensor& data, int float_precision) {
   std::string scalar_str;
   if (data->dtype.code == kDLFloat) {
     const float val = ExprUtils::GetScalar<float>(data);
@@ -50,13 +50,13 @@ const std::string GetScalarStr(const runtime::NDArray& data, int float_precision
 
 void FuncAttrGetter::VisitExpr_(const CallNode* op) {
   if (op->attrs.defined()) {
-    Map<String, String> attrs;
+    ffi::Map<ffi::String, ffi::String> attrs;
     AttrGetter getter(&attrs);
     getter(op->attrs);
     for (const auto& pair : attrs) {
       if (attrs_.count(pair.first)) {
         int cnt = 1;
-        String rep_key = pair.first;
+        ffi::String rep_key = pair.first;
         while (attrs_.count(rep_key + "_" + std::to_string(cnt))) {
           cnt++;
         }
@@ -87,7 +87,7 @@ void FuncValueGetter::VisitExpr_(const CallNode* op) {
 }
 
 void FuncParamsFinder::VisitBinding_(const VarBindingNode* binding, const FunctionNode* val) {
-  local_funcs_.Set(binding->var, GetRef<Function>(val));
+  local_funcs_.Set(binding->var, ffi::GetRef<Function>(val));
 }
 
 void FuncParamsFinder::VisitExpr_(const CallNode* call_node) {
@@ -112,7 +112,7 @@ void FuncParamsFinder::VisitExpr_(const CallNode* call_node) {
 }
 
 void LayoutsFinder::VisitBinding_(const VarBindingNode* binding, const FunctionNode* val) {
-  local_funcs_.Set(binding->var, GetRef<Function>(val));
+  local_funcs_.Set(binding->var, ffi::GetRef<Function>(val));
 }
 
 void LayoutsFinder::VisitExpr_(const CallNode* call_node) {
@@ -126,7 +126,8 @@ void LayoutsFinder::VisitExpr_(const CallNode* call_node) {
     func = local_funcs_[call_node->op];
   }
   if (func.defined()) {
-    const auto& layouts_opt = func->GetAttr<Map<String, String>>(msc_attr::kInputLayouts);
+    const auto& layouts_opt =
+        func->GetAttr<ffi::Map<ffi::String, ffi::String>>(msc_attr::kInputLayouts);
     if (layouts_opt.defined()) {
       for (const auto& pair : layouts_opt.value()) {
         layouts_.Set(pair.first, pair.second);
@@ -137,8 +138,8 @@ void LayoutsFinder::VisitExpr_(const CallNode* call_node) {
 
 const MSCGraph GraphBuilder::Build(const Function& func) {
   // Add input nodes and record inputs;
-  Array<String> input_names, output_names;
-  std::set<String> added_inputs;
+  ffi::Array<ffi::String> input_names, output_names;
+  std::set<ffi::String> added_inputs;
   // Add prims
   for (const auto& p : func->params) {
     if (!p->struct_info_.defined()) {
@@ -148,11 +149,11 @@ const MSCGraph GraphBuilder::Build(const Function& func) {
       const auto& shape = ExprUtils::GetShape(p, false);
       for (size_t i = 0; i < shape.size(); i++) {
         if (shape[i]->IsInstance<tvm::tir::VarNode>()) {
-          Map<String, String> attrs;
+          ffi::Map<ffi::String, ffi::String> attrs;
           attrs.Set("producer", p->name_hint());
           attrs.Set("out_idx", "0");
           attrs.Set("dim", std::to_string(i));
-          MatchOrCreatePrim(shape[i], "shape", Array<BaseJoint>(), attrs);
+          MatchOrCreatePrim(shape[i], "shape", ffi::Array<BaseJoint>(), attrs);
         }
       }
     } else {
@@ -169,7 +170,7 @@ const MSCGraph GraphBuilder::Build(const Function& func) {
     }
     if (func_params_.count(p) && func_params_[p]->IsInstance<TupleNode>()) {
       const auto& tuple = Downcast<relax::Tuple>(func_params_[p]);
-      Array<String> tuple_names;
+      ffi::Array<ffi::String> tuple_names;
       for (const auto& f : tuple->fields) {
         if (expr_tensor_map_.count(f)) {
           LOG_INFO << "Replica tuple input " << f;
@@ -200,8 +201,8 @@ const MSCGraph GraphBuilder::Build(const Function& func) {
       << "Can not find seqexpr body " << func->body->body;
   output_names = expr_tensor_map_[func->body->body];
   // remove const nodes as weights
-  Array<MSCJoint> valid_nodes;
-  std::set<String> ignore_inputs;
+  ffi::Array<MSCJoint> valid_nodes;
+  std::set<ffi::String> ignore_inputs;
   for (const auto& n : nodes_) {
     if (weights_.count(n->name) || ignore_nodes_.count(n->name)) {
       for (const auto& o : n->outputs) {
@@ -218,7 +219,7 @@ const MSCGraph GraphBuilder::Build(const Function& func) {
     }
   }
   // remove uselese inputs
-  Array<String> valid_inputs;
+  ffi::Array<ffi::String> valid_inputs;
   for (const auto& i : input_names) {
     if (!ignore_inputs.count(i)) {
       valid_inputs.push_back(i);
@@ -255,12 +256,12 @@ const MSCGraph GraphBuilder::Build(const Function& func) {
   return graph;
 }
 
-const MSCJoint GraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& binding_var,
-                                     const String& name) {
+const MSCJoint GraphBuilder::AddNode(const Expr& expr, const ffi::Optional<Expr>& binding_var,
+                                     const ffi::String& name) {
   // Get optype, node_name and layout
-  String node_name = name.size() > 0 ? name : SpanUtils::GetAttr(expr->span, msc_attr::kName);
-  String optype = "unknown";
-  String layout = SpanUtils::GetAttr(expr->span, msc_attr::kLayout);
+  ffi::String node_name = name.size() > 0 ? name : SpanUtils::GetAttr(expr->span, msc_attr::kName);
+  ffi::String optype = "unknown";
+  ffi::String layout = SpanUtils::GetAttr(expr->span, msc_attr::kLayout);
   if (func_params_.count(expr) && func_params_[expr]->IsInstance<ConstantNode>()) {
     node_name = SpanUtils::GetAttr(func_params_[expr]->span, msc_attr::kName);
     optype = "constant";
@@ -318,11 +319,12 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& bin
   const auto& plugin = IsPlugin(optype) ? GetPlugin(optype) : Plugin();
 
   // Extract normal attributes
-  Map<String, String> attrs;
+  ffi::Map<ffi::String, ffi::String> attrs;
   if (plugin.defined()) {
     const auto& op = Downcast<Call>(expr)->op;
     if (target_funcs_.count(op)) {
-      const auto& opattrs_opt = target_funcs_[op]->GetAttr<Array<String>>(msc_attr::kOpattrs);
+      const auto& opattrs_opt =
+          target_funcs_[op]->GetAttr<ffi::Array<ffi::String>>(msc_attr::kOpattrs);
       if (opattrs_opt.defined()) {
         const auto& opattrs = opattrs_opt.value();
         ICHECK_EQ(opattrs.size(), plugin->attrs.size())
@@ -341,7 +343,7 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& bin
   } else if (const auto* call_node = expr.as<CallNode>()) {
     if (const auto* v_node = call_node->op.as<GlobalVarNode>()) {
       const auto& func = Downcast<Function>(ref_module_->Lookup(v_node->name_hint));
-      const auto& name_opt = func->GetAttr<String>(relax::attr::kComposite);
+      const auto& name_opt = func->GetAttr<ffi::String>(relax::attr::kComposite);
       if (name_opt.has_value()) {
         attrs = FuncAttrGetter().GetAttrs(func);
       }
@@ -365,10 +367,10 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& bin
   }
 
   // Extract attributes from arguments
-  Array<String> input_types;
+  ffi::Array<ffi::String> input_types;
   if (!plugin.defined() && expr->IsInstance<CallNode>()) {
     const auto& call = Downcast<Call>(expr);
-    Array<String> values;
+    ffi::Array<ffi::String> values;
     if (call->op->IsInstance<VarNode>()) {
       ICHECK(target_funcs_.count(call->op)) << "Can not find target func: " << call->op;
       values = FuncValueGetter().GetValues(target_funcs_[call->op]);
@@ -396,8 +398,8 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& bin
   }
 
   // Build inputs and weights
-  Array<String> input_names;
-  Map<String, MSCTensor> node_weights;
+  ffi::Array<ffi::String> input_names;
+  ffi::Map<ffi::String, MSCTensor> node_weights;
   if (plugin.defined()) {
     const auto& call = Downcast<Call>(expr);
     if (call->args.size() == 1) {
@@ -419,7 +421,7 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& bin
         continue;
       }
       const auto& arg = call_node->args[i];
-      Array<String> arg_names;
+      ffi::Array<ffi::String> arg_names;
       if (expr_tensor_map_.count(arg)) {
         arg_names = expr_tensor_map_[arg];
       } else if (input_types[i] == "input" && arg->IsInstance<TupleNode>()) {
@@ -431,7 +433,7 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& bin
           }
         }
       }
-      String weight_name;
+      ffi::String weight_name;
       if (input_types[i] != "input" && arg->IsInstance<ConstantNode>()) {
         weight_name = SpanUtils::GetAttr(arg->span, msc_attr::kName);
       } else if (input_types[i] != "input" && func_params_.count(arg) &&
@@ -448,12 +450,12 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& bin
           const auto& ref = producer->OutputAt(pair.second);
           MSCTensor weight;
           if (input_types[i] == "bias") {
-            weight = MSCTensor(weight_name, ref->dtype, "O", Array<Integer>{ref->GetSize()});
+            weight = MSCTensor(weight_name, ref->dtype, "O", ffi::Array<Integer>{ref->GetSize()});
           } else if (input_types[i] == "weight" &&
                      (optype == "msc.linear" || optype == "msc.linear_bias")) {
             if (ref->layout.name() == "IO") {
-              String valid_layout = ref->layout[1].name() + ref->layout[0].name();
-              const auto& valid_shape = Array<Integer>({ref->shape[1], ref->shape[0]});
+              ffi::String valid_layout = ref->layout[1].name() + ref->layout[0].name();
+              const auto& valid_shape = ffi::Array<Integer>({ref->shape[1], ref->shape[0]});
               weight = MSCTensor(weight_name, ref->dtype, valid_layout, valid_shape);
             } else {
               weight = MSCTensor(weight_name, ref->dtype, ref->layout.name(), ref->shape);
@@ -512,13 +514,13 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& bin
   }
 
   // Build output tensor
-  auto build_output = [this](const StructInfo& sinfo, const String& node_name,
-                             const String& layout) {
+  auto build_output = [this](const StructInfo& sinfo, const ffi::String& node_name,
+                             const ffi::String& layout) {
     ICHECK(sinfo->IsInstance<TensorStructInfoNode>())
         << "sinfo should be TensorStructInfo, get " << sinfo->GetTypeKey();
     const auto& t_info = Downcast<TensorStructInfo>(sinfo);
     const auto& shape = ArrayUtils::Cast<Integer>(ExprUtils::GetShape(t_info));
-    Array<String> prims;
+    ffi::Array<ffi::String> prims;
     bool has_prims = false;
     if (shape.size() > 0) {
       for (const auto& s : t_info->GetShape().value()) {
@@ -537,15 +539,15 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& bin
   };
 
   // Gather outputs
-  Array<MSCTensor> outputs;
+  ffi::Array<MSCTensor> outputs;
   const auto& sinfo = GetStructInfo(expr);
-  Array<String> layouts = StringUtils::Split(layout, ",");
+  ffi::Array<ffi::String> layouts = StringUtils::Split(layout, ",");
   size_t num_output = 1;
   if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
     num_output = tuple_sinfo->fields.size();
   }
   if (layouts.size() == 0) {
-    layouts = Array<String>(num_output, "");
+    layouts = ffi::Array<ffi::String>(num_output, "");
   }
   ICHECK_EQ(layouts.size(), num_output)
       << "Layouts " << layouts << " msimatch with output size " << num_output;
@@ -553,7 +555,7 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& bin
     const auto& t_name = node_name + ":" + std::to_string(0);
     outputs.push_back(build_output(sinfo, t_name, layouts[0]));
   } else if (const auto* s_sinfo = sinfo.as<ShapeStructInfoNode>()) {
-    Array<Integer> shape{s_sinfo->ndim};
+    ffi::Array<Integer> shape{s_sinfo->ndim};
     const auto& t_name = node_name + ":" + std::to_string(0);
     const auto& dtype = DataType(ffi::StringToDLDataType("int32"));
     outputs.push_back(MSCTensor(t_name, dtype, layouts[0], shape));
@@ -568,14 +570,14 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& bin
   }
 
   // Build node
-  Array<String> scope;
+  ffi::Array<ffi::String> scope;
   if (optype != "input" && optype != "constant") {
     scope = StringUtils::Split(scope_name_, ".");
   }
   const auto& shared_ref = SpanUtils::GetAttr(expr->span, msc_attr::kSharedRef);
   const auto& node = MSCJoint(nodes_.size(), node_name, shared_ref, optype, attrs, scope, inputs,
                               outputs, node_weights);
-  Array<String> output_names;
+  ffi::Array<ffi::String> output_names;
   for (size_t i = 0; i < outputs.size(); i++) {
     output_names.push_back(outputs[i]->name);
     tensor_input_map_[outputs[i]->name] = std::make_pair(node, i);
@@ -587,11 +589,11 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& bin
 }
 
 void GraphBuilder::VisitBindingBlock(const BindingBlock& block) {
-  String block_name = SpanUtils::GetAttr(block->span, msc_attr::kName);
+  ffi::String block_name = SpanUtils::GetAttr(block->span, msc_attr::kName);
   if (block_name.size() == 0) {
     block_name = "block";
   }
-  const String& prefix = StringUtils::Join(block_stack_, ".");
+  const ffi::String& prefix = StringUtils::Join(block_stack_, ".");
   if (setted_blocks_.count(prefix + "." + block_name)) {
     int cnt = 1;
     while (setted_blocks_.count(prefix + "." + block_name + "_" + std::to_string(cnt))) {
@@ -638,15 +640,15 @@ const MSCPrim GraphBuilder::AddPrim(const PrimExpr& prim) {
 
   // scalar
   if (prim->IsInstance<IntImmNode>()) {
-    Map<String, String> attrs;
+    ffi::Map<ffi::String, ffi::String> attrs;
     attrs.Set("value", StringUtils::ToString(prim));
-    return MatchOrCreatePrim(prim, "Int", Array<BaseJoint>(), attrs);
+    return MatchOrCreatePrim(prim, "Int", ffi::Array<BaseJoint>(), attrs);
   }
 
   // call
   if (const auto* c_node = prim.as<tvm::tir::CallNode>()) {
-    String optype;
-    Array<BaseJoint> parents;
+    ffi::String optype;
+    ffi::Array<BaseJoint> parents;
     if (const auto* op_node = c_node->op.as<OpNode>()) {
       optype = StringUtils::Replace(op_node->name, "tir.", "");
     } else {
@@ -660,9 +662,9 @@ const MSCPrim GraphBuilder::AddPrim(const PrimExpr& prim) {
   return MatchOrCreatePrim(prim);
 }
 
-const MSCPrim GraphBuilder::MatchOrCreatePrim(const PrimExpr& prim, const String& optype,
-                                              const Array<BaseJoint>& parents,
-                                              const Map<String, String>& attrs) {
+const MSCPrim GraphBuilder::MatchOrCreatePrim(const PrimExpr& prim, const ffi::String& optype,
+                                              const ffi::Array<BaseJoint>& parents,
+                                              const ffi::Map<ffi::String, ffi::String>& attrs) {
   if (prim_map_.count(prim)) {
     return prim_map_[prim];
   }
@@ -692,7 +694,7 @@ const MSCPrim GraphBuilder::MatchOrCreatePrim(const PrimExpr& prim, const String
     prim_map_.Set(prim, p);
     return p;
   }
-  String name;
+  ffi::String name;
   if (const auto* v_node = prim.as<tvm::tir::VarNode>()) {
     name = v_node->name_hint;
   } else {
@@ -705,26 +707,26 @@ const MSCPrim GraphBuilder::MatchOrCreatePrim(const PrimExpr& prim, const String
 }
 
 void GraphBuilder::VisitExpr_(const ConstantNode* op) {
-  if (!expr_tensor_map_.count(GetRef<Constant>(op))) {
-    AddNode(GetRef<Constant>(op));
+  if (!expr_tensor_map_.count(ffi::GetRef<Constant>(op))) {
+    AddNode(ffi::GetRef<Constant>(op));
   }
 }
 
 void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const ConstantNode* val) {
-  const String& name = config_.use_var_name ? binding->var->name_hint() : "";
-  AddNode(GetRef<Constant>(val), binding->var, name);
+  const ffi::String& name = config_.use_var_name ? binding->var->name_hint() : "";
+  AddNode(ffi::GetRef<Constant>(val), binding->var, name);
 }
 
 void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const ShapeExprNode* val) {
-  const String& name = config_.use_var_name ? binding->var->name_hint() : "";
-  AddNode(GetRef<ShapeExpr>(val), binding->var, name);
+  const ffi::String& name = config_.use_var_name ? binding->var->name_hint() : "";
+  AddNode(ffi::GetRef<ShapeExpr>(val), binding->var, name);
 }
 
 void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const CallNode* call_node) {
   ExprVisitor::VisitBinding_(binding, call_node);
-  const String& name = config_.use_var_name ? binding->var->name_hint() : "";
+  const ffi::String& name = config_.use_var_name ? binding->var->name_hint() : "";
   try {
-    AddNode(GetRef<Call>(call_node), binding->var, name);
+    AddNode(ffi::GetRef<Call>(call_node), binding->var, name);
   } catch (runtime::InternalError& err) {
     LOG(WARNING) << "Failed to add node from " << binding->var << " : " << binding->value
                  << ", reason: " << err.what();
@@ -734,49 +736,50 @@ void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const CallNode* 
 
 void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const TupleNode* val) {
   ExprVisitor::VisitBinding_(binding, val);
-  const String& name = config_.use_var_name ? binding->var->name_hint() : "";
-  AddNode(GetRef<relax::Tuple>(val), binding->var, name);
+  const ffi::String& name = config_.use_var_name ? binding->var->name_hint() : "";
+  AddNode(ffi::GetRef<relax::Tuple>(val), binding->var, name);
 }
 
 void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val) {
   ExprVisitor::VisitBinding_(binding, val);
-  const String& name = config_.use_var_name ? binding->var->name_hint() : "";
-  AddNode(GetRef<TupleGetItem>(val), binding->var, name);
+  const ffi::String& name = config_.use_var_name ? binding->var->name_hint() : "";
+  AddNode(ffi::GetRef<TupleGetItem>(val), binding->var, name);
 }
 
 void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const VarNode* val) {
   ExprVisitor::VisitBinding_(binding, val);
-  const auto& output = GetRef<Var>(val);
+  const auto& output = ffi::GetRef<Var>(val);
   ICHECK(expr_tensor_map_.count(output)) << "Can not find var " << output;
   expr_tensor_map_.Set(binding->var, expr_tensor_map_[output]);
 }
 
 void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const DataflowVarNode* val) {
   ExprVisitor::VisitBinding_(binding, val);
-  const auto& output = GetRef<DataflowVar>(val);
+  const auto& output = ffi::GetRef<DataflowVar>(val);
   ICHECK(expr_tensor_map_.count(output)) << "Can not find dataflow var " << output;
   expr_tensor_map_.Set(binding->var, expr_tensor_map_[output]);
 }
 
 void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const FunctionNode* val) {
-  const auto& name_opt = val->GetAttr<String>(relax::attr::kComposite);
+  const auto& name_opt = val->GetAttr<ffi::String>(relax::attr::kComposite);
   ICHECK(name_opt.has_value()) << "Unexpected target func without composite";
   ICHECK(config_.target.size() > 0 && StringUtils::StartsWith(name_opt.value(), config_.target))
       << "Target should be given for target function";
-  target_funcs_.Set(binding->var, GetRef<Function>(val));
+  target_funcs_.Set(binding->var, ffi::GetRef<Function>(val));
 }
 
-const std::tuple<String, String, String> GraphBuilder::ParseFunc(const Function& func) {
-  String node_name, optype, layout;
-  const auto& name_opt = func->GetAttr<String>(msc_attr::kUnique);
+const std::tuple<ffi::String, ffi::String, ffi::String> GraphBuilder::ParseFunc(
+    const Function& func) {
+  ffi::String node_name, optype, layout;
+  const auto& name_opt = func->GetAttr<ffi::String>(msc_attr::kUnique);
   // get node_name
   if (name_opt.has_value()) {
     node_name = name_opt.value();
   }
   // get optype
-  const auto& codegen_opt = func->GetAttr<String>(relax::attr::kCodegen);
-  const auto& optype_opt = func->GetAttr<String>(msc_attr::kOptype);
-  const auto& composite_opt = func->GetAttr<String>(relax::attr::kComposite);
+  const auto& codegen_opt = func->GetAttr<ffi::String>(relax::attr::kCodegen);
+  const auto& optype_opt = func->GetAttr<ffi::String>(msc_attr::kOptype);
+  const auto& composite_opt = func->GetAttr<ffi::String>(relax::attr::kComposite);
   if (codegen_opt.has_value()) {
     optype = codegen_opt.value();
   } else if (optype_opt.has_value()) {
@@ -788,7 +791,7 @@ const std::tuple<String, String, String> GraphBuilder::ParseFunc(const Function&
     }
   }
   // get layout
-  const auto& layout_opt = func->GetAttr<String>(msc_attr::kLayout);
+  const auto& layout_opt = func->GetAttr<ffi::String>(msc_attr::kLayout);
   if (layout_opt.has_value()) {
     layout = layout_opt.value();
   }
@@ -802,14 +805,14 @@ void GraphBuilder::VisitPrimExpr(const PrimExpr& prim) {
   }
 }
 
-Array<Expr> GraphBuilder::GetPluginInputs(const Expr& expr) {
+ffi::Array<Expr> GraphBuilder::GetPluginInputs(const Expr& expr) {
   ICHECK(expr->IsInstance<CallNode>()) << "plugin expr should be call";
   const auto& call = Downcast<Call>(expr);
   ICHECK(call->args[1]->IsInstance<TupleNode>()) << "plugin argument 1 should be call";
   return Downcast<relax::Tuple>(call->args[1])->fields;
 }
 
-Map<MSCTensor, NDArray> WeightsExtractor::GetWeights(const Function& func) {
+ffi::Map<MSCTensor, Tensor> WeightsExtractor::GetWeights(const Function& func) {
   VisitExpr(func);
   return weights_;
 }
@@ -817,13 +820,13 @@ Map<MSCTensor, NDArray> WeightsExtractor::GetWeights(const Function& func) {
 void WeightsExtractor::VisitExpr_(const ConstantNode* op) {
   const auto& name = SpanUtils::GetAttr(op->span, msc_attr::kName);
   const auto& layout = SpanUtils::GetAttr(op->span, msc_attr::kLayout);
-  const auto& sinfo = GetStructInfo(GetRef<Constant>(op));
+  const auto& sinfo = GetStructInfo(ffi::GetRef<Constant>(op));
   ICHECK(sinfo->IsInstance<TensorStructInfoNode>())
       << "Constant StrcutInfo should be TensorStructInfo";
   const auto& t_info = Downcast<TensorStructInfo>(sinfo);
   const auto& opt_shape = t_info->GetShape();
   const auto& shape =
-      opt_shape.defined() ? ArrayUtils::Cast<Integer>(opt_shape.value()) : Array<Integer>();
+      opt_shape.defined() ? ArrayUtils::Cast<Integer>(opt_shape.value()) : ffi::Array<Integer>();
   const auto& weight = MSCTensor(name, t_info->dtype, layout, shape);
   weights_.Set(weight, op->data);
 }
@@ -836,24 +839,26 @@ void WeightsExtractor::VisitExpr_(const CallNode* op) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("msc.core.BuildFromRelax",
-           [](const IRModule& module, const String& entry_name, const String& options) -> MSCGraph {
+           [](const IRModule& module, const ffi::String& entry_name,
+              const ffi::String& options) -> MSCGraph {
              auto builder = GraphBuilder(module, entry_name, options);
              const auto& func_name = builder.config().byoc_entry.size() > 0
-                                         ? String(builder.config().byoc_entry)
+                                         ? ffi::String(builder.config().byoc_entry)
                                          : entry_name;
              const auto& func = Downcast<Function>(module->Lookup(func_name));
              return builder.Build(func);
            })
-      .def("msc.core.GetRelaxWeights",
-           [](const IRModule& module, const String& entry_name) -> Map<MSCTensor, NDArray> {
-             const auto& func = Downcast<Function>(module->Lookup(entry_name));
-             return WeightsExtractor(module).GetWeights(func);
-           });
-});
+      .def(
+          "msc.core.GetRelaxWeights",
+          [](const IRModule& module, const ffi::String& entry_name) -> ffi::Map<MSCTensor, Tensor> {
+            const auto& func = Downcast<Function>(module->Lookup(entry_name));
+            return WeightsExtractor(module).GetWeights(func);
+          });
+}
 
 }  // namespace msc
 }  // namespace contrib

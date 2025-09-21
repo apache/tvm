@@ -47,7 +47,7 @@ class Scalarizer : public ExprMutator {
   PrimExpr VisitExpr_(const BroadcastNode* op) final { return op->value; }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
-    Var var = GetRef<Var>(op);
+    Var var = ffi::GetRef<Var>(op);
 
     auto it = let_var_remap_.find(op);
     if (it != let_var_remap_.end()) {

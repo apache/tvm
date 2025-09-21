@@ -45,9 +45,10 @@ endif()
 target_include_directories(
   tvm_rpc
   PUBLIC "../../include"
-  PUBLIC DLPACK_PATH
   PUBLIC DMLC_PATH
 )
+
+target_link_libraries(tvm_rpc PUBLIC tvm_ffi_header)
 
 if (BUILD_FOR_ANDROID AND USE_HEXAGON)
   get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
@@ -62,9 +63,9 @@ if (BUILD_FOR_ANDROID AND USE_HEXAGON)
 endif()
 
 if(BUILD_STATIC_RUNTIME)
-  list(APPEND TVM_RPC_LINKER_LIBS -Wl,--whole-archive tvm_runtime -Wl,--no-whole-archive)
+  list(APPEND TVM_RPC_LINKER_LIBS -Wl,--whole-archive tvm_runtime tvm_ffi_static -Wl,--no-whole-archive)
 else()
   list(APPEND TVM_RPC_LINKER_LIBS tvm_runtime)
 endif()
 
-target_link_libraries(tvm_rpc ${TVM_RPC_LINKER_LIBS})
+target_link_libraries(tvm_rpc PRIVATE ${TVM_RPC_LINKER_LIBS})

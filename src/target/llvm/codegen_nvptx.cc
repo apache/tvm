@@ -189,7 +189,11 @@ class CodeGenNVPTX : public CodeGenLLVM {
     } else if (sync == "shared" || sync == "shared.dyn") {
 #if TVM_LLVM_VERSION >= 200
       llvm::Function* f = llvm::cast<llvm::Function>(llvm::Intrinsic::getOrInsertDeclaration(
+#if TVM_LLVM_VERSION >= 210
+          module_.get(), llvm::Intrinsic::nvvm_barrier_cta_sync_aligned_all, {}));
+#else
           module_.get(), llvm::Intrinsic::nvvm_barrier0, {}));
+#endif
 #else
       llvm::Function* f =
           llvm::Intrinsic::getDeclaration(module_.get(), llvm::Intrinsic::nvvm_barrier0);
@@ -312,13 +316,13 @@ llvm::Value* CodeGenNVPTX::CreateIntrinsic(const CallNode* op) {
 }
 
 int GetCUDAComputeVersion(const Target& target) {
-  Optional<String> mcpu = target->GetAttr<String>("mcpu");
+  ffi::Optional<ffi::String> mcpu = target->GetAttr<ffi::String>("mcpu");
   ICHECK(mcpu.has_value()) << "InternalError: \"-mcpu\" is undefined in the NVPTX target";
   std::string sm_version = mcpu.value();
   return std::stoi(sm_version.substr(3));
 }
 
-runtime::Module BuildNVPTX(IRModule mod, Target target) {
+ffi::Module BuildNVPTX(IRModule mod, Target target) {
   LLVMInstance llvm_instance;
   With<LLVMTarget> llvm_target(llvm_instance, target);
 
@@ -335,7 +339,11 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
     std::string path = (*flibdevice_path)(compute_ver).cast<std::string>();
     if (path.length() != 0) {
       std::unique_ptr<llvm::Module> mlib = llvm_instance.LoadIR(path);
+#if TVM_LLVM_VERSION >= 210
+      mlib->setTargetTriple(llvm::Triple(llvm_target->GetTargetTriple()));
+#else
       mlib->setTargetTriple(llvm_target->GetTargetTriple());
+#endif
       mlib->setDataLayout(tm->createDataLayout());
       cg->AddLinkModule(std::move(mlib));
     }
@@ -369,14 +377,14 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
   return CUDAModuleCreate(ptx, "ptx", ExtractFuncInfo(mod), ll);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("target.build.nvptx", BuildNVPTX)
       .def_packed("tvm.codegen.llvm.target_nvptx", [](const ffi::PackedArgs& targs, ffi::Any* rv) {
         *rv = static_cast<void*>(new CodeGenNVPTX());
       });
-});
+}
 
 }  // namespace codegen
 }  // namespace tvm

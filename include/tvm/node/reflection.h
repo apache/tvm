@@ -34,7 +34,8 @@ namespace tvm {
  * \param fields The fields of the object.
  * \return The created object.
  */
-TVM_DLL ffi::Any CreateObject(const String& type_key, const Map<String, ffi::Any>& fields);
+TVM_DLL ffi::Any CreateObject(const ffi::String& type_key,
+                              const ffi::Map<ffi::String, ffi::Any>& fields);
 
 }  // namespace tvm
 #endif  // TVM_NODE_REFLECTION_H_

@@ -275,7 +275,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
   }
 
   void VisitExpr_(const VarNode* op, AccessPath path) override {
-    auto var = GetRef<Var>(op);
+    auto var = ffi::GetRef<Var>(op);
 
     auto active_def = currently_defined_.find(var);
     auto verify = Verify(active_def != currently_defined_.end());
@@ -342,7 +342,7 @@ class SingleEnvThreadVerifier : public Verifier<SingleEnvThreadVerifier> {
     }
   }
 
-  std::unordered_map<String, std::tuple<Var, AccessPath>> env_thread_vars_;
+  std::unordered_map<ffi::String, std::tuple<Var, AccessPath>> env_thread_vars_;
 };
 
 bool VerifyWellFormed(const PrimFunc& func, bool assert_mode) {
@@ -371,7 +371,7 @@ bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
   return true;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.analysis.VerifyWellFormed", [](const ObjectRef& obj,
                                                             bool assert_mode) {
@@ -384,7 +384,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                  << obj->GetTypeKey();
     }
   });
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

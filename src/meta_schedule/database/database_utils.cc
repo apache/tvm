@@ -57,10 +57,10 @@ void JSONDumps(Any json_obj, std::ostringstream& os) {
     os << "]";
   } else if (const auto* dict = json_obj.as<ffi::MapObj>()) {
     int n = dict->size();
-    std::vector<std::pair<String, ffi::Any>> key_values;
+    std::vector<std::pair<ffi::String, ffi::Any>> key_values;
     key_values.reserve(n);
     for (const auto& kv : *dict) {
-      if (auto key = kv.first.try_cast<String>()) {
+      if (auto key = kv.first.try_cast<ffi::String>()) {
         key_values.emplace_back(key.value(), kv.second);
       } else {
         LOG(FATAL) << "TypeError: Only string keys are supported in JSON dumps, but got: "
@@ -81,7 +81,7 @@ void JSONDumps(Any json_obj, std::ostringstream& os) {
     }
     os << "}";
   } else if (json_obj.as<tir::IndexMapNode>()) {
-    JSONDumps(String(SaveJSON(json_obj)), os);
+    JSONDumps(ffi::String(SaveJSON(json_obj)), os);
   } else {
     LOG(FATAL) << "TypeError: Unsupported type in JSON object: " << json_obj.GetTypeKey();
   }
@@ -241,7 +241,7 @@ class JSONTokenizer {
       LOG(FATAL) << "ValueError: Unexpected end of string";
     }
     ++cur_;
-    *token = Token{TokenType::kString, String(str)};
+    *token = Token{TokenType::kString, ffi::String(str)};
     return true;
   }
 
@@ -315,9 +315,9 @@ class JSONParser {
     }
   }
 
-  Array<Any> ParseArray() {
+  ffi::Array<Any> ParseArray() {
     bool is_first = true;
-    Array<Any> results;
+    ffi::Array<Any> results;
     for (;;) {
       Token token;
       if (is_first) {
@@ -347,9 +347,9 @@ class JSONParser {
     return results;
   }
 
-  Map<String, ffi::Any> ParseDict() {
+  ffi::Map<ffi::String, ffi::Any> ParseDict() {
     bool is_first = true;
-    Map<String, ffi::Any> results;
+    ffi::Map<ffi::String, ffi::Any> results;
     for (;;) {
       Token token;
       if (is_first) {
@@ -376,7 +376,7 @@ class JSONParser {
         CHECK(token.type == TokenType::kColon)
             << "ValueError: Unexpected token before: " << tokenizer_.cur_;
         Any value = ParseObject(tokenizer_.Next());
-        results.Set(Downcast<String>(key), value);
+        results.Set(Downcast<ffi::String>(key), value);
         continue;
       } else {
         LOG(FATAL) << "ValueError: Unexpected token before: " << tokenizer_.cur_;

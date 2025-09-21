@@ -75,8 +75,8 @@ def test_add():
             gv = bb.emit_output(lv0)
         bb.emit_func_output(gv)
     mod = bb.get()
-    x_data = tvm.nd.array(np.random.rand(10, 10).astype("float32"), dev)
-    y_data = tvm.nd.array(np.random.rand(10, 10).astype("float32"), dev)
+    x_data = tvm.runtime.tensor(np.random.rand(10, 10).astype("float32"), dev)
+    y_data = tvm.runtime.tensor(np.random.rand(10, 10).astype("float32"), dev)
     verify(mod, [x_data, y_data])
 
 
@@ -90,7 +90,7 @@ def test_add_const():
             gv = bb.emit_output(lv0)
         bb.emit_func_output(gv)
     mod = bb.get()
-    x_data = tvm.nd.array(np.random.rand(10, 10).astype("float32"), dev)
+    x_data = tvm.runtime.tensor(np.random.rand(10, 10).astype("float32"), dev)
     verify(mod, [x_data])
 
 
@@ -105,14 +105,14 @@ def test_multiply():
         bb.emit_func_output(gv)
     mod = bb.get()
 
-    x_data = tvm.nd.array(np.random.rand(10, 10).astype("float32"), dev)
-    y_data = tvm.nd.array(np.random.rand(10, 10).astype("float32"), dev)
+    x_data = tvm.runtime.tensor(np.random.rand(10, 10).astype("float32"), dev)
+    y_data = tvm.runtime.tensor(np.random.rand(10, 10).astype("float32"), dev)
     verify(mod, [x_data, y_data])
 
 
 def test_matmul():
     x = relax.Var("x", relax.TensorStructInfo([8, 10], "float32"))
-    y = relax.Constant(tvm.nd.array(np.random.rand(10, 8).astype("float32"), dev))
+    y = relax.Constant(tvm.runtime.tensor(np.random.rand(10, 8).astype("float32"), dev))
     bb = relax.BlockBuilder()
     with bb.function("main", [x]):
         with bb.dataflow():
@@ -121,7 +121,7 @@ def test_matmul():
         bb.emit_func_output(gv)
     mod = bb.get()
 
-    x_data = tvm.nd.array(np.random.rand(8, 10).astype("float32"), dev)
+    x_data = tvm.runtime.tensor(np.random.rand(8, 10).astype("float32"), dev)
     verify(mod, [x_data])
 
     x = relax.Var("x", relax.TensorStructInfo([8, 10], "float32"))
@@ -134,8 +134,8 @@ def test_matmul():
         bb.emit_func_output(gv)
     mod = bb.get()
 
-    x_data = tvm.nd.array(np.random.rand(8, 10).astype("float32"), dev)
-    y_data = tvm.nd.array(np.random.rand(10, 8).astype("float32"), dev)
+    x_data = tvm.runtime.tensor(np.random.rand(8, 10).astype("float32"), dev)
+    y_data = tvm.runtime.tensor(np.random.rand(10, 8).astype("float32"), dev)
     verify(mod, [x_data, y_data])
 
 
@@ -150,7 +150,7 @@ def test_clip():
         bb.emit_func_output(gv0)
     mod = bb.get()
 
-    x_data = tvm.nd.array(np.random.rand(10, 10).astype("float32"), dev)
+    x_data = tvm.runtime.tensor(np.random.rand(10, 10).astype("float32"), dev)
     verify(mod, [x_data])
 
     x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
@@ -164,7 +164,7 @@ def test_clip():
             gv1 = bb.emit_output(lv1)
         bb.emit_func_output([gv0, gv1])
 
-    x_data = tvm.nd.array(np.random.rand(10, 10).astype("float32"), dev)
+    x_data = tvm.runtime.tensor(np.random.rand(10, 10).astype("float32"), dev)
     verify(mod, [x_data])
 
 
@@ -179,7 +179,7 @@ def test_expand_dims():
             bb.emit_func_output(gv)
         return bb.get()
 
-    x_data = tvm.nd.array(np.random.rand(10, 10).astype("float32"), dev)
+    x_data = tvm.runtime.tensor(np.random.rand(10, 10).astype("float32"), dev)
     verify(get_mod(axis=0), [x_data])
     verify(get_mod(axis=1), [x_data])
 
@@ -194,7 +194,7 @@ def test_relu():
         bb.emit_func_output(gv)
     mod = bb.get()
 
-    x_data = tvm.nd.array(np.random.rand(10, 10).astype("float32"), dev)
+    x_data = tvm.runtime.tensor(np.random.rand(10, 10).astype("float32"), dev)
     verify(mod, [x_data])
 
 
@@ -209,7 +209,7 @@ def test_batch_flatten():
         bb.emit_func_output(gv)
     mod = bb.get()
 
-    x_data = tvm.nd.array(np.random.rand(10, 10, 10).astype("float32"), dev)
+    x_data = tvm.runtime.tensor(np.random.rand(10, 10, 10).astype("float32"), dev)
     verify(mod, [x_data])
 
 
@@ -224,7 +224,7 @@ def test_softmax():
         bb.emit_func_output(gv)
     mod = bb.get()
 
-    x_data = tvm.nd.array(np.random.rand(10, 10).astype("float32"), dev)
+    x_data = tvm.runtime.tensor(np.random.rand(10, 10).astype("float32"), dev)
     verify(mod, [x_data])
 
 
@@ -238,7 +238,7 @@ def test_conv2d():
             gv = bb.emit_output(lv0)
         bb.emit_func_output(gv)
     mod = bb.get()
-    x_data = tvm.nd.array(np.random.rand(1, 3, 224, 224).astype("float32"), dev)
+    x_data = tvm.runtime.tensor(np.random.rand(1, 3, 224, 224).astype("float32"), dev)
     verify(mod, [x_data])
 
 
@@ -251,7 +251,7 @@ def test_global_avg_pool2d():
             gv = bb.emit_output(lv0)
         bb.emit_func_output(gv)
     mod = bb.get()
-    x_data = tvm.nd.array(np.random.rand(1, 1, 10, 10).astype("float32"), dev)
+    x_data = tvm.runtime.tensor(np.random.rand(1, 1, 10, 10).astype("float32"), dev)
     verify(mod, [x_data])
 
 
@@ -266,8 +266,8 @@ def test_subgraph1():
             gv = bb.emit_output(lv1)
         bb.emit_func_output(gv)
     mod = bb.get()
-    x_data = tvm.nd.array(np.random.rand(10, 10).astype("float32"), dev)
-    y_data = tvm.nd.array(np.random.rand(10, 10).astype("float32"), dev)
+    x_data = tvm.runtime.tensor(np.random.rand(10, 10).astype("float32"), dev)
+    y_data = tvm.runtime.tensor(np.random.rand(10, 10).astype("float32"), dev)
     verify(mod, [x_data, y_data])
 
 
@@ -287,8 +287,8 @@ def test_subgraph2():
             gv = bb.emit_output(lv3)
         bb.emit_func_output(gv)
     mod = bb.get()
-    x_data = tvm.nd.array(np.random.rand(10, 10).astype("float32"), dev)
-    y_data = tvm.nd.array(np.random.rand(10, 10).astype("float32"), dev)
+    x_data = tvm.runtime.tensor(np.random.rand(10, 10).astype("float32"), dev)
+    y_data = tvm.runtime.tensor(np.random.rand(10, 10).astype("float32"), dev)
     verify(mod, [x_data, y_data])
 
 

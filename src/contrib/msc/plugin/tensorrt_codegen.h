@@ -79,25 +79,25 @@ class TensorRTPluginCodeGen : public BasePluginCodeGen<TensorRTPluginCodeGenConf
   void CodeGenOpDefine(const Plugin& plugin) final;
 
   /*! \brief Codegen cmake file*/
-  void CodeGenCmake(const std::set<String>& devices) final;
+  void CodeGenCmake(const std::set<ffi::String>& devices) final;
 
   /*! \brief Codegen manager methods*/
   void CodeGenManagerMethods() final;
 
  private:
   /*! \brief Op class name of plugin*/
-  const String OpCls(const Plugin& plugin, bool dynamic) const {
+  const ffi::String OpCls(const Plugin& plugin, bool dynamic) const {
     return plugin->name + (dynamic ? "DynamicPlugin" : "Plugin");
   }
 
   /*! \brief Creator class name of plugin*/
-  const String CreatorCls(const Plugin& plugin, bool dynamic) const {
+  const ffi::String CreatorCls(const Plugin& plugin, bool dynamic) const {
     return plugin->name + (dynamic ? "DynamicCreator" : "Creator");
   }
 
   bool IsMixPrecision(const Plugin& plugin) {
     for (const auto& dtypes : GetDtypeMatrix(plugin)) {
-      String ref_dtype = "";
+      ffi::String ref_dtype = "";
       for (const auto& pair : dtypes) {
         if (ref_dtype.size() == 0) {
           ref_dtype = pair.second;

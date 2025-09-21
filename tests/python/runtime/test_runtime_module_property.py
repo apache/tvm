@@ -21,9 +21,9 @@ import tvm.target._ffi_api
 
 
 def checker(mod, expected):
-    assert mod.is_binary_serializable == expected["is_binary_serializable"]
-    assert mod.is_runnable == expected["is_runnable"]
-    assert mod.is_dso_exportable == expected["is_dso_exportable"]
+    assert mod.is_binary_serializable() == expected["is_binary_serializable()"]
+    assert mod.is_runnable() == expected["is_runnable"]
+    assert mod.is_compilation_exportable() == expected["is_compilation_exportable()"]
 
 
 def create_csource_module():
@@ -39,12 +39,20 @@ def create_llvm_module():
 def test_property():
     checker(
         create_csource_module(),
-        expected={"is_binary_serializable": True, "is_runnable": False, "is_dso_exportable": True},
+        expected={
+            "is_binary_serializable()": True,
+            "is_runnable": False,
+            "is_compilation_exportable()": True,
+        },
     )
 
     checker(
         create_llvm_module(),
-        expected={"is_binary_serializable": False, "is_runnable": True, "is_dso_exportable": True},
+        expected={
+            "is_binary_serializable()": False,
+            "is_runnable": True,
+            "is_compilation_exportable()": True,
+        },
     )
 
 

@@ -28,12 +28,12 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   AttrFieldInfoNode::RegisterReflection();
   DictAttrsNode::RegisterReflection();
-});
+}
 
-DictAttrs WithAttrs(DictAttrs attrs, Map<String, ffi::Any> new_attrs) {
+DictAttrs WithAttrs(DictAttrs attrs, ffi::Map<ffi::String, ffi::Any> new_attrs) {
   if (new_attrs.empty()) {
     return attrs;
   }
@@ -45,7 +45,7 @@ DictAttrs WithAttrs(DictAttrs attrs, Map<String, ffi::Any> new_attrs) {
   return attrs;
 }
 
-DictAttrs WithAttr(DictAttrs attrs, String key, ffi::Any value) {
+DictAttrs WithAttr(DictAttrs attrs, ffi::String key, ffi::Any value) {
   attrs.CopyOnWrite()->dict.Set(key, value);
   return attrs;
 }
@@ -57,23 +57,23 @@ DictAttrs WithoutAttr(DictAttrs attrs, const std::string& key) {
 
 void DictAttrsNode::InitByPackedArgs(const ffi::PackedArgs& args, bool allow_unknown) {
   for (int i = 0; i < args.size(); i += 2) {
-    String key = args[i].cast<String>();
+    ffi::String key = args[i].cast<ffi::String>();
     ffi::AnyView val = args[i + 1];
     dict.Set(key, val);
   }
 }
 
-DictAttrs::DictAttrs(Map<String, Any> dict) {
-  ObjectPtr<DictAttrsNode> n = make_object<DictAttrsNode>();
+DictAttrs::DictAttrs(ffi::Map<ffi::String, Any> dict) {
+  ObjectPtr<DictAttrsNode> n = ffi::make_object<DictAttrsNode>();
   n->dict = std::move(dict);
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ tvm::ffi::reflection::ObjectDef<BaseAttrsNode>(); });
+TVM_FFI_STATIC_INIT_BLOCK() { tvm::ffi::reflection::ObjectDef<BaseAttrsNode>(); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ir.DictAttrsGetDict", [](DictAttrs attrs) { return attrs->dict; });
-});
+}
 
 }  // namespace tvm

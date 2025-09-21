@@ -48,9 +48,9 @@ def check_value(expr, vx, vy, data, fref):
 
     C = te.compute((n,), make_binds)
     f = tvm.compile(te.create_prim_func([A, B, C]), "llvm")
-    a = tvm.nd.array(np.array([x for x, y in data], dtype=expr.dtype))
-    b = tvm.nd.array(np.array([y for x, y in data], dtype=expr.dtype))
-    c = tvm.nd.array(np.zeros(len(data), dtype=expr.dtype))
+    a = tvm.runtime.tensor(np.array([x for x, y in data], dtype=expr.dtype))
+    b = tvm.runtime.tensor(np.array([y for x, y in data], dtype=expr.dtype))
+    c = tvm.runtime.tensor(np.zeros(len(data), dtype=expr.dtype))
     f(a, b, c)
     cref = np.array([fref(x, y) for x, y in data])
     np.testing.assert_equal(c.numpy(), cref)

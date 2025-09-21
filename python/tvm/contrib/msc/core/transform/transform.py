@@ -122,7 +122,7 @@ def SetBYOCAttrs(target, entry_name: str = "main") -> tvm.ir.transform.Pass:
 
 def BindNamedParams(
     func_name: str,
-    params: Dict[str, tvm.runtime.NDArray],
+    params: Dict[str, tvm.runtime.Tensor],
 ) -> tvm.ir.transform.Pass:
     """Bind params of function of the module to constant tensors with span names.
 
@@ -130,7 +130,7 @@ def BindNamedParams(
     ----------
     func_name: str
         The function name to be bound
-    params: dict<str, tvm.nd.array>
+    params: dict<str, tvm.runtime.tensor>
         The map from parameter or parameter name to constant
         tensors.
 

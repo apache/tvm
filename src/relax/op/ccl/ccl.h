@@ -33,7 +33,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief AllReduce. */
-Expr allreduce(Expr data, String op_type, bool in_group);
+Expr allreduce(Expr data, ffi::String op_type, bool in_group);
 
 /*! \brief AllGather. */
 Expr allgather(Expr data, int num_workers, bool in_group);

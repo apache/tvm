@@ -26,48 +26,50 @@ namespace meta_schedule {
 /******** Constructors ********/
 
 BuilderInput::BuilderInput(IRModule mod, Target target,
-                           Optional<Map<String, runtime::NDArray>> params) {
-  ObjectPtr<BuilderInputNode> n = make_object<BuilderInputNode>();
+                           ffi::Optional<ffi::Map<ffi::String, runtime::Tensor>> params) {
+  ObjectPtr<BuilderInputNode> n = ffi::make_object<BuilderInputNode>();
   n->mod = std::move(mod);
   n->target = std::move(target);
   n->params = std::move(params);
   data_ = std::move(n);
 }
 
-BuilderResult::BuilderResult(Optional<String> artifact_path, Optional<String> error_msg) {
-  ObjectPtr<BuilderResultNode> n = make_object<BuilderResultNode>();
+BuilderResult::BuilderResult(ffi::Optional<ffi::String> artifact_path,
+                             ffi::Optional<ffi::String> error_msg) {
+  ObjectPtr<BuilderResultNode> n = ffi::make_object<BuilderResultNode>();
   n->artifact_path = std::move(artifact_path);
   n->error_msg = std::move(error_msg);
   data_ = std::move(n);
 }
 
 Builder Builder::PyBuilder(BuilderNode::FBuild f_build) {
-  ObjectPtr<PyBuilderNode> n = make_object<PyBuilderNode>();
+  ObjectPtr<PyBuilderNode> n = ffi::make_object<PyBuilderNode>();
   n->f_build = std::move(f_build);
   return Builder(std::move(n));
 }
 
 /******** FFI ********/
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   BuilderInputNode::RegisterReflection();
   BuilderResultNode::RegisterReflection();
   PyBuilderNode::RegisterReflection();
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("meta_schedule.BuilderInput",
-           [](IRModule mod, Target target, Optional<Map<String, runtime::NDArray>> params)
-               -> BuilderInput { return BuilderInput(mod, target, params); })
-      .def("meta_schedule.BuilderResult",
-           [](Optional<String> artifact_path, Optional<String> error_msg) -> BuilderResult {
-             return BuilderResult(artifact_path, error_msg);
+           [](IRModule mod, Target target,
+              ffi::Optional<ffi::Map<ffi::String, runtime::Tensor>> params) -> BuilderInput {
+             return BuilderInput(mod, target, params);
            })
+      .def("meta_schedule.BuilderResult",
+           [](ffi::Optional<ffi::String> artifact_path, ffi::Optional<ffi::String> error_msg)
+               -> BuilderResult { return BuilderResult(artifact_path, error_msg); })
       .def_method("meta_schedule.BuilderBuild", &BuilderNode::Build)
       .def("meta_schedule.BuilderPyBuilder", Builder::PyBuilder);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -74,13 +74,13 @@ class BlockBuilderImpl : public BlockBuilderNode {
 
   IRModule Finalize() final { return transform::NormalizeGlobalVar()(context_mod_); }
 
-  GlobalVar AddFunction(const BaseFunc& func, String func_name_hint) final {
+  GlobalVar AddFunction(const BaseFunc& func, ffi::String func_name_hint) final {
     LazyInitCtxFuncDedupMap();
     auto it = ctx_func_dedup_map_->find(func);
     if (it == ctx_func_dedup_map_->end()) {
       context_mod_.CopyOnWrite();
 
-      String func_name = GetUniqueName(func_name_hint);
+      ffi::String func_name = GetUniqueName(func_name_hint);
       while (context_mod_->ContainGlobalVar(func_name)) {
         func_name = GetUniqueName(func_name_hint);
       }
@@ -160,7 +160,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   //-------------------------------
   // Scope management
   //-------------------------------
-  Optional<Expr> LookupBinding(const Var& var) final {
+  ffi::Optional<Expr> LookupBinding(const Var& var) final {
     auto it = binding_table_.find(var->vid);
     if (it == binding_table_.end()) return std::nullopt;
     return it->second;
@@ -170,7 +170,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
 
   void BeginBindingBlock() final { block_stack_.emplace_back(BlockFrame{{}, false}); }
 
-  void BeginScope(Optional<Array<Var>> params) final {
+  void BeginScope(ffi::Optional<ffi::Array<Var>> params) final {
     // The current implementation handles the collection of shape var
     // defined in parameter struct info annotations. The implementation
     // is correct (since we will simply erase all relax Vars in EraseToWellDefined),
@@ -205,7 +205,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     // defined in parameter struct info annotations. The implementation
     // is correct (since we will simply erase all relax Vars in EraseToWellDefined),
     // but can be further improved.
-    Map<tir::Var, PrimExpr> var_map = StructInfoVarCollector::Collect(GetStructInfo(var));
+    ffi::Map<tir::Var, PrimExpr> var_map = StructInfoVarCollector::Collect(GetStructInfo(var));
     for (const auto& kv : var_map) {
       const tir::Var& shape_var = kv.first;
       const PrimExpr& shape_expr = kv.second;
@@ -239,11 +239,11 @@ class BlockBuilderImpl : public BlockBuilderNode {
 
   bool CurrentBlockIsDataFlow() final { return CurrentBlockFrame()->is_dataflow; }
 
-  Var Emit(Expr expr, String name_hint) final {
+  Var Emit(Expr expr, ffi::String name_hint) final {
     return this->Emit(expr, CurrentBlockFrame()->is_dataflow, name_hint);
   }
 
-  Var EmitMatchCast(Expr value, StructInfo struct_info, String name_hint) final {
+  Var EmitMatchCast(Expr value, StructInfo struct_info, ffi::String name_hint) final {
     value = this->Normalize(value);
 
     CHECK(StructInfoBaseCheck(GetStructInfo(value), struct_info) != BaseCheckResult::kFailL0)
@@ -265,7 +265,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     return var;
   }
 
-  Var EmitOutput(Expr output, String name_hint) final {
+  Var EmitOutput(Expr output, ffi::String name_hint) final {
     BlockFrame* cur_frame = CurrentBlockFrame();
 
     ICHECK(cur_frame->is_dataflow) << "EmitOutput has to be called inside dataflow block.";
@@ -317,7 +317,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     /*!
      * \brief List of bindings
      */
-    Array<Binding> bindings;
+    ffi::Array<Binding> bindings;
     /*! \brief Whether current block is dataflow block. */
     bool is_dataflow;
     /*!
@@ -341,7 +341,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     //
     // TODO(relax-team) tracks the var defined also through match-cast.
     /*! \brief set of defined symbolic vars, value as themself. */
-    Map<tir::Var, PrimExpr> shape_var_map;
+    ffi::Map<tir::Var, PrimExpr> shape_var_map;
   };
 
   /*! \brief A stack to store block frames. */
@@ -391,7 +391,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
    *       and performs shape/type deductions by calling Normalize.
    * \return The new variable that \p expr is bound to.
    */
-  Var Emit(Expr expr, bool is_dataflow, String name_hint) {
+  Var Emit(Expr expr, bool is_dataflow, ffi::String name_hint) {
     expr = this->Normalize(expr);
 
     Var var = CreateVar(is_dataflow, name_hint);
@@ -413,7 +413,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
    * \param name_hint Name hint for the bound variable.
    * \return The created var.
    */
-  Var CreateVar(bool is_dataflow, String name_hint) {
+  Var CreateVar(bool is_dataflow, ffi::String name_hint) {
     if (name_hint.empty()) {
       name_hint = is_dataflow ? "lv" : "gv";
     }
@@ -427,12 +427,12 @@ class BlockBuilderImpl : public BlockBuilderNode {
     return name_supply_->FreshName(prefix, /*add_prefix*/ false, /*add_underscore*/ false);
   }
 
-  /*! \brief A custom structural hashing that ignores NDArray raw data. */
+  /*! \brief A custom structural hashing that ignores Tensor raw data. */
   class StructuralHashIgnoreNDarray {
    public:
     uint64_t operator()(const ObjectRef& key) const {
       return ffi::StructuralHash::Hash(key, /*map_free_vars=*/false,
-                                       /*skip_ndarray_content=*/true);
+                                       /*skip_tensor_content=*/true);
     }
   };
 
@@ -466,7 +466,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   // shape vars as defined when calling BeginScope(params)
   class StructInfoVarCollector : public StructInfoVisitor {
    public:
-    static Map<tir::Var, PrimExpr> Collect(const StructInfo& struct_info) {
+    static ffi::Map<tir::Var, PrimExpr> Collect(const StructInfo& struct_info) {
       StructInfoVarCollector collector;
       collector(struct_info);
       return collector.shape_var_map_;
@@ -478,17 +478,17 @@ class BlockBuilderImpl : public BlockBuilderNode {
         for (const PrimExpr& s : shape_expr->values) {
           // Only collect single var defined shape. Ignore something like `R.Tensor((m + 1, n + 1))
           if (const auto* var = s.as<tir::VarNode>()) {
-            shape_var_map_.Set(GetRef<tir::Var>(var), s);
+            shape_var_map_.Set(ffi::GetRef<tir::Var>(var), s);
           }
         }
       }
     }
 
     void VisitStructInfo_(const ShapeStructInfoNode* op) final {
-      for (const PrimExpr& s : op->values.value_or(Array<PrimExpr>())) {
+      for (const PrimExpr& s : op->values.value_or(ffi::Array<PrimExpr>())) {
         // Only collect single var defined shape. Ignore something like `R.Shape((m + 1, n + 1))
         if (const auto* var = s.as<tir::VarNode>()) {
-          shape_var_map_.Set(GetRef<tir::Var>(var), s);
+          shape_var_map_.Set(ffi::GetRef<tir::Var>(var), s);
         }
       }
     }
@@ -503,7 +503,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     }
 
    private:
-    Map<tir::Var, PrimExpr> shape_var_map_;
+    ffi::Map<tir::Var, PrimExpr> shape_var_map_;
   };
 };
 
@@ -511,7 +511,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
 // Normalization
 //---------------------------------------
 #define RELAX_EXPR_NORMALIZER_LEAF(OP) \
-  Expr VisitExpr_(const OP* op) final { return GetRef<Expr>(op); }
+  Expr VisitExpr_(const OP* op) final { return ffi::GetRef<Expr>(op); }
 
 // TODO(relax-team): Check normalize logic after struct info.
 
@@ -589,13 +589,13 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     // Other vars must have already been normalized through binding
     ICHECK(var->struct_info_.defined())
         << "Var " << var->name_hint() << " does not have struct info.";
-    return GetRef<Var>(var);
+    return ffi::GetRef<Var>(var);
   }
 
   Expr VisitExpr_(const VarNode* var_ptr) final {
     auto var = VisitVar_<Var>(var_ptr);
     if (HasVoidStructInfo(var)) {
-      return VisitExpr(Tuple(Array<Expr>{}));
+      return VisitExpr(Tuple(ffi::Array<Expr>{}));
     } else {
       return var;
     }
@@ -617,7 +617,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
   Expr VisitExpr_(const TupleNode* op) final {
     bool unchanged = true;
-    Array<Expr> new_fields;
+    ffi::Array<Expr> new_fields;
 
     for (const Expr& field : op->fields) {
       Expr new_field = this->NormalizeArgument(field);
@@ -625,10 +625,10 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       unchanged &= new_field.same_as(field);
     }
 
-    Tuple tuple = unchanged ? GetRef<Tuple>(op) : Tuple(new_fields, op->span);
+    Tuple tuple = unchanged ? ffi::GetRef<Tuple>(op) : Tuple(new_fields, op->span);
     // Update tuple fields.
     if (!tuple->struct_info_.defined()) {
-      Array<StructInfo> tuple_sinfo;
+      ffi::Array<StructInfo> tuple_sinfo;
       for (Expr field : tuple->fields) {
         tuple_sinfo.push_back(GetStructInfo(field));
       }
@@ -641,7 +641,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     Expr new_body = this->VisitWithNewScope(op->body, op->params);
 
     if (new_body.same_as(op->body)) {
-      return GetRef<Function>(op);
+      return ffi::GetRef<Function>(op);
     } else {
       return Function(op->params, new_body, op->ret_struct_info, op->is_pure, op->attrs);
     }
@@ -650,11 +650,12 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   Expr VisitExpr_(const CallNode* op) final {
     Expr new_op = this->NormalizeArgument(op->op);
 
-    Array<Expr> new_args = op->args.Map([this](const Expr& arg) { return NormalizeArgument(arg); });
+    ffi::Array<Expr> new_args =
+        op->args.Map([this](const Expr& arg) { return NormalizeArgument(arg); });
 
     Call call;
     if (new_op.same_as(op->op) && new_args.same_as(op->args)) {
-      call = GetRef<Call>(op);
+      call = ffi::GetRef<Call>(op);
     } else {
       call = Call(new_op, new_args, op->attrs, op->sinfo_args);
     }
@@ -670,7 +671,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     // produced a nested expression.
     if (apply_f_normalize_) {
       if (auto func_normalize = op_map_normalize_.get(op->op, nullptr); func_normalize != nullptr) {
-        Expr normalized = func_normalize(GetRef<BlockBuilder>(this), call);
+        Expr normalized = func_normalize(ffi::GetRef<BlockBuilder>(this), call);
         if (!normalized.same_as(call)) {
           return VisitExpr(normalized);
         }
@@ -682,7 +683,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
   Expr VisitExpr_(const SeqExprNode* op) final {
     bool unchanged = true;
-    Array<BindingBlock> new_blocks;
+    ffi::Array<BindingBlock> new_blocks;
     for (BindingBlock block : op->blocks) {
       BindingBlock new_block = this->VisitBindingBlock(block);
       new_blocks.push_back(new_block);
@@ -711,12 +712,12 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     }
 
     // Combine nearby blocks if possible
-    Array<BindingBlock> normalized_blocks = NormalizeBlocks(new_blocks);
+    ffi::Array<BindingBlock> normalized_blocks = NormalizeBlocks(new_blocks);
     unchanged &= normalized_blocks.same_as(new_blocks);
 
     SeqExpr seq_expr;
     if (unchanged) {
-      seq_expr = GetRef<SeqExpr>(op);
+      seq_expr = ffi::GetRef<SeqExpr>(op);
     } else {
       seq_expr = SeqExpr(normalized_blocks, new_body, op->span);
     }
@@ -736,7 +737,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     If if_node;
     if (new_cond.same_as(op->cond) && new_true.same_as(op->true_branch) &&
         new_false.same_as(op->false_branch)) {
-      if_node = GetRef<If>(op);
+      if_node = ffi::GetRef<If>(op);
     } else {
       if_node = If(new_cond, new_true, new_false, op->span);
     }
@@ -751,7 +752,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   Expr VisitExpr_(const TupleGetItemNode* op) final {
     Expr new_tuple = this->NormalizeArgument(op->tuple);
 
-    TupleGetItem node = new_tuple.same_as(op->tuple) ? GetRef<TupleGetItem>(op)
+    TupleGetItem node = new_tuple.same_as(op->tuple) ? ffi::GetRef<TupleGetItem>(op)
                                                      : TupleGetItem(new_tuple, op->index);
 
     if (!node->struct_info_.defined()) {
@@ -767,11 +768,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
   Binding VisitBinding(const Binding& binding) {
     if (auto* var_binding = binding.as<VarBindingNode>()) {
-      return this->VisitVarBinding(GetRef<VarBinding>(var_binding));
+      return this->VisitVarBinding(ffi::GetRef<VarBinding>(var_binding));
     } else {
       auto* match_cast = binding.as<MatchCastNode>();
       ICHECK(match_cast) << "Unsupported binding type: " << binding->GetTypeKey();
-      return this->VisitMatchCast(GetRef<MatchCast>(match_cast));
+      return this->VisitMatchCast(ffi::GetRef<MatchCast>(match_cast));
     }
   }
 
@@ -824,7 +825,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   StructInfo InferStructInfo(const Call& call) {
     if (auto* op_ptr = call->op.as<OpNode>()) {
       // Case 1: the op field is a primitive op, look up FInferStructInfo attribute
-      Op op = GetRef<Op>(op_ptr);
+      Op op = ffi::GetRef<Op>(op_ptr);
       bool is_dist_op = false;
       for (const auto& arg : call->args) {
         if (arg->struct_info_.as<distributed::DTensorStructInfoNode>()) {
@@ -839,18 +840,18 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
         }
         ICHECK(op_map_dist_infer_struct_info_.count(op))
             << " Cannot find the dist.FInferStructInfo attribute registered to op: " << op->name;
-        return op_map_dist_infer_struct_info_[op](call, GetRef<BlockBuilder>(this));
+        return op_map_dist_infer_struct_info_[op](call, ffi::GetRef<BlockBuilder>(this));
       }
       ICHECK(op_map_infer_struct_info_.count(op))
           << " Cannot find the FInferStructInfo attribute registered to op: " << op->name;
-      return op_map_infer_struct_info_[op](call, GetRef<BlockBuilder>(this));
+      return op_map_infer_struct_info_[op](call, ffi::GetRef<BlockBuilder>(this));
     } else {
       // derive using function parameters
       ICHECK(call->op->struct_info_.defined());
       auto opt = MatchStructInfo<FuncStructInfo>(call->op);
       ICHECK(opt) << "Call->op must contains a function struct info";
       FuncStructInfo finfo = opt.value();
-      return DeriveCallRetStructInfo(finfo, call, GetRef<BlockBuilder>(this), &analyzer_);
+      return DeriveCallRetStructInfo(finfo, call, ffi::GetRef<BlockBuilder>(this), &analyzer_);
     }
   }
 
@@ -862,7 +863,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       return info;
     }
     auto* curr_scope = CurrentScopeFrame();
-    auto f_shape_var_map = [curr_scope](tir::Var var) -> Optional<PrimExpr> {
+    auto f_shape_var_map = [curr_scope](tir::Var var) -> ffi::Optional<PrimExpr> {
       auto it = curr_scope->shape_var_map.find(var);
       if (it != curr_scope->shape_var_map.end()) return (*it).second;
       return std::nullopt;
@@ -870,7 +871,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     return EraseToWellDefined(info, f_shape_var_map);
   }
 
-  Expr VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params = std::nullopt) {
+  Expr VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<Var>> params = std::nullopt) {
     if (params.defined()) {
       this->BeginScope(params.value());
     } else {
@@ -891,7 +892,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       if (post.as<SeqExprNode>() && prologue->bindings.empty()) {
         return post;
       }
-      Array<BindingBlock> bindings;
+      ffi::Array<BindingBlock> bindings;
       if (!prologue->bindings.empty()) {
         bindings.push_back(prologue);
       }
@@ -906,15 +907,15 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     return ret;
   }
 
-  Array<BindingBlock> FlattenBlocks(const Array<BindingBlock>& blocks) {
+  ffi::Array<BindingBlock> FlattenBlocks(const ffi::Array<BindingBlock>& blocks) {
     // If there is a binding that is a seq expr, split the current block,
     // add the nested blocks prior to the seq expr, and bind the seq expr body
     // to the var
-    Array<BindingBlock> ret;
+    ffi::Array<BindingBlock> ret;
     bool changed = false;
     for (const BindingBlock& block : blocks) {
       bool is_dataflow = block->IsInstance<DataflowBlockNode>();
-      Array<Binding> current;
+      ffi::Array<Binding> current;
       for (const Binding& binding : block->bindings) {
         Expr value;
         if (const auto* var_binding = binding.as<VarBindingNode>()) {
@@ -950,8 +951,8 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
               // explicitly check for it here rather than waiting for a
               // WellFormed check later on.
 
-              auto free_vars = FreeVars(SeqExpr({block}, Tuple(Array<Expr>{})));
-              Array<DataflowVar> free_dataflow_vars;
+              auto free_vars = FreeVars(SeqExpr({block}, Tuple(ffi::Array<Expr>{})));
+              ffi::Array<DataflowVar> free_dataflow_vars;
               for (const auto& var : free_vars) {
                 if (auto opt = var.as<DataflowVar>()) {
                   free_dataflow_vars.push_back(opt.value());
@@ -987,9 +988,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     return changed ? ret : blocks;
   }
 
-  Array<BindingBlock> NormalizeBlocks(const Array<BindingBlock>& blocks) {
+  ffi::Array<BindingBlock> NormalizeBlocks(const ffi::Array<BindingBlock>& blocks) {
     bool changed = false;
-    Array<BindingBlock> ret;
+    ffi::Array<BindingBlock> ret;
     auto flattened = FlattenBlocks(blocks);
     if (!flattened.same_as(blocks)) {
       changed = true;
@@ -1003,11 +1004,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
         BindingBlock merged;
         // NOTE: should check DataflowBlockNode first.
         if (const auto* dataflow_block = ret.back().as<DataflowBlockNode>()) {
-          auto n = make_object<DataflowBlockNode>(*dataflow_block);
+          auto n = ffi::make_object<DataflowBlockNode>(*dataflow_block);
           n->bindings.insert(n->bindings.end(), block->bindings.begin(), block->bindings.end());
           merged = DataflowBlock(n);
         } else if (const auto* binding_block = ret.back().as<BindingBlockNode>()) {
-          auto n = make_object<BindingBlockNode>(*binding_block);
+          auto n = ffi::make_object<BindingBlockNode>(*binding_block);
           n->bindings.insert(n->bindings.end(), block->bindings.begin(), block->bindings.end());
           merged = BindingBlock(n);
         } else {
@@ -1036,14 +1037,14 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   bool apply_f_normalize_{true};
 };
 
-BlockBuilder BlockBuilder::Create(Optional<IRModule> mod) {
-  ObjectPtr<BlockBuilderNode> n = make_object<Normalizer>(mod.value_or(IRModule()));
+BlockBuilder BlockBuilder::Create(ffi::Optional<IRModule> mod) {
+  ObjectPtr<BlockBuilderNode> n = ffi::make_object<Normalizer>(mod.value_or(IRModule()));
   return BlockBuilder(n);
 }
 
-BlockBuilder BlockBuilder::Create(Optional<IRModule> mod,
+BlockBuilder BlockBuilder::Create(ffi::Optional<IRModule> mod,
                                   BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript) {
-  ObjectPtr<BlockBuilderNode> n = make_object<Normalizer>(
+  ObjectPtr<BlockBuilderNode> n = ffi::make_object<Normalizer>(
       mod.value_or(IRModule()), BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript());
   return BlockBuilder(n);
 }
@@ -1052,31 +1053,31 @@ BlockBuilder BlockBuilder::Create(Optional<IRModule> mod,
 // User facing function registration.
 //---------------------------------------
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.BlockBuilderCreate",
-           [](Optional<IRModule> mod) { return BlockBuilder::Create(mod); })
+           [](ffi::Optional<IRModule> mod) { return BlockBuilder::Create(mod); })
       .def_method("relax.BlockBuilderBeginDataflowBlock", &BlockBuilderNode::BeginDataflowBlock)
       .def_method("relax.BlockBuilderBeginBindingBlock", &BlockBuilderNode::BeginBindingBlock)
       .def_method("relax.BlockBuilderEndBlock", &BlockBuilderNode::EndBlock)
       .def_method("relax.BlockBuilderNormalize", &BlockBuilderNode::Normalize)
       .def("relax.BlockBuilderEmit",
-           [](BlockBuilder builder, Expr expr, String name_hint) {
+           [](BlockBuilder builder, Expr expr, ffi::String name_hint) {
              return builder->Emit(expr, name_hint);
            })
       .def("relax.BlockBuilderEmitMatchCast",
-           [](BlockBuilder builder, Expr value, StructInfo struct_info, String name_hint) {
+           [](BlockBuilder builder, Expr value, StructInfo struct_info, ffi::String name_hint) {
              return builder->EmitMatchCast(value, struct_info, name_hint);
            })
       .def("relax.BlockBuilderEmitOutput",
-           [](BlockBuilder builder, const Expr& output, String name_hint) {
+           [](BlockBuilder builder, const Expr& output, ffi::String name_hint) {
              return builder->EmitOutput(output, name_hint);
            })
       .def("relax.BlockBuilderEmitNormalized",
            [](BlockBuilder builder, Binding binding) { return builder->EmitNormalized(binding); })
       .def("relax.BlockBuilderGetUniqueName",
-           [](BlockBuilder builder, String name_hint) {
+           [](BlockBuilder builder, ffi::String name_hint) {
              return builder->name_supply()->FreshName(name_hint, /*add_prefix*/ false,
                                                       /*add_underscore*/ false);
            })
@@ -1089,6 +1090,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_method("relax.BlockBuilderLookupBinding", &BlockBuilderNode::LookupBinding)
       .def_method("relax.BlockBuilderBeginScope", &BlockBuilderNode::BeginScope)
       .def_method("relax.BlockBuilderEndScope", &BlockBuilderNode::EndScope);
-});
+}
 }  // namespace relax
 }  // namespace tvm

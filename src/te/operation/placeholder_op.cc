@@ -29,7 +29,7 @@
 namespace tvm {
 namespace te {
 
-TVM_FFI_STATIC_INIT_BLOCK({ PlaceholderOpNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { PlaceholderOpNode::RegisterReflection(); }
 
 // PlaceholderOpNode
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -45,31 +45,31 @@ DataType PlaceholderOpNode::output_dtype(size_t i) const {
   return dtype;
 }
 
-Array<PrimExpr> PlaceholderOpNode::output_shape(size_t i) const {
+ffi::Array<PrimExpr> PlaceholderOpNode::output_shape(size_t i) const {
   ICHECK_EQ(i, 0U);
   return shape;
 }
 
-PlaceholderOp::PlaceholderOp(std::string name, Array<PrimExpr> shape, DataType dtype) {
-  auto n = make_object<PlaceholderOpNode>();
+PlaceholderOp::PlaceholderOp(std::string name, ffi::Array<PrimExpr> shape, DataType dtype) {
+  auto n = ffi::make_object<PlaceholderOpNode>();
   n->name = name;
   n->shape = shape;
   n->dtype = dtype;
   data_ = std::move(n);
 }
 
-Tensor placeholder(Array<PrimExpr> shape, DataType dtype, std::string name) {
+Tensor placeholder(ffi::Array<PrimExpr> shape, DataType dtype, std::string name) {
   return PlaceholderOp(name, shape, dtype).output(0);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("te.Placeholder", [](Variant<PrimExpr, Array<PrimExpr>> shape_arg,
+  refl::GlobalDef().def("te.Placeholder", [](ffi::Variant<PrimExpr, ffi::Array<PrimExpr>> shape_arg,
                                              DataType dtype, std::string name) {
-    auto shape = [&]() -> Array<PrimExpr> {
+    auto shape = [&]() -> ffi::Array<PrimExpr> {
       if (auto arg_expr = shape_arg.as<PrimExpr>()) {
         return {arg_expr.value()};
-      } else if (auto arg_array = shape_arg.as<Array<PrimExpr>>()) {
+      } else if (auto arg_array = shape_arg.as<ffi::Array<PrimExpr>>()) {
         return arg_array.value();
       } else {
         LOG(FATAL) << "Variant did not contain either allowed type";
@@ -77,9 +77,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
     }();
     return placeholder(shape, dtype, name);
   });
-});
+}
 
-Array<Tensor> PlaceholderOpNode::InputTensors() const { return {}; }
+ffi::Array<Tensor> PlaceholderOpNode::InputTensors() const { return {}; }
 
 }  // namespace te
 }  // namespace tvm

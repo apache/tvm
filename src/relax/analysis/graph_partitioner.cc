@@ -252,11 +252,11 @@ size_t GraphPartitioner::CountArgs_(IndexedForwardGraph::Node* src,
     }
     return 0;
   };
-  if (auto call_node = GetRef<ObjectRef>(src->ref).as<CallNode>()) {
+  if (auto call_node = ffi::GetRef<ObjectRef>(src->ref).as<CallNode>()) {
     for (auto& it : call_node->args) {
       sum += calc_args_number(it);
     }
-  } else if (auto tuple_node = GetRef<ObjectRef>(src->ref).as<TupleNode>()) {
+  } else if (auto tuple_node = ffi::GetRef<ObjectRef>(src->ref).as<TupleNode>()) {
     for (auto& it : tuple_node->fields) {
       sum += calc_args_number(it);
     }
@@ -288,19 +288,19 @@ size_t GraphPartitioner::CountFusedArgs(const IndexedForwardGraph& graph,
 void GraphPartitioner::InitGroups(const IndexedForwardGraph& graph) {
   auto args_counter = [](const tvm::Object* obj) {
     size_t args_num = 0;
-    if (auto call_node = GetRef<ObjectRef>(obj).as<CallNode>()) {
+    if (auto call_node = ffi::GetRef<ObjectRef>(obj).as<CallNode>()) {
       for (auto& it : call_node->args) {
         if (it.as<VarNode>() || it.as<TupleGetItemNode>()) {
           args_num++;
         }
       }
-    } else if (auto tuple_node = GetRef<ObjectRef>(obj).as<TupleNode>()) {
+    } else if (auto tuple_node = ffi::GetRef<ObjectRef>(obj).as<TupleNode>()) {
       for (auto& it : tuple_node->fields) {
         if (it.as<VarNode>() || it.as<TupleGetItemNode>()) {
           args_num++;
         }
       }
-    } else if (GetRef<ObjectRef>(obj).as<VarNode>()) {
+    } else if (ffi::GetRef<ObjectRef>(obj).as<VarNode>()) {
       args_num++;
     }
     return args_num;

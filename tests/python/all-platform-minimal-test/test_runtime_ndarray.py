@@ -31,11 +31,11 @@ dtype = tvm.testing.parameter("uint8", "int8", "uint16", "int16", "uint32", "int
 def test_nd_create(target, dev, dtype):
     x = np.random.randint(0, 10, size=(3, 4))
     x = np.array(x, dtype=dtype)
-    y = tvm.nd.array(x, device=dev)
+    y = tvm.runtime.tensor(x, device=dev)
     z = y.copyto(dev)
     assert y.dtype == x.dtype
     assert y.shape == x.shape
-    assert isinstance(y, tvm.nd.NDArray)
+    assert isinstance(y, tvm.runtime.Tensor)
     np.testing.assert_equal(x, y.numpy())
     np.testing.assert_equal(x, z.numpy())
 
@@ -48,7 +48,7 @@ def test_memory_usage(target, dev, dtype):
     if available_memory_before is None:
         pytest.skip(reason=f"Target '{target}' does not support queries of available memory")
 
-    arr = tvm.nd.empty([1024, 1024], dtype=dtype, device=dev)
+    arr = tvm.runtime.empty([1024, 1024], dtype=dtype, device=dev)
     available_memory_after = dev.available_global_memory
 
     num_elements = math.prod(arr.shape)
@@ -61,8 +61,8 @@ def test_memory_usage(target, dev, dtype):
     # available memory may decrease by more than the requested amount.
     assert available_memory_after <= expected_memory_after
 
-    # TVM's NDArray type is a reference-counted handle to the
-    # underlying reference.  After the last reference to an NDArray is
+    # TVM's Tensor type is a reference-counted handle to the
+    # underlying reference.  After the last reference to an Tensor is
     # cleared, the backing allocation will be freed.
     del arr
 

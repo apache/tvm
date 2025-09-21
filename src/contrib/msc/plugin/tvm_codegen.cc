@@ -35,7 +35,7 @@ void TVMPluginCodeGen::CodeGenAttrDeclare(const Plugin& plugin) {
   stack_.comment("convert exprs to meta attrs method")
       .func_def(attr_name + "_from_exprs", "const " + attr_name);
   for (const auto& a : plugin->attrs) {
-    const String& anno = IsListType(a->type) ? "Tuple" : "PrimValue";
+    const ffi::String& anno = IsListType(a->type) ? "Tuple" : "PrimValue";
     stack_.func_arg(a->name, "const " + anno + "&");
   }
   // args to meta_attr
@@ -50,12 +50,12 @@ void TVMPluginCodeGen::CodeGenAttrDefine(const Plugin& plugin) {
   // exprs to meta_attr
   stack_.func_def(attr_name + "_from_exprs", "const " + attr_name);
   for (const auto& a : plugin->attrs) {
-    const String& anno = IsListType(a->type) ? "Tuple" : "PrimValue";
+    const ffi::String& anno = IsListType(a->type) ? "Tuple" : "PrimValue";
     stack_.func_arg(a->name, "const " + anno + "&");
   }
   stack_.func_start().declare(attr_name, "meta_attr");
   for (const auto& a : plugin->attrs) {
-    const String& convert = IsListType(a->type) ? "AttrFromPrims" : "AttrFromPrim";
+    const ffi::String& convert = IsListType(a->type) ? "AttrFromPrims" : "AttrFromPrim";
     stack_.func_call("TVMUtils::" + convert)
         .call_arg(a->name)
         .call_arg(DocUtils::ToAttrAccess("meta_attr", a->name));
@@ -92,30 +92,30 @@ void TVMPluginCodeGen::CodeGenAttrDefine(const Plugin& plugin) {
 
 void TVMPluginCodeGen::CodeGenOpDeclare(const Plugin& plugin) {
   // infer struct info
-  stack_.func_def("InferStructInfo" + plugin->name, "Array<TensorStructInfo>");
+  stack_.func_def("InferStructInfo" + plugin->name, "ffi::Array<TensorStructInfo>");
   for (const auto& t : plugin->inputs) {
     stack_.func_arg(t->name, "const Expr&");
   }
   for (const auto& a : plugin->attrs) {
-    const String& anno = IsListType(a->type) ? "Tuple" : "PrimValue";
+    const ffi::String& anno = IsListType(a->type) ? "Tuple" : "PrimValue";
     stack_.func_arg(a->name, "const " + anno + "&");
   }
   // infer layout
   stack_.func_def("InferLayout" + plugin->name, "InferLayoutOutput")
-      .func_arg("inputs", "const Array<Expr>&")
+      .func_arg("inputs", "const ffi::Array<Expr>&")
       .func_arg("var_layout_map", "const VarLayoutMap&");
 }
 
 void TVMPluginCodeGen::CodeGenOpDefine(const Plugin& plugin) {
   const auto& attr_name = MetaAttrCls(plugin);
   // infer struct info
-  Array<String> infer_args{"input_metas", "meta_attr", "false"};
-  stack_.func_def("InferStructInfo" + plugin->name, "Array<TensorStructInfo>");
+  ffi::Array<ffi::String> infer_args{"input_metas", "meta_attr", "false"};
+  stack_.func_def("InferStructInfo" + plugin->name, "ffi::Array<TensorStructInfo>");
   for (const auto& t : plugin->inputs) {
     stack_.func_arg(t->name, "const Expr&");
   }
   for (const auto& a : plugin->attrs) {
-    const String& anno = IsListType(a->type) ? "Tuple" : "PrimValue";
+    const ffi::String& anno = IsListType(a->type) ? "Tuple" : "PrimValue";
     stack_.func_arg(a->name, "const " + anno + "&");
   }
   stack_.func_start()
@@ -133,7 +133,7 @@ void TVMPluginCodeGen::CodeGenOpDefine(const Plugin& plugin) {
   }
   stack_.declare("std::vector<MetaTensor>", "output_metas");
   CodeGenSafeCall(plugin->externs["infer_output"], infer_args, "output_metas");
-  stack_.declare("Array<TensorStructInfo>", "output_sinfo");
+  stack_.declare("ffi::Array<TensorStructInfo>", "output_sinfo");
   for (size_t i = 0; i < plugin->outputs.size(); i++) {
     stack_.func_call("push_back", "", "output_sinfo")
         .inplace_start("TVMUtils::ToTensorStructInfo")
@@ -152,20 +152,20 @@ void TVMPluginCodeGen::CodeGenOpDefine(const Plugin& plugin) {
 
   // infer layout
   stack_.func_def("InferLayout" + plugin->name, "InferLayoutOutput")
-      .func_arg("inputs", "const Array<Expr>&")
+      .func_arg("inputs", "const ffi::Array<Expr>&")
       .func_arg("var_layout_map", "const VarLayoutMap&")
       .func_start()
       .comment("define attrs");
   for (size_t i = 0; i < plugin->attrs.size(); i++) {
     const auto& attr = plugin->attrs[i];
-    const String& anno = IsListType(attr->type) ? "Tuple" : "PrimValue";
+    const ffi::String& anno = IsListType(attr->type) ? "Tuple" : "PrimValue";
     stack_
         .func_call("Downcast<" + anno + ">",
                    DocUtils::ToDeclare("const auto&", "attr_" + attr->name))
         .call_arg(DocUtils::ToIndex("inputs", i + plugin->inputs.size()));
   }
-  stack_.declare("Array<NLayout>", "arg_layouts")
-      .declare("Array<NLayout>", "output_layouts")
+  stack_.declare("ffi::Array<NLayout>", "arg_layouts")
+      .declare("ffi::Array<NLayout>", "output_layouts")
       .comment("extract meta attrs")
       .func_call(attr_name + "_from_exprs", "const " + attr_name + "& meta_attr");
   for (const auto& a : plugin->attrs) {
@@ -201,7 +201,7 @@ void TVMPluginCodeGen::CodeGenOpDefine(const Plugin& plugin) {
       .call_arg(DocUtils::ToAttrAccess(DocUtils::ToIndex("output_metas", "i"), "layout_name()"))
       .inplace_end()
       .for_end()
-      .declare("Array<NLayout>", "input_layouts")
+      .declare("ffi::Array<NLayout>", "input_layouts")
       .func_call("push_back", "", "input_layouts")
       .inplace_start("LayoutDecision")
       .call_arg(DocUtils::ToStr(""))
@@ -229,9 +229,10 @@ void TVMPluginCodeGen::CodeGenOpRuntime(const Plugin& plugin) {
   ICHECK(!plugin->externs.count("infer_buffer")) << "infer_buffer is not supported for tvm runtime";
   const auto& attr_name = MetaAttrCls(plugin);
   const auto& func_name = ComputeName(plugin);
-  String device_cond = "";
+  ffi::String device_cond = "";
+  ffi::String device_index = "";
   for (size_t i = 0; i < plugin->inputs.size(); i++) {
-    String device_type = "";
+    ffi::String device_type = "";
     if (plugin->inputs[i]->device == "cuda" || plugin->inputs[i]->device == "default") {
       device_type = "DLDeviceType::kDLCUDA";
     } else {
@@ -266,8 +267,8 @@ void TVMPluginCodeGen::CodeGenOpRuntime(const Plugin& plugin) {
       .line();
 }
 
-void TVMPluginCodeGen::CodeGenCmake(const std::set<String>& devices) {
-  Map<String, String> flags;
+void TVMPluginCodeGen::CodeGenCmake(const std::set<ffi::String>& devices) {
+  ffi::Map<ffi::String, ffi::String> flags;
   flags.Set("PLUGIN_SUPPORT_TVM", "");
   CodeGenPreCmake(devices, flags);
   stack_.line("set(CMAKE_CXX_STANDARD 17)")
@@ -275,7 +276,7 @@ void TVMPluginCodeGen::CodeGenCmake(const std::set<String>& devices) {
       .line()
       .line("set(TVM_ROOT " + config()->tvm_root + ")")
       .line("find_library(TVM_LIB NAMES tvm HINTS ${TVM_ROOT}/build NO_DEFAULT_PATH)");
-  Array<String> includes, libs;
+  ffi::Array<ffi::String> includes, libs;
   includes.push_back("${TVM_ROOT}/include");
   includes.push_back("${TVM_ROOT}/3rdparty/dmlc-core/include");
   includes.push_back("${TVM_ROOT}/3rdparty/dlpack/include");
@@ -317,7 +318,7 @@ void TVMPluginCodeGen::CodeGenOpBuilder(const Plugin& plugin) {
     stack_.func_arg(attr->name, ToPyType(attr->type), attr->default_value);
   }
   stack_.func_arg("name", "str", "\"" + plugin->name + "\"").func_start();
-  Array<String> args;
+  ffi::Array<ffi::String> args;
   for (const auto& t : plugin->inputs) {
     args.push_back(t->name);
   }
@@ -344,15 +345,17 @@ void TVMPluginCodeGen::CodeGenOpBuilder(const Plugin& plugin) {
   stack_.func_end("op").comment(GetPyComment(plugin), true);
 }
 
-void TVMPluginCodeGen::CodeGenCompute(const Plugin& plugin, const String& device) {
+void TVMPluginCodeGen::CodeGenCompute(const Plugin& plugin, const ffi::String& device) {
   if (plugin->externs.count(device + "_compute")) {
     // compute with dtype
-    auto prepare_tensor = [this](const PluginTensor& tensor, const Map<String, String>& dtypes,
-                                 size_t idx, const String& collect) {
-      const String& t_name = "d_" + tensor->name;
-      const String& t_dtype = dtypes.count(tensor->name) ? dtypes[tensor->name] : tensor->dtype;
-      const String& tensor_type = "DataTensor<" + t_dtype + ">";
-      const String& anno = collect == "input" ? "const " + tensor_type + "&" : tensor_type;
+    auto prepare_tensor = [this](const PluginTensor& tensor,
+                                 const ffi::Map<ffi::String, ffi::String>& dtypes, size_t idx,
+                                 const ffi::String& collect) {
+      const ffi::String& t_name = "d_" + tensor->name;
+      const ffi::String& t_dtype =
+          dtypes.count(tensor->name) ? dtypes[tensor->name] : tensor->dtype;
+      const ffi::String& tensor_type = "DataTensor<" + t_dtype + ">";
+      const ffi::String& anno = collect == "input" ? "const " + tensor_type + "&" : tensor_type;
       stack_.func_call("TVMUtils::To" + tensor_type, DocUtils::ToDeclare(anno, t_name))
           .call_arg(tensor->name)
           .call_arg(collect == "input");
@@ -360,8 +363,8 @@ void TVMPluginCodeGen::CodeGenCompute(const Plugin& plugin, const String& device
     };
     for (const auto& dtypes : GetDtypeMatrix(plugin)) {
       const auto& tensor_dtypes = GetTensorDtypes(plugin, dtypes);
-      Array<String> compute_args;
-      String dtype_cond = "";
+      ffi::Array<ffi::String> compute_args;
+      ffi::String dtype_cond = "";
       for (size_t i = 0; i < plugin->inputs.size(); i++) {
         const auto& t_name = plugin->inputs[i]->name;
         dtype_cond = dtype_cond + "TVMUtils::ToMetaType(" + t_name +
@@ -371,17 +374,18 @@ void TVMPluginCodeGen::CodeGenCompute(const Plugin& plugin, const String& device
       // prepare compute datas
       stack_.cond_if(dtype_cond).comment("prepare compute datas");
       for (size_t i = 0; i < plugin->inputs.size(); i++) {
-        const String& t_name = prepare_tensor(plugin->inputs[i], tensor_dtypes, i, "input");
+        const ffi::String& t_name = prepare_tensor(plugin->inputs[i], tensor_dtypes, i, "input");
         compute_args.push_back(t_name);
       }
       for (size_t i = 0; i < plugin->outputs.size(); i++) {
-        const String& t_name = prepare_tensor(plugin->outputs[i], tensor_dtypes, i, "output");
+        const ffi::String& t_name = prepare_tensor(plugin->outputs[i], tensor_dtypes, i, "output");
         compute_args.push_back(t_name);
       }
       ICHECK(plugin->buffers.size() == 0) << "Plugin with buffers is not supported in tvm";
       compute_args.push_back("meta_attr");
       if (device == "cuda") {
-        stack_.assign("stream", "runtime::CUDAThreadEntry::ThreadLocal()->stream", "auto");
+        // TODO(tvm-team): update to support get stream from device id
+        stack_.assign("stream", "TVMFFIEnvGetStream(kDLCUDA, 0)", "auto");
         compute_args.push_back("stream");
       }
       CodeGenSafeCall(plugin->externs[device + "_compute"], compute_args);
@@ -392,11 +396,11 @@ void TVMPluginCodeGen::CodeGenCompute(const Plugin& plugin, const String& device
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("msc.plugin.GetTVMPluginSources",
-                        [](const String& codegen_config, const String& print_config,
-                           const String& codegen_type) -> Map<String, String> {
+                        [](const ffi::String& codegen_config, const ffi::String& print_config,
+                           const ffi::String& codegen_type) -> ffi::Map<ffi::String, ffi::String> {
                           TVMPluginCodeGen codegen = TVMPluginCodeGen(codegen_config);
                           if (codegen_type == "build") {
                             return codegen.GetBuildSources(print_config);
@@ -404,9 +408,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
                           if (codegen_type == "manager") {
                             return codegen.GetManagerSources(print_config);
                           }
-                          return Map<String, String>();
+                          return ffi::Map<ffi::String, ffi::String>();
                         });
-});
+}
 
 }  // namespace msc
 }  // namespace contrib

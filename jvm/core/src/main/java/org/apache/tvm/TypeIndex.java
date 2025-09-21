@@ -36,9 +36,9 @@ public class TypeIndex {
   public static final int kTVMFFIBytes = 66;
   public static final int kTVMFFIError = 67;
   public static final int kTVMFFIFunction = 68;
-  public static final int kTVMFFIArray = 69;
-  public static final int kTVMFFIMap = 70;
-  public static final int kTVMFFIShape = 71;
-  public static final int kTVMFFINDArray = 72;
+  public static final int kTVMFFIShape = 70;
+  public static final int kTVMFFITensor = 71;
+  public static final int kTVMFFIArray = 72;
+  public static final int kTVMFFIMap = 73;
   public static final int kTVMFFIModule = 73;
 }

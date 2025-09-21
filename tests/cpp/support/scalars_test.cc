@@ -28,17 +28,17 @@ namespace {
 // Note that functional testing is via test_ir_parser.py and test_ir_text_printer.py.
 // Here we just check handling which is difficult to test via the standard Python API.
 
-TEST(Scalars, IntImmToNDArray_Unsupported) {
-  ASSERT_THROW(IntImmToNDArray(IntImm(DataType::Int(15), 42)), runtime::InternalError);
+TEST(Scalars, IntImmToTensor_Unsupported) {
+  ASSERT_THROW(IntImmToTensor(IntImm(DataType::Int(15), 42)), runtime::InternalError);
 }
 
-TEST(Scalars, FloatImmtoNDArray_Unsupported) {
-  ASSERT_THROW(FloatImmToNDArray(FloatImm(DataType::Float(15), 42.0)), runtime::InternalError);
+TEST(Scalars, FloatImmtoTensor_Unsupported) {
+  ASSERT_THROW(FloatImmToTensor(FloatImm(DataType::Float(15), 42.0)), runtime::InternalError);
 }
 
-TEST(Scalars, NDArrayScalarToString_Unsupported) {
-  auto ndarray = runtime::NDArray::Empty({}, DataType::Int(8), {DLDeviceType::kDLCPU, 0});
-  ASSERT_THROW(NDArrayScalarToString(ndarray), runtime::InternalError);
+TEST(Scalars, TensorScalarToString_Unsupported) {
+  auto ndarray = runtime::Tensor::Empty({}, DataType::Int(8), {DLDeviceType::kDLCPU, 0});
+  ASSERT_THROW(TensorScalarToString(ndarray), runtime::InternalError);
 }
 
 TEST(Scalars, IntImmToString_Unsupported) {

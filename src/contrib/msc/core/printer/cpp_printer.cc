@@ -348,7 +348,7 @@ bool CppPrinter::IsEmptyDoc(const ExprDoc& doc) {
   return id_doc->name == DocSymbol::Empty();
 }
 
-void CppPrinter::PrintIndentedBlock(const Array<StmtDoc>& docs) {
+void CppPrinter::PrintIndentedBlock(const ffi::Array<StmtDoc>& docs) {
   IncreaseIndent();
   for (const StmtDoc& d : docs) {
     PrintDoc(d);

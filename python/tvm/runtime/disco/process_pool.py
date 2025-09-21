@@ -20,7 +20,7 @@ import os
 import subprocess
 import sys
 
-from tvm.ffi import register_func
+from tvm_ffi import register_global_func
 from tvm.runtime import ShapeTuple
 
 
@@ -177,7 +177,7 @@ def _kill_child_processes(pid):
             pass
 
 
-@register_func("runtime.disco.create_process_pool")
+@register_global_func("runtime.disco.create_process_pool")
 def _create_process_pool(num_workers: int, num_groups: int, entrypoint: str):
     """Create a process pool where the workers' are [1, num_workers)."""
     pool = [DiscoPopenWorker(i, num_workers, num_groups, entrypoint) for i in range(1, num_workers)]

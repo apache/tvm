@@ -22,45 +22,45 @@ import sys
 from typing import Callable
 
 import tvm
-from tvm.ffi import get_global_func, register_func
-from tvm.runtime import NDArray, ShapeTuple, String
-from tvm.runtime.ndarray import array
+from tvm_ffi import get_global_func, register_global_func
+from tvm.runtime import Tensor, ShapeTuple, String
+from tvm.runtime import tensor
 
 
-@register_func("tests.disco.add_one", override=True)
+@register_global_func("tests.disco.add_one", override=True)
 def _add_one(x: int) -> int:
     return x + 1
 
 
-@register_func("tests.disco.add_one_float", override=True)
+@register_global_func("tests.disco.add_one_float", override=True)
 def _add_one_float(x: float):
     return x + 0.5
 
 
-@register_func("tests.disco.add_one_ndarray", override=True)
-def _add_one_ndarray(x: NDArray) -> NDArray:
-    return array(x.numpy() + 1)
+@register_global_func("tests.disco.add_one_tensor", override=True)
+def _add_one_tensor(x: Tensor) -> Tensor:
+    return tensor(x.numpy() + 1)
 
 
-@register_func("tests.disco.str", override=True)
+@register_global_func("tests.disco.str", override=True)
 def _str_func(x: str):
     return x + "_suffix"
 
 
-@register_func("tests.disco.str_obj", override=True)
+@register_global_func("tests.disco.str_obj", override=True)
 def _str_obj_func(x: str):
     assert isinstance(x, str)
     return String(x + "_suffix")
 
 
-@register_func("tests.disco.shape_tuple", override=True)
+@register_global_func("tests.disco.shape_tuple", override=True)
 def _shape_tuple_func(x: ShapeTuple):
     assert isinstance(x, ShapeTuple)
     return ShapeTuple(list(x) + [4, 5])
 
 
-@register_func("tests.disco.test_callback", override=True)
-def _make_callback(device: tvm.runtime.Device) -> Callable[[str, int], NDArray]:
+@register_global_func("tests.disco.test_callback", override=True)
+def _make_callback(device: tvm.runtime.Device) -> Callable[[str, int], Tensor]:
     """For use in tests/python/disco/test_callback.py
 
     This function simulates a callback to be used for lazy parameter
@@ -75,7 +75,7 @@ def _make_callback(device: tvm.runtime.Device) -> Callable[[str, int], NDArray]:
 
     Returns
     -------
-    fget_item: Callable[[str,int], NDArray]
+    fget_item: Callable[[str,int], Tensor]
 
         A callback function that accepts a parameter's name and index,
         and returns the specified parameter.
@@ -83,7 +83,7 @@ def _make_callback(device: tvm.runtime.Device) -> Callable[[str, int], NDArray]:
     """
     import numpy as np  # pylint: disable=import-outside-toplevel
 
-    def fget_item(param_name: str, param_index: int) -> NDArray:
+    def fget_item(param_name: str, param_index: int) -> Tensor:
         if param_index == 0:
             assert param_name == "A"
             arr = np.arange(16).reshape([4, 4]).astype("int32")
@@ -92,7 +92,7 @@ def _make_callback(device: tvm.runtime.Device) -> Callable[[str, int], NDArray]:
             arr = np.arange(4).reshape([2, 2]).astype("float32")
         else:
             raise ValueError(f"Unexpected index {param_index}")
-        return tvm.nd.array(arr, device=device)
+        return tvm.runtime.tensor(arr, device=device)
 
     return fget_item
 

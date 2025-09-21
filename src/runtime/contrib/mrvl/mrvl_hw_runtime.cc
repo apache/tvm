@@ -23,10 +23,10 @@
  */
 
 #include <dlfcn.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/module.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <cstddef>
 #include <string>
@@ -155,7 +155,7 @@ hardware and then runs the generated binary on the target hardware.
  *
  */
 
-class MarvellHardwareModuleNode : public ModuleNode {
+class MarvellHardwareModuleNode : public ffi::ModuleObj {
  public:
   MarvellHardwareModuleNode(const std::string& symbol_name, const std::string& nodes_json,
                             const std::string& bin_code, const int input_count,
@@ -200,10 +200,10 @@ class MarvellHardwareModuleNode : public ModuleNode {
     }
   }
 
-  const char* type_key() const { return "mrvl_hw"; }
+  const char* kind() const { return "mrvl_hw"; }
 
   int GetPropertyMask() const final {
-    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+    return ffi::Module::kBinarySerializable | ffi::Module::kRunnable;
   }
 
   /*!
@@ -212,7 +212,8 @@ class MarvellHardwareModuleNode : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The packed function.
    */
-  virtual ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
+  virtual ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) {
+    ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
     if (name == "get_symbol") {
       return ffi::Function(
           [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = this->symbol_name_; });
@@ -225,8 +226,9 @@ class MarvellHardwareModuleNode : public ModuleNode {
         use_dpdk_cb = true;
       });
     } else if (name == "get_const_vars") {
-      return ffi::Function(
-          [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = Array<String>{}; });
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
+        *rv = ffi::Array<ffi::String>{};
+      });
     } else if (this->symbol_name_ == name) {
       return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         RunInference(args);
@@ -240,10 +242,13 @@ class MarvellHardwareModuleNode : public ModuleNode {
         *rv = 0;
       });
     }
-    return ffi::Function(nullptr);
+    return std::nullopt;
   }
 
-  virtual void SaveToBinary(dmlc::Stream* stream) {
+  virtual ffi::Bytes SaveToBytes() const {
+    std::string buffer;
+    dmlc::MemoryStringStream ms(&buffer);
+    dmlc::Stream* stream = &ms;
     // Save the symbol name and other data and serialize them to
     // binary format.
     stream->Write(symbol_name_);
@@ -252,10 +257,12 @@ class MarvellHardwareModuleNode : public ModuleNode {
     stream->Write(num_inputs_);
     stream->Write(num_outputs_);
     stream->Write(run_arg.num_batches);
+    return ffi::Bytes(buffer);
   }
 
-  static Module LoadFromBinary(void* strm) {
-    dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+  static ffi::Module LoadFromBytes(const ffi::Bytes& bytes) {
+    dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
+    dmlc::Stream* stream = &ms;
     std::string symbol_name;
     std::string nodes_json;
     std::string bin_code;
@@ -268,9 +275,9 @@ class MarvellHardwareModuleNode : public ModuleNode {
     ICHECK(stream->Read(&num_inputs)) << "Loading num_inputs failed";
     ICHECK(stream->Read(&num_outputs)) << "Loading num_outputs failed";
     ICHECK(stream->Read(&batch_size)) << "Loading batch_size failed";
-    auto n = make_object<MarvellHardwareModuleNode>(symbol_name, nodes_json, bin_code, num_inputs,
-                                                    num_outputs, batch_size);
-    return Module(n);
+    auto n = ffi::make_object<MarvellHardwareModuleNode>(symbol_name, nodes_json, bin_code,
+                                                         num_inputs, num_outputs, batch_size);
+    return ffi::Module(n);
   }
 
   /*!
@@ -279,7 +286,7 @@ class MarvellHardwareModuleNode : public ModuleNode {
    * \param format the format to return.
    * \return A string of JSON.
    */
-  String GetSource(const String& format = "json") override { return nodes_json_; }
+  ffi::String InspectSource(const ffi::String& format) const override { return nodes_json_; }
 
  protected:
   std::string symbol_name_;
@@ -303,8 +310,8 @@ class MarvellHardwareModuleNode : public ModuleNode {
 
     i_d_buf_float = reinterpret_cast<float*>(i_d_buf);
     for (int in = 0; in < num_inputs_; in++) {
-      if (args[in].IsObjectRef<NDArray>()) {
-        NDArray arr = args[in];
+      if (args[in].IsObjectRef<Tensor>()) {
+        Tensor arr = args[in];
         tensor = arr.operator->();
       } else {
         tensor = args[in].operator DLTensor*();
@@ -339,8 +346,8 @@ class MarvellHardwareModuleNode : public ModuleNode {
     int out = num_inputs_;
 
     if (num_outputs_ == 1) {
-      if (args[out].IsObjectRef<NDArray>()) {
-        NDArray arr = args[out];
+      if (args[out].IsObjectRef<Tensor>()) {
+        Tensor arr = args[out];
         outTensor = arr.operator->();
       } else {
         outTensor = args[out].operator DLTensor*();
@@ -355,8 +362,8 @@ class MarvellHardwareModuleNode : public ModuleNode {
 
       for (out = num_inputs_; out < args.size(); out++) {
         int out_tot_dim = 1;
-        if (args[out].IsObjectRef<NDArray>()) {
-          NDArray arr = args[out];
+        if (args[out].IsObjectRef<Tensor>()) {
+          Tensor arr = args[out];
           outTensor = arr.operator->();
         } else {
           outTensor = args[out].operator DLTensor*();
@@ -376,8 +383,8 @@ class MarvellHardwareModuleNode : public ModuleNode {
     const DLTensor* tensor[64];
 
     for (int in = 0; in < num_inputs_; in++) {
-      if (args[in].IsObjectRef<NDArray>()) {
-        NDArray arr = args[in];
+      if (args[in].IsObjectRef<Tensor>()) {
+        Tensor arr = args[in];
         tensor[in] = arr.operator->();
       } else {
         tensor[in] = args[in].operator DLTensor*();
@@ -392,8 +399,8 @@ class MarvellHardwareModuleNode : public ModuleNode {
 
     int i = 0;
     for (int out = num_inputs_; out < args.size(); out++) {
-      if (args[out].IsObjectRef<NDArray>()) {
-        NDArray arr = args[out];
+      if (args[out].IsObjectRef<Tensor>()) {
+        Tensor arr = args[out];
         tensor[i] = arr.operator->();
       } else {
         tensor[i] = args[out].operator DLTensor*();
@@ -463,12 +470,13 @@ class MarvellHardwareModuleNode : public ModuleNode {
   }
 };
 
-runtime::Module MarvellHardwareModuleRuntimeCreate(const String& symbol_name,
-                                                   const String& nodes_json, const String& bin_code,
-                                                   int num_input, int num_output, int batch_size) {
-  auto n = make_object<MarvellHardwareModuleNode>(symbol_name, nodes_json, bin_code, num_input,
-                                                  num_output, batch_size);
-  return runtime::Module(n);
+ffi::Module MarvellHardwareModuleRuntimeCreate(const ffi::String& symbol_name,
+                                               const ffi::String& nodes_json,
+                                               const ffi::String& bin_code, int num_input,
+                                               int num_output, int batch_size) {
+  auto n = ffi::make_object<MarvellHardwareModuleNode>(symbol_name, nodes_json, bin_code, num_input,
+                                                       num_output, batch_size);
+  return ffi::Module(n);
 }
 
 bool MarvellHardwareModuleNode::initialized_model = false;
@@ -477,12 +485,12 @@ bool MarvellHardwareModuleNode::use_dpdk_cb = false;
 ml_tvmc_cb MarvellHardwareModuleNode::tvmc_cb_ = {};
 ml_dpdk_cb MarvellHardwareModuleNode::dpdk_cb_ = {};
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.mrvl_hw_runtime_create", MarvellHardwareModuleRuntimeCreate)
-      .def("runtime.module.loadbinary_mrvl_hw", MarvellHardwareModuleNode::LoadFromBinary);
-});
+      .def("ffi.Module.load_from_bytes.mrvl_hw", MarvellHardwareModuleNode::LoadFromBytes);
+}
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm

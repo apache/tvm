@@ -48,15 +48,6 @@ TVM_DLL int TVMBackendGetFuncFromEnv(void* mod_node, const char* func_name,
                                      TVMFFIObjectHandle* out);
 
 /*!
- * \brief Backend function to register system-wide library symbol.
- *
- * \param name The name of the symbol
- * \param ptr The symbol address.
- * \return 0 when no error is thrown, -1 when failure happens
- */
-TVM_DLL int TVMBackendRegisterSystemLibSymbol(const char* name, void* ptr);
-
-/*!
  * \brief Backend function to allocate temporal workspace.
  *
  * \note The result allocated space is ensured to be aligned to kTempAllocaAlignment.

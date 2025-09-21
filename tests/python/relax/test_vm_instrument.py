@@ -81,7 +81,7 @@ def test_conv2d_cpu():
             return relax.VMInstrumentReturnKind.SKIP_RUN
 
     vm.set_instrument(instrument)
-    vm["main"](tvm.nd.array(data_np))
+    vm["main"](tvm.runtime.tensor(data_np))
     assert hit_count[("matmul", True)] == 2
     assert ("matmul", False) not in hit_count
     assert hit_count[("relu", True)] == 2
@@ -93,9 +93,9 @@ def test_lib_comparator():
     ex = get_exec_int32(data_np.shape)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     # compare against library module
-    cmp = LibCompareVMInstrument(vm.module.imported_modules[0], tvm.cpu(), verbose=False)
+    cmp = LibCompareVMInstrument(vm.module.imports[0], tvm.cpu(), verbose=False)
     vm.set_instrument(cmp)
-    vm["main"](tvm.nd.array(data_np))
+    vm["main"](tvm.runtime.tensor(data_np))
 
 
 if __name__ == "__main__":

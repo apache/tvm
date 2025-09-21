@@ -66,7 +66,7 @@ struct RocBlasThreadEntry {
 typedef dmlc::ThreadLocalStore<RocBlasThreadEntry> RocBlasThreadStore;
 
 // matrix multiplication for row major
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed(
@@ -81,9 +81,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
             ICHECK_EQ(A->ndim, 2);
             ICHECK_EQ(B->ndim, 2);
             ICHECK_EQ(C->ndim, 2);
-            ICHECK(C->strides == nullptr);
-            ICHECK(B->strides == nullptr);
-            ICHECK(A->strides == nullptr);
+            ICHECK(ffi::IsContiguous(*C));
+            ICHECK(ffi::IsContiguous(*B));
+            ICHECK(ffi::IsContiguous(*A));
             ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
             ICHECK(TypeMatch(B->dtype, kDLFloat, 32));
             ICHECK(TypeMatch(C->dtype, kDLFloat, 32));
@@ -145,6 +145,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
             RocBlasThreadStore::Get()->handle, roc_trans_B, roc_trans_A, N, M, K, &alpha, B_ptr,
             ldb, K * N, A_ptr, lda, M * K, &beta, C_ptr, ldc, M * N, batch_size));
       });
-});
+}
 }  // namespace contrib
 }  // namespace tvm

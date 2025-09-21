@@ -43,7 +43,7 @@ namespace tir {
  */
 struct BlockInfo {
   /*! \brief Property of a block scope rooted at the block, storing dependencies in the scope */
-  BlockScope scope{nullptr};
+  BlockScope scope{ffi::UnsafeInit()};
   // The properties below are information about the current block realization under its parent scope
   /*! \brief Property of a block, indicating the block realization binding is quasi-affine */
   bool affine_binding{false};
@@ -147,7 +147,7 @@ class ScheduleStateNode : public Object {
    * \note The reuse of loop srefs are detected automatically according to the reuse of loop vars.
    */
   TVM_DLL void Replace(const tir::StmtSRef& src_sref, const Stmt& tgt_stmt,
-                       const Map<Block, Block>& block_sref_reuse);
+                       const ffi::Map<Block, Block>& block_sref_reuse);
   /*!
    * \brief Trigger the verification according to the `debug_mask` bitmask.
    * 1) If the bitmask `kVerifySRefTree` is on, verify the correctness of the sref tree.
@@ -156,8 +156,8 @@ class ScheduleStateNode : public Object {
    */
   TVM_DLL void DebugVerify() const;
 
-  static constexpr const char* _type_key = "tir.ScheduleState";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleStateNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.ScheduleState", ScheduleStateNode, Object);
 
   /******** Property of blocks ********/
   /*! \brief Returns the BlockInfo correpsonding to the block sref */
@@ -218,10 +218,7 @@ class ScheduleState : public ObjectRef {
    */
   TVM_DLL explicit ScheduleState(IRModule mod, int debug_mask = 0, bool enable_check = true);
 
-  /*! \return The mutable pointer to the ScheduleStateNode */
-  ScheduleStateNode* get() const { return static_cast<ScheduleStateNode*>(data_.get()); }
-
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ScheduleState, ObjectRef, ScheduleStateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScheduleState, ObjectRef, ScheduleStateNode);
 };
 
 }  // namespace tir

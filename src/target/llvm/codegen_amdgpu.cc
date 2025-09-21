@@ -263,7 +263,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 };
 
-runtime::Module BuildAMDGPU(IRModule mod, Target target) {
+ffi::Module BuildAMDGPU(IRModule mod, Target target) {
   LLVMInstance llvm_instance;
 
   With<LLVMTarget> llvm_target(llvm_instance, target);
@@ -280,11 +280,15 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
 
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   auto fbitcode = tvm::ffi::Function::GetGlobalRequired("tvm_callback_rocm_bitcode_path");
-  auto bitcode_files = fbitcode().cast<Array<String>>();
+  auto bitcode_files = fbitcode().cast<ffi::Array<ffi::String>>();
 
   for (auto& bitcode_path : bitcode_files) {
     std::unique_ptr<llvm::Module> mlib = llvm_instance.LoadIR(bitcode_path);
+#if TVM_LLVM_VERSION >= 210
+    mlib->setTargetTriple(llvm::Triple(llvm_target->GetTargetTriple()));
+#else
     mlib->setTargetTriple(llvm_target->GetTargetTriple());
+#endif
     mlib->setDataLayout(tm->createDataLayout());
 
     for (llvm::Function& f : mlib->functions()) {
@@ -357,14 +361,14 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(mod), ll, assembly);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("target.build.rocm", BuildAMDGPU)
       .def_packed("tvm.codegen.llvm.target_rocm", [](const ffi::PackedArgs& targs, ffi::Any* rv) {
         *rv = static_cast<void*>(new CodeGenAMDGPU());
       });
-});
+}
 
 }  // namespace codegen
 }  // namespace tvm

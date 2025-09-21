@@ -55,7 +55,7 @@ def test_conv2d_cpu():
     ex = get_exec(data_np.shape)
 
     vm = relax.VirtualMachine(ex, tvm.cpu(), profile=True)
-    report = vm.profile("main", tvm.nd.array(data_np))
+    report = vm.profile("main", tvm.runtime.tensor(data_np))
     print(report)
 
     assert "Duration" in str(report)
@@ -76,7 +76,7 @@ def with_rpc(ex, f, data_np):
     device = remote.cpu()
 
     vm = relax.VirtualMachine(rexec, device=device, profile=True)
-    data = tvm.nd.array(data_np, device)
+    data = tvm.runtime.tensor(data_np, device)
 
     f(vm, data)
 

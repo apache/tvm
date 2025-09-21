@@ -168,20 +168,18 @@ class ProcessSessionObj final : public BcastSessionObj {
   ffi::Function process_pool_;
   std::unique_ptr<DiscoWorkerThread> worker_0_;
   std::vector<std::unique_ptr<DiscoProcessChannel>> workers_;
-
-  static constexpr const char* _type_key = "runtime.disco.ProcessSession";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ProcessSessionObj, SessionObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.ProcessSession", ProcessSessionObj, SessionObj);
 };
 
-Session Session::ProcessSession(int num_workers, int num_group, String process_pool_creator,
-                                String entrypoint) {
+Session Session::ProcessSession(int num_workers, int num_group, ffi::String process_pool_creator,
+                                ffi::String entrypoint) {
   CHECK_EQ(num_workers % num_group, 0)
       << "The number of workers should be divisible by the number of worker group.";
   const auto pf = tvm::ffi::Function::GetGlobal(process_pool_creator);
   CHECK(pf) << "ValueError: Cannot find function " << process_pool_creator
             << " in the registry. Please check if it is registered.";
   auto process_pool = (*pf)(num_workers, num_group, entrypoint).cast<ffi::Function>();
-  auto n = make_object<ProcessSessionObj>(num_workers, num_group, process_pool);
+  auto n = ffi::make_object<ProcessSessionObj>(num_workers, num_group, process_pool);
   return Session(n);
 }
 
@@ -194,12 +192,12 @@ void WorkerProcess(int worker_id, int num_workers, int num_group, int64_t read_f
   worker.MainLoop();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.disco.SessionProcess", Session::ProcessSession)
       .def("runtime.disco.WorkerProcess", WorkerProcess);
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

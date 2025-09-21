@@ -19,7 +19,7 @@
 
 This folder contains the Java interface for TVM runtime. It brings TVM runtime to Java virtual machine.
 
-- It enables you to construct NDArray from Java native array and vice versa.
+- It enables you to construct Tensor from Java native array and vice versa.
 - You can register and convert Java native functions to TVM functions.
 - It enables you to load shared libraries created by Python and C++.
 - It provides a simple interface for RPC server and client.
@@ -95,7 +95,7 @@ The following code snippet demonstrate how to load generated shared library (add
 
 ```java
 import org.apache.tvm.Module;
-import org.apache.tvm.NDArray;
+import org.apache.tvm.Tensor;
 import org.apache.tvm.Device;
 
 import java.io.File;
@@ -109,9 +109,9 @@ public class LoadAddFunc {
     Device dev = Device.cpu();
 
     long[] shape = new long[]{2};
-    NDArray arr = NDArray.empty(shape, dev);
+    Tensor arr = Tensor.empty(shape, dev);
     arr.copyFrom(new float[]{3f, 4f});
-    NDArray res = NDArray.empty(shape, dev);
+    Tensor res = Tensor.empty(shape, dev);
 
     fadd.entryFunc().pushArg(arr).pushArg(arr).pushArg(res).invoke();
     System.out.println(Arrays.toString(res.asFloatArray()));

@@ -63,9 +63,9 @@ ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifie
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::PrimStructInfo>(
         "", [](relax::PrimStructInfo n, AccessPath n_p, IRDocsifier d) -> Doc {
-          Array<ExprDoc, void> args;
-          Array<String> kwargs_keys;
-          Array<ExprDoc, void> kwargs_values;
+          ffi::Array<ExprDoc, void> args;
+          ffi::Array<ffi::String> kwargs_keys;
+          ffi::Array<ExprDoc, void> kwargs_values;
 
           if (n->value.defined()) {
             kwargs_keys.push_back("value");
@@ -81,9 +81,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::ShapeStructInfo>(
         "", [](relax::ShapeStructInfo n, AccessPath n_p, IRDocsifier d) -> Doc {
           if (n->values.defined()) {
-            Array<PrimExpr> shape = n->values.value();
+            ffi::Array<PrimExpr> shape = n->values.value();
             AccessPath shape_p = n_p->Attr("values");
-            Array<ExprDoc> shape_docs;
+            ffi::Array<ExprDoc> shape_docs;
             for (int i = 0, ndim = shape.size(); i < ndim; ++i) {
               shape_docs.push_back(PrintShapeVar(shape[i], shape_p->ArrayItem(i), d));
             }
@@ -96,15 +96,15 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::TensorStructInfo>(  //
         "", [](relax::TensorStructInfo n, AccessPath n_p, IRDocsifier d) -> Doc {
-          Array<ExprDoc> args;
-          Array<String> kwargs_keys;
-          Array<ExprDoc> kwargs_values;
+          ffi::Array<ExprDoc> args;
+          ffi::Array<ffi::String> kwargs_keys;
+          ffi::Array<ExprDoc> kwargs_values;
           if (n->shape.defined()) {
             // Need to dig into ShapeExpr to preserve the `R.shape` prefix
             if (const auto* shape = n->shape.value().as<relax::ShapeExprNode>()) {
-              auto shape_expr = GetRef<relax::ShapeExpr>(shape);
+              auto shape_expr = ffi::GetRef<relax::ShapeExpr>(shape);
               AccessPath shape_p = n_p->Attr("shape")->Attr("values");
-              Array<ExprDoc> shape_docs;
+              ffi::Array<ExprDoc> shape_docs;
               for (int i = 0, ndim = shape_expr->values.size(); i < ndim; ++i) {
                 shape_docs.push_back(
                     PrintShapeVar(shape_expr->values[i], shape_p->ArrayItem(i), d));
@@ -141,7 +141,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           if (n->fields.empty()) {
             return Relax(d, "Tuple");
           }
-          Array<ExprDoc> fields_doc;
+          ffi::Array<ExprDoc> fields_doc;
           AccessPath fields_p = n_p->Attr("fields");
           for (int i = 0, l = n->fields.size(); i < l; ++i) {
             fields_doc.push_back(d->AsDoc<ExprDoc>(n->fields[i], fields_p->ArrayItem(i)));
@@ -156,8 +156,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           auto purity_doc = LiteralDoc::Boolean(n->purity, n_p->Attr("purity"));
 
           if (n->IsOpaque()) {
-            Array<String> keys;
-            Array<ExprDoc, void> values;
+            ffi::Array<ffi::String> keys;
+            ffi::Array<ExprDoc, void> values;
 
             if (!n->ret->IsInstance<relax::ObjectStructInfoNode>()) {
               keys.push_back("ret");
@@ -175,8 +175,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             }
           }
           // TODO(@junrushao): track symbolic shape relation
-          Array<ExprDoc> params_doc;
-          Array<relax::StructInfo> params = n->params.value();
+          ffi::Array<ExprDoc> params_doc;
+          ffi::Array<relax::StructInfo> params = n->params.value();
           AccessPath params_p = n_p->Attr("params");
           for (int i = 0, n_params = params.size(); i < n_params; ++i) {
             params_doc.push_back(d->AsDoc<ExprDoc>(params[i], params_p->ArrayItem(i)));

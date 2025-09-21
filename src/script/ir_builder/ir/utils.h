@@ -26,10 +26,10 @@ namespace script {
 namespace ir_builder {
 namespace ir {
 
-inline IRModuleFrame FindModuleFrame(const String& method) {
+inline IRModuleFrame FindModuleFrame(const ffi::String& method) {
   IRBuilder builder = IRBuilder::Current();
-  if (Optional<IRModuleFrame> frame = builder->FindFrame<IRModuleFrame>()) {
-    const Optional<IRModuleFrame>& last_module_frame = builder->GetLastFrame<IRModuleFrame>();
+  if (ffi::Optional<IRModuleFrame> frame = builder->FindFrame<IRModuleFrame>()) {
+    const ffi::Optional<IRModuleFrame>& last_module_frame = builder->GetLastFrame<IRModuleFrame>();
     if (last_module_frame.defined() && last_module_frame.value() == frame) {
       return frame.value();
     }
@@ -43,7 +43,7 @@ inline IRModuleFrame FindModuleFrame(const String& method) {
 
 inline IRModuleFrame FindModuleFrame() {
   IRBuilder builder = IRBuilder::Current();
-  if (Optional<IRModuleFrame> frame = builder->FindFrame<IRModuleFrame>()) {
+  if (ffi::Optional<IRModuleFrame> frame = builder->FindFrame<IRModuleFrame>()) {
     return frame.value();
   } else {
     LOG(FATAL) << "ValueError: IRModule frame not find. Please ensure it"

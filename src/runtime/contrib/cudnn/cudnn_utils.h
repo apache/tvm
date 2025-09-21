@@ -106,7 +106,7 @@ struct CuDNNThreadEntry {
   ConvEntry conv_entry;
   SoftmaxEntry softmax_entry;
   runtime::DeviceAPI* cuda_api{nullptr};
-  static CuDNNThreadEntry* ThreadLocal(bool check_exists = true);
+  static CuDNNThreadEntry* ThreadLocal(Device curr_device, bool check_exists = true);
 };  // CuDNNThreadEntry
 
 void SetConvDescriptors(CuDNNThreadEntry* entry_ptr, int format, int dims, int groups,

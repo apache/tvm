@@ -16,6 +16,7 @@
 # under the License.
 
 import tvm
+import tvm_ffi
 import tvm.testing
 from tvm.script import tir as T
 
@@ -147,8 +148,8 @@ def test_inject_async_copy():
         A_np = np.random.rand(32, 128).astype(dtype)
         B_np = np.zeros((32, 128)).astype(dtype)
         dev = tvm.cuda(0)
-        A_nd = tvm.nd.array(A_np, device=dev)
-        B_nd = tvm.nd.array(B_np, device=dev)
+        A_nd = tvm.runtime.tensor(A_np, device=dev)
+        B_nd = tvm.runtime.tensor(B_np, device=dev)
         mod(A_nd, B_nd)
         tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
@@ -176,9 +177,9 @@ def test_inject_async_copy_shared_dyn():
     B_np = np.random.rand(32, 128).astype("float16")
     C_np = np.zeros((32, 128)).astype("float16")
     dev = tvm.cuda(0)
-    A_nd = tvm.nd.array(A_np, device=dev)
-    B_nd = tvm.nd.array(B_np, device=dev)
-    C_nd = tvm.nd.array(C_np, device=dev)
+    A_nd = tvm.runtime.tensor(A_np, device=dev)
+    B_nd = tvm.runtime.tensor(B_np, device=dev)
+    C_nd = tvm.runtime.tensor(C_np, device=dev)
     mod(A_nd, B_nd, C_nd)
     tvm.testing.assert_allclose(C_nd.numpy(), A_np + B_np)
 
@@ -233,8 +234,8 @@ def test_inject_async_copy_barrier():
         A_np = np.random.rand(32, 128).astype(dtype)
         B_np = np.zeros((32, 128)).astype(dtype)
         dev = tvm.cuda(0)
-        A_nd = tvm.nd.array(A_np, device=dev)
-        B_nd = tvm.nd.array(B_np, device=dev)
+        A_nd = tvm.runtime.tensor(A_np, device=dev)
+        B_nd = tvm.runtime.tensor(B_np, device=dev)
         mod(A_nd, B_nd)
         tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
@@ -263,8 +264,8 @@ extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__
 extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C) {
   __shared__ float A_shared[64];
   __shared__ float B_shared[64];
-  A_shared[((int)threadIdx.x)] = 0.000000e+00f;
-  B_shared[((int)threadIdx.x)] = 0.000000e+00f;
+  A_shared[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
+  B_shared[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
 __asm__ __volatile__("cp.async.commit_group;");
 
 
@@ -393,7 +394,7 @@ def postproc_if_missing_async_support():
     # way, even though the generated code doesn't compile on platforms
     # that do not support async, the comparison against an expected
     # output can still be performed.  We cannot use
-    # `mod.get_source()`, as that contains the source after all
+    # `mod.inspect_source()`, as that contains the source after all
     # post-processing.
     original_code = None
 
@@ -401,7 +402,7 @@ def postproc_if_missing_async_support():
         nonlocal original_code
         return original_code
 
-    @tvm.register_func(func_name, override=True)
+    @tvm.register_global_func(func_name, override=True)
     def tvm_callback_cuda_postproc(code, _):
         nonlocal original_code
         original_code = code
@@ -421,9 +422,9 @@ def postproc_if_missing_async_support():
 
     # Restore previous postproc func to avoid impacting other tests
     if prev_postproc is None:
-        tvm.ffi.registry.remove_global_func(func_name)
+        tvm_ffi.registry.remove_global_func(func_name)
     else:
-        tvm.register_func(func_name, prev_postproc, override=True)
+        tvm.register_global_func(func_name, prev_postproc, override=True)
 
 
 @tvm.testing.requires_cuda

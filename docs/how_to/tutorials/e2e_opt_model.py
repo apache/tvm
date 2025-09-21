@@ -117,8 +117,8 @@ if not IS_IN_CI:
     dev = tvm.device("cuda", 0)
     vm = relax.VirtualMachine(ex, dev)
     # Need to allocate data and params on GPU device
-    gpu_data = tvm.nd.array(np.random.rand(1, 3, 224, 224).astype("float32"), dev)
-    gpu_params = [tvm.nd.array(p, dev) for p in params["main"]]
+    gpu_data = tvm.runtime.tensor(np.random.rand(1, 3, 224, 224).astype("float32"), dev)
+    gpu_params = [tvm.runtime.tensor(p, dev) for p in params["main"]]
     gpu_out = vm["main"](gpu_data, *gpu_params).numpy()
 
     print(gpu_out.shape)

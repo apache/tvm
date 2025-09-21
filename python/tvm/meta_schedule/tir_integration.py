@@ -19,10 +19,10 @@ from typing import List, Mapping, Optional, Tuple, Union
 
 # isort: off
 from typing_extensions import Literal
+from tvm_ffi import register_global_func
 
 # isort: on
 from tvm import ir, tir
-from tvm.ffi import register_func
 from tvm.target import Target
 from tvm.tir.expr import IntImm
 
@@ -161,7 +161,7 @@ def tune_tir(  # pylint: disable=too-many-locals
     )
 
 
-@register_func("tvm.meta_schedule.tune_tir")
+@register_global_func("tvm.meta_schedule.tune_tir")
 def _tune_tir(
     mod: Union[ir.IRModule, tir.PrimFunc],
     target: Union[str, Target],

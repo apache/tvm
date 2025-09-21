@@ -40,7 +40,7 @@ def verify_model(torch_model, input_info, opt_config=None):
     args = [msc_utils.random_data(i, MSCFramework.TVM) for i in input_info]
 
     def _tvm_runtime_to_np(obj):
-        if isinstance(obj, tvm.runtime.NDArray):
+        if isinstance(obj, tvm.runtime.Tensor):
             return obj.numpy()
         elif isinstance(obj, tvm.runtime.ShapeTuple):
             return np.array(obj, dtype="int64")

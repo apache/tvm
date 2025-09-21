@@ -49,20 +49,20 @@ class RewriteUtils {
    * \brief Emit call with span name.
    * \return The emitted var.
    */
-  TVM_DLL static Var ReEmit(BlockBuilder builder, const String& name, const Expr& expr);
+  TVM_DLL static Var ReEmit(BlockBuilder builder, const ffi::String& name, const Expr& expr);
 
   /*!
    * \brief Make and emit a call binding with span.
    * \return The emitted var.
    */
-  TVM_DLL static Var MakeCall(BlockBuilder builder, const String& name, Expr op, Array<Expr> args,
-                              Attrs attrs = Attrs());
+  TVM_DLL static Var MakeCall(BlockBuilder builder, const ffi::String& name, Expr op,
+                              ffi::Array<Expr> args, Attrs attrs = Attrs());
 
   /*!
    * \brief Make and emit a (shaped)constant with span.
    * \return The constant/reshape.
    */
-  TVM_DLL static Expr MakeConstant(BlockBuilder builder, const String& name, double value,
+  TVM_DLL static Expr MakeConstant(BlockBuilder builder, const ffi::String& name, double value,
                                    const DataType& dtype, size_t ndim = 0);
 };
 

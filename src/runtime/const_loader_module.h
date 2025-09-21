@@ -25,7 +25,7 @@
 #ifndef TVM_RUNTIME_CONST_LOADER_MODULE_H_
 #define TVM_RUNTIME_CONST_LOADER_MODULE_H_
 
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <string>
 #include <unordered_map>
@@ -37,14 +37,14 @@ namespace runtime {
 /*!
  * \brief Create a ConstLoader module object.
  *
- * \param const_var_ndarray Maps consts var name to NDArray containing data for the var.
+ * \param const_var_tensor Maps consts var name to Tensor containing data for the var.
  * \param const_vars_by_symbol Maps the name of a module init function to a list of names of
  * const vars whose data will be passed to that init function.
  *
  * \return The created ConstLoaderModule.
  */
-Module ConstLoaderModuleCreate(
-    const std::unordered_map<std::string, NDArray>& const_var_ndarray,
+ffi::Module ConstLoaderModuleCreate(
+    const std::unordered_map<std::string, Tensor>& const_var_tensor,
     const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol);
 
 }  // namespace runtime

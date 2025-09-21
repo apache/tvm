@@ -23,10 +23,10 @@
  */
 
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/module.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <algorithm>
 #include <functional>
@@ -51,40 +51,44 @@ using runtime::GetMetaFilePath;
 using runtime::SaveBinaryToFile;
 
 // Simulator function
-class SourceModuleNode : public runtime::ModuleNode {
+class SourceModuleNode : public ffi::ModuleObj {
  public:
   SourceModuleNode(std::string code, std::string fmt) : code_(code), fmt_(fmt) {}
-  const char* type_key() const final { return "source"; }
+  const char* kind() const final { return "source"; }
 
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
     LOG(FATAL) << "Source module cannot execute, to get executable module"
                << " build TVM with \'" << fmt_ << "\' runtime support";
-    return ffi::Function();
   }
 
-  String GetSource(const String& format) final { return code_; }
+  ffi::String InspectSource(const ffi::String& format) const final { return code_; }
 
-  String GetFormat() override { return fmt_; }
+  ffi::Array<ffi::String> GetWriteFormats() const override { return {fmt_}; }
 
  protected:
   std::string code_;
   std::string fmt_;
 };
 
-runtime::Module SourceModuleCreate(std::string code, std::string fmt) {
-  auto n = make_object<SourceModuleNode>(code, fmt);
-  return runtime::Module(n);
+ffi::Module SourceModuleCreate(std::string code, std::string fmt) {
+  auto n = ffi::make_object<SourceModuleNode>(code, fmt);
+  return ffi::Module(n);
 }
 
 // Simulator function
-class CSourceModuleNode : public runtime::ModuleNode {
+class CSourceModuleNode : public ffi::ModuleObj {
  public:
   CSourceModuleNode(const std::string& code, const std::string& fmt,
-                    const Array<String>& func_names, const Array<String>& const_vars)
-      : code_(code), fmt_(fmt), const_vars_(const_vars), func_names_(func_names) {}
-  const char* type_key() const final { return "c"; }
+                    const ffi::Array<ffi::String>& func_names,
+                    const ffi::Array<ffi::String>& const_vars)
+      : code_(code), fmt_(fmt), const_vars_(const_vars), func_names_(func_names) {
+    if (fmt_.empty()) fmt_ = "c";
+  }
 
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+  const char* kind() const final { return "c"; }
+
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
+    ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
     // Currently c-source module is used as demonstration purposes with binary metadata module
     // that expects get_symbol interface. When c-source module is used as external module, it
     // will only contain one function. However, when its used as an internal module (e.g., target
@@ -103,11 +107,14 @@ class CSourceModuleNode : public runtime::ModuleNode {
     }
   }
 
-  String GetSource(const String& format) final { return code_; }
+  ffi::String InspectSource(const ffi::String& format) const final { return code_; }
 
-  String GetFormat() override { return fmt_; }
+  ffi::Array<ffi::String> GetWriteFormats() const override { return {fmt_}; }
 
-  void SaveToBinary(dmlc::Stream* stream) final {
+  ffi::Bytes SaveToBytes() const final {
+    std::string buffer;
+    dmlc::MemoryStringStream ms(&buffer);
+    dmlc::Stream* stream = &ms;
     stream->Write(code_);
     stream->Write(fmt_);
 
@@ -117,10 +124,12 @@ class CSourceModuleNode : public runtime::ModuleNode {
     for (auto const_var : const_vars_) const_vars.push_back(const_var);
     stream->Write(func_names);
     stream->Write(const_vars);
+    return ffi::Bytes(buffer);
   }
 
-  static runtime::Module LoadFromBinary(void* strm) {
-    dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+  static ffi::Module LoadFromBytes(const ffi::Bytes& bytes) {
+    dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
+    dmlc::Stream* stream = &ms;
 
     std::string code, fmt;
     ICHECK(stream->Read(&code)) << "Loading code failed";
@@ -130,17 +139,17 @@ class CSourceModuleNode : public runtime::ModuleNode {
     CHECK(stream->Read(&tmp_func_names)) << "Loading func names failed";
     CHECK(stream->Read(&tmp_const_vars)) << "Loading const vars failed";
 
-    Array<String> func_names;
-    for (auto func_name : tmp_func_names) func_names.push_back(String(func_name));
+    ffi::Array<ffi::String> func_names;
+    for (auto func_name : tmp_func_names) func_names.push_back(ffi::String(func_name));
 
-    Array<String> const_vars;
-    for (auto const_var : tmp_const_vars) const_vars.push_back(String(const_var));
+    ffi::Array<ffi::String> const_vars;
+    for (auto const_var : tmp_const_vars) const_vars.push_back(ffi::String(const_var));
 
-    auto n = make_object<CSourceModuleNode>(code, fmt, func_names, const_vars);
-    return runtime::Module(n);
+    auto n = ffi::make_object<CSourceModuleNode>(code, fmt, func_names, const_vars);
+    return ffi::Module(n);
   }
 
-  void SaveToFile(const String& file_name, const String& format) final {
+  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
     if (fmt == "c" || fmt == "cc" || fmt == "cpp" || fmt == "cu") {
@@ -152,33 +161,32 @@ class CSourceModuleNode : public runtime::ModuleNode {
   }
 
   int GetPropertyMask() const override {
-    return runtime::ModulePropertyMask::kBinarySerializable |
-           runtime::ModulePropertyMask::kDSOExportable;
+    return ffi::Module::kBinarySerializable | ffi::Module::kCompilationExportable;
   }
 
-  bool ImplementsFunction(const String& name, bool query_imports) final {
+  bool ImplementsFunction(const ffi::String& name) final {
     return std::find(func_names_.begin(), func_names_.end(), name) != func_names_.end();
   }
 
  protected:
   std::string code_;
   std::string fmt_;
-  Array<String> const_vars_;
-  Array<String> func_names_;
+  ffi::Array<ffi::String> const_vars_;
+  ffi::Array<ffi::String> func_names_;
 };
 
-runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
-                                    const Array<String>& func_names,
-                                    const Array<String>& const_vars) {
-  auto n = make_object<CSourceModuleNode>(code.operator std::string(), fmt.operator std::string(),
-                                          func_names, const_vars);
-  return runtime::Module(n);
+ffi::Module CSourceModuleCreate(const ffi::String& code, const ffi::String& fmt,
+                                const ffi::Array<ffi::String>& func_names,
+                                const ffi::Array<ffi::String>& const_vars) {
+  auto n = ffi::make_object<CSourceModuleNode>(code.operator std::string(),
+                                               fmt.operator std::string(), func_names, const_vars);
+  return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.module.loadbinary_c", CSourceModuleNode::LoadFromBinary);
-});
+  refl::GlobalDef().def("ffi.Module.load_from_bytes.c", CSourceModuleNode::LoadFromBytes);
+}
 
 /*!
  * \brief A concrete class to get access to base methods of CodegenSourceBase.
@@ -197,20 +205,19 @@ class ConcreteCodegenSourceBase : public CodeGenSourceBase {
 };
 
 // supports limited save without cross compile
-class DeviceSourceModuleNode final : public runtime::ModuleNode {
+class DeviceSourceModuleNode final : public ffi::ModuleObj {
  public:
   DeviceSourceModuleNode(std::string data, std::string fmt,
                          std::unordered_map<std::string, FunctionInfo> fmap, std::string type_key,
                          std::function<std::string(const std::string&)> fget_source)
       : data_(data), fmt_(fmt), fmap_(fmap), type_key_(type_key), fget_source_(fget_source) {}
 
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
     LOG(FATAL) << "Source module cannot execute, to get executable module"
                << " build TVM with \'" << fmt_ << "\' runtime support";
-    return ffi::Function();
   }
 
-  String GetSource(const String& format) final {
+  ffi::String InspectSource(const ffi::String& format) const final {
     if (fget_source_ != nullptr) {
       return fget_source_(format);
     } else {
@@ -218,11 +225,11 @@ class DeviceSourceModuleNode final : public runtime::ModuleNode {
     }
   }
 
-  const char* type_key() const final { return type_key_.c_str(); }
+  const char* kind() const final { return type_key_.c_str(); }
   /*! \brief Get the property of the runtime module .*/
-  int GetPropertyMask() const final { return runtime::ModulePropertyMask::kBinarySerializable; }
+  int GetPropertyMask() const final { return ffi::Module::kBinarySerializable; }
 
-  void SaveToFile(const String& file_name, const String& format) final {
+  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final {
     std::string fmt = GetFileFormat(file_name, format);
     ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     std::string meta_file = GetMetaFilePath(file_name);
@@ -230,10 +237,14 @@ class DeviceSourceModuleNode final : public runtime::ModuleNode {
     SaveBinaryToFile(file_name, data_);
   }
 
-  void SaveToBinary(dmlc::Stream* stream) final {
+  ffi::Bytes SaveToBytes() const final {
+    std::string buffer;
+    dmlc::MemoryStringStream ms(&buffer);
+    dmlc::Stream* stream = &ms;
     stream->Write(fmt_);
     stream->Write(fmap_);
     stream->Write(data_);
+    return ffi::Bytes(buffer);
   }
 
  private:
@@ -244,23 +255,24 @@ class DeviceSourceModuleNode final : public runtime::ModuleNode {
   std::function<std::string(const std::string&)> fget_source_;
 };
 
-runtime::Module DeviceSourceModuleCreate(
-    std::string data, std::string fmt, std::unordered_map<std::string, FunctionInfo> fmap,
-    std::string type_key, std::function<std::string(const std::string&)> fget_source) {
-  auto n = make_object<DeviceSourceModuleNode>(data, fmt, fmap, type_key, fget_source);
-  return runtime::Module(n);
+ffi::Module DeviceSourceModuleCreate(std::string data, std::string fmt,
+                                     std::unordered_map<std::string, FunctionInfo> fmap,
+                                     std::string type_key,
+                                     std::function<std::string(const std::string&)> fget_source) {
+  auto n = ffi::make_object<DeviceSourceModuleNode>(data, fmt, fmap, type_key, fget_source);
+  return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.SourceModuleCreate", SourceModuleCreate)
-      .def("runtime.CSourceModuleCreate", [](String code, String fmt,
-                                             Optional<Array<String>> func_names,
-                                             Optional<Array<String>> const_vars) {
+      .def("runtime.CSourceModuleCreate", [](ffi::String code, ffi::String fmt,
+                                             ffi::Optional<ffi::Array<ffi::String>> func_names,
+                                             ffi::Optional<ffi::Array<ffi::String>> const_vars) {
         return CSourceModuleCreate(code, fmt, func_names.value_or({}), const_vars.value_or({}));
       });
-});
+}
 
 }  // namespace codegen
 }  // namespace tvm

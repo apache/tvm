@@ -101,7 +101,7 @@ class CUDAIPCMemoryAllocator final : public memory::PooledAllocator {
         dev, barrier_ptr_size, alignment, DataType::UInt(32), /*reset_memory_to_zero=*/true);
 
     // Create the CUDAIPCMemory object.
-    ObjectPtr<CUDAIPCMemoryObj> ipc_memory = make_object<CUDAIPCMemoryObj>();
+    ObjectPtr<CUDAIPCMemoryObj> ipc_memory = ffi::make_object<CUDAIPCMemoryObj>();
     nccl::CCLThreadLocalContext* nccl_ctx = nccl::CCLThreadLocalContext::Get();
     ipc_memory->remote_data = data_comm_ptrs;
     ipc_memory->barrier_in = barrier_in_comm_ptrs;
@@ -202,7 +202,7 @@ class CUDAIPCMemoryAllocator final : public memory::PooledAllocator {
  * \return The allocated storage object with internal CUDA IPC memory buffer.
  */
 memory::Storage IPCAllocStorage(ffi::Shape buffer_shape, DLDataType dtype_hint) {
-  auto storage_obj = ffi::SimpleObjAllocator().make_object<memory::StorageObj>();
+  auto storage_obj = ffi::make_object<memory::StorageObj>();
   nccl::CCLThreadLocalContext* nccl_ctx = nccl::CCLThreadLocalContext::Get();
   Device device{DLDeviceType::kDLCUDA, nccl_ctx->device_id};
   CUDAIPCMemoryAllocator* allocator = CUDAIPCMemoryAllocator::Global();
@@ -213,13 +213,13 @@ memory::Storage IPCAllocStorage(ffi::Shape buffer_shape, DLDataType dtype_hint) 
   return storage;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.disco.cuda_ipc.alloc_storage", IPCAllocStorage)
       .def("runtime.disco.cuda_ipc.cuda_ipc_memory_allocator_clear",
            []() { CUDAIPCMemoryAllocator::Global()->Clear(); });
-});
+}
 
 /******************** CUDAIPCMemoryObj ********************/
 

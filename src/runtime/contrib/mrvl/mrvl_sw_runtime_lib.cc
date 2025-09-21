@@ -26,7 +26,7 @@
 
 #include <assert.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <fstream>
 #include <vector>
@@ -36,7 +36,7 @@
 using namespace tvm::runtime;
 
 template <typename T>
-static void NDArrayToFile(const tvm::runtime::NDArray& arr, std::ostream& os) {
+static void TensorToFile(const tvm::runtime::Tensor& arr, std::ostream& os) {
   int ndim = arr->ndim;
   int tot_dim = 1;
   for (int i = 0; i < ndim; i++) {
@@ -70,8 +70,8 @@ static void ReadInputsAndGenerateInputBin(ffi::PackedArgs args, const std::strin
   file_out << R"(    "inputs": [)" << std::endl;
   for (size_t i = 0; i < num_inputs; ++i) {
     const DLTensor* tensor;
-    if (args[i].IsObjectRef<NDArray>()) {
-      NDArray arr = args[i];
+    if (args[i].IsObjectRef<Tensor>()) {
+      Tensor arr = args[i];
       tensor = arr.operator->();
     } else {
       tensor = args[i].cast<DLTensor*>();
@@ -80,9 +80,9 @@ static void ReadInputsAndGenerateInputBin(ffi::PackedArgs args, const std::strin
     for (int64_t i = 0; i < tensor->ndim; i++) {
       shape.push_back(tensor->shape[i]);
     }
-    NDArray arr = NDArray::Empty(shape, tensor->dtype, tensor->device);
+    Tensor arr = Tensor::Empty(shape, tensor->dtype, tensor->device);
     arr.CopyFrom(tensor);
-    NDArrayToFile<float>(arr, file_out);
+    TensorToFile<float>(arr, file_out);
     if (i != num_inputs - 1) {
       file_out << std::endl << "\t," << std::endl;
     }
@@ -108,8 +108,8 @@ static void ReadOutputsAndUpdateRuntime(ffi::PackedArgs args, size_t num_inputs,
                                         const std::string& out_bin_prefix) {
   for (int out = num_inputs; out < args.size(); out++) {
     const DLTensor* outTensor;
-    if (args[out].IsObjectRef<NDArray>()) {
-      NDArray arr = args[out];
+    if (args[out].IsObjectRef<Tensor>()) {
+      Tensor arr = args[out];
       outTensor = arr.operator->();
     } else {
       outTensor = args[out].operator DLTensor*();
@@ -118,7 +118,7 @@ static void ReadOutputsAndUpdateRuntime(ffi::PackedArgs args, size_t num_inputs,
     for (int64_t i = 0; i < outTensor->ndim; i++) {
       shape.push_back(outTensor->shape[i]);
     }
-    NDArray arr = NDArray::Empty(shape, outTensor->dtype, outTensor->device);
+    Tensor arr = Tensor::Empty(shape, outTensor->dtype, outTensor->device);
     int ndim = arr->ndim;
     int tot_dim = 1;
     for (int i = 0; i < ndim; i++) {
@@ -126,7 +126,7 @@ static void ReadOutputsAndUpdateRuntime(ffi::PackedArgs args, size_t num_inputs,
     }
     float f;
     float* data = new float[tot_dim]();
-    String outbin = out_bin_prefix + "-" + std::to_string(out - num_inputs) + ".bin";
+    ffi::String outbin = out_bin_prefix + "-" + std::to_string(out - num_inputs) + ".bin";
     std::ifstream fin(outbin, std::ios::binary);
     ICHECK(fin.is_open()) << "Cannot open file: " << outbin;
     int i = 0;

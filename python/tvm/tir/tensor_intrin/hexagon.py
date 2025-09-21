@@ -107,7 +107,6 @@ def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
 
             C[T.ramp(T.int32(0), 1, 32)] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyub.acc.128B"),
-                T.uint32(3),
                 C[T.ramp(T.int32(0), 1, 32)],
                 B_i32x32,
                 A_i32,
@@ -149,7 +148,6 @@ def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
 
             C[T.ramp(T.int32(0), 1, 32)] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpybusv.acc.128B"),
-                T.uint32(3),
                 C[T.ramp(T.int32(0), 1, 32)],
                 T.broadcast(A_i32, 32),
                 B_i32x32,
@@ -191,7 +189,6 @@ def generate_dot_product_32x2_i16i16i32(mem_scope="global"):
 
             C[T.ramp(T.int32(0), 1, 32)] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vdmpyhvsat.acc.128B"),
-                T.uint32(3),
                 C[T.ramp(T.int32(0), 1, 32)],
                 T.Broadcast(A_i32, 32),
                 B_i32x32,

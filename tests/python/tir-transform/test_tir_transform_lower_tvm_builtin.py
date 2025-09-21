@@ -26,7 +26,7 @@ import numpy as np
 from tvm.tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 
 
-@tvm.register_func("tvm.test_matmul")
+@tvm.register_global_func("tvm.test_matmul")
 def my_matmul(a, b, c):
     c.copyfrom(np.dot(a.numpy(), b.numpy()))
 
@@ -143,7 +143,7 @@ def test_call_packed_return_non_i32():
 
     mod = build_tir()
     f = tvm.compile(mod, None)
-    a = tvm.nd.array(np.zeros(2, dtype="float32"))
+    a = tvm.runtime.tensor(np.zeros(2, dtype="float32"))
     f(a)
     tvm.testing.assert_allclose(a.numpy(), expected_value)
 

@@ -144,7 +144,7 @@ const tvm::ffi::Function get_runtime_func(const std::string& name) {
 }
 
 const tvm::ffi::Function get_module_func(tvm::runtime::Module module, const std::string& name) {
-  return module.GetFunction(name, false);
+  return module->GetFunction(name, false).value_or(tvm::ffi::Function());
 }
 
 void reset_device_api() {
@@ -153,7 +153,7 @@ void reset_device_api() {
 }
 
 tvm::runtime::Module load_module(const std::string& file_name) {
-  static const tvm::ffi::Function loader = get_runtime_func("runtime.module.loadfile_hexagon");
+  static const tvm::ffi::Function loader = get_runtime_func("ffi.Module.load_from_file.hexagon");
   tvm::ffi::Any rv = loader(file_name);
   if (rv.type_code() == kTVMModuleHandle) {
     ICHECK_EQ(rv.type_code(), kTVMModuleHandle)
@@ -163,7 +163,7 @@ tvm::runtime::Module load_module(const std::string& file_name) {
   return tvm::runtime::Module();
 }
 
-std::ostream& operator<<(std::ostream& os, const tvm::Array<tvm::String>& strings) {
+std::ostream& operator<<(std::ostream& os, const tvm::ffi::Array<tvm::ffi::String>& strings) {
   os << '[';
   for (int i = 0, e = strings.size(); i != e; ++i) {
     if (i != 0) os << ',';
@@ -191,7 +191,7 @@ tvm::runtime::Module create_graph_executor(const std::string& graph_json,
 
 tvm::runtime::Module create_aot_executor(tvm::runtime::Module factory_module, tvm::Device device) {
   tvm::ffi::Function list_modules = get_module_func(factory_module, "list_module_names");
-  tvm::Array<tvm::String> module_names = list_modules();
+  tvm::ffi::Array<tvm::ffi::String> module_names = list_modules();
   if (module_names.size() != 1) {
     LOG(WARNING) << __func__ << ": expecting single module, got: " << module_names << ", using "
                  << module_names[0];

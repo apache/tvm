@@ -99,14 +99,14 @@ class LayoutAxis {
 class LayoutNode : public Object {
  public:
   /*! \brief string representation of layout, "" for scalar. */
-  String name;
+  ffi::String name;
   /*! \brief specify each axis of the layout,
    *   in which the variable name is the name of the axis.
    *   The IterVar's extent indicates the size of the axis,
    *   it is a variable for a primal axis, but a constant for a subordinate axis.
    *   Empty for scalar's layout.
    */
-  Array<tir::IterVar> axes;
+  ffi::Array<tir::IterVar> axes;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -114,9 +114,7 @@ class LayoutNode : public Object {
         .def_ro("name", &LayoutNode::name)
         .def_ro("axes", &LayoutNode::axes);
   }
-
-  static constexpr const char* _type_key = "tir.Layout";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LayoutNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Layout", LayoutNode, Object);
 };
 
 /*!
@@ -125,10 +123,10 @@ class LayoutNode : public Object {
  */
 class Layout : public ObjectRef {
  public:
-  explicit Layout(const Array<tir::IterVar>& axes);
+  explicit Layout(const ffi::Array<tir::IterVar>& axes);
 
   /*! \brief construct from a string */
-  Layout(const tvm::String& name) : Layout(name.operator std::string()) {}  // NOLINT(*)
+  Layout(const tvm::ffi::String& name) : Layout(name.operator std::string()) {}  // NOLINT(*)
 
   /*! \brief construct from a string */
   Layout(const char* name) : Layout(std::string(name)) {}  // NOLINT(*)
@@ -291,7 +289,7 @@ class Layout : public ObjectRef {
     return os;
   }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Layout, ObjectRef, LayoutNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Layout, ObjectRef, LayoutNode);
 };
 
 // Internal node container BijectiveLayout
@@ -300,13 +298,13 @@ class BijectiveLayoutNode : public Object {
   /*! \brief Describes how source axes can be mapped to the destination axes,
    *   e.g., [i0 / 16, i1, i0 % 16] can describe NC -> NC16n
    */
-  Array<PrimExpr> index_forward_rule;
+  ffi::Array<PrimExpr> index_forward_rule;
   /*! \brief Describes how destination axes can be mapped to the source axes */
-  Array<PrimExpr> index_backward_rule;
+  ffi::Array<PrimExpr> index_backward_rule;
   /*! \brief Describes how source shapes can be mapped to the destination shapes */
-  Array<PrimExpr> shape_forward_rule;
+  ffi::Array<PrimExpr> shape_forward_rule;
   /*! \brief Describes how destination shapes can be mapped to the source shapes */
-  Array<PrimExpr> shape_backward_rule;
+  ffi::Array<PrimExpr> shape_backward_rule;
 
   /*! \brief The source layout */
   Layout src_layout;
@@ -323,9 +321,7 @@ class BijectiveLayoutNode : public Object {
         .def_ro("shape_forward_rule", &BijectiveLayoutNode::shape_forward_rule)
         .def_ro("shape_backward_rule", &BijectiveLayoutNode::shape_backward_rule);
   }
-
-  static constexpr const char* _type_key = "tir.BijectiveLayout";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BijectiveLayoutNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BijectiveLayout", BijectiveLayoutNode, Object);
 };
 
 /*!
@@ -344,15 +340,15 @@ class BijectiveLayout : public ObjectRef {
   TVM_DLL BijectiveLayout(Layout src_layout, Layout dst_layout);
 
   // Given the source shape, infer the destination shape.
-  TVM_DLL Array<PrimExpr> ForwardShape(const Array<PrimExpr>& shape) const;
+  TVM_DLL ffi::Array<PrimExpr> ForwardShape(const ffi::Array<PrimExpr>& shape) const;
   // Given the destination shape, recover the source shape.
-  TVM_DLL Array<PrimExpr> BackwardShape(const Array<PrimExpr>& dst_shape) const;
+  TVM_DLL ffi::Array<PrimExpr> BackwardShape(const ffi::Array<PrimExpr>& dst_shape) const;
   // Given the destination indices, infer the destination indices.
-  TVM_DLL Array<PrimExpr> ForwardIndex(const Array<PrimExpr>& index) const;
+  TVM_DLL ffi::Array<PrimExpr> ForwardIndex(const ffi::Array<PrimExpr>& index) const;
   // Given the destination indices, recover the source indices.
-  TVM_DLL Array<PrimExpr> BackwardIndex(const Array<PrimExpr>& dst_index) const;
+  TVM_DLL ffi::Array<PrimExpr> BackwardIndex(const ffi::Array<PrimExpr>& dst_index) const;
 
-  TVM_DEFINE_OBJECT_REF_METHODS(BijectiveLayout, ObjectRef, BijectiveLayoutNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BijectiveLayout, ObjectRef, BijectiveLayoutNode);
 };
 
 }  // namespace tir

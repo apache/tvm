@@ -29,6 +29,7 @@
 #define TVM_FFI_ALWAYS_LOG_BEFORE_THROW 1
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
+#include <dmlc/memory_io.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
@@ -117,10 +118,6 @@ class WebGPUDeviceAPI : public DeviceAPI {
     (*func)();
   }
 
-  void SetStream(Device dev, TVMStreamHandle stream) final { LOG(FATAL) << "Not implemented"; }
-
-  TVMStreamHandle GetCurrentStream(Device dev) final { LOG(FATAL) << "Not implemented"; }
-
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
     return WebGPUThreadEntry::ThreadLocal()->pool.AllocWorkspace(dev, size);
   }
@@ -156,7 +153,7 @@ WebGPUThreadEntry* WebGPUThreadEntry::ThreadLocal() {
   return &inst;
 }
 
-class WebGPUModuleNode final : public runtime::ModuleNode {
+class WebGPUModuleNode final : public ffi::ModuleObj {
  public:
   explicit WebGPUModuleNode(std::unordered_map<std::string, std::string> smap,
                             std::unordered_map<std::string, FunctionInfo> fmap)
@@ -166,9 +163,9 @@ class WebGPUModuleNode final : public runtime::ModuleNode {
     create_shader_ = *fp;
   }
 
-  const char* type_key() const final { return "webgpu"; }
+  const char* kind() const final { return "webgpu"; }
 
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
     // special function
     if (name == "webgpu.get_fmap") {
       return ffi::Function([this](ffi::PackedArgs args, ffi::Any* rv) {
@@ -206,15 +203,15 @@ class WebGPUModuleNode final : public runtime::ModuleNode {
       info.Save(&writer);
       return create_shader_(os.str(), it->second);
     } else {
-      return ffi::Function(nullptr);
+      return std::nullopt;
     }
   }
 
-  int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; };
+  int GetPropertyMask() const final { return ffi::Module::kBinarySerializable; };
 
-  void SaveToBinary(dmlc::Stream* stream) final { LOG(FATAL) << "Not implemented"; }
+  ffi::Bytes SaveToBytes() const final { LOG(FATAL) << "Not implemented"; }
 
-  String GetSource(const String& format) final {
+  ffi::String InspectSource(const ffi::String& format) const final {
     // can only return source code.
     return source_;
   }
@@ -232,26 +229,27 @@ class WebGPUModuleNode final : public runtime::ModuleNode {
   ffi::TypedFunction<ffi::Function(std::string finfo, std::string shader)> create_shader_;
 };
 
-Module WebGPUModuleLoadBinary(void* strm) {
-  dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+ffi::Module WebGPUModuleLoadFromBytes(const ffi::Bytes& bytes) {
+  dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
+  dmlc::Stream* stream = &ms;
   std::unordered_map<std::string, std::string> smap;
   std::unordered_map<std::string, FunctionInfo> fmap;
 
   stream->Read(&fmap);
   stream->Read(&smap);
-  return Module(make_object<WebGPUModuleNode>(smap, fmap));
+  return ffi::Module(ffi::make_object<WebGPUModuleNode>(smap, fmap));
 }
 
 // for now webgpu is hosted via a vulkan module.
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.module.loadbinary_webgpu", WebGPUModuleLoadBinary)
+      .def("ffi.Module.load_from_bytes.webgpu", WebGPUModuleLoadFromBytes)
       .def_packed("device_api.webgpu", [](ffi::PackedArgs args, ffi::Any* rv) {
         DeviceAPI* ptr = WebGPUDeviceAPI::Global();
         *rv = static_cast<void*>(ptr);
       });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

@@ -21,7 +21,6 @@ import inspect
 from numbers import Integral as _Integral
 from typing import List, Optional, Union
 
-import tvm.ffi
 import tvm.arith._ffi_api
 import tvm.tir
 import tvm.tir._ffi_api
@@ -453,7 +452,7 @@ def const(value, dtype="int32", span=None):
 
     Parameters
     ----------
-    value : Union[bool, int, float, numpy.ndarray, tvm.nd.NDArray]
+    value : Union[bool, int, float, numpy.ndarray, tvm.runtime.Tensor]
         The constant value.
 
     dtype : str

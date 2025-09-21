@@ -27,7 +27,7 @@ def test_min_repeat_ms():
     tmp = tempdir()
     filename = tmp.relpath("log")
 
-    @tvm.register_func
+    @tvm.register_global_func
     def my_debug(filename):
         """one call lasts for 100 ms and writes one character to a file"""
         time.sleep(0.1)
@@ -37,7 +37,7 @@ def test_min_repeat_ms():
     X = te.compute((), lambda: tvm.tir.call_packed("my_debug", filename))
     func = tvm.tir.build(te.create_prim_func([X]))
 
-    x = tvm.nd.empty((), dtype="int32")
+    x = tvm.runtime.empty((), dtype="int32")
     ftimer = func.time_evaluator(func.entry_name, tvm.cpu(), number=1, repeat=1)
     ftimer(x)
 

@@ -31,7 +31,7 @@ namespace relax {
 
 /*! \brief Attributes for statistical operators */
 struct StatisticalAttrs : public AttrsNodeReflAdapter<StatisticalAttrs> {
-  Optional<Array<Integer>> axis;
+  ffi::Optional<ffi::Array<Integer>> axis;
   bool keepdims;
 
   static void RegisterReflection() {
@@ -44,14 +44,13 @@ struct StatisticalAttrs : public AttrsNodeReflAdapter<StatisticalAttrs> {
                 "with size "
                 "one.");
   }
-
-  static constexpr const char* _type_key = "relax.attrs.StatisticalAttrs";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(StatisticalAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.StatisticalAttrs", StatisticalAttrs,
+                                    BaseAttrsNode);
 };  // struct StatisticalAttrs
 
 /*! \brief Attributes used in scan operators like cumsum, cumprod */
 struct ScanopAttrs : public AttrsNodeReflAdapter<ScanopAttrs> {
-  Optional<int64_t> axis;
+  ffi::Optional<int64_t> axis;
   DataType dtype;
   Bool exclusive = Bool(false);
 
@@ -67,9 +66,7 @@ struct ScanopAttrs : public AttrsNodeReflAdapter<ScanopAttrs> {
         .def_ro("exclusive", &ScanopAttrs::exclusive, "The first element is not included",
                 refl::DefaultValue(Bool(false)));
   }
-
-  static constexpr const char* _type_key = "relax.attrs.ScanopAttrs";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(ScanopAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScanopAttrs", ScanopAttrs, BaseAttrsNode);
 };  // struct ScanopAttrs
 
 }  // namespace relax

@@ -72,7 +72,7 @@ inline Tensor reorg(const Tensor& data, int stride = 1, std::string name = "tens
   int out_h = h_in / stride;
   int out_w = w_in / stride;
 
-  Array<PrimExpr> out_shape = {batch, out_c, out_h, out_w};
+  ffi::Array<PrimExpr> out_shape = {batch, out_c, out_h, out_w};
   return reshape(out, out_shape);
 }
 }  // namespace vision

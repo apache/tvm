@@ -21,6 +21,7 @@ import logging
 import os
 from typing import Dict, List, Set, Tuple
 import tvm
+import tvm_ffi
 from tvm.ir.module import IRModule
 from tvm.relax.expr import Call, DataflowBlock, Var
 from tvm.runtime.object import Object
@@ -70,7 +71,7 @@ def dataflow_alias_analysis(
     return res_alias_sets, res_tuple_map  # type: ignore
 
 
-@tvm.ffi.register_object("relax.transform.InplaceOpportunity")
+@tvm_ffi.register_object("relax.transform.InplaceOpportunity")
 class InplaceOpportunity(Object):
     """
     Represents an opportunity to make a binding in-place. Exposed only for testing;

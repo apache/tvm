@@ -19,7 +19,7 @@
 from enum import IntEnum
 from typing import Optional, Union, List
 import tvm
-from tvm.runtime import Object
+import tvm_ffi
 from tvm.runtime.container import ShapeTuple
 from .vm_build import VMExecutable
 from . import _ffi_api
@@ -56,8 +56,8 @@ class VMFuncScope(object):
         self.exit_callback()
 
 
-@tvm.ffi.register_object("relax.ExecBuilder")
-class ExecBuilder(Object):
+@tvm_ffi.register_object("relax.ExecBuilder")
+class ExecBuilder(tvm_ffi.core.Object):
     """A builder to emit instructions and build executable for the virtual machine."""
 
     def __init__(self) -> None:
@@ -106,7 +106,7 @@ class ExecBuilder(Object):
     def emit_call(
         self,
         name: str,
-        args: Optional[List[Union[tvm.nd.NDArray, tvm.DataType]]] = None,
+        args: Optional[List[Union[tvm.runtime.Tensor, tvm.DataType]]] = None,
         dst: int = None,
     ) -> None:
         """emit a call instruction which calls a packed function."""
@@ -120,7 +120,7 @@ class ExecBuilder(Object):
                     shape_tuple = ShapeTuple(arg)
                     new_arg = self.convert_constant(shape_tuple)
                     args_.append(new_arg)
-                elif isinstance(arg, (tvm.nd.NDArray, tvm.DataType, ShapeTuple)):
+                elif isinstance(arg, (tvm.runtime.Tensor, tvm.DataType, ShapeTuple)):
                     new_arg = self.convert_constant(arg)
                     args_.append(new_arg)
                 else:

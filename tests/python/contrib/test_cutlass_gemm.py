@@ -24,7 +24,7 @@ import tvm.testing
 from tvm.contrib.pickle_memoize import memoize
 
 
-def get_random_ndarray(shape, dtype):
+def get_random_tensor(shape, dtype):
     if dtype == "int8":
         return np.random.randint(-128, 128, shape).astype(dtype)
     elif dtype == "uint8":
@@ -44,8 +44,8 @@ def verify_group_gemm(
     def get_ref_data():
         assert M % num_groups == 0
         M_per_group = M // num_groups
-        a_np = get_random_ndarray((M, K), x_dtype)
-        b_np = get_random_ndarray((num_groups, N, K), weight_dtype)
+        a_np = get_random_tensor((M, K), x_dtype)
+        b_np = get_random_tensor((num_groups, N, K), weight_dtype)
         indptr_np = np.arange(1, num_groups + 1).astype("int64") * M_per_group
         c_np = np.concatenate(
             [a_np[i * M_per_group : (i + 1) * M_per_group] @ b_np[i].T for i in range(num_groups)],
@@ -59,13 +59,13 @@ def verify_group_gemm(
 
     a_np, b_np, indptr_np, c_np = get_ref_data()
     dev = tvm.cuda(0)
-    a_nd = tvm.nd.array(a_np.astype(to_numpy_dtype(x_dtype)), device=dev)
-    b_nd = tvm.nd.array(b_np.astype(to_numpy_dtype(weight_dtype)), device=dev)
-    c_nd = tvm.nd.empty(c_np.shape, dtype=out_dtype, device=dev)
-    indptr_nd = tvm.nd.array(indptr_np, device=dev)
-    workspace = tvm.nd.empty((4096 * 1024,), dtype="uint8", device=dev)
+    a_nd = tvm.runtime.tensor(a_np.astype(to_numpy_dtype(x_dtype)), device=dev)
+    b_nd = tvm.runtime.tensor(b_np.astype(to_numpy_dtype(weight_dtype)), device=dev)
+    c_nd = tvm.runtime.empty(c_np.shape, dtype=out_dtype, device=dev)
+    indptr_nd = tvm.runtime.tensor(indptr_np, device=dev)
+    workspace = tvm.runtime.empty((4096 * 1024,), dtype="uint8", device=dev)
     if use_scale:
-        scale = tvm.nd.array(np.array([1.0], dtype="float32"), device=dev)
+        scale = tvm.runtime.tensor(np.array([1.0], dtype="float32"), device=dev)
         group_gemm_func(a_nd, b_nd, indptr_nd, workspace, scale, c_nd)
     else:
         group_gemm_func(a_nd, b_nd, indptr_nd, workspace, c_nd)
@@ -319,12 +319,12 @@ def test_fp8_e4m3_groupwise_scaled_gemm():
     x_np, x_scale_np = rowwise_quant_fp8_e4m3((M, K), block_size, dtype)
     w_np, w_scale_np = blockwise_quant_fp8_e4m3((N, K), block_size, dtype)
     o_np = blockwise_matmul(x_np, x_scale_np, w_np, w_scale_np, block_size, dtype)
-    x_tvm = tvm.nd.array(x_np, device=device)
-    x_scale_tvm = tvm.nd.array(x_scale_np.T, device=device)
-    w_tvm = tvm.nd.array(w_np, device=device)
-    w_scale_tvm = tvm.nd.array(w_scale_np, device=device)
-    workspace = tvm.nd.empty((4096 * 1024,), dtype="uint8", device=device)
-    o_tvm = tvm.nd.empty((M, N), dtype=dtype, device=device)
+    x_tvm = tvm.runtime.tensor(x_np, device=device)
+    x_scale_tvm = tvm.runtime.tensor(x_scale_np.T, device=device)
+    w_tvm = tvm.runtime.tensor(w_np, device=device)
+    w_scale_tvm = tvm.runtime.tensor(w_scale_np, device=device)
+    workspace = tvm.runtime.empty((4096 * 1024,), dtype="uint8", device=device)
+    o_tvm = tvm.runtime.empty((M, N), dtype=dtype, device=device)
     gemm_func(
         x_tvm, w_tvm, x_scale_tvm, w_scale_tvm, workspace, block_size[0], block_size[1], o_tvm
     )
@@ -353,12 +353,12 @@ def test_fp8_e4m3_groupwise_scaled_bmm():
     x_np, x_scale_np = rowwise_quant_fp8_e4m3((B, M, K), block_size, dtype)
     w_np, w_scale_np = blockwise_quant_fp8_e4m3((B, N, K), block_size, dtype)
     o_np = blockwise_bmm(x_np, x_scale_np, w_np, w_scale_np, block_size, dtype)
-    x_tvm = tvm.nd.array(x_np, device=device)
-    x_scale_tvm = tvm.nd.array(x_scale_np.transpose(0, 2, 1), device=device)
-    w_tvm = tvm.nd.array(w_np, device=device)
-    w_scale_tvm = tvm.nd.array(w_scale_np, device=device)
-    workspace = tvm.nd.empty((4096 * 1024,), dtype="uint8", device=device)
-    o_tvm = tvm.nd.empty((B, M, N), dtype=dtype, device=device)
+    x_tvm = tvm.runtime.tensor(x_np, device=device)
+    x_scale_tvm = tvm.runtime.tensor(x_scale_np.transpose(0, 2, 1), device=device)
+    w_tvm = tvm.runtime.tensor(w_np, device=device)
+    w_scale_tvm = tvm.runtime.tensor(w_scale_np, device=device)
+    workspace = tvm.runtime.empty((4096 * 1024,), dtype="uint8", device=device)
+    o_tvm = tvm.runtime.empty((B, M, N), dtype=dtype, device=device)
     gemm_func(
         x_tvm, w_tvm, x_scale_tvm, w_scale_tvm, workspace, block_size[0], block_size[1], o_tvm
     )

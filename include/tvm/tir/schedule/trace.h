@@ -37,8 +37,8 @@ class Trace;
  * \return A new decision
  */
 using FTraceDecisionProvider =
-    ffi::TypedFunction<Any(const Instruction& inst, const Array<Any>& inputs,
-                           const Array<Any>& attrs, const Any& decision)>;
+    ffi::TypedFunction<Any(const Instruction& inst, const ffi::Array<Any>& inputs,
+                           const ffi::Array<Any>& attrs, const Any& decision)>;
 
 /*!
  * \brief An execution trace of a scheduling program
@@ -58,9 +58,9 @@ using FTraceDecisionProvider =
 class TraceNode : public runtime::Object {
  public:
   /*! \brief The instructions invoked so far in the program execution */
-  Array<Instruction> insts;
+  ffi::Array<Instruction> insts;
   /*! \brief The random decisions made upon those instructions */
-  Map<Instruction, Any> decisions;
+  ffi::Map<Instruction, Any> decisions;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -69,8 +69,8 @@ class TraceNode : public runtime::Object {
         .def_ro("decisions", &TraceNode::decisions);
   }
 
-  static constexpr const char* _type_key = "tir.Trace";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TraceNode, runtime::Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Trace", TraceNode, runtime::Object);
 
  public:
   /*!
@@ -89,14 +89,14 @@ class TraceNode : public runtime::Object {
    * \param inst The new instruction to be appended
    * \param decision The random decision made on this instruction
    * The type of `decision` depends on the instruction, e.g.
-   * the decision of `SamplePerfectTile` has type `Array<IntImm>`
+   * the decision of `SamplePerfectTile` has type `ffi::Array<IntImm>`
    */
   void Append(Instruction inst, Any decision);
   /*!
    * \brief Remove the last instruction, along with the decision made on that instruction, if any
    * \return The instruction removed; std::nullopt if the trace is empty
    */
-  Optional<Instruction> Pop();
+  ffi::Optional<Instruction> Pop();
   /*!
    * \brief Apply the trace to a TensorIR schedule
    * \param sch The schedule to be applied onto
@@ -118,7 +118,7 @@ class TraceNode : public runtime::Object {
    * \param remove_postproc If postprocessing instructions are removed
    * \return A sequence of python statements
    */
-  Array<String> AsPython(bool remove_postproc) const;
+  ffi::Array<ffi::String> AsPython(bool remove_postproc) const;
   /*!
    * \brief Create a new trace with an instruction whose decision is changed,
    * assuming this instruction exists in the resulting trace
@@ -149,7 +149,7 @@ class Trace : public runtime::ObjectRef {
    * \param insts The instructions used
    * \param decisions The decisions made in sampling
    */
-  explicit Trace(Array<Instruction> insts, Map<Instruction, Any> decisions);
+  explicit Trace(ffi::Array<Instruction> insts, ffi::Map<Instruction, Any> decisions);
   /*!
    * \brief Apply a JSON-serialized trace to a TensorIR schedule
    * \param json The JSON-serialized trace
@@ -157,7 +157,7 @@ class Trace : public runtime::ObjectRef {
    */
   static void ApplyJSONToSchedule(ObjectRef json, Schedule sch);
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Trace, runtime::ObjectRef, TraceNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Trace, runtime::ObjectRef, TraceNode);
 };
 
 }  // namespace tir
