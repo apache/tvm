@@ -159,7 +159,7 @@ def quantize_fp8(x, scale_shape, tile_shape, scale_major_mode):
 
 
 def dequantize_fp8(x, x_scale, scale_major_mode):
-    from einops import rearrange, reduce, repeat
+    from einops import rearrange
 
     """
     Quantizes a 2D or 3D tensor to FP8.
@@ -493,15 +493,4 @@ def test_grouped_gemm_correctness(
 
 
 if __name__ == "__main__":
-    test_grouped_gemm_correctness(
-        "float8_e4m3fn",
-        "float8_e4m3fn",
-        "bfloat16",
-        1,
-        128,
-        128,
-        "K",
-        1,
-        {"batch_size": 2, "m_sizes": [20, 36], "n": 768, "k": 768},
-    )
-    # tvm.testing.main()
+    tvm.testing.main()

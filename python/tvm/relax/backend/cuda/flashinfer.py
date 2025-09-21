@@ -20,7 +20,6 @@ import hashlib
 import json
 import os
 import subprocess
-from typing import Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import List
@@ -539,7 +538,7 @@ def gen_grouped_gemm_module(
     requires all m in m_indptr to be multiple of 4
     """
     try:
-        from flashinfer.jit import (
+        from flashinfer.jit import (  # pylint: disable=import-outside-toplevel
             gen_grouped_gemm_fp8_tvm_binding,
             get_grouped_gemm_fp8_uri,
         )
@@ -549,7 +548,7 @@ def gen_grouped_gemm_module(
             "in https://docs.flashinfer.ai to install FlashInfer."
         )
     try:
-        import torch
+        import torch  # pylint: disable=import-outside-toplevel
     except ImportError:
         raise ImportError("PyTorch is not installed. Please install PyTorch to use FlashInfer.")
 
