@@ -21,8 +21,6 @@ import math
 import numpy as np
 import pytest
 import torch
-from einops import rearrange, reduce, repeat
-
 import tvm
 import tvm.testing
 from tvm import relax
@@ -62,12 +60,15 @@ def has_cutlass():
     except:
         return False
 
+
 def calc_diff(x: np.ndarray, y: np.ndarray):
     denominator = (x * x + y * y).sum()
     sim = 2 * (x * y).sum() / denominator
     return 1 - sim
 
+
 def quantize_fp8(x, scale_shape, tile_shape, scale_major_mode):
+    from einops import rearrange, reduce, repeat
     """
     Quantizes a 2D or 3D tensor to FP8.
 
@@ -121,9 +122,7 @@ def quantize_fp8(x, scale_shape, tile_shape, scale_major_mode):
             x_tiled = rearrange(
                 x, "(s0 t0) (s1 t1) (s2 t2) -> s0 s1 s2 t0 t1 t2", s0=s0, s1=s1, s2=s2
             )
-            abs_max = reduce(
-                x_tiled.abs(), "s0 s1 s2 t0 t1 t2 -> s0 s1 s2", "max"
-            ).clamp(1e-4)
+            abs_max = reduce(x_tiled.abs(), "s0 s1 s2 t0 t1 t2 -> s0 s1 s2", "max").clamp(1e-4)
             x_scale = abs_max / fp8_amax
             x_scale = torch.pow(2.0, torch.ceil(torch.log2(x_scale.abs())))
 
@@ -136,9 +135,7 @@ def quantize_fp8(x, scale_shape, tile_shape, scale_major_mode):
             x_tiled = rearrange(
                 x, "(s0 t0) (s2 t1) (s1 t2) -> s0 s1 s2 t0 t1 t2", s0=s0, s1=s1, s2=s2
             )
-            abs_max = reduce(
-                x_tiled.abs(), "s0 s1 s2 t0 t1 t2 -> s0 s1 s2", "max"
-            ).clamp(1e-4)
+            abs_max = reduce(x_tiled.abs(), "s0 s1 s2 t0 t1 t2 -> s0 s1 s2", "max").clamp(1e-4)
             x_scale = abs_max / fp8_amax
             x_scale = torch.pow(2.0, torch.ceil(torch.log2(x_scale.abs())))
             # Permute scale axes before repeating to match layout
@@ -161,6 +158,7 @@ def quantize_fp8(x, scale_shape, tile_shape, scale_major_mode):
 
 
 def dequantize_fp8(x, x_scale, scale_major_mode):
+    from einops import rearrange, reduce, repeat
     """
     Quantizes a 2D or 3D tensor to FP8.
 
@@ -219,7 +217,7 @@ def compute_reference_grouped_gemm(
     a_fp32: torch.Tensor,  # (total_m, k)
     b_fp32: torch.Tensor,  # (batch_size, n, k)
     m_indptr: torch.Tensor,
-    dtype_out: str,        # (total_m, n)
+    dtype_out: str,  # (total_m, n)
 ):
     """Compute reference result using PyTorch operations"""
     """Compute reference result using original FP32 tensors"""
@@ -243,7 +241,7 @@ def compute_reference_grouped_gemm(
         result_group = torch.mm(a_group, b_group.T)  # [m_sizes[i], n]
         results.append(result_group)
 
-    result_fp32 = torch.cat(results, dim=0) 
+    result_fp32 = torch.cat(results, dim=0)
 
     # Convert to output dtype
     if dtype_out == "bfloat16":
@@ -278,7 +276,8 @@ def generate_test_data(
         m_sizes
     ), f"batch_size ({batch_size}) must equal len(m_sizes) ({len(m_sizes)})"
 
-    torch_device = torch.device(f"cuda:{device.device_id}")
+    # print(f"Device object: {device}")
+    torch_device = torch.device(f"cuda:{device.index}")
 
     cum_m = [0] + list(np.cumsum(m_sizes))
     total_m = cum_m[-1]
@@ -306,25 +305,25 @@ def generate_test_data(
     b_quantized, scale_b = quantize_fp8(b_fp32, scale_b_shape, tile_b_shape, scale_major_mode)
 
     if dtype_a == "float8_e4m3fn":
-        a_tvm = tvm.nd.array(
+        a_tvm = tvm.runtime.tensor(
             a_quantized.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device
         )
     else:
-        a_tvm = tvm.nd.from_dlpack(a_quantized)
+        a_tvm = tvm.runtime.from_dlpack(a_quantized)
 
     if dtype_b == "float8_e4m3fn":
-        b_tvm = tvm.nd.array(
+        b_tvm = tvm.runtime.tensor(
             b_quantized.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device
         )
     else:
-        b_tvm = tvm.nd.from_dlpack(b_quantized)
+        b_tvm = tvm.runtime.from_dlpack(b_quantized)
 
-    scale_a_tvm = tvm.nd.from_dlpack(scale_a)
-    scale_b_tvm = tvm.nd.from_dlpack(scale_b)
+    scale_a_tvm = tvm.runtime.from_dlpack(scale_a)
+    scale_b_tvm = tvm.runtime.from_dlpack(scale_b)
 
     # Create m_indptr for grouped operation
     m_indptr = torch.tensor(cum_m, device=torch_device, dtype=torch.int32)
-    m_indptr_tvm = tvm.nd.array(m_indptr.cpu().numpy(), device)
+    m_indptr_tvm = tvm.runtime.tensor(m_indptr.cpu().numpy(), device)
 
     return {
         "a": a_tvm,
@@ -438,15 +437,15 @@ def test_grouped_gemm_correctness(
     # Prepare output buffer
     output_shape = (test_data["total_m"], test_data["n"])
     if dtype_out == "bfloat16":
-        output = tvm.nd.empty(output_shape, dtype="bfloat16", device=device)
+        output = tvm.runtime.empty(output_shape, dtype="bfloat16", device=device)
     elif dtype_out == "float16":
-        output = tvm.nd.empty(output_shape, dtype="float16", device=device)
+        output = tvm.runtime.empty(output_shape, dtype="float16", device=device)
     else:
-        output = tvm.nd.empty(output_shape, dtype="float32", device=device)
+        output = tvm.runtime.empty(output_shape, dtype="float32", device=device)
 
     # Create workspace buffers (required by the interface)
-    int_workspace = tvm.nd.empty((DEFAULT_WORKSPACE_SIZE,), dtype="int32", device=device)
-    float_workspace = tvm.nd.empty((DEFAULT_WORKSPACE_SIZE,), dtype="float32", device=device)
+    int_workspace = tvm.runtime.empty((DEFAULT_WORKSPACE_SIZE,), dtype="int32", device=device)
+    float_workspace = tvm.runtime.empty((DEFAULT_WORKSPACE_SIZE,), dtype="float32", device=device)
 
     grouped_gemm_fn(
         int_workspace,  # int_workspace_buffer
@@ -464,8 +463,8 @@ def test_grouped_gemm_correctness(
 
     # Compute reference result
     reference = compute_reference_grouped_gemm(
-        test_data['torch_a'],
-        test_data['torch_b'],
+        test_data["torch_a"],
+        test_data["torch_b"],
         test_data["torch_m_indptr"],
         dtype_out,
     )
@@ -487,14 +486,20 @@ def test_grouped_gemm_correctness(
         output_torch.shape == reference.shape
     ), f"Shape mismatch: got {output_torch.shape}, expected {reference.shape}"
 
-
-    diff = calc_diff(
-        output_torch.cpu().double().numpy(), 
-        reference.cpu().double().numpy()
-    )
+    diff = calc_diff(output_torch.cpu().double().numpy(), reference.cpu().double().numpy())
     assert diff < 1e-3, f"diff too large {diff}"
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
-
+    test_grouped_gemm_correctness(
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "bfloat16",
+        1,
+        128,
+        128,
+        "K",
+        1,
+        {"batch_size": 2, "m_sizes": [20, 36], "n": 768, "k": 768},
+    )
+    # tvm.testing.main()

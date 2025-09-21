@@ -490,6 +490,7 @@ def gen_sampling_module(target: Target, num_threads: int = 8):
     modules = _load_flashinfer_modules(object_files)
     return modules
 
+
 def gen_grouped_gemm_module(
     dtype_a: str,
     dtype_b: str,
@@ -538,7 +539,7 @@ def gen_grouped_gemm_module(
     requires all m in m_indptr to be multiple of 4
     """
     try:
-        from flashinfer.jit import ( 
+        from flashinfer.jit import (
             gen_grouped_gemm_fp8_tvm_binding,
             get_grouped_gemm_fp8_uri,
         )
@@ -548,14 +549,14 @@ def gen_grouped_gemm_module(
             "in https://docs.flashinfer.ai to install FlashInfer."
         )
     try:
-        import torch 
+        import torch
     except ImportError:
         raise ImportError("PyTorch is not installed. Please install PyTorch to use FlashInfer.")
 
     torch_dtype_a = getattr(torch, dtype_a)
     torch_dtype_b = getattr(torch, dtype_b)
     torch_dtype_out = getattr(torch, dtype_out)
-    
+
     uri = get_grouped_gemm_fp8_uri(
         dtype_a=torch_dtype_a,
         dtype_b=torch_dtype_b,
@@ -566,7 +567,7 @@ def gen_grouped_gemm_module(
         scale_major_mode=scale_major_mode,
         mma_sm=mma_sm,
     )
-    
+
     uri, source_paths = gen_grouped_gemm_fp8_tvm_binding(
         uri=uri,
         dtype_a=torch_dtype_a,
@@ -578,7 +579,7 @@ def gen_grouped_gemm_module(
         scale_major_mode=scale_major_mode,
         mma_sm=mma_sm,
     )
-    
+
     object_files = _compile_flashinfer_kernels(uri, source_paths, target, num_threads)
     modules = _load_flashinfer_modules(object_files)
     return modules
