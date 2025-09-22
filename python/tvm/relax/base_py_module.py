@@ -35,9 +35,9 @@ except ImportError:
 try:
     from tvm_ffi._optional_torch_c_dlpack import load_torch_c_dlpack_extension
 
-    _faster_dlpack_extension = load_torch_c_dlpack_extension()
+    _FASTER_DLPACK_EXTENSION = load_torch_c_dlpack_extension()
 except ImportError:
-    _faster_dlpack_extension = None
+    _FASTER_DLPACK_EXTENSION = None
 
 
 class BasePyModule:
@@ -384,7 +384,7 @@ class BasePyModule:
             return tensor
         if isinstance(tensor, torch.Tensor):
             # 1. Try faster C++ DLPack converter
-            if _faster_dlpack_extension is not None:
+            if _FASTER_DLPACK_EXTENSION is not None:
                 try:
                     dlpack = torch.to_dlpack(tensor)
                     return tvm.runtime.from_dlpack(dlpack)
@@ -441,7 +441,7 @@ class BasePyModule:
             return torch.tensor(tvm_tensor)
 
         # 1. Try faster C++ DLPack converter
-        if _faster_dlpack_extension is not None:
+        if _FASTER_DLPACK_EXTENSION is not None:
             try:
                 return torch.from_dlpack(tvm_tensor)
             except (AttributeError, ValueError):
