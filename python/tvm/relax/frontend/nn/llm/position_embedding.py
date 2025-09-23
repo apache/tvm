@@ -86,13 +86,13 @@ def rope_freq_llama4(  # pylint: disable=too-many-arguments,too-many-locals
     high_freq_factor: float,
     original_max_position_embeddings: float,
 ):
-    """Compute the inverse frequency of RoPE for llama3 RoPE scaling."""
+    """Compute the inverse frequency of RoPE for llama4 RoPE scaling."""
     orig_freq = tir.const(1, "float32") / tir.power(
         theta, 2 * (d // 2) / tir.const(d_range, "float32")
     )
     orig_freq_var = tir.Var("orig_freq", "float32")
 
-    llama3_inv_scaling_factor = 1.0 / factor
+    llama4_inv_scaling_factor = 1.0 / factor
 
     if high_freq_factor == low_freq_factor:
         wavelength = tir.const(2 * math.pi, "float32") / orig_freq_var
@@ -107,11 +107,11 @@ def rope_freq_llama4(  # pylint: disable=too-many-arguments,too-many-locals
         # Original smooth interpolation logic
         inv_diff_freq_factor = 1.0 / (high_freq_factor - low_freq_factor)
 
-        llama3_alpha = original_max_position_embeddings / (2 * math.pi) * inv_diff_freq_factor
-        llama3_beta = low_freq_factor * inv_diff_freq_factor
-        smooth = tir.max(0.0, tir.min(1.0, llama3_alpha * orig_freq_var - llama3_beta))
+        llama4_alpha = original_max_position_embeddings / (2 * math.pi) * inv_diff_freq_factor
+        llama4_beta = low_freq_factor * inv_diff_freq_factor
+        smooth = tir.max(0.0, tir.min(1.0, llama4_alpha * orig_freq_var - llama4_beta))
         smoothed_freq = s * (
-            (1.0 - smooth) * orig_freq_var * llama3_inv_scaling_factor + smooth * orig_freq_var
+            (1.0 - smooth) * orig_freq_var * llama4_inv_scaling_factor + smooth * orig_freq_var
         )
 
     smoothed_freq_var = tir.Var("smoothed_freq", "float32")
