@@ -18,6 +18,7 @@
  */
 #include "trace_apply.h"
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -55,8 +56,7 @@ void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
   std::unordered_set<std::string> get_block_names;
   for (const auto& inst : anchor_trace->insts) {
     if (inst->kind.same_as(kind_get_block)) {
-      auto block_name = Downcast<String>(inst->attrs[0]);
-      ICHECK(block_name.defined());
+      auto block_name = Downcast<ffi::String>(inst->attrs[0]);
       get_block_names.insert(block_name);
     }
   }
@@ -110,16 +110,16 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
 
   std::unordered_map<const Object*, const Object*> rv_map;
   // Blocks and loops that appear in the anchor trace but are not part of the target schedule.
-  std::unordered_set<BlockRV, ObjectHash, ObjectEqual> foreign_blocks;
-  std::unordered_set<LoopRV, ObjectHash, ObjectEqual> foreign_loops;
+  std::unordered_set<BlockRV, ObjectPtrHash, ObjectPtrEqual> foreign_blocks;
+  std::unordered_set<LoopRV, ObjectPtrHash, ObjectPtrEqual> foreign_loops;
 
   // Instructions in the anchor trace can be applied only if all inputs are part of the target
   // schedule.
   auto is_inst_applicable = [&foreign_blocks, &foreign_loops](Instruction inst) {
     for (auto input : inst->inputs) {
-      if (!input.defined()) continue;
-      if ((input->IsInstance<BlockRVNode>() && foreign_blocks.count(Downcast<BlockRV>(input))) ||
-          (input->IsInstance<LoopRVNode>() && foreign_loops.count(Downcast<LoopRV>(input)))) {
+      if (input == nullptr) continue;
+      if ((input.as<BlockRVNode>() && foreign_blocks.count(Downcast<BlockRV>(input))) ||
+          (input.as<LoopRVNode>() && foreign_loops.count(Downcast<LoopRV>(input)))) {
         return false;
       }
     }
@@ -131,18 +131,19 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
       // If we find an instruction that is not applicable, its outputs are recorded as "foreign"
       // to the target schedule.
       for (auto output : inst->outputs) {
-        if (output->IsInstance<BlockRVNode>()) {
+        if (output.as<BlockRVNode>()) {
           foreign_blocks.insert(Downcast<BlockRV>(output));
-        } else if (output->IsInstance<LoopRVNode>()) {
+        } else if (output.as<LoopRVNode>()) {
           foreign_loops.insert(Downcast<LoopRV>(output));
         }
       }
       continue;
     }
 
-    Array<ObjectRef> inputs = TranslateInputRVs(inst->inputs, rv_map);
+    ffi::Array<Any> inputs = TranslateInputRVs(inst->inputs, rv_map);
 
-    if (inst->kind.same_as(kind_get_block) && !HasBlock(sch, Downcast<String>(inst->attrs[0]))) {
+    if (inst->kind.same_as(kind_get_block) &&
+        !HasBlock(sch, Downcast<ffi::String>(inst->attrs[0]))) {
       // The anchor trace does get_block on a block that is not part of the target schedule.
       auto block = Downcast<BlockRV>(inst->outputs[0]);
       foreign_blocks.insert(block);
@@ -173,8 +174,8 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
       }
     }
 
-    Optional<ObjectRef> decision = anchor_trace->GetDecision(inst);
-    Array<ObjectRef> outputs = inst->kind->f_apply_to_schedule(sch, inputs, inst->attrs, decision);
+    Any decision = anchor_trace->GetDecision(inst);
+    ffi::Array<Any> outputs = inst->kind->f_apply_to_schedule(sch, inputs, inst->attrs, decision);
 
     if (inst->kind.same_as(kind_get_child_blocks)) {
       // We want to allow a trace generated for a single conv2d block to be applied to
@@ -185,7 +186,7 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
       // outputs matches with the "old" outputs, and truncating the new outputs accordingly.
       ICHECK(inst->outputs.size() <= outputs.size());
       TranslateAddOutputRVs(
-          inst->outputs, Array<ObjectRef>(outputs.begin(), outputs.begin() + inst->outputs.size()),
+          inst->outputs, ffi::Array<Any>(outputs.begin(), outputs.begin() + inst->outputs.size()),
           &rv_map);
     } else {
       TranslateAddOutputRVs(inst->outputs, outputs, &rv_map);
@@ -248,14 +249,16 @@ void ScheduleUsingAnchorTrace(Schedule sch, const Trace& anchor_trace, const tvm
 
     auto auto_bind_rule =
         ScheduleRule::AutoBind(/*max_threadblocks=*/256,
-                               /*thread_extents*/ Array<Integer>{32, 64, 128, 256, 512, 1024},
+                               /*thread_extents*/ ffi::Array<Integer>{32, 64, 128, 256, 512, 1024},
                                max_threads_per_block.value()->value);
     auto_bind_rule->Apply(sch, last_block);
   }
 }
 
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleUsingAnchorTrace")
-    .set_body_typed(ScheduleUsingAnchorTrace);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.ScheduleUsingAnchorTrace", ScheduleUsingAnchorTrace);
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

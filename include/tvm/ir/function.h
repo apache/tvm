@@ -24,11 +24,11 @@
 #ifndef TVM_IR_FUNCTION_H_
 #define TVM_IR_FUNCTION_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/map.h>
-#include <tvm/runtime/container/string.h>
 
 #include <string>
 #include <type_traits>
@@ -50,16 +50,16 @@ enum class CallingConv : int {
    */
   kDefault = 0,
   /*!
-   * \brief PackedFunc that exposes a CPackedFunc signature.
+   * \brief ffi::Function that exposes a Cffi::Function signature.
    *
-   * - Calling by PackedFunc calling convention.
-   * - Implementation: Expose a function with the CPackedFunc signature.
+   * - Calling by ffi::Function calling convention.
+   * - Implementation: Expose a function with the Cffi::Function signature.
    */
   kCPackedFunc = 1,
   /*!
    * \brief Device kernel launch
    *
-   * - Call by PackedFunc calling convention.
+   * - Call by ffi::Function calling convention.
    * - Implementation: defined by device runtime(e.g. runtime/cuda)
    */
   kDeviceKernelLaunch = 2,
@@ -83,7 +83,7 @@ enum class LinkageType : int {
 /*!
  * \brief Generic attribute names that can be attached to any function.
  *
- * \sa tvm::tir::attr, tvm::relay::attr
+ * \sa tvm::tir::attr, tvm::relax::attr
  */
 namespace attr {
 /*!
@@ -131,12 +131,12 @@ constexpr const char* kGlobalSymbol = "global_symbol";
  * \brief Base node of all functions.
  *
  * We support several variants of functions throughout the stack.
- * All of the functions share the same type system(via checked_type)
+ * All of the functions share the same type system
  * to support cross variant calls.
  *
  * \sa BaseFunc
  */
-class BaseFuncNode : public RelayExprNode {
+class BaseFuncNode : public RelaxExprNode {
  public:
   /*! \brief Additional attributes storing the meta-data */
   DictAttrs attrs;
@@ -161,15 +161,14 @@ class BaseFuncNode : public RelayExprNode {
    * \endcode
    */
   template <typename TObjectRef>
-  Optional<TObjectRef> GetAttr(
-      const std::string& attr_key,
-      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
+  ffi::Optional<TObjectRef> GetAttr(const std::string& attr_key,
+                                    ffi::Optional<TObjectRef> default_value = std::nullopt) const {
     return attrs.GetAttr(attr_key, default_value);
   }
   // variant that uses TObjectRef to enable implicit conversion to default value.
   template <typename TObjectRef>
-  Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
-    return GetAttr<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
+  ffi::Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
+    return GetAttr<TObjectRef>(attr_key, ffi::Optional<TObjectRef>(default_value));
   }
 
   /*!
@@ -212,24 +211,28 @@ class BaseFuncNode : public RelayExprNode {
    */
 
   LinkageType GetLinkageType() const {
-    if (GetAttr<String>(attr::kGlobalSymbol))
+    if (GetAttr<ffi::String>(attr::kGlobalSymbol))
       return LinkageType::kExternal;
     else
       return LinkageType::kInternal;
   }
 
-  static constexpr const char* _type_key = "BaseFunc";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BaseFuncNode>().def_ro("attrs", &BaseFuncNode::attrs);
+  }
+
   static constexpr const uint32_t _type_child_slots = 2;
-  TVM_DECLARE_BASE_OBJECT_INFO(BaseFuncNode, RelayExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.BaseFunc", BaseFuncNode, RelaxExprNode);
 };
 
 /*!
  * \brief Managed reference to BaseFuncNode.
  * \sa BaseFuncNode
  */
-class BaseFunc : public RelayExpr {
+class BaseFunc : public RelaxExpr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(BaseFunc, RelayExpr, BaseFuncNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BaseFunc, RelaxExpr, BaseFuncNode);
 };
 
 }  // namespace tvm

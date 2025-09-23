@@ -27,37 +27,37 @@ NType NTypeFrom(const StructInfo& sinfo, DataType dtype) {
     const auto* tensor = sinfo.as<TensorStructInfoNode>();
     ICHECK(tensor) << "Expected TensorStructInfo, but got " << sinfo;
     if (dtype == DataType::Void())
-      return NType(DLDataType2String(tensor->dtype));
+      return NType(DLDataTypeToString(tensor->dtype));
     else
-      return NType(DLDataType2String(dtype));
+      return NType(DLDataTypeToString(dtype));
   };
-  return MapToNestedMsg<String>(sinfo, fmapleaf);
+  return MapToNestedMsg<ffi::String>(sinfo, fmapleaf);
 }
 
 NType NTypeFrom(const Expr& expr, DataType dtype) { return NTypeFrom(GetStructInfo(expr), dtype); }
 
 NType NTypeMerge(const NType& a, const NType& b) {
-  auto fcombine = [&](const String& a_str, const String& b_str) -> String {
+  auto fcombine = [&](const ffi::String& a_str, const ffi::String& b_str) -> ffi::String {
     if (a_str == "") {
       return b_str;
     } else if (b_str == "") {
       return a_str;
     }
 
-    DataType a = DataType(String2DLDataType(a_str));
-    DataType b = DataType(String2DLDataType(b_str));
+    DataType a = DataType(ffi::StringToDLDataType(a_str));
+    DataType b = DataType(ffi::StringToDLDataType(b_str));
     ICHECK_EQ(a.code(), b.code());
     ICHECK_EQ(a.lanes(), b.lanes());
     return a.bits() > b.bits() ? a_str : b_str;
   };
-  return CombineNestedMsg<String>(a, b, fcombine);
+  return CombineNestedMsg<ffi::String>(a, b, fcombine);
 }
 
-Array<ObjectRef> InferMixedPrecisionFollow(const Call& call, const DataType& out_dtype) {
+ffi::Array<ObjectRef> InferMixedPrecisionFollow(const Call& call, const DataType& out_dtype) {
   return {Integer(MixedPrecisionPolicyKind::kFollow), call};
 }
 
-Array<ObjectRef> InferMixedPrecisionNever(const Call& call, const DataType& out_dtype) {
+ffi::Array<ObjectRef> InferMixedPrecisionNever(const Call& call, const DataType& out_dtype) {
   return {Integer(MixedPrecisionPolicyKind::kNever), call};
 }
 

@@ -30,14 +30,10 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/struct_info_functor.h>
-#include <tvm/relay/op.h>
 #include <tvm/tir/function.h>
 
-#include <deque>
-#include <string>
 #include <unordered_map>
 #include <utility>
-#include <vector>
 namespace tvm {
 namespace relax {
 
@@ -48,7 +44,7 @@ namespace relax {
  *
  * \sa tvm/ir_functor.h
  *
- * \tparam FType function signiture
+ * \tparam FType function signature
  *  This type is only defined for FType with function signature R(const Expr&,
  * Args...)
  */
@@ -75,7 +71,7 @@ class ExprFunctor;
 #define PY_EXPR_MUTATOR_DEFAULT(N, PY_FUNC, DEFAULT_FUNC, RET_TYPE) \
   {                                                                 \
     if (PY_FUNC != nullptr) {                                       \
-      RET_TYPE ret = PY_FUNC(N);                                    \
+      RET_TYPE ret = PY_FUNC(N).cast<RET_TYPE>();                   \
       return ret;                                                   \
     } else {                                                        \
       return DEFAULT_FUNC;                                          \
@@ -93,7 +89,7 @@ class ExprFunctor;
 #define PY_EXPR_MUTATOR_DISPATCH(OP, PY_FUNC)                            \
   vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self) { \
     if (self->PY_FUNC != nullptr) {                                      \
-      Expr expr = self->PY_FUNC(n);                                      \
+      Expr expr = self->PY_FUNC(n).cast<Expr>();                         \
       return expr;                                                       \
     } else {                                                             \
       return self->VisitExpr_(static_cast<const OP*>(n.get()));          \
@@ -180,6 +176,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     RELAX_EXPR_FUNCTOR_DISPATCH(PrimValueNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(StringImmNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(DataTypeImmNode);
+    vtable.Finalize();
     return vtable;
   }
 };
@@ -315,7 +312,7 @@ void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
 /*!
  * \brief A mutator works in unnormalized form.
  *
- * ExprMutatorBase expects input AST to be in the unnormalized form, i.e., checked_type_ and shape_
+ * ExprMutatorBase expects input AST to be in the unnormalized form, i.e., struct_info_
  * of expressions can be nullptr, and the expressions may nest(and as a result the AST is not in
  * ANF).
  */
@@ -382,7 +379,7 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
    */
   bool VisitAndCheckStructInfoFieldUnchanged(const ObjectRef& struct_info) {
     if (const StructInfoNode* sinfo = struct_info.as<StructInfoNode>()) {
-      return this->VisitExprDepStructInfoField(GetRef<StructInfo>(sinfo)).same_as(struct_info);
+      return this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo)).same_as(struct_info);
     } else {
       return true;
     }
@@ -417,14 +414,14 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
  * \brief A mutator works in normal form.
  *
  * ExprMutator expects input AST to be in the normal form, i.e., the expressions are normalized(no
- * nesting and hence the AST is in ANF), and all checked_type_ and shape_ of expressions are
+ * nesting and hence the AST is in ANF), and all struct_info_ of expressions are
  * available.
  */
 class ExprMutator : public ExprMutatorBase {
  public:
   using ExprMutatorBase::VisitExpr_;
 
-  ExprMutator(Optional<IRModule> mod = NullOpt) { builder_ = BlockBuilder::Create(mod); }
+  ExprMutator(ffi::Optional<IRModule> mod = std::nullopt) { builder_ = BlockBuilder::Create(mod); }
   Expr VisitExpr(const Expr& expr) override;
   Expr VisitExpr_(const VarNode* op) override;
   Expr VisitExpr_(const DataflowVarNode* op) override;
@@ -505,7 +502,8 @@ class ExprMutator : public ExprMutatorBase {
    *
    * \note The body_expr must be an SeqExpr in the normal form.
    */
-  Expr VisitWithNewScope(const Expr& body_expr, Optional<Array<Var>> params = NullOpt);
+  Expr VisitWithNewScope(const Expr& body_expr,
+                         ffi::Optional<ffi::Array<Var>> params = std::nullopt);
 
   /*!
    * \brief Rewrite the expr with a new scope, used in the branches of If.
@@ -527,9 +525,9 @@ class ExprMutator : public ExprMutatorBase {
    * \brief Look up the value bound to a variable.
    * \param var The var to be looked up.
    * \return The value bound to the input \p var.
-   * \note For function parameters, this function returns NullOpt.
+   * \note For function parameters, this function returns std::nullopt.
    */
-  Optional<Expr> LookupBinding(const Var& var);
+  ffi::Optional<Expr> LookupBinding(const Var& var);
 
   /*!
    * \brief Post-order rewrite a node and normalize.

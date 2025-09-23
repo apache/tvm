@@ -23,7 +23,8 @@
  */
 // Unrolls the loop as in Halide pipeline.
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -39,38 +40,41 @@
 namespace tvm {
 namespace tir {
 
-struct UnrollLoopConfigNode : public tvm::AttrsNode<UnrollLoopConfigNode> {
+struct UnrollLoopConfigNode : public AttrsNodeReflAdapter<UnrollLoopConfigNode> {
   int auto_max_step;
   int auto_max_depth;
   int auto_max_extent;
   int explicit_unroll;
   int unroll_local_access;
 
-  TVM_DECLARE_ATTRS(UnrollLoopConfigNode, "tir.transform.UnrollLoopConfig") {
-    TVM_ATTR_FIELD(auto_max_step)
-        .describe("Threshold of number of steps in the loop to be automatically unrolled")
-        .set_default(0);
-    TVM_ATTR_FIELD(auto_max_depth)
-        .describe("The maximum nested level of loops that can be automatically unrolled.")
-        .set_default(8);
-    TVM_ATTR_FIELD(auto_max_extent)
-        .describe("The maximum extent of loop that will be unrolled.")
-        .set_default(0);
-    TVM_ATTR_FIELD(explicit_unroll)
-        .describe("Whether to explicitly unroll the loop instead of setting a pragma")
-        .set_default(true);
-    TVM_ATTR_FIELD(unroll_local_access)
-        .describe("Whether to always unroll local access")
-        .set_default(false);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<UnrollLoopConfigNode>()
+        .def_ro("auto_max_step", &UnrollLoopConfigNode::auto_max_step,
+                "Threshold of number of steps in the loop to be automatically unrolled",
+                refl::DefaultValue(0))
+        .def_ro("auto_max_depth", &UnrollLoopConfigNode::auto_max_depth,
+                "The maximum nested level of loops that can be automatically unrolled.",
+                refl::DefaultValue(8))
+        .def_ro("auto_max_extent", &UnrollLoopConfigNode::auto_max_extent,
+                "The maximum extent` of loop that will be unrolled.", refl::DefaultValue(0))
+        .def_ro("explicit_unroll", &UnrollLoopConfigNode::explicit_unroll,
+                "Whether to explicitly unroll the loop instead of setting a pragma",
+                refl::DefaultValue(true))
+        .def_ro("unroll_local_access", &UnrollLoopConfigNode::unroll_local_access,
+                "Whether to always unroll local access", refl::DefaultValue(false));
   }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.UnrollLoopConfig", UnrollLoopConfigNode,
+                                    BaseAttrsNode);
 };
 
 class UnrollLoopConfig : public Attrs {
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(UnrollLoopConfig, Attrs, UnrollLoopConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(UnrollLoopConfig, Attrs, UnrollLoopConfigNode);
 };
 
-TVM_REGISTER_NODE_TYPE(UnrollLoopConfigNode);
+TVM_FFI_STATIC_INIT_BLOCK() { UnrollLoopConfigNode::RegisterReflection(); }
+
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.UnrollLoop", UnrollLoopConfig);
 
 class VarLocalAccessMarker : public ExprVisitor {
@@ -78,7 +82,7 @@ class VarLocalAccessMarker : public ExprVisitor {
   explicit VarLocalAccessMarker(std::unordered_set<Var>* var_touched_local)
       : var_touched_local_(var_touched_local) {}
 
-  void VisitExpr_(const VarNode* op) final { var_touched_local_->insert(GetRef<Var>(op)); }
+  void VisitExpr_(const VarNode* op) final { var_touched_local_->insert(ffi::GetRef<Var>(op)); }
 
  private:
   std::unordered_set<Var>* var_touched_local_;
@@ -171,7 +175,7 @@ class LoopUnroller : public StmtExprMutator {
         }
       }
     }
-    return GetRef<PrimExpr>(op);
+    return ffi::GetRef<PrimExpr>(op);
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
@@ -217,8 +221,8 @@ class LoopUnroller : public StmtExprMutator {
     ICHECK_NE(value, -1) << "loop doesn't have a constant integer extent";
     if (value == 0) return Evaluate(0);
     Stmt body = op->body;
-    Map<Var, PrimExpr> vmap;
-    Array<Stmt> unrolled;
+    ffi::Map<Var, PrimExpr> vmap;
+    ffi::Array<Stmt> unrolled;
     for (int i = 0; i < value; ++i) {
       vmap.Set(op->loop_var, op->min + make_const(op->loop_var.dtype(), i));
       Stmt step = Substitute(body, vmap);
@@ -288,7 +292,10 @@ Pass UnrollLoop() {
   return CreatePrimFuncPass(pass_func, 0, "tir.UnrollLoop", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.UnrollLoop").set_body_typed(UnrollLoop);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.UnrollLoop", UnrollLoop);
+}
 
 }  // namespace transform
 

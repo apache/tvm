@@ -37,23 +37,13 @@ namespace relax {
 namespace backend {
 
 /*!
- * \brief Get the Packed Func
- *
- * \param func_name
- * \return const PackedFunc*
- */
-inline const PackedFunc* GetPackedFunc(const std::string& func_name) {
-  return tvm::runtime::Registry::Get(func_name);
-}
-
-/*!
  * \brief Extract shape from an IndexExpr array to std::vector<int64_t>
  *
  * \param shape The shape in Array
  * \return The converted shape in std::vector<int64_t>
  */
 
-inline std::vector<int64_t> GetIntShape(const Array<PrimExpr>& shape) {
+inline std::vector<int64_t> GetIntShape(const ffi::Array<PrimExpr>& shape) {
   std::vector<int64_t> ret;
   for (const auto& dim : shape) {
     const int64_t* pval = tir::as_const_int(dim);
@@ -69,28 +59,7 @@ inline std::vector<int64_t> GetIntShape(const Array<PrimExpr>& shape) {
  * \return std::string string format of type
  */
 inline std::string DType2String(const tvm::DataType dtype) {
-  std::ostringstream os;
-  if (dtype.is_float()) {
-    os << "float";
-  } else if (dtype.is_e4m3_float8()) {
-    os << "e4m3_float";
-  } else if (dtype.is_e5m2_float8()) {
-    os << "e5m2_float";
-  } else if (dtype.is_int()) {
-    os << "int";
-  } else if (dtype.is_uint()) {
-    os << "uint";
-  } else if (dtype.is_bfloat16()) {
-    os << "bfloat";
-  } else if ((*GetPackedFunc("runtime._datatype_get_type_registered"))(dtype.code())) {
-    os << "custom["
-       << (*GetPackedFunc("runtime._datatype_get_type_name"))(dtype.code()).operator std::string()
-       << "]";
-  } else {
-    LOG(FATAL) << "Unknown type with code " << static_cast<unsigned>(dtype.code());
-  }
-  os << dtype.bits();
-  return os.str();
+  return tvm::ffi::DLDataTypeToString(dtype);
 }
 
 /*!
@@ -102,8 +71,25 @@ inline std::string DType2String(const tvm::DataType dtype) {
 inline bool IsOp(const CallNode* call, const std::string& op_name) {
   const auto* op_node = call->op.as<OpNode>();
   if (!op_node) return false;
-  Op op = GetRef<Op>(op_node);
+  Op op = ffi::GetRef<Op>(op_node);
   return op == Op::Get(op_name);
+}
+
+/*!
+ * \brief Return a call node within the function which calls an op with the given name
+ * The function must contain exactly one call to such op.
+ * \param f The function to look for an op.
+ * \param op_name The name of the op
+ * \return A call node which calls an op with the given name or nullptr if not
+ */
+inline const CallNode* TryGetOpInFunction(Function f, const std::string& op_name) {
+  auto local_bindings = AnalyzeVar2Value(f);
+  for (const auto& entry : local_bindings) {
+    if (auto call = entry.second.as<CallNode>(); call && backend::IsOp(call, op_name)) {
+      return call;
+    }
+  }
+  return nullptr;
 }
 
 /*!
@@ -114,14 +100,9 @@ inline bool IsOp(const CallNode* call, const std::string& op_name) {
  * \return A call node which calls an op with the given name
  */
 inline const CallNode* GetOpInFunction(Function f, const std::string& op_name) {
-  auto local_bindings = AnalyzeVar2Value(f);
-  for (const auto& entry : local_bindings) {
-    if (auto call = entry.second.as<CallNode>(); call && backend::IsOp(call, op_name)) {
-      return call;
-    }
-  }
-  LOG(FATAL) << op_name << " not found in the function:\n" << f;
-  return nullptr;
+  const CallNode* op = TryGetOpInFunction(f, op_name);
+  ICHECK(op) << op_name << " not found in the function:\n" << f;
+  return op;
 }
 
 /*!
@@ -135,12 +116,12 @@ inline const CallNode* GetOpInFunction(Function f, const std::string& op_name) {
  * \return A mapping between variable pattern names and their positions in the partitioned
  * function parameter list.
  */
-Map<String, IntImm> ExtractArgIdx(String pattern_name, Function f);
+ffi::Map<ffi::String, IntImm> ExtractArgIdx(ffi::String pattern_name, Function f);
 
 /*!
  * \brief Converts a numeric value to std::string.
  * \param value A numeric value to convert.
- * \return String representation of a numeric value.
+ * \return ffi::String representation of a numeric value.
  */
 template <typename Type>
 std::string to_str(const Type& value) {
@@ -148,6 +129,14 @@ std::string to_str(const Type& value) {
   os << std::setprecision(12) << value;
   return os.str();
 }
+
+/*!
+ * \brief Utility function to find the string pattern in string str
+ * \param str the main string to check the pattern
+ * \param pattern the pattern to check in the main string
+ * \return return true if the main string ends with pattern, false otherwise
+ */
+bool EndsWithPattern(const std::string& str, const std::string& pattern);
 
 }  // namespace backend
 }  // namespace relax

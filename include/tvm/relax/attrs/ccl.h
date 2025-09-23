@@ -24,54 +24,65 @@
 #ifndef TVM_RELAX_ATTRS_CCL_H_
 #define TVM_RELAX_ATTRS_CCL_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
 
 namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in allreduce operators */
-struct AllReduceAttrs : public tvm::AttrsNode<AllReduceAttrs> {
-  String op_type;
+struct AllReduceAttrs : public tvm::AttrsNodeReflAdapter<AllReduceAttrs> {
+  ffi::String op_type;
   bool in_group;
 
-  TVM_DECLARE_ATTRS(AllReduceAttrs, "relax.attrs.AllReduceAttrs") {
-    TVM_ATTR_FIELD(op_type).describe(
-        "The type of reduction operation to be applied to the input data. Now only sum is "
-        "supported.");
-    TVM_ATTR_FIELD(in_group).describe(
-        "Whether the reduction operation performs in group or globally or in group as default.");
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AllReduceAttrs>()
+        .def_ro("op_type", &AllReduceAttrs::op_type,
+                "The type of reduction operation to be applied to the input data. Now only sum is "
+                "supported.")
+        .def_ro("in_group", &AllReduceAttrs::in_group,
+                "Whether the reduction operation performs in group or globally or in group as "
+                "default.");
   }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllReduceAttrs", AllReduceAttrs, BaseAttrsNode);
 };  // struct AllReduceAttrs
 
 /*! \brief Attributes used in allgather operators */
-struct AllGatherAttrs : public tvm::AttrsNode<AllGatherAttrs> {
+struct AllGatherAttrs : public tvm::AttrsNodeReflAdapter<AllGatherAttrs> {
   int num_workers;
   bool in_group;
 
-  TVM_DECLARE_ATTRS(AllGatherAttrs, "relax.attrs.AllGatherAttrs") {
-    TVM_ATTR_FIELD(num_workers)
-        .describe(
-            "The number of workers, also the number of parts the given buffer should be chunked "
-            "into.");
-    TVM_ATTR_FIELD(in_group).describe(
-        "Whether the allgather operation performs in group or globally or in group as default.");
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AllGatherAttrs>()
+        .def_ro("num_workers", &AllGatherAttrs::num_workers,
+                "The number of workers, also the number of parts the given buffer should be "
+                "chunked into.")
+        .def_ro("in_group", &AllGatherAttrs::in_group,
+                "Whether the allgather operation performs in group or globally or in group as "
+                "default.");
   }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllGatherAttrs", AllGatherAttrs, BaseAttrsNode);
 };  // struct AllGatherAttrs
 
 /*! \brief Attributes used in scatter operators */
-struct ScatterCollectiveAttrs : public tvm::AttrsNode<ScatterCollectiveAttrs> {
+struct ScatterCollectiveAttrs : public tvm::AttrsNodeReflAdapter<ScatterCollectiveAttrs> {
   int num_workers;
   int axis;
 
-  TVM_DECLARE_ATTRS(ScatterCollectiveAttrs, "relax.attrs.ScatterCollectiveAttrs") {
-    TVM_ATTR_FIELD(num_workers)
-        .describe(
-            "The number of workers, also the number of parts the given buffer should be chunked "
-            "into.");
-    TVM_ATTR_FIELD(axis).describe(
-        "The axis of the tensor to be scattered. The tensor will be chunked along "
-        "this axis.");
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ScatterCollectiveAttrs>()
+        .def_ro("num_workers", &ScatterCollectiveAttrs::num_workers,
+                "The number of workers, also the number of parts the given buffer should be "
+                "chunked into.")
+        .def_ro("axis", &ScatterCollectiveAttrs::axis,
+                "The axis of the tensor to be scattered. The tensor will be chunked along "
+                "this axis.");
   }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScatterCollectiveAttrs", ScatterCollectiveAttrs,
+                                    BaseAttrsNode);
 };  // struct ScatterCollectiveAttrs
 
 }  // namespace relax

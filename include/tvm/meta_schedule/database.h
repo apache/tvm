@@ -19,14 +19,14 @@
 #ifndef TVM_META_SCHEDULE_DATABASE_H_
 #define TVM_META_SCHEDULE_DATABASE_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/meta_schedule/arg_info.h>
-#include <tvm/node/reflection.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/schedule/trace.h>
@@ -48,13 +48,11 @@ class WorkloadNode : public runtime::Object {
   /*! \brief The workload's structural hash. */
   THashCode shash;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("mod", &mod);
-    // `shash` is not visited because TVM FFI doesn't support uint64_t
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<WorkloadNode>().def_ro("mod", &WorkloadNode::mod);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.Workload";
-  TVM_DECLARE_FINAL_OBJECT_INFO(WorkloadNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.Workload", WorkloadNode, runtime::Object);
 
   /*!
    * \brief Export the workload to a JSON string.
@@ -70,6 +68,7 @@ class WorkloadNode : public runtime::Object {
 class Workload : public runtime::ObjectRef {
  public:
   using THashCode = WorkloadNode::THashCode;
+  explicit Workload(ObjectPtr<WorkloadNode> data) : ObjectRef(data) {}
   /*!
    * \brief Constructor of Workload.
    * \param mod The workload's IRModule.
@@ -88,7 +87,7 @@ class Workload : public runtime::ObjectRef {
    */
   TVM_DLL static Workload FromJSON(const ObjectRef& json_obj);
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Workload, runtime::ObjectRef, WorkloadNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Workload, runtime::ObjectRef, WorkloadNode);
 };
 
 /*! \brief The hash method for Workload */
@@ -116,24 +115,25 @@ class TuningRecordNode : public runtime::Object {
   /*! \brief The trace tuned. */
   tir::Trace trace;
   /*! \brief The workload. */
-  Workload workload{nullptr};
+  Workload workload{ffi::UnsafeInit()};
   /*! \brief The profiling result in seconds. */
-  Optional<Array<FloatImm>> run_secs;
+  ffi::Optional<ffi::Array<FloatImm>> run_secs;
   /*! \brief The target for tuning. */
-  Optional<Target> target;
+  ffi::Optional<Target> target;
   /*! \brief The argument information. */
-  Optional<Array<ArgInfo>> args_info;
+  ffi::Optional<ffi::Array<ArgInfo>> args_info;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("trace", &trace);
-    v->Visit("workload", &workload);
-    v->Visit("run_secs", &run_secs);
-    v->Visit("target", &target);
-    v->Visit("args_info", &args_info);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TuningRecordNode>()
+        .def_ro("trace", &TuningRecordNode::trace)
+        .def_ro("workload", &TuningRecordNode::workload)
+        .def_ro("run_secs", &TuningRecordNode::run_secs)
+        .def_ro("target", &TuningRecordNode::target)
+        .def_ro("args_info", &TuningRecordNode::args_info);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.TuningRecord";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TuningRecordNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.TuningRecord", TuningRecordNode,
+                                    runtime::Object);
 
   /*! \brief Construct the measure candidate given the initial IR module and trace
    * stored in the tuning record. */
@@ -166,8 +166,9 @@ class TuningRecord : public runtime::ObjectRef {
    \param args_info The argument information of the tuning record.
   */
   TVM_DLL explicit TuningRecord(tir::Trace trace, Workload workload,
-                                Optional<Array<FloatImm>> run_secs, Optional<Target> target,
-                                Optional<Array<ArgInfo>> args_info);
+                                ffi::Optional<ffi::Array<FloatImm>> run_secs,
+                                ffi::Optional<Target> target,
+                                ffi::Optional<ffi::Array<ArgInfo>> args_info);
   /*!
    * \brief Create a tuning record from a json object.
    * \param json_obj The json object.
@@ -175,7 +176,7 @@ class TuningRecord : public runtime::ObjectRef {
    * \return The tuning record created.
    */
   TVM_DLL static TuningRecord FromJSON(const ObjectRef& json_obj, const Workload& workload);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TuningRecord, runtime::ObjectRef, TuningRecordNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TuningRecord, runtime::ObjectRef, TuningRecordNode);
 };
 
 class Database;
@@ -188,14 +189,14 @@ class DatabaseNode : public runtime::Object {
    * \param mod_eq_name A string to specify the module equality testing and hashing method.
    *  It must be one of the followings:
    *    - "structural": Use StructuralEqual/Hash
-   *    - "ignore-ndarray": Same as "structural", but ignore ndarray raw data during
+   *    - "ignore-tensor": Same as "structural", but ignore tensor raw data during
    *                        equality testing and hashing.
    *    - "anchor-block": Apply equality testing and hashing on the anchor block extracted from a
-   *                      given module. The "ignore-ndarray" varint is used for the extracted blocks
+   *                      given module. The "ignore-tensor" varint is used for the extracted blocks
    *                      or in case no anchor block is found.
    *                      For the definition of the anchor block, see tvm/tir/analysis.h.
    */
-  explicit DatabaseNode(String mod_eq_name = "structural");
+  explicit DatabaseNode(ffi::String mod_eq_name = "structural");
 
   /*! \brief Default destructor */
   virtual ~DatabaseNode();
@@ -222,12 +223,12 @@ class DatabaseNode : public runtime::Object {
    * \param top_k The number of top records to be returned.
    * \return An array of top K tuning records for the given workload.
    */
-  virtual Array<TuningRecord> GetTopK(const Workload& workload, int top_k) = 0;
+  virtual ffi::Array<TuningRecord> GetTopK(const Workload& workload, int top_k) = 0;
   /*!
    * \brief Get all tuning records from the database.
    * \return An Array of all the tuning records in the database.
    */
-  virtual Array<TuningRecord> GetAllTuningRecords() = 0;
+  virtual ffi::Array<TuningRecord> GetAllTuningRecords() = 0;
   /*!
    * \brief Get the size of the database.
    * \return The size of the database.
@@ -238,28 +239,28 @@ class DatabaseNode : public runtime::Object {
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
    * \param workload_name The name of the workload to be searched for.
-   * \return The best record of the given workload; NullOpt if not found.
+   * \return The best record of the given workload; std::nullopt if not found.
    */
-  virtual Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
-                                                   const String& workload_name);
+  virtual ffi::Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
+                                                        const ffi::String& workload_name);
   /*!
    * \brief Query the best schedule of the given workload from the database.
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
    * \param workload_name The name of the workload to be searched for.
-   * \return The schedule in the best schedule of the given workload; NullOpt if not found.
+   * \return The schedule in the best schedule of the given workload; std::nullopt if not found.
    */
-  virtual Optional<tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
-                                                const String& workload_name);
+  virtual ffi::Optional<tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
+                                                     const ffi::String& workload_name);
   /*!
    * \brief Query the best IRModule of the given workload from the database.
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
    * \param workload_name The name of the workload to be searched for.
-   * \return The IRModule in the best IRModule of the given workload; NullOpt if not found.
+   * \return The IRModule in the best IRModule of the given workload; std::nullopt if not found.
    */
-  virtual Optional<IRModule> QueryIRModule(const IRModule& mod, const Target& target,
-                                           const String& workload_name);
+  virtual ffi::Optional<IRModule> QueryIRModule(const IRModule& mod, const Target& target,
+                                                const ffi::String& workload_name);
   /*!
    * \brief Prune the database and dump it a given database.
    * \param destination The destination database to be dumped to.
@@ -271,8 +272,8 @@ class DatabaseNode : public runtime::Object {
     return *mod_eq_;
   }
 
-  static constexpr const char* _type_key = "meta_schedule.Database";
-  TVM_DECLARE_BASE_OBJECT_INFO(DatabaseNode, runtime::Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.Database", DatabaseNode, runtime::Object);
 
  private:
   /*! \brief The module equality testing and hashing method */
@@ -287,76 +288,76 @@ class PyDatabaseNode : public DatabaseNode {
    * \param mod_eq_name A string to specify the module equality testing and hashing method.
    *  It must be one of the followings:
    *    - "structural": Use StructuralEqual/Hash
-   *    - "ignore-ndarray": Same as "structural", but ignore ndarray raw data during
+   *    - "ignore-tensor": Same as "structural", but ignore tensor raw data during
    *                        equality testing and hashing.
    *    - "anchor-block": Apply equality testing and hashing on the anchor block extracted from a
-   *                      given module. The "ignore-ndarray" varint is used for the extracted blocks
+   *                      given module. The "ignore-tensor" varint is used for the extracted blocks
    *                      or in case no anchor block is found.
    *                      For the definition of the anchor block, see tvm/tir/analysis.h.
    */
-  explicit PyDatabaseNode(String mod_eq_name = "structural");
+  explicit PyDatabaseNode(ffi::String mod_eq_name = "structural");
 
   /*!
    * \brief The function type of `HasWorkload` method.
    * \param mod The IRModule to be searched for.
    * \return Whether the database has the given workload.
    */
-  using FHasWorkload = runtime::TypedPackedFunc<bool(const IRModule&)>;
+  using FHasWorkload = ffi::TypedFunction<bool(const IRModule&)>;
   /*!
    * \brief The function type of `CommitWorkload` method.
    * \param mod The IRModule to be searched for or added.
    * \return The workload corresponding to the given IRModule.
    */
-  using FCommitWorkload = runtime::TypedPackedFunc<Workload(const IRModule&)>;
+  using FCommitWorkload = ffi::TypedFunction<Workload(const IRModule&)>;
   /*!
    * \brief The function type of `CommitTuningRecord` method.
    * \param record The tuning record to be added.
    */
-  using FCommitTuningRecord = runtime::TypedPackedFunc<void(const TuningRecord&)>;
+  using FCommitTuningRecord = ffi::TypedFunction<void(const TuningRecord&)>;
   /*!
    * \brief The function type of `GetTopK` method.
    * \param workload The workload to be searched for.
    * \param top_k The number of top records to be returned.
    * \return An array of top K tuning records for the given workload.
    */
-  using FGetTopK = runtime::TypedPackedFunc<Array<TuningRecord>(const Workload&, int)>;
+  using FGetTopK = ffi::TypedFunction<ffi::Array<TuningRecord>(const Workload&, int)>;
   /*!
    * \brief The function type of `GetAllTuningRecords` method.
    * \return An Array of all the tuning records in the database.
    */
-  using FGetAllTuningRecords = runtime::TypedPackedFunc<Array<TuningRecord>()>;
+  using FGetAllTuningRecords = ffi::TypedFunction<ffi::Array<TuningRecord>()>;
   /*!
    * \brief The function type of `QueryTuningRecord` method.
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
    * \param workload_name The name of the workload to be searched for.
-   * \return The best record of the given workload; NullOpt if not found.
+   * \return The best record of the given workload; std::nullopt if not found.
    */
-  using FQueryTuningRecord = runtime::TypedPackedFunc<Optional<TuningRecord>(
-      const IRModule&, const Target&, const String&)>;
+  using FQueryTuningRecord = ffi::TypedFunction<ffi::Optional<TuningRecord>(
+      const IRModule&, const Target&, const ffi::String&)>;
   /*!
    * \brief The function type of `QuerySchedule` method.
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
    * \param workload_name The name of the workload to be searched for.
-   * \return The schedule in the best schedule of the given workload; NullOpt if not found.
+   * \return The schedule in the best schedule of the given workload; std::nullopt if not found.
    */
-  using FQuerySchedule = runtime::TypedPackedFunc<Optional<tir::Schedule>(
-      const IRModule&, const Target&, const String&)>;
+  using FQuerySchedule = ffi::TypedFunction<ffi::Optional<tir::Schedule>(
+      const IRModule&, const Target&, const ffi::String&)>;
   /*!
    * \brief The function type of `QueryIRModule` method.
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
    * \param workload_name The name of the workload to be searched for.
-   * \return The IRModule in the best IRModule of the given workload; NullOpt if not found.
+   * \return The IRModule in the best IRModule of the given workload; std::nullopt if not found.
    */
-  using FQueryIRModule =
-      runtime::TypedPackedFunc<Optional<IRModule>(const IRModule&, const Target&, const String&)>;
+  using FQueryIRModule = ffi::TypedFunction<ffi::Optional<IRModule>(const IRModule&, const Target&,
+                                                                    const ffi::String&)>;
   /*!
    * \brief The function type of `Size` method.
    * \return The size of the database.
    */
-  using FSize = runtime::TypedPackedFunc<int64_t()>;
+  using FSize = ffi::TypedFunction<int64_t()>;
 
   /*! \brief The packed function to the `HasWorkload` function. */
   FHasWorkload f_has_workload;
@@ -377,19 +378,19 @@ class PyDatabaseNode : public DatabaseNode {
   /*! \brief The packed function to the `Size` function. */
   FSize f_size;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // PackedFuncs are all not visited, because the reflection system doesn't take care of them,
-    // so it cannot be accessible on the python side. If there is such need from the future,
+  static void RegisterReflection() {
+    // ffi::Functions are all not registered, because the reflection system doesn't take care of
+    // them, so it cannot be accessible on the python side. If there is such need from the future,
     // we can then add corresponding accessor methods to help access on python.
-    // `f_has_workload` is not visited
-    // `f_commit_workload` is not visited
-    // `f_commit_tuning_record` is not visited
-    // `f_get_top_k` is not visited
-    // `f_get_all_tuning_records` is not visited
-    // `f_query_tuning_record` is not visited
-    // `f_query_schedule` is not visited
-    // `f_query_ir_module` is not visited
-    // `f_size` is not visited
+    // `f_has_workload` is not registered
+    // `f_commit_workload` is not registered
+    // `f_commit_tuning_record` is not registered
+    // `f_get_top_k` is not registered
+    // `f_get_all_tuning_records` is not registered
+    // `f_query_tuning_record` is not registered
+    // `f_query_schedule` is not registered
+    // `f_query_ir_module` is not registered
+    // `f_size` is not registered
   }
 
   bool HasWorkload(const IRModule& mod) final {
@@ -408,19 +409,19 @@ class PyDatabaseNode : public DatabaseNode {
     f_commit_tuning_record(record);
   }
 
-  Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
+  ffi::Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
     ICHECK(f_get_top_k != nullptr) << "PyDatabase's GetTopK method not implemented!";
     return f_get_top_k(workload, top_k);
   }
 
-  Array<TuningRecord> GetAllTuningRecords() final {
+  ffi::Array<TuningRecord> GetAllTuningRecords() final {
     ICHECK(f_get_all_tuning_records != nullptr)
         << "PyDatabase's GetAllTuningRecords method not implemented!";
     return f_get_all_tuning_records();
   }
 
-  Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
-                                           const String& workload_name) final {
+  ffi::Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
+                                                const ffi::String& workload_name) final {
     if (f_query_tuning_record == nullptr) {
       return DatabaseNode::QueryTuningRecord(mod, target, workload_name);
     } else {
@@ -428,8 +429,8 @@ class PyDatabaseNode : public DatabaseNode {
     }
   }
 
-  Optional<tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
-                                        const String& workload_name) final {
+  ffi::Optional<tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
+                                             const ffi::String& workload_name) final {
     if (f_query_schedule == nullptr) {
       return DatabaseNode::QuerySchedule(mod, target, workload_name);
     } else {
@@ -437,8 +438,8 @@ class PyDatabaseNode : public DatabaseNode {
     }
   }
 
-  Optional<IRModule> QueryIRModule(const IRModule& mod, const Target& target,
-                                   const String& workload_name) final {
+  ffi::Optional<IRModule> QueryIRModule(const IRModule& mod, const Target& target,
+                                        const ffi::String& workload_name) final {
     if (f_query_ir_module == nullptr) {
       return DatabaseNode::QueryIRModule(mod, target, workload_name);
     } else {
@@ -451,8 +452,8 @@ class PyDatabaseNode : public DatabaseNode {
     return f_size();
   }
 
-  static constexpr const char* _type_key = "meta_schedule.PyDatabase";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyDatabaseNode, DatabaseNode);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyDatabase", PyDatabaseNode, DatabaseNode);
 };
 
 /*!
@@ -462,18 +463,25 @@ class PyDatabaseNode : public DatabaseNode {
 class Database : public runtime::ObjectRef {
  public:
   /*!
+   * \brief Constructor from ObjectPtr<DatabaseNode>.
+   * \param data The object pointer.
+   */
+  explicit Database(ObjectPtr<DatabaseNode> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
+  /*!
    * \brief An in-memory database.
    * \param mod_eq_name A string to specify the module equality testing and hashing method.
    */
-  TVM_DLL static Database MemoryDatabase(String mod_eq_name = "structural");
+  TVM_DLL static Database MemoryDatabase(ffi::String mod_eq_name = "structural");
   /*!
    * \brief A database for injecting handcrafted schedule functions.
    * \param schedule_fn The function to do scheduling, which takes a TIR schedule,
    * and returns a boolean indicating if the schedule is successful.
    * \param mod_eq_name A string to specify the module equality testing and hashing method.
    */
-  TVM_DLL static Database ScheduleFnDatabase(
-      runtime::TypedPackedFunc<bool(tir::Schedule)> schedule_fn, String mod_eq_name = "structural");
+  TVM_DLL static Database ScheduleFnDatabase(ffi::TypedFunction<bool(tir::Schedule)> schedule_fn,
+                                             ffi::String mod_eq_name = "structural");
   /*!
    * \brief Create a default database that uses JSON file for tuning records.
    * \param path_workload The path to the workload table.
@@ -481,8 +489,8 @@ class Database : public runtime::ObjectRef {
    * \param allow_missing Whether to create new file when the given path is not found.
    * \param mod_eq_name A string to specify the module equality testing and hashing method.
    */
-  TVM_DLL static Database JSONDatabase(String path_workload, String path_tuning_record,
-                                       bool allow_missing, String mod_eq_name = "structural");
+  TVM_DLL static Database JSONDatabase(ffi::String path_workload, ffi::String path_tuning_record,
+                                       bool allow_missing, ffi::String mod_eq_name = "structural");
   /*!
    * \brief A database composed of multiple databases, allowing users to guide IR rewriting using
    * combined knowledge of those databases. To each query, it returns the best record among all the
@@ -490,7 +498,7 @@ class Database : public runtime::ObjectRef {
    * \param databases The list of databases to be combined.
    * \return The combined database.
    */
-  TVM_DLL static Database UnionDatabase(Array<Database, void> databases);
+  TVM_DLL static Database UnionDatabase(ffi::Array<Database, void> databases);
   /*!
    * \brief A database composed of multiple databases, allowing users to guide IR rewriting using
    * combined knowledge of those databases. To each query, it returns the record from the first
@@ -498,7 +506,7 @@ class Database : public runtime::ObjectRef {
    * \param databases The database to be subsetted.
    * \return The subsetted database.
    */
-  TVM_DLL static Database OrderedUnionDatabase(Array<Database, void> databases);
+  TVM_DLL static Database OrderedUnionDatabase(ffi::Array<Database, void> databases);
   /*!
    * \brief Create a database with customized methods on the python-side.
    * \param f_has_workload The packed function of `HasWorkload`.
@@ -522,15 +530,15 @@ class Database : public runtime::ObjectRef {
                                      PyDatabaseNode::FQuerySchedule f_query_schedule,
                                      PyDatabaseNode::FQueryIRModule f_query_ir_module,
                                      PyDatabaseNode::FSize f_size,
-                                     String mod_eq_name = "structural");
+                                     ffi::String mod_eq_name = "structural");
   /*! \return The current Database in the scope. */
-  static Optional<Database> Current();
+  static ffi::Optional<Database> Current();
   /*! \brief Entering the scope of the context manager */
   void EnterWithScope();
   /*! \brief Exiting the scope of the context manager */
   void ExitWithScope();
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Database, runtime::ObjectRef, DatabaseNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Database, runtime::ObjectRef, DatabaseNode);
 };
 
 }  // namespace meta_schedule

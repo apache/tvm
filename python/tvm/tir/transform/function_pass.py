@@ -19,13 +19,13 @@ import inspect
 import functools
 from typing import Callable, List, Optional, Union
 
-import tvm._ffi
+import tvm_ffi
 from tvm.ir.transform import Pass, PassInfo
 
 from . import _ffi_api
 
 
-@tvm._ffi.register_object("tir.PrimFuncPass")
+@tvm_ffi.register_object("tir.PrimFuncPass")
 class PrimFuncPass(Pass):
     """A pass that works on each :py:func:`tvm.tir.PrimFunc` in a module. A function
     pass class should be created through py:func:`tvm.tir.transform.function_pass`.
@@ -39,9 +39,8 @@ def _wrap_class_function_pass(pass_cls, pass_info):
         """Internal wrapper class to create a class instance."""
 
         def __init__(self, *args, **kwargs):
-            # initialize handle in cass pass_cls creation failed.fg
-            self.handle = None
             inst = pass_cls(*args, **kwargs)
+
             # it is important not to capture self to
             # avoid a cyclic dependency
             def _pass_func(func, mod, ctx):

@@ -19,7 +19,7 @@ from typing import Callable, List
 
 from tvm import tir
 
-from .analysis import BlockInfo
+from ..analysis import BlockInfo
 
 
 def try_inline(

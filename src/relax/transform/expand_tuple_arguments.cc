@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 
@@ -31,22 +32,22 @@ namespace {
 template <typename T, typename U>
 using PMap = std::unordered_map<T, U, ObjectPtrHash, ObjectPtrEqual>;
 
-Optional<Function> ExpandParams(Function func) {
-  bool is_exposed = func->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
-  if (is_exposed) return NullOpt;
+ffi::Optional<Function> ExpandParams(Function func) {
+  bool is_exposed = func->attrs.GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+  if (is_exposed) return std::nullopt;
 
   bool has_tuple_param = std::any_of(
       func->params.begin(), func->params.end(),
       [](const Var& param) -> bool { return param->struct_info_.as<TupleStructInfoNode>(); });
 
-  if (!has_tuple_param) return NullOpt;
+  if (!has_tuple_param) return std::nullopt;
 
-  Array<Var> params;
-  Array<Binding> bindings;
+  ffi::Array<Var> params;
+  ffi::Array<Binding> bindings;
 
   std::function<void(const Var&)> expand_param = [&](const Var& param) {
     if (auto sinfo = param->struct_info_.as<TupleStructInfoNode>()) {
-      Array<Expr> internal_tuple;
+      ffi::Array<Expr> internal_tuple;
       for (size_t i = 0; i < sinfo->fields.size(); i++) {
         auto name = static_cast<const std::stringstream&>(std::stringstream()
                                                           << param->name_hint() << "_" << i)
@@ -88,7 +89,7 @@ class TupleExpander : public ExprMutator {
 
     if (auto gvar = node->op.as<GlobalVar>()) {
       if (auto it = replacements_.find(gvar.value()); it != replacements_.end()) {
-        Array<Expr> new_args;
+        ffi::Array<Expr> new_args;
 
         std::function<void(const Expr&)> expand_arg = [&](const Expr& arg) {
           if (auto sinfo = arg->struct_info_.as<TupleStructInfoNode>()) {
@@ -121,8 +122,7 @@ class TupleExpander : public ExprMutator {
 namespace transform {
 
 Pass ExpandTupleArguments() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) -> IRModule {
+  auto pass_func = [=](IRModule mod, PassContext pc) -> IRModule {
     PMap<GlobalVar, GlobalVar> gvar_replacements;
 
     {
@@ -132,7 +132,7 @@ Pass ExpandTupleArguments() {
         if (auto func = base_func.as<Function>()) {
           if (auto opt = ExpandParams(func.value())) {
             auto new_func = opt.value();
-            GlobalVar new_gvar(gvar->name_hint, new_func->checked_type_);
+            GlobalVar new_gvar(gvar->name_hint);
             new_gvar->struct_info_ = new_func->struct_info_;
             gvar_replacements[gvar] = new_gvar;
             new_callees[new_gvar] = new_func;
@@ -179,7 +179,10 @@ Pass ExpandTupleArguments() {
       "ExpandTupleArguments");
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.ExpandTupleArguments").set_body_typed(ExpandTupleArguments);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.ExpandTupleArguments", ExpandTupleArguments);
+}
 
 }  // namespace transform
 

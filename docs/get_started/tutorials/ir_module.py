@@ -232,12 +232,12 @@ mod.show()
 # ~~~~~~~~~~~~~
 # We can deploy the IRModule on CPU by specifying the target as ``llvm``.
 
-exec = relax.build(mod, target="llvm")
+exec = tvm.compile(mod, target="llvm")
 dev = tvm.cpu()
 vm = relax.VirtualMachine(exec, dev)
 
 raw_data = np.random.rand(1, 784).astype("float32")
-data = tvm.nd.array(raw_data, dev)
+data = tvm.runtime.tensor(raw_data, dev)
 cpu_out = vm["main"](data, *params_from_torch["main"]).numpy()
 print(cpu_out)
 
@@ -263,12 +263,12 @@ with tvm.target.Target("cuda"):
 ######################################################################
 # Now we can compile the IRModule on GPU, the similar way as we did on CPU.
 
-exec = relax.build(gpu_mod, target="cuda")
+exec = tvm.compile(gpu_mod, target="cuda")
 dev = tvm.device("cuda", 0)
 vm = relax.VirtualMachine(exec, dev)
 # Need to allocate data and params on GPU device
-data = tvm.nd.array(raw_data, dev)
-gpu_params = [tvm.nd.array(p, dev) for p in params_from_torch["main"]]
+data = tvm.runtime.tensor(raw_data, dev)
+gpu_params = [tvm.runtime.tensor(p, dev) for p in params_from_torch["main"]]
 gpu_out = vm["main"](data, *gpu_params).numpy()
 print(gpu_out)
 

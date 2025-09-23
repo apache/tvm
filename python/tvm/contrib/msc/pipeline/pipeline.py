@@ -21,7 +21,6 @@ import os
 import json
 from typing import Any, Union, List, Tuple
 import traceback
-import numpy as np
 
 from tvm.contrib.msc.core.tools import get_tool_cls, BaseTool
 from tvm.contrib.msc.core.utils.namespace import MSCFramework, MSCMap, MSCKey
@@ -678,7 +677,7 @@ class BasePipeline(object):
             def get_random():
                 def _to_data(inp):
                     shape = [1 if isinstance(d, str) else d for d in inp[1]]
-                    return np.random.rand(*shape).astype(inp[2])
+                    return msc_utils.random_data([shape, inp[2]])
 
                 for _ in range(max_batch):
                     yield {i[0]: _to_data(i) for i in self._config["inputs"]}

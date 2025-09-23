@@ -28,6 +28,9 @@ from tvm.relax.frontend.torch import relax_dynamo
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
+from packaging import version
+
+torch_version = torch.__version__
 
 
 def test_relax_dynamo():
@@ -171,13 +174,13 @@ def test_subgraph_capture():
         @R.function
         def subgraph_0(
             inp_0: R.Tensor((10, 100), dtype="float32"),
-            w0: R.Tensor((10, 100), dtype="float32"),
             w1: R.Tensor((10,), dtype="float32"),
+            w0: R.Tensor((10, 100), dtype="float32"),
         ) -> R.Tensor((10, 10), dtype="float32"):
             # block 0
             with R.dataflow():
-                lv: R.Tensor((100, 10), dtype="float32") = R.permute_dims(w0, axes=None)
-                lv1: R.Tensor((10, 10), dtype="float32") = R.matmul(inp_0, lv, out_dtype="float32")
+                lv: R.Tensor((100, 10), dtype="float32") = R.permute_dims(inp_0, axes=None)
+                lv1: R.Tensor((10, 10), dtype="float32") = R.matmul(w0, lv, out_dtype="float32")
                 lv2: R.Tensor((10, 10), dtype="float32") = R.add(lv1, w1)
                 lv3: R.Tensor((10, 10), dtype="float32") = R.nn.relu(lv2)
                 gv: R.Tensor((10, 10), dtype="float32") = lv3
@@ -186,10 +189,7 @@ def test_subgraph_capture():
 
     model = Input1()
     mod = dynamo_capture_subgraphs(model, torch.randn(10, 100))
-    binding = {"w0": model.lin.weight.detach().numpy(), "w1": model.lin.bias.detach().numpy()}
-    binding = {k: tvm.nd.array(v) for k, v in binding.items()}
-    expected = relax.transform.BindParams("subgraph_0", binding)(Expected1)
-    tvm.ir.assert_structural_equal(mod, expected)
+    tvm.ir.assert_structural_equal(mod, Expected1)
 
     def Input2(a, b):
         x = a / (torch.sin(a) + 1)
@@ -251,21 +251,18 @@ def test_subgraph_capture():
         ) -> R.Tensor((10, 10), dtype="float32"):
             # block 0
             with R.dataflow():
-                lv0 = R.add(inp_0, R.const(1, "float32"))
-                lv: R.Tensor((100, 10), dtype="float32") = R.permute_dims(w0, axes=None)
-                lv1: R.Tensor((10, 10), dtype="float32") = R.matmul(lv0, lv, out_dtype="float32")
-                lv2: R.Tensor((10, 10), dtype="float32") = R.add(lv1, w1)
-                lv3: R.Tensor((10, 10), dtype="float32") = R.nn.relu(lv2)
-                gv: R.Tensor((10, 10), dtype="float32") = lv3
+                lv: R.Tensor((10, 100), dtype="float32") = R.add(inp_0, R.const(1.0, "float32"))
+                lv1: R.Tensor((100, 10), dtype="float32") = R.permute_dims(w0, axes=None)
+                lv2: R.Tensor((10, 10), dtype="float32") = R.matmul(lv, lv1, out_dtype="float32")
+                lv3: R.Tensor((10, 10), dtype="float32") = R.add(lv2, w1)
+                lv4: R.Tensor((10, 10), dtype="float32") = R.nn.relu(lv3)
+                gv: R.Tensor((10, 10), dtype="float32") = lv4
                 R.output(gv)
             return gv
 
     model = Input3()
     mod = dynamo_capture_subgraphs(model, torch.randn(10, 100), add_one=True)
-    binding = {"w0": model.lin.weight.detach().numpy(), "w1": model.lin.bias.detach().numpy()}
-    binding = {k: tvm.nd.array(v) for k, v in binding.items()}
-    expected = relax.transform.BindParams("subgraph_0", binding)(Expected3)
-    tvm.ir.assert_structural_equal(mod, expected)
+    tvm.ir.assert_structural_equal(mod, Expected3)
 
 
 def verify_dynamo_model(torch_model, input_info, binding, expected):
@@ -276,9 +273,9 @@ def verify_dynamo_model(torch_model, input_info, binding, expected):
     args = []
     for info in input_info:
         args.append(torch.zeros(*info[0], dtype=_convert_data_type(info[1])))
-    graph_model = dynamo.export(torch_model, *args)[0]
+    graph_model = dynamo.export(torch_model)(*args)[0]
     mod = from_fx(graph_model, input_info, unwrap_unit_return_tuple=True)
-    binding = {k: tvm.nd.array(v) for k, v in binding.items()}
+    binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
     tvm.ir.assert_structural_equal(mod, expected)
 
@@ -315,7 +312,7 @@ def test_ones():
     class Expected1:
         @R.function
         def main(
-            inp_0: R.Tensor((256, 256), dtype="float32")
+            inp_0: R.Tensor((256, 256), dtype="float32"),
         ) -> R.Tensor((10, 10), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((10, 10), dtype="float32") = R.full(
@@ -346,7 +343,7 @@ def test_full():
     class Expected1:
         @R.function
         def main(
-            inp_0: R.Tensor((256, 256), dtype="float32")
+            inp_0: R.Tensor((256, 256), dtype="float32"),
         ) -> R.Tensor((10, 10), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((10, 10), dtype="float32") = R.full(
@@ -381,7 +378,7 @@ def test_gelu():
     class ExpectedGeLU:
         @R.function
         def main(
-            inp_0: R.Tensor((128, 256), dtype="float32")
+            inp_0: R.Tensor((128, 256), dtype="float32"),
         ) -> R.Tensor((128, 256), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((128, 256), dtype="float32") = R.nn.gelu(inp_0)
@@ -393,7 +390,7 @@ def test_gelu():
     class ExpectedGeLUTanh:
         @R.function
         def main(
-            inp_0: R.Tensor((128, 256), dtype="float32")
+            inp_0: R.Tensor((128, 256), dtype="float32"),
         ) -> R.Tensor((128, 256), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((128, 256), dtype="float32") = R.nn.gelu_tanh(inp_0)
@@ -490,7 +487,7 @@ def test_getitem():
     class Expected2:
         @R.function
         def main(
-            inp_0: R.Tensor((1, 77, 1280), dtype="float32")
+            inp_0: R.Tensor((1, 77, 1280), dtype="float32"),
         ) -> R.Tensor((1, 77, 1280), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((1,), dtype="int64") = R.arange(
@@ -525,6 +522,10 @@ def test_getitem():
     verify_dynamo_model(Select2(), [([1, 77, 1280], "float32")], {}, Expected2)
 
 
+@pytest.mark.skipif(
+    version.parse(torch_version) >= version.parse("2.6.0"),
+    reason="Need to support dynamic arange in Relax",
+)
 @tvm.testing.requires_gpu
 def test_arange():
     import torch

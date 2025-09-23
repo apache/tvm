@@ -21,6 +21,7 @@
  * \file tvm/relax/transform/realize_vdevice.cc
  * \brief Propagate virtual device information.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
@@ -53,8 +54,8 @@ class VDeviceLookup {
   VDevice operator()(Attrs hint_on_device_attrs) {
     auto attrs = hint_on_device_attrs.as<HintOnDeviceAttrs>();
     ICHECK(attrs);
-    int32_t device_type = attrs->dev_type;
-    int32_t device_id = attrs->dev_id;
+    int32_t device_type = attrs->device_type;
+    int32_t device_id = attrs->index;
 
     CHECK(opt_vdevices_.defined())
         << "ValueError: The target VDevice in the GlobalInfos was not found.";
@@ -72,15 +73,16 @@ class VDeviceLookup {
     LOG(FATAL) << "ValueError: "
                << "Expected to find device with type " << device_id << " and id " << device_id
                << ", but no such device was found in the IRModule's \"vdevice\" annotation";
+    TVM_FFI_UNREACHABLE();
   }
 
  private:
-  Optional<Array<VDevice>> opt_vdevices_ = NullOpt;
+  ffi::Optional<ffi::Array<VDevice>> opt_vdevices_ = std::nullopt;
 };
 
 class DeviceHintCollector : ExprVisitor {
  public:
-  static std::tuple<Map<Var, VDevice>, Map<Var, VDevice>> Collect(IRModule mod) {
+  static std::tuple<ffi::Map<Var, VDevice>, ffi::Map<Var, VDevice>> Collect(IRModule mod) {
     DeviceHintCollector visitor{VDeviceLookup(mod)};
 
     for (const auto& [gvar, base_func] : mod->functions) {
@@ -176,13 +178,13 @@ class DeviceHintCollector : ExprVisitor {
     }
   }
 
-  Optional<Expr> LookupBinding(const Expr& expr) const {
+  ffi::Optional<Expr> LookupBinding(const Expr& expr) const {
     if (auto var = expr.as<Var>()) {
       if (auto bound = binding_lookup_.Get(var.value())) {
         return bound.value();
       }
     }
-    return NullOpt;
+    return std::nullopt;
   }
 
   // A lookup to identify the VDevice from the IRModule attributes,
@@ -192,14 +194,14 @@ class DeviceHintCollector : ExprVisitor {
 
   // A lookup of variable bindings, used to unwrap the variable
   // bindings in functions that return a tuple.
-  Map<Var, Expr> binding_lookup_;
+  ffi::Map<Var, Expr> binding_lookup_;
 
   // A map from Var to the VDevice they are known to occur on.  This
   // only contains variables whose location is explicitly known
   // (e.g. output of `R.hint_on_device`, variables with explicit
   // `VDevice` in their struct info), and does not include variables
   // whose location is (e.g. input of `R.hint_on_device`).
-  Map<Var, VDevice> known_vdevice_;
+  ffi::Map<Var, VDevice> known_vdevice_;
 
   // A map from Var to the VDevice they are expected to occur on.  If
   // a variable appears in both `known_vdevice_` and
@@ -211,7 +213,7 @@ class DeviceHintCollector : ExprVisitor {
   // Therefore, we only determine that `A` is located on "cuda:0" if
   // no other annotation has already provided a known location for
   // `A`.
-  Map<Var, VDevice> hint_on_device_inputs_;
+  ffi::Map<Var, VDevice> hint_on_device_inputs_;
 
   // The `R.hint_on_device` operator.
   const Op& hint_on_device_op_ = Op::Get("relax.hint_on_device");
@@ -221,7 +223,7 @@ class DeviceHintCollector : ExprVisitor {
 // same VDevice.
 class VDeviceSetCollector : ExprVisitor {
  public:
-  static Map<Var, Array<Var>> Collect(IRModule mod) {
+  static ffi::Map<Var, ffi::Array<Var>> Collect(IRModule mod) {
     VDeviceSetCollector visitor;
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto func = base_func.as<Function>()) {
@@ -247,13 +249,13 @@ class VDeviceSetCollector : ExprVisitor {
 
   void VisitExpr_(const VarNode* op) override {
     if (current_binding_) {
-      auto var = GetRef<Var>(op);
+      auto var = ffi::GetRef<Var>(op);
       var_to_co_located_vars_[current_binding_.value()].push_back(var);
       var_to_co_located_vars_[var].push_back(current_binding_.value());
     }
   }
 
-  Optional<Var> current_binding_ = NullOpt;
+  ffi::Optional<Var> current_binding_ = std::nullopt;
 
   // Lookup from relax variable to the set of relax variables which
   // must be located on the same device.  For example, a trivial
@@ -265,18 +267,18 @@ class VDeviceSetCollector : ExprVisitor {
   // `relax::Call` operation must be located on the same device, with
   // the exception of `R.hint_on_device` and `R.to_vdevice`, which may
   // introduce a transfer across devices.
-  std::unordered_map<Var, Array<Var>> var_to_co_located_vars_;
+  std::unordered_map<Var, ffi::Array<Var>> var_to_co_located_vars_;
 
   const Op& hint_on_device_op_ = Op::Get("relax.hint_on_device");
   const Op& to_vdevice_op_ = Op::Get("relax.to_vdevice");
 };
 
-Map<Var, VDevice> InferVDevice(IRModule mod) {
+ffi::Map<Var, VDevice> InferVDevice(IRModule mod) {
   auto [explicit_annotations, hint_on_device_args] = DeviceHintCollector::Collect(mod);
 
   auto co_located_var_lookup = VDeviceSetCollector::Collect(mod);
 
-  Map<Var, VDevice> known_vdevice;
+  ffi::Map<Var, VDevice> known_vdevice;
   std::vector<Var> to_visit;
 
   // A helper function to propagate all `known_vdevice` entries based
@@ -322,7 +324,7 @@ Map<Var, VDevice> InferVDevice(IRModule mod) {
 // Update the module to include the inferred VDevice annotations.
 class VDeviceStructInfoUpdater : ExprMutator {
  public:
-  static IRModule Apply(IRModule mod, Map<Var, VDevice> vdevice_map) {
+  static IRModule Apply(IRModule mod, ffi::Map<Var, VDevice> vdevice_map) {
     VDeviceStructInfoUpdater mutator(VDeviceLookup(mod), vdevice_map);
 
     IRModule updates;
@@ -344,7 +346,7 @@ class VDeviceStructInfoUpdater : ExprMutator {
   }
 
  private:
-  VDeviceStructInfoUpdater(VDeviceLookup vdevice_lookup, Map<Var, VDevice> vdevice_map)
+  VDeviceStructInfoUpdater(VDeviceLookup vdevice_lookup, ffi::Map<Var, VDevice> vdevice_map)
       : vdevice_lookup_(vdevice_lookup), vdevice_map_(vdevice_map) {}
 
   Var VisitVarDef(const Var& old_var) override {
@@ -388,14 +390,14 @@ class VDeviceStructInfoUpdater : ExprMutator {
     if (input_vdevice.defined() && input_vdevice.value() == output_vdevice) {
       return arg;
     } else {
-      ObjectPtr<ToVDeviceAttrs> attrs = make_object<ToVDeviceAttrs>();
+      ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>();
       attrs->dst_vdevice = output_vdevice;
       return Call(to_vdevice_op_, {arg}, Attrs(attrs), {});
     }
   }
 
   VDeviceLookup vdevice_lookup_;
-  Map<Var, VDevice> vdevice_map_;
+  ffi::Map<Var, VDevice> vdevice_map_;
   const Op& hint_on_device_op_ = Op::Get("relax.hint_on_device");
   const Op& to_vdevice_op_ = Op::Get("relax.to_vdevice");
 };
@@ -404,8 +406,7 @@ class VDeviceStructInfoUpdater : ExprMutator {
 namespace transform {
 
 Pass RealizeVDevice() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule mod, PassContext pc) {
     auto known_vdevices = InferVDevice(mod);
     return VDeviceStructInfoUpdater::Apply(mod, known_vdevices);
   };
@@ -415,7 +416,10 @@ Pass RealizeVDevice() {
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.RealizeVDevice").set_body_typed(RealizeVDevice);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.RealizeVDevice", RealizeVDevice);
+}
 
 }  // namespace transform
 }  // namespace relax

@@ -21,6 +21,7 @@
  * \file lower_opaque_block.cc
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -56,15 +57,14 @@ class OpaqueBlockLower : public StmtExprMutator {
     // Step 3. Handle allocations in reverse order
     for (size_t i = new_block->alloc_buffers.size(); i > 0; --i) {
       const Buffer& buffer = new_block->alloc_buffers[i - 1];
-      Array<PrimExpr> allocation_shape = GetBufferAllocationShape(buffer);
+      ffi::Array<PrimExpr> allocation_shape = GetBufferAllocationShape(buffer);
       body = DeclBuffer(buffer, std::move(body));
-      Map<String, ObjectRef> allocate_annotations;
+      ffi::Map<ffi::String, ffi::Any> allocate_annotations;
       auto it = storage_align_.find(buffer->data);
       if (it != storage_align_.end()) {
         StorageAlignAnnotation allocate_aligns;
         for (auto tuple : it->second) {
-          ICHECK_EQ(tuple.size(), 4);
-          tuple.Set(0, -1);
+          tuple.Set<0>(-1);
           allocate_aligns.push_back(tuple);
         }
         allocate_annotations.Set(attr::buffer_dim_align, allocate_aligns);
@@ -90,25 +90,28 @@ class OpaqueBlockLower : public StmtExprMutator {
       // handling unit loop
       unit_loop_vars_[op->loop_var] = min;
     }
+
     // Step 2. Visit recursively
     Stmt body = this->VisitStmt(op->body);
+
     // Step 3. Handle annotations
     std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
-    Map<String, ObjectRef> new_annotations =
+    ffi::Map<ffi::String, ffi::Any> new_annotations =
         HandleAnnotations(op->annotations, &pragma_attrs, /*is_block=*/false);
     // Step 4. Create new For loop accordingly
     if (op->kind == ForKind::kThreadBinding) {
       // Case 1. Thread binding
       ICHECK(op->thread_binding.defined());
-      String thread_tag = op->thread_binding.value()->thread_tag;
+      ffi::String thread_tag = op->thread_binding.value()->thread_tag;
       body = MakeLaunchThread(min, extent, op->loop_var, thread_tag, body);
-    } else if (is_one(extent) && op->annotations.empty()) {
+    } else if (is_one(extent) && op->annotations.empty() &&
+               !op->annotations.count(attr::irregular_loop_mark)) {
       // Case 2. Unit loop
       return body;
     } else {
       // Case 3. An ordinary loop
       body = For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body),
-                 NullOpt, new_annotations);
+                 std::nullopt, new_annotations);
     }
     // Step 5. Insert nested attrs
     for (auto it = pragma_attrs.rbegin(); it != pragma_attrs.rend(); ++it) {
@@ -118,10 +121,11 @@ class OpaqueBlockLower : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
-    Var var = GetRef<Var>(op);
+    Var var = ffi::GetRef<Var>(op);
     auto it = unit_loop_vars_.find(var);
     if (it == unit_loop_vars_.end()) {
-      return std::move(var);
+      return var;
+
     } else {
       PrimExpr expr = it->second;
       if (expr.dtype() != var.dtype()) {
@@ -131,16 +135,16 @@ class OpaqueBlockLower : public StmtExprMutator {
     }
   }
 
-  static Stmt MakeLaunchThread(PrimExpr min, PrimExpr extent, Var var, String thread_tag,
+  static Stmt MakeLaunchThread(PrimExpr min, PrimExpr extent, Var var, ffi::String thread_tag,
                                Stmt body) {
     IterVar iter_var(/*dom=*/Range::FromMinExtent(min, extent),
                      /*var=*/std::move(var),
                      /*iter_type=*/IterVarType::kThreadIndex,
                      /*thread_tag=*/thread_tag);
-    String attr_key = (thread_tag == "vthread" || thread_tag == "vthread.x" ||
-                       thread_tag == "vthread.y" || thread_tag == "vthread.z")
-                          ? attr::virtual_thread
-                          : attr::thread_extent;
+    ffi::String attr_key = (thread_tag == "vthread" || thread_tag == "vthread.x" ||
+                            thread_tag == "vthread.y" || thread_tag == "vthread.z")
+                               ? attr::virtual_thread
+                               : attr::thread_extent;
     return AttrStmt(/*node=*/std::move(iter_var),
                     /*attr_key=*/std::move(attr_key),
                     /*value=*/std::move(extent),
@@ -148,15 +152,15 @@ class OpaqueBlockLower : public StmtExprMutator {
   }
 
   /*! \brief Convert attr value from annotation map into PrimExpr. */
-  PrimExpr ConvertAttrValue(const String& key, const ObjectRef& obj) {
-    if (!obj.defined()) {
+  PrimExpr ConvertAttrValue(const ffi::String& key, const Any& obj) {
+    if (obj == nullptr) {
       return PrimExpr();
-    } else if (auto expr = obj.as<PrimExpr>()) {
+    } else if (auto expr = obj.try_cast<PrimExpr>()) {
       return expr.value();
-    } else if (auto str = obj.as<String>()) {
+    } else if (auto str = obj.try_cast<ffi::String>()) {
       return std::move(StringImm(str.value()));
     } else {
-      LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj->GetTypeKey()
+      LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj.GetTypeKey()
                  << " not supported";
       return PrimExpr();
     }
@@ -170,13 +174,13 @@ class OpaqueBlockLower : public StmtExprMutator {
    * (3) the non-pragma block annotations are dropped
    * \return New annotation dict with preserved keys. Also update pragma attr pairs ordered by key.
    */
-  Map<String, ObjectRef> HandleAnnotations(
-      const Map<String, ObjectRef>& annotations,
+  ffi::Map<ffi::String, ffi::Any> HandleAnnotations(
+      const ffi::Map<ffi::String, ffi::Any>& annotations,
       std::vector<std::pair<std::string, PrimExpr>>* pragma_attrs, bool is_block) {
-    Map<String, ObjectRef> preserved_annotations;
+    ffi::Map<ffi::String, ffi::Any> preserved_annotations;
     pragma_attrs->clear();
     for (const auto& kv : annotations) {
-      const String& key = kv.first;
+      const ffi::String& key = kv.first;
       if (attr::IsPragmaKey(key)) {
         pragma_attrs->emplace_back(key, ConvertAttrValue(key, kv.second));
       } else if (!is_block) {
@@ -200,14 +204,9 @@ class OpaqueBlockLower : public StmtExprMutator {
 };
 
 PrimFunc LowerOpaqueBlock(PrimFunc f) {
-  // Only apply this pass to TIR that is not from TE schedules
-  if (!IsFromLegacyTESchedule(f)) {
-    auto fptr = f.CopyOnWrite();
-    fptr->body = OpaqueBlockLower::Rewrite(std::move(fptr->body));
-    return f;
-  } else {
-    return f;
-  }
+  auto fptr = f.CopyOnWrite();
+  fptr->body = OpaqueBlockLower::Rewrite(std::move(fptr->body));
+  return f;
 }
 
 namespace transform {
@@ -219,7 +218,10 @@ Pass LowerOpaqueBlock() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerOpaqueBlock", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerOpaqueBlock").set_body_typed(LowerOpaqueBlock);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LowerOpaqueBlock", LowerOpaqueBlock);
+}
 }  // namespace transform
 
 }  // namespace tir

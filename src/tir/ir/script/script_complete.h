@@ -23,14 +23,14 @@
  */
 #ifndef TVM_TIR_IR_SCRIPT_SCRIPT_COMPLETE_H_
 #define TVM_TIR_IR_SCRIPT_SCRIPT_COMPLETE_H_
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
 
 namespace tvm {
 namespace tir {
 
-PrimFunc ScriptComplete(PrimFunc func, const Array<Buffer>& root_allocates);
+PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<Buffer>& root_allocates);
 
 }  // namespace tir
 }  // namespace tvm

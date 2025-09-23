@@ -23,10 +23,10 @@
 #ifndef TVM_IR_SOURCE_MAP_H_
 #define TVM_IR_SOURCE_MAP_H_
 
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <fstream>
 #include <string>
@@ -46,18 +46,15 @@ class SourceName;
 class SourceNameNode : public Object {
  public:
   /*! \brief The source name. */
-  String name;
-  // override attr visitor
-  void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
+  ffi::String name;
 
-  static constexpr bool _type_has_method_sequal_reduce = true;
-
-  bool SEqualReduce(const SourceNameNode* other, SEqualReducer equal) const {
-    return equal(name, other->name);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SourceNameNode>().def_ro("name", &SourceNameNode::name);
   }
 
-  static constexpr const char* _type_key = "SourceName";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SourceNameNode, Object);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.SourceName", SourceNameNode, Object);
 };
 
 /*!
@@ -72,9 +69,9 @@ class SourceName : public ObjectRef {
    * \param name Name of the operator.
    * \return SourceName valid throughout program lifetime.
    */
-  TVM_DLL static SourceName Get(const String& name);
+  TVM_DLL static SourceName Get(const ffi::String& name);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(SourceName, ObjectRef, SourceNameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SourceName, ObjectRef, SourceNameNode);
 };
 
 /*!
@@ -97,24 +94,18 @@ class SpanNode : public Object {
   /*! \brief The end column number. */
   int end_column;
 
-  // override attr visitor
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("source_name", &source_name);
-    v->Visit("line", &line);
-    v->Visit("column", &column);
-    v->Visit("end_line", &end_line);
-    v->Visit("end_column", &end_column);
-  }
-  static constexpr bool _type_has_method_sequal_reduce = true;
-
-  bool SEqualReduce(const SpanNode* other, SEqualReducer equal) const {
-    return equal(source_name, other->source_name) && equal(line, other->line) &&
-           equal(column, other->column) && equal(end_line, other->end_line) &&
-           equal(end_column, other->end_column);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SpanNode>()
+        .def_ro("source_name", &SpanNode::source_name)
+        .def_ro("line", &SpanNode::line)
+        .def_ro("column", &SpanNode::column)
+        .def_ro("end_line", &SpanNode::end_line)
+        .def_ro("end_column", &SpanNode::end_column);
   }
 
-  static constexpr const char* _type_key = "Span";
-  TVM_DECLARE_BASE_OBJECT_INFO(SpanNode, Object);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.Span", SpanNode, Object);
 };
 
 class Span : public ObjectRef {
@@ -124,7 +115,7 @@ class Span : public ObjectRef {
   /*! \brief Merge two spans into one which captures the combined regions. */
   TVM_DLL Span Merge(const Span& other) const;
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Span, ObjectRef, SpanNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Span, ObjectRef, SpanNode);
 };
 
 /*!
@@ -133,29 +124,13 @@ class Span : public ObjectRef {
 class SequentialSpanNode : public SpanNode {
  public:
   /*! \brief The original source list of spans to construct a sequential span. */
-  Array<Span> spans;
+  ffi::Array<Span> spans;
 
-  // override attr visitor
-  void VisitAttrs(AttrVisitor* v) {
-    SpanNode::VisitAttrs(v);
-    v->Visit("spans", &spans);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SequentialSpanNode>().def_ro("spans", &SequentialSpanNode::spans);
   }
-
-  static constexpr const char* _type_key = "SequentialSpan";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SequentialSpanNode, SpanNode);
-
-  bool SEqualReduce(const SequentialSpanNode* other, SEqualReducer equal) const {
-    if (spans.size() != other->spans.size()) {
-      return false;
-    }
-
-    for (size_t i = 0, e = spans.size(); i != e; ++i) {
-      if (!StructuralEqual()(spans[i], other->spans[i])) {
-        return false;
-      }
-    }
-    return true;
-  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.SequentialSpan", SequentialSpanNode, SpanNode);
 };
 
 /*!
@@ -164,11 +139,11 @@ class SequentialSpanNode : public SpanNode {
  */
 class SequentialSpan : public Span {
  public:
-  TVM_DLL SequentialSpan(Array<Span> spans);
+  TVM_DLL SequentialSpan(ffi::Array<Span> spans);
 
   TVM_DLL SequentialSpan(std::initializer_list<Span> init);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(SequentialSpan, Span, SequentialSpanNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SequentialSpan, Span, SequentialSpanNode);
 };
 
 /*! \brief A program source in any language.
@@ -184,27 +159,26 @@ class SourceNode : public Object {
   SourceName source_name;
 
   /*! \brief The raw source. */
-  String source;
+  ffi::String source;
 
   /*! \brief A mapping of line breaks into the raw source. */
   std::vector<std::pair<int, int>> line_map;
 
-  // override attr visitor
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("source_name", &source_name);
-    v->Visit("source", &source);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SourceNode>()
+        .def_ro("source_name", &SourceNode::source_name)
+        .def_ro("source", &SourceNode::source);
   }
-
-  static constexpr const char* _type_key = "Source";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SourceNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Source", SourceNode, Object);
 };
 
 class Source : public ObjectRef {
  public:
   TVM_DLL Source(SourceName src_name, std::string source);
-  TVM_DLL tvm::String GetLine(int line);
+  TVM_DLL tvm::ffi::String GetLine(int line);
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Source, ObjectRef, SourceNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Source, ObjectRef, SourceNode);
 };
 
 /*!
@@ -214,39 +188,37 @@ class SourceMap;
 /*!
  * \brief Stores locations in frontend source that generated a node.
  */
-class SourceMapNode : public Object {
+class SourceMapObj : public Object {
  public:
   /*! \brief The source mapping. */
-  Map<SourceName, Source> source_map;
+  ffi::Map<SourceName, Source> source_map;
 
-  // override attr visitor
-  void VisitAttrs(AttrVisitor* v) { v->Visit("source_map", &source_map); }
-
-  bool SEqualReduce(const SourceMapNode* other, SEqualReducer equal) const {
-    return equal(source_map, other->source_map);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SourceMapObj>().def_ro("source_map", &SourceMapObj::source_map);
   }
 
-  static constexpr const char* _type_key = "SourceMap";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SourceMapNode, Object);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.SourceMap", SourceMapObj, Object);
 };
 
 class SourceMap : public ObjectRef {
  public:
-  explicit SourceMap(Map<SourceName, Source> source_map);
+  explicit SourceMap(ffi::Map<SourceName, Source> source_map);
 
   explicit SourceMap(std::initializer_list<std::pair<SourceName, Source>> source_map)
-      : SourceMap(Map<SourceName, Source>(source_map)) {}
+      : SourceMap(ffi::Map<SourceName, Source>(source_map)) {}
 
-  SourceMap() : SourceMap(Map<SourceName, Source>()) {}
+  SourceMap() : SourceMap(ffi::Map<SourceName, Source>()) {}
 
   void Add(const Source& source);
 
-  SourceMapNode* operator->() {
+  SourceMapObj* operator->() {
     ICHECK(get() != nullptr);
-    return static_cast<SourceMapNode*>(get_mutable());
+    return static_cast<SourceMapObj*>(get_mutable());
   }
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(SourceMap, ObjectRef, SourceMapNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SourceMap, ObjectRef, SourceMapObj);
 };
 
 }  // namespace tvm

@@ -19,18 +19,29 @@
 
 #include "pooling.h"
 
+#include <tvm/ffi/reflection/registry.h>
+
 #include <utility>
 #include <vector>
 
 namespace tvm {
 namespace relax {
 
-/* relax.nn.max_pool1d */
-TVM_REGISTER_NODE_TYPE(Pool1DAttrs);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  Pool1DAttrs::RegisterReflection();
+  Pool2DAttrs::RegisterReflection();
+  Pool3DAttrs::RegisterReflection();
+  AdaptivePool1DAttrs::RegisterReflection();
+  AdaptivePool2DAttrs::RegisterReflection();
+  AdaptivePool3DAttrs::RegisterReflection();
+}
 
-Expr MakePool1d(String op_name, Expr data, Array<IntImm> pool_size, Array<IntImm> strides,
-                Array<IntImm> padding, Array<IntImm> dilation, bool ceil_mode,
-                bool count_include_pad, String layout, Optional<String> out_layout) {
+/* relax.nn.max_pool1d */
+
+Expr MakePool1d(ffi::String op_name, Expr data, ffi::Array<IntImm> pool_size,
+                ffi::Array<IntImm> strides, ffi::Array<IntImm> padding, ffi::Array<IntImm> dilation,
+                bool ceil_mode, bool count_include_pad, ffi::String layout,
+                ffi::Optional<ffi::String> out_layout) {
   padding = GetCompletePadding1D(std::move(padding));
 
   CHECK_EQ(pool_size.size(), 1)
@@ -42,7 +53,7 @@ Expr MakePool1d(String op_name, Expr data, Array<IntImm> pool_size, Array<IntImm
       << "The input dilation length is expected to be 1. However, the given dilation is "
       << dilation;
 
-  auto attrs = make_object<Pool1DAttrs>();
+  auto attrs = ffi::make_object<Pool1DAttrs>();
   attrs->pool_size = ConvertIntImmToInt64(pool_size);
   attrs->strides = ConvertIntImmToInt64(strides);
   attrs->padding = ConvertIntImmToInt64(padding);
@@ -55,14 +66,17 @@ Expr MakePool1d(String op_name, Expr data, Array<IntImm> pool_size, Array<IntImm
   return Call(op, {std::move(data)}, Attrs(attrs), {});
 }
 
-Expr max_pool1d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array<IntImm> padding,
-                Array<IntImm> dilation, bool ceil_mode, bool count_include_pad, String layout,
-                Optional<String> out_layout) {
+Expr max_pool1d(Expr data, ffi::Array<IntImm> pool_size, ffi::Array<IntImm> strides,
+                ffi::Array<IntImm> padding, ffi::Array<IntImm> dilation, bool ceil_mode,
+                bool count_include_pad, ffi::String layout, ffi::Optional<ffi::String> out_layout) {
   return MakePool1d("relax.nn.max_pool1d", data, pool_size, strides, padding, dilation, ceil_mode,
                     count_include_pad, layout, out_layout);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.max_pool1d").set_body_typed(max_pool1d);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.nn.max_pool1d", max_pool1d);
+}
 
 StructInfo InferStructInfoPool1D(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -75,13 +89,13 @@ StructInfo InferStructInfoPool1D(const Call& call, const BlockBuilder& ctx) {
                                                  /*tgt_layout=*/"NCW",
                                                  /*tensor_name=*/"output");
 
-  Optional<ShapeExpr> data_shape =
+  ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
   if (!data_shape.defined()) {
     return TensorStructInfo(data_sinfo->dtype, out_layout.ndim(), data_sinfo->vdevice);
   }
 
-  Array<PrimExpr> data_NCW_shape = data2NCW.ForwardShape(data_shape.value()->values);
+  ffi::Array<PrimExpr> data_NCW_shape = data2NCW.ForwardShape(data_shape.value()->values);
 
   PrimExpr input_w = data_NCW_shape[2];
   PrimExpr kernel_w = attrs->pool_size[0];
@@ -95,17 +109,17 @@ StructInfo InferStructInfoPool1D(const Call& call, const BlockBuilder& ctx) {
 
   PrimExpr numerator_w = input_w + padding_w - attrs->dilation[0] * (kernel_w - 1) - 1;
   if (attrs->ceil_mode) {
-    numerator_w += attrs->strides[1] - 1;
+    numerator_w += attrs->strides[0] - 1;
   }
   out_NCW_shape[2] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[0]) + 1);
 
-  Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
+  ffi::Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
 }
 
-InferLayoutOutput InferLayoutPool1d(const Call& call,
-                                    const Map<String, Array<String>>& desired_layouts,
-                                    const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutPool1d(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
   const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call);
   ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
@@ -114,7 +128,7 @@ InferLayoutOutput InferLayoutPool1d(const Call& call,
   ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ObjectPtr<Pool1DAttrs> new_attrs = make_object<Pool1DAttrs>(*attrs);
+  ObjectPtr<Pool1DAttrs> new_attrs = ffi::make_object<Pool1DAttrs>(*attrs);
   new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(3), layout->layout).name();
   new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(3), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
@@ -130,11 +144,11 @@ TVM_REGISTER_OP("relax.nn.max_pool1d")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.max_pool2d */
-TVM_REGISTER_NODE_TYPE(Pool2DAttrs);
 
-Expr MakePool2d(String op_name, Expr data, Array<IntImm> pool_size, Array<IntImm> strides,
-                Array<IntImm> padding, Array<IntImm> dilation, bool ceil_mode,
-                bool count_include_pad, String layout, Optional<String> out_layout) {
+Expr MakePool2d(ffi::String op_name, Expr data, ffi::Array<IntImm> pool_size,
+                ffi::Array<IntImm> strides, ffi::Array<IntImm> padding, ffi::Array<IntImm> dilation,
+                bool ceil_mode, bool count_include_pad, ffi::String layout,
+                ffi::Optional<ffi::String> out_layout) {
   padding = GetCompletePadding2D(std::move(padding));
   if (pool_size.size() == 1) {
     pool_size.push_back(pool_size[0]);
@@ -155,7 +169,7 @@ Expr MakePool2d(String op_name, Expr data, Array<IntImm> pool_size, Array<IntImm
       << "The input dilation length is expected to be 2. However, the given dilation is "
       << dilation;
 
-  auto attrs = make_object<Pool2DAttrs>();
+  auto attrs = ffi::make_object<Pool2DAttrs>();
   attrs->pool_size = ConvertIntImmToInt64(pool_size);
   attrs->strides = ConvertIntImmToInt64(strides);
   attrs->padding = ConvertIntImmToInt64(padding);
@@ -168,14 +182,17 @@ Expr MakePool2d(String op_name, Expr data, Array<IntImm> pool_size, Array<IntImm
   return Call(op, {std::move(data)}, Attrs(attrs), {});
 }
 
-Expr max_pool2d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array<IntImm> padding,
-                Array<IntImm> dilation, bool ceil_mode, bool count_include_pad, String layout,
-                Optional<String> out_layout) {
+Expr max_pool2d(Expr data, ffi::Array<IntImm> pool_size, ffi::Array<IntImm> strides,
+                ffi::Array<IntImm> padding, ffi::Array<IntImm> dilation, bool ceil_mode,
+                bool count_include_pad, ffi::String layout, ffi::Optional<ffi::String> out_layout) {
   return MakePool2d("relax.nn.max_pool2d", data, pool_size, strides, padding, dilation, ceil_mode,
                     count_include_pad, layout, out_layout);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.max_pool2d").set_body_typed(max_pool2d);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.nn.max_pool2d", max_pool2d);
+}
 
 StructInfo InferStructInfoPool2D(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -188,13 +205,13 @@ StructInfo InferStructInfoPool2D(const Call& call, const BlockBuilder& ctx) {
                                                   /*tgt_layout=*/"NCHW",
                                                   /*tensor_name=*/"output");
 
-  Optional<ShapeExpr> data_shape =
+  ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
   if (!data_shape.defined()) {
     return TensorStructInfo(data_sinfo->dtype, out_layout.ndim(), data_sinfo->vdevice);
   }
 
-  Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
+  ffi::Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
 
   PrimExpr input_h = data_NCHW_shape[2];
   PrimExpr input_w = data_NCHW_shape[3];
@@ -218,13 +235,13 @@ StructInfo InferStructInfoPool2D(const Call& call, const BlockBuilder& ctx) {
   out_NCHW_shape[2] = analyzer->Simplify(floordiv(numerator_h, attrs->strides[0]) + 1);
   out_NCHW_shape[3] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[1]) + 1);
 
-  Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
+  ffi::Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
 }
 
-InferLayoutOutput InferLayoutPool2d(const Call& call,
-                                    const Map<String, Array<String>>& desired_layouts,
-                                    const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutPool2d(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
   const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call);
   ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
@@ -233,7 +250,25 @@ InferLayoutOutput InferLayoutPool2d(const Call& call,
   ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ObjectPtr<Pool2DAttrs> new_attrs = make_object<Pool2DAttrs>(*attrs);
+  ObjectPtr<Pool2DAttrs> new_attrs = ffi::make_object<Pool2DAttrs>(*attrs);
+
+  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
+    tir::Layout in_layout(attrs->layout, DataType::Int(64));
+    auto desired_layout = TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout);
+    auto data_si = GetStructInfo(call->args[0]);
+    TensorStructInfo data_sinfo = data_si.as<TensorStructInfo>().value();
+    ffi::Optional<ShapeExpr> data_shape =
+        ffi::GetRef<ShapeExpr>(data_sinfo->shape.as<ShapeExprNode>());
+    if (CanProveLayoutTransform(in_layout, desired_layout, data_shape.value()->values)) {
+      // Not handling out_layout being different from in_layout now. Any use case ?
+      new_attrs->layout = desired_layout.name();
+      new_attrs->out_layout = desired_layout.name();
+      return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
+    } else {
+      layout = InitialLayout(4);
+    }
+  }
+
   new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(4), layout->layout).name();
   new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(4), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
@@ -249,11 +284,11 @@ TVM_REGISTER_OP("relax.nn.max_pool2d")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.max_pool3d */
-TVM_REGISTER_NODE_TYPE(Pool3DAttrs);
 
-Expr MakePool3d(String op_name, Expr data, Array<IntImm> pool_size, Array<IntImm> strides,
-                Array<IntImm> padding, Array<IntImm> dilation, bool ceil_mode,
-                bool count_include_pad, String layout, Optional<String> out_layout) {
+Expr MakePool3d(ffi::String op_name, Expr data, ffi::Array<IntImm> pool_size,
+                ffi::Array<IntImm> strides, ffi::Array<IntImm> padding, ffi::Array<IntImm> dilation,
+                bool ceil_mode, bool count_include_pad, ffi::String layout,
+                ffi::Optional<ffi::String> out_layout) {
   padding = GetCompletePadding3D(std::move(padding));
   if (pool_size.size() == 1) {
     pool_size.push_back(pool_size[0]);
@@ -277,7 +312,7 @@ Expr MakePool3d(String op_name, Expr data, Array<IntImm> pool_size, Array<IntImm
       << "The input dilation length is expected to be 3. However, the given dilation is "
       << dilation;
 
-  auto attrs = make_object<Pool3DAttrs>();
+  auto attrs = ffi::make_object<Pool3DAttrs>();
   attrs->pool_size = ConvertIntImmToInt64(pool_size);
   attrs->strides = ConvertIntImmToInt64(strides);
   attrs->padding = ConvertIntImmToInt64(padding);
@@ -290,14 +325,17 @@ Expr MakePool3d(String op_name, Expr data, Array<IntImm> pool_size, Array<IntImm
   return Call(op, {std::move(data)}, Attrs(attrs), {});
 }
 
-Expr max_pool3d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array<IntImm> padding,
-                Array<IntImm> dilation, bool ceil_mode, bool count_include_pad, String layout,
-                Optional<String> out_layout) {
+Expr max_pool3d(Expr data, ffi::Array<IntImm> pool_size, ffi::Array<IntImm> strides,
+                ffi::Array<IntImm> padding, ffi::Array<IntImm> dilation, bool ceil_mode,
+                bool count_include_pad, ffi::String layout, ffi::Optional<ffi::String> out_layout) {
   return MakePool3d("relax.nn.max_pool3d", data, pool_size, strides, padding, dilation, ceil_mode,
                     count_include_pad, layout, out_layout);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.max_pool3d").set_body_typed(max_pool3d);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.nn.max_pool3d", max_pool3d);
+}
 
 StructInfo InferStructInfoPool3D(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -310,13 +348,13 @@ StructInfo InferStructInfoPool3D(const Call& call, const BlockBuilder& ctx) {
                                                    /*tgt_layout=*/"NCDHW",
                                                    /*tensor_name=*/"output");
 
-  Optional<ShapeExpr> data_shape =
+  ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
   if (!data_shape.defined()) {
     return TensorStructInfo(data_sinfo->dtype, out_layout.ndim(), data_sinfo->vdevice);
   }
 
-  Array<PrimExpr> data_NCDHW_shape = data2NCDHW.ForwardShape(data_shape.value()->values);
+  ffi::Array<PrimExpr> data_NCDHW_shape = data2NCDHW.ForwardShape(data_shape.value()->values);
 
   PrimExpr input_d = data_NCDHW_shape[2];
   PrimExpr input_h = data_NCDHW_shape[3];
@@ -346,13 +384,13 @@ StructInfo InferStructInfoPool3D(const Call& call, const BlockBuilder& ctx) {
   out_NCDHW_shape[3] = analyzer->Simplify(floordiv(numerator_h, attrs->strides[1]) + 1);
   out_NCDHW_shape[4] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[2]) + 1);
 
-  Array<PrimExpr> out_shape = out2NCDHW.BackwardShape(out_NCDHW_shape);
+  ffi::Array<PrimExpr> out_shape = out2NCDHW.BackwardShape(out_NCDHW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
 }
 
-InferLayoutOutput InferLayoutPool3d(const Call& call,
-                                    const Map<String, Array<String>>& desired_layouts,
-                                    const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutPool3d(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
   const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call);
   ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
@@ -361,7 +399,7 @@ InferLayoutOutput InferLayoutPool3d(const Call& call,
   ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ObjectPtr<Pool3DAttrs> new_attrs = make_object<Pool3DAttrs>(*attrs);
+  ObjectPtr<Pool3DAttrs> new_attrs = ffi::make_object<Pool3DAttrs>(*attrs);
   new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(5), layout->layout).name();
   new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(5), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
@@ -377,14 +415,17 @@ TVM_REGISTER_OP("relax.nn.max_pool3d")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.avg_pool1d */
-Expr avg_pool1d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array<IntImm> padding,
-                Array<IntImm> dilation, bool ceil_mode, bool count_include_pad, String layout,
-                Optional<String> out_layout) {
+Expr avg_pool1d(Expr data, ffi::Array<IntImm> pool_size, ffi::Array<IntImm> strides,
+                ffi::Array<IntImm> padding, ffi::Array<IntImm> dilation, bool ceil_mode,
+                bool count_include_pad, ffi::String layout, ffi::Optional<ffi::String> out_layout) {
   return MakePool1d("relax.nn.avg_pool1d", data, pool_size, strides, padding, dilation, ceil_mode,
                     count_include_pad, layout, out_layout);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.avg_pool1d").set_body_typed(avg_pool1d);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.nn.avg_pool1d", avg_pool1d);
+}
 
 TVM_REGISTER_OP("relax.nn.avg_pool1d")
     .set_num_inputs(1)
@@ -396,14 +437,17 @@ TVM_REGISTER_OP("relax.nn.avg_pool1d")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.avg_pool2d */
-Expr avg_pool2d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array<IntImm> padding,
-                Array<IntImm> dilation, bool ceil_mode, bool count_include_pad, String layout,
-                Optional<String> out_layout) {
+Expr avg_pool2d(Expr data, ffi::Array<IntImm> pool_size, ffi::Array<IntImm> strides,
+                ffi::Array<IntImm> padding, ffi::Array<IntImm> dilation, bool ceil_mode,
+                bool count_include_pad, ffi::String layout, ffi::Optional<ffi::String> out_layout) {
   return MakePool2d("relax.nn.avg_pool2d", data, pool_size, strides, padding, dilation, ceil_mode,
                     count_include_pad, layout, out_layout);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.avg_pool2d").set_body_typed(avg_pool2d);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.nn.avg_pool2d", avg_pool2d);
+}
 
 TVM_REGISTER_OP("relax.nn.avg_pool2d")
     .set_num_inputs(1)
@@ -415,14 +459,17 @@ TVM_REGISTER_OP("relax.nn.avg_pool2d")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.avg_pool3d */
-Expr avg_pool3d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array<IntImm> padding,
-                Array<IntImm> dilation, bool ceil_mode, bool count_include_pad, String layout,
-                Optional<String> out_layout) {
+Expr avg_pool3d(Expr data, ffi::Array<IntImm> pool_size, ffi::Array<IntImm> strides,
+                ffi::Array<IntImm> padding, ffi::Array<IntImm> dilation, bool ceil_mode,
+                bool count_include_pad, ffi::String layout, ffi::Optional<ffi::String> out_layout) {
   return MakePool3d("relax.nn.avg_pool3d", data, pool_size, strides, padding, dilation, ceil_mode,
                     count_include_pad, layout, out_layout);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.avg_pool3d").set_body_typed(avg_pool3d);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.nn.avg_pool3d", avg_pool3d);
+}
 
 TVM_REGISTER_OP("relax.nn.avg_pool3d")
     .set_num_inputs(1)
@@ -434,15 +481,14 @@ TVM_REGISTER_OP("relax.nn.avg_pool3d")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.adaptive_avg_pool1d */
-TVM_REGISTER_NODE_TYPE(AdaptivePool1DAttrs);
 
-Expr adaptive_avg_pool1d(Expr data, Optional<Array<IntImm>> output_size, String layout,
-                         Optional<String> out_layout) {
-  ObjectPtr<AdaptivePool1DAttrs> attrs = make_object<AdaptivePool1DAttrs>();
+Expr adaptive_avg_pool1d(Expr data, ffi::Optional<ffi::Array<IntImm>> output_size,
+                         ffi::String layout, ffi::Optional<ffi::String> out_layout) {
+  ObjectPtr<AdaptivePool1DAttrs> attrs = ffi::make_object<AdaptivePool1DAttrs>();
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   if (output_size.defined()) {
-    Array<IntImm> _output_size = output_size.value();
+    ffi::Array<IntImm> _output_size = output_size.value();
     CHECK_EQ(_output_size.size(), 1)
         << "The output_size length is expected to be 1. However, the given output_size is "
         << _output_size;
@@ -453,7 +499,10 @@ Expr adaptive_avg_pool1d(Expr data, Optional<Array<IntImm>> output_size, String 
   return Call(op, {std::move(data)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.adaptive_avg_pool1d").set_body_typed(adaptive_avg_pool1d);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.nn.adaptive_avg_pool1d", adaptive_avg_pool1d);
+}
 
 StructInfo InferStructInfoAdaptiveAvgPool1D(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -466,7 +515,7 @@ StructInfo InferStructInfoAdaptiveAvgPool1D(const Call& call, const BlockBuilder
                                                  /*tgt_layout=*/"NCW",
                                                  /*tensor_name=*/"output");
 
-  Optional<ShapeExpr> data_shape =
+  ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
   if (!data_shape.defined()) {
     if (data_sinfo->shape.defined() && attrs->out_layout == attrs->layout &&
@@ -477,19 +526,19 @@ StructInfo InferStructInfoAdaptiveAvgPool1D(const Call& call, const BlockBuilder
     }
   }
 
-  Array<PrimExpr> data_NCW_shape = data2NCW.ForwardShape(data_shape.value()->values);
-  Array<PrimExpr> out_NCW_shape(data_NCW_shape);
+  ffi::Array<PrimExpr> data_NCW_shape = data2NCW.ForwardShape(data_shape.value()->values);
+  ffi::Array<PrimExpr> out_NCW_shape(data_NCW_shape);
   if (attrs->output_size.defined()) {
     out_NCW_shape.Set(2, attrs->output_size.value()[0]);
   }
 
-  Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
+  ffi::Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
 }
 
-InferLayoutOutput InferLayoutAdaptiveAvgPool1D(const Call& call,
-                                               const Map<String, Array<String>>& desired_layouts,
-                                               const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutAdaptiveAvgPool1D(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
   const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call);
   ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
@@ -498,7 +547,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool1D(const Call& call,
   ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ObjectPtr<AdaptivePool1DAttrs> new_attrs = make_object<AdaptivePool1DAttrs>(*attrs);
+  ObjectPtr<AdaptivePool1DAttrs> new_attrs = ffi::make_object<AdaptivePool1DAttrs>(*attrs);
   new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(3), layout->layout).name();
   new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(3), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
@@ -514,15 +563,14 @@ TVM_REGISTER_OP("relax.nn.adaptive_avg_pool1d")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.adaptive_avg_pool2d */
-TVM_REGISTER_NODE_TYPE(AdaptivePool2DAttrs);
 
-Expr adaptive_avg_pool2d(Expr data, Optional<Array<IntImm>> output_size, String layout,
-                         Optional<String> out_layout) {
-  ObjectPtr<AdaptivePool2DAttrs> attrs = make_object<AdaptivePool2DAttrs>();
+Expr adaptive_avg_pool2d(Expr data, ffi::Optional<ffi::Array<IntImm>> output_size,
+                         ffi::String layout, ffi::Optional<ffi::String> out_layout) {
+  ObjectPtr<AdaptivePool2DAttrs> attrs = ffi::make_object<AdaptivePool2DAttrs>();
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   if (output_size.defined()) {
-    Array<IntImm> _output_size = output_size.value();
+    ffi::Array<IntImm> _output_size = output_size.value();
     if (_output_size.size() == 1) {
       _output_size.push_back(_output_size[0]);
     }
@@ -536,7 +584,10 @@ Expr adaptive_avg_pool2d(Expr data, Optional<Array<IntImm>> output_size, String 
   return Call(op, {std::move(data)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.adaptive_avg_pool2d").set_body_typed(adaptive_avg_pool2d);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.nn.adaptive_avg_pool2d", adaptive_avg_pool2d);
+}
 
 StructInfo InferStructInfoAdaptiveAvgPool2D(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -549,7 +600,7 @@ StructInfo InferStructInfoAdaptiveAvgPool2D(const Call& call, const BlockBuilder
                                                   /*tgt_layout=*/"NCHW",
                                                   /*tensor_name=*/"output");
 
-  Optional<ShapeExpr> data_shape =
+  ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
   if (!data_shape.defined()) {
     if (data_sinfo->shape.defined() && attrs->out_layout == attrs->layout &&
@@ -560,20 +611,20 @@ StructInfo InferStructInfoAdaptiveAvgPool2D(const Call& call, const BlockBuilder
     }
   }
 
-  Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
-  Array<PrimExpr> out_NCHW_shape(data_NCHW_shape);
+  ffi::Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
+  ffi::Array<PrimExpr> out_NCHW_shape(data_NCHW_shape);
   if (attrs->output_size.defined()) {
     out_NCHW_shape.Set(2, attrs->output_size.value()[0]);
     out_NCHW_shape.Set(3, attrs->output_size.value()[1]);
   }
 
-  Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
+  ffi::Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
 }
 
-InferLayoutOutput InferLayoutAdaptiveAvgPool2D(const Call& call,
-                                               const Map<String, Array<String>>& desired_layouts,
-                                               const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutAdaptiveAvgPool2D(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
   const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call);
   ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
@@ -582,7 +633,23 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool2D(const Call& call,
   ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ObjectPtr<AdaptivePool2DAttrs> new_attrs = make_object<AdaptivePool2DAttrs>(*attrs);
+  ObjectPtr<AdaptivePool2DAttrs> new_attrs = ffi::make_object<AdaptivePool2DAttrs>(*attrs);
+  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
+    tir::Layout in_layout(attrs->layout, DataType::Int(64));
+    auto desired_layout = TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout);
+    auto data_si = GetStructInfo(call->args[0]);
+    TensorStructInfo data_sinfo = data_si.as<TensorStructInfo>().value();
+    ffi::Optional<ShapeExpr> data_shape =
+        ffi::GetRef<ShapeExpr>(data_sinfo->shape.as<ShapeExprNode>());
+    if (CanProveLayoutTransform(in_layout, desired_layout, data_shape.value()->values)) {
+      // Not handling out_layout being different from in_layout now. Any use case ?
+      new_attrs->layout = desired_layout.name();
+      new_attrs->out_layout = desired_layout.name();
+      return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
+    } else {
+      layout = InitialLayout(4);
+    }
+  }
   new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(4), layout->layout).name();
   new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(4), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
@@ -598,15 +665,14 @@ TVM_REGISTER_OP("relax.nn.adaptive_avg_pool2d")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.adaptive_avg_pool3d */
-TVM_REGISTER_NODE_TYPE(AdaptivePool3DAttrs);
 
-Expr adaptive_avg_pool3d(Expr data, Optional<Array<IntImm>> output_size, String layout,
-                         Optional<String> out_layout) {
-  ObjectPtr<AdaptivePool3DAttrs> attrs = make_object<AdaptivePool3DAttrs>();
+Expr adaptive_avg_pool3d(Expr data, ffi::Optional<ffi::Array<IntImm>> output_size,
+                         ffi::String layout, ffi::Optional<ffi::String> out_layout) {
+  ObjectPtr<AdaptivePool3DAttrs> attrs = ffi::make_object<AdaptivePool3DAttrs>();
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   if (output_size.defined()) {
-    Array<IntImm> _output_size = output_size.value();
+    ffi::Array<IntImm> _output_size = output_size.value();
     if (_output_size.size() == 1) {
       _output_size.push_back(_output_size[0]);
     }
@@ -620,7 +686,10 @@ Expr adaptive_avg_pool3d(Expr data, Optional<Array<IntImm>> output_size, String 
   return Call(op, {std::move(data)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.adaptive_avg_pool3d").set_body_typed(adaptive_avg_pool3d);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.nn.adaptive_avg_pool3d", adaptive_avg_pool3d);
+}
 
 StructInfo InferStructInfoAdaptiveAvgPool3D(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -633,7 +702,7 @@ StructInfo InferStructInfoAdaptiveAvgPool3D(const Call& call, const BlockBuilder
                                                    /*tgt_layout=*/"NCDHW",
                                                    /*tensor_name=*/"output");
 
-  Optional<ShapeExpr> data_shape =
+  ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
   if (!data_shape.defined()) {
     if (data_sinfo->shape.defined() && attrs->out_layout == attrs->layout &&
@@ -644,21 +713,21 @@ StructInfo InferStructInfoAdaptiveAvgPool3D(const Call& call, const BlockBuilder
     }
   }
 
-  Array<PrimExpr> data_NCDHW_shape = data2NCDHW.ForwardShape(data_shape.value()->values);
-  Array<PrimExpr> out_NCDHW_shape(data_NCDHW_shape);
+  ffi::Array<PrimExpr> data_NCDHW_shape = data2NCDHW.ForwardShape(data_shape.value()->values);
+  ffi::Array<PrimExpr> out_NCDHW_shape(data_NCDHW_shape);
   if (attrs->output_size.defined()) {
     out_NCDHW_shape.Set(2, attrs->output_size.value()[0]);
     out_NCDHW_shape.Set(3, attrs->output_size.value()[1]);
     out_NCDHW_shape.Set(4, attrs->output_size.value()[2]);
   }
 
-  Array<PrimExpr> out_shape = out2NCDHW.BackwardShape(out_NCDHW_shape);
+  ffi::Array<PrimExpr> out_shape = out2NCDHW.BackwardShape(out_NCDHW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
 }
 
-InferLayoutOutput InferLayoutAdaptiveAvgPool3D(const Call& call,
-                                               const Map<String, Array<String>>& desired_layouts,
-                                               const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutAdaptiveAvgPool3D(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
   const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call);
   ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
@@ -667,7 +736,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool3D(const Call& call,
   ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ObjectPtr<AdaptivePool3DAttrs> new_attrs = make_object<AdaptivePool3DAttrs>(*attrs);
+  ObjectPtr<AdaptivePool3DAttrs> new_attrs = ffi::make_object<AdaptivePool3DAttrs>(*attrs);
   new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(5), layout->layout).name();
   new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(5), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));

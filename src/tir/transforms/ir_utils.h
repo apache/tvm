@@ -26,6 +26,7 @@
 
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/int_solver.h>
+#include <tvm/ffi/container/tuple.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/support/with.h>
 #include <tvm/tir/builtin.h>
@@ -68,7 +69,7 @@ Stmt MergeNest(const std::vector<std::vector<Stmt>>& nest, Stmt body);
  *  original array
  */
 template <typename T, typename F>
-inline Array<T> UpdateArray(Array<T> arr, F fupdate) {
+inline ffi::Array<T> UpdateArray(ffi::Array<T> arr, F fupdate) {
   std::vector<T> new_arr(arr.size());
   bool changed = false;
   for (size_t i = 0; i < arr.size(); ++i) {
@@ -80,7 +81,7 @@ inline Array<T> UpdateArray(Array<T> arr, F fupdate) {
   if (!changed) {
     return arr;
   } else {
-    return Array<T>(new_arr);
+    return ffi::Array<T>(new_arr);
   }
 }
 
@@ -94,8 +95,8 @@ inline Array<T> UpdateArray(Array<T> arr, F fupdate) {
  */
 inline PrimExpr TVMStructGet(DataType dtype, Var handle, int index,
                              builtin::TVMStructFieldKind kind) {
-  Array<PrimExpr> args = {handle, make_const(DataType::Int(32), index),
-                          make_const(DataType::Int(32), static_cast<int>(kind))};
+  ffi::Array<PrimExpr> args = {handle, make_const(DataType::Int(32), index),
+                               make_const(DataType::Int(32), static_cast<int>(kind))};
   return Call(dtype, builtin::tvm_struct_get(), args);
 }
 
@@ -141,13 +142,13 @@ inline PrimExpr AddressOffset(Var handle, DataType dtype, PrimExpr offset) {
  * \return the set stmt.
  */
 inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind, PrimExpr value) {
-  Array<PrimExpr> args = {handle, make_const(DataType::Int(32), index),
-                          make_const(DataType::Int(32), static_cast<int>(kind)), value};
+  ffi::Array<PrimExpr> args = {handle, make_const(DataType::Int(32), index),
+                               make_const(DataType::Int(32), static_cast<int>(kind)), value};
   return Evaluate(Call(DataType::Int(32), builtin::tvm_struct_set(), args));
 }
 
 /*!
- * \brief Get the type that is passed around TVM PackedFunc API.
+ * \brief Get the type that is passed around TVM ffi::Function API.
  * \param t The original type.
  * \return The corresponding API type.
  */
@@ -194,7 +195,7 @@ inline PrimExpr ConstInt32(size_t index) {
  * \return PrimExpr representing the TVMValue
  */
 inline PrimExpr StackAlloca(std::string type, size_t num) {
-  Array<PrimExpr> args = {StringImm(type), ConstInt32(num)};
+  ffi::Array<PrimExpr> args = {StringImm(type), ConstInt32(num)};
   return Call(DataType::Handle(), builtin::tvm_stack_alloca(), args);
 }
 
@@ -210,15 +211,15 @@ Stmt ConvertSSA(Stmt stmt);
  * \param buffer_var The input buffer variable.
  * \return A string representing the storage scope of this buffer variable.
  */
-String GetPtrStorageScope(Var buffer_var);
+ffi::String GetPtrStorageScope(Var buffer_var);
 
 /*!
  * \brief Convert match buffer target buffer access indices to original one.
  * \param indices The indices of the target buffer
  * \return The indices of source buffer.
  */
-Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
-                               const Array<PrimExpr>& indices);
+ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
+                                    const ffi::Array<PrimExpr>& indices);
 
 /*!
  * \brief Convert match buffer target buffer region to original one.
@@ -232,17 +233,7 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
  * \param buffer The buffer object.
  * \return shape The shape considering buffer strides.
  */
-Array<PrimExpr> GetBufferAllocationShape(const Buffer& buffer);
-
-/*!
- * \brief Check if a given PrimFunc originated from a TE schedule.
- *
- * Internally this checks for the `from_legacy_te_schedule` attr of the PrimFunc.
- *
- * \param f PrimFunc to check
- * \return Whether or not the PrimFunc was created from a te schedule
- */
-Bool IsFromLegacyTESchedule(PrimFunc f);
+ffi::Array<PrimExpr> GetBufferAllocationShape(const Buffer& buffer);
 
 /*!
  * \brief Context helper to update domain map within conditional scope.
@@ -270,7 +261,7 @@ class ConditionalBoundsContext {
   void ExitWithScope();
 
   /*! \brief Helper to solve related variable's bound within conditional scope.*/
-  Optional<arith::IntConstraints> TrySolveCondition();
+  ffi::Optional<arith::IntConstraints> TrySolveCondition();
 
   /*! \brief the condition holds on true branch. */
   const PrimExpr& condition_;
@@ -331,12 +322,12 @@ std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op);
  * function body.
  * \return The updated function.
  */
-PrimFunc BindParams(PrimFunc f, const Array<runtime::NDArray>& constants);
+PrimFunc BindParams(PrimFunc f, const ffi::Array<runtime::Tensor>& constants);
 
 /*! \brief The quad used by StorageAlign for (buffer_idx, axis, factor, offset) */
-using StorageAlignTuple = Array<Integer>;
+using StorageAlignTuple = ffi::Tuple<int32_t, int32_t, int32_t, int32_t>;
 /*! \brief A list of StorageAlignTuple, used by StorageAlign */
-using StorageAlignAnnotation = Array<StorageAlignTuple>;
+using StorageAlignAnnotation = ffi::Array<StorageAlignTuple>;
 /*!
  * \brief Collect storage alignment annotations for all buffer vars within body.
  * \param body The stmt to collect.

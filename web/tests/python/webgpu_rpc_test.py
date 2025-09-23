@@ -24,7 +24,6 @@ import tvm
 from tvm import te
 from tvm import rpc
 from tvm.contrib import utils, tvmjs
-from tvm.relay.backend import Runtime
 import numpy as np
 
 proxy_host = "127.0.0.1"
@@ -36,7 +35,6 @@ def test_rpc():
         return
     # generate the wasm library
     target = tvm.target.Target("webgpu", host="llvm -mtriple=wasm32-unknown-unknown-wasm")
-    runtime = Runtime("cpp", {"system-lib": True})
 
     n = te.var("n")
     A = te.placeholder((n,), name="A")
@@ -48,7 +46,7 @@ def test_rpc():
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")
 
-    fadd = tvm.build(sch.mod, target=target, runtime=runtime)
+    fadd = tvm.build(sch.mod.with_attr("system_lib_prefix", ""), target=target)
     temp = utils.tempdir()
 
     wasm_path = temp.relpath("addone_gpu.wasm")
@@ -66,8 +64,8 @@ def test_rpc():
         # basic function checks.
         dev = remote.webgpu(0)
         adata = np.random.uniform(size=size).astype(A.dtype)
-        a = tvm.nd.array(adata, dev)
-        b = tvm.nd.array(np.zeros(size, dtype=A.dtype), dev)
+        a = tvm.runtime.tensor(adata, dev)
+        b = tvm.runtime.tensor(np.zeros(size, dtype=A.dtype), dev)
 
         np.testing.assert_equal(a.numpy(), adata)
         f1 = remote.system_lib()

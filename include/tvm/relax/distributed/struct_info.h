@@ -44,23 +44,15 @@ class PlacementSpecNode : public Object {
   /*! \brief The kind of placement spec. Possible values: kSharding and kReplica. */
   PlacementSpecKind kind;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("axis", &axis);
-    v->Visit("kind", &kind);
-  }
-  bool SEqualReduce(const PlacementSpecNode* other, SEqualReducer equal) const {
-    return equal(axis, other->axis) && equal(kind, other->kind);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(axis);
-    hash_reduce(static_cast<int>(kind));
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PlacementSpecNode>()
+        .def_ro("axis", &PlacementSpecNode::axis)
+        .def_ro("kind", &PlacementSpecNode::kind);
   }
 
-  static constexpr const char* _type_key = "relax.distributed.PlacementSpec";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_BASE_OBJECT_INFO(PlacementSpecNode, Object);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.distributed.PlacementSpec", PlacementSpecNode, Object);
 };
 
 /*!
@@ -73,7 +65,7 @@ class PlacementSpec : public ObjectRef {
 
   TVM_DLL static PlacementSpec Replica();
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PlacementSpec, ObjectRef, PlacementSpecNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PlacementSpec, ObjectRef, PlacementSpecNode);
 };
 
 class ShardingNode : public PlacementSpecNode {
@@ -81,37 +73,29 @@ class ShardingNode : public PlacementSpecNode {
   /*! \brief The dimension of tensor we shard*/
   Integer sharding_dim;
 
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("sharding_dim", &sharding_dim); }
-
-  bool SEqualReduce(const ShardingNode* other, SEqualReducer equal) const {
-    return equal(sharding_dim, other->sharding_dim);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ShardingNode>().def_ro("sharding_dim", &ShardingNode::sharding_dim);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(sharding_dim); }
-  static constexpr const char* _type_key = "relax.distributed.Sharding";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ShardingNode, PlacementSpecNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.distributed.Sharding", ShardingNode, PlacementSpecNode);
 };
 
 /*! \brief Describes how data is distributed in each dimension of the device mesh*/
 class PlacementNode : public Object {
  public:
   /*! \brief specs for each dim of device mesh.*/
-  Array<PlacementSpec> dim_specs;
+  ffi::Array<PlacementSpec> dim_specs;
 
-  String ToString() const;
+  ffi::String ToString() const;
 
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("dim_specs", &dim_specs); }
-
-  bool SEqualReduce(const PlacementNode* other, SEqualReducer equal) const {
-    return equal(dim_specs, other->dim_specs);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PlacementNode>().def_ro("dim_specs", &PlacementNode::dim_specs);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(dim_specs); }
-
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  static constexpr const char* _type_key = "relax.distributed.Placement";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PlacementNode, Object);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.distributed.Placement", PlacementNode, Object);
 };
 
 /*!
@@ -120,10 +104,10 @@ class PlacementNode : public Object {
  */
 class Placement : public ObjectRef {
  public:
-  TVM_DLL explicit Placement(Array<PlacementSpec> dim_specs);
+  TVM_DLL explicit Placement(ffi::Array<PlacementSpec> dim_specs);
   /*! \brief replica dim is printed as "R" and sharding dim is printed as "S[i]".]*/
-  static Placement FromText(String text_repr);
-  TVM_DEFINE_OBJECT_REF_METHODS(Placement, ObjectRef, PlacementNode);
+  static Placement FromText(ffi::String text_repr);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Placement, ObjectRef, PlacementNode);
 };
 
 /*!
@@ -144,26 +128,15 @@ class DTensorStructInfoNode : public StructInfoNode {
    */
   Placement placement;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("device_mesh", &device_mesh);
-    v->Visit("placement", &placement);
-    v->Visit("tensor_sinfo", &tensor_sinfo);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DTensorStructInfoNode>()
+        .def_ro("device_mesh", &DTensorStructInfoNode::device_mesh)
+        .def_ro("placement", &DTensorStructInfoNode::placement)
+        .def_ro("tensor_sinfo", &DTensorStructInfoNode::tensor_sinfo);
   }
-
-  bool SEqualReduce(const DTensorStructInfoNode* other, SEqualReducer equal) const {
-    return equal(tensor_sinfo, other->tensor_sinfo) && equal(device_mesh, other->device_mesh) &&
-           equal(placement, other->placement);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(tensor_sinfo);
-    hash_reduce(device_mesh);
-    hash_reduce(placement);
-  }
-
-  static constexpr const char* _type_key = "relax.DTensorStructInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DTensorStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DTensorStructInfo", DTensorStructInfoNode,
+                                    StructInfoNode);
 };
 
 /*!
@@ -182,7 +155,7 @@ class DTensorStructInfo : public StructInfo {
   TVM_DLL DTensorStructInfo(TensorStructInfo tensor_sinfo, DeviceMesh device_mesh,
                             Placement placement, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(DTensorStructInfo, StructInfo, DTensorStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DTensorStructInfo, StructInfo, DTensorStructInfoNode);
 };
 
 }  // namespace distributed

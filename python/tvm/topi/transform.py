@@ -18,9 +18,11 @@
 """Injective transformation operators"""
 from __future__ import absolute_import as _abs
 
+from math import pi
+import numpy as np
+
 import tvm
 from tvm import te, topi
-from tvm.te import hybrid
 
 from . import cpp, tag
 from .utils import const_vector, make_idx, within_index
@@ -97,7 +99,8 @@ def expand_like(a, shape_like, axis):
         axis_index = 0
         for i in range(0, len(idxs)):
             if i not in real_axis:
-                indices.append(idxs[i])
+                dim = tvm.tir.if_then_else(a.shape[len(indices)] != 1, idxs[i], 0)
+                indices.append(dim)
                 axis_index += 1
         return a(*indices)
 
@@ -170,7 +173,7 @@ def reverse_sequence(a, seq_lengths, seq_axis=1, batch_axis=0):
     return cpp.reverse_sequence(a, seq_lengths, seq_axis, batch_axis)
 
 
-def strided_slice(a, begin, end, strides=None, axes=None, slice_mode="end"):
+def strided_slice(a, begin, end, strides=None, axes=None, slice_mode="end", assume_inbound=True):
     """Slice of an array.
 
     Parameters
@@ -200,6 +203,9 @@ def strided_slice(a, begin, end, strides=None, axes=None, slice_mode="end"):
         the sizeof a slice starting at the location specified by begin. If end[i]
         is -1, all remaining elements in that dimension are included in the slice.
 
+    assume_inbound: bool, optional
+        A flag to indicate if all indices are assumed to be inbound
+
     Returns
     -------
     ret : tvm.te.Tensor
@@ -223,7 +229,7 @@ def strided_slice(a, begin, end, strides=None, axes=None, slice_mode="end"):
         strides = []
     if axes is None:
         axes = []
-    return cpp.strided_slice(a, begin, end, strides, axes, slice_mode)
+    return cpp.strided_slice(a, begin, end, strides, axes, slice_mode, assume_inbound)
 
 
 def dynamic_strided_slice(a, begin, end, strides, output_shape):
@@ -401,23 +407,25 @@ def concatenate(a_tuple, axis=0):
     return cpp.concatenate(a_tuple, axis)
 
 
-def stack(a, axis):
-    """Repeats the whole array multiple times.
+def stack(tensors, axis=0):
+    """Join a sequence of tensors along a new axis.
 
     Parameters
     ----------
-    a : tvm.te.Tensor
-        The tensor to be stacked.
+    tensors : tuple or list of tvm.te.Tensor
+        The tensors to be stacked. All tensors must have the same shape.
 
     axis : int, optional
-        The axis in the result array along which the input arrays are stacked.
-
+        The axis in the resulting tensor along which the input tensors will be stacked.
+        Negative values wrap around. Default is 0.
 
     Returns
     -------
     ret : tvm.te.Tensor
+        The stacked tensor with an additional dimension compared to the input tensors.
+
     """
-    return cpp.stack(a, axis)
+    return cpp.stack(tensors, axis)
 
 
 def split(ary, indices_or_sections, axis=0):
@@ -438,7 +446,7 @@ def split(ary, indices_or_sections, axis=0):
     return cpp.split(ary, indices_or_sections, axis)
 
 
-def take(a, indices, axis=None, batch_dims=0, mode="clip"):
+def take(a, indices, axis=None, batch_dims=0, mode="fast"):
     """Take elements from an array along an axis.
 
     Parameters
@@ -457,10 +465,11 @@ def take(a, indices, axis=None, batch_dims=0, mode="clip"):
         The number of batch dimensions. By default is 0.
 
     mode : str, optional
-        Specifies how out-of-bound indices will behave.
-        clip - clip to the range (default)
-        wrap - wrap around the indices
-        fast - no clip or wrap around (user must make sure indices are in-bound)
+        Specifies how out-of-bounds indices will behave.
+        - fast (default): extra indices lead to seg fault (user must make sure indices are in-bound)
+        - nan: produce NaNs for out-of-bounds indices
+        - wrap: wrap around the indices
+        - clip: clip to the range
 
     Returns
     -------
@@ -469,28 +478,6 @@ def take(a, indices, axis=None, batch_dims=0, mode="clip"):
     if axis is None:
         return cpp.take(a, indices, int(batch_dims), mode)
     return cpp.take(a, indices, int(batch_dims), int(axis), mode)
-
-
-@tvm.target.generic_func
-def take_legalize(attrs, inputs, types):
-    """Legalizes dyn.topk op.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current op
-    inputs : list of tvm.relay.Expr
-        The args of the Relay expr to be legalized
-    types : list of types
-        List of input and output types
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The legalized expr
-    """
-    if tvm.relay.ty.is_dynamic(types[0]):
-        return tvm.relay.take(tvm.relay.annotation.stop_fusion(inputs[0]), inputs[1], **attrs)
-    return None
 
 
 def gather(data, axis, indices):
@@ -525,7 +512,7 @@ def gather(data, axis, indices):
     return cpp.gather(data, axis, indices)
 
 
-def gather_nd(a, indices):
+def gather_nd(a, indices, batch_dims=0):
     """Gather elements from a n-dimension array..
 
     Parameters
@@ -540,7 +527,7 @@ def gather_nd(a, indices):
     -------
     ret : tvm.te.Tensor
     """
-    return cpp.gather_nd(a, indices)
+    return cpp.gather_nd(a, indices, batch_dims)
 
 
 def matmul(a, b, transp_a=False, transp_b=False):
@@ -749,7 +736,7 @@ def sequence_mask(data, valid_length, mask_value=0, axis=0):
     return cpp.sequence_mask(data, valid_length, mask_value, axis)
 
 
-def ndarray_size(array, dtype="int32"):
+def tensor_size(array, dtype="int32"):
     """Get the number of elements of input array
 
     Parameters
@@ -765,7 +752,7 @@ def ndarray_size(array, dtype="int32"):
     result : tvm.te.Tensor
         The resulting tensor.
     """
-    return cpp.ndarray_size(array, dtype)
+    return cpp.tensor_size(array, dtype)
 
 
 def where(condition, x, y):
@@ -813,12 +800,12 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
     axis : int
         Axis to fill.
 
-    dtype : relay.DataType
+    dtype : str
         Data type of the output tensor.
 
     Returns
     -------
-    ret : relay.Expr
+    ret : tvm.te.Tensor
         The one-hot tensor.
 
     Examples
@@ -827,7 +814,7 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
 
         indices = [0, 1, 2]
 
-        relay.one_hot(indices, 3) =
+        topi.one_hot(indices, 3) =
             [[1, 0, 0],
              [0, 1, 0],
              [0, 0, 1]]
@@ -843,15 +830,15 @@ def unravel_index(indices, shape):
 
     Parameters
     ----------
-    indices : relay.Expr
+    indices : tvm.te.Tensor
         An integer array containing indices.
 
-    shape : relay.Expr
+    shape : tvm.te.Tensor
         The shape of the array.
 
     Returns
     -------
-    result : relay.Expr
+    result : tvm.te.Tensor
         The tuple of coordinate arrays.
     """
 
@@ -894,10 +881,10 @@ def matrix_set_diag(data, diagonal, k=0, align="RIGHT_LEFT"):
 
     Parameters
     ----------
-    data : relay.Expr
+    data : tvm.te.Tensor
         Input Tensor.
 
-    diagonal : relay.Expr
+    diagonal : tvm.te.Tensor
         Values to be filled in the diagonal.
 
     k : int or tuple of int, optional
@@ -917,7 +904,7 @@ def matrix_set_diag(data, diagonal, k=0, align="RIGHT_LEFT"):
 
     Returns
     -------
-    result : relay.Expr
+    result : tvm.te.Tensor
         New tensor with given diagonal values.
 
     Examples
@@ -979,41 +966,12 @@ def adv_index(data, indices):
     return cpp.adv_index(data, indices)
 
 
-@hybrid.script
-def invert_permutation(data):
-    """Computes the inverse permutation of data.
-
-    Parameters
-    ----------
-    data : tvm.te.Tensor
-        Input data
-
-    Returns
-    -------
-    result : tvm.te.Tensor
-        Output tensor
-
-    Examples
-    --------
-    .. code-block:: python
-
-        data = [3, 4, 0, 2, 1]
-        topi.invert_permutation(data) = [2, 4, 3, 0, 1]
-    """
-    result = output_tensor(data.shape, data.dtype)
-    nums = data.shape[0]
-    for ind in range(nums):
-        r_ind = data[ind]
-        result[r_ind] = ind
-    return result
-
-
 def sliding_window(data, axis, window_shape, strides):
     """Slide a window over the data tensor.
 
     Parameters
     ----------
-    data : relay.Expr
+    data : tvm.te.Tensor
         The input data to the operator.
 
     axis : int
@@ -1032,7 +990,7 @@ def sliding_window(data, axis, window_shape, strides):
 
     Returns
     -------
-    result : relay.Expr
+    result : tvm.te.Tensor
         The resulting tensor.
     """
     return cpp.sliding_window(data, axis, window_shape, strides)
@@ -1060,7 +1018,7 @@ def trilu(data, k, upper):
 
     Returns
     -------
-    ret : relay.Expr
+    ret : tvm.te.Tensor
         The new tensor with appropriate diagonals set to zero.
 
     Examples
@@ -1071,7 +1029,7 @@ def trilu(data, k, upper):
              [3, 4, 5],
              [6, 7, 8]]
 
-        relay.trilu(x, True, 0) =
+        topi.trilu(x, True, 0) =
             [[0, 1, 2],
              [0, 4, 5],
              [0, 0, 8]]
@@ -1101,3 +1059,96 @@ def trilu(data, k, upper):
         return tvm.tir.Select(check_position, value, tvm.tir.const(0, data.dtype))
 
     return te.compute(data.shape, _apply_trilu, name="trilu", tag=topi.tag.ELEMWISE)
+
+
+def index_tensor(data, indices):
+    """Advanced‑tensor indexing (NumPy/PyTorch‐style).
+
+    Given k index tensors ``indices = (I0, I1, …, Ik‑1)`` this
+    operator selects elements from ``data`` as if one had written
+    ``data[I0, I1, …, Ik‑1]`` in NumPy/PyTorch:
+
+    * All index tensors must have an integer dtype.
+    * Their shapes are broadcast together to a common shape ``B`` in
+      the usual NumPy way.
+    * The result shape is ``B + data.shape[k:]`` (i.e. the broadcast
+      shape followed by the remaining axes of ``data`` that are *not*
+      indexed).
+    *  ``k`` must not exceed ``data.ndim``; otherwise a compile‑time
+       error is raised.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        The tensor to be indexed.
+
+    indices : Sequence[tvm.te.Tensor]
+        A Python ``list`` / ``tuple`` of **k** index tensors,
+        or a `tvm.te.Tensor` tuple expression. Each tensor must have an
+        integer dtype.
+
+    Returns
+    -------
+    result : tvm.te.Tensor
+        The tensor obtained after advanced indexing.  Its dtype equals
+        ``data.dtype``
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x     = te.placeholder((3, 3),  name="x")        # shape (3,3)
+        row   = te.placeholder((2,),    name="row", dtype="int32")
+        col   = te.placeholder((2,),    name="col", dtype="int32")
+
+        # Equivalent to x[row, col] in NumPy / PyTorch
+        y = topi.index_tensor(x, [row, col])             # shape (2,)
+
+        # Broadcasting example:
+        row = te.placeholder((2, 1), name="row", dtype="int32")
+        col = te.placeholder((1, 3), name="col", dtype="int32")
+        z = topi.index_tensor(x, [row, col])             # shape (2, 3)
+    """
+    return topi.adv_index(data, indices)
+
+
+def hamming_window(window_size, periodic, alpha, beta, dtype):
+    """Hamming window function.
+
+    Parameters
+    ----------
+    window_size: tvm.Expr
+        The size of returned window.
+
+    periodic: tvm.Expr
+        If True, returns a window to be used as periodic function.
+        If False, return a symmetric window.
+
+    alpha: tvm.Expr
+        The co-efficient alpha.
+
+    beta: tvm.Expr
+        The co-efficient beta.
+
+    Returns
+    -------
+    ret : tvm.te.Tensor
+        The result tensor.
+    """
+    if window_size == 1:
+        return topi.const_vector(np.array([1], dtype=dtype))
+
+    periodic = topi.cast(periodic, "bool")
+
+    if periodic:
+        window_size += 1
+
+    index = topi.arange(0, window_size, dtype=dtype)
+    angular_freq = 2 * pi * index / (window_size - 1)
+    cos_values = topi.cos(angular_freq)
+    window = topi.cast(alpha - beta * cos_values, dtype=dtype)
+
+    if periodic:
+        return topi.strided_slice(window, [0], [window.shape[0] - 1])
+
+    return window

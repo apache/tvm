@@ -104,7 +104,7 @@ from tvm.contrib import utils
 n = tvm.runtime.convert(1024)
 A = te.placeholder((n,), name="A")
 B = te.compute((n,), lambda i: A[i] + 1.0, name="B")
-s = te.create_schedule(B.op)
+mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]).with_attr("global_symbol", "add_one"))
 
 ######################################################################
 # Then we cross compile the kernel.
@@ -119,7 +119,7 @@ if local_demo:
 else:
     target = "llvm -mtriple=armv7l-linux-gnueabihf"
 
-func = tvm.build(s, [A, B], target=target, name="add_one")
+func = tvm.compile(mod, target=target)
 # save the lib at a local temp folder
 temp = utils.tempdir()
 path = temp.relpath("lib.tar")
@@ -182,8 +182,8 @@ func = remote.load_module("lib.tar")
 
 # create arrays on the remote device
 dev = remote.cpu()
-a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), dev)
-b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
+a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(A.dtype), dev)
+b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
 # the function will run on the remote device
 func(a, b)
 np.testing.assert_equal(b.numpy(), a.numpy() + 1)
@@ -231,11 +231,13 @@ def run_opencl():
     target = tvm.target.Target("opencl", host="llvm -mtriple=aarch64-linux-gnu")
 
     # create schedule for the above "add one" compute declaration
-    s = te.create_schedule(B.op)
-    xo, xi = s[B].split(B.op.axis[0], factor=32)
-    s[B].bind(xo, te.thread_axis("blockIdx.x"))
-    s[B].bind(xi, te.thread_axis("threadIdx.x"))
-    func = tvm.build(s, [A, B], target=target)
+    mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]))
+    sch = tvm.tir.Schedule(mod)
+    (x,) = sch.get_loops(block=sch.get_block("B"))
+    xo, xi = sch.split(x, [None, 32])
+    sch.bind(xo, "blockIdx.x")
+    sch.bind(xi, "threadIdx.x")
+    func = tvm.compile(sch.mod, target=target)
 
     remote = rpc.connect(opencl_device_host, opencl_device_port)
 
@@ -247,8 +249,8 @@ def run_opencl():
 
     # run
     dev = remote.cl()
-    a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), dev)
-    b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
+    a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(A.dtype), dev)
+    b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
     func(a, b)
     np.testing.assert_equal(b.numpy(), a.numpy() + 1)
     print("OpenCL test passed!")

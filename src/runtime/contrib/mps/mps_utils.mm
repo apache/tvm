@@ -72,8 +72,8 @@ MPSTemporaryImage* MetalThreadEntry::AllocTempImage(id<MTLCommandBuffer> cb,
 }
 
 MetalThreadEntry::MetalThreadEntry() {
-  auto func = runtime::Registry::Get("device_api.metal");
-  void* ret = (*func)();
+  const auto get_metal_api = tvm::ffi::Function::GetGlobalRequired("device_api.metal");
+  void* ret = get_metal_api();
   metal_api = static_cast<runtime::metal::MetalWorkspace*>(ret);
 }
 

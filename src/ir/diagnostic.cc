@@ -21,6 +21,7 @@
  * \file src/ir/diagnostic.cc
  * \brief Implementation of DiagnosticContext and friends.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/source_map.h>
 
@@ -28,18 +29,25 @@
 
 namespace tvm {
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  DiagnosticNode::RegisterReflection();
+  DiagnosticRendererNode::RegisterReflection();
+  DiagnosticContextNode::RegisterReflection();
+}
+
 // failed to check to argument arg0.dims[0] != 0
 
 /* Diagnostic */
-TVM_REGISTER_NODE_TYPE(DiagnosticNode);
 
-TVM_REGISTER_GLOBAL("diagnostics.Diagnostic")
-    .set_body_typed([](int level, Span span, String message) {
-      return Diagnostic(static_cast<DiagnosticLevel>(level), span, message);
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("diagnostics.Diagnostic", [](int level, Span span, ffi::String message) {
+    return Diagnostic(static_cast<DiagnosticLevel>(level), span, message);
+  });
+}
 
 Diagnostic::Diagnostic(DiagnosticLevel level, Span span, const std::string& message) {
-  auto n = make_object<DiagnosticNode>();
+  auto n = ffi::make_object<DiagnosticNode>();
   n->level = level;
   n->span = span;
   n->message = message;
@@ -86,33 +94,36 @@ DiagnosticBuilder Diagnostic::Help(ObjectRef loc) {
   return DiagnosticBuilder(DiagnosticLevel::kHelp, loc);
 }
 
-DiagnosticBuilder Diagnostic::Bug(const Object* loc) { return Bug(GetRef<ObjectRef>(loc)); }
+DiagnosticBuilder Diagnostic::Bug(const Object* loc) { return Bug(ffi::GetRef<ObjectRef>(loc)); }
 
-DiagnosticBuilder Diagnostic::Error(const Object* loc) { return Error(GetRef<ObjectRef>(loc)); }
+DiagnosticBuilder Diagnostic::Error(const Object* loc) {
+  return Error(ffi::GetRef<ObjectRef>(loc));
+}
 
-DiagnosticBuilder Diagnostic::Note(const Object* loc) { return Note(GetRef<ObjectRef>(loc)); }
+DiagnosticBuilder Diagnostic::Note(const Object* loc) { return Note(ffi::GetRef<ObjectRef>(loc)); }
 
-DiagnosticBuilder Diagnostic::Help(const Object* loc) { return Help(GetRef<ObjectRef>(loc)); }
+DiagnosticBuilder Diagnostic::Help(const Object* loc) { return Help(ffi::GetRef<ObjectRef>(loc)); }
 
 /* Diagnostic Renderer */
-TVM_REGISTER_NODE_TYPE(DiagnosticRendererNode);
 
 void DiagnosticRenderer::Render(const DiagnosticContext& ctx) { (*this)->renderer(ctx); }
 
 TVM_DLL DiagnosticRenderer::DiagnosticRenderer(
-    TypedPackedFunc<void(DiagnosticContext ctx)> renderer) {
-  auto n = make_object<DiagnosticRendererNode>();
+    ffi::TypedFunction<void(DiagnosticContext ctx)> renderer) {
+  auto n = ffi::make_object<DiagnosticRendererNode>();
   n->renderer = renderer;
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("diagnostics.DiagnosticRenderer")
-    .set_body_typed([](TypedPackedFunc<void(DiagnosticContext ctx)> renderer) {
-      return DiagnosticRenderer(renderer);
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("diagnostics.DiagnosticRenderer",
+                        [](ffi::TypedFunction<void(DiagnosticContext ctx)> renderer) {
+                          return DiagnosticRenderer(renderer);
+                        });
+}
 
 /* Diagnostic Context */
-TVM_REGISTER_NODE_TYPE(DiagnosticContextNode);
 
 void DiagnosticContext::Render() {
   (*this)->renderer.Render(*this);
@@ -134,36 +145,42 @@ void DiagnosticContext::Render() {
   }
 }
 
-TVM_REGISTER_GLOBAL("diagnostics.DiagnosticRendererRender")
-    .set_body_typed([](DiagnosticRenderer renderer, DiagnosticContext ctx) {
-      renderer.Render(ctx);
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "diagnostics.DiagnosticRendererRender",
+      [](DiagnosticRenderer renderer, DiagnosticContext ctx) { renderer.Render(ctx); });
+}
 
 DiagnosticContext::DiagnosticContext(const IRModule& module, const DiagnosticRenderer& renderer) {
   CHECK(renderer.defined()) << "can not initialize a diagnostic renderer with a null function";
-  auto n = make_object<DiagnosticContextNode>();
+  auto n = ffi::make_object<DiagnosticContextNode>();
   n->module = module;
   n->renderer = renderer;
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("diagnostics.DiagnosticContext")
-    .set_body_typed([](const IRModule& module, const DiagnosticRenderer& renderer) {
-      return DiagnosticContext(module, renderer);
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("diagnostics.DiagnosticContext",
+                        [](const IRModule& module, const DiagnosticRenderer& renderer) {
+                          return DiagnosticContext(module, renderer);
+                        });
+}
 
 /*! \brief Emit a diagnostic. */
 void DiagnosticContext::Emit(const Diagnostic& diagnostic) {
   (*this)->diagnostics.push_back(diagnostic);
 }
 
-TVM_REGISTER_GLOBAL("diagnostics.Emit")
-    .set_body_typed([](DiagnosticContext ctx, const Diagnostic& diagnostic) {
-      return ctx.Emit(diagnostic);
-    });
-
-TVM_REGISTER_GLOBAL("diagnostics.DiagnosticContextRender")
-    .set_body_typed([](DiagnosticContext context) { return context.Render(); });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("diagnostics.Emit",
+           [](DiagnosticContext ctx, const Diagnostic& diagnostic) { return ctx.Emit(diagnostic); })
+      .def("diagnostics.DiagnosticContextRender",
+           [](DiagnosticContext context) { return context.Render(); });
+}
 
 /*! \brief Emit a diagnostic. */
 void DiagnosticContext::EmitFatal(const Diagnostic& diagnostic) {
@@ -176,16 +193,16 @@ static const char* DEFAULT_RENDERER = "diagnostics.DefaultRenderer";
 static const char* OVERRIDE_RENDERER = "diagnostics.OverrideRenderer";
 
 DiagnosticRenderer GetRenderer() {
-  auto override_pf = tvm::runtime::Registry::Get(OVERRIDE_RENDERER);
-  tvm::runtime::TypedPackedFunc<ObjectRef()> pf;
+  auto override_pf = tvm::ffi::Function::GetGlobal(OVERRIDE_RENDERER);
+  tvm::ffi::TypedFunction<ObjectRef()> pf;
   if (override_pf) {
-    pf = tvm::runtime::TypedPackedFunc<ObjectRef()>(*override_pf);
+    pf = tvm::ffi::TypedFunction<ObjectRef()>(*override_pf);
   } else {
-    auto default_pf = tvm::runtime::Registry::Get(DEFAULT_RENDERER);
-    ICHECK(default_pf != nullptr)
+    auto default_pf = tvm::ffi::Function::GetGlobal(DEFAULT_RENDERER);
+    ICHECK(default_pf.has_value())
         << "Can not find registered function for " << DEFAULT_RENDERER << "." << std::endl
         << "Either this is an internal error or the default function was overloaded incorrectly.";
-    pf = tvm::runtime::TypedPackedFunc<ObjectRef()>(*default_pf);
+    pf = tvm::ffi::TypedFunction<ObjectRef()>(*default_pf);
   }
   return Downcast<DiagnosticRenderer>(pf());
 }
@@ -195,9 +212,11 @@ DiagnosticContext DiagnosticContext::Default(const IRModule& module) {
   return DiagnosticContext(module, renderer);
 }
 
-TVM_REGISTER_GLOBAL("diagnostics.Default").set_body_typed([](const IRModule& module) {
-  return DiagnosticContext::Default(module);
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("diagnostics.Default",
+                        [](const IRModule& module) { return DiagnosticContext::Default(module); });
+}
 
 std::ostream& EmitDiagnosticHeader(std::ostream& out, const Span& span, DiagnosticLevel level,
                                    std::string msg) {
@@ -263,8 +282,6 @@ void ReportAt(const DiagnosticContext& context, std::ostream& out, const Span& s
   // If the source name is not in the current source map, sources were not annotated.
   if (it == context->module->source_map->source_map.end()) {
     LOG(FATAL) << "The source maps are not populated for this module. "
-               << "Please use `tvm.relay.transform.AnnotateSpans` to attach source maps for error "
-                  "reporting.\n"
                << "Error: " << diagnostic->message;
   }
 
@@ -313,12 +330,13 @@ DiagnosticRenderer TerminalRenderer(std::ostream& out) {
   });
 }
 
-TVM_REGISTER_GLOBAL(DEFAULT_RENDERER).set_body_typed([]() { return TerminalRenderer(std::cerr); });
-
-TVM_REGISTER_GLOBAL("diagnostics.GetRenderer").set_body_typed([]() { return GetRenderer(); });
-
-TVM_REGISTER_GLOBAL("diagnostics.ClearRenderer").set_body_typed([]() {
-  tvm::runtime::Registry::Remove(OVERRIDE_RENDERER);
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def(DEFAULT_RENDERER, []() { return TerminalRenderer(std::cerr); })
+      .def("diagnostics.GetRenderer", []() { return GetRenderer(); })
+      .def("diagnostics.ClearRenderer",
+           []() { tvm::ffi::Function::RemoveGlobal(OVERRIDE_RENDERER); });
+}
 
 }  // namespace tvm

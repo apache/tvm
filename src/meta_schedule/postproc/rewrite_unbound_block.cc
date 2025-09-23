@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/meta_schedule/schedule/cuda/thread_bind.h>
 
 #include "../utils.h"
@@ -26,7 +27,7 @@ namespace tir {
 /*! \brief Find all the blocks that are not bound */
 class UnboundBlockFinder : private StmtVisitor {
  public:
-  static std::vector<std::pair<StmtSRef, String>> Find(const ScheduleState& self) {
+  static std::vector<std::pair<StmtSRef, ffi::String>> Find(const ScheduleState& self) {
     UnboundBlockFinder finder(self);
     for (const auto& kv : self->mod->functions) {
       GlobalVar g_var = kv.first;
@@ -67,13 +68,13 @@ class UnboundBlockFinder : private StmtVisitor {
   /*! \brief The schedule state */
   const ScheduleState& self_;
   /*! \brief The list of unbound blocks */
-  std::vector<std::pair<StmtSRef, String>> blocks_;
+  std::vector<std::pair<StmtSRef, ffi::String>> blocks_;
   /*!  \brief The number of blockIdx above the current stmt */
   int n_block_idx_;
   /*!  \brief The number of threadIdx above the current stmt */
   int n_thread_idx_;
   /*! \brief The name of the global var */
-  String global_var_name_;
+  ffi::String global_var_name_;
 };
 
 }  // namespace tir
@@ -88,7 +89,7 @@ class RewriteUnboundBlockNode : public PostprocNode {
   // Inherited from PostprocNode
   void InitializeWithTuneContext(const TuneContext& context) final {
     CHECK(context->target.defined()) << "ValueError: target is not defined";
-    Optional<Integer> max_threads_per_block =
+    ffi::Optional<Integer> max_threads_per_block =
         context->target.value()->GetAttr<Integer>("max_threads_per_block");
     CHECK(max_threads_per_block.defined())
         << "ValueError: missing attribute `max_threads_per_block` in the target";
@@ -99,7 +100,7 @@ class RewriteUnboundBlockNode : public PostprocNode {
   bool Apply(const tir::Schedule& sch) final;
 
   Postproc Clone() const {
-    ObjectPtr<RewriteUnboundBlockNode> n = make_object<RewriteUnboundBlockNode>(*this);
+    ObjectPtr<RewriteUnboundBlockNode> n = ffi::make_object<RewriteUnboundBlockNode>(*this);
     return Postproc(n);
   }
 
@@ -109,13 +110,12 @@ class RewriteUnboundBlockNode : public PostprocNode {
   /*! \brief The max number of threadblocks in the cuda device */
   int max_threadblocks_ = -1;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `max_threads_per_block_` is not visited
-    // `max_threadblocks_` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RewriteUnboundBlockNode>();
   }
-
-  static constexpr const char* _type_key = "meta_schedule.RewriteUnboundBlock";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RewriteUnboundBlockNode, PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RewriteUnboundBlock", RewriteUnboundBlockNode,
+                                    PostprocNode);
 };
 
 bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch) {
@@ -127,11 +127,11 @@ bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch) {
   auto get_factor = [t = this->max_threads_per_block_](int max_extent) -> ExprRV {
     return Integer(std::min(t, max_extent));
   };
-  std::vector<std::pair<tir::StmtSRef, String>> unbound_blocks =
+  std::vector<std::pair<tir::StmtSRef, ffi::String>> unbound_blocks =
       tir::UnboundBlockFinder::Find(sch->state());
   for (const auto& kv : unbound_blocks) {
     tir::StmtSRef block_sref = kv.first;
-    String global_var_name = kv.second;
+    ffi::String global_var_name = kv.second;
     BlockRV block_rv = GetRVFromSRef(sch, block_sref, global_var_name);
     BindBlockThreadIdx(sch, block_rv, max_threadblocks_, max_threads_per_block_, get_factor);
   }
@@ -139,15 +139,18 @@ bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch) {
 }
 
 Postproc Postproc::RewriteUnboundBlock(int max_threadblocks) {
-  ObjectPtr<RewriteUnboundBlockNode> n = make_object<RewriteUnboundBlockNode>();
+  ObjectPtr<RewriteUnboundBlockNode> n = ffi::make_object<RewriteUnboundBlockNode>();
   n->max_threadblocks_ = max_threadblocks;
   n->max_threads_per_block_ = -1;
   return Postproc(n);
 }
 
-TVM_REGISTER_NODE_TYPE(RewriteUnboundBlockNode);
-TVM_REGISTER_GLOBAL("meta_schedule.PostprocRewriteUnboundBlock")
-    .set_body_typed(Postproc::RewriteUnboundBlock);
+TVM_FFI_STATIC_INIT_BLOCK() { RewriteUnboundBlockNode::RegisterReflection(); }
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.PostprocRewriteUnboundBlock", Postproc::RewriteUnboundBlock);
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

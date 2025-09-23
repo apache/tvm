@@ -21,7 +21,7 @@ import tvm
 import tvm.testing
 import tvm.topi.testing
 from tvm import relax
-from tvm.relax.backend.contrib.cublas import partition_for_cublas
+from tvm.relax.backend.cuda.cublas import partition_for_cublas
 from tvm.relax.testing import get_relax_matmul_module
 from tvm.script import relax as R
 from tvm.script.ir_builder import IRBuilder
@@ -49,10 +49,10 @@ def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
             "relax.transform.apply_legalize_ops": legalize,
         }
     ):
-        ex = relax.build(mod, target)
+        ex = tvm.compile(mod, target)
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
-    inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]
+    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
 
     # For cuda graph, run the compiled function twice to make sure that we can launch the cached
     # graph on the second run.
@@ -315,7 +315,7 @@ def test_matmul_fp8_offload(
     transpose_y,
     out_dtype,
 ):
-    in_dtype = "e4m3_float8"
+    in_dtype = "float8_e4m3fn"
     mod = get_relax_matmul_module(
         x_shape,
         y_shape,
@@ -342,7 +342,7 @@ def test_matmul_fp8_offload(
 def test_matmul_fp8_dequantize_offload():
     x_shape = (10, 32)
     y_shape = (64, 32)
-    in_dtype = "e4m3_float8"
+    in_dtype = "float8_e4m3fn"
     mod = get_relax_matmul_dequantize_module(
         x_shape,
         y_shape,
@@ -369,7 +369,7 @@ def test_matmul_fp8_multiply_offload():
     x_shape = (10, 32)
     y_shape = (64, 32)
     z_shape = (1,)
-    in_dtype, acc_dtype = ("e4m3_float8", "float32")
+    in_dtype, acc_dtype = ("float8_e4m3fn", "float32")
 
     mod = get_relax_matmul_multiply_module(
         x_shape,
@@ -393,12 +393,53 @@ def test_matmul_fp8_multiply_offload():
     tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
 
 
+@pytest.mark.skipif(ml_dtypes is None, reason="requires ml_dtypes to be installed")
+@pytest.mark.parametrize(
+    "x_shape, y_shape, transpose_y, out_dtype",
+    [
+        ((10, 32), (64, 32), True, "float32"),
+        ((32, 16), (32, 16), True, "float32"),
+        ((2, 10, 32), (2, 64, 32), True, "float32"),
+    ],
+)
+def test_matmul_bfloat16_offload(
+    x_shape,
+    y_shape,
+    transpose_y,
+    out_dtype,
+):
+    in_dtype = "bfloat16"
+    mod = get_relax_matmul_module(
+        x_shape,
+        y_shape,
+        in_dtype,
+        out_dtype,
+        bias_shape=None,
+        transposed_y=transpose_y,
+        activation=None,
+    )
+    # Generate input data in float32 and then convert to bfloat16 using ml_dtypes.
+    x_float32 = np.random.uniform(low=0, high=5, size=x_shape).astype("float32")
+    y_float32 = np.random.uniform(low=0, high=5, size=y_shape).astype("float32")
+    x_bf16 = ml_dtypes.bfloat16(x_float32)
+    y_bf16 = ml_dtypes.bfloat16(y_float32)
+
+    # For the reference result, adjust y (if needed) in float32.
+    z = np.swapaxes(y_float32, -2, -1) if transpose_y else y_float32
+    args = (x_bf16, y_bf16)
+
+    out = get_result_with_relax_cublas_offload(mod, args)
+    ref_out = np.matmul(x_float32, z).astype(out_dtype)
+
+    tvm.testing.assert_allclose(out, ref_out, rtol=1e-2, atol=1e-2)
+
+
 @pytest.mark.parametrize(
     "M, N, K, out_dtype, transposed_y, partition_done",
     [
         (15, 64, 32, "float32", True, True),
-        (15, 64, 32, "e4m3_float8", True, True),
-        (15, 64, 32, "e5m2_float8", True, False),
+        (15, 64, 32, "float8_e4m3fn", True, True),
+        (15, 64, 32, "float8_e5m2", True, False),
         (16, 32, 60, "float32", True, False),
         (16, 30, 64, "float32", True, False),
         (16, 8, 16, "float16", True, True),
@@ -407,7 +448,7 @@ def test_matmul_fp8_multiply_offload():
 )
 def test_cublas_partition_fp8_matmul(M, N, K, out_dtype, transposed_y, partition_done):
     mod = get_relax_matmul_module(
-        (M, K), (N, K), "e4m3_float8", out_dtype, transposed_y=transposed_y
+        (M, K), (N, K), "float8_e4m3fn", out_dtype, transposed_y=transposed_y
     )
     mod = partition_for_cublas(mod)
     func_name = "relax_matmul_cublas" if partition_done else "R.matmul"
@@ -426,7 +467,7 @@ def test_cublas_partition_fp8_matmul_dequantize(M, N, K, scale, zp, num_bindings
     mod = get_relax_matmul_dequantize_module(
         (M, K),
         (N, K),
-        "e4m3_float8",
+        "float8_e4m3fn",
         "float16",
         transposed_y=True,
         scale_const=scale,
@@ -443,7 +484,7 @@ def test_cublas_partition_fp8_matmul_multiply():
         (M, K),
         (N, K),
         (1,),
-        "e4m3_float8",
+        "float8_e4m3fn",
         "float32",
         "float16",
         transposed_y=True,

@@ -19,9 +19,11 @@
 from typing import Union, Dict
 
 from enum import IntEnum
+import tvm_ffi
+
 import tvm.runtime
 from tvm.runtime.object import Object
-from .expr import RelayExpr
+from .expr import RelaxExpr
 from .attrs import DictAttrs
 from . import _ffi_api
 
@@ -34,7 +36,8 @@ class CallingConv(IntEnum):
     DEVICE_KERNEL_LAUNCH = 2
 
 
-class BaseFunc(RelayExpr):
+@tvm_ffi.register_object("ir.BaseFunc")
+class BaseFunc(RelaxExpr):
     """Base class of all functions."""
 
     @property

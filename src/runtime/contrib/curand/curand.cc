@@ -17,8 +17,9 @@
  * under the License.
  */
 #include <curand.h>
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/base.h>
 
 #include "../../cuda/cuda_common.h"
 #include "./helper_cuda_kernels.h"
@@ -51,9 +52,8 @@ class CURandGenerator {
 };
 
 DeviceAPI* GetCUDADeviceAPI() {
-  const PackedFunc* get_cuda_api = runtime::Registry::Get("device_api.cuda");
-  ICHECK(get_cuda_api) << "ValueError: TVM is not built with USE_CUDA=ON";
-  void* ret = (*get_cuda_api)();
+  const auto get_cuda_api = tvm::ffi::Function::GetGlobalRequired("device_api.cuda");
+  void* ret = get_cuda_api();
   runtime::DeviceAPI* cuda_api = static_cast<runtime::DeviceAPI*>(ret);
   return cuda_api;
 }
@@ -113,7 +113,10 @@ void RandomFill(DLTensor* tensor) {
   TVMSynchronize(tensor->device.device_type, tensor->device.device_type, nullptr);
 }
 
-TVM_REGISTER_GLOBAL("runtime.contrib.curand.RandomFill").set_body_typed(RandomFill);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("runtime.contrib.curand.RandomFill", RandomFill);
+}
 
 }  // namespace curand
 }  // namespace runtime

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ir/tensor_type.h>
+#include <tvm/ir/type.h>
 
 #include "./utils.h"
 
@@ -24,7 +24,7 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-TVM_REGISTER_NODE_TYPE(IRFrameNode);
+TVM_FFI_STATIC_INIT_BLOCK() { IRFrameNode::RegisterReflection(); }
 
 struct SortableFunction {
   int priority;
@@ -56,7 +56,7 @@ struct SortableFunction {
 };
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<IRModule>("", [](IRModule mod, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<IRModule>("", [](IRModule mod, AccessPath p, IRDocsifier d) -> Doc {
       std::vector<SortableFunction> functions;
       for (const auto& kv : mod->functions) {
         functions.push_back(SortableFunction(kv));
@@ -89,7 +89,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         const GlobalVar& gv = entry.gv;
         const BaseFunc& base_func = entry.func;
         d->cfg->binding_names.push_back(gv->name_hint);
-        Doc doc = d->AsDoc(base_func, p->Attr("functions")->MapValue(gv));
+        Doc doc = d->AsDoc(base_func, p->Attr("functions")->MapItem(gv));
         d->cfg->binding_names.pop_back();
         if (const auto* stmt_block = doc.as<StmtBlockDocNode>()) {
           (*f)->stmts.push_back(stmt_block->stmts.back());
@@ -100,7 +100,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           (*f)->stmts.push_back(func.value());
         } else if (auto expr = doc.as<ExprDoc>()) {
           ExprDoc lhs = IdDoc(gv->name_hint);
-          AssignDoc assignment(lhs, expr.value(), NullOpt);
+          AssignDoc assignment(lhs, expr.value(), std::nullopt);
           (*f)->stmts.push_back(assignment);
         } else {
           LOG(FATAL) << "TypeError: "
@@ -113,24 +113,24 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<DictAttrs>("", [](DictAttrs attrs, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<DictAttrs>("", [](DictAttrs attrs, AccessPath p, IRDocsifier d) -> Doc {
       return d->AsDoc(attrs->dict, p->Attr("dict"));
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<GlobalVar>("", [](GlobalVar gv, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<GlobalVar>("", [](GlobalVar gv, AccessPath p, IRDocsifier d) -> Doc {
       return IR(d, "GlobalVar")->Call({LiteralDoc::Str(gv->name_hint, p->Attr("name_hint"))});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<DummyGlobalInfo>("", [](GlobalInfo ginfo, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<DummyGlobalInfo>("", [](GlobalInfo ginfo, AccessPath p, IRDocsifier d) -> Doc {
       return IR(d, "dummy_global_info")->Call({});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<VDevice>("", [](VDevice vdev, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<VDevice>("", [](VDevice vdev, AccessPath p, IRDocsifier d) -> Doc {
       d->AddGlobalInfo("vdevice", vdev);
-      Map<String, ObjectRef> config = vdev->target->Export();
+      ffi::Map<ffi::String, ffi::Any> config = vdev->target->Export();
       return IR(d, "vdevice")
           ->Call({d->AsDoc<ExprDoc>(config, p),
                   LiteralDoc::Int(vdev->vdevice_id, p->Attr("vdevice_id")),
@@ -138,54 +138,21 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Op>("", [](Op op, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<Op>("", [](Op op, AccessPath p, IRDocsifier d) -> Doc {
       return IR(d, "Op")->Call({LiteralDoc::Str(op->name, p->Attr("name"))});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<TypeVar>("", [](TypeVar var, ObjectPath p, IRDocsifier d) -> Doc {
-      return IR(d, "TypeVar")
-          ->Call({LiteralDoc::Str(var->name_hint, p->Attr("name_hint")),  //
-                  LiteralDoc::Str(TypeKind2String(var->kind), p->Attr("kind"))});
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<GlobalTypeVar>(  //
-        "", [](GlobalTypeVar var, ObjectPath p, IRDocsifier d) -> Doc {
-          return IR(d, "GlobalTypeVar")
-              ->Call({LiteralDoc::Str(var->name_hint, p->Attr("name_hint")),
-                      LiteralDoc::Str(TypeKind2String(var->kind), p->Attr("kind"))});
-        });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<RelayRefType>("", [](RelayRefType ref, ObjectPath p, IRDocsifier d) -> Doc {
-      return IR(d, "RelayRef")->Call({d->AsDoc<ExprDoc>(ref->value, p->Attr("value"))});
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<TensorType>("", [](TensorType type, ObjectPath p, IRDocsifier d) -> Doc {
-      return IR(d, "TensorType")
-          ->Call({d->AsDoc<ExprDoc>(type->shape, p->Attr("shape")),
-                  LiteralDoc::DataType(type->dtype, p->Attr("dtype"))});
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<FuncType>("", [](FuncType func_type, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<FuncType>("", [](FuncType func_type, AccessPath p, IRDocsifier d) -> Doc {
       return IR(d, "FuncType")
           ->Call({
-              d->AsDoc<ExprDoc>(func_type->type_params, p->Attr("type_params")),
               d->AsDoc<ExprDoc>(func_type->arg_types, p->Attr("arg_types")),
               d->AsDoc<ExprDoc>(func_type->ret_type, p->Attr("ret_type")),
           });
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<IncompleteType>("", [](IncompleteType ty, ObjectPath p, IRDocsifier d) -> Doc {
-      return IR(d, "IncompleteType")->Call({});
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Range>("ir", [](Range range, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<Range>("ir", [](Range range, AccessPath p, IRDocsifier d) -> Doc {
       return IR(d, "Range")
           ->Call({
               d->AsDoc<ExprDoc>(range->min, p->Attr("min")),
@@ -194,21 +161,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 std::string ReprPrintIRModule(const ObjectRef& mod, const PrinterConfig& cfg) {
-  if (const auto* f = runtime::Registry::Get("relay.ir.PrintRelayModule")) {
-    if (Optional<String> s = (*f)(mod)) {
-      return s.value();
-    }
-  }
   return ReprPrintIR(mod, cfg);
 }
 
-TVM_SCRIPT_REPR(TypeVarNode, ReprPrintIR);
-TVM_SCRIPT_REPR(GlobalTypeVarNode, ReprPrintIR);
 TVM_SCRIPT_REPR(GlobalVarNode, ReprPrintIR);
 TVM_SCRIPT_REPR(DictAttrsNode, ReprPrintIR);
-TVM_SCRIPT_REPR(RelayRefTypeNode, ReprPrintIR);
 TVM_SCRIPT_REPR(FuncTypeNode, ReprPrintIR);
-TVM_SCRIPT_REPR(IncompleteTypeNode, ReprPrintIR);
 TVM_SCRIPT_REPR(RangeNode, ReprPrintIR);
 TVM_SCRIPT_REPR(IRModuleNode, ReprPrintIRModule);
 

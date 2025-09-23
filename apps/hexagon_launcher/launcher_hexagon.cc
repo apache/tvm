@@ -47,7 +47,7 @@ static AEEResult error_too_small(const std::string& func_name, const std::string
 int __QAIC_HEADER(launcher_rpc_open)(const char* uri, remote_handle64* handle) {
   *handle = 0;  // Just use any value.
   reset_device_api();
-  static const tvm::runtime::PackedFunc acq_res =
+  static const tvm::ffi::Function acq_res =
       get_runtime_func("device_api.hexagon.acquire_resources");
   acq_res();
   return AEE_SUCCESS;
@@ -55,7 +55,7 @@ int __QAIC_HEADER(launcher_rpc_open)(const char* uri, remote_handle64* handle) {
 
 int __QAIC_HEADER(launcher_rpc_close)(remote_handle64 handle) {
   // Comment to stop clang-format from single-lining this function.
-  static const tvm::runtime::PackedFunc rel_res =
+  static const tvm::ffi::Function rel_res =
       get_runtime_func("device_api.hexagon.release_resources");
   rel_res();
   return AEE_SUCCESS;
@@ -104,8 +104,7 @@ AEEResult __QAIC_HEADER(launcher_rpc_get_num_inputs)(remote_handle64 handle, int
     return AEE_EBADSTATE;
   }
 
-  tvm::runtime::PackedFunc get_num_inputs =
-      get_module_func(TheModel->model_executor, "get_num_inputs");
+  tvm::ffi::Function get_num_inputs = get_module_func(TheModel->model_executor, "get_num_inputs");
   *num_inputs = get_num_inputs();
   return AEE_SUCCESS;
 }
@@ -138,9 +137,9 @@ AEEResult __QAIC_HEADER(launcher_rpc_set_input)(remote_handle64 handle, int inpu
   };
   DLManagedTensor managed{tensor, /*manager_ctx*/ nullptr, /*deleter*/ nullptr};
 
-  auto input = tvm::runtime::NDArray::FromDLPack(&managed);
+  auto input = tvm::runtime::Tensor::FromDLPack(&managed);
 
-  tvm::runtime::PackedFunc set_input = get_module_func(TheModel->model_executor, "set_input");
+  tvm::ffi::Function set_input = get_module_func(TheModel->model_executor, "set_input");
   set_input(input_idx, input);
 
   return AEE_SUCCESS;
@@ -152,8 +151,7 @@ AEEResult __QAIC_HEADER(launcher_rpc_get_num_outputs)(remote_handle64 handle, in
     return AEE_EBADSTATE;
   }
 
-  tvm::runtime::PackedFunc get_num_outputs =
-      get_module_func(TheModel->model_executor, "get_num_outputs");
+  tvm::ffi::Function get_num_outputs = get_module_func(TheModel->model_executor, "get_num_outputs");
   *num_outputs = get_num_outputs();
   return AEE_SUCCESS;
 }
@@ -173,18 +171,18 @@ AEEResult __QAIC_HEADER(launcher_rpc_get_output)(remote_handle64 handle, int out
     return AEE_EBADPARM;
   }
 
-  tvm::runtime::PackedFunc get_output = get_module_func(TheModel->model_executor, "get_output");
-  tvm::runtime::NDArray output = get_output(output_idx);
+  tvm::ffi::Function get_output = get_module_func(TheModel->model_executor, "get_output");
+  tvm::runtime::Tensor output = get_output(output_idx);
 
   std::vector<int64_t> shape_vec{output->shape, output->shape + output->ndim};
 
-  auto* container = new tvm::runtime::NDArray::Container(
-      static_cast<void*>(output_value), shape_vec, output->dtype, Model::external());
+  auto* container = new tvm::runtime::Tensor::Container(static_cast<void*>(output_value), shape_vec,
+                                                        output->dtype, Model::external());
   container->SetDeleter([](tvm::Object* container) {
-    delete static_cast<tvm::runtime::NDArray::Container*>(container);
+    delete static_cast<tvm::runtime::Tensor::Container*>(container);
   });
 
-  tvm::runtime::NDArray host_output(tvm::runtime::GetObjectPtr<tvm::runtime::Object>(container));
+  tvm::runtime::Tensor host_output(tvm::runtime::GetObjectPtr<tvm::runtime::Object>(container));
 
   if (meta_size != 0) {
     auto* meta = reinterpret_cast<tensor_meta*>(output_meta);

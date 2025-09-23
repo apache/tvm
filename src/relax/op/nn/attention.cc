@@ -19,35 +19,36 @@
 
 #include "attention.h"
 
+#include <tvm/ffi/reflection/registry.h>
+
 #include <utility>
-#include <vector>
 
 namespace tvm {
 namespace relax {
 
 /* relax.nn.attention */
-TVM_REGISTER_NODE_TYPE(AttentionAttrs);
 
-Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<FloatImm> scale,
-               Optional<String> causal_mask, Optional<IntImm> window_size) {
-  ObjectPtr<AttentionAttrs> attrs = make_object<AttentionAttrs>();
+Expr attention(Expr query, Expr key, Expr value, ffi::Optional<Expr> bias,
+               ffi::Optional<FloatImm> scale, ffi::Optional<ffi::String> causal_mask,
+               ffi::Optional<IntImm> window_size) {
+  ObjectPtr<AttentionAttrs> attrs = ffi::make_object<AttentionAttrs>();
   attrs->scale = scale;
   attrs->causal_mask = causal_mask;
   attrs->window_size = window_size;
 
   if (bias) {
     return Call(Op::Get("relax.nn.attention_bias"),
-                {std::move(query), std::move(key), std::move(value), std::move(bias.value())},
-                Attrs(attrs), {});
+                {std::move(query), std::move(key), std::move(value), bias.value()}, Attrs(attrs),
+                {});
   }
   return Call(Op::Get("relax.nn.attention"), {std::move(query), std::move(key), std::move(value)},
               Attrs(attrs), {});
 }
 
 Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr seqstart_k,
-                       Expr max_seqlen_q, Expr max_seqlen_k, Optional<FloatImm> scale,
-                       Optional<String> causal_mask, Optional<IntImm> window_size) {
-  ObjectPtr<AttentionAttrs> attrs = make_object<AttentionAttrs>();
+                       Expr max_seqlen_q, Expr max_seqlen_k, ffi::Optional<FloatImm> scale,
+                       ffi::Optional<ffi::String> causal_mask, ffi::Optional<IntImm> window_size) {
+  ObjectPtr<AttentionAttrs> attrs = ffi::make_object<AttentionAttrs>();
   attrs->scale = scale;
   attrs->causal_mask = causal_mask;
   attrs->window_size = window_size;
@@ -57,15 +58,19 @@ Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr s
               {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.attention").set_body_typed(attention);
-TVM_REGISTER_GLOBAL("relax.op.nn.attention_var_len").set_body_typed(attention_var_len);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("relax.op.nn.attention", attention)
+      .def("relax.op.nn.attention_var_len", attention_var_len);
+}
 
 StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   TensorStructInfo q_sinfo = input_sinfo[0];
   TensorStructInfo k_sinfo = input_sinfo[1];
   TensorStructInfo v_sinfo = input_sinfo[2];
-  auto diag_dim = [&](TensorStructInfo sinfo, String name) {
+  auto diag_dim = [&](TensorStructInfo sinfo, ffi::String name) {
     if (sinfo->ndim != 4) {
       ctx->ReportFatal(Diagnostic::Error(call)
                        << "The " << name << " should have 4 dimension, namely "
@@ -85,7 +90,7 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
   PrimExpr num_keys = k_shape->values[1];
   PrimExpr head_dim_value = v_shape->values[3];
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
-  auto diag_equal = [&](PrimExpr v1, PrimExpr v2, String m1, String m2, String dim) {
+  auto diag_equal = [&](PrimExpr v1, PrimExpr v2, ffi::String m1, ffi::String m2, ffi::String dim) {
     if (analyzer->CanProve(v1 != v2)) {
       ctx->ReportFatal(Diagnostic::Error(call)
                        << "The " << m1 << " " << dim << " and the " << m2 << " " << dim
@@ -93,7 +98,8 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
                        << v1 << " while the " << dim << " of " << m2 << " is " << v2);
     }
   };
-  auto multiple_of = [&](PrimExpr v1, PrimExpr v2, String m1, String m2, String dim) {
+  auto multiple_of = [&](PrimExpr v1, PrimExpr v2, ffi::String m1, ffi::String m2,
+                         ffi::String dim) {
     if (analyzer->CanProve(indexmod(v1, v2) != 0)) {
       ctx->ReportFatal(Diagnostic::Error(call)
                        << "The " << m1 << " " << dim << " should be a multiple of " << m2 << " "
@@ -117,7 +123,8 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
                        << "The bias should have 4 dimensions."
                        << "However, the bias input has " << bias_sinfo->ndim << " dimensions.");
     }
-    auto diag_equal_or_broadcast = [&](PrimExpr v1, PrimExpr v2, String m1, String m2, String dim) {
+    auto diag_equal_or_broadcast = [&](PrimExpr v1, PrimExpr v2, ffi::String m1, ffi::String m2,
+                                       ffi::String dim) {
       if (analyzer->CanProve(v1 != v2) && !tir::is_one(v2)) {
         ctx->ReportFatal(Diagnostic::Error(call)
                          << "The " << m1 << " " << dim << " and the " << m2 << " " << dim
@@ -132,13 +139,13 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
     diag_equal(num_keys, bias_shape->values[3], "key", "bias", "sequence length");
   }
 
-  Array<PrimExpr> output_shape = {num_batches, num_queries, num_heads, head_dim_value};
+  ffi::Array<PrimExpr> output_shape = {num_batches, num_queries, num_heads, head_dim_value};
   return TensorStructInfo(ShapeExpr(output_shape), q_sinfo->dtype, q_sinfo->vdevice);
 }
 
 Call InferMixedPrecisionAttention(const Call& call, const DataType& out_dtype) {
-  return Downcast<Call>(
-      attention(call->args[0], call->args[1], call->args[2], NullOpt, NullOpt, NullOpt, NullOpt));
+  return Downcast<Call>(attention(call->args[0], call->args[1], call->args[2], std::nullopt,
+                                  std::nullopt, std::nullopt, std::nullopt));
 }
 
 TVM_REGISTER_OP("relax.nn.attention")
@@ -178,6 +185,8 @@ TVM_REGISTER_OP("relax.nn.attention_var_len")
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)
     .set_attr<Bool>("FPurity", Bool(true));
+
+TVM_FFI_STATIC_INIT_BLOCK() { AttentionAttrs::RegisterReflection(); }
 
 }  // namespace relax
 }  // namespace tvm

@@ -27,8 +27,8 @@
 
 #include <dmlc/io.h>
 #include <dmlc/serializer.h>
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/base.h>
+#include <tvm/runtime/tensor.h>
 
 namespace dmlc {
 namespace serializer {

@@ -20,9 +20,9 @@
 #ifndef TVM_META_SCHEDULE_POSTPROC_H_
 #define TVM_META_SCHEDULE_POSTPROC_H_
 
-#include <tvm/node/reflection.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/tir/schedule/schedule.h>
 
 namespace tvm {
@@ -39,7 +39,9 @@ class PostprocNode : public runtime::Object {
   /*! \brief Virtual destructor. */
   virtual ~PostprocNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    // No fields to register
+  }
 
   /*!
    * \brief Initialize the design space generator with tuning context.
@@ -61,8 +63,8 @@ class PostprocNode : public runtime::Object {
    */
   virtual Postproc Clone() const = 0;
 
-  static constexpr const char* _type_key = "meta_schedule.Postproc";
-  TVM_DECLARE_BASE_OBJECT_INFO(PostprocNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.Postproc", PostprocNode, Object);
 };
 
 /*!
@@ -75,23 +77,23 @@ class Postproc : public runtime::ObjectRef {
    * \brief The function type of `InitializeWithTuneContext` method.
    * \param context The tuning context for initialization.
    */
-  using FInitializeWithTuneContext = runtime::TypedPackedFunc<void(const TuneContext&)>;
+  using FInitializeWithTuneContext = ffi::TypedFunction<void(const TuneContext&)>;
   /*!
    * \brief Apply a postprocessor to the given schedule.
    * \param sch The schedule to be post processed.
    * \return Whether the postprocessor was successfully applied.
    */
-  using FApply = runtime::TypedPackedFunc<bool(const tir::Schedule&)>;
+  using FApply = ffi::TypedFunction<bool(const tir::Schedule&)>;
   /*!
    * \brief Clone the postprocessor.
    * \return The cloned postprocessor.
    */
-  using FClone = runtime::TypedPackedFunc<Postproc()>;
+  using FClone = ffi::TypedFunction<Postproc()>;
   /*!
    * \brief Get the postprocessor function as string with name.
    * \return The string of the postprocessor function.
    */
-  using FAsString = runtime::TypedPackedFunc<String()>;
+  using FAsString = ffi::TypedFunction<ffi::String()>;
   /*!
    * \brief Create a postprocessor with customized methods on the python-side.
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
@@ -161,19 +163,19 @@ class Postproc : public runtime::ObjectRef {
    */
   TVM_DLL static Postproc RewriteLayout();
   /*! \brief Create default postprocessors for LLVM */
-  TVM_DLL static Array<Postproc, void> DefaultLLVM();
+  TVM_DLL static ffi::Array<Postproc, void> DefaultLLVM();
   /*! \brief Create default postprocessors for x86 (AVX512 and VNNI) */
-  TVM_DLL static Array<Postproc, void> DefaultCPUTensorization();
+  TVM_DLL static ffi::Array<Postproc, void> DefaultCPUTensorization();
+  /*! \brief Create default postprocessors for RISCV */
+  TVM_DLL static ffi::Array<Postproc, void> DefaultRISCV();
   /*! \brief Create default postprocessors for CUDA */
-  TVM_DLL static Array<Postproc, void> DefaultCUDA();
+  TVM_DLL static ffi::Array<Postproc, void> DefaultCUDA();
   /*! \brief Create default postprocessors for CUDA with TensorCore */
-  TVM_DLL static Array<Postproc, void> DefaultCUDATensorCore();
+  TVM_DLL static ffi::Array<Postproc, void> DefaultCUDATensorCore();
   /*! \brief Create default postprocessors for Hexagon */
-  TVM_DLL static Array<Postproc, void> DefaultHexagon();
-  /*! \brief Create default postprocessors for Micro */
-  TVM_DLL static Array<Postproc, void> DefaultMicro();
+  TVM_DLL static ffi::Array<Postproc, void> DefaultHexagon();
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Postproc, ObjectRef, PostprocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Postproc, ObjectRef, PostprocNode);
 };
 
 /*! \brief The postprocessor with customized methods on the python-side. */
@@ -192,19 +194,17 @@ class PyPostprocNode : public PostprocNode {
   /*! \brief The packed function to the `AsString` function. */
   FAsString f_as_string;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_initialize_with_tune_context` is not visited
-    // `f_apply` is not visited
-    // `f_clone` is not visited
-    // `f_as_string` is not visited
+  static void RegisterReflection() {
+    // `f_initialize_with_tune_context` is not registered
+    // `f_apply` is not registered
+    // `f_clone` is not registered
+    // `f_as_string` is not registered
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final;
   bool Apply(const tir::Schedule& sch) final;
   Postproc Clone() const final;
-
-  static constexpr const char* _type_key = "meta_schedule.PyPostproc";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyPostprocNode, PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyPostproc", PyPostprocNode, PostprocNode);
 };
 
 }  // namespace meta_schedule

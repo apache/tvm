@@ -186,10 +186,6 @@ def test_stmt_constructor():
     assert x.then_case.value.value == 11
     assert x.else_case == nop
 
-    b = tvm.tir.decl_buffer((1, 2))
-    x = tvm.tir.Prefetch(b, [])
-    assert isinstance(x, tvm.tir.Prefetch)
-
 
 def test_float_constructor_requires_float_dtype():
     with pytest.raises(tvm.TVMError):

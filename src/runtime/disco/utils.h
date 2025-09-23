@@ -27,11 +27,8 @@
 namespace tvm {
 namespace runtime {
 
-inline Device UseDefaultDeviceIfNone(Device device) {
-  if (device.device_type == 0 && device.device_id == 0) {
-    return DiscoWorker::ThreadLocal()->default_device;
-  }
-  return device;
+inline Device UseDefaultDeviceIfNone(ffi::Optional<Device> device) {
+  return device.value_or(DiscoWorker::ThreadLocal()->default_device);
 }
 
 /*!
@@ -39,7 +36,7 @@ inline Device UseDefaultDeviceIfNone(Device device) {
  * \note At the time of scaffolding Disco, RelaxVM has not provided mature support for standalone
  * integers. A common workaround is to use a 1-d shape tuple as an integer.
  */
-inline int64_t IntegerFromShapeTuple(const ShapeTuple& shape) {
+inline int64_t IntegerFromShape(const ffi::Shape& shape) {
   CHECK_EQ(shape.size(), 1) << "ValueError: shape tuple must be 1-d to be converted to integer.";
   return shape[0];
 }

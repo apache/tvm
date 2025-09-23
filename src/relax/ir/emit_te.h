@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_IR_EMIT_TE_H_
 #define TVM_RELAX_IR_EMIT_TE_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
 #include <tvm/te/operation.h>
 
@@ -40,17 +41,18 @@ class RXPlaceholderOpNode : public te::PlaceholderOpNode {
   /*! \brief The relax expression. */
   Expr value;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("tag", &tag);
-    v->Visit("attrs", &attrs);
-    v->Visit("value", &value);
-    v->Visit("shape", &shape);
-    v->Visit("dtype", &dtype);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RXPlaceholderOpNode>()
+        .def_ro("name", &RXPlaceholderOpNode::name)
+        .def_ro("tag", &RXPlaceholderOpNode::tag)
+        .def_ro("attrs", &RXPlaceholderOpNode::attrs)
+        .def_ro("value", &RXPlaceholderOpNode::value)
+        .def_ro("shape", &RXPlaceholderOpNode::shape)
+        .def_ro("dtype", &RXPlaceholderOpNode::dtype);
   }
-
-  static constexpr const char* _type_key = "RXPlaceholderOp";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RXPlaceholderOpNode, te::PlaceholderOpNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TEPlaceholderOp", RXPlaceholderOpNode,
+                                    te::PlaceholderOpNode);
 };
 
 /*!
@@ -61,7 +63,7 @@ class RXPlaceholderOpNode : public te::PlaceholderOpNode {
  * shape of the input Expr.
  * \param name The name of the created tensor.
  */
-te::Tensor TETensor(Expr value, Map<tir::Var, PrimExpr> tir_var_map, std::string name);
+te::Tensor TETensor(Expr value, ffi::Map<tir::Var, PrimExpr> tir_var_map, std::string name);
 
 }  // namespace relax
 }  // namespace tvm

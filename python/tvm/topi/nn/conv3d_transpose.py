@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, unused-argument
 """Transposed 3D convolution operators (sometimes called Deconvolution)."""
-import tvm
 from tvm import te
 
 from ..utils import simplify
@@ -198,63 +197,3 @@ def group_conv3d_transpose_ncdhw(data, kernel, strides, padding, out_dtype, outp
         ),
         tag="group_conv3d_transpose_ncdhw",
     )
-
-
-@tvm.target.generic_func
-def conv3d_transpose_legalize(attrs, inputs, types):
-    """Legalizes Transposed 3D convolution op.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current Transposed 3D convolution
-    inputs : list of tvm.relay.Expr
-        The args of the Relay expr to be legalized
-    types : list of types
-        List of input and output types
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The legalized expr
-    """
-    from tvm import relay  # pylint: disable=import-outside-toplevel
-
-    if attrs["data_layout"] == "NDHWC":
-        data, kernel = inputs
-        kernel_layout = attrs["kernel_layout"]
-        # Convert Kernel layout to IODHW
-        if kernel_layout == "DHWIO":
-            # input kernel layout is swapped to DHWOI
-            # output kernel layout will be IODHW
-            kernel = relay.transpose(kernel, axes=(3, 4, 0, 1, 2))
-        elif kernel_layout == "DHWOI":
-            # input kernel layout is swapped to DHWIO
-            # output kernel layout will be IODHW
-            kernel = relay.transpose(kernel, axes=(4, 3, 0, 1, 2))
-        elif kernel_layout == "OIDHW":
-            # input kernel layout is swapped to OIDHW
-            # output kernel layout will be IODHW
-            kernel = relay.transpose(kernel, axes=(1, 0, 2, 3, 4))
-        elif kernel_layout == "IODHW":
-            # input kernel layout is swapped to IODHW
-            # output kernel layout will be IODHW
-            pass
-        else:
-            # Skip legalize. Let relay.nn.conv2d_transpose to handle the case
-            return None
-
-        # Set new attrs for conv3d_transpose.
-        new_attrs = {k: attrs[k] for k in attrs.keys()}
-        new_attrs["data_layout"] = "NCDHW"
-        # layout of kernel should be IODHW, but kernel_layout should be swapped - OIDHW
-        new_attrs["kernel_layout"] = "IODHW"
-
-        # Convert data to NCDHW.
-        data = relay.transpose(data, axes=(0, 4, 1, 2, 3))
-        deconv = relay.nn.conv3d_transpose(data, kernel, **new_attrs)
-        # Convert back to original NDHWC layout.
-        out = relay.transpose(deconv, axes=(0, 2, 3, 4, 1))
-        return out
-
-    return None

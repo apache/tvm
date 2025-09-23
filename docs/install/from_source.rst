@@ -130,6 +130,14 @@ Once ``config.cmake`` is edited accordingly, kick off build with the commands be
 
 A success build should produce ``libtvm`` and ``libtvm_runtime`` under ``build/`` directory.
 
+Apache TVM relies on the tvm-ffi package to support its python bindings.
+Therefore, after we finish the build, we need to install the tvm-ffi package.
+
+.. code-block:: bash
+
+    cd 3rdparty/tvm-ffi; pip install .; cd ..
+
+
 Leaving the build environment ``tvm-build-venv``, there are two ways to install the successful build into your environment:
 
 -  Install via environment variable
@@ -137,7 +145,7 @@ Leaving the build environment ``tvm-build-venv``, there are two ways to install 
 .. code-block:: bash
 
     export TVM_HOME=/path-to-tvm
-    export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
+    export PYTHONPATH=$TVM_HOME/python:$TVM_HOME/ffi/python:$PYTHONPATH
 
 - Install via pip local project
 
@@ -165,7 +173,7 @@ Therefore, it is highly recommended to validate Apache TVM installation before u
 
 .. code-block:: bash
 
-    >>> python -c "import tvm; print(tvm._ffi.base._LIB)"
+    >>> python -c "import tvm; print(tvm.base._LIB)"
     <CDLL '/some-path/lib/python3.11/site-packages/tvm/libtvm.dylib', handle 95ada510 at 0x1030e4e50>
 
 **Step 3. Reflect TVM build option.** Sometimes when downstream application fails, it could likely be some mistakes with a wrong TVM commit, or wrong build flags. To find it out, the following commands will be helpful:
@@ -209,7 +217,7 @@ The following commands can be used to install the extra Python dependencies:
 
 .. code:: bash
 
-    pip3 install numpy decorator attrs
+    pip3 install numpy
 
 * If you want to use RPC Tracker
 
@@ -230,8 +238,7 @@ Advanced Build Configuration
 Ccache
 ~~~~~~
 On supported platforms, the `Ccache compiler wrapper <https://ccache.dev/>`_ may be helpful for
-reducing TVM's build time, especially when building with `cutlass <https://github.com/NVIDIA/cutlass>`_
-or `flashinfer <https://github.com/flashinfer-ai/flashinfer>`_.
+reducing TVM's build time, especially when building with `cutlass <https://github.com/NVIDIA/cutlass>`_.
 There are several ways to enable CCache in TVM builds:
 
     - Leave ``USE_CCACHE=AUTO`` in ``build/config.cmake``. CCache will be used if it is found.

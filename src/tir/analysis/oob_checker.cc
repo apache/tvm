@@ -21,6 +21,7 @@
  *  Out of bounds array access static analyzer.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/transform.h>
 
 #include "../../arith/ir_visitor_with_analyzer.h"
@@ -40,9 +41,9 @@ struct OOBLocation {
 class OOBError : public ScheduleError {
  public:
   OOBError(IRModule mod, std::vector<OOBLocation> locations) : mod_(mod), locations_(locations) {}
-  String FastErrorString() const final { return "Out of bound memory access"; }
+  ffi::String FastErrorString() const final { return "Out of bound memory access"; }
 
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     std::stringstream s;
     for (const auto& oob : locations_) {
       s << "Out of bounds memory access on buffer " << oob.buf->name << " dimension "
@@ -55,7 +56,7 @@ class OOBError : public ScheduleError {
     return s.str();
   }
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final {
+  ffi::Array<ObjectRef> LocationsOfInterest() const final {
     std::vector<ObjectRef> locs;
     for (auto loc : locations_) {
       locs.push_back(loc.index);
@@ -123,7 +124,10 @@ transform::Pass OOBChecker() {
   return transform::CreatePrimFuncPass(pass_func, 0, "tir.analysis.OOBChecker", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.OOBChecker").set_body_typed(OOBChecker);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.analysis.OOBChecker", OOBChecker);
+}
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

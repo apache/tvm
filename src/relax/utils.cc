@@ -19,6 +19,7 @@
 
 #include "transform/utils.h"
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/index.h>
 #include <tvm/relax/expr_functor.h>
@@ -30,15 +31,15 @@ namespace relax {
 /*! \brief Helper to implement bind params.*/
 class ExprBinder : public ExprMutator {
  public:
-  explicit ExprBinder(const tvm::Map<Var, Expr>& args_map,
-                      const tvm::Map<tir::Var, PrimExpr>& symbolic_var_map)
+  explicit ExprBinder(const tvm::ffi::Map<Var, Expr>& args_map,
+                      const tvm::ffi::Map<tir::Var, PrimExpr>& symbolic_var_map)
       : args_map_(args_map), symbolic_var_map_(symbolic_var_map) {}
 
  private:
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const FunctionNode* op) final {
-    tvm::Array<Var> params;
+    tvm::ffi::Array<Var> params;
     bool all_params_unchanged = true;
     for (const Var& param : op->params) {
       if (args_map_.count(param)) {
@@ -57,7 +58,7 @@ class ExprBinder : public ExprMutator {
 
     // FuncStructInfo does not depend on Expr
     if (all_params_unchanged && body.same_as(op->body)) {
-      return GetRef<Expr>(op);
+      return ffi::GetRef<Expr>(op);
     } else {
       // purity won't be affected, no need to update annotation
       return Function(params, body, VisitExprDepStructInfoField(op->ret_struct_info), op->is_pure,
@@ -66,7 +67,7 @@ class ExprBinder : public ExprMutator {
   }
 
   Expr VisitExpr_(const VarNode* op) final {
-    auto id = GetRef<Var>(op);
+    auto id = ffi::GetRef<Var>(op);
     auto it = args_map_.find(id);
     if (it != args_map_.end()) {
       return (*it).second;
@@ -85,8 +86,8 @@ class ExprBinder : public ExprMutator {
   }
 
  private:
-  const tvm::Map<Var, Expr>& args_map_;
-  const tvm::Map<tir::Var, PrimExpr>& symbolic_var_map_;
+  const tvm::ffi::Map<Var, Expr>& args_map_;
+  const tvm::ffi::Map<tir::Var, PrimExpr>& symbolic_var_map_;
 };
 
 /*!
@@ -96,18 +97,19 @@ class ExprBinder : public ExprMutator {
  * \param symbolic_var_map The map from symbolic var to the expr it binds to
  * \return The result expr after bind params
  */
-Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds,
-          const tvm::Map<tir::Var, PrimExpr>& symbolic_var_map) {
+Expr Bind(const Expr& expr, const tvm::ffi::Map<Var, Expr>& binds,
+          const tvm::ffi::Map<tir::Var, PrimExpr>& symbolic_var_map) {
   return ExprBinder(binds, symbolic_var_map).VisitExpr(expr);
 }
 
-StructInfo Bind(const StructInfo& sinfo, const tvm::Map<tir::Var, PrimExpr>& symbolic_var_map) {
+StructInfo Bind(const StructInfo& sinfo,
+                const tvm::ffi::Map<tir::Var, PrimExpr>& symbolic_var_map) {
   return ExprBinder({}, symbolic_var_map).VisitExprDepStructInfoField(sinfo);
 }
 
-tvm::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
-    const tvm::Map<relax::Var, relax::Expr>& relax_var_remap, arith::Analyzer* analyzer) {
-  tvm::Map<tir::Var, PrimExpr> tir_var_remap;
+tvm::ffi::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
+    const tvm::ffi::Map<relax::Var, relax::Expr>& relax_var_remap, arith::Analyzer* analyzer) {
+  tvm::ffi::Map<tir::Var, PrimExpr> tir_var_remap;
 
   auto bind_from_prim_expr = [&tir_var_remap](const PrimExpr& var_shape,
                                               const PrimExpr& expr_shape) {
@@ -217,7 +219,7 @@ bool IsLeafOrTuple(const Expr& expr) {
 
 bool IsImpureCall(const Call& call) {
   if (auto op_ptr = call->op.as<OpNode>()) {
-    auto op = GetRef<Op>(op_ptr);
+    auto op = ffi::GetRef<Op>(op_ptr);
     static auto purity_map = Op::GetAttrMap<Bool>("FPurity");
     ICHECK(purity_map.count(op)) << "Cannot find the registered purity of this op: " << op->name;
     return !(purity_map[op]->value);
@@ -245,7 +247,10 @@ Expr GetBoundValue(const Binding& b) {
  */
 Function CopyWithNewVars(Function func) { return FunctionCopier().Copy(func); }
 
-TVM_REGISTER_GLOBAL("relax.CopyWithNewVars").set_body_typed(CopyWithNewVars);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.CopyWithNewVars", CopyWithNewVars);
+}
 
 }  // namespace relax
 }  // namespace tvm

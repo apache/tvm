@@ -487,24 +487,24 @@ class TVMUtils {
     }
   }
 
-  static void AttrFromArg(const TVMArgValue& arg, std::string& target) {
-    target = arg.operator std::string();
+  static void AttrFromArg(const ffi::AnyView& arg, std::string& target) {
+    target = arg.cast<std::string>();
   }
 
-  static void AttrFromArg(const TVMArgValue& arg, bool& target) { target = arg; }
+  static void AttrFromArg(const ffi::AnyView& arg, bool& target) { target = arg; }
 
-  static void AttrFromArg(const TVMArgValue& arg, int& target) { target = arg; }
+  static void AttrFromArg(const ffi::AnyView& arg, int& target) { target = arg; }
 
-  static void AttrFromArg(const TVMArgValue& arg, size_t& target) { target = int(arg); }
+  static void AttrFromArg(const ffi::AnyView& arg, size_t& target) { target = int(arg); }
 
-  static void AttrFromArg(const TVMArgValue& arg, long& target) { target = int64_t(arg); }
+  static void AttrFromArg(const ffi::AnyView& arg, long& target) { target = int64_t(arg); }
 
-  static void AttrFromArg(const TVMArgValue& arg, float& target) { target = double(arg); }
+  static void AttrFromArg(const ffi::AnyView& arg, float& target) { target = double(arg); }
 
-  static void AttrFromArg(const TVMArgValue& arg, double& target) { target = arg; }
+  static void AttrFromArg(const ffi::AnyView& arg, double& target) { target = arg; }
 
   template <typename T>
-  static void AttrFromArgs(const TVMArgs& args, size_t start, size_t num, std::vector<T>& target) {
+  static void AttrFromArgs(const ffi::PackedArgs& args, size_t start, size_t num, std::vector<T>& target) {
     for (size_t i = 0; i < num; i++) {
       AttrFromArg(args[start + i], target[i]);
     }
@@ -642,11 +642,7 @@ class TVMUtils {
     Array<tvm::PrimExpr> tvm_shape;
     for (size_t i = 0; i < meta_shape.ndim(); i++) {
       auto dim = meta_shape.DimAt(i);
-      if (dim == -1) {
-        tvm_shape.push_back(tir::Any());
-      } else {
-        tvm_shape.push_back(Integer(dim));
-      }
+      tvm_shape.push_back(Integer(dim));
     }
     return tvm_shape;
   }
@@ -688,6 +684,17 @@ class TVMUtils {
     return cuda_dev;
   }
 };
+
+#define TVM_MSC_PLUGIN_REGISTER_GLOBAL_DEF(FuncName, Body)  \
+  TVM_FFI_STATIC_INIT_BLOCK() {                             \
+    tvm::ffi::reflection::GlobalDef().def(FuncName, Body);  \
+  }
+
+#define TVM_MSC_PLUGIN_REGISTER_GLOBAL_DEF_PACKED(FuncName, Body)  \
+  TVM_FFI_STATIC_INIT_BLOCK() {                                    \
+    tvm::ffi::reflection::GlobalDef().def_packed(FuncName, Body);  \
+  }
+
 #endif  // PLUGIN_SUPPORT_TVM
 """
 
@@ -1105,6 +1112,7 @@ def get_plugin_utils_h_code() -> str:
 
 #ifdef PLUGIN_SUPPORT_TVM
 #include <tvm/relax/expr.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "tvm/../../src/contrib/msc/core/transform/layout_utils.h"
 #include "tvm/../../src/contrib/msc/core/utils.h"
@@ -1154,4 +1162,7 @@ def get_plugin_sources() -> Dict[str, str]:
         The base utils sources.
     """
 
-    return {"plugin_base.h": get_plugin_base_h_code(), "plugin_utils.h": get_plugin_utils_h_code()}
+    return {
+        "plugin_base.h": get_plugin_base_h_code(),
+        "plugin_utils.h": get_plugin_utils_h_code(),
+    }

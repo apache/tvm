@@ -39,13 +39,16 @@ if __name__ == "__main__":
     parser.add_argument("--cmake-target", help="optional build target")
     parser.add_argument("--debug", required=False, action="store_true", help="build in debug mode")
     args = parser.parse_args()
-
-    env = {"VTA_HW_PATH": str(Path(os.getcwd()) / "3rdparty" / "vta-hw")}
     sccache_exe = shutil.which("sccache")
+
+    if args.cmake_target in ["standalone_crt", "crttest"]:
+        logging.info("Skipping standalone_crt build")
+        exit(0)
 
     use_sccache = sccache_exe is not None
     build_dir = Path(os.getcwd()) / args.build_dir
     build_dir = build_dir.relative_to(REPO_ROOT)
+    env = {}
 
     if use_sccache:
         if args.sccache_bucket and "AWS_ACCESS_KEY_ID" in os.environ:

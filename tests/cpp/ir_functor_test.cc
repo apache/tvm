@@ -17,11 +17,10 @@
  * under the License.
  */
 
-#include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/functor.h>
-#include <tvm/relay/function.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -54,22 +53,6 @@ TEST(IRF, CountVar) {
     if (n.as<VarNode>()) ++n_var;
   });
   ICHECK_EQ(n_var, 2);
-}
-
-TEST(IRF, VisitPrimFuncs) {
-  using namespace tvm;
-  using namespace tvm::tir;
-  PrimFunc prim_func(/*params=*/{}, /*body=*/Evaluate(Integer(0)));
-  auto c_data = tvm::runtime::NDArray::Empty({1, 2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  relay::Function relay_func(/*params=*/{}, /*body=*/relay::Expr(relay::Constant(c_data)),
-                             /*ret_type=*/relay::Type(), /*ty_params=*/{});
-  IRModule mod({
-      {GlobalVar("main"), prim_func},
-      {GlobalVar("main2"), relay_func},
-  });
-  int n_visited = 0;
-  VisitPrimFuncs(mod, [&](const PrimFuncNode* func) { ++n_visited; });
-  ASSERT_EQ(n_visited, 1);
 }
 
 TEST(IRF, PreOrderVisit) {
@@ -232,7 +215,7 @@ TEST(IRF, StmtMutator) {
     Stmt body2 = Evaluate(1);
     Stmt bref = body.as<AllocateNode>()->body;
     auto* extentptr = body.as<AllocateNode>()->extents.get();
-    Array<Stmt> arr{std::move(body), body2, body2};
+    ffi::Array<Stmt> arr{std::move(body), body2, body2};
     auto* arrptr = arr.get();
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
     ICHECK(arr.get() == arrptr);
@@ -245,9 +228,9 @@ TEST(IRF, StmtMutator) {
     ICHECK(bref.as<EvaluateNode>()->value.as<AddNode>());
   }
   {
-    Array<Stmt> arr{fmakealloc()};
+    ffi::Array<Stmt> arr{fmakealloc()};
     // mutate array get reference by another one, triiger copy.
-    Array<Stmt> arr2 = arr;
+    ffi::Array<Stmt> arr2 = arr;
     auto* arrptr = arr.get();
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
     ICHECK(arr.get() != arrptr);
@@ -259,7 +242,7 @@ TEST(IRF, StmtMutator) {
     ICHECK(arr2.get() == arr.get());
   }
   {
-    Array<Stmt> arr{fmakeif()};
+    ffi::Array<Stmt> arr{fmakeif()};
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
     ICHECK(arr[0].as<IfThenElseNode>()->else_case.as<EvaluateNode>()->value.same_as(x));
     // mutate but no content change.
@@ -349,11 +332,11 @@ TEST(IRF, Substitute) {
     // test substitute buffer var
     Var y = x.copy_with_suffix("subst");
     BufferLoad buffer_load = fmaketest();
-    auto f_subst = [&](const Var& var) -> Optional<PrimExpr> {
+    auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> {
       if (var.same_as(x)) {
         return y;
       }
-      return NullOpt;
+      return std::nullopt;
     };
     BufferLoad new_buffer_load = Downcast<BufferLoad>(Substitute(buffer_load, f_subst));
     ICHECK(new_buffer_load->buffer->data.same_as(y));
@@ -362,7 +345,7 @@ TEST(IRF, Substitute) {
   {
     // test identity substitution
     PrimExpr expr = fmaketest();
-    auto f_subst = [&](const Var& var) -> Optional<PrimExpr> { return var; };
+    auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> { return var; };
     PrimExpr new_expr = Substitute(expr, f_subst);
     // the expression is not changed
     ICHECK(new_expr.same_as(expr));

@@ -20,9 +20,9 @@
 #ifndef TVM_META_SCHEDULE_MEASURE_CANDIDATE_H_
 #define TVM_META_SCHEDULE_MEASURE_CANDIDATE_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/meta_schedule/arg_info.h>
-#include <tvm/node/reflection.h>
-#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/schedule/schedule.h>
 
@@ -35,15 +35,15 @@ class MeasureCandidateNode : public runtime::Object {
   /*! \brief The schedule for measurement. */
   tir::Schedule sch;
   /*! \brief The argument information, e.g., (shape, dtype) for tensors. */
-  Array<ArgInfo> args_info;
+  ffi::Array<ArgInfo> args_info;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("sch", &sch);
-    v->Visit("args_info", &args_info);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MeasureCandidateNode>()
+        .def_ro("sch", &MeasureCandidateNode::sch)
+        .def_ro("args_info", &MeasureCandidateNode::args_info);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.MeasureCandidate";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MeasureCandidateNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MeasureCandidate", MeasureCandidateNode, Object);
 };
 
 /*!
@@ -57,8 +57,8 @@ class MeasureCandidate : public runtime::ObjectRef {
    * \param sch The schedule for measurement.
    * \param args_info The argument information, e.g., (shape, dtype) for tensors.
    */
-  TVM_DLL MeasureCandidate(tir::Schedule sch, Array<ArgInfo> args_info);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(MeasureCandidate, ObjectRef, MeasureCandidateNode);
+  TVM_DLL MeasureCandidate(tir::Schedule sch, ffi::Array<ArgInfo> args_info);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MeasureCandidate, ObjectRef, MeasureCandidateNode);
 };
 
 }  // namespace meta_schedule

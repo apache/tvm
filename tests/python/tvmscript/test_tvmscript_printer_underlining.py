@@ -18,7 +18,7 @@
 from typing import Optional
 
 import pytest
-from tvm.runtime import ObjectPath
+from tvm_ffi.access_path import AccessPath
 from tvm.script.printer.doc import (
     ExprStmtDoc,
     IdDoc,
@@ -30,8 +30,8 @@ from tvm.script.printer.doc_printer import to_python_script
 from tvm.script import ir as I, tir as T
 
 
-def make_path(name: str) -> ObjectPath:
-    return ObjectPath.root().attr(name)
+def make_path(name: str) -> AccessPath:
+    return AccessPath.root().attr(name)
 
 
 def make_id_doc(name: str, path_name: Optional[str] = None) -> IdDoc:
@@ -312,7 +312,7 @@ def test_underline_and_print_line_numbers():
     )
 
 
-def test_underline_multi_object_paths():
+def test_underline_multi_access_paths():
     doc = StmtBlockDoc([ExprStmtDoc(make_id_doc(f"line{i + 1}")) for i in range(10)])
     result = to_python_script(
         doc,
@@ -479,7 +479,7 @@ def test_underline_func():
 
     result = func.with_attr("global_symbol", "main").script(
         path_to_underline=[
-            ObjectPath.root(),
+            AccessPath.root(),
         ]
     )
     assert result == format_script(
@@ -505,7 +505,7 @@ def test_underline_func_in_irmodule():
 
     result = irmodule.script(
         path_to_underline=[
-            ObjectPath.root().attr("functions").map_value(irmodule.get_global_var("func")),
+            AccessPath.root().attr("functions").map_item(irmodule.get_global_var("func")),
         ]
     )
     assert result == format_script(
@@ -534,7 +534,7 @@ def test_underline_irmodule():
 
     result = irmodule.script(
         path_to_underline=[
-            ObjectPath.root(),
+            AccessPath.root(),
         ]
     )
     assert result == format_script(

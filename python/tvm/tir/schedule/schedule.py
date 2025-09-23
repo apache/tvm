@@ -18,10 +18,10 @@
 import inspect
 from typing import Callable, Dict, List, Literal, Optional, Tuple, Union
 
-from tvm._ffi import register_object as _register_object
+from tvm_ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
 from tvm.ir import GlobalVar, IRModule, PrimExpr
-from tvm.runtime import Object, String
+from tvm.runtime import Object
 from tvm.tir import Block, Buffer, FloatImm, For, IntImm, PrimFunc
 
 from ..function import IndexMap
@@ -61,7 +61,8 @@ class BlockRV(Object):
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
 # This feature is not supported until python 3.10:
 # https://docs.python.org/3.10/whatsnew/3.10.html#pep-613-typealias
-ExprRV = Union[PrimExpr]  # A random variable that evaluates to an integer
+# A random variable that evaluates to an integer
+ExprRV = Union[PrimExpr]  # pylint: disable=invalid-name
 
 RAND_VAR_TYPE = Union[ExprRV, BlockRV, LoopRV]  # pylint: disable=invalid-name
 
@@ -3109,12 +3110,6 @@ class Schedule(Object):
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
-        if isinstance(ann_val, str):
-            ann_val = String(ann_val)
-        elif isinstance(ann_val, int):
-            ann_val = IntImm("int32", ann_val)
-        elif isinstance(ann_val, float):
-            ann_val = FloatImm("float32", ann_val)
         _ffi_api.ScheduleAnnotate(  # type: ignore # pylint: disable=no-member
             self, block_or_loop, ann_key, ann_val
         )

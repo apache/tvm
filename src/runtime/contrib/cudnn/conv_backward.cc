@@ -20,9 +20,10 @@
 /*!
  * \file cuDNN kernel calls for backward algorithms.
  */
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 
 #include "cudnn_utils.h"
 
@@ -34,7 +35,7 @@ using namespace runtime;
 void ConvolutionBackwardData(int mode, int format, int algo, int dims, int groups, const int pad[],
                              const int stride[], const int dilation[], DLTensor* dy, DLTensor* w,
                              DLTensor* dx, const std::string& conv_dtype) {
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
+  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(dy->device);
   // Set Mode
   entry_ptr->conv_entry.mode = static_cast<cudnnConvolutionMode_t>(mode);
   SetConvDescriptors(entry_ptr, format, dims, groups, pad, stride, dilation, dx->shape, w->shape,
@@ -63,8 +64,10 @@ void ConvolutionBackwardData(int mode, int format, int algo, int dims, int group
 void BackwardDataFindAlgo(int format, int dims, int groups, const int pad[], const int stride[],
                           const int dilation[], const int dy_dim[], const int w_dim[],
                           const int dx_dim[], const std::string& data_dtype,
-                          const std::string& conv_dtype, bool verbose, TVMRetValue* ret) {
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
+                          const std::string& conv_dtype, bool verbose, ffi::Any* ret) {
+  int device_id;
+  CUDA_CALL(cudaGetDevice(&device_id));
+  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
   const int full_dims = dims + 2;
   std::vector<int64_t> dy_dim_int64(full_dims);
   std::vector<int64_t> w_dim_int64(full_dims);
@@ -75,7 +78,7 @@ void BackwardDataFindAlgo(int format, int dims, int groups, const int pad[], con
     dx_dim_int64[i] = dx_dim[i];
   }
   SetConvDescriptors(entry_ptr, format, dims, groups, pad, stride, dilation, dx_dim_int64.data(),
-                     w_dim_int64.data(), dy_dim_int64.data(), String2DLDataType(data_dtype),
+                     w_dim_int64.data(), dy_dim_int64.data(), StringToDLDataType(data_dtype),
                      conv_dtype);
 
   int returned_algo_count = 0;
@@ -104,14 +107,14 @@ void BackwardDataFindAlgo(int format, int dims, int groups, const int pad[], con
                 << ", Memory: " << perf_results[i].memory;
     }
   }
-  ret[0] = best_algo;
+  ret[0] = static_cast<int>(best_algo);
 }
 
 void ConvolutionBackwardFilter(int mode, int format, int algo, int dims, int groups,
                                const int pad[], const int stride[], const int dilation[],
                                DLTensor* dy, DLTensor* x, DLTensor* dw,
                                const std::string& conv_dtype) {
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
+  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(x->device);
   // Set Mode
   entry_ptr->conv_entry.mode = static_cast<cudnnConvolutionMode_t>(mode);
   SetConvDescriptors(entry_ptr, format, dims, groups, pad, stride, dilation, x->shape, dw->shape,
@@ -140,8 +143,10 @@ void ConvolutionBackwardFilter(int mode, int format, int algo, int dims, int gro
 void BackwardFilterFindAlgo(int format, int dims, int groups, const int pad[], const int stride[],
                             const int dilation[], const int dy_dim[], const int x_dim[],
                             const int dw_dim[], const std::string& data_dtype,
-                            const std::string& conv_dtype, bool verbose, TVMRetValue* ret) {
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
+                            const std::string& conv_dtype, bool verbose, ffi::Any* ret) {
+  int device_id;
+  CUDA_CALL(cudaGetDevice(&device_id));
+  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
   const int full_dims = dims + 2;
   std::vector<int64_t> x_dim_int64(full_dims);
   std::vector<int64_t> dy_dim_int64(full_dims);
@@ -152,7 +157,7 @@ void BackwardFilterFindAlgo(int format, int dims, int groups, const int pad[], c
     dw_dim_int64[i] = dw_dim[i];
   }
   SetConvDescriptors(entry_ptr, format, dims, groups, pad, stride, dilation, x_dim_int64.data(),
-                     dw_dim_int64.data(), dy_dim_int64.data(), String2DLDataType(data_dtype),
+                     dw_dim_int64.data(), dy_dim_int64.data(), StringToDLDataType(data_dtype),
                      conv_dtype);
 
   int returned_algo_count = 0;
@@ -182,88 +187,89 @@ void BackwardFilterFindAlgo(int format, int dims, int groups, const int pad[], c
                 << ", Memory: " << perf_results[i].memory;
     }
   }
-  ret[0] = best_algo;
+  ret[0] = static_cast<int>(best_algo);
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.backward_data")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
-      int mode = args[0];
-      int format = args[1];
-      int algo = args[2];
-      int pad_v[2], stride_v[2], dilation_v[2];
-      for (int i = 0; i < 2; i++) {
-        pad_v[i] = args[3 + i];
-        stride_v[i] = args[5 + i];
-        dilation_v[i] = args[7 + i];
-      }
-      DLTensor* dy = args[9];
-      DLTensor* w = args[10];
-      DLTensor* dx = args[11];
-      std::string conv_dtype = args[12];
-      int groups = args[13];
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("tvm.contrib.cudnn.conv2d.backward_data",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    int mode = args[0].cast<int>();
+                    int format = args[1].cast<int>();
+                    int algo = args[2].cast<int>();
+                    int pad_v[2], stride_v[2], dilation_v[2];
+                    for (int i = 0; i < 2; i++) {
+                      pad_v[i] = args[3 + i].cast<int>();
+                      stride_v[i] = args[5 + i].cast<int>();
+                      dilation_v[i] = args[7 + i].cast<int>();
+                    }
+                    auto dy = args[9].cast<DLTensor*>();
+                    auto w = args[10].cast<DLTensor*>();
+                    auto dx = args[11].cast<DLTensor*>();
+                    auto conv_dtype = args[12].cast<std::string>();
+                    int groups = args[13].cast<int>();
 
-      ConvolutionBackwardData(mode, format, algo, 2, groups, pad_v, stride_v, dilation_v, dy, w, dx,
-                              conv_dtype);
-    });
+                    ConvolutionBackwardData(mode, format, algo, 2, groups, pad_v, stride_v,
+                                            dilation_v, dy, w, dx, conv_dtype);
+                  })
+      .def_packed("tvm.contrib.cudnn.conv.backward_data_find_algo",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    int format = args[0].cast<int>();
+                    int dims = args[1].cast<int>();
+                    int* pad = static_cast<int*>(args[2].cast<void*>());
+                    int* stride = static_cast<int*>(args[3].cast<void*>());
+                    int* dilation = static_cast<int*>(args[4].cast<void*>());
+                    int* dy_dim = static_cast<int*>(args[5].cast<void*>());
+                    int* w_dim = static_cast<int*>(args[6].cast<void*>());
+                    int* dx_dim = static_cast<int*>(args[7].cast<void*>());
+                    auto data_dtype = args[8].cast<std::string>();
+                    auto conv_dtype = args[9].cast<std::string>();
+                    int groups = args[10].cast<int>();
+                    bool verbose = args[11].cast<bool>();
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.backward_data_find_algo")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
-      int format = args[0];
-      int dims = args[1];
-      int* pad = static_cast<int*>(static_cast<void*>(args[2]));
-      int* stride = static_cast<int*>(static_cast<void*>(args[3]));
-      int* dilation = static_cast<int*>(static_cast<void*>(args[4]));
-      int* dy_dim = static_cast<int*>(static_cast<void*>(args[5]));
-      int* w_dim = static_cast<int*>(static_cast<void*>(args[6]));
-      int* dx_dim = static_cast<int*>(static_cast<void*>(args[7]));
-      std::string data_dtype = args[8];
-      std::string conv_dtype = args[9];
-      int groups = args[10];
-      bool verbose = args[11];
+                    BackwardDataFindAlgo(format, dims, groups, pad, stride, dilation, dy_dim, w_dim,
+                                         dx_dim, data_dtype, conv_dtype, verbose, ret);
+                  })
+      .def_packed("tvm.contrib.cudnn.conv2d.backward_filter",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    int mode = args[0].cast<int>();
+                    int format = args[1].cast<int>();
+                    int algo = args[2].cast<int>();
+                    int pad_v[2], stride_v[2], dilation_v[2];
+                    for (int i = 0; i < 2; i++) {
+                      pad_v[i] = args[3 + i].cast<int>();
+                      stride_v[i] = args[5 + i].cast<int>();
+                      dilation_v[i] = args[7 + i].cast<int>();
+                    }
+                    auto dy = args[9].cast<DLTensor*>();
+                    auto x = args[10].cast<DLTensor*>();
+                    auto dw = args[11].cast<DLTensor*>();
+                    auto conv_dtype = args[12].cast<std::string>();
+                    int groups = args[13].cast<int>();
 
-      BackwardDataFindAlgo(format, dims, groups, pad, stride, dilation, dy_dim, w_dim, dx_dim,
-                           data_dtype, conv_dtype, verbose, ret);
-    });
+                    ConvolutionBackwardFilter(mode, format, algo, 2, groups, pad_v, stride_v,
+                                              dilation_v, dy, x, dw, conv_dtype);
+                  })
+      .def_packed("tvm.contrib.cudnn.conv.backward_filter_find_algo",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    int format = args[0].cast<int>();
+                    int dims = args[1].cast<int>();
+                    int* pad = static_cast<int*>(args[2].cast<void*>());
+                    int* stride = static_cast<int*>(args[3].cast<void*>());
+                    int* dilation = static_cast<int*>(args[4].cast<void*>());
+                    int* dy_dim = static_cast<int*>(args[5].cast<void*>());
+                    int* x_dim = static_cast<int*>(args[6].cast<void*>());
+                    int* dw_dim = static_cast<int*>(args[7].cast<void*>());
+                    auto data_dtype = args[8].cast<std::string>();
+                    auto conv_dtype = args[9].cast<std::string>();
+                    int groups = args[10].cast<int>();
+                    bool verbose = args[11].cast<bool>();
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.backward_filter")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
-      int mode = args[0];
-      int format = args[1];
-      int algo = args[2];
-      int pad_v[2], stride_v[2], dilation_v[2];
-      for (int i = 0; i < 2; i++) {
-        pad_v[i] = args[3 + i];
-        stride_v[i] = args[5 + i];
-        dilation_v[i] = args[7 + i];
-      }
-      DLTensor* dy = args[9];
-      DLTensor* x = args[10];
-      DLTensor* dw = args[11];
-      std::string conv_dtype = args[12];
-      int groups = args[13];
-
-      ConvolutionBackwardFilter(mode, format, algo, 2, groups, pad_v, stride_v, dilation_v, dy, x,
-                                dw, conv_dtype);
-    });
-
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.backward_filter_find_algo")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
-      int format = args[0];
-      int dims = args[1];
-      int* pad = static_cast<int*>(static_cast<void*>(args[2]));
-      int* stride = static_cast<int*>(static_cast<void*>(args[3]));
-      int* dilation = static_cast<int*>(static_cast<void*>(args[4]));
-      int* dy_dim = static_cast<int*>(static_cast<void*>(args[5]));
-      int* x_dim = static_cast<int*>(static_cast<void*>(args[6]));
-      int* dw_dim = static_cast<int*>(static_cast<void*>(args[7]));
-      std::string data_dtype = args[8];
-      std::string conv_dtype = args[9];
-      int groups = args[10];
-      bool verbose = args[11];
-
-      BackwardFilterFindAlgo(format, dims, groups, pad, stride, dilation, dy_dim, x_dim, dw_dim,
-                             data_dtype, conv_dtype, verbose, ret);
-    });
+                    BackwardFilterFindAlgo(format, dims, groups, pad, stride, dilation, dy_dim,
+                                           x_dim, dw_dim, data_dtype, conv_dtype, verbose, ret);
+                  });
+}
 
 }  // namespace contrib
 }  // namespace tvm

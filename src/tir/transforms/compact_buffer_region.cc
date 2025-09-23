@@ -24,6 +24,7 @@
 
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/int_solver.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -46,11 +47,11 @@ using support::NDIntSet;
 NDIntSet NDIntSetEval(Region region, PrimExpr predicate,
                       const std::unordered_map<const VarNode*, arith::IntSet>& dom_map,
                       arith::Analyzer* analyzer) {
-  std::unordered_map<Var, Range, ObjectPtrHash, ObjectEqual> var_dom;
+  std::unordered_map<Var, Range, ObjectPtrHash, ObjectPtrEqual> var_dom;
   for (const auto& it : dom_map) {
-    var_dom[GetRef<Var>(it.first)] = it.second.CoverRange(Range::FromMinExtent(0, 0));
+    var_dom[ffi::GetRef<Var>(it.first)] = it.second.CoverRange(Range::FromMinExtent(0, 0));
   }
-  Optional<Array<arith::IntSet>> eval_res =
+  ffi::Optional<ffi::Array<arith::IntSet>> eval_res =
       arith::EstimateRegionUpperBound(region, var_dom, predicate, analyzer);
 
   if (eval_res.defined()) {
@@ -145,7 +146,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const VarNode* op) final { VisitBufferVar(GetRef<Var>(op)); }
+  void VisitExpr_(const VarNode* op) final { VisitBufferVar(ffi::GetRef<Var>(op)); }
 
   void VisitStmt_(const ForNode* op) final {
     Range loop_range = Range::FromMinExtent(op->min, op->extent);
@@ -242,10 +243,10 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     }
 
     // Step 2. Record explicit read/write region annotations
-    auto record_explicit_region = [&](const String& attr_key, BufferIndexType index_type) {
+    auto record_explicit_region = [&](const ffi::String& attr_key, BufferIndexType index_type) {
       auto it = op->annotations.find(attr_key);
       if (it != op->annotations.end()) {
-        Array<Integer> buffer_indices = Downcast<Array<Integer>>((*it).second);
+        ffi::Array<Integer> buffer_indices = Downcast<ffi::Array<Integer>>((*it).second);
         for (const auto& index : buffer_indices) {
           int buffer_index = index->value;
           if (buffer_index >= 0 && buffer_index < static_cast<int>(op->reads.size())) {
@@ -414,7 +415,6 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     if (iter->iter_type != IterVarType::kThreadIndex) {
       return false;
     }
-    ICHECK(iter->thread_tag.defined());
     // When there is warp memory
     // threadIdx.x must be set to be warp index.
     return CanRelaxStorageUnderThread(scope, runtime::ThreadScope::Create((iter->thread_tag)));
@@ -430,9 +430,9 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     ICHECK(it != relaxed_accesses_.end())
         << buffer << " is allocated but not accessed within block scope";
 
-    const Array<PrimExpr>& original_shape = buffer->shape;
+    const ffi::Array<PrimExpr>& original_shape = buffer->shape;
     const NDIntSet& nd_int_set = it->second;
-    Array<Range>& result_region = buffer_access_region_[buffer];
+    ffi::Array<Range>& result_region = buffer_access_region_[buffer];
     result_region.resize(nd_int_set.size());
 
     for (size_t i = 0; i < nd_int_set.size(); ++i) {
@@ -537,7 +537,7 @@ struct BufferAllocInfo {
   std::vector<DimAlignInfo> dim_aligns;
   /*!
    * \brief The reallocated buffer with minimal size.
-   * \note The value if NullOpt if the buffer do not need reallocate (e.g parameter buffer).
+   * \note The value if std::nullopt if the buffer do not need reallocate (e.g parameter buffer).
    */
   Buffer new_buffer;
 };
@@ -552,21 +552,21 @@ class BufferCompactor : public StmtExprMutator {
     BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_op));
     BufferStoreNode* op = store.CopyOnWrite();
     RewriteBufferAccess(&op->buffer, &op->indices);
-    return std::move(store);
+    return store;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* _op) final {
     BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_op));
     BufferLoadNode* op = load.CopyOnWrite();
     RewriteBufferAccess(&op->buffer, &op->indices);
-    return std::move(load);
+    return load;
   }
 
   Stmt VisitStmt_(const BlockNode* op) final {
     // Step 0. Check there is no Init part.
     ICHECK(!op->init.defined());
     // Step 1. Reallocate and rewrite alloc_buffers, also update BufferAllocInfo.
-    Array<Buffer> alloc_buffers =
+    ffi::Array<Buffer> alloc_buffers =
         op->alloc_buffers.Map([this](const Buffer& buf) { return RewriteAllocBuffer(buf); });
     // Step 2. Recursively rewrite BufferLoad/BufferStore.
     Block block = Downcast<Block>(StmtExprMutator::VisitStmt_(op));
@@ -576,7 +576,7 @@ class BufferCompactor : public StmtExprMutator {
     RewriteBufferRegions(&n->writes);
     RewriteMatchBuffers(&n->match_buffers);
     n->alloc_buffers = std::move(alloc_buffers);
-    return std::move(block);
+    return block;
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
@@ -591,20 +591,20 @@ class BufferCompactor : public StmtExprMutator {
     Allocate allocate = Downcast<Allocate>(StmtExprMutator::VisitStmt_(op));
     auto it = buffer_info_.find(allocate->buffer_var);
     if (it == buffer_info_.end()) {
-      return std::move(allocate);
+      return allocate;
     }
     // Rewrite allocation shape if the corresponding buffer is in the buffer_info_
     // dict and the dtype is consistent, which denotes there are no buffer aliasing
     // and the compaction is safe.
     const Buffer& new_buffer = it->second.new_buffer;
     if (op->dtype != new_buffer->dtype) {
-      return std::move(allocate);
+      return allocate;
     }
-    Array<PrimExpr> new_shape = GetBufferAllocationShape(new_buffer);
+    ffi::Array<PrimExpr> new_shape = GetBufferAllocationShape(new_buffer);
     auto n = allocate.CopyOnWrite();
     ICHECK(n->buffer_var.same_as(new_buffer->data));
     n->extents = new_shape;
-    return std::move(allocate);
+    return allocate;
   }
 
   Buffer RewriteAllocBuffer(const Buffer& buffer) {
@@ -615,7 +615,7 @@ class BufferCompactor : public StmtExprMutator {
     return buffer;
   }
 
-  void RewriteBufferAccess(Buffer* buffer, Array<PrimExpr>* indices) const {
+  void RewriteBufferAccess(Buffer* buffer, ffi::Array<PrimExpr>* indices) const {
     auto it = buffer_info_.find((*buffer)->data);
     if (it == buffer_info_.end()) {
       return;
@@ -623,7 +623,7 @@ class BufferCompactor : public StmtExprMutator {
     const BufferAllocInfo& info = it->second;
     ICHECK_EQ(indices->size(), info.region.size());
     int ndim = info.region.size();
-    Array<PrimExpr> new_indices;
+    ffi::Array<PrimExpr> new_indices;
     new_indices.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
       new_indices.push_back((*indices)[i] - info.region[i]->min);
@@ -650,8 +650,8 @@ class BufferCompactor : public StmtExprMutator {
     *region = std::move(new_region);
   }
 
-  void RewriteBufferRegions(Array<BufferRegion>* regions) const {
-    Array<BufferRegion> new_regions;
+  void RewriteBufferRegions(ffi::Array<BufferRegion>* regions) const {
+    ffi::Array<BufferRegion> new_regions;
     new_regions.reserve(regions->size());
     for (const auto& region : *regions) {
       BufferRegion buffer_region = region;
@@ -662,12 +662,12 @@ class BufferCompactor : public StmtExprMutator {
     *regions = std::move(new_regions);
   }
 
-  void RewriteMatchBuffers(Array<MatchBufferRegion>* match_buffers) const {
-    Array<MatchBufferRegion> result;
+  void RewriteMatchBuffers(ffi::Array<MatchBufferRegion>* match_buffers) const {
+    ffi::Array<MatchBufferRegion> result;
     result.reserve(match_buffers->size());
     for (const auto& match_buffer : *match_buffers) {
       const BufferRegion& buffer_region = match_buffer->source;
-      auto p = make_object<BufferRegionNode>(*buffer_region.get());
+      auto p = ffi::make_object<BufferRegionNode>(*buffer_region.get());
       RewriteBufferRegion(&p->buffer, &p->region);
       result.push_back(MatchBufferRegion(match_buffer->buffer, BufferRegion(p)));
     }
@@ -678,7 +678,8 @@ class BufferCompactor : public StmtExprMutator {
   std::unordered_map<Var, BufferAllocInfo> buffer_info_;
 };
 
-Array<PrimExpr> CalcStrides(const BufferAllocInfo& alloc_info, const Array<PrimExpr>& shape) {
+ffi::Array<PrimExpr> CalcStrides(const BufferAllocInfo& alloc_info,
+                                 const ffi::Array<PrimExpr>& shape) {
   std::vector<PrimExpr> strides;
   if (alloc_info.dim_aligns.size()) {
     ICHECK(alloc_info.dim_aligns.size() == shape.size());
@@ -716,19 +717,18 @@ Stmt BufferCompactorCompact(
     if (it != storage_align.end()) {
       std::vector<DimAlignInfo> dim_aligns(buffer->shape.size());
       for (const StorageAlignTuple& dim_align : (*it).second) {
-        ICHECK(dim_align.size() == 4);
-        int dim = dim_align[1]->value;
-        int factor = dim_align[2]->value;
-        int offset = dim_align[3]->value;
+        int dim = dim_align.get<1>();
+        int factor = dim_align.get<2>();
+        int offset = dim_align.get<3>();
         dim_aligns.at(dim) = {factor, offset};
       }
       alloc_info.dim_aligns = std::move(dim_aligns);
     }
 
     // prepare new buffer
-    Array<PrimExpr> shape = region.Map([](const Range& range) { return range->extent; });
-    Array<PrimExpr> strides = CalcStrides(alloc_info, shape);
-    ObjectPtr<BufferNode> n = make_object<BufferNode>(*buffer.get());
+    ffi::Array<PrimExpr> shape = region.Map([](const Range& range) { return range->extent; });
+    ffi::Array<PrimExpr> strides = CalcStrides(alloc_info, shape);
+    ObjectPtr<BufferNode> n = ffi::make_object<BufferNode>(*buffer.get());
     n->shape = std::move(shape);
     n->strides = std::move(strides);
     alloc_info.new_buffer = Buffer(std::move(n));
@@ -741,16 +741,11 @@ Stmt BufferCompactorCompact(
 }
 
 PrimFunc CompactBufferAllocation(PrimFunc f, bool is_strict) {
-  // Only apply this pass to TIR that is not from TE schedules
-  if (!IsFromLegacyTESchedule(f)) {
-    PrimFuncNode* fptr = f.CopyOnWrite();
-    auto region = BufferAccessRegionCollector::Collect(f, /*collect_inbound=*/is_strict);
-    auto storage_align = CollectStorageAlignAnnotation(f->body);
-    fptr->body = BufferCompactorCompact(f, region, storage_align);
-    return f;
-  } else {
-    return f;
-  }
+  PrimFuncNode* fptr = f.CopyOnWrite();
+  auto region = BufferAccessRegionCollector::Collect(f, /*collect_inbound=*/is_strict);
+  auto storage_align = CollectStorageAlignAnnotation(f->body);
+  fptr->body = BufferCompactorCompact(f, region, storage_align);
+  return f;
 }
 
 namespace transform {
@@ -762,8 +757,10 @@ Pass CompactBufferAllocation(bool is_strict) {
   return CreatePrimFuncPass(pass_func, 0, "tir.CompactBufferAllocation", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.CompactBufferAllocation")
-    .set_body_typed(CompactBufferAllocation);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.CompactBufferAllocation", CompactBufferAllocation);
+}
 }  // namespace transform
 
 }  // namespace tir

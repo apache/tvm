@@ -24,23 +24,14 @@ import java.util.List;
 /**
  * TVM Packed Function.
  */
-public class Function extends TVMValue {
-  final long handle;
-  public final boolean isResident;
-  private boolean isReleased = false;
-
+public class Function extends TVMObject {
   /**
    * Get registered function.
    * @param name full function name.
    * @return TVM function.
    */
   public static Function getFunction(final String name) {
-    for (String fullName : listGlobalFuncNames()) {
-      if (fullName.equals(name)) {
-        return getGlobalFunc(fullName, true, false);
-      }
-    }
-    return null;
+    return getGlobalFunc(name, true);
   }
 
   /**
@@ -49,22 +40,21 @@ public class Function extends TVMValue {
    */
   private static List<String> listGlobalFuncNames() {
     List<String> names = new ArrayList<String>();
-    Base.checkCall(Base._LIB.tvmFuncListGlobalNames(names));
+    Base.checkCall(Base._LIB.tvmFFIFunctionListGlobalNames(names));
     return Collections.unmodifiableList(names);
   }
 
   /**
    * Get a global function by name.
    * @param name The name of the function.
-   * @param isResident Whether it is a global 'resident' function.
    * @param allowMissing Whether allow missing function or raise an error.
    * @return The function to be returned, None if function is missing.
    */
-  private static Function getGlobalFunc(String name, boolean isResident, boolean allowMissing) {
+  private static Function getGlobalFunc(String name, boolean allowMissing) {
     Base.RefLong handle = new Base.RefLong();
-    Base.checkCall(Base._LIB.tvmFuncGetGlobal(name, handle));
+    Base.checkCall(Base._LIB.tvmFFIFunctionGetGlobal(name, handle));
     if (handle.value != 0) {
-      return new Function(handle.value, isResident);
+      return new Function(handle.value);
     } else {
       if (allowMissing) {
         return null;
@@ -74,24 +64,8 @@ public class Function extends TVMValue {
     }
   }
 
-  /**
-   * Initialize the function with handle.
-   * @param handle the handle to the underlying function.
-   * @param isResident Whether this is a resident function in jvm
-   */
-  Function(long handle, boolean isResident) {
-    super(ArgTypeCode.FUNC_HANDLE);
-    this.handle = handle;
-    this.isResident = isResident;
-  }
-
   Function(long handle) {
-    this(handle, false);
-  }
-
-  @Override protected void finalize() throws Throwable {
-    release();
-    super.finalize();
+    super(handle, TypeIndex.kTVMFFIFunction);
   }
 
   /**
@@ -102,32 +76,13 @@ public class Function extends TVMValue {
     return this;
   }
 
-  @Override long asHandle() {
-    return handle;
-  }
-
-  /**
-   * Release the Function.
-   * <p>
-   * We highly recommend you to do this manually since the GC strategy is lazy.
-   * </p>
-   */
-  @Override public void release() {
-    if (!isReleased) {
-      if (!isResident) {
-        Base.checkCall(Base._LIB.tvmFuncFree(handle));
-        isReleased = true;
-      }
-    }
-  }
-
   /**
    * Invoke the function.
    * @return the result.
    */
   public TVMValue invoke() {
     Base.RefTVMValue ret = new Base.RefTVMValue();
-    Base.checkCall(Base._LIB.tvmFuncCall(handle, ret));
+    Base.checkCall(Base._LIB.tvmFFIFunctionCall(handle, ret));
     return ret.value;
   }
 
@@ -137,7 +92,7 @@ public class Function extends TVMValue {
    * @return this
    */
   public Function pushArg(int arg) {
-    Base._LIB.tvmFuncPushArgLong(arg);
+    Base._LIB.tvmFFIFunctionPushArgLong(arg);
     return this;
   }
 
@@ -147,7 +102,7 @@ public class Function extends TVMValue {
    * @return this
    */
   public Function pushArg(long arg) {
-    Base._LIB.tvmFuncPushArgLong(arg);
+    Base._LIB.tvmFFIFunctionPushArgLong(arg);
     return this;
   }
 
@@ -157,7 +112,7 @@ public class Function extends TVMValue {
    * @return this
    */
   public Function pushArg(float arg) {
-    Base._LIB.tvmFuncPushArgDouble(arg);
+    Base._LIB.tvmFFIFunctionPushArgDouble(arg);
     return this;
   }
 
@@ -167,7 +122,7 @@ public class Function extends TVMValue {
    * @return this
    */
   public Function pushArg(double arg) {
-    Base._LIB.tvmFuncPushArgDouble(arg);
+    Base._LIB.tvmFFIFunctionPushArgDouble(arg);
     return this;
   }
 
@@ -177,18 +132,21 @@ public class Function extends TVMValue {
    * @return this
    */
   public Function pushArg(String arg) {
-    Base._LIB.tvmFuncPushArgString(arg);
+    Base._LIB.tvmFFIFunctionPushArgString(arg);
     return this;
   }
 
   /**
    * Push argument to the function.
-   * @param arg NDArray.
+   * @param arg Tensor.
    * @return this
    */
-  public Function pushArg(NDArrayBase arg) {
-    int id = arg.isView ? ArgTypeCode.ARRAY_HANDLE.id : ArgTypeCode.NDARRAY_CONTAINER.id;
-    Base._LIB.tvmFuncPushArgHandle(arg.handle, id);
+  public Function pushArg(TensorBase arg) {
+    if (arg instanceof Tensor) {
+      Base._LIB.tvmFFIFunctionPushArgHandle(((Tensor) arg).handle, TypeIndex.kTVMFFITensor);
+    } else {
+      Base._LIB.tvmFFIFunctionPushArgHandle(arg.dltensorHandle, TypeIndex.kTVMFFIDLTensorPtr);
+    }
     return this;
   }
 
@@ -198,7 +156,7 @@ public class Function extends TVMValue {
    * @return this
    */
   public Function pushArg(Module arg) {
-    Base._LIB.tvmFuncPushArgHandle(arg.handle, ArgTypeCode.MODULE_HANDLE.id);
+    Base._LIB.tvmFFIFunctionPushArgHandle(arg.handle, TypeIndex.kTVMFFIModule);
     return this;
   }
 
@@ -208,7 +166,7 @@ public class Function extends TVMValue {
    * @return this
    */
   public Function pushArg(Function arg) {
-    Base._LIB.tvmFuncPushArgHandle(arg.handle, ArgTypeCode.FUNC_HANDLE.id);
+    Base._LIB.tvmFFIFunctionPushArgHandle(arg.handle, TypeIndex.kTVMFFIFunction);
     return this;
   }
 
@@ -218,7 +176,7 @@ public class Function extends TVMValue {
    * @return this
    */
   public Function pushArg(byte[] arg) {
-    Base._LIB.tvmFuncPushArgBytes(arg);
+    Base._LIB.tvmFFIFunctionPushArgBytes(arg);
     return this;
   }
 
@@ -228,13 +186,13 @@ public class Function extends TVMValue {
    * @return this
    */
   public Function pushArg(Device arg) {
-    Base._LIB.tvmFuncPushArgDevice(arg);
+    Base._LIB.tvmFFIFunctionPushArgDevice(arg);
     return this;
   }
 
   /**
    * Invoke function with arguments.
-   * @param args Can be Integer, Long, Float, Double, String, NDArray.
+   * @param args Can be Integer, Long, Float, Double, String, Tensor.
    * @return the result.
    */
   public TVMValue call(Object... args) {
@@ -245,53 +203,44 @@ public class Function extends TVMValue {
   }
 
   private static void pushArgToStack(Object arg) {
-    if (arg instanceof Integer) {
-      Base._LIB.tvmFuncPushArgLong((Integer) arg);
-    } else if (arg instanceof Long) {
-      Base._LIB.tvmFuncPushArgLong((Long) arg);
-    } else if (arg instanceof Float) {
-      Base._LIB.tvmFuncPushArgDouble((Float) arg);
-    } else if (arg instanceof Double) {
-      Base._LIB.tvmFuncPushArgDouble((Double) arg);
-    } else if (arg instanceof String) {
-      Base._LIB.tvmFuncPushArgString((String) arg);
-    } else if (arg instanceof byte[]) {
-      Base._LIB.tvmFuncPushArgBytes((byte[]) arg);
-    } else if (arg instanceof NDArrayBase) {
-      NDArrayBase nd = (NDArrayBase) arg;
-      int id = nd.isView ? ArgTypeCode.ARRAY_HANDLE.id : ArgTypeCode.NDARRAY_CONTAINER.id;
-      Base._LIB.tvmFuncPushArgHandle(nd.handle, id);
-    } else if (arg instanceof Module) {
-      Base._LIB.tvmFuncPushArgHandle(((Module) arg).handle, ArgTypeCode.MODULE_HANDLE.id);
-    } else if (arg instanceof Function) {
-      Base._LIB.tvmFuncPushArgHandle(((Function) arg).handle, ArgTypeCode.FUNC_HANDLE.id);
-    } else if (arg instanceof Device) {
-      Base._LIB.tvmFuncPushArgDevice((Device) arg);
-    } else if (arg instanceof TVMValue) {
-      TVMValue tvmArg = (TVMValue) arg;
-      switch (tvmArg.typeCode) {
-        case UINT:
-        case INT:
-          Base._LIB.tvmFuncPushArgLong(tvmArg.asLong());
-          break;
-        case FLOAT:
-          Base._LIB.tvmFuncPushArgDouble(tvmArg.asDouble());
-          break;
-        case STR:
-          Base._LIB.tvmFuncPushArgString(tvmArg.asString());
-          break;
-        case BYTES:
-          Base._LIB.tvmFuncPushArgBytes(tvmArg.asBytes());
-          break;
-        case HANDLE:
-        case ARRAY_HANDLE:
-        case MODULE_HANDLE:
-        case FUNC_HANDLE:
-          Base._LIB.tvmFuncPushArgHandle(tvmArg.asHandle(), tvmArg.typeCode.id);
-          break;
-        default:
-          throw new IllegalArgumentException("Invalid argument: " + arg);
+    if (arg instanceof TensorBase) {
+      TensorBase nd = (TensorBase) arg;
+      if (nd instanceof Tensor) {
+        Base._LIB.tvmFFIFunctionPushArgHandle(((Tensor) nd).handle, TypeIndex.kTVMFFITensor);
+      } else {
+        Base._LIB.tvmFFIFunctionPushArgHandle(nd.dltensorHandle, TypeIndex.kTVMFFIDLTensorPtr);
       }
+    } else if (arg instanceof TVMObject) {
+      TVMObject obj = (TVMObject) arg;
+      Base._LIB.tvmFFIFunctionPushArgHandle(obj.handle, obj.typeIndex);
+    } else if (arg instanceof Integer) {
+      Base._LIB.tvmFFIFunctionPushArgLong((Integer) arg);
+    } else if (arg instanceof Long) {
+      Base._LIB.tvmFFIFunctionPushArgLong((Long) arg);
+    } else if (arg instanceof Float) {
+      Base._LIB.tvmFFIFunctionPushArgDouble((Float) arg);
+    } else if (arg instanceof Double) {
+      Base._LIB.tvmFFIFunctionPushArgDouble((Double) arg);
+    } else if (arg instanceof String) {
+      Base._LIB.tvmFFIFunctionPushArgString((String) arg);
+    } else if (arg instanceof byte[]) {
+      Base._LIB.tvmFFIFunctionPushArgBytes((byte[]) arg);
+    } else if (arg instanceof Device) {
+      Base._LIB.tvmFFIFunctionPushArgDevice((Device) arg);
+    } else if (arg instanceof TVMValueBytes) {
+      byte[] bytes = ((TVMValueBytes) arg).value;
+      Base._LIB.tvmFFIFunctionPushArgBytes(bytes);
+    } else if (arg instanceof TVMValueString) {
+      String str = ((TVMValueString) arg).value;
+      Base._LIB.tvmFFIFunctionPushArgString(str);
+    } else if (arg instanceof TVMValueDouble) {
+      double value = ((TVMValueDouble) arg).value;
+      Base._LIB.tvmFFIFunctionPushArgDouble(value);
+    } else if (arg instanceof TVMValueLong) {
+      long value = ((TVMValueLong) arg).value;
+      Base._LIB.tvmFFIFunctionPushArgLong(value);
+    } else if (arg instanceof TVMValueNull) {
+      Base._LIB.tvmFFIFunctionPushArgHandle(0, TypeIndex.kTVMFFINone);
     } else {
       throw new IllegalArgumentException("Invalid argument: " + arg);
     }
@@ -309,9 +258,9 @@ public class Function extends TVMValue {
    */
   public static void register(String name, Callback function, boolean override) {
     Base.RefLong createdFuncHandleRef = new Base.RefLong();
-    Base.checkCall(Base._LIB.tvmFuncCreateFromCFunc(function, createdFuncHandleRef));
+    Base.checkCall(Base._LIB.tvmFFIFunctionCreateFromCallback(function, createdFuncHandleRef));
     int ioverride = override ? 1 : 0;
-    Base.checkCall(Base._LIB.tvmFuncRegisterGlobal(name, createdFuncHandleRef.value, ioverride));
+    Base.checkCall(Base._LIB.tvmFFIFunctionSetGlobal(name, createdFuncHandleRef.value, ioverride));
   }
 
   /**
@@ -330,7 +279,7 @@ public class Function extends TVMValue {
    */
   public static Function convertFunc(Callback function) {
     Base.RefLong createdFuncHandleRef = new Base.RefLong();
-    Base.checkCall(Base._LIB.tvmFuncCreateFromCFunc(function, createdFuncHandleRef));
+    Base.checkCall(Base._LIB.tvmFFIFunctionCreateFromCallback(function, createdFuncHandleRef));
     return new Function(createdFuncHandleRef.value);
   }
 

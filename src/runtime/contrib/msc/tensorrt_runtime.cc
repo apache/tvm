@@ -23,8 +23,9 @@
  */
 
 #include <dmlc/parameter.h>
-#include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/tensor.h>
 
 #include <fstream>
 #include <memory>
@@ -61,10 +62,10 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
    * \param const_names The names of each constant in the sub-graph.
    */
   explicit MSCTensorRTRuntime(const std::string& symbol_name, const std::string& graph_json,
-                              const Array<String>& const_names)
+                              const ffi::Array<ffi::String>& const_names)
       : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
 
-  ~MSCTensorRTRuntime() override {
+  ~MSCTensorRTRuntime() {
     VLOG(1) << "Destroying MSC TensorRT runtime";
     DestroyEngine();
   }
@@ -74,11 +75,11 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
    *
    * \return module type key.
    */
-  const char* type_key() const final { return "msc_tensorrt"; }
+  const char* kind() const final { return "msc_tensorrt"; }
 
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final {
-    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+    return ffi::Module::kBinarySerializable | ffi::Module::kRunnable;
   }
 
   /*!
@@ -86,7 +87,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
    *
    * \param consts The constant params from compiled model.
    */
-  void Init(const Array<NDArray>& consts) override {
+  void Init(const ffi::Array<Tensor>& consts) override {
     ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
     LoadGlobalOptions();
@@ -119,18 +120,20 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
   void Run() override {
     SetInputOutputBinds();
     if (tool_tag_.size() > 0) {
-      const auto* pf = runtime::Registry::Get("msc_tool.callback_step");
-      ICHECK(pf != nullptr) << "Cannot find msc_tool.callback_step func.";
-      Map<String, runtime::NDArray> input_datas;
+      const auto pf = tvm::ffi::Function::GetGlobal("msc_tool.callback_step");
+      ICHECK(pf.has_value()) << "Cannot find msc_tool.callback_step func.";
+      ffi::Map<ffi::String, runtime::Tensor> input_datas;
+      int device_id = 0;
       for (const auto& pair : input_bindings_) {
         const auto& tensor_name = engine_->getBindingName(pair.first);
         input_datas.Set(tensor_name, device_buffers_[pair.first]);
+        device_id = data_entry_[pair.first]->device.device_id;
       }
-      Map<String, Map<String, runtime::NDArray>> context;
+      ffi::Map<ffi::String, ffi::Map<ffi::String, runtime::Tensor>> context;
       context.Set("datas", input_datas);
       (*pf)(context, "before_forward", graph_name_, tool_tag_);
     }
-    auto tvm_stream = CUDAThreadEntry::ThreadLocal()->stream;
+    auto tvm_stream = TVMFFIEnvGetStream(kDLCUDA, device_id);
 #if TRT_VERSION_GE(6, 0, 1)
     ICHECK(context_->enqueueV2(bindings_.data(), tvm_stream, nullptr))
         << "Running TensorRT failed.";
@@ -150,9 +153,9 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
       }
     }
     if (tool_tag_.size() > 0) {
-      const auto* pf = runtime::Registry::Get("msc_tool.callback_step");
-      ICHECK(pf != nullptr) << "Cannot find msc_tool.callback_step func.";
-      Map<String, runtime::NDArray> output_datas;
+      const auto pf = tvm::ffi::Function::GetGlobal("msc_tool.callback_step");
+      ICHECK(pf.has_value()) << "Cannot find msc_tool.callback_step func.";
+      ffi::Map<ffi::String, runtime::Tensor> output_datas;
       for (int bid = 0; bid < engine_->getNbBindings(); bid++) {
         if (input_bindings_.count(bid)) {
           continue;
@@ -160,13 +163,13 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
         const auto& tensor_name = engine_->getBindingName(bid);
         output_datas.Set(tensor_name, device_buffers_[bid]);
       }
-      Map<String, Map<String, runtime::NDArray>> context;
+      ffi::Map<ffi::String, ffi::Map<ffi::String, runtime::Tensor>> context;
       context.Set("datas", output_datas);
       (*pf)(context, "after_forward", graph_name_, tool_tag_);
     }
   }
 
-  bool LoadEngine(const String& engine_file) {
+  bool LoadEngine(const ffi::String& engine_file) {
     IRuntime* runtime = createInferRuntime(logger_);
     // build engine
     std::ifstream input(engine_file_, std::ifstream::binary);
@@ -286,14 +289,14 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
         const auto& pair = tensor_ids_[tensor_name];
         auto shape = nodes_[pair.first].GetOpShape()[pair.second];
         auto dtype = nodes_[pair.first].GetOpDataType()[pair.second];
-        device_buffers_[bid] = runtime::NDArray::Empty(shape, dtype, {kDLCUDA, 0});
+        device_buffers_[bid] = runtime::Tensor::Empty(shape, dtype, {kDLCUDA, 0});
       }
       bindings_[bid] = device_buffers_[bid]->data;
       binded.insert(bid);
     }
   }
 
-  NDArray GetOrAllocateDeviceBuffer(int entry_id, int binding_index) {
+  Tensor GetOrAllocateDeviceBuffer(int entry_id, int binding_index) {
     std::vector<int64_t> shape(data_entry_[entry_id]->shape,
                                data_entry_[entry_id]->shape + data_entry_[entry_id]->ndim);
     if (device_buffers_.count(binding_index)) {
@@ -301,7 +304,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
       if (shape[0] > device_buffers_[binding_index]->shape[0]) {
         // Buffer is too small. Need to allocate bigger buffer.
         device_buffers_[binding_index] =
-            runtime::NDArray::Empty(shape, data_entry_[entry_id]->dtype, {kDLCUDA, 0});
+            runtime::Tensor::Empty(shape, data_entry_[entry_id]->dtype, {kDLCUDA, 0});
       } else if (shape[0] < device_buffers_[binding_index]->shape[0]) {
         // Buffer is too large. Create view.
         return device_buffers_[binding_index].CreateView(shape, data_entry_[entry_id]->dtype);
@@ -309,7 +312,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
     } else {
       // Buffer not initialized yet.
       device_buffers_[binding_index] =
-          runtime::NDArray::Empty(shape, data_entry_[entry_id]->dtype, {kDLCUDA, 0});
+          runtime::Tensor::Empty(shape, data_entry_[entry_id]->dtype, {kDLCUDA, 0});
     }
     return device_buffers_.at(binding_index);
   }
@@ -320,15 +323,15 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
                << "Please build with USE_TENSORRT_RUNTIME.";
   }
 
-  bool LoadEngine(const String& engine_file) { return false; }
+  bool LoadEngine(const ffi::String& engine_file) { return false; }
 
   void DestroyEngine() {}
 #endif  // TVM_GRAPH_EXECUTOR_TENSORRT
 
  private:
-  String engine_file_;
-  String tool_tag_;
-  String graph_name_;
+  ffi::String engine_file_;
+  ffi::String tool_tag_;
+  ffi::String graph_name_;
   std::unordered_map<std::string, std::pair<size_t, size_t>> tensor_ids_;
 #ifdef TVM_GRAPH_EXECUTOR_TENSORRT
   TensorRTLogger logger_;
@@ -338,20 +341,23 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
   std::unordered_map<int, uint32_t> output_bindings_;
   std::vector<void*> bindings_;
   std::vector<size_t> binding_sizes_;
-  std::unordered_map<int, NDArray> device_buffers_;
+  std::unordered_map<int, Tensor> device_buffers_;
 #endif
 };
 
-runtime::Module MSCTensorRTRuntimeCreate(const String& symbol_name, const String& graph_json,
-                                         const Array<String>& const_names) {
-  auto n = make_object<MSCTensorRTRuntime>(symbol_name, graph_json, const_names);
-  return runtime::Module(n);
+ffi::Module MSCTensorRTRuntimeCreate(const ffi::String& symbol_name, const ffi::String& graph_json,
+                                     const ffi::Array<ffi::String>& const_names) {
+  auto n = ffi::make_object<MSCTensorRTRuntime>(symbol_name, graph_json, const_names);
+  return ffi::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.msc_tensorrt_runtime_create").set_body_typed(MSCTensorRTRuntimeCreate);
-
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_msc_tensorrt")
-    .set_body_typed(JSONRuntimeBase::LoadFromBinary<MSCTensorRTRuntime>);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.msc_tensorrt_runtime_create", MSCTensorRTRuntimeCreate)
+      .def("ffi.Module.load_from_bytes.msc_tensorrt",
+           JSONRuntimeBase::LoadFromBytes<MSCTensorRTRuntime>);
+}
 
 }  // namespace contrib
 }  // namespace runtime

@@ -23,7 +23,7 @@
 #ifndef TVM_NODE_ATTR_REGISTRY_MAP_H_
 #define TVM_NODE_ATTR_REGISTRY_MAP_H_
 
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/string.h>
 
 #include <utility>
 #include <vector>
@@ -55,7 +55,7 @@ class AttrRegistryMapContainerMap {
    * \param key The key to the map
    * \return the const reference to the content value.
    */
-  const runtime::TVMRetValue& operator[](const KeyType& key) const {
+  const ffi::Any& operator[](const KeyType& key) const {
     ICHECK(key.defined());
     const uint32_t idx = key->AttrRegistryIndex();
     ICHECK(idx < data_.size() && data_[idx].second != 0)
@@ -74,7 +74,11 @@ class AttrRegistryMapContainerMap {
     ICHECK(key.defined());
     const uint32_t idx = key->AttrRegistryIndex();
     if (idx < data_.size() && data_[idx].second != 0) {
-      return data_[idx].first;
+      if constexpr (std::is_same_v<ValueType, ffi::Any>) {
+        return data_[idx].first;
+      } else {
+        return data_[idx].first.template cast<ValueType>();
+      }
     } else {
       return def_value;
     }
@@ -82,9 +86,9 @@ class AttrRegistryMapContainerMap {
 
  private:
   /*! \brief The name of the attr field */
-  String attr_name_;
+  ffi::String attr_name_;
   /*! \brief The internal data. */
-  std::vector<std::pair<runtime::TVMRetValue, int>> data_;
+  std::vector<std::pair<ffi::Any, int>> data_;
   /*! \brief The constructor */
   AttrRegistryMapContainerMap() = default;
   template <typename, typename>
@@ -93,7 +97,7 @@ class AttrRegistryMapContainerMap {
 };
 
 /*!
- * \brief Map<Key, ValueType> used to store meta-data.
+ * \brief ffi::Map<Key, ValueType> used to store meta-data.
  * \tparam KeyType The type of the key
  * \tparam ValueType The type of the value stored in map.
  */
@@ -116,7 +120,13 @@ class AttrRegistryMap {
    * \param key The key to the map
    * \return the const reference to the content value.
    */
-  ValueType operator[](const KeyType& key) const { return map_[key]; }
+  ValueType operator[](const KeyType& key) const {
+    if constexpr (std::is_same_v<ValueType, ffi::Any>) {
+      return map_[key];
+    } else {
+      return map_[key].template cast<ValueType>();
+    }
+  }
   /*!
    * \brief get the corresponding value element at key with default value.
    * \param key The key to the map

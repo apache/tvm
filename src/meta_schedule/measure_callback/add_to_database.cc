@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -24,9 +26,9 @@ namespace meta_schedule {
 class AddToDatabaseNode : public MeasureCallbackNode {
  public:
   void Apply(const TaskScheduler& task_scheduler, int task_id,
-             const Array<MeasureCandidate>& measure_candidates,
-             const Array<BuilderResult>& builder_results,
-             const Array<RunnerResult>& runner_results) final {
+             const ffi::Array<MeasureCandidate>& measure_candidates,
+             const ffi::Array<BuilderResult>& builder_results,
+             const ffi::Array<RunnerResult>& runner_results) final {
     if (!task_scheduler->database_.defined()) {
       return;
     }
@@ -40,11 +42,11 @@ class AddToDatabaseNode : public MeasureCallbackNode {
     for (int i = 0; i < n; ++i) {
       RunnerResult result = runner_results[i];
       MeasureCandidate candidate = measure_candidates[i];
-      Array<FloatImm> run_secs{nullptr};
+      ffi::Array<FloatImm> run_secs{nullptr};
       if (result->run_secs.defined()) {
         run_secs = result->run_secs.value();
       } else {
-        run_secs = Array<FloatImm>{FloatImm(DataType::Float(32), 1e10)};
+        run_secs = ffi::Array<FloatImm>{FloatImm(DataType::Float(32), 1e10)};
       }
       database->CommitTuningRecord(TuningRecord(
           /*trace=*/candidate->sch->trace().value(),
@@ -54,19 +56,20 @@ class AddToDatabaseNode : public MeasureCallbackNode {
           /*args_info=*/candidate->args_info));
     }
   }
-
-  static constexpr const char* _type_key = "meta_schedule.AddToDatabase";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AddToDatabaseNode, MeasureCallbackNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.AddToDatabase", AddToDatabaseNode,
+                                    MeasureCallbackNode);
 };
 
 MeasureCallback MeasureCallback::AddToDatabase() {
-  ObjectPtr<AddToDatabaseNode> n = make_object<AddToDatabaseNode>();
+  ObjectPtr<AddToDatabaseNode> n = ffi::make_object<AddToDatabaseNode>();
   return MeasureCallback(n);
 }
 
-TVM_REGISTER_NODE_TYPE(AddToDatabaseNode);
-TVM_REGISTER_GLOBAL("meta_schedule.MeasureCallbackAddToDatabase")
-    .set_body_typed(MeasureCallback::AddToDatabase);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.MeasureCallbackAddToDatabase",
+                        MeasureCallback::AddToDatabase);
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

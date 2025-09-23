@@ -23,7 +23,7 @@
 #include "miopen_utils.h"
 
 #include <dmlc/thread_local.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include <string>
 #include <vector>
@@ -42,12 +42,10 @@ std::string miopenGetErrorString(int error_code) {
 
 // MiopenThreadEntry
 MIOpenThreadEntry::MIOpenThreadEntry() {
-  auto stream = runtime::ROCMThreadEntry::ThreadLocal()->stream;
-  auto func = runtime::Registry::Get("device_api.rocm");
-  void* ret = (*func)();
+  const auto get_rocm_api = tvm::ffi::Function::GetGlobalRequired("device_api.rocm");
+  void* ret = get_rocm_api();
   rocm_api = static_cast<runtime::DeviceAPI*>(ret);
   MIOPEN_CALL(miopenCreate(&handle));
-  MIOPEN_CALL(miopenSetStream(handle, stream));
   conv_entry.rocm_api = rocm_api;
 }
 
@@ -55,7 +53,13 @@ MIOpenThreadEntry::~MIOpenThreadEntry() { MIOPEN_CALL(miopenDestroy(handle)); }
 
 typedef dmlc::ThreadLocalStore<MIOpenThreadEntry> MIOpenThreadStore;
 
-MIOpenThreadEntry* MIOpenThreadEntry::ThreadLocal() { return MIOpenThreadStore::Get(); }
+MIOpenThreadEntry* MIOpenThreadEntry::ThreadLocal(Device curr_device) {
+  // Need to update stream per fetch to avoid stream switching
+  MIOpenThreadEntry* res = MIOpenThreadStore::Get();
+  TVMFFIStreamHandle stream = TVMFFIEnvGetStream(curr_device.device_type, curr_device.device_id);
+  MIOPEN_CALL(miopenSetStream(res->handle, stream));
+  return res;
+}
 
 // ConvEntry
 

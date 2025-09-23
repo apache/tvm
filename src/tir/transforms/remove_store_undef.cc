@@ -21,7 +21,8 @@
  * \file remove_store_undef.cc
  * \brief Remove stores of tir::builtin::undef
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
@@ -171,7 +172,10 @@ Pass RemoveStoreUndef() {
                     "tir.RemoveStoreUndef");
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.RemoveStoreUndef").set_body_typed(RemoveStoreUndef);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.RemoveStoreUndef", RemoveStoreUndef);
+}
 
 }  // namespace transform
 

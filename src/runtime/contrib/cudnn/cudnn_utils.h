@@ -106,7 +106,7 @@ struct CuDNNThreadEntry {
   ConvEntry conv_entry;
   SoftmaxEntry softmax_entry;
   runtime::DeviceAPI* cuda_api{nullptr};
-  static CuDNNThreadEntry* ThreadLocal(bool check_exists = true);
+  static CuDNNThreadEntry* ThreadLocal(Device curr_device, bool check_exists = true);
 };  // CuDNNThreadEntry
 
 void SetConvDescriptors(CuDNNThreadEntry* entry_ptr, int format, int dims, int groups,
@@ -117,7 +117,7 @@ void SetConvDescriptors(CuDNNThreadEntry* entry_ptr, int format, int dims, int g
 void FindAlgo(int format, int dims, int groups, const int pad[], const int stride[],
               const int dilation[], const int x_dim[], const int w_dim[], const int y_dim[],
               const std::string& data_dtype, const std::string& conv_dtype, bool verbose,
-              runtime::TVMRetValue* ret);
+              ffi::Any* ret);
 
 void ConvolutionForward(int mode, int format, int algo, int dims, int groups, const int pad[],
                         const int stride[], const int dilation[], const DLTensor* x,

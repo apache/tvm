@@ -121,7 +121,7 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
     if (filename) {
       // Stack frames for TVM FFI
       if (strstr(filename, "include/tvm/runtime/packed_func.h") ||
-          strstr(filename, "include/tvm/runtime/registry.h") ||
+          strstr(filename, "include/tvm/ffi/function.h") ||
           strstr(filename, "src/runtime/c_runtime_api.cc")) {
         return true;
       }
@@ -270,7 +270,7 @@ std::string Backtrace() {
 
 #else
 
-#include <dmlc/logging.h>
+#include <tvm/runtime/logging.h>
 
 namespace tvm {
 namespace runtime {

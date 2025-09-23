@@ -23,6 +23,7 @@
  *   dataflow into dataflow blocks.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -38,7 +39,7 @@ class DataflowBlockExtractor : public ExprMutator {
   explicit DataflowBlockExtractor(size_t min_size) : ExprMutator(), min_size_(min_size) {}
 
   Expr VisitExpr_(const SeqExprNode* seq) override {
-    Array<BindingBlock> new_blocks;
+    ffi::Array<BindingBlock> new_blocks;
     Expr new_body = VisitExpr(seq->body);
     bool changed = !new_body.same_as(seq->body);
 
@@ -48,15 +49,15 @@ class DataflowBlockExtractor : public ExprMutator {
     // make a dataflowblock.  Because these bindings occur prior to
     // `dataflow_bindings`, this array may only be accumulated into
     // when `dataflow_bindings` is empty.
-    Array<Binding> non_dataflow_bindings;
+    ffi::Array<Binding> non_dataflow_bindings;
 
     // Current bindings that may legally be added to a DataflowBlock.
-    Array<Binding> dataflow_bindings;
+    ffi::Array<Binding> dataflow_bindings;
 
     // If present, a DataflowBlock whose bindings are currently in
     // `dataflow_bindings`.  Used to propagate DataflowBlock to the
     // output, even if it doesn't meet the minimum size.
-    Optional<DataflowBlock> input_dataflow_block;
+    ffi::Optional<DataflowBlock> input_dataflow_block;
 
     // Handle any bindings currently in `dataflow_bindings`.  These
     // are either pushed to their own block, or to the end of
@@ -91,7 +92,7 @@ class DataflowBlockExtractor : public ExprMutator {
       }
 
       dataflow_bindings = {};
-      input_dataflow_block = NullOpt;
+      input_dataflow_block = std::nullopt;
     };
 
     for (auto block : seq->blocks) {
@@ -133,7 +134,7 @@ class DataflowBlockExtractor : public ExprMutator {
     if (changed) {
       return SeqExpr(new_blocks, new_body);
     } else {
-      return GetRef<SeqExpr>(seq);
+      return ffi::GetRef<SeqExpr>(seq);
     }
   }
 
@@ -149,10 +150,9 @@ Expr ConvertToDataflow(const Expr& input, size_t min_size) {
 namespace transform {
 
 Pass ConvertToDataflow(int min_size) {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(ConvertToDataflow(f, min_size));
-      };
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return Downcast<Function>(ConvertToDataflow(f, min_size));
+  };
   auto pass = CreateFunctionPass(pass_func, 0, "ConvertToDataflow", {});
   // Canonicalize bindings is included afterwards in order to transform any
   // normal vars in DF blocks that are not used outside the DF block into
@@ -160,7 +160,10 @@ Pass ConvertToDataflow(int min_size) {
   return tvm::transform::Sequential({pass, CanonicalizeBindings()});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.ConvertToDataflow").set_body_typed(ConvertToDataflow);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.ConvertToDataflow", ConvertToDataflow);
+}
 
 }  // namespace transform
 

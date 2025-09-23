@@ -22,11 +22,11 @@ import os
 import sys
 
 import tvm
-import tvm._ffi
+import tvm_ffi
 from .runtime.module import Module
 from . import get_global_func
 
-tvm._ffi._init_api("support", __name__)
+tvm_ffi.init_ffi_api("support", __name__)
 
 
 def libinfo():

@@ -40,35 +40,25 @@ namespace printer {
 
 inline void RedirectedReprPrinterMethod(const ObjectRef& obj, ReprPrinter* p) {
   try {
-    p->stream << TVMScriptPrinter::Script(obj, NullOpt);
+    p->stream << TVMScriptPrinter::Script(obj, std::nullopt);
   } catch (const tvm::Error& e) {
-    if (ReprLegacyPrinter::CanDispatch(obj)) {
-      LOG(WARNING) << "TVMScript printer falls back to the legacy ReprPrinter with the error:\n"
-                   << e.what();
-      try {
-        p->stream << AsLegacyRepr(obj);
-      } catch (const tvm::Error& e) {
-        LOG(WARNING) << "AsLegacyRepr fails. Falling back to the basic address printer";
-      }
-    } else {
-      LOG(WARNING) << "TVMScript printer falls back to the basic address printer with the error:\n"
-                   << e.what();
-    }
+    LOG(WARNING) << "TVMScript printer falls back to the basic address printer with the error:\n"
+                 << e.what();
     p->stream << obj->GetTypeKey() << '(' << obj.get() << ')';
   }
 }
 
 inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Frame& f,
                            const PrinterConfig& cfg) {
-  Doc doc = d->AsDoc(obj, ObjectPath::Root());
+  Doc doc = d->AsDoc(obj, AccessPath::Root());
   bool move_source_paths = false;
   if (const auto* expr_doc = doc.as<ExprDocNode>()) {
     if (!cfg->verbose_expr) {
       f->stmts.clear();
     }
-    f->stmts.push_back(ExprStmtDoc(GetRef<ExprDoc>(expr_doc)));
+    f->stmts.push_back(ExprStmtDoc(ffi::GetRef<ExprDoc>(expr_doc)));
   } else if (const auto* stmt_doc = doc.as<StmtDocNode>()) {
-    f->stmts.push_back(GetRef<StmtDoc>(stmt_doc));
+    f->stmts.push_back(ffi::GetRef<StmtDoc>(stmt_doc));
   } else if (const auto* stmt_block = doc.as<StmtBlockDocNode>()) {
     for (const StmtDoc& d : stmt_block->stmts) {
       f->stmts.push_back(d);
@@ -82,8 +72,8 @@ inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Fra
     if (d->cfg->show_meta) {
       os << "metadata = tvm.ir.load_json(\"\"\""
          << support::StrEscape(
-                SaveJSON(Map<String, ObjectRef>(d->metadata.begin(), d->metadata.end())), false,
-                false)
+                SaveJSON(ffi::Map<ffi::String, ffi::Any>(d->metadata.begin(), d->metadata.end())),
+                false, false)
          << "\"\"\")\n";
     } else {
       f->stmts.push_back(
@@ -101,31 +91,31 @@ inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Fra
 }
 
 /*! \brief Creates the IR common prefix, which is by default `I` */
-inline ExprDoc IR(const IRDocsifier& d, const String& attr) {
+inline ExprDoc IR(const IRDocsifier& d, const ffi::String& attr) {
   d->ir_usage.insert("ir");
   return IdDoc(d->cfg->ir_prefix)->Attr(attr);
 }
 
 /*! \brief Creates the TIR common prefix, which is by default `T` */
-inline ExprDoc TIR(const IRDocsifier& d, const String& attr) {
+inline ExprDoc TIR(const IRDocsifier& d, const ffi::String& attr) {
   d->ir_usage.insert("tir");
   return IdDoc(d->cfg->tir_prefix)->Attr(attr);
 }
 
 /*! \brief Creates the Relax common prefix, which is by default `R` */
-inline ExprDoc Relax(const IRDocsifier& d, const String& attr) {
+inline ExprDoc Relax(const IRDocsifier& d, const ffi::String& attr) {
   d->ir_usage.insert("relax");
   return IdDoc(d->cfg->relax_prefix)->Attr(attr);
 }
 
 inline std::string DType2Str(const runtime::DataType& dtype) {
-  return dtype.is_void() ? "void" : runtime::DLDataType2String(dtype);
+  return dtype.is_void() ? "void" : runtime::DLDataTypeToString(dtype);
 }
 
 /*! \brief Add headers as comments to doc if needed */
 inline Doc HeaderWrapper(const IRDocsifier& d, const Doc& doc) {
   if (d->ir_usage.size()) {
-    Array<StmtDoc> stmts;
+    ffi::Array<StmtDoc> stmts;
     if (d->ir_usage.count("ir")) {
       stmts.push_back(CommentDoc("from tvm.script import ir as " + d->cfg->ir_prefix));
     }
@@ -147,22 +137,23 @@ inline bool HasMultipleLines(const std::string& str) {
   return str.find_first_of('\n') != std::string::npos;
 }
 
-inline Optional<String> GetBindingName(const IRDocsifier& d) {
-  return d->cfg->binding_names.empty() ? Optional<String>(NullOpt) : d->cfg->binding_names.back();
+inline ffi::Optional<ffi::String> GetBindingName(const IRDocsifier& d) {
+  return d->cfg->binding_names.empty() ? ffi::Optional<ffi::String>(std::nullopt)
+                                       : d->cfg->binding_names.back();
 }
 
-inline Optional<String> FindFunctionName(const IRDocsifier& d, const BaseFunc& f) {
-  if (Optional<String> name = GetBindingName(d)) {
+inline ffi::Optional<ffi::String> FindFunctionName(const IRDocsifier& d, const BaseFunc& f) {
+  if (ffi::Optional<ffi::String> name = GetBindingName(d)) {
     return name.value();
   }
-  if (Optional<String> sym = f->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+  if (ffi::Optional<ffi::String> sym = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
     return sym.value();
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
-inline String GenerateUniqueName(std::string name_hint,
-                                 const std::unordered_set<String>& defined_names) {
+inline ffi::String GenerateUniqueName(std::string name_hint,
+                                      const std::unordered_set<ffi::String>& defined_names) {
   for (char& c : name_hint) {
     if (c != '_' && !std::isalnum(c)) {
       c = '_';

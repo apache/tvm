@@ -22,6 +22,7 @@
  * \brief Re-order `matmul(matmul(A,B), x)` to `matmul(A, matmul(B,x))`
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr.h>
@@ -39,19 +40,19 @@ namespace tvm {
 namespace relax {
 
 namespace {
-std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns(
+std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>> CreatePatterns(
     const Function& func) {
   auto compile_time_arr = ComputableAtCompileTime(func);
   std::unordered_set<Var> compile_time_lookup(compile_time_arr.begin(), compile_time_arr.end());
 
-  TypedPackedFunc<bool(Expr)> is_compile_time = [compile_time_lookup](Expr arg) -> bool {
+  ffi::TypedFunction<bool(Expr)> is_compile_time = [compile_time_lookup](Expr arg) -> bool {
     if (auto as_var = arg.as<Var>()) {
       return compile_time_lookup.count(as_var.value());
     } else {
       return false;
     }
   };
-  TypedPackedFunc<bool(Expr)> is_runtime = [is_compile_time](Expr arg) -> bool {
+  ffi::TypedFunction<bool(Expr)> is_runtime = [is_compile_time](Expr arg) -> bool {
     return !is_compile_time(arg);
   };
 
@@ -72,15 +73,15 @@ std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreateP
              pat_permuted_matmul_on_rhs;
 
   PrimExpr symbolic_var_constraints = Bool(true);
-  if (auto upper_bounds = func->GetAttr<Map<ObjectRef, ObjectRef>>("tir_var_upper_bound")) {
-    Map<String, tir::Var> name_lookup;
+  if (auto upper_bounds = func->GetAttr<ffi::Map<ffi::String, Any>>("tir_var_upper_bound")) {
+    ffi::Map<ffi::String, tir::Var> name_lookup;
     for (const auto& tir_var : TIRVarsInStructInfo(GetStructInfo(func))) {
       name_lookup.Set(tir_var->name_hint, tir_var);
       symbolic_var_constraints = symbolic_var_constraints && (0 <= tir_var);
     }
 
     for (const auto& [key, obj_bound] : upper_bounds.value()) {
-      auto tir_var_name = Downcast<String>(key);
+      auto tir_var_name = Downcast<ffi::String>(key);
       if (auto opt_var = name_lookup.Get(tir_var_name)) {
         auto var = opt_var.value();
         auto expr_bound = Downcast<PrimExpr>(obj_bound);
@@ -89,7 +90,7 @@ std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreateP
     }
   }
 
-  auto rewriter = [=](Expr expr, Map<DFPattern, Expr> matches) -> Expr {
+  auto rewriter = [=](Expr expr, ffi::Map<DFPattern, Expr> matches) -> Expr {
     auto expr_a = matches[pat_a];
     auto expr_b = matches[pat_b];
     auto expr_c = matches[pat_c];
@@ -101,12 +102,12 @@ std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreateP
       return expr;
     }
 
-    auto get_shape = [](Expr expr) -> Optional<Array<PrimExpr>> {
+    auto get_shape = [](Expr expr) -> ffi::Optional<ffi::Array<PrimExpr>> {
       auto sinfo = expr->struct_info_.as<TensorStructInfoNode>();
       if (sinfo) {
         return sinfo->GetShape();
       } else {
-        return NullOpt;
+        return std::nullopt;
       }
     };
 
@@ -122,15 +123,15 @@ std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreateP
     auto shape_c = opt_shape_c.value();
 
     if (matches.count(pat_permuted_matmul_on_lhs)) {
-      expr_a = permute_dims(expr_a, NullOpt);
-      expr_b = permute_dims(expr_b, NullOpt);
+      expr_a = permute_dims(expr_a, std::nullopt);
+      expr_b = permute_dims(expr_b, std::nullopt);
       CHECK_EQ(shape_a.size(), 2);
       CHECK_EQ(shape_b.size(), 2);
       shape_a = {shape_a[1], shape_a[0]};
       shape_b = {shape_b[1], shape_b[0]};
     } else if (matches.count(pat_permuted_matmul_on_rhs)) {
-      expr_b = permute_dims(expr_b, NullOpt);
-      expr_c = permute_dims(expr_c, NullOpt);
+      expr_b = permute_dims(expr_b, std::nullopt);
+      expr_c = permute_dims(expr_c, std::nullopt);
       CHECK_EQ(shape_b.size(), 2);
       CHECK_EQ(shape_c.size(), 2);
       shape_b = {shape_b[1], shape_b[0]};
@@ -213,7 +214,10 @@ Pass AdjustMatmulOrder() {
   return CreateFunctionPass(pass_func, 1, "AdjustMatmulOrder", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.AdjustMatmulOrder").set_body_typed(AdjustMatmulOrder);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.AdjustMatmulOrder", AdjustMatmulOrder);
+}
 
 }  // namespace transform
 }  // namespace relax

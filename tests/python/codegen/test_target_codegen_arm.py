@@ -17,8 +17,6 @@
 import tvm
 from tvm import te
 import re
-import os
-import ctypes
 
 
 def test_popcount():
@@ -28,12 +26,11 @@ def test_popcount():
         n = tvm.runtime.convert(elements)
         A = te.placeholder(n, dtype=type, name="A")
         B = te.compute(A.shape, lambda i: tvm.tir.popcount(A[i]), name="B")
-        s = te.create_schedule(B.op)
-        s[B].vectorize(s[B].op.axis[0])
-        f = tvm.build(s, [A, B], target)
-
+        sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
+        sch.vectorize(sch.get_loops("B")[0])
+        f = tvm.tir.build(sch.mod, target=target)
         # Verify we see the correct number of vpaddl and vcnt instructions in the assembly
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         matches = re.findall("vpaddl", assembly)
         assert len(matches) == counts
         matches = re.findall("vcnt", assembly)
@@ -59,12 +56,12 @@ def test_vmlal_s16():
             lambda n: te.sum(A[k, n].astype("int32") * B[k, n].astype("int32"), axis=[k]),
             name="C",
         )
-        s = te.create_schedule(C.op)
-        s[C].vectorize(s[C].op.axis[0])
-        f = tvm.build(s, [A, B, C], target)
+        sch = tvm.tir.Schedule(te.create_prim_func([A, B, C]))
+        sch.vectorize(sch.get_loops("C")[0])
+        f = tvm.tir.build(sch.mod, target=target)
 
         # Verify we see the correct number of vmlal.s16 instructions
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         matches = re.findall("vmlal.s16", assembly)
         assert len(matches) == N // 4
 
@@ -83,12 +80,12 @@ def test_vmlal_s16():
             lambda n: te.sum(A[k, n].astype("int32") * B[k].astype("int32"), axis=[k]),
             name="C",
         )
-        s = te.create_schedule(C.op)
-        s[C].vectorize(s[C].op.axis[0])
-        f = tvm.build(s, [A, B, C], target)
+        sch = tvm.tir.Schedule(te.create_prim_func([A, B, C]))
+        sch.vectorize(sch.get_loops("C")[0])
+        f = tvm.tir.build(sch.mod, target=target)
 
         # Verify we see the correct number of vmlal.s16 instructions
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         matches = re.findall("vmlal.s16", assembly)
         assert len(matches) == N // 4
 

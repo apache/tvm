@@ -21,7 +21,8 @@
  * \file hexagon_session.cc
  */
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 
 extern "C" {
 #include <AEEStdDef.h>
@@ -109,22 +110,25 @@ class HexagonTransportChannel : public RPCChannel {
   remote_handle64 _handle = AEE_EUNKNOWN;
 };
 
-TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
-      ICHECK(args.size() >= 4) << args.size() << " is less than 4";
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed(
+      "tvm.contrib.hexagon.create_hexagon_session", [](ffi::PackedArgs args, ffi::Any* rv) {
+        ICHECK(args.size() >= 4) << args.size() << " is less than 4";
 
-      std::string session_name = args[0];
-      int remote_stack_size_bytes = args[1];
-      // For simulator, the third parameter is sim_args, ignore it.
-      int hexagon_rpc_receive_buf_size_bytes = args[3];
-      HexagonTransportChannel* hexagon_channel =
-          new HexagonTransportChannel(hexagon_rpc_URI CDSP_DOMAIN, remote_stack_size_bytes,
-                                      static_cast<uint32_t>(hexagon_rpc_receive_buf_size_bytes));
-      std::unique_ptr<RPCChannel> channel(hexagon_channel);
-      auto ep = RPCEndpoint::Create(std::move(channel), session_name, "", nullptr);
-      auto sess = CreateClientSession(ep);
-      *rv = CreateRPCSessionModule(sess);
-    });
+        auto session_name = args[0].cast<std::string>();
+        int remote_stack_size_bytes = args[1].cast<int>();
+        // For simulator, the third parameter is sim_args, ignore it.
+        int hexagon_rpc_receive_buf_size_bytes = args[3].cast<int>();
+        HexagonTransportChannel* hexagon_channel =
+            new HexagonTransportChannel(hexagon_rpc_URI CDSP_DOMAIN, remote_stack_size_bytes,
+                                        static_cast<uint32_t>(hexagon_rpc_receive_buf_size_bytes));
+        std::unique_ptr<RPCChannel> channel(hexagon_channel);
+        auto ep = RPCEndpoint::Create(std::move(channel), session_name, "", nullptr);
+        auto sess = CreateClientSession(ep);
+        *rv = CreateRPCSessionModule(sess);
+      });
+}
 
 }  // namespace hexagon
 }  // namespace runtime

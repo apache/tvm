@@ -20,9 +20,9 @@ import re
 import warnings
 from typing import Union
 
-import tvm._ffi
-from tvm._ffi import register_func as _register_func
-from tvm._ffi.runtime_ctypes import Device
+import tvm_ffi
+from tvm_ffi import register_global_func as _register_global_func
+from tvm.runtime import Device
 from tvm.runtime import Object, convert
 from tvm.runtime.container import String
 from tvm.ir.container import Map, Array
@@ -30,7 +30,7 @@ from tvm.ir.container import Map, Array
 from . import _ffi_api
 
 
-@tvm._ffi.register_object
+@tvm_ffi.register_object("target.TargetKind")
 class TargetKind(Object):
     """Kind of a compilation target"""
 
@@ -53,7 +53,7 @@ class TargetFeatures:
         return _ffi_api.TargetGetFeature(self.target, name)
 
 
-@tvm._ffi.register_object
+@tvm_ffi.register_object("target.Target")
 class Target(Object):
     """Target device information, use through TVM API.
 
@@ -128,10 +128,10 @@ class Target(Object):
             target = convert(target)
         if isinstance(host, (dict, str)):
             host = convert(host)
-        if target is None or not isinstance(target, (Map, String, Target)):
-            raise ValueError("target has to be a string or dictionary.")
+        if target is None or not isinstance(target, (Map, String, Target, str)):
+            raise ValueError(f"target has to be a string or dictionary. instead get {type(target)}")
         if host is not None:
-            if not isinstance(host, (Map, String, Target)):
+            if not isinstance(host, (Map, String, Target, str)):
                 raise ValueError("target host has to be a string or dictionary.")
             self.__init_handle_by_constructor__(_ffi_api.Target, Target(target), Target(host))
         else:
@@ -511,29 +511,6 @@ MICRO_SUPPORTED_MODELS = {
 }
 
 
-def micro(model="unknown", options=None):
-    """Returns a microTVM target.
-
-    Parameters
-    ----------
-    model : str
-        Canonically identifies the target device. This is typically a device board level name.
-        The allowed values are MICRO_SUPPORTED_MODELS.keys().
-    options : str or list of str
-        Additional options
-    """
-    if model not in MICRO_SUPPORTED_MODELS:
-        raise ValueError(f"Model {model} not supported by tvm.target.micro.")
-    opts = _merge_opts(
-        MICRO_SUPPORTED_MODELS[model] + [f"-model={model}"],
-        options,
-    )
-
-    # NOTE: in the future, the default micro target will be LLVM except when
-    # external dependencies are present.
-    return Target(" ".join(["c"] + opts))
-
-
 def arm_cpu(model="unknown", options=None):
     """Returns a ARM CPU target.
     This function will also download pre-tuned op parameters when there is none.
@@ -607,12 +584,6 @@ def rasp(options=None):
     return arm_cpu("rasp3b", options)
 
 
-def vta(model="unknown", options=None):
-    opts = ["-device=vta", "-keys=vta,cpu", "-model=%s" % model]
-    opts = _merge_opts(opts, options)
-    return Target(" ".join(["ext_dev"] + opts))
-
-
 def bifrost(model="unknown", options=None):
     """Return an ARM Mali GPU target (Bifrost architecture).
 
@@ -665,6 +636,14 @@ def riscv_cpu(model="sifive-u54", options=None):
             "-mcpu=sifive-u74",
             "-mabi=lp64d",
             # cc: riscv64-unknown-linux-gnu-g++ -march=rv64gc -mabi=lp64d -mcpu=sifive-u74
+        ],
+        "licheepi3a": [
+            "-num-cores=8",
+            "-mtriple=riscv64-unknown-linux-gnu",
+            "-mcpu=spacemit-x60",
+            "-mfloat-abi=hard",
+            "-mabi=lp64d",
+            # cc: riscv64-unknown-linux-gnu-g++ -march=rv64gcv -mabi=lp64d -mcpu=spacemit-x60
         ],
     }
     pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
@@ -859,7 +838,7 @@ def stm32(series="unknown", options=None):
     return Target(" ".join(["c"] + opts))
 
 
-def adreno(model="unknown", options=None):
+def adreno(model="unknown", options=None, clml=False):
     """Returns a Qualcomm GPU target.
     Parameters
     ----------
@@ -868,7 +847,10 @@ def adreno(model="unknown", options=None):
     options : str or list of str
         Additional options
     """
-    opts = ["-device=adreno", "-model=%s" % model]
+    if clml:
+        opts = ["-device=adreno", "--keys=adreno,opencl,gpu,clml", "-model=%s" % model]
+    else:
+        opts = ["-device=adreno", "--keys=adreno,opencl,gpu", "-model=%s" % model]
     opts = _merge_opts(opts, options)
     return Target(" ".join(["opencl"] + opts))
 
@@ -879,7 +861,7 @@ def create(target):
     return Target(target)
 
 
-@_register_func("target._load_config_dict")
+@_register_global_func("target._load_config_dict")
 def _load_config_dict(config_dict_str):
     try:
         config = json.loads(config_dict_str)

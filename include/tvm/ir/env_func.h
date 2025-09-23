@@ -24,7 +24,9 @@
 #ifndef TVM_IR_ENV_FUNC_H_
 #define TVM_IR_ENV_FUNC_H_
 
-#include <tvm/node/reflection.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/node/node.h>
 
 #include <string>
 #include <utility>
@@ -33,7 +35,7 @@ namespace tvm {
 /*!
  * \brief A serializable function backed by TVM's global environment.
  *
- * This is a wrapper to enable serializable global PackedFunc.
+ * This is a wrapper to enable serializable global ffi::Function.
  * An EnvFunc is saved by its name in the global registry
  * under the assumption that the same function is registered during load.
  * \sa EnvFunc
@@ -41,28 +43,22 @@ namespace tvm {
 class EnvFuncNode : public Object {
  public:
   /*! \brief Unique name of the global function */
-  String name;
+  ffi::String name;
   /*! \brief The internal packed function */
-  runtime::PackedFunc func;
+  ffi::Function func;
   /*! \brief constructor */
   EnvFuncNode() {}
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
-
-  bool SEqualReduce(const EnvFuncNode* other, SEqualReducer equal) const {
-    // name uniquely identifies the env function.
-    return name == other->name;
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    // func do not participate in structural equal and hash.
+    refl::ObjectDef<EnvFuncNode>()
+        .def_ro("name", &EnvFuncNode::name)
+        .def_ro("func", &EnvFuncNode::func, refl::AttachFieldFlag::SEqHashIgnore());
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    // Name uniquely identifies the env function.
-    hash_reduce(name);
-  }
-
-  static constexpr const char* _type_key = "EnvFunc";
-  static constexpr bool _type_has_method_sequal_reduce = true;
-  static constexpr bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(EnvFuncNode, Object);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.EnvFunc", EnvFuncNode, Object);
 };
 
 /*!
@@ -73,6 +69,10 @@ class EnvFunc : public ObjectRef {
  public:
   EnvFunc() {}
   explicit EnvFunc(ObjectPtr<Object> n) : ObjectRef(n) {}
+  /*!
+   * \brief constructor with UnsafeInit
+   */
+  explicit EnvFunc(ffi::UnsafeInit tag) : ObjectRef(tag) {}
   /*! \return The internal global function pointer */
   const EnvFuncNode* operator->() const { return static_cast<const EnvFuncNode*>(get()); }
   /*!
@@ -81,7 +81,7 @@ class EnvFunc : public ObjectRef {
    * \returns The return value.
    */
   template <typename... Args>
-  runtime::TVMRetValue operator()(Args&&... args) const {
+  ffi::Any operator()(Args&&... args) const {
     const EnvFuncNode* n = operator->();
     ICHECK(n != nullptr);
     return n->func(std::forward<Args>(args)...);
@@ -92,7 +92,7 @@ class EnvFunc : public ObjectRef {
    * \return The created global function.
    * \note The function can be unique
    */
-  TVM_DLL static EnvFunc Get(const String& name);
+  TVM_DLL static EnvFunc Get(const ffi::String& name);
   /*! \brief specify container node */
   using ContainerType = EnvFuncNode;
 };
@@ -120,6 +120,10 @@ class TypedEnvFunc<R(Args...)> : public ObjectRef {
   TypedEnvFunc() {}
   explicit TypedEnvFunc(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
+   * \brief constructor with UnsafeInit
+   */
+  explicit TypedEnvFunc(ffi::UnsafeInit tag) : ObjectRef(tag) {}
+  /*!
    * \brief Assign global function to a TypedEnvFunc
    * \param other Another global function.
    * \return reference to self.
@@ -138,8 +142,16 @@ class TypedEnvFunc<R(Args...)> : public ObjectRef {
   R operator()(Args... args) const {
     const EnvFuncNode* n = operator->();
     ICHECK(n != nullptr);
-    return runtime::detail::typed_packed_call_dispatcher<R>::run(n->func,
-                                                                 std::forward<Args>(args)...);
+    if constexpr (std::is_same_v<R, void>) {
+      n->func(std::forward<Args>(args)...);
+    } else {
+      ffi::Any res = n->func(std::forward<Args>(args)...);
+      if constexpr (std::is_same_v<R, ffi::Any>) {
+        return res;
+      } else {
+        return std::move(res).cast<R>();
+      }
+    }
   }
   /*! \brief specify container node */
   using ContainerType = EnvFuncNode;

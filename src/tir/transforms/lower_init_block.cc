@@ -21,6 +21,7 @@
  * Lower block init stmt into branch stmt
  * \file lower_reduction.cc
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -39,12 +40,12 @@ class InitBlockLower : public StmtMutator {
     Stmt init = DoLowering(block->init.value(), block->iter_vars);
     Stmt body = VisitStmt(block->body);
     auto n = CopyOnWrite(block);
-    n->init = NullOpt;
+    n->init = std::nullopt;
     n->body = SeqStmt::Flatten(init, body);
     return Block(n);
   }
 
-  static Stmt DoLowering(const Stmt& init, const Array<IterVar>& iter_vars) {
+  static Stmt DoLowering(const Stmt& init, const ffi::Array<IterVar>& iter_vars) {
     std::vector<PrimExpr> conditions;
     for (const IterVar& var : iter_vars) {
       if (var->iter_type == IterVarType::kCommReduce) {
@@ -65,14 +66,9 @@ class InitBlockLower : public StmtMutator {
 };
 
 PrimFunc LowerInitBlock(PrimFunc func) {
-  // Only apply this pass to TIR that is not from TE schedules
-  if (!IsFromLegacyTESchedule(func)) {
-    auto fptr = func.CopyOnWrite();
-    fptr->body = InitBlockLower()(std::move(fptr->body));
-    return func;
-  } else {
-    return func;
-  }
+  auto fptr = func.CopyOnWrite();
+  fptr->body = InitBlockLower()(std::move(fptr->body));
+  return func;
 }
 
 namespace transform {
@@ -84,7 +80,10 @@ Pass LowerInitBlock() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerInitBlock", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerInitBlock").set_body_typed(LowerInitBlock);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LowerInitBlock", LowerInitBlock);
+}
 
 }  // namespace transform
 

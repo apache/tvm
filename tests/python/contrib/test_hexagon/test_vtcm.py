@@ -49,8 +49,8 @@ def test_vtcm_building():
     """Test building with vtcm mem scope"""
     sch = get_scale_by_two_schedule()
     target = get_hexagon_target("v68")
-    built = tvm.build(sch.mod, target=target)
-    assert "global.vtcm" in built.get_source("asm")
+    built = tvm.compile(sch.mod, target=target)
+    assert "global.vtcm" in built.inspect_source("asm")
 
 
 @tvm.testing.requires_hexagon
@@ -62,25 +62,25 @@ def test_vtcm_limit(vtcm_capacity, limited):
     def _raises_exception(f):
         try:
             f()
-        except tvm._ffi.base.TVMError:
+        except tvm.base.TVMError:
             return True
         return False
 
     target = get_hexagon_target("v68", vtcm_capacity=vtcm_capacity)
 
     assert (
-        _raises_exception(lambda: tvm.build(sch.mod, target=target)) == limited
+        _raises_exception(lambda: tvm.compile(sch.mod, target=target)) == limited
     ), "Case 1 - arg. VTCM memory allocation limiter does not work correctly "
 
     with target:
         assert (
-            _raises_exception(lambda: tvm.build(sch.mod)) == limited
+            _raises_exception(lambda: tvm.compile(sch.mod)) == limited
         ), "Case 2 - with.VTCM memory allocation limiter does not work correctly "
 
     with tvm.transform.PassContext(config={"tir.vtcm_capacity": vtcm_capacity}):
         assert (
             _raises_exception(
-                lambda: tvm.build(sch.mod, target=get_hexagon_target("v68", vtcm_capacity=0))
+                lambda: tvm.compile(sch.mod, target=get_hexagon_target("v68", vtcm_capacity=0))
             )
             == limited
         ), "Case 3 - context. VTCM memory allocation limiter does not work correctly "

@@ -30,7 +30,6 @@ def test_randint():
     m = 10240
     n = 10240
     A = random.randint(-127, 128, size=(m, n), dtype="int32")
-    s = te.create_schedule(A.op)
 
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
@@ -40,8 +39,8 @@ def test_randint():
             print("skip because extern function is not available")
             return
         dev = tvm.cpu(0)
-        f = tvm.build(s, [A], target)
-        a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), dev)
+        f = tvm.compile(te.create_prim_func([A]), target=target)
+        a = tvm.runtime.tensor(np.zeros((m, n), dtype=A.dtype), dev)
         f(a)
         na = a.numpy()
         assert abs(np.mean(na)) < 0.3
@@ -56,7 +55,6 @@ def test_uniform():
     m = 10240
     n = 10240
     A = random.uniform(0, 1, size=(m, n))
-    s = te.create_schedule(A.op)
 
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
@@ -66,8 +64,8 @@ def test_uniform():
             print("skip because extern function is not available")
             return
         dev = tvm.cpu(0)
-        f = tvm.build(s, [A], target)
-        a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), dev)
+        f = tvm.compile(te.create_prim_func([A]), target=target)
+        a = tvm.runtime.tensor(np.zeros((m, n), dtype=A.dtype), dev)
         f(a)
         na = a.numpy()
         assert abs(np.mean(na) - 0.5) < 1e-1
@@ -82,7 +80,6 @@ def test_normal():
     m = 10240
     n = 10240
     A = random.normal(3, 4, size=(m, n))
-    s = te.create_schedule(A.op)
 
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
@@ -92,8 +89,8 @@ def test_normal():
             print("skip because extern function is not available")
             return
         dev = tvm.cpu(0)
-        f = tvm.build(s, [A], target)
-        a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), dev)
+        f = tvm.compile(te.create_prim_func([A]), target=target)
+        a = tvm.runtime.tensor(np.zeros((m, n), dtype=A.dtype), dev)
         f(a)
         na = a.numpy()
         assert abs(np.mean(na) - 3) < 1e-1
@@ -110,7 +107,7 @@ def test_random_fill():
         if not tvm.get_global_func("tvm.contrib.random.random_fill", True):
             print("skip because extern function is not available")
             return
-        value = tvm.nd.empty((512, 512), dtype, dev)
+        value = tvm.runtime.empty((512, 512), dtype, dev)
         random_fill = tvm.get_global_func("tvm.contrib.random.random_fill")
         random_fill(value)
 
@@ -129,7 +126,7 @@ def test_random_fill():
 
         def check_remote(server):
             remote = rpc.connect(server.host, server.port)
-            value = tvm.nd.empty((512, 512), dtype, remote.cpu())
+            value = tvm.runtime.empty((512, 512), dtype, remote.cpu())
             random_fill = remote.get_function("tvm.contrib.random.random_fill")
             random_fill(value)
 
@@ -173,7 +170,7 @@ def test_random_fill_mt():
             configure_threads = tvm.get_global_func("runtime.config_threadpool")
             configure_threads(1, num_thread_used)
 
-            test_input = tvm.runtime.ndarray.empty((10, 10))
+            test_input = tvm.runtime.empty((10, 10))
             random_fill = tvm.get_global_func("tvm.contrib.random.random_fill_for_measure")
             random_fill(test_input)
         except:  # pylint: disable=bare-except

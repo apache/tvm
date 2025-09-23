@@ -17,9 +17,6 @@
  * under the License.
  */
 
-// Disable constructor to bring minimum dep on c++ABI.
-#define TVM_ARENA_HAS_DESTRUCTOR 0
-
 #include <unistd.h>
 
 #include <cstdlib>

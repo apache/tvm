@@ -24,8 +24,10 @@
 #ifndef TVM_RUNTIME_RPC_RPC_SESSION_H_
 #define TVM_RUNTIME_RPC_RPC_SESSION_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/module.h>
+#include <tvm/runtime/object.h>
 
 #include <functional>
 #include <memory>
@@ -47,14 +49,14 @@ namespace runtime {
  */
 class RPCSession {
  public:
-  /*! \brief PackedFunc Handle in the remote. */
+  /*! \brief ffi::Function Handle in the remote. */
   using PackedFuncHandle = void*;
 
   /*! \brief Module handle in the remote. */
   using ModuleHandle = void*;
 
-  /*! \brief NDArray handle in the remote. */
-  using NDArrayHandle = void*;
+  /*! \brief Tensor handle in the remote. */
+  using TensorHandle = void*;
 
   /*!
    * \brief Callback to send an encoded return values via encode_args.
@@ -62,13 +64,13 @@ class RPCSession {
    * \param encode_args The arguments that we can encode the return values into.
    *
    * Encoding convention (as list of arguments):
-   * - str/float/int/byte: [tcode: int, value: TVMValue] value follows PackedFunc convention.
-   * - PackedFunc/Module: [tcode: int, handle: void*]
-   * - NDArray: [tcode: int,  meta: DLTensor*, nd_handle: void*]
+   * - str/float/int/byte: [tcode: int, value: TVMValue] value follows ffi::Function convention.
+   * - ffi::Function/Module: [tcode: int, handle: void*]
+   * - Tensor: [tcode: int,  meta: DLTensor*, nd_handle: void*]
    *            DLTensor* contains the meta-data as well as handle into the remote data.
    *            nd_handle can be used for deletion.
    */
-  using FEncodeReturn = std::function<void(TVMArgs encoded_args)>;
+  using FEncodeReturn = std::function<void(ffi::PackedArgs encoded_args)>;
 
   /*!
    * \brief Callback to send an encoded return values via encode_args.
@@ -76,7 +78,7 @@ class RPCSession {
    * \param status The return status, can be RPCCode::kReturn or RPCCode::kException.
    * \param encode_args The arguments that we can encode the return values into.
    */
-  using FAsyncCallback = std::function<void(RPCCode status, TVMArgs encoded_args)>;
+  using FAsyncCallback = std::function<void(RPCCode status, ffi::PackedArgs encoded_args)>;
 
   /*! \brief Destructor.*/
   virtual ~RPCSession() {}
@@ -93,10 +95,10 @@ class RPCSession {
    *
    *  Calling convention:
    *
-   *  - type_code is follows the PackedFunc convention.
-   *  - int/float/string/bytes follows the PackedFunc convention, all data are local.
-   *  - PackedFunc/Module and future remote objects: pass remote handle instead.
-   *  - NDArray/DLTensor: pass a DLTensor pointer, the data field of DLTensor
+   *  - type_code is follows the ffi::Function convention.
+   *  - int/float/string/bytes follows the ffi::Function convention, all data are local.
+   *  - ffi::Function/Module and future remote objects: pass remote handle instead.
+   *  - Tensor/DLTensor: pass a DLTensor pointer, the data field of DLTensor
    *                      points to a remote data handle returned by the Device API.
    *                      The meta-data of the DLTensor sits on local.
    *
@@ -106,23 +108,20 @@ class RPCSession {
    *  if they want to do inplace modify and forward.
    *
    *  The callee need to store the return value into ret_value.
-   *  - PackedFunc/Module are stored as void*
-   *  - NDArray is stored as local NDArray, whose data field is a remote handle.
-   *    Notably the NDArray's deleter won't delete remote handle.
+   *  - ffi::Function/Module are stored as void*
+   *  - Tensor is stored as local Tensor, whose data field is a remote handle.
+   *    Notably the Tensor's deleter won't delete remote handle.
    *    It is up to the user of the RPCSession to such wrapping.
    *  - In short, remote handles are "moved" as return values
    *    and the callee needs to explicitly manage them by calling
    *    the deleter functions when they are no longer needed.
    *
    * \param func The function handle.
-   * \param arg_values The argument values.
-   * \param arg_type_codes the type codes of the argument.
-   * \param num_args Number of arguments.
+   * \param args The input packed arguments.
    * \param fencode_return The function to set the return value,
    *                       if not called, return value is null.
    */
-  virtual void CallFunc(PackedFuncHandle func, const TVMValue* arg_values,
-                        const int* arg_type_codes, int num_args,
+  virtual void CallFunc(PackedFuncHandle func, ffi::PackedArgs args,
                         const FEncodeReturn& fencode_return) = 0;
 
   /*!
@@ -142,10 +141,10 @@ class RPCSession {
 
   /*!
    * \brief Free a remote function.
-   * \param handle The remote handle, can be NDArray/PackedFunc/Module/Object
+   * \param handle The remote object handle.
    * \param type_code The type code of the underlying type.
    */
-  virtual void FreeHandle(void* handle, int type_code) = 0;
+  virtual void FreeHandle(void* handle) = 0;
 
   /*!
    * \brief Get device API that represents the remote
@@ -199,14 +198,11 @@ class RPCSession {
   /*!
    * \brief Asynchrously call func.
    * \param func The function handle.
-   * \param arg_values The argument values.
-   * \param arg_type_codes the type codes of the argument.
-   * \param num_args Number of arguments.
+   * \param args The packed arguments.
    *
    * \param callback The callback to pass the return value or exception.
    */
-  virtual void AsyncCallFunc(PackedFuncHandle func, const TVMValue* arg_values,
-                             const int* arg_type_codes, int num_args, FAsyncCallback callback);
+  virtual void AsyncCallFunc(PackedFuncHandle func, ffi::PackedArgs args, FAsyncCallback callback);
 
   /*!
    * \brief Asynchrous version of CopyToRemote.
@@ -271,7 +267,7 @@ class RPCSession {
   /*! \brief Insert the current session to the session table.*/
   static void InsertToSessionTable(std::shared_ptr<RPCSession> sess);
   // friend declaration
-  friend Module CreateRPCSessionModule(std::shared_ptr<RPCSession> sess);
+  friend ffi::Module CreateRPCSessionModule(std::shared_ptr<RPCSession> sess);
 };
 
 /*!
@@ -306,7 +302,7 @@ class RPCObjectRefObj : public Object {
   ~RPCObjectRefObj() {
     if (object_handle_ != nullptr && sess_ != nullptr) {
       try {
-        sess_->FreeHandle(object_handle_, kTVMObjectHandle);
+        sess_->FreeHandle(object_handle_);
       } catch (const Error& e) {
         // fault tolerance to remote close
       }
@@ -319,8 +315,8 @@ class RPCObjectRefObj : public Object {
   void* object_handle() const { return object_handle_; }
 
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimeRPCObjectRef;
-  static constexpr const char* _type_key = "runtime.RPCObjectRef";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RPCObjectRefObj, Object);
+  static const constexpr bool _type_final = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_STATIC("runtime.RPCObjectRef", RPCObjectRefObj, Object);
 
  private:
   // The object handle
@@ -336,7 +332,10 @@ class RPCObjectRefObj : public Object {
  */
 class RPCObjectRef : public ObjectRef {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(RPCObjectRef, ObjectRef, RPCObjectRefObj);
+  explicit RPCObjectRef(ObjectPtr<RPCObjectRefObj> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RPCObjectRef, ObjectRef, RPCObjectRefObj);
 };
 
 /*!
@@ -344,14 +343,14 @@ class RPCObjectRef : public ObjectRef {
  * \param sess The RPC session of the global module.
  * \return The created module.
  */
-Module CreateRPCSessionModule(std::shared_ptr<RPCSession> sess);
+ffi::Module CreateRPCSessionModule(std::shared_ptr<RPCSession> sess);
 
 /*!
  * \brief Get the session module from a RPC session Module.
  * \param mod The input module(must be an RPCModule).
  * \return The internal RPCSession.
  */
-std::shared_ptr<RPCSession> RPCModuleGetSession(Module mod);
+std::shared_ptr<RPCSession> RPCModuleGetSession(ffi::Module mod);
 
 }  // namespace runtime
 }  // namespace tvm

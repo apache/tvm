@@ -17,15 +17,16 @@
 
 package org.apache.tvm.rpc;
 
+import org.apache.tvm.Device;
+import org.apache.tvm.Function;
+import org.apache.tvm.Module;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.tvm.Device;
-import org.apache.tvm.Function;
-import org.apache.tvm.Module;
 
 /**
  * RPC Client session module.

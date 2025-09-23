@@ -22,6 +22,7 @@
  * \brief Pass for fuse ShapeExpr.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -40,7 +41,8 @@ using namespace tvm::contrib::msc;
  */
 class ByocNameSetter : public ExprMutator {
  public:
-  explicit ByocNameSetter(IRModule ctx_module, const String& target, const String& entry_name)
+  explicit ByocNameSetter(IRModule ctx_module, const ffi::String& target,
+                          const ffi::String& entry_name)
       : ExprMutator(ctx_module) {
     mod_ = ctx_module;
     target_ = target;
@@ -53,9 +55,9 @@ class ByocNameSetter : public ExprMutator {
       if (gv->name_hint == entry_name_) {
         continue;
       }
-      const auto& name_opt = func->GetAttr<runtime::String>(attr::kCodegen);
-      if (name_opt.defined() && name_opt.value() == target_) {
-        const String& func_name = target_ + "_" + std::to_string(func_cnt);
+      const auto& name_opt = func->GetAttr<ffi::String>(attr::kCodegen);
+      if (name_opt.has_value() && name_opt.value() == target_) {
+        const ffi::String& func_name = target_ + "_" + std::to_string(func_cnt);
         const auto& new_func = Downcast<Function>(VisitExpr(func));
         builder_->UpdateFunction(gv, WithAttr(new_func, msc_attr::kUnique, func_name));
         func_cnt += 1;
@@ -65,7 +67,7 @@ class ByocNameSetter : public ExprMutator {
   }
 
   void VisitBinding_(const VarBindingNode* binding, const FunctionNode* val) final {
-    local_funcs_.Set(binding->var, GetRef<Function>(val));
+    local_funcs_.Set(binding->var, ffi::GetRef<Function>(val));
     ExprMutator::VisitBinding_(binding, val);
   }
 
@@ -73,8 +75,8 @@ class ByocNameSetter : public ExprMutator {
     ExprMutator::VisitBinding_(binding, val);
     if (val->op->IsInstance<relax::VarNode>()) {
       ICHECK(local_funcs_.count(val->op)) << "Can not find local func " << val->op;
-      const auto& name_opt = local_funcs_[val->op]->GetAttr<runtime::String>(msc_attr::kUnique);
-      if (name_opt.defined()) {
+      const auto& name_opt = local_funcs_[val->op]->GetAttr<ffi::String>(msc_attr::kUnique);
+      if (name_opt.has_value()) {
         val->span = SpanUtils::SetAttr(val->span, "name", name_opt.value());
       }
     }
@@ -82,25 +84,29 @@ class ByocNameSetter : public ExprMutator {
 
  private:
   IRModule mod_;
-  String target_;
-  String entry_name_;
-  Map<Function, Function> new_funcs_;
-  Map<Expr, Function> local_funcs_;
+  ffi::String target_;
+  ffi::String entry_name_;
+  ffi::Map<Function, Function> new_funcs_;
+  ffi::Map<Expr, Function> local_funcs_;
 };
 
-IRModule SetBYOCAttrs(IRModule mod, const String& target, const String& entry_name) {
+IRModule SetBYOCAttrs(IRModule mod, const ffi::String& target, const ffi::String& entry_name) {
   return ByocNameSetter(mod, target, entry_name).SetNames();
 }
 
 namespace transform {
 
-Pass SetBYOCAttrs(const String& target, const String& entry_name) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relax::SetBYOCAttrs(m, target, entry_name); };
+Pass SetBYOCAttrs(const ffi::String& target, const ffi::String& entry_name) {
+  auto pass_func = [=](IRModule m, PassContext pc) {
+    return relax::SetBYOCAttrs(m, target, entry_name);
+  };
   return CreateModulePass(pass_func, 0, "SetBYOCAttrs", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.SetBYOCAttrs").set_body_typed(SetBYOCAttrs);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.SetBYOCAttrs", SetBYOCAttrs);
+}
 
 }  // namespace transform
 }  // namespace relax

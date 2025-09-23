@@ -62,13 +62,17 @@ def test_alloc_storage_with_scope_global():
     mod = Module
     target = "llvm"
     with tvm.transform.PassContext(opt_level=3):
-        lib = relax.build(mod, target, exec_mode="compiled")
+        lib = tvm.relax.build(mod, target=target, exec_mode="compiled")
 
     dev = tvm.cpu()
     # This is the important line which tests nd allocator
     vm_rt = relax.VirtualMachine(lib, dev, memory_cfg="naive")
-    x = tvm.nd.array(arg0, dev)
+    x = tvm.runtime.tensor(arg0, dev)
     vm_rt.set_input("main", x)
     vm_rt.invoke_stateful("main")
     output = vm_rt.get_outputs("main").numpy()
     tvm.testing.assert_allclose(output_ref, output)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

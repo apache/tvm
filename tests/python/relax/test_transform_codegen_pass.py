@@ -15,17 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
 import os
+import tempfile
+
+import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import relax, tir
-import numpy as np
-from tvm.script import relax as R, ir as I, tir as T
-from tvm.relax.testing import transform
-import tempfile
-from tvm.relax.transform.tuning_api import Trace
+from tvm.contrib import utils
 from tvm.relax.dpl import is_op, wildcard
+from tvm.relax.testing import transform
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 env_checker_codegen = tvm.get_global_func("relax.ext.tensorrt", True)
 env_checker_runtime = tvm.get_global_func("relax.is_tensorrt_runtime_enabled", True)
@@ -55,9 +59,9 @@ def check_executable(exec, dev, inputs, expected, entry_func_name):
 
 
 def check_roundtrip(exec0, dev, inputs, expected, entry_func_name="main"):
-    exec0.mod.export_library("exec.so")
-    exec1 = tvm.runtime.load_module("exec.so")
-    os.remove("exec.so")
+    with utils.tempdir() as temp:
+        exec0.mod.export_library(temp.relpath("exec.so"))
+        exec1 = tvm.runtime.load_module(temp.relpath("exec.so"))
     assert exec0.stats() == exec1["stats"]()
     assert exec0.as_text() == exec1["as_text"]()
 
@@ -74,7 +78,7 @@ def gen_ground_truth(mod, target, dev, inputs):
         )
         new_mod = seq(mod)
     assert relax.analysis.well_formed(new_mod)
-    exec = relax.build(new_mod, target, params={})
+    exec = tvm.compile(new_mod, target, params={})
     vm = relax.VirtualMachine(exec, dev)
     return vm["main"](*inputs)
 
@@ -102,8 +106,8 @@ def setup_test():
 
     np0 = np.random.rand(16, 16).astype(np.float32)
     np1 = np.random.rand(16, 16).astype(np.float32)
-    data0 = tvm.nd.array(np0, dev)
-    data1 = tvm.nd.array(np1, dev)
+    data0 = tvm.runtime.tensor(np0, dev)
+    data1 = tvm.runtime.tensor(np1, dev)
     inputs = [data0, data1]
 
     # Ground truth should be generated before annotation
@@ -141,7 +145,7 @@ def test_tensorrt_only(entry_func_name):
         ]
     )(mod)
 
-    ex0 = relax.build(new_mod, target, params={})
+    ex0 = tvm.compile(new_mod, target, params={})
     # Sanity check for the correctness and roundtrip
     check_roundtrip(ex0, dev, inputs, expected, entry_func_name)
 
@@ -160,7 +164,7 @@ def test_mix_use_tensorrt_and_tvm():
 
     # Run Codegen pass
     with tempfile.TemporaryDirectory() as work_dir:
-        with target, tvm.transform.PassContext(trace=Trace(mod), opt_level=0):
+        with target, tvm.transform.PassContext(opt_level=0):
             new_mod = tvm.transform.Sequential(
                 [
                     relax.transform.FuseOpsByPattern(patterns),
@@ -175,7 +179,7 @@ def test_mix_use_tensorrt_and_tvm():
             )(mod)
     assert relax.analysis.well_formed(new_mod)
     with transform.PassContext(opt_level=0):
-        ex0 = relax.build(new_mod, target, params={})
+        ex0 = tvm.compile(new_mod, target, params={})
 
     # Sanity check for the correctness and roundtrip
     check_roundtrip(ex0, dev, inputs, expected)
@@ -212,7 +216,7 @@ class Conv2dx2:
             data_1: R.Tensor((16, 32, 32, 16), dtype="float16"),
             weight1_1: R.Tensor((16, 3, 3, 16), dtype="float16"),
         ) -> R.Tensor((16, 32, 32, 16), dtype="float16"):
-            R.func_attr({"Composite": "tensorrt.conv2d", "Primitive": 1})
+            R.func_attr({"Composite": "tensorrt.conv2d", "Primitive": True})
             with R.dataflow():
                 gv_1: R.Tensor((16, 32, 32, 16), dtype="float16") = R.nn.conv2d(
                     data_1,
@@ -280,7 +284,7 @@ def test_default_entry_func():
 
 
 def test_dynamic_shape():
-    import tvm.relax.backend.contrib.cublas
+    import tvm.relax.backend.cuda.cublas
 
     @I.ir_module
     class Before:

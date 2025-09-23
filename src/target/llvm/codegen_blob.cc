@@ -69,13 +69,17 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
   llvm::LLVMContext* ctx = llvm_target->GetContext();
   std::string module_name = c_symbol_prefix + "devc";
   auto module = std::make_unique<llvm::Module>(module_name, *ctx);
+#if TVM_LLVM_VERSION >= 210
+  module->setTargetTriple(triple);
+#else
   module->setTargetTriple(triple.str());
+#endif
   llvm_target->SetTargetMetadata(module.get());
   module->setDataLayout(tm->createDataLayout());
   auto* blob_value = llvm::ConstantDataArray::getString(*ctx, data, false);
-  std::string mdev_blob_name = c_symbol_prefix + runtime::symbol::tvm_dev_mblob;
+  std::string mdev_blob_name = c_symbol_prefix + ffi::symbol::tvm_ffi_library_bin;
 
-  auto* tvm_dev_mblob = new llvm::GlobalVariable(
+  auto* tvm_ffi_library_bin = new llvm::GlobalVariable(
       *module, blob_value->getType(), true, llvm::GlobalValue::ExternalLinkage, blob_value,
       mdev_blob_name, nullptr, llvm::GlobalVariable::NotThreadLocal, 0);
 
@@ -88,17 +92,17 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
   const size_t large_data_threshold = 1 << 30;
   if (data.size() > large_data_threshold && triple.getArch() == llvm::Triple::x86_64 &&
       triple.isOSBinFormatELF()) {
-    tvm_dev_mblob->setSection(".lrodata");
+    tvm_ffi_library_bin->setSection(".lrodata");
   }
 
 #if TVM_LLVM_VERSION >= 100
-  tvm_dev_mblob->setAlignment(llvm::Align(1));
+  tvm_ffi_library_bin->setAlignment(llvm::Align(1));
 #else
-  tvm_dev_mblob->setAlignment(1);
+  tvm_ffi_library_bin->setAlignment(1);
 #endif
 
   if (triple.isOSWindows()) {
-    tvm_dev_mblob->setDLLStorageClass(llvm::GlobalVariable::DLLExportStorageClass);
+    tvm_ffi_library_bin->setDLLStorageClass(llvm::GlobalVariable::DLLExportStorageClass);
   }
 
   if (system_lib) {
@@ -106,34 +110,35 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
     auto void_ty = llvm::Type::getVoidTy(*ctx);
     auto int32_ty = llvm::Type::getInt32Ty(*ctx);
     auto int8_ty = llvm::Type::getInt8Ty(*ctx);
-    auto int8_ptr_ty = int8_ty->getPointerTo(0);
+    auto int8_ptr_ty = llvmGetPointerTo(int8_ty, 0);
 
     llvm::Constant* constant_zero = llvm::Constant::getNullValue(int32_ty);
-    auto* tvm_dev_mblob_reg =
+    auto* tvm_ffi_library_bin_reg =
         new llvm::GlobalVariable(*module, int32_ty, false, llvm::GlobalValue::InternalLinkage,
                                  constant_zero, mdev_blob_name + "_reg_");
-    auto tvm_dev_mblob_reg_alignment =
+    auto tvm_ffi_library_bin_reg_alignment =
 #if TVM_LLVM_VERSION >= 110
         module->getDataLayout().getABITypeAlign(int32_ty);
 #else
         module->getDataLayout().getABITypeAlignment(int32_ty);
 #endif
 #if TVM_LLVM_VERSION >= 100
-    tvm_dev_mblob_reg->setAlignment(llvm::Align(tvm_dev_mblob_reg_alignment));
+    tvm_ffi_library_bin_reg->setAlignment(llvm::Align(tvm_ffi_library_bin_reg_alignment));
 #else
-    tvm_dev_mblob_reg->setAlignment(tvm_dev_mblob_reg_alignment);
+    tvm_ffi_library_bin_reg->setAlignment(tvm_ffi_library_bin_reg_alignment);
 #endif
 
-    auto* tvm_dev_mblob_string_ty = llvm::ArrayType::get(int8_ty, mdev_blob_name.length() + 1);
-    auto* tvm_dev_mblob_string_value =
+    auto* tvm_ffi_library_bin_string_ty =
+        llvm::ArrayType::get(int8_ty, mdev_blob_name.length() + 1);
+    auto* tvm_ffi_library_bin_string_value =
         llvm::ConstantDataArray::getString(*ctx, mdev_blob_name, true);
-    auto* tvm_dev_mblob_string = new llvm::GlobalVariable(
-        *module, tvm_dev_mblob_string_ty, true, llvm::GlobalValue::PrivateLinkage,
-        tvm_dev_mblob_string_value, mdev_blob_name + ".str");
+    auto* tvm_ffi_library_bin_string = new llvm::GlobalVariable(
+        *module, tvm_ffi_library_bin_string_ty, true, llvm::GlobalValue::PrivateLinkage,
+        tvm_ffi_library_bin_string_value, mdev_blob_name + ".str");
 #if TVM_LLVM_VERSION >= 100
-    tvm_dev_mblob_string->setAlignment(llvm::Align(1));
+    tvm_ffi_library_bin_string->setAlignment(llvm::Align(1));
 #else
-    tvm_dev_mblob_string->setAlignment(1);
+    tvm_ffi_library_bin_string->setAlignment(1);
 #endif
 
     // Global init function
@@ -146,11 +151,11 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
         llvm::FunctionType::get(void_ty, false), llvm::GlobalValue::InternalLinkage,
         llvm::Twine("__cxx_global_var_init"), module.get());
 
-    // Create TVMBackendRegisterSystemLibSymbol function
+    // Create TVMFFIEnvModRegisterSystemLibSymbol function
     llvm::Function* tvm_backend_fn =
         llvm::Function::Create(llvm::FunctionType::get(int32_ty, {int8_ptr_ty, int8_ptr_ty}, false),
                                llvm::GlobalValue::ExternalLinkage,
-                               llvm::Twine("TVMBackendRegisterSystemLibSymbol"), module.get());
+                               llvm::Twine("TVMFFIEnvModRegisterSystemLibSymbol"), module.get());
 
     // Set necessary fn sections
     auto get_static_init_section_specifier = [&triple]() -> std::string {
@@ -185,12 +190,12 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
     ir_builder.SetInsertPoint(var_init_fn_bb);
     llvm::Constant* indices[] = {constant_zero, constant_zero};
     llvm::SmallVector<llvm::Value*, 2> args;
-    args.push_back(llvm::ConstantExpr::getGetElementPtr(tvm_dev_mblob_string_ty,
-                                                        tvm_dev_mblob_string, indices));
+    args.push_back(llvm::ConstantExpr::getGetElementPtr(tvm_ffi_library_bin_string_ty,
+                                                        tvm_ffi_library_bin_string, indices));
     args.push_back(
-        llvm::ConstantExpr::getGetElementPtr(blob_value->getType(), tvm_dev_mblob, indices));
+        llvm::ConstantExpr::getGetElementPtr(blob_value->getType(), tvm_ffi_library_bin, indices));
     auto* tvm_backend_fn_ret_value = ir_builder.CreateCall(tvm_backend_fn, args);
-    ir_builder.CreateStore(tvm_backend_fn_ret_value, tvm_dev_mblob_reg);
+    ir_builder.CreateStore(tvm_backend_fn_ret_value, tvm_ffi_library_bin_reg);
     ir_builder.CreateRetVoid();
   }
 

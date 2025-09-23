@@ -21,7 +21,8 @@
  * \file inline_private_functions.cc
  * \brief Inline private functions to their callsite
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
@@ -102,7 +103,7 @@ bool IsInlinablePrimFunc(const GlobalVar& gvar, const PrimFunc& prim_func,
   // Only inline private functions.  Externally-exposed functions
   // must be preserved so to avoid breaking callsites outside of
   // the IRModule.
-  bool is_exposed = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
+  bool is_exposed = prim_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
   if (is_exposed) return false;
 
   // We do not currently implement any analysis for termination of
@@ -127,10 +128,10 @@ bool IsInlinablePrimFunc(const GlobalVar& gvar, const PrimFunc& prim_func,
   return true;
 }
 
-Map<GlobalVar, PrimFunc> CollectInlinablePrimFuncs(const IRModule& mod) {
+ffi::Map<GlobalVar, PrimFunc> CollectInlinablePrimFuncs(const IRModule& mod) {
   auto recursive_functions = CollectRecursiveFunctions(mod);
 
-  Map<GlobalVar, PrimFunc> output;
+  ffi::Map<GlobalVar, PrimFunc> output;
   for (const auto& [gvar, base_func] : mod->functions) {
     if (auto opt = base_func.as<PrimFunc>()) {
       auto prim_func = opt.value();
@@ -145,7 +146,7 @@ Map<GlobalVar, PrimFunc> CollectInlinablePrimFuncs(const IRModule& mod) {
 
 class PrimFuncInliner : StmtExprMutator {
  public:
-  explicit PrimFuncInliner(Map<GlobalVar, PrimFunc> inlinable_funcs)
+  explicit PrimFuncInliner(ffi::Map<GlobalVar, PrimFunc> inlinable_funcs)
       : inlinable_funcs_(inlinable_funcs) {
     for (const auto& [gvar, callee] : inlinable_funcs_) {
       removable_funcs_.insert(gvar);
@@ -155,7 +156,7 @@ class PrimFuncInliner : StmtExprMutator {
   PrimFunc VisitFunc(PrimFunc func) {
     current_target_ = func->GetAttr<Target>(tvm::attr::kTarget);
     auto new_body = VisitStmt(func->body);
-    current_target_ = NullOpt;
+    current_target_ = std::nullopt;
 
     if (!new_body.same_as(func->body)) {
       func.CopyOnWrite()->body = new_body;
@@ -175,15 +176,15 @@ class PrimFuncInliner : StmtExprMutator {
     }
   }
 
-  Optional<Stmt> GetInlinedFunction(const EvaluateNode* eval) {
+  ffi::Optional<Stmt> GetInlinedFunction(const EvaluateNode* eval) {
     auto call = eval->value.as<CallNode>();
-    if (!call) return NullOpt;
+    if (!call) return std::nullopt;
 
     auto gvar = call->op.as<GlobalVar>();
-    if (!gvar) return NullOpt;
+    if (!gvar) return std::nullopt;
 
     auto opt_callee = inlinable_funcs_.Get(gvar.value());
-    if (!opt_callee) return NullOpt;
+    if (!opt_callee) return std::nullopt;
     auto callee = opt_callee.value();
 
     bool is_same_target = [&]() -> bool {
@@ -194,7 +195,7 @@ class PrimFuncInliner : StmtExprMutator {
         return true;
       }
     }();
-    if (!is_same_target) return NullOpt;
+    if (!is_same_target) return std::nullopt;
 
     Stmt inlined = InlineArguments(gvar.value(), callee, call->args);
     return VisitStmt(inlined);
@@ -221,7 +222,8 @@ class PrimFuncInliner : StmtExprMutator {
     return StmtExprMutator::VisitExpr_(call);
   }
 
-  Stmt InlineArguments(const GlobalVar& gvar, PrimFunc callee, const Array<PrimExpr>& args) const {
+  Stmt InlineArguments(const GlobalVar& gvar, PrimFunc callee,
+                       const ffi::Array<PrimExpr>& args) const {
     CHECK_EQ(callee->params.size(), args.size())
         << "Callee " << gvar << " accepts " << callee->params.size() << " parameters ("
         << callee->params << "), but is called with " << args.size() << " arguments (" << args
@@ -231,7 +233,7 @@ class PrimFuncInliner : StmtExprMutator {
         << "Inlining of PrimFuncs with buffer arguments is not yet supported, "
         << "but callee " << gvar << " has non-empty buffer map " << callee->buffer_map;
 
-    Map<Var, Variant<tir::Buffer, tvm::PrimExpr>> param_map;
+    ffi::Map<Var, ffi::Variant<tir::Buffer, tvm::PrimExpr>> param_map;
     for (size_t i = 0; i < callee->params.size(); i++) {
       param_map.Set(callee->params[i], args[i]);
     }
@@ -242,7 +244,7 @@ class PrimFuncInliner : StmtExprMutator {
   }
 
   // Map from GlobalVar to PrimFuncs which may be inlined.
-  Map<GlobalVar, PrimFunc> inlinable_funcs_;
+  ffi::Map<GlobalVar, PrimFunc> inlinable_funcs_;
 
   /* \brief Set of callees that may be removed
    *
@@ -252,7 +254,7 @@ class PrimFuncInliner : StmtExprMutator {
    */
   PSet<GlobalVar> removable_funcs_;
 
-  Optional<Target> current_target_ = NullOpt;
+  ffi::Optional<Target> current_target_ = std::nullopt;
 };
 
 }  // namespace
@@ -292,7 +294,10 @@ Pass InlinePrivateFunctions() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.InlinePrivateFunctions", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InlinePrivateFunctions").set_body_typed(InlinePrivateFunctions);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.InlinePrivateFunctions", InlinePrivateFunctions);
+}
 
 }  // namespace transform
 

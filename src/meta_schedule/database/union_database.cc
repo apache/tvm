@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -23,25 +25,26 @@ namespace meta_schedule {
 
 class UnionDatabaseNode : public DatabaseNode {
  public:
-  Array<Database> databases;
+  ffi::Array<Database> databases;
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("databases", &databases); }
-
-  static constexpr const char* _type_key = "meta_schedule.UnionDatabase";
-  TVM_DECLARE_FINAL_OBJECT_INFO(UnionDatabaseNode, DatabaseNode);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<UnionDatabaseNode>().def_ro("databases", &UnionDatabaseNode::databases);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.UnionDatabase", UnionDatabaseNode, DatabaseNode);
 
  public:
-  Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
-                                           const String& task_name) final {
+  ffi::Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
+                                                const ffi::String& task_name) final {
     std::vector<TuningRecord> results;
     results.reserve(databases.size());
     for (const Database& db : databases) {
-      if (Optional<TuningRecord> record = db->QueryTuningRecord(mod, target, task_name)) {
+      if (ffi::Optional<TuningRecord> record = db->QueryTuningRecord(mod, target, task_name)) {
         results.push_back(record.value());
       }
     }
     std::stable_sort(results.begin(), results.end(), SortTuningRecordByMeanRunSecs());
-    return results.empty() ? Optional<TuningRecord>(NullOpt) : results[0];
+    return results.empty() ? ffi::Optional<TuningRecord>(std::nullopt) : results[0];
   }
 
   bool HasWorkload(const IRModule& mod) final {
@@ -59,12 +62,12 @@ class UnionDatabaseNode : public DatabaseNode {
     throw;
   }
 
-  Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
+  ffi::Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
     LOG(FATAL) << "NotImplementedError: UnionDatabase.GetTopK";
     throw;
   }
 
-  Array<TuningRecord> GetAllTuningRecords() final {
+  ffi::Array<TuningRecord> GetAllTuningRecords() final {
     LOG(FATAL) << "NotImplementedError: UnionDatabase.GetAllTuningRecords";
     throw;
   }
@@ -75,14 +78,18 @@ class UnionDatabaseNode : public DatabaseNode {
   }
 };
 
-Database Database::UnionDatabase(Array<Database> databases) {
-  ObjectPtr<UnionDatabaseNode> n = make_object<UnionDatabaseNode>();
+Database Database::UnionDatabase(ffi::Array<Database> databases) {
+  ObjectPtr<UnionDatabaseNode> n = ffi::make_object<UnionDatabaseNode>();
   n->databases = std::move(databases);
   return Database(n);
 }
 
-TVM_REGISTER_NODE_TYPE(UnionDatabaseNode);
-TVM_REGISTER_GLOBAL("meta_schedule.DatabaseUnionDatabase").set_body_typed(Database::UnionDatabase);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.DatabaseUnionDatabase", Database::UnionDatabase);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() { UnionDatabaseNode::RegisterReflection(); }
 
 }  // namespace meta_schedule
 }  // namespace tvm

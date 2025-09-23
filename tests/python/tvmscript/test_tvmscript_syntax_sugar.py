@@ -506,5 +506,27 @@ def test_return_statement():
     assert_structural_equal_ignore_global_symbol(implicit, explicit)
 
 
+def test_loop_jump_statement():
+    """`break` and `continue` evaluates to TIR intrinsics"""
+
+    @T.prim_func
+    def explicit():
+        for i in range(16):
+            if i % 2 == 0:
+                T.evaluate(T.continue_loop())
+            if i < 15:
+                T.evaluate(T.break_loop())
+
+    @T.prim_func
+    def implicit():
+        for i in range(16):
+            if i % 2 == 0:
+                continue
+            if i < 15:
+                break
+
+    assert_structural_equal_ignore_global_symbol(implicit, explicit)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

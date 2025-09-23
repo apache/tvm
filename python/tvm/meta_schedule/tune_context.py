@@ -21,14 +21,14 @@ from typing import TYPE_CHECKING, List, Optional, Union
 # isort: off
 from typing_extensions import Literal
 
+from tvm_ffi import register_object, register_global_func
+
 # isort: on
 
 from tvm import IRModule
-from tvm._ffi import register_object, register_func
 from tvm.runtime import Object
 from tvm.target import Target
 from tvm.tir import PrimFunc, Schedule
-from tvm.script import tir as T
 
 from . import _ffi_api
 from .logging import Logger, get_logger, get_logging_func
@@ -42,13 +42,13 @@ if TYPE_CHECKING:
     from .space_generator import SpaceGenerator
 
 
-@register_func("tvm.meta_schedule.normalize_mod")
+@register_global_func("tvm.meta_schedule.normalize_mod")
 def _normalize_mod(mod: Union[PrimFunc, IRModule]) -> IRModule:
     """Normalize the input to an IRModule"""
     if isinstance(mod, PrimFunc):
         if not (mod.attrs and "global_symbol" in mod.attrs):
             mod = mod.with_attr("global_symbol", "main")
-        mod = mod.with_attr("tir.noalias", T.bool(True))
+        mod = mod.with_attr("tir.noalias", True)
         mod = IRModule({"main": mod})
     if not isinstance(mod, IRModule):
         raise TypeError(f"Expected `mod` to be PrimFunc or IRModule, but gets: {mod}")

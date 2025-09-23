@@ -22,6 +22,7 @@
  * \brief Lift local functions into global functions.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -35,11 +36,11 @@ namespace relax {
 
 class ModelParamBundler : public ExprMutator {
  public:
-  explicit ModelParamBundler(Optional<String> param_tuple_name)
+  explicit ModelParamBundler(ffi::Optional<ffi::String> param_tuple_name)
       : param_tuple_name_(param_tuple_name) {}
 
   Expr VisitExpr_(const FunctionNode* op) override {
-    Function func = GetRef<Function>(op);
+    Function func = ffi::GetRef<Function>(op);
     auto opt_num_input = func->attrs.GetAttr<Integer>(attr::kNumInput);
     if (!opt_num_input) return func;
     auto signed_num_input = opt_num_input.value()->value;
@@ -50,12 +51,12 @@ class ModelParamBundler : public ExprMutator {
         << "but only has " << func->params.size() << " parameters total.";
     size_t num_input = signed_num_input;
 
-    Array<Var> params;
+    ffi::Array<Var> params;
     for (size_t i = 0; i < num_input; i++) {
       params.push_back(func->params[i]);
     }
 
-    Array<StructInfo> param_tuple;
+    ffi::Array<StructInfo> param_tuple;
     for (size_t i = num_input; i < func->params.size(); i++) {
       param_tuple.push_back(GetStructInfo(func->params[i]));
     }
@@ -73,7 +74,7 @@ class ModelParamBundler : public ExprMutator {
   }
 
   Expr VisitExpr_(const VarNode* op) override {
-    auto var = GetRef<Var>(op);
+    auto var = ffi::GetRef<Var>(op);
     if (auto it = var_to_expr_.find(var); it != var_to_expr_.end()) {
       return builder_->Emit((*it).second, op->name_hint());
     } else {
@@ -82,19 +83,18 @@ class ModelParamBundler : public ExprMutator {
   }
 
  private:
-  Optional<String> param_tuple_name_;
-  Map<Var, Expr> var_to_expr_;
+  ffi::Optional<ffi::String> param_tuple_name_;
+  ffi::Map<Var, Expr> var_to_expr_;
 };
 
-Function BundleModelParams(const Function& func, Optional<String> param_tuple_name) {
+Function BundleModelParams(const Function& func, ffi::Optional<ffi::String> param_tuple_name) {
   ModelParamBundler mutator(param_tuple_name);
   return Downcast<Function>(mutator(func));
 }
 
 namespace transform {
-Pass BundleModelParams(Optional<String> param_tuple_name) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
-                                                                            PassContext pc) {
+Pass BundleModelParams(ffi::Optional<ffi::String> param_tuple_name) {
+  auto pass_func = [=](IRModule mod, PassContext pc) {
     IRModule updates;
 
     ModelParamBundler mutator(param_tuple_name);
@@ -116,7 +116,10 @@ Pass BundleModelParams(Optional<String> param_tuple_name) {
   return CreateModulePass(pass_func, 1, "BundleModelParams", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.BundleModelParams").set_body_typed(BundleModelParams);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.BundleModelParams", BundleModelParams);
+}
 
 }  // namespace transform
 }  // namespace relax

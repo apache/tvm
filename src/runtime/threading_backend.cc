@@ -21,8 +21,10 @@
  * \file threading_backend.cc
  * \brief Native threading backend
  */
+#include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 
 #if defined(__linux__) || defined(__ANDROID__)
@@ -369,7 +371,7 @@ int ThreadGroup::Configure(AffinityMode mode, int nthreads, bool exclude_worker0
   return impl_->Configure(mode, nthreads, exclude_worker0, cpus);
 }
 
-void Yield() {
+void YieldThread() {
 #ifdef __hexagon__
   // QuRT doesn't have a yield API, so instead we sleep for the minimum amount
   // of time to let the OS schedule another thread. std::this_thread::yield()
@@ -436,11 +438,14 @@ int MaxConcurrency() {
 
 // This global function can be used by disco runtime to bind processes
 // to CPUs.
-TVM_REGISTER_GLOBAL("tvm.runtime.threading.set_current_thread_affinity")
-    .set_body_typed([](IntTuple cpu_ids) {
-      SetThreadAffinity(CURRENT_THREAD_HANDLE,
-                        std::vector<unsigned int>{cpu_ids.begin(), cpu_ids.end()});
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "tvm.runtime.threading.set_current_thread_affinity", [](ffi::Shape cpu_ids) {
+        SetThreadAffinity(CURRENT_THREAD_HANDLE,
+                          std::vector<unsigned int>{cpu_ids.begin(), cpu_ids.end()});
+      });
+}
 
 }  // namespace threading
 }  // namespace runtime

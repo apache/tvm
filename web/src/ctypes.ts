@@ -27,198 +27,6 @@ export type Pointer = number;
 /** A pointer offset, need to add a base address to get a valid ptr. */
 export type PtrOffset = number;
 
-// -- TVM runtime C API --
-/**
- * const char *TVMGetLastError();
- */
-export type FTVMGetLastError = () => Pointer;
-
-/**
- * void TVMAPISetLastError(const char* msg);
- */
-export type FTVMAPISetLastError = (msg: Pointer) => void;
-
-/**
- * int TVMModGetFunction(TVMModuleHandle mod,
- *                       const char* func_name,
- *                       int query_imports,
- *                       TVMFunctionHandle *out);
- */
-export type FTVMModGetFunction = (
-  mod: Pointer, funcName: Pointer, queryImports: number, out: Pointer) => number;
-/**
- * int TVMModImport(TVMModuleHandle mod,
- *                  TVMModuleHandle dep);
- */
-export type FTVMModImport = (mod: Pointer, dep: Pointer) => number;
-
-/**
- * int TVMModFree(TVMModuleHandle mod);
- */
-export type FTVMModFree = (mod: Pointer) => number;
-
-/**
- * int TVMFuncFree(TVMFunctionHandle func);
- */
-export type FTVMFuncFree = (func: Pointer) => number;
-
-/**
- * int TVMFuncCall(TVMFunctionHandle func,
- *                 TVMValue* arg_values,
- *                 int* type_codes,
- *                 int num_args,
- *                 TVMValue* ret_val,
- *                 int* ret_type_code);
- */
-export type FTVMFuncCall = (
-  func: Pointer, argValues: Pointer, typeCode: Pointer,
-  nargs: number, retValue: Pointer, retCode: Pointer) => number;
-
-/**
- * int TVMCFuncSetReturn(TVMRetValueHandle ret,
- *                       TVMValue* value,
- *                       int* type_code,
- *                       int num_ret);
- */
-export type FTVMCFuncSetReturn = (
-  ret: Pointer, value: Pointer, typeCode: Pointer, numRet: number) => number;
-
-/**
- * int TVMCbArgToReturn(TVMValue* value, int* code);
- */
-export type FTVMCbArgToReturn = (value: Pointer, code: Pointer) => number;
-
-/**
- * int TVMFuncListGlobalNames(int* outSize, const char*** outArray);
- */
-export type FTVMFuncListGlobalNames = (outSize: Pointer, outArray: Pointer) => number;
-
-/**
- * int TVMFuncRegisterGlobal(
- *    const char* name, TVMFunctionHandle f, int override);
- */
-export type FTVMFuncRegisterGlobal = (
-  name: Pointer, f: Pointer, override: number) => number;
-
-/**
- *int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out);
-    */
-export type FTVMFuncGetGlobal = (name: Pointer, out: Pointer) => number;
-
-/**
- * int TVMArrayAlloc(const tvm_index_t* shape,
- *                   int ndim,
- *                   int dtype_code,
- *                   int dtype_bits,
- *                   int dtype_lanes,
- *                   int device_type,
- *                   int device_id,
- *                   TVMArrayHandle* out);
- */
-export type FTVMArrayAlloc = (
-  shape: Pointer, ndim: number,
-  dtypeCode: number, dtypeBits: number,
-  dtypeLanes: number, deviceType: number, deviceId: number,
-  out: Pointer) => number;
-
-/**
- * int TVMArrayFree(TVMArrayHandle handle);
- */
-export type FTVMArrayFree = (handle: Pointer) => number;
-
-/**
- * int TVMArrayCopyFromBytes(TVMArrayHandle handle,
- *                           void* data,
- *                           size_t nbytes);
- */
-export type FTVMArrayCopyFromBytes = (
-  handle: Pointer, data: Pointer, nbytes: number) => number;
-
-/**
- * int TVMArrayCopyToBytes(TVMArrayHandle handle,
- *                         void* data,
- *                         size_t nbytes);
- */
-export type FTVMArrayCopyToBytes = (
-  handle: Pointer, data: Pointer, nbytes: number) => number;
-
-/**
- * int TVMArrayCopyFromTo(TVMArrayHandle from,
- *                        TVMArrayHandle to,
- *                        TVMStreamHandle stream);
- */
-export type FTVMArrayCopyFromTo = (
-  from: Pointer, to: Pointer, stream: Pointer) => number;
-
-/**
- * int TVMSynchronize(int device_type, int device_id, TVMStreamHandle stream);
- */
-export type FTVMSynchronize = (
-  deviceType: number, deviceId: number, stream: Pointer) => number;
-
-/**
- * typedef int (*TVMBackendPackedCFunc)(TVMValue* args,
- *                                      int* type_codes,
- *                                      int num_args,
- *                                      TVMValue* out_ret_value,
- *                                      int* out_ret_tcode);
- */
-export type FTVMBackendPackedCFunc = (
-  argValues: Pointer, argCodes: Pointer, nargs: number,
-  outValue: Pointer, outCode: Pointer) => number;
-
-
-/**
- * int TVMObjectFree(TVMObjectHandle obj);
- */
-export type FTVMObjectFree = (obj: Pointer) => number;
-
-/**
- * int TVMObjectGetTypeIndex(TVMObjectHandle obj, unsigned* out_tindex);
- */
-export type FTVMObjectGetTypeIndex = (obj: Pointer, out_tindex: Pointer) => number;
-
-/**
- * int TVMObjectTypeIndex2Key(unsigned tindex, char** out_type_key);
- */
-export type FTVMObjectTypeIndex2Key = (type_index: number, out_type_key: Pointer) => number;
-
-/**
- * int TVMObjectTypeKey2Index(const char* type_key, unsigned* out_tindex);
- */
-export type FTVMObjectTypeKey2Index = (type_key: Pointer, out_tindex: Pointer) => number;
-
-// -- TVM Wasm Auxiliary C API --
-
-/** void* TVMWasmAllocSpace(int size); */
-export type FTVMWasmAllocSpace = (size: number) => Pointer;
-
-/** void TVMWasmFreeSpace(void* data); */
-export type FTVMWasmFreeSpace = (ptr: Pointer) => void;
-
-/**
- * int TVMWasmPackedCFunc(TVMValue* args,
- *                        int* type_codes,
- *                        int num_args,
- *                        TVMRetValueHandle ret,
- *                        void* resource_handle);
- */
-export type FTVMWasmPackedCFunc = (
-  args: Pointer, typeCodes: Pointer, nargs: number,
-  ret: Pointer, resourceHandle: Pointer) => number;
-
-/**
- * int TVMWasmFuncCreateFromCFunc(void* resource_handle,
- *                                TVMFunctionHandle *out);
- */
-export type FTVMWasmFuncCreateFromCFunc = (
-  resource: Pointer, out: Pointer) => number;
-
-/**
- * void TVMWasmPackedCFuncFinalizer(void* resource_handle);
- */
-export type FTVMWasmPackedCFuncFinalizer = (resourceHandle: Pointer) => void;
-
 /**
  * Size of common data types.
  */
@@ -230,28 +38,158 @@ export const enum SizeOf {
   F32 = 4,
   F64 = 8,
   TVMValue = 8,
+  TVMFFIAny = 8 * 2,
   DLDataType = I32,
   DLDevice = I32 + I32,
+  ObjectHeader = 8 * 3,
 }
 
+//---------------The new TVM FFI---------------
 /**
- * Argument Type code in TVM FFI.
+ * Type Index in new TVM FFI.
+ *
+ * We are keeping the same style as C API here.
  */
-export const enum ArgTypeCode {
-  Int = 0,
-  UInt = 1,
-  Float = 2,
-  TVMOpaqueHandle = 3,
-  Null = 4,
-  TVMDataType = 5,
-  DLDevice = 6,
-  TVMDLTensorHandle = 7,
-  TVMObjectHandle = 8,
-  TVMModuleHandle = 9,
-  TVMPackedFuncHandle = 10,
-  TVMStr = 11,
-  TVMBytes = 12,
-  TVMNDArrayHandle = 13,
-  TVMObjectRValueRefArg = 14,
-  TVMArgBool = 15,
+export const enum TypeIndex {
+  kTVMFFINone = 0,
+  /*! \brief POD int value */
+  kTVMFFIInt = 1,
+  /*! \brief POD bool value */
+  kTVMFFIBool = 2,
+  /*! \brief POD float value */
+  kTVMFFIFloat = 3,
+  /*! \brief Opaque pointer object */
+  kTVMFFIOpaquePtr = 4,
+  /*! \brief DLDataType */
+  kTVMFFIDataType = 5,
+  /*! \brief DLDevice */
+  kTVMFFIDevice = 6,
+  /*! \brief DLTensor* */
+  kTVMFFIDLTensorPtr = 7,
+  /*! \brief const char**/
+  kTVMFFIRawStr = 8,
+  /*! \brief TVMFFIByteArray* */
+  kTVMFFIByteArrayPtr = 9,
+  /*! \brief R-value reference to ObjectRef */
+  kTVMFFIObjectRValueRef = 10,
+  /*! \brief Small string on stack */
+  kTVMFFISmallStr = 11,
+  /*! \brief Small bytes on stack */
+  kTVMFFISmallBytes = 12,
+  /*! \brief Start of statically defined objects. */
+  kTVMFFIStaticObjectBegin = 64,
+  /*!
+   * \brief Object, all objects starts with TVMFFIObject as its header.
+   * \note We will also add other fields
+   */
+  kTVMFFIObject = 64,
+  /*!
+   * \brief String object, layout = { TVMFFIObject, TVMFFIByteArray, ... }
+   */
+  kTVMFFIStr = 65,
+  /*!
+   * \brief Bytes object, layout = { TVMFFIObject, TVMFFIByteArray, ... }
+   */
+  kTVMFFIBytes = 66,
+  /*! \brief Error object. */
+  kTVMFFIError = 67,
+  /*! \brief Function object. */
+  kTVMFFIFunction = 68,
+  /*! \brief Array object. */
+  kTVMFFIArray = 69,
+  /*!
+   * \brief Shape object, layout = { TVMFFIObject, { const int64_t*, size_t }, ... }
+   */
+  kTVMFFIShape = 70,
+  /*!
+   * \brief Tensor object, layout = { TVMFFIObject, DLTensor, ... }
+   */
+  kTVMFFITensor = 71,
+  /*! \brief Map object. */
+  kTVMFFIMap = 72,
+  /*! \brief Runtime module object. */
+  kTVMFFIModule = 73,
 }
+
+// -- TVM Wasm Auxiliary C API --
+
+/** void* TVMWasmAllocSpace(int size); */
+export type FTVMWasmAllocSpace = (size: number) => Pointer;
+
+/** void TVMWasmFreeSpace(void* data); */
+export type FTVMWasmFreeSpace = (ptr: Pointer) => void;
+
+/** const char* TVMFFIWasmGetLastError(); */
+export type FTVMFFIWasmGetLastError = () => Pointer;
+
+/**
+ * int TVMFFIWasmSafeCallType(void* self, const TVMFFIAny* args,
+ *                            int32_t num_args, TVMFFIAny* result);
+ */
+export type FTVMFFIWasmSafeCallType = (
+  self: Pointer, args: Pointer, num_args: number,
+  result: Pointer) => number;
+
+/**
+ * int TVMFFIWasmFunctionCreate(void* resource_handle, TVMFunctionHandle* out);
+ */
+export type FTVMFFIWasmFunctionCreate = (
+  resource_handle: Pointer, out: Pointer) => number;
+
+/**
+ * void TVMFFIWasmFunctionDeleter(void* self);
+ */
+export type FTVMFFIWasmFunctionDeleter = (self: Pointer) => void;
+
+/**
+ * int TVMFFIObjectDecRef(TVMFFIObjectHandle obj);
+ */
+export type FTVMFFIObjectDecRef = (obj: Pointer) => number;
+
+/**
+ * int TVMFFITypeKeyToIndex(const TVMFFIByteArray* type_key, int32_t* out_tindex);
+ */
+export type FTVMFFITypeKeyToIndex = (type_key: Pointer, out_tindex: Pointer) => number;
+
+/**
+ * int TVMFFIAnyViewToOwnedAny(const TVMFFIAny* any_view, TVMFFIAny* out);
+ */
+export type FTVMFFIAnyViewToOwnedAny = (any_view: Pointer, out: Pointer) => number;
+
+/**
+ * void TVMFFIErrorSetRaisedFromCStr(const char* kind, const char* message);
+ */
+export type FTVMFFIErrorSetRaisedFromCStr = (kind: Pointer, message: Pointer) => void;
+
+/**
+ * int TVMFFIFunctionSetGlobal(const TVMFFIByteArray* name, TVMFFIObjectHandle f,
+ *                             int override);
+ */
+export type FTVMFFIFunctionSetGlobal = (name: Pointer, f: Pointer, override: number) => number;
+
+/**
+ * int TVMFFIFunctionGetGlobal(const TVMFFIByteArray* name, TVMFFIObjectHandle* out);
+ */
+export type FTVMFFIFunctionGetGlobal = (name: Pointer, out: Pointer) => number;
+
+/**
+ * int TVMFFIFunctionCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_args,
+ *                        TVMFFIAny* result);
+ */
+export type FTVMFFIFunctionCall = (func: Pointer, args: Pointer, num_args: number,
+                                   result: Pointer) => number;
+
+/**
+ * int TVMFFIDataTypeFromString(const TVMFFIByteArray* str, DLDataType* out);
+ */
+export type FTVMFFIDataTypeFromString = (str: Pointer, out: Pointer) => number;
+
+/**
+ * int TVMFFIDataTypeToString(const DLDataType* dtype, TVMFFIObjectHandle* out);
+ */
+export type FTVMFFIDataTypeToString = (dtype: Pointer, out: Pointer) => number;
+
+/**
+ * TVMFFITypeInfo* TVMFFIGetTypeInfo(int32_t type_index);
+ */
+export type FTVMFFIGetTypeInfo = (type_index: number) => Pointer;

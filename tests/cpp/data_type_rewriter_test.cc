@@ -37,7 +37,7 @@ TYPED_TEST_SUITE(DataTypeLegalizerBinaryOp, BinaryOpTypes);
 TYPED_TEST(DataTypeLegalizerBinaryOp, Basic) {
   using RefType = TypeParam;
   using NodeType = typename RefType::ContainerType;
-  auto node = make_object<NodeType>();
+  auto node = ffi::make_object<NodeType>();
   node->a = Var("a", DataType::Int(32));
   node->b = IntImm(DataType::Int(64), 2);
   DataTypeLegalizer legalizer;
@@ -48,7 +48,7 @@ TYPED_TEST(DataTypeLegalizerBinaryOp, Basic) {
 }
 
 TEST(DataTypeLegalizer, Select) {
-  auto node = make_object<SelectNode>();
+  auto node = ffi::make_object<SelectNode>();
   node->condition = Var("cond", DataType::Bool());
   node->true_value = Var("a", DataType::Int(64));
   node->false_value = IntImm(DataType::Int(32), 2);
@@ -73,8 +73,8 @@ TEST(DataTypeLegalizer, IfThenElse) {
 }
 
 TEST(DataTypeLegalizer, Block) {
-  auto block_node = make_object<BlockNode>();
-  auto iter_var_node = make_object<IterVarNode>();
+  auto block_node = ffi::make_object<BlockNode>();
+  auto iter_var_node = ffi::make_object<IterVarNode>();
   iter_var_node->var = Var("i", DataType::Int(32));
   iter_var_node->dom =
       Range::FromMinExtent(IntImm(DataType::Int(64), 0), IntImm(DataType::Int(64), 10));
@@ -84,12 +84,12 @@ TEST(DataTypeLegalizer, Block) {
   block_node->writes = {};
   block_node->name_hint = "block";
   block_node->body = Evaluate(Integer(0));
-  auto block_realize_node = make_object<BlockRealizeNode>();
+  auto block_realize_node = ffi::make_object<BlockRealizeNode>();
   auto loop_var = Var("i", DataType::Int(32));
   block_realize_node->iter_values = {loop_var};
   block_realize_node->predicate = const_true();
   block_realize_node->block = Block(block_node);
-  auto for_node = make_object<ForNode>();
+  auto for_node = ffi::make_object<ForNode>();
   for_node->loop_var = loop_var;
   for_node->min = IntImm(DataType::Int(64), 0);
   for_node->extent = IntImm(DataType::Int(64), 10);
@@ -113,7 +113,7 @@ TEST(DataTypeLegalizer, Block) {
 }
 
 TEST(DataTypeLegalizer, For) {
-  auto node = make_object<ForNode>();
+  auto node = ffi::make_object<ForNode>();
   node->body = Evaluate(Integer(0));
   node->loop_var = Var("i", DataType::Int(32));
   node->min = IntImm(DataType::Int(64), 0);
@@ -126,7 +126,7 @@ TEST(DataTypeLegalizer, For) {
 }
 
 TEST(DataTypeLegalizer, Ramp) {
-  auto node = make_object<RampNode>();
+  auto node = ffi::make_object<RampNode>();
   node->base = IntImm(DataType::Int(64), 0);
   node->stride = IntImm(DataType::Int(32), 1);
   int lanes = 4;

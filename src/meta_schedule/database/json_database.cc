@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include <set>
 #include <thread>
 #include <unordered_map>
@@ -33,15 +35,15 @@ namespace meta_schedule {
  * \param allow_missing Whether to create new file when the given path is not found.
  * \return An array containing lines read from the json file.
  */
-std::vector<ObjectRef> JSONFileReadLines(const String& path, int num_threads, bool allow_missing) {
+std::vector<Any> JSONFileReadLines(const ffi::String& path, int num_threads, bool allow_missing) {
   std::ifstream is(path);
   if (is.good()) {
-    std::vector<String> json_strs;
+    std::vector<ffi::String> json_strs;
     for (std::string str; std::getline(is, str);) {
       json_strs.push_back(str);
     }
     int n = json_strs.size();
-    std::vector<ObjectRef> json_objs;
+    std::vector<Any> json_objs;
     json_objs.resize(n);
     support::parallel_for_dynamic(0, n, num_threads, [&](int thread_id, int task_id) {
       json_objs[task_id] = JSONLoads(json_strs[task_id]);
@@ -59,7 +61,7 @@ std::vector<ObjectRef> JSONFileReadLines(const String& path, int num_threads, bo
  * \param path The path to the json file.
  * \param line The line to append.
  */
-void JSONFileAppendLine(const String& path, const std::string& line) {
+void JSONFileAppendLine(const ffi::String& path, const std::string& line) {
   std::ofstream os(path, std::ofstream::app);
   CHECK(os.good()) << "ValueError: Cannot open the file to write: " << path;
   os << line << std::endl;
@@ -68,28 +70,26 @@ void JSONFileAppendLine(const String& path, const std::string& line) {
 /*! \brief The default database implementation, which mimics two database tables with two files. */
 class JSONDatabaseNode : public DatabaseNode {
  public:
-  explicit JSONDatabaseNode(String mod_eq_name = "structural")
+  explicit JSONDatabaseNode(ffi::String mod_eq_name = "structural")
       : DatabaseNode(mod_eq_name),
         workloads2idx_(/*bucket_count*/ 0, WorkloadHash(), WorkloadEqual(GetModuleEquality())) {}
 
   /*! \brief The path to the workload table */
-  String path_workload;
+  ffi::String path_workload;
   /*! \brief The path to the tuning record table */
-  String path_tuning_record;
+  ffi::String path_tuning_record;
   /*! \brief All the workloads in the database */
   std::unordered_map<Workload, int, WorkloadHash, WorkloadEqual> workloads2idx_;
   /*! \brief All the tuning records in the database */
   std::multiset<TuningRecord, SortTuningRecordByMeanRunSecs> tuning_records_;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("path_workload", &path_workload);
-    v->Visit("path_tuning_record", &path_tuning_record);
-    // `workloads2idx_` is not visited
-    // `tuning_records_` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<JSONDatabaseNode>()
+        .def_ro("path_workload", &JSONDatabaseNode::path_workload)
+        .def_ro("path_tuning_record", &JSONDatabaseNode::path_tuning_record);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.JSONDatabase";
-  TVM_DECLARE_FINAL_OBJECT_INFO(JSONDatabaseNode, DatabaseNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.JSONDatabase", JSONDatabaseNode, DatabaseNode);
 
  public:
   bool HasWorkload(const IRModule& mod) {
@@ -113,18 +113,18 @@ class JSONDatabaseNode : public DatabaseNode {
   void CommitTuningRecord(const TuningRecord& record) {
     this->tuning_records_.insert(record);
     JSONFileAppendLine(this->path_tuning_record,
-                       JSONDumps(Array<ObjectRef>{
+                       JSONDumps(ffi::Array<Any>{
                            /*workload_index=*/Integer(this->workloads2idx_.at(record->workload)),
                            /*tuning_record=*/record->AsJSON()  //
                        }));
   }
 
-  Array<TuningRecord> GetTopK(const Workload& workload, int top_k) {
+  ffi::Array<TuningRecord> GetTopK(const Workload& workload, int top_k) {
     CHECK_GE(top_k, 0) << "ValueError: top_k must be non-negative";
     if (top_k == 0) {
       return {};
     }
-    Array<TuningRecord> results;
+    ffi::Array<TuningRecord> results;
     results.reserve(top_k);
     for (const TuningRecord& record : this->tuning_records_) {
       auto run_secs = record->run_secs;
@@ -142,8 +142,8 @@ class JSONDatabaseNode : public DatabaseNode {
     return results;
   }
 
-  Array<TuningRecord> GetAllTuningRecords() {
-    Array<TuningRecord> results;
+  ffi::Array<TuningRecord> GetAllTuningRecords() {
+    ffi::Array<TuningRecord> results;
     results.reserve(Size());
     for (const TuningRecord& record : this->tuning_records_) {
       results.push_back(record);
@@ -154,24 +154,24 @@ class JSONDatabaseNode : public DatabaseNode {
   int64_t Size() { return tuning_records_.size(); }
 };
 
-Database Database::JSONDatabase(String path_workload, String path_tuning_record, bool allow_missing,
-                                String mod_eq_name) {
+Database Database::JSONDatabase(ffi::String path_workload, ffi::String path_tuning_record,
+                                bool allow_missing, ffi::String mod_eq_name) {
   int num_threads = std::thread::hardware_concurrency();
-  ObjectPtr<JSONDatabaseNode> n = make_object<JSONDatabaseNode>(mod_eq_name);
+  ObjectPtr<JSONDatabaseNode> n = ffi::make_object<JSONDatabaseNode>(mod_eq_name);
   // Load `n->workloads2idx_` from `path_workload`
   std::vector<Workload> workloads;
   {
-    std::vector<ObjectRef> json_objs = JSONFileReadLines(path_workload, num_threads, allow_missing);
+    std::vector<Any> json_objs = JSONFileReadLines(path_workload, num_threads, allow_missing);
     int n_objs = json_objs.size();
     n->workloads2idx_.reserve(n_objs);
     workloads.reserve(n_objs);
     for (int i = 0; i < n_objs; ++i) {
-      Workload workload = Workload::FromJSON(json_objs[i]);
+      Workload workload = Workload::FromJSON(json_objs[i].cast<ObjectRef>());
       auto recalc_hash = n->GetModuleEquality().Hash(workload->mod);
       // Todo(tvm-team): re-enable the shash check when we get environment
       // independent structural hash values.
       if (recalc_hash != workload->shash) {
-        ObjectPtr<WorkloadNode> wkl = make_object<WorkloadNode>(*workload.get());
+        ObjectPtr<WorkloadNode> wkl = ffi::make_object<WorkloadNode>(*workload.get());
         wkl->shash = recalc_hash;
         workload = Workload(wkl);
       }
@@ -181,21 +181,20 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
   }
   // Load `n->tuning_records_` from `path_tuning_record`
   {
-    std::vector<ObjectRef> json_objs =
-        JSONFileReadLines(path_tuning_record, num_threads, allow_missing);
+    std::vector<Any> json_objs = JSONFileReadLines(path_tuning_record, num_threads, allow_missing);
     std::vector<TuningRecord> records;
-    records.resize(json_objs.size(), TuningRecord{nullptr});
+    records.resize(json_objs.size(), TuningRecord{ffi::UnsafeInit()});
     support::parallel_for_dynamic(
         0, json_objs.size(), num_threads, [&](int thread_id, int task_id) {
-          const ObjectRef& json_obj = json_objs[task_id];
-          Workload workload{nullptr};
+          auto json_obj = json_objs[task_id].cast<ObjectRef>();
+          Workload workload{ffi::UnsafeInit()};
           try {
-            const ArrayNode* arr = json_obj.as<ArrayNode>();
+            const ffi::ArrayObj* arr = json_obj.as<ffi::ArrayObj>();
             ICHECK_EQ(arr->size(), 2);
-            int64_t workload_index = Downcast<runtime::Int>(arr->at(0));
+            int64_t workload_index = arr->at(0).cast<IntImm>()->value;
             ICHECK(workload_index >= 0 && static_cast<size_t>(workload_index) < workloads.size());
             workload = workloads[workload_index];
-            records[task_id] = TuningRecord::FromJSON(arr->at(1), workload);
+            records[task_id] = TuningRecord::FromJSON(arr->at(1).cast<ObjectRef>(), workload);
           } catch (std::runtime_error& e) {
             LOG(FATAL) << "ValueError: Unable to parse TuningRecord, on line " << (task_id + 1)
                        << " of file " << path_tuning_record << ". The workload is:\n"
@@ -214,8 +213,12 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
   return Database(n);
 }
 
-TVM_REGISTER_NODE_TYPE(JSONDatabaseNode);
-TVM_REGISTER_GLOBAL("meta_schedule.DatabaseJSONDatabase").set_body_typed(Database::JSONDatabase);
+TVM_FFI_STATIC_INIT_BLOCK() { JSONDatabaseNode::RegisterReflection(); }
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.DatabaseJSONDatabase", Database::JSONDatabase);
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

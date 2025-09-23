@@ -116,9 +116,10 @@ def test_buffer_load_store():
     root_block = func.body.block
     assert lca[A] == func.body.block
 
-    # LCA of Buffer B is reduction block
-    reduce_block = root_block.body[1].body.body.body.block
-    assert lca[B] == reduce_block
+    # LCA of Buffer B is the loop dominate all reduction loop
+    reduce_dom_loop = root_block.body[1].body
+    reduce_block = reduce_dom_loop.body.body.block
+    assert lca[B] == reduce_dom_loop
 
     # LCA of Buffer C is the second loop kk
     loop_jj = reduce_block.body.body

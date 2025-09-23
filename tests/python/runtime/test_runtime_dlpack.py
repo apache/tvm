@@ -29,20 +29,18 @@ def test_from_dlpack_shape_one():
     tgt = tvm.target.Target(target="llvm", host="llvm")
 
     rows = 1
-    a = tvm.runtime.ndarray.from_dlpack(to_dlpack(torch.randn(rows, 16)))
+    a = tvm.runtime.from_dlpack(to_dlpack(torch.randn(rows, 16)))
 
     A = te.placeholder((rows, 16), name="A")
     B = te.placeholder((rows, 16), name="B")
     C = te.compute(A.shape, lambda i, j: A[i, j] + B[i, j], name="C")
 
-    s = te.create_schedule(C.op)
-
-    fadd = tvm.build(s, [A, B, C], tgt)
+    fadd = tvm.compile(te.create_prim_func([A, B, C]), target=tgt)
 
     dev = tvm.device(tgt.kind.name, 0)
 
-    b = tvm.nd.array(np.random.uniform(size=(rows, 16)).astype(B.dtype), dev)
-    c = tvm.nd.array(np.zeros((rows, 16), dtype=C.dtype), dev)
+    b = tvm.runtime.tensor(np.random.uniform(size=(rows, 16)).astype(B.dtype), dev)
+    c = tvm.runtime.tensor(np.zeros((rows, 16), dtype=C.dtype), dev)
     fadd(a, b, c)
 
     tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
@@ -55,7 +53,7 @@ def test_from_dlpack_strided():
 
     rows = 1
     inp = torch.randn(rows, 16)
-    a = tvm.runtime.ndarray.from_dlpack(to_dlpack(inp))
+    a = tvm.runtime.from_dlpack(to_dlpack(inp))
     view = a._create_view((2, 8))
 
     np.testing.assert_equal(inp.numpy().reshape(2, 8), view.numpy())

@@ -16,7 +16,6 @@
 # under the License.
 import tvm
 from tvm import te
-from tvm import relay
 import numpy as np
 import pytest
 from tvm.testing import enabled_targets
@@ -317,7 +316,7 @@ def test_no_hoisting_1():
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
+        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
         new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
@@ -342,7 +341,7 @@ def test_no_hoisting_2():
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
+        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
         new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
@@ -378,7 +377,7 @@ def test_no_hoisting_3():
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
+        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
         new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
@@ -411,7 +410,7 @@ def test_no_hoisting_4():
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
+        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
         new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
@@ -447,7 +446,7 @@ def test_no_hoisting_5():
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
+        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
         new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
@@ -479,7 +478,7 @@ def test_no_hoisting_6():
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
+        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
         new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
@@ -510,38 +509,10 @@ def test_no_hoisting_7():
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
+        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
         new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
-
-
-def test_hoisting_block_scope_1():
-    n = te.size_var("n")
-    m = te.size_var("m")
-    A = te.placeholder((n, m), name="A")
-    k = te.reduce_axis((0, m), "k")
-    B = te.compute((n,), lambda i: te.sum(A[i, k], axis=k), name="B")
-    s = te.create_schedule(B.op)
-    ko, ki = s[B].split(B.op.reduce_axis[0], factor=16)
-    BF = s.rfactor(B, ki)
-    xo, xi = s[B].split(s[B].op.axis[0], factor=32)
-    s[B.op].bind(xo, te.thread_axis("blockIdx.x"))
-    s[B.op].bind(xi, te.thread_axis("threadIdx.y"))
-    s[B].bind(s[B].op.reduce_axis[0], te.thread_axis("threadIdx.x"))
-    s[BF].compute_at(s[B], s[B].op.reduce_axis[0])
-    mod = tvm.driver.build_module.schedule_to_module(s, [A, B], "main", None)
-    mod = tvm.tir.transform.Simplify()(mod)
-    mod = tvm.tir.transform.RemoveNoOp()(mod)
-    stmt = mod["main"].body
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
-    tvm.ir.assert_structural_equal(new_stmt, stmt)
-
-    with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
-    ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
-    assert not tvm.ir.structural_equal(new_stmt, stmt)
 
 
 def test_hoisting_block_scope_2():
@@ -576,7 +547,7 @@ def test_hoisting_block_scope_2():
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
+        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
         new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     assert not tvm.ir.structural_equal(new_stmt, stmt)
@@ -612,38 +583,7 @@ def test_hoisting_block_scope_3():
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
-    ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
-    assert not tvm.ir.structural_equal(new_stmt, stmt)
-
-
-def test_hoisting_block_scope_4():
-    nn = 1024
-    n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((n,), name="B")
-    AA = te.compute((n,), lambda *i: A(*i), name="A")
-    BB = te.compute((n,), lambda *i: B(*i), name="B")
-    T = te.compute(A.shape, lambda *i: AA(*i) + BB(*i), name="T")
-    C = te.compute(A.shape, lambda *i: T(*i), name="C")
-    s = te.create_schedule(C.op)
-    xo, xi = s[C].split(C.op.axis[0], factor=4)
-    xo1, xo2 = s[C].split(xo, factor=13)
-    s[C].parallel(xo2)
-    s[C].pragma(xo1, "parallel_launch_point")
-    s[C].pragma(xo2, "parallel_stride_pattern")
-    s[C].pragma(xo2, "parallel_barrier_when_finish")
-    s[C].vectorize(xi)
-    mod = tvm.driver.build_module.schedule_to_module(s, [A, B, C], "main", None)
-    mod = tvm.tir.transform.Simplify()(mod)
-
-    stmt = mod["main"].body
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
-    tvm.ir.assert_structural_equal(new_stmt, stmt)
-
-    with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
+        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
         new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     assert not tvm.ir.structural_equal(new_stmt, stmt)
@@ -675,7 +615,7 @@ def test_hoisting_block_scope_5():
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
+        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
         new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
@@ -707,7 +647,7 @@ def test_hoisting_block_scope_6():
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
+        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
         new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     assert not tvm.ir.structural_equal(new_stmt, stmt)
@@ -739,73 +679,10 @@ def test_hoisting_block_scope_7():
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
+        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
         new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     assert not tvm.ir.structural_equal(new_stmt, stmt)
-
-
-@pytest.mark.skip()
-def test_hoisting_op_conv():
-    dtype = "float32"
-    dshape = (1, 80, 73, 73)
-    kshape = (192, 80, 3, 3)
-    padding = (1, 1)
-    groups = 1
-    dilation = (1, 1)
-    kernel_size = (3, 3)
-    channels = 192
-    scale = 1
-    x = relay.var("x", shape=dshape, dtype=dtype)
-    w = relay.var("w", shape=kshape, dtype=dtype)
-    y = relay.nn.conv2d(
-        x,
-        w,
-        padding=padding,
-        dilation=dilation,
-        groups=groups,
-        channels=channels,
-        kernel_size=kernel_size,
-    )
-
-    func = relay.Function([x, w], y)
-    mod = tvm.IRModule()
-    mod["main"] = func
-    mod = relay.transform.InferType()(mod)
-
-    data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
-    kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
-
-    params = {"w": tvm.nd.array(kernel)}
-    for target, dev in enabled_targets():
-        with tvm.transform.PassContext(opt_level=3):
-            lib = relay.build_module.build(mod, target=target, params=params)
-            m = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
-            x = np.random.uniform(size=dshape)
-            data_tvm = tvm.nd.array(data)
-            m.set_input("x", data_tvm)
-            m.run()
-            e = m.module.time_evaluator("run", dev, number=300, repeat=3)
-            t1 = e(data_tvm).results
-            t1 = np.array(t1) * 1000
-            print("{} ms".format(t1.mean()))
-
-        with tvm.transform.PassContext(
-            opt_level=3, config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
-        ):
-            lib = relay.build_module.build(mod, target=target, params=params)
-            m = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
-            x = np.random.uniform(size=dshape)
-            data_tvm = tvm.nd.array(data)
-            m.set_input("x", data_tvm)
-            m.set_input(**params)
-            m.run()
-            e = m.module.time_evaluator("run", dev, number=300, repeat=3)
-            t2 = e(data_tvm).results
-            t2 = np.array(t2) * 1000
-
-            print("{} ms".format(t2.mean()))
-        tvm.testing.assert_allclose(t1.mean(), t2.mean(), atol=1, rtol=1e-1)
 
 
 if __name__ == "__main__":

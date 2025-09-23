@@ -18,11 +18,10 @@
 import os
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
-from tvm._ffi import register_object as _register_object
+from tvm_ffi import register_object as _register_object
 from tvm.runtime import Object
 
 from ...ir import Array, Map, save_json
-from ...runtime import String
 from ..expr import FloatImm, IntImm
 from ..function import IndexMap
 from . import _ffi_api
@@ -45,10 +44,10 @@ def _json_from_tvm(obj):
         return [_json_from_tvm(i) for i in obj]
     elif isinstance(obj, Map):
         return {_json_from_tvm(k): _json_from_tvm(v) for k, v in obj.items()}
-    elif isinstance(obj, String):
+    elif isinstance(obj, str):
         return str(obj)
     elif isinstance(obj, (IntImm, FloatImm)):
-        return obj.value
+        return obj
     elif isinstance(obj, IndexMap):
         return save_json(obj)
     else:
@@ -139,7 +138,7 @@ class Trace(Object):
         Returns
         -------
         popped_inst : Instruction
-            Returns the instruction removed; NullOpt if the trace is empty
+            Returns the instruction removed; std::nullopt if the trace is empty
         """
         return _ffi_api.TracePop(self)  # type: ignore # pylint: disable=no-member
 

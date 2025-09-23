@@ -19,7 +19,7 @@
 #ifndef TVM_TIR_SCHEDULE_INSTRUCTION_H_
 #define TVM_TIR_SCHEDULE_INSTRUCTION_H_
 
-#include <tvm/node/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include <utility>
 
@@ -42,9 +42,9 @@ class Schedule;
  * \param decision Decisions made on the instruction
  * \return The functor returns an array of output random variables
  */
-using FInstructionApply = runtime::TypedPackedFunc<Array<ObjectRef>(
-    Schedule sch, const Array<ObjectRef>& inputs, const Array<ObjectRef>& attrs,
-    const Optional<ObjectRef>& decision)>;
+using FInstructionApply =
+    ffi::TypedFunction<ffi::Array<Any>(Schedule sch, const ffi::Array<Any>& inputs,
+                                       const ffi::Array<Any>& attrs, const Any& decision)>;
 
 /*!
  * \brief Type of the functor that converts the instruction to a statement in python syntax
@@ -54,9 +54,9 @@ using FInstructionApply = runtime::TypedPackedFunc<Array<ObjectRef>(
  * \param outputs Names of the output random variables
  * \return A string representing the python api call
  */
-using FInstructionAsPython = runtime::TypedPackedFunc<String(
-    const Array<ObjectRef>& inputs, const Array<ObjectRef>& attrs,
-    const Optional<ObjectRef>& decision, const Array<String>& outputs)>;
+using FInstructionAsPython =
+    ffi::TypedFunction<ffi::String(const ffi::Array<Any>& inputs, const ffi::Array<Any>& attrs,
+                                   const Any& decision, const ffi::Array<ffi::String>& outputs)>;
 
 /*!
  * \brief Type of the functor that serialize its attributes to JSON
@@ -64,7 +64,7 @@ using FInstructionAsPython = runtime::TypedPackedFunc<String(
  * \return An array, serialized attributes
  * \note This functor is nullable
  */
-using FInstructionAttrsAsJSON = runtime::TypedPackedFunc<ObjectRef(Array<ObjectRef> attrs)>;
+using FInstructionAttrsAsJSON = ffi::TypedFunction<ObjectRef(ffi::Array<Any> attrs)>;
 
 /*!
  * \brief Type of the functor that deserialize its attributes from JSON
@@ -72,7 +72,7 @@ using FInstructionAttrsAsJSON = runtime::TypedPackedFunc<ObjectRef(Array<ObjectR
  * \return An array, deserialized attributes
  * \note This functor is nullable
  */
-using FInstructionAttrsFromJSON = runtime::TypedPackedFunc<Array<ObjectRef>(ObjectRef json_attrs)>;
+using FInstructionAttrsFromJSON = ffi::TypedFunction<ffi::Array<Any>(ObjectRef json_attrs)>;
 
 /*!
  * \brief Kind of an instruction, e.g. Split, Reorder, etc.
@@ -89,7 +89,7 @@ using FInstructionAttrsFromJSON = runtime::TypedPackedFunc<Array<ObjectRef>(Obje
 class InstructionKindNode : public runtime::Object {
  public:
   /*! \brief The name of a kind of instructions */
-  String name;
+  ffi::String name;
   /*!
    * \brief Indicates if the instruction is pure, i.e. removing it alone doesn't mutate the schedule
    * state. For example, the instruction `GetBlock` is pure because it changes
@@ -112,20 +112,16 @@ class InstructionKindNode : public runtime::Object {
    */
   FInstructionAttrsFromJSON f_attrs_from_json{nullptr};
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("_is_pure", &is_pure);
-    // not visited: f_apply_to_schedule
-    // not visited: f_as_python
-    // not visited: f_attrs_as_json
-    // not visited: f_attrs_from_json
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<InstructionKindNode>()
+        .def_ro("name", &InstructionKindNode::name)
+        .def_ro("_is_pure", &InstructionKindNode::is_pure);
   }
 
   /*! \brief Checks if the instruction kind is EnterPostproc */
   bool IsPostproc() const;
-
-  static constexpr const char* _type_key = "tir.InstructionKind";
-  TVM_DECLARE_FINAL_OBJECT_INFO(InstructionKindNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.InstructionKind", InstructionKindNode, runtime::Object);
 };
 
 /*!
@@ -139,8 +135,9 @@ class InstructionKind : public runtime::ObjectRef {
    * \param name The registered name of the InstructionKind
    * \return The InstructionKind retrieved
    */
-  static InstructionKind Get(const String& name);
-  TVM_DEFINE_OBJECT_REF_METHODS(InstructionKind, runtime::ObjectRef, InstructionKindNode);
+  static InstructionKind Get(const ffi::String& name);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InstructionKind, runtime::ObjectRef,
+                                             InstructionKindNode);
 };
 
 /*! \brief Schedule instructions each corresponds to a schedule primitive */
@@ -154,35 +151,35 @@ class InstructionNode : public runtime::Object {
    * - BlockRV
    * - LoopRV
    * - ExprRV
-   * - FloatImm
-   * - IntImm
+   * - double
+   * - int64_t
    * - String
    * - null pointer
    */
-  Array<ObjectRef> inputs;
+  ffi::Array<Any> inputs;
   /*!
    * \brief The attributes of the instruction. Similar to attributes of an operator,
    * attributes of an instruction are arbitrary constant metadata required by the instructions.
    * For example, the name of the block to be retrieved in `GetBlock`.
    */
-  Array<ObjectRef> attrs;
+  ffi::Array<Any> attrs;
   /*! \brief The output random variables of the instruction, and the type of each element can be one
    * of the following:
    * - BlockRV
    * - LoopRV
    * - ExprRV, atomic variables only, won't be constants or composite PrimExpr
    */
-  Array<ObjectRef> outputs;
+  ffi::Array<Any> outputs;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("kind", &kind);
-    v->Visit("inputs", &inputs);
-    v->Visit("attrs", &attrs);
-    v->Visit("outputs", &outputs);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<InstructionNode>()
+        .def_ro("kind", &InstructionNode::kind)
+        .def_ro("inputs", &InstructionNode::inputs)
+        .def_ro("attrs", &InstructionNode::attrs)
+        .def_ro("outputs", &InstructionNode::outputs);
   }
-
-  static constexpr const char* _type_key = "tir.Instruction";
-  TVM_DECLARE_FINAL_OBJECT_INFO(InstructionNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Instruction", InstructionNode, runtime::Object);
 };
 
 /*!
@@ -198,10 +195,10 @@ class Instruction : public runtime::ObjectRef {
    * \param attrs The attributes of the instruction
    * \param outputs The output random variables of the instruction
    */
-  explicit Instruction(InstructionKind kind, Array<ObjectRef> inputs, Array<ObjectRef> attrs,
-                       Array<ObjectRef> outputs);
+  explicit Instruction(InstructionKind kind, ffi::Array<Any> inputs, ffi::Array<Any> attrs,
+                       ffi::Array<Any> outputs);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Instruction, runtime::ObjectRef, InstructionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Instruction, runtime::ObjectRef, InstructionNode);
 };
 
 /*!
@@ -236,7 +233,7 @@ class Instruction : public runtime::ObjectRef {
 /*! \brief An entry in the registry of InstructionKind */
 class InstructionKindRegEntry {
  public:
-  static InstructionKindRegEntry& RegisterOrGet(const String& name);
+  static InstructionKindRegEntry& RegisterOrGet(const ffi::String& name);
 
   InstructionKindRegEntry& set_name() {
     get_mutable()->name = this->name;
@@ -277,7 +274,7 @@ class InstructionKindRegEntry {
   }
 
   /*! \brief The name of the registry entry */
-  String name;
+  ffi::String name;
   /*! \brief The instruction kind */
   InstructionKind inst_kind_;
   template <typename, typename>

@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include <optional>
 #include <unordered_set>
 
@@ -34,17 +36,17 @@ class BufferReadPosCollector : public StmtExprVisitor {
 
   const std::pair<Block, int>& GetBufferLocation() const { return buffer_loc_; }
 
-  const Optional<IndexMap> GetBufferIndexMap() const { return buffer_index_map_; }
+  const ffi::Optional<IndexMap> GetBufferIndexMap() const { return buffer_index_map_; }
 
  private:
   void VisitStmt_(const ForNode* op) final {
-    loop_stack_.push_back(GetRef<For>(op));
+    loop_stack_.push_back(ffi::GetRef<For>(op));
     StmtVisitor::VisitStmt_(op);
     loop_stack_.pop_back();
   }
 
   void VisitStmt_(const BlockRealizeNode* op) final {
-    BlockRealize outer_block_realize = GetRef<BlockRealize>(op);
+    BlockRealize outer_block_realize = ffi::GetRef<BlockRealize>(op);
     std::swap(outer_block_realize, cur_realize_);
     StmtVisitor::VisitStmt_(op);
     std::swap(cur_realize_, outer_block_realize);
@@ -55,13 +57,13 @@ class BufferReadPosCollector : public StmtExprVisitor {
 
     const Buffer& buffer = op->buffer;
     if (buffer_ == buffer.get()) {
-      Map<Var, PrimExpr> subst_map;
+      ffi::Map<Var, PrimExpr> subst_map;
       for (size_t i = 0; i < cur_realize_->iter_values.size(); i++) {
         const Var& var = cur_realize_->block->iter_vars[i]->var;
         const PrimExpr& value = cur_realize_->iter_values[i];
         subst_map.Set(var, value);
       }
-      Array<PrimExpr> subst_indices;
+      ffi::Array<PrimExpr> subst_indices;
       for (const PrimExpr& e : op->indices) {
         subst_indices.push_back(Substitute(e, subst_map));
       }
@@ -91,10 +93,10 @@ class BufferReadPosCollector : public StmtExprVisitor {
   /*! \brief The block that consumes the buffer and the corresponding read index. */
   std::pair<Block, int> buffer_loc_;
   /*! \brief The proposed IndexMap. */
-  Optional<IndexMap> buffer_index_map_;
+  ffi::Optional<IndexMap> buffer_index_map_;
 
   /*! \brief Loop stack for calculating IndexMap. */
-  Array<For> loop_stack_;
+  ffi::Array<For> loop_stack_;
   /*! \brief Arithmetic analyzer. */
   arith::Analyzer analyzer_;
   /*! \brief Current BlockRealize scope, used in recursive visit */
@@ -105,8 +107,8 @@ class LayoutFreeBufferCollector : public StmtVisitor {
  public:
   void VisitStmt_(const BlockNode* block) final {
     StmtVisitor::VisitStmt_(block);
-    if (Optional<ObjectRef> ann = block->annotations.Get("layout_free_placeholders")) {
-      for (Buffer buffer : Downcast<Array<Buffer>>(ann)) {
+    if (auto ann = block->annotations.Get("layout_free_placeholders")) {
+      for (Buffer buffer : Downcast<ffi::Array<Buffer>>(ann.value())) {
         buffers.insert(buffer);
       }
     }
@@ -115,12 +117,12 @@ class LayoutFreeBufferCollector : public StmtVisitor {
   std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> buffers;
 };
 
-Array<Buffer> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
+ffi::Array<Buffer> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
   // Only rewrite PrimFuncs with attr "layout_free_buffers"
-  Array<Integer> layout_free_buffer_index =
-      func->GetAttr(attr::layout_free_buffers, Array<Integer>()).value();
+  ffi::Array<Integer> layout_free_buffer_index =
+      func->GetAttr(attr::layout_free_buffers, ffi::Array<Integer>()).value();
 
-  Array<Buffer> layout_free_buffers;
+  ffi::Array<Buffer> layout_free_buffers;
   for (const Integer& index : layout_free_buffer_index) {
     ICHECK(static_cast<size_t>(index->value) < func->params.size());
     const Var& param = func->params[index->value];
@@ -180,14 +182,14 @@ std::vector<std::string> GetCacheReadChain(const Buffer& buf, const PrimFuncNode
 }
 
 bool RewriteLayout(const Schedule& sch) {
-  std::vector<std::pair<StmtSRef, String>> results;
+  std::vector<std::pair<StmtSRef, ffi::String>> results;
   auto add_layout_rewrite_block = [&sch](BlockRV consumer_block_rv, int buffer_index) {
     BlockRV rewrite_block_rv = sch->CacheRead(consumer_block_rv, buffer_index, "global");
-    sch->Annotate(rewrite_block_rv, attr::meta_schedule_layout_rewrite_preproc, const_true());
+    sch->Annotate(rewrite_block_rv, attr::meta_schedule_layout_rewrite_preproc, true);
   };
 
   for (const auto& [g_var, base_func] : sch->mod()->functions) {
-    const String& func_name = g_var->name_hint;
+    const ffi::String& func_name = g_var->name_hint;
     const auto* prim_func = base_func.as<PrimFuncNode>();
     // Only consider PrimFunc
     if (prim_func == nullptr) {
@@ -206,7 +208,7 @@ bool RewriteLayout(const Schedule& sch) {
         auto anchor_block_rv = sch->GetBlock(anchor_block->name_hint, func_name);
         add_layout_rewrite_block(anchor_block_rv, buffer_index);
         sch->TransformLayout(anchor_block_rv, buffer_index, BufferIndexType::kRead, index_map,
-                             NullOpt);
+                             std::nullopt);
       } else {
         // When the layout-free buffer is consumed by cache_read, we need to find the index map
         // for a cache-read buffer that is directly consumed by an anchor op. The last buffer
@@ -219,7 +221,7 @@ bool RewriteLayout(const Schedule& sch) {
         auto [anchor_block, buffer_index, index_map] = *tup_opt;
         // Transform the layout of the last cache-read buffer.
         sch->TransformLayout(sch->GetBlock(anchor_block->name_hint, func_name), buffer_index,
-                             BufferIndexType::kRead, index_map, NullOpt);
+                             BufferIndexType::kRead, index_map, std::nullopt);
 
         // Propagate the layout transformation over cache_read_chain, starting from
         // the next-to-last cache-read buffer.
@@ -231,7 +233,8 @@ bool RewriteLayout(const Schedule& sch) {
             // transformed by TransformLayout below.
             add_layout_rewrite_block(cache_read_block_rv, 0);
           }
-          sch->TransformLayout(cache_read_block_rv, 0, BufferIndexType::kRead, index_map, NullOpt);
+          sch->TransformLayout(cache_read_block_rv, 0, BufferIndexType::kRead, index_map,
+                               std::nullopt);
         }
       }
     }
@@ -258,21 +261,21 @@ class RewriteLayoutNode : public PostprocNode {
   }
 
   Postproc Clone() const {
-    ObjectPtr<RewriteLayoutNode> n = make_object<RewriteLayoutNode>(*this);
+    ObjectPtr<RewriteLayoutNode> n = ffi::make_object<RewriteLayoutNode>(*this);
     return Postproc(n);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.RewriteLayout";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RewriteLayoutNode, PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RewriteLayout", RewriteLayoutNode, PostprocNode);
 };
 
 Postproc Postproc::RewriteLayout() {
-  auto n = make_object<RewriteLayoutNode>();
+  auto n = ffi::make_object<RewriteLayoutNode>();
   return Postproc(n);
 }
 
-TVM_REGISTER_NODE_TYPE(RewriteLayoutNode);
-TVM_REGISTER_GLOBAL("meta_schedule.PostprocRewriteLayout").set_body_typed(Postproc::RewriteLayout);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.PostprocRewriteLayout", Postproc::RewriteLayout);
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

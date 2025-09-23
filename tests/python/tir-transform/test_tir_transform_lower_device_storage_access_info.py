@@ -19,10 +19,10 @@ import tvm
 from tvm.script import tir as T
 
 
-@tvm.register_func("tvm.info.mem.global.test_with_head_address")
+@tvm.register_global_func("tvm.info.mem.global.test_with_head_address")
 def mem_info_with_head_address():
     return tvm.ir.make_node(
-        "MemoryInfo",
+        "target.MemoryInfo",
         unit_bits=8,
         max_simd_bits=32,
         max_num_bits=128,
@@ -30,10 +30,10 @@ def mem_info_with_head_address():
     )
 
 
-@tvm.register_func("tvm.info.mem.global.test_without_head_address")
+@tvm.register_global_func("tvm.info.mem.global.test_without_head_address")
 def mem_info_without_head_address():
     return tvm.ir.make_node(
-        "MemoryInfo",
+        "target.MemoryInfo",
         unit_bits=8,
         max_simd_bits=32,
         max_num_bits=128,

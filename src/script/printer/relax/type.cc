@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "./utils.h"
 
 namespace tvm {
@@ -24,20 +26,20 @@ namespace printer {
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::ShapeType>(  //
-        "", [](relax::ShapeType n, ObjectPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::ShapeType n, AccessPath n_p, IRDocsifier d) -> Doc {
           return Relax(d, "Shape")
               ->Call({}, {"ndim"}, {LiteralDoc::Int(n->ndim, n_p->Attr("ndim"))});
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::ObjectType>(  //
-        "", [](relax::ObjectType n, ObjectPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::ObjectType n, AccessPath n_p, IRDocsifier d) -> Doc {
           return Relax(d, "Object");
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::DynTensorType>(
-        "", [](relax::DynTensorType n, ObjectPath n_p, IRDocsifier d) -> Doc {
+    .set_dispatch<relax::TensorType>(  //
+        "", [](relax::TensorType n, AccessPath n_p, IRDocsifier d) -> Doc {
           return Relax(d, "Tensor")
               ->Call({}, {"ndim", "dtype"},
                      {LiteralDoc::Int(n->ndim, n_p->Attr("ndim")),
@@ -45,33 +47,33 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::PackedFuncType>(
-        "", [](relax::PackedFuncType n, ObjectPath n_p, IRDocsifier d) -> Doc {
+    .set_dispatch<relax::PackedFuncType>(  //
+        "", [](relax::PackedFuncType n, AccessPath n_p, IRDocsifier d) -> Doc {
           return Relax(d, "PackedFunc");  // TODO(@junrushao): verify if this is correct
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::TupleType>(  //
-        "relax", [](tvm::TupleType n, ObjectPath n_p, IRDocsifier d) -> Doc {
+        "relax", [](tvm::TupleType n, AccessPath n_p, IRDocsifier d) -> Doc {
           if (n->fields.empty()) {
             return Relax(d, "Tuple");
           }
-          Array<ExprDoc> fields_doc;
-          ObjectPath fields_p = n_p->Attr("fields");
+          ffi::Array<ExprDoc> fields_doc;
+          AccessPath fields_p = n_p->Attr("fields");
           for (int i = 0, l = n->fields.size(); i < l; ++i) {
-            fields_doc.push_back(d->AsDoc<ExprDoc>(n->fields[i], fields_p->ArrayIndex(i)));
+            fields_doc.push_back(d->AsDoc<ExprDoc>(n->fields[i], fields_p->ArrayItem(i)));
           }
           return Relax(d, "Tuple")->Call(fields_doc);
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::FuncType>(
-        "relax", [](tvm::FuncType n, ObjectPath n_p, IRDocsifier d) -> Doc {
-          Array<ExprDoc> arg_types_doc;
-          Array<Type> arg_types = n->arg_types;
-          ObjectPath arg_types_p = n_p->Attr("arg_types");
+        "relax", [](tvm::FuncType n, AccessPath n_p, IRDocsifier d) -> Doc {
+          ffi::Array<ExprDoc> arg_types_doc;
+          ffi::Array<Type> arg_types = n->arg_types;
+          AccessPath arg_types_p = n_p->Attr("arg_types");
           for (int i = 0, n_params = arg_types.size(); i < n_params; ++i) {
-            arg_types_doc.push_back(d->AsDoc<ExprDoc>(arg_types[i], arg_types_p->ArrayIndex(i)));
+            arg_types_doc.push_back(d->AsDoc<ExprDoc>(arg_types[i], arg_types_p->ArrayItem(i)));
           }
           return Relax(d, "Callable")
               ->Call({TupleDoc(arg_types_doc),  //
@@ -80,9 +82,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_SCRIPT_REPR(relax::ShapeTypeNode, ReprPrintRelax);
 TVM_SCRIPT_REPR(relax::ObjectTypeNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::DynTensorTypeNode, ReprPrintRelax);
+TVM_SCRIPT_REPR(relax::TensorTypeNode, ReprPrintRelax);
 TVM_SCRIPT_REPR(relax::PackedFuncTypeNode, ReprPrintRelax);
-TVM_REGISTER_GLOBAL("script.printer.ReprPrintRelax").set_body_typed(ReprPrintRelax);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.ReprPrintRelax", ReprPrintRelax);
+}
 
 }  // namespace printer
 }  // namespace script

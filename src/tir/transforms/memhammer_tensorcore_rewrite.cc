@@ -28,7 +28,7 @@ namespace tir {
  * \return A pair. The first is the stmt after transformation.
  *         The second is the compute location where we may add write cache.
  */
-std::pair<Stmt, Optional<For>> TileWmmaBlock(Stmt stmt) {
+std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
   Stmt body = stmt;
   std::vector<const ForNode*> loops;
   while (const ForNode* loop = body.as<ForNode>()) {
@@ -42,7 +42,7 @@ std::pair<Stmt, Optional<For>> TileWmmaBlock(Stmt stmt) {
     arith::Analyzer analyzer;
     if (!analyzer.CanProveEqual(floormod(extent_last1, 16), 0) ||
         !analyzer.CanProveEqual(floormod(extent_last2, 16), 0)) {
-      return std::make_pair(stmt, NullOpt);
+      return std::make_pair(stmt, std::nullopt);
     }
   }
   Var new_loop_vars[4] = {
@@ -52,7 +52,7 @@ std::pair<Stmt, Optional<For>> TileWmmaBlock(Stmt stmt) {
       /*3:*/ loops[n - 1]->loop_var.copy_with_suffix("_1"),
   };
   body = Substitute(std::move(body),
-                    Map<Var, PrimExpr>{
+                    ffi::Map<Var, PrimExpr>{
                         {loops[n - 2]->loop_var, new_loop_vars[0] * 16 + new_loop_vars[2]},
                         {loops[n - 1]->loop_var, new_loop_vars[1] * 16 + new_loop_vars[3]},
                     });
@@ -76,15 +76,16 @@ std::pair<Stmt, Optional<For>> TileWmmaBlock(Stmt stmt) {
   return {body, compute_location};
 }
 
-Array<Range> RelaxIndices(const Array<PrimExpr>& indices, const Array<PrimExpr>& shape,
-                          const Map<Var, arith::IntSet>& var_dom) {
-  Array<arith::IntSet> int_set;
+ffi::Array<Range> RelaxIndices(const ffi::Array<PrimExpr>& indices,
+                               const ffi::Array<PrimExpr>& shape,
+                               const ffi::Map<Var, arith::IntSet>& var_dom) {
+  ffi::Array<arith::IntSet> int_set;
   int_set.reserve(indices.size());
   for (auto& indice : indices) {
     int_set.push_back(arith::EvalSet(indice, var_dom));
   }
   int ndim = int_set.size();
-  Array<Range> region;
+  ffi::Array<Range> region;
   region.reserve(ndim);
   for (int i = 0; i < ndim; ++i) {
     region.push_back(int_set[i].CoverRange(Range::FromMinExtent(0, shape[i])));
@@ -110,7 +111,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   }
   int n = loops.size();
 
-  Map<Var, IntSet> var_dom{
+  ffi::Map<Var, IntSet> var_dom{
       {loops[n - 1]->loop_var, IntSet::FromMinExtent(loops[n - 1]->min, loops[n - 1]->extent)},
       {loops[n - 2]->loop_var, IntSet::FromMinExtent(loops[n - 2]->min, loops[n - 2]->extent)},
   };
@@ -141,8 +142,8 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
       /*data_alignment=*/64,
       /*offset_factor=*/16,
       /*buffer_type=*/kDefault);
-  Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
-  Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
+  ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
+  ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
   Stmt wmma_body = BlockRealize(
       /*iter_values=*/{},
       /*predicate=*/Bool(true),
@@ -177,7 +178,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                   /*6:*/ new_src_buffer->strides[new_src_buffer->strides.size() - 2],
                   /*7:*/ StringImm(layout),
               })),
-          /*init=*/NullOpt,
+          /*init=*/std::nullopt,
           /*alloc_buffers=*/{},
           /*match_buffers=*/
           {
@@ -209,7 +210,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   }
   int n = loops.size();
 
-  Map<Var, IntSet> var_dom{
+  ffi::Map<Var, IntSet> var_dom{
       {loops[n - 1]->loop_var, IntSet::FromMinExtent(loops[n - 1]->min, loops[n - 1]->extent)},
       {loops[n - 2]->loop_var, IntSet::FromMinExtent(loops[n - 2]->min, loops[n - 2]->extent)},
   };
@@ -249,8 +250,8 @@ Stmt RewriteWmmaStore(Stmt stmt) {
                         /*offset_factor=*/16,
                         /*buffer_type=*/kDefault);
 
-  Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
-  Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
+  ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
+  ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
   Stmt wmma_body = BlockRealize(
       /*iter_values=*/{},  //
       /*predicate=*/Bool(true),
@@ -280,7 +281,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
                      }),
                  /*6:*/ new_tgt_buffer->strides[0],
                  /*7:*/ StringImm("row_major")})),
-            /*init=*/NullOpt,
+            /*init=*/std::nullopt,
             /*alloc_buffers=*/{},
             /*match_buffers=*/
             {
@@ -333,7 +334,7 @@ class WmmaToGlobalRewriter : public StmtExprMutator {
 Stmt WmmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                            OutputSet* output) const {
   Stmt body{nullptr};
-  Optional<For> compute_location{nullptr};
+  ffi::Optional<For> compute_location;
   std::tie(body, compute_location) = TileWmmaBlock(stmt);
   SeqStmt seq{nullptr};
   Buffer cache_buffer;
@@ -347,7 +348,7 @@ Stmt WmmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   return rewriter(body);
 }
 
-std::pair<Stmt, Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
+std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
   // i, j = sch.get_loops(block)[2:]
   // i_0, i_1 = sch.split(i, factors=[None, 8])
   // j_0, j_1 = sch.split(j, factors=[None, 8])
@@ -366,7 +367,7 @@ std::pair<Stmt, Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
     // Only tile when both extent % 8 == 0
     if (!analyzer.CanProveEqual(floormod(extent_last1, 8), 0) ||
         !analyzer.CanProveEqual(floormod(extent_last2, 8), 0)) {
-      return std::make_pair(stmt, NullOpt);
+      return std::make_pair(stmt, std::nullopt);
     }
   }
   Var new_loop_vars[4] = {
@@ -376,7 +377,7 @@ std::pair<Stmt, Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
       /*3:*/ loops[n - 1]->loop_var.copy_with_suffix("_1"),
   };
   body = Substitute(std::move(body),
-                    Map<Var, PrimExpr>{
+                    ffi::Map<Var, PrimExpr>{
                         {loops[n - 2]->loop_var, new_loop_vars[0] * 8 + new_loop_vars[2]},
                         {loops[n - 1]->loop_var, new_loop_vars[1] * 8 + new_loop_vars[3]},
                     });
@@ -418,7 +419,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
   }
   int n = loops.size();
 
-  Map<Var, IntSet> var_dom{
+  ffi::Map<Var, IntSet> var_dom{
       {loops[n - 1]->loop_var, IntSet::FromMinExtent(loops[n - 1]->min, loops[n - 1]->extent)},
       {loops[n - 2]->loop_var, IntSet::FromMinExtent(loops[n - 2]->min, loops[n - 2]->extent)},
   };
@@ -468,8 +469,8 @@ Stmt RewriteMmaStore(Stmt stmt) {
                         /*buffer_type=*/kDefault);
 
   // Step 3.2. Generate new r/w region
-  Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
-  Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
+  ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
+  ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
 
   // Step 3.3. Generate new inner loop body
   // for v in T.vectorized(2):
@@ -498,7 +499,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
                                                 {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}),
                                      {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}),
                          /*annotations=*/{})),
-            /*init=*/NullOpt,
+            /*init=*/std::nullopt,
             /*alloc_buffers=*/{},
             /*match_buffers=*/
             {
@@ -542,7 +543,7 @@ class MmaToGlobalRewriter : public StmtExprMutator {
 Stmt MmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                           OutputSet* output) const {
   Stmt body{nullptr};
-  Optional<For> compute_location{nullptr};
+  ffi::Optional<For> compute_location;
   std::tie(body, compute_location) = TileMmaToGlobalBlock(stmt);
   SeqStmt seq{nullptr};
   Buffer cache_buffer;

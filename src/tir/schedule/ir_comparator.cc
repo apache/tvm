@@ -37,11 +37,11 @@ class TensorIntrinMismatchError : public ScheduleError {
     ICHECK(lhs_stmt_->IsInstance<ForNode>() || lhs_stmt_->IsInstance<BlockNode>());
   }
 
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return "ScheduleError: The stmt doesn't match the tensor intrin.";
   }
 
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "The stmt {0} doesn't match the tensor intrin\nThe pattern attempting to be matched:\n"
        << lhs_stmt_ << "\nDoes not match the tensorize description:\n"
@@ -54,7 +54,7 @@ class TensorIntrinMismatchError : public ScheduleError {
 
   IRModule mod() const final { return lhs_mod_; }
 
-  Array<ObjectRef> LocationsOfInterest() const final { return {lhs_stmt_}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {lhs_stmt_}; }
 
  private:
   IRModule lhs_mod_;
@@ -309,7 +309,7 @@ bool TensorizeComparator::VisitExpr_(const CastNode* op, const PrimExpr& other) 
 
 bool TensorizeComparator::VisitExpr_(const VarNode* op, const PrimExpr& other) {
   const auto* rhs = other.as<VarNode>();
-  auto lhs = GetRef<Var>(op);
+  auto lhs = ffi::GetRef<Var>(op);
   if (lhs.same_as(other)) return true;
   if (op->dtype.code() != rhs->dtype.code()) {
     if (assert_mode_) {
@@ -348,8 +348,8 @@ bool TensorizeComparator::DefEqual(const Var& lhs, const Var& rhs) {
   return true;
 }
 
-bool TensorizeComparator::CompareAnnotation(const std::pair<String, ObjectRef>& lhs,
-                                            const std::pair<String, ObjectRef>& rhs) {
+bool TensorizeComparator::CompareAnnotation(const std::pair<ffi::String, ffi::Any>& lhs,
+                                            const std::pair<ffi::String, ffi::Any>& rhs) {
   if (lhs.first != rhs.first) {
     if (assert_mode_) {
       std::ostringstream os;
@@ -359,11 +359,25 @@ bool TensorizeComparator::CompareAnnotation(const std::pair<String, ObjectRef>& 
     }
     return false;
   }
-  return VisitExpr(Downcast<PrimExpr>(lhs.second), Downcast<PrimExpr>(rhs.second));
+  // handle expr values
+  if (lhs.second.as<PrimExpr>() && rhs.second.as<PrimExpr>()) {
+    return VisitExpr(Downcast<PrimExpr>(lhs.second), Downcast<PrimExpr>(rhs.second));
+  }
+  // handle any other values via any equal
+  if (!ffi::AnyEqual()(lhs.second, rhs.second)) {
+    if (assert_mode_) {
+      std::ostringstream os;
+      os << "CompareAnnotation value mismatch: lhs.second=" << lhs.first
+         << " vs rhs.second=" << rhs.first;
+      EmitError(os.str());
+    }
+    return false;
+  }
+  return true;
 }
 
-bool TensorizeComparator::CompareAnnotationMap(const Map<String, ObjectRef>& lhs,
-                                               const Map<String, ObjectRef>& rhs) {
+bool TensorizeComparator::CompareAnnotationMap(const ffi::Map<ffi::String, ffi::Any>& lhs,
+                                               const ffi::Map<ffi::String, ffi::Any>& rhs) {
   if (lhs.same_as(rhs)) return true;
   if (lhs.size() != rhs.size()) {
     if (assert_mode_) {
@@ -375,15 +389,15 @@ bool TensorizeComparator::CompareAnnotationMap(const Map<String, ObjectRef>& lhs
     return false;
   }
 
-  auto sort_map =
-      [](const Map<String, ObjectRef>& map) -> std::vector<std::pair<String, ObjectRef>> {
-    std::vector<std::pair<String, ObjectRef>> ret(map.begin(), map.end());
-    sort(ret.begin(), ret.end());
+  auto sort_map = [](const ffi::Map<ffi::String, ffi::Any>& map)
+      -> std::vector<std::pair<ffi::String, ffi::Any>> {
+    std::vector<std::pair<ffi::String, ffi::Any>> ret(map.begin(), map.end());
+    sort(ret.begin(), ret.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
     return ret;
   };
 
-  std::vector<std::pair<String, ObjectRef>> lhs_array = sort_map(lhs);
-  std::vector<std::pair<String, ObjectRef>> rhs_array = sort_map(rhs);
+  std::vector<std::pair<ffi::String, ffi::Any>> lhs_array = sort_map(lhs);
+  std::vector<std::pair<ffi::String, ffi::Any>> rhs_array = sort_map(rhs);
 
   for (size_t i = 0; i < lhs.size(); ++i) {
     if (!CompareAnnotation(lhs_array[i], rhs_array[i])) {
@@ -569,7 +583,8 @@ bool TensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
 }
 
 template <typename T, typename Self, typename F>
-bool TensorizeComparator::CompareArray(const Array<T>& lhs, const Array<T>& rhs, F Self::*cmp) {
+bool TensorizeComparator::CompareArray(const ffi::Array<T>& lhs, const ffi::Array<T>& rhs,
+                                       F Self::*cmp) {
   if (lhs.same_as(rhs)) return true;
   if (lhs.size() != rhs.size()) {
     if (assert_mode_) {
@@ -691,7 +706,7 @@ bool AutoTensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
       lhs_indices.push_back(SimplifyNonTrivialExpr(index, &analyzer_));
     }
 
-    auto is_scalar_access = [](const Array<PrimExpr>& indices, PrimExpr index) {
+    auto is_scalar_access = [](const ffi::Array<PrimExpr>& indices, PrimExpr index) {
       // Check if the indexing is of the form C[0]
       if (indices.size() > 1) return false;
       auto int_imm = index.template as<IntImmNode>();
@@ -709,8 +724,8 @@ bool AutoTensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
     if (it_rhs == rhs_buffer_indices_map_.end()) {
       return false;
     }
-    auto indices_check = [&](const Array<PrimExpr>& indices,
-                             const Array<PrimExpr>& old_indices) -> bool {
+    auto indices_check = [&](const ffi::Array<PrimExpr>& indices,
+                             const ffi::Array<PrimExpr>& old_indices) -> bool {
       if (indices.size() != old_indices.size()) {
         return false;
       }

@@ -20,8 +20,9 @@ This is the global script that set the version information of TVM.
 This script runs and update all the locations that related to versions
 
 List of affected files:
-- tvm-root/python/tvm/_ffi/libinfo.py
-- tvm-root/include/tvm/runtime/c_runtime_api.h
+- tvm-root/python/tvm/libinfo.py
+- tvm-root/pyproject.toml
+- tvm-root/include/tvm/runtime/base.h
 - tvm-root/conda/recipe/meta.yaml
 - tvm-root/web/package.json
 """
@@ -44,7 +45,7 @@ import subprocess
 # Two tag formats are supported:
 # - vMAJ.MIN.PATCH (e.g. v0.8.0) or
 # - vMAJ.MIN.devN (e.g. v0.8.dev0)
-__version__ = "0.19.dev0"
+__version__ = "0.22.dev0"
 
 # ---------------------------------------------------
 
@@ -170,16 +171,23 @@ def sync_version(pub_ver, local_ver, dry_run):
     """Synchronize version."""
     # python uses the PEP-440: local version
     update(
-        os.path.join(PROJ_ROOT, "python", "tvm", "_ffi", "libinfo.py"),
+        os.path.join(PROJ_ROOT, "python", "tvm", "libinfo.py"),
         r"(?<=__version__ = \")[.0-9a-z\+]+",
         local_ver,
+        dry_run,
+    )
+    # pyproject.toml
+    update(
+        os.path.join(PROJ_ROOT, "pyproject.toml"),
+        r"(?<=version = \")[.0-9a-z\+]+",
+        pub_ver,
         dry_run,
     )
     # Use public version for other parts for now
     # Note that full git hash is already available in libtvm
     # C++ header
     update(
-        os.path.join(PROJ_ROOT, "include", "tvm", "runtime", "c_runtime_api.h"),
+        os.path.join(PROJ_ROOT, "include", "tvm", "runtime", "base.h"),
         r'(?<=TVM_VERSION ")[.0-9a-z\+]+',
         pub_ver,
         dry_run,

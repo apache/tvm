@@ -37,7 +37,7 @@ from tvm.contrib.msc.framework.torch import tools
 class TorchRunner(ModelRunner):
     """Runner of Torch"""
 
-    def _translate(self, mod: tvm.IRModule) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
+    def _translate(self, mod: tvm.IRModule) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Translate IRModule to MSCgraphs
 
         Parameters
@@ -49,7 +49,7 @@ class TorchRunner(ModelRunner):
         -------
         graph_list: list<MSCGraph>
             The translated graphs
-        weights_list: list<dict<str, tvm.nd.array>>
+        weights_list: list<dict<str, tvm.runtime.tensor>>
             The translated weights
         """
         graphs, weights = super()._translate(mod)
@@ -107,12 +107,12 @@ class TorchRunner(ModelRunner):
         ]
         return runnable(*torch_inputs)
 
-    def _get_runtime_params(self) -> Dict[str, tvm.nd.array]:
+    def _get_runtime_params(self) -> Dict[str, tvm.runtime.Tensor]:
         """Get the runtime parameters
 
         Returns
         -------
-        params: dict<str, tvm.nd.array>
+        params: dict<str, tvm.runtime.tensor>
             The parameters from runtime.
         """
 
@@ -319,12 +319,7 @@ class TorchRunner(ModelRunner):
             config["parse"]["parser"] = from_torch
             parse_config = config["parse"].get("parse_config", {})
             parse_config.update(
-                {
-                    "input_info": [
-                        [i[1], "float" if len(i) < 2 else i[2]] for i in config["inputs"]
-                    ],
-                    "input_names": [i[0] for i in config["inputs"]],
-                }
+                {"input_info": [[i[1], "float" if len(i) < 2 else i[2]] for i in config["inputs"]]}
             )
             config["parse"]["parse_config"] = parse_config
         return config

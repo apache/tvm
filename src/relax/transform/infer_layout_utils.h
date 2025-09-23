@@ -27,6 +27,7 @@
 #ifndef TVM_RELAX_TRANSFORM_INFER_LAYOUT_UTILS_H_
 #define TVM_RELAX_TRANSFORM_INFER_LAYOUT_UTILS_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/attrs/create.h>
 #include <tvm/relax/attrs/datatype.h>
 #include <tvm/relax/attrs/image.h>
@@ -61,17 +62,20 @@ class LayoutDecisionNode : public Object {
   /*! \brief Whether the dim of tensor is unknown. */
   bool is_unknown_dim = false;
 
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("layout", &layout); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<LayoutDecisionNode>()
+        .def_ro("layout", &LayoutDecisionNode::layout)
+        .def_ro("is_unknown_dim", &LayoutDecisionNode::is_unknown_dim);
+  }
 
-  TVM_DECLARE_BASE_OBJECT_INFO(LayoutDecisionNode, Object);
-
-  static constexpr const char* _type_key = "relax.transform.LayoutDecision";
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.LayoutDecision", LayoutDecisionNode, Object);
 };
 
 class LayoutDecision : public ObjectRef {
  public:
   LayoutDecision(Layout layout, bool is_unknown_dim = false) {  // NOLINT(*)
-    auto n = make_object<LayoutDecisionNode>();
+    auto n = ffi::make_object<LayoutDecisionNode>();
     n->layout = std::move(layout);
     n->is_unknown_dim = is_unknown_dim;
     data_ = n;
@@ -86,7 +90,7 @@ class LayoutDecision : public ObjectRef {
     return operator->()->layout.name();
   }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(LayoutDecision, ObjectRef, LayoutDecisionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LayoutDecision, ObjectRef, LayoutDecisionNode);
 };
 
 using NLayout = NestedMsg<LayoutDecision>;
@@ -99,34 +103,35 @@ using NLayout = NestedMsg<LayoutDecision>;
  */
 class InferLayoutOutputNode : public Object {
  public:
-  Array<NLayout> input_layouts;
-  Array<NLayout> output_layouts;
+  ffi::Array<NLayout> input_layouts;
+  ffi::Array<NLayout> output_layouts;
   Attrs new_attrs;
-  Map<Integer, Expr> new_args;
+  ffi::Map<Integer, Expr> new_args;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("input_layouts", &input_layouts);
-    v->Visit("output_layouts", &output_layouts);
-    v->Visit("new_attrs", &new_attrs);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<InferLayoutOutputNode>()
+        .def_ro("input_layouts", &InferLayoutOutputNode::input_layouts)
+        .def_ro("output_layouts", &InferLayoutOutputNode::output_layouts)
+        .def_ro("new_attrs", &InferLayoutOutputNode::new_attrs)
+        .def_ro("new_args", &InferLayoutOutputNode::new_args);
   }
 
-  TVM_DECLARE_BASE_OBJECT_INFO(InferLayoutOutputNode, Object);
-
-  static constexpr const char* _type_key = "relax.transform.InferLayoutOutput";
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InferLayoutOutput", InferLayoutOutputNode, Object);
 };
 
 class InferLayoutOutput : public ObjectRef {
  public:
-  explicit InferLayoutOutput(Array<NLayout> input_layouts, Array<NLayout> output_layouts,
-                             Attrs new_attrs, Map<Integer, Expr> new_args = {}) {
-    auto n = make_object<InferLayoutOutputNode>();
+  explicit InferLayoutOutput(ffi::Array<NLayout> input_layouts, ffi::Array<NLayout> output_layouts,
+                             Attrs new_attrs, ffi::Map<Integer, Expr> new_args = {}) {
+    auto n = ffi::make_object<InferLayoutOutputNode>();
     n->input_layouts = std::move(input_layouts);
     n->output_layouts = std::move(output_layouts);
     n->new_attrs = std::move(new_attrs);
     n->new_args = std::move(new_args);
     data_ = n;
   }
-  TVM_DEFINE_OBJECT_REF_METHODS(InferLayoutOutput, ObjectRef, InferLayoutOutputNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InferLayoutOutput, ObjectRef, InferLayoutOutputNode);
 };
 
 struct NLayoutEqual {
@@ -141,7 +146,7 @@ struct NLayoutEqual {
   }
 };
 
-using VarLayoutMap = Map<Var, NLayout>;
+using VarLayoutMap = ffi::Map<Var, NLayout>;
 
 /*!
  * \brief Layout conversion interface.
@@ -149,8 +154,8 @@ using VarLayoutMap = Map<Var, NLayout>;
  * \param desired_layouts The desired layouts of the operator.
  * \param var_layout_map The layout of the variables.
  */
-using FRelaxInferLayout = runtime::TypedPackedFunc<InferLayoutOutput(
-    const Call& call, const Map<String, Array<String>>& desired_layouts,
+using FRelaxInferLayout = ffi::TypedFunction<InferLayoutOutput(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map)>;
 
 /*!
@@ -182,6 +187,25 @@ NLayout InitialNLayout(const StructInfo& sinfo);
 NLayout InitialNLayout(const Expr& expr);
 
 /*!
+ * \brief Transposing given layout with subindexing
+ * \param ref The layout to be transformed.
+ * \param src The source layout.
+ * \param dst The destination layout.
+ * \return The transposed dst layout.
+ */
+Layout TransposeSubLayoutLike(const Layout& ref, const Layout& src, const Layout& desired);
+
+/*!
+ * \brief Transposing given layout in string format with subindexing
+ * \param ref The layout to be transformed.
+ * \param src The source layout.
+ * \param dst The destination layout.
+ * \return The transposed dst layout.
+ */
+std::string TransposeSubLayoutStrLike(const std::string ref_str, const std::string& src_str,
+                                      const std::string& desired_str);
+
+/*!
  * \brief Transpose the input layout  like the src layout to the dst layout.
  * \param input The input layout.
  * \param src The source layout.
@@ -197,7 +221,7 @@ Layout TransposeLike(const Layout& input, const Layout& src, const Layout& dst);
  * \param dst The destination layout.
  * \return The transposed input str.
  */
-String TransposeStrLike(const String& input, const Layout& src, const Layout& dst);
+ffi::String TransposeStrLike(const ffi::String& input, const Layout& src, const Layout& dst);
 
 /*!
  * \brief Find axis in the dst layout. 0 represents the first axis, 1 represents the second axis,
@@ -230,7 +254,8 @@ NLayout GetNLayout(const VarLayoutMap& var_layout_map, const Expr& arg);
  * \param desired_layouts The desired layouts of the operator.
  * \return True if the op is not in the desired layout.
  */
-bool NoDesiredLayout(const Call& call, const Map<String, Array<String>>& desired_layouts);
+bool NoDesiredLayout(const Call& call,
+                     const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts);
 
 /*!
  * \brief Let a tensor with ndim to follow the src layout decision.

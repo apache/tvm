@@ -18,10 +18,10 @@
 """The expression functor of Relax."""
 from typing import Callable, Optional
 
-import tvm
+import tvm_ffi
 from tvm.ir import Op
-from tvm.meta_schedule.utils import derived_object
 from tvm.runtime import Object
+from tvm.runtime.support import derived_object
 
 from ..ir.module import IRModule
 from . import _ffi_api
@@ -31,7 +31,6 @@ from .expr import (
     BindingBlock,
     Call,
     Constant,
-    Id,
     DataflowBlock,
     DataflowVar,
     DataTypeImm,
@@ -39,6 +38,7 @@ from .expr import (
     ExternFunc,
     Function,
     GlobalVar,
+    Id,
     If,
     MatchCast,
     PrimValue,
@@ -261,8 +261,8 @@ class ExprFunctor:
             raise TypeError("Invalid type: {0}".format(type(var)))
 
 
-@tvm._ffi.register_object("expr_functor.PyExprVisitor")
-class _PyExprVisitor(Object):
+@tvm_ffi.register_object("expr_functor.PyExprVisitor")
+class _PyExprVisitor(tvm_ffi.core.Object):
     """
     A TVM object to support customization of ExprVisitor on the python side.
     This is the decorated result returned from visitor decorator.
@@ -781,7 +781,7 @@ class PyExprVisitor:
         return _ffi_api.ExprVisitorVisitSpan(self._outer(), span)  # type: ignore
 
 
-@tvm._ffi.register_object("expr_functor.PyExprMutator")
+@tvm_ffi.register_object("expr_functor.PyExprMutator")
 class _PyExprMutator(Object):
     """
     A TVM object to support customization of ExprMutator on the python side.
@@ -1503,7 +1503,7 @@ class PyExprMutator:
 
     def lookup_binding(self, var: Var) -> Optional[Expr]:
         """Look up the value bound to a variable.
-        Note: For function parameters, this function returns NullOpt.
+        Note: For function parameters, this function returns std::nullopt.
 
         Parameters
         ----------

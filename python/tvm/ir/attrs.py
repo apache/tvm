@@ -14,41 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" TVM Attribute module, which is mainly used for defining attributes of operators."""
-import tvm._ffi
+"""TVM Attribute module, which is mainly used for defining attributes of operators."""
+import tvm_ffi
 
 from tvm.runtime import Object
 import tvm.runtime._ffi_node_api
 from . import _ffi_api
 
 
-@tvm._ffi.register_object
+@tvm_ffi.register_object("ir.Attrs")
 class Attrs(Object):
-    """Attribute node, which is mainly use for defining attributes of relay operators.
+    """Attribute node, which is mainly use for defining attributes of operators.
 
     Used by function registered in python side, such as compute, schedule and alter_layout.
     Attrs is passed as the first argument to these functions.
     """
-
-    def list_field_info(self):
-        """Get fields information
-
-        Returns
-        -------
-        infos: list of AttrFieldInfo
-            List of field information
-        """
-        return _ffi_api.AttrsListFieldInfo(self)
-
-    def keys(self):
-        """Get list of names in the attribute.
-
-        Returns
-        -------
-        keys : list of str
-            List of keys
-        """
-        return [field.name for field in self.list_field_info()]
 
     def get_int_tuple(self, key):
         """Get a python int tuple of a key
@@ -61,7 +41,7 @@ class Attrs(Object):
         -------
         value: Tuple of int
         """
-        return tuple(x if isinstance(x, int) else x.value for x in self.__getattr__(key))
+        return tuple(x if isinstance(x, int) else x.value for x in getattr(self, key))
 
     def get_int(self, key):
         """Get a python int value of a key
@@ -74,7 +54,7 @@ class Attrs(Object):
         -------
         value: int
         """
-        return self.__getattr__(key)
+        return getattr(self, key)
 
     def get_str(self, key):
         """Get a python int value of a key
@@ -87,13 +67,13 @@ class Attrs(Object):
         -------
         value: int
         """
-        return self.__getattr__(key)
+        return getattr(self, key)
 
     def __getitem__(self, item):
-        return self.__getattr__(item)
+        return getattr(self, item)
 
 
-@tvm._ffi.register_object
+@tvm_ffi.register_object("ir.DictAttrs")
 class DictAttrs(Attrs):
     """Dictionary attributes."""
 
@@ -120,6 +100,12 @@ class DictAttrs(Attrs):
 
     def __contains__(self, k):
         return self._dict().__contains__(k)
+
+    def __getattr__(self, name):
+        try:
+            return self._dict().__getitem__(name)
+        except KeyError:
+            raise AttributeError(f"DictAttrs has no attribute {name}")
 
     def items(self):
         """Get items from the map."""
@@ -157,7 +143,7 @@ def make_node(type_key, **kwargs):
 
     .. code-block:: python
 
-       x = tvm.ir.make_node("IntImm", dtype="int32", value=10, span=None)
+       x = tvm.ir.make_node("ir.IntImm", dtype="int32", value=10, span=None)
        assert isinstance(x, tvm.tir.IntImm)
        assert x.value == 10
     """

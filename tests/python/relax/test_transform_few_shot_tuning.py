@@ -341,9 +341,9 @@ def _expected_results(
 ) -> np.ndarray:
     func = _get_single_prim_func(mod)
     func = func.with_attr("global_symbol", "main")
-    rt_mod = tvm.build(func, target="llvm")
+    rt_mod = tvm.compile(func, target="llvm")
     data = [
-        tvm.nd.array(x)
+        tvm.runtime.tensor(x)
         for x in [
             *inputs,
             np.zeros(output_shape, dtype=output_dtype),
@@ -357,9 +357,9 @@ def _actual_results(
     actual: tvm.ir.IRModule, inputs: List[np.ndarray], output_shape: Tuple, output_dtype: str
 ):
     target = _target()
-    actual_rt_mod = tvm.build(actual, target=target)
+    actual_rt_mod = tvm.compile(actual, target=target)
     actual_data = [
-        tvm.nd.array(x, device=tvm.cuda() if target.kind.name == "cuda" else tvm.cpu())
+        tvm.runtime.tensor(x, device=tvm.cuda() if target.kind.name == "cuda" else tvm.cpu())
         for x in [
             *inputs,
             np.zeros(output_shape, dtype=output_dtype),
@@ -373,7 +373,7 @@ def _assert_allclose(mod: tvm.ir.IRModule, actual: tvm.ir.IRModule) -> None:
     inputs, output_shape, output_dtype = _get_input_output_info(_get_single_prim_func(mod))
     expected_output = _expected_results(mod, inputs, output_shape, output_dtype)
     actual_output = _actual_results(actual, inputs, output_shape, output_dtype)
-    tvm.testing.assert_allclose(expected_output, actual_output, rtol=_acc(), atol=_acc())
+    tvm.testing.assert_allclose(expected_output, actual_output, rtol=1e-3, atol=1e-3)
 
 
 # Fused_Variance_Cast1 not added due to https://github.com/apache/tvm/issues/14791

@@ -21,29 +21,39 @@
  * \file src/relax/ir/struct_info.cc
  * \brief Relax struct info.
  */
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/struct_info_functor.h>
-#include <tvm/runtime/registry.h>
 
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  StructInfoNode::RegisterReflection();
+  ObjectStructInfoNode::RegisterReflection();
+  PrimStructInfoNode::RegisterReflection();
+  ShapeStructInfoNode::RegisterReflection();
+  TensorStructInfoNode::RegisterReflection();
+  TupleStructInfoNode::RegisterReflection();
+  FuncStructInfoNode::RegisterReflection();
+}
+
 ObjectStructInfo::ObjectStructInfo(Span span) {
-  ObjectPtr<ObjectStructInfoNode> n = make_object<ObjectStructInfoNode>();
+  ObjectPtr<ObjectStructInfoNode> n = ffi::make_object<ObjectStructInfoNode>();
   n->span = span;
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(ObjectStructInfoNode);
-
-TVM_REGISTER_GLOBAL("relax.ObjectStructInfo").set_body_typed([](Span span) {
-  return ObjectStructInfo(span);
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.ObjectStructInfo", [](Span span) { return ObjectStructInfo(span); });
+}
 
 // Prim
 PrimStructInfo::PrimStructInfo(PrimExpr value, Span span) {
-  ObjectPtr<PrimStructInfoNode> n = make_object<PrimStructInfoNode>();
+  ObjectPtr<PrimStructInfoNode> n = ffi::make_object<PrimStructInfoNode>();
   n->dtype = value->dtype;
   n->value = std::move(value);
   n->span = span;
@@ -51,26 +61,25 @@ PrimStructInfo::PrimStructInfo(PrimExpr value, Span span) {
 }
 
 PrimStructInfo::PrimStructInfo(DataType dtype, Span span) {
-  ObjectPtr<PrimStructInfoNode> n = make_object<PrimStructInfoNode>();
+  ObjectPtr<PrimStructInfoNode> n = ffi::make_object<PrimStructInfoNode>();
   n->dtype = dtype;
-  n->value = NullOpt;
+  n->value = std::nullopt;
   n->span = span;
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(PrimStructInfoNode);
-
-TVM_REGISTER_GLOBAL("relax.PrimStructInfoFromDtype").set_body_typed([](DataType dtype, Span span) {
-  return PrimStructInfo(dtype, span);
-});
-
-TVM_REGISTER_GLOBAL("relax.PrimStructInfoFromValue").set_body_typed([](PrimExpr value, Span span) {
-  return PrimStructInfo(value, span);
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("relax.PrimStructInfoFromDtype",
+           [](DataType dtype, Span span) { return PrimStructInfo(dtype, span); })
+      .def("relax.PrimStructInfoFromValue",
+           [](PrimExpr value, Span span) { return PrimStructInfo(value, span); });
+}
 
 // Shape
-ShapeStructInfo::ShapeStructInfo(Array<PrimExpr> values, Span span) {
-  ObjectPtr<ShapeStructInfoNode> n = make_object<ShapeStructInfoNode>();
+ShapeStructInfo::ShapeStructInfo(ffi::Array<PrimExpr> values, Span span) {
+  ObjectPtr<ShapeStructInfoNode> n = ffi::make_object<ShapeStructInfoNode>();
   n->ndim = static_cast<int>(values.size());
   n->values = values.Map([](PrimExpr value) {
     if (value->IsInstance<IntImmNode>()) {
@@ -85,36 +94,37 @@ ShapeStructInfo::ShapeStructInfo(Array<PrimExpr> values, Span span) {
 }
 
 ShapeStructInfo::ShapeStructInfo(int ndim, Span span) {
-  ObjectPtr<ShapeStructInfoNode> n = make_object<ShapeStructInfoNode>();
+  ObjectPtr<ShapeStructInfoNode> n = ffi::make_object<ShapeStructInfoNode>();
   CHECK_GE(ndim, -1) << "ndim of ShapeStructInfo must be >= -1, but got " << ndim;
   n->ndim = ndim;
   n->span = span;
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(ShapeStructInfoNode);
-
-TVM_REGISTER_GLOBAL("relax.ShapeStructInfo")
-    .set_body_typed([](Optional<Array<PrimExpr>> values, int ndim, Span span) {
-      if (values.defined()) {
-        CHECK_EQ(ndim, kUnknownNDim) << "ValueError: Cannot both specify values and ndim";
-        return ShapeStructInfo(values.value(), span);
-      } else {
-        return ShapeStructInfo(ndim, span);
-      }
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "relax.ShapeStructInfo", [](ffi::Optional<ffi::Array<PrimExpr>> values, int ndim, Span span) {
+        if (values.defined()) {
+          CHECK_EQ(ndim, kUnknownNDim) << "ValueError: Cannot both specify values and ndim";
+          return ShapeStructInfo(values.value(), span);
+        } else {
+          return ShapeStructInfo(ndim, span);
+        }
+      });
+}
 
 // Tensor
-TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, Optional<VDevice> vdevice,
+TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, ffi::Optional<VDevice> vdevice,
                                    Span span) {
-  ObjectPtr<TensorStructInfoNode> n = make_object<TensorStructInfoNode>();
+  ObjectPtr<TensorStructInfoNode> n = ffi::make_object<TensorStructInfoNode>();
   // assign ndim before move
-  Optional<ShapeStructInfo> sinfo = MatchStructInfo<ShapeStructInfo>(shape);
+  ffi::Optional<ShapeStructInfo> sinfo = MatchStructInfo<ShapeStructInfo>(shape);
   ICHECK(sinfo) << "We expect shape to contain pre-set shape struct info";
   ICHECK(shape.defined()) << "Must provide a shape in this constructor";
   ICHECK(shape->IsInstance<ShapeExprNode>() || shape->IsInstance<VarNode>())
       << "We require shape to be normalized when constructing TensorStructInfo";
-  n->ndim = sinfo.get()->ndim;
+  n->ndim = sinfo.value()->ndim;
   // assign rest of the fields.
   n->shape = std::move(shape);
   n->dtype = dtype;
@@ -123,8 +133,9 @@ TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, Optional<VDevice>
   data_ = std::move(n);
 }
 
-TensorStructInfo::TensorStructInfo(DataType dtype, int ndim, Optional<VDevice> vdevice, Span span) {
-  ObjectPtr<TensorStructInfoNode> n = make_object<TensorStructInfoNode>();
+TensorStructInfo::TensorStructInfo(DataType dtype, int ndim, ffi::Optional<VDevice> vdevice,
+                                   Span span) {
+  ObjectPtr<TensorStructInfoNode> n = ffi::make_object<TensorStructInfoNode>();
   CHECK_GE(ndim, -1) << "ndim of TensorStructInfo must be >= -1, but got " << ndim;
   n->ndim = ndim;
   n->dtype = dtype;
@@ -133,36 +144,39 @@ TensorStructInfo::TensorStructInfo(DataType dtype, int ndim, Optional<VDevice> v
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(TensorStructInfoNode);
-
-TVM_REGISTER_GLOBAL("relax.TensorStructInfo")
-    .set_body_typed([](Optional<Expr> shape, DataType dtype, int ndim, VDevice vdevice, Span span) {
-      if (shape.defined()) {
-        CHECK_EQ(ndim, kUnknownNDim) << "ValueError: Cannot both specify shape and ndim";
-        return TensorStructInfo(shape.value(), dtype, vdevice, span);
-      } else {
-        return TensorStructInfo(dtype, ndim, vdevice, span);
-      }
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "relax.TensorStructInfo", [](ffi::Optional<Expr> shape, ffi::Optional<DataType> dtype,
+                                   int ndim, VDevice vdevice, Span span) {
+        if (shape.defined()) {
+          CHECK_EQ(ndim, kUnknownNDim) << "ValueError: Cannot both specify shape and ndim";
+          return TensorStructInfo(shape.value(), dtype.value_or(DataType::Void()), vdevice, span);
+        } else {
+          return TensorStructInfo(dtype.value_or(DataType::Void()), ndim, vdevice, span);
+        }
+      });
+}
 
 // Tuple
-TupleStructInfo::TupleStructInfo(Array<StructInfo> fields, Span span) {
-  ObjectPtr<TupleStructInfoNode> n = make_object<TupleStructInfoNode>();
+TupleStructInfo::TupleStructInfo(ffi::Array<StructInfo> fields, Span span) {
+  ObjectPtr<TupleStructInfoNode> n = ffi::make_object<TupleStructInfoNode>();
   n->fields = std::move(fields);
   n->span = span;
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(TupleStructInfoNode);
-
-TVM_REGISTER_GLOBAL("relax.TupleStructInfo")
-    .set_body_typed([](Array<StructInfo> fields, Span span) {
-      return TupleStructInfo(fields, span);
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.TupleStructInfo", [](ffi::Array<StructInfo> fields, Span span) {
+    return TupleStructInfo(fields, span);
+  });
+}
 
 // Func
-FuncStructInfo::FuncStructInfo(Array<StructInfo> params, StructInfo ret, bool purity, Span span) {
-  ObjectPtr<FuncStructInfoNode> n = make_object<FuncStructInfoNode>();
+FuncStructInfo::FuncStructInfo(ffi::Array<StructInfo> params, StructInfo ret, bool purity,
+                               Span span) {
+  ObjectPtr<FuncStructInfoNode> n = ffi::make_object<FuncStructInfoNode>();
   n->params = std::move(params);
   n->ret = std::move(ret);
   n->purity = std::move(purity);
@@ -172,7 +186,7 @@ FuncStructInfo::FuncStructInfo(Array<StructInfo> params, StructInfo ret, bool pu
 
 FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfoDeriveFunc derive_func, bool purity,
                                           Span span) {
-  ObjectPtr<FuncStructInfoNode> n = make_object<FuncStructInfoNode>();
+  ObjectPtr<FuncStructInfoNode> n = ffi::make_object<FuncStructInfoNode>();
   n->derive_func = std::move(derive_func);
   n->ret = ObjectStructInfo();
   n->purity = std::move(purity);
@@ -181,30 +195,31 @@ FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfoDeriveFunc derive_func, bool
 }
 
 FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfo ret, bool purity, Span span) {
-  ObjectPtr<FuncStructInfoNode> n = make_object<FuncStructInfoNode>();
+  ObjectPtr<FuncStructInfoNode> n = ffi::make_object<FuncStructInfoNode>();
   n->ret = std::move(ret);
   n->purity = std::move(purity);
   n->span = span;
   return FuncStructInfo(n);
 }
 
-TVM_REGISTER_NODE_TYPE(FuncStructInfoNode);
-
-TVM_REGISTER_GLOBAL("relax.FuncStructInfo")
-    .set_body_typed([](Array<StructInfo> params, StructInfo ret, bool purity, Span span) {
-      return FuncStructInfo(params, ret, purity, span);
-    });
-
-TVM_REGISTER_GLOBAL("relax.FuncStructInfoOpaqueFunc")
-    .set_body_typed([](Optional<StructInfo> ret, Optional<StructInfoDeriveFunc> derive_func,
-                       bool purity, Span span) {
-      if (derive_func.defined()) {
-        ICHECK(!ret.defined()) << "ValueError: Cannot specify both ret and derive_func";
-        return FuncStructInfo::OpaqueFunc(derive_func.value(), purity, span);
-      } else {
-        return FuncStructInfo::OpaqueFunc(ret.value_or(ObjectStructInfo()), purity, span);
-      }
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("relax.FuncStructInfo",
+           [](ffi::Array<StructInfo> params, StructInfo ret, bool purity, Span span) {
+             return FuncStructInfo(params, ret, purity, span);
+           })
+      .def("relax.FuncStructInfoOpaqueFunc",
+           [](ffi::Optional<StructInfo> ret, ffi::Optional<StructInfoDeriveFunc> derive_func,
+              bool purity, Span span) {
+             if (derive_func.defined()) {
+               ICHECK(!ret.defined()) << "ValueError: Cannot specify both ret and derive_func";
+               return FuncStructInfo::OpaqueFunc(derive_func.value(), purity, span);
+             } else {
+               return FuncStructInfo::OpaqueFunc(ret.value_or(ObjectStructInfo()), purity, span);
+             }
+           });
+}
 
 // Helper functions
 void UpdateStructInfo(Expr expr, StructInfo struct_info) {
@@ -215,17 +230,15 @@ void UpdateStructInfo(Expr expr, StructInfo struct_info) {
       << "However, expression " << expr << " has struct info " << expr->struct_info_
       << ", which cannot be overwritten with " << struct_info;
   expr->struct_info_ = struct_info;
-  // also set checked type
-  expr->checked_type_ = GetStaticType(struct_info);
 }
 
-TVM_REGISTER_GLOBAL("relax.UpdateStructInfo").set_body_typed([](Expr expr, StructInfo struct_info) {
-  UpdateStructInfo(expr, struct_info);
-});
-
-TVM_REGISTER_GLOBAL("ir.ExprStructInfo").set_body_typed([](Expr expr) {
-  return GetStructInfo(expr);
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("relax.UpdateStructInfo",
+           [](Expr expr, StructInfo struct_info) { UpdateStructInfo(expr, struct_info); })
+      .def("ir.ExprStructInfo", [](Expr expr) { return GetStructInfo(expr); });
+}
 
 }  // namespace relax
 }  // namespace tvm

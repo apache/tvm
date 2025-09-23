@@ -21,7 +21,8 @@
  * \file remove_store_undef.cc
  * \brief Remove stores of tir::builtin::undef
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
@@ -61,7 +62,10 @@ Pass RemoveAssume() {
   return Sequential({RemoveAssumeInternal(), RemoveNoOp()}, "tir.RemoveAssume");
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.RemoveAssume").set_body_typed(RemoveAssume);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.RemoveAssume", RemoveAssume);
+}
 
 }  // namespace transform
 

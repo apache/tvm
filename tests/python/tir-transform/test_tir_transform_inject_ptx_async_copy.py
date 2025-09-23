@@ -16,6 +16,7 @@
 # under the License.
 
 import tvm
+import tvm_ffi
 import tvm.testing
 from tvm.script import tir as T
 
@@ -142,13 +143,13 @@ def test_inject_async_copy():
             continue
 
         with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
-            mod = tvm.build(tvm.IRModule.from_expr(f), target="cuda")
+            mod = tvm.compile(tvm.IRModule.from_expr(f), target="cuda")
 
         A_np = np.random.rand(32, 128).astype(dtype)
         B_np = np.zeros((32, 128)).astype(dtype)
         dev = tvm.cuda(0)
-        A_nd = tvm.nd.array(A_np, device=dev)
-        B_nd = tvm.nd.array(B_np, device=dev)
+        A_nd = tvm.runtime.tensor(A_np, device=dev)
+        B_nd = tvm.runtime.tensor(B_np, device=dev)
         mod(A_nd, B_nd)
         tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
@@ -170,15 +171,15 @@ def test_inject_async_copy_shared_dyn():
         return
 
     with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
-        mod = tvm.build(tvm.IRModule.from_expr(f), target="cuda")
+        mod = tvm.compile(tvm.IRModule.from_expr(f), target="cuda")
 
     A_np = np.random.rand(32, 128).astype("float16")
     B_np = np.random.rand(32, 128).astype("float16")
     C_np = np.zeros((32, 128)).astype("float16")
     dev = tvm.cuda(0)
-    A_nd = tvm.nd.array(A_np, device=dev)
-    B_nd = tvm.nd.array(B_np, device=dev)
-    C_nd = tvm.nd.array(C_np, device=dev)
+    A_nd = tvm.runtime.tensor(A_np, device=dev)
+    B_nd = tvm.runtime.tensor(B_np, device=dev)
+    C_nd = tvm.runtime.tensor(C_np, device=dev)
     mod(A_nd, B_nd, C_nd)
     tvm.testing.assert_allclose(C_nd.numpy(), A_np + B_np)
 
@@ -228,18 +229,19 @@ def test_inject_async_copy_barrier():
 
     if tvm.testing.is_ampere_or_newer():
         with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
-            mod = tvm.build(tvm.IRModule.from_expr(f), target="cuda")
+            mod = tvm.compile(tvm.IRModule.from_expr(f), target="cuda")
 
         A_np = np.random.rand(32, 128).astype(dtype)
         B_np = np.zeros((32, 128)).astype(dtype)
         dev = tvm.cuda(0)
-        A_nd = tvm.nd.array(A_np, device=dev)
-        B_nd = tvm.nd.array(B_np, device=dev)
+        A_nd = tvm.runtime.tensor(A_np, device=dev)
+        B_nd = tvm.runtime.tensor(B_np, device=dev)
         mod(A_nd, B_nd)
         tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
 
-expected_cuda_script = r"""__forceinline__ __device__ unsigned int
+expected_cuda_script = r"""#include <cuda.h>
+__forceinline__ __device__ unsigned int
 cast_smem_ptr_to_int(const void* const smem_ptr)
 {
   unsigned int smem_int;
@@ -254,26 +256,16 @@ cast_smem_ptr_to_int(const void* const smem_ptr)
 #else
 #define TVM_ENABLE_L2_PREFETCH 0
 #endif
-
-#ifdef _WIN32
-  using uint = unsigned int;
-  using uchar = unsigned char;
-  using ushort = unsigned short;
-  using int64_t = long long;
-  using uint64_t = unsigned long long;
-#else
-  #define uint unsigned int
-  #define uchar unsigned char
-  #define ushort unsigned short
-  #define int64_t long long
-  #define uint64_t unsigned long long
-#endif
+#include <cstdint>
+using uint = unsigned int;
+using uchar = unsigned char;
+using ushort = unsigned short;
 extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C);
 extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C) {
   __shared__ float A_shared[64];
   __shared__ float B_shared[64];
-  A_shared[((int)threadIdx.x)] = 0.000000e+00f;
-  B_shared[((int)threadIdx.x)] = 0.000000e+00f;
+  A_shared[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
+  B_shared[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
 __asm__ __volatile__("cp.async.commit_group;");
 
 
@@ -329,11 +321,11 @@ __asm__ __volatile__("cp.async.commit_group;");
 __asm__ __volatile__("cp.async.commit_group;");
 
   for (int i = 0; i < 13; ++i) {
-    bool cse_var_1 = (i < 12);
+    bool cse_v1 = (i < 12);
 
   {
     unsigned int addr = cast_smem_ptr_to_int(A_shared + ((((i + 3) & 3) * 16) + ((int)threadIdx.x)));
-    int pred_guard = (int)cse_var_1;
+    int pred_guard = (int)cse_v1;
     __asm__ __volatile__(
         "{  .reg .pred p;"
         "  setp.ne.b32 p, %0, 0;"
@@ -356,7 +348,7 @@ __asm__ __volatile__("cp.async.wait_group 5;");
 
   {
     unsigned int addr = cast_smem_ptr_to_int(B_shared + ((((i + 3) & 3) * 16) + ((int)threadIdx.x)));
-    int pred_guard = (int)cse_var_1;
+    int pred_guard = (int)cse_v1;
     __asm__ __volatile__(
         "{  .reg .pred p;"
         "  setp.ne.b32 p, %0, 0;"
@@ -402,7 +394,7 @@ def postproc_if_missing_async_support():
     # way, even though the generated code doesn't compile on platforms
     # that do not support async, the comparison against an expected
     # output can still be performed.  We cannot use
-    # `mod.get_source()`, as that contains the source after all
+    # `mod.inspect_source()`, as that contains the source after all
     # post-processing.
     original_code = None
 
@@ -410,7 +402,7 @@ def postproc_if_missing_async_support():
         nonlocal original_code
         return original_code
 
-    @tvm.register_func(func_name, override=True)
+    @tvm.register_global_func(func_name, override=True)
     def tvm_callback_cuda_postproc(code, _):
         nonlocal original_code
         original_code = code
@@ -430,9 +422,9 @@ def postproc_if_missing_async_support():
 
     # Restore previous postproc func to avoid impacting other tests
     if prev_postproc is None:
-        tvm._ffi.registry.remove_global_func(func_name)
+        tvm_ffi.registry.remove_global_func(func_name)
     else:
-        tvm.register_func(func_name, prev_postproc, override=True)
+        tvm.register_global_func(func_name, prev_postproc, override=True)
 
 
 @tvm.testing.requires_cuda
@@ -477,8 +469,9 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
 
     mod = tvm.IRModule.from_expr(simple_compute)
     with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
-        tvm.build(mod, target="cuda")
+        tvm.compile(mod, target="cuda")
     generated_code = postproc_if_missing_async_support()
+    print(generated_code)
     assert generated_code == expected_cuda_script
 
 
@@ -938,7 +931,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
 
     mod = tvm.IRModule.from_expr(complex_compute)
     with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
-        tvm.build(mod, target="cuda")
+        tvm.compile(mod, target="cuda")
     generated_code = postproc_if_missing_async_support()
     # generated_code must contain "  setp.ne.b32 p, %0, 0;"
     assert "setp.ne.b32" in generated_code
@@ -954,10 +947,10 @@ class TestMultiplicationNodesAreInligned(tvm.testing.CompareBeforeAfter):
 
         T.attr("default", "async_scope", 1)
         for i in range(16):
-            cse_var_1: T.int64 = T.Cast("int64", i)
-            A_shared[
-                T.Ramp(tx * T.int64(128) + cse_var_1 * T.int64(8), T.int64(1), 8)
-            ] = A_flattened[T.Ramp(tx * T.int64(128) + cse_var_1 * T.int64(8), T.int64(1), 8)]
+            cse_v1: T.int64 = T.Cast("int64", i)
+            A_shared[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)] = A_flattened[
+                T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)
+            ]
         T.ptx_commit_group()
         T.ptx_wait_group(0)
 
@@ -965,13 +958,13 @@ class TestMultiplicationNodesAreInligned(tvm.testing.CompareBeforeAfter):
         tx = T.launch_thread("threadIdx.x", T.int64(32))
         A_shared = T.decl_buffer((4096,), "float16", scope="shared")
         for i in range(16):
-            cse_var_1: T.int64 = T.Cast("int64", i)
+            cse_v1: T.int64 = T.Cast("int64", i)
             T.ptx_cp_async(
                 "float16",
                 A_shared.data,
-                tx * T.int64(128) + cse_var_1 * T.int64(8),
+                tx * T.int64(128) + cse_v1 * T.int64(8),
                 A.data,
-                tx * T.int64(128) + cse_var_1 * T.int64(8),
+                tx * T.int64(128) + cse_v1 * T.int64(8),
                 16,
             )
         T.ptx_commit_group()

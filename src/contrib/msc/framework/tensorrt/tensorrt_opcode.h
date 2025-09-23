@@ -49,22 +49,22 @@ class TensorRTOpCode : public BaseOpCode<TensorRTCodeGenConfig, TensorRTCodeGenH
    * \param func_name the function name for the node.
    * \param config the config json for the node.
    */
-  explicit TensorRTOpCode(const String& func_name)
+  explicit TensorRTOpCode(const ffi::String& func_name)
       : BaseOpCode<TensorRTCodeGenConfig, TensorRTCodeGenHelper>(func_name) {}
 
   /*! \brief Convert node to docs*/
-  const Array<Doc> GetDocs() final;
+  const ffi::Array<Doc> GetDocs() final;
 
   /*! \brief Get func_name for the default node*/
-  const String callee_name() final {
+  const ffi::String callee_name() final {
     return "network->add" + BaseOpCode<TensorRTCodeGenConfig, TensorRTCodeGenHelper>::callee_name();
   }
 
   /*! \brief Get valid return name for the default node*/
-  const String ret_name() final { return "auto " + IdxNode(); }
+  const ffi::String ret_name() final { return "auto " + IdxNode(); }
 
   /*! \brief Get the dtype from the datatype*/
-  const String DType(const DataType& dtype) final;
+  const ffi::String DType(const DataType& dtype) final;
 
  protected:
   TensorRTOpCodeStack stack_;
@@ -73,50 +73,52 @@ class TensorRTOpCode : public BaseOpCode<TensorRTCodeGenConfig, TensorRTCodeGenH
   virtual void CodeGenBuild() = 0;
 
   /*! \brief Set padding for the layer*/
-  void SetPadding(const String& key = "padding");
+  void SetPadding(const ffi::String& key = "padding");
 
   /*! \brief Declare the inputs*/
-  const String DeclareInputs(bool simplify = true);
+  const ffi::String DeclareInputs(bool simplify = true);
 
   /*! \brief Get the tensorrt dims from dims*/
   template <typename T>
-  const String ToDims(const std::vector<T>& dims, bool use_ndim = true);
-  const String ToDims(const Array<Integer>& dims, bool use_ndim = true);
+  const ffi::String ToDims(const std::vector<T>& dims, bool use_ndim = true);
+  const ffi::String ToDims(const ffi::Array<Integer>& dims, bool use_ndim = true);
 
   /*! \brief Get the tensorrt dims from attribute*/
-  const String AttrToDims(const String& key, bool use_ndim = true);
+  const ffi::String AttrToDims(const ffi::String& key, bool use_ndim = true);
 
   /*! \brief Get the tensorrt reduce axis from dims*/
   const size_t ToReduceAxis(const std::vector<int>& axes, size_t ndim = 0);
 
   /*! \brief Get the tensorrt reduce axis from attribute*/
-  const size_t AttrToReduceAxis(const String& key = "axis", size_t ndim = 0);
+  const size_t AttrToReduceAxis(const ffi::String& key = "axis", size_t ndim = 0);
 
   /*! \brief Get the attribute axis from attribute*/
-  const size_t AttrToAxis(const String& key = "axis", size_t ndim = 0);
+  const size_t AttrToAxis(const ffi::String& key = "axis", size_t ndim = 0);
 
   /*! \brief Set layer by attribute*/
   template <typename T>
-  void SetLayerByAttr(const String& method, const String& key);
+  void SetLayerByAttr(const ffi::String& method, const ffi::String& key);
 
   /*! \brief Set layer by value*/
   template <typename T>
-  void SetLayerByValue(const String& method, const T& value);
+  void SetLayerByValue(const ffi::String& method, const T& value);
 
   /*! \brief Set layer by dims attribute*/
-  void SetLayerByDimsAttr(const String& method, const String& key, bool use_ndim = true);
+  void SetLayerByDimsAttr(const ffi::String& method, const ffi::String& key, bool use_ndim = true);
 
   /*! \brief Set layer by dims value*/
   template <typename T>
-  void SetLayerByDimsValue(const String& method, const std::vector<T>& value, bool use_ndim = true);
-  void SetLayerByDimsValue(const String& method, const Array<Integer>& value, bool use_ndim = true);
+  void SetLayerByDimsValue(const ffi::String& method, const std::vector<T>& value,
+                           bool use_ndim = true);
+  void SetLayerByDimsValue(const ffi::String& method, const ffi::Array<Integer>& value,
+                           bool use_ndim = true);
 };
 
 /*!
  * \brief Get the map of available TensorRTOpCode, use optype as key
  * \return Map of <string, TensorRTOpCode>
  */
-const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TensorRTOpCode>>>
+const std::shared_ptr<std::unordered_map<ffi::String, std::shared_ptr<TensorRTOpCode>>>
 GetTensorRTOpCodes();
 
 }  // namespace msc

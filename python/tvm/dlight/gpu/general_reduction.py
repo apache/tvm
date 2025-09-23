@@ -21,7 +21,8 @@ from typing import List, Union
 from tvm import arith, tir
 from tvm.target import Target
 
-from ..base import normalize_prim_func, try_inline_contiguous_spatial
+from ..analysis import normalize_prim_func
+from ..base import try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
 
@@ -60,6 +61,23 @@ class GeneralReduction(GPUScheduleRule):
         # Align the number of block iters of the last block.
         num_last_block_iter = len(block_infos[-1].dom_kind())
         if num_last_block_iter < len(dom_kind):
+            # If the last block is a scalar value, there is nothing left to
+            # tile/parallelise, and  `iters` is an empty tuple.
+            # Add a unit thread loop so the final write happens inside a valid
+            # GPU thread environment.
+            if num_last_block_iter == 0:
+                # Put every block (both the running reductions and the final
+                # scalar write) inside a trivial GPU thread. The very first block
+                # gets a `blockIdx.x` wrapper so that kernels still have a unique
+                # block scope.
+                for i, info in enumerate(block_infos):
+                    loop_rv = sch.add_unit_loop(info.block_rv)
+                    if i == 0:
+                        sch.bind(loop_rv, "blockIdx.x")
+                    else:
+                        sch.bind(loop_rv, "threadIdx.x")
+
+                return sch
 
             def f_layout_mapping(*iters):
                 analyzer = arith.Analyzer()
@@ -97,6 +115,46 @@ class GeneralReduction(GPUScheduleRule):
             assert len(block_infos[-1].dom_kind()) <= len(dom_kind)
         except AssertionError:
             return None
+
+        if "R" not in block_infos[-1].dom_kind():
+            # The final block is a spatial block.
+            # It is possible that the loop order of the last block is not the same as
+            # previous blocks.
+            # Thus we reorder spatial loops to align with reduction loops for followup schedule.
+            # We first collect all the buffers written by reduction blocks,
+            # then in the final block, any index of those buffers are spatial.
+            reduced_buffers = []
+            for block_info in block_infos[:-1]:
+                for buffer_write in sch.get(block_info.block_rv).writes:
+                    reduced_buffers.append(buffer_write.buffer)
+
+            spatial_block = sch.get(block_infos[-1].block_rv)
+            spatial_loops = set()
+            block_var_to_loop_var = {}
+            loops = sch.get_loops(block_infos[-1].block_rv)
+            for block_iter, loop_rv in zip(spatial_block.iter_vars, loops):
+                block_var_to_loop_var[block_iter.var] = sch.get(loop_rv).loop_var
+
+            def _visit_expr(e: tir.PrimExpr):
+                if isinstance(e, tir.Var) and e in block_var_to_loop_var:
+                    spatial_loops.add(block_var_to_loop_var[e])
+
+            for buffer_read in spatial_block.reads:
+                buffer = buffer_read.buffer
+                if buffer in reduced_buffers:
+                    for read_range in buffer_read.region:
+                        tir.stmt_functor.post_order_visit(read_range.min, _visit_expr)
+                        tir.stmt_functor.post_order_visit(read_range.extent, _visit_expr)
+
+            s_loops = []
+            other_loops = []
+            for loop_rv in loops:
+                loop = sch.get(loop_rv)
+                if loop.loop_var in spatial_loops or loop.extent == 1:
+                    s_loops.append(loop_rv)
+                else:
+                    other_loops.append(loop_rv)
+            sch.reorder(*s_loops, *other_loops)
 
         loops = sch.get_loops(block_infos[-1].block_rv)
         bx = sch.fuse(*loops[:num_leading_s])

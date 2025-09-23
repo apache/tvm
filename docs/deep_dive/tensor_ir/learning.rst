@@ -90,9 +90,9 @@ Function Parameters and Buffers
 .. code:: python
 
     # TensorIR
-    def mm_relu(A: T.Buffer[(128, 128), "float32"],
-                B: T.Buffer[(128, 128), "float32"],
-                C: T.Buffer[(128, 128), "float32"]):
+    def mm_relu(A: T.Buffer((128, 128), "float32"),
+                B: T.Buffer((128, 128), "float32"),
+                C: T.Buffer((128, 128), "float32")):
         ...
     # NumPy
     def lnumpy_mm_relu(A: np.ndarray, B: np.ndarray, C: np.ndarray):
@@ -182,7 +182,7 @@ Block Axis Properties
 ~~~~~~~~~~~~~~~~~~~~~
 Let's delve deeper into the properties of the block axis. These properties signify the axis's
 relationship to the computation in progress. The block comprises three axes ``vi``, ``vj``, and
-``vk``, meanwhile the block reads the buffer ``A[vi, vk]``, ``B[vk, vj]`` and writs the buffer
+``vk``, meanwhile the block reads the buffer ``A[vi, vk]``, ``B[vk, vj]`` and writes the buffer
 ``Y[vi, vj]``. Strictly speaking, the block performs (reduction) updates to Y, which we label
 as write for the time being, as we don't require the value of Y from another block.
 

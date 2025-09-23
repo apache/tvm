@@ -23,6 +23,7 @@
  * \note This pass is not used in default cases.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/data_type_rewriter.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
@@ -55,7 +56,7 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
       ICHECK_LE(op->value, Downcast<Integer>(max_value(target_data_type_))->value);
       return IntImm(DataType::Int(32), op->value);
     }
-    return GetRef<IntImm>(op);
+    return ffi::GetRef<IntImm>(op);
   }
 
   Stmt VisitStmt_(const BlockNode* block) final {
@@ -86,8 +87,10 @@ Pass ForceNarrowIndexToInt32() {
   return CreatePrimFuncPass(pass_func, 0, "tir.NarrowDataType", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.ForceNarrowIndexToInt32")
-    .set_body_typed(ForceNarrowIndexToInt32);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.ForceNarrowIndexToInt32", ForceNarrowIndexToInt32);
+}
 
 }  // namespace transform
 }  // namespace tir

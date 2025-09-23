@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/container/array.h>
+#include <tvm/ffi/container/array.h>
 
 /*!
  * \file tir/ir/functor_common.h
@@ -30,14 +30,14 @@ namespace tir {
 
 // Implementation of Visitors
 template <typename T, typename F>
-inline void VisitArray(const Array<T>& arr, F fvisit) {
+inline void VisitArray(const ffi::Array<T>& arr, F fvisit) {
   for (size_t i = 0; i < arr.size(); i++) {
     fvisit(arr[i]);
   }
 }
 
 template <typename T, typename F>
-inline Array<T> MutateArray(Array<T> arr, F fmutate) {
+inline ffi::Array<T> MutateArray(ffi::Array<T> arr, F fmutate) {
   return arr.Map(fmutate);
 }
 

@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -34,11 +36,11 @@ class AddRFactorNode : public ScheduleRuleNode {
   }
 
   // Inherited from ScheduleRuleNode
-  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv);
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv);
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
-    ObjectPtr<AddRFactorNode> n = make_object<AddRFactorNode>(*this);
+    ObjectPtr<AddRFactorNode> n = ffi::make_object<AddRFactorNode>(*this);
     return ScheduleRule(n);
   }
 
@@ -56,20 +58,18 @@ class AddRFactorNode : public ScheduleRuleNode {
   /*! \brief The number of cores. */
   int max_parallel_basic_;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("max_jobs_per_core", &max_jobs_per_core);
-    v->Visit("max_innermost_factor", &max_innermost_factor);
-    // `max_parallel_extent_` is not visited
-    // `max_parallel_basic_` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AddRFactorNode>()
+        .def_ro("max_jobs_per_core", &AddRFactorNode::max_jobs_per_core)
+        .def_ro("max_innermost_factor", &AddRFactorNode::max_innermost_factor);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.AddRFactor";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AddRFactorNode, ScheduleRuleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.AddRFactor", AddRFactorNode, ScheduleRuleNode);
 };
 
 ScheduleRule ScheduleRule::AddRFactor(int max_jobs_per_core,
-                                      Optional<Integer> max_innermost_factor) {
-  ObjectPtr<AddRFactorNode> n = make_object<AddRFactorNode>();
+                                      ffi::Optional<Integer> max_innermost_factor) {
+  ObjectPtr<AddRFactorNode> n = ffi::make_object<AddRFactorNode>();
   n->max_jobs_per_core = max_jobs_per_core;
   n->max_innermost_factor = max_innermost_factor.value_or(Integer(-1))->value;
   n->max_parallel_extent_ = -1;
@@ -77,7 +77,8 @@ ScheduleRule ScheduleRule::AddRFactor(int max_jobs_per_core,
   return ScheduleRule(n);
 }
 
-Array<tir::Schedule> AddRFactorNode::Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) {
+ffi::Array<tir::Schedule> AddRFactorNode::Apply(const tir::Schedule& sch,
+                                                const tir::BlockRV& block_rv) {
   tir::StmtSRef block_sref = sch->GetSRef(block_rv);
   if (!NeedsRFactorOrCrossThreadReduction(sch->state(), block_sref, max_parallel_extent_,
                                           max_parallel_basic_)) {
@@ -95,16 +96,18 @@ Array<tir::Schedule> AddRFactorNode::Apply(const tir::Schedule& sch, const tir::
   ReorderAndFuseReductionLoops(sch, block_rv, &fused_reduce_loop, &num_spatial_loops);
 
   // Split the fused reduction loop.
-  Array<tir::ExprRV> factors = sch->SamplePerfectTile(fused_reduce_loop, 2, max_innermost_factor);
-  Array<tir::LoopRV> split_loops = sch->Split(fused_reduce_loop, {factors.begin(), factors.end()});
+  ffi::Array<tir::ExprRV> factors =
+      sch->SamplePerfectTile(fused_reduce_loop, 2, max_innermost_factor);
+  ffi::Array<tir::LoopRV> split_loops =
+      sch->Split(fused_reduce_loop, {factors.begin(), factors.end()});
 
-  Array<tir::Schedule> res;
+  ffi::Array<tir::Schedule> res;
   for (const tir::LoopRV& split_loop : split_loops) {
     tir::Schedule sch_tmp = sch->Copy();
     sch_tmp->Seed(sch->ForkSeed());
     try {
       const tir::BlockRV& block_rf = sch_tmp->RFactor(split_loop, num_spatial_loops);
-      Array<tir::LoopRV> axes = sch_tmp->GetLoops(block_rf);
+      ffi::Array<tir::LoopRV> axes = sch_tmp->GetLoops(block_rf);
       ICHECK_GT(axes.size(), num_spatial_loops);
 
       // Annotate that the rfactor block, which is now the producer of the original block, needs to
@@ -119,9 +122,12 @@ Array<tir::Schedule> AddRFactorNode::Apply(const tir::Schedule& sch, const tir::
   return res;
 }
 
-TVM_REGISTER_NODE_TYPE(AddRFactorNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleAddRFactor")
-    .set_body_typed(ScheduleRule::AddRFactor);
+TVM_FFI_STATIC_INIT_BLOCK() { AddRFactorNode::RegisterReflection(); }
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.ScheduleRuleAddRFactor", ScheduleRule::AddRFactor);
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

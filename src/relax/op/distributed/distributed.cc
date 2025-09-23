@@ -24,6 +24,7 @@
 
 #include "distributed.h"
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/attrs/ccl.h>
 #include <tvm/topi/einsum.h>
 
@@ -36,11 +37,13 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK() { DistributionAttrs::RegisterReflection(); }
+
 /* relax.dist.annotate_sharding */
-TVM_REGISTER_NODE_TYPE(DistributionAttrs);
+
 Expr annotate_sharding(Expr input, distributed::DeviceMesh device_mesh,
                        distributed::Placement placement) {
-  ObjectPtr<DistributionAttrs> attrs = make_object<DistributionAttrs>();
+  ObjectPtr<DistributionAttrs> attrs = ffi::make_object<DistributionAttrs>();
   attrs->device_mesh = device_mesh;
   attrs->placement = placement;
 
@@ -48,7 +51,10 @@ Expr annotate_sharding(Expr input, distributed::DeviceMesh device_mesh,
   return Call(op, {std::move(input)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.dist.annotate_sharding").set_body_typed(annotate_sharding);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.dist.annotate_sharding", annotate_sharding);
+}
 
 StructInfo InferStructInfoAnnotateSharding(const Call& call, const BlockBuilder& ctx) {
   return GetStructInfo(call->args[0]);
@@ -62,10 +68,10 @@ TVM_REGISTER_OP("relax.dist.annotate_sharding")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.dist.redistribute */
-TVM_REGISTER_NODE_TYPE(DistributionAttrs);
+
 Expr redistribute(Expr input, distributed::DeviceMesh device_mesh,
                   distributed::Placement placement) {
-  ObjectPtr<DistributionAttrs> attrs = make_object<DistributionAttrs>();
+  ObjectPtr<DistributionAttrs> attrs = ffi::make_object<DistributionAttrs>();
   attrs->device_mesh = device_mesh;
   attrs->placement = placement;
 
@@ -73,7 +79,10 @@ Expr redistribute(Expr input, distributed::DeviceMesh device_mesh,
   return Call(op, {std::move(input)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.dist.redistribute").set_body_typed(redistribute);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.dist.redistribute", redistribute);
+}
 
 StructInfo InferDistStructInfoRedistribute(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<DistributionAttrs>();
@@ -100,7 +109,7 @@ StructInfo InferStructInfoCallTIRLocalView(const Call& call, const BlockBuilder&
   return call->sinfo_args[0];
 }
 
-RELAY_REGISTER_OP("relax.dist.call_tir_local_view")
+TVM_REGISTER_OP("relax.dist.call_tir_local_view")
     .set_num_inputs(3)
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.")
@@ -111,8 +120,8 @@ RELAY_REGISTER_OP("relax.dist.call_tir_local_view")
     .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeCallTIRLocalView(Expr func, Tuple args,
-                          Array<distributed::DTensorStructInfo> out_sinfo_list,
-                          Optional<Expr> packed_ints) {
+                          ffi::Array<distributed::DTensorStructInfo> out_sinfo_list,
+                          ffi::Optional<Expr> packed_ints) {
   for (const distributed::DTensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->tensor_sinfo->shape.as<ShapeExprNode>();
     CHECK(shape != nullptr)
@@ -139,7 +148,10 @@ Expr MakeCallTIRLocalView(Expr func, Tuple args,
   return call;
 }
 
-TVM_REGISTER_GLOBAL("relax.op.dist.call_tir_local_view").set_body_typed(MakeCallTIRLocalView);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.dist.call_tir_local_view", MakeCallTIRLocalView);
+}
 
 StructInfo InferStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -163,14 +175,14 @@ StructInfo InferStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
                      << " while num_workers is " << num_workers);
   }
 
-  Array<PrimExpr> output_shape = input_shape.value();
+  ffi::Array<PrimExpr> output_shape = input_shape.value();
   output_shape.Set(attrs->axis, div(output_shape[attrs->axis], num_workers));
   return TensorStructInfo(ShapeExpr(output_shape), output_dtype, input_sinfo->vdevice);
 }
 
 StructInfo InferDistStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
   using namespace distributed;
-  Array<DTensorStructInfo> input_dtensor_sinfos = GetInputDTensorStructInfo(call, ctx);
+  ffi::Array<DTensorStructInfo> input_dtensor_sinfos = GetInputDTensorStructInfo(call, ctx);
   ICHECK(input_dtensor_sinfos.size() == 1);
   DTensorStructInfo input_dtensor_sinfo = input_dtensor_sinfos[0];
   TensorStructInfo tensor_sinfo = input_dtensor_sinfo->tensor_sinfo;
@@ -200,7 +212,7 @@ StructInfo InferDistStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
 }
 
 Expr redistribute_replica_to_shard(Expr input, int num_workers, int axis) {
-  ObjectPtr<ScatterCollectiveAttrs> attrs = make_object<ScatterCollectiveAttrs>();
+  ObjectPtr<ScatterCollectiveAttrs> attrs = ffi::make_object<ScatterCollectiveAttrs>();
   attrs->num_workers = std::move(num_workers);
   attrs->axis = std::move(axis);
   static const Op& op = Op::Get("relax.dist.redistribute_replica_to_shard");
@@ -208,8 +220,11 @@ Expr redistribute_replica_to_shard(Expr input, int num_workers, int axis) {
   return Call(op, {std::move(input)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.dist.redistribute_replica_to_shard")
-    .set_body_typed(redistribute_replica_to_shard);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.dist.redistribute_replica_to_shard",
+                        redistribute_replica_to_shard);
+}
 
 TVM_REGISTER_OP("relax.dist.redistribute_replica_to_shard")
     .set_num_inputs(1)

@@ -21,9 +21,9 @@ from tvm.script import relax as R
 from tvm.script import tir as T
 
 
-@tvm.register_func("test.op.identity", override=True)
+@tvm.register_global_func("test.op.identity", override=True)
 def identity_packed(a):
-    return tvm.nd.array(a.asnumpy())
+    return tvm.runtime.tensor(a.numpy())
 
 
 @T.prim_func
@@ -58,7 +58,7 @@ def test_call_tir_with_grad():
     )
     assert v2.attrs.te_grad_name == "identity_k_grad"
     assert isinstance(v2.attrs.te_grad_kwargs, tvm.ir.container.Map)
-    val = v2.attrs.te_grad_kwargs.items()[0]
+    val = list(v2.attrs.te_grad_kwargs.items())[0]
     assert val[0] == "k" and float(val[1]) == 1.0
 
 

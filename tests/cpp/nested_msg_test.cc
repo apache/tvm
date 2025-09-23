@@ -17,11 +17,11 @@
  * under the License.
  */
 
-#include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/runtime/data_type.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/tir/expr.h>
 
 #include <algorithm>
@@ -41,10 +41,10 @@ using namespace tvm::relax;
 
 TEST(NestedMsg, Basic) {
   // start with no annotation
-  relax::Var x("x", NullOpt), y("y", NullOpt);
+  relax::Var x("x", std::nullopt), y("y", std::nullopt);
 
   // constructor from array, T and nullopt.
-  NestedMsg<relax::Expr> msg({x, NullOpt, x});
+  NestedMsg<relax::Expr> msg({x, std::nullopt, x});
 
   EXPECT_TRUE(msg.IsNested());
   EXPECT_FALSE(msg.IsLeaf());
@@ -53,7 +53,7 @@ TEST(NestedMsg, Basic) {
   EXPECT_ANY_THROW(msg.LeafValue());
 
   auto arr = msg.NestedArray();
-  EXPECT_TRUE(arr[0].same_as(x));
+  EXPECT_TRUE(arr[0].LeafValue().same_as(x));
   EXPECT_TRUE(arr[1] == nullptr);
   EXPECT_TRUE(arr[1].IsNull());
 
@@ -64,26 +64,37 @@ TEST(NestedMsg, Basic) {
 
   // assignment
   // assign null
-  a0 = NullOpt;
+  a0 = std::nullopt;
   EXPECT_TRUE(a0 == nullptr);
 
   // assign array
-  a0 = {x, {x, NullOpt, y}};
+  a0 = {x, {x, std::nullopt, y}};
   EXPECT_TRUE(a0.IsNested());
   auto t0 = a0.NestedArray()[1];
   EXPECT_TRUE(t0.IsNested());
-  EXPECT_TRUE(t0.NestedArray()[2].same_as(y));
+  EXPECT_TRUE(t0.NestedArray()[2].LeafValue().same_as(y));
 
   // assign leaf
   a0 = x;
 
   EXPECT_TRUE(a0.IsLeaf());
-  EXPECT_TRUE(a0.same_as(x));
+  EXPECT_TRUE(a0.LeafValue().same_as(x));
+}
+
+TEST(NestedMsg, IntAndAny) {
+  NestedMsg<int64_t> msg({1, std::nullopt, 2});
+  Any any_msg = msg;
+  NestedMsg<int64_t> msg2 = any_msg.cast<NestedMsg<int64_t>>();
+
+  EXPECT_TRUE(msg2.IsNested());
+  EXPECT_EQ(msg2.NestedArray()[0].LeafValue(), 1);
+  EXPECT_TRUE(msg2.NestedArray()[1].IsNull());
+  EXPECT_EQ(msg2.NestedArray()[2].LeafValue(), 2);
 }
 
 TEST(NestedMsg, ForEachLeaf) {
-  relax::Var x("x", NullOpt), y("y", NullOpt);
-  NestedMsg<Expr> msg = {x, {x, y}, NullOpt, {x, {x, y}}};
+  relax::Var x("x", std::nullopt), y("y", std::nullopt);
+  NestedMsg<Expr> msg = {x, {x, y}, std::nullopt, {x, {x, y}}};
 
   int x_count = 0, y_count = 0;
 
@@ -96,39 +107,40 @@ TEST(NestedMsg, ForEachLeaf) {
 }
 
 TEST(NestedMsg, Equal) {
-  relax::Var x("x", NullOpt), y("y", NullOpt);
-  relax::Var z("z", NullOpt);
+  relax::Var x("x", std::nullopt), y("y", std::nullopt);
+  relax::Var z("z", std::nullopt);
 
   auto fequal = [](Expr lhs, Expr rhs) { return lhs.same_as(rhs); };
 
   using M = NestedMsg<relax::Expr>;
 
-  EXPECT_TRUE(Equal(M(NullOpt), M(NullOpt), fequal));
+  EXPECT_TRUE(Equal(M(std::nullopt), M(std::nullopt), fequal));
 
   EXPECT_TRUE(Equal(M(x), M(x), fequal));
 
   EXPECT_TRUE(Equal(M({x, y}), M({x, y}), fequal));
 
-  EXPECT_TRUE(Equal(M({x, NullOpt}), M({x, NullOpt}), fequal));
+  EXPECT_TRUE(Equal(M({x, std::nullopt}), M({x, std::nullopt}), fequal));
 
-  EXPECT_TRUE(Equal(M({x, {NullOpt, y}}), M({x, {NullOpt, y}}), fequal));
+  EXPECT_TRUE(Equal(M({x, {std::nullopt, y}}), M({x, {std::nullopt, y}}), fequal));
 
-  EXPECT_TRUE(Equal(M({x, {NullOpt, y}, {x, z}}), M({x, {NullOpt, y}, {x, z}}), fequal));
+  EXPECT_TRUE(Equal(M({x, {std::nullopt, y}, {x, z}}), M({x, {std::nullopt, y}, {x, z}}), fequal));
 
   // type mismatch
-  EXPECT_FALSE(Equal(M({x, {NullOpt, y}, x}), M({x, {NullOpt, y}, {x, z}}), fequal));
+  EXPECT_FALSE(Equal(M({x, {std::nullopt, y}, x}), M({x, {std::nullopt, y}, {x, z}}), fequal));
 
-  EXPECT_FALSE(Equal(M({x, {NullOpt, y}, {x, NullOpt}}), M({x, {NullOpt, y}, {x, z}}), fequal));
+  EXPECT_FALSE(Equal(M({x, {std::nullopt, y}, {x, std::nullopt}}),
+                     M({x, {std::nullopt, y}, {x, z}}), fequal));
 
-  EXPECT_FALSE(Equal(M({x, {NullOpt, y}}), M({x, {NullOpt, y}, {x, z}}), fequal));
+  EXPECT_FALSE(Equal(M({x, {std::nullopt, y}}), M({x, {std::nullopt, y}, {x, z}}), fequal));
 
-  EXPECT_FALSE(Equal(M(x), M(NullOpt), fequal));
+  EXPECT_FALSE(Equal(M(x), M(std::nullopt), fequal));
 
-  EXPECT_FALSE(Equal(M(NullOpt), M(x), fequal));
+  EXPECT_FALSE(Equal(M(std::nullopt), M(x), fequal));
 
-  EXPECT_FALSE(Equal(M(x), M(Array<M>({x})), fequal));
+  EXPECT_FALSE(Equal(M(x), M(ffi::Array<M>({x})), fequal));
 
-  EXPECT_FALSE(Equal(M(Array<M>({x})), M(x), fequal));
+  EXPECT_FALSE(Equal(M(ffi::Array<M>({x})), M(x), fequal));
 }
 
 TEST(NestedMsg, MapAndDecompose) {
@@ -136,7 +148,7 @@ TEST(NestedMsg, MapAndDecompose) {
   relax::Var y("y", PrimStructInfo(runtime::DataType::Int(32)));
   relax::Var z("z", PrimStructInfo(runtime::DataType::Int(64)));
 
-  BlockBuilder bb = BlockBuilder::Create(NullOpt);
+  BlockBuilder bb = BlockBuilder::Create(std::nullopt);
   relax::Expr t0 = bb->Normalize(Tuple({x, y}));
   relax::Expr t1 = bb->Normalize(Tuple({t0, x, z, t0}));
 
@@ -158,12 +170,12 @@ TEST(NestedMsg, MapAndDecompose) {
   auto output2 =
       MapToNestedMsg<Integer>(GetStructInfo(t1), [&](StructInfo sinfo) -> NestedMsg<Integer> {
         const auto* prim_sinfo = sinfo.as<PrimStructInfoNode>();
-        if (prim_sinfo == nullptr) return NullOpt;
+        if (prim_sinfo == nullptr) return std::nullopt;
         int bits = prim_sinfo->dtype.bits();
         if (bits == 16) return c0;
         if (bits == 32) return c1;
         if (bits == 64) return c2;
-        return NullOpt;
+        return std::nullopt;
       });
 
   EXPECT_TRUE(Equal(output2, expected,
@@ -173,13 +185,13 @@ TEST(NestedMsg, MapAndDecompose) {
 
   DecomposeNestedMsg(t1, expected, [&](Expr value, NestedMsg<Integer> msg) {
     if (value.same_as(x)) {
-      EXPECT_TRUE(msg.same_as(c0));
+      EXPECT_TRUE(msg.LeafValue().same_as(c0));
       ++x_count;
     } else if (value.same_as(y)) {
-      EXPECT_TRUE(msg.same_as(c1));
+      EXPECT_TRUE(msg.LeafValue().same_as(c1));
       ++y_count;
     } else {
-      EXPECT_TRUE(msg.same_as(c2));
+      EXPECT_TRUE(msg.LeafValue().same_as(c2));
       ++z_count;
     }
   });
@@ -220,7 +232,7 @@ TEST(NestedMsg, NestedMsgToExpr) {
   relax::Var x("x", sf0), y("y", sf0), z("z", sf0);
 
   NestedMsg<Integer> msg = {c0, {c0, c1}, {c0, {c1, c2}}};
-  auto expr = NestedMsgToExpr<Integer>(msg, [&](Optional<Integer> leaf) {
+  auto expr = NestedMsgToExpr<Integer>(msg, [&](ffi::Optional<Integer> leaf) {
     ICHECK(leaf.defined());
     int value = leaf.value().IntValue();
     switch (value) {
@@ -239,7 +251,7 @@ TEST(NestedMsg, NestedMsgToExpr) {
   // test simplified
   relax::Var t("t", sf1);
   NestedMsg<Expr> msg1 = {TupleGetItem(t, 0), TupleGetItem(t, 1)};
-  auto expr1 = NestedMsgToExpr<Expr>(msg1, [](Optional<Expr> leaf) { return leaf.value(); });
+  auto expr1 = NestedMsgToExpr<Expr>(msg1, [](ffi::Optional<Expr> leaf) { return leaf.value(); });
   EXPECT_TRUE(StructuralEqual()(expr1, t));
 }
 
@@ -248,9 +260,9 @@ TEST(NestedMsg, CombineNestedMsg) {
   auto c1 = Integer(1);
   auto c2 = Integer(2);
 
-  NestedMsg<Integer> lhs = {c0, {c0, c1}, NullOpt, {c0, {c1, c2}}};
-  NestedMsg<Integer> rhs = {c1, {c2, NullOpt}, NullOpt, {c1, {c2, c2}}};
-  NestedMsg<Integer> expected = {c1, {c2, c1}, NullOpt, {c1, {c2, c2}}};
+  NestedMsg<Integer> lhs = {c0, {c0, c1}, std::nullopt, {c0, {c1, c2}}};
+  NestedMsg<Integer> rhs = {c1, {c2, std::nullopt}, std::nullopt, {c1, {c2, c2}}};
+  NestedMsg<Integer> expected = {c1, {c2, c1}, std::nullopt, {c1, {c2, c2}}};
 
   auto output = CombineNestedMsg(lhs, rhs, [](Integer x, Integer y) {
     if (x->value > y->value) return x;
@@ -267,8 +279,8 @@ TEST(NestedMsg, MapNestedMsg) {
   auto c2 = Integer(2);
   auto c3 = Integer(3);
 
-  NestedMsg<Integer> msg = {c0, {c0, c1}, NullOpt, {c0, {c2, c1}}};
-  NestedMsg<Integer> expected = {c3, {c3, NullOpt}, NullOpt, {c3, {c2, NullOpt}}};
+  NestedMsg<Integer> msg = {c0, {c0, c1}, std::nullopt, {c0, {c2, c1}}};
+  NestedMsg<Integer> expected = {c3, {c3, std::nullopt}, std::nullopt, {c3, {c2, std::nullopt}}};
 
   auto output = MapNestedMsg(msg, [](Integer x) {
     if (x->value == 0) {
@@ -295,7 +307,7 @@ TEST(NestedMsg, TransformTupleLeaf) {
 
   PrimStructInfo s = PrimStructInfo(runtime::DataType::Int(32));
   relax::Var x("x", s), y("y", s), z("z", s);
-  BlockBuilder bb = BlockBuilder::Create(NullOpt);
+  BlockBuilder bb = BlockBuilder::Create(std::nullopt);
   Expr expr = bb->Normalize(Tuple({x, Tuple({x, x}), x, Tuple({x, Tuple({x, x})})}));
 
   auto ftransleaf = [&](Expr value, std::array<NInt, 2> msgs) -> Expr {

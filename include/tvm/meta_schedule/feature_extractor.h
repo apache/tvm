@@ -20,13 +20,13 @@
 #ifndef TVM_META_SCHEDULE_FEATURE_EXTRACTOR_H_
 #define TVM_META_SCHEDULE_FEATURE_EXTRACTOR_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/ffi/string.h>
 #include <tvm/meta_schedule/measure_candidate.h>
-#include <tvm/node/reflection.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/tensor.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -39,19 +39,19 @@ class FeatureExtractorNode : public runtime::Object {
   /*! \brief Virtual destructor. */
   virtual ~FeatureExtractorNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    // No fields to register
+  }
 
   /*!
    * \brief Extract features from the given measure candidate.
    * \param context The tuning context for feature extraction.
    * \param candidates The measure candidates to extract features from.
-   * \return The feature ndarray extracted.
+   * \return The feature tensor extracted.
    */
-  virtual Array<tvm::runtime::NDArray> ExtractFrom(const TuneContext& context,
-                                                   const Array<MeasureCandidate>& candidates) = 0;
-
-  static constexpr const char* _type_key = "meta_schedule.FeatureExtractor";
-  TVM_DECLARE_BASE_OBJECT_INFO(FeatureExtractorNode, Object);
+  virtual ffi::Array<tvm::runtime::Tensor> ExtractFrom(
+      const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates) = 0;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.FeatureExtractor", FeatureExtractorNode, Object);
 };
 
 /*! \brief The feature extractor with customized methods on the python-side. */
@@ -61,31 +61,30 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
    * \brief Extract features from the given measure candidate.
    * \param context The tuning context for feature extraction.
    * \param candidates The measure candidates to extract features from.
-   * \return The feature ndarray extracted.
+   * \return The feature tensor extracted.
    */
-  using FExtractFrom = runtime::TypedPackedFunc<Array<tvm::runtime::NDArray>(
-      const TuneContext& context, const Array<MeasureCandidate>& candidates)>;
+  using FExtractFrom = ffi::TypedFunction<ffi::Array<tvm::runtime::Tensor>(
+      const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates)>;
   /*!
    * \brief Get the feature extractor as string with name.
    * \return The string of the feature extractor.
    */
-  using FAsString = runtime::TypedPackedFunc<String()>;
+  using FAsString = ffi::TypedFunction<ffi::String()>;
 
   /*! \brief The packed function to the `ExtractFrom` function. */
   FExtractFrom f_extract_from;
   /*! \brief The packed function to the `AsString` function. */
   FAsString f_as_string;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_extract_from` is not visited
-    // `f_as_string` is not visited
+  static void RegisterReflection() {
+    // `f_extract_from` is not registered
+    // `f_as_string` is not registered
   }
 
-  Array<tvm::runtime::NDArray> ExtractFrom(const TuneContext& context,
-                                           const Array<MeasureCandidate>& candidates) final;
-
-  static constexpr const char* _type_key = "meta_schedule.PyFeatureExtractor";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyFeatureExtractorNode, FeatureExtractorNode);
+  ffi::Array<tvm::runtime::Tensor> ExtractFrom(
+      const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates) final;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyFeatureExtractor", PyFeatureExtractorNode,
+                                    FeatureExtractorNode);
 };
 
 /*!
@@ -117,7 +116,7 @@ class FeatureExtractor : public runtime::ObjectRef {
   TVM_DLL static FeatureExtractor PyFeatureExtractor(
       PyFeatureExtractorNode::FExtractFrom f_extract_from,
       PyFeatureExtractorNode::FAsString f_as_string);
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(FeatureExtractor, ObjectRef, FeatureExtractorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FeatureExtractor, ObjectRef, FeatureExtractorNode);
 };
 
 }  // namespace meta_schedule

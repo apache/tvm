@@ -50,22 +50,22 @@ class PrototxtPrinter : public MSCBasePrinter {
   explicit PrototxtPrinter(const std::string& options = "") : MSCBasePrinter(options) {}
 
   /*! \brief Change object to LiteralDoc*/
-  static LiteralDoc ToLiteralDoc(const ObjectRef& obj);
+  static LiteralDoc ToLiteralDoc(const ffi::Any& obj);
 
   /*! \brief Change map to DictDoc*/
-  static DictDoc ToDictDoc(const Map<String, ObjectRef>& dict);
+  static DictDoc ToDictDoc(const ffi::Map<ffi::String, ffi::Any>& dict);
 
   /*! \brief Change ordered pairs to DictDoc*/
-  static DictDoc ToDictDoc(const std::vector<std::pair<String, ObjectRef>>& dict);
+  static DictDoc ToDictDoc(const std::vector<std::pair<ffi::String, ffi::Any>>& dict);
 
   /*! \brief Append a map into the final content*/
-  void Append(const Map<String, ObjectRef>& dict);
+  void Append(const ffi::Map<ffi::String, ffi::Any>& dict);
 
   /*! \brief Append ordered pairs into the final content*/
-  void Append(const std::vector<std::pair<String, ObjectRef>>& dict);
+  void Append(const std::vector<std::pair<ffi::String, ffi::Any>>& dict);
 
   /*! \brief Append a map pair into the final content*/
-  void AppendPair(const String& key, const ObjectRef& value);
+  void AppendPair(const ffi::String& key, const ffi::Any& value);
 
  protected:
   /*! * \brief Print a DictDoc to prototxt format*/

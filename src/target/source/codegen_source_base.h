@@ -26,7 +26,6 @@
 #define TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 
 #include <tvm/ir/name_supply.h>
-#include <tvm/runtime/metadata.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -141,7 +140,7 @@ class CodeGenSourceBase {
  * \param code The code to be viewed.
  * \param fmt The code. format.
  */
-runtime::Module SourceModuleCreate(std::string code, std::string fmt);
+ffi::Module SourceModuleCreate(std::string code, std::string fmt);
 
 /*!
  * \brief Create a C source module for viewing and compiling GCC code.
@@ -151,9 +150,9 @@ runtime::Module SourceModuleCreate(std::string code, std::string fmt);
  * \param const_vars. The constant variables that the c source module needs.
  * \return The created module.
  */
-runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
-                                    const Array<String>& func_names,
-                                    const Array<String>& const_vars = {});
+ffi::Module CSourceModuleCreate(const ffi::String& code, const ffi::String& fmt,
+                                const ffi::Array<ffi::String>& func_names,
+                                const ffi::Array<ffi::String>& const_vars = {});
 
 /*!
  * \brief Wrap the submodules in a metadata module.
@@ -162,12 +161,11 @@ runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
  * \param target_module The main TIR-lowered internal runtime module
  * \param modules All the external modules that needs to be imported inside the metadata module(s).
  * \param target The target that all the modules are compiled for
- * \param metadata Metadata which should be exported to the runtime.
  * \return The wrapped module.
  */
-runtime::Module CreateMetadataModule(
-    const std::unordered_map<std::string, runtime::NDArray>& params, runtime::Module target_module,
-    const Array<runtime::Module>& ext_modules, Target target, runtime::metadata::Metadata metadata);
+ffi::Module CreateMetadataModule(const std::unordered_map<std::string, runtime::Tensor>& params,
+                                 ffi::Module target_module,
+                                 const ffi::Array<ffi::Module>& ext_modules, Target target);
 
 /*!
  * \brief Create a source module for viewing and limited saving for device.
@@ -177,19 +175,9 @@ runtime::Module CreateMetadataModule(
  * \param type_key The type_key of the runtime module of this source code
  * \param fget_source a closure to replace default get source behavior.
  */
-runtime::Module DeviceSourceModuleCreate(
+ffi::Module DeviceSourceModuleCreate(
     std::string data, std::string fmt, std::unordered_map<std::string, runtime::FunctionInfo> fmap,
     std::string type_key, std::function<std::string(const std::string&)> fget_source = nullptr);
-
-/*!
- * \brief Wrap the submodules that are to be wrapped in a c-source metadata module for C runtime.
- * \param modules The modules to be wrapped.
- * \param target the target the modules are compiled for.
- * \param metadata the metadata needed for code generation.
- * \return The wrapped module.
- */
-runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
-                                               runtime::metadata::Metadata metadata);
 
 }  // namespace codegen
 }  // namespace tvm

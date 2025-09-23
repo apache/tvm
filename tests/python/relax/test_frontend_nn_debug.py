@@ -22,7 +22,7 @@ import tvm.testing
 from tvm import tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import op, spec
-from tvm.runtime import NDArray
+from tvm.runtime import Tensor
 
 
 def test_debug_print():
@@ -43,10 +43,10 @@ def test_debug_print():
 
 
 def test_debug_func():
-    @tvm.register_func("testing.relax.frontend.nn.test_debug_func")
+    @tvm.register_global_func("testing.relax.frontend.nn.test_debug_func")
     def _debug(  # pylint: disable=too-many-arguments
         lineno: str,
-        tensor: NDArray,
+        tensor: Tensor,
         const_int: int,
         const_float: float,
         const_str: str,

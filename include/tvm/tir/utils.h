@@ -91,7 +91,7 @@ namespace tir {
   [&]() {                                                                                     \
     auto result = TVM_TYPE_AS_OR_ERR(result, (From), Type)                                    \
                   << "TypeError: Expects `" << #From << "` to have type `" << Type::_type_key \
-                  << "`, but gets: " << ((From).defined() ? (From)->GetTypeKey() : "None");   \
+                  << "`, but gets: " << ((From).GetTypeKey());                                \
     return result;                                                                            \
   }()
 

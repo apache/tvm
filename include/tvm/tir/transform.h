@@ -36,6 +36,7 @@ namespace tvm {
 namespace tir {
 namespace transform {
 
+using tvm::transform::CreateModulePass;
 using tvm::transform::Pass;
 using tvm::transform::PassContext;
 using tvm::transform::PassContextNode;
@@ -54,58 +55,9 @@ using tvm::transform::Sequential;
  *
  * \return The created function pass.
  */
-TVM_DLL Pass CreatePrimFuncPass(
-    const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required, bool traceable = false);
-
-/*!
- * \brief Inject prefetch instructions into stmt.
- *
- * \return The pass.
- */
-TVM_DLL Pass InjectPrefetch();
-
-// TODO(tvm-team): consolidate configs to the PassContext
-/*!
- * \brief Flatten the multi-dimensional read/write
- *  to single dimensional Load/Store
- *
- * \param cache_line_size The size of CPU cache line.
- * \param create_bound_attribute Whether to create bound attributes.
- *
- * \return The Pass
- */
-TVM_DLL Pass StorageFlatten(int cache_line_size, bool create_bound_attribute = false);
-
-/*!
- * \brief Inject copy intrinsics with optional pad.
- *
- * \param pragma_key The pragma key for hint of copy.
- * \param fintrin The function with signature
- *
- *   Stmt fintrin(Buffer src,
- *                Buffer dst,
- *                Array<Expr> pad_before,
- *                Array<Expr> pad_after,
- *                Expr pad_value)
- * \return The pass.
- */
-TVM_DLL Pass InjectCopyIntrin(String pragma_key, runtime::PackedFunc fintrin);
-
-/*!
- * \brief Detect and insert sync points to co-processor.
- *
- * \return The pass.
- */
-TVM_DLL Pass CoProcSync();
-
-/*!
- * \brief Lift common attrs with attr_key to outer scope.
- *
- * \param attr_key The attribute key to be checked.
- * \return The pass.
- */
-TVM_DLL Pass LiftAttrScope(String attr_key);
+TVM_DLL Pass CreatePrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
+                                int opt_level, ffi::String name,
+                                tvm::ffi::Array<ffi::String> required, bool traceable = false);
 
 /*!
  * \brief partition loops in the stmt.
@@ -214,9 +166,9 @@ TVM_DLL Pass InstrumentBoundCheckers();
  *     f()
  *
  *  if num_packed_args is not zero:
- *       f(TVMArg* packed_args, int* packed_arg_type_ids, int num_packed_args,
+ *       f(void *, TVMFFIAny* packed_args, int num_packed_args,
  *         api_arg_k, api_arg_k+1, ... api_arg_n,
- *         TVMValue* out_ret_val, int* out_ret_tcode)
+ *         TVMFFIAny* out_ret_val)
  *
  *       where n == len(api_args), k == num_packed_args
  *
@@ -245,7 +197,7 @@ TVM_DLL Pass MakeUnpackedAPI();
  *
  * \return The pass.
  */
-TVM_DLL Pass RemapThreadAxis(Map<String, IterVar> axis_map);
+TVM_DLL Pass RemapThreadAxis(ffi::Map<ffi::String, IterVar> axis_map);
 
 /*!
  * \brief Lower custom datatypes.
@@ -321,7 +273,7 @@ TVM_DLL Pass SkipAssert();
  * \param storage_scope The storage scope considered.
  * \return The pass.
  */
-TVM_DLL Pass ThreadSync(String storage_scope);
+TVM_DLL Pass ThreadSync(ffi::String storage_scope);
 
 /*!
  * \brief Lower cross thread alleduce.
@@ -409,7 +361,7 @@ TVM_DLL Pass BF16ComputeLegalize();
  * \note Must be run after BindTarget, as it relies on target attributes for PrimFuncs
  * \return The pass.
  */
-TVM_DLL Pass FP8ComputeLegalize(String promote_dtype_str = "float16");
+TVM_DLL Pass FP8ComputeLegalize(ffi::String promote_dtype_str = "float16");
 
 /*!
  * \brief Legalize bf16 storage types to u16.
@@ -538,11 +490,6 @@ TVM_DLL Pass LiftThreadBinding();
 TVM_DLL Pass CompactBufferAllocation(bool is_strict = true);
 
 /*!
- * This pass legalizes packed calls by wrapping their arguments into TVMValues
- */
-TVM_DLL Pass LegalizePackedCalls();
-
-/*!
  * \brief Remove match buffers inside the block. Also, it will validate the binding.
  * \return The pass.
  */
@@ -574,15 +521,6 @@ TVM_DLL Pass LowerOpaqueBlock();
 TVM_DLL Pass FlattenBuffer();
 
 /*
- * \brief Flatten the multi-dimensional read/write
- *  to two dimensional texture Load/Store and realize
- *  texture buffer allocations.
- *
- * \return The Pass
- */
-TVM_DLL Pass TextureFlatten();
-
-/*
  * \brief Lower VTCM allocations
  *
  * \return The Pass
@@ -602,13 +540,6 @@ TVM_DLL Pass LowerAsyncDMA();
  * \return The pass.
  */
 TVM_DLL Pass CommonSubexprElimTIR(bool enable_cse_tir = true, bool identify_equiv_terms = false);
-
-/*!
- * \brief Add TIR-printer output as debug information to all ops in the module
- * \return The pass.
- */
-
-TVM_DLL Pass InstallDebugSpans();
 
 /*!
  * \brief Unify all the thread bindings for "blockIdx.x/y/z", "threadIdx.x/y/z", and
@@ -745,7 +676,7 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  */
 TVM_DLL Pass InjectSoftwarePipeline();
 
-TVM_DLL Pass BindParams(const Array<runtime::NDArray>& constants);
+TVM_DLL Pass BindParams(const ffi::Array<runtime::Tensor>& constants);
 
 /*!
  * \brief Pass to collect tir non-scalar constants into module's 'Constants' attribute.
@@ -782,7 +713,7 @@ TVM_DLL Pass AnnotateEntryFunc();
  * \brief Filter PrimFuncs with a given condition.
  * \return The pass.
  */
-TVM_DLL Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond);
+TVM_DLL Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond);
 
 /*!
  * \brief Pass to rewrite global to shared memory copy on CUDA with asyncronous copy.
@@ -798,17 +729,17 @@ TVM_DLL Pass InjectPTXLDG32(bool enable_ptx_ldg32 = true);
 
 /*!
  * \brief Remove the weight layout rewrite block
- * \param skip_ndarray_rewrite If True, exact rewrite of NDArray, according to the given index map,
- *  will be skipped. Only the shape of the NDArray is transformed correctly, and the content of
+ * \param skip_tensor_rewrite If True, exact rewrite of Tensor, according to the given index map,
+ *  will be skipped. Only the shape of the Tensor is transformed correctly, and the content of
  *  the destination array will be filled with random values.
  *
- *  When this pass is called many times during MetaSchedule tuning, the raw data of NDArray,
- *  before and after rewrite, does not matter. Since NDArray layout rewrite, using IndexMap's
- *  MapNDArray, is currently slow, skipping the exact rewrite is sometimes necessary.
+ *  When this pass is called many times during MetaSchedule tuning, the raw data of Tensor,
+ *  before and after rewrite, does not matter. Since Tensor layout rewrite, using IndexMap's
+ *  MapTensor, is currently slow, skipping the exact rewrite is sometimes necessary.
  *
  * \return The pass.
  */
-TVM_DLL Pass RemoveWeightLayoutRewriteBlock(bool skip_ndarray_rewrite = false);
+TVM_DLL Pass RemoveWeightLayoutRewriteBlock(bool skip_tensor_rewrite = false);
 
 /*!
  * \brief Add the explicit local stage for the shared memory access on GPU.

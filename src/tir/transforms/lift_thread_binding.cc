@@ -22,6 +22,7 @@
  * \brief Convert the blocks to opaque blocks which do not have block vars.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -31,14 +32,14 @@
 namespace tvm {
 namespace tir {
 
-std::pair<std::unordered_map<Stmt, std::vector<std::pair<IterVar, Map<String, ObjectRef>>>,
+std::pair<std::unordered_map<Stmt, std::vector<std::pair<IterVar, ffi::Map<ffi::String, ffi::Any>>>,
                              ObjectPtrHash, ObjectPtrEqual>,
-          Map<Var, Var>>
+          ffi::Map<Var, Var>>
 FindLoopLCA(const Stmt& root) {
   class LCAFinder : public StmtVisitor {
    public:
     void VisitStmt_(const ForNode* op) final {
-      stack.push_back(GetRef<Stmt>(op));
+      stack.push_back(ffi::GetRef<Stmt>(op));
       StmtVisitor::VisitStmt_(op);
       if (op->kind == ForKind::kThreadBinding) {
         UpdateLCA(op);
@@ -49,7 +50,7 @@ FindLoopLCA(const Stmt& root) {
     void UpdateLCA(const ForNode* loop) {
       std::string thread_tag = loop->thread_binding.value()->thread_tag;
       {
-        Map<String, ObjectRef>* tgt = &annotations[thread_tag];
+        ffi::Map<ffi::String, ffi::Any>* tgt = &annotations[thread_tag];
         for (const auto& kv : loop->annotations) {
           tgt->Set(kv.first, kv.second);
         }
@@ -77,14 +78,14 @@ FindLoopLCA(const Stmt& root) {
 
     std::unordered_map<std::string, std::vector<Stmt>> lca;
     std::unordered_map<std::string, IterVar> iters;
-    std::unordered_map<std::string, Map<String, ObjectRef>> annotations;
-    Map<Var, Var> var_subst;
+    std::unordered_map<std::string, ffi::Map<ffi::String, ffi::Any>> annotations;
+    ffi::Map<Var, Var> var_subst;
     std::vector<Stmt> stack;
   };
   LCAFinder finder;
   finder(root);
-  std::unordered_map<Stmt, std::vector<std::pair<IterVar, Map<String, ObjectRef>>>, ObjectPtrHash,
-                     ObjectPtrEqual>
+  std::unordered_map<Stmt, std::vector<std::pair<IterVar, ffi::Map<ffi::String, ffi::Any>>>,
+                     ObjectPtrHash, ObjectPtrEqual>
       result;
   std::vector<std::string> sorted_thread_tags;
   for (const auto& kv : finder.lca) {
@@ -103,7 +104,7 @@ FindLoopLCA(const Stmt& root) {
   for (const auto& thread_tag : sorted_thread_tags) {
     Stmt lca = finder.lca[thread_tag].back();
     const IterVar& iter = finder.iters[thread_tag];
-    const Map<String, ObjectRef>& annotations = finder.annotations[thread_tag];
+    const ffi::Map<ffi::String, ffi::Any>& annotations = finder.annotations[thread_tag];
     result[lca].emplace_back(iter, annotations);
   }
   return {result, finder.var_subst};
@@ -116,7 +117,7 @@ FindLoopLCA(const Stmt& root) {
 class ThreadBindingLifter : public StmtExprMutator {
  public:
   Stmt VisitStmt_(const ForNode* _op) final {
-    For op = GetRef<For>(_op);
+    For op = ffi::GetRef<For>(_op);
     bool is_kernel_root = false;
     if (op->kind == ForKind::kThreadBinding) {
       if (iter_lca.empty()) {
@@ -148,35 +149,30 @@ class ThreadBindingLifter : public StmtExprMutator {
   }
 
   void SetKernelRoot(const ForNode* op) {
-    auto result = FindLoopLCA(GetRef<Stmt>(op));
+    auto result = FindLoopLCA(ffi::GetRef<Stmt>(op));
     this->iter_lca = std::move(result.first);
     this->var_subst = std::move(result.second);
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
-    auto it = var_subst.find(GetRef<Var>(op));
+    auto it = var_subst.find(ffi::GetRef<Var>(op));
     if (it != var_subst.end()) {
       return (*it).second;
     } else {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     }
   }
 
-  std::unordered_map<Stmt, std::vector<std::pair<IterVar, Map<String, ObjectRef>>>, ObjectPtrHash,
-                     ObjectPtrEqual>
+  std::unordered_map<Stmt, std::vector<std::pair<IterVar, ffi::Map<ffi::String, ffi::Any>>>,
+                     ObjectPtrHash, ObjectPtrEqual>
       iter_lca;
-  Map<Var, Var> var_subst;
+  ffi::Map<Var, Var> var_subst;
 };
 
 PrimFunc LiftThreadBinding(PrimFunc f) {
-  // Only apply this pass to TIR that is not from TE schedules
-  if (!IsFromLegacyTESchedule(f)) {
-    PrimFuncNode* fptr = f.CopyOnWrite();
-    fptr->body = ThreadBindingLifter()(std::move(fptr->body));
-    return f;
-  } else {
-    return f;
-  }
+  PrimFuncNode* fptr = f.CopyOnWrite();
+  fptr->body = ThreadBindingLifter()(std::move(fptr->body));
+  return f;
 }
 
 namespace transform {
@@ -188,7 +184,10 @@ Pass LiftThreadBinding() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LiftThreadBinding", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LiftThreadBinding").set_body_typed(LiftThreadBinding);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LiftThreadBinding", LiftThreadBinding);
+}
 }  // namespace transform
 
 }  // namespace tir

@@ -86,12 +86,41 @@ bool CanProveVscaleExpressionFromKnownValues(arith::Analyzer* analyzer, const Pr
   return can_prove_expr;
 }
 
-bool TargetHasSVE(Target current_target) {
-  bool has_sve{false};
-  if (current_target.defined()) {
-    has_sve = current_target->GetFeature<Bool>("has_sve").value_or(Bool(false));
+bool TargetHasVLA(ffi::Optional<Target> target) {
+  if (!target.defined()) {
+    target = Target::Current();
   }
-  return has_sve;
+  bool has_vla{false};
+  if (target.defined()) {
+    // aarch64
+    has_vla = Downcast<Target>(target)->GetFeature<Bool>("has_sve").value_or(Bool(false));
+    // riscv{32,64}
+    static auto target_has_feature_fn =
+        tvm::ffi::Function::GetGlobalRequired("target.target_has_feature");
+    has_vla |= target_has_feature_fn("v", target).cast<bool>();
+  }
+  return has_vla;
+}
+
+const std::vector<unsigned int> GetVScaleValues(ffi::Optional<Target> target) {
+  unsigned int vector_width = 0;
+  std::vector<unsigned int> kVScaleValues;
+  if (!target.defined()) {
+    target = Target::Current();
+  }
+  if (target.defined()) {
+    static auto llvm_get_vector_width_fn =
+        tvm::ffi::Function::GetGlobalRequired("target.llvm_get_vector_width");
+    vector_width = llvm_get_vector_width_fn(target).cast<int>();
+  }
+  // scale list with powers of two
+  for (unsigned int i = 0;; ++i) {
+    auto power = static_cast<unsigned int>(std::pow(2, i));
+    if (power > (vector_width / 8)) break;
+    kVScaleValues.push_back(power);
+  }
+
+  return kVScaleValues;
 }
 
 }  // namespace arith

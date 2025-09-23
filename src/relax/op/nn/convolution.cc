@@ -24,17 +24,27 @@
 
 #include "convolution.h"
 
+#include <tvm/ffi/reflection/registry.h>
+
 #include <vector>
 
 namespace tvm {
 namespace relax {
 
-/* relax.nn.conv1d */
-TVM_REGISTER_NODE_TYPE(Conv1DAttrs);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  Conv1DAttrs::RegisterReflection();
+  Conv2DAttrs::RegisterReflection();
+  Conv3DAttrs::RegisterReflection();
+  Conv1DTransposeAttrs::RegisterReflection();
+  Conv2DTransposeAttrs::RegisterReflection();
+}
 
-Expr conv1d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
-            Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
-            Optional<String> out_layout, DataType out_dtype) {
+/* relax.nn.conv1d */
+
+Expr conv1d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
+            ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+            ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
+            ffi::Optional<DataType> out_dtype) {
   padding = GetCompletePadding1D(std::move(padding));
 
   CHECK_GT(groups, 0) << "The number of groups in convolution is expected to be positive. However, "
@@ -48,13 +58,16 @@ Expr conv1d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding
   return MakeConv<Conv1DAttrs>(std::move(data), std::move(weight), std::move(strides),
                                std::move(padding), std::move(dilation), groups, data_layout,
                                std::move(kernel_layout), out_layout.value_or(data_layout),
-                               out_dtype, /*op_name=*/"relax.nn.conv1d");
+                               out_dtype.value_or(DataType::Void()), /*op_name=*/"relax.nn.conv1d");
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.conv1d").set_body_typed(conv1d);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.nn.conv1d", conv1d);
+}
 
 StructInfo InferStructInfoConv1d(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   TensorStructInfo data_sinfo = input_sinfo[0];
   TensorStructInfo weight_sinfo = input_sinfo[1];
 
@@ -69,21 +82,22 @@ StructInfo InferStructInfoConv1d(const Call& call, const BlockBuilder& ctx) {
                                                  /*tgt_layout=*/"NCW",          //
                                                  /*tensor_name=*/"output");
 
-  Optional<ShapeExpr> data_shape =
+  ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
-  Optional<ShapeExpr> weight_shape =
+  ffi::Optional<ShapeExpr> weight_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, weight_sinfo, weight_layout);
 
   DataType out_dtype = attrs->out_dtype.is_void()
                            ? InferBinaryArithOpOutDtype(call, ctx, data_sinfo, weight_sinfo)
                            : attrs->out_dtype;
-  Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
+  ffi::Optional<VDevice> vdevice =
+      InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
   if (!data_shape.defined() || !weight_shape.defined()) {
     return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice);
   }
 
-  Array<PrimExpr> data_NCW_shape = data2NCW.ForwardShape(data_shape.value()->values);
-  Array<PrimExpr> weight_OIW_shape = weight2OIW.ForwardShape(weight_shape.value()->values);
+  ffi::Array<PrimExpr> data_NCW_shape = data2NCW.ForwardShape(data_shape.value()->values);
+  ffi::Array<PrimExpr> weight_OIW_shape = weight2OIW.ForwardShape(weight_shape.value()->values);
 
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   PrimExpr input_channel_data = data_NCW_shape[1];
@@ -121,19 +135,19 @@ StructInfo InferStructInfoConv1d(const Call& call, const BlockBuilder& ctx) {
   PrimExpr numerator_w = input_w + padding_w - attrs->dilation[0] * (kernel_w - 1) - 1;
   out_NCW_shape[2] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[0]) + 1);
 
-  Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
+  ffi::Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 
-InferLayoutOutput InferLayoutConv1d(const Call& call,
-                                    const Map<String, Array<String>>& desired_layouts,
-                                    const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutConv1d(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.nn.conv1d");
   const auto* attrs = call->attrs.as<Conv1DAttrs>();
   ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout, weight_layout, output_layout;
-  ObjectPtr<Conv1DAttrs> new_attrs = make_object<Conv1DAttrs>(*attrs);
+  ObjectPtr<Conv1DAttrs> new_attrs = ffi::make_object<Conv1DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
     // We have a desired layout for conv1d.
@@ -187,11 +201,11 @@ TVM_REGISTER_OP("relax.nn.conv1d")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.conv2d */
-TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
 
-Expr conv2d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
-            Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
-            Optional<String> out_layout, DataType out_dtype) {
+Expr conv2d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
+            ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+            ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
+            ffi::Optional<DataType> out_dtype) {
   padding = GetCompletePadding2D(std::move(padding));
   if (strides.size() == 1) {
     strides.push_back(strides[0]);
@@ -211,13 +225,16 @@ Expr conv2d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding
   return MakeConv<Conv2DAttrs>(std::move(data), std::move(weight), std::move(strides),
                                std::move(padding), std::move(dilation), groups, data_layout,
                                std::move(kernel_layout), out_layout.value_or(data_layout),
-                               out_dtype, /*op_name=*/"relax.nn.conv2d");
+                               out_dtype.value_or(DataType::Void()), /*op_name=*/"relax.nn.conv2d");
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.conv2d").set_body_typed(conv2d);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.nn.conv2d", conv2d);
+}
 
 StructInfo InferStructInfoConv2d(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   TensorStructInfo data_sinfo = input_sinfo[0];
   TensorStructInfo weight_sinfo = input_sinfo[1];
 
@@ -232,21 +249,22 @@ StructInfo InferStructInfoConv2d(const Call& call, const BlockBuilder& ctx) {
                                                   /*tgt_layout=*/"NCHW",         //
                                                   /*tensor_name=*/"output");
 
-  Optional<ShapeExpr> data_shape =
+  ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
-  Optional<ShapeExpr> weight_shape =
+  ffi::Optional<ShapeExpr> weight_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, weight_sinfo, weight_layout);
 
   DataType out_dtype = attrs->out_dtype.is_void()
                            ? InferBinaryArithOpOutDtype(call, ctx, data_sinfo, weight_sinfo)
                            : attrs->out_dtype;
-  Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
+  ffi::Optional<VDevice> vdevice =
+      InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
   if (!data_shape.defined() || !weight_shape.defined()) {
     return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice);
   }
 
-  Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
-  Array<PrimExpr> weight_OIHW_shape = weight2OIHW.ForwardShape(weight_shape.value()->values);
+  ffi::Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
+  ffi::Array<PrimExpr> weight_OIHW_shape = weight2OIHW.ForwardShape(weight_shape.value()->values);
 
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   PrimExpr input_channel_data = data_NCHW_shape[1];
@@ -289,49 +307,80 @@ StructInfo InferStructInfoConv2d(const Call& call, const BlockBuilder& ctx) {
   out_NCHW_shape[2] = analyzer->Simplify(floordiv(numerator_h, attrs->strides[0]) + 1);
   out_NCHW_shape[3] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[1]) + 1);
 
-  Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
+  ffi::Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 
-InferLayoutOutput InferLayoutConv2d(const Call& call,
-                                    const Map<String, Array<String>>& desired_layouts,
-                                    const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutConv2d(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.nn.conv2d");
   const auto* attrs = call->attrs.as<Conv2DAttrs>();
   ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout, weight_layout, output_layout;
-  ObjectPtr<Conv2DAttrs> new_attrs = make_object<Conv2DAttrs>(*attrs);
+  ObjectPtr<Conv2DAttrs> new_attrs = ffi::make_object<Conv2DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
     // We have a desired layout for conv2d.
     Layout desired_data_layout = (*it).second[0];
     Layout desired_weight_layout = (*it).second[1];
     Layout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
-    ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal()) << "Axis swap only";
-    ICHECK_EQ(desired_weight_layout.ndim(), desired_weight_layout.ndim_primal())
-        << "Axis swap only";
-    ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
-        << "Axis swap only";
-    data_layout = TransposeLike(InitialLayout(4), attrs->data_layout, desired_data_layout);
-    weight_layout = TransposeLike(InitialLayout(4), attrs->kernel_layout, desired_weight_layout);
-    output_layout = TransposeLike(InitialLayout(4), attrs->out_layout, desired_output_layout);
-    new_attrs->data_layout = (*it).second[0];
-    new_attrs->kernel_layout = (*it).second[1];
-    new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
-  } else {
-    // We don't have a desired layout for conv2d.
-    // We can just propagate the layout from the input.
-    data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
-    weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
-    output_layout = data_layout;
-    new_attrs->data_layout =
-        TransposeLike(attrs->data_layout, InitialLayout(4), data_layout->layout).name();
-    new_attrs->kernel_layout =
-        TransposeLike(attrs->kernel_layout, InitialLayout(4), weight_layout->layout).name();
-    new_attrs->out_layout =
-        TransposeLike(attrs->out_layout, InitialLayout(4), output_layout->layout).name();
+    tir::Layout input_layout(attrs->data_layout, DataType::Int(64));
+    tir::Layout kernel_layout(attrs->kernel_layout, DataType::Int(64));
+    tir::Layout out_layout(attrs->out_layout, DataType::Int(64));
+
+    if ((desired_data_layout.ndim() == input_layout.ndim()) &&
+        (desired_weight_layout.ndim() == kernel_layout.ndim()) &&
+        (desired_output_layout.ndim() == out_layout.ndim())) {
+      // Just a transpose
+      data_layout = TransposeLike(InitialLayout(4), attrs->data_layout, desired_data_layout);
+      weight_layout = TransposeLike(InitialLayout(4), attrs->kernel_layout, desired_weight_layout);
+      output_layout = TransposeLike(InitialLayout(4), attrs->out_layout, desired_output_layout);
+      new_attrs->data_layout = (*it).second[0];
+      new_attrs->kernel_layout = (*it).second[1];
+      new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+      return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
+    } else {
+      // Layout Transform
+      auto data_si = GetStructInfo(call->args[0]);
+      auto kernel_si = GetStructInfo(call->args[1]);
+      TensorStructInfo data_sinfo = data_si.as<TensorStructInfo>().value();
+      TensorStructInfo kernel_sinfo = kernel_si.as<TensorStructInfo>().value();
+      ffi::Optional<ShapeExpr> data_shape =
+          ffi::GetRef<ShapeExpr>(data_sinfo->shape.as<ShapeExprNode>());
+      ffi::Optional<ShapeExpr> kernel_shape =
+          ffi::GetRef<ShapeExpr>(kernel_sinfo->shape.as<ShapeExprNode>());
+
+      bool can_data_proved =
+          CanProveLayoutTransform(input_layout, desired_data_layout, data_shape.value()->values);
+      bool can_kernel_proved = CanProveLayoutTransform(kernel_layout, desired_weight_layout,
+                                                       kernel_shape.value()->values);
+
+      if (can_data_proved && can_kernel_proved) {
+        data_layout = TransposeSubLayoutLike(InitialLayout(4), input_layout, desired_data_layout);
+        weight_layout =
+            TransposeSubLayoutLike(InitialLayout(4), kernel_layout, desired_weight_layout);
+        output_layout = TransposeSubLayoutLike(InitialLayout(4), out_layout, desired_output_layout);
+        new_attrs->data_layout = (*it).second[0];
+        new_attrs->kernel_layout = (*it).second[1];
+        new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+        return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
+      }
+    }
   }
+
+  // We don't have a desired layout for conv2d or desired layouts not compatible.
+  // We can just propagate the layout from the input.
+  data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
+  output_layout = data_layout;
+  new_attrs->data_layout =
+      TransposeLike(attrs->data_layout, InitialLayout(4), data_layout->layout).name();
+  new_attrs->kernel_layout =
+      TransposeLike(attrs->kernel_layout, InitialLayout(4), weight_layout->layout).name();
+  new_attrs->out_layout =
+      TransposeLike(attrs->out_layout, InitialLayout(4), output_layout->layout).name();
   return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
 }
 
@@ -355,11 +404,11 @@ TVM_REGISTER_OP("relax.nn.conv2d")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.conv3d */
-TVM_REGISTER_NODE_TYPE(Conv3DAttrs);
 
-Expr conv3d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
-            Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
-            Optional<String> out_layout, DataType out_dtype) {
+Expr conv3d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
+            ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+            ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
+            ffi::Optional<DataType> out_dtype) {
   padding = GetCompletePadding3D(std::move(padding));
   if (strides.size() == 1) {
     strides.push_back(strides[0]);
@@ -381,13 +430,16 @@ Expr conv3d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding
   return MakeConv<Conv3DAttrs>(std::move(data), std::move(weight), std::move(strides),
                                std::move(padding), std::move(dilation), groups, data_layout,
                                std::move(kernel_layout), out_layout.value_or(data_layout),
-                               out_dtype, /*op_name=*/"relax.nn.conv3d");
+                               out_dtype.value_or(DataType::Void()), /*op_name=*/"relax.nn.conv3d");
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.conv3d").set_body_typed(conv3d);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.nn.conv3d", conv3d);
+}
 
 StructInfo InferStructInfoConv3d(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   TensorStructInfo data_sinfo = input_sinfo[0];
   TensorStructInfo weight_sinfo = input_sinfo[1];
 
@@ -402,21 +454,22 @@ StructInfo InferStructInfoConv3d(const Call& call, const BlockBuilder& ctx) {
                                                    /*tgt_layout=*/"NCDHW",        //
                                                    /*tensor_name=*/"output");
 
-  Optional<ShapeExpr> data_shape =
+  ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
-  Optional<ShapeExpr> weight_shape =
+  ffi::Optional<ShapeExpr> weight_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, weight_sinfo, weight_layout);
 
   DataType out_dtype = attrs->out_dtype.is_void()
                            ? InferBinaryArithOpOutDtype(call, ctx, data_sinfo, weight_sinfo)
                            : attrs->out_dtype;
-  Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
+  ffi::Optional<VDevice> vdevice =
+      InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
   if (!data_shape.defined() || !weight_shape.defined()) {
     return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice);
   }
 
-  Array<PrimExpr> data_NCDHW_shape = data2NCDHW.ForwardShape(data_shape.value()->values);
-  Array<PrimExpr> weight_OIDHW_shape = weight2OIDHW.ForwardShape(weight_shape.value()->values);
+  ffi::Array<PrimExpr> data_NCDHW_shape = data2NCDHW.ForwardShape(data_shape.value()->values);
+  ffi::Array<PrimExpr> weight_OIDHW_shape = weight2OIDHW.ForwardShape(weight_shape.value()->values);
 
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   PrimExpr input_channel_data = data_NCDHW_shape[1];
@@ -465,19 +518,19 @@ StructInfo InferStructInfoConv3d(const Call& call, const BlockBuilder& ctx) {
   out_NCDHW_shape[3] = analyzer->Simplify(floordiv(numerator_h, attrs->strides[1]) + 1);
   out_NCDHW_shape[4] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[2]) + 1);
 
-  Array<PrimExpr> out_shape = out2NCDHW.BackwardShape(out_NCDHW_shape);
+  ffi::Array<PrimExpr> out_shape = out2NCDHW.BackwardShape(out_NCDHW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 
-InferLayoutOutput InferLayoutConv3d(const Call& call,
-                                    const Map<String, Array<String>>& desired_layouts,
-                                    const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutConv3d(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.nn.conv3d");
   const auto* attrs = call->attrs.as<Conv3DAttrs>();
   ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout, weight_layout, output_layout;
-  ObjectPtr<Conv3DAttrs> new_attrs = make_object<Conv3DAttrs>(*attrs);
+  ObjectPtr<Conv3DAttrs> new_attrs = ffi::make_object<Conv3DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
     // We have a desired layout for conv3d.
@@ -530,12 +583,11 @@ TVM_REGISTER_OP("relax.nn.conv3d")
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv3d)
     .set_attr<Bool>("FPurity", Bool(true));
 
-TVM_REGISTER_NODE_TYPE(Conv1DTransposeAttrs);
-
-Expr conv1d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
-                      Array<IntImm> output_padding, Array<IntImm> dilation, int groups,
-                      String data_layout, String kernel_layout, Optional<String> out_layout,
-                      DataType out_dtype) {
+Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<IntImm> strides,
+                      ffi::Array<IntImm> padding, ffi::Array<IntImm> output_padding,
+                      ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+                      ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
+                      ffi::Optional<DataType> out_dtype) {
   padding = GetCompletePadding1D(std::move(padding));
 
   CHECK_GT(groups, 0) << "The number of groups in convolution is expected to be positive. However, "
@@ -550,7 +602,7 @@ Expr conv1d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntIm
       << "The input dilation length is expected to be 1. However, the given dilation is "
       << dilation;
 
-  auto attrs = make_object<Conv1DTransposeAttrs>();
+  auto attrs = ffi::make_object<Conv1DTransposeAttrs>();
   attrs->strides = ConvertIntImmToInt64(strides);
   attrs->padding = ConvertIntImmToInt64(padding);
   attrs->output_padding = ConvertIntImmToInt64(output_padding);
@@ -558,16 +610,19 @@ Expr conv1d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntIm
   attrs->groups = groups;
   attrs->data_layout = data_layout;
   attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout.value_or(data_layout));
-  attrs->out_dtype = std::move(out_dtype);
+  attrs->out_layout = out_layout.value_or(data_layout);
+  attrs->out_dtype = std::move(out_dtype.value_or(DataType::Void()));
   const Op& op = Op::Get("relax.nn.conv1d_transpose");
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.conv1d_transpose").set_body_typed(conv1d_transpose);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.nn.conv1d_transpose", conv1d_transpose);
+}
 
 StructInfo InferStructInfoConv1dTranspose(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   TensorStructInfo data_sinfo = input_sinfo[0];
   TensorStructInfo weight_sinfo = input_sinfo[1];
 
@@ -581,21 +636,22 @@ StructInfo InferStructInfoConv1dTranspose(const Call& call, const BlockBuilder& 
   auto [out_layout, out2NCW] = CheckTensorLayout(call, ctx, attrs->out_layout,  //
                                                  /*tgt_layout=*/"NCW",          //
                                                  /*tensor_name=*/"output");
-  Optional<ShapeExpr> data_shape =
+  ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
-  Optional<ShapeExpr> weight_shape =
+  ffi::Optional<ShapeExpr> weight_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, weight_sinfo, weight_layout);
 
   DataType out_dtype = attrs->out_dtype.is_void()
                            ? InferBinaryArithOpOutDtype(call, ctx, data_sinfo, weight_sinfo)
                            : attrs->out_dtype;
-  Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
+  ffi::Optional<VDevice> vdevice =
+      InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
   if (!data_shape.defined() || !weight_shape.defined()) {
     return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice);
   }
 
-  Array<PrimExpr> data_NCW_shape = data2NCW.ForwardShape(data_shape.value()->values);
-  Array<PrimExpr> weight_IOW_shape = weight2IOW.ForwardShape(weight_shape.value()->values);
+  ffi::Array<PrimExpr> data_NCW_shape = data2NCW.ForwardShape(data_shape.value()->values);
+  ffi::Array<PrimExpr> weight_IOW_shape = weight2IOW.ForwardShape(weight_shape.value()->values);
 
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   PrimExpr input_channel_data = data_NCW_shape[1];
@@ -643,7 +699,7 @@ StructInfo InferStructInfoConv1dTranspose(const Call& call, const BlockBuilder& 
                    attrs->dilation[0] * (kernel_w - 1) + attrs->output_padding[0] + 1;
   out_NCW_shape[2] = analyzer->Simplify(out_w);
 
-  Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
+  ffi::Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 
@@ -658,12 +714,12 @@ TVM_REGISTER_OP("relax.nn.conv1d_transpose")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.conv2d_transpose */
-TVM_REGISTER_NODE_TYPE(Conv2DTransposeAttrs);
 
-Expr conv2d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
-                      Array<IntImm> output_padding, Array<IntImm> dilation, int groups,
-                      String data_layout, String kernel_layout, Optional<String> out_layout,
-                      DataType out_dtype) {
+Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<IntImm> strides,
+                      ffi::Array<IntImm> padding, ffi::Array<IntImm> output_padding,
+                      ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+                      ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
+                      ffi::Optional<DataType> out_dtype) {
   padding = GetCompletePadding2D(std::move(padding));
   if (output_padding.size() == 1) {
     output_padding.push_back(output_padding[0]);
@@ -687,7 +743,7 @@ Expr conv2d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntIm
       << "The input dilation length is expected to be 2. However, the given dilation is "
       << dilation;
 
-  auto attrs = make_object<Conv2DTransposeAttrs>();
+  auto attrs = ffi::make_object<Conv2DTransposeAttrs>();
   attrs->strides = ConvertIntImmToInt64(strides);
   attrs->padding = ConvertIntImmToInt64(padding);
   attrs->output_padding = ConvertIntImmToInt64(output_padding);
@@ -695,16 +751,19 @@ Expr conv2d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntIm
   attrs->groups = groups;
   attrs->data_layout = data_layout;
   attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout.value_or(data_layout));
-  attrs->out_dtype = std::move(out_dtype);
+  attrs->out_layout = out_layout.value_or(data_layout);
+  attrs->out_dtype = std::move(out_dtype.value_or(DataType::Void()));
   const Op& op = Op::Get("relax.nn.conv2d_transpose");
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.conv2d_transpose").set_body_typed(conv2d_transpose);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.nn.conv2d_transpose", conv2d_transpose);
+}
 
 StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   TensorStructInfo data_sinfo = input_sinfo[0];
   TensorStructInfo weight_sinfo = input_sinfo[1];
 
@@ -719,21 +778,22 @@ StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& 
                                                   /*tgt_layout=*/"NCHW",         //
                                                   /*tensor_name=*/"output");
 
-  Optional<ShapeExpr> data_shape =
+  ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
-  Optional<ShapeExpr> weight_shape =
+  ffi::Optional<ShapeExpr> weight_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, weight_sinfo, weight_layout);
 
   DataType out_dtype = attrs->out_dtype.is_void()
                            ? InferBinaryArithOpOutDtype(call, ctx, data_sinfo, weight_sinfo)
                            : attrs->out_dtype;
-  Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
+  ffi::Optional<VDevice> vdevice =
+      InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
   if (!data_shape.defined() || !weight_shape.defined()) {
     return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice);
   }
 
-  Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
-  Array<PrimExpr> weight_IOHW_shape = weight2IOHW.ForwardShape(weight_shape.value()->values);
+  ffi::Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
+  ffi::Array<PrimExpr> weight_IOHW_shape = weight2IOHW.ForwardShape(weight_shape.value()->values);
 
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   PrimExpr input_channel_data = data_NCHW_shape[1];
@@ -789,7 +849,7 @@ StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& 
   out_NCHW_shape[2] = analyzer->Simplify(out_h);
   out_NCHW_shape[3] = analyzer->Simplify(out_w);
 
-  Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
+  ffi::Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 

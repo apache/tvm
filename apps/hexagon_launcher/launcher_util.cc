@@ -47,7 +47,7 @@ std::string load_text_file(const std::string& file_name) {
   std::string buffer(file_size + 1, 0);
 
   in_file.read(&buffer[0], file_size);
-  return std::move(buffer);
+  return buffer;
 }
 
 void* load_binary_file(const std::string& file_name, void* buffer, size_t buffer_size) {

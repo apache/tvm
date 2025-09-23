@@ -57,8 +57,8 @@ def _infer_test_sym(a, b):  # pylint: disable=invalid-name
 
 def _test_scalar_add(func):
     # pylint: disable=invalid-name
-    x = tvm.nd.array(np.array(1.0).astype("float32"))
-    y = tvm.nd.array(np.array(3.0).astype("float32"))
+    x = tvm.runtime.tensor(np.array(1.0).astype("float32"))
+    y = tvm.runtime.tensor(np.array(3.0).astype("float32"))
     z = func(x, y).numpy()
     # pylint: enable=invalid-name
     assert z.ndim == 0
@@ -68,8 +68,8 @@ def _test_scalar_add(func):
 
 def _test_infer_sym(func, x, y, z):  # pylint: disable=invalid-name
     # pylint: disable=invalid-name
-    a = tvm.nd.array(np.random.uniform(size=(x, y, 1)).astype("float32"))
-    b = tvm.nd.array(np.random.uniform(size=(y, z, 5)).astype("float32"))
+    a = tvm.runtime.tensor(np.random.uniform(size=(x, y, 1)).astype("float32"))
+    b = tvm.runtime.tensor(np.random.uniform(size=(y, z, 5)).astype("float32"))
     c = func(a, b).numpy()
     # pylint: enable=invalid-name
     assert c.shape == (x, y, z, 9)
@@ -119,8 +119,8 @@ def _check_ir_equality(mod):
 
 def _compile_cc(src: Path, dst: Path):
     # pylint: disable=import-outside-toplevel
-    from tvm._ffi.base import py_str
-    from tvm._ffi.libinfo import find_include_path
+    from tvm.base import py_str
+    from tvm.libinfo import find_include_path
 
     # pylint: enable=import-outside-toplevel
 
@@ -189,8 +189,8 @@ def test_extern_object():
         )
         _check_ir_equality(mod)
         mod = AttachExternModules(ext_mods)(mod)  # pylint: disable=not-callable
-        compiled = tvm.runtime.relax_vm.VirtualMachine(
-            relax.build(mod, target="llvm"),
+        compiled = tvm.runtime.vm.VirtualMachine(
+            tvm.compile(mod, target="llvm"),
             device=tvm.cpu(),
         )
         _test_scalar_add(compiled["scalar_add"])
@@ -238,8 +238,8 @@ def test_extern_source():
     )
     _check_ir_equality(mod)
     mod = AttachExternModules(ext_mods)(mod)  # pylint: disable=not-callable
-    compiled = tvm.runtime.relax_vm.VirtualMachine(
-        relax.build(mod, target="llvm"),
+    compiled = tvm.runtime.vm.VirtualMachine(
+        tvm.compile(mod, target="llvm"),
         device=tvm.cpu(),
     )
     _test_scalar_add(compiled["scalar_add"])

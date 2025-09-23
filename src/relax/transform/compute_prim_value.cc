@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/tir/analysis.h>
@@ -46,7 +47,7 @@ class PrimValueComputeInjector : public ExprMutator {
     tir::Stmt body = tir::Evaluate(tir::Call(ret_dtype, tir::builtin::ret(), {node->value}));
 
     tir::PrimFunc func(param_vars, body, PrimType(ret_dtype), {},
-                       DictAttrs({{tir::attr::kIsHostFunc, Bool(true)}}));
+                       DictAttrs({{tir::attr::kIsHostFunc, true}}));
     func = tir::RenewDefs(func);
 
     auto callee = builder_->AddFunction(func, "compute_symbolic_expr");
@@ -62,8 +63,7 @@ class PrimValueComputeInjector : public ExprMutator {
 namespace transform {
 
 Pass ComputePrimValue() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) -> IRModule {
+  auto pass_func = [=](IRModule mod, PassContext pc) -> IRModule {
     PrimValueComputeInjector mutator;
 
     IRModule updates;
@@ -87,7 +87,10 @@ Pass ComputePrimValue() {
   return CreateModulePass(pass_func, 0, "ComputePrimValue", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.ComputePrimValue").set_body_typed(ComputePrimValue);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.ComputePrimValue", ComputePrimValue);
+}
 
 }  // namespace transform
 

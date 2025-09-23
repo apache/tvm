@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Relax transformations. """
+"""Relax transformations."""
 
 from .transform import (
     AdjustMatmulOrder,
@@ -94,7 +94,8 @@ from .ipc_allreduce_rewrite import IPCAllReduceRewrite
 from .lazy_transform_params import LazyTransformParams
 from .lower_gpu_ipc_alloc_storage import LowerGPUIPCAllocStorage
 from .optimize_layout_transform import OptimizeLayoutTransform
+from .fold_batch_norm_to_conv2d_for_inference import FoldBatchnormToConv2D
 from .remove_redundant_reshape import RemoveRedundantReshape
 
 # Import to register the legalization functions.
-from . import legalize_ops, tuning_api
+from . import legalize_ops

@@ -94,8 +94,9 @@ SPIRVSupport::SPIRVSupport(tvm::Target target) {
     supports_integer_dot_product = target->GetAttr<Bool>("supports_integer_dot_product").value();
   }
   // Check whether integer dot product is enabled in mattr.
-  if (const Optional<Array<String>>& v = target->GetAttr<Array<String>>("mattr")) {
-    for (const String& s : v.value()) {
+  if (const ffi::Optional<ffi::Array<ffi::String>>& v =
+          target->GetAttr<ffi::Array<ffi::String>>("mattr")) {
+    for (const ffi::String& s : v.value()) {
       if (s.compare("+dotprod") == 0) {
         supports_integer_dot_product = true;
         break;

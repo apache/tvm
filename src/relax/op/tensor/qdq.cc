@@ -24,6 +24,8 @@
 
 #include "qdq.h"
 
+#include <tvm/ffi/reflection/registry.h>
+
 #include <utility>
 
 #include "../../transform/utils.h"
@@ -32,26 +34,28 @@
 namespace tvm {
 namespace relax {
 
-TVM_REGISTER_NODE_TYPE(QuantizeAttrs);
+TVM_FFI_STATIC_INIT_BLOCK() { QuantizeAttrs::RegisterReflection(); }
 
 /* relax.quantize */
 
 Expr quantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_dtype) {
-  ObjectPtr<QuantizeAttrs> attrs = make_object<QuantizeAttrs>();
+  ObjectPtr<QuantizeAttrs> attrs = ffi::make_object<QuantizeAttrs>();
   attrs->axis = axis;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("relax.quantize");
   return Call(op, {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
 }
 
-TVM_REGISTER_GLOBAL("relax.op.quantize").set_body_typed(quantize);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.quantize", quantize);
+}
 
 StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<QuantizeAttrs>();
   if (attrs->out_dtype != DataType::Int(8) && attrs->out_dtype != DataType::UInt(8) &&
       attrs->out_dtype != DataType::Int(16) && attrs->out_dtype != DataType::UInt(16) &&
-      attrs->out_dtype != DataType::NVFloat8E4M3() &&
-      attrs->out_dtype != DataType::NVFloat8E5M2()) {
+      attrs->out_dtype != DataType::Float8E4M3FN() && attrs->out_dtype != DataType::Float8E5M2()) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Unsupported output datatype attribute for operation: '"
                      << attrs->out_dtype);
@@ -89,7 +93,7 @@ StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
   }
 
   auto check_param_size = [&](const TensorStructInfo& param_sinfo,
-                              const TensorStructInfo& data_sinfo, String param_name) {
+                              const TensorStructInfo& data_sinfo, ffi::String param_name) {
     const PrimExpr& param_dim = param_sinfo->GetShape().value()[0];
     const PrimExpr& input_dim = data_sinfo->GetShape().value()[axis];
     if (!ctx->GetAnalyzer()->CanProveEqual(param_dim, input_dim)) {
@@ -104,7 +108,7 @@ StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
   if (!IsScalarTensor(scale_sinfo)) check_param_size(scale_sinfo, input_sinfo, "scale");
   if (!IsScalarTensor(zp_sinfo)) check_param_size(zp_sinfo, input_sinfo, "zero_point");
 
-  auto output_sinfo = make_object<TensorStructInfoNode>(*input_sinfo.get());
+  auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*input_sinfo.get());
   output_sinfo->dtype = attrs->out_dtype;
   return TensorStructInfo(output_sinfo);
 }
@@ -121,14 +125,17 @@ TVM_REGISTER_OP("relax.quantize")
 /* relax.dequantize */
 
 Expr dequantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_dtype) {
-  ObjectPtr<QuantizeAttrs> attrs = make_object<QuantizeAttrs>();
+  ObjectPtr<QuantizeAttrs> attrs = ffi::make_object<QuantizeAttrs>();
   attrs->axis = axis;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("relax.dequantize");
   return Call(op, {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
 }
 
-TVM_REGISTER_GLOBAL("relax.op.dequantize").set_body_typed(dequantize);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.dequantize", dequantize);
+}
 
 StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<QuantizeAttrs>();
@@ -145,8 +152,8 @@ StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) 
   // Check input datatype:
   if (input_sinfo->dtype != DataType::Int(8) && input_sinfo->dtype != DataType::UInt(8) &&
       input_sinfo->dtype != DataType::Int(16) && input_sinfo->dtype != DataType::UInt(16) &&
-      input_sinfo->dtype != DataType::Int(32) && input_sinfo->dtype != DataType::NVFloat8E4M3() &&
-      input_sinfo->dtype != DataType::NVFloat8E5M2() && input_sinfo->dtype != DataType::Float(16) &&
+      input_sinfo->dtype != DataType::Int(32) && input_sinfo->dtype != DataType::Float8E4M3FN() &&
+      input_sinfo->dtype != DataType::Float8E5M2() && input_sinfo->dtype != DataType::Float(16) &&
       input_sinfo->dtype != DataType::Float(32)) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Unsupported input datatype for operation: " << attrs->out_dtype);
@@ -174,7 +181,7 @@ StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) 
   }
 
   auto check_param_size = [&](const TensorStructInfo& param_sinfo,
-                              const TensorStructInfo& data_sinfo, String param_name) {
+                              const TensorStructInfo& data_sinfo, ffi::String param_name) {
     const PrimExpr& param_dim = param_sinfo->GetShape().value()[0];
     const PrimExpr& input_dim = data_sinfo->GetShape().value()[axis];
     if (!ctx->GetAnalyzer()->CanProveEqual(param_dim, input_dim)) {
@@ -189,7 +196,7 @@ StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) 
   if (!IsScalarTensor(scale_sinfo)) check_param_size(scale_sinfo, input_sinfo, "scale");
   if (!IsScalarTensor(zp_sinfo)) check_param_size(zp_sinfo, input_sinfo, "zero_point");
 
-  auto output_sinfo = make_object<TensorStructInfoNode>(*input_sinfo.get());
+  auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*input_sinfo.get());
   output_sinfo->dtype = attrs->out_dtype;
   return TensorStructInfo(output_sinfo);
 }

@@ -115,10 +115,9 @@ appropriate. As a result the tutorials and how-tos will be divided between
 focus on the developer experience.
 
 The next consideration is that there are special topics within the TVM
-community that benefit from additional attention. These topics include, but are
-not limited to, microTVM and VTA. Special "Topic Guides" can be created to
-index existing material, and provide context on how to navigate that material
-most effectively.
+community that benefit from additional attention. Special "Topic Guides" can be
+created to index existing material, and provide context on how to navigate that
+material most effectively.
 
 To facilitate newcomers, a special "Getting Started" section with installation
 instructions, a overview of why to use TVM, and other first-experience
@@ -196,7 +195,7 @@ shows an example of c++ docstring.
     /*!
      * \brief Description of my function
      * \param arg1 Description of arg1
-     * \param arg2 Descroption of arg2
+     * \param arg2 Description of arg2
      * \returns describe return value
      */
     int myfunction(int arg1, int arg2) {

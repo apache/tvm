@@ -21,8 +21,9 @@
  * \file src/runtime/contrib/miopen/softmax.cc
  * \brief Use external miopen softmax function
  */
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/registry.h>
 
 #include "miopen_utils.h"
 
@@ -32,10 +33,10 @@ namespace miopen {
 
 using namespace runtime;
 
-void softmax_impl(TVMArgs args, TVMRetValue* ret, miopenSoftmaxAlgorithm_t alg) {
-  DLTensor* x = args[0];
-  DLTensor* y = args[1];
-  int axis = args[2];
+void softmax_impl(ffi::PackedArgs args, ffi::Any* ret, miopenSoftmaxAlgorithm_t alg) {
+  auto x = args[0].cast<DLTensor*>();
+  auto y = args[1].cast<DLTensor*>();
+  int axis = args[2].cast<int>();
   int ndim = x->ndim;
   int64_t* shape = x->shape;
   if (axis < 0) axis += ndim;
@@ -44,7 +45,7 @@ void softmax_impl(TVMArgs args, TVMRetValue* ret, miopenSoftmaxAlgorithm_t alg) 
   ICHECK(TypeMatch(x->dtype, kDLFloat, 32));
   ICHECK(TypeMatch(y->dtype, kDLFloat, 32));
 
-  MIOpenThreadEntry* entry_ptr = MIOpenThreadEntry::ThreadLocal();
+  MIOpenThreadEntry* entry_ptr = MIOpenThreadEntry::ThreadLocal(x->device);
 
   miopenSoftmaxMode_t mode;
   if (axis == ndim - 1) {
@@ -79,13 +80,17 @@ void softmax_impl(TVMArgs args, TVMRetValue* ret, miopenSoftmaxAlgorithm_t alg) 
                                       entry_ptr->softmax_entry.shape_desc, y->data, alg, mode));
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.miopen.softmax.forward")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
-      softmax_impl(args, ret, MIOPEN_SOFTMAX_ACCURATE);
-    });
-
-TVM_REGISTER_GLOBAL("tvm.contrib.miopen.log_softmax.forward")
-    .set_body([](TVMArgs args, TVMRetValue* ret) { softmax_impl(args, ret, MIOPEN_SOFTMAX_LOG); });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("tvm.contrib.miopen.softmax.forward",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    softmax_impl(args, ret, MIOPEN_SOFTMAX_ACCURATE);
+                  })
+      .def_packed(
+          "tvm.contrib.miopen.log_softmax.forward",
+          [](ffi::PackedArgs args, ffi::Any* ret) { softmax_impl(args, ret, MIOPEN_SOFTMAX_LOG); });
+}
 
 }  // namespace miopen
 }  // namespace contrib

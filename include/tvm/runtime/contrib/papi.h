@@ -22,8 +22,8 @@
 #ifndef TVM_RUNTIME_CONTRIB_PAPI_H_
 #define TVM_RUNTIME_CONTRIB_PAPI_H_
 
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/map.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
 #include <tvm/runtime/profiling.h>
 
 namespace tvm {
@@ -38,7 +38,8 @@ namespace profiling {
  * collected on that device. You can find the names of available metrics by
  * running `papi_native_avail`.
  */
-TVM_DLL MetricCollector CreatePAPIMetricCollector(Map<DeviceWrapper, Array<String>> metrics);
+TVM_DLL MetricCollector
+CreatePAPIMetricCollector(ffi::Map<DeviceWrapper, ffi::Array<ffi::String>> metrics);
 }  // namespace profiling
 }  // namespace runtime
 }  // namespace tvm

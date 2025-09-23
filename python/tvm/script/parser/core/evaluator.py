@@ -19,6 +19,8 @@
 import ast
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
 
+import tvm
+
 from . import dispatch, doc
 from .error import ParserError
 
@@ -148,12 +150,7 @@ class ExprEvaluator:
         col_offset = 0
         return doc.Name(
             id=name,
-            ctx=doc.Load(
-                lineno=lineno,
-                col_offset=col_offset,
-                end_lineno=None,
-                end_col_offset=None,
-            ),
+            ctx=doc.Load(),
             lineno=lineno,
             col_offset=col_offset,
             end_lineno=None,
@@ -178,18 +175,19 @@ class ExprEvaluator:
             isinstance(node, doc.Call)
             and hasattr(node.func, "attr")
             and node.func.attr not in ["reads", "writes", "match_buffer", "realize"]
-        ) or isinstance(node, (doc.BinOp, doc.UnaryOp, doc.Compare, doc.BoolOp)):
+        ) or isinstance(node, (doc.BinOp, doc.UnaryOp, doc.Compare, doc.BoolOp, doc.IfExp)):
             if isinstance(node, doc.BinOp):
                 args = [node.left, node.right]
             elif isinstance(node, doc.UnaryOp):
                 args = [node.operand]
             elif isinstance(node, doc.Compare):
                 args = [node.left, *node.comparators]
-            else:
-                if isinstance(node, doc.Call):
-                    args = node.args
-                elif isinstance(node, doc.BoolOp):
-                    args = node.values
+            elif isinstance(node, doc.IfExp):
+                args = [node.test, node.body, node.orelse]
+            elif isinstance(node, doc.Call):
+                args = node.args
+            elif isinstance(node, doc.BoolOp):
+                args = node.values
         for arg in args:
             if isinstance(arg, doc.Subscript) and isinstance(arg.slice, (doc.Slice, doc.Tuple)):
                 if isinstance(arg.slice, doc.Slice):
@@ -204,8 +202,6 @@ class ExprEvaluator:
                         s.step = doc.Constant(
                             1,
                             None,
-                            1,
-                            1,
                             s.upper.lineno,
                             s.upper.end_col_offset + 1,
                             s.upper.lineno,
@@ -232,7 +228,7 @@ class ExprEvaluator:
             ),
         ):
             return node
-        if not isinstance(node, (doc.expr, doc.slice)):
+        if not isinstance(node, (doc.expr, doc.Slice)):
             return node
         if isinstance(node, doc.Lambda):
             return self._eval_lambda(node)
@@ -263,6 +259,8 @@ class ExprEvaluator:
                 value = self._eval_unary_op(fields)
             elif isinstance(node, doc.BinOp):
                 value = self._eval_bin_op(fields)
+            elif isinstance(node, doc.IfExp):
+                value = self._eval_if_exp(fields)
             elif isinstance(node, doc.Slice):
                 value = self._eval_slice(fields)
             else:
@@ -370,6 +368,30 @@ class ExprEvaluator:
                 self._eval_expr(fields["right"]),
             ],
         )
+
+    def _eval_if_exp(self, fields: Dict[str, Any]) -> Any:
+        """The doc AST if-else expression node evaluating method.
+
+        Parameters
+        ----------
+        fields : Dict[str, Any]
+            The dictionary of if-else expression information,
+            e.g., test, body, orelse.
+
+        Returns
+        -------
+        res : Any
+            The evaluation result.
+        """
+        test = self._eval_expr(fields["test"])
+        body = self._eval_expr(fields["body"])
+        orelse = self._eval_expr(fields["orelse"])
+        if isinstance(test, bool):
+            return body if test else orelse
+        elif isinstance(test, tvm.tir.PrimExpr) and test.dtype == "bool":
+            return tvm.tir.op.if_then_else(test, body, orelse)
+        else:
+            raise TypeError(f"Expected Python bool or TIR bool, but got {type(test)}")
 
     def _eval_slice(self, fields: Dict[str, Any]) -> slice:
         """The doc AST slice node evaluating method.

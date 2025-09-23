@@ -30,18 +30,20 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes for relax.quantize/relax.dequantize operator */
-struct QuantizeAttrs : public tvm::AttrsNode<QuantizeAttrs> {
+struct QuantizeAttrs : public AttrsNodeReflAdapter<QuantizeAttrs> {
   DataType out_dtype;
   int axis;
 
-  TVM_DECLARE_ATTRS(QuantizeAttrs, "relax.attrs.QuantizeAttrs") {
-    TVM_ATTR_FIELD(out_dtype).describe("Output data type.");
-    TVM_ATTR_FIELD(axis)
-        .describe(
-            "The output channel axis for channel wise quantization/dequantization. "
-            "Default value is -1, which corresponds to the last axis.")
-        .set_default(-1);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<QuantizeAttrs>()
+        .def_ro("out_dtype", &QuantizeAttrs::out_dtype, "Output data type.")
+        .def_ro("axis", &QuantizeAttrs::axis,
+                "The output channel axis for channel wise quantization/dequantization. "
+                "Default value is -1, which corresponds to the last axis.",
+                refl::DefaultValue(-1));
   }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.QuantizeAttrs", QuantizeAttrs, BaseAttrsNode);
 };  // QuantizeAttrs
 
 }  // namespace relax

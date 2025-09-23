@@ -16,13 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
 namespace meta_schedule {
 
-Array<tvm::runtime::NDArray> PyFeatureExtractorNode::ExtractFrom(
-    const TuneContext& context, const Array<MeasureCandidate>& candidates) {
+ffi::Array<tvm::runtime::Tensor> PyFeatureExtractorNode::ExtractFrom(
+    const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates) {
   ICHECK(f_extract_from != nullptr) << "PyFeatureExtractor's ExtractFrom method not implemented!";
   return f_extract_from(context, candidates);
 }
@@ -30,7 +32,7 @@ Array<tvm::runtime::NDArray> PyFeatureExtractorNode::ExtractFrom(
 FeatureExtractor FeatureExtractor::PyFeatureExtractor(
     PyFeatureExtractorNode::FExtractFrom f_extract_from,  //
     PyFeatureExtractorNode::FAsString f_as_string) {
-  ObjectPtr<PyFeatureExtractorNode> n = make_object<PyFeatureExtractorNode>();
+  ObjectPtr<PyFeatureExtractorNode> n = ffi::make_object<PyFeatureExtractorNode>();
   n->f_extract_from = std::move(f_extract_from);
   n->f_as_string = std::move(f_as_string);
   return FeatureExtractor(n);
@@ -45,13 +47,18 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << f_as_string();
     });
 
-TVM_REGISTER_OBJECT_TYPE(FeatureExtractorNode);
-TVM_REGISTER_NODE_TYPE(PyFeatureExtractorNode);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  FeatureExtractorNode::RegisterReflection();
+  PyFeatureExtractorNode::RegisterReflection();
+}
 
-TVM_REGISTER_GLOBAL("meta_schedule.FeatureExtractorExtractFrom")
-    .set_body_method<FeatureExtractor>(&FeatureExtractorNode::ExtractFrom);
-TVM_REGISTER_GLOBAL("meta_schedule.FeatureExtractorPyFeatureExtractor")
-    .set_body_typed(FeatureExtractor::PyFeatureExtractor);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_method("meta_schedule.FeatureExtractorExtractFrom", &FeatureExtractorNode::ExtractFrom)
+      .def("meta_schedule.FeatureExtractorPyFeatureExtractor",
+           FeatureExtractor::PyFeatureExtractor);
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

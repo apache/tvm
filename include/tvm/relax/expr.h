@@ -19,12 +19,14 @@
 #ifndef TVM_RELAX_EXPR_H_
 #define TVM_RELAX_EXPR_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/node/node.h>
 #include <tvm/relax/type.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/map.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -34,8 +36,8 @@
 namespace tvm {
 namespace relax {
 
-using Expr = RelayExpr;
-using ExprNode = RelayExprNode;
+using Expr = RelaxExpr;
+using ExprNode = RelaxExprNode;
 /*!
  * \brief The unique identifier of variables.
  *
@@ -51,20 +53,16 @@ class IdNode : public Object {
    *  this only acts as a hint to the user,
    *  and is not used for equality.
    */
-  String name_hint;
+  ffi::String name_hint;
 
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("name_hint", &name_hint); }
-
-  bool SEqualReduce(const IdNode* other, SEqualReducer equal) const {
-    return equal.FreeVarEqualImpl(this, other);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IdNode>().def_ro("name_hint", &IdNode::name_hint,
+                                     refl::AttachFieldFlag::SEqHashIgnore());
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce.FreeVarHashImpl(this); }
-
-  static constexpr const char* _type_key = "relax.Id";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(IdNode, Object);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.Id", IdNode, Object);
 };
 
 class Id : public ObjectRef {
@@ -73,9 +71,9 @@ class Id : public ObjectRef {
    * \brief The constructor
    * \param name_hint The name of the variable.
    */
-  TVM_DLL explicit Id(String name_hint);
+  TVM_DLL explicit Id(ffi::String name_hint);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Id, ObjectRef, IdNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Id, ObjectRef, IdNode);
 };
 
 /*!
@@ -115,11 +113,16 @@ class StructInfoNode : public Object {
    */
   mutable Span span;
 
-  static constexpr const char* _type_key = "StructInfo";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  static constexpr const uint32_t _type_child_slots = 5;
-  TVM_DECLARE_BASE_OBJECT_INFO(StructInfoNode, Object);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<StructInfoNode>().def_ro("span", &StructInfoNode::span,
+                                             refl::AttachFieldFlag::SEqHashIgnore());
+  }
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+
+  static constexpr const uint32_t _type_child_slots = 7;
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.StructInfo", StructInfoNode, Object);
 };
 
 /*!
@@ -128,7 +131,7 @@ class StructInfoNode : public Object {
  */
 class StructInfo : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(StructInfo, ObjectRef, StructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StructInfo, ObjectRef, StructInfoNode);
 };
 
 /*!
@@ -146,7 +149,7 @@ class CallNode : public ExprNode {
   Expr op;
 
   /*! \brief The arguments(inputs) of the call */
-  tvm::Array<Expr> args;
+  tvm::ffi::Array<Expr> args;
 
   /*! \brief The additional attributes */
   Attrs attrs;
@@ -157,34 +160,17 @@ class CallNode : public ExprNode {
    * call_tir, call_builtin_with_ctx, etc.) and calls to ExternFuncs, with the main
    * usage of structure info inference.
    */
-  Array<StructInfo> sinfo_args;
+  ffi::Array<StructInfo> sinfo_args;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("op", &op);
-    v->Visit("args", &args);
-    v->Visit("attrs", &attrs);
-    v->Visit("sinfo_args", &sinfo_args);
-    v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<CallNode>()
+        .def_ro("op", &CallNode::op)
+        .def_ro("args", &CallNode::args)
+        .def_ro("attrs", &CallNode::attrs)
+        .def_ro("sinfo_args", &CallNode::sinfo_args);
   }
-
-  bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
-    // skip sinfo_args check for primitive ops.
-    return equal(op, other->op) && equal(args, other->args) && equal(attrs, other->attrs) &&
-           equal(sinfo_args, other->sinfo_args) && equal(struct_info_, other->struct_info_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(op);
-    hash_reduce(args);
-    hash_reduce(attrs);
-    hash_reduce(sinfo_args);
-    hash_reduce(struct_info_);
-  }
-
-  static constexpr const char* _type_key = "relax.expr.Call";
-  TVM_DECLARE_FINAL_OBJECT_INFO(CallNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Call", CallNode, ExprNode);
 };
 
 class Call : public Expr {
@@ -197,10 +183,10 @@ class Call : public Expr {
    * \param sinfo_args The structure info arguments passed to a function.
    * \param span The source span of the expression.
    */
-  TVM_DLL Call(Expr op, Array<Expr> args, Attrs attrs = Attrs(),
-               Array<StructInfo> sinfo_args = Array<StructInfo>(), Span span = Span());
+  TVM_DLL Call(Expr op, ffi::Array<Expr> args, Attrs attrs = Attrs(),
+               ffi::Array<StructInfo> sinfo_args = ffi::Array<StructInfo>(), Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Call, Expr, CallNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Call, Expr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };
 
@@ -209,34 +195,24 @@ class Call : public Expr {
  * Returns \p call if all properties are unchanged. Otherwise, returns a copy with the new
  * fields.
  */
-Call WithFields(Call call, Optional<Expr> opt_op = Optional<Expr>(),
-                Optional<Array<Expr>> opt_args = Optional<Array<Expr>>(),
-                Optional<Attrs> opt_attrs = Optional<Attrs>(),
-                Optional<Array<StructInfo>> opt_sinfo_args = Optional<Array<StructInfo>>(),
-                Optional<Span> opt_span = Optional<Span>());
+Call WithFields(
+    Call call, ffi::Optional<Expr> opt_op = ffi::Optional<Expr>(),
+    ffi::Optional<ffi::Array<Expr>> opt_args = ffi::Optional<ffi::Array<Expr>>(),
+    ffi::Optional<Attrs> opt_attrs = ffi::Optional<Attrs>(),
+    ffi::Optional<ffi::Array<StructInfo>> opt_sinfo_args = ffi::Optional<ffi::Array<StructInfo>>(),
+    ffi::Optional<Span> opt_span = ffi::Optional<Span>());
 
 /*! \brief Tuple container */
 class TupleNode : public ExprNode {
  public:
   /*! \brief the fields of the tuple */
-  tvm::Array<Expr> fields;
+  tvm::ffi::Array<Expr> fields;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("fields", &fields);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("struct_info_", &struct_info_);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TupleNode>().def_ro("fields", &TupleNode::fields);
   }
-
-  bool SEqualReduce(const TupleNode* other, SEqualReducer equal) const {
-    // struct info can be deterministically derived from fields.
-    return equal(fields, other->fields);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(fields); }
-
-  static constexpr const char* _type_key = "relax.expr.Tuple";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TupleNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Tuple", TupleNode, ExprNode);
 };
 
 class Tuple : public Expr {
@@ -246,15 +222,15 @@ class Tuple : public Expr {
    * \param fields The fields of a tuple.
    * \param span The source span of the expression.
    */
-  TVM_DLL explicit Tuple(tvm::Array<Expr> fields, Span span = Span());
+  TVM_DLL explicit Tuple(tvm::ffi::Array<Expr> fields, Span span = Span());
 
   /*!
    * \brief Utility constructor to handle conversion to relax::Expr
    *
    * If the calling scope already has an array of a specific type of
-   * relax expression (e.g. `Array<relax::Var>`), it must be converted
+   * relax expression (e.g. `ffi::Array<relax::Var>`), it must be converted
    * into an array of base type.  This constructor handles the
-   * conversion to the base `Array<relax::Expr>`.
+   * conversion to the base `ffi::Array<relax::Expr>`.
    *
    * \tparam RelaxExpr The type of relax expression passed in as an argument.
    *
@@ -263,10 +239,10 @@ class Tuple : public Expr {
    * \param span The source span of the expression.
    */
   template <typename RelaxExpr, typename = std::enable_if_t<std::is_base_of_v<Expr, RelaxExpr>>>
-  TVM_DLL explicit Tuple(tvm::Array<RelaxExpr> fields, Span span = Span())
+  TVM_DLL explicit Tuple(tvm::ffi::Array<RelaxExpr> fields, Span span = Span())
       : Tuple(fields.Map([](const RelaxExpr& expr) -> Expr { return expr; }), span) {}
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Tuple, Expr, TupleNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tuple, Expr, TupleNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
 };
 
@@ -275,8 +251,9 @@ class Tuple : public Expr {
  * Returns \p tuple if all properties are unchanged. Otherwise, returns a copy with the new
  * fields.
  */
-Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields = Optional<Array<Expr>>(),
-                 Optional<Span> opt_span = Optional<Span>());
+Tuple WithFields(Tuple tuple,
+                 ffi::Optional<ffi::Array<Expr>> opt_fields = ffi::Optional<ffi::Array<Expr>>(),
+                 ffi::Optional<Span> opt_span = ffi::Optional<Span>());
 
 /*! \brief Get index-th field out of a tuple. */
 class TupleGetItemNode : public ExprNode {
@@ -286,26 +263,13 @@ class TupleGetItemNode : public ExprNode {
   /*! \brief which value to get */
   int index;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("tuple_value", &tuple);
-    v->Visit("index", &index);
-    v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TupleGetItemNode>()
+        .def_ro("tuple_value", &TupleGetItemNode::tuple)
+        .def_ro("index", &TupleGetItemNode::index);
   }
-
-  bool SEqualReduce(const TupleGetItemNode* other, SEqualReducer equal) const {
-    // struct info can be deterministically tuple and index.
-    return equal(tuple, other->tuple) && equal(index, other->index);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(tuple);
-    hash_reduce(index);
-  }
-
-  static constexpr const char* _type_key = "relax.expr.TupleGetItem";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TupleGetItemNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.TupleGetItem", TupleGetItemNode, ExprNode);
 };
 
 class TupleGetItem : public Expr {
@@ -318,7 +282,7 @@ class TupleGetItem : public Expr {
    */
   TVM_DLL TupleGetItem(Expr tuple, int index, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(TupleGetItem, Expr, TupleGetItemNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TupleGetItem, Expr, TupleGetItemNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleGetItemNode);
 };
 
@@ -327,9 +291,10 @@ class TupleGetItem : public Expr {
  * Returns \p tuple_get_item if all properties are unchanged. Otherwise, returns a copy with the new
  * fields.
  */
-TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple = Optional<Expr>(),
-                        Optional<Integer> opt_index = Optional<Integer>(),
-                        Optional<Span> opt_span = Optional<Span>());
+TupleGetItem WithFields(TupleGetItem tuple_get_item,
+                        ffi::Optional<Expr> opt_tuple = ffi::Optional<Expr>(),
+                        ffi::Optional<Integer> opt_index = ffi::Optional<Integer>(),
+                        ffi::Optional<Span> opt_span = ffi::Optional<Span>());
 
 /*!
  * \brief Base type of all (non-function) leaf Exprs.
@@ -337,9 +302,8 @@ TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple = 
  */
 class LeafExprNode : public ExprNode {
  public:
-  static constexpr const char* _type_key = "relax.expr.LeafExpr";
   static constexpr const uint32_t _type_child_slots = 7;
-  TVM_DECLARE_BASE_OBJECT_INFO(LeafExprNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.LeafExpr", LeafExprNode, ExprNode);
 };
 
 /*!
@@ -348,7 +312,7 @@ class LeafExprNode : public ExprNode {
  */
 class LeafExpr : public Expr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(LeafExpr, Expr, LeafExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LeafExpr, Expr, LeafExprNode);
 };
 
 /*! \brief A shape expression which allows users to construct a shape containing PrimExpr.
@@ -356,32 +320,19 @@ class LeafExpr : public Expr {
 class ShapeExprNode : public LeafExprNode {
  public:
   /*! The values of the shape expression. */
-  Array<PrimExpr> values;
+  ffi::Array<PrimExpr> values;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("values", &values);
-    v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ShapeExprNode>().def_ro("values", &ShapeExprNode::values);
   }
-
-  bool SEqualReduce(const ShapeExprNode* other, SEqualReducer equal) const {
-    // struct info can be deterministically derived from values.
-    return equal(values, other->values);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(values); }
-
-  static constexpr const char* _type_key = "relax.expr.ShapeExpr";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(ShapeExprNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.ShapeExpr", ShapeExprNode, LeafExprNode);
 };
 
 class ShapeExpr : public LeafExpr {
  public:
-  TVM_DLL explicit ShapeExpr(Array<PrimExpr> values, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(ShapeExpr, LeafExpr, ShapeExprNode);
+  TVM_DLL explicit ShapeExpr(ffi::Array<PrimExpr> values, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ShapeExpr, LeafExpr, ShapeExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ShapeExprNode);
 };
 
@@ -393,40 +344,45 @@ class VarNode : public LeafExprNode {
   Id vid;
 
   /*! \return The name hint of the variable */
-  const String& name_hint() const { return vid->name_hint; }
+  const ffi::String& name_hint() const { return vid->name_hint; }
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("vid", &vid);
-    v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<VarNode>().def_ro("vid", &VarNode::vid);
+    // customize structural equal and hash to include struct_info_
+    refl::TypeAttrDef<VarNode>()
+        .def("__s_equal__", &VarNode::SEqual)
+        .def("__s_hash__", &VarNode::SHash);
   }
 
-  bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
-    equal->MarkGraphNode();
-    return equal(vid, other->vid) && equal(struct_info_, other->struct_info_);
+  bool SEqual(const VarNode* other,
+              ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
+    return equal(vid, other->vid, false, "vid") &&
+           equal(struct_info_, other->struct_info_, false, "struct_info_");
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(vid);
-    hash_reduce(struct_info_);
+  uint64_t SHash(uint64_t init_hash,
+                 ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const {
+    uint64_t hash_value = init_hash;
+    hash_value = hash(vid, hash_value, false);
+    hash_value = hash(struct_info_, hash_value, false);
+    return hash_value;
   }
 
-  static constexpr const char* _type_key = "relax.expr.Var";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  static constexpr const uint32_t _type_child_slots = 2;
-  TVM_DECLARE_BASE_OBJECT_INFO(VarNode, LeafExprNode);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
+  static constexpr const uint32_t _type_child_slots = 1;
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.Var", VarNode, LeafExprNode);
 };
 
 class Var : public LeafExpr {
  public:
-  TVM_DLL explicit Var(String name_hint, Optional<StructInfo> struct_info_annotation,
+  TVM_DLL explicit Var(ffi::String name_hint, ffi::Optional<StructInfo> struct_info_annotation,
                        Span span = Span())
       : Var(Id(name_hint), struct_info_annotation, span) {}
 
-  TVM_DLL explicit Var(Id vid, Optional<StructInfo> struct_info_annotation, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(Var, LeafExpr, VarNode);
+  TVM_DLL explicit Var(Id vid, ffi::Optional<StructInfo> struct_info_annotation,
+                       Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Var, LeafExpr, VarNode);
 
   VarNode* CopyOnWrite();
 };
@@ -436,39 +392,25 @@ class Var : public LeafExpr {
  */
 class DataflowVarNode : public VarNode {
  public:
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("vid", &vid);
-    v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DataflowVarNode>();
   }
 
-  bool SEqualReduce(const DataflowVarNode* other, SEqualReducer equal) const {
-    equal->MarkGraphNode();
-    return equal(vid, other->vid) && equal(struct_info_, other->struct_info_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(vid);
-    hash_reduce(struct_info_);
-  }
-
-  static constexpr const char* _type_key = "relax.expr.DataflowVar";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(DataflowVarNode, VarNode);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.DataflowVar", DataflowVarNode, VarNode);
 };
 
 class DataflowVar : public Var {
  public:
-  TVM_DLL explicit DataflowVar(String name_hint, Optional<StructInfo> struct_info_annotation,
-                               Span span = Span())
+  TVM_DLL explicit DataflowVar(ffi::String name_hint,
+                               ffi::Optional<StructInfo> struct_info_annotation, Span span = Span())
       : DataflowVar(Id(name_hint), struct_info_annotation, span) {}
 
-  TVM_DLL explicit DataflowVar(Id vid, Optional<StructInfo> struct_info_annotation,
+  TVM_DLL explicit DataflowVar(Id vid, ffi::Optional<StructInfo> struct_info_annotation,
                                Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(DataflowVar, Var, DataflowVarNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowVar, Var, DataflowVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataflowVarNode);
 };
 
@@ -480,7 +422,7 @@ class DataflowVar : public Var {
 class ConstantNode : public LeafExprNode {
  public:
   /*! \brief The data of the tensor */
-  runtime::NDArray data;
+  runtime::Tensor data;
 
   /*! \return The corresponding tensor type of the data */
   TensorType tensor_type() const;
@@ -488,25 +430,11 @@ class ConstantNode : public LeafExprNode {
   /*! \return Whether it is scalar(ndim-0 tensor) */
   bool is_scalar() const { return data->ndim == 0; }
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("data", &data);
-    v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ConstantNode>().def_ro("data", &ConstantNode::data);
   }
-
-  bool SEqualReduce(const ConstantNode* other, SEqualReducer equal) const {
-    // struct info can be deterministically derived from data.
-    return equal(data, other->data) && equal(struct_info_, other->struct_info_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(data);
-    hash_reduce(struct_info_);
-  }
-
-  static constexpr const char* _type_key = "relax.expr.Constant";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ConstantNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Constant", ConstantNode, LeafExprNode);
 };
 
 class Constant : public LeafExpr {
@@ -518,11 +446,11 @@ class Constant : public LeafExpr {
    *        If not specified, infer it from data.
    * \param span The source span of the expression.
    */
-  TVM_DLL explicit Constant(runtime::NDArray data,
-                            Optional<StructInfo> struct_info_annotation = NullOpt,
+  TVM_DLL explicit Constant(runtime::Tensor data,
+                            ffi::Optional<StructInfo> struct_info_annotation = std::nullopt,
                             Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Constant, LeafExpr, ConstantNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Constant, LeafExpr, ConstantNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ConstantNode);
 };
 
@@ -536,22 +464,11 @@ class PrimValueNode : public LeafExprNode {
   /*! \brief The prim expr representing the value */
   PrimExpr value;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("value", &value);
-    v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PrimValueNode>().def_ro("value", &PrimValueNode::value);
   }
-
-  bool SEqualReduce(const PrimValueNode* other, SEqualReducer equal) const {
-    // struct info can be deterministically derived from data.
-    return equal(value, other->value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
-
-  static constexpr const char* _type_key = "relax.expr.PrimValue";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PrimValueNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.PrimValue", PrimValueNode, LeafExprNode);
 };
 
 /*!
@@ -575,7 +492,7 @@ class PrimValue : public LeafExpr {
    */
   TVM_DLL static PrimValue Int64(int64_t value, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PrimValue, LeafExpr, PrimValueNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimValue, LeafExpr, PrimValueNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimValueNode);
 };
 
@@ -585,24 +502,13 @@ class PrimValue : public LeafExpr {
 class StringImmNode : public LeafExprNode {
  public:
   /*! \brief The data value. */
-  String value;
+  ffi::String value;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("value", &value);
-    v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
   }
-
-  bool SEqualReduce(const StringImmNode* other, SEqualReducer equal) const {
-    // struct info can be deterministically derived from data.
-    return equal(value, other->value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
-
-  static constexpr const char* _type_key = "relax.expr.StringImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(StringImmNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.StringImm", StringImmNode, LeafExprNode);
 };
 
 /*!
@@ -616,9 +522,9 @@ class StringImm : public LeafExpr {
    * \param value The value input.
    * \param span The source span of the expression.
    */
-  TVM_DLL explicit StringImm(String value, Span span = Span());
+  TVM_DLL explicit StringImm(ffi::String value, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(StringImm, LeafExpr, StringImmNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StringImm, LeafExpr, StringImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StringImmNode);
 };
 
@@ -630,22 +536,11 @@ class DataTypeImmNode : public LeafExprNode {
   /*! \brief The data value. */
   DataType value;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("value", &value);
-    v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DataTypeImmNode>().def_ro("value", &DataTypeImmNode::value);
   }
-
-  bool SEqualReduce(const DataTypeImmNode* other, SEqualReducer equal) const {
-    // struct info can be deterministically derived from data.
-    return equal(value, other->value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
-
-  static constexpr const char* _type_key = "relax.expr.DataTypeImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DataTypeImmNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.DataTypeImm", DataTypeImmNode, LeafExprNode);
 };
 
 /*!
@@ -661,21 +556,27 @@ class DataTypeImm : public LeafExpr {
    */
   TVM_DLL explicit DataTypeImm(DataType value, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(DataTypeImm, LeafExpr, DataTypeImmNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataTypeImm, LeafExpr, DataTypeImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataTypeImmNode);
 };
 
 /*! \brief The base class of a variable binding in Relax. */
 class BindingNode : public Object {
  public:
+  mutable Span span;
   /*! \brief The return variable to bound to. */
   Var var;
-  mutable Span span;
 
-  static constexpr const char* _type_key = "relax.expr.Binding";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_BASE_OBJECT_INFO(BindingNode, Object);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BindingNode>()
+        .def_ro("span", &BindingNode::span, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("var", &BindingNode::var, refl::AttachFieldFlag::SEqHashDef());
+  }
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.Binding", BindingNode, Object);
 };
 
 class Binding : public ObjectRef {
@@ -683,7 +584,8 @@ class Binding : public ObjectRef {
   Binding() = default;
 
  public:
-  explicit Binding(ObjectPtr<Object> n) : ObjectRef(n) {}
+  explicit Binding(ObjectPtr<BindingNode> n) : ObjectRef(n) {}
+  explicit Binding(ffi::UnsafeInit tag) : ObjectRef(tag) {}
   TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(Binding);
   const BindingNode* operator->() const { return static_cast<const BindingNode*>(data_.get()); }
   const BindingNode* get() const { return operator->(); }
@@ -704,20 +606,13 @@ class MatchCastNode : public BindingNode {
   /*! \brief The struct info pattern to match to. */
   StructInfo struct_info;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("var", &var);
-    v->Visit("value", &value);
-    v->Visit("struct_info", &struct_info);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MatchCastNode>()
+        .def_ro("value", &MatchCastNode::value)
+        .def_ro("struct_info", &MatchCastNode::struct_info, refl::AttachFieldFlag::SEqHashDef());
   }
-
-  bool SEqualReduce(const MatchCastNode* other, SEqualReducer equal) const;
-  void SHashReduce(SHashReducer hash_reduce) const;
-
-  static constexpr const char* _type_key = "relax.expr.MatchCast";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(MatchCastNode, BindingNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.MatchCast", MatchCastNode, BindingNode);
 };
 
 /*!
@@ -728,7 +623,7 @@ class MatchCast : public Binding {
  public:
   TVM_DLL explicit MatchCast(Var var, Expr value, StructInfo struct_info, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(MatchCast, Binding, MatchCastNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchCast, Binding, MatchCastNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchCastNode);
 };
 
@@ -737,76 +632,68 @@ class VarBindingNode : public BindingNode {
   /*! \brief The binding value. */
   Expr value;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("var", &var);
-    v->Visit("value", &value);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<VarBindingNode>().def_ro("value", &VarBindingNode::value);
+    // customize the SEqual and SHash methods for better error messages
+    refl::TypeAttrDef<VarBindingNode>()
+        .def("__s_equal__", &VarBindingNode::SEqual)
+        .def("__s_hash__", &VarBindingNode::SHash);
   }
 
-  bool SEqualReduce(const VarBindingNode* other, SEqualReducer equal) const;
-  void SHashReduce(SHashReducer hash_reduce) const;
-
-  static constexpr const char* _type_key = "relax.expr.VarBinding";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(VarBindingNode, BindingNode);
+  bool SEqual(const VarBindingNode* other,
+              ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const;
+  uint64_t SHash(uint64_t init_hash,
+                 ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.VarBinding", VarBindingNode, BindingNode);
 };
 
 class VarBinding : public Binding {
  public:
   TVM_DLL explicit VarBinding(Var var, Expr value, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(VarBinding, Binding, VarBindingNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(VarBinding, Binding, VarBindingNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(VarBindingNode);
 };
 
 class BindingBlockNode : public Object {
  public:
+  ffi::Array<Binding> bindings;
   mutable Span span;
-  Array<Binding> bindings;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("span", &span);
-    v->Visit("bindings", &bindings);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BindingBlockNode>()
+        .def_ro("bindings", &BindingBlockNode::bindings)
+        .def_ro("span", &BindingBlockNode::span, refl::AttachFieldFlag::SEqHashIgnore(),
+                refl::DefaultValue(Span()));
   }
 
-  bool SEqualReduce(const BindingBlockNode* other, SEqualReducer equal) const {
-    return equal(bindings, other->bindings);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(bindings); }
-
-  static constexpr const char* _type_key = "relax.expr.BindingBlock";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_BASE_OBJECT_INFO(BindingBlockNode, Object);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.BindingBlock", BindingBlockNode, Object);
 };
 
 class BindingBlock : public ObjectRef {
  public:
-  TVM_DLL explicit BindingBlock(Array<Binding> bindings, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(BindingBlock, ObjectRef, BindingBlockNode);
+  TVM_DLL explicit BindingBlock(ffi::Array<Binding> bindings, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BindingBlock, ObjectRef, BindingBlockNode);
 
   BindingBlockNode* CopyOnWrite();
 };
 
 class DataflowBlockNode : public BindingBlockNode {
  public:
-  bool SEqualReduce(const DataflowBlockNode* other, SEqualReducer equal) const {
-    return equal(bindings, other->bindings);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DataflowBlockNode>();
   }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(bindings); }
-
-  static constexpr const char* _type_key = "relax.expr.DataflowBlock";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(DataflowBlockNode, BindingBlockNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.DataflowBlock", DataflowBlockNode,
+                                    BindingBlockNode);
 };
 
 class DataflowBlock : public BindingBlock {
  public:
-  TVM_DLL explicit DataflowBlock(Array<Binding> bindings, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(DataflowBlock, BindingBlock, DataflowBlockNode);
+  TVM_DLL explicit DataflowBlock(ffi::Array<Binding> bindings, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowBlock, BindingBlock, DataflowBlockNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataflowBlockNode);
 };
 
@@ -816,32 +703,16 @@ class DataflowBlock : public BindingBlock {
  */
 class SeqExprNode : public ExprNode {
  public:
-  Array<BindingBlock> blocks;
+  ffi::Array<BindingBlock> blocks;
   Expr body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("blocks", &blocks);
-    v->Visit("body", &body);
-    v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SeqExprNode>()
+        .def_ro("blocks", &SeqExprNode::blocks)
+        .def_ro("body", &SeqExprNode::body);
   }
-
-  bool SEqualReduce(const SeqExprNode* other, SEqualReducer equal) const {
-    return equal(blocks, other->blocks) && equal(body, other->body) &&
-           equal(struct_info_, other->struct_info_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(blocks);
-    hash_reduce(body);
-    hash_reduce(struct_info_);
-  }
-
-  static constexpr const char* _type_key = "relax.expr.SeqExpr";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(SeqExprNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.SeqExpr", SeqExprNode, ExprNode);
 };
 
 class SeqExpr : public Expr {
@@ -859,8 +730,8 @@ class SeqExpr : public Expr {
    */
   TVM_DLL SeqExpr(Expr body);  // NOLINT(*)
 
-  TVM_DLL explicit SeqExpr(Array<BindingBlock> blocks, Expr body, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(SeqExpr, Expr, SeqExprNode);
+  TVM_DLL explicit SeqExpr(ffi::Array<BindingBlock> blocks, Expr body, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SeqExpr, Expr, SeqExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SeqExprNode);
 };
 
@@ -884,31 +755,16 @@ class IfNode : public ExprNode {
   /*! \brief The expression evaluated when condition is false */
   SeqExpr false_branch;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("cond", &cond);
-    v->Visit("true_branch", &true_branch);
-    v->Visit("false_branch", &false_branch);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("struct_info_", &struct_info_);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IfNode>()
+        .def_ro("cond", &IfNode::cond)
+        .def_ro("true_branch", &IfNode::true_branch)
+        .def_ro("false_branch", &IfNode::false_branch);
   }
 
-  bool SEqualReduce(const IfNode* other, SEqualReducer equal) const {
-    equal->MarkGraphNode();
-    return equal(cond, other->cond) && equal(true_branch, other->true_branch) &&
-           equal(false_branch, other->false_branch) && equal(struct_info_, other->struct_info_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce->MarkGraphNode();
-    hash_reduce(cond);
-    hash_reduce(true_branch);
-    hash_reduce(false_branch);
-    hash_reduce(struct_info_);
-  }
-
-  static constexpr const char* _type_key = "relax.expr.If";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IfNode, ExprNode);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.If", IfNode, ExprNode);
 };
 
 class If : public Expr {
@@ -932,7 +788,7 @@ class If : public Expr {
    */
   TVM_DLL If(Expr cond, Expr true_branch, Expr false_branch, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(If, Expr, IfNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(If, Expr, IfNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IfNode);
 };
 
@@ -941,16 +797,16 @@ class If : public Expr {
  * Returns \p if_expr if all properties are unchanged. Otherwise, returns a copy with the new
  * fields.
  */
-If WithFields(If if_expr, Optional<Expr> opt_cond = Optional<Expr>(),
-              Optional<Expr> opt_true_branch = Optional<Expr>(),
-              Optional<Expr> opt_false_branch = Optional<Expr>(),
-              Optional<Span> opt_span = Optional<Span>());
+If WithFields(If if_expr, ffi::Optional<Expr> opt_cond = ffi::Optional<Expr>(),
+              ffi::Optional<Expr> opt_true_branch = ffi::Optional<Expr>(),
+              ffi::Optional<Expr> opt_false_branch = ffi::Optional<Expr>(),
+              ffi::Optional<Span> opt_span = ffi::Optional<Span>());
 
 /*! \brief A Relax function. */
 class FunctionNode : public BaseFuncNode {
  public:
   /*! \brief The parameters to the function. */
-  Array<Var> params;
+  ffi::Array<Var> params;
   /*! \brief The body of the function. */
   SeqExpr body;
   /*! \brief The return type of the function. */
@@ -958,38 +814,17 @@ class FunctionNode : public BaseFuncNode {
   /*! \brief Whether the function is annotated as pure or not. */
   bool is_pure;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("params", &params);
-    v->Visit("body", &body);
-    v->Visit("is_pure", &is_pure);
-    v->Visit("ret_struct_info", &ret_struct_info);
-    v->Visit("attrs", &attrs);
-    v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<FunctionNode>()
+        .def_ro("params", &FunctionNode::params, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("body", &FunctionNode::body)
+        .def_ro("ret_struct_info", &FunctionNode::ret_struct_info)
+        .def_ro("is_pure", &FunctionNode::is_pure);
   }
 
-  bool SEqualReduce(const FunctionNode* other, SEqualReducer equal) const {
-    equal->MarkGraphNode();
-    return equal.DefEqual(params, other->params) && equal(body, other->body) &&
-           equal(ret_struct_info, other->ret_struct_info) && equal(is_pure, other->is_pure) &&
-           equal(attrs, other->attrs) && equal(struct_info_, other->struct_info_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce->MarkGraphNode();
-    hash_reduce.DefHash(params);
-    hash_reduce(body);
-    hash_reduce(ret_struct_info);
-    hash_reduce(is_pure);
-    hash_reduce(attrs);
-    hash_reduce(struct_info_);
-  }
-
-  static constexpr const char* _type_key = "relax.expr.Function";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionNode, BaseFuncNode);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Function", FunctionNode, BaseFuncNode);
 };
 
 class Function : public BaseFunc {
@@ -1005,7 +840,7 @@ class Function : public BaseFunc {
    *     SeqExpr.
    *
    * \param ret_struct_info The StructInfo returned by the function.
-   *     If NullOpt, will be inferred from the StructInfo of the
+   *     If std::nullopt, will be inferred from the StructInfo of the
    *     function's body.
    *
    * \param is_pure The purity of the function.
@@ -1015,18 +850,19 @@ class Function : public BaseFunc {
    *
    * \param span The source span of the expression.
    */
-  TVM_DLL explicit Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
-                            bool is_pure = true, DictAttrs attrs = DictAttrs(), Span span = Span());
+  TVM_DLL explicit Function(ffi::Array<Var> params, Expr body,
+                            ffi::Optional<StructInfo> ret_struct_info, bool is_pure = true,
+                            DictAttrs attrs = DictAttrs(), Span span = Span());
 
   /*!
    * \brief Mimics the constructor but without body Expr.
    * \note ret_struct_info is required, since it can not deduced by the body.
    */
-  TVM_DLL static Function CreateEmpty(Array<Var> params, StructInfo ret_struct_info,
+  TVM_DLL static Function CreateEmpty(ffi::Array<Var> params, StructInfo ret_struct_info,
                                       bool is_pure = true, DictAttrs attrs = DictAttrs(),
                                       Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Function, BaseFunc, FunctionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);
 };
 
@@ -1065,36 +901,21 @@ constexpr const char* kNumInput = "num_input";
 class ExternFuncNode : public BaseFuncNode {
  public:
   /*! \brief The name of global symbol. */
-  String global_symbol;
+  ffi::String global_symbol;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("global_symbol", &global_symbol);
-    v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ExternFuncNode>().def_ro("global_symbol", &ExternFuncNode::global_symbol);
   }
-
-  bool SEqualReduce(const ExternFuncNode* other, SEqualReducer equal) const {
-    return equal(global_symbol, other->global_symbol) && equal(struct_info_, other->struct_info_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(global_symbol);
-    hash_reduce(struct_info_);
-  }
-
-  static constexpr const char* _type_key = "relax.expr.ExternFunc";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(ExternFuncNode, BaseFuncNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.ExternFunc", ExternFuncNode, BaseFuncNode);
 };
 
 class ExternFunc : public BaseFunc {
  public:
-  TVM_DLL ExternFunc(String global_symbol, Span span = Span());
-  TVM_DLL ExternFunc(String global_symbol, StructInfo struct_info, Span span = Span());
+  TVM_DLL ExternFunc(ffi::String global_symbol, Span span = Span());
+  TVM_DLL ExternFunc(ffi::String global_symbol, StructInfo struct_info, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(ExternFunc, BaseFunc, ExternFuncNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExternFunc, BaseFunc, ExternFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ExternFuncNode);
 };
 

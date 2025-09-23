@@ -18,6 +18,7 @@
  */
 #include "utils.h"
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr.h>
@@ -30,8 +31,8 @@ namespace tvm {
 namespace relax {
 namespace backend {
 
-Map<String, IntImm> ExtractArgIdx(String pattern_name, Function f) {
-  Map<String, IntImm> arg_idx;
+ffi::Map<ffi::String, IntImm> ExtractArgIdx(ffi::String pattern_name, Function f) {
+  ffi::Map<ffi::String, IntImm> arg_idx;
   auto pattern = backend::GetPattern(pattern_name);
   ICHECK(pattern) << "Unsupported op_type " << pattern_name;
 
@@ -43,7 +44,7 @@ Map<String, IntImm> ExtractArgIdx(String pattern_name, Function f) {
                        << "\", expected to find a match for " << pattern.value()->pattern
                        << ".  However, the function did not include this pattern " << f;
 
-  auto find_index = [](const Array<Var>& params, Var v) -> std::optional<size_t> {
+  auto find_index = [](const ffi::Array<Var>& params, Var v) -> std::optional<size_t> {
     for (size_t i = 0; i < params.size(); ++i) {
       if (params[i] == v) {
         return i;
@@ -55,7 +56,7 @@ Map<String, IntImm> ExtractArgIdx(String pattern_name, Function f) {
   for (const auto& [name, pat] : pattern.value()->annotation_patterns) {
     auto exp = matched_expr.value()[pat];
     if (auto arg_var = exp.as<VarNode>()) {
-      if (auto idx = find_index(f->params, GetRef<Var>(arg_var))) {
+      if (auto idx = find_index(f->params, ffi::GetRef<Var>(arg_var))) {
         arg_idx.Set(name, IntImm(DataType::Int(64), *idx));
       }
     }
@@ -64,7 +65,21 @@ Map<String, IntImm> ExtractArgIdx(String pattern_name, Function f) {
   return arg_idx;
 }
 
-TVM_REGISTER_GLOBAL("relax.contrib.extract_arg_idx").set_body_typed(ExtractArgIdx);
+/*!
+ * \brief Utility function to find the string pattern in string str
+ * \param str the main string to check the pattern
+ * \param pattern the pattern to check in the main string
+ * \return return true if the main string ends with pattern, false otherwise
+ */
+bool EndsWithPattern(const std::string& str, const std::string& pattern) {
+  if (str.length() < pattern.length()) return false;
+  return str.compare(str.length() - pattern.length(), pattern.length(), pattern) == 0;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.contrib.extract_arg_idx", ExtractArgIdx);
+}
 
 }  // namespace backend
 }  // namespace relax

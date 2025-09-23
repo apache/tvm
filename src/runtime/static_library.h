@@ -26,6 +26,7 @@
 #ifndef TVM_RUNTIME_STATIC_LIBRARY_H_
 #define TVM_RUNTIME_STATIC_LIBRARY_H_
 
+#include <tvm/ffi/container/array.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/module.h>
 
@@ -42,7 +43,7 @@ namespace runtime {
  * \brief Returns a static library with the contents loaded from filename which exports
  * func_names with the usual packed-func calling convention.
  */
-Module LoadStaticLibrary(const std::string& filename, Array<String> func_names);
+ffi::Module LoadStaticLibrary(const std::string& filename, ffi::Array<ffi::String> func_names);
 
 }  // namespace runtime
 }  // namespace tvm

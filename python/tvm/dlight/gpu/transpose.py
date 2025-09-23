@@ -22,11 +22,8 @@ from tvm.target import Target
 from tvm.tir import Schedule
 from tvm.tir.schedule import BlockRV
 
-from ..base import (
-    detect_dominant_read,
-    normalize_prim_func,
-    try_inline_contiguous_spatial,
-)
+from ..analysis import detect_dominant_read, normalize_prim_func
+from ..base import try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
 

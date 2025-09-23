@@ -103,7 +103,7 @@ mod.show()
 
 
 # Import cublas pattern
-import tvm.relax.backend.contrib.cublas as _cublas
+import tvm.relax.backend.cuda.cublas as _cublas
 
 
 # Define a new pass for CUBLAS dispatch
@@ -205,12 +205,12 @@ mod.show()
 # --------------------------
 # We can build and deploy the optimized model to the TVM runtime.
 
-ex = relax.build(mod, target="cuda")
+ex = tvm.compile(mod, target="cuda")
 dev = tvm.device("cuda", 0)
 vm = relax.VirtualMachine(ex, dev)
 # Need to allocate data and params on GPU device
-data = tvm.nd.array(np.random.rand(*input_shape).astype("float32"), dev)
-gpu_params = [tvm.nd.array(np.random.rand(*p.shape).astype(p.dtype), dev) for _, p in params]
+data = tvm.runtime.tensor(np.random.rand(*input_shape).astype("float32"), dev)
+gpu_params = [tvm.runtime.tensor(np.random.rand(*p.shape).astype(p.dtype), dev) for _, p in params]
 gpu_out = vm["forward"](data, *gpu_params).numpy()
 print(gpu_out)
 

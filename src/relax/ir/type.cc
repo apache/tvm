@@ -21,68 +21,77 @@
  * \file src/relax/ir/type.cc
  * \brief Relax type system.
  */
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/type.h>
-#include <tvm/runtime/registry.h>
 
 namespace tvm {
 namespace relax {
 
-TVM_REGISTER_NODE_TYPE(ShapeTypeNode);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ShapeTypeNode::RegisterReflection();
+  TensorTypeNode::RegisterReflection();
+  ObjectTypeNode::RegisterReflection();
+  PackedFuncTypeNode::RegisterReflection();
+}
 
 ShapeType::ShapeType(int ndim, Span span) {
-  ObjectPtr<ShapeTypeNode> n = make_object<ShapeTypeNode>();
+  ObjectPtr<ShapeTypeNode> n = ffi::make_object<ShapeTypeNode>();
   n->ndim = ndim;
   n->span = span;
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("relax.ShapeType").set_body_typed([](int ndim, Span span) {
-  return ShapeType(ndim, span);
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.ShapeType",
+                        [](int ndim, Span span) { return ShapeType(ndim, span); });
+}
 
 ObjectType::ObjectType(Span span) {
-  ObjectPtr<ObjectTypeNode> n = make_object<ObjectTypeNode>();
+  ObjectPtr<ObjectTypeNode> n = ffi::make_object<ObjectTypeNode>();
   n->span = span;
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(ObjectTypeNode);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.ObjectType", [](Span span) { return ObjectType(span); });
+}
 
-TVM_REGISTER_GLOBAL("relax.ObjectType").set_body_typed([](Span span) { return ObjectType(span); });
-
-DynTensorType::DynTensorType(int ndim, DataType dtype, Span span) {
-  ObjectPtr<DynTensorTypeNode> n = make_object<DynTensorTypeNode>();
+TensorType::TensorType(int ndim, DataType dtype, Span span) {
+  ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>();
   n->ndim = std::move(ndim);
   n->dtype = std::move(dtype);
   n->span = span;
   data_ = std::move(n);
 }
 
-DynTensorType DynTensorType::CreateUnknownNDim(DataType dtype, Span span) {
-  ObjectPtr<DynTensorTypeNode> n = make_object<DynTensorTypeNode>();
+TensorType TensorType::CreateUnknownNDim(DataType dtype, Span span) {
+  ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>();
   n->ndim = -1;
   n->dtype = std::move(dtype);
   n->span = std::move(span);
-  return DynTensorType(std::move(n));
+  return TensorType(std::move(n));
 }
 
-TVM_REGISTER_NODE_TYPE(DynTensorTypeNode);
-
-TVM_REGISTER_GLOBAL("relax.DynTensorType").set_body_typed([](int ndim, DataType dtype, Span span) {
-  return DynTensorType(ndim, dtype, span);
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.TensorType", [](int ndim, DataType dtype, Span span) {
+    return TensorType(ndim, dtype, span);
+  });
+}
 
 PackedFuncType::PackedFuncType(Span span) {
-  ObjectPtr<PackedFuncTypeNode> n = make_object<PackedFuncTypeNode>();
+  ObjectPtr<PackedFuncTypeNode> n = ffi::make_object<PackedFuncTypeNode>();
   n->span = span;
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(PackedFuncTypeNode);
-
-TVM_REGISTER_GLOBAL("relax.PackedFuncType").set_body_typed([](Span span) {
-  return PackedFuncType(span);
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.PackedFuncType", [](Span span) { return PackedFuncType(span); });
+}
 
 }  // namespace relax
 }  // namespace tvm

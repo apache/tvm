@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/transform.h>
 
 #include <cmath>
@@ -83,7 +84,8 @@ std::vector<int64_t> GetBufferShape(const Buffer& buffer, arith::Analyzer* analy
  * \return The value of `pragma_auto_unroll_max_step` if it exists, or -1 if it does not exist
  */
 int64_t GetPragmaAutoUnroll(const ForNode* loop) {
-  if (Optional<IntImm> auto_unroll = GetAnn<IntImm>(loop, tir::attr::pragma_auto_unroll_max_step)) {
+  if (ffi::Optional<IntImm> auto_unroll =
+          GetAnn<IntImm>(loop, tir::attr::pragma_auto_unroll_max_step)) {
     return auto_unroll.value()->value;
   }
   return -1;
@@ -215,18 +217,18 @@ int64_t GetVarStride(const std::vector<MultiIndex>& multi_indices, const IntVec&
 }
 
 /*!
- * \brief Converts a 2-dimensional STL vector to a TVM NDArray
+ * \brief Converts a 2-dimensional STL vector to a TVM Tensor
  * \param src The source 2-dimensional STL vector
  * \param second_dim_size The length of the second dimension. When the first dim of src is 0,
- * second_dim_size must be specified, and in such case the shape of the result NDArray is
+ * second_dim_size must be specified, and in such case the shape of the result Tensor is
  * (0, second_dim_size).
- * \return The converted TVM NDArray
+ * \return The converted TVM Tensor
  */
-runtime::NDArray AsNDArray(const std::vector<std::vector<double>>& src, int second_dim_size = -1) {
+runtime::Tensor AsTensor(const std::vector<std::vector<double>>& src, int second_dim_size = -1) {
   int n = src.size();
   ICHECK(!src.empty() || second_dim_size != -1);
   int m = src.empty() ? second_dim_size : src[0].size();
-  runtime::NDArray tgt = runtime::NDArray::Empty(
+  runtime::Tensor tgt = runtime::Tensor::Empty(
       /*shape=*/{n, m},
       /*dtype=*/DLDataType{kDLFloat, 64, 1},
       /*ctx=*/DLDevice{kDLCPU, 0});
@@ -266,19 +268,22 @@ Pass SimplifyForFeatureExtraction() {
     PrimExpr VisitExpr_(const SelectNode* node) final {
       if (HasBufferLoad(node->true_value) || HasBufferLoad(node->false_value) ||
           HasBufferLoad(node->condition)) {
-        return GetRef<Select>(node);
+        return ffi::GetRef<Select>(node);
       }
       return make_const(node->dtype, 1.0);
     }
 
     PrimExpr VisitExpr_(const VarNode* var) final {
-      if (unit_vars_.count(GetRef<Var>(var))) {
+      if (unit_vars_.count(ffi::GetRef<Var>(var))) {
         return make_const(var->dtype, 0.0);
       }
-      return GetRef<Var>(var);
+      return ffi::GetRef<Var>(var);
     }
 
     Stmt VisitStmt_(const ForNode* loop) final {
+      if (is_zero(loop->extent)) {
+        return Evaluate(0);
+      }
       if (is_zero(loop->min) && is_one(loop->extent) && loop->kind == ForKind::kSerial &&
           loop->annotations.empty()) {
         unit_vars_.insert(loop->loop_var);
@@ -304,7 +309,7 @@ Pass SimplifyForFeatureExtraction() {
  */
 Sequential PassListForPerStoreFeature() {
   return Sequential({
-      tir::transform::RemoveWeightLayoutRewriteBlock(/*skip_ndarray_rewrite*/ true),
+      tir::transform::RemoveWeightLayoutRewriteBlock(/*skip_tensor_rewrite*/ true),
       tir::transform::SimplifyForFeatureExtraction(),
       tir::transform::LowerCrossThreadReduction(),
       tir::transform::LowerInitBlock(),
@@ -855,7 +860,7 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::Analyzer* 
   // For each buffer, we find the loop stride on it
   const BufferNode* buffer = this->buffer;
   int ndim = this->buffer->shape.size();
-  IntVec buffer_shape = utils::GetBufferShape(GetRef<Buffer>(buffer), analyzer);
+  IntVec buffer_shape = utils::GetBufferShape(ffi::GetRef<Buffer>(buffer), analyzer);
   // Calculate the buffer's stride from its shape
   IntVec buffer_stride(ndim);
   if (ndim >= 1) {
@@ -1364,11 +1369,15 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
   bool extract_workload;
   int feature_vector_length;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("buffers_per_store", &buffers_per_store);
-    v->Visit("arith_intensity_curve_num_samples", &arith_intensity_curve_num_samples);
-    v->Visit("cache_line_bytes", &cache_line_bytes);
-    v->Visit("feature_vector_length", &feature_vector_length);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PerStoreFeatureNode>()
+        .def_ro("buffers_per_store", &PerStoreFeatureNode::buffers_per_store)
+        .def_ro("arith_intensity_curve_num_samples",
+                &PerStoreFeatureNode::arith_intensity_curve_num_samples)
+        .def_ro("cache_line_bytes", &PerStoreFeatureNode::cache_line_bytes)
+        .def_ro("extract_workload", &PerStoreFeatureNode::extract_workload)
+        .def_ro("feature_vector_length", &PerStoreFeatureNode::feature_vector_length);
   }
 
   void ExtractSingle(IRModule mod, bool is_gpu, std::vector<std::vector<double>>* results) {
@@ -1390,10 +1399,11 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
     }
   }
 
-  Array<runtime::NDArray> ExtractFrom(const TuneContext& tune_context,
-                                      const Array<MeasureCandidate>& candidates) {
-    bool is_gpu = tune_context->target.value()->kind->name == "cuda";
-    std::vector<runtime::NDArray> results;
+  ffi::Array<runtime::Tensor> ExtractFrom(const TuneContext& tune_context,
+                                          const ffi::Array<MeasureCandidate>& candidates) {
+    auto& target_keys = tune_context->target.value()->keys;
+    bool is_gpu = std::find(target_keys.begin(), target_keys.end(), "gpu") != target_keys.end();
+    std::vector<runtime::Tensor> results;
     results.resize(candidates.size());
     std::unique_ptr<tir::group6::Feature> feature_group6 = nullptr;
     if (extract_workload) {
@@ -1408,20 +1418,19 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
           feature_group6->Export(&feature);
         }
       }
-      results[task_id] = tir::utils::AsNDArray(features, this->feature_vector_length);
+      results[task_id] = tir::utils::AsTensor(features, this->feature_vector_length);
     };
     support::parallel_for_dynamic(0, candidates.size(), tune_context->num_threads, f);
     return results;
   }
-
-  static constexpr const char* _type_key = "meta_schedule.PerStoreFeature";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PerStoreFeatureNode, FeatureExtractorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PerStoreFeature", PerStoreFeatureNode,
+                                    FeatureExtractorNode);
 };
 
 FeatureExtractor FeatureExtractor::PerStoreFeature(int buffers_per_store,
                                                    int arith_intensity_curve_num_samples,
                                                    int cache_line_bytes, bool extract_workload) {
-  ObjectPtr<PerStoreFeatureNode> n = make_object<PerStoreFeatureNode>();
+  ObjectPtr<PerStoreFeatureNode> n = ffi::make_object<PerStoreFeatureNode>();
   n->buffers_per_store = buffers_per_store;
   n->arith_intensity_curve_num_samples = arith_intensity_curve_num_samples;
   n->cache_line_bytes = cache_line_bytes;
@@ -1437,9 +1446,13 @@ FeatureExtractor FeatureExtractor::PerStoreFeature(int buffers_per_store,
   return FeatureExtractor(n);
 }
 
-TVM_REGISTER_NODE_TYPE(PerStoreFeatureNode);
-TVM_REGISTER_GLOBAL("meta_schedule.FeatureExtractorPerStoreFeature")
-    .set_body_typed(FeatureExtractor::PerStoreFeature);
+TVM_FFI_STATIC_INIT_BLOCK() { PerStoreFeatureNode::RegisterReflection(); }
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.FeatureExtractorPerStoreFeature",
+                        FeatureExtractor::PerStoreFeature);
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

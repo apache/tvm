@@ -18,8 +18,8 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm_ffi.access_path import AccessPath
 from tvm.ir.base import get_first_structural_mismatch
-from tvm.runtime import ObjectPath
 
 
 def get_first_mismatch_ensure_symmetry(a, b):
@@ -56,32 +56,32 @@ def get_first_mismatch_ensure_symmetry(a, b):
         (
             [1, 2, 3],
             [1, 4, 3],
-            ObjectPath.root().array_index(1),
-            ObjectPath.root().array_index(1),
+            AccessPath.root().array_item(1),
+            AccessPath.root().array_item(1),
         ),
         (
             [1, 2, 3],
             [10, 2, 30],
-            ObjectPath.root().array_index(0),
-            ObjectPath.root().array_index(0),
+            AccessPath.root().array_item(0),
+            AccessPath.root().array_item(0),
         ),
         (
             [1, 3, 4],
             [1, 2, 3, 4],
-            ObjectPath.root().array_index(1),
-            ObjectPath.root().array_index(1),
+            AccessPath.root().array_item(1),
+            AccessPath.root().array_item(1),
         ),
         (
             [1, 2, 3],
             [1, 2, 3, 4],
-            ObjectPath.root().missing_array_element(3),
-            ObjectPath.root().array_index(3),
+            AccessPath.root().array_item_missing(3),
+            AccessPath.root().array_item(3),
         ),
         (
             [],
             [1],
-            ObjectPath.root().missing_array_element(0),
-            ObjectPath.root().array_index(0),
+            AccessPath.root().array_item_missing(0),
+            AccessPath.root().array_item(0),
         ),
     ],
 )
@@ -141,14 +141,14 @@ def test_string_map_structural_equal_to_self(contents):
         (
             dict(a=3, b=4),
             dict(a=3, b=5),
-            ObjectPath.root().map_value("b"),
-            ObjectPath.root().map_value("b"),
+            AccessPath.root().map_item("b"),
+            AccessPath.root().map_item("b"),
         ),
         (
             dict(a=3, b=4),
             dict(a=3, b=4, c=5),
-            ObjectPath.root().missing_map_entry(),
-            ObjectPath.root().map_value("c"),
+            AccessPath.root().map_item_missing("c"),
+            AccessPath.root().map_item("c"),
         ),
     ],
 )
@@ -172,11 +172,6 @@ def test_string_structural_equal_to_self(contents):
     a = tvm.runtime.convert(dict(contents))
     b = tvm.runtime.convert(dict(contents))
     assert get_first_mismatch_ensure_symmetry(a, b) is None
-
-
-# The behavior of structural equality for maps with non-string keys is fairly specific
-# to IR variables because it assumes that map keys have been "mapped" using
-# `SEqualReducer::FreeVarEqualImpl()`. So we leave this case to TIR tests.
 
 
 if __name__ == "__main__":

@@ -24,18 +24,22 @@
 
 #include "resize.h"
 
+#include <tvm/ffi/reflection/registry.h>
+
 #include <utility>
 
 namespace tvm {
 namespace relax {
 
-/* relax.resize2d */
-TVM_REGISTER_NODE_TYPE(Resize2DAttrs);
+TVM_FFI_STATIC_INIT_BLOCK() { Resize2DAttrs::RegisterReflection(); }
 
-Expr resize2d(Expr data, Expr size, Array<FloatImm> roi, String layout, String method,
-              String coordinate_transformation_mode, String rounding_method, double cubic_alpha,
-              int cubic_exclude, double extrapolation_value, DataType out_dtype) {
-  ObjectPtr<Resize2DAttrs> attrs = make_object<Resize2DAttrs>();
+/* relax.resize2d */
+
+Expr resize2d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout,
+              ffi::String method, ffi::String coordinate_transformation_mode,
+              ffi::String rounding_method, double cubic_alpha, int cubic_exclude,
+              double extrapolation_value, ffi::Optional<DataType> out_dtype) {
+  ObjectPtr<Resize2DAttrs> attrs = ffi::make_object<Resize2DAttrs>();
   attrs->roi = std::move(roi);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
@@ -44,13 +48,16 @@ Expr resize2d(Expr data, Expr size, Array<FloatImm> roi, String layout, String m
   attrs->cubic_alpha = cubic_alpha;
   attrs->cubic_exclude = cubic_exclude;
   attrs->extrapolation_value = extrapolation_value;
-  attrs->out_dtype = out_dtype;
+  attrs->out_dtype = out_dtype.value_or(DataType::Void());
 
   static const Op& op = Op::Get("relax.image.resize2d");
   return Call(op, {std::move(data), std::move(size)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.image.resize2d").set_body_typed(resize2d);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.image.resize2d", resize2d);
+}
 
 StructInfo InferStructInfoResize2D(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1 && call->args.size() != 2) {
@@ -87,30 +94,30 @@ StructInfo InferStructInfoResize2D(const Call& call, const BlockBuilder& ctx) {
 
   DataType out_dtype = attrs->out_dtype.is_void() ? data_sinfo->dtype : attrs->out_dtype;
 
-  Optional<ShapeExpr> data_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, GetRef<TensorStructInfo>(data_sinfo), data_layout);
+  ffi::Optional<ShapeExpr> data_shape = CheckNdimPerLayoutAndGetShape(
+      call, ctx, ffi::GetRef<TensorStructInfo>(data_sinfo), data_layout);
   if (!data_shape.defined() || size_value == nullptr) {
     return TensorStructInfo(out_dtype, data_layout.ndim(), data_sinfo->vdevice);
   }
 
-  Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
-  Array<PrimExpr> out_NCHW_shape(data_NCHW_shape);
+  ffi::Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
+  ffi::Array<PrimExpr> out_NCHW_shape(data_NCHW_shape);
   out_NCHW_shape.Set(2, size_value->values[0]);
   out_NCHW_shape.Set(3, size_value->values[1]);
 
-  Array<PrimExpr> out_shape = data2NCHW.BackwardShape(out_NCHW_shape);
+  ffi::Array<PrimExpr> out_shape = data2NCHW.BackwardShape(out_NCHW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, data_sinfo->vdevice);
 }
 
-InferLayoutOutput InferLayoutResize2d(const Call& call,
-                                      const Map<String, Array<String>>& desired_layouts,
-                                      const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutResize2d(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.image.resize2d");
   const auto* attrs = call->attrs.as<Resize2DAttrs>();
   ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout;
-  ObjectPtr<Resize2DAttrs> new_attrs = make_object<Resize2DAttrs>(*attrs);
+  ObjectPtr<Resize2DAttrs> new_attrs = ffi::make_object<Resize2DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
     // We have a desired layout for resize2d.
@@ -121,6 +128,10 @@ InferLayoutOutput InferLayoutResize2d(const Call& call,
   } else {
     // We dont have a desired layout for resize2d, propagate from the input instead.
     data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+    // Not handling sub indexing now.
+    if (data_layout->layout.ndim() != data_layout->layout.ndim_primal()) {
+      data_layout = LayoutDecision(InitialLayout(4));
+    }
     new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(4), data_layout->layout).name();
   }
   return InferLayoutOutput({data_layout, InitialNLayout(call->args[1])}, {data_layout},

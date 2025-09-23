@@ -26,14 +26,13 @@
 #ifndef TVM_IR_DIAGNOSTIC_H_
 #define TVM_IR_DIAGNOSTIC_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 
 #include <sstream>
 #include <string>
 
 namespace tvm {
-
-using tvm::runtime::TypedPackedFunc;
 
 /*! \brief The diagnostic level, controls the printing of the message. */
 enum class DiagnosticLevel : int {
@@ -65,22 +64,18 @@ class DiagnosticNode : public Object {
    */
   ObjectRef loc;
   /*! \brief The diagnostic message. */
-  String message;
+  ffi::String message;
 
-  // override attr visitor
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("level", &level);
-    v->Visit("span", &span);
-    v->Visit("message", &message);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DiagnosticNode>()
+        .def_ro("level", &DiagnosticNode::level)
+        .def_ro("span", &DiagnosticNode::span)
+        .def_ro("message", &DiagnosticNode::message);
   }
 
-  bool SEqualReduce(const DiagnosticNode* other, SEqualReducer equal) const {
-    return equal(this->level, other->level) && equal(this->span, other->span) &&
-           equal(this->message, other->message);
-  }
-
-  static constexpr const char* _type_key = "Diagnostic";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DiagnosticNode, Object);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("Diagnostic", DiagnosticNode, Object);
 };
 
 class Diagnostic : public ObjectRef {
@@ -105,7 +100,7 @@ class Diagnostic : public ObjectRef {
   static DiagnosticBuilder Note(const Object* loc);
   static DiagnosticBuilder Help(const Object* loc);
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Diagnostic, ObjectRef, DiagnosticNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Diagnostic, ObjectRef, DiagnosticNode);
 };
 
 /*!
@@ -165,20 +160,20 @@ class DiagnosticContext;
  */
 class DiagnosticRendererNode : public Object {
  public:
-  TypedPackedFunc<void(DiagnosticContext ctx)> renderer;
+  ffi::TypedFunction<void(DiagnosticContext ctx)> renderer;
 
-  // override attr visitor
-  void VisitAttrs(AttrVisitor* v) {}
-
-  static constexpr const char* _type_key = "DiagnosticRenderer";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DiagnosticRendererNode, Object);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DiagnosticRendererNode>().def_ro("renderer", &DiagnosticRendererNode::renderer);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("DiagnosticRenderer", DiagnosticRendererNode, Object);
 };
 
 class DiagnosticRenderer : public ObjectRef {
  public:
-  TVM_DLL DiagnosticRenderer(TypedPackedFunc<void(DiagnosticContext ctx)> render);
+  TVM_DLL DiagnosticRenderer(ffi::TypedFunction<void(DiagnosticContext ctx)> render);
   TVM_DLL DiagnosticRenderer()
-      : DiagnosticRenderer(TypedPackedFunc<void(DiagnosticContext ctx)>()) {}
+      : DiagnosticRenderer(ffi::TypedFunction<void(DiagnosticContext ctx)>()) {}
 
   void Render(const DiagnosticContext& ctx);
 
@@ -187,7 +182,8 @@ class DiagnosticRenderer : public ObjectRef {
     return static_cast<DiagnosticRendererNode*>(get_mutable());
   }
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(DiagnosticRenderer, ObjectRef, DiagnosticRendererNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DiagnosticRenderer, ObjectRef,
+                                                DiagnosticRendererNode);
 };
 
 class DiagnosticContextNode : public Object {
@@ -196,22 +192,20 @@ class DiagnosticContextNode : public Object {
   IRModule module;
 
   /*! \brief The set of diagnostics to report. */
-  Array<Diagnostic> diagnostics;
+  ffi::Array<Diagnostic> diagnostics;
 
   /*! \brief The renderer set for the context. */
   DiagnosticRenderer renderer;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("module", &module);
-    v->Visit("diagnostics", &diagnostics);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DiagnosticContextNode>()
+        .def_ro("module", &DiagnosticContextNode::module)
+        .def_ro("diagnostics", &DiagnosticContextNode::diagnostics);
   }
 
-  bool SEqualReduce(const DiagnosticContextNode* other, SEqualReducer equal) const {
-    return equal(module, other->module) && equal(diagnostics, other->diagnostics);
-  }
-
-  static constexpr const char* _type_key = "DiagnosticContext";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DiagnosticContextNode, Object);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("DiagnosticContext", DiagnosticContextNode, Object);
 };
 
 class DiagnosticContext : public ObjectRef {
@@ -241,7 +235,8 @@ class DiagnosticContext : public ObjectRef {
     return static_cast<DiagnosticContextNode*>(get_mutable());
   }
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(DiagnosticContext, ObjectRef, DiagnosticContextNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DiagnosticContext, ObjectRef,
+                                                DiagnosticContextNode);
 };
 
 DiagnosticRenderer TerminalRenderer(std::ostream& ostream);

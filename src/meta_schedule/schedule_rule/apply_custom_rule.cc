@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -34,23 +36,25 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
   }
 
   // Inherited from ScheduleRuleNode
-  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
     CHECK(this->target_.defined())
         << "ValueError: ApplyCustomRule is not initialized with TuneContext that has a Target.";
-    Array<String> keys = this->target_.value()->keys;
-    if (Optional<String> ann = tir::GetAnn<String>(sch->GetSRef(block_rv), "schedule_rule")) {
+    ffi::Array<ffi::String> keys = this->target_.value()->keys;
+    if (ffi::Optional<ffi::String> ann =
+            tir::GetAnn<ffi::String>(sch->GetSRef(block_rv), "schedule_rule")) {
       if (ann.value() != "None") {
-        for (const String& key : keys) {
-          if (const runtime::PackedFunc* custom_schedule_fn =
-                  runtime::Registry::Get(GetCustomRuleName(ann.value(), key))) {
-            Array<tir::Schedule> result = ((*custom_schedule_fn)(sch, block_rv));
+        for (const ffi::String& key : keys) {
+          if (const auto custom_schedule_fn =
+                  tvm::ffi::Function::GetGlobal(GetCustomRuleName(ann.value(), key))) {
+            ffi::Array<tir::Schedule> result =
+                (*custom_schedule_fn)(sch, block_rv).cast<ffi::Array<tir::Schedule>>();
             return result;
           }
         }
         std::ostringstream os;
         os << "Unknown schedule rule \"" << ann.value() << "\" for target keys \"" << keys
-           << "\". Checked PackedFuncs:";
-        for (const String& key : keys) {
+           << "\". Checked ffi::Functions:";
+        for (const ffi::String& key : keys) {
           os << "\n  " << GetCustomRuleName(ann.value(), key);
         }
         LOG(WARNING) << os.str();
@@ -62,22 +66,24 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
-    ObjectPtr<ApplyCustomRuleNode> n = make_object<ApplyCustomRuleNode>(*this);
+    ObjectPtr<ApplyCustomRuleNode> n = ffi::make_object<ApplyCustomRuleNode>(*this);
     n->target_ = target_;
     return ScheduleRule(n);
   }
 
  public:
-  Optional<Target> target_ = NullOpt;
+  ffi::Optional<Target> target_ = std::nullopt;
 
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("target_", &target_); }
-
-  static constexpr const char* _type_key = "meta_schedule.ApplyCustomRule";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ApplyCustomRuleNode, ScheduleRuleNode);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ApplyCustomRuleNode>().def_ro("target_", &ApplyCustomRuleNode::target_);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.ApplyCustomRule", ApplyCustomRuleNode,
+                                    ScheduleRuleNode);
 };
 
 ScheduleRule ScheduleRule::ApplyCustomRule() {
-  ObjectPtr<ApplyCustomRuleNode> n = make_object<ApplyCustomRuleNode>();
+  ObjectPtr<ApplyCustomRuleNode> n = ffi::make_object<ApplyCustomRuleNode>();
   return ScheduleRule(n);
 }
 
@@ -85,9 +91,12 @@ bool ScheduleRule::IsApplyCustomRule(const ScheduleRule& rule) {
   return rule->IsInstance<ApplyCustomRuleNode>();
 }
 
-TVM_REGISTER_NODE_TYPE(ApplyCustomRuleNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleApplyCustomRule")
-    .set_body_typed(ScheduleRule::ApplyCustomRule);
+TVM_FFI_STATIC_INIT_BLOCK() { ApplyCustomRuleNode::RegisterReflection(); }
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.ScheduleRuleApplyCustomRule", ScheduleRule::ApplyCustomRule);
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

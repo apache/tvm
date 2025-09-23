@@ -21,6 +21,7 @@
  * \brief Perform explicit tensor allocation for call_tir,
  *        call_tir_inplace, and call_dps_packed.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
@@ -28,7 +29,6 @@
 #include <tvm/relax/type.h>
 #include <tvm/tir/op.h>
 
-#include "../../relay/transforms/pattern_utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -74,7 +74,7 @@ class CallTIRMutator : public ExprMutator {
         call->op == call_dps_packed_op) {
       bool is_inplace = (call->op == call_tir_inplace_op);
       const auto* inplace_attrs = call->attrs.as<CallTIRInplaceAttrs>();
-      Array<Expr> outs;
+      ffi::Array<Expr> outs;
       if (const auto& _tensor_sinfo = MatchStructInfo<TensorStructInfo>(expr)) {
         // single output case
         const TensorStructInfo& tensor_sinfo = _tensor_sinfo.value();
@@ -130,7 +130,7 @@ class CallTIRMutator : public ExprMutator {
                    << expr->struct_info_;
       }
 
-      Array<Expr> args;
+      ffi::Array<Expr> args;
       if (call->args[1].as<TupleNode>()) {
         args = Downcast<Tuple>(call->args[1])->fields;
         // for call_tir_inplace, don't reinsert in-place args, only the newly allocated ones
@@ -167,7 +167,7 @@ class CallTIRMutator : public ExprMutator {
       return std::move(Tuple(outs));
     }
 
-    return GetRef<Expr>(call);
+    return ffi::GetRef<Expr>(call);
   }
 
   /*! \brief The context IRModule. */
@@ -177,15 +177,17 @@ class CallTIRMutator : public ExprMutator {
 namespace transform {
 
 Pass CallTIRRewrite() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) { return CallTIRMutator(mod).Run(); };
+  auto pass_func = [=](IRModule mod, PassContext pc) { return CallTIRMutator(mod).Run(); };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
                           /*pass_name=*/"CallTIRRewrite",
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.CallTIRRewrite").set_body_typed(CallTIRRewrite);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.CallTIRRewrite", CallTIRRewrite);
+}
 
 }  // namespace transform
 

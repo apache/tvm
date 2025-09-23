@@ -23,7 +23,7 @@ from numbers import Integral
 import numpy as np
 import tvm
 from tvm import te
-from tvm.tir import Any, SizeVar, bijective_layout, layout
+from tvm.tir import SizeVar, bijective_layout, layout
 
 from . import cpp, tag
 
@@ -187,7 +187,7 @@ def get_const_tuple(in_tuple):
     ret = []
     ana = None
     for elem in in_tuple:
-        if isinstance(elem, (tvm.tir.Var, tvm.tir.expr.Any)):
+        if isinstance(elem, tvm.tir.Var):
             ret.append(elem)
         elif not isinstance(elem, (tvm.tir.IntImm, int)):
             ana = tvm.arith.Analyzer() if ana is None else ana
@@ -262,7 +262,17 @@ def simplify(expr):
     out : Expr or int
         The simplified output
     """
-    return tvm.arith.Analyzer().simplify(expr) if isinstance(expr, tvm.tir.PrimExpr) else expr
+    if isinstance(expr, te.Tensor):
+        return te.compute(
+            expr.shape,
+            lambda *indices: tvm.arith.Analyzer().simplify(expr[indices]),
+            name="simplify_output",
+            tag="simplify",
+        )
+    elif isinstance(expr, tvm.tir.PrimExpr):
+        return tvm.arith.Analyzer().simplify(expr)
+    else:
+        return expr
 
 
 def ravel_index(indices, shape):
@@ -525,4 +535,4 @@ def is_target(names):
 
 def is_dynamic_shape(shape):
     """Checks if any part of a shape is dynamic"""
-    return any([isinstance(x, (Any, SizeVar)) for x in shape])
+    return any([isinstance(x, SizeVar) for x in shape])

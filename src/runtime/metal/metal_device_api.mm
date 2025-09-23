@@ -21,8 +21,9 @@
  * \file metal_device_api.mm
  */
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/profiling.h>
-#include <tvm/runtime/registry.h>
 #include "metal_common.h"
 
 namespace tvm {
@@ -41,7 +42,7 @@ MetalWorkspace* MetalWorkspace::Global() {
   return inst;
 }
 
-void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
+void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) {
   AUTORELEASEPOOL {
     size_t index = static_cast<size_t>(dev.device_id);
     if (kind == kExist) {
@@ -95,6 +96,8 @@ void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
         *rv = static_cast<int64_t>([devices[dev.device_id] recommendedMaxWorkingSetSize]);
         return;
       }
+      case kImagePitchAlignment:
+        return;
     }
   };
 }
@@ -309,17 +312,6 @@ void MetalWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
   };
 }
 
-void MetalWorkspace::SetStream(Device dev, TVMStreamHandle stream) {
-  ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
-  ICHECK(stream != nullptr);
-  MetalThreadEntry::ThreadLocal()->stream[dev.device_id] = stream;
-}
-
-TVMStreamHandle MetalWorkspace::GetCurrentStream(Device dev) {
-  ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
-  return MetalThreadEntry::ThreadLocal()->stream[dev.device_id];
-}
-
 void* MetalWorkspace::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
   return MetalThreadEntry::ThreadLocal()->pool.AllocWorkspace(dev, size);
 }
@@ -360,14 +352,17 @@ typedef dmlc::ThreadLocalStore<MetalThreadEntry> MetalThreadStore;
 
 MetalThreadEntry* MetalThreadEntry::ThreadLocal() { return MetalThreadStore::Get(); }
 
-TVM_REGISTER_GLOBAL("device_api.metal").set_body([](TVMArgs args, TVMRetValue* rv) {
-  DeviceAPI* ptr = MetalWorkspace::Global();
-  *rv = static_cast<void*>(ptr);
-});
-
-TVM_REGISTER_GLOBAL("metal.ResetGlobalState").set_body_typed([]() {
-  MetalWorkspace::Global()->ReinitializeDefaultStreams();
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("device_api.metal",
+                  [](ffi::PackedArgs args, ffi::Any* rv) {
+                    DeviceAPI* ptr = MetalWorkspace::Global();
+                    *rv = static_cast<void*>(ptr);
+                  })
+      .def("metal.ResetGlobalState",
+           []() { MetalWorkspace::Global()->ReinitializeDefaultStreams(); });
+}
 
 class MetalTimerNode : public TimerNode {
  public:
@@ -385,9 +380,7 @@ class MetalTimerNode : public TimerNode {
     [mtl_dev_ sampleTimestamps:&stop_cpu_time_ gpuTimestamp:&stop_gpu_time_];
   }
   virtual int64_t SyncAndGetElapsedNanos() { return stop_gpu_time_ - start_gpu_time_; }
-
-  static constexpr const char* _type_key = "MetalTimerNode";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MetalTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.metal.MetalTimerNode", MetalTimerNode, TimerNode);
 
  private:
   Device dev_;
@@ -399,11 +392,11 @@ class MetalTimerNode : public TimerNode {
   MTLTimestamp stop_gpu_time_;
 };
 
-TVM_REGISTER_OBJECT_TYPE(MetalTimerNode);
-
-TVM_REGISTER_GLOBAL("profiling.timer.metal").set_body_typed([](Device dev) {
-  return Timer(make_object<MetalTimerNode>(dev));
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("profiling.timer.metal",
+                        [](Device dev) { return Timer(ffi::make_object<MetalTimerNode>(dev)); });
+}
 
 }  // namespace metal
 }  // namespace runtime

@@ -17,11 +17,12 @@
  * under the License.
  */
 
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 
 #include <memory>
 #include <string>
@@ -70,7 +71,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     ICHECK(astype_attrs);
 
     std::vector<dmlc::any> dtype_attr;
-    auto dtype_str = runtime::DLDataType2String(astype_attrs->dtype);
+    auto dtype_str = runtime::DLDataTypeToString(astype_attrs->dtype);
     dtype_attr.emplace_back(std::vector<std::string>{dtype_str});
     node_->SetAttr("astype_dtype", dtype_attr);
   }
@@ -189,18 +190,19 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
 
 class NNAPIJSONSerializer : public JSONSerializer {
  public:
-  explicit NNAPIJSONSerializer(Map<Constant, String> constant_names, Map<Var, Expr> bindings)
+  explicit NNAPIJSONSerializer(ffi::Map<Constant, ffi::String> constant_names,
+                               ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
   using JSONSerializer::VisitExpr_;
 
   std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* call_node) final {
     const auto* fn_var = call_node->op.as<VarNode>();
     ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
+    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
     ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
-    auto composite_opt = fn->GetAttr<String>(attr::kComposite);
-    ICHECK(composite_opt.defined()) << "Only composite functions are supported.";
+    auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
+    ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
 
     std::string composite_name = composite_opt.value();
 
@@ -220,11 +222,11 @@ class NNAPIJSONSerializer : public JSONSerializer {
 
     VLOG(1) << "Adding node " << composite_name << " with " << node->GetInputs().size()
             << " inputs";
-    return AddNode(node, GetRef<Expr>(call_node));
+    return AddNode(node, ffi::GetRef<Expr>(call_node));
   }
 
  private:
-  Map<Var, Expr> bindings_;
+  ffi::Map<Var, Expr> bindings_;
 };
 
 void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
@@ -246,26 +248,31 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
   ExprVisitor::VisitExpr_(call_node);
 }
 
-Array<runtime::Module> NNAPICompiler(Array<Function> functions, Map<String, ObjectRef> /*unused*/,
-                                     Map<Constant, String> constant_names) {
+ffi::Array<ffi::Module> NNAPICompiler(ffi::Array<Function> functions,
+                                      ffi::Map<ffi::String, ffi::Any> /*unused*/,
+                                      ffi::Map<Constant, ffi::String> constant_names) {
   VLOG(1) << "NNAPI Compiler";
 
-  Array<runtime::Module> compiled_functions;
+  ffi::Array<ffi::Module> compiled_functions;
   for (const auto& func : functions) {
     NNAPIJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));
     serializer.serialize(func);
     auto graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();
-    const auto* pf = runtime::Registry::Get("runtime.nnapi_runtime_create");
-    ICHECK(pf != nullptr) << "Cannot find NNAPI runtime module create function.";
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.nnapi_runtime_create");
     auto func_name = GetExtSymbol(func);
-    compiled_functions.push_back((*pf)(func_name, graph_json, constant_names));
+    auto result = pf(func_name, graph_json, constant_names);
+    tvm::ffi::Module mod = result.cast<tvm::ffi::Module>();
+    compiled_functions.push_back(mod);
   }
 
   return compiled_functions;
 }
 
-TVM_REGISTER_GLOBAL("relax.ext.nnapi").set_body_typed(NNAPICompiler);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.ext.nnapi", NNAPICompiler);
+}
 
 }  // namespace contrib
 }  // namespace relax

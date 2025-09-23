@@ -30,6 +30,7 @@
 #include <llvm/IR/GlobalValue.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
+#include <tvm/ffi/reflection/registry.h>
 #if TVM_LLVM_VERSION >= 100
 #include <llvm/IR/IntrinsicsAMDGPU.h>
 #endif
@@ -47,9 +48,9 @@
 #endif
 #include <llvm/IR/Module.h>
 #include <llvm/Transforms/Utils/Cloning.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 
 #include "../../runtime/rocm/rocm_module.h"
 #include "../build_common.h"
@@ -68,12 +69,12 @@ static inline int DetectROCMmaxThreadsPerBlock() {
   tvm_dev.device_id = 0;
   tvm::runtime::DeviceAPI* api = tvm::runtime::DeviceAPI::Get(tvm_dev, true);
   if (api != nullptr) {
-    TVMRetValue val;
+    ffi::Any val;
     api->GetAttr(tvm_dev, tvm::runtime::kExist, &val);
-    if (val.operator int() == 1) {
+    if (val.cast<int>() == 1) {
       tvm::runtime::DeviceAPI::Get(tvm_dev)->GetAttr(tvm_dev, tvm::runtime::kMaxThreadsPerBlock,
                                                      &val);
-      return val.operator int();
+      return val.cast<int>();
     }
   }
   LOG(WARNING) << "Cannot get maximum number of threads for AMD codegen";
@@ -147,7 +148,8 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     }
 
     buf = builder_->CreatePointerCast(
-        buf, DTypeToLLVMType(op->dtype)->getPointerTo(buf->getType()->getPointerAddressSpace()));
+        buf,
+        llvmGetPointerTo(DTypeToLLVMType(op->dtype), buf->getType()->getPointerAddressSpace()));
     ICHECK(!var_map_.count(op->buffer_var.get()));
     var_map_[op->buffer_var.get()] = buf;
     this->VisitStmt(op->body);
@@ -187,7 +189,12 @@ class CodeGenAMDGPU : public CodeGenLLVM {
           LOG(FATAL) << "unknown workgroup idx";
       }
     }
+#if TVM_LLVM_VERSION >= 200
+    llvm::Function* f = llvm::cast<llvm::Function>(
+        llvm::Intrinsic::getOrInsertDeclaration(module_.get(), intrin_id, {}));
+#else
     llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), intrin_id);
+#endif
     llvm::Value* result = builder_->CreateCall(f, {});
     return this->CreateCast(DataType::Int(32), iv->var->dtype, result);
   }
@@ -197,8 +204,13 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     if (sync == "warp") {
       return nullptr;
     } else if (sync == "shared") {
+#if TVM_LLVM_VERSION >= 200
+      llvm::Function* f = llvm::cast<llvm::Function>(llvm::Intrinsic::getOrInsertDeclaration(
+          module_.get(), llvm::Intrinsic::amdgcn_s_barrier, {}));
+#else
       llvm::Function* f =
           llvm::Intrinsic::getDeclaration(module_.get(), llvm::Intrinsic::amdgcn_s_barrier);
+#endif
       return builder_->CreateCall(f, {});
     } else {
       LOG(FATAL) << "Do not support sync " << sync;
@@ -251,7 +263,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 };
 
-runtime::Module BuildAMDGPU(IRModule mod, Target target) {
+ffi::Module BuildAMDGPU(IRModule mod, Target target) {
   LLVMInstance llvm_instance;
 
   With<LLVMTarget> llvm_target(llvm_instance, target);
@@ -262,17 +274,21 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
 #endif
   auto cg = std::make_unique<CodeGenAMDGPU>();
 
-  cg->Init("TVMAMDGPUModule", llvm_target.get(), NullOpt, false, false);
+  cg->Init("TVMAMDGPUModule", llvm_target.get(), std::nullopt, false, false);
 
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
 
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
-  const auto* find_rocm_bitcodes = tvm::runtime::Registry::Get("tvm_callback_rocm_bitcode_path");
-  Array<runtime::String> bitcode_files = (*find_rocm_bitcodes)();
+  auto fbitcode = tvm::ffi::Function::GetGlobalRequired("tvm_callback_rocm_bitcode_path");
+  auto bitcode_files = fbitcode().cast<ffi::Array<ffi::String>>();
 
   for (auto& bitcode_path : bitcode_files) {
     std::unique_ptr<llvm::Module> mlib = llvm_instance.LoadIR(bitcode_path);
+#if TVM_LLVM_VERSION >= 210
+    mlib->setTargetTriple(llvm::Triple(llvm_target->GetTargetTriple()));
+#else
     mlib->setTargetTriple(llvm_target->GetTargetTriple());
+#endif
     mlib->setDataLayout(tm->createDataLayout());
 
     for (llvm::Function& f : mlib->functions()) {
@@ -332,24 +348,27 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
   passAsm.run(*mAsm);
   std::string assembly(dataAsm.begin(), dataAsm.end());
 
-  const auto* f = tvm::runtime::Registry::Get("tvm_callback_rocm_link");
-  ICHECK(f != nullptr) << "Require tvm_callback_rocm_link to exist, do import tvm.contrib.rocm";
+  auto flink = tvm::ffi::Function::GetGlobal("tvm_callback_rocm_link");
+  ICHECK(flink.has_value())
+      << "Require tvm_callback_rocm_link to exist, do import tvm.contrib.rocm";
 
-  TVMByteArray arr;
+  TVMFFIByteArray arr;
   arr.data = &obj[0];
   arr.size = obj.length();
 
-  std::string hsaco = (*f)(arr);
+  std::string hsaco = (*flink)(&arr).cast<std::string>();
   std::string ll(data_ll.begin(), data_ll.end());
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(mod), ll, assembly);
 }
 
-TVM_REGISTER_GLOBAL("target.build.rocm").set_body_typed(BuildAMDGPU);
-
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_rocm")
-    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
-      *rv = static_cast<void*>(new CodeGenAMDGPU());
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("target.build.rocm", BuildAMDGPU)
+      .def_packed("tvm.codegen.llvm.target_rocm", [](const ffi::PackedArgs& targs, ffi::Any* rv) {
+        *rv = static_cast<void*>(new CodeGenAMDGPU());
+      });
+}
 
 }  // namespace codegen
 }  // namespace tvm

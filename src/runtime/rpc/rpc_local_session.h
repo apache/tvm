@@ -24,8 +24,8 @@
 #ifndef TVM_RUNTIME_RPC_RPC_LOCAL_SESSION_H_
 #define TVM_RUNTIME_RPC_RPC_LOCAL_SESSION_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <functional>
 #include <string>
@@ -45,14 +45,14 @@ class LocalSession : public RPCSession {
   // function overrides
   PackedFuncHandle GetFunction(const std::string& name) override;
 
-  void CallFunc(PackedFuncHandle func, const TVMValue* arg_values, const int* arg_type_codes,
-                int num_args, const FEncodeReturn& fencode_return) override;
+  void CallFunc(PackedFuncHandle func, ffi::PackedArgs args,
+                const FEncodeReturn& fencode_return) override;
 
   void CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes) override;
 
   void CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes) override;
 
-  void FreeHandle(void* handle, int type_code) override;
+  void FreeHandle(void* handle) override;
 
   DeviceAPI* GetDeviceAPI(Device dev, bool allow_missing = false) override;
 
@@ -64,7 +64,7 @@ class LocalSession : public RPCSession {
    * \param rv The return value.
    * \param encode_return The encoding function.
    */
-  void EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_return);
+  void EncodeReturn(ffi::Any rv, const FEncodeReturn& encode_return);
 };
 
 }  // namespace runtime

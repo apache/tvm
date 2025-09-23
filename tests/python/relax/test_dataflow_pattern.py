@@ -22,7 +22,7 @@ import pytest
 
 import tvm.testing
 from tvm import relax as rx
-from tvm import relay, tir
+from tvm import tir
 from tvm.relax.analysis import get_var2val
 from tvm.relax.dpl import *
 from tvm.script import relax as R
@@ -226,10 +226,6 @@ def test_not_pattern():
     assert not no_shape233.match(rx.Var("x", R.Tensor((2, 3, 3), "float32")))
 
 
-def test_type_pattern():
-    assert wildcard().has_type(rx.DynTensorType(2, "float32")).match(bindings[0].var)
-
-
 def test_dtype_pattern():
     dtype = "float16"
     pattern = has_dtype(dtype)
@@ -278,13 +274,13 @@ def test_extern_fn_pattern():
 def test_op_attr():
     x = rx.Var("x", R.Tensor("float32"))
     y = rx.Var("y", R.Tensor("float32"))
-    conv2d = relay.nn.conv2d(x, y, kernel_size=(3, 3))
+    conv2d = rx.op.nn.conv2d(x, y, strides=(3, 3))
     xp = is_var("x")
     yp = is_var("y")
     # TODO(@yuchen): reenable the assert after figuring out why it fails
-    # assert is_op("nn.conv2d")(xp, yp).has_attr({"kernel_size": [3, 3]}).match(conv2d)
-    assert not is_op("nn.conv2d")(xp, yp).has_attr({"kernel_size": [4, 3]}).match(conv2d)
-    assert not is_op("nn.conv2d")(xp, yp).has_attr({"kernel_size_": [3, 3]}).match(conv2d)
+    # assert is_op("nn.conv2d")(xp, yp).has_attr({"strides": [3, 3]}).match(conv2d)
+    assert not is_op("relax.nn.conv2d")(xp, yp).has_attr({"strides": [4, 3]}).match(conv2d)
+    assert not is_op("relax.nn.conv2d")(xp, yp).has_attr({"strides": [3, 3]}).match(conv2d)
 
 
 def test_match_call_attr():
@@ -486,7 +482,7 @@ class SmallParallel:
 
 
 def test_distinguish_diamond_and_parallel():
-    # relay pattern lang cannot distinguish the two cases above.
+    # pattern lang cannot distinguish the two cases above.
     diamond = SmallDiamond["main"].body.blocks[0]
     parallel = SmallParallel["main"].body.blocks[0]
 
@@ -1240,7 +1236,7 @@ def test_combine_matmul_emit_order():
     mod = tvm.IRModule()
     mod["main"] = rewritten
 
-    rx.build(mod, target="llvm")
+    tvm.compile(mod, target="llvm")
 
 
 def test_combine_transposed_matmul_twice():
@@ -1336,7 +1332,7 @@ def test_combine_transposed_matmul_twice():
         mod["main"] = rewritten
         print(mod)
 
-        rx.build(mod, target="llvm")
+        tvm.compile(mod, target="llvm")
 
 
 def test_commutative_pattern_match():

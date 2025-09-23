@@ -24,8 +24,10 @@
 #include "cudnn_utils.h"
 
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/extra/c_env_api.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/registry.h>
 
 #include <string>
 #include <vector>
@@ -100,9 +102,8 @@ const void* CuDNNDataType::GetConst<1>(cudnnDataType_t type) {
 // CuDNNThreadEntry
 
 CuDNNThreadEntry::CuDNNThreadEntry() {
-  auto stream = runtime::CUDAThreadEntry::ThreadLocal()->stream;
-  auto func = runtime::Registry::Get("device_api.cuda");
-  void* ret = (*func)();
+  auto func = tvm::ffi::Function::GetGlobalRequired("device_api.cuda");
+  void* ret = func().cast<void*>();
   cuda_api = static_cast<runtime::DeviceAPI*>(ret);
 
   // If no CuDNN-capable device is present, allow the CuDNNThreadEntry
@@ -115,8 +116,6 @@ CuDNNThreadEntry::CuDNNThreadEntry() {
     }
     CUDNN_CALL(create_res);
   }
-
-  CUDNN_CALL(cudnnSetStream(handle, stream));
   conv_entry.cuda_api = cuda_api;
 }
 
@@ -124,12 +123,15 @@ CuDNNThreadEntry::~CuDNNThreadEntry() {}
 
 typedef dmlc::ThreadLocalStore<CuDNNThreadEntry> CuDNNThreadStore;
 
-CuDNNThreadEntry* CuDNNThreadEntry::ThreadLocal(bool check_exists) {
+CuDNNThreadEntry* CuDNNThreadEntry::ThreadLocal(Device curr_device, bool check_exists) {
   auto* res = CuDNNThreadStore::Get();
   if (check_exists) {
     ICHECK(res->exists()) << "CUDNN_STATUS_NOT_INITIALIZED";
   }
 
+  cudaStream_t stream =
+      static_cast<cudaStream_t>(TVMFFIEnvGetStream(curr_device.device_type, curr_device.device_id));
+  CUDNN_CALL(cudnnSetStream(res->handle, stream));
   return res;
 }
 
@@ -177,7 +179,7 @@ void SetConvDescriptors(CuDNNThreadEntry* entry_ptr, int format, int dims, int g
   entry_ptr->conv_entry.tensor_format = static_cast<cudnnTensorFormat_t>(format);
   // Set Data Type
   entry_ptr->conv_entry.data_type =
-      CuDNNDataType::DLTypeToCuDNNType(runtime::String2DLDataType(conv_dtype));
+      CuDNNDataType::DLTypeToCuDNNType(ffi::StringToDLDataType(conv_dtype));
 
   cudnnDataType_t cudnn_data_type = CuDNNDataType::DLTypeToCuDNNType(data_dtype);
 
@@ -265,9 +267,14 @@ SoftmaxEntry::SoftmaxEntry() { CUDNN_CALL(cudnnCreateTensorDescriptor(&shape_des
 
 SoftmaxEntry::~SoftmaxEntry() { CUDNN_CALL(cudnnDestroyTensorDescriptor(shape_desc)); }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.exists").set_body_typed([]() -> bool {
-  return CuDNNThreadEntry::ThreadLocal(false)->exists();
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tvm.contrib.cudnn.exists", []() -> bool {
+    int device_id;
+    CUDA_CALL(cudaGetDevice(&device_id));
+    return CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id}, false)->exists();
+  });
+}
 
 }  // namespace contrib
 }  // namespace tvm

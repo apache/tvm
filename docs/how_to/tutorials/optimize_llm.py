@@ -191,7 +191,9 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         # Attention
         output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_q_heads),
+            paged_kv_cache.attention_with_fused_qkv(
+                layer_id, qkv, self.num_q_heads, sm_scale=self.head_dim**-0.5
+            ),
             (b, s, h_q * d),
         )
         # Output Projection
@@ -285,6 +287,7 @@ class LlamaForCasualLM(nn.Module):
         page_size: tir.Var,
     ) -> PagedKVCache:
         return TIRPagedKVCache(
+            attn_kind="mha",
             max_batch_size=max_batch_size,
             max_total_seq_len=max_total_seq_len,
             prefill_chunk_size=prefill_chunk_size,
@@ -294,7 +297,10 @@ class LlamaForCasualLM(nn.Module):
             num_hidden_layers=self.num_hidden_layers,
             num_attention_heads=self.num_attention_heads,
             num_key_value_heads=self.num_key_value_heads,
-            head_dim=self.head_dim,
+            qk_head_dim=self.head_dim,
+            v_head_dim=self.head_dim,
+            mla_original_qk_head_dim=0,
+            mla_original_v_head_dim=0,
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.rope_theta,
@@ -303,6 +309,7 @@ class LlamaForCasualLM(nn.Module):
             rotary_dim=self.head_dim,
             dtype=self.dtype,
             target=target,
+            enable_disaggregation=False,
         )
 
     def get_default_spec(self):
@@ -419,7 +426,7 @@ def _pipeline(  # pylint: disable=too-many-arguments
 
 
 with target:
-    ex = relax.build(mod, target, pipeline=relax.get_pipeline("opt_llm"))
+    ex = tvm.compile(mod, target, relax_pipeline=relax.get_pipeline("opt_llm"))
     vm = relax.VirtualMachine(ex, dev)
 
 
@@ -482,7 +489,7 @@ if not IS_IN_CI:
 
     # Convert params into ndarray
     params = [
-        tvm.nd.array(param_dict[k].astype("float16"), device=dev) for k in named_params.keys()
+        tvm.runtime.tensor(param_dict[k].astype("float16"), device=dev) for k in named_params.keys()
     ]
 
 
@@ -516,7 +523,7 @@ if not IS_IN_CI:
     input_len = len(prompt)
 
     # Load prompt tokens into TVM ndarray on the target device
-    tokens = tvm.nd.array(np.array(prompt).astype("int32"), device=dev)
+    tokens = tvm.runtime.tensor(np.array(prompt).astype("int32"), device=dev)
 
 ######################################################################
 # Create the KVCache
@@ -602,7 +609,7 @@ if not IS_IN_CI:
     print("The generated token:")
 
     while last_token != tokenizer.eos_token_id:
-        tokens = tvm.nd.array(np.array([last_token]).astype("int32"), device=dev)
+        tokens = tvm.runtime.tensor(np.array([last_token]).astype("int32"), device=dev)
         hidden_states = embed(tokens, params)
         begin_forward_func(kv_cache, ShapeTuple([seq_id]), ShapeTuple([1]))
         logits, kv_cache = vm["decode"](hidden_states, kv_cache, params)

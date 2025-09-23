@@ -19,14 +19,14 @@
 #ifndef TVM_META_SCHEDULE_SPACE_GENERATOR_H_
 #define TVM_META_SCHEDULE_SPACE_GENERATOR_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/meta_schedule/mutator.h>
 #include <tvm/meta_schedule/postproc.h>
 #include <tvm/meta_schedule/schedule_rule.h>
-#include <tvm/node/reflection.h>
-#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/schedule/schedule.h>
 
@@ -40,52 +40,54 @@ class SpaceGenerator;
 /*!
  * \brief The abstract class for design space generation.
  * \note The relationship between SpaceGenerator and other classes are as follows:
-      ┌──────────────────────────────────────────────────────────────┐
-   ┌──┴───────────────────────────────────────────────────────────┐  │
-┌──┴────────────────── Tune Context ───────────────────────────┐  │  │
-│                ┌─────────────────────┐                       │  │  │
-│                │                     │   Generate            │  │  │
-│                │   Space Generator   ├──────────────┐        │  │  │
-│                │                     │              │        │  │  │
-│                └─────────────────────┘              ▼        │  │  │
-│                                                Design Space  │  │  │
-│                ┌─────────────────────┐              │        │  │  │
-│      Generate  │                     │   Pretuning  │        │  │  │
-│    ┌───────────┤   Search Strategy   │◄─────────────┘        │  │  │
-│    │           │                     │                       │  ├──┘
-│    │           └─────────────────────┘                       ├──┘
-└────┼─────────────────────────────────────────────────────────┘
-     │
-     │
-┌────┼──────────────── Managed By Task Scheduler ─────────────────────┐
-│    │                                 ┌───────────┐                  │
-│    │                      Send to    │           │  Send to         │
-│    ▼                  ┌─────────────►│  Builder  ├──────────┐       │
-│ Measure Candidate     │   Builder    │           │  Runner  │       │
-│    │                  │              └───────────┘          │       │
-│    │     ┌────────────┴────────┐                            │       │
-│    │     │                     │     ┌───────────┐          │       │
-│    └────►│   Task Scheduler    │     │           │          │       │
-│          │                     │     │  Runner   │◄─────────┘       │
-│          └─────────────────────┘     │           │                  │
-│                   ▲                  └─────┬─────┘                  │
-│                   │                        │                        │
-│                   └───  Runner Future ◄────┘                        │
-└─────────────────────────────────────────────────────────────────────┘
+        +--------------------------------------------------------------+
+    +--+-----------------------------------------------------------+    |
+  +--+------------------ Tune Context -----------------------------+ |  |
+  |                +---------------------+                        |  |  |
+  |                |                     |   Generate             |  |  |
+  |                |   Space Generator   +--------------+         |  |  |
+  |                |                     |              |         |  |  |
+  |                +---------------------+              v         |  |  |
+  |                                               Design Space    |  |  |
+  |                +---------------------+              |         |  |  |
+  |      Generate  |                     |   Pretuning  |         |  |  |
+  |    +-----------+   Search Strategy   |<-------------+         |  |  |
+  |    |           |                     |                        |  +--+
+  |    |           +---------------------+                        +--+
+  +----+----------------------------------------------------------+
+      |
+      |
+  +----+---------------- Managed By Task Scheduler ---------------------+
+  |    |                                 +-----------+                  |
+  |    |                      Send to    |           |  Send to         |
+  |    v                  +-------------+|  Builder  +----------+       |
+  | Measure Candidate     |   Builder    |           |  Runner  |       |
+  |    |                  |              +-----------+          |       |
+  |    |     +------------+------------+                        |       |
+  |    |     |                         |     +-----------+      |       |
+  |    +---->|   Task Scheduler        |     |           |      |       |
+  |          |                         |     |  Runner   |<-----+       |
+  |          +-------------------------+     |           |              |
+  |                   ^                      +-----+-----+              |
+  |                   |                            |                    |
+  |                   +----  Runner Future <-------+                    |
+  +---------------------------------------------------------------------+
 */
 class SpaceGeneratorNode : public runtime::Object {
  public:
   /*! \brief The schedule rules. */
-  Optional<Array<ScheduleRule>> sch_rules;
+  ffi::Optional<ffi::Array<ScheduleRule>> sch_rules;
   /*! \brief The postprocessors. */
-  Optional<Array<Postproc>> postprocs;
+  ffi::Optional<ffi::Array<Postproc>> postprocs;
   /*! \brief The probability of using certain mutator. */
-  Optional<Map<Mutator, FloatImm>> mutator_probs;
+  ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("sch_rules", &sch_rules);
-    v->Visit("postprocs", &postprocs);
-    v->Visit("mutator_probs", &mutator_probs);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SpaceGeneratorNode>()
+        .def_ro("sch_rules", &SpaceGeneratorNode::sch_rules)
+        .def_ro("postprocs", &SpaceGeneratorNode::postprocs)
+        .def_ro("mutator_probs", &SpaceGeneratorNode::mutator_probs);
   }
 
   /*! \brief Default destructor */
@@ -103,7 +105,7 @@ class SpaceGeneratorNode : public runtime::Object {
    * \param mod The module used for design space generation.
    * \return The generated design spaces, i.e., schedules.
    */
-  virtual Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) = 0;
+  virtual ffi::Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) = 0;
 
   /*!
    * \brief Clone the space generator.
@@ -111,8 +113,8 @@ class SpaceGeneratorNode : public runtime::Object {
    */
   virtual SpaceGenerator Clone() const = 0;
 
-  static constexpr const char* _type_key = "meta_schedule.SpaceGenerator";
-  TVM_DECLARE_BASE_OBJECT_INFO(SpaceGeneratorNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.SpaceGenerator", SpaceGeneratorNode, Object);
 };
 
 /*!
@@ -122,21 +124,28 @@ class SpaceGeneratorNode : public runtime::Object {
 class SpaceGenerator : public runtime::ObjectRef {
  public:
   /*!
+   * \brief Constructor from ObjectPtr<SpaceGeneratorNode>.
+   * \param data The object pointer.
+   */
+  explicit SpaceGenerator(ObjectPtr<SpaceGeneratorNode> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
+  /*!
    * \brief The function type of `InitializeWithTuneContext` method.
    * \param context The tuning context for initialization.
    */
-  using FInitializeWithTuneContext = runtime::TypedPackedFunc<void(const TuneContext&)>;
+  using FInitializeWithTuneContext = ffi::TypedFunction<void(const TuneContext&)>;
   /*!
    * \brief The function type of `GenerateDesignSpace` method.
    * \param mod The module used for design space generation.
    * \return The generated design spaces, i.e., schedules.
    */
-  using FGenerateDesignSpace = runtime::TypedPackedFunc<Array<tir::Schedule>(const IRModule&)>;
+  using FGenerateDesignSpace = ffi::TypedFunction<ffi::Array<tir::Schedule>(const IRModule&)>;
   /*!
    * \brief The function type of `Clone` method.
    * \return The cloned space generator.
    */
-  using FClone = runtime::TypedPackedFunc<SpaceGenerator()>;
+  using FClone = ffi::TypedFunction<SpaceGenerator()>;
 
  protected:
   SpaceGenerator() = default;
@@ -153,8 +162,9 @@ class SpaceGenerator : public runtime::ObjectRef {
    * \return The design space generator created.
    */
   TVM_DLL static SpaceGenerator PySpaceGenerator(
-      Optional<Array<ScheduleRule>> sch_rules, Optional<Array<Postproc>> postprocs,
-      Optional<Map<Mutator, FloatImm>> mutator_probs,
+      ffi::Optional<ffi::Array<ScheduleRule>> sch_rules,
+      ffi::Optional<ffi::Array<Postproc>> postprocs,
+      ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs,
       FInitializeWithTuneContext f_initialize_with_tune_context,
       FGenerateDesignSpace f_generate_design_space, FClone f_clone);
   /*!
@@ -162,15 +172,15 @@ class SpaceGenerator : public runtime::ObjectRef {
    * \param schedule_fn The schedule function, which can have the following signatures:
    * 1) void(Schedule)
    * 2) Schedule(Schedule)
-   * 3) Array<Schedule>(Schedule)
+   * 3) ffi::Array<Schedule>(Schedule)
    * \param sch_rules The schedule rules.
    * \param postprocs The postprocessors.
    * \param mutator_probs The probability of using certain mutator.
    */
-  TVM_DLL static SpaceGenerator ScheduleFn(PackedFunc schedule_fn,
-                                           Optional<Array<ScheduleRule>> sch_rules,
-                                           Optional<Array<Postproc>> postprocs,
-                                           Optional<Map<Mutator, FloatImm>> mutator_probs);
+  TVM_DLL static SpaceGenerator ScheduleFn(
+      ffi::Function schedule_fn, ffi::Optional<ffi::Array<ScheduleRule>> sch_rules,
+      ffi::Optional<ffi::Array<Postproc>> postprocs,
+      ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs);
   /*!
    * \brief Create a design space generator that is union of multiple design space generators.
    * \param space_generators An array of design space generators to be unioned.
@@ -179,10 +189,11 @@ class SpaceGenerator : public runtime::ObjectRef {
    * \param mutator_probs The probability of using certain mutator.
    * \return The design space generator created.
    */
-  TVM_DLL static SpaceGenerator SpaceGeneratorUnion(Array<SpaceGenerator, void> space_generators,
-                                                    Optional<Array<ScheduleRule>> sch_rules,
-                                                    Optional<Array<Postproc>> postprocs,
-                                                    Optional<Map<Mutator, FloatImm>> mutator_probs);
+  TVM_DLL static SpaceGenerator SpaceGeneratorUnion(
+      ffi::Array<SpaceGenerator, void> space_generators,
+      ffi::Optional<ffi::Array<ScheduleRule>> sch_rules,
+      ffi::Optional<ffi::Array<Postproc>> postprocs,
+      ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs);
   /*!
    * \brief Create a design space generator that generates design spaces by applying schedule
    * rules to blocks in post-DFS order.
@@ -192,11 +203,11 @@ class SpaceGenerator : public runtime::ObjectRef {
    * \param mutator_probs The probability of using certain mutator.
    * \return The design space generator created.
    */
-  TVM_DLL static SpaceGenerator PostOrderApply(runtime::PackedFunc f_block_filter,
-                                               Optional<Array<ScheduleRule>> sch_rules,
-                                               Optional<Array<Postproc>> postprocs,
-                                               Optional<Map<Mutator, FloatImm>> mutator_probs);
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(SpaceGenerator, ObjectRef, SpaceGeneratorNode);
+  TVM_DLL static SpaceGenerator PostOrderApply(
+      ffi::Function f_block_filter, ffi::Optional<ffi::Array<ScheduleRule>> sch_rules,
+      ffi::Optional<ffi::Array<Postproc>> postprocs,
+      ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SpaceGenerator, ObjectRef, SpaceGeneratorNode);
 };
 
 /*! \brief The design space generator with customized methods on the python-side. */
@@ -212,19 +223,17 @@ class PySpaceGeneratorNode : public SpaceGeneratorNode {
   /*! \brief The packed function to the `Clone` function. */
   FClone f_clone;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    SpaceGeneratorNode::VisitAttrs(v);
-    // `f_initialize_with_tune_context` is not visited
-    // `f_generate_design_space` is not visited
-    // `f_clone` is not visited
+  static void RegisterReflection() {
+    // `f_initialize_with_tune_context` is not registered
+    // `f_generate_design_space` is not registered
+    // `f_clone` is not registered
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final;
-  Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final;
+  ffi::Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final;
   SpaceGenerator Clone() const final;
-
-  static constexpr const char* _type_key = "meta_schedule.PySpaceGenerator";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PySpaceGeneratorNode, SpaceGeneratorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PySpaceGenerator", PySpaceGeneratorNode,
+                                    SpaceGeneratorNode);
 };
 
 }  // namespace meta_schedule

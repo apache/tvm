@@ -19,6 +19,8 @@
 
 #include "vulkan_device_api.h"
 
+#include <tvm/ffi/reflection/registry.h>
+
 #include <algorithm>
 #include <memory>
 #include <set>
@@ -91,7 +93,7 @@ int VulkanDeviceAPI::GetActiveDeviceID() { return active_device_id_per_thread.Ge
 
 VulkanDevice& VulkanDeviceAPI::GetActiveDevice() { return device(GetActiveDeviceID()); }
 
-void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
+void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) {
   size_t index = static_cast<size_t>(dev.device_id);
   if (kind == kExist) {
     *rv = static_cast<int>(index < devices_.size());
@@ -168,15 +170,16 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       *rv = device(index).compute_memory_size;
       return;
     }
-
     case kAvailableGlobalMemory:
       // Not currently implemented.  Will only be implementable for
       // devices that support the VK_EXT_memory_budget extension.
       break;
+    case kImagePitchAlignment:
+      return;
   }
 }
 
-void VulkanDeviceAPI::GetTargetProperty(Device dev, const std::string& property, TVMRetValue* rv) {
+void VulkanDeviceAPI::GetTargetProperty(Device dev, const std::string& property, ffi::Any* rv) {
   size_t index = static_cast<size_t>(dev.device_id);
   const auto& prop = device(index).device_properties;
 
@@ -329,12 +332,6 @@ void VulkanDeviceAPI::StreamSync(Device dev, TVMStreamHandle stream) {
   device(dev.device_id).ThreadLocalStream().Synchronize();
 }
 
-void VulkanDeviceAPI::SetStream(Device dev, TVMStreamHandle stream) {
-  ICHECK_EQ(stream, static_cast<void*>(nullptr));
-}
-
-TVMStreamHandle VulkanDeviceAPI::GetCurrentStream(Device dev) { return nullptr; }
-
 void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void* to,
                                      size_t to_offset, size_t size, Device dev_from, Device dev_to,
                                      DLDataType type_hint, TVMStreamHandle stream) {
@@ -454,17 +451,20 @@ VulkanDevice& VulkanDeviceAPI::device(size_t device_id) {
   return const_cast<VulkanDevice&>(const_cast<const VulkanDeviceAPI*>(this)->device(device_id));
 }
 
-TVM_REGISTER_GLOBAL("device_api.vulkan").set_body([](TVMArgs args, TVMRetValue* rv) {
-  DeviceAPI* ptr = VulkanDeviceAPI::Global();
-  *rv = static_cast<void*>(ptr);
-});
-
-TVM_REGISTER_GLOBAL("device_api.vulkan.get_target_property")
-    .set_body_typed([](Device dev, const std::string& property) {
-      TVMRetValue rv;
-      VulkanDeviceAPI::Global()->GetTargetProperty(dev, property, &rv);
-      return rv;
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("device_api.vulkan",
+                  [](ffi::PackedArgs args, ffi::Any* rv) {
+                    DeviceAPI* ptr = VulkanDeviceAPI::Global();
+                    *rv = static_cast<void*>(ptr);
+                  })
+      .def("device_api.vulkan.get_target_property", [](Device dev, const std::string& property) {
+        ffi::Any rv;
+        VulkanDeviceAPI::Global()->GetTargetProperty(dev, property, &rv);
+        return rv;
+      });
+}
 
 }  // namespace vulkan
 }  // namespace runtime

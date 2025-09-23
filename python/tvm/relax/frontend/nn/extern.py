@@ -135,14 +135,14 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
     of in-memory representation of tensors. More details:
     https://github.com/dmlc/dlpack/blob/v0.8/include/dlpack/dlpack.h#L163-L206.
 
-    To expose the symbol, `TVM_DLL_EXPORT_TYPED_FUNC(symbol, function)` is guaranteed available:
+    To expose the symbol, `TVM_FFI_DLL_EXPORT_TYPED_FUNC(symbol, function)` is guaranteed available:
 
     .. code-block:: C++
 
         // those headers are guaranteed to be available
         #include <dlpack/dlpack.h>
         #include <tvm/runtime/data_type.h>
-        #include <tvm/runtime/packed_func.h>
+        #include <tvm/ffi/function.h>
 
         namespace {
         // anonymous namespace hides the symbol `_my_func_impl` from other translation units
@@ -151,12 +151,12 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
         }
         }
         // expose symbol `my_func` instead of `_my_func_impl`
-        TVM_DLL_EXPORT_TYPED_FUNC(my_func, _my_func_impl);
+        TVM_FFI_DLL_EXPORT_TYPED_FUNC(my_func, _my_func_impl);
 
     **A compiler pass `AttachExternModules`.** It is introduced to attach a list of
     `nn.ExternModule`s into an IRModule at any stage of the compilation pipeline,
     and attach the compiled external modules as `runtime.Module`s into IRModule's `external_mods`
-    attribute. It is required by linking in `relax.build`, but with the existence of this pass,
+    attribute. It is required by linking in `tvm.compile`, but with the existence of this pass,
     source compilation can be deferred to arbitrary stage of TVM compilation.
 
     **Caveats.** It is required to call `nn.add_extern` to register external modules exactly once
@@ -309,8 +309,9 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
         tvm_home = SourceModule.tvm_home()
         results = [
             tvm_home / "include",
-            tvm_home / "3rdparty/dlpack/include",
             tvm_home / "3rdparty/dmlc-core/include",
+            tvm_home / "3rdparty/tvm-ffi/include",
+            tvm_home / "3rdparty/tvm-ffi/3rdparty/dlpack/include",
         ]
         if tvm_pkg:
             for relative in tvm_pkg:
@@ -386,12 +387,14 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
                 options=self.compile_options,
                 cc=self.compiler,
                 cwd=temp_dir,
-                ccache_env={
-                    "CCACHE_COMPILERCHECK": "content",
-                    "CCACHE_NOHASHDIR": "1",
-                }
-                if shutil.which("ccache")
-                else None,
+                ccache_env=(
+                    {
+                        "CCACHE_COMPILERCHECK": "content",
+                        "CCACHE_NOHASHDIR": "1",
+                    }
+                    if shutil.which("ccache")
+                    else None
+                ),
             )
             shutil.move(str(object_path), str(output_path))
 

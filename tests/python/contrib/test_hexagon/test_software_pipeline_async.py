@@ -183,18 +183,17 @@ class TestAsyncSoftwarePipeline:
                 "tir.experimental_dma_bypass_cache": 1,
             }
         ):
-            # tvm.lower(schedule.mod["main"]).show()
-            func = tvm.build(schedule.mod["main"], target=get_hexagon_target("v68"))
+            func = tvm.compile(schedule.mod["main"], target=get_hexagon_target("v68"))
 
         with hexagon_launcher.create_session() as hexagon_session:
             dev = hexagon_session.device
             mod = hexagon_session.load_module(func)
-            out = tvm.nd.array(out_np, device=dev)
-            a = tvm.nd.array(a_np, device=dev)
+            out = tvm.runtime.tensor(out_np, device=dev)
+            a = tvm.runtime.tensor(a_np, device=dev)
             if comp_type == "single_input":
                 mod(a, out)
             else:
-                b = tvm.nd.array(b_np, device=dev)
+                b = tvm.runtime.tensor(b_np, device=dev)
                 mod(a, b, out)
 
             verify(out, ref)

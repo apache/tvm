@@ -30,7 +30,7 @@ def _argmax_argmin(te_func: TEFunc) -> LegalizeFunc:
         return bb.call_te(
             te_func,
             call.args[0],
-            None if call.attrs.axis is None else call.attrs.axis.value,
+            None if call.attrs.axis is None else call.attrs.axis,
             call.attrs.keepdims,
         )
 
@@ -39,3 +39,13 @@ def _argmax_argmin(te_func: TEFunc) -> LegalizeFunc:
 
 register_legalize("relax.argmax", _argmax_argmin(topi.argmax))
 register_legalize("relax.argmin", _argmax_argmin(topi.argmin))
+
+
+@register_legalize("relax.bucketize")
+def _bucketize(bb, call):
+    input_tensor = call.args[0]
+    boundaries = call.args[1]
+    right = call.attrs.right
+    return bb.call_te(
+        topi.searchsorted, boundaries, input_tensor, right, input_tensor.struct_info.dtype
+    )

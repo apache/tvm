@@ -25,8 +25,6 @@ from tvm.ir import transform
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
 
-# TODO(@sunggg): re-enable Trace when we have a solution for large params
-# from tvm.relax.transform.tuning_api import Trace
 from tvm.script import relax as R
 from tvm.script import tir as T
 
@@ -43,7 +41,7 @@ class InputModule:
         B = T.match_buffer(y, (32, 32))
         C = T.match_buffer(z, (32, 32))
 
-        for (i0, j0, k0) in T.grid(32, 32, 32):
+        for i0, j0, k0 in T.grid(32, 32, 32):
             with T.block():
                 i, j, k = T.axis.remap("SSR", [i0, j0, k0])
                 with T.init():
@@ -55,7 +53,7 @@ class InputModule:
         T.func_attr({"global_symbol": "tir_relu"})
         A = T.match_buffer(x, (32, 32))
         B = T.match_buffer(y, (32, 32))
-        for (i, j) in T.grid(32, 32):
+        for i, j in T.grid(32, 32):
             with T.block():
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = T.max(A[vi, vj], 0.0)
@@ -75,7 +73,6 @@ class InputModule:
 # (MS database and TuningAPI database will be unified in the future)
 # For now, we only support default JSON database config.
 def test_ms_tuning_irmodule():
-
     mod = InputModule
     assert isinstance(mod, IRModule)
 
@@ -212,7 +209,6 @@ def test_ms_database_apply_fallback():
     assert isinstance(mod, IRModule)
     with tempfile.TemporaryDirectory() as work_dir:
         """
-        # TODO(@sunggg): Revisit when ready
         with target_cuda, PassContext(trace=Trace(mod), opt_level=0):
             tuning_pass = relax.transform.MetaScheduleTuneTIR(
                 work_dir=work_dir, max_trials_global=0

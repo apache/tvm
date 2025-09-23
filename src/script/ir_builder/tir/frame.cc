@@ -28,11 +28,31 @@ namespace script {
 namespace ir_builder {
 namespace tir {
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TIRFrameNode::RegisterReflection();
+  PrimFuncFrameNode::RegisterReflection();
+  BlockFrameNode::RegisterReflection();
+  BlockInitFrameNode::RegisterReflection();
+  ForFrameNode::RegisterReflection();
+  AssertFrameNode::RegisterReflection();
+  LetFrameNode::RegisterReflection();
+  LaunchThreadFrameNode::RegisterReflection();
+  RealizeFrameNode::RegisterReflection();
+  AllocateFrameNode::RegisterReflection();
+  AllocateConstFrameNode::RegisterReflection();
+  AttrFrameNode::RegisterReflection();
+  WhileFrameNode::RegisterReflection();
+  IfFrameNode::RegisterReflection();
+  ThenFrameNode::RegisterReflection();
+  ElseFrameNode::RegisterReflection();
+  DeclBufferFrameNode::RegisterReflection();
+}
+
 void PrimFuncFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   // if the prim func is not private and there isn't already a global symbol,
   // add a global symbol
-  if (!is_private && name.defined() && !attrs.count(tvm::attr::kGlobalSymbol)) {
+  if (!is_private && name.has_value() && !attrs.count(tvm::attr::kGlobalSymbol)) {
     attrs.Set(tvm::attr::kGlobalSymbol, name.value());
   }
 
@@ -47,11 +67,11 @@ void PrimFuncFrameNode::ExitWithScope() {
   if (builder->frames.empty()) {
     ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
     builder->result = func;
-  } else if (Optional<ir::IRModuleFrame> opt_frame = builder->FindFrame<ir::IRModuleFrame>()) {
-    CHECK(name.defined()) << "ValueError: The function name must be defined before exiting the "
-                             "function scope, if it's defined in a Module";
+  } else if (ffi::Optional<ir::IRModuleFrame> opt_frame = builder->FindFrame<ir::IRModuleFrame>()) {
+    CHECK(name.has_value()) << "ValueError: The function name must be defined before exiting the "
+                               "function scope, if it's defined in a Module";
     const ir::IRModuleFrame& frame = opt_frame.value();
-    const String& func_name = name.value_or("");
+    const ffi::String& func_name = name.value_or("");
     if (!frame->global_var_map.count(func_name)) {
       // Case. First time visiting the function.
       ir::DeclFunction(func_name, func);
@@ -66,17 +86,17 @@ void PrimFuncFrameNode::ExitWithScope() {
 
 void BlockFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  Array<tvm::tir::Buffer> tir_alloc_buffers;
+  ffi::Array<tvm::tir::Buffer> tir_alloc_buffers;
   for (const tvm::tir::Buffer& buffer : alloc_buffers) {
     tir_alloc_buffers.push_back(buffer);
   }
-  Map<String, ObjectRef> attrs = annotations.value_or({});
+  ffi::Map<ffi::String, Any> attrs = annotations.value_or({});
   if (int detect_access = (!reads.defined()) | (!writes.defined() << 1)) {
     attrs.Set("tir.script_parsing_detect_access", tvm::IntImm(DataType::Int(64), detect_access));
   }
-  tvm::tir::Block block(iter_vars, reads.value_or(Array<tvm::tir::BufferRegion>()),
-                        writes.value_or(Array<tvm::tir::BufferRegion>()), name, AsStmt(stmts), init,
-                        tir_alloc_buffers, match_buffers, attrs);
+  tvm::tir::Block block(iter_vars, reads.value_or(ffi::Array<tvm::tir::BufferRegion>()),
+                        writes.value_or(ffi::Array<tvm::tir::BufferRegion>()), name, AsStmt(stmts),
+                        init, tir_alloc_buffers, match_buffers, attrs);
   if (no_realize) {
     CHECK(iter_values.empty())
         << "ValueError: Block bindings are not allowed when `no_realize=True`";
@@ -204,24 +224,6 @@ void DeclBufferFrameNode::ExitWithScope() {
                                    tvm::tir::DeclBuffer(buffer, AsStmt(stmts))));
   }
 }
-
-TVM_REGISTER_NODE_TYPE(TIRFrameNode);
-TVM_REGISTER_NODE_TYPE(PrimFuncFrameNode);
-TVM_REGISTER_NODE_TYPE(BlockFrameNode);
-TVM_REGISTER_NODE_TYPE(BlockInitFrameNode);
-TVM_REGISTER_NODE_TYPE(ForFrameNode);
-TVM_REGISTER_NODE_TYPE(AssertFrameNode);
-TVM_REGISTER_NODE_TYPE(LetFrameNode);
-TVM_REGISTER_NODE_TYPE(RealizeFrameNode);
-TVM_REGISTER_NODE_TYPE(LaunchThreadFrameNode);
-TVM_REGISTER_NODE_TYPE(AllocateFrameNode);
-TVM_REGISTER_NODE_TYPE(AllocateConstFrameNode);
-TVM_REGISTER_NODE_TYPE(AttrFrameNode);
-TVM_REGISTER_NODE_TYPE(WhileFrameNode);
-TVM_REGISTER_NODE_TYPE(IfFrameNode);
-TVM_REGISTER_NODE_TYPE(ThenFrameNode);
-TVM_REGISTER_NODE_TYPE(ElseFrameNode);
-TVM_REGISTER_NODE_TYPE(DeclBufferFrameNode);
 
 }  // namespace tir
 }  // namespace ir_builder

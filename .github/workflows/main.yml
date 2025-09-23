@@ -44,27 +44,36 @@ jobs:
           submodules: 'recursive'
       - name: Set up environment
         uses: ./.github/actions/setup
-      - name: Conda Build
+      - name: Install LLVM dependencies
         shell: bash -l {0}
-        run: >-
-          conda build --output-folder=conda/pkg  conda/recipe &&
-          conda install tvm -c ./conda/pkg
-      - name: Build iOS RPC
         run: |
-          IOS_VERSION="14.0"
-          CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release \
-                       -DCMAKE_SYSTEM_NAME=iOS \
-                       -DCMAKE_SYSTEM_VERSION=${IOS_VERSION} \
-                       -DCMAKE_OSX_SYSROOT=iphonesimulator \
-                       -DCMAKE_OSX_ARCHITECTURES=x86_64 \
-                       -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
-                       -DCMAKE_BUILD_WITH_INSTALL_NAME_DIR=ON \
-                       -DUSE_IOS_RPC=ON"
-
-          mkdir build-ios-simulator
-          cd build-ios-simulator
-          cmake .. ${CMAKE_FLAGS}
-          cmake --build . --target ios_rpc
+          conda install -c conda-forge llvmdev cmake ninja zlib
+      - name: Build TVM wheel
+        shell: bash -l {0}
+        run: |
+          pip install scikit-build-core
+          export CMAKE_ARGS="-DUSE_LLVM=ON -DBUILD_TESTING=OFF"
+          pip wheel --no-deps -w dist . -v
+      - name: Install TVM from wheel
+        shell: bash -l {0}
+        run: |
+          pip install dist/*.whl
+#      - name: Build iOS RPC
+#        run: |
+#          IOS_VERSION="14.0"
+#          CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release \
+#                       -DCMAKE_SYSTEM_NAME=iOS \
+#                       -DCMAKE_SYSTEM_VERSION=${IOS_VERSION} \
+#                       -DCMAKE_OSX_SYSROOT=iphonesimulator \
+#                       -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+#                       -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
+#                       -DCMAKE_BUILD_WITH_INSTALL_NAME_DIR=ON \
+#                       -DUSE_IOS_RPC=ON"
+#
+#          mkdir build-ios-simulator
+#          cd build-ios-simulator
+#          cmake .. ${CMAKE_FLAGS}
+#          cmake --build . --target ios_rpc
       - name: Test
         shell: bash -l {0}
         run: >-
@@ -91,102 +100,65 @@ jobs:
 
   Windows:
     if: ${{ github.repository == 'apache/tvm' }}
-    runs-on: windows-2019
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v2
         with:
           submodules: 'recursive'
       - name: Set up environment
         uses: ./.github/actions/setup
-      - name: Conda Build
+      - name: Install LLVM dependencies
         shell: cmd /C call {0}
-        run: >-
-          conda build --output-folder=conda/pkg conda/recipe &&
-          conda install tvm -c ./conda/pkg
+        run: |
+          conda install -c conda-forge llvmdev cmake ninja zlib libxml2-devel
+      - name: Install TVM
+        shell: cmd /C call {0}
+        run: |
+          pip install scikit-build-core
+          set CMAKE_ARGS=-DUSE_LLVM=ON -DBUILD_TESTING=OFF
+          pip install --no-deps . -v
+      - name: Install test dependencies
+        shell: cmd /C call {0}
+        run: |
+          pip install psutil cloudpickle ml_dtypes numpy packaging scipy tornado typing_extensions
       - name: Test
         shell: cmd /C call {0}
         run: >-
           python -m pytest -v tests/python/all-platform-minimal-test
 
-  # Disabled due to https://github.com/apache/tvm/issues/13950
-  # Windows-Static-Runtime:
-  #   if: ${{ github.repository == 'apache/tvm' }}
-  #   runs-on: windows-2019
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #       with:
-  #         submodules: 'recursive'
-  #     - name: Set up environment
-  #       uses: ./.github/actions/setup
-  #     - name: Build static TVM runtime
-  #       shell: bash -l {0}
-  #       run: |
-  #         tests/scripts/task_config_build_static.sh build
-  #         cd build
-  #         cmake .. -A x64 -DCMAKE_CONFIGURATION_TYPES="Release"
-  #         cmake --build . --config Release --target runtime
-
-  Linux-Static-Runtime:
-    if: ${{ github.repository == 'apache/tvm' }}
-    runs-on: Ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: 'recursive'
-      - name: Set up environment
-        uses: ./.github/actions/setup
-      - name: Build static TVM runtime
-        shell: bash -l {0}
-        run: |
-          tests/scripts/task_config_build_static.sh build
-          cd build
-          cmake ..
-          cmake --build . --config Release --target runtime
-
-  Android:
-    if: ${{ github.repository == 'apache/tvm' }}
-    runs-on: Ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: 'recursive'
-      - name: Set up environment
-        uses: ./.github/actions/setup
-      - name: Set up java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'zulu'
-          java-version: '11'
-      - name: Build TVM
-        shell: bash -l {0}
-        run: |
-          mkdir build
-          cd build
-          ../tests/scripts/task_config_build_jvm.sh .
-          cmake ..
-          make
-      - name: Build TVM4J
-        run: |
-          make jvmpkg
-      - name: Build android_rpc
-        working-directory: apps/android_rpc
-        run: |
-          set -eux
-          export PATH="${ANDROID_NDK_LATEST_HOME}:$PATH"
-          gradle clean build
-      - name: Upload android_rpc APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: android_rpc-debug.apk
-          path: ./apps/android_rpc/app/build/outputs/apk/debug/app-debug.apk
-      - name: Build android_deploy
-        working-directory: apps/android_deploy
-        run: |
-          set -eux
-          export PATH="${ANDROID_NDK_LATEST_HOME}:$PATH"
-          gradle clean build
-      - name: Upload android_deploy APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: android_deploy-debug.apk
-          path: ./apps/android_deploy/app/build/outputs/apk/debug/app-debug.apk
+ # Android:
+ #   if: ${{ github.repository == 'apache/tvm' }}
+ #   runs-on: ubuntu-22.04
+ #   steps:
+ #     - uses: actions/checkout@v2
+ #       with:
+ #         submodules: 'recursive'
+ #     - name: Set up environment
+ #       uses: ./.github/actions/setup
+ #     - name: Set up java
+ #       uses: actions/setup-java@v3
+ #       with:
+ #         distribution: 'zulu'
+ #         java-version: '11'
+ #     - name: Build TVM
+ #       shell: bash -l {0}
+ #       run: |
+ #         mkdir build
+ #         cd build
+ #         ../tests/scripts/task_config_build_jvm.sh .
+ #         cmake ..
+ #         make
+ #     - name: Build TVM4J
+ #       run: |
+ #         make jvmpkg
+ #     - name: Build android_rpc
+ #       working-directory: apps/android_rpc
+ #       run: |
+ #         set -eux
+ #         export PATH="${ANDROID_NDK_LATEST_HOME}:$PATH"
+ #         gradle clean build
+ #     - name: Upload android_rpc APK
+ #       uses: actions/upload-artifact@v4
+ #       with:
+ #         name: android_rpc-debug.apk
+ #         path: ./apps/android_rpc/app/build/outputs/apk/debug/app-debug.apk

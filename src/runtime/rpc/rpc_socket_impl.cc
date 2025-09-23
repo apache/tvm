@@ -21,7 +21,8 @@
  * \file rpc_socket_impl.cc
  * \brief Socket based RPC implementation.
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include <memory>
 
@@ -65,7 +66,7 @@ class SockChannel final : public RPCChannel {
 };
 
 std::shared_ptr<RPCEndpoint> RPCConnect(std::string url, int port, std::string key,
-                                        bool enable_logging, TVMArgs init_seq) {
+                                        bool enable_logging, ffi::PackedArgs init_seq) {
   support::TCPSocket sock;
   support::SockAddr addr(url.c_str(), port);
   sock.Create(addr.ss_family());
@@ -98,17 +99,14 @@ std::shared_ptr<RPCEndpoint> RPCConnect(std::string url, int port, std::string k
   }
 
   std::unique_ptr<RPCChannel> channel = std::make_unique<SockChannel>(sock);
-  if (enable_logging) {
-    channel.reset(new RPCChannelLogging(std::move(channel)));
-  }
   auto endpt = RPCEndpoint::Create(std::move(channel), key, remote_key);
 
   endpt->InitRemoteSession(init_seq);
   return endpt;
 }
 
-Module RPCClientConnect(std::string url, int port, std::string key, bool enable_logging,
-                        TVMArgs init_seq) {
+ffi::Module RPCClientConnect(std::string url, int port, std::string key, bool enable_logging,
+                             ffi::PackedArgs init_seq) {
   auto endpt = RPCConnect(url, port, "client:" + key, enable_logging, init_seq);
   return CreateRPCSessionModule(CreateClientSession(endpt));
 }
@@ -119,28 +117,30 @@ TVM_DLL void RPCServerLoop(int sockfd) {
   RPCEndpoint::Create(std::make_unique<SockChannel>(sock), "SockServerLoop", "")->ServerLoop();
 }
 
-void RPCServerLoop(PackedFunc fsend, PackedFunc frecv) {
+void RPCServerLoop(ffi::Function fsend, ffi::Function frecv) {
   RPCEndpoint::Create(std::make_unique<CallbackChannel>(fsend, frecv), "SockServerLoop", "")
       ->ServerLoop();
 }
 
-TVM_REGISTER_GLOBAL("rpc.Connect").set_body([](TVMArgs args, TVMRetValue* rv) {
-  std::string url = args[0];
-  int port = args[1];
-  std::string key = args[2];
-  bool enable_logging = args[3];
-  *rv = RPCClientConnect(url, port, key, enable_logging,
-                         TVMArgs(args.values + 4, args.type_codes + 4, args.size() - 4));
-});
-
-TVM_REGISTER_GLOBAL("rpc.ServerLoop").set_body([](TVMArgs args, TVMRetValue* rv) {
-  if (args[0].type_code() == kDLInt) {
-    RPCServerLoop(args[0]);
-  } else {
-    RPCServerLoop(args[0].operator tvm::runtime::PackedFunc(),
-                  args[1].operator tvm::runtime::PackedFunc());
-  }
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("rpc.Connect",
+                  [](ffi::PackedArgs args, ffi::Any* rv) {
+                    auto url = args[0].cast<std::string>();
+                    int port = args[1].cast<int>();
+                    auto key = args[2].cast<std::string>();
+                    bool enable_logging = args[3].cast<bool>();
+                    *rv = RPCClientConnect(url, port, key, enable_logging, args.Slice(4));
+                  })
+      .def_packed("rpc.ServerLoop", [](ffi::PackedArgs args, ffi::Any* rv) {
+        if (auto opt_int = args[0].as<int64_t>()) {
+          RPCServerLoop(opt_int.value());
+        } else {
+          RPCServerLoop(args[0].cast<tvm::ffi::Function>(), args[1].cast<tvm::ffi::Function>());
+        }
+      });
+}
 
 class SimpleSockHandler : public dmlc::Stream {
   // Things that will interface with user directly.
@@ -167,11 +167,14 @@ class SimpleSockHandler : public dmlc::Stream {
   support::TCPSocket sock_;
 };
 
-TVM_REGISTER_GLOBAL("rpc.ReturnException").set_body_typed([](int sockfd, String msg) {
-  auto handler = SimpleSockHandler(sockfd);
-  RPCReference::ReturnException(msg.c_str(), &handler);
-  return;
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("rpc.ReturnException", [](int sockfd, ffi::String msg) {
+    auto handler = SimpleSockHandler(sockfd);
+    RPCReference::ReturnException(msg.c_str(), &handler);
+    return;
+  });
+}
 
 }  // namespace runtime
 }  // namespace tvm

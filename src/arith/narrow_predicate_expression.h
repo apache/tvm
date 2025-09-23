@@ -50,7 +50,7 @@ namespace arith {
  * \returns An expression that, if true, implies that the original
  * expression is also true.
  */
-PrimExpr NarrowPredicateExpression(PrimExpr expr, Map<tir::Var, Range> free_parameters);
+PrimExpr NarrowPredicateExpression(PrimExpr expr, ffi::Map<tir::Var, Range> free_parameters);
 
 }  // namespace arith
 }  // namespace tvm

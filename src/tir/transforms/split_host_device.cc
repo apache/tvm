@@ -21,9 +21,10 @@
  * \file split_host_device.cc
  * \brief Split device function from host.
  */
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/transform.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
@@ -32,11 +33,7 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include <unordered_map>
-
-#include "../../runtime/thread_storage_scope.h"
 #include "../analysis/var_use_def_analysis.h"
-#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
@@ -56,7 +53,7 @@ class HostDeviceSplitter : public StmtMutator {
 
  private:
   Stmt SplitDeviceFunc(Stmt body, Target device_target) {
-    auto [params, buffers_to_declare] = [&]() -> std::tuple<Array<Var>, Array<Buffer>> {
+    auto [params, buffers_to_declare] = [&]() -> std::tuple<ffi::Array<Var>, ffi::Array<Buffer>> {
       VarUseDefAnalyzer use_def(/*defined_vars=*/{}, /*visit_thread_extent=*/true);
       use_def(body);
 
@@ -96,12 +93,12 @@ class HostDeviceSplitter : public StmtMutator {
     }
     PrimFunc device_func(params, body, kernel_ret_type);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
-                                                     {tir::attr::kNoAlias, Bool(true)},
-                                                     {tir::attr::kIsGlobalFunc, Bool(true)}});
+                                                     {tir::attr::kNoAlias, true},
+                                                     {tir::attr::kIsGlobalFunc, true}});
 
     GlobalVar kernel_symbol_global = var_supply_();
     (*device_mod_)->Add(kernel_symbol_global, device_func);
-    Array<PrimExpr> args = params.Map([](const Var& var) -> PrimExpr { return var; });
+    ffi::Array<PrimExpr> args = params.Map([](const Var& var) -> PrimExpr { return var; });
 
     if (can_propagate_errors) {
       Var kernel_error_code("kernel_error_code", success->dtype);
@@ -110,7 +107,8 @@ class HostDeviceSplitter : public StmtMutator {
                                 StringImm("Error executing compute kernel"), Evaluate(0));
       LetStmt let_check(kernel_error_code, kernel_call, assert_success);
 
-      return std::move(let_check);
+      return let_check;
+
     } else {
       return Evaluate(Call(DataType::Void(), kernel_symbol_global, args));
     }
@@ -139,14 +137,14 @@ Pass SplitHostDevice() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
     GlobalVarSupply global_var_supply(mod);
 
-    IRModule device_mod = IRModule(Map<GlobalVar, BaseFunc>({}));
-    IRModule updates = IRModule(Map<GlobalVar, BaseFunc>({}));
+    IRModule device_mod = IRModule(ffi::Map<GlobalVar, BaseFunc>({}));
+    IRModule updates = IRModule(ffi::Map<GlobalVar, BaseFunc>({}));
 
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<PrimFunc>()) {
         PrimFunc func = opt.value();
 
-        auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+        auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
         auto name_prefix = global_symbol.value_or(gvar->name_hint);
         auto kernel_name = name_prefix + "_kernel";
         auto var_supply = [&global_var_supply, &kernel_name]() -> GlobalVar {
@@ -168,7 +166,10 @@ Pass SplitHostDevice() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.SplitHostDevice", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.SplitHostDevice").set_body_typed(SplitHostDevice);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.SplitHostDevice", SplitHostDevice);
+}
 
 }  // namespace transform
 }  // namespace tir

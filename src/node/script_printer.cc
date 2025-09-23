@@ -16,23 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/node/script_printer.h>
-#include <tvm/runtime/registry.h>
 
 #include <algorithm>
 
 namespace tvm {
+
+using AccessPath = ffi::reflection::AccessPath;
+
+TVM_FFI_STATIC_INIT_BLOCK() { PrinterConfigNode::RegisterReflection(); }
 
 TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
   static FType inst;
   return inst;
 }
 
-std::string TVMScriptPrinter::Script(const ObjectRef& node, const Optional<PrinterConfig>& cfg) {
+std::string TVMScriptPrinter::Script(const ObjectRef& node,
+                                     const ffi::Optional<PrinterConfig>& cfg) {
   if (!TVMScriptPrinter::vtable().can_dispatch(node)) {
-    return AsLegacyRepr(node);
+    std::ostringstream os;
+    ReprPrinter printer(os);
+    printer.Print(node);
+    return os.str();
   }
   return TVMScriptPrinter::vtable()(node, cfg.value_or(PrinterConfig()));
 }
@@ -51,69 +60,71 @@ bool IsIdentifier(const std::string& name) {
                      [](char c) { return std::isalnum(c) || c == '_'; });
 }
 
-PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {
-  runtime::ObjectPtr<PrinterConfigNode> n = make_object<PrinterConfigNode>();
+PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
+  runtime::ObjectPtr<PrinterConfigNode> n = ffi::make_object<PrinterConfigNode>();
   if (auto v = config_dict.Get("name")) {
-    n->binding_names.push_back(Downcast<String>(v));
+    n->binding_names.push_back(Downcast<ffi::String>(v.value()));
   }
   if (auto v = config_dict.Get("show_meta")) {
-    n->show_meta = Downcast<runtime::Bool>(v)->value;
+    n->show_meta = v.value().cast<bool>();
   }
   if (auto v = config_dict.Get("ir_prefix")) {
-    n->ir_prefix = Downcast<String>(v);
+    n->ir_prefix = Downcast<ffi::String>(v.value());
   }
   if (auto v = config_dict.Get("tir_prefix")) {
-    n->tir_prefix = Downcast<String>(v);
+    n->tir_prefix = Downcast<ffi::String>(v.value());
   }
   if (auto v = config_dict.Get("relax_prefix")) {
-    n->relax_prefix = Downcast<String>(v);
+    n->relax_prefix = Downcast<ffi::String>(v.value());
   }
   if (auto v = config_dict.Get("module_alias")) {
-    n->module_alias = Downcast<String>(v);
+    n->module_alias = Downcast<ffi::String>(v.value());
   }
   if (auto v = config_dict.Get("buffer_dtype")) {
-    n->buffer_dtype = DataType(runtime::String2DLDataType(Downcast<String>(v)));
+    n->buffer_dtype = DataType(ffi::StringToDLDataType(Downcast<ffi::String>(v.value())));
   }
   if (auto v = config_dict.Get("int_dtype")) {
-    n->int_dtype = DataType(runtime::String2DLDataType(Downcast<String>(v)));
+    n->int_dtype = DataType(ffi::StringToDLDataType(Downcast<ffi::String>(v.value())));
   }
   if (auto v = config_dict.Get("float_dtype")) {
-    n->float_dtype = DataType(runtime::String2DLDataType(Downcast<String>(v)));
+    n->float_dtype = DataType(ffi::StringToDLDataType(Downcast<ffi::String>(v.value())));
   }
   if (auto v = config_dict.Get("verbose_expr")) {
-    n->verbose_expr = Downcast<runtime::Bool>(v)->value;
+    n->verbose_expr = v.value().cast<bool>();
   }
   if (auto v = config_dict.Get("indent_spaces")) {
-    n->indent_spaces = Downcast<runtime::Int>(v)->value;
+    n->indent_spaces = v.value().cast<int>();
   }
   if (auto v = config_dict.Get("print_line_numbers")) {
-    n->print_line_numbers = Downcast<runtime::Bool>(v)->value;
+    n->print_line_numbers = v.value().cast<bool>();
   }
   if (auto v = config_dict.Get("num_context_lines")) {
-    n->num_context_lines = Downcast<runtime::Int>(v)->value;
+    n->num_context_lines = v.value().cast<int>();
   }
   if (auto v = config_dict.Get("path_to_underline")) {
-    n->path_to_underline = Downcast<Optional<Array<ObjectPath>>>(v).value_or(Array<ObjectPath>());
+    n->path_to_underline =
+        Downcast<ffi::Optional<ffi::Array<AccessPath>>>(v).value_or(ffi::Array<AccessPath>());
   }
   if (auto v = config_dict.Get("path_to_annotate")) {
-    n->path_to_annotate =
-        Downcast<Optional<Map<ObjectPath, String>>>(v).value_or(Map<ObjectPath, String>());
+    n->path_to_annotate = Downcast<ffi::Optional<ffi::Map<AccessPath, ffi::String>>>(v).value_or(
+        ffi::Map<AccessPath, ffi::String>());
   }
   if (auto v = config_dict.Get("obj_to_underline")) {
-    n->obj_to_underline = Downcast<Optional<Array<ObjectRef>>>(v).value_or(Array<ObjectRef>());
+    n->obj_to_underline =
+        Downcast<ffi::Optional<ffi::Array<ObjectRef>>>(v).value_or(ffi::Array<ObjectRef>());
   }
   if (auto v = config_dict.Get("obj_to_annotate")) {
-    n->obj_to_annotate =
-        Downcast<Optional<Map<ObjectRef, String>>>(v).value_or(Map<ObjectRef, String>());
+    n->obj_to_annotate = Downcast<ffi::Optional<ffi::Map<ObjectRef, ffi::String>>>(v).value_or(
+        ffi::Map<ObjectRef, ffi::String>());
   }
   if (auto v = config_dict.Get("syntax_sugar")) {
-    n->syntax_sugar = Downcast<runtime::Bool>(v)->value;
+    n->syntax_sugar = v.value().cast<bool>();
   }
   if (auto v = config_dict.Get("show_object_address")) {
-    n->show_object_address = Downcast<runtime::Bool>(v)->value;
+    n->show_object_address = v.value().cast<bool>();
   }
   if (auto v = config_dict.Get("show_all_struct_info")) {
-    n->show_all_struct_info = Downcast<runtime::Bool>(v)->value;
+    n->show_all_struct_info = v.value().cast<bool>();
   }
 
   // Checking prefixes if they are valid Python identifiers.
@@ -126,18 +137,20 @@ PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {
   this->data_ = std::move(n);
 }
 
-Array<String> PrinterConfigNode::GetBuiltinKeywords() {
-  Array<String> result{this->ir_prefix, this->tir_prefix, this->relax_prefix};
+ffi::Array<ffi::String> PrinterConfigNode::GetBuiltinKeywords() {
+  ffi::Array<ffi::String> result{this->ir_prefix, this->tir_prefix, this->relax_prefix};
   if (!this->module_alias.empty()) {
     result.push_back(this->module_alias);
   }
   return result;
 }
 
-TVM_REGISTER_NODE_TYPE(PrinterConfigNode);
-TVM_REGISTER_GLOBAL("node.PrinterConfig").set_body_typed([](Map<String, ObjectRef> config_dict) {
-  return PrinterConfig(config_dict);
-});
-TVM_REGISTER_GLOBAL("node.TVMScriptPrinterScript").set_body_typed(TVMScriptPrinter::Script);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("node.PrinterConfig",
+           [](ffi::Map<ffi::String, Any> config_dict) { return PrinterConfig(config_dict); })
+      .def("node.TVMScriptPrinterScript", TVMScriptPrinter::Script);
+}
 
 }  // namespace tvm

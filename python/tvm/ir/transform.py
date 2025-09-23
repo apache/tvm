@@ -19,13 +19,13 @@
 import inspect
 import functools
 
-import tvm._ffi
+import tvm_ffi
 import tvm.runtime
 
 from . import _ffi_transform_api
 
 
-@tvm._ffi.register_object("transform.PassInfo")
+@tvm_ffi.register_object("transform.PassInfo")
 class PassInfo(tvm.runtime.Object):
     """The class contains the meta data required by a pass. It is the
     container of information needed by running an optimization or analysis.
@@ -50,9 +50,9 @@ class PassInfo(tvm.runtime.Object):
         )
 
 
-@tvm._ffi.register_object("transform.PassContext")
+@tvm_ffi.register_object("transform.PassContext")
 class PassContext(tvm.runtime.Object):
-    """The basis where a Relay optimization/analysis runs on.
+    """The basis where a TVM optimization/analysis runs on.
     Each pass context contains a number of auxiliary information that is used
     to help an optimization pass. Such information includes the error reporter
     to record the errors of during the optimization, etc.
@@ -71,20 +71,6 @@ class PassContext(tvm.runtime.Object):
 
     config : Optional[Dict[str, Object]]
         Additional configurations for specific passes.
-
-    trace: Optional[relax.tuning.Trace]
-        Initial trace for trace mode.
-
-    trace_stack: Optional[List[relax.tuning_api.Trace]]
-        Initial trace stack for trace mode.
-
-    make_traceable: Optional[List[str]]
-        List of passes to make traceable.
-
-    num_evals: int
-        initial number of evaluations conducted in the pipeline.
-
-    tuning_api_database: Optional[relax.tuning_api.JSONDatabase]
     """
 
     def __init__(
@@ -94,11 +80,6 @@ class PassContext(tvm.runtime.Object):
         disabled_pass=None,
         instruments=None,
         config=None,
-        trace=None,
-        trace_stack=None,
-        make_traceable=None,
-        num_evals=0,
-        tuning_api_database=None,
     ):
         required = list(required_pass) if required_pass else []
         if not isinstance(required, (list, tuple)):
@@ -112,13 +93,6 @@ class PassContext(tvm.runtime.Object):
         if not isinstance(instruments, (list, tuple)):
             raise TypeError("instruments is expected to be the type of " + "list/tuple/set.")
 
-        # Convert to Map<String, bool>
-        # TODO(sunggg): Replace this to Set equivalent if exists
-        make_traceable = {name: True for name in make_traceable} if make_traceable else None
-
-        if not trace_stack:
-            trace_stack = [trace] if trace else []
-
         config = config if config else None
         self.__init_handle_by_constructor__(
             _ffi_transform_api.PassContext,
@@ -127,10 +101,6 @@ class PassContext(tvm.runtime.Object):
             disabled,
             instruments,
             config,
-            trace_stack,
-            make_traceable,
-            num_evals,
-            tuning_api_database,
         )
 
     def __enter__(self):
@@ -167,49 +137,8 @@ class PassContext(tvm.runtime.Object):
         """
         return _ffi_transform_api.ListConfigs()
 
-    def push_trace(self, trace):
-        """Push a trace into the stack."""
-        return _ffi_transform_api.PushTrace(self, trace)
 
-    def pop_trace(self, return_current=True):
-        """Pop a topmost trace from the stack.
-        Returns
-        -------
-        Trace : Optional[relax.tuning.Trace]
-        """
-        if return_current:
-            cur_trace = self.get_current_trace()
-            _ffi_transform_api.PopTrace(self)
-            return cur_trace
-
-        return _ffi_transform_api.PopTrace(self)
-
-    def get_trace_stack(self):
-        """Get the current trace stack."""
-        return _ffi_transform_api.GetTraceStack(self)
-
-    def get_trace_stack_size(self):
-        """Get the size of current stack."""
-        return _ffi_transform_api.GetTraceStackSize(self)
-
-    def get_current_trace(self):
-        """Get the trace on the top of the stack."""
-        return _ffi_transform_api.GetCurrentTrace(self)
-
-    def set_num_evals(self, num: int):
-        """Set the number of evaluations conducted in the pipeline."""
-        return _ffi_transform_api.SetNumEvals(self, num)
-
-    def inc_num_evals(self, num: int):
-        """Increment the number of evaluations conducted in the pipeline."""
-        return _ffi_transform_api.IncNumEvals(self, num)
-
-    def get_tuning_api_database(self):
-        """Get tuning api database."""
-        return _ffi_transform_api.GetTuningAPIDatabase(self)
-
-
-@tvm._ffi.register_object("transform.Pass")
+@tvm_ffi.register_object("transform.Pass")
 class Pass(tvm.runtime.Object):
     """The base class of all passes. All methods here are just simple wrappers
     that are implemented in the backend. They are defined for users to
@@ -238,7 +167,7 @@ class Pass(tvm.runtime.Object):
         return _ffi_transform_api.RunPass(self, mod)
 
 
-@tvm._ffi.register_object("transform.ModulePass")
+@tvm_ffi.register_object("transform.ModulePass")
 class ModulePass(Pass):
     """A pass that works on tvm.IRModule. Users don't need to interact with
     this class directly. Instead, a module pass should be created through
@@ -249,7 +178,7 @@ class ModulePass(Pass):
     """
 
 
-@tvm._ffi.register_object("transform.Sequential")
+@tvm_ffi.register_object("transform.Sequential")
 class Sequential(Pass):
     """A pass that works on a sequence of pass objects. Multiple passes can be
     executed sequentially using this class.
@@ -297,8 +226,6 @@ def _wrap_class_module_pass(pass_cls, pass_info):
         """Internal wrapper class to create a class instance."""
 
         def __init__(self, *args, **kwargs):
-            # initialize handle in cass pass_cls creation failed.fg
-            self.handle = None
             inst = pass_cls(*args, **kwargs)
 
             # it is important not to capture self to
@@ -365,15 +292,13 @@ def module_pass(pass_func=None, opt_level=None, name=None, required=None, tracea
 
     .. code-block:: python
 
-        @relay.transform.module_pass
+        @tvm.ir.transform.module_pass
         class CustomPipeline:
             def __init__(self, enable_fold):
                 self.enable_fold = enable_fold
-                self.cse = relay.transform.EliminateCommonSubexpr()
-                self.const_fold = relay.transform.FoldConstant()
+                self.const_fold = relax.transform.FoldConstant()
 
             def transform_module(self, mod, ctx):
-                mod = self.cse(mod, ctx)
                 if self.enable_fold:
                     mod = self.const_fold(mod, ctx)
                 return mod
@@ -389,15 +314,9 @@ def module_pass(pass_func=None, opt_level=None, name=None, required=None, tracea
 
     .. code-block:: python
 
-        @relay.transform.module_pass(opt_level=2)
+        @tvm.ir.transform.module_pass(opt_level=2)
         def transform(mod, ctx):
-            tp = relay.TensorType((10,), "float32")
-            x = relay.var("x", tp)
-            gv = relay.GlobalVar("var")
-            func = relay.Function([x], relay.abs(x))
-            new_mod = tvm.IRModule({gv: func})
-            new_mod.update(mod)
-            return new_mod
+            return relax.transform.FoldConstant(mod)
 
         module_pass = transform
         assert isinstance(module_pass, transform.ModulePass)

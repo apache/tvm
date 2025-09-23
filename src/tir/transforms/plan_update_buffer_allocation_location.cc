@@ -22,6 +22,7 @@
  * \file plan_update_buffer_allocation_location.cc
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -52,7 +53,7 @@ class CollectManagedAllocations : public StmtExprVisitor {
 /*! \brief Collect the allocate buffer order. */
 class BufferAllocateOrderCollector : public StmtExprVisitor {
  public:
-  static Array<Buffer> Collect(const PrimFunc& func) {
+  static ffi::Array<Buffer> Collect(const PrimFunc& func) {
     BufferAllocateOrderCollector collector;
     for (const auto& kv : func->buffer_map) {
       collector.buffer_alloc_recorder_.push_back(kv.second);
@@ -97,16 +98,16 @@ class BufferAllocateOrderCollector : public StmtExprVisitor {
   }
 
   /*! \brief The buffer allocated order recorder. */
-  Array<Buffer> buffer_alloc_recorder_;
+  ffi::Array<Buffer> buffer_alloc_recorder_;
 };
 
 class BufferAllocationLocator : public StmtExprMutator {
  public:
   explicit BufferAllocationLocator(const PrimFunc& func) {
-    Map<Buffer, Optional<Stmt>> buffer_lca = DetectBufferAccessLCA(func);
+    ffi::Map<Buffer, ffi::Optional<Stmt>> buffer_lca = DetectBufferAccessLCA(func);
     // The buffer_alloc_recorder Array is used to keep the buffer allocation order
     // since the buffer_lca Map is unordered.
-    Array<Buffer> buffer_alloc_recorder = BufferAllocateOrderCollector::Collect(func);
+    ffi::Array<Buffer> buffer_alloc_recorder = BufferAllocateOrderCollector::Collect(func);
     std::unordered_set<const VarNode*> arg_buffer_vars;
     CollectManagedAllocations collector;
     collector(func->body);
@@ -144,7 +145,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     }
     auto node = Downcast<For>(StmtMutator::VisitStmt_(op));
 
-    Array<Buffer> new_block_alloc_bufs;
+    ffi::Array<Buffer> new_block_alloc_bufs;
     for (const Buffer& buf : it->second) {
       if (managed_allocations_.count(buf->data.get())) {
         buffer_data_to_buffer_.erase(buf->data);
@@ -156,12 +157,12 @@ class BufferAllocationLocator : public StmtExprMutator {
       node.CopyOnWrite()->body = InjectOpaqueBlock(node->body, new_block_alloc_bufs);
     }
 
-    return std::move(node);
+    return node;
   }
 
   Stmt VisitStmt_(const BlockNode* op) final {
     ICHECK(!op->init.defined());
-    Array<Buffer> alloc_buffers;
+    ffi::Array<Buffer> alloc_buffers;
     auto it = alloc_buffers_.find(op);
     if (it != alloc_buffers_.end()) {
       alloc_buffers = it->second;
@@ -205,26 +206,27 @@ class BufferAllocationLocator : public StmtExprMutator {
     throw;
   }
 
-  Stmt InjectOpaqueBlock(Stmt body, const Array<Buffer>& alloc_buffers) {
+  Stmt InjectOpaqueBlock(Stmt body, const ffi::Array<Buffer>& alloc_buffers) {
     ICHECK(!alloc_buffers.empty());
     Block opaque_block(/*iter_vars=*/{},
                        /*reads=*/{},
                        /*writes=*/{},
                        /*name_hint=*/"",
                        /*body=*/std::move(body),
-                       /*init=*/NullOpt,
+                       /*init=*/std::nullopt,
                        /*alloc_buffers=*/alloc_buffers);
     ObjectPtr<BlockNode> n = CopyOnWrite(opaque_block.get());
-    Array<Array<BufferRegion>> access =
+    ffi::Array<ffi::Array<BufferRegion>> access =
         GetBlockReadWriteRegion(opaque_block, buffer_data_to_buffer_);
     n->reads = access[0];
     n->writes = access[1];
     BlockRealize realize({}, Bool(true), Block(n));
-    return std::move(realize);
+    return realize;
   }
 
-  Array<BufferRegion> RemoveRedundantBufferRegion(const Array<BufferRegion>& region) const {
-    Array<BufferRegion> result;
+  ffi::Array<BufferRegion> RemoveRedundantBufferRegion(
+      const ffi::Array<BufferRegion>& region) const {
+    ffi::Array<BufferRegion> result;
     for (const BufferRegion& buffer_region : region) {
       if (buffer_data_to_buffer_.count(buffer_region->buffer->data)) {
         result.push_back(buffer_region);
@@ -234,23 +236,18 @@ class BufferAllocationLocator : public StmtExprMutator {
   }
 
   /*! \brief The map from stmt to the buffers to be allocated under it. */
-  std::unordered_map<const StmtNode*, Array<Buffer>> alloc_buffers_;
+  std::unordered_map<const StmtNode*, ffi::Array<Buffer>> alloc_buffers_;
   /*! \brief The buffer already allocated during recursive visiting. */
-  Map<Var, Buffer> buffer_data_to_buffer_;
+  ffi::Map<Var, Buffer> buffer_data_to_buffer_;
   /*! \brief Buffers that are allocated within a BlockNode, and may be moved. */
   std::unordered_set<const VarNode*> managed_allocations_;
 };
 
 PrimFunc PlanAndUpdateBufferAllocationLocation(PrimFunc func) {
-  // Only apply this pass to TIR that is not from TE schedules
-  if (!IsFromLegacyTESchedule(func)) {
-    auto fptr = func.CopyOnWrite();
-    BufferAllocationLocator locator(func);
-    fptr->body = locator(fptr->body);
-    return func;
-  } else {
-    return func;
-  }
+  auto fptr = func.CopyOnWrite();
+  BufferAllocationLocator locator(func);
+  fptr->body = locator(fptr->body);
+  return func;
 }
 
 namespace transform {
@@ -262,8 +259,11 @@ Pass PlanAndUpdateBufferAllocationLocation() {
   return CreatePrimFuncPass(pass_func, 0, "tir.PlanAndUpdateBufferAllocationLocation", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.PlanAndUpdateBufferAllocationLocation")
-    .set_body_typed(PlanAndUpdateBufferAllocationLocation);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.PlanAndUpdateBufferAllocationLocation",
+                        PlanAndUpdateBufferAllocationLocation);
+}
 
 }  // namespace transform
 

@@ -22,6 +22,7 @@
  * \brief Pass for fuse ShapeExpr.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -40,7 +41,7 @@ using namespace tvm::contrib::msc;
  */
 class TupleFuser : public ExprMutator {
  public:
-  explicit TupleFuser(IRModule ctx_module, const String& target, const String& entry_name)
+  explicit TupleFuser(IRModule ctx_module, const ffi::String& target, const ffi::String& entry_name)
       : ExprMutator(ctx_module) {
     mod_ = ctx_module;
     target_ = target + ".";
@@ -53,8 +54,8 @@ class TupleFuser : public ExprMutator {
       if (gv->name_hint == entry_name_) {
         main_var = gv;
       } else {
-        const auto& name_opt = func->GetAttr<runtime::String>(attr::kComposite);
-        if (name_opt.defined() && StringUtils::StartsWith(name_opt.value(), target_)) {
+        const auto& name_opt = func->GetAttr<ffi::String>(attr::kComposite);
+        if (name_opt.has_value() && StringUtils::StartsWith(name_opt.value(), target_)) {
           target_funcs_.Set(gv, Downcast<Function>(func));
         }
       }
@@ -69,14 +70,13 @@ class TupleFuser : public ExprMutator {
   void VisitBinding_(const VarBindingNode* binding, const CallNode* val) final {
     bool has_tuple_arg = false;
     if (target_funcs_.count(val->op)) {
-      Array<Expr> new_args;
+      ffi::Array<Expr> new_args;
       for (size_t i = 0; i < val->args.size(); i++) {
         const auto& arg = val->args[i];
         if (arg->IsInstance<TupleNode>()) {
-          String tuple_name;
-          const auto& name_opt =
-              target_funcs_[val->op]->GetAttr<runtime::String>(msc_attr::kUnique);
-          if (name_opt.defined()) {
+          ffi::String tuple_name;
+          const auto& name_opt = target_funcs_[val->op]->GetAttr<ffi::String>(msc_attr::kUnique);
+          if (name_opt.has_value()) {
             if (val->args.size() == 1) {
               tuple_name = name_opt.value() + "_input";
             } else {
@@ -114,7 +114,7 @@ class TupleFuser : public ExprMutator {
       }
     }
     if (on_target) {
-      ReEmitFunc(binding, GetRef<Tuple>(val));
+      ReEmitFunc(binding, ffi::GetRef<Tuple>(val));
     } else {
       ExprMutator::VisitBinding_(binding, val);
     }
@@ -122,16 +122,16 @@ class TupleFuser : public ExprMutator {
 
   void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val) final {
     if (target_funcs_.count(val->tuple)) {
-      ReEmitFunc(binding, GetRef<TupleGetItem>(val));
+      ReEmitFunc(binding, ffi::GetRef<TupleGetItem>(val));
     } else {
       ExprMutator::VisitBinding_(binding, val);
     }
   }
 
  private:
-  Call AddFunc(const Expr& expr, const String tuple_name = "") {
+  Call AddFunc(const Expr& expr, const ffi::String tuple_name = "") {
     builder_->BeginDataflowBlock();
-    Array<Expr> inputs;
+    ffi::Array<Expr> inputs;
     if (const auto* v_node = expr.as<TupleNode>()) {
       inputs = v_node->fields;
     } else if (const auto* g_node = expr.as<TupleGetItemNode>()) {
@@ -139,17 +139,17 @@ class TupleFuser : public ExprMutator {
     } else {
       LOG_FATAL << "Unexpceted expr " << expr;
     }
-    Array<Expr> func_inputs;
-    Array<Expr> call_inputs;
-    Array<Var> params;
-    Map<Expr, Var> added_params;
+    ffi::Array<Expr> func_inputs;
+    ffi::Array<Expr> call_inputs;
+    ffi::Array<Var> params;
+    ffi::Map<Expr, Var> added_params;
     for (size_t i = 0; i < inputs.size(); i++) {
       if (inputs[i]->IsInstance<ConstantNode>()) {
         func_inputs.push_back(inputs[i]);
         continue;
       }
       if (!added_params.count(inputs[i])) {
-        const auto& name = String("param_" + std::to_string(i));
+        const auto& name = ffi::String("param_" + std::to_string(i));
         const auto& var = Var(std::move(name), GetStructInfo(inputs[i]));
         added_params.Set(inputs[i], var);
       }
@@ -159,7 +159,7 @@ class TupleFuser : public ExprMutator {
     }
 
     Expr out_expr;
-    String func_name;
+    ffi::String func_name;
     Span expr_span = expr->span;
     if (!expr_span.defined()) {
       ICHECK(tuple_name.size() > 0) << "Missing tuple for " << expr;
@@ -180,24 +180,24 @@ class TupleFuser : public ExprMutator {
     Expr body = builder_->Normalize(output);
     body = builder_->Normalize(SeqExpr({new_block}, body));
 
-    Map<String, ObjectRef> func_attrs;
-    func_attrs.Set(attr::kPrimitive, Integer(1));
+    ffi::Map<ffi::String, ffi::Any> func_attrs;
+    func_attrs.Set(attr::kPrimitive, true);
     func_attrs.Set(attr::kComposite, target_ + func_name);
     func_attrs.Set(msc_attr::kUnique, SpanUtils::GetAttr(expr_span, msc_attr::kName));
 
-    Function function = Function(/*params=*/params,            //
-                                 /*body=*/body,                //
-                                 /*ret_struct_info=*/NullOpt,  //
-                                 /*is_pure=*/true,             //
+    Function function = Function(/*params=*/params,                 //
+                                 /*body=*/body,                     //
+                                 /*ret_struct_info=*/std::nullopt,  //
+                                 /*is_pure=*/true,                  //
                                  /*attrs=*/DictAttrs(func_attrs));
-    Array<PrimExpr> free_vars =
+    ffi::Array<PrimExpr> free_vars =
         FreeSymbolicVars(function).Map([](const tir::Var& var) -> PrimExpr { return var; });
     if (!free_vars.empty()) {
       params.push_back(Var("tir_vars", ShapeStructInfo(free_vars)));
-      function = Function(/*params=*/params,            //
-                          /*body=*/body,                //
-                          /*ret_struct_info=*/NullOpt,  //
-                          /*is_pure=*/true,             //
+      function = Function(/*params=*/params,                 //
+                          /*body=*/body,                     //
+                          /*ret_struct_info=*/std::nullopt,  //
+                          /*is_pure=*/true,                  //
                           /*attrs=*/DictAttrs(func_attrs));
     }
     function = SymbolicVarRenewMutator::Renew(function);
@@ -214,24 +214,28 @@ class TupleFuser : public ExprMutator {
   }
 
   IRModule mod_;
-  String target_;
-  String entry_name_;
-  Map<Expr, Function> target_funcs_;
+  ffi::String target_;
+  ffi::String entry_name_;
+  ffi::Map<Expr, Function> target_funcs_;
 };
 
-IRModule FuseTuple(IRModule mod, const String& target, const String& entry_name) {
+IRModule FuseTuple(IRModule mod, const ffi::String& target, const ffi::String& entry_name) {
   return TupleFuser(mod, target, entry_name).Fuse();
 }
 
 namespace transform {
 
-Pass FuseTuple(const String& target, const String& entry_name) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relax::FuseTuple(m, target, entry_name); };
+Pass FuseTuple(const ffi::String& target, const ffi::String& entry_name) {
+  auto pass_func = [=](IRModule m, PassContext pc) {
+    return relax::FuseTuple(m, target, entry_name);
+  };
   return CreateModulePass(pass_func, 0, "FuseTuple", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.FuseTuple").set_body_typed(FuseTuple);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.FuseTuple", FuseTuple);
+}
 
 }  // namespace transform
 }  // namespace relax

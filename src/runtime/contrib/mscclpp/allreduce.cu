@@ -17,9 +17,8 @@
  * under the License.
  */
 
-#include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/tensor.h>
 
 #include "msccl.cuh"
 

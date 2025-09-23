@@ -17,40 +17,51 @@
 
 package org.apache.tvm;
 
+import org.apache.tvm.rpc.RPC;
+
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.tvm.rpc.RPC;
 
 public class Device {
   /**
    * Provides the same information as the C++ enums DLDeviceType and
    * TVMDeviceExtType.
    */
-  static final int kDLCPU = 1, kDLCUDA = 2, kDLCUDAHost = 3, kDLOpenCL = 4, kDLVulkan = 7,
-                   kDLMetal = 8, kDLVPI = 9, kDLROCM = 10, kDLROCMHost = 11, kDLExtDev = 12,
-                   kDLCUDAManaged = 13, kDLOneAPI = 14, kDLWebGPU = 15, kDLHexagon = 16,
-                   kDLAOCL = 32, kDLSDAccel = 33, kOpenGL = 34, kDLMicroDev = 35;
+  static final int kDLCPU = 1;
+  static final int kDLCUDA = 2;
+  static final int kDLCUDAHost = 3;
+  static final int kDLOpenCL = 4;
+  static final int kDLVulkan = 7;
+  static final int kDLMetal = 8;
+  static final int kDLVPI = 9;
+  static final int kDLROCM = 10;
+  static final int kDLROCMHost = 11;
+  static final int kDLExtDev = 12;
+  static final int kDLCUDAManaged = 13;
+  static final int kDLOneAPI = 14;
+  static final int kDLWebGPU = 15;
+  static final int kDLHexagon = 16;
 
-  private static final Map<Integer, String> MASK2STR = new HashMap<Integer, String>();
-  private static final Map<String, Integer> STR2MASK = new HashMap<String, Integer>();
+  private static final Map<Integer, String> DEVICE_TYPE_TO_NAME = new HashMap<Integer, String>();
+  private static final Map<String, Integer> DEVICE_NAME_TO_TYPE = new HashMap<String, Integer>();
 
   static {
-    MASK2STR.put(kDLCPU, "cpu");
-    MASK2STR.put(kDLCUDA, "cuda");
-    MASK2STR.put(kDLOpenCL, "opencl");
-    MASK2STR.put(kDLVulkan, "vulkan");
-    MASK2STR.put(kDLMetal, "metal");
-    MASK2STR.put(kDLVPI, "vpi");
-    MASK2STR.put(kDLHexagon, "hexagon");
+    DEVICE_TYPE_TO_NAME.put(kDLCPU, "cpu");
+    DEVICE_TYPE_TO_NAME.put(kDLCUDA, "cuda");
+    DEVICE_TYPE_TO_NAME.put(kDLOpenCL, "opencl");
+    DEVICE_TYPE_TO_NAME.put(kDLVulkan, "vulkan");
+    DEVICE_TYPE_TO_NAME.put(kDLMetal, "metal");
+    DEVICE_TYPE_TO_NAME.put(kDLVPI, "vpi");
+    DEVICE_TYPE_TO_NAME.put(kDLHexagon, "hexagon");
 
-    STR2MASK.put("cpu", kDLCPU);
-    STR2MASK.put("cuda", kDLCUDA);
-    STR2MASK.put("cl", kDLOpenCL);
-    STR2MASK.put("opencl", kDLOpenCL);
-    STR2MASK.put("vulkan", kDLVulkan);
-    STR2MASK.put("metal", kDLMetal);
-    STR2MASK.put("vpi", kDLVPI);
-    STR2MASK.put("hexagon", kDLHexagon);
+    DEVICE_NAME_TO_TYPE.put("cpu", kDLCPU);
+    DEVICE_NAME_TO_TYPE.put("cuda", kDLCUDA);
+    DEVICE_NAME_TO_TYPE.put("cl", kDLOpenCL);
+    DEVICE_NAME_TO_TYPE.put("opencl", kDLOpenCL);
+    DEVICE_NAME_TO_TYPE.put("vulkan", kDLVulkan);
+    DEVICE_NAME_TO_TYPE.put("metal", kDLMetal);
+    DEVICE_NAME_TO_TYPE.put("vpi", kDLVPI);
+    DEVICE_NAME_TO_TYPE.put("hexagon", kDLHexagon);
   }
 
   /**
@@ -153,7 +164,7 @@ public class Device {
   }
 
   public Device(String deviceType, int deviceId) {
-    this(STR2MASK.get(deviceType), deviceId);
+    this(DEVICE_NAME_TO_TYPE.get(deviceType), deviceId);
   }
 
   /**
@@ -162,7 +173,8 @@ public class Device {
    */
   public boolean exist() {
     TVMValue ret =
-        APIInternal.get("_GetDeviceAttr").pushArg(deviceType).pushArg(deviceId).pushArg(0).invoke();
+        APIInternal.get("runtime.GetDeviceAttr").pushArg(deviceType)
+        .pushArg(deviceId).pushArg(0).invoke();
     return ((TVMValueLong) ret).value != 0;
   }
 
@@ -172,7 +184,8 @@ public class Device {
    */
   public long maxThreadsPerBlock() {
     TVMValue ret =
-        APIInternal.get("_GetDeviceAttr").pushArg(deviceType).pushArg(deviceId).pushArg(1).invoke();
+        APIInternal.get("runtime.GetDeviceAttr").pushArg(deviceType)
+        .pushArg(deviceId).pushArg(1).invoke();
     return ((TVMValueLong) ret).value;
   }
 
@@ -182,8 +195,9 @@ public class Device {
    */
   public long warpSize() {
     TVMValue ret =
-        APIInternal.get("_GetDeviceAttr").pushArg(deviceType).pushArg(deviceId).pushArg(2).invoke();
-    return ((TVMValueLong) ret).value;
+        APIInternal.get("runtime.GetDeviceAttr").pushArg(deviceType)
+        .pushArg(deviceId).pushArg(2).invoke();
+    return ret.asLong();
   }
 
   /**
@@ -212,8 +226,8 @@ public class Device {
     if (deviceType >= RPC.RPC_SESS_MASK) {
       int tblId = deviceType / RPC.RPC_SESS_MASK - 1;
       int devType = deviceType % RPC.RPC_SESS_MASK;
-      return String.format("remote[%d]:%s(%d)", tblId, MASK2STR.get(devType), deviceId);
+      return String.format("remote[%d]:%s(%d)", tblId, DEVICE_TYPE_TO_NAME.get(devType), deviceId);
     }
-    return String.format("%s(%d)", MASK2STR.get(deviceType), deviceId);
+    return String.format("%s(%d)", DEVICE_TYPE_TO_NAME.get(deviceType), deviceId);
   }
 }

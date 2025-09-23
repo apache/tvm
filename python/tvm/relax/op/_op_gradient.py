@@ -21,7 +21,7 @@ import operator
 from typing import List
 
 from tvm import relax
-from tvm._ffi.base import TVMError
+from tvm.base import TVMError
 from tvm.arith import Analyzer
 from tvm.relax.struct_info import ShapeStructInfo
 
@@ -829,8 +829,8 @@ def cumsum_grad(
         The "reversed" cumsum along the same axis. Implemented by some tricks now.
     """
 
-    axis = orig_call.attrs["axis"]
-    dtype = orig_call.attrs["dtype"]
+    axis = orig_call.attrs.axis
+    dtype = orig_call.attrs.dtype
     x_shape = _get_shape(orig_call.args[0])
 
     if axis is not None:
@@ -1090,7 +1090,7 @@ def log_softmax_grad(
         Returns `[y_grad - sum(y_grad, axis, keepdims=True) * exp(y)]`
     """
     y_exp = exp(orig_var)
-    return [(output_grad - sum(output_grad, orig_call.attrs.axis, True) * y_exp)]
+    return [output_grad - sum(output_grad, orig_call.attrs.axis, True) * y_exp]
 
 
 @register_gradient("relax.nn.cross_entropy_with_logits")

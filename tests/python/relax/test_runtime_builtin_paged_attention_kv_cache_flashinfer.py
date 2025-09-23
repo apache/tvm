@@ -14,19 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import enum
 from typing import Dict, List, Tuple, Union
 
-import numpy as np
 import pytest
-import scipy.special
+import torch
 
 import tvm
 import tvm.testing
 from tvm import dlight as dl
-from tvm import tir
+from tvm import relax
+from tvm.contrib import utils
+from tvm.relax.frontend.nn.llm.kv_cache import (
+    AttnKind,
+    RopeMode,
+    _compact_kv_copy,
+    _copy_single_page,
+    _kv_cache_debug_get_kv,
+    _kv_cache_transpose_append,
+    _merge_state_inplace,
+    llama_rope_with_position_map,
+)
 from tvm.runtime import ShapeTuple
-from tvm.script import tir as T
 
 reserved_nseq = 32
 maximum_total_seq_length = 2048
@@ -36,13 +44,15 @@ num_layers = 4
 num_qo_heads = 32
 num_kv_heads = 4
 head_dim = 128
+sm_scale = head_dim ** (-0.5)
 rope_scale = 1.0
 rope_theta = 1e4
 dtype = "float16"
+dtype_torch = getattr(torch, dtype)
 device = tvm.cuda()
+device_torch = torch.device("cuda")
 
 fclear = None
-fcreate = None
 fadd_sequence = None
 fremove_sequence = None
 ffork_sequence = None
@@ -56,234 +66,27 @@ fdebug_get_kv = None
 fattention_prefill = None
 fattention_decode = None
 fattention_prefill_ragged = None
-fattention_prefill_begin_forward = None
-fattention_prefill_end_forward = None
-fattention_decode_begin_forward = None
-fattention_decode_end_forward = None
-fattention_prefill_ragged_begin_forward = None
-fattention_prefill_ragged_end_forward = None
+fattention_prefill_plan = None
+fattention_decode_plan = None
+fattention_prefill_ragged_plan = None
 fattention_merge_state = None
 
 ftranspose_append = None
 fsplit_rotary = None
 fcopy_single_page = None
 fcopy_cache = None
-
-
-@T.prim_func
-def kv_cache_transpose_append(
-    var_pages: T.handle,
-    var_k_data: T.handle,
-    var_v_data: T.handle,
-    var_position_map: T.handle,
-):
-    ntoken = T.SizeVar("ntoken", "int64")
-    page_size = T.SizeVar("page_size", "int64")
-    num_pages = T.int64()
-    position_map_elem_offset = T.int32()
-    pages = T.match_buffer(var_pages, (num_pages, 2, num_kv_heads, page_size, head_dim), dtype)
-    k_data = T.match_buffer(var_k_data, (ntoken, num_kv_heads, head_dim), dtype)
-    v_data = T.match_buffer(var_v_data, (ntoken, num_kv_heads, head_dim), dtype)
-    position_map = T.match_buffer(
-        var_position_map, (ntoken,), "int32", elem_offset=position_map_elem_offset
-    )
-
-    for global_pos, h, f in T.grid(ntoken, num_kv_heads, head_dim):
-        with T.block("k_transpose_append"):
-            vgpos, vh, vf = T.axis.remap("SSS", [global_pos, h, f])
-            T.reads(position_map[vgpos], k_data[vgpos, vh, vf])
-            T.writes(
-                pages[position_map[vgpos] // page_size, 0, vh, position_map[vgpos] % page_size, vf]
-            )
-            position: T.int64 = T.Cast("int64", position_map[vgpos])
-            pages[
-                T.floordiv(position, page_size), 0, vh, T.floormod(position, page_size), vf
-            ] = k_data[vgpos, vh, vf]
-        with T.block("v_transpose_append"):
-            vgpos, vh, vf = T.axis.remap("SSS", [global_pos, h, f])
-            T.reads(position_map[vgpos], k_data[vgpos, vh, vf])
-            T.writes(
-                pages[position_map[vgpos] // page_size, 1, vh, position_map[vgpos] % page_size, vf]
-            )
-            position: T.int64 = T.Cast("int64", position_map[vgpos])
-            pages[
-                T.floordiv(position, page_size), 1, vh, T.floormod(position, page_size), vf
-            ] = v_data[vgpos, vh, vf]
-
-
-def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
-    theta: float,
-    scale: float,
-    head_dim: int,
-    num_q_heads: int,
-    num_kv_heads: int,
-    dtype: float = "float16",
-    rotary_dim: int = None,
-):
-    fused_heads = num_q_heads + num_kv_heads * 2
-    if rotary_dim is None:
-        rotary_dim = head_dim
-    scale = tir.const(scale, dtype)
-
-    def _rope_freq(s: tir.Var, d: tir.Var, d_range: int, theta: float, dtype: str):
-        freq = s / tir.power(theta, d * 2 % d_range / tir.const(d_range, "float32"))
-        cos_freq = tir.cos(freq).astype(dtype)
-        sin_freq = tir.sin(freq).astype(dtype)
-        return cos_freq, sin_freq
-
-    def _rope(  # pylint: disable=too-many-arguments
-        x: T.Buffer,
-        s: tir.Var,
-        h: tir.Var,
-        d: tir.Var,
-        pos: tir.Var,
-    ):
-        cos_freq, sin_freq = _rope_freq(pos * scale, d, rotary_dim, theta, dtype)
-        cos = cos_freq * x[s, h, d]
-        sin = sin_freq * tir.if_then_else(
-            d < rotary_dim // 2,
-            -x[s, h, d + rotary_dim // 2],
-            x[s, h, d - rotary_dim // 2],
-        )
-        return cos + sin
-
-    @T.prim_func(private=True)
-    def fused_rope(  # pylint: disable=too-many-locals
-        var_qkv: T.handle,
-        var_position_map: T.handle,
-        var_q: T.handle,
-        var_k: T.handle,
-        var_v: T.handle,
-        apply_rope: T.int32,
-    ):
-        T.func_attr(
-            {
-                "op_pattern": 8,  # 2 means injective, 8 means opaque
-                "tir.noalias": T.bool(True),
-            }
-        )
-        seq_len = T.int64()
-        position_map_elem_offset = T.int64()
-        qkv = T.match_buffer(var_qkv, (seq_len, fused_heads, head_dim), dtype)
-        q = T.match_buffer(var_q, (seq_len, num_q_heads, head_dim), dtype)
-        k = T.match_buffer(var_k, (seq_len, num_kv_heads, head_dim), dtype)
-        v = T.match_buffer(var_v, (seq_len, num_kv_heads, head_dim), dtype)
-        position_map = T.match_buffer(
-            var_position_map, (seq_len,), "int32", elem_offset=position_map_elem_offset
-        )
-        for iters in T.grid(seq_len, fused_heads, head_dim):
-            with T.block("llama_fused_rope"):
-                s, h, d = T.axis.remap("SSS", iters)
-                if h < num_q_heads:
-                    q[s, h, d] = T.if_then_else(
-                        apply_rope > 0 and d < rotary_dim,
-                        _rope(qkv, s, h, d, position_map[s]),
-                        qkv[s, h, d],
-                    )
-                elif h < num_q_heads + num_kv_heads:
-                    k[s, h - num_q_heads, d] = T.if_then_else(
-                        apply_rope > 0 and d < rotary_dim,
-                        _rope(qkv, s, h, d, position_map[s]),
-                        qkv[s, h, d],
-                    )
-                else:
-                    v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
-
-    return fused_rope
-
-
-@T.prim_func
-def copy_cache(
-    var_pages: T.handle,
-    var_position_map: T.handle,
-    var_k_data: T.handle,
-    var_v_data: T.handle,
-    layer_id: T.int64,
-):
-    num_kv_heads = T.int64()
-    head_dim = T.int64()
-    seqlen = T.SizeVar("seqlen", "int64")
-    page_size = T.int64()
-    num_pages = T.int64()
-    position_map_elem_offset = T.int64()
-    pages = T.match_buffer(var_pages, (num_pages, 2, num_kv_heads, page_size, head_dim), "float16")
-    position_map = T.match_buffer(
-        var_position_map, (seqlen,), "int32", elem_offset=position_map_elem_offset
-    )
-    k_data = T.match_buffer(var_k_data, (num_layers, seqlen, num_kv_heads, head_dim), "float16")
-    v_data = T.match_buffer(var_v_data, (num_layers, seqlen, num_kv_heads, head_dim), "float16")
-
-    for p, h, d in T.grid(seqlen, num_kv_heads, head_dim):
-        with T.block("copy0"):
-            vp, vh, vd = T.axis.remap("SSS", [p, h, d])
-            T.reads(
-                position_map[vp],
-                pages[position_map[vp] // page_size, 0:2, vh, position_map[vp] % page_size, vd],
-            )
-            T.writes(k_data[layer_id, vp, vh, vd], v_data[layer_id, vp, vh, vd])
-            position: T.int64 = T.Cast("int64", position_map[vp])
-            k_data[layer_id, vp, vh, vd] = pages[
-                T.floordiv(position, page_size), 0, vh, T.floormod(position, page_size), vd
-            ]
-            v_data[layer_id, vp, vh, vd] = pages[
-                T.floordiv(position, page_size), 1, vh, T.floormod(position, page_size), vd
-            ]
-
-
-def _copy_single_page(num_heads, page_size, head_dim, dtype, target):
-    tx = 256 if str(target.kind) == "webgpu" else 1024
-
-    @T.prim_func
-    def copy_single_page(
-        pages: T.handle,
-        src_page_id: T.int64,
-        tgt_page_id: T.int64,
-        copy_length: T.int64,
-    ):
-        T.func_attr({"tir.is_scheduled": 1})
-        num_pages = T.int32()
-        P = T.match_buffer(pages, (num_pages, 2, num_heads, page_size, head_dim), dtype)
-
-        for b in T.thread_binding(
-            (copy_length * num_heads * head_dim + tx - 1) // tx, thread="blockIdx.x"
-        ):
-            for t in T.thread_binding(tx, thread="threadIdx.x"):
-                with T.block("copy"):
-                    T.where(b * tx + t < copy_length * num_heads * head_dim)
-                    vh = T.axis.spatial(
-                        num_heads,
-                        T.Cast("int32", (b * tx + t) // (copy_length * head_dim)),
-                    )
-                    vp = T.axis.spatial(
-                        copy_length,
-                        (b * tx + t) % (copy_length * head_dim) // head_dim,
-                    )
-                    vd = T.axis.spatial(
-                        head_dim,
-                        T.Cast(
-                            "int32",
-                            (b * tx + t) % head_dim,
-                        ),
-                    )
-                    P[tgt_page_id, 0, vh, vp, vd] = P[src_page_id, 0, vh, vp, vd]
-                    P[tgt_page_id, 1, vh, vp, vd] = P[src_page_id, 1, vh, vp, vd]
-
-    return copy_single_page
+fcompact_copy = None
 
 
 def set_global_func():
-    global fclear, fcreate, fadd_sequence, fremove_sequence, ffork_sequence, fpopn
+    global fclear, fadd_sequence, fremove_sequence, ffork_sequence, fpopn
     global fbegin_forward, fend_forward, fattention, fattention_with_fuse_qkv, fdebug_get_kv
-    global fattention_prefill, fattention_prefill_begin_forward, fattention_prefill_end_forward
-    global fattention_decode, fattention_decode_begin_forward, fattention_decode_end_forward
-    global fattention_prefill_ragged
-    global fattention_prefill_ragged_begin_forward
-    global fattention_prefill_ragged_end_forward
+    global fattention_prefill, fattention_decode, fattention_prefill_ragged
+    global fattention_prefill_plan, fattention_decode_plan, fattention_prefill_ragged_plan
     global fattention_merge_state, fsplit_rotary, fcopy_single_page
-    global ftranspose_append, fcopy_cache
+    global ftranspose_append, fcopy_cache, fcompact_copy
 
     fclear = tvm.get_global_func("vm.builtin.kv_state_clear")
-    fcreate = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_create")
     fadd_sequence = tvm.get_global_func("vm.builtin.kv_state_add_sequence")
     fremove_sequence = tvm.get_global_func("vm.builtin.kv_state_remove_sequence")
     ffork_sequence = tvm.get_global_func("vm.builtin.kv_state_fork_sequence")
@@ -295,55 +98,78 @@ def set_global_func():
     )
     fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
 
-    fattention_prefill = tvm.get_global_func(
-        "flashinfer.attention_kernel_prefill_with_paged_kv_cache"
-    )
-    fattention_decode = tvm.get_global_func(
-        "flashinfer.attention_kernel_decode_with_paged_kv_cache"
-    )
-    fattention_prefill_ragged = tvm.get_global_func(
-        "flashinfer.attention_kernel_prefill_with_ragged_kv_cache"
-    )
-    fattention_prefill_begin_forward = tvm.get_global_func(
-        "flashinfer.attention_kernel_prefill_with_paged_kv_cache_begin_forward"
-    )
-    fattention_prefill_end_forward = tvm.get_global_func(
-        "flashinfer.attention_kernel_prefill_with_paged_kv_cache_end_forward"
-    )
-    fattention_decode_begin_forward = tvm.get_global_func(
-        "flashinfer.attention_kernel_decode_with_paged_kv_cache_begin_forward"
-    )
-    fattention_decode_end_forward = tvm.get_global_func(
-        "flashinfer.attention_kernel_decode_with_paged_kv_cache_end_forward"
-    )
-    fattention_prefill_ragged_begin_forward = tvm.get_global_func(
-        "flashinfer.attention_kernel_prefill_with_ragged_kv_cache_begin_forward"
-    )
-    fattention_prefill_ragged_end_forward = tvm.get_global_func(
-        "flashinfer.attention_kernel_prefill_with_ragged_kv_cache_end_forward"
-    )
-    fattention_merge_state = tvm.get_global_func("flashinfer.merge_state_in_place")
+    def load_module(name: str, static_modules: List[tvm.runtime.Module]):
+        assert len(static_modules) > 0
+        if len(static_modules) == 1:
+            return static_modules[0]
+        static_mod = static_modules[0]
+        for mod in static_modules[1:]:
+            static_mod.import_module(mod)
+        temp = utils.tempdir()
+        mod_path = temp.relpath(f"{name}.so")
+        static_mod.export_library(mod_path)
+        return tvm.runtime.load_module(mod_path)
 
     target = tvm.target.Target.from_device(device)
+    flashinfer_prefill_mod = load_module(
+        "flashinfer_prefill",
+        relax.backend.cuda.flashinfer.gen_flashinfer_prefill_module(
+            dtype_q=dtype,
+            dtype_kv=dtype,
+            dtype_o=dtype,
+            qk_head_dim=head_dim,
+            v_head_dim=head_dim,
+            target=target,
+        ),
+    )
+    flashinfer_decode_mod = load_module(
+        "flashinfer_decode",
+        relax.backend.cuda.flashinfer.gen_flashinfer_decode_module(
+            dtype_q=dtype,
+            dtype_kv=dtype,
+            dtype_o=dtype,
+            qk_head_dim=head_dim,
+            v_head_dim=head_dim,
+            target=target,
+        ),
+    )
+
+    fattention_prefill = flashinfer_prefill_mod["batch_prefill_with_paged_kv_cache_run"]
+    fattention_prefill_plan = flashinfer_prefill_mod["batch_prefill_with_kv_cache_plan"]
+    fattention_prefill_ragged = flashinfer_prefill_mod["batch_prefill_with_ragged_kv_cache_run"]
+    fattention_prefill_ragged_plan = flashinfer_prefill_mod["batch_prefill_with_kv_cache_plan"]
+    fattention_decode = flashinfer_decode_mod["batch_decode_with_paged_kv_cache_run"]
+    fattention_decode_plan = flashinfer_decode_mod["batch_decode_with_paged_kv_cache_plan"]
+
     builts = []
     for tir_func in [
-        kv_cache_transpose_append,
+        _kv_cache_transpose_append(num_kv_heads, head_dim, dtype),
+        _merge_state_inplace(num_qo_heads, head_dim, dtype, target),
         llama_rope_with_position_map(
-            rope_theta, rope_scale, head_dim, num_qo_heads, num_kv_heads, dtype
+            rope_theta, rope_scale, head_dim, num_qo_heads, num_kv_heads, dtype, {}
         ),
         _copy_single_page(num_kv_heads, page_size, head_dim, dtype, target),
-        copy_cache,
+        _kv_cache_debug_get_kv(num_layers, num_kv_heads, head_dim, dtype),
+        _compact_kv_copy(num_kv_heads, head_dim, dtype, target),
     ]:
         mod = tvm.IRModule({"main": tir_func})
         with target:
             mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
-        f = tvm.build(mod["main"], target=target)
-        builts.append(f.entry_func)
+        f = tvm.tir.build(mod["main"], target=target)
+        builts.append(f.main)
 
-    ftranspose_append, fsplit_rotary, fcopy_single_page, fcopy_cache = builts
+    (
+        ftranspose_append,
+        fattention_merge_state,
+        fsplit_rotary,
+        fcopy_single_page,
+        fcopy_cache,
+        fcompact_copy,
+    ) = builts
 
 
 def create_kv_cache(rope_mode):
+    fcreate = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_create")
     support_sliding_window = 0
     cache = fcreate(
         tvm.runtime.ShapeTuple(
@@ -359,43 +185,31 @@ def create_kv_cache(rope_mode):
         num_qo_heads,
         num_kv_heads,
         head_dim,
+        head_dim,  # v_head_dim
+        tvm.runtime.ShapeTuple([int(AttnKind.MHA) for _ in range(num_layers)]),
+        False,  # enable_kv_transfer
         rope_mode,
         rope_scale,
         rope_theta,
-        tvm.nd.empty((), dtype, device=device),
+        None,  # rope_ext_factors
+        tvm.runtime.empty((), dtype, device=device),
         ftranspose_append,
-        fattention_prefill,
-        fattention_decode,
-        fattention_prefill,
-        fattention_decode,
-        fattention_prefill_ragged,
-        fattention_prefill_ragged_begin_forward,
-        fattention_prefill_ragged_end_forward,
-        fattention_prefill_begin_forward,
-        fattention_prefill_end_forward,
-        fattention_decode_begin_forward,
-        fattention_decode_end_forward,
-        fattention_merge_state,
+        None,  # f_transpose_append_mla
+        ["flashinfer", fattention_prefill_ragged, fattention_prefill_ragged_plan],
+        ["flashinfer", fattention_prefill, fattention_prefill_plan],
+        ["flashinfer", fattention_decode, fattention_decode_plan],
+        [],  # fattn_prefill_sliding_window
+        [],  # fattn_decode_sliding_window
+        [],  # fattn_prefill_with_tree_mask_paged_kv_cache
+        [],  # fattn_prefill_with_tree_mask
+        [],  # f_mla_prefill
+        [fattention_merge_state],
         fsplit_rotary,
         fcopy_single_page,
         fcopy_cache,
-        None,
-        None,
-        None,
+        fcompact_copy,
     )
     return cache
-
-
-class RopeMode(enum.IntEnum):
-    """The RoPE mode of the Paged KV cache.
-    If it is none, the KV cache will not apply RoPE to q and k.
-    If it is normal, RoPE will be applied to k before adding k to cache.
-    Otherwise, RoPE will be applied to q/k in attention kernel on-the-fly.
-    """
-
-    NONE = 0
-    NORMAL = 1
-    INLINE = 2
 
 
 @pytest.fixture(params=[RopeMode.NONE, RopeMode.NORMAL, RopeMode.INLINE])
@@ -410,11 +224,15 @@ def verify_cached_kv(kv_cache, seq_ids, expected_k, expected_v):
         values_expected = expected_v[seq_id]
         assert keys_expected.shape == values_expected.shape
         seq_length = expected_k[seq_id].shape[1]
-        keys = tvm.nd.empty(keys_expected.shape, dtype=dtype, device=device)
-        values = tvm.nd.empty(values_expected.shape, dtype=dtype, device=device)
+        keys = tvm.runtime.empty(keys_expected.shape, dtype=dtype, device=device)
+        values = tvm.runtime.empty(values_expected.shape, dtype=dtype, device=device)
         fdebug_get_kv(kv_cache, seq_id, 0, seq_length, keys, values)
-        tvm.testing.assert_allclose(keys.numpy(), keys_expected, rtol=1e-3, atol=1e-3)
-        tvm.testing.assert_allclose(values.numpy(), values_expected, rtol=1e-3, atol=1e-3)
+        torch.testing.assert_close(
+            torch.from_numpy(keys.numpy()).to(device_torch), keys_expected, rtol=1e-3, atol=1e-3
+        )
+        torch.testing.assert_close(
+            torch.from_numpy(values.numpy()).to(device_torch), values_expected, rtol=1e-3, atol=1e-3
+        )
 
 
 def f_apply_rotary(x, offset, scale, theta):
@@ -422,25 +240,30 @@ def f_apply_rotary(x, offset, scale, theta):
     assert len(x.shape) == 3
     nfeat = x.shape[-1]
     nfeat_half = x.shape[-1] // 2
-    x = x.astype("float32")
-    y = np.concatenate([-x[:, :, nfeat_half:], x[:, :, :nfeat_half]], axis=-1)
+    x_dtype = x.dtype
+    x = x.to(torch.float32)
+    y = torch.cat([-x[:, :, nfeat_half:], x[:, :, :nfeat_half]], dim=-1)
 
-    inv_freq = scale / (theta ** (np.arange(0, nfeat, 2).astype("float32") / nfeat))
-    t = np.arange(offset, offset + x.shape[0], dtype=inv_freq.dtype)
-    freqs = np.einsum("i,j->ij", t, inv_freq)
-    emb = np.concatenate((freqs, freqs), axis=-1)
-    cos_values = np.cos(emb)
-    sin_values = np.sin(emb)
+    inv_freq = scale / (
+        theta ** (torch.arange(0, nfeat, 2, device=device_torch, dtype=torch.float32) / nfeat)
+    )
+    t = torch.arange(offset, offset + x.shape[0], device=device_torch, dtype=inv_freq.dtype)
+    freqs = torch.einsum("i,j->ij", t, inv_freq)
+    emb = torch.cat((freqs, freqs), dim=-1)
+    cos_values = torch.cos(emb)
+    sin_values = torch.sin(emb)
 
-    return np.einsum("ij,ikj->ikj", cos_values, x) + np.einsum("ij,ikj->ikj", sin_values, y)
+    return torch.einsum("ij,ikj->ikj", cos_values, x).to(x_dtype) + torch.einsum(
+        "ij,ikj->ikj", sin_values, y
+    ).to(x_dtype)
 
 
 def apply_attention(
     kv_cache,
     rope_mode: RopeMode,
     batch: List[Tuple[Union[int, Tuple[int, int, int]], int]],
-    cached_k: Dict[int, np.ndarray],
-    cached_v: Dict[int, np.ndarray],
+    cached_k: Dict[int, torch.Tensor],
+    cached_v: Dict[int, torch.Tensor],
 ) -> None:
     seq_ids = []
     append_lengths = []
@@ -464,26 +287,60 @@ def apply_attention(
                 cached_v[seq_id] = cached_v[fork_parent_id][::, :fork_pos]
         elif seq_id not in cached_k:
             fadd_sequence(kv_cache, seq_id)
-            cached_k[seq_id] = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
-            cached_v[seq_id] = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
+            cached_k[seq_id] = torch.zeros(
+                (num_layers, 0, num_kv_heads, head_dim), dtype=dtype_torch, device=device_torch
+            )
+            cached_v[seq_id] = torch.zeros(
+                (num_layers, 0, num_kv_heads, head_dim), dtype=dtype_torch, device=device_torch
+            )
 
     fbegin_forward(kv_cache, ShapeTuple(seq_ids), ShapeTuple(append_lengths))
 
-    global_new_q = np.zeros((num_layers, 0, num_qo_heads, head_dim), dtype)
-    global_new_k = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
-    global_new_v = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
+    global_new_q = torch.zeros(
+        (num_layers, 0, num_qo_heads, head_dim), dtype=dtype_torch, device=device_torch
+    )
+    global_new_k = torch.zeros(
+        (num_layers, 0, num_kv_heads, head_dim), dtype=dtype_torch, device=device_torch
+    )
+    global_new_v = torch.zeros(
+        (num_layers, 0, num_kv_heads, head_dim), dtype=dtype_torch, device=device_torch
+    )
 
     q_array = []
     for seq_id, append_length in batch:
-        new_q = np.random.rand(num_layers, append_length, num_qo_heads, head_dim).astype(dtype)
-        new_k = np.random.rand(num_layers, append_length, num_kv_heads, head_dim).astype(dtype)
-        new_v = np.random.rand(num_layers, append_length, num_kv_heads, head_dim).astype(dtype)
+        new_q = torch.rand(
+            num_layers,
+            append_length,
+            num_qo_heads,
+            head_dim,
+            dtype=dtype_torch,
+            device=device_torch,
+        )
+        new_k = torch.rand(
+            num_layers,
+            append_length,
+            num_kv_heads,
+            head_dim,
+            dtype=dtype_torch,
+            device=device_torch,
+        )
+        new_v = torch.rand(
+            num_layers,
+            append_length,
+            num_kv_heads,
+            head_dim,
+            dtype=dtype_torch,
+            device=device_torch,
+        )
+        new_q = new_q * 2 - 1
+        new_k = new_k * 2 - 1
+        new_v = new_v * 2 - 1
         q_array.append(new_q)
 
-        cached_k[seq_id] = np.concatenate(
+        cached_k[seq_id] = torch.cat(
             [
                 cached_k[seq_id],
-                np.stack(
+                torch.stack(
                     [
                         (
                             new_k[l]
@@ -494,26 +351,28 @@ def apply_attention(
                         )
                         for l in range(num_layers)
                     ],
-                    axis=0,
+                    dim=0,
                 ),
             ],
-            axis=1,
+            dim=1,
         )
-        cached_v[seq_id] = np.concatenate([cached_v[seq_id], new_v], axis=1)
-        global_new_q = np.concatenate([global_new_q, new_q], axis=1)
-        global_new_k = np.concatenate([global_new_k, new_k], axis=1)
-        global_new_v = np.concatenate([global_new_v, new_v], axis=1)
+        cached_v[seq_id] = torch.cat([cached_v[seq_id], new_v], dim=1)
+        global_new_q = torch.cat([global_new_q, new_q], dim=1)
+        global_new_k = torch.cat([global_new_k, new_k], dim=1)
+        global_new_v = torch.cat([global_new_v, new_v], dim=1)
 
     for layer_id in range(num_layers):
         queries_np = global_new_q[layer_id]
         keys_np = global_new_k[layer_id]
         values_np = global_new_v[layer_id]
-        qkv = tvm.nd.array(np.concatenate([queries_np, keys_np, values_np], axis=1), device)
-        outputs = tvm.nd.empty(queries_np.shape, dtype, device=device)
-        fattention_with_fuse_qkv(kv_cache, layer_id, 1.0, qkv, outputs)
+        qkv = tvm.runtime.tensor(
+            torch.cat([queries_np, keys_np, values_np], dim=1).cpu().numpy(), device
+        )
+        outputs = tvm.runtime.empty(queries_np.shape, dtype, device=device)
+        fattention_with_fuse_qkv(kv_cache, layer_id, sm_scale, qkv, outputs)
 
         # Compute attention expected results.
-        outputs = np.expand_dims(outputs.numpy(), axis=0)
+        outputs = torch.from_numpy(outputs.numpy()).unsqueeze(0).to(device_torch)
         sum_length = 0
         for i, (seq_id, append_length) in enumerate(batch):
             assert cached_k[seq_id].shape[1] == cached_v[seq_id].shape[1] >= append_length
@@ -528,33 +387,36 @@ def apply_attention(
                     rope_scale,
                     rope_theta,
                 )
-            ).transpose(1, 0, 2)
+            ).permute(1, 0, 2)
             k_seq = (
                 cached_k[seq_id][layer_id]
                 if rope_mode != RopeMode.INLINE
                 else f_apply_rotary(cached_k[seq_id][layer_id], 0, rope_scale, rope_theta)
-            ).transpose(1, 2, 0)
-            v_seq = cached_v[seq_id][layer_id].transpose(1, 0, 2)
+            ).permute(1, 2, 0)
+            v_seq = cached_v[seq_id][layer_id].permute(1, 0, 2)
 
-            k_seq = np.repeat(k_seq, num_qo_heads // num_kv_heads, axis=0)
-            v_seq = np.repeat(v_seq, num_qo_heads // num_kv_heads, axis=0)
-            softmax_input = (q_seq.astype("float32") @ k_seq.astype("float32")) / np.sqrt(head_dim)
+            k_seq = k_seq.repeat_interleave(num_qo_heads // num_kv_heads, dim=0)
+            v_seq = v_seq.repeat_interleave(num_qo_heads // num_kv_heads, dim=0)
+            softmax_input = (q_seq.to(torch.float32) @ k_seq.to(torch.float32)) / (head_dim**0.5)
             softmax_shape = softmax_input.shape
             length_diff = softmax_shape[-1] - softmax_shape[-2]
             assert length_diff >= 0
-            mask = np.tril(
-                np.full_like(softmax_input, np.finfo("float32").max), k=length_diff
-            ) + np.triu(np.full_like(softmax_input, np.finfo("float32").min), k=length_diff + 1)
-            softmax_input = np.minimum(softmax_input, mask)
+            mask = torch.tril(
+                torch.full_like(softmax_input, torch.finfo(torch.float32).max), diagonal=length_diff
+            ) + torch.triu(
+                torch.full_like(softmax_input, torch.finfo(torch.float32).min),
+                diagonal=length_diff + 1,
+            )
+            softmax_input = torch.minimum(softmax_input, mask)
 
-            results = np.expand_dims(
-                (scipy.special.softmax(softmax_input, axis=-1) @ v_seq.astype("float32")).transpose(
-                    1, 0, 2
-                ),
-                axis=0,
-            ).astype(dtype)
+            results = torch.unsqueeze(
+                (
+                    torch.nn.functional.softmax(softmax_input, dim=-1) @ v_seq.to(torch.float32)
+                ).permute(1, 0, 2),
+                dim=0,
+            ).to(dtype_torch)
 
-            tvm.testing.assert_allclose(
+            torch.testing.assert_close(
                 outputs[:, sum_length : sum_length + append_length, ...],
                 results,
                 rtol=1e-3,

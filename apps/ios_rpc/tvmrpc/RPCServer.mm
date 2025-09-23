@@ -23,8 +23,7 @@
 
 #import "RPCServer.h"
 
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include <random>
 #include <string>
@@ -51,7 +50,7 @@ namespace runtime {
  *     2: need to write
  *     0: shutdown
  */
-using FEventHandler = PackedFunc;
+using FEventHandler = ffi::Function;
 
 /*!
  * \brief Create a server event handler.
@@ -63,12 +62,12 @@ using FEventHandler = PackedFunc;
  */
 FEventHandler CreateServerEventHandler(NSOutputStream* outputStream, std::string name,
                                        std::string remote_key) {
-  const PackedFunc* event_handler_factory = Registry::Get("rpc.CreateEventDrivenServer");
-  ICHECK(event_handler_factory != nullptr)
+  auto event_handler_factory = tvm::ffi::Function::GetGlobal("rpc.CreateEventDrivenServer");
+  ICHECK(event_handler_factory.has_value())
       << "You are using tvm_runtime module built without RPC support. "
       << "Please rebuild it with USE_RPC flag.";
 
-  PackedFunc writer_func([outputStream](TVMArgs args, TVMRetValue* rv) {
+  ffi::Function writer_func([outputStream](ffi::PackedArgs args, ffi::Any* rv) {
     TVMByteArray* data = args[0].ptr<TVMByteArray>();
     int64_t nbytes = [outputStream write:reinterpret_cast<const uint8_t*>(data->data)
                                maxLength:data->size];
@@ -119,7 +118,7 @@ static std::string getWiFiAddress() {
  */
 - (bool)onReadHandler;   // return true - continue feeding, false - stop, try to drain output buffer
 - (bool)onWriteHandler;  // return true - continue draining, false - no data to write
-- (void)onEndEncountered;  // called on disconnect or session desided that it's shutdown time
+- (void)onEndEncountered;  // called on disconnect or session decided that it's shutdown time
 - (void)open;              // Initiate listening objects like i/o streams and other resources
 - (void)close;             // Deinitialize resources opend in "open" method
 @end
@@ -127,7 +126,7 @@ static std::string getWiFiAddress() {
 @implementation RPCServerBase {
   // Worker thread
   NSThread* worker_thread_;
-  // Triger to continue RunLoop processing inside worker_thread_
+  // Trigger to continue RunLoop processing inside worker_thread_
   BOOL shouldKeepRunning;
   // Input socket stream
  @protected
@@ -143,7 +142,7 @@ static std::string getWiFiAddress() {
 }
 
 /*!
- * Start internal worker thread with RunLoop and submit correspoding open handlers into it
+ * Start internal worker thread with RunLoop and submit corresponding open handlers into it
  * Not blocking
  */
 - (void)start {
@@ -169,7 +168,7 @@ static std::string getWiFiAddress() {
   if (worker_thread_ == nil) return;
 
   [self performSelector:@selector(stop_) onThread:worker_thread_ withObject:nil waitUntilDone:NO];
-  worker_thread_ = nil;  // TODO: is it valide? may be better to do that inside NSThread?
+  worker_thread_ = nil;  // TODO: is it valid? may be better to do that inside NSThread?
 }
 
 - (void)stop_ {
@@ -178,7 +177,7 @@ static std::string getWiFiAddress() {
 }
 
 /*!
- * Base implementation to selup i/o streams
+ * Base implementation to setup i/o streams
  * Will connect to host and port specified in corresponding properties
  */
 - (void)open {
@@ -197,7 +196,7 @@ static std::string getWiFiAddress() {
 }
 
 /*!
- * Base implementation to selup i/o streams
+ * Base implementation to setup i/o streams
  * Will assign i/o streams to provided socket connection.
  */
 - (void)openWithSocket:(CFSocketNativeHandle)sock {
@@ -215,7 +214,7 @@ static std::string getWiFiAddress() {
 }
 
 /*!
- * Close i/o streams assosiated with connection
+ * Close i/o streams associated with connection
  */
 - (void)close {
   [inputStream_ close];
@@ -239,7 +238,7 @@ static std::string getWiFiAddress() {
 }
 
 /*!
- * Try to read data from stream and call processing hadnler
+ * Try to read data from stream and call processing handler
  */
 - (void)tryToRead {
   const int kBufferSize = 4 << 10;  // 4kB buffer
@@ -255,7 +254,7 @@ static std::string getWiFiAddress() {
 }
 
 /*!
- * Try to write remaining data to stream and call processing hadnler
+ * Try to write remaining data to stream and call processing handler
  */
 - (void)tryToWrite {
   if (!sendBuffer_.empty()) {
@@ -307,7 +306,7 @@ static std::string getWiFiAddress() {
 #pragma mark - Helpers
 
 /*!
- * Set buffer to send into stream. Try to send immediatly or submit to lazy sending
+ * Set buffer to send into stream. Try to send immediately or submit to lazy sending
  * Non blocking operation
  */
 - (void)toSend:(NSData*)data {
@@ -412,7 +411,7 @@ typedef enum {
  * Implement matching of internat state on state available for outside users
  */
 - (void)setState:(RPCServerProxyState)new_state {
-  // Send Connected notification because Proxy doesn't responce until client connected.
+  // Send Connected notification because Proxy doesn't response until client connected.
   if (new_state == RPCServerProxyState_HandshakeToRecv)
     [self notifyState:RPCServerStatus_Connected];
   if (new_state == RPCServerProxyState_Idle) [self notifyState:RPCServerStatus_Disconnected];
@@ -465,7 +464,7 @@ typedef enum {
       if (data == nil) return FALSE;
 
       if (*(int32_t*)data.bytes != tvm::runtime::kRPCMagic) {
-        [self notifyError:@"Wrong responce, is not RPC client."];
+        [self notifyError:@"Wrong response, is not RPC client."];
         [self close];
         return FALSE;
         break;
@@ -720,7 +719,7 @@ typedef enum {
       if (data == nil) return FALSE;
 
       if (*(int*)data.bytes != tvm::runtime::kRPCTrackerMagic) {
-        [self notifyError:@"Wrong responce, is not RPC Tracker."];
+        [self notifyError:@"Wrong response, is not RPC Tracker."];
         [self close];
         return FALSE;
         break;
@@ -734,7 +733,7 @@ typedef enum {
       if (data == nil) return FALSE;
 
       if (std::string((char*)data.bytes, data.length) != resp_OK) {
-        [self notifyError:@"Failed to Update info on tracker. Responce is not OK."];
+        [self notifyError:@"Failed to Update info on tracker. Response is not OK."];
         [self close];
         return FALSE;
         break;
@@ -748,7 +747,7 @@ typedef enum {
       if (data == nil) return FALSE;
 
       if (std::string((char*)data.bytes, data.length) != resp_OK) {
-        [self notifyError:@"Failed to Put server into tracker. Responce is not OK."];
+        [self notifyError:@"Failed to Put server into tracker. Response is not OK."];
         [self close];
         return FALSE;
         break;

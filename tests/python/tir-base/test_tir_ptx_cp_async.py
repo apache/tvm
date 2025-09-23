@@ -51,12 +51,12 @@ def ptx_cp_async(A: T.Buffer((32, 128), "float16"), B: T.Buffer((32, 128), "floa
 def test_ptx_cp_async():
     f = ptx_cp_async
 
-    mod = tvm.build(f, target="cuda")
+    mod = tvm.compile(f, target="cuda")
     A_np = np.random.rand(32, 128).astype("float16")
     B_np = np.zeros((32, 128)).astype("float16")
     dev = tvm.cuda(0)
-    A_nd = tvm.nd.array(A_np, device=dev)
-    B_nd = tvm.nd.array(B_np, device=dev)
+    A_nd = tvm.runtime.tensor(A_np, device=dev)
+    B_nd = tvm.runtime.tensor(B_np, device=dev)
     mod(A_nd, B_nd)
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
@@ -98,12 +98,12 @@ def ptx_cp_async_barrier(
 def test_ptx_cp_async_barrier():
     f = ptx_cp_async_barrier
 
-    mod = tvm.build(f, target="cuda")
+    mod = tvm.compile(f, target="cuda")
     A_np = np.random.rand(32, 128).astype("float16")
     B_np = np.zeros((32, 128)).astype("float16")
     dev = tvm.cuda(0)
-    A_nd = tvm.nd.array(A_np, device=dev)
-    B_nd = tvm.nd.array(B_np, device=dev)
+    A_nd = tvm.runtime.tensor(A_np, device=dev)
+    B_nd = tvm.runtime.tensor(B_np, device=dev)
     mod(A_nd, B_nd)
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
@@ -139,12 +139,12 @@ def ptx_cp_async_bulk(A: T.Buffer((32, 128), "float16"), B: T.Buffer((32, 128), 
 def test_ptx_cp_async_bulk():
     f = ptx_cp_async_bulk
 
-    mod = tvm.build(f, target="cuda")
+    mod = tvm.compile(f, target="cuda")
     A_np = np.random.rand(32, 128).astype("float16")
     B_np = np.zeros((32, 128)).astype("float16")
     dev = tvm.cuda(0)
-    A_nd = tvm.nd.array(A_np, device=dev)
-    B_nd = tvm.nd.array(B_np, device=dev)
+    A_nd = tvm.runtime.tensor(A_np, device=dev)
+    B_nd = tvm.runtime.tensor(B_np, device=dev)
     mod(A_nd, B_nd)
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 

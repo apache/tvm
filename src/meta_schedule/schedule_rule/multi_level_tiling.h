@@ -19,6 +19,7 @@
 #ifndef TVM_META_SCHEDULE_SCHEDULE_RULE_MULTI_LEVEL_TILING_H_
 #define TVM_META_SCHEDULE_SCHEDULE_RULE_MULTI_LEVEL_TILING_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/tir/schedule/schedule.h>
 
@@ -63,7 +64,7 @@ enum class ReuseType : int32_t {
  * \param str The string to be converted.
  * \return The converted ReuseType.
  */
-inline ReuseType Str2ReuseType(const String& str) {
+inline ReuseType Str2ReuseType(const ffi::String& str) {
   if (str == "no") {
     return ReuseType::kNoReuse;
   } else if (str == "may") {
@@ -83,16 +84,16 @@ struct ReuseConfig {
   /*! \brief Which levels are caching stage inserted at */
   std::vector<int> levels;
   /*! \brief The storage scope */
-  String scope;
+  ffi::String scope;
 
   /*! \brief Default constructor: no data reuse */
   ReuseConfig() : req(ReuseType::kNoReuse) {}
 
   /*! \brief Construct from a configuration dictionary */
-  explicit ReuseConfig(const Map<String, ObjectRef>& config)
-      : req(Str2ReuseType(Downcast<String>(config.at("req")))),
-        levels(support::AsVector<Integer, int>(Downcast<Array<Integer>>(config.at("levels")))),
-        scope(Downcast<String>(config.at("scope"))) {
+  explicit ReuseConfig(const ffi::Map<ffi::String, ffi::Any>& config)
+      : req(Str2ReuseType(Downcast<ffi::String>(config.at("req")))),
+        levels(support::AsVector<Integer, int>(Downcast<ffi::Array<Integer>>(config.at("levels")))),
+        scope(Downcast<ffi::String>(config.at("scope"))) {
     ICHECK_EQ(config.size(), 3);
   }
 };
@@ -108,9 +109,9 @@ class StateNode : public Object {
   /*! \brief The block to be tiled */
   tir::BlockRV block_rv;
   /*! \brief The loop tiles */
-  Array<Array<tir::LoopRV>> tiles;
+  ffi::Array<ffi::Array<tir::LoopRV>> tiles;
   /*! \brief The factors of the loop tiles. */
-  Array<Array<tir::ExprRV>> tile_factors;
+  ffi::Array<ffi::Array<tir::ExprRV>> tile_factors;
   /*! \brief The mapping from buffer index to read cache block. */
   std::unordered_map<int, tir::BlockRV> read_reuse;
   /*! \brief The mapping from buffer index to write cache block. */
@@ -122,16 +123,17 @@ class StateNode : public Object {
    */
   virtual State Copy() const;
 
-  static constexpr const char* _type_key = "meta_schedule.State";
-  TVM_DECLARE_BASE_OBJECT_INFO(StateNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.State", StateNode, Object);
 };
 
 /*! \brief Managed reference to StateNode */
 class State : public ObjectRef {
  public:
   /*! \brief Default constructor */
-  explicit State(tir::Schedule sch, tir::BlockRV block_rv, Array<Array<tir::LoopRV>> tiles = {});
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(State, ObjectRef, StateNode);
+  explicit State(tir::Schedule sch, tir::BlockRV block_rv,
+                 ffi::Array<ffi::Array<tir::LoopRV>> tiles = {});
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(State, ObjectRef, StateNode);
 };
 
 /*!
@@ -172,7 +174,7 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   void InitializeWithTuneContext(const TuneContext& context) final;
 
   // Entry of the mega rule; Inherited from ScheduleRuleNode
-  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) override;
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) override;
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const override;
@@ -180,10 +182,8 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
  protected:
   virtual std::vector<State> ApplySubRules(std::vector<State> states);
 
-  virtual std::pair<Array<tir::ExprRV>, Array<tir::LoopRV>> SplitLoop(const tir::Schedule& sch,
-                                                                      tir::BlockRV block,
-                                                                      tir::LoopRV loop,
-                                                                      int n_tiles) const;
+  virtual std::pair<ffi::Array<tir::ExprRV>, ffi::Array<tir::LoopRV>> SplitLoop(
+      const tir::Schedule& sch, tir::BlockRV block, tir::LoopRV loop, int n_tiles) const;
 
   // Annotate a block to use cooperative fetching
   void AnnotateCooperativeFetching(tir::Schedule* sch, const tir::BlockRV& block) const;
@@ -194,9 +194,9 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
    * - 'SSRSRS' on CPU
    * - 'SSSRRSRS' on GPU
    */
-  String structure;
+  ffi::String structure;
   /*! \brief For each level of tiles, which thread axis it is bound to */
-  Array<String> tile_binds;
+  ffi::Array<ffi::String> tile_binds;
   /*! \brief The maximum size of the innermost factor */
   int max_innermost_factor;
   /*! \brief The length of vector lane in vectorized cooperative fetching */
@@ -216,34 +216,29 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   /*! \brief All available async pipeline stages. */
   std::vector<int> stages;
   /*! \brief The logging function */
-  PackedFunc logger;
+  ffi::Function logger;
   /*! \brief The function to overwrite the default condition for applying MultiLevelTiling. */
-  Optional<PackedFunc> filter_fn_;
+  ffi::Optional<ffi::Function> filter_fn_;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("structure", &structure);
-    v->Visit("tile_binds", &tile_binds);
-    v->Visit("max_innermost_factor", &max_innermost_factor);
-    // `vector_load_lens` is not visited
-    // `reuse_read_` is not visited
-    // `reuse_write_` is not visited
-    // `s_indices_` is not visited
-    // `r_indices_` is not visited
-    // `thread_warp_size_` is not visited
-    // `max_threads_per_block` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MultiLevelTilingNode>()
+        .def_ro("structure", &MultiLevelTilingNode::structure)
+        .def_ro("tile_binds", &MultiLevelTilingNode::tile_binds)
+        .def_ro("max_innermost_factor", &MultiLevelTilingNode::max_innermost_factor);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.MultiLevelTiling";
-  TVM_DECLARE_BASE_OBJECT_INFO(MultiLevelTilingNode, ScheduleRuleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.MultiLevelTiling", MultiLevelTilingNode,
+                              ScheduleRuleNode);
 };
 
 template <typename NodeType>
-ObjectPtr<NodeType> MultiLevelTilingInitCommon(String structure, Optional<Array<String>> tile_binds,
-                                               Optional<Integer> max_innermost_factor,
-                                               Optional<Array<Integer>> vector_load_lens,
-                                               Optional<Map<String, ObjectRef>> reuse_read,
-                                               Optional<Map<String, ObjectRef>> reuse_write) {
-  ObjectPtr<NodeType> n = make_object<NodeType>();
+ObjectPtr<NodeType> MultiLevelTilingInitCommon(
+    ffi::String structure, ffi::Optional<ffi::Array<ffi::String>> tile_binds,
+    ffi::Optional<Integer> max_innermost_factor,
+    ffi::Optional<ffi::Array<Integer>> vector_load_lens,
+    ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
+    ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write) {
+  ObjectPtr<NodeType> n = ffi::make_object<NodeType>();
   n->structure = structure;
   n->tile_binds = tile_binds.value_or({});
   n->max_innermost_factor = max_innermost_factor.value_or(Integer(-1))->value;

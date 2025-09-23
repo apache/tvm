@@ -22,40 +22,6 @@ When to deploy TVM runtime module, no matter whether it is CPU or GPU, TVM only 
 shared library. The key is our unified module serialization mechanism. This document will introduce TVM module
 serialization format standard and implementation details.
 
-*********************
-Module Export Example
-*********************
-
-Let us build one ResNet-18 workload for GPU as an example first.
-
-.. code:: python
-
-   from tvm import relay
-   from tvm.relay import testing
-   from tvm.contrib import utils
-   import tvm
-
-   # Resnet18 workload
-   resnet18_mod, resnet18_params = relay.testing.resnet.get_workload(num_layers=18)
-
-   # build
-   with relay.build_config(opt_level=3):
-       _, resnet18_lib, _ = relay.build_module.build(resnet18_mod, "cuda", params=resnet18_params)
-
-   # create one tempory directory
-   temp = utils.tempdir()
-
-   # path lib
-   file_name = "deploy.so"
-   path_lib = temp.relpath(file_name)
-
-   # export library
-   resnet18_lib.export_library(path_lib)
-
-   # load it back
-   loaded_lib = tvm.runtime.load_module(path_lib)
-   assert loaded_lib.type_key == "library"
-   assert loaded_lib.imported_modules[0].type_key == "cuda"
 
 *************
 Serialization
@@ -167,8 +133,8 @@ before. The ``import_tree_logic`` is just to write ``import_tree_row_ptr_``
 and ``import_tree_child_indices_`` into stream.
 
 After this step, we will pack it into a symbol
-``runtime::symbol::tvm_dev_mblob`` that can be recovered in the dynamic
-libary.
+``runtime::symbol::tvm_ffi_library_bin`` that can be recovered in the dynamic
+library.
 
 Now, we complete the serialization part. As you have seen, we could
 support arbitrary modules to import ideally.
@@ -186,18 +152,19 @@ according to the function logic, we will call ``module.loadfile_so`` in
 .. code:: c++
 
    // Load the imported modules
-   const char* dev_mblob = reinterpret_cast<const char*>(lib->GetSymbol(runtime::symbol::tvm_dev_mblob));
+   const char* library_bin = reinterpret_cast<const char*>(
+      lib->GetSymbol(runtime::symbol::tvm_ffi_library_bin));
    Module root_mod;
-   if (dev_mblob != nullptr) {
-   root_mod = ProcessModuleBlob(dev_mblob, lib);
+   if (library_bin != nullptr) {
+      root_mod = ProcessLibraryBin(library_bin, lib);
    } else {
-   // Only have one single DSO Module
-   root_mod = Module(n);
+      // Only have one single DSO Module
+      root_mod = Module(n);
    }
 
 As said before, we will pack the blob into the symbol
-``runtime::symbol::tvm_dev_mblob``. During deserialization part, we will
-inspect it. If we have ``runtime::symbol::tvm_dev_mblob``, we will call ``ProcessModuleBlob``,
+``runtime::symbol::tvm_ffi_library_bin``. During deserialization part, we will
+inspect it. If we have ``runtime::symbol::tvm_ffi_library_bin``, we will call ``ProcessLibraryBin``,
 whose logic like this:
 
 .. code:: c++

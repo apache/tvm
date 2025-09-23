@@ -46,7 +46,6 @@ def crop_and_resize_python(
         w_scale = np.float32(in_w) / np.float32(target_w - 1)
 
         for y in range(target_h):
-
             in_y = y1 * (image_height - 1) + h_scale * y
 
             if in_y < 0 or in_y > image_height - 1:

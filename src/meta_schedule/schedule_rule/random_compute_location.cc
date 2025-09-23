@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -27,7 +29,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
   // Inherited from ScheduleRuleNode
-  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
     if (!CheckConditions(sch, block_rv)) {
       return {sch};
     }
@@ -38,7 +40,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
     // decision of Sample-Compute-Location is "compute-inline" for the input block, we can no longer
     // access the input block. Hence we collect its producer ahead of time.
     // - Note that only single producer is allowed in this case.
-    Array<tir::BlockRV> producers{nullptr};
+    ffi::Array<tir::BlockRV> producers{nullptr};
     if (tir::HasAnn(sch->GetSRef(block_rv), tir::attr::meta_schedule_random_compute_producer,
                     true)) {
       producers = sch->GetProducers(block_rv);
@@ -59,7 +61,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
-    ObjectPtr<RandomComputeLocationNode> n = make_object<RandomComputeLocationNode>(*this);
+    ObjectPtr<RandomComputeLocationNode> n = ffi::make_object<RandomComputeLocationNode>(*this);
     return ScheduleRule(n);
   }
 
@@ -80,7 +82,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
     }
     // Cond 3 & 4. The block has at least one outer loop, and the outermost loop has only one child
     // block.
-    Array<tir::StmtSRef> loop_srefs = tir::GetLoops(block_sref);
+    ffi::Array<tir::StmtSRef> loop_srefs = tir::GetLoops(block_sref);
     if (loop_srefs.empty()) {
       return false;
     }
@@ -111,18 +113,24 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
   }
 
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) {}
-
-  static constexpr const char* _type_key = "meta_schedule.RandomComputeLocation";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RandomComputeLocationNode, ScheduleRuleNode);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RandomComputeLocationNode>();
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RandomComputeLocation",
+                                    RandomComputeLocationNode, ScheduleRuleNode);
 };
 
 ScheduleRule ScheduleRule::RandomComputeLocation() {
-  return ScheduleRule(make_object<RandomComputeLocationNode>());
+  return ScheduleRule(ffi::make_object<RandomComputeLocationNode>());
 }
 
-TVM_REGISTER_NODE_TYPE(RandomComputeLocationNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleRandomComputeLocation")
-    .set_body_typed(ScheduleRule::RandomComputeLocation);
+TVM_FFI_STATIC_INIT_BLOCK() { RandomComputeLocationNode::RegisterReflection(); }
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.ScheduleRuleRandomComputeLocation",
+                        ScheduleRule::RandomComputeLocation);
+}
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -28,7 +28,7 @@ from tvm import dlight as dl
 from tvm import get_global_func
 from tvm import relax as rx
 from tvm.runtime import disco as di
-from tvm.runtime.relax_vm import VirtualMachine
+from tvm.runtime.vm import VirtualMachine
 from tvm.script import relax as R
 
 _all_session_kinds = [di.ThreadedSession, di.ProcessSession]
@@ -484,16 +484,16 @@ def test_mlp(session_kind, ccl):  # pylint: disable=too-many-locals
                 dl.gpu.GeneralReduction(),
                 dl.gpu.Fallback(),
             )(mod)
-            return rx.build(mod, target=target)
+            return tvm.compile(mod, target=target)
 
     # pylint: disable=invalid-name
     X = np.random.randn(128, 128).astype("float32")
     W1 = np.random.randn(128, 128).astype("float32")
     W2 = np.random.randn(128, 128).astype("float32")
     Y_expected = VirtualMachine(relax_build(MLP, target), device=dev)["main"](
-        tvm.nd.array(X, device=dev),
-        tvm.nd.array(W1, device=dev),
-        tvm.nd.array(W2, device=dev),
+        tvm.runtime.tensor(X, device=dev),
+        tvm.runtime.tensor(W1, device=dev),
+        tvm.runtime.tensor(W2, device=dev),
     ).numpy()
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -512,7 +512,7 @@ def test_mlp(session_kind, ccl):  # pylint: disable=too-many-locals
         d_W2.debug_copy_from(0, W2[:64, :])
         d_W2.debug_copy_from(1, W2[64:, :])
         d_Y = mod["main"](d_X, d_W1, d_W2)
-        Y_result = tvm.nd.empty((128, 128), "float32", device=dev)
+        Y_result = tvm.runtime.empty((128, 128), "float32", device=dev)
         sess.copy_from_worker_0(Y_result, d_Y)
         sess.sync_worker_0()
         Y_result = Y_result.numpy()
@@ -623,7 +623,7 @@ def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-ma
                 dl.gpu.GeneralReduction(),
                 dl.gpu.Fallback(),
             )(mod)
-            return rx.build(mod, target=target)
+            return tvm.compile(mod, target=target)
 
     # pylint: disable=invalid-name
     X = np.random.randn(1, 10, 128).astype("float32")
@@ -632,11 +632,11 @@ def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-ma
     Wv = np.random.randn(128, 512).astype("float32")
     Wo = np.random.randn(512, 128).astype("float32")
     Y_expected = VirtualMachine(relax_build(Attention, target), device=dev)["main"](
-        tvm.nd.array(X, device=dev),
-        tvm.nd.array(Wq, device=dev),
-        tvm.nd.array(Wk, device=dev),
-        tvm.nd.array(Wv, device=dev),
-        tvm.nd.array(Wo, device=dev),
+        tvm.runtime.tensor(X, device=dev),
+        tvm.runtime.tensor(Wq, device=dev),
+        tvm.runtime.tensor(Wk, device=dev),
+        tvm.runtime.tensor(Wv, device=dev),
+        tvm.runtime.tensor(Wo, device=dev),
     ).numpy()
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -661,7 +661,7 @@ def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-ma
         d_Wo.debug_copy_from(0, Wo[:256, :])
         d_Wo.debug_copy_from(1, Wo[256:, :])
         d_Y = mod["main"](d_X, d_Wq, d_Wk, d_Wv, d_Wo)
-        Y_result = tvm.nd.empty((1, 10, 128), "float32", device=dev)
+        Y_result = tvm.runtime.empty((1, 10, 128), "float32", device=dev)
         sess.copy_from_worker_0(Y_result, d_Y)
         sess.sync_worker_0()
         Y_result = Y_result.numpy()

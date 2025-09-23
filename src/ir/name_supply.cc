@@ -23,19 +23,20 @@
  */
 #include "tvm/ir/name_supply.h"
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include <utility>
 
 namespace tvm {
 
-NameSupply::NameSupply(const String& prefix, std::unordered_map<std::string, int> name_map) {
-  auto n = make_object<NameSupplyNode>(prefix, std::move(name_map));
+NameSupply::NameSupply(const ffi::String& prefix, std::unordered_map<std::string, int> name_map) {
+  auto n = ffi::make_object<NameSupplyNode>(prefix, std::move(name_map));
   data_ = std::move(n);
 }
 
-String NameSupplyNode::ReserveName(const String& name, bool add_prefix) {
-  String final_name = name;
+ffi::String NameSupplyNode::ReserveName(const ffi::String& name, bool add_prefix) {
+  ffi::String final_name = name;
   if (add_prefix) {
     final_name = add_prefix_to_name(name);
   }
@@ -43,8 +44,9 @@ String NameSupplyNode::ReserveName(const String& name, bool add_prefix) {
   return final_name;
 }
 
-String NameSupplyNode::FreshName(const String& name, bool add_prefix, bool add_underscore) {
-  String unique_name = name;
+ffi::String NameSupplyNode::FreshName(const ffi::String& name, bool add_prefix,
+                                      bool add_underscore) {
+  ffi::String unique_name = name;
   if (add_prefix) {
     unique_name = add_prefix_to_name(name);
   }
@@ -52,8 +54,8 @@ String NameSupplyNode::FreshName(const String& name, bool add_prefix, bool add_u
   return unique_name;
 }
 
-bool NameSupplyNode::ContainsName(const String& name, bool add_prefix) {
-  String unique_name = name;
+bool NameSupplyNode::ContainsName(const ffi::String& name, bool add_prefix) {
+  ffi::String unique_name = name;
   if (add_prefix) {
     unique_name = add_prefix_to_name(name);
   }
@@ -61,13 +63,12 @@ bool NameSupplyNode::ContainsName(const String& name, bool add_prefix) {
   return name_map.count(unique_name);
 }
 
-String NameSupplyNode::add_prefix_to_name(const String& name) {
+ffi::String NameSupplyNode::add_prefix_to_name(const ffi::String& name) {
   if (prefix_.empty()) {
     return name;
   }
 
   std::ostringstream ss;
-  ICHECK(name.defined());
   ss << prefix_ << "_" << name;
   return ss.str();
 }
@@ -90,19 +91,13 @@ std::string NameSupplyNode::GetUniqueName(std::string name, bool add_underscore)
   return name;
 }
 
-TVM_REGISTER_NODE_TYPE(NameSupplyNode);
-
-TVM_REGISTER_GLOBAL("ir.NameSupply").set_body_typed([](String prefix) {
-  return NameSupply(prefix);
-});
-
-TVM_REGISTER_GLOBAL("ir.NameSupply_FreshName")
-    .set_body_method<NameSupply>(&NameSupplyNode::FreshName);
-
-TVM_REGISTER_GLOBAL("ir.NameSupply_ReserveName")
-    .set_body_method<NameSupply>(&NameSupplyNode::ReserveName);
-
-TVM_REGISTER_GLOBAL("ir.NameSupply_ContainsName")
-    .set_body_method<NameSupply>(&NameSupplyNode::ContainsName);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("ir.NameSupply", [](ffi::String prefix) { return NameSupply(prefix); })
+      .def_method("ir.NameSupply_FreshName", &NameSupplyNode::FreshName)
+      .def_method("ir.NameSupply_ReserveName", &NameSupplyNode::ReserveName)
+      .def_method("ir.NameSupply_ContainsName", &NameSupplyNode::ContainsName);
+}
 
 }  // namespace tvm

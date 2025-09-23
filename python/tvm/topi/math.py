@@ -94,28 +94,6 @@ def erf(x):
     return te.compute(x.shape, lambda *i: te.erf(x(*i)))
 
 
-@tvm.target.generic_func
-def erf_legalize(attrs, inputs, types):
-    """Legalizes ERF op.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current convolution
-    inputs : list of tvm.relay.Expr
-        The args of the Relay expr to be legalized
-    types : list of types
-        List of input and output types
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The legalized expr.
-    """
-    # Note changed by default.
-    return None
-
-
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
 def tanh(x):
     """Take hyperbolic tanh of input x.
@@ -506,7 +484,6 @@ def log2(x):
     return te.compute(x.shape, lambda *i: te.log2(x(*i)))
 
 
-@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def log10(x):
     """Take logarithm to the base 10 of input x.
 
@@ -520,7 +497,9 @@ def log10(x):
     y : tvm.te.Tensor
         The result.
     """
-    return te.compute(x.shape, lambda *i: te.log10(x(*i)))
+    if x.dtype.startswith("int"):
+        x = te.compute(x.shape, lambda *i: x(*i).astype("float32"))
+    return te.compute(x.shape, lambda *i: te.log10(x(*i)), tag=tag.ELEMWISE)
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
@@ -537,6 +516,8 @@ def sqrt(x):
     y : tvm.te.Tensor
         The result.
     """
+    if x.dtype.startswith("int"):
+        x = te.compute(x.shape, lambda *i: x(*i).astype("float32"))
     return te.compute(x.shape, lambda *i: te.sqrt(x(*i)))
 
 
@@ -554,6 +535,8 @@ def rsqrt(x):
     y : tvm.te.Tensor
         The result.
     """
+    if x.dtype.startswith("int"):
+        x = te.compute(x.shape, lambda *i: x(*i).astype("float32"))
     return te.compute(x.shape, lambda *i: te.rsqrt(x(*i)))
 
 

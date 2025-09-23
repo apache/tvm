@@ -105,7 +105,7 @@ class DenseAdd_scheduled_cpu:
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(p1[v0, v1])
                 T.writes(p1_global[v0 // 64, v1, v0 % 64])
-                T.block_attr({"meta_schedule.layout_rewrite_preproc": 1})
+                T.block_attr({"meta_schedule.layout_rewrite_preproc": True})
                 p1_global[v0 // 64, v1, v0 % 64] = p1[v0, v1]
         for i0_0_i1_0_fused_fused in T.parallel(4):
             for i0_1, i1_1 in T.grid(8, 1):
@@ -184,7 +184,7 @@ class DenseAdd_cpu_no_write_cache:
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(p1[v0, v1])
                 T.writes(p1_global[v1 // 16, v0 // 32, v1 % 16, v0 % 32])
-                T.block_attr({"meta_schedule.layout_rewrite_preproc":1})
+                T.block_attr({"meta_schedule.layout_rewrite_preproc": True})
                 p1_global[v1 // 16, v0 // 32, v1 % 16, v0 % 32] = p1[v0, v1]
         for i0_0_i1_0_i0_1_i1_1_fused in T.parallel(16, annotations={"pragma_auto_unroll_max_step":16, "pragma_unroll_explicit":1}):
             for i0_2_init, i1_2_init, i0_3_init in T.grid(4, 4, 2):
@@ -633,7 +633,7 @@ class Conv2dInt8_target:
 class Conv2dInt8_tensorcore_scheduled:
     @T.prim_func
     def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer((1, 1, 1, 256), "int64"), p5: T.Buffer((1, 1, 1, 256), "int64"), p6: T.Buffer((1, 1, 1, 256), "int64"), p7: T.Buffer((), "int32"), p8: T.Buffer((1,), "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "uint8")):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         # with T.block("root"):
         conv2d_nhwc_reindex_shared = T.alloc_buffer((50176, 256), "int32", scope="shared")
         conv2d_nhwc_reindex_shared_wmma_accumulator = T.alloc_buffer((50176, 256), "int32", scope="wmma.accumulator")
@@ -1159,7 +1159,7 @@ def get_conv2d_vnni_mod(intrin_id):
                             B_i8x64: T.int8x64 = B[0, 0:64]
                             B_i32x16: T.int32x16 = T.reinterpret(B_i8x64, dtype="int32x16")
                             C_i32x16: T.int32x16 = C[0:16]
-                            C[0:16] = T.call_llvm_pure_intrin(T.uint32(intrin_id), T.uint32(3), C_i32x16, T.broadcast(A_i32, 16), B_i32x16, dtype="int32x16")
+                            C[0:16] = T.call_llvm_pure_intrin(T.uint32(intrin_id), C_i32x16, T.broadcast(A_i32, 16), B_i32x16, dtype="int32x16")
                     for ax0, ax1, ax2, ax3 in T.grid(1, 1, 1, 7):
                         for ax4_fused in T.vectorized(16):
                             with T.block("T_cast_8"):
@@ -1678,7 +1678,7 @@ class Conv2dInt8_with_predicate_target:
 class Conv2dInt8_with_predicate_scheduled:
     @T.prim_func
     def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer((256,), "int32"), p5: T.Buffer((256,), "int32"), p6: T.Buffer((256,), "int32"), p7: T.Buffer((), "int32"), p8: T.Buffer((1,), "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "int32")):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()
@@ -1785,6 +1785,7 @@ class Conv2dInt8_with_predicate_scheduled:
                             T.writes(compute[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1])
                             compute[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1] = T.max(T.min(T.q_multiply_shift(T.max(T.min(p7[()] + T.q_multiply_shift_per_axis(conv2d_nhwc_reindex_shared[v0, v1] - p2[0, 0, 0, v1] + p3[0, 0, 0, v1], p4[v1], p5[v1], p6[v1], 31, T.bool(False), T.bool(True)), 255), 0) - p8[0], 1457846997, 31, 0) + T.q_multiply_shift(p9[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1], 2101000910, 31, 0), 255), 0)
 
+
 # fmt: on
 def verify(anchor_mod, anchor_trace_fun, target_mod, target, ref):
     anchor_sch = Schedule(anchor_mod)
@@ -1863,7 +1864,9 @@ def test_dense_add_cpu():
             ),
             pad_value=None,
         )
-        sch.annotate(block_or_loop=b59, ann_key="meta_schedule.layout_rewrite_preproc", ann_val=1)
+        sch.annotate(
+            block_or_loop=b59, ann_key="meta_schedule.layout_rewrite_preproc", ann_val=True
+        )
 
     verify(Dense, apply_anchor_trace, DenseAdd, "llvm", DenseAdd_scheduled_cpu)
 
@@ -1929,7 +1932,9 @@ def test_dense_add_cpu_no_write_cache():
             ),
             pad_value=None,
         )
-        sch.annotate(block_or_loop=b50, ann_key="meta_schedule.layout_rewrite_preproc", ann_val=1)
+        sch.annotate(
+            block_or_loop=b50, ann_key="meta_schedule.layout_rewrite_preproc", ann_val=True
+        )
 
     verify(Dense, apply_trace, DenseAdd, "llvm", DenseAdd_cpu_no_write_cache)
 

@@ -25,8 +25,8 @@
 #ifndef TVM_RUNTIME_DISCO_DISCO_WORKER_H_
 #define TVM_RUNTIME_DISCO_DISCO_WORKER_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/disco/session.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <vector>
 
@@ -65,7 +65,7 @@ class DiscoWorker {
   /*! \brief Get the worker instance on the current thread */
   TVM_DLL static DiscoWorker* ThreadLocal();
   /*! \brief Set the specific register to a specific value */
-  void SetRegister(int reg_id, TVMArgValue value);
+  void SetRegister(int reg_id, ffi::AnyView value);
 
   /*! \brief The id of the worker.*/
   int worker_id;
@@ -79,7 +79,7 @@ class DiscoWorker {
   /*! \brief The default device to allocate data if not specified */
   Device default_device;
   /*! \brief The name of the underlying collective communication library. */
-  String ccl;
+  ffi::String ccl;
   /*!
    * \brief The data shared between worker-0 and the controler. It's a nullptr if
    * the worker is not worker-0.
@@ -92,7 +92,7 @@ class DiscoWorker {
    */
   DiscoChannel* channel;
   /*! \brief The registers in the worker */
-  std::vector<TVMRetValue> register_file;
+  std::vector<ffi::Any> register_file;
 
   struct Impl;
   friend struct DiscoWorker::Impl;

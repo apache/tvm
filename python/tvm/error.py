@@ -25,7 +25,11 @@ copy the examples and raise errors with the same message convention.
 
     Please also refer to :ref:`error-handling-guide`.
 """
-from tvm._ffi.base import TVMError, register_error
+from tvm_ffi import register_error
+
+
+class TVMError(RuntimeError):
+    pass
 
 
 @register_error
@@ -44,17 +48,6 @@ class InternalError(TVMError):
         # Example code in python
         raise InternalError("internal error detail")
     """
-
-    def __init__(self, msg):
-        super(InternalError, self).__init__(msg)
-
-
-register_error("ValueError", ValueError)
-register_error("TypeError", TypeError)
-register_error("AttributeError", AttributeError)
-register_error("KeyError", KeyError)
-register_error("IndexError", IndexError)
-register_error("AssertionError", AssertionError)
 
 
 @register_error

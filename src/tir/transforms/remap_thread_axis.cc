@@ -20,7 +20,8 @@
 /*!
  * \file remap_thread_axis.cc
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -69,13 +70,13 @@ class ThreadAxisRewriter : private StmtExprMutator {
   std::unordered_map<const VarNode*, Var> vmap_;
 };
 
-PrimFunc RemapThreadAxis(PrimFunc func, Map<runtime::String, IterVar> thread_map) {
+PrimFunc RemapThreadAxis(PrimFunc func, ffi::Map<ffi::String, IterVar> thread_map) {
   std::unordered_map<std::string, IterVar> tmap;
   for (const auto& kv : thread_map) {
     tmap[kv.first] = kv.second;
   }
 
-  if (auto opt = func->GetAttr<Array<IterVar>>(tir::attr::kKernelLaunchParams)) {
+  if (auto opt = func->GetAttr<ffi::Array<IterVar>>(tir::attr::kKernelLaunchParams)) {
     ICHECK(opt != nullptr) << "Require attribute " << tir::attr::kKernelLaunchParams;
     auto launch_params = opt.value();
     // replace the thread axis attribute
@@ -96,14 +97,17 @@ PrimFunc RemapThreadAxis(PrimFunc func, Map<runtime::String, IterVar> thread_map
 
 namespace transform {
 
-Pass RemapThreadAxis(Map<runtime::String, IterVar> thread_map) {
+Pass RemapThreadAxis(ffi::Map<ffi::String, IterVar> thread_map) {
   auto pass_func = [thread_map](PrimFunc f, IRModule m, PassContext ctx) {
     return RemapThreadAxis(std::move(f), thread_map);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.RemapThreadAxis", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.RemapThreadAxis").set_body_typed(RemapThreadAxis);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.RemapThreadAxis", RemapThreadAxis);
+}
 
 }  // namespace transform
 }  // namespace tir

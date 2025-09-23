@@ -19,6 +19,7 @@ from tvm import te
 from tvm.contrib import utils
 import numpy as np
 import tvm.testing
+from tvm import tir
 
 
 @tvm.testing.requires_gpu
@@ -29,18 +30,27 @@ def test_large_uint_imm():
     num_thread = 2
 
     A = te.compute((n,), lambda *i: tvm.tir.const(value, "uint64") + other, name="A")
-    s = te.create_schedule(A.op)
-    xo, xi = s[A].split(A.op.axis[0], factor=num_thread)
-    s[A].bind(xi, te.thread_axis("threadIdx.x"))
-    s[A].bind(xo, te.thread_axis("blockIdx.x"))
+
+    # Convert to TIR and create schedule
+    mod = te.create_prim_func([A])
+    sch = tir.Schedule(mod)
+
+    # Get block and loop
+    block = sch.get_block("A")
+    loop = sch.get_loops(block)[0]
+
+    # Split and bind
+    xo, xi = sch.split(loop, factors=[None, num_thread])
+    sch.bind(xi, "threadIdx.x")
+    sch.bind(xo, "blockIdx.x")
 
     def check_target(device):
         if not tvm.testing.device_enabled(device):
             return
         dev = tvm.device(device, 0)
-        f = tvm.build(s, [A], device)
+        f = tvm.compile(sch.mod, target=device)
         # launch the kernel.
-        a = tvm.nd.empty((n,), dtype=A.dtype, device=dev)
+        a = tvm.runtime.empty((n,), dtype=A.dtype, device=dev)
         f(a)
         assert a.numpy()[0] == value + 3
 
@@ -55,29 +65,42 @@ def test_add_pipeline():
     B = te.placeholder((), name="B")
     C = te.compute(A.shape, lambda *i: A(*i) + B(), name="C")
     D = te.compute(A.shape, lambda *i: C(*i) + 1, name="D")
-    s = te.create_schedule(D.op)
+
+    # Convert to TIR and create schedule
+    mod = te.create_prim_func([A, B, D])
+    sch = tir.Schedule(mod)
+
+    # Get blocks and loops
+    c_block = sch.get_block("C")
+    d_block = sch.get_block("D")
+    c_loop = sch.get_loops(c_block)[0]
+    d_loop = sch.get_loops(d_block)[0]
 
     # GPU schedule have to split by gridIdx and threadIdx
     num_thread = 256
-    xo, xi = s[C].split(C.op.axis[0], factor=num_thread)
-    s[C].bind(xi, te.thread_axis("threadIdx.x"))
-    s[C].bind(xo, te.thread_axis("blockIdx.x"))
 
-    xo, xi = s[D].split(D.op.axis[0], factor=num_thread)
-    s[D].bind(xi, te.thread_axis("threadIdx.x"))
-    s[D].bind(xo, te.thread_axis("blockIdx.x"))
+    # Schedule C
+    c_xo, c_xi = sch.split(c_loop, factors=[None, num_thread])
+    sch.bind(c_xi, "threadIdx.x")
+    sch.bind(c_xo, "blockIdx.x")
 
-    def check_target(device, host="stackvm"):
+    # Schedule D
+    d_xo, d_xi = sch.split(d_loop, factors=[None, num_thread])
+    sch.bind(d_xi, "threadIdx.x")
+    sch.bind(d_xo, "blockIdx.x")
+
+    def check_target(device, host):
         if not tvm.testing.device_enabled(device) or not tvm.testing.device_enabled(host):
             return
         dev = tvm.device(device, 0)
-        mhost = tvm.driver.build(s, [A, B, D], target=tvm.target.Target(device, host))
-        f = mhost.entry_func
+        target = tvm.target.Target(device, host)
+        mhost = tvm.tir.build(sch.mod, target=target)
+        f = mhost.main
         # launch the kernel.
         n = 1027
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=()).astype(B.dtype), dev)
-        d = tvm.nd.array(np.zeros(n, dtype=D.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.random.uniform(size=()).astype(B.dtype), dev)
+        d = tvm.runtime.tensor(np.zeros(n, dtype=D.dtype), dev)
         f(a, b, d)
         tvm.testing.assert_allclose(d.numpy(), a.numpy() + b.numpy() + 1)
 

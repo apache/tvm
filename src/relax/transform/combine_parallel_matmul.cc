@@ -18,6 +18,7 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
@@ -38,15 +39,13 @@
 namespace tvm {
 namespace relax {
 
-using runtime::Map;
-
-using FCheck = runtime::TypedPackedFunc<bool(Var, Array<Var>, Array<Var>, Map<Var, Expr>)>;
+using FCheck = ffi::TypedFunction<bool(Var, ffi::Array<Var>, ffi::Array<Var>, ffi::Map<Var, Expr>)>;
 
 /*! \brief Group shapes of the RHS matrices by rank. Matrices in a group whose batch sizes
   are compatible are combined.
 */
 std::unordered_map<size_t, std::vector<size_t>> GroupShapes(
-    const std::vector<Array<PrimExpr>>& shapes) {
+    const std::vector<ffi::Array<PrimExpr>>& shapes) {
   std::unordered_map<size_t, std::vector<size_t>> indices_map;
   for (size_t i = 0; i < shapes.size(); ++i) {
     indices_map[shapes[i].size()].push_back(i);
@@ -78,7 +77,7 @@ struct Patterns {
 
 struct SplitInfo {
   Var rhs;
-  Optional<Var> bias;
+  ffi::Optional<Var> bias;
   PrimExpr split_size;
   DFPattern pattern_to_replace;
 };
@@ -117,10 +116,10 @@ Patterns CreatePatterns(const BranchInfo& branch_info) {
 }
 
 /*! \brief Create a rewriter for the given parallel matmul branches. */
-runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> GetRewriter(
+ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, Expr>)> GetRewriter(
     const Patterns& patterns, const BranchInfo& branch_info, FCheck check) {
   auto batch_dims_compatible = [](size_t rhs_dim, const std::vector<size_t>& indices,
-                                  const std::vector<Array<PrimExpr>>& rhs_shapes) {
+                                  const std::vector<ffi::Array<PrimExpr>>& rhs_shapes) {
     arith::Analyzer ana;
     for (auto ind : indices) {
       ICHECK_EQ(static_cast<int>(rhs_shapes[ind].size()), rhs_dim);
@@ -134,17 +133,17 @@ runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> Ge
     return true;
   };
 
-  return [=](Map<DFPattern, Var> matchings, Map<Var, Expr> bindings) {
-    std::vector<Array<PrimExpr>> rhs_shapes;
+  return [=](ffi::Map<DFPattern, Var> matchings, ffi::Map<Var, Expr> bindings) {
+    std::vector<ffi::Array<PrimExpr>> rhs_shapes;
     for (const auto& rhs_pat : patterns.rhs) {
       auto rhs_shape_opt = GetTensorSInfo(matchings[rhs_pat])->GetShape();
       if (!rhs_shape_opt) {
-        return Map<Var, Expr>{};
+        return ffi::Map<Var, Expr>{};
       }
       rhs_shapes.push_back(rhs_shape_opt.value());
     }
 
-    Map<Var, Expr> replacements;
+    ffi::Map<Var, Expr> replacements;
 
     for (const auto& [rhs_dim, indices] : GroupShapes(rhs_shapes)) {
       if (indices.size() == 1 || !batch_dims_compatible(rhs_dim, indices, rhs_shapes)) continue;
@@ -160,7 +159,7 @@ runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> Ge
       std::vector<SplitInfo> splits;
       for (auto index : indices) {
         Var rhs = matchings[patterns.rhs[index]];
-        Optional<Var> bias = NullOpt;
+        ffi::Optional<Var> bias = std::nullopt;
         if (branch_info.bias_dim.has_value()) {
           bias = matchings[patterns.bias[index]];
         }
@@ -191,8 +190,8 @@ runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> Ge
         continue;
       }
 
-      Array<Var> rhs;
-      Array<Var> bias;
+      ffi::Array<Var> rhs;
+      ffi::Array<Var> bias;
       for (const auto& split : splits) {
         rhs.push_back(split.rhs);
         if (split.bias) {
@@ -204,13 +203,13 @@ runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> Ge
         continue;
       }
 
-      auto concat_rhs = concat(Tuple(rhs), Integer(rhs_dim - 1));
+      auto concat_rhs = concat(Tuple(rhs), rhs_dim - 1);
       auto out_dtype = GetTensorSInfo(matchings[patterns.matmul[indices[0]]])->dtype;
       auto matmul_combined = matmul(lhs, concat_rhs, out_dtype);
 
       if (branch_info.bias_dim) {
         auto bias_dim = GetTensorSInfo(bias[0])->ndim;
-        auto concat_bias = concat(Tuple(bias), Integer(bias_dim - 1));
+        auto concat_bias = concat(Tuple(bias), bias_dim - 1);
         matmul_combined = add(matmul_combined, concat_bias);
       }
 
@@ -229,7 +228,7 @@ runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> Ge
       }
 
       int split_index = 0;
-      Array<IntImm> sections;
+      ffi::Array<IntImm> sections;
       for (size_t i = 0; i + 1 < splits.size(); i++) {
         auto width = splits[i].split_size.as<IntImmNode>();
         ICHECK(width) << "InternalError: "
@@ -380,17 +379,19 @@ Function CombineParallelMatmul(Function f, FCheck check) {
 namespace transform {
 
 Pass CombineParallelMatmul(FCheck check) {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) {
-        return relax::CombineParallelMatmul(f, check);
-      };
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return relax::CombineParallelMatmul(f, check);
+  };
   return CreateFunctionPass(/*pass_function=*/pass_func,            //
                             /*opt_level=*/0,                        //
                             /*pass_name=*/"CombineParallelMatmul",  //
                             /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.CombineParallelMatmul").set_body_typed(CombineParallelMatmul);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.CombineParallelMatmul", CombineParallelMatmul);
+}
 
 }  // namespace transform
 

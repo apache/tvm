@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/transform.h>
@@ -39,7 +40,7 @@ class VtcmAllocator : public StmtExprMutator {
     std::string storage_scope = GetStorageScope(op->buffer_var);
     if (IsVtcmStorage(storage_scope)) {
       Stmt body = this->VisitStmt(op->body);
-      Array<PrimExpr> args;
+      ffi::Array<PrimExpr> args;
       args.push_back(StringImm(storage_scope));
       args.push_back(IntImm(DataType::Int(64), op->extents.size()));
       args.push_back(Call(DataType::Handle(), builtin::tvm_stack_make_shape(), op->extents));
@@ -72,7 +73,10 @@ Pass LowerVtcmAlloc() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerVtcmAlloc", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerVtcmAlloc").set_body_typed(LowerVtcmAlloc);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LowerVtcmAlloc", LowerVtcmAlloc);
+}
 
 }  // namespace transform
 

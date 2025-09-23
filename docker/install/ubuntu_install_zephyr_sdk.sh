@@ -42,9 +42,10 @@ fi
 INSTALLATION_PATH=$1
 shift
 
-ZEPHYR_SDK_FILE_SHA=8e3572fbca9f9ba18a4436c00d680af34a85e239f7fe66c7988da85571a0d23d
-ZEPHYR_SDK_FILE_NAME=zephyr-sdk-0.15.2_linux-x86_64.tar.gz
-wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.15.2/zephyr-sdk-0.15.2_linux-x86_64.tar.gz
+ZEPHYR_SDK_VERSION=0.16.9
+ZEPHYR_SDK_FILE_SHA=9b4b96f8df594801a84fce1aa112a84cdfcd430efc2a74229907b6421fb859a8
+ZEPHYR_SDK_FILE_NAME=zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64.tar.xz
+wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/${ZEPHYR_SDK_FILE_NAME}
 echo "$ZEPHYR_SDK_FILE_SHA ${ZEPHYR_SDK_FILE_NAME}" | sha256sum --check
 
 mkdir ${INSTALLATION_PATH}

@@ -25,12 +25,14 @@
 #include "tvm_runtime.h"
 #else
 #include <dlfcn.h>
-#include <dmlc/logging.h>
-#include <dmlc/thread_local.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/ffi/c_api.h>
+#include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/container/tensor.h>
+#include <tvm/ffi/function.h>
 #endif
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <thread>
 #include <vector>
 
@@ -38,14 +40,18 @@
 
 JavaVM* _jvm;
 void* _tvmHandle = nullptr;
-struct TVMFuncArgsThreadLocalEntry {
-  std::vector<TVMValue> tvmFuncArgValues;
-  std::vector<int> tvmFuncArgTypes;
+
+struct TVMFFIJVMStack {
+  std::vector<tvm::ffi::AnyView> packed_args;
   // for later release
-  std::vector<std::pair<jstring, const char*>> tvmFuncArgPushedStrs;
-  std::vector<std::pair<jbyteArray, TVMByteArray*>> tvmFuncArgPushedBytes;
+  std::vector<std::pair<jstring, const char*>> str_args;
+  std::vector<std::pair<jbyteArray, std::unique_ptr<TVMFFIByteArray>>> byte_args;
+
+  static TVMFFIJVMStack* ThreadLocal() {
+    static thread_local TVMFFIJVMStack stack;
+    return &stack;
+  }
 };
-typedef dmlc::ThreadLocalStore<TVMFuncArgsThreadLocalEntry> TVMFuncArgsThreadLocalStore;
 
 JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_nativeLibInit(JNIEnv* env, jobject obj,
                                                                  jstring jtvmLibFile) {
@@ -68,172 +74,134 @@ JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_shutdown(JNIEnv* env, jobject
   return 0;
 }
 
-JNIEXPORT jstring JNICALL Java_org_apache_tvm_LibInfo_tvmGetLastError(JNIEnv* env, jobject obj) {
-  return env->NewStringUTF(TVMGetLastError());
+JNIEXPORT jstring JNICALL Java_org_apache_tvm_LibInfo_tvmFFIGetLastError(JNIEnv* env, jobject obj) {
+  std::string err_msg = ::tvm::ffi::details::MoveFromSafeCallRaised().what();
+  return env->NewStringUTF(err_msg.c_str());
 }
 
 // Function
-JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFuncPushArgLong(JNIEnv* env, jobject obj,
-                                                                      jlong arg) {
-  TVMValue value;
-  value.v_int64 = static_cast<int64_t>(arg);
-  TVMFuncArgsThreadLocalEntry* e = TVMFuncArgsThreadLocalStore::Get();
-  e->tvmFuncArgValues.push_back(value);
-  e->tvmFuncArgTypes.push_back(kDLInt);
+JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFFIFunctionPushArgLong(JNIEnv* env,
+                                                                             jobject obj,
+                                                                             jlong arg) {
+  TVMFFIJVMStack::ThreadLocal()->packed_args.emplace_back(static_cast<int64_t>(arg));
 }
 
-JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFuncPushArgDouble(JNIEnv* env, jobject obj,
-                                                                        jdouble arg) {
-  TVMValue value;
-  value.v_float64 = static_cast<double>(arg);
-  TVMFuncArgsThreadLocalEntry* e = TVMFuncArgsThreadLocalStore::Get();
-  e->tvmFuncArgValues.push_back(value);
-  e->tvmFuncArgTypes.push_back(kDLFloat);
+JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFFIFunctionPushArgDouble(JNIEnv* env,
+                                                                               jobject obj,
+                                                                               jdouble arg) {
+  TVMFFIJVMStack::ThreadLocal()->packed_args.emplace_back(static_cast<double>(arg));
 }
 
-JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFuncPushArgString(JNIEnv* env, jobject obj,
-                                                                        jstring arg) {
-  TVMValue value;
+JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFFIFunctionPushArgString(JNIEnv* env,
+                                                                               jobject obj,
+                                                                               jstring arg) {
   jstring garg = reinterpret_cast<jstring>(env->NewGlobalRef(arg));
-  value.v_str = env->GetStringUTFChars(garg, 0);
-  TVMFuncArgsThreadLocalEntry* e = TVMFuncArgsThreadLocalStore::Get();
-  e->tvmFuncArgValues.push_back(value);
-  e->tvmFuncArgTypes.push_back(kTVMStr);
-  // release string args later
-  e->tvmFuncArgPushedStrs.push_back(std::make_pair(garg, value.v_str));
+  const char* str = env->GetStringUTFChars(garg, 0);
+  TVMFFIJVMStack* stack = TVMFFIJVMStack::ThreadLocal();
+  stack->str_args.emplace_back(garg, str);
+  stack->packed_args.emplace_back(str);
 }
 
-JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFuncPushArgHandle(JNIEnv* env, jobject obj,
-                                                                        jlong arg, jint argType) {
-  TVMValue value;
-  value.v_handle = reinterpret_cast<void*>(arg);
-  TVMFuncArgsThreadLocalEntry* e = TVMFuncArgsThreadLocalStore::Get();
-  e->tvmFuncArgValues.push_back(value);
-  e->tvmFuncArgTypes.push_back(static_cast<int>(argType));
+JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFFIFunctionPushArgHandle(JNIEnv* env,
+                                                                               jobject obj,
+                                                                               jlong arg,
+                                                                               jint argTypeIndex) {
+  TVMFFIJVMStack* stack = TVMFFIJVMStack::ThreadLocal();
+  TVMFFIAny temp;
+  temp.v_int64 = static_cast<int64_t>(arg);
+  temp.type_index = static_cast<int>(argTypeIndex);
+  temp.zero_padding = 0;
+  stack->packed_args.emplace_back(tvm::ffi::AnyView::CopyFromTVMFFIAny(temp));
 }
 
-JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFuncPushArgDevice(JNIEnv* env, jobject obj,
-                                                                        jobject arg) {
+JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFFIFunctionPushArgDevice(JNIEnv* env,
+                                                                               jobject obj,
+                                                                               jobject arg) {
   jclass deviceClass = env->FindClass("org/apache/tvm/Device");
   jfieldID deviceTypeField = env->GetFieldID(deviceClass, "deviceType", "I");
   jfieldID deviceIdField = env->GetFieldID(deviceClass, "deviceId", "I");
   jint deviceType = env->GetIntField(arg, deviceTypeField);
   jint deviceId = env->GetIntField(arg, deviceIdField);
-
-  TVMValue value;
-  value.v_int64 = deviceToInt64(deviceType, deviceId);
-  TVMFuncArgsThreadLocalEntry* e = TVMFuncArgsThreadLocalStore::Get();
-  e->tvmFuncArgValues.push_back(value);
-  e->tvmFuncArgTypes.push_back(kDLDevice);
+  TVMFFIJVMStack* stack = TVMFFIJVMStack::ThreadLocal();
+  stack->packed_args.emplace_back(DLDevice{static_cast<DLDeviceType>(deviceType), deviceId});
 }
 
-JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFuncPushArgBytes(JNIEnv* env, jobject obj,
-                                                                       jbyteArray arg) {
+JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFFIFunctionPushArgBytes(JNIEnv* env,
+                                                                              jobject obj,
+                                                                              jbyteArray arg) {
   jbyteArray garg = reinterpret_cast<jbyteArray>(env->NewGlobalRef(arg));
   jbyte* data = env->GetByteArrayElements(garg, 0);
 
-  TVMByteArray* byteArray = new TVMByteArray();
+  std::unique_ptr<TVMFFIByteArray> byteArray = std::make_unique<TVMFFIByteArray>();
   byteArray->size = static_cast<size_t>(env->GetArrayLength(garg));
   byteArray->data = reinterpret_cast<const char*>(data);
 
-  TVMValue value;
-  value.v_handle = reinterpret_cast<void*>(byteArray);
-
-  TVMFuncArgsThreadLocalEntry* e = TVMFuncArgsThreadLocalStore::Get();
-  e->tvmFuncArgValues.push_back(value);
-  e->tvmFuncArgTypes.push_back(kTVMBytes);
-
-  e->tvmFuncArgPushedBytes.push_back(std::make_pair(garg, byteArray));
+  TVMFFIJVMStack* stack = TVMFFIJVMStack::ThreadLocal();
+  stack->packed_args.emplace_back(byteArray.get());
+  stack->byte_args.emplace_back(garg, std::move(byteArray));
   // release (garg, data), byteArray later
 }
 
-JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFuncListGlobalNames(JNIEnv* env, jobject obj,
-                                                                          jobject jfuncNames) {
-  int outSize;
-  const char** outArray;
-
-  int ret = TVMFuncListGlobalNames(&outSize, &outArray);
-  if (ret) {
-    return ret;
-  }
-
+JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIFunctionListGlobalNames(
+    JNIEnv* env, jobject obj, jobject jfuncNames) {
+  TVM_FFI_SAFE_CALL_BEGIN();
   jclass arrayClass = env->FindClass("java/util/List");
   jmethodID arrayAppend = env->GetMethodID(arrayClass, "add", "(Ljava/lang/Object;)Z");
 
-  // fill names
-  for (int i = 0; i < outSize; ++i) {
-    jstring jname = env->NewStringUTF(outArray[i]);
+  for (const auto& name : tvm::ffi::Function::ListGlobalNames()) {
+    jstring jname = env->NewStringUTF(name.c_str());
     env->CallBooleanMethod(jfuncNames, arrayAppend, jname);
     env->DeleteLocalRef(jname);
   }
 
   env->DeleteLocalRef(arrayClass);
-
-  return ret;
+  TVM_FFI_SAFE_CALL_END();
 }
 
-JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFuncFree(JNIEnv* env, jobject obj,
-                                                               jlong jhandle) {
-  return TVMFuncFree(reinterpret_cast<TVMFunctionHandle>(jhandle));
-}
-
-JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFuncGetGlobal(JNIEnv* env, jobject obj,
-                                                                    jstring jname,
-                                                                    jobject jhandle) {
-  TVMFunctionHandle handle;
+JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIFunctionGetGlobal(JNIEnv* env, jobject obj,
+                                                                           jstring jname,
+                                                                           jobject jhandle) {
   const char* name = env->GetStringUTFChars(jname, 0);
-  int ret = TVMFuncGetGlobal(name, &handle);
+  TVMFFIByteArray name_bytes{name, strlen(name)};
+  TVMFFIObjectHandle handle;
+  int ret = TVMFFIFunctionGetGlobal(&name_bytes, &handle);
   env->ReleaseStringUTFChars(jname, name);
   setLongField(env, jhandle, reinterpret_cast<jlong>(handle));
   return ret;
 }
 
-JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFuncCall(JNIEnv* env, jobject obj,
-                                                               jlong jhandle, jobject jretVal) {
-  TVMFuncArgsThreadLocalEntry* e = TVMFuncArgsThreadLocalStore::Get();
-  int numArgs = e->tvmFuncArgValues.size();
-
-  TVMValue retVal;
-  int retTypeCode;
-
-  // function can be invoked recursively,
-  // thus we copy the pushed arguments here.
-  auto argValues = e->tvmFuncArgValues;
-  auto argTypes = e->tvmFuncArgTypes;
-  auto pushedStrs = e->tvmFuncArgPushedStrs;
-  auto pushedBytes = e->tvmFuncArgPushedBytes;
-
-  e->tvmFuncArgPushedStrs.clear();
-  e->tvmFuncArgPushedBytes.clear();
-  e->tvmFuncArgTypes.clear();
-  e->tvmFuncArgValues.clear();
-
-  int ret = TVMFuncCall(reinterpret_cast<TVMFunctionHandle>(jhandle), &argValues[0], &argTypes[0],
-                        numArgs, &retVal, &retTypeCode);
-
-  if (ret != 0) {
-    return ret;
+JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIFunctionCall(JNIEnv* env, jobject obj,
+                                                                      jlong jhandle,
+                                                                      jobject jretVal) {
+  TVMFFIJVMStack* stack = TVMFFIJVMStack::ThreadLocal();
+  TVMFFIAny ret_val;
+  ret_val.type_index = tvm::ffi::TypeIndex::kTVMFFINone;
+  ret_val.zero_padding = 0;
+  ret_val.v_int64 = 0;
+  int ret = TVMFFIFunctionCall(reinterpret_cast<TVMFFIObjectHandle>(jhandle),
+                               reinterpret_cast<TVMFFIAny*>(stack->packed_args.data()),
+                               stack->packed_args.size(), &ret_val);
+  // release all temp resources
+  for (auto& str_pair : stack->str_args) {
+    env->ReleaseStringUTFChars(str_pair.first, str_pair.second);
+    env->DeleteGlobalRef(str_pair.first);
   }
 
-  for (auto iter = pushedStrs.cbegin(); iter != pushedStrs.cend(); iter++) {
-    env->ReleaseStringUTFChars(iter->first, iter->second);
-    env->DeleteGlobalRef(iter->first);
-  }
-  for (auto iter = pushedBytes.cbegin(); iter != pushedBytes.cend(); iter++) {
+  for (auto& byte_pair : stack->byte_args) {
     env->ReleaseByteArrayElements(
-        iter->first, reinterpret_cast<jbyte*>(const_cast<char*>(iter->second->data)), 0);
-    env->DeleteGlobalRef(iter->first);
-    delete iter->second;
+        byte_pair.first, reinterpret_cast<jbyte*>(const_cast<char*>(byte_pair.second->data)), 0);
+    env->DeleteGlobalRef(byte_pair.first);
   }
+  stack->str_args.clear();
+  stack->byte_args.clear();
+  stack->packed_args.clear();
 
   // return TVMValue object to Java
   jclass refTVMValueCls = env->FindClass("org/apache/tvm/Base$RefTVMValue");
   jfieldID refTVMValueFid = env->GetFieldID(refTVMValueCls, "value", "Lorg/apache/tvm/TVMValue;");
 
-  env->SetObjectField(jretVal, refTVMValueFid, tvmRetValueToJava(env, retVal, retTypeCode));
-
+  env->SetObjectField(jretVal, refTVMValueFid, tvmRetValueToJava(env, ret_val));
   env->DeleteLocalRef(refTVMValueCls);
-
   return ret;
 }
 
@@ -255,27 +223,24 @@ class JNIEnvPtrHelper {
 };
 
 // Callback function
-extern "C" int funcInvokeCallback(TVMValue* args, int* typeCodes, int numArgs,
-                                  TVMRetValueHandle ret, void* resourceHandle) {
+extern "C" int funcInvokeCallback(void* self, const TVMFFIAny* args, int num_args, TVMFFIAny* ret) {
   JNIEnv* env;
   int jniStatus = _jvm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
   if (jniStatus == JNI_EDETACHED) {
     _jvm->AttachCurrentThread(JNIEnvPtrHelper(&env), nullptr);
   } else {
-    CHECK(jniStatus == JNI_OK);
+    TVM_FFI_ICHECK(jniStatus == JNI_OK);
   }
 
   jclass tvmValueCls = env->FindClass("org/apache/tvm/TVMValue");
-  jobjectArray jargs = env->NewObjectArray(numArgs, tvmValueCls, 0);
-  for (int i = 0; i < numArgs; ++i) {
-    TVMValue arg = args[i];
-    int tcode = typeCodes[i];
-    if (tcode == kTVMObjectHandle || tcode == kTVMPackedFuncHandle ||
-        tcode == kTVMObjectRValueRefArg || tcode == kTVMModuleHandle ||
-        tcode == kTVMNDArrayHandle) {
-      TVMCbArgToReturn(&arg, &tcode);
+  jobjectArray jargs = env->NewObjectArray(num_args, tvmValueCls, 0);
+
+  for (int i = 0; i < num_args; ++i) {
+    TVMFFIAny arg = args[i];
+    if (args[i].type_index >= tvm::ffi::TypeIndex::kTVMFFIRawStr) {
+      TVMFFIAnyViewToOwnedAny(&args[i], &arg);
     }
-    jobject jarg = tvmRetValueToJava(env, arg, tcode);
+    jobject jarg = tvmRetValueToJava(env, arg);
     env->SetObjectArrayElement(jargs, i, jarg);
   }
 
@@ -285,46 +250,39 @@ extern "C" int funcInvokeCallback(TVMValue* args, int* typeCodes, int numArgs,
       "(Lorg/apache/tvm/Function$Callback;[Lorg/apache/tvm/TVMValue;)Ljava/lang/Object;");
   jmethodID pushArgToStack =
       env->GetStaticMethodID(clsFunc, "pushArgToStack", "(Ljava/lang/Object;)V");
-
   jobject jretValue = env->CallStaticObjectMethod(clsFunc, invokeRegisteredCbFunc,
-                                                  reinterpret_cast<jobject>(resourceHandle), jargs);
+                                                  reinterpret_cast<jobject>(self), jargs);
 
-  TVMFuncArgsThreadLocalEntry* e = TVMFuncArgsThreadLocalStore::Get();
-  const size_t prevNumStrArg = e->tvmFuncArgPushedStrs.size();
-  const size_t prevNumBytesArg = e->tvmFuncArgPushedBytes.size();
+  // the stack
+  TVMFFIJVMStack* stack = TVMFFIJVMStack::ThreadLocal();
+  const size_t prev_num_str_args = stack->str_args.size();
+  const size_t prev_num_bytes_args = stack->byte_args.size();
 
   // convert returned (java) TVMValue to (C) TVMValue
   env->CallStaticVoidMethod(clsFunc, pushArgToStack, jretValue);
 
-  TVMValue retValue = e->tvmFuncArgValues.back();
-  e->tvmFuncArgValues.pop_back();
-
-  int retCode = e->tvmFuncArgTypes.back();
-  e->tvmFuncArgTypes.pop_back();
-
-  // set back the return value
-  TVMCFuncSetReturn(ret, &retValue, &retCode, 1);
+  TVMFFIAny ret_val = stack->packed_args.back().CopyToTVMFFIAny();
+  stack->packed_args.pop_back();
+  TVMFFIAnyViewToOwnedAny(&ret_val, ret);
 
   // release allocated strings.
-  if (e->tvmFuncArgPushedStrs.size() > prevNumStrArg) {
-    const auto& pairArg = e->tvmFuncArgPushedStrs.back();
+  if (stack->str_args.size() > prev_num_str_args) {
+    const auto& pairArg = stack->str_args.back();
     env->ReleaseStringUTFChars(pairArg.first, pairArg.second);
     env->DeleteGlobalRef(pairArg.first);
-    e->tvmFuncArgPushedStrs.pop_back();
+    stack->str_args.pop_back();
   }
   // release allocated bytes.
-  if (e->tvmFuncArgPushedBytes.size() > prevNumBytesArg) {
-    const auto& pairArg = e->tvmFuncArgPushedBytes.back();
+  if (stack->byte_args.size() > prev_num_bytes_args) {
+    const auto& pairArg = stack->byte_args.back();
     env->ReleaseByteArrayElements(
         pairArg.first, reinterpret_cast<jbyte*>(const_cast<char*>(pairArg.second->data)), 0);
     env->DeleteGlobalRef(pairArg.first);
-    delete pairArg.second;
-    e->tvmFuncArgPushedBytes.pop_back();
+    stack->byte_args.pop_back();
   }
 
   env->DeleteLocalRef(clsFunc);
   env->DeleteLocalRef(tvmValueCls);
-
   return 0;
 }
 
@@ -335,90 +293,43 @@ extern "C" void funcFreeCallback(void* resourceHandle) {
   if (jniStatus == JNI_EDETACHED) {
     _jvm->AttachCurrentThread(JNIEnvPtrHelper(&env), nullptr);
   } else {
-    CHECK(jniStatus == JNI_OK);
+    TVM_FFI_ICHECK(jniStatus == JNI_OK);
   }
   env->DeleteGlobalRef(reinterpret_cast<jobject>(resourceHandle));
 }
 
-JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFuncCreateFromCFunc(JNIEnv* env, jobject obj,
-                                                                          jobject jfunction,
-                                                                          jobject jretHandle) {
-  TVMFunctionHandle out;
-  int ret =
-      TVMFuncCreateFromCFunc(reinterpret_cast<TVMPackedCFunc>(&funcInvokeCallback),
-                             reinterpret_cast<void*>(env->NewGlobalRef(jfunction)),
-                             reinterpret_cast<TVMPackedCFuncFinalizer>(&funcFreeCallback), &out);
+JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIFunctionCreateFromCallback(
+    JNIEnv* env, jobject obj, jobject jfunction, jobject jretHandle) {
+  TVMFFIObjectHandle out;
+  int ret = TVMFFIFunctionCreate(reinterpret_cast<void*>(env->NewGlobalRef(jfunction)),
+                                 funcInvokeCallback, funcFreeCallback, &out);
   setLongField(env, jretHandle, reinterpret_cast<jlong>(out));
   return ret;
 }
 
-JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFuncRegisterGlobal(JNIEnv* env, jobject obj,
-                                                                         jstring jname,
-                                                                         jlong jhandle,
-                                                                         jint joverride) {
+JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIFunctionSetGlobal(JNIEnv* env, jobject obj,
+                                                                           jstring jname,
+                                                                           jlong jhandle,
+                                                                           jint joverride) {
   const char* name = env->GetStringUTFChars(jname, 0);
-  int ret = TVMFuncRegisterGlobal(name, reinterpret_cast<TVMFunctionHandle>(jhandle),
-                                  reinterpret_cast<int>(joverride));
+  TVMFFIByteArray name_bytes{name, strlen(name)};
+  int ret = TVMFFIFunctionSetGlobal(&name_bytes, reinterpret_cast<TVMFFIObjectHandle>(jhandle),
+                                    reinterpret_cast<int>(joverride));
   env->ReleaseStringUTFChars(jname, name);
   return ret;
 }
 
 // Module
-JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmModFree(JNIEnv* env, jobject obj,
-                                                              jlong jhandle) {
-  return TVMModFree(reinterpret_cast<TVMModuleHandle>(jhandle));
+JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIObjectFree(JNIEnv* env, jobject obj,
+                                                                    jlong jhandle) {
+  return TVMFFIObjectDecRef(reinterpret_cast<TVMFFIObjectHandle>(jhandle));
 }
 
-JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmModImport(JNIEnv* env, jobject obj,
-                                                                jlong jmod, jlong jdep) {
-  return TVMModImport(reinterpret_cast<TVMModuleHandle>(jmod),
-                      reinterpret_cast<TVMModuleHandle>(jdep));
-}
+// Tensor
 
-JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmModGetFunction(JNIEnv* env, jobject obj,
-                                                                     jlong jhandle, jstring jname,
-                                                                     jint jimport, jobject jret) {
-  TVMFunctionHandle retFunc;
-
-  const char* name = env->GetStringUTFChars(jname, 0);
-  int ret = TVMModGetFunction(reinterpret_cast<TVMFunctionHandle>(jhandle), name,
-                              reinterpret_cast<int>(jimport), &retFunc);
-  env->ReleaseStringUTFChars(jname, name);
-
-  setLongField(env, jret, reinterpret_cast<jlong>(retFunc));
-
-  return ret;
-}
-
-// NDArray
-JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmArrayFree(JNIEnv* env, jobject obj,
-                                                                jlong jhandle) {
-  return TVMArrayFree(reinterpret_cast<TVMArrayHandle>(jhandle));
-}
-
-JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmArrayAlloc(JNIEnv* env, jobject obj,
-                                                                 jlongArray jshape, jint jdtypeCode,
-                                                                 jint jdtypeBits, jint jdtypeLanes,
-                                                                 jint jdeviceType, jint jdeviceId,
-                                                                 jobject jret) {
-  int ndim = static_cast<int>(env->GetArrayLength(jshape));
-
-  TVMArrayHandle out;
-
-  jlong* shapeArray = env->GetLongArrayElements(jshape, NULL);
-  int ret = TVMArrayAlloc(reinterpret_cast<const tvm_index_t*>(shapeArray), ndim,
-                          static_cast<int>(jdtypeCode), static_cast<int>(jdtypeBits),
-                          static_cast<int>(jdtypeLanes), static_cast<int>(jdeviceType),
-                          static_cast<int>(jdeviceId), &out);
-  env->ReleaseLongArrayElements(jshape, shapeArray, 0);
-
-  setLongField(env, jret, reinterpret_cast<jlong>(out));
-
-  return ret;
-}
-
-JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmArrayGetShape(JNIEnv* env, jobject obj,
-                                                                    jlong jhandle, jobject jshape) {
+JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIDLTensorGetShape(JNIEnv* env, jobject obj,
+                                                                          jlong jhandle,
+                                                                          jobject jshape) {
   DLTensor* array = reinterpret_cast<DLTensor*>(jhandle);
   int64_t* shape = array->shape;
   int ndim = array->ndim;
@@ -440,45 +351,73 @@ JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmArrayGetShape(JNIEnv* env,
   return 0;
 }
 
-JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmArrayCopyFromTo(JNIEnv* env, jobject obj,
-                                                                      jlong jfrom, jlong jto) {
-  return TVMArrayCopyFromTo(reinterpret_cast<TVMArrayHandle>(jfrom),
-                            reinterpret_cast<TVMArrayHandle>(jto), NULL);
+JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIDLTensorCopyFromTo(JNIEnv* env,
+                                                                            jobject obj,
+                                                                            jlong jfrom,
+                                                                            jlong jto) {
+  TVM_FFI_SAFE_CALL_BEGIN();
+  static auto fcopy_from_to = tvm::ffi::Function::GetGlobalRequired("runtime.TVMTensorCopyFromTo");
+  fcopy_from_to(reinterpret_cast<DLTensor*>(jfrom), reinterpret_cast<DLTensor*>(jto));
+  TVM_FFI_SAFE_CALL_END();
 }
 
-JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmArrayCopyFromJArray(JNIEnv* env, jobject obj,
-                                                                          jbyteArray jarr,
-                                                                          jlong jfrom, jlong jto) {
-  jbyte* data = env->GetByteArrayElements(jarr, NULL);
-
-  DLTensor* from = reinterpret_cast<DLTensor*>(jfrom);
-  from->data = static_cast<void*>(data);
-
-  int ret = TVMArrayCopyFromTo(static_cast<TVMArrayHandle>(from),
-                               reinterpret_cast<TVMArrayHandle>(jto), NULL);
-
-  from->data = NULL;
-  env->ReleaseByteArrayElements(jarr, data, 0);
-
-  return ret;
-}
-
-JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmArrayCopyToJArray(JNIEnv* env, jobject obj,
-                                                                        jlong jfrom,
-                                                                        jbyteArray jarr) {
-  DLTensor* from = reinterpret_cast<DLTensor*>(jfrom);
-  int size = static_cast<int>(env->GetArrayLength(jarr));
+JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIDLTensorCopyFromJArray(JNIEnv* env,
+                                                                                jobject obj,
+                                                                                jbyteArray jarr,
+                                                                                jlong jto) {
+  TVM_FFI_SAFE_CALL_BEGIN();
   jbyte* pdata = env->GetByteArrayElements(jarr, NULL);
-  int ret = 0;
-  if (memcpy(static_cast<void*>(pdata), from->data, size) == NULL) {
-    ret = 1;
-  }
-  env->ReleaseByteArrayElements(jarr, pdata, 0);  // copy back to java array automatically
-  return ret;
+  DLTensor* to = reinterpret_cast<DLTensor*>(jto);
+  size_t size = tvm::ffi::GetDataSize(*to);
+  static auto fcopy_from_bytes =
+      tvm::ffi::Function::GetGlobalRequired("runtime.TVMTensorCopyFromBytes");
+  fcopy_from_bytes(to, static_cast<void*>(pdata), size);
+  env->ReleaseByteArrayElements(jarr, pdata, 0);
+  TVM_FFI_SAFE_CALL_END();
 }
 
-// Device
-JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmSynchronize(JNIEnv* env, jint deviceType,
-                                                                  jint deviceId) {
-  return TVMSynchronize(static_cast<int>(deviceType), static_cast<int>(deviceId), NULL);
+JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIDLTensorCopyToJArray(JNIEnv* env,
+                                                                              jobject obj,
+                                                                              jlong jfrom,
+                                                                              jbyteArray jarr) {
+  TVM_FFI_SAFE_CALL_BEGIN();
+  DLTensor* from = reinterpret_cast<DLTensor*>(jfrom);
+  size_t size = tvm::ffi::GetDataSize(*from);
+  jbyte* pdata = env->GetByteArrayElements(jarr, NULL);
+  static auto fcopy_to_bytes =
+      tvm::ffi::Function::GetGlobalRequired("runtime.TVMTensorCopyToBytes");
+  fcopy_to_bytes(from, static_cast<void*>(pdata), size);
+  env->ReleaseByteArrayElements(jarr, static_cast<jbyte*>(pdata),
+                                0);  // copy back to java array automatically
+  TVM_FFI_SAFE_CALL_END();
+}
+
+JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmSynchronize(JNIEnv* env, jobject obj,
+                                                                  jint jdeviceType,
+                                                                  jint jdeviceId) {
+  TVM_FFI_SAFE_CALL_BEGIN();
+  static auto fsync = tvm::ffi::Function::GetGlobalRequired("runtime.Device_StreamSync");
+  DLDevice device{static_cast<DLDeviceType>(jdeviceType), jdeviceId};
+  fsync(device, nullptr);
+  TVM_FFI_SAFE_CALL_END();
+}
+
+JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmTensorEmpty(
+    JNIEnv* env, jobject obj, jlongArray jshape, jint jdtypeCode, jint jdtypeBits, jint jdtypeLanes,
+    jint jdeviceType, jint jdeviceId, jobject jret) {
+  TVM_FFI_SAFE_CALL_BEGIN();
+  int ndim = static_cast<int>(env->GetArrayLength(jshape));
+  jlong* shapeArray = env->GetLongArrayElements(jshape, NULL);
+  tvm::ffi::Shape shape(shapeArray, shapeArray + ndim);
+  DLDataType dtype;
+  dtype.code = static_cast<uint8_t>(jdtypeCode);
+  dtype.bits = static_cast<uint8_t>(jdtypeBits);
+  dtype.lanes = static_cast<int16_t>(jdtypeLanes);
+  DLDevice device{static_cast<DLDeviceType>(jdeviceType), jdeviceId};
+  env->ReleaseLongArrayElements(jshape, shapeArray, 0);
+  static auto fempty = tvm::ffi::Function::GetGlobalRequired("runtime.TVMTensorAllocWithScope");
+  tvm::ffi::Tensor out = fempty(shape, dtype, device, nullptr).cast<tvm::ffi::Tensor>();
+  void* handle = tvm::ffi::details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(out));
+  setLongField(env, jret, reinterpret_cast<jlong>(handle));
+  TVM_FFI_SAFE_CALL_END();
 }

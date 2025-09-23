@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/transform.h>
 
 #include "../utils.h"
@@ -31,7 +32,7 @@ class ThreadExtentChecker : private StmtVisitor {
       ThreadExtentChecker checker(thread_warp_size);
       checker.VisitStmt(stmt);
       return true;
-    } catch (const dmlc::Error& e) {
+    } catch (const std::exception&) {
       return false;
     }
   }
@@ -72,9 +73,9 @@ class ThreadExtentChecker : private StmtVisitor {
     if (block->annotations.count(attr::warp_execution)) {
       thread_idx_x = thread_warp_size_;
     }
-    if (Optional<Integer> low_inclusive =
+    if (ffi::Optional<Integer> low_inclusive =
             GetAnn<Integer>(block, attr::meta_schedule_thread_extent_low_inclusive)) {
-      if (Optional<Integer> high_inclusive =
+      if (ffi::Optional<Integer> high_inclusive =
               GetAnn<Integer>(block, attr::meta_schedule_thread_extent_high_inclusive)) {
         int64_t low = low_inclusive.value()->value;
         int64_t high = high_inclusive.value()->value;
@@ -103,7 +104,7 @@ namespace meta_schedule {
 /*! \brief Extract attribute from a target. */
 Integer Extract(const Target& target, const char* name) {
   ICHECK(target.defined());
-  if (Optional<Integer> v = target->GetAttr<Integer>(name)) {
+  if (ffi::Optional<Integer> v = target->GetAttr<Integer>(name)) {
     return v.value();
   }
   LOG(FATAL) << "AttributedError: \"" << name << "\" is not defined in the target";
@@ -113,14 +114,14 @@ Integer Extract(const Target& target, const char* name) {
 /*! \brief Verify the correctness of the generated GPU code. */
 class VerifyGPUCodeNode : public PostprocNode {
  public:
-  Target target_{nullptr};
-  Map<String, PrimExpr> target_constraints_{nullptr};
+  Target target_{ffi::UnsafeInit()};
+  ffi::Map<ffi::String, PrimExpr> target_constraints_{ffi::UnsafeInit()};
   int thread_warp_size_ = -1;
 
   void InitializeWithTuneContext(const TuneContext& context) final {
     ICHECK(context->target.defined());
     this->target_ = context->target.value();
-    this->target_constraints_ = Map<String, PrimExpr>{
+    this->target_constraints_ = ffi::Map<ffi::String, PrimExpr>{
         {"max_shared_memory_per_block", Extract(this->target_, "max_shared_memory_per_block")},
         {"max_threads_per_block", Extract(this->target_, "max_threads_per_block")},
         {"max_vthread", Integer(8)},
@@ -149,14 +150,10 @@ class VerifyGPUCodeNode : public PostprocNode {
         if (!tir::ThreadExtentChecker::Check(prim_func->body, thread_warp_size_)) {
           return false;
         }
-        IRModule lowered{nullptr};
+        IRModule lowered{ffi::UnsafeInit()};
         try {
-          auto pass_list = Array<tvm::transform::Pass>();
+          auto pass_list = ffi::Array<tvm::transform::Pass>();
           // Phase 1
-          // First three passes are not needed in TIR schedule.
-          // pass_list.push_back(tir::transform::InjectPrefetch());
-          // pass_list.push_back(tir::transform::TextureFlatten());
-          // pass_list.push_back(tir::transform::StorageFlatten(64, instrument_bound_checkers));
           pass_list.push_back(tir::transform::LowerCrossThreadReduction());
           pass_list.push_back(tir::transform::LowerInitBlock());
           pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
@@ -183,16 +180,17 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(tir::transform::LowerIntrin());
           // Convert Function to IRModule
           transform::PassContext pass_ctx = transform::PassContext::Current();
-          tir::PrimFunc f = WithAttr(GetRef<tir::PrimFunc>(prim_func), "global_symbol",
-                                     runtime::String(g_var->name_hint));
+          tir::PrimFunc f = WithAttr(ffi::GetRef<tir::PrimFunc>(prim_func), "global_symbol",
+                                     ffi::String(g_var->name_hint));
           f = WithAttr(f, tvm::attr::kTarget, this->target_);  // Required for LowerIntrin
-          bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
+          bool noalias = pass_ctx->GetConfig<bool>("tir.noalias", true).value();
           if (noalias) {
-            f = WithAttr(std::move(f), "tir.noalias", Bool(true));
+            f = WithAttr(std::move(f), "tir.noalias", true);
           }
-          IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));
+          IRModule mod =
+              IRModule(ffi::Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));
           lowered = tvm::transform::Sequential(pass_list)(std::move(mod));
-        } catch (const dmlc::Error& e) {
+        } catch (const std::exception&) {
           return false;
         }
         if (!Verify(lowered)) {
@@ -204,22 +202,22 @@ class VerifyGPUCodeNode : public PostprocNode {
   }
 
   Postproc Clone() const {
-    ObjectPtr<VerifyGPUCodeNode> n = make_object<VerifyGPUCodeNode>(*this);
+    ObjectPtr<VerifyGPUCodeNode> n = ffi::make_object<VerifyGPUCodeNode>(*this);
     n->target_constraints_ = this->target_constraints_;
     return Postproc(n);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.VerifyGPUCode";
-  TVM_DECLARE_FINAL_OBJECT_INFO(VerifyGPUCodeNode, PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.VerifyGPUCode", VerifyGPUCodeNode, PostprocNode);
 };
 
 Postproc Postproc::VerifyGPUCode() {
-  ObjectPtr<VerifyGPUCodeNode> n = make_object<VerifyGPUCodeNode>();
+  ObjectPtr<VerifyGPUCodeNode> n = ffi::make_object<VerifyGPUCodeNode>();
   return Postproc(n);
 }
 
-TVM_REGISTER_NODE_TYPE(VerifyGPUCodeNode);
-TVM_REGISTER_GLOBAL("meta_schedule.PostprocVerifyGPUCode").set_body_typed(Postproc::VerifyGPUCode);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.PostprocVerifyGPUCode", Postproc::VerifyGPUCode);
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

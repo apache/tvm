@@ -34,7 +34,7 @@ def _build_and_run_network(remote_obj, tracker, mod, input_data):
 
     def execute_on_host(mod, inputs):
         with tvm.transform.PassContext(opt_level=3):
-            ex = tvm.relax.build(mod, target="llvm")
+            ex = tvm.compile(mod, target="llvm")
         dev = tvm.cpu(0)
         vm = tvm.relax.VirtualMachine(ex, device=dev)
         output = vm["main"](*inputs)
@@ -125,7 +125,7 @@ def test_network(name, dtype):
     for _name, (shape, _dtype) in inputs.items():
         input_data[_name] = np.random.uniform(-1.0, 1.0, shape).astype(_dtype)
 
-    inputs_tvm: List[tvm.nd.NDArray] = [tvm.nd.array(v) for k, v in input_data.items()]
+    inputs_tvm: List[tvm.runtime.Tensor] = [tvm.runtime.tensor(v) for k, v in input_data.items()]
     outputs = _build_and_run_network(remote_obj, tracker, mod, inputs_tvm)
     nnapi_out = outputs[0]
     expected_out = outputs[1]

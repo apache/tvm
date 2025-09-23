@@ -22,6 +22,7 @@
  * \brief Convert the blocks to opaque blocks which do not have block vars.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -53,7 +54,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
     if (it != var_substitutes_.end()) {
       return it->second;
     }
-    return GetRef<Var>(var);
+    return ffi::GetRef<Var>(var);
   }
 
   Stmt VisitStmt_(const BlockNode* block) final {
@@ -63,7 +64,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
     if (!new_block->iter_vars.empty()) {
       new_block.CopyOnWrite()->iter_vars.clear();
     }
-    return std::move(new_block);
+    return new_block;
   }
 
   Stmt VisitStmt_(const BlockRealizeNode* realize) final {
@@ -73,7 +74,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
     // Step 1. Visit the predicate and iter_values, without any variable bindings
     for (const auto& iter : block_op->iter_vars) forbidden_iter_vars_.insert(iter->var.get());
     PrimExpr predicate = VisitExpr(realize->predicate);
-    Array<PrimExpr> iter_values = realize->iter_values;
+    ffi::Array<PrimExpr> iter_values = realize->iter_values;
     iter_values.MutateByApply([this](PrimExpr expr) { return VisitExpr(std::move(expr)); });
     for (const auto& iter : block_op->iter_vars) forbidden_iter_vars_.erase(iter->var.get());
 
@@ -95,7 +96,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
     // Step 5. Return
     if (predicate.same_as(realize->predicate) && iter_values.same_as(realize->iter_values) &&
         new_block.same_as(realize->block) && realize->iter_values.size() == 0) {
-      return GetRef<BlockRealize>(realize);
+      return ffi::GetRef<BlockRealize>(realize);
     } else {
       return BlockRealize({}, predicate, new_block);
     }
@@ -108,14 +109,9 @@ class OpaqueBlockConverter : public StmtExprMutator {
 };
 
 PrimFunc ConvertBlocksToOpaque(PrimFunc f) {
-  // Only apply this pass to TIR that is not from TE schedules
-  if (!IsFromLegacyTESchedule(f)) {
-    PrimFuncNode* fptr = f.CopyOnWrite();
-    fptr->body = OpaqueBlockConverter::Substitute(f);
-    return f;
-  } else {
-    return f;
-  }
+  PrimFuncNode* fptr = f.CopyOnWrite();
+  fptr->body = OpaqueBlockConverter::Substitute(f);
+  return f;
 }
 
 namespace transform {
@@ -127,7 +123,10 @@ Pass ConvertBlocksToOpaque() {
   return CreatePrimFuncPass(pass_func, 0, "tir.ConvertBlocksToOpaque", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.ConvertBlocksToOpaque").set_body_typed(ConvertBlocksToOpaque);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.ConvertBlocksToOpaque", ConvertBlocksToOpaque);
+}
 }  // namespace transform
 
 }  // namespace tir

@@ -24,7 +24,10 @@
 
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include <tvm/runtime/registry.h>
+#include <dmlc/memory_io.h>
+#include <tvm/ffi/extra/c_env_api.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include <array>
 #include <mutex>
@@ -45,7 +48,7 @@ namespace runtime {
 // cuModule is a per-GPU module
 // The runtime will contain a per-device module table
 // The modules will be lazily loaded
-class CUDAModuleNode : public runtime::ModuleNode {
+class CUDAModuleNode : public ffi::ModuleObj {
  public:
   explicit CUDAModuleNode(std::string data, std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap,
@@ -63,16 +66,16 @@ class CUDAModuleNode : public runtime::ModuleNode {
     }
   }
 
-  const char* type_key() const final { return "cuda"; }
+  const char* kind() const final { return "cuda"; }
 
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final {
-    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+    return ffi::Module::kBinarySerializable | ffi::Module::kRunnable;
   }
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final;
 
-  void SaveToFile(const String& file_name, const String& format) final {
+  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
     if (fmt == "cu") {
@@ -86,13 +89,17 @@ class CUDAModuleNode : public runtime::ModuleNode {
     }
   }
 
-  void SaveToBinary(dmlc::Stream* stream) final {
+  ffi::Bytes SaveToBytes() const final {
+    std::string buffer;
+    dmlc::MemoryStringStream ms(&buffer);
+    dmlc::Stream* stream = &ms;
     stream->Write(fmt_);
     stream->Write(fmap_);
     stream->Write(data_);
+    return ffi::Bytes(buffer);
   }
 
-  String GetSource(const String& format) final {
+  ffi::String InspectSource(const ffi::String& format) const final {
     if (format == fmt_) return data_;
     if (cuda_source_.length() != 0) {
       return cuda_source_;
@@ -108,6 +115,10 @@ class CUDAModuleNode : public runtime::ModuleNode {
     // must recheck under the lock scope
     if (module_[device_id] == nullptr) {
       CUDA_DRIVER_CALL(cuModuleLoadData(&(module_[device_id]), data_.c_str()));
+      static auto nvshmem_init_hook = ffi::Function::GetGlobal("runtime.nvshmem.cumodule_init");
+      if (nvshmem_init_hook.has_value()) {
+        (*nvshmem_init_hook)(static_cast<void*>(module_[device_id]));
+      }
     }
     CUfunction func;
     CUresult result = cuModuleGetFunction(&func, module_[device_id], func_name.c_str());
@@ -124,6 +135,10 @@ class CUDAModuleNode : public runtime::ModuleNode {
     // must recheck under the lock scope
     if (module_[device_id] == nullptr) {
       CUDA_DRIVER_CALL(cuModuleLoadData(&(module_[device_id]), data_.c_str()));
+      static auto nvshmem_init_hook = ffi::Function::GetGlobal("runtime.nvshmem.cumodule_init");
+      if (nvshmem_init_hook.has_value()) {
+        (*nvshmem_init_hook)(static_cast<void*>(module_[device_id]));
+      }
     }
     CUdeviceptr global;
     size_t nbytes;
@@ -166,7 +181,7 @@ class CUDAWrappedFunc {
     launch_param_config_.Init(num_void_args, launch_param_tags);
   }
   // invoke the function with void arguments
-  void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
+  void operator()(ffi::PackedArgs args, ffi::Any* rv, void** void_args) const {
     int device_id;
     CUDA_CALL(cudaGetDevice(&device_id));
     ThreadWorkLoad wl = launch_param_config_.Extract(args);
@@ -184,7 +199,7 @@ class CUDAWrappedFunc {
         }
       }
     }
-    CUstream strm = static_cast<CUstream>(CUDAThreadEntry::ThreadLocal()->stream);
+    CUstream strm = static_cast<CUstream>(TVMFFIEnvGetStream(kDLCUDA, device_id));
     CUresult result = cuLaunchKernel(fcache_[device_id], wl.grid_dim(0), wl.grid_dim(1),
                                      wl.grid_dim(2), wl.block_dim(0), wl.block_dim(1),
                                      wl.block_dim(2), wl.dyn_shmem_size, strm, void_args, nullptr);
@@ -196,7 +211,7 @@ class CUDAWrappedFunc {
          << " grid=(" << wl.grid_dim(0) << "," << wl.grid_dim(1) << "," << wl.grid_dim(2) << "), "
          << " block=(" << wl.block_dim(0) << "," << wl.block_dim(1) << "," << wl.block_dim(2)
          << ")\n";
-      std::string cuda = m_->GetSource("");
+      std::string cuda = m_->InspectSource("");
       if (cuda.length() != 0) {
         os << "// func_name=" << func_name_ << "\n"
            << "// CUDA Source\n"
@@ -227,7 +242,7 @@ class CUDAPrepGlobalBarrier {
     std::fill(pcache_.begin(), pcache_.end(), 0);
   }
 
-  void operator()(const TVMArgs& args, TVMRetValue* rv) const {
+  void operator()(const ffi::PackedArgs& args, ffi::Any* rv) const {
     int device_id;
     CUDA_CALL(cudaGetDevice(&device_id));
     if (pcache_[device_id] == 0) {
@@ -246,29 +261,29 @@ class CUDAPrepGlobalBarrier {
   mutable std::array<CUdeviceptr, kMaxNumGPUs> pcache_;
 };
 
-PackedFunc CUDAModuleNode::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
+ffi::Optional<ffi::Function> CUDAModuleNode::GetFunction(const ffi::String& name) {
+  ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
   ICHECK_EQ(sptr_to_self.get(), this);
-  ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   if (name == symbol::tvm_prepare_global_barrier) {
-    return PackedFunc(CUDAPrepGlobalBarrier(this, sptr_to_self));
+    return ffi::Function(CUDAPrepGlobalBarrier(this, sptr_to_self));
   }
   auto it = fmap_.find(name);
-  if (it == fmap_.end()) return PackedFunc();
+  if (it == fmap_.end()) return ffi::Function();
   const FunctionInfo& info = it->second;
   CUDAWrappedFunc f;
   f.Init(this, sptr_to_self, name, info.arg_types.size(), info.launch_param_tags);
-  return PackFuncVoidAddr(f, info.arg_types);
+  return PackFuncVoidAddr(f, info.arg_types, info.arg_extra_tags);
 }
 
-Module CUDAModuleCreate(std::string data, std::string fmt,
-                        std::unordered_map<std::string, FunctionInfo> fmap,
-                        std::string cuda_source) {
-  auto n = make_object<CUDAModuleNode>(data, fmt, fmap, cuda_source);
-  return Module(n);
+ffi::Module CUDAModuleCreate(std::string data, std::string fmt,
+                             std::unordered_map<std::string, FunctionInfo> fmap,
+                             std::string cuda_source) {
+  auto n = ffi::make_object<CUDAModuleNode>(data, fmt, fmap, cuda_source);
+  return ffi::Module(n);
 }
 
 // Load module from module.
-Module CUDAModuleLoadFile(const std::string& file_name, const String& format) {
+ffi::Module CUDAModuleLoadFile(const std::string& file_name, const ffi::String& format) {
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
@@ -278,8 +293,9 @@ Module CUDAModuleLoadFile(const std::string& file_name, const String& format) {
   return CUDAModuleCreate(data, fmt, fmap, std::string());
 }
 
-Module CUDAModuleLoadBinary(void* strm) {
-  dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+ffi::Module CUDAModuleLoadFromBytes(const ffi::Bytes& bytes) {
+  dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
+  dmlc::Stream* stream = &ms;
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt;
@@ -289,10 +305,12 @@ Module CUDAModuleLoadBinary(void* strm) {
   return CUDAModuleCreate(data, fmt, fmap, std::string());
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_cubin").set_body_typed(CUDAModuleLoadFile);
-
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_ptx").set_body_typed(CUDAModuleLoadFile);
-
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_cuda").set_body_typed(CUDAModuleLoadBinary);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("ffi.Module.load_from_file.cuda", CUDAModuleLoadFile)
+      .def("ffi.Module.load_from_file.ptx", CUDAModuleLoadFile)
+      .def("ffi.Module.load_from_bytes.cuda", CUDAModuleLoadFromBytes);
+}
 }  // namespace runtime
 }  // namespace tvm

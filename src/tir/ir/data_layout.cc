@@ -22,7 +22,8 @@
  * \brief Data Layout expression.
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -34,8 +35,10 @@ using tir::IterVar;
 using tir::IterVarNode;
 using tir::Var;
 
-TVM_REGISTER_NODE_TYPE(LayoutNode);
-TVM_REGISTER_NODE_TYPE(BijectiveLayoutNode);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  LayoutNode::RegisterReflection();
+  BijectiveLayoutNode::RegisterReflection();
+}
 
 const LayoutAxis LayoutAxis::UPPER_CASE[] = {
     LayoutAxis('A'), LayoutAxis('B'), LayoutAxis('C'), LayoutAxis('D'), LayoutAxis('E'),
@@ -71,8 +74,8 @@ const LayoutAxis& LayoutAxis::Get(const std::string& name) {
   return LayoutAxis::Get(name[0]);
 }
 
-Layout::Layout(const Array<IterVar>& axes) {
-  auto node = make_object<LayoutNode>();
+Layout::Layout(const ffi::Array<IterVar>& axes) {
+  auto node = ffi::make_object<LayoutNode>();
   node->axes = axes;
   std::ostringstream repr;
   for (const IterVar& axis : axes) {
@@ -94,7 +97,7 @@ Layout::Layout(const std::string& name, DataType dtype) {  // NOLINT(*)
   CHECK(dtype.is_int()) << "TypeError: The input dtype should be integer type";
   if (name == "__undef__") return;
 
-  auto node = make_object<LayoutNode>();
+  auto node = ffi::make_object<LayoutNode>();
   node->name = name;
 
   if (name.empty()) return;  // scalar
@@ -146,9 +149,9 @@ Layout::Layout(const std::string& name, DataType dtype) {  // NOLINT(*)
 
 Layout Layout::SubLayout(size_t pos, size_t len) const {
   if (!defined() || pos > ndim()) return Layout::Undef();
-  if (len == 0) return Layout(Array<IterVar>());
+  if (len == 0) return Layout(ffi::Array<IterVar>());
   if (pos + len > ndim()) len = ndim() - pos;
-  Array<IterVar> new_layout;
+  ffi::Array<IterVar> new_layout;
   const auto axes = operator->()->axes;
   for (size_t i = pos; i < pos + len; ++i) {
     new_layout.push_back(axes[i]);
@@ -167,7 +170,7 @@ Layout Layout::Split(const LayoutAxis& axis, size_t target_pos, int32_t factor) 
   ICHECK(!this->Contains(axis.ToSubordinate()))
       << "Axis " << axis << " has already been split in " << name;
   ICHECK(factor > 0) << "Invalid split size " << factor;
-  Array<IterVar> new_layout;
+  ffi::Array<IterVar> new_layout;
   for (size_t i = 0; i <= this->ndim(); ++i) {
     if (i == target_pos) {
       new_layout.push_back(IterVar(Range(PrimExpr(0), PrimExpr(factor)),
@@ -204,7 +207,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "Layout(" << l->name << ")";
     });
 
-inline bool GetStoreRule(Array<PrimExpr>* index_rule, Array<PrimExpr>* shape_rule,
+inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>* shape_rule,
                          const Layout& src_layout, const Layout& dst_layout) {
   if (!src_layout.defined() || src_layout.name().empty()) {
     LOG(WARNING) << "src layout '" << src_layout.name() << "' is invalid.";
@@ -291,11 +294,11 @@ inline bool GetStoreRule(Array<PrimExpr>* index_rule, Array<PrimExpr>* shape_rul
   return true;
 }
 
-inline Array<PrimExpr> TransformIndex(const Array<PrimExpr>& src_index,
-                                      const Array<IterVar>& src_axis,
-                                      const Array<PrimExpr>& transform_rule) {
+inline ffi::Array<PrimExpr> TransformIndex(const ffi::Array<PrimExpr>& src_index,
+                                           const ffi::Array<IterVar>& src_axis,
+                                           const ffi::Array<PrimExpr>& transform_rule) {
   arith::Analyzer ana;
-  Array<PrimExpr> result;
+  ffi::Array<PrimExpr> result;
   std::unordered_map<const tir::VarNode*, PrimExpr> bind_map;
   for (size_t i = 0; i < src_index.size(); ++i) {
     bind_map[src_axis[i]->var.get()] = src_index[i];
@@ -306,7 +309,7 @@ inline Array<PrimExpr> TransformIndex(const Array<PrimExpr>& src_index,
   return result;
 }
 
-Array<PrimExpr> BijectiveLayout::ForwardIndex(const Array<PrimExpr>& src_index) const {
+ffi::Array<PrimExpr> BijectiveLayout::ForwardIndex(const ffi::Array<PrimExpr>& src_index) const {
   ICHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
   ICHECK_EQ(src_index.size(), self->src_layout->axes.size())
@@ -314,7 +317,7 @@ Array<PrimExpr> BijectiveLayout::ForwardIndex(const Array<PrimExpr>& src_index) 
   return TransformIndex(src_index, self->src_layout->axes, self->index_forward_rule);
 }
 
-Array<PrimExpr> BijectiveLayout::BackwardIndex(const Array<PrimExpr>& dst_index) const {
+ffi::Array<PrimExpr> BijectiveLayout::BackwardIndex(const ffi::Array<PrimExpr>& dst_index) const {
   ICHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
   ICHECK_EQ(dst_index.size(), self->dst_layout->axes.size())
@@ -322,10 +325,10 @@ Array<PrimExpr> BijectiveLayout::BackwardIndex(const Array<PrimExpr>& dst_index)
   return TransformIndex(dst_index, self->dst_layout->axes, self->index_backward_rule);
 }
 
-inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
-                                      const Array<IterVar>& src_axis,
-                                      const Array<IterVar>& target_axis,
-                                      const Array<PrimExpr>& transform_rule) {
+inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape,
+                                           const ffi::Array<IterVar>& src_axis,
+                                           const ffi::Array<IterVar>& target_axis,
+                                           const ffi::Array<PrimExpr>& transform_rule) {
   arith::Analyzer ana;
   ICHECK_EQ(src_shape.size(), src_axis.size())
       << "Input shape size " << src_shape.size() << " mismatch with the expected shape size "
@@ -358,7 +361,7 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
   // infer the target shape,
   // for major-axis, use the forward/backward_rule directly,
   // for minor-axis, simply use the extent.
-  Array<PrimExpr> result;
+  ffi::Array<PrimExpr> result;
   ICHECK_EQ(transform_rule.size(), target_axis.size());
   for (size_t i = 0; i < transform_rule.size(); ++i) {
     PrimExpr rule = transform_rule[i];
@@ -392,14 +395,14 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
   return result;
 }
 
-Array<PrimExpr> BijectiveLayout::ForwardShape(const Array<PrimExpr>& shape) const {
+ffi::Array<PrimExpr> BijectiveLayout::ForwardShape(const ffi::Array<PrimExpr>& shape) const {
   ICHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
   return TransformShape(shape, self->src_layout->axes, self->dst_layout->axes,
                         self->shape_forward_rule);
 }
 
-Array<PrimExpr> BijectiveLayout::BackwardShape(const Array<PrimExpr>& shape) const {
+ffi::Array<PrimExpr> BijectiveLayout::BackwardShape(const ffi::Array<PrimExpr>& shape) const {
   ICHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
   return TransformShape(shape, self->dst_layout->axes, self->src_layout->axes,
@@ -407,7 +410,7 @@ Array<PrimExpr> BijectiveLayout::BackwardShape(const Array<PrimExpr>& shape) con
 }
 
 BijectiveLayout::BijectiveLayout(Layout src_layout, Layout dst_layout) {
-  auto n = make_object<BijectiveLayoutNode>();
+  auto n = ffi::make_object<BijectiveLayoutNode>();
 
   n->src_layout = std::move(src_layout);
   n->dst_layout = std::move(dst_layout);
@@ -427,43 +430,32 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ")";
     });
 
-TVM_REGISTER_GLOBAL("tir.Layout").set_body_typed([](std::string name, DataType dtype) {
-  return Layout(name, dtype);
-});
-
-TVM_REGISTER_GLOBAL("tir.LayoutIndexOf").set_body_typed([](Layout layout, std::string axis) -> int {
-  return layout.IndexOf(LayoutAxis::Get(axis));
-});
-
-TVM_REGISTER_GLOBAL("tir.LayoutFactorOf")
-    .set_body_typed([](Layout layout, std::string axis) -> int {
-      return layout.FactorOf(LayoutAxis::Get(axis));
-    });
-
-TVM_REGISTER_GLOBAL("tir.LayoutNdim").set_body_typed([](Layout layout) -> int {
-  return layout.ndim();
-});
-
-TVM_REGISTER_GLOBAL("tir.LayoutGetItem").set_body_typed([](Layout layout, int idx) -> std::string {
-  const LayoutAxis& axis = layout[idx];
-  return axis.name();
-});
-
-TVM_REGISTER_GLOBAL("tir.BijectiveLayout")
-    .set_body_typed([](Layout src_layout, Layout dst_layout) -> BijectiveLayout {
-      return BijectiveLayout(src_layout, dst_layout);
-    });
-
-TVM_REGISTER_GLOBAL("tir.BijectiveLayoutForwardIndex")
-    .set_body_method(&BijectiveLayout::ForwardIndex);
-
-TVM_REGISTER_GLOBAL("tir.BijectiveLayoutBackwardIndex")
-    .set_body_method(&BijectiveLayout::BackwardIndex);
-
-TVM_REGISTER_GLOBAL("tir.BijectiveLayoutForwardShape")
-    .set_body_method(&BijectiveLayout::ForwardShape);
-
-TVM_REGISTER_GLOBAL("tir.BijectiveLayoutBackwardShape")
-    .set_body_method(&BijectiveLayout::BackwardShape);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("tir.Layout", [](std::string name, DataType dtype) { return Layout(name, dtype); })
+      .def("tir.LayoutIndexOf",
+           [](Layout layout, std::string axis) -> int {
+             return layout.IndexOf(LayoutAxis::Get(axis));
+           })
+      .def("tir.LayoutFactorOf",
+           [](Layout layout, std::string axis) -> int {
+             return layout.FactorOf(LayoutAxis::Get(axis));
+           })
+      .def("tir.LayoutNdim", [](Layout layout) -> int { return layout.ndim(); })
+      .def("tir.LayoutGetItem",
+           [](Layout layout, int idx) -> std::string {
+             const LayoutAxis& axis = layout[idx];
+             return axis.name();
+           })
+      .def("tir.BijectiveLayout",
+           [](Layout src_layout, Layout dst_layout) -> BijectiveLayout {
+             return BijectiveLayout(src_layout, dst_layout);
+           })
+      .def_method("tir.BijectiveLayoutForwardIndex", &BijectiveLayout::ForwardIndex)
+      .def_method("tir.BijectiveLayoutBackwardIndex", &BijectiveLayout::BackwardIndex)
+      .def_method("tir.BijectiveLayoutForwardShape", &BijectiveLayout::ForwardShape)
+      .def_method("tir.BijectiveLayoutBackwardShape", &BijectiveLayout::BackwardShape);
+}
 }  // namespace tir
 }  // namespace tvm

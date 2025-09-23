@@ -26,7 +26,8 @@
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/arith/pattern.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/stmt_functor.h>
@@ -44,6 +45,8 @@ namespace arith {
 
 #ifdef TVM_MLIR_VERSION
 #if TVM_MLIR_VERSION >= 150
+
+TVM_FFI_STATIC_INIT_BLOCK() { PresburgerSetNode::RegisterReflection(); }
 using namespace tir;
 
 static void Update(const PrimExpr& constraint, PresburgerSetNode* intset) {
@@ -89,10 +92,10 @@ static void Update(const PrimExpr& constraint, PresburgerSetNode* intset) {
 }
 
 PresburgerSet::PresburgerSet(const PrimExpr& constraint) {
-  Array<Var> vars;
+  ffi::Array<Var> vars;
   PostOrderVisit(constraint, [&vars](const ObjectRef& obj) {
     if (const VarNode* new_var = obj.as<VarNode>()) {
-      auto var = GetRef<Var>(new_var);
+      auto var = ffi::GetRef<Var>(new_var);
       if (!std::any_of(vars.begin(), vars.end(), [&var](const Var& v) { return v.same_as(var); })) {
         vars.push_back(var);
       }
@@ -102,19 +105,19 @@ PresburgerSet::PresburgerSet(const PrimExpr& constraint) {
   Analyzer analyzer;
   PrimExpr simplified_constraint = analyzer.Simplify(constraint, kSimplifyRewriteCanonicalRewrite);
   auto space = PresburgerSpace::getRelationSpace(vars.size(), 0, 0, 0);
-  auto node = make_object<PresburgerSetNode>(std::move(space), vars);
+  auto node = ffi::make_object<PresburgerSetNode>(std::move(space), vars);
   node->SetVars(vars);
   Update(simplified_constraint, node.get());
   data_ = std::move(node);
 }
 
 PresburgerSet::PresburgerSet(const std::vector<IntegerRelation>& disjuncts,
-                             const Array<Var>& vars) {
-  auto node = make_object<PresburgerSetNode>(disjuncts, disjuncts[0].getSpace(), vars);
+                             const ffi::Array<Var>& vars) {
+  auto node = ffi::make_object<PresburgerSetNode>(disjuncts, disjuncts[0].getSpace(), vars);
   data_ = std::move(node);
 }
 
-void PresburgerSetNode::UpdateConstraint(const PrimExpr& constraint, const Array<Var>& vars) {
+void PresburgerSetNode::UpdateConstraint(const PrimExpr& constraint, const ffi::Array<Var>& vars) {
   Analyzer analyzer;
   PrimExpr simplified_constraint = analyzer.Simplify(constraint, kSimplifyRewriteCanonicalRewrite);
   Update(simplified_constraint, this);
@@ -183,7 +186,7 @@ PrimExpr PresburgerSetNode::GenerateConstraint() const {
   return constraint;
 }
 
-PresburgerSet Union(const Array<PresburgerSet>& sets) {
+PresburgerSet Union(const ffi::Array<PresburgerSet>& sets) {
   CHECK_GT(sets.size(), 0);
   if (sets.size() == 1) return sets[0];
   auto relations = sets[0]->disjuncts;
@@ -195,7 +198,7 @@ PresburgerSet Union(const Array<PresburgerSet>& sets) {
   return PresburgerSet(std::move(relations), sets[0]->GetVars());
 }
 
-PresburgerSet Intersect(const Array<PresburgerSet>& sets) {
+PresburgerSet Intersect(const ffi::Array<PresburgerSet>& sets) {
   CHECK_GT(sets.size(), 0);
   if (sets.size() == 1) return sets[0];
   auto relations = sets[0]->disjuncts;
@@ -214,7 +217,7 @@ PresburgerSet Intersect(const Array<PresburgerSet>& sets) {
 }
 
 IntSet EvalSet(const PrimExpr& e, const PresburgerSet& set) {
-  Array<PrimExpr> tvm_coeffs = DetectLinearEquation(e, set->GetVars());
+  ffi::Array<PrimExpr> tvm_coeffs = DetectLinearEquation(e, set->GetVars());
 #if TVM_MLIR_VERSION >= 190
   SmallVector<llvm::DynamicAPInt> coeffs;
 #elif TVM_MLIR_VERSION >= 160
@@ -272,9 +275,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 PresburgerSet MakePresburgerSet(const PrimExpr& constraint) { return PresburgerSet(constraint); }
 
-TVM_REGISTER_GLOBAL("arith.PresburgerSet").set_body_typed(MakePresburgerSet);
-
-TVM_REGISTER_NODE_TYPE(PresburgerSetNode);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("arith.PresburgerSet", MakePresburgerSet);
+}
 
 }  // namespace arith
 }  // namespace tvm

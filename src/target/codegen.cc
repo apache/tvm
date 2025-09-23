@@ -22,10 +22,11 @@
  * \brief Common utilities to generated C style code.
  */
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/function.h>
@@ -37,98 +38,55 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../runtime/library_module.h"
-#include "../support/base64.h"
-
 namespace tvm {
 namespace codegen {
 
-/*!
- * \brief TIRToRuntime conversion specific to a TargetKind
- *
- * This function is responsible for scanning an IRModule for appropriate Target-specific functions
- and generating a Runtime module representing the compiled output
- *
- * \param ir_module Unified IRModule
- * \param target Target to filter on or retrieve arguments from
- * \return Runtime Module containing compiled functions
- */
-using FTVMTIRToRuntime = tvm::runtime::TypedPackedFunc<runtime::Module(IRModule, Target)>;
-
-runtime::Module Build(IRModule mod, Target target) {
+ffi::Module Build(IRModule mod, Target target) {
   if (transform::PassContext::Current()
           ->GetConfig<Bool>("tir.disable_assert", Bool(false))
           .value()) {
     mod = tir::transform::SkipAssert()(mod);
   }
-  auto target_attr_map = tvm::TargetKind::GetAttrMap<FTVMTIRToRuntime>("TIRToRuntime");
-  if (target_attr_map.count(target->kind)) {
-    return target_attr_map[target->kind](mod, target);
-  }
 
   // the build function.
   std::string build_f_name = "target.build." + target->kind->name;
-  const PackedFunc* bf = runtime::Registry::Get(build_f_name);
-  ICHECK(bf != nullptr) << build_f_name << " is not enabled";
-  return (*bf)(mod, target);
+  const auto bf = tvm::ffi::Function::GetGlobal(build_f_name);
+  ICHECK(bf.has_value()) << build_f_name << " is not enabled";
+  return (*bf)(mod, target).cast<ffi::Module>();
 }
 
 /*! \brief Helper class to serialize module */
 class ModuleSerializer {
  public:
-  explicit ModuleSerializer(runtime::Module mod) : mod_(mod) { Init(); }
+  explicit ModuleSerializer(ffi::Module mod) : mod_(mod) { Init(); }
 
   void SerializeModuleToBytes(dmlc::Stream* stream, bool export_dso) {
-    // Only have one DSO module and it is in the root, then
-    // we will not produce import_tree_.
-    bool has_import_tree = true;
-
-    if (export_dso) {
-      has_import_tree = !mod_->imports().empty();
-    }
-
-    uint64_t sz = 0;
-    if (has_import_tree) {
-      // we will append one key for _import_tree
-      // The layout is the same as before: binary_size, key, logic, key, logic...
-      sz = mod_group_vec_.size() + 1;
-    } else {
-      // Keep the old behaviour
-      sz = mod_->imports().size();
-    }
-    stream->Write(sz);
-
+    // Always _import_tree
+    stream->Write(import_tree_row_ptr_);
+    stream->Write(import_tree_child_indices_);
     for (const auto& group : mod_group_vec_) {
       ICHECK_NE(group.size(), 0) << "Every allocated group must have at least one module";
       // we prioritize export dso when a module is both serializable and exportable
       if (export_dso) {
-        if (group[0]->IsDSOExportable()) {
-          if (has_import_tree) {
-            std::string mod_type_key = "_lib";
-            stream->Write(mod_type_key);
-          }
-        } else if (group[0]->IsBinarySerializable()) {
-          ICHECK_EQ(group.size(), 1U) << "Non DSO module is never merged";
-          std::string mod_type_key = group[0]->type_key();
+        if (group[0]->GetPropertyMask() & ffi::Module::kCompilationExportable) {
+          std::string mod_type_key = "_lib";
           stream->Write(mod_type_key);
-          group[0]->SaveToBinary(stream);
+        } else if (group[0]->GetPropertyMask() & ffi::Module::kBinarySerializable) {
+          ICHECK_EQ(group.size(), 1U) << "Non DSO module is never merged";
+          std::string mod_type_key = group[0]->kind();
+          stream->Write(mod_type_key);
+          std::string bytes = group[0]->SaveToBytes();
+          stream->Write(bytes);
         }
       } else {
-        ICHECK(group[0]->IsBinarySerializable())
-            << group[0]->type_key() << " is not binary serializable.";
+        ICHECK(group[0]->GetPropertyMask() & ffi::Module::kBinarySerializable)
+            << group[0]->kind() << " is not binary serializable.";
         ICHECK_EQ(group.size(), 1U) << "Non DSO module is never merged";
-        std::string mod_type_key = group[0]->type_key();
+        std::string mod_type_key = group[0]->kind();
         stream->Write(mod_type_key);
-        group[0]->SaveToBinary(stream);
+        std::string bytes = group[0]->SaveToBytes();
+        stream->Write(bytes);
       }
-    }
-
-    // Write _import_tree key if we have
-    if (has_import_tree) {
-      std::string import_key = "_import_tree";
-      stream->Write(import_key);
-      stream->Write(import_tree_row_ptr_);
-      stream->Write(import_tree_child_indices_);
     }
   }
 
@@ -143,13 +101,13 @@ class ModuleSerializer {
   // This function merges all the DSO exportable module into
   // a single one as this is also what happens in the final hierachy
   void CreateModuleIndex() {
-    std::unordered_set<const runtime::ModuleNode*> visited{mod_.operator->()};
-    std::vector<runtime::ModuleNode*> stack{mod_.operator->()};
+    std::unordered_set<const ffi::ModuleObj*> visited{mod_.operator->()};
+    std::vector<ffi::ModuleObj*> stack{mod_.operator->()};
     uint64_t module_index = 0;
 
-    auto fpush_imports_to_stack = [&](runtime::ModuleNode* node) {
-      for (runtime::Module m : node->imports()) {
-        runtime::ModuleNode* next = m.operator->();
+    auto fpush_imports_to_stack = [&](ffi::ModuleObj* node) {
+      for (Any m : node->imports()) {
+        ffi::ModuleObj* next = m.cast<ffi::Module>().operator->();
         if (visited.count(next) == 0) {
           visited.insert(next);
           stack.push_back(next);
@@ -157,7 +115,7 @@ class ModuleSerializer {
       }
     };
 
-    std::vector<runtime::ModuleNode*> dso_exportable_boundary;
+    std::vector<ffi::ModuleObj*> dso_exportable_boundary;
 
     // Create module index that merges all dso module into a single group.
     //
@@ -170,16 +128,16 @@ class ModuleSerializer {
 
     // Phase 0: only expand non-dso-module and record the boundary.
     while (!stack.empty()) {
-      runtime::ModuleNode* n = stack.back();
+      ffi::ModuleObj* n = stack.back();
       stack.pop_back();
-      if (n->IsDSOExportable()) {
+      if (n->GetPropertyMask() & ffi::Module::kCompilationExportable) {
         // do not recursively expand dso modules
         // we will expand in phase 1
         dso_exportable_boundary.emplace_back(n);
       } else {
         // expand the non-dso modules
         mod2index_[n] = module_index++;
-        mod_group_vec_.emplace_back(std::vector<runtime::ModuleNode*>({n}));
+        mod_group_vec_.emplace_back(std::vector<ffi::ModuleObj*>({n}));
         fpush_imports_to_stack(n);
       }
     }
@@ -189,22 +147,22 @@ class ModuleSerializer {
     // This index is chosen so that all the DSO's parents are
     // allocated before this index, and children will be allocated after
     uint64_t dso_module_index = module_index++;
-    mod_group_vec_.emplace_back(std::vector<runtime::ModuleNode*>());
+    mod_group_vec_.emplace_back(std::vector<ffi::ModuleObj*>());
 
     // restart visiting the stack using elements in dso exportable boundary
     stack = std::move(dso_exportable_boundary);
 
     // Phase 1: expand the children of dso modules.
     while (!stack.empty()) {
-      runtime::ModuleNode* n = stack.back();
+      ffi::ModuleObj* n = stack.back();
       stack.pop_back();
 
-      if (n->IsDSOExportable()) {
+      if (n->GetPropertyMask() & ffi::Module::kCompilationExportable) {
         mod_group_vec_[dso_module_index].emplace_back(n);
         mod2index_[n] = dso_module_index;
       } else {
         mod2index_[n] = module_index++;
-        mod_group_vec_.emplace_back(std::vector<runtime::ModuleNode*>({n}));
+        mod_group_vec_.emplace_back(std::vector<ffi::ModuleObj*>({n}));
       }
       fpush_imports_to_stack(n);
     }
@@ -216,8 +174,8 @@ class ModuleSerializer {
     for (size_t parent_index = 0; parent_index < mod_group_vec_.size(); ++parent_index) {
       child_indices.clear();
       for (const auto* m : mod_group_vec_[parent_index]) {
-        for (runtime::Module im : m->imports()) {
-          uint64_t mod_index = mod2index_.at(im.operator->());
+        for (Any im : m->imports()) {
+          uint64_t mod_index = mod2index_.at(im.cast<ffi::Module>().operator->());
           // skip cycle when dso modules are merged together
           if (mod_index != parent_index) {
             child_indices.emplace_back(mod_index);
@@ -234,8 +192,8 @@ class ModuleSerializer {
         CHECK_LT(parent_index, child_indices[0])
             << "RuntimeError: Cannot export due to multiple dso-exportables "
             << "that cannot be merged without creating a cycle in the import tree. "
-            << "Related module keys: parent=" << mod_group_vec_[parent_index][0]->type_key()
-            << ", child=" << mod_group_vec_[child_indices[0]][0]->type_key();
+            << "Related module keys: parent=" << mod_group_vec_[parent_index][0]->kind()
+            << ", child=" << mod_group_vec_[child_indices[0]][0]->kind();
       }
       // insert the child indices
       import_tree_child_indices_.insert(import_tree_child_indices_.end(), child_indices.begin(),
@@ -244,16 +202,16 @@ class ModuleSerializer {
     }
   }
 
-  runtime::Module mod_;
+  ffi::Module mod_;
   // construct module to index
-  std::unordered_map<runtime::ModuleNode*, size_t> mod2index_;
+  std::unordered_map<ffi::ModuleObj*, size_t> mod2index_;
   // index -> module group
-  std::vector<std::vector<runtime::ModuleNode*>> mod_group_vec_;
+  std::vector<std::vector<ffi::ModuleObj*>> mod_group_vec_;
   std::vector<uint64_t> import_tree_row_ptr_{0};
   std::vector<uint64_t> import_tree_child_indices_;
 };
 
-std::string SerializeModuleToBytes(const runtime::Module& mod, bool export_dso) {
+std::string SerializeModuleToBytes(const ffi::Module& mod, bool export_dso) {
   std::string bin;
   dmlc::MemoryStringStream ms(&bin);
   dmlc::Stream* stream = &ms;
@@ -263,16 +221,18 @@ std::string SerializeModuleToBytes(const runtime::Module& mod, bool export_dso) 
   return bin;
 }
 
-runtime::Module DeserializeModuleFromBytes(std::string blob) {
+ffi::Module DeserializeModuleFromBytes(std::string blob) {
   dmlc::MemoryStringStream ms(&blob);
   dmlc::Stream* stream = &ms;
 
-  uint64_t size;
-  ICHECK(stream->Read(&size));
-  std::vector<runtime::Module> modules;
+  std::vector<ffi::Module> modules;
   std::vector<uint64_t> import_tree_row_ptr;
   std::vector<uint64_t> import_tree_child_indices;
 
+  stream->Read(&import_tree_row_ptr);
+  stream->Read(&import_tree_child_indices);
+
+  uint64_t size = import_tree_row_ptr.size() - 1;
   for (uint64_t i = 0; i < size; ++i) {
     std::string tkey;
     ICHECK(stream->Read(&tkey));
@@ -283,29 +243,32 @@ runtime::Module DeserializeModuleFromBytes(std::string blob) {
       ICHECK(stream->Read(&import_tree_row_ptr));
       ICHECK(stream->Read(&import_tree_child_indices));
     } else {
-      auto m = runtime::LoadModuleFromBinary(tkey, stream);
+      std::string bytes;
+      ICHECK(stream->Read(&bytes));
+      auto loader = ffi::Function::GetGlobal("ffi.Module.load_from_bytes." + tkey);
+      ICHECK(loader.has_value()) << "ffi.Module.load_from_bytes." << tkey << " is not enabled";
+      auto m = (*loader)(ffi::Bytes(bytes)).cast<ffi::Module>();
       modules.emplace_back(m);
     }
   }
 
   for (size_t i = 0; i < modules.size(); ++i) {
     for (size_t j = import_tree_row_ptr[i]; j < import_tree_row_ptr[i + 1]; ++j) {
-      auto module_import_addr = runtime::ModuleInternal::GetImportsAddr(modules[i].operator->());
       auto child_index = import_tree_child_indices[j];
       ICHECK(child_index < modules.size());
-      module_import_addr->emplace_back(modules[child_index]);
+      modules[i]->ImportModule(modules[child_index]);
     }
   }
 
   ICHECK(!modules.empty()) << "modules cannot be empty when import tree is present";
   // invariance: root module is always at location 0.
   // The module order is collected via DFS
-  runtime::Module root_mod = modules[0];
+  ffi::Module root_mod = modules[0];
   return root_mod;
 }
 
-std::string PackImportsToBytes(const runtime::Module& mod) {
-  std::string bin = SerializeModuleToBytes(mod);
+std::string PackImportsToBytes(const ffi::Module& mod) {
+  std::string bin = SerializeModuleToBytes(mod, /*export_dso*/ true);
 
   uint64_t nbytes = bin.length();
   std::string header;
@@ -315,14 +278,14 @@ std::string PackImportsToBytes(const runtime::Module& mod) {
   return header + bin;
 }
 
-std::string PackImportsToC(const runtime::Module& mod, bool system_lib,
+std::string PackImportsToC(const ffi::Module& mod, bool system_lib,
                            const std::string& c_symbol_prefix) {
   if (c_symbol_prefix.length() != 0) {
     CHECK(system_lib)
         << "c_symbol_prefix advanced option should be used in conjuction with system-lib";
   }
 
-  std::string mdev_blob_name = c_symbol_prefix + runtime::symbol::tvm_dev_mblob;
+  std::string mdev_blob_name = c_symbol_prefix + ffi::symbol::tvm_ffi_library_bin;
   std::string blob = PackImportsToBytes(mod);
 
   // translate to C program
@@ -348,9 +311,9 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib,
   }
   os << "\n};\n";
   if (system_lib) {
-    os << "extern int TVMBackendRegisterSystemLibSymbol(const char*, void*);\n";
+    os << "extern int TVMFFIEnvModRegisterSystemLibSymbol(const char*, void*);\n";
     os << "static int " << mdev_blob_name << "_reg_ = "
-       << "TVMBackendRegisterSystemLibSymbol(\"" << mdev_blob_name << "\", (void*)"
+       << "TVMFFIEnvModRegisterSystemLibSymbol(\"" << mdev_blob_name << "\", (void*)"
        << mdev_blob_name << ");\n";
   }
   os << "#ifdef __cplusplus\n"
@@ -359,52 +322,54 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib,
   return os.str();
 }
 
-runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
-                                  const std::string& llvm_target_string,
-                                  const std::string& c_symbol_prefix) {
+ffi::Module PackImportsToLLVM(const ffi::Module& mod, bool system_lib,
+                              const std::string& llvm_target_string,
+                              const std::string& c_symbol_prefix) {
   if (c_symbol_prefix.length() != 0) {
     CHECK(system_lib)
         << "c_symbol_prefix advanced option should be used in conjuction with system-lib";
   }
 
   std::string blob = PackImportsToBytes(mod);
-  TVMByteArray blob_byte_array;
-  blob_byte_array.size = blob.length();
-  blob_byte_array.data = blob.data();
 
   // Call codegen_blob to generate LLVM module
   std::string codegen_f_name = "codegen.codegen_blob";
   // the codegen function.
-  const PackedFunc* codegen_f = runtime::Registry::Get(codegen_f_name);
-  ICHECK(codegen_f != nullptr) << "codegen.codegen_blob is not presented.";
-  return (*codegen_f)(blob_byte_array, system_lib, llvm_target_string, c_symbol_prefix);
+  const auto codegen_f = tvm::ffi::Function::GetGlobal(codegen_f_name);
+  ICHECK(codegen_f.has_value()) << "codegen.codegen_blob is not presented.";
+  return (*codegen_f)(ffi::Bytes(blob), system_lib, llvm_target_string, c_symbol_prefix)
+      .cast<ffi::Module>();
 }
 
-TVM_REGISTER_GLOBAL("target.Build").set_body_typed(Build);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("target.Build", Build);
+}
 
 // Export a few auxiliary function to the runtime namespace.
-TVM_REGISTER_GLOBAL("runtime.ModuleImportsBlobName").set_body_typed([]() -> std::string {
-  return runtime::symbol::tvm_dev_mblob;
-});
-
-TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToNDArray")
-    .set_body_typed([](const runtime::Module& mod) {
-      std::string buffer = PackImportsToBytes(mod);
-      ShapeTuple::index_type size = buffer.size();
-      DLDataType uchar;
-      uchar.code = kDLUInt;
-      uchar.bits = 8;
-      uchar.lanes = 1;
-      DLDevice dev;
-      dev.device_type = kDLCPU;
-      dev.device_id = 0;
-      auto array = runtime::NDArray::Empty({size}, uchar, dev);
-      array.CopyFromBytes(buffer.data(), size);
-      return array;
-    });
-
-TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToC").set_body_typed(PackImportsToC);
-TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToLLVM").set_body_typed(PackImportsToLLVM);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.ModuleImportsBlobName",
+           []() -> std::string { return ffi::symbol::tvm_ffi_library_bin; })
+      .def("runtime.ModulePackImportsToTensor",
+           [](const ffi::Module& mod) {
+             std::string buffer = PackImportsToBytes(mod);
+             ffi::Shape::index_type size = buffer.size();
+             DLDataType uchar;
+             uchar.code = kDLUInt;
+             uchar.bits = 8;
+             uchar.lanes = 1;
+             DLDevice dev;
+             dev.device_type = kDLCPU;
+             dev.device_id = 0;
+             auto array = runtime::Tensor::Empty({size}, uchar, dev);
+             array.CopyFromBytes(buffer.data(), size);
+             return array;
+           })
+      .def("runtime.ModulePackImportsToC", PackImportsToC)
+      .def("runtime.ModulePackImportsToLLVM", PackImportsToLLVM);
+}
 
 }  // namespace codegen
 }  // namespace tvm

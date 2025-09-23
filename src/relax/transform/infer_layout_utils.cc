@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 #include "infer_layout_utils.h"
+
+#include <tvm/ffi/reflection/registry.h>
 
 #include "utils.h"
 
@@ -26,6 +27,35 @@ namespace relax {
 
 using tir::IterVar;
 using tir::Layout;
+
+std::string TransposeSubLayoutStrLike(const std::string ref_str, const std::string& src_str,
+                                      const std::string& desired_str) {
+  std::string out;
+  for (const char& c : desired_str) {
+    if (std::isupper(c)) {
+      auto res = src_str.find(c, 0);
+      ICHECK(res != std::string::npos) << "Invalid Layout:"
+                                       << "can't find " << c << " in source layout" << src_str;
+      out.push_back(ref_str[res]);
+    } else if (isdigit(c)) {
+      out.push_back(c);
+    } else if (std::islower(c)) {
+      auto res = src_str.find(std::toupper(c), 0);
+      ICHECK(res != std::string::npos) << "Invalid Layout:"
+                                       << "can't find " << c << " in source layout" << src_str;
+      out.push_back(std::tolower(ref_str[res]));
+    }
+  }
+  return out;
+}
+
+Layout TransposeSubLayoutLike(const Layout& ref, const Layout& src, const Layout& desired) {
+  std::string ref_str = ref.name();
+  std::string src_str = src.name();
+  std::string desired_str = desired.name();
+  std::string out = TransposeSubLayoutStrLike(ref_str, src_str, desired_str);
+  return Layout(out);
+}
 
 Layout TransposeLike(const Layout& input, const Layout& src, const Layout& dst) {
   ICHECK(src.ndim() == dst.ndim() && input.ndim() == src.ndim())
@@ -37,7 +67,7 @@ Layout TransposeLike(const Layout& input, const Layout& src, const Layout& dst) 
   return Layout(axes);
 }
 
-String TransposeStrLike(const String& input, const Layout& src, const Layout& dst) {
+ffi::String TransposeStrLike(const ffi::String& input, const Layout& src, const Layout& dst) {
   ICHECK(src.ndim() == dst.ndim() && input.size() == src.ndim())
       << "Layouts must have the same size";
   std::string axes;
@@ -49,7 +79,11 @@ String TransposeStrLike(const String& input, const Layout& src, const Layout& ds
 
 int FindAxis(const Layout& dst, int axis) {
   axis = (axis + dst.ndim()) % dst.ndim();
-  return dst.name().find('A' + axis);
+  std::string layout_name = dst.name();
+  layout_name.erase(std::remove_if(layout_name.begin(), layout_name.end(),
+                                   [](unsigned char c) { return std::isdigit(c); }),
+                    layout_name.end());
+  return layout_name.find('A' + axis);
 }
 
 Layout InitialLayout(int ndim) {
@@ -86,7 +120,7 @@ LayoutDecision GetLayoutDecision(const VarLayoutMap& var_layout_map, const Expr&
 NLayout GetNLayout(const VarLayoutMap& var_layout_map, const Expr& arg) {
   auto fmapleaf = [&](const Expr& expr) -> NLayout {
     if (const auto* var = expr.as<VarNode>()) {
-      auto it = var_layout_map.find(GetRef<Var>(var));
+      auto it = var_layout_map.find(ffi::GetRef<Var>(var));
       if (it != var_layout_map.end()) {
         return (*it).second;
       } else {
@@ -100,7 +134,8 @@ NLayout GetNLayout(const VarLayoutMap& var_layout_map, const Expr& arg) {
   return MapToNestedMsg<LayoutDecision>(arg, fmapleaf);
 }
 
-bool NoDesiredLayout(const Call& call, const Map<String, Array<String>>& desired_layouts) {
+bool NoDesiredLayout(const Call& call,
+                     const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts) {
   const OpNode* op_node = call->op.as<OpNode>();
   if (op_node == nullptr) return false;
   const auto& it = desired_layouts.find(op_node->name);
@@ -120,6 +155,11 @@ LayoutDecision FollowDecision(const LayoutDecision& src, int dst_ndim) {
     }
     return LayoutDecision(Layout(layout));
   }
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  LayoutDecisionNode::RegisterReflection();
+  InferLayoutOutputNode::RegisterReflection();
 }
 
 }  // namespace relax

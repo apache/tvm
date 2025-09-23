@@ -30,6 +30,7 @@
 #include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
+#include <tvm/ffi/reflection/registry.h>
 #if TVM_LLVM_VERSION >= 100
 #include <llvm/IR/IntrinsicsNVPTX.h>
 #endif
@@ -130,7 +131,8 @@ class CodeGenNVPTX : public CodeGenLLVM {
     }
 
     buf = builder_->CreatePointerCast(
-        buf, DTypeToLLVMType(op->dtype)->getPointerTo(buf->getType()->getPointerAddressSpace()));
+        buf,
+        llvmGetPointerTo(DTypeToLLVMType(op->dtype), buf->getType()->getPointerAddressSpace()));
     ICHECK(!var_map_.count(op->buffer_var.get()));
     var_map_[op->buffer_var.get()] = buf;
     this->VisitStmt(op->body);
@@ -170,7 +172,12 @@ class CodeGenNVPTX : public CodeGenLLVM {
           LOG(FATAL) << "unknown thread idx";
       }
     }
+#if TVM_LLVM_VERSION >= 200
+    llvm::Function* f = llvm::cast<llvm::Function>(
+        llvm::Intrinsic::getOrInsertDeclaration(module_.get(), intrin_id, {}));
+#else
     llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), intrin_id);
+#endif
     return builder_->CreateCall(f, {});
   }
 
@@ -180,8 +187,17 @@ class CodeGenNVPTX : public CodeGenLLVM {
       // TODO(tqchen) warp sync in CUDA9
       return nullptr;
     } else if (sync == "shared" || sync == "shared.dyn") {
+#if TVM_LLVM_VERSION >= 200
+      llvm::Function* f = llvm::cast<llvm::Function>(llvm::Intrinsic::getOrInsertDeclaration(
+#if TVM_LLVM_VERSION >= 210
+          module_.get(), llvm::Intrinsic::nvvm_barrier_cta_sync_aligned_all, {}));
+#else
+          module_.get(), llvm::Intrinsic::nvvm_barrier0, {}));
+#endif
+#else
       llvm::Function* f =
           llvm::Intrinsic::getDeclaration(module_.get(), llvm::Intrinsic::nvvm_barrier0);
+#endif
       return builder_->CreateCall(f, {});
     } else {
       LOG(FATAL) << "Do not support sync " << sync;
@@ -300,30 +316,34 @@ llvm::Value* CodeGenNVPTX::CreateIntrinsic(const CallNode* op) {
 }
 
 int GetCUDAComputeVersion(const Target& target) {
-  Optional<String> mcpu = target->GetAttr<String>("mcpu");
-  ICHECK(mcpu.defined()) << "InternalError: \"-mcpu\" is undefined in the NVPTX target";
+  ffi::Optional<ffi::String> mcpu = target->GetAttr<ffi::String>("mcpu");
+  ICHECK(mcpu.has_value()) << "InternalError: \"-mcpu\" is undefined in the NVPTX target";
   std::string sm_version = mcpu.value();
   return std::stoi(sm_version.substr(3));
 }
 
-runtime::Module BuildNVPTX(IRModule mod, Target target) {
+ffi::Module BuildNVPTX(IRModule mod, Target target) {
   LLVMInstance llvm_instance;
   With<LLVMTarget> llvm_target(llvm_instance, target);
 
   int compute_ver = GetCUDAComputeVersion(target);
   auto cg = std::make_unique<CodeGenNVPTX>();
 
-  cg->Init("TVMPTXModule", llvm_target.get(), NullOpt, false, false);
+  cg->Init("TVMPTXModule", llvm_target.get(), std::nullopt, false, false);
 
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
 
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
-  const auto* flibdevice_path = tvm::runtime::Registry::Get("tvm_callback_libdevice_path");
-  if (flibdevice_path != nullptr) {
-    std::string path = (*flibdevice_path)(compute_ver);
+  const auto flibdevice_path = tvm::ffi::Function::GetGlobal("tvm_callback_libdevice_path");
+  if (flibdevice_path.has_value()) {
+    std::string path = (*flibdevice_path)(compute_ver).cast<std::string>();
     if (path.length() != 0) {
       std::unique_ptr<llvm::Module> mlib = llvm_instance.LoadIR(path);
+#if TVM_LLVM_VERSION >= 210
+      mlib->setTargetTriple(llvm::Triple(llvm_target->GetTargetTriple()));
+#else
       mlib->setTargetTriple(llvm_target->GetTargetTriple());
+#endif
       mlib->setDataLayout(tm->createDataLayout());
       cg->AddLinkModule(std::move(mlib));
     }
@@ -357,12 +377,14 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
   return CUDAModuleCreate(ptx, "ptx", ExtractFuncInfo(mod), ll);
 }
 
-TVM_REGISTER_GLOBAL("target.build.nvptx").set_body_typed(BuildNVPTX);
-
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_nvptx")
-    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
-      *rv = static_cast<void*>(new CodeGenNVPTX());
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("target.build.nvptx", BuildNVPTX)
+      .def_packed("tvm.codegen.llvm.target_nvptx", [](const ffi::PackedArgs& targs, ffi::Any* rv) {
+        *rv = static_cast<void*>(new CodeGenNVPTX());
+      });
+}
 
 }  // namespace codegen
 }  // namespace tvm

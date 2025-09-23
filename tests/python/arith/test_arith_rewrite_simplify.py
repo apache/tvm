@@ -391,17 +391,17 @@ class TestAddIndex(BaseCompare):
         TestCase(tvm.te.max(2 - x * 4, 0) + x * 4, tvm.te.max(x * 4, 2)),
         TestCase(tvm.te.min(0, 1 - x * 4) + x * 4, tvm.te.min(x * 4, 1)),
         TestCase(tvm.te.min(2 - x * 4, 0) + x * 4, tvm.te.min(x * 4, 2)),
-        TestCase(x * y + x * 10, x * (y + 10)),
-        TestCase(y * x + x * 10, x * (y + 10)),
-        TestCase(y * x + 10 * x, x * (y + 10)),
-        TestCase(x * y + 10 * x, x * (y + 10)),
+        TestCase(x * y + x * 10, (y + 10) * x),
+        TestCase(y * x + x * 10, (y + 10) * x),
+        TestCase(y * x + 10 * x, (y + 10) * x),
+        TestCase(x * y + 10 * x, (y + 10) * x),
         TestCase((2 * z) + tvm.te.min(x, y - (2 * z)), tvm.te.min(x + (z * 2), y)),
-        TestCase(y * x + x, x * (y + 1)),
-        TestCase(x * y + x, x * (y + 1)),
+        TestCase(y * x + x, (y + 1) * x),
+        TestCase(x * y + x, (y + 1) * x),
         TestCase((x + 10) + 13, x + 23),
         TestCase((x + 10) + (13 + z), x + z + 23),
-        TestCase(x * y + 10 * x, x * (y + 10)),
-        TestCase(y * x + x * 3, x * (y + 3)),
+        TestCase(x * y + 10 * x, (y + 10) * x),
+        TestCase(y * x + x * 3, (y + 3) * x),
         TestCase(x + 3 + y, x + y + 3),
         TestCase((3 - y) + x, x - y + 3),
         # canonicalization
@@ -409,10 +409,10 @@ class TestAddIndex(BaseCompare):
         TestCase(x + 2 + 3 + 4 + x * 3, x * 4 + 9),
         # DivMod rules
         # trunc div
-        TestCase(y * tmod(x, 8) + 10 * tmod(x, 8), tmod(x, 8) * (y + 10)),
+        TestCase(y * tmod(x, 8) + 10 * tmod(x, 8), (y + 10) * tmod(x, 8)),
         TestCase(tdiv(x, 8) * 8 + tmod(x, 8), x),
         # floor div
-        TestCase(y * flm(x, 8) + 10 * flm(x, 8), flm(x, 8) * (y + 10)),
+        TestCase(y * flm(x, 8) + 10 * flm(x, 8), (y + 10) * flm(x, 8)),
         TestCase(fld(x, 8) * 8 + flm(x, 8), x),
         TestCase(fld(flm(x, 2) + 7, 2) + fld(x, 2), fld(x + 7, 2)),
     )
@@ -420,7 +420,6 @@ class TestAddIndex(BaseCompare):
 
 class TestSubIndex(BaseCompare):
     x, y, z = te.var("x"), te.var("y"), te.var("z")
-    a, b = tvm.tir.Any(), tvm.tir.Any()
 
     test_case = tvm.testing.parameter(
         TestCase(x + y - y, x),
@@ -437,12 +436,10 @@ class TestSubIndex(BaseCompare):
         TestCase(y - tvm.te.max(x, y), tvm.te.min(y - x, 0)),
         # mul co-efficient foldng
         TestCase(x - x, 0),
-        TestCase(a - a, 0),
-        TestCase(a - b, a - b),
-        TestCase(x * y - x, x * (y + (-1))),
-        TestCase(x * y - 10 * x, x * (y + (-10))),
-        TestCase(y * x - x * z, x * (y - z)),
-        TestCase(y * x - z * x, x * (y - z)),
+        TestCase(x * y - x, (y + (-1)) * x),
+        TestCase(x * y - 10 * x, (y + (-10)) * x),
+        TestCase(y * x - x * z, (y - z) * x),
+        TestCase(y * x - z * x, (y - z) * x),
         TestCase(x + 10 - 20, x + (-10)),
         # 4-operands pattern
         TestCase((x + y) - (x + z), y - z),

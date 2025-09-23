@@ -30,49 +30,52 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in image resize2d operator */
-struct Resize2DAttrs : public tvm::AttrsNode<Resize2DAttrs> {
-  Array<FloatImm> roi;
-  String layout;
-  String method;
-  String coordinate_transformation_mode;
-  String rounding_method;
+struct Resize2DAttrs : public AttrsNodeReflAdapter<Resize2DAttrs> {
+  ffi::Array<FloatImm> roi;
+  ffi::String layout;
+  ffi::String method;
+  ffi::String coordinate_transformation_mode;
+  ffi::String rounding_method;
   double cubic_alpha;
   int cubic_exclude;
   double extrapolation_value;
   DataType out_dtype;
 
-  TVM_DECLARE_ATTRS(Resize2DAttrs, "relax.attrs.Resize2DAttrs") {
-    TVM_ATTR_FIELD(roi).describe(
-        "Region of Interest for coordinate transformation mode 'tf_crop_and_resize'");
-    TVM_ATTR_FIELD(layout).describe(
-        "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
-        "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
-        "dimensions respectively. Resize is applied on the 'H' and"
-        "'W' dimensions.");
-    TVM_ATTR_FIELD(method).describe(
-        "Specify the mode to use for scaling."
-        "nearest_neighbor -  Nearest Neighbor"
-        "linear - Bilinear Interpolation"
-        "cubic - Bicubic Interpolation");
-    TVM_ATTR_FIELD(coordinate_transformation_mode)
-        .describe(
-            "Describes how to transform the coordinate in the resized tensor"
-            "to the coordinate in the original tensor."
-            "Refer to the ONNX Resize operator specification for details"
-            "Available options are half_pixel, align_corners and asymmetric");
-    TVM_ATTR_FIELD(rounding_method)
-        .describe(
-            "indicates how to find the \"nearest\" pixel in nearest_neighbor method"
-            "Available options are round, floor, and ceil.");
-    TVM_ATTR_FIELD(cubic_alpha).describe("Spline Coefficient for Bicubic Interpolation");
-    TVM_ATTR_FIELD(cubic_exclude)
-        .describe("Flag to exclude exterior of the image during bicubic interpolation");
-    TVM_ATTR_FIELD(extrapolation_value)
-        .describe("Value to return when roi is outside of the image");
-    TVM_ATTR_FIELD(out_dtype).describe(
-        "The dtype of the output tensor. It it is not specified, the output will have the same "
-        "dtype as input if not specified.");
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<Resize2DAttrs>()
+        .def_ro("roi", &Resize2DAttrs::roi,
+                "Region of Interest for coordinate transformation mode 'tf_crop_and_resize'")
+        .def_ro("layout", &Resize2DAttrs::layout,
+                "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
+                "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+                "dimensions respectively. Resize is applied on the 'H' and"
+                "'W' dimensions.")
+        .def_ro("method", &Resize2DAttrs::method,
+                "Specify the mode to use for scaling."
+                "nearest_neighbor -  Nearest Neighbor"
+                "linear - Bilinear Interpolation"
+                "cubic - Bicubic Interpolation")
+        .def_ro("coordinate_transformation_mode", &Resize2DAttrs::coordinate_transformation_mode,
+                "Describes how to transform the coordinate in the resized tensor"
+                "to the coordinate in the original tensor."
+                "Refer to the ONNX Resize operator specification for details"
+                "Available options are half_pixel, align_corners and asymmetric")
+        .def_ro("rounding_method", &Resize2DAttrs::rounding_method,
+                "indicates how to find the \"nearest\" pixel in nearest_neighbor method"
+                "Available options are round, floor, and ceil.")
+        .def_ro("cubic_alpha", &Resize2DAttrs::cubic_alpha,
+                "Spline Coefficient for Bicubic Interpolation")
+        .def_ro("cubic_exclude", &Resize2DAttrs::cubic_exclude,
+                "Flag to exclude exterior of the image during bicubic interpolation")
+        .def_ro("extrapolation_value", &Resize2DAttrs::extrapolation_value,
+                "Value to return when roi is outside of the image")
+        .def_ro(
+            "out_dtype", &Resize2DAttrs::out_dtype,
+            "The dtype of the output tensor. It it is not specified, the output will have the same "
+            "dtype as input if not specified.");
   }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Resize2DAttrs", Resize2DAttrs, BaseAttrsNode);
 };  // struct Resize2dAttrs
 
 }  // namespace relax

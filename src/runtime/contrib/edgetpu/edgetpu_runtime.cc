@@ -26,7 +26,8 @@
 #include <tensorflow/lite/interpreter.h>
 #include <tensorflow/lite/kernels/register.h>
 #include <tensorflow/lite/model.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 
 namespace tvm {
 namespace runtime {
@@ -62,14 +63,17 @@ void EdgeTPURuntime::Init(const std::string& tflite_model_bytes, Device dev) {
   device_ = dev;
 }
 
-Module EdgeTPURuntimeCreate(const std::string& tflite_model_bytes, Device dev) {
-  auto exec = make_object<EdgeTPURuntime>();
+ffi::Module EdgeTPURuntimeCreate(const std::string& tflite_model_bytes, Device dev) {
+  auto exec = ffi::make_object<EdgeTPURuntime>();
   exec->Init(tflite_model_bytes, dev);
-  return Module(exec);
+  return ffi::Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.edgetpu_runtime.create").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = EdgeTPURuntimeCreate(args[0], args[1]);
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed(
+      "tvm.edgetpu_runtime.create",
+      [](ffi::PackedArgs args, ffi::Any* rv) { *rv = EdgeTPURuntimeCreate(args[0], args[1]); });
+}
 }  // namespace runtime
 }  // namespace tvm

@@ -19,14 +19,14 @@
 set -euxo pipefail
 
 source tests/scripts/setup-pytest-env.sh
-export PYTHONPATH=${PYTHONPATH}:${TVM_PATH}/apps/extension/python
 export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
 
 # to avoid CI CPU thread throttling.
 export TVM_BIND_THREADS=0
 export TVM_NUM_THREADS=2
 
-make cython3
+# setup tvm-ffi into python folder
+python3 -m pip install  -v --target=python ./3rdparty/tvm-ffi/
 
 # Run Relax tests
 TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm}" pytest tests/python/relax
@@ -39,3 +39,6 @@ TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm}" pytest tests/python/dlight
 
 # Test for MSC
 pytest tests/python/contrib/test_msc
+
+# Test for OpenCLML
+pytest tests/python/relax/backend/clml/

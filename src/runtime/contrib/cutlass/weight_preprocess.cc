@@ -17,9 +17,9 @@
  * under the License.
  */
 
-#include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/tensor.h>
 
 #include "cutlass_kernels/cutlass_preprocessors.h"
 
@@ -35,27 +35,30 @@ namespace runtime {
 // black box.
 //
 // The preprocessing functions are defined in C++, so we need to copy the input weight to CPU.
-TVM_REGISTER_GLOBAL("cutlass.ft_preprocess_weight")
-    .set_body_typed([](NDArray packed_weight, int sm, bool is_int4) {
-      bool is_2d = packed_weight->ndim == 2;
-      int num_experts = is_2d ? 1 : packed_weight->shape[0];
-      int rows = packed_weight->shape[is_2d ? 0 : 1];
-      int cols = packed_weight->shape[is_2d ? 1 : 2];
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("cutlass.ft_preprocess_weight", [](Tensor packed_weight, int sm,
+                                                           bool is_int4) {
+    bool is_2d = packed_weight->ndim == 2;
+    int num_experts = is_2d ? 1 : packed_weight->shape[0];
+    int rows = packed_weight->shape[is_2d ? 0 : 1];
+    int cols = packed_weight->shape[is_2d ? 1 : 2];
 
-      std::vector<int8_t> input_cpu(num_experts * rows * cols);
-      std::vector<int8_t> output_cpu(num_experts * rows * cols);
-      packed_weight.CopyToBytes(input_cpu.data(), input_cpu.size());
-      // multiply cols by 2 since the "col" params in preprocess_weights refers to the column of
-      // the unpacked weight.
-      if (is_int4) {
-        cols *= 2;
-      }
-      fastertransformer::preprocess_weights(output_cpu.data(), input_cpu.data(), num_experts, rows,
-                                            cols, is_int4, sm);
-      auto out = NDArray::Empty(packed_weight.Shape(), packed_weight->dtype, packed_weight->device);
-      out.CopyFromBytes(output_cpu.data(), output_cpu.size());
-      return out;
-    });
+    std::vector<int8_t> input_cpu(num_experts * rows * cols);
+    std::vector<int8_t> output_cpu(num_experts * rows * cols);
+    packed_weight.CopyToBytes(input_cpu.data(), input_cpu.size());
+    // multiply cols by 2 since the "col" params in preprocess_weights refers to the column of
+    // the unpacked weight.
+    if (is_int4) {
+      cols *= 2;
+    }
+    fastertransformer::preprocess_weights(output_cpu.data(), input_cpu.data(), num_experts, rows,
+                                          cols, is_int4, sm);
+    auto out = Tensor::Empty(packed_weight.Shape(), packed_weight->dtype, packed_weight->device);
+    out.CopyFromBytes(output_cpu.data(), output_cpu.size());
+    return out;
+  });
+}
 
 }  // namespace runtime
 }  // namespace tvm

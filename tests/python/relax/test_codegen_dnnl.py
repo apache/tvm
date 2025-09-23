@@ -54,10 +54,10 @@ pytestmark = [dnnl_enabled]
 def build_and_run(mod, inputs, legalize=False):
     target = tvm.target.Target("llvm")
     dev = tvm.cpu()
-    inputs = [tvm.nd.array(inp, dev) for inp in inputs]
+    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs]
 
     with tvm.transform.PassContext(config={"relax.transform.apply_legalize_ops": legalize}):
-        ex = relax.build(mod, target)
+        ex = tvm.compile(mod, target)
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
     return f(*inputs).numpy()

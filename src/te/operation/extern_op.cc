@@ -22,17 +22,17 @@
  * \file extern_op.cc
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/expr.h>
-
-#include <unordered_set>
-
-#include "op_utils.h"
 
 namespace tvm {
 namespace te {
 using namespace tir;
+
+TVM_FFI_STATIC_INIT_BLOCK() { ExternOpNode::RegisterReflection(); }
+
 // ExternOpNode
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ExternOpNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -40,23 +40,21 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "extern(" << op->name << ", " << op << ")";
     });
 
-TVM_REGISTER_NODE_TYPE(ExternOpNode);
-
 int ExternOpNode::num_outputs() const { return static_cast<int>(output_placeholders.size()); }
-
-Array<IterVar> ExternOpNode::root_iter_vars() const { return {}; }
 
 DataType ExternOpNode::output_dtype(size_t i) const { return output_placeholders[i]->dtype; }
 
-Array<PrimExpr> ExternOpNode::output_shape(size_t i) const { return output_placeholders[i]->shape; }
+ffi::Array<PrimExpr> ExternOpNode::output_shape(size_t i) const {
+  return output_placeholders[i]->shape;
+}
 
-ExternOp::ExternOp(std::string name, std::string tag, Map<String, ObjectRef> attrs,
-                   Array<Tensor> inputs, Array<Buffer> input_placeholders,
-                   Array<Buffer> output_placeholders, Stmt body) {
+ExternOp::ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi::Any> attrs,
+                   ffi::Array<Tensor> inputs, ffi::Array<Buffer> input_placeholders,
+                   ffi::Array<Buffer> output_placeholders, Stmt body) {
   if (!attrs.defined()) {
-    attrs = Map<String, ObjectRef>();
+    attrs = ffi::Map<ffi::String, ffi::Any>();
   }
-  auto n = make_object<ExternOpNode>();
+  auto n = ffi::make_object<ExternOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);
   n->attrs = std::move(attrs);
@@ -76,92 +74,19 @@ ExternOp::ExternOp(std::string name, std::string tag, Map<String, ObjectRef> att
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("te.ExternOp")
-    .set_body_typed([](std::string name, std::string tag, Map<String, ObjectRef> attrs,
-                       Array<Tensor> inputs, Array<Buffer> input_placeholders,
-                       Array<Buffer> output_placeholders, Stmt body) {
-      return ExternOp(name, tag, attrs, inputs, input_placeholders, output_placeholders, body);
-    });
-
-Array<Tensor> ExternOpNode::InputTensors() const { return inputs; }
-
-Operation ExternOpNode::ReplaceInputs(const Operation& self,
-                                      const std::unordered_map<Tensor, Tensor>& rmap) const {
-  ICHECK_EQ(self.operator->(), this);
-  auto n = make_object<ExternOpNode>(*this);
-  n->body = ReplaceTensor(this->body, rmap);
-  for (size_t i = 0; i < n->inputs.size(); ++i) {
-    Tensor t = n->inputs[i];
-    if (rmap.count(t)) {
-      n->inputs.Set(i, rmap.at(t));
-    }
-  }
-
-  if (body.same_as(n->body) && inputs.same_as(n->inputs)) {
-    return self;
-  } else {
-    return Operation(n);
-  }
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "te.ExternOp",
+      [](std::string name, std::string tag, ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs,
+         ffi::Array<Tensor> inputs, ffi::Array<Buffer> input_placeholders,
+         ffi::Array<Buffer> output_placeholders, Stmt body) {
+        return ExternOp(name, tag, attrs.value_or({}), inputs, input_placeholders,
+                        output_placeholders, body);
+      });
 }
 
-void ExternOpNode::PropBoundToInputs(const Operation& self, arith::Analyzer* analyzer,
-                                     const std::unordered_map<const VarNode*, IntSet>& dom_map,
-                                     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
-  for (Tensor t : this->inputs) {
-    auto it = out_dom_map->find(t);
-    if (it == out_dom_map->end()) continue;
-    TensorDom& dom = it->second;
-    for (size_t i = 0; i < t->shape.size(); ++i) {
-      dom.data[i].emplace_back(
-          IntSet::FromRange(Range::FromMinExtent(make_const(t->shape[i].dtype(), 0), t->shape[i])));
-    }
-  }
-}
+ffi::Array<Tensor> ExternOpNode::InputTensors() const { return inputs; }
 
-void ExternOpNode::GatherBound(const Operation& self,
-                               const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-                               std::unordered_map<IterVar, Range>* out_dom_map) const {}
-
-Stmt ExternOpNode::BuildRealize(const Stage& stage,
-                                const std::unordered_map<IterVar, Range>& realize_map,
-                                const Stmt& body, String storage_scope) const {
-  ICHECK_EQ(stage->op.get(), this);
-  Stmt realize_body = body;
-  for (int k = 0; k < num_outputs(); ++k) {
-    Tensor t = stage->op.output(k);
-    Region bounds;
-    for (size_t i = 0; i < t->shape.size(); ++i) {
-      bounds.push_back(Range::FromMinExtent(make_const(t->shape[i].dtype(), 0), t->shape[i]));
-    }
-    realize_body = tir::ProducerRealize(t, bounds, const_true(), realize_body, storage_scope);
-  }
-  return realize_body;
-}
-
-Stmt ExternOpNode::BuildProvide(const Stage& stage,
-                                const std::unordered_map<IterVar, Range>& dom_map,
-                                bool debug_keep_trivial_loop) const {
-  ICHECK_EQ(stage->op.operator->(), this);
-  Stmt ret = AttrStmt(make_zero(DataType::Int(32)), tir::attr::extern_scope, 0, this->body);
-  auto f_push_bind = [&ret](Buffer buffer, Tensor tensor) {
-    Array<ObjectRef> bind_spec;
-    Array<PrimExpr> tuple;
-    bind_spec.push_back(buffer);
-    bind_spec.push_back(tensor);
-    for (size_t k = 0; k < buffer->shape.size(); ++k) {
-      tuple.push_back(make_const(buffer->shape[k].dtype(), 0));
-      tuple.push_back(buffer->shape[k]);
-    }
-    ret = AttrStmt(bind_spec, tir::attr::buffer_bind_scope,
-                   Call(DataType::Handle(), builtin::tvm_tuple(), tuple), ret);
-  };
-  for (size_t i = output_placeholders.size(); i != 0; --i) {
-    f_push_bind(output_placeholders[i - 1], stage->op.output(i - 1));
-  }
-  for (size_t i = inputs.size(); i != 0; --i) {
-    f_push_bind(input_placeholders[i - 1], inputs[i - 1]);
-  }
-  return ret;
-}
 }  // namespace te
 }  // namespace tvm

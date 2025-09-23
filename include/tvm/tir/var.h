@@ -51,7 +51,7 @@ class VarNode : public PrimExprNode {
    * \brief The hint to the variable name.
    * \note Each variable is uniquely identified by its address.
    */
-  String name_hint;
+  ffi::String name_hint;
   /*!
    * \brief type annotation of the variable.
    *
@@ -61,41 +61,30 @@ class VarNode : public PrimExprNode {
    */
   Type type_annotation;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("name", &name_hint);
-    v->Visit("type_annotation", &type_annotation);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<VarNode>()
+        .def_ro("name", &VarNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("type_annotation", &VarNode::type_annotation);
   }
 
-  bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
-    if (!equal(dtype, other->dtype)) return false;
-    if (!equal(type_annotation, other->type_annotation)) return false;
-    return equal.FreeVarEqualImpl(this, other);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(type_annotation);
-    hash_reduce.FreeVarHashImpl(this);
-  }
-
-  static constexpr const char* _type_key = "tir.Var";
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
   static constexpr const uint32_t _type_child_slots = 1;
-  TVM_DECLARE_BASE_OBJECT_INFO(VarNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tir.Var", VarNode, PrimExprNode);
 };
 
 /*! \brief a named variable in TIR */
 class Var : public PrimExpr {
  public:
-  explicit Var(ObjectPtr<Object> n) : PrimExpr(n) {}
+  explicit Var(ffi::UnsafeInit tag) : PrimExpr(tag) {}
+  explicit Var(ObjectPtr<VarNode> n) : PrimExpr(n) {}
   /*!
    * \brief Constructor
    * \param name_hint variable name
    * \param dtype data type
    * \param span The location of this object in the source code.
    */
-  TVM_DLL explicit Var(String name_hint = "v", DataType dtype = DataType::Int(32),
+  TVM_DLL explicit Var(ffi::String name_hint = "v", DataType dtype = DataType::Int(32),
                        Span span = Span());
   /*!
    * \brief Constructor which provides a more detailed type annotation.
@@ -103,19 +92,19 @@ class Var : public PrimExpr {
    * \param type_annotation The type annotation.
    * \param span The location of this object in the source code.
    */
-  TVM_DLL explicit Var(String name_hint, Type type_annotation, Span span = Span());
+  TVM_DLL explicit Var(ffi::String name_hint, Type type_annotation, Span span = Span());
   /*!
    * \brief Make a new copy of var with same type, but a different nam
    * \param name The new name to be used.
    * \return the new Var copy
    */
-  TVM_DLL Var copy_with_name(const String& name) const;
+  TVM_DLL Var copy_with_name(const ffi::String& name) const;
   /*!
    * \brief Make a new copy of var with same type, append suffix
    * \param suffix The suffix to be appended.
    * \return the new Var copy
    */
-  TVM_DLL Var copy_with_suffix(const String& suffix) const;
+  TVM_DLL Var copy_with_suffix(const ffi::String& suffix) const;
   /*!
    * \brief Make a new copy of the variable with specified dtype
    * \param dtype The specified dtype
@@ -143,21 +132,25 @@ class Var : public PrimExpr {
  */
 class SizeVarNode : public VarNode {
  public:
-  static constexpr const char* _type_key = "tir.SizeVar";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SizeVarNode, VarNode);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SizeVarNode>();
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.SizeVar", SizeVarNode, VarNode);
 };
 
 /*! \brief a named variable represents a tensor index size */
 class SizeVar : public Var {
  public:
-  explicit SizeVar(ObjectPtr<Object> n) : Var(n) {}
+  explicit SizeVar(ObjectPtr<SizeVarNode> n) : Var(n) {}
+  explicit SizeVar(ffi::UnsafeInit tag) : Var(tag) {}
   /*!
    * \brief constructor
    * \param name_hint variable name
    * \param t data type
    * \param span The location of this object in the source code.
    */
-  TVM_DLL explicit SizeVar(String name_hint = "s", DataType t = DataType::Int(32),
+  TVM_DLL explicit SizeVar(ffi::String name_hint = "s", DataType t = DataType::Int(32),
                            Span span = Span());
   /*!
    * \brief Constructor which provides a more detailed type annotation.
@@ -165,7 +158,7 @@ class SizeVar : public Var {
    * \param type_annotation The type annotation.
    * \param span The location of this object in the source code.
    */
-  TVM_DLL explicit SizeVar(String name_hint, Type type_annotation, Span span = Span());
+  TVM_DLL explicit SizeVar(ffi::String name_hint, Type type_annotation, Span span = Span());
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
@@ -180,7 +173,7 @@ class SizeVar : public Var {
   using ContainerType = SizeVarNode;
 };
 
-using Region = Array<Range>;
+using Region = ffi::Array<Range>;
 
 /*!
  * \brief Type of iteration variable.
@@ -258,7 +251,7 @@ enum IterVarType : int {
  *
  *  The dtype of the extent of the `dom` of the IterVar must match the dtype of the internal Var.
  */
-class IterVarNode : public Object {
+class IterVarNode : public PrimExprConvertibleNode {
  public:
   /*!
    * \brief the domain of iteration, if known, can be None
@@ -273,37 +266,26 @@ class IterVarNode : public Object {
    * \brief additional tag on the iteration variable,
    *  set this if this is bound already to a known thread tag.
    */
-  String thread_tag;
+  ffi::String thread_tag;
   /*!
    * \brief Span that points to the original source code.
    *        Reserved debug information.
    */
   mutable Span span;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dom", &dom);
-    v->Visit("var", &var);
-    v->Visit("iter_type", &iter_type);
-    v->Visit("thread_tag", &thread_tag);
-    v->Visit("span", &span);
+  PrimExpr ToPrimExpr() const final { return var; }
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IterVarNode>()
+        .def_ro("dom", &IterVarNode::dom)
+        .def_ro("var", &IterVarNode::var, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("iter_type", &IterVarNode::iter_type)
+        .def_ro("thread_tag", &IterVarNode::thread_tag);
   }
 
-  bool SEqualReduce(const IterVarNode* other, SEqualReducer equal) const {
-    return equal(dom, other->dom) && equal.DefEqual(var, other->var) &&
-           equal(iter_type, other->iter_type) && equal(thread_tag, other->thread_tag);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dom);
-    hash_reduce.DefHash(var);
-    hash_reduce(iter_type);
-    hash_reduce(thread_tag);
-  }
-
-  static constexpr const char* _type_key = "tir.IterVar";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(IterVarNode, Object);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.IterVar", IterVarNode, PrimExprConvertibleNode);
 };
 
 /*!
@@ -312,16 +294,16 @@ class IterVarNode : public Object {
  *
  *  The dtype of the extent of the `dom` of the IterVar must match the dtype of the internal Var.
  */
-class IterVar : public ObjectRef {
+class IterVar : public PrimExprConvertible {
  public:
-  TVM_DLL IterVar(Range dom, Var var, IterVarType iter_type, String thread_tag = "",
+  TVM_DLL IterVar(Range dom, Var var, IterVarType iter_type, ffi::String thread_tag = "",
                   Span span = Span());
   /*!
    * \return the corresponding var in the IterVar.
    */
   inline operator PrimExpr() const;
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IterVar, ObjectRef, IterVarNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterVar, PrimExprConvertible, IterVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterVarNode);
 };
 

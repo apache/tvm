@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/script/ir_builder/ir/frame.h>
 
 namespace tvm {
@@ -25,8 +25,10 @@ namespace script {
 namespace ir_builder {
 namespace ir {
 
+TVM_FFI_STATIC_INIT_BLOCK() { IRModuleFrameNode::RegisterReflection(); }
+
 void IRModuleFrameNode::ExitWithScope() {
-  Map<GlobalVar, BaseFunc> func_map;
+  ffi::Map<GlobalVar, BaseFunc> func_map;
   CHECK_EQ(functions.size(), global_var_map.size())
       << "All functions must be defined in the IRModule. Got " << global_var_map.size()
       << "declared function(s), but only " << functions.size() << "defined function(s).";
@@ -39,10 +41,8 @@ void IRModuleFrameNode::ExitWithScope() {
   IRBuilder builder = IRBuilder::Current();
   ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
   auto dict_attrs = DictAttrs(attrs);
-  builder->result = tvm::IRModule(func_map, {}, {}, {}, dict_attrs, global_infos);
+  builder->result = tvm::IRModule(func_map, {}, dict_attrs, global_infos);
 }
-
-TVM_REGISTER_NODE_TYPE(IRModuleFrameNode);
 
 }  // namespace ir
 }  // namespace ir_builder

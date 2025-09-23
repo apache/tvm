@@ -30,7 +30,7 @@ namespace tvm {
 namespace contrib {
 namespace msc {
 
-const Array<Doc> TorchOpCode::GetDocs() {
+const ffi::Array<Doc> TorchOpCode::GetDocs() {
   stack_.Config(this);
   if (is_init()) {
     CodeGenInit();
@@ -50,7 +50,7 @@ void TorchOpCode::CodeGenInit() {
 
 void TorchOpCode::CodeGenForward() { stack_.op_call().op_inputs_arg(false); }
 
-const StrictListDoc TorchOpCode::GetPadding(const String& key) {
+const StrictListDoc TorchOpCode::GetPadding(const ffi::String& key) {
   std::vector<int> padding, src_padding;
   ICHECK(node()->GetAttr(key, &src_padding));
   if (node()->optype == "nn.conv1d" || node()->optype == "msc.conv1d_bias") {
@@ -76,9 +76,9 @@ const StrictListDoc TorchOpCode::GetPadding(const String& key) {
   return DocUtils::ToList(padding);
 }
 
-#define TORCH_OP_CODEGEN_METHODS(TypeName)                     \
- public:                                                       \
-  TypeName(const String& module_name, const String& func_name) \
+#define TORCH_OP_CODEGEN_METHODS(TypeName)                               \
+ public:                                                                 \
+  TypeName(const ffi::String& module_name, const ffi::String& func_name) \
       : TorchOpCode(module_name, func_name) {}
 
 class TorchAdaptivePoolCodeGen : public TorchOpCode {
@@ -118,7 +118,7 @@ class TorchAxesCodeGen : public TorchOpCode {
  protected:
   void CodeGenInit() final {
     if (module_name().size() > 0) {
-      const String& key = node()->HasAttr("axes") ? "axes" : "axis";
+      const ffi::String& key = node()->HasAttr("axes") ? "axes" : "axis";
       stack_.op_call().op_list_arg<int>(key, "");
     } else {
       TorchOpCode::CodeGenInit();
@@ -129,7 +129,7 @@ class TorchAxesCodeGen : public TorchOpCode {
     if (module_name().size() > 0) {
       TorchOpCode::CodeGenForward();
     } else {
-      const String& key = node()->HasAttr("axes") ? "axes" : "axis";
+      const ffi::String& key = node()->HasAttr("axes") ? "axes" : "axis";
       stack_.op_call().op_input_arg().op_list_arg<int>(key, "");
     }
   }
@@ -209,19 +209,46 @@ class TorchConcatCodeGen : public TorchOpCode {
   void CodeGenForward() final { stack_.op_call().op_inputs_arg().op_arg<int>("axis", "dim"); }
 };
 
+class TorchStackCodeGen : public TorchOpCode {
+  TORCH_OP_CODEGEN_METHODS(TorchStackCodeGen);
+
+ protected:
+  void CodeGenForward() final { stack_.op_call().op_inputs_arg().op_arg<int>("axis", "dim"); }
+};
+
 class TorchConstantCodeGen : public TorchOpCode {
   TORCH_OP_CODEGEN_METHODS(TorchConstantCodeGen);
 
  protected:
   void CodeGenInit() final {
+    const auto& dtype = node()->OutputAt(0)->DTypeName();
+    const auto& ref_name = StringUtils::Replace(node()->name, ".", "_");
     if (node()->HasAttr("scalar")) {
-      if (node()->OutputAt(0)->DTypeName() == "int32") {
+      if (dtype == "int32") {
         stack_.assign(module_ref(), node()->GetTypeAttr<int>("scalar"));
-      } else if (node()->OutputAt(0)->DTypeName() == "int64") {
+      } else if (dtype == "int64") {
         stack_.assign(module_ref(), node()->GetTypeAttr<int64_t>("scalar"));
-      } else if (node()->OutputAt(0)->DTypeName() == "float32") {
+      } else if (dtype == "float32") {
         stack_.assign(module_ref(), node()->GetTypeAttr<float>("scalar"));
       }
+    } else if (dtype == "bool") {
+      stack_.func_call("register_buffer", "", "self")
+          .call_arg(DocUtils::ToStr(ref_name))
+          .inplace_start("torch.BoolTensor")
+          .call_arg(DocUtils::ToDocList(node()->OutputAt(0)->shape))
+          .inplace_end();
+    } else if (dtype == "int32") {
+      stack_.func_call("register_buffer", "", "self")
+          .call_arg(DocUtils::ToStr(ref_name))
+          .inplace_start("torch.IntTensor")
+          .call_arg(DocUtils::ToDocList(node()->OutputAt(0)->shape))
+          .inplace_end();
+    } else if (dtype == "int64") {
+      stack_.func_call("register_buffer", "", "self")
+          .call_arg(DocUtils::ToStr(ref_name))
+          .inplace_start("torch.LongTensor")
+          .call_arg(DocUtils::ToDocList(node()->OutputAt(0)->shape))
+          .inplace_end();
     } else {
       stack_.func_call("torch.Tensor", "data")
           .call_arg(DocUtils::ToDocList(node()->OutputAt(0)->shape))
@@ -241,7 +268,7 @@ class TorchConstantCodeGen : public TorchOpCode {
 
 class TorchConvCodeGen : public TorchOpCode {
  public:
-  TorchConvCodeGen(const String& module_name, const String& func_name, bool use_bias)
+  TorchConvCodeGen(const ffi::String& module_name, const ffi::String& func_name, bool use_bias)
       : TorchOpCode(module_name, func_name), use_bias_(use_bias) {}
 
  protected:
@@ -316,9 +343,9 @@ class TorchExpandDimsCodeGen : public TorchOpCode {
  protected:
   void CodeGenForward() final {
     const auto& axes = node()->GetTypeArrayAttr<int>("axis");
-    String idx_input = IdxInput();
+    ffi::String idx_input = IdxInput();
     for (size_t i = 0; i < axes.size(); i++) {
-      String idx_out = IdxNode();
+      ffi::String idx_out = IdxNode();
       if (i < axes.size() - 1) {
         idx_out = idx_out + "_" + std::to_string(i);
       }
@@ -373,7 +400,7 @@ class TorchLayerNormCodeGen : public TorchOpCode {
         << "Only support center and scale batchnorm, get " << node();
     const auto& axes =
         CommonUtils::GetIndices(node()->GetTypeArrayAttr<int>("axes"), node()->InputAt(0)->Ndim());
-    Array<Integer> normalized_shape;
+    ffi::Array<Integer> normalized_shape;
     for (const auto& a : axes) {
       normalized_shape.push_back(node()->InputAt(0)->DimAt(a));
     }
@@ -385,7 +412,7 @@ class TorchLayerNormCodeGen : public TorchOpCode {
 
 class TorchLinearCodeGen : public TorchOpCode {
  public:
-  TorchLinearCodeGen(const String& module_name, const String& func_name, bool use_bias)
+  TorchLinearCodeGen(const ffi::String& module_name, const ffi::String& func_name, bool use_bias)
       : TorchOpCode(module_name, func_name), use_bias_(use_bias) {}
 
  protected:
@@ -519,7 +546,7 @@ class TorchReshapeCodeGen : public TorchOpCode {
 
  protected:
   void CodeGenForward() final {
-    Array<Integer> shape = node()->OutputAt(0)->shape;
+    ffi::Array<Integer> shape = node()->OutputAt(0)->shape;
     const auto& out_layout = node()->OutputAt(0)->layout;
     if (out_layout.defined()) {
       int32_t batch_dim = out_layout.IndexOf(tvm::tir::LayoutAxis::Get("N"));
@@ -537,7 +564,7 @@ class TorchResize2dCodeGen : public TorchOpCode {
  protected:
   void CodeGenForward() final {
     const auto& method = node()->GetTypeAttr<std::string>("method");
-    String v_method;
+    ffi::String v_method;
     if (method == "nearest_neighbor") {
       v_method = "nearest";
     } else {
@@ -563,6 +590,39 @@ class TorchShapeCodeGen : public TorchOpCode {
 
 class TorchSimpleCodeGen : public TorchOpCode {
   TORCH_OP_CODEGEN_METHODS(TorchSimpleCodeGen);
+};
+
+class TorchScatterElementsCodeGen : public TorchOpCode {
+  TORCH_OP_CODEGEN_METHODS(TorchScatterElementsCodeGen)
+
+ protected:
+  void CodeGenForward() final {
+    if (node()->InputAt(1)->DTypeName() == "int32") {
+      stack_.func_call("to", IdxInput(1), IdxInput(1)).call_arg("torch.int64");
+    }
+    stack_.op_call()
+        .op_input_arg()
+        .op_arg<int>("axis", "dim")
+        .op_input_arg(1, "index")
+        .op_input_arg(2, "src");
+  }
+};
+
+class TorchScatterNDCodeGen : public TorchOpCode {
+  TORCH_OP_CODEGEN_METHODS(TorchScatterNDCodeGen)
+
+ protected:
+  void CodeGenForward() final {
+    if (node()->InputAt(1)->DTypeName() == "int32") {
+      stack_.func_call("to", IdxInput(1), IdxInput(1)).call_arg("torch.int64");
+    }
+    // relax add extra dim for indices
+    if (node()->InputAt(1)->Ndim() == node()->OutputAt(0)->Ndim()) {
+      stack_.func_call("squeeze", IdxInput(1), IdxInput(1)).call_arg(-1);
+    }
+    stack_.assign(DocUtils::ToIndex(IdxInput(0), IdxInput(1)), IdxInput(2))
+        .assign(IdxNode(), IdxInput(0));
+  }
 };
 
 class TorchSplitCodeGen : public TorchOpCode {
@@ -597,7 +657,7 @@ class TorchStridedSliceCodeGen : public TorchOpCode {
     for (size_t i = 0; i < axes.size(); i++) {
       axes_map[axes[i]] = i;
     }
-    Array<String> slice;
+    ffi::Array<ffi::String> slice;
     for (size_t i = 0; i < node()->InputAt(0)->Ndim(); i++) {
       if (axes_map.count(i)) {
         size_t idx = axes_map[i];
@@ -608,6 +668,18 @@ class TorchStridedSliceCodeGen : public TorchOpCode {
       }
     }
     stack_.assign(IdxNode(), DocUtils::ToIndices(IdxInput(), slice));
+  }
+};
+
+class TorchTakeCodeGen : public TorchOpCode {
+  TORCH_OP_CODEGEN_METHODS(TorchTakeCodeGen)
+
+ protected:
+  void CodeGenForward() final {
+    if (node()->InputAt(1)->DTypeName() == "int32") {
+      stack_.func_call("to", IdxInput(1), IdxInput(1)).call_arg("torch.int64");
+    }
+    stack_.assign(IdxNode(), DocUtils::ToIndex(IdxInput(0), IdxInput(1)));
   }
 };
 
@@ -640,8 +712,10 @@ class TorchPluginOpCodeGen : public TorchOpCode {
   void CodeGenForward() final { stack_.op_call().op_inputs_arg(false); }
 };
 
-const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TorchOpCode>>> GetTorchOpCodes() {
-  static auto map = std::make_shared<std::unordered_map<String, std::shared_ptr<TorchOpCode>>>();
+const std::shared_ptr<std::unordered_map<ffi::String, std::shared_ptr<TorchOpCode>>>
+GetTorchOpCodes() {
+  static auto map =
+      std::make_shared<std::unordered_map<ffi::String, std::shared_ptr<TorchOpCode>>>();
   if (!map->empty()) return map;
 
   // simple ops
@@ -691,6 +765,7 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TorchOpCode>>> 
   map->emplace("subtract", std::make_shared<TorchSimpleCodeGen>("", "torch.subtract"));
   map->emplace("tan", std::make_shared<TorchSimpleCodeGen>("", "torch.tan"));
   map->emplace("tanh", std::make_shared<TorchSimpleCodeGen>("", "torch.tanh"));
+  map->emplace("where", std::make_shared<TorchSimpleCodeGen>("", "torch.where"));
 
   // reduce ops
   map->emplace("max", std::make_shared<TorchReduceAxesCodeGen>("", "torch.max"));
@@ -719,8 +794,13 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TorchOpCode>>> 
   map->emplace("permute_dims", std::make_shared<TorchPermuteDimsCodeGen>("", "torch.permute"));
   map->emplace("repeat", std::make_shared<TorchRepeatCodeGen>("", "repeat"));
   map->emplace("reshape", std::make_shared<TorchReshapeCodeGen>("", "torch.reshape"));
+  map->emplace("scatter_elements",
+               std::make_shared<TorchScatterElementsCodeGen>("", "torch.scatter"));
+  map->emplace("scatter_nd", std::make_shared<TorchScatterNDCodeGen>("", ""));
   map->emplace("split", std::make_shared<TorchSplitCodeGen>("", "torch.split"));
+  map->emplace("stack", std::make_shared<TorchStackCodeGen>("", "torch.stack"));
   map->emplace("strided_slice", std::make_shared<TorchStridedSliceCodeGen>("", ""));
+  map->emplace("take", std::make_shared<TorchTakeCodeGen>("", ""));
 
   // create ops
   map->emplace("constant", std::make_shared<TorchConstantCodeGen>("nn.Parameter", ""));

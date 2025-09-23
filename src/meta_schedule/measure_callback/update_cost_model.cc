@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -24,9 +26,9 @@ namespace meta_schedule {
 class UpdateCostModelNode : public MeasureCallbackNode {
  public:
   void Apply(const TaskScheduler& task_scheduler, int task_id,
-             const Array<MeasureCandidate>& measure_candidates,
-             const Array<BuilderResult>& builder_results,
-             const Array<RunnerResult>& runner_results) final {
+             const ffi::Array<MeasureCandidate>& measure_candidates,
+             const ffi::Array<BuilderResult>& builder_results,
+             const ffi::Array<RunnerResult>& runner_results) final {
     auto _ = Profiler::TimedScope("MeasureCallback/UpdateCostModel");
     const TaskRecord& task = task_scheduler->tasks_[task_id];
     if (!task_scheduler->cost_model_.defined()) {
@@ -37,13 +39,13 @@ class UpdateCostModelNode : public MeasureCallbackNode {
     ICHECK_EQ(measure_candidates.size(), builder_results.size());
     ICHECK_EQ(runner_results.size(), builder_results.size());
     int n = builder_results.size();
-    Array<MeasureCandidate> pruned_candidate;
-    Array<RunnerResult> pruned_runner_result;
+    ffi::Array<MeasureCandidate> pruned_candidate;
+    ffi::Array<RunnerResult> pruned_runner_result;
     pruned_candidate.reserve(n);
     pruned_runner_result.reserve(n);
     for (int i = 0; i < n; i++) {
-      if (!builder_results[i]->error_msg.defined() &&  //
-          (runner_results[i]->error_msg.defined() ||   //
+      if (!builder_results[i]->error_msg.has_value() &&  //
+          (runner_results[i]->error_msg.has_value() ||   //
            (runner_results[i]->run_secs.defined() &&
             Sum(runner_results[i]->run_secs.value()) > 0))) {
         pruned_candidate.push_back(measure_candidates[i]);
@@ -52,19 +54,20 @@ class UpdateCostModelNode : public MeasureCallbackNode {
     }
     cost_model->Update(task->ctx, pruned_candidate, pruned_runner_result);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.UpdateCostModel";
-  TVM_DECLARE_FINAL_OBJECT_INFO(UpdateCostModelNode, MeasureCallbackNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.UpdateCostModel", UpdateCostModelNode,
+                                    MeasureCallbackNode);
 };
 
 MeasureCallback MeasureCallback::UpdateCostModel() {
-  ObjectPtr<UpdateCostModelNode> n = make_object<UpdateCostModelNode>();
+  ObjectPtr<UpdateCostModelNode> n = ffi::make_object<UpdateCostModelNode>();
   return MeasureCallback(n);
 }
 
-TVM_REGISTER_NODE_TYPE(UpdateCostModelNode);
-TVM_REGISTER_GLOBAL("meta_schedule.MeasureCallbackUpdateCostModel")
-    .set_body_typed(MeasureCallback::UpdateCostModel);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.MeasureCallbackUpdateCostModel",
+                        MeasureCallback::UpdateCostModel);
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

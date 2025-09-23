@@ -25,37 +25,47 @@
 #include "create.h"
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include <string>
 #include <utility>
 
+#include "tvm/relax/expr.h"
+
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  InitAttrs::RegisterReflection();
+  TriluAttrs::RegisterReflection();
+}
+
 /* Initialization operators */
-TVM_REGISTER_NODE_TYPE(InitAttrs);
 
 /* relax.full */
-Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, DataType dtype) {
+Expr full(ffi::Variant<Expr, ffi::Array<PrimExpr>> shape, Expr fill_value,
+          ffi::Optional<DataType> dtype) {
   Expr shape_in_expr{nullptr};
   if (const auto* expr = shape.as<ExprNode>()) {
-    shape_in_expr = GetRef<Expr>(expr);
-  } else if (const auto* _array = shape.as<ArrayNode>()) {
-    shape_in_expr = ShapeExpr(GetRef<Array<PrimExpr>>(_array));
+    shape_in_expr = ffi::GetRef<Expr>(expr);
+  } else if (const auto* _array = shape.as<ffi::ArrayObj>()) {
+    shape_in_expr = ShapeExpr(ffi::GetRef<ffi::Array<PrimExpr>>(_array));
   } else {
-    LOG(FATAL) << "Full only expects the input shape to be either an Expr or an Array of PrimExpr. "
-                  "However, the given one is "
-               << shape->GetTypeKey();
+    LOG(FATAL)
+        << "Full only expects the input shape to be either an Expr or an Array of PrimExpr. ";
   }
 
-  ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
-  attrs->dtype = dtype;
+  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
+  attrs->dtype = dtype.value_or(DataType::Void());
 
   static const Op& op = Op::Get("relax.full");
   return Call(op, {std::move(shape_in_expr), std::move(fill_value)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.full").set_body_typed(full);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.full", full);
+}
 
 StructInfo InferStructInfoFull(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
@@ -90,17 +100,20 @@ TVM_REGISTER_OP("relax.full")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.full_like */
-Expr full_like(Expr x, Expr fill_value, DataType dtype) {
-  ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
-  attrs->dtype = dtype;
+Expr full_like(Expr x, Expr fill_value, ffi::Optional<DataType> dtype) {
+  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
+  attrs->dtype = dtype.value_or(DataType::Void());
   static const Op& op = Op::Get("relax.full_like");
   return Call(op, {std::move(x), std::move(fill_value)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.full_like").set_body_typed(full_like);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.full_like", full_like);
+}
 
 StructInfo InferStructInfoFullLike(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   TensorStructInfo data_sinfo = input_sinfo[0];
   TensorStructInfo fill_value_sinfo = input_sinfo[1];
   if (fill_value_sinfo->ndim != 0) {
@@ -113,7 +126,7 @@ StructInfo InferStructInfoFullLike(const Call& call, const BlockBuilder& ctx) {
   if (attrs->dtype.is_void()) {
     return data_sinfo;
   } else {
-    auto output_sinfo = make_object<TensorStructInfoNode>(*data_sinfo.get());
+    auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*data_sinfo.get());
     output_sinfo->dtype = attrs->dtype;
     return TensorStructInfo(output_sinfo);
   }
@@ -152,7 +165,7 @@ StructInfo InferStructInfoOnesLikeZerosLike(const Call& call, const BlockBuilder
   if (attrs->dtype.is_void()) {
     return data_sinfo;
   } else {
-    auto output_sinfo = make_object<TensorStructInfoNode>(*data_sinfo.get());
+    auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*data_sinfo.get());
     output_sinfo->dtype = attrs->dtype;
     return TensorStructInfo(output_sinfo);
   }
@@ -161,22 +174,24 @@ StructInfo InferStructInfoOnesLikeZerosLike(const Call& call, const BlockBuilder
 /* relax.ones & relax.ones_like */
 Expr ones(Expr shape, DataType dtype) {
   CHECK(!dtype.is_void()) << "Ones op expects the input dtype not to be void";
-  ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
+  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
 
   static const Op& op = Op::Get("relax.ones");
   return Call(op, {std::move(shape)}, Attrs(attrs), {});
 }
 
-Expr ones_like(Expr x, DataType dtype) {
-  ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
-  attrs->dtype = dtype;
+Expr ones_like(Expr x, ffi::Optional<DataType> dtype) {
+  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
+  attrs->dtype = dtype.value_or(DataType::Void());
   static const Op& op = Op::Get("relax.ones_like");
   return Call(op, {std::move(x)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.ones").set_body_typed(ones);
-TVM_REGISTER_GLOBAL("relax.op.ones_like").set_body_typed(ones_like);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.ones", ones).def("relax.op.ones_like", ones_like);
+}
 
 TVM_REGISTER_OP("relax.ones")
     .set_attrs_type<InitAttrs>()
@@ -196,22 +211,24 @@ TVM_REGISTER_OP("relax.ones_like")
 /* relax.zeros & relax.zeros_like */
 Expr zeros(Expr shape, DataType dtype) {
   CHECK(!dtype.is_void()) << "Zeros op expects the input dtype not to be void";
-  ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
+  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
 
   static const Op& op = Op::Get("relax.zeros");
   return Call(op, {std::move(shape)}, Attrs(attrs), {});
 }
 
-Expr zeros_like(Expr x, DataType dtype) {
-  ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
-  attrs->dtype = dtype;
+Expr zeros_like(Expr x, ffi::Optional<DataType> dtype) {
+  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
+  attrs->dtype = dtype.value_or(DataType::Void());
   static const Op& op = Op::Get("relax.zeros_like");
   return Call(op, {std::move(x)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.zeros").set_body_typed(zeros);
-TVM_REGISTER_GLOBAL("relax.op.zeros_like").set_body_typed(zeros_like);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.zeros", zeros).def("relax.op.zeros_like", zeros_like);
+}
 
 TVM_REGISTER_OP("relax.zeros")
     .set_attrs_type<InitAttrs>()
@@ -230,21 +247,23 @@ TVM_REGISTER_OP("relax.zeros_like")
 
 /* relax.eye & relax.eye_like */
 Expr eye(PrimValue n, PrimValue m, PrimValue k, DataType dtype) {
-  ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
+  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.eye");
   return Call(op, {std::move(n), std::move(m), std::move(k)}, Attrs(attrs), {});
 }
 
-Expr eye_like(Expr x, PrimValue k, DataType dtype) {
-  ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
-  attrs->dtype = dtype;
+Expr eye_like(Expr x, PrimValue k, ffi::Optional<DataType> dtype) {
+  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
+  attrs->dtype = dtype.value_or(DataType::Void());
   static const Op& op = Op::Get("relax.eye_like");
   return Call(op, {std::move(x), std::move(k)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.eye").set_body_typed(eye);
-TVM_REGISTER_GLOBAL("relax.op.eye_like").set_body_typed(eye_like);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.eye", eye).def("relax.op.eye_like", eye_like);
+}
 
 StructInfo InferStructInfoEye(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 3) {
@@ -314,13 +333,16 @@ TVM_REGISTER_OP("relax.eye_like")
 
 /* relax.arange */
 Expr arange(PrimValue start, PrimValue stop, PrimValue step, DataType dtype) {
-  ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
+  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.arange");
   return Call(op, {std::move(start), std::move(stop), std::move(step)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.arange").set_body_typed(arange);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.arange", arange);
+}
 
 StructInfo InferStructInfoArange(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 3) {
@@ -364,8 +386,61 @@ TVM_REGISTER_OP("relax.arange")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.hamming_window */
+Expr hamming_window(PrimValue window_size, PrimValue periodic, PrimValue alpha, PrimValue beta,
+                    DataType dtype) {
+  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
+  attrs->dtype = dtype;
+  static const Op& op = Op::Get("relax.hamming_window");
+  return Call(op, {std::move(window_size), std::move(periodic), std::move(alpha), std::move(beta)},
+              Attrs(attrs), {});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.hamming_window", hamming_window);
+}
+
+StructInfo InferStructInfoHammingWindow(const Call& call, const BlockBuilder& ctx) {
+  DataType dtype = call->attrs.as<InitAttrs>()->dtype;
+  if (dtype.is_int() || dtype.is_uint() || dtype.is_uint()) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Hamming Window expects the datatype to be float but got " << dtype);
+  }
+  auto get_prim_value = [&ctx](const Expr& expr, std::string key) {
+    if (!expr->IsInstance<PrimValueNode>()) {
+      ctx->ReportFatal(Diagnostic::Error(expr)
+                       << "Hamming_window expects the `" << key << "` to be a PrimValue, but got "
+                       << expr->GetTypeKey());
+    }
+    return expr.as<PrimValueNode>()->value;
+  };
+  PrimExpr window_size = get_prim_value(call->args[0], "window_size");
+
+  arith::Analyzer analyzer;
+  if (analyzer.CanProveLess(window_size, 1)) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Hamming_window expects the window_size must be greater than zero but got "
+                     << window_size);
+  }
+  window_size = analyzer.Simplify(window_size);
+  return TensorStructInfo(ShapeExpr({window_size}), dtype);
+}
+
+TVM_REGISTER_OP("relax.hamming_window")
+    .set_attrs_type<InitAttrs>()
+    .set_num_inputs(4)
+    .add_argument("window_size", "PrimValue", "The size of the window")
+    .add_argument("periodic", "PrimValue",
+                  "If True, returns a window to be used as periodic function. If False, return a "
+                  "symmetric window")
+    .add_argument("alpha", "PrimValue", "The coefficient alpha")
+    .add_argument("beta", "PrimValue", "The coefficient beta")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoHammingWindow)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 /* relax.tril & relax.triu */
-TVM_REGISTER_NODE_TYPE(TriluAttrs);
 
 Expr tril(Expr x, Expr k) {
   static const Op& op = Op::Get("relax.tril");
@@ -381,8 +456,12 @@ Expr triu(Expr x, Expr k) {
 
 Expr triu(Expr x, int k) { return triu(x, relax::PrimValue::Int64(k)); }
 
-TVM_REGISTER_GLOBAL("relax.op.tril").set_body_typed(static_cast<Expr (*)(Expr, Expr)>(tril));
-TVM_REGISTER_GLOBAL("relax.op.triu").set_body_typed(static_cast<Expr (*)(Expr, Expr)>(triu));
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("relax.op.tril", static_cast<Expr (*)(Expr, Expr)>(tril))
+      .def("relax.op.triu", static_cast<Expr (*)(Expr, Expr)>(triu));
+}
 
 StructInfo InferStructInfoTrilTriu(const Call& call, const BlockBuilder& ctx) {
   auto [data_sinfo, offset] = GetArgStructInfo<TensorStructInfo, PrimStructInfo>(call, ctx);

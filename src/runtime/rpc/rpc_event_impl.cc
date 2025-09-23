@@ -21,7 +21,8 @@
  * \file rpc_event_impl.cc
  * \brief Event driven RPC server implementation.
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include <memory>
 
@@ -31,18 +32,22 @@
 namespace tvm {
 namespace runtime {
 
-PackedFunc CreateEventDrivenServer(PackedFunc fsend, std::string name, std::string remote_key) {
-  static PackedFunc frecv(
-      [](TVMArgs args, TVMRetValue* rv) { LOG(FATAL) << "Do not allow explicit receive"; });
+ffi::Function CreateEventDrivenServer(ffi::Function fsend, std::string name,
+                                      std::string remote_key) {
+  static ffi::Function frecv(
+      [](ffi::PackedArgs args, ffi::Any* rv) { LOG(FATAL) << "Do not allow explicit receive"; });
 
   auto ch = std::make_unique<CallbackChannel>(fsend, frecv);
   std::shared_ptr<RPCEndpoint> sess = RPCEndpoint::Create(std::move(ch), name, remote_key);
-  return PackedFunc([sess](TVMArgs args, TVMRetValue* rv) {
-    int ret = sess->ServerAsyncIOEventHandler(args[0], args[1]);
+  return ffi::Function([sess](ffi::PackedArgs args, ffi::Any* rv) {
+    int ret = sess->ServerAsyncIOEventHandler(args[0].cast<std::string>(), args[1].cast<int>());
     *rv = ret;
   });
 }
 
-TVM_REGISTER_GLOBAL("rpc.CreateEventDrivenServer").set_body_typed(CreateEventDrivenServer);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("rpc.CreateEventDrivenServer", CreateEventDrivenServer);
+}
 }  // namespace runtime
 }  // namespace tvm

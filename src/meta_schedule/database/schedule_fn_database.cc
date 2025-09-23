@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -23,39 +25,41 @@ namespace meta_schedule {
 
 class ScheduleFnDatabaseNode : public DatabaseNode {
  public:
-  explicit ScheduleFnDatabaseNode(String mod_eq_name = "structural") : DatabaseNode(mod_eq_name) {}
+  explicit ScheduleFnDatabaseNode(ffi::String mod_eq_name = "structural")
+      : DatabaseNode(mod_eq_name) {}
 
-  runtime::TypedPackedFunc<bool(tir::Schedule)> schedule_fn;
+  ffi::TypedFunction<bool(tir::Schedule)> schedule_fn;
 
-  void VisitAttrs(AttrVisitor* v) {
-    // `schedule_fn` is not visited.
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ScheduleFnDatabaseNode>().def_ro("schedule_fn",
+                                                     &ScheduleFnDatabaseNode::schedule_fn);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.ScheduleFnDatabase";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleFnDatabaseNode, DatabaseNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.ScheduleFnDatabase", ScheduleFnDatabaseNode,
+                                    DatabaseNode);
 
  public:
-  Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
-                                           const String& workload_name) final {
-    if (Optional<tir::Schedule> sch = this->QuerySchedule(mod, target, workload_name)) {
+  ffi::Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
+                                                const ffi::String& workload_name) final {
+    if (ffi::Optional<tir::Schedule> sch = this->QuerySchedule(mod, target, workload_name)) {
       return TuningRecord(sch.value()->trace().value(),
                           /*workload=*/Workload(mod, 0),  //
-                          /*run_secs=*/NullOpt,           //
+                          /*run_secs=*/std::nullopt,      //
                           /*target=*/target,              //
-                          /*arg_info=*/NullOpt);
+                          /*arg_info=*/std::nullopt);
     }
-    return NullOpt;
+    return std::nullopt;
   }
 
-  Optional<tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
-                                        const String& workload_name) final {
+  ffi::Optional<tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
+                                             const ffi::String& workload_name) final {
     tir::Schedule sch =
         tir::Schedule::Traced(WithAttr<IRModule>(mod, "task_name", workload_name),
                               /*rand_state=*/-1,
                               /*debug_mode=*/0,
                               /*error_render_level=*/tir::ScheduleErrorRenderLevel::kDetail);
     if (!schedule_fn(sch)) {
-      return NullOpt;
+      return std::nullopt;
     }
     return sch;
   }
@@ -75,12 +79,12 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
     throw;
   }
 
-  Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
+  ffi::Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
     LOG(FATAL) << "NotImplementedError: ScheduleFnDatabase.GetTopK";
     throw;
   }
 
-  Array<TuningRecord> GetAllTuningRecords() final {
+  ffi::Array<TuningRecord> GetAllTuningRecords() final {
     LOG(FATAL) << "NotImplementedError: ScheduleFnDatabase.GetAllTuningRecords";
     throw;
   }
@@ -91,16 +95,19 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
   }
 };
 
-Database Database::ScheduleFnDatabase(runtime::TypedPackedFunc<bool(tir::Schedule)> schedule_fn,
-                                      String mod_eq_name) {
-  ObjectPtr<ScheduleFnDatabaseNode> n = make_object<ScheduleFnDatabaseNode>(mod_eq_name);
+Database Database::ScheduleFnDatabase(ffi::TypedFunction<bool(tir::Schedule)> schedule_fn,
+                                      ffi::String mod_eq_name) {
+  ObjectPtr<ScheduleFnDatabaseNode> n = ffi::make_object<ScheduleFnDatabaseNode>(mod_eq_name);
   n->schedule_fn = std::move(schedule_fn);
   return Database(n);
 }
 
-TVM_REGISTER_NODE_TYPE(ScheduleFnDatabaseNode);
-TVM_REGISTER_GLOBAL("meta_schedule.DatabaseScheduleFnDatabase")
-    .set_body_typed(Database::ScheduleFnDatabase);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.DatabaseScheduleFnDatabase", Database::ScheduleFnDatabase);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() { ScheduleFnDatabaseNode::RegisterReflection(); }
 
 }  // namespace meta_schedule
 }  // namespace tvm

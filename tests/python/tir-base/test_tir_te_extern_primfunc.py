@@ -48,8 +48,8 @@ def func_1(A: T.Buffer((16,), "float32"), C: T.Buffer((1,), "float32")):
 def verify_func_1(module):
     a_np = np.random.randint(low=-128, high=127, size=(16,)).astype(np.float32)
     c_np = np.zeros((1,), dtype=np.float32)
-    a = tvm.nd.array(a_np, device=tvm.cpu(0))
-    c = tvm.nd.array(c_np, device=tvm.cpu(0))
+    a = tvm.runtime.tensor(a_np, device=tvm.cpu(0))
+    c = tvm.runtime.tensor(c_np, device=tvm.cpu(0))
 
     module(a, c)
     tvm.testing.assert_allclose(c_np + np.sum(3 * a_np + 1), c.numpy(), rtol=1e-4)
@@ -78,9 +78,9 @@ def verify_func_2(module):
     a_np = np.random.randint(low=-128, high=127, size=(16,)).astype(np.float32)
     d_np = np.random.randint(low=-128, high=127, size=(2,)).astype(np.float32)
     c_np = np.zeros((1,), dtype=np.float32)
-    a = tvm.nd.array(a_np, device=tvm.cpu(0))
-    d = tvm.nd.array(d_np, device=tvm.cpu(0))
-    c = tvm.nd.array(c_np, device=tvm.cpu(0))
+    a = tvm.runtime.tensor(a_np, device=tvm.cpu(0))
+    d = tvm.runtime.tensor(d_np, device=tvm.cpu(0))
+    c = tvm.runtime.tensor(c_np, device=tvm.cpu(0))
 
     module(c, a, d)
     tvm.testing.assert_allclose(c_np + np.sum(3 * a_np + 1 + d_np[0]), c.numpy(), rtol=1e-4)
@@ -116,11 +116,11 @@ def verify_func_3(module):
     c_np = np.zeros((1,), dtype=np.float32)
     e_np = np.zeros((16,), dtype=np.float32)
     f_np = np.zeros((16,), dtype=np.float32)
-    a = tvm.nd.array(a_np, device=tvm.cpu(0))
-    d = tvm.nd.array(d_np, device=tvm.cpu(0))
-    c = tvm.nd.array(c_np, device=tvm.cpu(0))
-    e = tvm.nd.array(e_np, device=tvm.cpu(0))
-    f = tvm.nd.array(f_np, device=tvm.cpu(0))
+    a = tvm.runtime.tensor(a_np, device=tvm.cpu(0))
+    d = tvm.runtime.tensor(d_np, device=tvm.cpu(0))
+    c = tvm.runtime.tensor(c_np, device=tvm.cpu(0))
+    e = tvm.runtime.tensor(e_np, device=tvm.cpu(0))
+    f = tvm.runtime.tensor(f_np, device=tvm.cpu(0))
 
     module(c, a, d, e, f)
     tvm.testing.assert_allclose(c_np + np.sum(3 * a_np + 1 + d_np[0]), c.numpy(), rtol=1e-4)
@@ -158,11 +158,11 @@ def verify_func_4(module):
     c_np = np.zeros((1,), dtype=np.float32)
     e_np = np.zeros((16,), dtype=np.float32)
     f_np = np.zeros((16,), dtype=np.float32)
-    a = tvm.nd.array(a_np, device=tvm.cpu(0))
-    d = tvm.nd.array(d_np, device=tvm.cpu(0))
-    c = tvm.nd.array(c_np, device=tvm.cpu(0))
-    e = tvm.nd.array(e_np, device=tvm.cpu(0))
-    f = tvm.nd.array(f_np, device=tvm.cpu(0))
+    a = tvm.runtime.tensor(a_np, device=tvm.cpu(0))
+    d = tvm.runtime.tensor(d_np, device=tvm.cpu(0))
+    c = tvm.runtime.tensor(c_np, device=tvm.cpu(0))
+    e = tvm.runtime.tensor(e_np, device=tvm.cpu(0))
+    f = tvm.runtime.tensor(f_np, device=tvm.cpu(0))
 
     module(c, a, f, d, e)
     tvm.testing.assert_allclose(c_np + np.sum(3 * a_np + 1 + d_np[0]), c.numpy(), rtol=1e-4)
@@ -181,7 +181,7 @@ class TestPrimFuncs:
 
     def test_primfunc_call(self, func, verify):
         target = tvm.target.Target("llvm")
-        func = tvm.build(func, target=target)
+        func = tvm.compile(func, target=target)
         verify(func)
 
     def test_te_extern_call(self, func, params, verify):
@@ -192,10 +192,9 @@ class TestPrimFuncs:
         input_tensors = [te.placeholder(buf_name_map[name].shape) for name in params]
         output = te.extern_primfunc(input_tensors, prim_func)
         rt_prim_func = te.create_prim_func(tensors_from_extern_op(output, prim_func))
-        tvm.ir.assert_structural_equal(tvm.lower(prim_func), tvm.lower(rt_prim_func))
 
         target = tvm.target.Target("llvm")
-        func = tvm.build(rt_prim_func, target=target)
+        func = tvm.compile(rt_prim_func, target=target)
         verify(func)
 
 

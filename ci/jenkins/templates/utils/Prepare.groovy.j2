@@ -155,6 +155,16 @@ def cancel_previous_build() {
   }
 }
 
+def is_last_build() {
+  // check whether it is last build
+  try {
+    return currentBuild.number == currentBuild.rawBuild.project.getLastBuild().number
+  } catch (Throwable ex) {
+    echo 'Error during check is_last_build ' + ex.toString()
+    return false
+  }
+}
+
 def checkout_trusted_files() {
   // trust everything from branch builds
   if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {

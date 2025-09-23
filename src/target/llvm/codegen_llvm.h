@@ -117,7 +117,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param module_name The name of the module.
    * \param tm Target machine model
    * \param ctx The context.
-   * \param system_lib_prefix If the value is not NullOpt, insert system lib registration.
+   * \param system_lib_prefix If the value is not std::nullopt, insert system lib registration.
    *                          The value corresponds to the prefix of the system lib symbols.
    * \param dynamic_lookup Whether dynamically lookup runtime function
    *                       or use the runtime function table passed by caller.
@@ -125,7 +125,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *                       this option influences whether global ctors are used.
    */
   virtual void Init(const std::string& module_name, LLVMTarget* llvm_target,
-                    Optional<String> system_lib_prefix, bool dynamic_lookup, bool target_c_runtime);
+                    ffi::Optional<ffi::String> system_lib_prefix, bool dynamic_lookup,
+                    bool target_c_runtime);
 
   /*!
    * \brief Turn on fast math flags for floating point operations.
@@ -194,6 +195,10 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Constant* ConstInt32(int64_t value) const {
     return llvm::ConstantInt::getSigned(t_int32_, value);
   }
+  // Short hande code to get a constant int 64
+  llvm::Constant* ConstInt64(int64_t value) const {
+    return llvm::ConstantInt::getSigned(t_int64_, value);
+  }
   // override codegen
   llvm::Value* VisitExpr_(const VarNode* op) override;
   llvm::Value* VisitExpr_(const CastNode* op) override;
@@ -260,9 +265,9 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
     int alignment{0};
   };
   /*!
-   * \brief Convert tvm::runtime::String into llvm::StringRef
+   * \brief Convert tvm::ffi::String into llvm::StringRef
    */
-  static llvm::StringRef MakeStringRef(const String& string) {
+  static llvm::StringRef MakeStringRef(const ffi::String& string) {
     return llvm::StringRef(string.c_str(), string.size());
   }
   /*!
@@ -289,8 +294,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   virtual llvm::Value* CreateIntrinsic(const CallNode* op);
   // create extern function call
   // skip first arg mode used for call extern intrinsic.
-  virtual llvm::Value* CreateCallExtern(Type ret_type, String global_symbol,
-                                        const Array<PrimExpr>& args, bool skip_first_arg);
+  virtual llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,
+                                        const ffi::Array<PrimExpr>& args, bool skip_first_arg);
 
   /*! \brief Insert a printf() call to the generated LLVM
    *
@@ -355,7 +360,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *       - Should return the generated expression.
    */
   void BufferAccessHelper(
-      Buffer buffer, Array<PrimExpr> indices, Optional<PrimExpr> predicate, DataType value_dtype,
+      Buffer buffer, ffi::Array<PrimExpr> indices, ffi::Optional<PrimExpr> predicate,
+      DataType value_dtype,
       std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
                                        llvm::Value* predicate, int alignment, bool is_volatile)>
           make_instruction);
@@ -536,6 +542,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Type* t_int32_{nullptr};
   llvm::Type* t_int64_{nullptr};
   llvm::Type* t_float64_{nullptr};
+  llvm::ArrayType* t_tvm_tensormap_{nullptr};
   // meta data
   llvm::MDNode* md_very_likely_branch_{nullptr};
   llvm::MDNode* md_tbaa_root_{nullptr};
@@ -580,7 +587,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   const Op& builtin_tvm_call_cpacked_lowered_ = builtin::tvm_call_cpacked_lowered();
 
   void EmitDebugLocation();
-  void EmitDebugLocation(const Optional<Span>& span);
+  void EmitDebugLocation(const ffi::Optional<Span>& span);
   void EmitDebugLocation(const StmtNode* op);
 
   // Get the DWARF type corresponding to the LLVM type |ty|. The current API in practice only
@@ -589,7 +596,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::DIType* GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm);
 
   // Adds the DWARF debug information for |function| to |dbg_info_|.
-  void AddDebugInformation(llvm::Function* f_llvm, const Array<Type>& tvm_param_types);
+  void AddDebugInformation(llvm::Function* f_llvm, const ffi::Array<Type>& tvm_param_types);
   // Adds the DWARF debug information for |tir_var| to |dbg_info_|.
   void AddDebugInformation(llvm::Value* llvm_value, const Var& tir_var,
                            llvm::Instruction* insert_before = nullptr);
@@ -610,6 +617,13 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *  initializes file and compilation_unit_ to TVM defaults.
    */
   static std::unique_ptr<DebugInfo> CreateDebugInfo(llvm::Module* module);
+
+  void PushLoopFrame(llvm::BasicBlock* backedge_tgt, llvm::BasicBlock* exit_tgt);
+  void PopLoopFrame();
+
+  // loop frame's jump target for continue and break generation
+  // store basic block pair (blk to backedge, blk to exit) for each frame.
+  std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*>> loop_frame_jump_tgts_;
 };
 
 inline int CodeGenLLVM::GetVectorNumElements(llvm::Value* vec) {

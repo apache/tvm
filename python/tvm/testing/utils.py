@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name,unnecessary-comprehension
+# pylint: disable=invalid-name,unnecessary-comprehension,redefined-outer-name
 """TVM testing utilities
 
 Organization
@@ -67,7 +67,6 @@ import copy
 import copyreg
 import ctypes
 import functools
-import hashlib
 import itertools
 import logging
 import os
@@ -88,13 +87,12 @@ import tvm
 import tvm.arith
 import tvm.tir
 import tvm.te
-import tvm._ffi
 
 from tvm.target import codegen
 from tvm.contrib import nvcc, cudnn, rocm
 import tvm.contrib.hexagon._ci_env_check as hexagon
-from tvm.driver.tvmc.frontends import load_model
 from tvm.error import TVMError
+import tvm.contrib.utils
 
 
 SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
@@ -326,9 +324,8 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
             return tvm.tir.stmt_functor.substitute(expr, vmap)
 
         A = tvm.te.compute([r.extent.value for v, r in vranges.items()], _compute_body)
-        args = [tvm.nd.empty(A.shape, A.dtype)]
-        sch = tvm.te.create_schedule(A.op)
-        mod = tvm.build(sch, [A])
+        args = [tvm.runtime.empty(A.shape, A.dtype)]
+        mod = tvm.compile(tvm.IRModule.from_expr(tvm.te.create_prim_func([A])))
         mod(*args)
         return args[0].numpy()
 
@@ -457,7 +454,7 @@ DEFAULT_TEST_TARGETS = [
     "nvptx",
     "vulkan -from_device=0",
     "opencl",
-    "opencl -device=mali,aocl_sw_emu",
+    "opencl -device=mali",
     "opencl -device=intel_graphics",
     "metal",
     "rocm",
@@ -987,20 +984,11 @@ requires_nnapi = Feature(
     cmake_flag="USE_NNAPI_CODEGEN",
 )
 
-# Mark a test as requiring microTVM to run
-requires_micro = Feature("micro", "MicroTVM", cmake_flag="USE_MICRO")
-
 # Mark a test as requiring CUTLASS to run
 requires_cutlass = Feature("cutlass", "CUTLASS", cmake_flag="USE_CUTLASS")
 
 # Mark a test as requiring rpc to run
 requires_rpc = Feature("rpc", "RPC", cmake_flag="USE_RPC")
-
-# Mark a test as requiring Arm(R) Ethos(TM)-N to run
-requires_ethosn = Feature("ethosn", "Arm(R) Ethos(TM)-N", cmake_flag="USE_ETHOSN")
-
-# Mark a test as requiring Arm(R) Ethos(TM)-U to run
-requires_ethosu = Feature("ethosu", "Arm(R) Ethos(TM)-U", cmake_flag="USE_ETHOSU")
 
 # Mark a test as requiring libtorch to run
 requires_libtorch = Feature("libtorch", "LibTorch", cmake_flag="USE_LIBTORCH")
@@ -1019,24 +1007,6 @@ requires_hexagon = Feature(
     parent_features="llvm",
 )
 
-# Mark a test as requiring the CMSIS NN library
-requires_cmsisnn = Feature("cmsisnn", "CMSIS NN", cmake_flag="USE_CMSISNN")
-
-
-def _corstone300_compile_time_check():
-    if shutil.which("arm-none-eabi-gcc") is None:
-        return "ARM embedded toolchain unavailable"
-    return True
-
-
-# Mark a test as requiring the corstone300 FVP
-requires_corstone300 = Feature(
-    "corstone300",
-    "Corstone-300",
-    compile_time_check=_corstone300_compile_time_check,
-    parent_features="cmsisnn",
-)
-
 
 def _aprofile_aem_fvp_compile_time_check():
     if shutil.which("FVP_Base_RevC-2xAEMvA") is None:
@@ -1049,9 +1019,6 @@ requires_aprofile_aem_fvp = Feature(
     "AProfile AEM FVP",
     compile_time_check=_aprofile_aem_fvp_compile_time_check,
 )
-
-# Mark a test as requiring Vitis AI to run
-requires_vitis_ai = Feature("vitis_ai", "Vitis AI", cmake_flag="USE_VITIS_AI")
 
 
 # check cpu features
@@ -1147,6 +1114,39 @@ slow = pytest.mark.skipif(
     SKIP_SLOW_TESTS,
     reason="Skipping slow test since the SKIP_SLOW_TESTS environment variable is 'true'",
 )
+
+
+def requires_llvm_minimum_version(major_version):
+    """Mark a test as requiring at least a specific version of LLVM.
+
+    Unit test marked with this decorator will run only if the
+    installed version of LLVM is at least `major_version`.
+
+    This also marks the test as requiring LLVM backend support.
+
+    Parameters
+    ----------
+    major_version: int
+
+
+    """
+
+    try:
+        llvm_version = tvm.target.codegen.llvm_version_major()
+    except RuntimeError:
+        llvm_version = 0
+
+    requires = [
+        pytest.mark.skipif(
+            llvm_version < major_version, reason=f"Requires LLVM >= {major_version}"
+        ),
+        *requires_llvm.marks(),
+    ]
+
+    def inner(func):
+        return _compose([func], requires)
+
+    return inner
 
 
 def requires_nvcc_version(major_version, minor_version=0, release_version=0):
@@ -1643,6 +1643,35 @@ def fixture(func=None, *, cache_return_value=False):
     return wraps(func)
 
 
+def get_dtype_range(dtype: str) -> Tuple[int, int]:
+    """
+    Produces the min,max for a give data type.
+
+    Parameters
+    ----------
+    dtype : str
+        a type string (e.g., int8, float64)
+
+    Returns
+    -------
+    type_info.min : int
+        the minimum of the range
+    type_info.max : int
+        the maximum of the range
+    """
+    type_info = None
+    np_dtype = np.dtype(dtype)
+    kind = np_dtype.kind
+
+    if kind == "f":
+        type_info = np.finfo(np_dtype)
+    elif kind in ["i", "u"]:
+        type_info = np.iinfo(np_dtype)
+    else:
+        raise TypeError(f"dtype ({dtype}) must indicate some floating-point or integral data type.")
+    return type_info.min, type_info.max
+
+
 class _DeepCopyAllowedClasses(dict):
     def __init__(self, allowed_class_list):
         self.allowed_class_list = allowed_class_list
@@ -1798,8 +1827,8 @@ def terminate_self():
 def is_ampere_or_newer():
     """Check if the target environment has an NVIDIA Ampere GPU or newer."""
     arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
-    return major >= 8
+    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
+    return major >= 8 and minor != 9
 
 
 def install_request_hook(depth: int) -> None:
@@ -1845,47 +1874,6 @@ def install_request_hook(depth: int) -> None:
     import request_hook  # pylint: disable=import-outside-toplevel
 
     request_hook.init()
-
-
-def fetch_model_from_url(
-    url: str,
-    model_format: str,
-    sha256: str,
-) -> Tuple[tvm.ir.module.IRModule, dict]:
-    """Testing function to fetch a model from a URL and return it as a Relay
-    model. Downloaded files are cached for future re-use.
-
-    Parameters
-    ----------
-    url : str
-        The URL or list of URLs to try downloading the model from.
-
-    model_format: str
-        The file extension of the model format used.
-
-    sha256 : str
-        The sha256 hex hash to compare the downloaded model against.
-
-    Returns
-    -------
-    (mod, params) : object
-        The Relay representation of the downloaded model.
-    """
-
-    rel_path = f"model_{sha256}.{model_format}"
-    file = tvm.contrib.download.download_testdata(url, rel_path, overwrite=False)
-
-    # Check SHA-256 hash
-    file_hash = hashlib.sha256()
-    with open(file, "rb") as f:
-        for block in iter(lambda: f.read(2**24), b""):
-            file_hash.update(block)
-
-    if file_hash.hexdigest() != sha256:
-        raise FileNotFoundError("SHA-256 hash for model does not match")
-
-    tvmc_model = load_model(file, model_format)
-    return tvmc_model.mod, tvmc_model.params
 
 
 def _mark_parameterizations(*params, marker_fn, reason):
@@ -2185,25 +2173,3 @@ class CompareBeforeAfter:
                 f"or an instance of `tvm.tir.PrimFunc`.  "
                 f"Instead, received {type(expected)}."
             )
-
-
-class _control_span_filling:
-    def __init__(self, on=True):
-        self._on = on
-        self._pass_ctx = tvm.transform.PassContext(config={"relay.frontend.fill_span": self._on})
-
-    def __enter__(self):
-        self._pass_ctx.__enter__()
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._pass_ctx.__exit__(exc_type, exc_val, exc_tb)
-
-
-class enable_span_filling(_control_span_filling):
-    def __init__(self):
-        super().__init__()
-
-
-class disable_span_filling(_control_span_filling):
-    def __init__(self):
-        super().__init__(on=False)

@@ -240,8 +240,6 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
                 s.step = doc.Constant(
                     1,
                     None,
-                    1,
-                    1,
                     s.upper.lineno,
                     s.upper.end_col_offset + 1,
                     s.upper.lineno,
@@ -285,7 +283,7 @@ def visit_aug_assign(self: Parser, node: doc.AugAssign) -> None:
         node.value.end_lineno,
         node.value.end_col_offset,
     )
-    node.target.ctx = doc.Load(*lhs_pos)
+    node.target.ctx = doc.Load()
     with self.var_table.with_frame():
         lhs_name = "__tvm_tmp_value_aug_assign_lhs"
         rhs_name = "__tvm_tmp_value_aug_assign_rhs"
@@ -294,14 +292,14 @@ def visit_aug_assign(self: Parser, node: doc.AugAssign) -> None:
         self.var_table.add(lhs_name, lhs_expr)
         self.var_table.add(rhs_name, rhs_expr)
         op = doc.BinOp(
-            doc.Name(lhs_name, doc.Load(*lhs_pos), *lhs_pos),
+            doc.Name(lhs_name, doc.Load(), *lhs_pos),
             node.op,
-            doc.Name(rhs_name, doc.Load(*rhs_pos), *rhs_pos),
+            doc.Name(rhs_name, doc.Load(), *rhs_pos),
             *lhs_pos,
         )
         rhs = self.eval_expr(op)
     lhs = node.target
-    lhs.ctx = doc.Store(*lhs_pos)
+    lhs.ctx = doc.Store()
     if isinstance(lhs, doc.Subscript):
         if isinstance(lhs.slice, doc.Tuple):
             indices = []
@@ -355,7 +353,8 @@ def visit_with(self: Parser, node: doc.With) -> None:
             frame = self.eval_expr(item.context_expr)
             if not isinstance(frame, Frame):
                 self.report_error(
-                    item.context_expr, "Invalid context expression in the with-statement."
+                    item.context_expr,
+                    "Invalid context expression in the with-statement.",
                 )
             rhs = stack.enter_context(frame)
             if item.optional_vars is not None:
@@ -454,7 +453,7 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
         T.evaluate(res)
     elif isinstance(res, (int, bool)):
         T.evaluate(tvm.tir.const(res))
-    elif isinstance(res, (tvm.relay.Call, tvm.relax.Call)) and not res.args:
+    elif isinstance(res, tvm.relax.Call) and not res.args:
         # Using GlobalVar.__call__ with no arguments is ambiguous, as
         # each IR has a different function Call representation.  If
         # this occurs, convert to the TIR representation.
@@ -500,7 +499,8 @@ def visit_if(self: Parser, node: doc.If) -> None:
                     self.visit_body(node.orelse)
         else:
             self.report_error(
-                node.test, f"If condition must be a boolean expression, but got {predicate}"
+                node.test,
+                f"If condition must be a boolean expression, but got {predicate}",
             )
 
 
@@ -539,6 +539,36 @@ def visit_return(self: Parser, node: doc.Return) -> None:
     if value is None:
         self.report_error(node, "Expression to be returned must be a PrimExpr")
     T.evaluate(tvm.tir.ret(value))
+
+
+@dispatch.register(token="tir", type_name="Continue")
+def visit_continue(self: Parser, node: doc.Continue) -> None:  # pylint:disable=unused-argument
+    """The continue visiting method for tir.
+
+    Parameters
+    ----------
+    self : Parser
+        The visiting parser.
+
+    node : doc.Continue
+        The doc AST continue node.
+    """
+    T.evaluate(tvm.tir.continue_loop())
+
+
+@dispatch.register(token="tir", type_name="Break")
+def visit_break(self: Parser, node: doc.Break) -> None:  # pylint:disable=unused-argument
+    """The continue visiting method for tir.
+
+    Parameters
+    ----------
+    self : Parser
+        The visiting parser.
+
+    node : doc.Break
+        The doc AST break node.
+    """
+    T.evaluate(tvm.tir.break_loop())
 
 
 @dispatch.register(token="tir", type_name="tvm_declare_function")

@@ -29,9 +29,10 @@
 
 #include "common_subexpr_elim.h"
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/transform.h>  // For the class Pass and the class PassContext
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/tir/analysis.h>  // For the analysis which gives the size of an expr
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
@@ -43,8 +44,7 @@
 #include <algorithm>  // For the algorithm std::find
 #include <iostream>
 #include <string>
-#include <unordered_map>  // For the hashtable datatype
-#include <utility>        // For std::pair and std::move
+#include <utility>
 #include <vector>
 
 #include "../analysis/check_contains.h"  // For the visitor CheckContains
@@ -131,44 +131,27 @@ bool CommonSubexpressionEliminator::CanContainEligibleComputations(const PrimExp
  *       they appeared in the hashtable was based on some runtime addresses, so it can potentially
  *       change with every execution.
  */
-bool CommonSubexpressionEliminator::OrderOnExprAndFrequency(std::pair<PrimExpr, size_t> a,
-                                                            std::pair<PrimExpr, size_t> b) {
+bool CommonSubexpressionEliminator::OrderOnExprAndFrequency(const std::pair<PrimExpr, size_t>& a,
+                                                            const std::pair<PrimExpr, size_t>& b) {
   size_t a_size = CalculateExprComplexity(a.first);
   size_t b_size = CalculateExprComplexity(b.first);
-
-  // Criteria 1 - Size of the expression comes first
-  // `a` comes before `b` if the size of `a` is bigger
-  if (a_size > b_size) {
-    return true;
-  }
-  // `a` does NOT come before `b` if the size of `b` is bigger
-  if (b_size > a_size) {
-    return false;
-  }
-
-  // Criteria 2 - If they had the same size, use the lexicographic order as a last resort
-  // as we need a deterministic order
-  std::stringstream a_stream;
-  std::stringstream b_stream;
-  a_stream << AsLegacyRepr(a.first);
-  b_stream << AsLegacyRepr(b.first);
-  return (a_stream.str().compare(b_stream.str()) < 0);
+  return a_size > b_size;
 }
 
 /*!
- * \brief Generates a new fresh variable, whose name will be cse_var_i.
+ * \brief Generates a new fresh variable, whose name will be cse_vi.
  * \param type_annotation The type of the new variable to generate
- * \return A new variable of type `type_annotation` called cse_var_i where i is the first available
+ * \return A new variable of type `type_annotation` called cse_vi where i is the first available
             integer.
  */
 Var CommonSubexpressionEliminator::GenerateNewVar(DataType type_annotation) {
   // Increase `num_last_try_` for this new attempt
   num_last_try_++;
-  // Builds the variable name, which is sce_var_i where i will go up from 1
-  std::string prefix = "cse_var_";
+  // Builds the variable name, which is cse_vi where i will go up from 1
+  std::string prefix = "cse_v";
   std::string name = prefix.append(std::to_string(num_last_try_));
-  // Builds a String using the std::string
-  String string_name(name);
+  // Builds a ffi::String using the std::string
+  ffi::String string_name(name);
 
   // Check that the name that we want to use for the new variable isn't already being used
   // (names don't really have to be unique as they are just hints, and having the same name
@@ -241,8 +224,8 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
       SyntacticToSemanticComputations(table_syntactic_comp_done_by_expr, identify_equiv_terms_);
 
   // Sort the vector of semantic entities by decreasing size
-  std::sort(semantic_comp_done_by_expr.begin(), semantic_comp_done_by_expr.end(),
-            OrderOnExprAndFrequency);
+  std::stable_sort(semantic_comp_done_by_expr.begin(), semantic_comp_done_by_expr.end(),
+                   OrderOnExprAndFrequency);
 
   // For each computation done (considering them from biggest to smallest)
   for (size_t i = 0; i < semantic_comp_done_by_expr.size(); i++) {
@@ -297,11 +280,11 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
           [](const std::pair<Var, MaybeValue>& pair) { return pair.first; };
       std::vector<Var> vector_vars_known = VectorMap(context_, forget_value);
       // 2.2 - Transform the std::vector into an Array
-      Array<Var> array_vars_known = Array<Var>(vector_vars_known);
+      ffi::Array<Var> array_vars_known = ffi::Array<Var>(vector_vars_known);
       // --- End of chunk needed for reusing the UndefinedVars() analysis ---
 
       // We use the UndefinedVars() analysis to get the undefined vars of the computation
-      Array<Var> vars_undefined = UndefinedVars(computation_wrapped_in_stmt, array_vars_known);
+      ffi::Array<Var> vars_undefined = UndefinedVars(computation_wrapped_in_stmt, array_vars_known);
 
       // Check if we can introduce it : if it contains no undefined variables and if we want
       // to introduce it according to the predicate
@@ -392,7 +375,7 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr_(const LetNode* op) {
   // If the `value` and the `body` of the let-in have been rewritten to the same thing
   if (value_new.same_as(op->value) && body_new.same_as(op->body)) {
     // then return a reference to the same node
-    return GetRef<PrimExpr>(op);
+    return ffi::GetRef<PrimExpr>(op);
   } else {
     // Otherwise return a let-in built with the new `value_new` and the new `body_new` that
     // have just been obtained
@@ -421,8 +404,8 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
       SyntacticToSemanticComputations(table_syntactic_comp_done_by_stmt, identify_equiv_terms_);
 
   // Sort the vector of semantic entities by decreasing size
-  std::sort(semantic_comp_done_by_stmt.begin(), semantic_comp_done_by_stmt.end(),
-            OrderOnExprAndFrequency);
+  std::stable_sort(semantic_comp_done_by_stmt.begin(), semantic_comp_done_by_stmt.end(),
+                   OrderOnExprAndFrequency);
 
   // For each computation done (considering them from biggest to smallest)
   for (size_t i = 0; i < semantic_comp_done_by_stmt.size(); i++) {
@@ -477,11 +460,11 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
           [](const std::pair<Var, MaybeValue>& pair) { return pair.first; };
       std::vector<Var> vector_vars_known = VectorMap(context_, forget_value);
       // 2.2 - Transform the std::vector into an Array
-      Array<Var> array_vars_known = Array<Var>(vector_vars_known);
+      ffi::Array<Var> array_vars_known = ffi::Array<Var>(vector_vars_known);
       // --- End of chunk needed for reusing the UndefinedVars() analysis ---
 
       // We use the UndefinedVars() analysis to get the undefined vars of the computation
-      Array<Var> vars_undefined = UndefinedVars(computation_wrapped_in_stmt, array_vars_known);
+      ffi::Array<Var> vars_undefined = UndefinedVars(computation_wrapped_in_stmt, array_vars_known);
 
       // Check if we can introduce it : if it contains no undefined variables and if we want
       // to introduce it according to the predicate
@@ -573,7 +556,7 @@ Stmt CommonSubexpressionEliminator::VisitStmt_(const LetStmtNode* op) {
   // If the `value` and the `body` of the let-in have been rewritten to the same thing
   if (value_new.same_as(op->value) && body_new.same_as(op->body)) {
     // Return a reference to the same node
-    return GetRef<Stmt>(op);
+    return ffi::GetRef<Stmt>(op);
   } else {
     // Otherwise return a let-in built with the new `value_new` and the new `body_new` that
     // have just been obtained
@@ -614,7 +597,7 @@ Stmt CommonSubexpressionEliminator::VisitStmt_(const ForNode* op) {
   // If the `min`, `extent` and `body` of the for loop have been rewritten to the same thing
   if (min_new.same_as(op->min) && extent_new.same_as(op->extent) && body_new.same_as(op->body)) {
     // Return a reference to the same node
-    return GetRef<Stmt>(op);
+    return ffi::GetRef<Stmt>(op);
   } else {
     // Otherwise return a for node built with the new `min_new`, `extent_new` and `body_new`
     // that have just been obtained
@@ -655,7 +638,10 @@ Pass CommonSubexprElimTIR(bool enable_cse_tir, bool identify_equiv_terms) {
 }
 
 // The pass can now be invoked via the pass infrastructure, but we also add a Python binding for it
-TVM_REGISTER_GLOBAL("tir.transform.CommonSubexprElimTIR").set_body_typed(CommonSubexprElimTIR);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.CommonSubexprElimTIR", CommonSubexprElimTIR);
+}
 
 }  // namespace transform
 }  // namespace tir

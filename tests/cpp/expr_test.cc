@@ -17,9 +17,9 @@
  * under the License.
  */
 
-#include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/node/structural_equal.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
 
 TEST(Expr, Basic) {
@@ -51,5 +51,5 @@ TEST(ExprNodeRef, Basic) {
   Var x("x");
   PrimExpr z = max(x + 1 + 2, 100);
   const tir::MaxNode* op = z.as<tir::MaxNode>();
-  ICHECK(GetRef<ObjectRef>(op).same_as(z));
+  ICHECK(ffi::GetRef<ObjectRef>(op).same_as(z));
 }

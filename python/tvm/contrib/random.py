@@ -17,7 +17,7 @@
 """External function interface to random library."""
 import tvm
 from tvm import te
-import tvm._ffi
+import tvm_ffi
 
 
 def randint(low, high, size, dtype="int32"):
@@ -112,4 +112,4 @@ def normal(loc, scale, size):
     )
 
 
-tvm._ffi._init_api("tvm.contrib.random")
+tvm_ffi.init_ffi_api("tvm.contrib.random")

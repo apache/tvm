@@ -24,6 +24,7 @@
 #ifndef TVM_SUPPORT_ERRNO_HANDLING_H_
 #define TVM_SUPPORT_ERRNO_HANDLING_H_
 #include <errno.h>
+#include <tvm/ffi/extra/c_env_api.h>
 
 #include "ssize.h"
 
@@ -55,7 +56,9 @@ inline ssize_t RetryCallOnEINTR(FuncType func, GetErrorCodeFuncType fgeterrorcod
       // environment specific(e.g. python) signal exceptions.
       // This function will throw an exception if there is
       // if the process received a signal that requires TVM to return immediately (e.g. SIGINT).
-      runtime::EnvCheckSignals();
+      if (TVMFFIEnvCheckSignals() != 0) {
+        throw ffi::EnvErrorAlreadySet();
+      }
     } else {
       // other errors
       return ret;

@@ -19,6 +19,8 @@
 #ifndef TVM_SCRIPT_PRINTER_IR_DOCSIFIER_H_
 #define TVM_SCRIPT_PRINTER_IR_DOCSIFIER_H_
 
+#include <tvm/ffi/reflection/access_path.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/node.h>
 #include <tvm/script/printer/doc.h>
@@ -34,6 +36,8 @@ namespace tvm {
 namespace script {
 namespace printer {
 
+using AccessPath = ffi::reflection::AccessPath;
+
 //////////////////////// Frame ////////////////////////
 
 class IRDocsifier;
@@ -46,20 +50,19 @@ class IRDocsifierNode;
 class FrameNode : public Object {
  public:
   /*! The docs generated in the frame */
-  Array<StmtDoc> stmts;
+  ffi::Array<StmtDoc> stmts;
   /*! The corresponding IRDocsifier */
   IRDocsifierNode* d;
   /*! The callbacks that are going to be invoked when the frame exits */
   std::vector<std::function<void()>> callbacks;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("stmts", &stmts);
-    // `d` is not visited
-    // `callbacks` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<FrameNode>().def_ro("stmts", &FrameNode::stmts);
   }
 
-  static constexpr const char* _type_key = "script.printer.Frame";
-  TVM_DECLARE_BASE_OBJECT_INFO(FrameNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("script.printer.Frame", FrameNode, Object);
 
  public:
   virtual ~FrameNode() = default;
@@ -78,7 +81,7 @@ class FrameNode : public Object {
    * \param d The docsifier.
    * \param token The token to be added.
    */
-  void AddDispatchToken(const IRDocsifier& d, const String& token);
+  void AddDispatchToken(const IRDocsifier& d, const ffi::String& token);
   /*!
    * \brief Method that's called when Frame enters the scope.
    */
@@ -105,7 +108,7 @@ class Frame : public ObjectRef {
   /*! \brief Method that's called when Frame exits the scope. */
   void ExitWithScope() { get()->ExitWithScope(); }
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Frame, ObjectRef, FrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Frame, ObjectRef, FrameNode);
 };
 
 //////////////////////// IRDocsifier ////////////////////////
@@ -125,47 +128,44 @@ class IRDocsifierNode : public Object {
     /*! \brief The creator */
     DocCreator creator;
     /*! \brief The name of the variable */
-    Optional<String> name;
+    ffi::Optional<ffi::String> name;
   };
   /*! \brief The configuration of the printer */
-  PrinterConfig cfg{nullptr};
+  PrinterConfig cfg{ffi::UnsafeInit()};
   /*!
    * \brief The stack of frames.
    * \sa FrameNode
    */
-  Array<Frame> frames;
+  ffi::Array<Frame> frames;
   /*!
    * \brief The stack of dispatch tokens.
    *
    * The dispatch token on the top decides which dispatch function to use
    * when converting IR node object to Doc.
    */
-  Array<String> dispatch_tokens;
+  ffi::Array<ffi::String> dispatch_tokens;
   /*! \brief Mapping from a var to its info */
   std::unordered_map<ObjectRef, VariableInfo, ObjectPtrHash, ObjectPtrEqual> obj2info;
   /*! \brief Metadata printing */
-  std::unordered_map<String, Array<ObjectRef>> metadata;
+  std::unordered_map<ffi::String, ffi::Array<ffi::Any>> metadata;
   /*! \brief GlobalInfo printing */
-  std::unordered_map<String, Array<GlobalInfo>> global_infos;
+  std::unordered_map<ffi::String, ffi::Array<GlobalInfo>> global_infos;
   /*! \brief The variable names used already */
-  std::unordered_set<String> defined_names;
+  std::unordered_set<ffi::String> defined_names;
   /*! \brief Common prefixes of variable usages */
   std::unordered_map<const Object*, std::vector<const Object*>> common_prefix;
   /*! \brief The IR usages for headers printing */
   std::unordered_set<std::string> ir_usage;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("frames", &frames);
-    v->Visit("dispatch_tokens", &dispatch_tokens);
-    // `obj2info` is not visited
-    // `metadata` is not visited
-    // `defined_names` is not visited
-    // `common_prefix` is not visited
-    // `ir_usage` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IRDocsifierNode>()
+        .def_ro("frames", &IRDocsifierNode::frames)
+        .def_ro("dispatch_tokens", &IRDocsifierNode::dispatch_tokens);
   }
 
-  static constexpr const char* _type_key = "script.printer.IRDocsifier";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IRDocsifierNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.IRDocsifier", IRDocsifierNode, Object);
 
  public:
   /*!
@@ -179,7 +179,7 @@ class IRDocsifierNode : public Object {
    * This function will rename the variable to avoid name conflict with other variables
    * in the table.
    */
-  IdDoc Define(const ObjectRef& obj, const Frame& frame, const String& name_hint);
+  IdDoc Define(const ObjectRef& obj, const Frame& frame, const ffi::String& name_hint);
 
   /*!
    * \brief Define variable by doc factory.
@@ -203,16 +203,16 @@ class IRDocsifierNode : public Object {
    * \brief Get the doc for variable.
    * \param obj The variable object.
    *
-   * \return The doc for variable, if it exists in the table. Otherwise it returns NullOpt.
+   * \return The doc for variable, if it exists in the table. Otherwise it returns std::nullopt.
    */
-  Optional<ExprDoc> GetVarDoc(const ObjectRef& obj) const;
+  ffi::Optional<ExprDoc> GetVarDoc(const ObjectRef& obj) const;
   /*! \brief Add a TVM object to the metadata section*/
-  ExprDoc AddMetadata(const ObjectRef& obj);
+  ExprDoc AddMetadata(const ffi::Any& obj);
   /*! \brief Add a GlobalInfo to the global_infos map.
    * \param name The name of key of global_infos.
    * \param ginfo The GlobalInfo to be added.
    */
-  void AddGlobalInfo(const String& name, const GlobalInfo& ginfo);
+  void AddGlobalInfo(const ffi::String& name, const GlobalInfo& ginfo);
   /*!
    * \brief Check if a variable exists in the table.
    * \param obj The variable object.
@@ -227,7 +227,7 @@ class IRDocsifierNode : public Object {
    * \param root The root of the AST.
    * \param is_var A function that returns true if the given object is considered a variable.
    */
-  void SetCommonPrefix(const ObjectRef& root, runtime::TypedPackedFunc<bool(ObjectRef)> is_var);
+  void SetCommonPrefix(const ObjectRef& root, ffi::TypedFunction<bool(ObjectRef)> is_var);
   /*!
    * \brief Transform the input object into TDoc.
    * \param obj The object to be transformed.
@@ -236,7 +236,7 @@ class IRDocsifierNode : public Object {
    * \return The Doc object.
    */
   template <class TDoc = Doc>
-  inline TDoc AsDoc(const ObjectRef& obj, const ObjectPath& path) const;
+  inline TDoc AsDoc(const Any& obj, const AccessPath& path) const;
 };
 
 /*!
@@ -244,20 +244,20 @@ class IRDocsifierNode : public Object {
  */
 class IRDocsifier : public ObjectRef {
  public:
-  using FType = IRDocsifierFunctor<printer::Doc, ObjectPath, IRDocsifier>;
+  using FType = IRDocsifierFunctor<printer::Doc, AccessPath, IRDocsifier>;
   /*! \brief Create a IRDocsifier. */
   explicit IRDocsifier(const PrinterConfig& cfg);
   /*! \brief The registration table for IRDocsifier. */
   TVM_DLL static FType& vtable();
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IRDocsifier, ObjectRef, IRDocsifierNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRDocsifier, ObjectRef, IRDocsifierNode);
 };
 
 //////////////////////// Implementation ////////////////////////
 
 inline void FrameNode::EnterWithScope() {
   if (d != nullptr) {
-    d->frames.push_back(GetRef<Frame>(this));
+    d->frames.push_back(ffi::GetRef<Frame>(this));
   }
 }
 
@@ -272,11 +272,11 @@ inline void FrameNode::ExitWithScope() {
 }
 
 template <class TDoc>
-inline static void AddDocDecoration(const Doc& d, const ObjectRef& obj, const ObjectPath& path,
+inline static void AddDocDecoration(const Doc& d, const ObjectRef& obj, const AccessPath& path,
                                     const PrinterConfig& cfg) {
   if (cfg->obj_to_annotate.count(obj)) {
     if (const auto* stmt = d.as<StmtDocNode>()) {
-      if (stmt->comment.defined()) {
+      if (stmt->comment.has_value()) {
         stmt->comment = stmt->comment.value() + "\n" + cfg->obj_to_annotate.at(obj);
       } else {
         stmt->comment = cfg->obj_to_annotate.at(obj);
@@ -292,11 +292,11 @@ inline static void AddDocDecoration(const Doc& d, const ObjectRef& obj, const Ob
     }
   }
   for (const auto& pair : cfg->path_to_annotate) {
-    ObjectPath p = pair.first;
-    String attn = pair.second;
+    AccessPath p = pair.first;
+    ffi::String attn = pair.second;
     if (p->IsPrefixOf(path) && path->IsPrefixOf(p)) {
       if (const auto* stmt = d.as<StmtDocNode>()) {
-        if (stmt->comment.defined()) {
+        if (stmt->comment.has_value()) {
           stmt->comment = stmt->comment.value() + "\n" + attn;
         } else {
           stmt->comment = attn;
@@ -310,17 +310,48 @@ inline static void AddDocDecoration(const Doc& d, const ObjectRef& obj, const Ob
 }
 
 template <class TDoc>
-inline TDoc IRDocsifierNode::AsDoc(const ObjectRef& obj, const ObjectPath& path) const {
-  if (obj.defined()) {
-    Doc d = IRDocsifier::vtable()(dispatch_tokens.back(), obj, path, GetRef<IRDocsifier>(this));
-    d->source_paths.push_back(path);
-    AddDocDecoration<TDoc>(d, obj, path, cfg);
-    return Downcast<TDoc>(d);
+inline TDoc IRDocsifierNode::AsDoc(const Any& value, const AccessPath& path) const {
+  switch (value.type_index()) {
+    case ffi::TypeIndex::kTVMFFINone:
+      return Downcast<TDoc>(LiteralDoc::None(path));
+    case ffi::TypeIndex::kTVMFFIBool:
+      return Downcast<TDoc>(LiteralDoc::Boolean(value.as<bool>().value(), path));
+    case ffi::TypeIndex::kTVMFFIInt:
+      return Downcast<TDoc>(LiteralDoc::Int(value.as<int64_t>().value(), path));
+    case ffi::TypeIndex::kTVMFFIFloat:
+      return Downcast<TDoc>(LiteralDoc::Float(value.as<double>().value(), path));
+    case ffi::TypeIndex::kTVMFFISmallStr:
+    case ffi::TypeIndex::kTVMFFIStr: {
+      std::string string_value = value.cast<std::string>();
+      bool has_multiple_lines = string_value.find_first_of('\n') != std::string::npos;
+      if (has_multiple_lines) {
+        Doc d = const_cast<IRDocsifierNode*>(this)->AddMetadata(string_value);
+        // TODO(tqchen): cross check AddDocDecoration
+        return Downcast<TDoc>(d);
+      }
+      return Downcast<TDoc>(LiteralDoc::Str(string_value, path));
+    }
+    case ffi::TypeIndex::kTVMFFIDataType:
+      return Downcast<TDoc>(LiteralDoc::DataType(value.as<runtime::DataType>().value(), path));
+    case ffi::TypeIndex::kTVMFFIDevice:
+      return Downcast<TDoc>(LiteralDoc::Device(value.as<DLDevice>().value(), path));
+    default: {
+      if (auto opt_obj = value.as<ObjectRef>()) {
+        ObjectRef obj = opt_obj.value();
+        Doc d = IRDocsifier::vtable()(dispatch_tokens.back(), obj, path,
+                                      ffi::GetRef<IRDocsifier>(this));
+        d->source_paths.push_back(path);
+        AddDocDecoration<TDoc>(d, obj, path, cfg);
+        return Downcast<TDoc>(d);
+      } else {
+        LOG(FATAL) << "TypeError: Cannot handle Any type: `" << value.GetTypeKey() << "`";
+        TVM_FFI_UNREACHABLE();
+      }
+    }
   }
-  return Downcast<TDoc>(LiteralDoc::None(path));
 }
 
-inline void FrameNode::AddDispatchToken(const IRDocsifier& d, const String& token) {
+inline void FrameNode::AddDispatchToken(const IRDocsifier& d, const ffi::String& token) {
   d->dispatch_tokens.push_back(token);
   this->AddExitCallback([doc = d.get()]() { doc->dispatch_tokens.pop_back(); });
 }

@@ -17,7 +17,7 @@
 """Registration of profiling objects in python."""
 
 from typing import Dict, Sequence, Optional
-from ... import _ffi
+from ... import ffi as _ffi
 from . import _ffi_api
 from .. import Object, Device
 
@@ -231,7 +231,7 @@ def profile_function(mod, dev, collectors, func_name=None, warmup_iters=10):
 
     .. code-block: python
 
-        f = tvm.build(my_func, target="llvm", name="my_func")
+        f = tvm.compile(my_func, target="llvm", name="my_func")
         prof = tvm.runtime.profiling.profile_function(
             f,
             tvm.cpu(),
@@ -266,7 +266,7 @@ def profile_function(mod, dev, collectors, func_name=None, warmup_iters=10):
     if func_name is None:
         func_name = mod.entry_name
     return _ffi_api.ProfileFunction(
-        mod, func_name, dev.device_type, dev.device_id, warmup_iters, collectors
+        mod, func_name, dev.dlpack_device_type(), dev.index, warmup_iters, collectors
     )
 
 

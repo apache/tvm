@@ -22,7 +22,8 @@
  * \brief Lower the special device storage access.
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/target/target_info.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/builtin.h>
@@ -68,7 +69,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
         it != storage_info_.end() && !it->second->head_address.defined()) {
       return node->body;
     } else {
-      return std::move(node);
+      return node;
     }
   }
 
@@ -130,8 +131,10 @@ Pass LowerDeviceStorageAccessInfo() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerDeviceStorageAccessInfo", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerDeviceStorageAccessInfo")
-    .set_body_typed(LowerDeviceStorageAccessInfo);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LowerDeviceStorageAccessInfo", LowerDeviceStorageAccessInfo);
+}
 
 }  // namespace transform
 }  // namespace tir

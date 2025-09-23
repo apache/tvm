@@ -67,18 +67,6 @@ driving its costs down.
 
 .. toctree::
    :maxdepth: 1
-   :caption: Legacy
-
-   tutorial/index
-   how_to/legacy_index
-   dev/tutorial/index
-   dev/how_to/how_to.rst
-   reference/langref/index
-   topic/microtvm/index
-   topic/vta/index
-
-.. toctree::
-   :maxdepth: 1
    :caption: About
 
    contribute/index

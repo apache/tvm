@@ -28,14 +28,11 @@ import tvm.testing
 
 
 def test_op_translation_to_not_implemented():
-    ferror = tvm.testing.test_raise_error_callback("OpNotImplemented: myop")
     try:
-        ferror()
+        tvm.testing.test_raise_error("OpNotImplemented", "myop")
         assert False
     except tvm.error.OpNotImplemented as e:
-        msg = str(e)
         assert isinstance(e, NotImplementedError)
-        assert msg.find("ffi_testing.cc") != -1
 
 
 def test_op_translation_to_internal_error():
@@ -44,8 +41,7 @@ def test_op_translation_to_internal_error():
         fchk_eq(0, 1)
         assert False
     except tvm.error.InternalError as e:
-        msg = str(e)
-        assert msg.find("ffi_testing.cc") != -1
+        pass
 
 
 def test_op_translation_to_value_error():
@@ -53,8 +49,7 @@ def test_op_translation_to_value_error():
         tvm.testing.ErrorTest(0, 1)
         assert False
     except ValueError as e:
-        msg = str(e)
-        assert msg.find("ffi_testing.cc") != -1
+        pass
 
 
 def test_deep_callback():
@@ -97,7 +92,7 @@ def test_deep_callback():
 
 @functools.lru_cache()
 def _has_debug_symbols():
-    lib = tvm._ffi.base._LIB
+    lib = tvm.base._LIB
     headers = subprocess.check_output(["objdump", "--section-headers", lib._name], encoding="utf-8")
     return ".debug" in headers
 

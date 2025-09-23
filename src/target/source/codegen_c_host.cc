@@ -22,10 +22,8 @@
  */
 #include "codegen_c_host.h"
 
-#include <tvm/relay/executor.h>
-#include <tvm/relay/runtime.h>
-#include <tvm/runtime/crt/error_codes.h>
-#include <tvm/runtime/module.h>
+#include <tvm/ffi/extra/module.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/target/codegen.h>
 
 #include <algorithm>
@@ -34,15 +32,12 @@
 #include <utility>
 #include <vector>
 
-#include "../../support/str_escape.h"
-#include "../build_common.h"
-#include "../func_registry_generator.h"
-#include "codegen_params.h"
-
 namespace tvm {
 namespace codegen {
 
-CodeGenCHost::CodeGenCHost() { module_name_ = name_supply_->FreshName("__tvm_module_ctx"); }
+CodeGenCHost::CodeGenCHost() {
+  module_name_ = name_supply_->FreshName(ffi::symbol::tvm_ffi_library_ctx);
+}
 
 void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_decl,
                         std::string target_str, const std::unordered_set<std::string>& devices) {
@@ -51,26 +46,17 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_d
   declared_globals_.clear();
   decl_stream << "// tvm target: " << target_str << "\n";
   decl_stream << "#define TVM_EXPORTS\n";
-  decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
+  decl_stream << "#include \"tvm/runtime/base.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
+  decl_stream << "#include \"tvm/ffi/c_api.h\"\n";
   decl_stream << "#include <math.h>\n";
   decl_stream << "#include <stdbool.h>\n";
-  if (devices.find("ethos-u") != devices.end()) {
-    decl_stream << "#include <tvm_ethosu_runtime.h>\n";
-  }
-  if (devices.find("cmsis-nn") != devices.end()) {
-    decl_stream << "#include <stdio.h>\n";
-    decl_stream << "#include <stdlib.h>\n";
-    decl_stream << "#include <dlpack/dlpack.h>\n";
-    decl_stream << "#include <arm_nnfunctions.h>\n";
-    decl_stream << "#include <arm_nn_types.h>\n";
-    decl_stream << "#include <arm_nn_math_types.h>\n";
-  }
+  CodeGenCHost::InitGlobalContext();
   CodeGenC::Init(output_ssa);
 }
 
 void CodeGenCHost::InitGlobalContext() {
-  decl_stream << "void* " << tvm::runtime::symbol::tvm_module_ctx << " = NULL;\n";
+  decl_stream << "void* " << ffi::symbol::tvm_ffi_library_ctx << " = NULL;\n";
 }
 
 void CodeGenCHost::DefineModuleName() { decl_stream << "void* " << module_name_ << " = NULL;\n"; }
@@ -81,34 +67,31 @@ void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
 
 void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func,
                                bool emit_fwd_func_decl) {
-  auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
   if (global_symbol) {
     function_names_.push_back(global_symbol.value());
   }
 
   emit_fwd_func_decl_ = emit_fwd_func_decl;
   CodeGenC::AddFunction(gvar, func);
-  if (func->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
-    ICHECK(global_symbol.defined())
+  if (func->HasNonzeroAttr(tir::attr::kIsEntryFunc) && !has_tvm_ffi_main_func_) {
+    ICHECK(global_symbol.has_value())
         << "CodeGenCHost: The entry func must have the global_symbol attribute, "
         << "but function " << gvar << " only has attributes " << func->attrs;
 
-    function_names_.push_back(runtime::symbol::tvm_module_main);
+    function_names_.push_back(ffi::symbol::tvm_ffi_main);
     stream << "// CodegenC: NOTE: Auto-generated entry function\n";
     PrintFuncPrefix(stream);
     PrintType(func->ret_type, stream);
-    stream << " " << tvm::runtime::symbol::tvm_module_main
-           << "(void* args, int* arg_type_ids, int num_args, void* out_ret_value, "
-           << "int* out_ret_tcode, void* resource_handle) {\n";
-    stream << "  return " << global_symbol.value()
-           << "(args, arg_type_ids, num_args, out_ret_value, out_ret_tcode, resource_handle);\n";
+    stream << " " << ffi::symbol::tvm_ffi_main
+           << "(void* self, void* args,int num_args, void* result) {\n";
+    stream << "  return " << global_symbol.value() << "(self, args, num_args, result);\n";
     stream << "}\n";
   }
 }
 
-void CodeGenCHost::GenerateForwardFunctionDeclarations(String global_symbol,
-
-                                                       const Array<Type>& arg_types,
+void CodeGenCHost::GenerateForwardFunctionDeclarations(ffi::String global_symbol,
+                                                       const ffi::Array<Type>& arg_types,
                                                        const Type& ret_type) {
   if (!emit_fwd_func_decl_) {
     return;
@@ -238,47 +221,44 @@ void CodeGenCHost::PrintGetFuncFromBackend(const std::string& func_name,
   this->stream << "}\n";
 }
 
-void CodeGenCHost::PrintFuncCall(const std::string& packed_func_name, int num_args) {
-  this->PrintIndent();
-  std::string ret_val = name_supply_->FreshName("ret_val");
-  std::string ret_type_code = name_supply_->FreshName("ret_type_code");
-  this->stream << "TVMValue " << ret_val << ";\n";
-  this->PrintIndent();
-  this->stream << "int " << ret_type_code << ";\n";
-  this->PrintIndent();
-  this->stream << "if (TVMFuncCall(" << packed_func_name << ", "
-               << "(TVMValue*) stack_value"
-               << ", "
-               << "(int*) stack_tcode"
-               << ", " << num_args << ", "
-               << "&" << ret_val << ", "
-               << "&" << ret_type_code << ") != 0) {\n";
-  int func_call_scope = this->BeginScope();
-  this->PrintIndent();
-  this->stream << "return -1;\n";
-  this->EndScope(func_call_scope);
-  this->PrintIndent();
-  this->stream << "}\n";
-}
+void CodeGenCHost::PrintCallPacked(const CallNode* op) {
+  const StringImmNode* func_name = op->args[0].as<StringImmNode>();
+  ICHECK(func_name != nullptr)
+      << "tvm_call_[c]packed_lowered expects first argument as function name";
+  int64_t begin = op->args[2].as<IntImmNode>()->value;
+  int64_t end = op->args[3].as<IntImmNode>()->value;
+  int64_t num_args = end - begin;
+  ICHECK_GE(num_args, 0);
 
-void CodeGenCHost::PrintFuncCallC(const std::string& packed_func_name, int num_args,
-                                  const std::string& resource_handle_name) {
-  this->PrintIndent();
-  std::string ret_val = name_supply_->FreshName("ret_val");
-  std::string ret_type_code = name_supply_->FreshName("ret_type_code");
-  this->stream << "TVMValue " << ret_val << ";\n";
-  this->PrintIndent();
-  this->stream << "int " << ret_type_code << ";\n";
-  this->PrintIndent();
+  std::string packed_func_name;
+  if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
+    packed_func_name = GetPackedName(op);
+    this->PrintGetFuncFromBackend(func_name->value, packed_func_name);
+  } else {
+    // directly use the original symbol
+    ICHECK(op->op.same_as(builtin::tvm_call_cpacked_lowered()));
+    packed_func_name = ffi::symbol::tvm_ffi_symbol_prefix + func_name->value;
+  }
 
-  this->stream << "if (" << packed_func_name << "( "
-               << "(TVMValue*) stack_value "
-               << ", "
-               << "(int*) stack_tcode"
-               << ", " << num_args << ", "
-               << "&" << ret_val << ", "
-               << "&" << ret_type_code << ", " << resource_handle_name << ") != 0){\n";
-
+  std::string args_stack = PrintExpr(op->args[1]);
+  this->PrintIndent();
+  std::string result = name_supply_->FreshName("result");
+  this->stream << "TVMFFIAny " << result << ";\n";
+  this->PrintIndent();
+  // must make sure type_index is set to none
+  this->stream << result << ".type_index = kTVMFFINone;\n";
+  this->PrintIndent();
+  this->stream << result << ".zero_padding = 0;\n";
+  this->PrintIndent();
+  this->stream << result << ".v_int64 = 0;\n";
+  this->PrintIndent();
+  if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
+    this->stream << "if (TVMFFIFunctionCall(" << packed_func_name << ", ";
+  } else {
+    this->stream << "if (" << packed_func_name << "(NULL, ";
+  }
+  this->stream << "(TVMFFIAny*) " << args_stack << ", " << num_args << ", "
+               << "&" << result << ") != 0) {\n";
   int func_call_scope = this->BeginScope();
   this->PrintIndent();
   this->stream << "return -1;\n";
@@ -304,75 +284,31 @@ std::string CodeGenCHost::GetPackedName(const CallNode* op) {
   return unique_name;
 }
 
-CodeGenCHost::FunctionInfo CodeGenCHost::GetFunctionInfo(const CallNode* op,
-                                                         bool has_resource_handle) {
-  const StringImmNode* s = op->args[0].as<StringImmNode>();
-  ICHECK(s != nullptr) << "tvm_call_[c]packed_lowered expects first argument as function name";
-  int64_t begin = op->args[3].as<IntImmNode>()->value;
-  int64_t end = op->args[4].as<IntImmNode>()->value;
-  int64_t num_args = end - begin;
-  ICHECK_GE(num_args, 0);
-  std::string func_name = s->value;
-
-  if (has_resource_handle) {
-    const StringImmNode* resource_handle_var = op->args[5].as<StringImmNode>();
-    if (resource_handle_var != nullptr) {
-      std::string resource_handle_name = resource_handle_var->value;
-      return {func_name, num_args - 1, resource_handle_name};
-    } else {
-      // The final arg should be "(void*) NULL" to indicate the empty resource_handle.
-      num_args--;
-
-      const CallNode* reinterpret_call = op->args[5].as<CallNode>();
-      ICHECK_NE(reinterpret_call, (void*)nullptr)
-          << "At CallNode to " << s
-          << "arg 5: Expect either StringImm naming the resource_handle var from interface API or "
-          << "reinterpret(0); got: " << op->args[5];
-      ICHECK_EQ(reinterpret_call->op, builtin::reinterpret())
-          << "At CallNode to " << s
-          << "arg 5: Expect either StringImm naming the resource_handle var from interface API or "
-          << "reinterpret(0); got: " << op->args[5];
-      ICHECK(is_zero(reinterpret_call->args[0])) << "At CallNode to " << s
-                                                 << " arg 5: Expect either StringImm naming the "
-                                                    "resource_handle var from interface API, or "
-                                                 << "zero; got " << op->args[5];
-    }
-  }
-  return {func_name, num_args, "NULL"};
-}
-
 void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (op->op.same_as(builtin::tvm_stack_alloca())) {
     std::string stack_name = name_supply_->FreshName("stack");
     const std::string& type = op->args[0].as<StringImmNode>()->value;
     const IntImmNode* num = op->args[1].as<IntImmNode>();
     ICHECK(num != nullptr);
-    static_assert(alignof(TVMValue) % alignof(DLTensor) == 0, "invariant");
-    size_t unit = sizeof(TVMValue);
+    static_assert(alignof(TVMFFIAny) % alignof(DLTensor) == 0, "invariant");
+    size_t unit = sizeof(TVMFFIAny);
     size_t size = 0;
     if (type == "shape") {
-      size = (num->value * sizeof(tvm_index_t) + unit - 1) / unit;
-    } else if (type == "arg_value") {
-      size = (num->value * sizeof(TVMValue) + unit - 1) / unit;
-    } else if (type == "arg_tcode") {
-      size = (num->value * sizeof(int) + unit - 1) / unit;
+      size = (num->value * sizeof(ffi::Shape::index_type) + unit - 1) / unit;
+    } else if (type == "tvm_ffi_any") {
+      size = (num->value * sizeof(TVMFFIAny) + unit - 1) / unit;
     } else if (type == "array") {
       size = (num->value * sizeof(DLTensor) + unit - 1) / unit;
     } else {
       LOG(FATAL) << "Unknown stack alloca type " << type;
     }
     this->PrintIndent();
-    this->stream << "TVMValue " << stack_name << "[" << size << "];\n";
+    this->stream << "TVMFFIAny " << stack_name << "[" << size << "];\n";
     os << stack_name;
   } else if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
-    auto function_info = GetFunctionInfo(op, false /* has_resource_handle */);
-    std::string func_name_packed = GetPackedName(op);
-    this->PrintGetFuncFromBackend(function_info.func_name, func_name_packed);
-    this->PrintFuncCall(func_name_packed, function_info.num_args);
+    this->PrintCallPacked(op);
   } else if (op->op.same_as(builtin::tvm_call_cpacked_lowered())) {
-    auto function_info = GetFunctionInfo(op, true /* has_resource_handle */);
-    this->PrintFuncCallC(function_info.func_name, function_info.num_args,
-                         function_info.resource_handle_name);
+    this->PrintCallPacked(op);
   } else if (op->op.same_as(builtin::tvm_throw_last_error())) {
     this->PrintIndent();
     this->stream << "return -1;\n";
@@ -388,7 +324,8 @@ void CodeGenCHost::VisitStmt_(const AssertStmtNode* op) {  // NOLINT(*)
     stream << "if (!(" << cond << ")) {\n";
     int assert_if_scope = this->BeginScope();
     PrintIndent();
-    stream << "TVMAPISetLastError(\"" << op->message.as<StringImmNode>()->value << "\");\n";
+    stream << "TVMFFIErrorSetRaisedFromCStr(\"RuntimeError\", \""
+           << op->message.as<StringImmNode>()->value << "\", NULL);\n";
     PrintIndent();
     stream << "return -1;\n";
     this->EndScope(assert_if_scope);
@@ -420,16 +357,15 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
      << "? (" << a_id << ") : (" << b_id << "))";
 }
 
-runtime::Module BuildCHost(IRModule mod, Target target) {
-  using tvm::runtime::Registry;
+ffi::Module BuildCHost(IRModule mod, Target target) {
   bool output_ssa = false;
   bool emit_asserts = false;
   bool emit_fwd_func_decl = true;
 
   std::unordered_set<std::string> devices;
-  if (mod->GetAttr<Map<GlobalVar, String>>("device_contexts") != nullptr) {
-    Map<GlobalVar, String> device_contexts =
-        mod->GetAttr<Map<GlobalVar, String>>("device_contexts").value();
+  if (mod->GetAttr<ffi::Map<GlobalVar, ffi::String>>("device_contexts") != nullptr) {
+    ffi::Map<GlobalVar, ffi::String> device_contexts =
+        mod->GetAttr<ffi::Map<GlobalVar, ffi::String>>("device_contexts").value();
     for (auto const& context : device_contexts) {
       devices.insert(context.second.data());
     }
@@ -458,9 +394,6 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
     return sort_key(kv_a) < sort_key(kv_b);
   });
 
-  // Declare all functions first.  This ensures that all functions,
-  // including the __tvm_main__ used in AOT, have access to forward
-  // declarations of other functions in the IRModule.
   for (const auto& [gvar, prim_func] : funcs) {
     cg.DeclareFunction(gvar, prim_func);
   }
@@ -472,31 +405,13 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
     cg.AddFunction(gvar, prim_func, emit_fwd_func_decl);
   }
 
-  // NOTE: it's possible that kRuntime attr is not attached when the mod was built with tvm.build().
-  // See issue #10373.
-  auto opt_runtime = mod->GetAttr<relay::Runtime>(tvm::attr::kRuntime);
-  relay::Runtime runtime;
-  if (opt_runtime.get() != nullptr) {
-    runtime = opt_runtime.value();
-  } else {
-    runtime = relay::Runtime::Create("cpp", {});
-  }
-
-  bool has_aot_executor_fn = std::any_of(
-      funcs.begin(), funcs.end(), [&](const auto& kv) { return is_aot_executor_fn(kv.second); });
-  if (has_aot_executor_fn && runtime->name == relay::kTvmRuntimeCpp) {
-    cg.InitGlobalContext();
-  }
-
-  if (target->GetAttr<Bool>("system-lib").value_or(Bool(false))) {
-    ICHECK_EQ(target->GetAttr<String>("runtime").value_or(""), "c")
-        << "c target only supports generating C runtime SystemLibs";
-  }
-
   std::string code = cg.Finish();
   return CSourceModuleCreate(code, "c", cg.GetFunctionNames());
 }
 
-TVM_REGISTER_GLOBAL("target.build.c").set_body_typed(BuildCHost);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("target.build.c", BuildCHost);
+}
 }  // namespace codegen
 }  // namespace tvm

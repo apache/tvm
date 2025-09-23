@@ -28,8 +28,6 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/relax/distributed/axis_group_graph.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/relay/expr.h>
-#include <tvm/relay/op.h>
 
 #include "../op_common.h"
 
@@ -44,8 +42,8 @@ namespace distributed {
  * \return The dtensor struct info of each input.
  * \note This function require every input tensor to be DTensor.
  */
-Array<distributed::DTensorStructInfo> GetInputDTensorStructInfo(const Call& call,
-                                                                const BlockBuilder& ctx);
+ffi::Array<distributed::DTensorStructInfo> GetInputDTensorStructInfo(const Call& call,
+                                                                     const BlockBuilder& ctx);
 
 /*!
  * \brief Perform a local sharding spec propagation to infer the output dtensor

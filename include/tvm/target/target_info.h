@@ -24,6 +24,7 @@
 #ifndef TVM_TARGET_TARGET_INFO_H_
 #define TVM_TARGET_TARGET_INFO_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 
 #include <string>
@@ -48,21 +49,21 @@ class MemoryInfoNode : public Object {
    */
   PrimExpr head_address;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("unit_bits", &unit_bits);
-    v->Visit("max_num_bits", &max_num_bits);
-    v->Visit("max_simd_bits", &max_simd_bits);
-    v->Visit("head_address", &head_address);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MemoryInfoNode>()
+        .def_ro("unit_bits", &MemoryInfoNode::unit_bits)
+        .def_ro("max_num_bits", &MemoryInfoNode::max_num_bits)
+        .def_ro("max_simd_bits", &MemoryInfoNode::max_simd_bits)
+        .def_ro("head_address", &MemoryInfoNode::head_address);
   }
-
-  static constexpr const char* _type_key = "MemoryInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MemoryInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.MemoryInfo", MemoryInfoNode, Object);
 };
 
 /*! \brief Defines memory info */
 class MemoryInfo : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(MemoryInfo, ObjectRef, MemoryInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MemoryInfo, ObjectRef, MemoryInfoNode);
 };
 
 /*!

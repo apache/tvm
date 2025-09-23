@@ -35,8 +35,8 @@ namespace {
 using tvm::transform::GlobalVarReplacer;
 
 struct Mutator : StmtExprMutator {
-  Map<GlobalVar, GlobalVar> replacements;
-  explicit Mutator(Map<GlobalVar, GlobalVar> replacements) : replacements(replacements) {}
+  ffi::Map<GlobalVar, GlobalVar> replacements;
+  explicit Mutator(ffi::Map<GlobalVar, GlobalVar> replacements) : replacements(replacements) {}
 
   PrimExpr VisitExpr_(const CallNode* node) override {
     auto call = Downcast<Call>(StmtExprMutator::VisitExpr_(node));
@@ -53,7 +53,7 @@ struct Mutator : StmtExprMutator {
 
 TVM_STATIC_IR_FUNCTOR(GlobalVarReplacer, vtable)
     .set_dispatch<tir::PrimFuncNode>([](const ObjectRef& obj,
-                                        Map<GlobalVar, GlobalVar> replacements) -> BaseFunc {
+                                        ffi::Map<GlobalVar, GlobalVar> replacements) -> BaseFunc {
       Mutator mutator(replacements);
       auto func = Downcast<PrimFunc>(obj);
       auto new_body = mutator(func->body);
@@ -65,7 +65,7 @@ TVM_STATIC_IR_FUNCTOR(GlobalVarReplacer, vtable)
       // If the function is externally exposed, and is being replaced
       // by a GlobalVar with a new name, then the function's
       // kGlobalSymbol must be updated to match.
-      if (auto opt = func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+      if (auto opt = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
         auto name = opt.value();
         for (const auto& [before, after] : replacements) {
           if (before->name_hint == name) {

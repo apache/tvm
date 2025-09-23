@@ -119,14 +119,14 @@ def check_correctness(
     # "llvm" should be good for this check
     target = tvm.target.Target("llvm", host="llvm")
     # Compile and run
-    ex = relax.build(ir_mod, target)
+    ex = tvm.compile(ir_mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     vm.set_input("main", *inputs_np)
     vm.invoke_stateful("main")
     tvm_output = vm.get_outputs("main")
 
     # Single ouput
-    if isinstance(tvm_output, tvm.nd.NDArray):
+    if isinstance(tvm_output, tvm.runtime.Tensor):
         tvm.testing.assert_allclose(tvm_output.numpy(), jax_output, rtol=1e-5, atol=1e-5)
         return
 
@@ -138,7 +138,7 @@ def check_correctness(
 
 def get_vm_res(
     ir_mod: tvm.IRModule, weights: Union[np.ndarray, List[np.ndarray]]
-) -> Union[tvm.nd.NDArray, List[tvm.nd.NDArray]]:
+) -> Union[tvm.runtime.Tensor, List[tvm.runtime.Tensor]]:
     """Compile and run an ir_module on Relax VM
 
     Parameters
@@ -151,12 +151,12 @@ def get_vm_res(
 
     Results
     -------
-    out: Union[tvm.nd.NDArray, List[tvm.nd.NDArray]]
+    out: Union[tvm.runtime.Tensor, List[tvm.runtime.Tensor]]
         inference result
     """
     target = tvm.target.Target("llvm", host="llvm")
     # Compile and run
-    ex = relax.build(ir_mod, target)
+    ex = tvm.compile(ir_mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     vm.set_input("main", *weights)
     vm.invoke_stateful("main")
@@ -196,10 +196,6 @@ def test_add_dynamic():
 
 
 @tvm.testing.requires_gpu
-@pytest.mark.skip(
-    reason="jaxlib.xla_extension.XlaRuntimeError: FAILED_PRECONDITION: DNN library initialization failed."
-)
-# TODO(mshr-h): may be fixed by upgrading jax to >=0.4.33
 def test_unary():
     import jax
 
@@ -233,10 +229,6 @@ def test_unary():
 
 
 @tvm.testing.requires_gpu
-@pytest.mark.skip(
-    reason="jaxlib.xla_extension.XlaRuntimeError: FAILED_PRECONDITION: DNN library initialization failed."
-)
-# TODO(mshr-h): may be fixed by upgrading jax to >=0.4.33
 def test_binary():
     import jax
 
@@ -258,10 +250,6 @@ def test_binary():
 
 
 @tvm.testing.requires_gpu
-@pytest.mark.skip(
-    reason="jaxlib.xla_extension.XlaRuntimeError: FAILED_PRECONDITION: DNN library initialization failed."
-)
-# TODO(mshr-h): may be fixed by upgrading jax to >=0.4.33
 def test_const():
     import jax
 
@@ -272,10 +260,6 @@ def test_const():
 
 
 @tvm.testing.requires_gpu
-@pytest.mark.skip(
-    reason="jaxlib.xla_extension.XlaRuntimeError: FAILED_PRECONDITION: DNN library initialization failed."
-)
-# TODO(mshr-h): may be fixed by upgrading jax to >=0.4.33
 def test_maximum():
     import jax
     import jax.numpy as jnp
@@ -287,10 +271,6 @@ def test_maximum():
 
 
 @tvm.testing.requires_gpu
-@pytest.mark.skip(
-    reason="jaxlib.xla_extension.XlaRuntimeError: FAILED_PRECONDITION: DNN library initialization failed."
-)
-# TODO(mshr-h): may be fixed by upgrading jax to >=0.4.33
 def test_minimum():
     import jax
     import jax.numpy as jnp
@@ -332,10 +312,6 @@ def test_reduce_window():
 
 
 @tvm.testing.requires_gpu
-@pytest.mark.skip(
-    reason="jaxlib.xla_extension.XlaRuntimeError: FAILED_PRECONDITION: DNN library initialization failed."
-)
-# TODO(mshr-h): may be fixed by upgrading jax to >=0.4.33
 def test_dot_general():
     import jax
 

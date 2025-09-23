@@ -39,7 +39,6 @@ def verify_matmul_add(
     final_result = te.compute(
         matmul_result.shape, lambda i, j: matmul_result[i, j] + bias, name="final_result"
     )
-    s = te.create_schedule(final_result.op)
 
     def get_numpy(a, b, matrix_bias, transa, transb):
         if transa:
@@ -64,12 +63,23 @@ def verify_matmul_add(
             return
         dev = tvm.cpu(0)
         name = "test_matmul_add"
-        f = tvm.build(s, [input1_data, input2_data, final_result, bias], target, name=name)
+        f = tvm.compile(
+            te.create_prim_func([input1_data, input2_data, final_result, bias]).with_attr(
+                "global_symbol", name
+            ),
+            target=target,
+        )
         if target == "c":
             f = compiling(f, name)
-        matrix_input1 = tvm.nd.array(np.random.uniform(size=ashape).astype(input1_data.dtype), dev)
-        matrix_input2 = tvm.nd.array(np.random.uniform(size=bshape).astype(input2_data.dtype), dev)
-        matrix_result = tvm.nd.array(np.zeros((matrix_n, matrix_m), dtype=final_result.dtype), dev)
+        matrix_input1 = tvm.runtime.tensor(
+            np.random.uniform(size=ashape).astype(input1_data.dtype), dev
+        )
+        matrix_input2 = tvm.runtime.tensor(
+            np.random.uniform(size=bshape).astype(input2_data.dtype), dev
+        )
+        matrix_result = tvm.runtime.tensor(
+            np.zeros((matrix_n, matrix_m), dtype=final_result.dtype), dev
+        )
         matrix_bias = 10.0
         f(matrix_input1, matrix_input2, matrix_result, matrix_bias)
         tvm.testing.assert_allclose(
@@ -126,7 +136,6 @@ def verify_quantized_matmul_add(matrix_m, matrix_l, matrix_n, transa=False, tran
     final_result = te.compute(
         matmul_result.shape, lambda i, j: matmul_result[i, j] + bias, name="final_result"
     )
-    s = te.create_schedule(final_result.op)
 
     def get_numpy(a, b, matrix_bias, transa, transb):
         if transa:
@@ -143,14 +152,18 @@ def verify_quantized_matmul_add(matrix_m, matrix_l, matrix_n, transa=False, tran
             print("skip because extern function is not available")
             return
         dev = tvm.cpu(0)
-        f = tvm.build(s, [input1_data, input2_data, final_result, bias], target)
-        matrix_input1 = tvm.nd.array(
+        f = tvm.compile(
+            te.create_prim_func([input1_data, input2_data, final_result, bias]), target=target
+        )
+        matrix_input1 = tvm.runtime.tensor(
             np.random.randint(low=0, high=50, size=ashape).astype(input1_data.dtype), dev
         )
-        matrix_input2 = tvm.nd.array(
+        matrix_input2 = tvm.runtime.tensor(
             np.random.randint(low=0, high=50, size=bshape).astype(input2_data.dtype), dev
         )
-        matrix_result = tvm.nd.array(np.zeros((matrix_n, matrix_m), dtype=final_result.dtype), dev)
+        matrix_result = tvm.runtime.tensor(
+            np.zeros((matrix_n, matrix_m), dtype=final_result.dtype), dev
+        )
         matrix_bias = 10
         f(matrix_input1, matrix_input2, matrix_result, matrix_bias)
         tvm.testing.assert_allclose(
@@ -201,7 +214,6 @@ def verify_batch_matmul(
     final_result = te.compute(
         matmul_result.shape, lambda k, i, j: matmul_result[k, i, j], name="final_result"
     )
-    s = te.create_schedule(final_result.op)
 
     def get_numpy(a, b, transa, transb):
         if transa:
@@ -226,12 +238,18 @@ def verify_batch_matmul(
             return
         dev = tvm.cpu(0)
         name = "test_batch_matmul"
-        f = tvm.build(s, [input1_data, input2_data, final_result], target, name=name)
+        f = tvm.compile(
+            te.create_prim_func([input1_data, input2_data, final_result]), target=target
+        )
         if target == "c":
             f = compiling(f, name)
-        matrix_input1 = tvm.nd.array(np.random.uniform(size=ashape).astype(input1_data.dtype), dev)
-        matrix_input2 = tvm.nd.array(np.random.uniform(size=bshape).astype(input2_data.dtype), dev)
-        matrix_result = tvm.nd.array(
+        matrix_input1 = tvm.runtime.tensor(
+            np.random.uniform(size=ashape).astype(input1_data.dtype), dev
+        )
+        matrix_input2 = tvm.runtime.tensor(
+            np.random.uniform(size=bshape).astype(input2_data.dtype), dev
+        )
+        matrix_result = tvm.runtime.tensor(
             np.zeros((batch, matrix_n, matrix_m), dtype=final_result.dtype), dev
         )
         f(matrix_input1, matrix_input2, matrix_result)

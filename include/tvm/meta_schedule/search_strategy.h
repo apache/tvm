@@ -19,16 +19,16 @@
 #ifndef TVM_META_SCHEDULE_SEARCH_STRATEGY_H_
 #define TVM_META_SCHEDULE_SEARCH_STRATEGY_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/meta_schedule/cost_model.h>
 #include <tvm/meta_schedule/database.h>
 #include <tvm/meta_schedule/measure_candidate.h>
 #include <tvm/meta_schedule/runner.h>
-#include <tvm/node/reflection.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/optional.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/tir/schedule/schedule.h>
 
 namespace tvm {
@@ -41,38 +41,38 @@ class SearchStrategy;
 /*!
  * \brief The search strategy for measure candidates generation.
  * \note The relationship between SearchStrategy and other classes are as follows:
-      ┌──────────────────────────────────────────────────────────────┐
-   ┌──┴───────────────────────────────────────────────────────────┐  │
-┌──┴────────────────── Tune Context ───────────────────────────┐  │  │
-│                ┌─────────────────────┐                       │  │  │
-│                │                     │   Generate            │  │  │
-│                │   Space Generator   ├──────────────┐        │  │  │
-│                │                     │              │        │  │  │
-│                └─────────────────────┘              ▼        │  │  │
-│                                                Design Space  │  │  │
-│                ┌─────────────────────┐              │        │  │  │
-│      Generate  │                     │   Pretuning  │        │  │  │
-│    ┌───────────┤   Search Strategy   │◄─────────────┘        │  │  │
-│    │           │                     │                       │  ├──┘
-│    │           └─────────────────────┘                       ├──┘
-└────┼─────────────────────────────────────────────────────────┘
-     │
-     │
-┌────┼──────────────── Managed By Task Scheduler ─────────────────────┐
-│    │                                 ┌───────────┐                  │
-│    │                      Send to    │           │  Send to         │
-│    ▼                  ┌─────────────►│  Builder  ├──────────┐       │
-│ Measure Candidate     │   Builder    │           │  Runner  │       │
-│    │                  │              └───────────┘          │       │
-│    │     ┌────────────┴────────┐                            │       │
-│    │     │                     │     ┌───────────┐          │       │
-│    └────►│   Task Scheduler    │     │           │          │       │
-│          │                     │     │  Runner   │◄─────────┘       │
-│          └─────────────────────┘     │           │                  │
-│                   ▲                  └─────┬─────┘                  │
-│                   │                        │                        │
-│                   └───  Runner Future ◄────┘                        │
-└─────────────────────────────────────────────────────────────────────┘
+        +--------------------------------------------------------------+
+    +--+-----------------------------------------------------------+    |
+  +--+------------------ Tune Context -----------------------------+ |  |
+  |                +---------------------+                        |  |  |
+  |                |                     |   Generate             |  |  |
+  |                |   Space Generator   +--------------+         |  |  |
+  |                |                     |              |         |  |  |
+  |                +---------------------+              v         |  |  |
+  |                                               Design Space    |  |  |
+  |                +---------------------+              |         |  |  |
+  |      Generate  |                     |   Pretuning  |         |  |  |
+  |    +-----------+   Search Strategy   |<-------------+         |  |  |
+  |    |           |                     |                        |  +--+
+  |    |           +---------------------+                        +--+
+  +----+----------------------------------------------------------+
+      |
+      |
+  +----+---------------- Managed By Task Scheduler ---------------------+
+  |    |                                 +-----------+                  |
+  |    |                      Send to    |           |  Send to         |
+  |    v                  +-------------+|  Builder  +----------+       |
+  | Measure Candidate     |   Builder    |           |  Runner  |       |
+  |    |                  |              +-----------+          |       |
+  |    |     +------------+------------+                        |       |
+  |    |     |                         |     +-----------+      |       |
+  |    +---->|   Task Scheduler        |     |           |      |       |
+  |          |                         |     |  Runner   |<-----+       |
+  |          +-------------------------+     |           |              |
+  |                   ^                      +-----+-----+              |
+  |                   |                            |                    |
+  |                   +----  Runner Future <-------+                    |
+  +---------------------------------------------------------------------+
 */
 class SearchStrategyNode : public runtime::Object {
  public:
@@ -98,9 +98,9 @@ class SearchStrategyNode : public runtime::Object {
    *  and reset the search strategy.
    */
   virtual void PreTuning(int max_trials, int num_trials_per_iter,
-                         const Array<tir::Schedule>& design_spaces,
-                         const Optional<Database>& database,
-                         const Optional<CostModel>& cost_model) = 0;
+                         const ffi::Array<tir::Schedule>& design_spaces,
+                         const ffi::Optional<Database>& database,
+                         const ffi::Optional<CostModel>& cost_model) = 0;
 
   /*!
    * \brief Post-tuning for the search strategy.
@@ -113,15 +113,15 @@ class SearchStrategyNode : public runtime::Object {
    * \brief Generate measure candidates from design spaces for measurement.
    * \return The measure candidates generated, nullptr if finished.
    */
-  virtual Optional<Array<MeasureCandidate>> GenerateMeasureCandidates() = 0;
+  virtual ffi::Optional<ffi::Array<MeasureCandidate>> GenerateMeasureCandidates() = 0;
 
   /*!
    * \brief Update the search strategy with measurement results.
    * \param measure_candidates The candidates to be measured.
    * \param results The measurement results from the runner.
    */
-  virtual void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
-                                   const Array<RunnerResult>& results) = 0;
+  virtual void NotifyRunnerResults(const ffi::Array<MeasureCandidate>& measure_candidates,
+                                   const ffi::Array<RunnerResult>& results) = 0;
 
   /*!
    * \brief Clone the search strategy.
@@ -129,8 +129,8 @@ class SearchStrategyNode : public runtime::Object {
    */
   virtual SearchStrategy Clone() const = 0;
 
-  static constexpr const char* _type_key = "meta_schedule.SearchStrategy";
-  TVM_DECLARE_BASE_OBJECT_INFO(SearchStrategyNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.SearchStrategy", SearchStrategyNode, Object);
 };
 
 /*!
@@ -143,31 +143,32 @@ class SearchStrategy : public runtime::ObjectRef {
    * \brief The function type of `InitializeWithTuneContext` method.
    * \param context The tuning context for initialization.
    */
-  using FInitializeWithTuneContext = runtime::TypedPackedFunc<void(const TuneContext&)>;
+  using FInitializeWithTuneContext = ffi::TypedFunction<void(const TuneContext&)>;
   /*!
    * \brief The function type of `PreTuning` method.
    */
-  using FPreTuning = runtime::TypedPackedFunc<void(
-      int max_trials, int num_trials_per_iter, const Array<tir::Schedule>&,
-      const Optional<Database>&, const Optional<CostModel>&)>;
+  using FPreTuning = ffi::TypedFunction<void(
+      int max_trials, int num_trials_per_iter, const ffi::Array<tir::Schedule>&,
+      const ffi::Optional<Database>&, const ffi::Optional<CostModel>&)>;
   /*! \brief The function type of `PostTuning` method. */
-  using FPostTuning = runtime::TypedPackedFunc<void()>;
+  using FPostTuning = ffi::TypedFunction<void()>;
   /*!
    * \brief The function type of `GenerateMeasureCandidates` method.
    * \return The measure candidates generated, nullptr if finished.
    */
-  using FGenerateMeasureCandidates = runtime::TypedPackedFunc<Optional<Array<MeasureCandidate>>()>;
+  using FGenerateMeasureCandidates =
+      ffi::TypedFunction<ffi::Optional<ffi::Array<MeasureCandidate>>()>;
   /*!
    * \brief The function type of `NotifyRunnerResults` method.
    * \param results The measurement results from the runner.
    */
-  using FNotifyRunnerResults =
-      runtime::TypedPackedFunc<void(const Array<MeasureCandidate>&, const Array<RunnerResult>&)>;
+  using FNotifyRunnerResults = ffi::TypedFunction<void(const ffi::Array<MeasureCandidate>&,
+                                                       const ffi::Array<RunnerResult>&)>;
   /*!
    * \brief The function type of `Clone` method.
    * \return The cloned search strategy.
    */
-  using FClone = runtime::TypedPackedFunc<SearchStrategy()>;
+  using FClone = ffi::TypedFunction<SearchStrategy()>;
   /*!
    * \brief Create a search strategy with customized methods on the python-side.
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
@@ -215,7 +216,7 @@ class SearchStrategy : public runtime::ObjectRef {
                                                    int genetic_max_fail_count,  //
                                                    double eps_greedy);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(SearchStrategy, ObjectRef, SearchStrategyNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SearchStrategy, ObjectRef, SearchStrategyNode);
 };
 
 /*! \brief The python side customizable class for measure candidate generation */
@@ -241,26 +242,27 @@ class PySearchStrategyNode : public SearchStrategyNode {
   /*! \brief The packed function to the `Clone` method. */
   FClone f_clone;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_initialize_with_tune_context` is not visited
-    // `f_pre_tuning` is not visited
-    // `f_post_tuning` is not visited
-    // `f_generate_measure_candidates` is not visited
-    // `f_notify_runner_results` is not visited
-    // `f_clone` is not visited
+  static void RegisterReflection() {
+    // `f_initialize_with_tune_context` is not registered
+    // `f_pre_tuning` is not registered
+    // `f_post_tuning` is not registered
+    // `f_generate_measure_candidates` is not registered
+    // `f_notify_runner_results` is not registered
+    // `f_clone` is not registered
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final;
-  void PreTuning(int max_trials, int num_trials_per_iter, const Array<tir::Schedule>& design_spaces,
-                 const Optional<Database>& database, const Optional<CostModel>& cost_model) final;
+  void PreTuning(int max_trials, int num_trials_per_iter,
+                 const ffi::Array<tir::Schedule>& design_spaces,
+                 const ffi::Optional<Database>& database,
+                 const ffi::Optional<CostModel>& cost_model) final;
   void PostTuning() final;
-  Optional<Array<MeasureCandidate>> GenerateMeasureCandidates() final;
-  void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
-                           const Array<RunnerResult>& results);
+  ffi::Optional<ffi::Array<MeasureCandidate>> GenerateMeasureCandidates() final;
+  void NotifyRunnerResults(const ffi::Array<MeasureCandidate>& measure_candidates,
+                           const ffi::Array<RunnerResult>& results);
   SearchStrategy Clone() const final;
-
-  static constexpr const char* _type_key = "meta_schedule.PySearchStrategy";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PySearchStrategyNode, SearchStrategyNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PySearchStrategy", PySearchStrategyNode,
+                                    SearchStrategyNode);
 };
 
 }  // namespace meta_schedule

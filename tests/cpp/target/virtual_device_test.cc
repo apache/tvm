@@ -29,7 +29,7 @@ TEST(VirtualDevice, Join_Defined) {
     Target target_a = Target("cuda");
     VirtualDevice lhs = VirtualDevice(kDLCUDA, 3);
     VirtualDevice rhs = VirtualDevice(kDLCUDA, -1, target_a, "global");
-    Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
+    ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_TRUE(actual.operator bool());
     VirtualDevice expected = VirtualDevice(kDLCUDA, 3, target_a, "global");
     EXPECT_TRUE(StructuralEqual()(actual.value(), expected));
@@ -38,7 +38,7 @@ TEST(VirtualDevice, Join_Defined) {
     Target target_a = Target("cuda");
     VirtualDevice lhs = VirtualDevice(kDLCUDA, -1, target_a, "global");
     VirtualDevice rhs = VirtualDevice(kDLCUDA, 3);
-    Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
+    ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_TRUE(actual.operator bool());
     VirtualDevice expected = VirtualDevice(kDLCUDA, 3, target_a, "global");
     EXPECT_TRUE(StructuralEqual()(actual.value(), expected));
@@ -47,7 +47,7 @@ TEST(VirtualDevice, Join_Defined) {
     Target target_a = Target("cuda");
     VirtualDevice lhs = VirtualDevice(kDLCUDA);
     VirtualDevice rhs = VirtualDevice(kDLCUDA, 2, target_a);
-    Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
+    ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_TRUE(actual.operator bool());
     VirtualDevice expected = VirtualDevice(kDLCUDA, 2, target_a);
     EXPECT_TRUE(StructuralEqual()(actual.value(), expected));
@@ -56,7 +56,7 @@ TEST(VirtualDevice, Join_Defined) {
     Target target_a = Target("cuda");
     VirtualDevice lhs = VirtualDevice();
     VirtualDevice rhs = VirtualDevice(kDLCUDA, 3, target_a, "global");
-    Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
+    ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_TRUE(actual.operator bool());
     VirtualDevice expected = rhs;
     EXPECT_TRUE(StructuralEqual()(actual.value(), expected));
@@ -67,25 +67,25 @@ TEST(VirtualDevice, Join_Undefined) {
   {
     VirtualDevice lhs = VirtualDevice(kDLCUDA);
     VirtualDevice rhs = VirtualDevice(kDLCPU);
-    Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
+    ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_FALSE(actual);
   }
   {
     VirtualDevice lhs = VirtualDevice(kDLCUDA, 3);
     VirtualDevice rhs = VirtualDevice(kDLCUDA, 4);
-    Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
+    ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_FALSE(actual);
   }
   {
     VirtualDevice lhs = VirtualDevice(kDLCUDA, 3, Target("cuda"));
     VirtualDevice rhs = VirtualDevice(kDLCUDA, 3, Target("cuda"));
-    Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
+    ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_FALSE(actual);
   }
   {
     VirtualDevice lhs = VirtualDevice(kDLCUDA, 3, Target("cuda"), "local");
     VirtualDevice rhs = VirtualDevice(kDLCUDA, 3, Target("cuda"), "global");
-    Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
+    ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_FALSE(actual);
   }
 }

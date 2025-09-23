@@ -46,12 +46,12 @@
  * It is assumed that the controler can synchronize with and access the registers of worker-0.
  * The Disco session provides multiple APIs to interact specifically with the worker-0.
  * To shared data with other workers, a common paradigm in Disco is to copy data from the
- * controler-side NDArray to the worker-0, and then copy it to other workers using primitives on
+ * controler-side Tensor to the worker-0, and then copy it to other workers using primitives on
  * the data plane, for example, `broadcast` and `send`.
  *
  * **Control plane.** The controler broadcasts commands to all the workers as control signals.
  * For example, the control may ask all workers to load a library or call a function respectively.
- * Common control signals include: shutdown, retrievel a global PackedFunc, call packed function,
+ * Common control signals include: shutdown, retrievel a global ffi::Function, call packed function,
  * etc. The controler is assumed to keep a message channel to each worker to implement the broadcast
  * behavior, and the message channel may vary depends on usecases.
  *
@@ -67,14 +67,15 @@
  *
  * **Channel.** Disco channel is a bi-directional communication channel between the controler and
  * workers for exchanging control signals. It is no different from a generic RPC channel, but
- * adopts TVM's PackedFunc calling convention to support polymorphic and variadic arguments.
+ * adopts TVM's ffi::Function calling convention to support polymorphic and variadic arguments.
  */
 #ifndef TVM_RUNTIME_DISCO_SESSION_H_
 #define TVM_RUNTIME_DISCO_SESSION_H_
 
-#include <tvm/runtime/container/shape_tuple.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/int_tuple.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/tensor.h>
 
 #include <queue>
 #include <string>
@@ -123,6 +124,8 @@ inline std::string DiscoAction2String(DiscoAction action) {
   LOG(FATAL) << "ValueError: Unknown DiscoAction: " << static_cast<int>(action);
 }
 
+class SessionObj;
+
 /*!
  * \brief An object that exists on all workers.
  *
@@ -138,22 +141,26 @@ class DRefObj : public Object {
    * \param worker_id The id of the worker to be fetched from.
    * \return The value of the register.
    */
-  inline TVMRetValue DebugGetFromRemote(int worker_id);
+  inline ffi::Any DebugGetFromRemote(int worker_id);
   /*!
-   * \brief Copy from the NDArray provided to a remote worker.
+   * \brief Copy from the Tensor provided to a remote worker.
    * \param worker_id The id of the worker to be copied to.
-   * \param source The NDArray to be copied.
+   * \param source The Tensor to be copied.
    */
-  inline void DebugCopyFrom(int worker_id, TVMArgValue source);
+  inline void DebugCopyFrom(int worker_id, ffi::AnyView source);
 
-  static constexpr const char* _type_key = "runtime.disco.DRef";
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimeDiscoDRef;
-  TVM_DECLARE_FINAL_OBJECT_INFO(DRefObj, Object);
+  static const constexpr bool _type_final = true;
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_STATIC("runtime.disco.DRef", DRefObj, Object);
 
   /*! \brief The id of the register */
   int64_t reg_id;
   /*! \brief Back-pointer to the host controler session */
   ObjectRef session{nullptr};
+
+ private:
+  inline SessionObj* GetSession();
 };
 
 /*!
@@ -163,18 +170,19 @@ class DRefObj : public Object {
  */
 class DRef : public ObjectRef {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(DRef, ObjectRef, DRefObj);
+  explicit DRef(ObjectPtr<DRefObj> data) : ObjectRef(data) { TVM_FFI_ICHECK(data != nullptr); }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DRef, ObjectRef, DRefObj);
 };
 
 /*!
  * \brief A Disco interactive session. It allows users to interact with the Disco command queue with
- * various PackedFunc calling convention.
+ * various ffi::Function calling convention.
  */
 class SessionObj : public Object {
  public:
   virtual ~SessionObj() = default;
   /*!
-   * \brief Call a PackedFunc on workers providing variadic arguments.
+   * \brief Call a ffi::Function on workers providing variadic arguments.
    * \tparam Args In the variadic arguments, the supported types include:
    * - integers and floating point numbers;
    * - DataType;
@@ -182,8 +190,8 @@ class SessionObj : public Object {
    * - std::string;
    * - DRef.
    * Examples of unsupported types:
-   * - NDArray, DLTensor;
-   * - TVM Objects, including PackedFunc, Module and String;
+   * - Tensor, DLTensor;
+   * - TVM Objects, including ffi::Function, Module and String;
    * \param func The function to be called.
    * \param args The variadic arguments.
    * \return The return value of function call
@@ -196,23 +204,23 @@ class SessionObj : public Object {
    * The second element must be 0, which will later be updated by the session to return reg_id
    * The thirtd element is the function to be called.
    */
-  TVM_DLL virtual DRef CallWithPacked(const TVMArgs& args) = 0;
+  TVM_DLL virtual DRef CallWithPacked(const ffi::PackedArgs& args) = 0;
   /*! \brief Get the number of workers in the session. */
   TVM_DLL virtual int64_t GetNumWorkers() = 0;
   /*! \brief Get a global functions on workers. */
   TVM_DLL virtual DRef GetGlobalFunc(const std::string& name) = 0;
   /*!
-   * \brief Copy an NDArray from worker-0 to the controler-side NDArray
+   * \brief Copy an Tensor from worker-0 to the controler-side Tensor
    * \param host_array The array to be copied to worker-0
-   * \param remote_array The NDArray on worker-0
+   * \param remote_array The Tensor on worker-0
    */
-  TVM_DLL virtual void CopyFromWorker0(const NDArray& host_array, const DRef& remote_array) = 0;
+  TVM_DLL virtual void CopyFromWorker0(const Tensor& host_array, const DRef& remote_array) = 0;
   /*!
-   * \brief Copy the controler-side NDArray to worker-0
+   * \brief Copy the controler-side Tensor to worker-0
    * \param host_array The array to be copied to worker-0
-   * \param remote_array The NDArray on worker-0
+   * \param remote_array The Tensor on worker-0
    */
-  TVM_DLL virtual void CopyToWorker0(const NDArray& host_array, const DRef& remote_array) = 0;
+  TVM_DLL virtual void CopyToWorker0(const Tensor& host_array, const DRef& remote_array) = 0;
   /*!
    * \brief Synchrnoize the controler with a worker, and it will wait until worker finishes
    * executing this instruction.
@@ -228,27 +236,28 @@ class SessionObj : public Object {
    * \param ccl The name of the communication backend, e.g., nccl, rccl, mpi.
    * \param device_ids The device ids of the workers.
    */
-  TVM_DLL virtual void InitCCL(String ccl, IntTuple device_ids) = 0;
+  TVM_DLL virtual void InitCCL(ffi::String ccl, IntTuple device_ids) = 0;
   /*!
    * \brief Get the value of a register from a remote worker.
    * \param reg_id The id of the register to be fetched.
    * \param worker_id The id of the worker to be fetched from.
    * \return The value of the register.
    */
-  TVM_DLL virtual TVMRetValue DebugGetFromRemote(int64_t reg_id, int worker_id) = 0;
+  TVM_DLL virtual ffi::Any DebugGetFromRemote(int64_t reg_id, int worker_id) = 0;
   /*!
    * \brief Set the value of a register on a remote worker.
    * \param reg_id The id of the register to be set.
    * \param value The value to be set.
    * \param worker_id The id of the worker to be set.
    */
-  TVM_DLL virtual void DebugSetRegister(int64_t reg_id, TVMArgValue value, int worker_id) = 0;
+  TVM_DLL virtual void DebugSetRegister(int64_t reg_id, ffi::AnyView value, int worker_id) = 0;
 
   struct FFI;
   friend struct SessionObj::FFI;
   friend class DRefObj;
-  static constexpr const char* _type_key = "runtime.disco.Session";
-  TVM_DECLARE_BASE_OBJECT_INFO(SessionObj, Object);
+
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("runtime.disco.Session", SessionObj, Object);
 
  protected:
   /*! \brief Deallocate a register id, kill it on all workers, and append it to `free_regs_`. */
@@ -272,7 +281,7 @@ class Session : public ObjectRef {
    * \param num_workers The number of workers.
    * \param num_groups The number of worker groups.
    * \param process_pool_creator The name of a global function that takes `num_workers` as an input,
-   * and returns a PackedFunc, which takes an integer `worker_id` as the input and returns None.
+   * and returns a ffi::Function, which takes an integer `worker_id` as the input and returns None.
    * When `worker-id` is 0, it shuts down the process pool; Otherwise, it retursn a tuple
    * (read_fd, writefd) used to communicate with the corresponding worker.
    * \param entrypoint The entrypoint of DiscoWorker main worker function.
@@ -280,9 +289,9 @@ class Session : public ObjectRef {
    * worker-0 does not exist in the process pool.
    */
   TVM_DLL static Session ProcessSession(int num_workers, int num_groups,
-                                        String process_pool_creator, String entrypoint);
+                                        ffi::String process_pool_creator, ffi::String entrypoint);
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Session, ObjectRef, SessionObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Session, ObjectRef, SessionObj);
 };
 
 /*!
@@ -293,13 +302,13 @@ class DiscoChannel {
  public:
   virtual ~DiscoChannel() = default;
   /*! \brief Send a packed sequence to the receiver */
-  virtual void Send(const TVMArgs& args) = 0;
+  virtual void Send(const ffi::PackedArgs& args) = 0;
   /*! \brief Receive a packed sequence from worker */
-  virtual TVMArgs Recv() = 0;
+  virtual ffi::PackedArgs Recv() = 0;
   /*! \brief Reply a packed sequence to the sender */
-  virtual void Reply(const TVMArgs& args) = 0;
+  virtual void Reply(const ffi::PackedArgs& args) = 0;
   /*! \brief Receive a reply from the worker */
-  virtual TVMArgs RecvReply() = 0;
+  virtual ffi::PackedArgs RecvReply() = 0;
 };
 
 /*!
@@ -312,39 +321,42 @@ class WorkerZeroData {
    * \brief The host-side arrays to passed to worker-0 for special uses, for example,
    * copy-to-worker0 and copy-from-worker0
    */
-  std::queue<NDArray> host_arrays;
+  std::queue<Tensor> host_arrays;
   /*! \brief The mutex that guards `host_arrays` */
   std::mutex queue_mutex_;
 };
 
 // Implementation details
 
+inline SessionObj* DRefObj::GetSession() {
+  return const_cast<SessionObj*>(static_cast<const SessionObj*>(session.get()));
+}
+
 DRefObj::~DRefObj() {
   if (this->session.defined()) {
-    Downcast<Session>(this->session)->DeallocReg(reg_id);
+    GetSession()->DeallocReg(reg_id);
   }
 }
 
-TVMRetValue DRefObj::DebugGetFromRemote(int worker_id) {
-  return Downcast<Session>(this->session)->DebugGetFromRemote(this->reg_id, worker_id);
+ffi::Any DRefObj::DebugGetFromRemote(int worker_id) {
+  return GetSession()->DebugGetFromRemote(this->reg_id, worker_id);
 }
 
-void DRefObj::DebugCopyFrom(int worker_id, TVMArgValue value) {
-  return Downcast<Session>(this->session)->DebugSetRegister(this->reg_id, value, worker_id);
+void DRefObj::DebugCopyFrom(int worker_id, ffi::AnyView value) {
+  return GetSession()->DebugSetRegister(this->reg_id, value, worker_id);
 }
 
 template <typename... Args>
 DRef SessionObj::CallPacked(const DRef& func, Args&&... args) {
   constexpr int offset = 3;
   constexpr int kNumArgs = offset + sizeof...(Args);
-  TVMValue values[kNumArgs];
-  int type_codes[kNumArgs];
-  PackArgs(values, type_codes,
-           /*.0=*/static_cast<int>(DiscoAction::kCallPacked),  // action
-           /*.1=*/0,     // reg_id, which will be updated by this->CallWithPacked
-           /*.2=*/func,  // the function to be called
-           std::forward<Args>(args)...);
-  return this->CallWithPacked(TVMArgs(values, type_codes, kNumArgs));
+  ffi::AnyView packed_args[kNumArgs];
+  ffi::PackedArgs::Fill(packed_args,
+                        /*.0=*/static_cast<int>(DiscoAction::kCallPacked),  // action
+                        /*.1=*/0,     // reg_id, which will be updated by this->CallWithPacked
+                        /*.2=*/func,  // the function to be called
+                        std::forward<Args>(args)...);
+  return this->CallWithPacked(ffi::PackedArgs(packed_args, kNumArgs));
 }
 
 }  // namespace runtime

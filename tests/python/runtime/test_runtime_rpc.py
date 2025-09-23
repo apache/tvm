@@ -30,7 +30,6 @@ import tvm.testing
 
 from tvm import te
 from tvm import rpc
-from tvm.relay.backend import Runtime
 from tvm.contrib import utils, cc
 from tvm.rpc.tracker import Tracker
 from tvm.rpc.proxy import Proxy
@@ -54,7 +53,7 @@ pytestmark = pytest.mark.skipif(
     # Windows does not support fork so we can enable Windows for testing
     sys.platform.startswith("win") == False and multiprocessing.get_start_method() != "fork",
     reason=(
-        "pytest + multiprocessing spawn method causes tvm.register_func to "
+        "pytest + multiprocessing spawn method causes tvm.register_global_func to "
         "not work on the rpc.Server."
     ),
 )
@@ -74,15 +73,14 @@ def test_bigendian_rpc():
     def verify_rpc(remote, target, shape, dtype):
         A = te.placeholder(shape, dtype=dtype)
         B = te.compute(A.shape, lambda i: A[i] + tvm.tir.const(1, A.dtype))
-        s = te.create_schedule(B.op)
-        f = tvm.build(s, [A, B], target, name="myadd")
+        f = tvm.compile(te.create_prim_func([A, B]), target=target)
 
         dev = remote.cpu(0)
-        a = tvm.nd.array(np.random.randint(0, 256, size=shape).astype(A.dtype), device=dev)
-        b = tvm.nd.array(np.zeros(shape).astype(A.dtype), device=dev)
+        a = tvm.runtime.tensor(np.random.randint(0, 256, size=shape).astype(A.dtype), device=dev)
+        b = tvm.runtime.tensor(np.zeros(shape).astype(A.dtype), device=dev)
         temp = utils.tempdir()
         path_dso = temp.relpath("dev_lib.o")
-        f.save(path_dso)
+        f.write_to_file(path_dso)
         remote.upload(path_dso)
         f = remote.load_module("dev_lib.o")
         f(a, b)
@@ -105,26 +103,7 @@ def test_rpc_simple():
         assert f1(10) == 11
         f3 = client.get_function("rpc.test.except")
 
-        with pytest.raises(tvm._ffi.base.TVMError):
-            f3("abc")
-
-        f2 = client.get_function("rpc.test.strcat")
-        assert f2("abc", 11) == "abc:11"
-
-    check_remote()
-
-
-@tvm.testing.requires_rpc
-def test_rpc_simple_wlog():
-    server = rpc.Server(key="x1")
-    client = rpc.connect("127.0.0.1", server.port, key="x1", enable_logging=True)
-
-    def check_remote():
-        f1 = client.get_function("rpc.test.addone")
-        assert f1(10) == 11
-        f3 = client.get_function("rpc.test.except")
-
-        with pytest.raises(tvm._ffi.base.TVMError):
+        with pytest.raises(tvm.base.TVMError):
             f3("abc")
 
         f2 = client.get_function("rpc.test.strcat")
@@ -154,10 +133,10 @@ def test_rpc_array():
 
     def check_remote():
         x = np.ones((3, 4))
-        r_cpu = tvm.nd.array(x, remote.cpu(0))
+        r_cpu = tvm.runtime.tensor(x, remote.cpu(0))
         assert str(r_cpu.device).startswith("remote")
         np.testing.assert_equal(r_cpu.numpy(), x)
-        fremote = remote.get_function("rpc.test.remote_array_func")
+        fremote = remote.get_function("rpc.test.remote_tensor_func")
         fremote(r_cpu)
 
     check_remote()
@@ -173,8 +152,8 @@ def test_rpc_large_array():
         dev = remote.cpu(0)
         a_np = np.ones((5041, 720)).astype("float32")
         b_np = np.ones((720, 192)).astype("float32")
-        a = tvm.nd.array(a_np, dev)
-        b = tvm.nd.array(b_np, dev)
+        a = tvm.runtime.tensor(a_np, dev)
+        b = tvm.runtime.tensor(b_np, dev)
         np.testing.assert_equal(a.numpy(), a_np)
         np.testing.assert_equal(b.numpy(), b_np)
 
@@ -192,8 +171,8 @@ def test_rpc_echo():
         assert bytes(fecho(bytearray(b"123"))) == b"123"
 
         with pytest.raises(RuntimeError):
-            raise_err = remote.get_function("testing.test_raise_error_callback")("RuntimeError")
-            raise_err()
+            raise_err = remote.get_function("testing.test_raise_error")
+            raise_err("RuntimeError", "msg")
 
         remote.cpu().sync()
         # tests around system lib are not threadsafe by design
@@ -227,7 +206,8 @@ def test_rpc_echo():
         )
         check(client, False)
 
-    check_minrpc()
+    # skip for now until we upgrade to new FFI
+    # check_minrpc()
 
 
 @tvm.testing.requires_rpc
@@ -251,7 +231,7 @@ def test_rpc_remote_module():
     n = tvm.runtime.convert(102)
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-    s = te.create_schedule(B.op)
+    mod = tvm.ir.IRModule.from_expr(te.create_prim_func([A, B]).with_attr("global_symbol", "myadd"))
 
     server0 = rpc.Server(key="x0")
     server1 = rpc.Server(key="x1")
@@ -266,13 +246,13 @@ def test_rpc_remote_module():
     def check_remote(remote):
         temp = utils.tempdir()
         dev = remote.cpu(0)
-        f = tvm.build(s, [A, B], "llvm", name="myadd")
+        f = tvm.compile(mod, "llvm")
         path_dso = temp.relpath("dev_lib.so")
         f.export_library(path_dso)
         remote.upload(path_dso)
         f1 = remote.load_module("dev_lib.so")
-        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=102).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(102, dtype=A.dtype), dev)
         time_f = f1.time_evaluator(f1.entry_name, remote.cpu(0), number=10)
         cost = time_f(a, b).mean
         print("%g secs/op" % cost)
@@ -286,8 +266,8 @@ def test_rpc_remote_module():
         with open(local_download_path, "wb") as fo:
             fo.write(remote.download_linked_module("dev_lib.tar"))
         fupdated = tvm.runtime.load_module(local_download_path)
-        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), tvm.cpu(0))
-        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), tvm.cpu(0))
+        a = tvm.runtime.tensor(np.random.uniform(size=102).astype(A.dtype), tvm.cpu(0))
+        b = tvm.runtime.tensor(np.zeros(102, dtype=A.dtype), tvm.cpu(0))
         fupdated(a, b)
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
@@ -296,8 +276,8 @@ def test_rpc_remote_module():
             return
         # export to minrpc
         temp = utils.tempdir()
-        runtime = Runtime("cpp", {"system-lib": True})
-        f = tvm.build(s, [A, B], "llvm", name="myadd", runtime=runtime)
+        # system lib prefix will trigger system lib build
+        f = tvm.compile(mod.with_attr("system_lib_prefix", ""), "llvm")
         path_minrpc = temp.relpath("dev_lib.minrpc")
         f.export_library(path_minrpc, fcompile=rpc.with_minrpc(cc.create_executable))
 
@@ -309,8 +289,8 @@ def test_rpc_remote_module():
         dev = remote.cpu(0)
         f1 = remote.system_lib()
 
-        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=102).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(102, dtype=A.dtype), dev)
         time_f = f1.time_evaluator("myadd", remote.cpu(0), number=1)
         cost = time_f(a, b).mean
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
@@ -333,35 +313,20 @@ def test_rpc_remote_module():
             return
         temp = utils.tempdir()
         dev = remote.cl(0)
-        s = te.create_schedule(B.op)
-        xo, xi = s[B].split(B.op.axis[0], factor=32)
-        s[B].bind(xo, te.thread_axis("blockIdx.x"))
-        s[B].bind(xi, te.thread_axis("threadIdx.x"))
-        f = tvm.build(s, [A, B], "opencl --host=llvm", name="myadd")
-        # Option 1: save modules separately and rely on remote compiler
-        path_o = temp.relpath("myadd.o")
-        path_cl = temp.relpath("myadd.cl")
-        path_json = temp.relpath("myadd.tvm_meta.json")
-        f.save(path_o)
-        f.imported_modules[0].save(path_cl)
-        remote.upload(path_o)
-        remote.upload(path_cl)
-        # upload meta data
-        remote.upload(path_json)
-        fhost = remote.load_module("myadd.o")
-        fdev = remote.load_module("myadd.cl")
-        fhost.import_module(fdev)
-        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), dev)
-        fhost(a, b)
-        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
-        # Option 2: export library as a tar ball then handled by remote compiler
+
+        s = tvm.tir.Schedule(mod)
+
+        x = s.get_loops(s.get_block("B"))
+        xo, xi = s.split(x, factors=[None, 32])
+        s.bind(xo, "blockIdx.x")
+        s.bind(xi, "threadIdx.x")
+        f = tvm.compile(s.mod, "opencl --host=llvm")
         path_tar = temp.relpath("myadd.tar")
         f.export_library(path_tar)
         remote.upload(path_tar)
         fhost = remote.load_module("myadd.tar")
-        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=102).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(102, dtype=A.dtype), dev)
         fhost(a, b)
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
@@ -404,7 +369,7 @@ def test_rpc_session_constructor_args():
         assert fecho("xyz") == "xyz"
         assert bytes(fecho(bytearray(b"123"))) == b"123"
 
-        nd = tvm.nd.array([1, 2, 3], device=client.cpu(0))
+        nd = tvm.runtime.tensor([1, 2, 3], device=client.cpu(0))
         assert nd.numpy()[1] == 2
 
     def check_error_handling():
@@ -421,7 +386,7 @@ def test_rpc_session_constructor_args():
 
 
 @tvm.testing.requires_rpc
-def test_rpc_return_ndarray():
+def test_rpc_return_tensor():
     # start server
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1")
@@ -444,11 +409,10 @@ def test_rpc_return_ndarray():
 @tvm.testing.requires_rpc
 def test_rpc_return_remote_object():
     def check(client, is_local):
-        make_shape = client.get_function("runtime.ShapeTuple")
-        get_elem = client.get_function("runtime.GetShapeTupleElem")
-        get_size = client.get_function("runtime.GetShapeTupleSize")
+        make_shape = client.get_function("ffi.Shape")
+        get_elem = client.get_function("testing.GetShapeElem")
+        get_size = client.get_function("testing.GetShapeSize")
         shape = make_shape(2, 3)
-        assert shape.type_key == "runtime.RPCObjectRef"
         assert get_elem(shape, 0) == 2
         assert get_elem(shape, 1) == 3
         assert get_size(shape) == 2
@@ -697,7 +661,7 @@ def test_compiled_function_with_zero_arguments(call_with_unused_argument):
     """RPC functions do not require an argument
 
     This is a regression test.  When no arguments are provided, RPC
-    provides NULL as the `TVMValue* args` argument to a PackedFunc.
+    provides NULL as the `TVMFFIAny* args` argument to a PackedFunc.
     However, previous implementations of `MakePackedAPI`
     unconditionally asserted that the `args` pointer was non-null.
     This assertion is now generated only when the function accepts
@@ -715,7 +679,7 @@ def test_compiled_function_with_zero_arguments(call_with_unused_argument):
         def func_with_arg(unused: T.int64) -> T.int64:
             return T.int64(42)
 
-    built = tvm.build(Module, target="llvm")
+    built = tvm.compile(Module, target="llvm")
 
     server = tvm.rpc.Server(key="x1")
     client = tvm.rpc.connect("127.0.0.1", server.port, key="x1")

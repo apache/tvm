@@ -40,4 +40,5 @@ def _redistribute_replica_to_shard(_bb: BlockBuilder, call: Call) -> Expr:
         axes=[axis],
         begin=[worker_id_symbol * split_axis_size // num_workers],
         end=[(worker_id_symbol + 1) * split_axis_size // num_workers],
+        assume_inbound=True,
     )

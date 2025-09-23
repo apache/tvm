@@ -20,12 +20,13 @@
 import os
 import shutil
 import json
-from typing import List, Union, Dict, Any
+from typing import List, Union, Dict, Any, Tuple
 import numpy as np
 
 import tvm
 from .arguments import load_dict
 from .info import cast_array, is_array
+from .namespace import MSCFramework
 
 
 def format_datas(datas: Union[List[Any], Dict[str, Any]], names: List[str], style="dict") -> Any:
@@ -62,6 +63,51 @@ def format_datas(datas: Union[List[Any], Dict[str, Any]], names: List[str], styl
     if style == "list":
         return [datas[n] for n in names]
     raise TypeError("Unexpected style " + str(style))
+
+
+def random_data(
+    info: Union[List, Tuple, dict],
+    framework: str = MSCFramework.MSC,
+    device: str = "cpu",
+    max_val: int = None,
+) -> Any:
+    """Create random data from info
+
+    Parameters
+    ----------
+    info: list| tuple| dict
+        The data info.
+    framework: str
+        The framework.
+    device: str
+        The device.
+    """
+
+    if isinstance(info, (tuple, list)):
+        if len(info) == 1:
+            info = {"name": "data", "shape": info[0], "dtype": "float32"}
+        elif len(info) == 2:
+            info = {"name": "data", "shape": info[0], "dtype": info[1]}
+        elif len(info) == 3:
+            info = {"name": info[0], "shape": info[1], "dtype": info[2]}
+        else:
+            raise Exception("Unexpected info " + str(info))
+    assert isinstance(info, dict) and all(
+        key in info for key in ["shape", "dtype"]
+    ), "shape and dtype should be given to create randome data"
+    if info["dtype"] in ("int32", "int64"):
+        if max_val is None:
+            data = np.zeros(info["shape"]).astype(info["dtype"])
+        else:
+            data = np.random.randint(0, high=max_val, size=info["shape"]).astype(info["dtype"])
+    elif info["dtype"] == "bool":
+        data = np.random.rand(*info["shape"]).astype("float32")
+        data = np.where(data >= 0.5, True, False)
+    else:
+        data = np.random.rand(*info["shape"]).astype(info["dtype"])
+        if max_val is not None:
+            data *= max_val
+    return cast_array(data, framework, device=device)
 
 
 class BaseDataLoader(object):

@@ -19,368 +19,206 @@
 
 /*!
  * \file tvm/runtime/vm/executable.h
- * \brief The Relay virtual machine executable.
  */
 #ifndef TVM_RUNTIME_VM_EXECUTABLE_H_
 #define TVM_RUNTIME_VM_EXECUTABLE_H_
 
-#include <tvm/runtime/container/map.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/vm/bytecode.h>
 
-#include <map>
 #include <string>
 #include <unordered_map>
-#include <utility>
 #include <vector>
+
+#include "./bytecode.h"
+
+// Convention: this version should set to minimum TVM version it support
+// NOTE: this file only changes if we change relax vm format
+// for example if relax vm format do not change in 0.15, this should remain as 0.14
+// if it changes in 0.16, we will change it to 0.16
+#define VM_VERSION "0.14"
 
 namespace tvm {
 namespace runtime {
 namespace vm {
 
-struct VMFunction;
+/*!
+ * \brief Information entry in executable function table.
+ *
+ * Contains metadata about the compiled function, as
+ * well as the compiled VM instructions.
+ */
+struct VMFuncInfo {
+  /*! \brief kind of the function. */
+  enum class FuncKind : int {
+    /*! \brief system level packed function */
+    kPackedFunc = 0,
+    /*! \brief VM function. */
+    kVMFunc = 1,
+    /*! \brief VMTIR function. */
+    kVMTIRFunc = 2,
+  };
+  /*! \brief The kind of function. */
+  FuncKind kind;
+  /*! \brief The function's name, global symbol */
+  std::string name;
+  /*! \brief The start instruction index of the function. */
+  Index start_instr = 0;
+  /*! \brief The end instruction index of the function. */
+  Index end_instr = 0;
+  /*! \brief The number of arguments of the function. */
+  Index num_args = 0;
+  /*! \brief The register file size of the function. */
+  Index register_file_size = 0;
+  /*! \brief The function parameter names.*/
+  std::vector<std::string> param_names;
+
+  // defined customized loader save
+  void Save(dmlc::Stream* writer) const;
+  bool Load(dmlc::Stream* reader);
+};
 
 /*!
- * \brief The executable emitted by the VM compiler.
+ * \brief The virtual machine executable emitted by the VM compiler.
  *
  * The executable contains information (e.g. data in different memory regions)
  * to run in a virtual machine.
- *
- *  - Global section, containing all globals.
- *  - Constant section, storing the constant pool.
- *  - Primitive name section, containing the function name of the primitive ops
- *  used by the virtual machine.
- *  - Code section, handling the VM functions and bytecode.
  */
-class TVM_DLL Executable : public ModuleNode {
+class VMExecutable : public ffi::ModuleObj {
  public:
-  TVM_MODULE_VTABLE_BEGIN("VMExecutable");
-  TVM_MODULE_VTABLE_ENTRY("get_lib", &Executable::GetLib);
-  TVM_MODULE_VTABLE_ENTRY("get_bytecode", &Executable::GetBytecode);
-  TVM_MODULE_VTABLE_ENTRY("get_constants", &Executable::GetConstants);
-  TVM_MODULE_VTABLE_ENTRY("get_virtual_devices", &Executable::GetVirtualDevices);
-  TVM_MODULE_VTABLE_ENTRY("get_primitives", &Executable::GetPrimitives);
-  TVM_MODULE_VTABLE_ENTRY("get_stats", &Executable::Stats);
-  TVM_MODULE_VTABLE_ENTRY("save", &Executable::Save);
-  TVM_MODULE_VTABLE_ENTRY("get_function_arity", &Executable::GetFunctionArity);
-  TVM_MODULE_VTABLE_ENTRY("get_function_param_name", &Executable::GetFunctionParameterName);
-  TVM_MODULE_VTABLE_ENTRY("vm_load_executable", &Executable::VMLoadExecutable);
-  TVM_MODULE_VTABLE_ENTRY("move_late_bound_consts", &Executable::MoveLateBoundConstantsToFile);
-  TVM_MODULE_VTABLE_ENTRY("get_late_bound_consts", &Executable::GetLateBoundConstants);
-  TVM_MODULE_VTABLE_ENTRY("load_late_bound_consts", &Executable::LoadLateBoundConstantsFromFile);
-  TVM_MODULE_VTABLE_ENTRY("load_late_bound_consts_from_map",
-                          &Executable::LoadLateBoundConstantsFromMap);
-  TVM_MODULE_VTABLE_END();
-
   /*! \brief Get the property of the runtime module .*/
-  int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; };
-  /*! \brief Creates a VM that loads `this` as the executable. */
-  Module VMLoadExecutable();
-  /*!
-   * \brief Write the Executable to the binary stream in serialized form.
-   *
-   * Late-bound constants (if any) must have already been saved by \p
-   * MoveLateBoundConstantsToBinary.
-   *
-   * \param stream The binary stream to save the executable to.
-   */
-  void SaveToBinary(dmlc::Stream* stream) final;
-
-  /*!
-   * \brief Write the Executable to the provided path as a file containing its serialized content.
-   *
-   * Late-bound constants (if any) must have already been saved by \p
-   * MoveLateBoundConstantsToBinary.
-   *
-   * \param path The path to write the serialized data to.
-   * \param format The format of the serialized blob.
-   */
-  void SaveToFile(const String& path, const String& format) final;
-
-  /*!
-   * \brief Serialize the executable into global section, constant section, and
-   * code section. This object must outlive the returned byte array.
-   *
-   * Late-bound constants (if any) must have already been saved by \p
-   * MoveLateBoundConstantsToBinary.
-   *
-   * \return The binary representation of the VM.
-   */
-  TVMByteArray Save();
-
-  /*!
-   * \brief Load the saved VM executable.
-   *
-   * Late-bound constants (if any) must then be loaded by \p LoadLateBoundConstantsFromBinary.
-   *
-   * \param code The bytecode in string.
-   * \param lib The compiled runtime library.
-   *
-   * \return exe The constructed executable.
-   */
-  static runtime::Module Load(const std::string& code, const runtime::Module lib);
-
-  /*!
-   * \brief Returns the late-bound constants for the executable (if any) as a byte-stream.
-   * Leaves the executable's late-bound constants map empty. Only constants who's byte
-   * tensor size is greater than or equal to \p byte_limit are marked as late-bound. \p byte_limit
-   * may be zero.
-   *
-   * Must be called before \p SaveToBinary and friends if late-bound constants are
-   * desired. Otherwise can be ignore.
-   */
-  void MoveLateBoundConstantsToStream(dmlc::Stream* stream, int64_t byte_limit);
-
-  /*!
-   * \brief As for \p MoveLateBoundConstantsToStream, but save to file at \p path.
-   */
-  void MoveLateBoundConstantsToFile(const std::string& path, int64_t byte_limit);
-
-  /*!
-   * \brief Get a map of all constants with larger that byte_limit in size.
-   */
-  Map<String, NDArray> GetLateBoundConstants(int64_t byte_limit);
-
-  /*!
-   * \brief Restores the late-bound constants for the executable (if any) from given byte-stream.
-   *
-   * Must be called after \p Load but before any other methods if \p MoveLateBoundConstantsToBinary
-   * was used when saving. Otherwise can be ignored.
-   */
-  void LoadLateBoundConstantsFromStream(dmlc::Stream* stream);
-
-  /*!
-   * \brief Restores the late-bound constants for the executable (if any) from given map.
-   *
-   * Must be called after \p Load but before any other methods if \p MoveLateBoundConstantsToBinary
-   * was used when saving. Otherwise can be ignored.
-   */
-  void LoadLateBoundConstantsFromMap(Map<String, NDArray> map);
-
-  /*!
-   * \brief As for \p LoadLateBoundConstantsFromStream, but load from file at \p path.
-   */
-  void LoadLateBoundConstantsFromFile(const std::string& path);
-
-  /*!
-   * \brief Get the serialized form of the `functions`. This is
-   * essentially bytecode serialization.
-   *
-   * \return The serialized vm bytecode.
-   *
-   * \note The bytecode is in the following format:
-   *   func_name reg_file_size num_instructions
-   *   param1 param2 ... paramM
-   *   instruction1
-   *   instruction2
-   *   ...
-   *   instructionN
-   *
-   * Each instruction is printed in the following format:
-   *   opcode num_fields field1 ... fieldX # The text format.
-   *
-   * Serializing an `Instruction` requires us to deal with the bytecode. Each line
-   * of the instructions could be serialized as the following format:
-   *   hash, opcode, f1, f2, ..., fX, field with variable length
-   *   1. hash: the hash of the instruction. This number will be used to help us
-   * validate if an instruction is well-formed during deserialization.
-   *   2. opcode: the opcode code of the instruction.
-   *   3. f1, f2, ..., fX. These fields together represent the fixed fields in
-   * an instruction, e.g., `from` and `dst` fields of a `Move` instruction. For
-   * example, `DLDataType` will be unpacked into three fields (code, bits, lanes).
-   *   4. The rest of the line indicates the field with variable length, e.g.,
-   * the shape of a tensor, the args used by an `InvokPacked` instruction, etc.
-   *
-   * The field starting from # is only used for debugging. The serialized code
-   * doesn't contain it, therefore the deserializer doens't need to handle it.
-   */
-  std::string GetBytecode() const;
-
-  /*!
-   * \brief Returns a description of all the constants in the executable in human-readable
-   * format. Intended for debugging and diff-testing.
-   */
-  std::string GetConstants() const;
-
-  /*!
-   * \brief Returns a description of all the (virtual) devices in the executable in human-readable
-   * format. Intended for debugging and diff-testing.
-   */
-  std::string GetVirtualDevices() const;
-
-  /*!
-   * \brief Returns a description of all the 'primitive' (ie PackedFuncs) in the executable in
-   * human-readable format. These correspond either to PrimFuncs we've compiled locally, or
-   * functions compiled by a BYOC external codegen. Intended for debugging and diff-testing.
-   */
-  std::string GetPrimitives() const;
+  int GetPropertyMask() const final { return ffi::Module::kBinarySerializable; };
 
   /*!
    * \brief Print the detailed statistics of the given code, i.e. number of
-   * globls and constants, etc.
+   * globals and constants, etc.
+   * \return The statistics represented by a string.
    */
   std::string Stats() const;
+  /*!
+   * \brief Get the i-th instruction from the executable.
+   * \param i The index of the instruction to be fetched.
+   * \return The instruction.
+   */
+  Instruction GetInstruction(Index i) const;
+  /*!
+   * \brief Set j-th byte data of i-th instruction to val.
+   * \param i The index of the instruction to be updated.
+   * \param j The index of the byte data of the instruction to be updated.
+   * \param val The value to be set
+   */
+  void SetInstructionData(Index i, Index j, ExecWord val);
+  /*!
+   * \brief Print the instructions as text format.
+   * \return The text format of the instructions.
+   */
+  ffi::String AsText() const;
+  /*!
+   * \brief Print the instructions as python program.
+   * \return The python program of the instructions, represented by a string.
+   */
+  ffi::String AsPython() const;
+  /*!
+   * \brief Write the VMExecutable to the binary stream in serialized form.
+   * \return The binary bytes that save the executable to.
+   */
+  ffi::Bytes SaveToBytes() const final;
+  /*!
+   * \brief Load VMExecutable from the binary stream in serialized form.
+   * \param bytes The binary bytes that load the executable from.
+   * \return The loaded executable, in the form of a `runtime::Module`.
+   */
+  static ffi::Module LoadFromBytes(const ffi::Bytes& bytes);
+  /*!
+   * \brief Write the VMExecutable to the provided path as a file containing its serialized content.
+   * \param file_name The name of the file to write the serialized data to.
+   * \param format The target format of the saved file.
+   */
+  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final;
+  /*! \brief Create a Relax virtual machine and load `this` as the executable. */
+  ffi::Module VMLoadExecutable() const;
+  /*! \brief Create a Relax virtual machine with profiler and load `this` as the executable. */
+  ffi::Module VMProfilerLoadExecutable() const;
+  /*! \brief Check if the VMExecutable contains a specific function. */
+  bool HasFunction(const ffi::String& name) const;
+  /*!
+   * \brief Load VMExecutable from the file.
+   * \param file_name The path of the file that load the executable from.
+   * \return The loaded executable, in the form of a `runtime::Module`.
+   */
+  static ffi::Module LoadFromFile(const ffi::String& file_name);
 
-  /*!
-   * \brief Get the `lib` module in an executable. Users have the flexibility to call
-   * `export_library` from the frontend to save the library to disk.
-   *
-   * \return The runtime module that contains the hardware dependent code.
-   */
-  runtime::Module GetLib() const;
-
-  /*!
-   * \brief Set the `lib` module in an executable.
-   *
-   * This allows us to do partial initialization in the case of (de|ser)ialization cases.
-   * This method also ensures correct initialization of library ensuring we only Import a
-   * single library.
-   *
-   * NB: This also provides some abstraction over how libraries are stored as there are plans
-   * to iterate on the way runtime::Module works in the backend of the compiler.
-   */
-  void SetLib(const runtime::Module& lib);
-
-  /*!
-   * \brief Get VMFunction.
-   * \param func_name The function's name.
-   * \return VMFunction.
-   */
-  const VMFunction& GetVMFunctionWithName(const std::string& func_name) const;
-
-  /*!
-   * \brief Get the arity of the VMFunction.
-   * \param func Function name.
-   * \return The number of parameters.
-   */
-  int GetFunctionArity(std::string func) const;
-
-  /*!
-   * \brief Get the parameter name given the function name and parameter index.
-   * \param func Function name.
-   * \param index Parameter index.
-   * \return The parameter name.
-   */
-  std::string GetFunctionParameterName(std::string func, int index) const;
-
-  virtual ~Executable() {}
-
-  /*!
-   * \brief The (compile-time, virtual) devices corresponding to each device index.
-   * This vector contains a pair Device and its memory_scope.
-   */
-  std::vector<std::pair<Device, std::string>> virtual_devices;
-  /*!
-   * \brief The device index corresponding to the 'host' device. That will hold and evaluate
-   * shape-related data and code.
-   */
-  int host_device_index = -1;
-  /*!
-   * \brief The global constant array.
-   *
-   * LoadConst instructions indexes are w.r.t. this vector. Late-bound constants are removed
-   * from this table after saving late-bound constants.
-   */
-  std::vector<ObjectRef> constants;
-  /*!
-   * \brief For each constant index the name of the late-bound constant, or null if constant is
-   * immediate. Only populated after loading executable but before loading late-bound constants.
-   */
-  std::vector<String> late_bound_constant_names;
-
-  /*! \brief A map from globals (as strings) to their index in the Relay function map. */
-  std::unordered_map<std::string, Index> global_map;
-  /*! \brief A mapping from the packed function's global name (as string) to the index that
-   * corresponds to the position of the `packed_funcs` list in a `VirtualMachine` object.
-   */
-  std::unordered_map<std::string, Index> primitive_map;
-  /*! \brief The structural hashes of the operators in this function. */
-  std::map<Index, Map<String, ObjectRef>> op_attrs;
   /*! \brief The virtual machine's function table. */
-  std::vector<VMFunction> functions;
-  /*! \brief The index of the device holding each constant. */
-  std::vector<Index> const_device_indexes;
+  std::vector<VMFuncInfo> func_table;
+  /*! \brief A map from globals (as strings) to their index in the function map. */
+  std::unordered_map<std::string, Index> func_map;
+  /*! \brief The global constant pool. */
+  std::vector<ffi::Any> constants;
+  /*! \brief The offset of instruction. */
+  std::vector<Index> instr_offset;
+  /*! \brief The byte data of instruction. */
+  std::vector<ExecWord> instr_data;
+
+  virtual ~VMExecutable() {}
+
+  TVM_MODULE_VTABLE_BEGIN("relax.VMExecutable");
+  TVM_MODULE_VTABLE_ENTRY("stats", &VMExecutable::Stats);
+  TVM_MODULE_VTABLE_ENTRY("as_text", &VMExecutable::AsText);
+  TVM_MODULE_VTABLE_ENTRY("as_python", &VMExecutable::AsPython);
+  TVM_MODULE_VTABLE_ENTRY("vm_load_executable", &VMExecutable::VMLoadExecutable);
+  TVM_MODULE_VTABLE_ENTRY("vm_profiler_load_executable", &VMExecutable::VMProfilerLoadExecutable);
+  TVM_MODULE_VTABLE_ENTRY("has_function", &VMExecutable::HasFunction);
+  TVM_MODULE_VTABLE_END();
 
  private:
   /*!
-   * \brief Save the virtual devices
-   *
-   * /param strm The output stream.
-   */
-  void SaveVirtualDevicesSection(dmlc::Stream* strm);
-
-  /*!
    * \brief Save the globals.
-   *
-   * \param strm The output stream.
+   * \param strm The input stream.
    */
-  void SaveGlobalSection(dmlc::Stream* strm);
-
+  void SaveGlobalSection(dmlc::Stream* strm) const;
   /*!
    * \brief Save the constant pool.
-   *
-   * \param stream The output stream.
+   * \param strm The input stream.
    */
-  void SaveConstantSection(dmlc::Stream* stream);
-
+  void SaveConstantSection(dmlc::Stream* strm) const;
   /*!
-   * \brief Load the constant pool.
-   *
-   * \param stream The input stream.
+   * \brief Save the instructions.
+   * \param strm The input stream.
    */
-  void LoadConstantSection(dmlc::Stream* stream);
-
+  void SaveCodeSection(dmlc::Stream* strm) const;
   /*!
-   * \brief Save primitive op names.
-   *
-   *  \param strm The output stream.
+   * \brief Save the packed functions.
+   * \param strm The input stream.
    */
-  void SavePrimitiveOpNames(dmlc::Stream* strm);
-
-  /*!
-   * \brief Save the vm functions.
-   *
-   * \param strm The output stream.
-   */
-  void SaveCodeSection(dmlc::Stream* strm);
-
-  /*!
-   * \brief Load the virtual devices
-   *
-   * /param strm The input stream.
-   */
-  void LoadVirtualDevicesSection(dmlc::Stream* strm);
-
+  void SavePackedFuncNames(dmlc::Stream* strm) const;
   /*!
    * \brief Load the globals.
-   *
    * \param strm The input stream.
    */
   void LoadGlobalSection(dmlc::Stream* strm);
-
   /*!
-   * \brief Load primitive op names.
-   *
+   * \brief Load the constant pool.
    * \param strm The input stream.
    */
-  void LoadPrimitiveOpNames(dmlc::Stream* strm);
-
+  void LoadConstantSection(dmlc::Stream* strm);
   /*!
-   * \brief Load the vm functions.
-   *
+   * \brief Load the instructions.
    * \param strm The input stream.
    */
   void LoadCodeSection(dmlc::Stream* strm);
-
-  /*! \brief The serialized bytecode. */
-  std::string code_;
+  /*!
+   * \brief Save the packed functions.
+   * \param strm The input stream.
+   */
+  void LoadPackedFuncNames(dmlc::Stream* strm);
 };
 
 }  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
 
+namespace dmlc {
+DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::vm::VMFuncInfo, true);
+}  // namespace dmlc
 #endif  // TVM_RUNTIME_VM_EXECUTABLE_H_

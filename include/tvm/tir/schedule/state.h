@@ -23,6 +23,7 @@
 #ifndef TVM_TIR_SCHEDULE_STATE_H_
 #define TVM_TIR_SCHEDULE_STATE_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/tir/block_scope.h>
 #include <tvm/tir/function.h>
@@ -42,7 +43,7 @@ namespace tir {
  */
 struct BlockInfo {
   /*! \brief Property of a block scope rooted at the block, storing dependencies in the scope */
-  BlockScope scope{nullptr};
+  BlockScope scope{ffi::UnsafeInit()};
   // The properties below are information about the current block realization under its parent scope
   /*! \brief Property of a block, indicating the block realization binding is quasi-affine */
   bool affine_binding{false};
@@ -118,13 +119,14 @@ class ScheduleStateNode : public Object {
    */
   bool enable_check;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("mod", &mod);
-    // `block_info` is not visited
-    // `stmt2ref` is not visited
-    v->Visit("debug_mask", &debug_mask);
-    v->Visit("enable_check", &enable_check);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ScheduleStateNode>()
+        .def_ro("mod", &ScheduleStateNode::mod)
+        .def_ro("debug_mask", &ScheduleStateNode::debug_mask)
+        .def_ro("enable_check", &ScheduleStateNode::enable_check);
   }
+
   /*!
    * \brief Replace the part of the AST, as being pointed to by `src_sref`,
    * with a specific statement `tgt_stmt`, and maintain the sref tree accordingly.
@@ -145,7 +147,7 @@ class ScheduleStateNode : public Object {
    * \note The reuse of loop srefs are detected automatically according to the reuse of loop vars.
    */
   TVM_DLL void Replace(const tir::StmtSRef& src_sref, const Stmt& tgt_stmt,
-                       const Map<Block, Block>& block_sref_reuse);
+                       const ffi::Map<Block, Block>& block_sref_reuse);
   /*!
    * \brief Trigger the verification according to the `debug_mask` bitmask.
    * 1) If the bitmask `kVerifySRefTree` is on, verify the correctness of the sref tree.
@@ -154,8 +156,8 @@ class ScheduleStateNode : public Object {
    */
   TVM_DLL void DebugVerify() const;
 
-  static constexpr const char* _type_key = "tir.ScheduleState";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleStateNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.ScheduleState", ScheduleStateNode, Object);
 
   /******** Property of blocks ********/
   /*! \brief Returns the BlockInfo correpsonding to the block sref */
@@ -216,10 +218,7 @@ class ScheduleState : public ObjectRef {
    */
   TVM_DLL explicit ScheduleState(IRModule mod, int debug_mask = 0, bool enable_check = true);
 
-  /*! \return The mutable pointer to the ScheduleStateNode */
-  ScheduleStateNode* get() const { return static_cast<ScheduleStateNode*>(data_.get()); }
-
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ScheduleState, ObjectRef, ScheduleStateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScheduleState, ObjectRef, ScheduleStateNode);
 };
 
 }  // namespace tir

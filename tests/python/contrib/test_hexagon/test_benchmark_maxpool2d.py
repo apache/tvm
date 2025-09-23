@@ -253,7 +253,7 @@ class TestMaxPool2D:
                     block="tensor", buffer="placeholder", index_map=_int8_nhwc_8h8w32c_map
                 )
 
-                built_module = tvm.build(
+                built_module = tvm.compile(
                     sch.mod,
                     target=get_hexagon_target("v69"),
                 )
@@ -261,7 +261,7 @@ class TestMaxPool2D:
                 # Save a local copy of the Hexagon object code (in the form of a .so file)
                 # to allow post-mortem inspection.
                 host_dso_binary_path = os.path.join(host_files_dir_path, "test_binary.so")
-                built_module.save(host_dso_binary_path)
+                built_module.write_to_file(host_dso_binary_path)
                 print(f"SAVED BINARY TO HOST PATH: {host_dso_binary_path}")
 
                 hexagon_mod = hexagon_session.load_module(built_module)

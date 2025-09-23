@@ -110,3 +110,30 @@ def einsum(operands, subscripts):
         operands = RxTuple(operands)
 
     return _ffi_api.einsum(operands, subscripts)  # type: ignore
+
+
+def outer(x1: Expr, x2: Expr) -> Expr:
+    """
+    Computes the outer product of two input expressions.
+
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input expression.
+
+    x2 : relax.Expr
+        The second input expression.
+
+    Notes
+    -----
+    This operation computes the outer product between two expressions,
+    resulting in a tensor where each element is the product of elements
+    from `x1` and `x2`. It is commonly used in tensor and matrix operations
+    to expand lower-dimensional inputs into higher-dimensional representations.
+
+    Returns
+    -------
+    result : relax.Expr
+        The resulting expression representing the outer product.
+    """
+    return _ffi_api.outer(x1, x2)

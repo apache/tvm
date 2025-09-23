@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_RELAX_UTILS_H_
 #define TVM_SCRIPT_PRINTER_RELAX_UTILS_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info.h>
@@ -43,20 +44,19 @@ class RelaxFrameNode : public FrameNode {
   bool module_alias_printed = false;
   std::unordered_set<const tir::VarNode*>* func_vars = nullptr;
 
-  void VisitAttrs(AttrVisitor* v) {
-    FrameNode::VisitAttrs(v);
-    v->Visit("is_global_func", &is_func);
-    // `func_var_to_define` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RelaxFrameNode>()
+        .def_ro("is_func", &RelaxFrameNode::is_func)
+        .def_ro("module_alias_printed", &RelaxFrameNode::module_alias_printed);
   }
-
-  static constexpr const char* _type_key = "script.printer.RelaxFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RelaxFrameNode, FrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.RelaxFrame", RelaxFrameNode, FrameNode);
 };
 
 class RelaxFrame : public Frame {
  public:
   explicit RelaxFrame(const IRDocsifier& d) {
-    ObjectPtr<RelaxFrameNode> n = make_object<RelaxFrameNode>();
+    ObjectPtr<RelaxFrameNode> n = ffi::make_object<RelaxFrameNode>();
     n->stmts.clear();
     n->d = d.get();
     n->is_func = false;
@@ -64,7 +64,7 @@ class RelaxFrame : public Frame {
     data_ = std::move(n);
   }
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(RelaxFrame, Frame, RelaxFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RelaxFrame, Frame, RelaxFrameNode);
 };
 
 /*! \brief Redirected method for the ReprPrinter */
@@ -79,10 +79,11 @@ inline IdDoc DefineVar(const relax::Var& var, const Frame& frame, const IRDocsif
   return d->Define(var, frame, var->name_hint().empty() ? "v" : var->name_hint());
 }
 
-inline Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const ObjectPath& v_p,
-                                         const IRDocsifier& d, const Optional<relax::Expr>& rhs) {
+inline ffi::Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const AccessPath& v_p,
+                                              const IRDocsifier& d,
+                                              const ffi::Optional<relax::Expr>& rhs) {
   if (!v->struct_info_.defined()) {
-    return NullOpt;
+    return std::nullopt;
   }
   bool attempt_to_hide_struct_info = !d->cfg->show_all_struct_info;
 
@@ -94,7 +95,7 @@ inline Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const ObjectPath& 
     }
   }
   if (attempt_to_hide_struct_info) {
-    Optional<relax::StructInfo> inferred_sinfo = NullOpt;
+    ffi::Optional<relax::StructInfo> inferred_sinfo = std::nullopt;
     if (auto opt = rhs.as<relax::Call>()) {
       auto call = opt.value();
       if (auto opt = call->op.as<Op>()) {
@@ -103,10 +104,10 @@ inline Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const ObjectPath& 
         static auto op_map_infer_struct_info =
             Op::GetAttrMap<relax::FInferStructInfo>("FInferStructInfo");
 
-        auto temp_builder = relax::BlockBuilder::Create(NullOpt);
+        auto temp_builder = relax::BlockBuilder::Create(std::nullopt);
         inferred_sinfo = op_map_infer_struct_info[op](call, temp_builder);
       } else if (auto opt = call->op.as<relax::FuncStructInfo>()) {
-        auto temp_builder = relax::BlockBuilder::Create(NullOpt);
+        auto temp_builder = relax::BlockBuilder::Create(std::nullopt);
         inferred_sinfo =
             DeriveCallRetStructInfo(opt.value(), call, temp_builder, temp_builder->GetAnalyzer());
       }
@@ -125,19 +126,19 @@ inline Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const ObjectPath& 
     }
 
     if (inferred_sinfo && StructuralEqual()(inferred_sinfo, v->struct_info_)) {
-      return NullOpt;
+      return std::nullopt;
     }
   }
   return d->AsDoc<ExprDoc>(v->struct_info_, v_p->Attr("struct_info_"));
 }
 
-Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const ObjectPath& n_p, const IRDocsifier& d,
-                            bool use_ret);
+ffi::Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const AccessPath& n_p,
+                                 const IRDocsifier& d, bool use_ret);
 
-ExprDoc PrintShapeVar(const PrimExpr& e, const ObjectPath& e_p, const IRDocsifier& d);
+ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifier& d);
 
 inline int FindVDeviceIndexByTargetKind(const VDevice& vdevice, const IRDocsifier& d) {
-  Array<GlobalInfo> vdevices = d->global_infos["vdevice"];
+  ffi::Array<GlobalInfo> vdevices = d->global_infos["vdevice"];
   int kind_index = 0;
   for (size_t i = 0; i < vdevices.size(); ++i) {
     auto vdev = Downcast<VDevice>(vdevices[i]);

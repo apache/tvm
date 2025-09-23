@@ -70,8 +70,9 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
   }
 
   /*! \brief Get sources*/
-  virtual const Map<String, String> GetSources(const std::string& print_options = "") {
-    Map<String, String> sources;
+  virtual const ffi::Map<ffi::String, ffi::String> GetSources(
+      const std::string& print_options = "") {
+    ffi::Map<ffi::String, ffi::String> sources;
     PythonPrinter printer(print_options);
     CodeGenScript();
     for (const auto& d : this->stack_.GetDocs()) {
@@ -83,7 +84,7 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
 
  protected:
   /*! \brief Describe the prim*/
-  virtual const String DescribePrim(const MSCPrim& prim) {
+  virtual const ffi::String DescribePrim(const MSCPrim& prim) {
     // binary ops
     DESCRIBE_PRIM_BINARY("Min", "min", true)
     DESCRIBE_PRIM_BINARY("Max", "max", true)
@@ -147,7 +148,7 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
           .func_call("load_data", DocUtils::ToIndex("inputs", DocUtils::ToStr(input->alias)))
           .call_arg(DocUtils::ToStr(input->alias))
           .call_arg(DocUtils::ToList(input->shape, true))
-          .call_arg(DocUtils::ToStr(runtime::DLDataType2String(input->dtype)));
+          .call_arg(DocUtils::ToStr(runtime::DLDataTypeToString(input->dtype)));
     }
     for (const auto& o : this->graph()->output_names) {
       const auto& output = this->graph()->FindTensor(o);
@@ -155,7 +156,7 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
           .func_call("load_data", DocUtils::ToIndex("golden", DocUtils::ToStr(output->alias)))
           .call_arg(DocUtils::ToStr(output->alias))
           .call_arg(DocUtils::ToList(output->shape, true))
-          .call_arg(DocUtils::ToStr(runtime::DLDataType2String(output->dtype)));
+          .call_arg(DocUtils::ToStr(runtime::DLDataTypeToString(output->dtype)));
     }
     this->stack_.comment("Build and inference the graph");
     CodeGenInference();
@@ -216,7 +217,7 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
   virtual void CodeGenInference() = 0;
 
   /*! \brief Get tensor type of the framework*/
-  virtual const String TensorType() const { return "np.ndarray"; }
+  virtual const ffi::String TensorType() const { return "np.ndarray"; }
 
  private:
   std::set<MSCTensor> graph_outputs_;

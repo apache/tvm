@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/distributed/struct_info.h>
@@ -27,8 +28,9 @@
 
 namespace tvm {
 namespace relax {
-Expr MakeCallTIRDist(Expr func, Tuple args, Array<distributed::DTensorStructInfo> out_sinfo_list,
-                     Optional<Expr> packed_ints) {
+Expr MakeCallTIRDist(Expr func, Tuple args,
+                     ffi::Array<distributed::DTensorStructInfo> out_sinfo_list,
+                     ffi::Optional<Expr> packed_ints) {
   for (const distributed::DTensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->tensor_sinfo->shape.as<ShapeExprNode>();
     CHECK(shape != nullptr) << "out_sinfo of call_tir should have defined ShapeExpr as shape. "
@@ -54,8 +56,10 @@ Expr MakeCallTIRDist(Expr func, Tuple args, Array<distributed::DTensorStructInfo
   return call;
 }
 
-TVM_REGISTER_GLOBAL("script.ir_builder.relax.distributed.call_tir_dist")
-    .set_body_typed(MakeCallTIRDist);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.ir_builder.relax.distributed.call_tir_dist", MakeCallTIRDist);
+}
 
 }  // namespace relax
 }  // namespace tvm

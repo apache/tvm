@@ -33,17 +33,16 @@ def test_matmul():
     A = te.placeholder((n, l), name="A")
     B = te.placeholder((l, m), name="B")
     C = rocblas.matmul(A, B)
-    s = te.create_schedule(C.op)
 
     def verify(target="rocm"):
         if not tvm.get_global_func("tvm.contrib.rocblas.matmul", True):
             print("skip because extern function is not available")
             return
         dev = tvm.rocm(0)
-        f = tvm.build(s, [A, B, C], target)
-        a = tvm.nd.array(np.random.uniform(size=(n, l)).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=(l, m)).astype(B.dtype), dev)
-        c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), dev)
+        f = tvm.compile(te.create_prim_func([A, B, C]), target=target)
+        a = tvm.runtime.tensor(np.random.uniform(size=(n, l)).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.random.uniform(size=(l, m)).astype(B.dtype), dev)
+        c = tvm.runtime.tensor(np.zeros((n, m), dtype=C.dtype), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(c.numpy(), np.dot(a.numpy(), b.numpy()), rtol=1e-5)
 
@@ -57,7 +56,6 @@ def verify_batch_matmul(batch, m, k, n, lib, transa=False, transb=False, dtype="
     A = te.placeholder(ashape, name="A", dtype=dtype)
     B = te.placeholder(bshape, name="B", dtype=dtype)
     C = lib.batch_matmul(A, B, transa, transb)
-    s = te.create_schedule(C.op)
 
     def get_numpy(a, b, transa, transb):
         if transa:
@@ -74,10 +72,10 @@ def verify_batch_matmul(batch, m, k, n, lib, transa=False, transb=False, dtype="
             print("skip because extern function is not available")
             return
         dev = tvm.rocm(0)
-        f = tvm.build(s, [A, B, C], target)
-        a = tvm.nd.array(np.random.uniform(size=ashape).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=bshape).astype(B.dtype), dev)
-        c = tvm.nd.array(np.zeros((batch, m, n), dtype=C.dtype), dev)
+        f = tvm.compile(te.create_prim_func([A, B, C]), target=target)
+        a = tvm.runtime.tensor(np.random.uniform(size=ashape).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.random.uniform(size=bshape).astype(B.dtype), dev)
+        c = tvm.runtime.tensor(np.zeros((batch, m, n), dtype=C.dtype), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(
             c.numpy(), get_numpy(a.numpy(), b.numpy(), transa, transb), rtol=1e-5

@@ -42,11 +42,11 @@ public class ModuleTest {
 
     Device dev = new Device("cpu", 0);
     long[] shape = new long[]{2};
-    NDArray arr = NDArray.empty(shape, dev);
+    Tensor arr = Tensor.empty(shape, dev);
 
     arr.copyFrom(new float[]{3f, 4f});
 
-    NDArray res = NDArray.empty(shape, dev);
+    Tensor res = Tensor.empty(shape, dev);
 
     fadd.entryFunc().pushArg(arr).pushArg(arr).pushArg(res).invoke();
     assertArrayEquals(new float[]{6f, 8f}, res.asFloatArray(), 1e-3f);
@@ -71,12 +71,10 @@ public class ModuleTest {
     }
 
     Module fadd = Module.load(loadingDir + File.separator + "add_cuda.so");
-    Module faddDev = Module.load(loadingDir + File.separator + "add_cuda.ptx");
-    fadd.importModule(faddDev);
 
     final int dim = 100;
     long[] shape = new long[]{dim};
-    NDArray arr = NDArray.empty(shape, dev);
+    Tensor arr = Tensor.empty(shape, dev);
 
     float[] data = new float[dim];
     float[] dataX2 = new float[dim];
@@ -86,14 +84,13 @@ public class ModuleTest {
     }
     arr.copyFrom(data);
 
-    NDArray res = NDArray.empty(shape, dev);
+    Tensor res = Tensor.empty(shape, dev);
     fadd.entryFunc().pushArg(arr).pushArg(arr).pushArg(res).invoke();
 
     assertArrayEquals(dataX2, res.asFloatArray(), 1e-3f);
 
     arr.release();
     res.release();
-    faddDev.release();
     fadd.release();
   }
 }

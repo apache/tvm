@@ -95,27 +95,27 @@ def evaluate(hexagon_session, sch, size):
     """Evaluate schedule."""
     a_shape = size
 
-    func_tir = tvm.build(sch.mod["main"], target=get_hexagon_target("v69"))
+    func_tir = tvm.compile(sch.mod["main"], target=get_hexagon_target("v69"))
     module = hexagon_session.load_module(func_tir)
 
     a = np.random.randint(-128, 127, a_shape, dtype="int8")
     a_vtcm = np.zeros(a_shape, dtype="int8")
 
-    a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device, mem_scope="global")
-    a_vtcm_hexagon = tvm.runtime.ndarray.array(
+    a_hexagon = tvm.runtime.tensor(a, device=hexagon_session.device, mem_scope="global")
+    a_vtcm_hexagon = tvm.runtime.tensor(
         a_vtcm, device=hexagon_session.device, mem_scope="global.vtcm"
     )
 
     if tvm.testing.utils.IS_IN_CI:
         # Run with reduced number and repeat for CI
-        timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=1, repeat=1)
+        timer = module.time_evaluator("main", hexagon_session.device, number=1, repeat=1)
     else:
-        timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=10, repeat=10)
+        timer = module.time_evaluator("main", hexagon_session.device, number=10, repeat=10)
 
     runtime = timer(a_hexagon, a_vtcm_hexagon)
 
     gbps = round((size / 2**30) / runtime.mean, 4)
-    tvm.testing.assert_allclose(a_vtcm_hexagon.asnumpy(), a)
+    tvm.testing.assert_allclose(a_vtcm_hexagon.numpy(), a)
 
     return gbps
 

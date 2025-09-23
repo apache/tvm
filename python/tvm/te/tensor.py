@@ -16,15 +16,15 @@
 # under the License.
 """Tensor class for computation declaration."""
 # pylint: disable=invalid-name
-import tvm._ffi
+import tvm_ffi
 
-from tvm.runtime import Object, ObjectGeneric, convert_to_object
+from tvm.runtime import Object, ObjectConvertible
 from tvm.tir import expr as _expr, DataProducer
 
 from . import _ffi_api
 
 
-class TensorSlice(ObjectGeneric, _expr.ExprOp):
+class TensorSlice(ObjectConvertible, _expr.ExprOp):
     """Auxiliary data structure for enable slicing syntax from tensor."""
 
     def __init__(self, tensor, indices):
@@ -48,12 +48,7 @@ class TensorSlice(ObjectGeneric, _expr.ExprOp):
         return self.tensor.dtype
 
 
-@tvm._ffi.register_object
-class TensorIntrinCall(Object):
-    """Intermediate structure for calling a tensor intrinsic."""
-
-
-@tvm._ffi.register_object
+@tvm_ffi.register_object("te.Tensor")
 class Tensor(DataProducer, _expr.ExprOp):
     """Tensor object, to construct, see function.Tensor"""
 
@@ -63,7 +58,6 @@ class Tensor(DataProducer, _expr.ExprOp):
             raise ValueError(
                 f"Need to provide {ndim} index in tensor but {len(indices)} was provided"
             )
-        indices = convert_to_object(indices)
         return _expr.ProducerLoad(self, indices)
 
     def __getitem__(self, indices):
@@ -91,26 +85,6 @@ class Tensor(DataProducer, _expr.ExprOp):
         return len(self.shape)
 
     @property
-    def axis(self):
-        """Axis of the tensor."""
-        return self.__getattr__("axis")
-
-    @property
-    def op(self):
-        """The corressponding :py:class:`Operation`."""
-        return self.__getattr__("op")
-
-    @property
-    def value_index(self):
-        """The output value index the tensor corresponds to."""
-        return self.__getattr__("value_index")
-
-    @property
-    def shape(self):
-        """The output shape of the tensor."""
-        return self.__getattr__("shape")
-
-    @property
     def name(self):
         op = self.op
         if op.num_outputs == 1:
@@ -118,6 +92,7 @@ class Tensor(DataProducer, _expr.ExprOp):
         return f"{op.name}.v{self.value_index}"
 
 
+@tvm_ffi.register_object("te.Operation")
 class Operation(Object):
     """Represent an operation that generates a tensor"""
 
@@ -147,12 +122,12 @@ class Operation(Object):
         return _ffi_api.OpInputTensors(self)
 
 
-@tvm._ffi.register_object
+@tvm_ffi.register_object("te.PlaceholderOp")
 class PlaceholderOp(Operation):
     """Placeholder operation."""
 
 
-@tvm._ffi.register_object
+@tvm_ffi.register_object("te.BaseComputeOp")
 class BaseComputeOp(Operation):
     """Compute operation."""
 
@@ -167,17 +142,12 @@ class BaseComputeOp(Operation):
         return self.__getattr__("reduce_axis")
 
 
-@tvm._ffi.register_object
+@tvm_ffi.register_object("te.ComputeOp")
 class ComputeOp(BaseComputeOp):
     """Scalar operation."""
 
 
-@tvm._ffi.register_object
-class TensorComputeOp(BaseComputeOp):
-    """Tensor operation."""
-
-
-@tvm._ffi.register_object
+@tvm_ffi.register_object("te.ScanOp")
 class ScanOp(Operation):
     """Scan operation."""
 
@@ -187,16 +157,6 @@ class ScanOp(Operation):
         return self.__getattr__("scan_axis")
 
 
-@tvm._ffi.register_object
+@tvm_ffi.register_object("te.ExternOp")
 class ExternOp(Operation):
     """External operation."""
-
-
-@tvm._ffi.register_object
-class HybridOp(Operation):
-    """Hybrid operation."""
-
-    @property
-    def axis(self):
-        """Represent the IterVar axis, also defined when it is a HybridOp"""
-        return self.__getattr__("axis")

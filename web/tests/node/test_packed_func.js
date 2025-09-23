@@ -37,7 +37,7 @@ let tvm = new tvmjs.Instance(
 test("GetGlobal", () => {
   tvm.beginScope();
   let flist = tvm.listGlobalFuncNames();
-  let faddOne = tvm.getGlobalFunc("testing.add_one");
+  let faddOne = tvm.getGlobalFunc("tvmjs.testing.add_one");
   let fecho = tvm.getGlobalFunc("testing.echo");
 
   assert(faddOne(tvm.scalar(1, "int")) == 2);
@@ -46,13 +46,25 @@ test("GetGlobal", () => {
   // check function argument with different types.
   assert(fecho(1123) == 1123);
   assert(fecho("xyz") == "xyz");
-
+  // test long string as the abi can be different from small str
+  const long_str = "1234567890123456789abcdefghijklmnopqrstuvwxyz";
+  assert(fecho(long_str) == long_str);
   let bytes = new Uint8Array([1, 2, 3]);
   let rbytes = fecho(bytes);
   assert(rbytes.length == bytes.length);
 
   for (let i = 0; i < bytes.length; ++i) {
     assert(rbytes[i] == bytes[i]);
+  }
+
+  const long_bytes = new Uint8Array(1024);
+  for (let i = 0; i < long_bytes.length; ++i) {
+    long_bytes[i] = i;
+  }
+  let rlong_bytes = fecho(long_bytes);
+  assert(rlong_bytes.length == long_bytes.length);
+  for (let i = 0; i < long_bytes.length; ++i) {
+    assert(rlong_bytes[i] == long_bytes[i]);
   }
 
   assert(fecho(undefined) == undefined);
@@ -146,32 +158,7 @@ test("ExceptionPassing", () => {
   tvm.endScope();
 });
 
-
-test("AsyncifyFunc", async () => {
-  if (!tvm.asyncifyEnabled()) {
-    console.log("Skip asyncify tests as it is not enabled..");
-    return;
-  }
-  tvm.beginScope();
-  tvm.registerAsyncifyFunc("async_sleep_echo", async function (x) {
-    await new Promise(resolve => setTimeout(resolve, 10));
-    return x;
-  });
-  let fecho = tvm.wrapAsyncifyPackedFunc(
-    tvm.getGlobalFunc("async_sleep_echo")
-  );
-  let fcall = tvm.wrapAsyncifyPackedFunc(
-    tvm.getGlobalFunc("testing.call")
-  );
-  assert((await fecho(1)) == 1);
-  assert((await fecho(2)) == 2);
-  assert((await fcall(fecho, 2) == 2));
-  tvm.endScope();
-  assert(fecho._tvmPackedCell.getHandle(false) == 0);
-  assert(fcall._tvmPackedCell.getHandle(false) == 0);
-});
-
-test("NDArrayCbArg", () => {
+test("TensorCbArg", () => {
   tvm.beginScope();
   let use_count = tvm.getGlobalFunc("testing.object_use_count");
   let record = [];
@@ -204,8 +191,32 @@ test("NDArrayCbArg", () => {
 
 test("Logging", () => {
   tvm.beginScope();
-  const log_info = tvm.getGlobalFunc("testing.log_info_str");
+  const log_info = tvm.getGlobalFunc("tvmjs.testing.log_info_str");
   log_info("helow world")
   log_info.dispose();
   tvm.endScope();
+});
+
+test("AsyncifyFunc", async () => {
+  if (!tvm.asyncifyEnabled()) {
+    console.log("Skip asyncify tests as it is not enabled..");
+    return;
+  }
+  tvm.beginScope();
+  tvm.registerAsyncifyFunc("async_sleep_echo", async function (x) {
+    await new Promise(resolve => setTimeout(resolve, 10));
+    return x;
+  });
+  let fecho = tvm.wrapAsyncifyPackedFunc(
+    tvm.getGlobalFunc("async_sleep_echo")
+  );
+  let fcall = tvm.wrapAsyncifyPackedFunc(
+    tvm.getGlobalFunc("tvmjs.testing.call")
+  );
+  assert((await fecho(1)) == 1);
+  assert((await fecho(2)) == 2);
+  assert((await fcall(fecho, 2) == 2));
+  tvm.endScope();
+  assert(fecho._tvmPackedCell.getHandle(false) == 0);
+  assert(fcall._tvmPackedCell.getHandle(false) == 0);
 });

@@ -432,14 +432,12 @@ def from_stablehlo(
     output : tvm.IRModule
         The result IRModule with entry function "main"
     """
-    from jaxlib import mlir
-    from jaxlib.mlir.dialects import stablehlo
+    from jax._src.interpreters import mlir as jax_mlir
 
     if isinstance(stablehlo_module, str):
         # TODO (yongwww): support the serialized bytecode format of StableHLO
         # model using stablehlo.deserialize_portable_artifact(ir) if the python
         # binding is ready
-        with mlir.ir.Context() as context:
-            stablehlo.register_dialect(context)
-            stablehlo_module = mlir.ir.Module.parse(stablehlo_module)
+        context = jax_mlir.make_ir_context()
+        stablehlo_module = jax_mlir.ir.Module.parse(stablehlo_module, context)
     return StableHLOImporter().from_stablehlo(stablehlo_module, input_info)

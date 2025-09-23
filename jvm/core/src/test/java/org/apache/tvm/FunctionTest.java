@@ -43,6 +43,8 @@ public class FunctionTest {
 
   @Test
   public void test_add_string() {
+    System.err.println("[TEST] test_add_string");
+
     Function func = Function.convertFunc(new Function.Callback() {
       @Override public Object invoke(TVMValue... args) {
         String res = "";
@@ -76,14 +78,14 @@ public class FunctionTest {
   }
 
   @Test
-  public void test_sum_ndarray() {
+  public void test_sum_tensor() {
     final long[] shape = new long[]{2, 1};
     Function func = Function.convertFunc(new Function.Callback() {
       @Override public Object invoke(TVMValue... args) {
         double sum = 0.0;
         for (TVMValue arg : args) {
-          NDArray arr = NDArray.empty(shape, new TVMType("float32"));
-          arg.asNDArray().copyTo(arr);
+          Tensor arr = Tensor.empty(shape, new TVMType("float32"));
+          arg.asTensor().copyTo(arr);
           float[] nativeArr = arr.asFloatArray();
           for (int i = 0; i < nativeArr.length; ++i) {
             sum += nativeArr[i];
@@ -93,7 +95,7 @@ public class FunctionTest {
         return sum;
       }
     });
-    NDArray arr = NDArray.empty(shape, new TVMType("float32"));
+    Tensor arr = Tensor.empty(shape, new TVMType("float32"));
     arr.copyFrom(new float[]{2f, 3f});
     TVMValue res = func.pushArg(arr).pushArg(arr).invoke();
     assertEquals(10.0, res.asDouble(), 1e-3);

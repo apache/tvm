@@ -34,8 +34,7 @@ Python API
     :caption: tvm.runtime
 
     runtime/runtime
-    runtime/ndarray
-    runtime/relax_vm
+    runtime/vm
     runtime/disco
     runtime/profiling
 
@@ -85,22 +84,3 @@ Python API
 
     rpc
     contrib
-
-.. toctree::
-    :maxdepth: 1
-    :caption: Legacy
-
-    relay/index
-    relay/frontend
-    relay/nn
-    relay/vision
-    relay/image
-    relay/transform
-    relay/analysis
-    relay/backend
-    relay/dataflow_pattern
-    relay/testing
-    autotvm
-    auto_scheduler
-    micro
-    graph_executor

@@ -42,7 +42,7 @@ void VulkanWrappedFunc::Init(VulkanModuleNode* m, ObjectPtr<Object> sptr,
   launch_param_config_.Init(num_buffer_args + num_pack_args, launch_param_tags);
 }
 
-void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
+void VulkanWrappedFunc::operator()(ffi::PackedArgs args, ffi::Any* rv,
                                    const ArgUnion64* pack_args) const {
   int device_id = VulkanDeviceAPI::Global()->GetActiveDeviceID();
   auto& device = VulkanDeviceAPI::Global()->device(device_id);
@@ -54,7 +54,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   std::vector<VkDescriptorBufferInfo> descriptor_buffers;
   descriptor_buffers.resize(num_buffer_args_);
   for (size_t i = 0; i < num_buffer_args_; ++i) {
-    void* buf = args[static_cast<int>(i)];
+    void* buf = args[static_cast<int>(i)].cast<void*>();
     VkDescriptorBufferInfo binfo;
     binfo.buffer = static_cast<VulkanBuffer*>(buf)->buffer;
     binfo.offset = 0;
@@ -205,12 +205,11 @@ VulkanModuleNode::~VulkanModuleNode() {
   }
 }
 
-PackedFunc VulkanModuleNode::GetFunction(const String& name,
-                                         const ObjectPtr<Object>& sptr_to_self) {
+ffi::Optional<ffi::Function> VulkanModuleNode::GetFunction(const ffi::String& name) {
+  ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
   ICHECK_EQ(sptr_to_self.get(), this);
-  ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   auto it = fmap_.find(name);
-  if (it == fmap_.end()) return PackedFunc();
+  if (it == fmap_.end()) return std::nullopt;
   const FunctionInfo& info = it->second;
   VulkanWrappedFunc f;
   size_t num_buffer_args = NumBufferArgs(info.arg_types);
@@ -289,7 +288,7 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
     auto fit = fmap_.find(func_name);
     ICHECK(fit != fmap_.end());
     for (DLDataType arg_type : fit->second.arg_types) {
-      if (arg_type.code == kTVMOpaqueHandle) {
+      if (arg_type.code == kDLOpaqueHandle) {
         push_arg_info(num_buffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
         ++num_buffer;
       } else {
@@ -404,7 +403,7 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   return pe;
 }
 
-void VulkanModuleNode::SaveToFile(const String& file_name, const String& format) {
+void VulkanModuleNode::WriteToFile(const ffi::String& file_name, const ffi::String& format) const {
   std::string fmt = GetFileFormat(file_name, format);
   ICHECK_EQ(fmt, fmt_) << "Can only save to customized format vulkan";
   std::string meta_file = GetMetaFilePath(file_name);
@@ -418,13 +417,17 @@ void VulkanModuleNode::SaveToFile(const String& file_name, const String& format)
   SaveBinaryToFile(file_name, data_bin);
 }
 
-void VulkanModuleNode::SaveToBinary(dmlc::Stream* stream) {
+ffi::Bytes VulkanModuleNode::SaveToBytes() const {
+  std::string buffer;
+  dmlc::MemoryStringStream ms(&buffer);
+  dmlc::Stream* stream = &ms;
   stream->Write(fmt_);
   stream->Write(fmap_);
   stream->Write(smap_);
+  return ffi::Bytes(buffer);
 }
 
-String VulkanModuleNode::GetSource(const String& format) {
+ffi::String VulkanModuleNode::InspectSource(const ffi::String& format) const {
   // can only return disassembly code.
   return source_;
 }

@@ -15,14 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.script import relax as R, tir as T
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_pipeline_compile():
-    pipeline = relax.get_pipeline()
+    target = tvm.target.Target("llvm", host="llvm")
+    pipeline = relax.pipeline.get_default_pipeline(target)
 
     @tvm.script.ir_module
     class Mod:
@@ -33,13 +36,12 @@ def test_pipeline_compile():
 
     mod = Mod
     mod = pipeline(mod)
-    target = tvm.target.Target("llvm", host="llvm")
 
-    ex = relax.build(mod, target)
+    ex = tvm.compile(mod, target)
     x_np = np.random.rand(3, 4).astype(np.float32)
     y_np = np.random.rand(3, 4).astype(np.float32)
-    x = tvm.nd.array(x_np)
-    y = tvm.nd.array(y_np)
+    x = tvm.runtime.tensor(x_np)
+    y = tvm.runtime.tensor(y_np)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     z = vm["main"](x, y)
@@ -48,7 +50,8 @@ def test_pipeline_compile():
 
 def test_pipeline_with_kv_cache():
     """A dummy pipline that simulates KV update."""
-    pipeline = relax.get_pipeline()
+    target = tvm.target.Target("llvm", host="llvm")
+    pipeline = relax.pipeline.get_default_pipeline(target)
 
     @tvm.script.ir_module
     class Mod:
@@ -92,9 +95,7 @@ def test_pipeline_with_kv_cache():
     mod = Mod
     mod = pipeline(mod)
 
-    target = tvm.target.Target("llvm", host="llvm")
-
-    ex = relax.build(mod, target)
+    ex = tvm.compile(mod, target)
 
     num_steps = 8
     cache_np = np.empty((num_steps, 4), dtype="float32")
@@ -105,8 +106,8 @@ def test_pipeline_with_kv_cache():
     for i in range(num_steps):
         x_np = np.random.rand(1, 4).astype(np.float32)
         y_np = np.random.rand(1, 4).astype(np.float32)
-        x = tvm.nd.array(x_np)
-        y = tvm.nd.array(y_np)
+        x = tvm.runtime.tensor(x_np)
+        y = tvm.runtime.tensor(y_np)
         np_shape = (i + 1, 4)
         kv, kv_cache = vm["main"](x, y, tvm.runtime.ShapeTuple(np_shape), kv_cache)
 

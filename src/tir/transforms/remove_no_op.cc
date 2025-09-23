@@ -22,7 +22,8 @@
  * \brief Remove no op from the stmt
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
@@ -41,31 +42,34 @@
 namespace tvm {
 namespace tir {
 
-struct RemoveNoOpConfigNode : public tvm::AttrsNode<RemoveNoOpConfigNode> {
+struct RemoveNoOpConfigNode : public AttrsNodeReflAdapter<RemoveNoOpConfigNode> {
   bool use_dataflow_analysis;
   int64_t max_simplification_steps;
 
-  TVM_DECLARE_ATTRS(RemoveNoOpConfigNode, "tir.transform.RemoveNoOpConfig") {
-    TVM_ATTR_FIELD(use_dataflow_analysis)
-        .describe(
-            "If true, known buffer values are propagated and used "
-            "to statically prove statements as no-ops.")
-        .set_default(false);
-    TVM_ATTR_FIELD(max_simplification_steps)
-        .describe(
-            "If non-zero, RewriteSimplifier will throw an error "
-            "after the number of steps specified.  "
-            "For use in debug and testing purposes.")
-        .set_default(0);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RemoveNoOpConfigNode>()
+        .def_ro("use_dataflow_analysis", &RemoveNoOpConfigNode::use_dataflow_analysis,
+                "If true, known buffer values are propagated and used "
+                "to statically prove statements as no-ops.",
+                refl::DefaultValue(false))
+        .def_ro("max_simplification_steps", &RemoveNoOpConfigNode::max_simplification_steps,
+                "If non-zero, RewriteSimplifier will throw an error "
+                "after the number of steps specified.  "
+                "For use in debug and testing purposes.",
+                refl::DefaultValue(0));
   }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.RemoveNoOpConfig", RemoveNoOpConfigNode,
+                                    BaseAttrsNode);
 };
 
 class RemoveNoOpConfig : public Attrs {
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(RemoveNoOpConfig, Attrs, RemoveNoOpConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RemoveNoOpConfig, Attrs, RemoveNoOpConfigNode);
 };
 
-TVM_REGISTER_NODE_TYPE(RemoveNoOpConfigNode);
+TVM_FFI_STATIC_INIT_BLOCK() { RemoveNoOpConfigNode::RegisterReflection(); }
+
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.RemoveNoOp", RemoveNoOpConfig);
 
 // Mark the statement of each stage.
@@ -167,33 +171,29 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     }
     return is_no_op(op->body) ? MakeEvaluate({op->min, op->extent}) : stmt;
   }
+
   Stmt VisitStmt_(const AllocateNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<AllocateNode>();
     return is_no_op(op->body) ? MakeEvaluate(op->extents) : stmt;
   }
 
-  Stmt VisitStmt_(const ProducerRealizeNode* op) final {
-    Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<ProducerRealizeNode>();
-    return is_no_op(op->body) ? op->body : stmt;
-  }
   Stmt VisitStmt_(const EvaluateNode* op) final {
     if (HasSideEffect(op->value)) {
-      return GetRef<Stmt>(op);
+      return ffi::GetRef<Stmt>(op);
     } else {
       return Evaluate(0);
     }
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore store = GetRef<BufferStore>(op);
+    BufferStore store = ffi::GetRef<BufferStore>(op);
 
     // Helper function that returns a statement containing only the
     // side effects of evaluating this BufferStore, but not the store
     // itself.
     auto only_side_effects = [&]() {
-      Array<Stmt> statements;
+      ffi::Array<Stmt> statements;
       statements.push_back(MakeEvaluate(store->value));
       for (const auto& index : store->indices) {
         statements.push_back(MakeEvaluate(index));
@@ -203,7 +203,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
 
     if (touch_pattern_.has_value()) {
       // A write that is later overwritten is a no-op.
-      Stmt context = context_ ? GetRef<Stmt>(context_) : store;
+      Stmt context = context_ ? ffi::GetRef<Stmt>(context_) : store;
       if (touch_pattern_->IsOverwrittenWithoutEffect(store, context)) {
         touch_pattern_->RemoveStore(store);
         return only_side_effects();
@@ -216,7 +216,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     PrimExpr stores_existing_value =
         store->value - BufferLoad(store->buffer, store->indices, store->predicate) == 0;
     if (touch_pattern_.has_value()) {
-      Stmt context_arg = context_ ? GetRef<Stmt>(context_) : Stmt(store);
+      Stmt context_arg = context_ ? ffi::GetRef<Stmt>(context_) : Stmt(store);
       stores_existing_value =
           touch_pattern_->SimplifyInContext(stores_existing_value, context_arg, analyzer_);
     } else {
@@ -238,7 +238,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
       }
     }
 
-    return std::move(store);
+    return store;
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
@@ -248,14 +248,15 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     var_use(node->body);
 
     if (var_use.buffer_use_count_.count(node->buffer.get())) {
-      return std::move(node);
+      return node;
+
     } else {
       return node->body;
     }
   }
 
  private:
-  bool ArrayValueEqual(const Array<PrimExpr>& a, const Array<PrimExpr>& b) {
+  bool ArrayValueEqual(const ffi::Array<PrimExpr>& a, const ffi::Array<PrimExpr>& b) {
     if (a.size() != b.size()) {
       return false;
     }
@@ -278,8 +279,8 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
       return Evaluate(0);
     }
   }
-  Stmt MakeEvaluate(const Array<PrimExpr>& values) {
-    Array<Stmt> stmts;
+  Stmt MakeEvaluate(const ffi::Array<PrimExpr>& values) {
+    ffi::Array<Stmt> stmts;
     for (PrimExpr e : values) {
       if (SideEffect(e) > CallEffectKind::kReadState) {
         stmts.push_back(Evaluate(e));
@@ -331,7 +332,10 @@ Pass RemoveNoOp() {
   return CreatePrimFuncPass(pass_func, 0, "tir.RemoveNoOp", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.RemoveNoOp").set_body_typed(RemoveNoOp);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.RemoveNoOp", RemoveNoOp);
+}
 
 }  // namespace transform
 

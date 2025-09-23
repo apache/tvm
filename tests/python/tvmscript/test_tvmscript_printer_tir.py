@@ -17,6 +17,7 @@
 # pylint: disable=missing-docstring
 
 import re
+
 import pytest
 
 import tvm.testing
@@ -384,20 +385,6 @@ with T.decl_buffer((10, 10), data=v) as buffer:
     )
 
 
-def test_prefetch():
-    a = tir.decl_buffer((128, 128), "float16", name="A")
-    with IRBuilder() as ib:
-        T.prefetch(a, [Range(0, 64), Range(0, 64)])
-    obj = ib.get()
-    _assert_print(
-        obj,
-        """
-A = T.Buffer((128, 128), "float16")
-T.prefetch(A, [T.Range(0, 64), T.Range(0, 64)])
-""",
-    )
-
-
 def test_seq_stmt():
     with IRBuilder() as ib:
         with T.serial(10):
@@ -506,10 +493,10 @@ T.Cast("float64", a)
 
 
 def test_llvm_intrin_imm():
-    a = tir.call_llvm_intrin("int32x4", "llvm.donothing", T.uint32(0))
-    _assert_print(a, 'T.call_llvm_intrin("int32x4", "llvm.donothing", T.uint32(0))')
-    a = tir.call_llvm_pure_intrin("int32x4", "llvm.donothing", T.uint32(0))
-    _assert_print(a, 'T.call_llvm_pure_intrin("int32x4", "llvm.donothing", T.uint32(0))')
+    a = tir.call_llvm_intrin("int32x4", "llvm.donothing")
+    _assert_print(a, 'T.call_llvm_intrin("int32x4", "llvm.donothing")')
+    a = tir.call_llvm_pure_intrin("int32x4", "llvm.donothing")
+    _assert_print(a, 'T.call_llvm_pure_intrin("int32x4", "llvm.donothing")')
 
 
 def test_binary_arith():
@@ -683,16 +670,6 @@ def test_comm_reducer():
         obj,
         """
 T.comm_reducer(lambda x, y: x + y, [T.float32(0.0)])
-""",
-    )
-
-
-def test_any():
-    obj = tir.Any()
-    _assert_print(
-        obj,
-        """
-T.Any()
 """,
     )
 
@@ -917,25 +894,31 @@ def func():
     _assert_print(func, expected_output)
 
 
-@pytest.mark.parametrize("dtype", ["e4m3_float8", "e5m2_float8"])
-def test_float8(dtype):
+CUSTOM_FLOAT_DTYPES = [
+    # Float8 variants
+    "float8_e3m4",
+    "float8_e4m3",
+    "float8_e4m3b11fnuz",
+    "float8_e4m3fn",
+    "float8_e4m3fnuz",
+    "float8_e5m2",
+    "float8_e5m2fnuz",
+    "float8_e8m0fnu",
+    # Float6 variants
+    "float6_e2m3fn",
+    "float6_e3m2fn",
+    # Float4 variant
+    "float4_e2m1fn",
+]
+
+
+@pytest.mark.parametrize("dtype", CUSTOM_FLOAT_DTYPES)
+def test_custom_float_types(dtype):
     from tvm.script import tir as T
 
-    def get_func(dtype):
-        if dtype == "e4m3_float8":
-
-            @T.prim_func
-            def func():
-                T.evaluate(T.e4m3_float8(0.0))
-
-            return func
-        elif dtype == "e5m2_float8":
-
-            @T.prim_func
-            def func():
-                T.evaluate(T.e5m2_float8(0.0))
-
-            return func
+    @T.prim_func()
+    def func():
+        T.evaluate(getattr(T, dtype)(0.0))
 
     expected_output = f"""
 # from tvm.script import tir as T
@@ -943,8 +926,7 @@ def test_float8(dtype):
 @T.prim_func
 def func():
     T.evaluate(T.{dtype}(0.0))
-    """
-    func = get_func(dtype)
+"""
     _assert_print(func, expected_output)
 
 
@@ -1052,16 +1034,43 @@ def test_vectorize_llvm_pure_intrin():
     def main(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (4,), "float32")
         B = T.match_buffer(b, (4,), "float32")
-        A[T.Ramp(0, 1, 4)] = T.call_llvm_pure_intrin(
-            "float32x4", "llvm.sqrt", 1, B[T.Ramp(0, 1, 4)]
-        )
+        A[T.Ramp(0, 1, 4)] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", B[T.Ramp(0, 1, 4)])
 
     expected_output = """
 # from tvm.script import tir as T
 
 @T.prim_func
 def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
-    A[0:4] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", 1, B[0:4])
+    A[0:4] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", B[0:4])
+    """
+    _assert_print(main, expected_output)
+
+
+def test_func_with_loop_jumps():
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def main(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (4,), "float32")
+        B = T.match_buffer(b, (4,), "float32")
+        for i in range(1000):
+            if i % 13 == 0:
+                A[1] = A[1] + 1
+                continue
+            if A[0] >= B[0]:
+                break
+
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func
+def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
+    for i in range(1000):
+        if i % 13 == 0:
+            A[1] = A[1] + T.float32(1.0)
+            T.continue_loop()
+        if A[0] >= B[0]:
+            T.break_loop()
     """
     _assert_print(main, expected_output)
 

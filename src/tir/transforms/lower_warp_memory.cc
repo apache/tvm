@@ -27,7 +27,8 @@
 // explaining the concept of warp shuffle.
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/pattern.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
@@ -132,8 +133,7 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
     }
 
     ICHECK_EQ(op->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
-                                     << "Has StorageFlatten (TE-based schedule) or "
-                                     << "FlattenBuffer (TIR-based schedules) been run?";
+                                     << "Has FlattenBuffer been run?";
 
     PrimExpr index = op->indices[0];
     if (op->value.dtype().lanes() != 1) {
@@ -150,7 +150,7 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
   }
 
   void UpdatePattern(const PrimExpr& index) {
-    Array<PrimExpr> m = arith::DetectLinearEquation(index, {warp_index_});
+    ffi::Array<PrimExpr> m = arith::DetectLinearEquation(index, {warp_index_});
     ICHECK_EQ(m.size(), 2U)
         << "LowerWarpMemory failed. Could not simplify the store index `" << index
         << "` into the form ax + by + cz + ... Warp memory is approximated by storing values in "
@@ -254,7 +254,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
 
  protected:
   PrimExpr RewriteIndicesAt(const CallNode* op, const std::vector<int>& indices) {
-    Array<PrimExpr> new_args = op->args;
+    ffi::Array<PrimExpr> new_args = op->args;
     for (int i : indices) {
       if (op->args[i].get() == buffer_) {
         PrimExpr local_index = SplitIndexByGroup(op->args[i + 1]).first;
@@ -294,8 +294,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
 
     if (store->buffer->data.get() == buffer_) {
       ICHECK_EQ(store->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
-                                          << "Has StorageFlatten (TE-based schedule) or "
-                                          << "FlattenBuffer (TIR-based schedules) been run?";
+                                          << "Has FlattenBuffer been run?";
 
       auto [local_index, group] = SplitIndexByGroup(store->indices[0]);
       (void)group;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
@@ -304,19 +303,18 @@ class WarpAccessRewriter : protected StmtExprMutator {
       writer->indices = {local_index};
     }
 
-    return std::move(store);
+    return store;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) override {
     auto load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
 
     if (load->buffer->data.get() != buffer_) {
-      return std::move(load);
+      return load;
     }
 
     ICHECK_EQ(op->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
-                                     << "Has StorageFlatten (TE-based schedule) or "
-                                     << "FlattenBuffer (TIR-based schedules) been run?";
+                                     << "Has FlattenBuffer been run?";
 
     auto [local_index, group] = SplitIndexByGroup(op->indices[0]);
     // invariance: local index must do not contain warp id
@@ -328,7 +326,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     writer->indices = {local_index};
 
     if (analyzer_->CanProveEqual(group, warp_index_)) {
-      return std::move(load);
+      return load;
     }
 
     PrimExpr mask = Call(DataType::UInt(32), builtin::tvm_warp_activemask(), {});
@@ -428,7 +426,7 @@ class WarpMemoryRewriter : private StmtMutator {
     return stmt;
   }
 
-  std::unordered_map<const VarNode*, String> new_storage_scopes_;
+  std::unordered_map<const VarNode*, ffi::String> new_storage_scopes_;
 
  private:
   Stmt VisitStmt_(const AllocateNode* op) {
@@ -464,7 +462,10 @@ Pass LowerWarpMemory() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerWarpMemory", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerWarpMemory").set_body_typed(LowerWarpMemory);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LowerWarpMemory", LowerWarpMemory);
+}
 
 }  // namespace transform
 

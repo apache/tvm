@@ -26,8 +26,9 @@
 #ifndef TVM_IR_INSTRUMENT_H_
 #define TVM_IR_INSTRUMENT_H_
 
-#include <tvm/node/reflection.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/ffi/string.h>
+#include <tvm/node/node.h>
 
 #include <utility>
 #include <vector>
@@ -102,7 +103,7 @@ namespace instrument {
 class PassInstrumentNode : public Object {
  public:
   /*! \brief Name of this pass instrument object. */
-  String name;
+  ffi::String name;
 
   virtual ~PassInstrumentNode() {}
 
@@ -136,10 +137,11 @@ class PassInstrumentNode : public Object {
    */
   virtual void RunAfterPass(const IRModule& mod, const transform::PassInfo& info) const = 0;
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
-
-  static constexpr const char* _type_key = "instrument.PassInstrument";
-  TVM_DECLARE_BASE_OBJECT_INFO(PassInstrumentNode, Object);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PassInstrumentNode>().def_ro("name", &PassInstrumentNode::name);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO("instrument.PassInstrument", PassInstrumentNode, Object);
 };
 
 /*!
@@ -148,7 +150,7 @@ class PassInstrumentNode : public Object {
  */
 class PassInstrument : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(PassInstrument, ObjectRef, PassInstrumentNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInstrument, ObjectRef, PassInstrumentNode);
 };
 
 }  // namespace instrument

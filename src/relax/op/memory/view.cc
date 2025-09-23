@@ -24,12 +24,15 @@
 
 #include "view.h"
 
+#include <tvm/ffi/reflection/registry.h>
+
 namespace tvm {
 namespace relax {
 
 /* relax.op.memory.view */
-Expr view(Expr x, Optional<Expr> shape, Optional<Expr> dtype, Optional<Expr> relative_byte_offset) {
-  Tuple void_expr(Array<Expr>{});
+Expr view(Expr x, ffi::Optional<Expr> shape, ffi::Optional<Expr> dtype,
+          ffi::Optional<Expr> relative_byte_offset) {
+  Tuple void_expr(ffi::Array<Expr>{});
 
   static const Op& op = Op::Get("relax.memory.view");
   return Call(op, {
@@ -40,7 +43,10 @@ Expr view(Expr x, Optional<Expr> shape, Optional<Expr> dtype, Optional<Expr> rel
                   });
 }
 
-TVM_REGISTER_GLOBAL("relax.op.memory.view").set_body_typed(view);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.memory.view", view);
+}
 
 StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 4) {
@@ -118,7 +124,7 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
     }
   }();
 
-  auto view_relative_byte_offset = [&]() -> Optional<PrimExpr> {
+  auto view_relative_byte_offset = [&]() -> ffi::Optional<PrimExpr> {
     StructInfo sinfo = GetStructInfo(arg_relative_byte_offset);
 
     if (HasVoidStructInfo(arg_relative_byte_offset)) {
@@ -136,7 +142,7 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
         return prim_sinfo->value.value();
       } else {
         // An offset of unknown value is applied.
-        return NullOpt;
+        return std::nullopt;
       }
     } else {
       LOG(FATAL) << "TypeError: "
@@ -147,9 +153,9 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
     }
   }();
 
-  Optional<Array<PrimExpr>> input_shape = data_sinfo->GetShape();
+  ffi::Optional<ffi::Array<PrimExpr>> input_shape = data_sinfo->GetShape();
 
-  Optional<Array<PrimExpr>> output_shape = NullOpt;
+  ffi::Optional<ffi::Array<PrimExpr>> output_shape = std::nullopt;
   int output_ndim = kUnknownNDim;
   if (view_shape_sinfo && view_shape_sinfo->values.defined()) {
     output_shape = view_shape_sinfo->values.value();
@@ -166,9 +172,9 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
   // Helper function, returns the number of bytes per vectorized
   // element.  Cannot use `DataType::bytes`, as it returns the
   // number of bytes per scalar element.
-  auto get_size_bytes = [](const DataType& dtype) -> Optional<IntImm> {
+  auto get_size_bytes = [](const DataType& dtype) -> ffi::Optional<IntImm> {
     if (dtype.is_void()) {
-      return NullOpt;
+      return std::nullopt;
     } else {
       auto size_bits = dtype.bits() * dtype.lanes();
       return IntImm(DataType::Int(64), (size_bits + 7) / 8);
@@ -177,9 +183,10 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
 
   // Helper function, returns the number of elements in an array,
   // given the shape of that array.
-  auto get_num_elements = [&ctx](const Optional<Array<PrimExpr>>& shape) -> Optional<PrimExpr> {
+  auto get_num_elements =
+      [&ctx](const ffi::Optional<ffi::Array<PrimExpr>>& shape) -> ffi::Optional<PrimExpr> {
     if (!shape.defined()) {
-      return NullOpt;
+      return std::nullopt;
     }
 
     PrimExpr num_elements = Integer(1);
@@ -189,11 +196,11 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
     return ctx->GetAnalyzer()->Simplify(num_elements);
   };
 
-  Optional<PrimExpr> input_nelements = get_num_elements(input_shape);
-  Optional<PrimExpr> output_nelements = get_num_elements(output_shape);
+  ffi::Optional<PrimExpr> input_nelements = get_num_elements(input_shape);
+  ffi::Optional<PrimExpr> output_nelements = get_num_elements(output_shape);
 
-  Optional<IntImm> input_element_size = get_size_bytes(data_sinfo->dtype);
-  Optional<IntImm> output_element_size = get_size_bytes(output_dtype);
+  ffi::Optional<IntImm> input_element_size = get_size_bytes(data_sinfo->dtype);
+  ffi::Optional<IntImm> output_element_size = get_size_bytes(output_dtype);
 
   if (input_nelements && output_nelements && input_element_size && output_element_size &&
       view_relative_byte_offset) {
@@ -289,7 +296,10 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
   }
 }
 
-TVM_REGISTER_GLOBAL("tvm.relax.struct_info.infer_view_sinfo").set_body_typed(InferStructInfoView);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tvm.relax.struct_info.infer_view_sinfo", InferStructInfoView);
+}
 
 Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
   Expr data = call->args[0];
@@ -338,7 +348,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
   infer_sinfo_env_func = EnvFunc::Get("tvm.relax.struct_info.infer_view_sinfo");
   auto runtime_view_sinfo = FuncStructInfo::OpaqueFunc(infer_sinfo_env_func, true);
 
-  ExternFunc runtime_view_func("runtime.TVMArrayCreateView", runtime_view_sinfo);
+  ExternFunc runtime_view_func("runtime.TVMTensorCreateView", runtime_view_sinfo);
 
   return Call(runtime_view_func, {data, shape, dtype, relative_byte_offset});
 }
@@ -360,7 +370,10 @@ Expr ensure_zero_offset(const Expr& x) {
   return Call(op, {x});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.memory.ensure_zero_offset").set_body_typed(ensure_zero_offset);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.memory.ensure_zero_offset", ensure_zero_offset);
+}
 
 StructInfo InferStructInfoEnsureZeroOffset(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {

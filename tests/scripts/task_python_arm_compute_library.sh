@@ -21,10 +21,7 @@ set -euxo pipefail
 source tests/scripts/setup-pytest-env.sh
 
 
-# Rebuild cython
-# TODO(u99127): Enable cython tests.
-
 find . -type f -path "*.pyc" | xargs rm -f
-make cython3
 
-run_pytest ctypes python-arm_compute_lib tests/python/contrib/test_arm_compute_lib
+# setup tvm-ffi into python folder
+python3 -m pip install  -v --target=python ./3rdparty/tvm-ffi/

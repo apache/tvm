@@ -49,7 +49,7 @@ class TestMatmul(BaseBeforeAfter):
 
     @T.prim_func
     def expected(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         m = T.int64()
         inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
         matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))
@@ -136,7 +136,7 @@ def test_matmul_int32():
 
     @T.prim_func(private=True)
     def expected(var_inp0: T.handle, inp1: T.Buffer((4096, 4096), "float32"), var_matmul: T.handle):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         m = T.int32()
         inp0 = T.match_buffer(var_inp0, (1, m, 4096))
         matmul = T.match_buffer(var_matmul, (1, m, 4096))
@@ -242,7 +242,7 @@ class TestFusedMatmul(BaseBeforeAfter):
 
     @T.prim_func
     def expected(W: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), S: T.Buffer((T.int64(128), T.int64(4096)), "uint32"), A: T.Buffer((T.int64(1), T.int64(32), T.int64(4096)), "float32"), C: T.Buffer((T.int64(1), T.int64(32), T.int64(4096)), "float32"), Out: T.Buffer((T.int64(1), T.int64(32), T.int64(4096)), "float32")):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         # with T.block("root"):
         var_matmul_intermediate_reindex_local = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(4096)), scope="local")
         A_reindex_shared = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(4096)), scope="shared")
@@ -315,7 +315,7 @@ class TestSkipGEMV(BaseBeforeAfter):
 
     @T.prim_func
     def before(W: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), S: T.Buffer((T.int64(128), T.int64(4096)), "uint32"), A: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32"), C: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32"), Out: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32")):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         var_decode_intermediate = T.alloc_buffer((T.int64(4096), T.int64(4096)))
         var_matmul_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)))
         for i, j in T.grid(T.int64(4096), T.int64(4096)):
@@ -349,7 +349,7 @@ class TestOutputFP32(BaseBeforeAfter):
 
     @T.prim_func
     def before(lv13: T.Buffer((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Buffer((T.int64(4096), T.int64(128)), "float16"), p_lv48: T.handle, lv13_1: T.Buffer((T.int64(4096),), "float16"), p_lv3: T.handle, p_output0: T.handle):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         n = T.int64()
         lv48 = T.match_buffer(p_lv48, (T.int64(1), n, T.int64(4096)), "float16")
         lv3 = T.match_buffer(p_lv3, (T.int64(1), n, T.int64(4096)), "float16")
@@ -401,7 +401,7 @@ class TestOutputFP32(BaseBeforeAfter):
 
     @T.prim_func
     def expected(lv13: T.Buffer((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Buffer((T.int64(4096), T.int64(128)), "float16"), p_lv48: T.handle, lv13_1: T.Buffer((T.int64(4096),), "float16"), p_lv3: T.handle, p_output0: T.handle):
-        T.func_attr({"tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         n = T.int64()
         lv48 = T.match_buffer(p_lv48, (T.int64(1), n, T.int64(4096)), "float16")
         lv3 = T.match_buffer(p_lv3, (T.int64(1), n, T.int64(4096)), "float16")
@@ -478,7 +478,7 @@ class TestInlineConsumerChain(BaseBeforeAfter):
     # fmt: off
     @T.prim_func(private=True)
     def before(p_lv26: T.handle, lv9: T.Buffer((T.int64(2048), T.int64(2048)), "float16"), p_lv52: T.handle, p_output0: T.handle):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         n = T.int64()
         lv26 = T.match_buffer(p_lv26, (n, T.int64(2048)), "float16")
         lv52 = T.match_buffer(p_lv52, (T.int64(1), n, T.int64(2048)))
@@ -530,7 +530,7 @@ class TestInlineConsumerChain(BaseBeforeAfter):
 
     @T.prim_func
     def expected(p_lv26: T.handle, lv9: T.Buffer((T.int64(2048), T.int64(2048)), "float16"), p_lv52: T.handle, p_output0: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.is_scheduled": True, "tir.noalias": True})
         n = T.int64()
         lv26 = T.match_buffer(p_lv26, (n, T.int64(2048)), "float16")
         lv52 = T.match_buffer(p_lv52, (T.int64(1), n, T.int64(2048)))
@@ -629,7 +629,7 @@ class TestMatmulAndroid(AndroidBeforeAfter):
 
     @T.prim_func
     def expected(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.is_scheduled": 1})
+        T.func_attr({"global_symbol": "main", "tir.is_scheduled": True})
         m = T.int64()
         inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
         matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))
@@ -695,7 +695,7 @@ class TestMatmulAndroid(AndroidBeforeAfter):
                                     v0 = T.axis.spatial(T.int64(1), T.int64(0))
                                     v1 = T.axis.spatial(m, i0_i1_fused_0 * T.int64(64) + i0_i1_fused_1 * T.int64(16) + ax0)
                                     v2 = T.axis.spatial(T.int64(4096), i2_0 * T.int64(256) + i2_1 * T.int64(8) + ax1)
-                                    T.where((i0_i1_fused_0 * T.int64(4) + i0_i1_fused_1 - (m + T.int64(15)) // T.int64(16) < T.int64(0) or i0_i1_fused_0 == T.int64(0)) and i0_i1_fused_0 * T.int64(64) + i0_i1_fused_1 * T.int64(16) + ax0 < m)
+                                    T.where((i0_i1_fused_0 * T.int64(4) + i0_i1_fused_1 - (m + T.int64(15)) // T.int64(16) < T.int64(0) or i0_i1_fused_0 * T.int64(64) + i0_i1_fused_1 * T.int64(16) + ax0 == T.int64(0)) and i0_i1_fused_0 * T.int64(64) + i0_i1_fused_1 * T.int64(16) + ax0 < m)
                                     T.reads(matmul_pad_local[v0, v1, v2])
                                     T.writes(matmul[v0, v1, v2])
                                     matmul[v0, v1, v2] = matmul_pad_local[v0, v1, v2]
@@ -705,7 +705,7 @@ class TestFusedDequantMatmulAndroid(AndroidBeforeAfter):
     # fmt: off
     @T.prim_func
     def before(lv452: T.Buffer((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Buffer((T.int64(128), T.int64(12288)), "float16"), p_rms_norm130: T.handle, transformer_h_0_attn_c_attn_bias3: T.Buffer((T.int64(12288),), "float16"), p_output0: T.handle):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         seq_len = T.int64()
         rms_norm130 = T.match_buffer(p_rms_norm130, (T.int64(1), seq_len, T.int64(4096)), "float16")
         T_add_intermediate_intermediate = T.match_buffer(p_output0, (T.int64(1), seq_len, T.int64(12288)), "float16")
@@ -742,7 +742,7 @@ class TestFusedDequantMatmulAndroid(AndroidBeforeAfter):
 
     @T.prim_func
     def expected(lv452: T.Buffer((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Buffer((T.int64(128), T.int64(12288)), "float16"), p_rms_norm130: T.handle, transformer_h_0_attn_c_attn_bias3: T.Buffer((T.int64(12288),), "float16"), p_output0: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.is_scheduled": True, "tir.noalias": True})
         seq_len = T.int64()
         rms_norm130 = T.match_buffer(p_rms_norm130, (T.int64(1), seq_len, T.int64(4096)), "float16")
         T_add_intermediate_intermediate = T.match_buffer(p_output0, (T.int64(1), seq_len, T.int64(12288)), "float16")
@@ -835,7 +835,7 @@ class TestFusedDequantMatmulAndroid(AndroidBeforeAfter):
                                     v_ax0 = T.axis.spatial(T.int64(1), T.int64(0))
                                     v_ax1 = T.axis.spatial(seq_len, i0_i1_fused_0 * T.int64(64) + i0_i1_fused_1 * T.int64(16) + ax0)
                                     v_ax2 = T.axis.spatial(T.int64(12288), i2_0 * T.int64(256) + i2_1 * T.int64(8) + ax1)
-                                    T.where((i0_i1_fused_0 * T.int64(4) + i0_i1_fused_1 - (seq_len + T.int64(15)) // T.int64(16) < T.int64(0) or i0_i1_fused_0 == T.int64(0)) and i0_i1_fused_0 * T.int64(64) + i0_i1_fused_1 * T.int64(16) + ax0 < seq_len)
+                                    T.where((i0_i1_fused_0 * T.int64(4) + i0_i1_fused_1 - (seq_len + T.int64(15)) // T.int64(16) < T.int64(0) or i0_i1_fused_0 * T.int64(64) + i0_i1_fused_1 * T.int64(16) + ax0 == T.int64(0)) and i0_i1_fused_0 * T.int64(64) + i0_i1_fused_1 * T.int64(16) + ax0 < seq_len)
                                     T.reads(matmul_intermediate_pad_local[v_ax0, v_ax1, v_ax2], transformer_h_0_attn_c_attn_bias3[v_ax2])
                                     T.writes(T_add_intermediate_intermediate[v_ax0, v_ax1, v_ax2])
                                     T_add_intermediate_intermediate[v_ax0, v_ax1, v_ax2] = matmul_intermediate_pad_local[v_ax0, v_ax1, v_ax2] + transformer_h_0_attn_c_attn_bias3[v_ax2]

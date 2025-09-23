@@ -23,8 +23,10 @@
  */
 #include "rpc_local_session.h"
 
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/runtime/tensor.h>
 
 #include <memory>
 #include <vector>
@@ -33,78 +35,73 @@ namespace tvm {
 namespace runtime {
 
 RPCSession::PackedFuncHandle LocalSession::GetFunction(const std::string& name) {
-  if (auto* fp = tvm::runtime::Registry::Get(name)) {
+  if (auto fp = tvm::ffi::Function::GetGlobal(name)) {
     // return raw handle because the remote need to explicitly manage it.
-    tvm::runtime::TVMRetValue ret;
-    ret = *fp;
-    TVMValue val;
-    int type_code;
-    ret.MoveToCHost(&val, &type_code);
-    return val.v_handle;
+    Any ret = *fp;
+    TVMFFIAny ret_any = ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(ret));
+    return ret_any.v_obj;
   } else {
     return nullptr;
   }
 }
 
-void LocalSession::EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_return) {
-  int rv_tcode = rv.type_code();
-
-  // return value encoding.
-  TVMValue ret_value_pack[3];
-  int ret_tcode_pack[3];
-  TVMArgsSetter set_arg(ret_value_pack, ret_tcode_pack);
-  // first location always encode type code.
-  set_arg(0, rv_tcode);
-
-  if (rv_tcode == kTVMNDArrayHandle) {
-    // We follow a special protocol to return NDArray to client side
-    // The first pack value is the NDArray handle as DLTensor
-    // The second pack value is a customized deleter that deletes the NDArray.
-    rv.MoveToCHost(&ret_value_pack[1], &ret_tcode_pack[1]);
-    ret_tcode_pack[1] = kTVMDLTensorHandle;
-    ret_value_pack[2].v_handle = ret_value_pack[1].v_handle;
-    ret_tcode_pack[2] = kTVMOpaqueHandle;
-    encode_return(TVMArgs(ret_value_pack, ret_tcode_pack, 3));
-  } else if (rv_tcode == kTVMPackedFuncHandle || rv_tcode == kTVMModuleHandle ||
-             rv_tcode == kTVMObjectHandle) {
-    // MoveToCHost means rv no longer manages the object.
-    // return handle instead.
-    rv.MoveToCHost(&ret_value_pack[1], &ret_tcode_pack[1]);
-    ret_tcode_pack[1] = kTVMOpaqueHandle;
-    encode_return(TVMArgs(ret_value_pack, ret_tcode_pack, 2));
-  } else if (rv_tcode == kTVMBytes) {
-    TVMByteArray byte_arr;
-    auto* sptr = rv.ptr<std::string>();
-    byte_arr.data = sptr->data();
-    byte_arr.size = sptr->length();
-    set_arg(1, byte_arr);
-    encode_return(TVMArgs(ret_value_pack, ret_tcode_pack, 2));
+void LocalSession::EncodeReturn(ffi::Any rv, const FEncodeReturn& encode_return) {
+  AnyView packed_args[3];
+  // NOTE: this is the place that we need to handle special RPC-related
+  // ABI convention for return value passing that is built on top of Any FFI.
+  // first argument is always the type index.
+  packed_args[0] = rv.type_index();
+  if (rv == nullptr) {
+    packed_args[1] = rv;
+    encode_return(ffi::PackedArgs(packed_args, 2));
+  } else if (rv.as<Tensor>()) {
+    // We follow a special protocol to return Tensor to client side
+    // The first pack value is the Tensor handle as DLTensor
+    // The second pack value is a customized deleter that deletes the Tensor.
+    TVMFFIAny ret_any = ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(rv));
+    void* opaque_handle = ret_any.v_obj;
+    packed_args[1] = TVMFFITensorGetDLTensorPtr(opaque_handle);
+    packed_args[2] = opaque_handle;
+    encode_return(ffi::PackedArgs(packed_args, 3));
+  } else if (const auto opt_bytes = rv.as<ffi::Bytes>()) {
+    // always pass bytes as byte array
+    TVMFFIByteArray byte_arr;
+    byte_arr.data = (*opt_bytes).data();
+    byte_arr.size = (*opt_bytes).size();
+    packed_args[1] = &byte_arr;
+    encode_return(ffi::PackedArgs(packed_args, 2));
+  } else if (auto opt_str = rv.as<ffi::String>()) {
+    // encode string as c_str
+    packed_args[1] = (*opt_str).data();
+    encode_return(ffi::PackedArgs(packed_args, 2));
+  } else if (rv.as<ffi::ObjectRef>()) {
+    TVMFFIAny ret_any = ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(rv));
+    void* opaque_handle = ret_any.v_obj;
+    packed_args[1] = opaque_handle;
+    encode_return(ffi::PackedArgs(packed_args, 2));
   } else {
-    set_arg(1, rv);
-    encode_return(TVMArgs(ret_value_pack, ret_tcode_pack, 2));
+    packed_args[1] = rv;
+    encode_return(ffi::PackedArgs(packed_args, 2));
   }
 }
 
-void LocalSession::CallFunc(RPCSession::PackedFuncHandle func, const TVMValue* arg_values,
-                            const int* arg_type_codes, int num_args,
+void LocalSession::CallFunc(RPCSession::PackedFuncHandle func, ffi::PackedArgs args,
                             const FEncodeReturn& encode_return) {
-  PackedFuncObj* pf = static_cast<PackedFuncObj*>(func);
-  TVMRetValue rv;
+  ffi::FunctionObj* pf = static_cast<ffi::FunctionObj*>(func);
+
+  Any rv;
+  std::vector<AnyView> packed_args(args.size());
 
   // unwrap RPCObjectRef in case we are directly using it to call LocalSession
-  std::vector<TVMValue> values(arg_values, arg_values + num_args);
-  std::vector<int> type_codes(arg_type_codes, arg_type_codes + num_args);
-  TVMArgs args(arg_values, arg_type_codes, num_args);
-
-  for (int i = 0; i < num_args; ++i) {
-    if (args[i].IsObjectRef<RPCObjectRef>()) {
-      RPCObjectRef obj_ref = args[i];
-      values[i].v_handle = obj_ref->object_handle();
-      continue;
+  for (int i = 0; i < args.size(); ++i) {
+    if (auto opt_rpc_obj = args[i].as<RPCObjectRef>()) {
+      packed_args[i] = static_cast<const Object*>(opt_rpc_obj.value()->object_handle());
+    } else {
+      packed_args[i] = args[i];
     }
   }
 
-  pf->CallPacked(TVMArgs(values.data(), type_codes.data(), args.size()), &rv);
+  pf->CallPacked(packed_args.data(), packed_args.size(), &rv);
   this->EncodeReturn(std::move(rv), encode_return);
 }
 
@@ -126,7 +123,7 @@ void LocalSession::CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes)
 }
 
 void LocalSession::CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes) {
-  ICHECK_EQ(nbytes, GetDataSize(*from));
+  ICHECK_EQ(nbytes, ffi::GetDataSize(*from));
   DLTensor to;
   to.data = to_bytes;
   to.device = {kDLCPU, 0};
@@ -143,20 +140,20 @@ void LocalSession::CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbyte
   this->GetDeviceAPI(dev_from)->StreamSync(dev_from, nullptr);
 }
 
-void LocalSession::FreeHandle(void* handle, int type_code) {
-  TVMValue value;
-  value.v_handle = handle;
-  // will trigger deleter once the rv goes out of the scope.
-  TVMRetValue rv = TVMRetValue::MoveFromCHost(value, type_code);
+void LocalSession::FreeHandle(void* handle) {
+  // NOTE: the type code is no longer need during free handle.
+  ffi::details::ObjectUnsafe::DecRefObjectHandle(handle);
 }
 
 DeviceAPI* LocalSession::GetDeviceAPI(Device dev, bool allow_missing) {
   return DeviceAPI::Get(dev, allow_missing);
 }
 
-TVM_REGISTER_GLOBAL("rpc.LocalSession").set_body_typed([]() {
-  return CreateRPCSessionModule(std::make_shared<LocalSession>());
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("rpc.LocalSession",
+                        []() { return CreateRPCSessionModule(std::make_shared<LocalSession>()); });
+}
 
 }  // namespace runtime
 }  // namespace tvm

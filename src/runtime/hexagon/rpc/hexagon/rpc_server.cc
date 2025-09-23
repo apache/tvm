@@ -27,16 +27,15 @@ extern "C" {
 
 #include <dlfcn.h>
 #include <stdlib.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <algorithm>
 #include <fstream>
 #include <memory>
 #include <string>
 
-#include "../../../library_module.h"
 #include "../../../minrpc/minrpc_server.h"
 #include "../../hexagon/hexagon_common.h"
 #include "../../hexagon/hexagon_device_api.h"
@@ -243,17 +242,17 @@ tvm::runtime::hexagon::HexagonRPCServer* get_hexagon_rpc_server(
 }
 }  // namespace
 
-const tvm::runtime::PackedFunc get_runtime_func(const std::string& name) {
-  if (const tvm::runtime::PackedFunc* pf = tvm::runtime::Registry::Get(name)) {
+const tvm::ffi::Function get_runtime_func(const std::string& name) {
+  if (const auto pf = tvm::ffi::Function::GetGlobal(name)) {
     return *pf;
   }
-  return tvm::runtime::PackedFunc();
+  return tvm::ffi::Function();
 }
 
 void reset_device_api() {
-  const tvm::runtime::PackedFunc api = get_runtime_func("device_api.hexagon");
+  const tvm::ffi::Function api = get_runtime_func("device_api.hexagon");
   // Registering device_api.cpu as device_api.hexagon since we use hexagon as sub-target of LLVM.
-  tvm::runtime::Registry::Register("device_api.cpu", true).set_body(api);
+  tvm::ffi::Function::SetGlobal("device_api.cpu", api, true);
 }
 
 int __QAIC_HEADER(hexagon_rpc_open)(const char* uri, remote_handle64* handle) {
@@ -329,24 +328,28 @@ __attribute__((weak)) void _Get_eh_data() {}
 __attribute__((weak)) void _Parse_fde_instr() {}
 }
 
-TVM_REGISTER_GLOBAL("tvm.hexagon.load_module")
-    .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
-      std::string soname = args[0];
-      tvm::ObjectPtr<tvm::runtime::Library> n = tvm::runtime::CreateDSOLibraryObject(soname);
-      *rv = CreateModuleFromLibrary(n);
-    });
-
-TVM_REGISTER_GLOBAL("tvm.hexagon.get_profile_output")
-    .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
-      std::string profiling_mode = args[0];
-      std::string out_file = args[1];
-      if (profiling_mode.compare("lwp") == 0) {
-        *rv = WriteLWPOutput(out_file);
-      } else {
-        HEXAGON_PRINT(ERROR, "ERROR: Unsupported profiling mode: %s", profiling_mode.c_str());
-        *rv = false;
-      }
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("tvm.hexagon.load_module",
+                  [](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
+                    auto soname = args[0].cast<std::string>();
+                    auto floader =
+                        tvm::ffi::Function::GetGlobalRequired("ffi.Module.load_from_file.so");
+                    *rv = floader(soname, "so");
+                  })
+      .def_packed(
+          "tvm.hexagon.get_profile_output", [](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
+            auto profiling_mode = args[0].cast<std::string>();
+            auto out_file = args[1].cast<std::string>();
+            if (profiling_mode.compare("lwp") == 0) {
+              *rv = WriteLWPOutput(out_file);
+            } else {
+              HEXAGON_PRINT(ERROR, "ERROR: Unsupported profiling mode: %s", profiling_mode.c_str());
+              *rv = false;
+            }
+          });
+}
 
 void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
   std::ofstream fs(file_name, std::ios::out | std::ios::binary);
@@ -354,9 +357,12 @@ void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
   fs.write(&data[0], data.length());
 }
 
-TVM_REGISTER_GLOBAL("tvm.rpc.server.upload")
-    .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
-      std::string file_name = args[0];
-      std::string data = args[1];
-      SaveBinaryToFile(file_name, data);
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("tvm.rpc.server.upload",
+                               [](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
+                                 auto file_name = args[0].cast<std::string>();
+                                 auto data = args[1].cast<std::string>();
+                                 SaveBinaryToFile(file_name, data);
+                               });
+}

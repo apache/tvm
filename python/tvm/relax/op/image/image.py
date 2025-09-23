@@ -35,7 +35,7 @@ def resize2d(
     method: str = "linear",
     coordinate_transformation_mode: str = "half_pixel",
     rounding_method: str = "round",
-    cubic_alpha: float = -0.5,
+    cubic_alpha: float = -0.75,
     cubic_exclude: int = 0,
     extrapolation_value: float = 0.0,
     out_dtype: Optional[Union[str, DataType]] = None,
@@ -104,6 +104,10 @@ def resize2d(
         roi = (0.0, 0.0, 0.0, 0.0)  # type: ignore
     elif isinstance(roi, float):
         roi = (roi, roi, roi, roi)  # type: ignore
+    elif isinstance(roi, (tuple, list)):
+        roi = tuple(val if isinstance(val, float) else float(val) for val in roi)
+    else:
+        raise NotImplementedError(f"Unsupported roi type {type(roi)}")
 
     if isinstance(size, (int, PrimExpr)):
         size = (size, size)

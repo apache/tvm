@@ -26,11 +26,12 @@
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Intrinsics.h>
+#include <tvm/ffi/reflection/registry.h>
 #if TVM_LLVM_VERSION >= 100
 #include <llvm/IR/IntrinsicsX86.h>
 #endif
 #include <llvm/Support/Casting.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include <string>
 #include <vector>
@@ -93,7 +94,12 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
 llvm::Value* CodeGenX86_64::CallVectorIntrin(llvm::Intrinsic::ID id, size_t intrin_lanes,
                                              llvm::Type* result_ty,
                                              const std::vector<llvm::Value*>& args) {
-  llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), id, {});
+#if TVM_LLVM_VERSION >= 200
+  llvm::Function* f =
+      llvm::cast<llvm::Function>(llvm::Intrinsic::getOrInsertDeclaration(module_.get(), id, {}));
+#else
+  llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), id);
+#endif
 #if TVM_LLVM_VERSION >= 120
   size_t num_elems = llvm::cast<llvm::FixedVectorType>(result_ty)->getNumElements();
 #else
@@ -127,10 +133,13 @@ llvm::Value* CodeGenX86_64::CallVectorIntrin(llvm::Intrinsic::ID id, size_t intr
   return CreateVecSlice(CreateVecConcat(split_results), 0, num_elems);
 }
 
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_x86-64")
-    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
-      *rv = static_cast<void*>(new CodeGenX86_64());
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("tvm.codegen.llvm.target_x86-64",
+                               [](const ffi::PackedArgs& targs, ffi::Any* rv) {
+                                 *rv = static_cast<void*>(new CodeGenX86_64());
+                               });
+}
 
 }  // namespace codegen
 }  // namespace tvm

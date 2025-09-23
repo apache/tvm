@@ -17,27 +17,15 @@
 
 # pylint: disable=invalid-name, unused-argument
 """FFI for tvm.node"""
-import tvm._ffi
+import tvm_ffi
+import tvm_ffi.core
 
 
 # The implementations below are default ones when the corresponding
 # functions are not available in the runtime only mode.
-# They will be overriden via _init_api to the ones registered
-# via TVM_REGISTER_GLOBAL in the compiler mode.
+# They will be overriden via tvm_ffi.init_ffi_api to the ones registered
 def AsRepr(obj):
-    return obj.type_key() + "(" + obj.handle.value + ")"
-
-
-def AsLegacyRepr(obj):
-    return obj.type_key() + "(" + obj.handle.value + ")"
-
-
-def NodeListAttrNames(obj):
-    return lambda x: 0
-
-
-def NodeGetAttr(obj, name):
-    raise AttributeError()
+    return type(obj).__name__ + "(" + obj.__ctypes_handle__().value + ")"
 
 
 def SaveJSON(obj):
@@ -48,6 +36,5 @@ def LoadJSON(json_str):
     raise RuntimeError("Do not support object serialization in runtime only mode")
 
 
-# Exports functions registered via TVM_REGISTER_GLOBAL with the "node" prefix.
-# e.g. TVM_REGISTER_GLOBAL("node.AsRepr")
-tvm._ffi._init_api("node", __name__)
+# Exports functions registered in node namespace.
+tvm_ffi.init_ffi_api("node", __name__)

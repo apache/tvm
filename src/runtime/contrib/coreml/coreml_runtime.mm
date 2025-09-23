@@ -20,7 +20,8 @@
 /*!
  * \file coreml_runtime.cc
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "coreml_runtime.h"
 
@@ -59,14 +60,14 @@ void CoreMLModel::SetInput(const std::string& key, DLTensor* data_in) {
 
   MLMultiArray* dest = [[MLMultiArray alloc] initWithShape:shape dataType:dataType error:nil];
 
-  ICHECK(data_in->strides == NULL);
+  ICHECK(ffi::IsContiguous(*data_in));
   memcpy(dest.dataPointer, data_in->data, size);
 
   NSString* nsKey = [NSString stringWithUTF8String:key.c_str()];
   [input_dict_ setObject:dest forKey:nsKey];
 }
 
-NDArray CoreMLModel::GetOutput(int index) const {
+Tensor CoreMLModel::GetOutput(int index) const {
   MLModelDescription* model_desc = model_.modelDescription;
   NSString* metadata = [model_desc metadata][MLModelDescriptionKey];
   NSData* data = [metadata dataUsingEncoding:NSUTF8StringEncoding];
@@ -102,7 +103,7 @@ NDArray CoreMLModel::GetOutput(int index) const {
       .device_type = kDLCPU,
       .device_id = 0,
   };
-  NDArray ret = NDArray::Empty(shape, dtype, cpu_dev);
+  Tensor ret = Tensor::Empty(shape, dtype, cpu_dev);
   ret.CopyFromBytes(src.dataPointer, size);
 
   return ret;
@@ -128,36 +129,37 @@ void CoreMLRuntime::Init(const std::string& symbol, const std::string& _model_pa
   model_ = std::unique_ptr<CoreMLModel>(new CoreMLModel(url));
 }
 
-PackedFunc CoreMLRuntime::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
+ffi::Optional<ffi::Function> CoreMLRuntime::GetFunction(const ffi::String& name) {
   // Return member functions during query.
   if (name == "invoke" || name == "run") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { model_->Invoke(); });
+    return ffi::Function([this](ffi::PackedArgs args, ffi::Any* rv) { model_->Invoke(); });
   } else if (name == "set_input") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+    return ffi::Function([this](ffi::PackedArgs args, ffi::Any* rv) {
       const auto& input_name = args[0].operator std::string();
       model_->SetInput(input_name, args[1]);
     });
   } else if (name == "get_output") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { *rv = model_->GetOutput(args[0]); });
+    return ffi::Function(
+        [this](ffi::PackedArgs args, ffi::Any* rv) { *rv = model_->GetOutput(args[0]); });
   } else if (name == "get_num_outputs") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { *rv = model_->GetNumOutputs(); });
+    return ffi::Function(
+        [this](ffi::PackedArgs args, ffi::Any* rv) { *rv = model_->GetNumOutputs(); });
   } else if (name == symbol_) {
     // Return the packedfunc which executes the subgraph.
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+    return ffi::Function([this](ffi::PackedArgs args, ffi::Any* rv) {
       MLModelDescription* model_desc = [model_->model_ modelDescription];
       NSString* metadata = [model_desc metadata][MLModelDescriptionKey];
       NSData* data = [metadata dataUsingEncoding:NSUTF8StringEncoding];
       NSDictionary* json = [NSJSONSerialization JSONObjectWithData:data
                                                            options:NSJSONReadingAllowFragments
                                                              error:nil];
-      NSArray<NSString*>* input_names = json[@"inputs"];
+      NSffi::Array<NSString*>* input_names = json[@"inputs"];
 
       // Copy input tensors to corresponding data entries.
       for (auto i = 0; i < args.size() - 1; ++i) {
-        ICHECK(args[i].type_code() == kTVMDLTensorHandle ||
-               args[i].type_code() == kTVMNDArrayHandle)
-            << "Expect NDArray or DLTensor as inputs\n";
-        if (args[i].type_code() == kTVMDLTensorHandle || args[i].type_code() == kTVMNDArrayHandle) {
+        ICHECK(args[i].type_code() == kTVMDLTensorHandle || args[i].type_code() == kTVMTensorHandle)
+            << "Expect Tensor or DLTensor as inputs\n";
+        if (args[i].type_code() == kTVMDLTensorHandle || args[i].type_code() == kTVMTensorHandle) {
           model_->SetInput([input_names[i] UTF8String], args[i]);
         } else {
           LOG(FATAL) << "Not implemented";
@@ -168,32 +170,38 @@ PackedFunc CoreMLRuntime::GetFunction(const String& name, const ObjectPtr<Object
       model_->Invoke();
 
       // TODO: Support multiple outputs.
-      NDArray out = model_->GetOutput(0);
+      Tensor out = model_->GetOutput(0);
       if (args[args.size() - 1].type_code() == kTVMDLTensorHandle) {
         DLTensor* arg = args[args.size() - 1];
         out.CopyTo(arg);
       } else {
-        NDArray arg = args[args.size() - 1];
+        Tensor arg = args[args.size() - 1];
         out.CopyTo(arg);
       }
       *rv = out;
     });
   } else {
-    return PackedFunc();
+    return std::nullopt;
   }
 }
 
-Module CoreMLRuntimeCreate(const std::string& symbol, const std::string& model_path) {
-  auto exec = make_object<CoreMLRuntime>();
+ffi::Module CoreMLRuntimeCreate(const std::string& symbol, const std::string& model_path) {
+  auto exec = ffi::make_object<CoreMLRuntime>();
   exec->Init(symbol, model_path);
-  return Module(exec);
+  return ffi::Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.coreml_runtime.create").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = CoreMLRuntimeCreate(args[0], args[1]);
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("tvm.coreml_runtime.create", [](ffi::PackedArgs args, ffi::Any* rv) {
+    *rv = CoreMLRuntimeCreate(args[0], args[1]);
+  });
+}
 
-void CoreMLRuntime::SaveToBinary(dmlc::Stream* stream) {
+ffi::Bytes CoreMLRuntime::SaveToBytes() const {
+  std::string buffer;
+  dmlc::MemoryStringStream ms(&buffer);
+  dmlc::Stream* stream = &ms;
   NSURL* url = model_->url_;
   NSFileWrapper* dirWrapper = [[[NSFileWrapper alloc] initWithURL:url options:0
                                                             error:nil] autorelease];
@@ -202,6 +210,7 @@ void CoreMLRuntime::SaveToBinary(dmlc::Stream* stream) {
   stream->Write((uint64_t)[dirData length]);
   stream->Write([dirData bytes], [dirData length]);
   DLOG(INFO) << "Save " << symbol_ << " (" << [dirData length] << " bytes)";
+  return ffi::Bytes(buffer);
 }
 
 /*!
@@ -211,8 +220,9 @@ void CoreMLRuntime::SaveToBinary(dmlc::Stream* stream) {
  *
  * \return The created CoreML module.
  */
-Module CoreMLRuntimeLoadFromBinary(void* strm) {
-  dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+ffi::Module CoreMLRuntimeLoadFromBytes(const ffi::Bytes& bytes) {
+  dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
+  dmlc::Stream* stream = &ms;
 
   NSString* tempBaseDir = NSTemporaryDirectory();
   if (tempBaseDir == nil) tempBaseDir = @"/tmp";
@@ -240,12 +250,15 @@ Module CoreMLRuntimeLoadFromBinary(void* strm) {
   BOOL res = [dirWrapper writeToURL:url options:0 originalContentsURL:nil error:nil];
   ICHECK(res) << "Failed to create model directory " << [model_path UTF8String];
 
-  auto exec = make_object<CoreMLRuntime>();
+  auto exec = ffi::make_object<CoreMLRuntime>();
   exec->Init(symbol, [model_path UTF8String]);
-  return Module(exec);
+  return ffi::Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_coreml").set_body_typed(CoreMLRuntimeLoadFromBinary);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("ffi.Module.load_from_bytes.coreml", CoreMLRuntimeLoadFromBytes);
+}
 
 }  // namespace runtime
 }  // namespace tvm

@@ -20,10 +20,11 @@
 /*!
  * \file tvm/relax/transform/normalize.cc
  * \brief Pass for transforming Relax IR to normal form, i.e., the expressions are normalized(no
- * nesting and hence the AST is in ANF), and all checked_type_ and shape_ of expressions are
+ * nesting and hence the AST is in ANF), and all struct_info_ of expressions are
  * available.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
@@ -35,7 +36,7 @@ namespace relax {
 // TODO(@altanh): LCA binding lifting
 class NormalizeMutator : public ExprMutatorBase {
  public:
-  NormalizeMutator() { builder_ = BlockBuilder::Create(NullOpt); }
+  NormalizeMutator() { builder_ = BlockBuilder::Create(std::nullopt); }
 
   Expr VisitExpr(const Expr& expr) override {
     return builder_->Normalize(ExprMutatorBase::VisitExpr(expr));
@@ -45,7 +46,7 @@ class NormalizeMutator : public ExprMutatorBase {
     Expr body = this->VisitWithNewScope(op->body, op->params);
 
     if (body.same_as(op->body)) {
-      return GetRef<Expr>(op);
+      return ffi::GetRef<Expr>(op);
     } else {
       return Function(op->params, body, op->ret_struct_info, op->is_pure, op->attrs);
     }
@@ -57,13 +58,13 @@ class NormalizeMutator : public ExprMutatorBase {
     Expr false_b = this->VisitWithNewScope(op->false_branch);
     if (op->cond.same_as(guard) && op->true_branch.same_as(true_b) &&
         op->false_branch.same_as(false_b)) {
-      return GetRef<Expr>(op);
+      return ffi::GetRef<Expr>(op);
     } else {
       return If(guard, true_b, false_b, op->span);
     }
   }
 
-  Expr VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params = NullOpt) {
+  Expr VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<Var>> params = std::nullopt) {
     builder_->BeginBindingBlock();
     if (params.defined()) {
       builder_->BeginScope(params);
@@ -81,7 +82,7 @@ class NormalizeMutator : public ExprMutatorBase {
 
   Expr VisitExpr_(const SeqExprNode* op) final {
     bool all_blocks_unchanged = true;
-    Array<BindingBlock> blocks;
+    ffi::Array<BindingBlock> blocks;
     for (auto block : op->blocks) {
       BindingBlock new_block = this->VisitBindingBlock(block);
       if (!new_block->bindings.empty()) {
@@ -99,7 +100,7 @@ class NormalizeMutator : public ExprMutatorBase {
     }
 
     if (all_blocks_unchanged && body.same_as(op->body)) {
-      return GetRef<Expr>(op);
+      return ffi::GetRef<Expr>(op);
     } else {
       return SeqExpr(blocks, body);
     }
@@ -150,7 +151,7 @@ class NormalizeMutator : public ExprMutatorBase {
     }
 
     if (new_value.same_as(binding->value)) {
-      builder_->EmitNormalized(GetRef<VarBinding>(binding));
+      builder_->EmitNormalized(ffi::GetRef<VarBinding>(binding));
     } else {
       builder_->EmitNormalized(VarBinding(binding->var, new_value));
     }
@@ -160,7 +161,7 @@ class NormalizeMutator : public ExprMutatorBase {
     Expr new_value = this->VisitExpr(binding->value);
 
     if (new_value.same_as(binding->value)) {
-      builder_->EmitNormalized(GetRef<MatchCast>(binding));
+      builder_->EmitNormalized(ffi::GetRef<MatchCast>(binding));
     } else {
       builder_->EmitNormalized(
           MatchCast(binding->var, builder_->NormalizeArgument(new_value), binding->struct_info));
@@ -188,7 +189,7 @@ class GlobalVarNormalizer : private ExprMutator {
 
   IRModule RenameModule() {
     if (!NeedRename()) {
-      return module_;
+      return std::move(module_);
     }
 
     // Step 1. Add public functions (functions with global_symbol attributes)
@@ -212,13 +213,13 @@ class GlobalVarNormalizer : private ExprMutator {
     auto module_node = module_.CopyOnWrite();
     module_node->functions = after_module->functions;
     module_node->global_var_map_ = after_module->global_var_map_;
-    return module_;
+    return std::move(module_);
   }
 
   /*! \brief Check if any function needs to be renamed. */
   bool NeedRename() {
     for (const auto& [gvar, func] : module_->functions) {
-      auto global_symbol = func->GetAttr<String>("global_symbol");
+      auto global_symbol = func->GetAttr<ffi::String>("global_symbol");
       if (global_symbol && global_symbol.value() != gvar->name_hint) {
         return true;
       }
@@ -229,7 +230,7 @@ class GlobalVarNormalizer : private ExprMutator {
   /*! \brief Add public functions to the builder, and update the name supplier. */
   void AddPublicFunctions() {
     for (const auto& [gvar, func] : module_->functions) {
-      auto global_symbol = func->GetAttr<String>("global_symbol");
+      auto global_symbol = func->GetAttr<ffi::String>("global_symbol");
       if (!global_symbol) {
         continue;
       }
@@ -249,7 +250,7 @@ class GlobalVarNormalizer : private ExprMutator {
    */
   void AddPrivateFunctions() {
     for (auto [gvar, func] : module_->functions) {
-      auto global_symbol = func->GetAttr<String>("global_symbol");
+      auto global_symbol = func->GetAttr<ffi::String>("global_symbol");
       if (global_symbol) {
         continue;
       }
@@ -261,34 +262,42 @@ class GlobalVarNormalizer : private ExprMutator {
   }
 
   Expr VisitExpr_(const GlobalVarNode* op) final {
-    ICHECK(gvar_map_.count(GetRef<GlobalVar>(op)));
-    return gvar_map_[GetRef<GlobalVar>(op)];
+    ICHECK(gvar_map_.count(ffi::GetRef<GlobalVar>(op)));
+    return gvar_map_[ffi::GetRef<GlobalVar>(op)];
   }
 
   IRModule module_;
   NameSupply name_supply_;
-  Map<GlobalVar, GlobalVar> gvar_map_;
+  ffi::Map<GlobalVar, GlobalVar> gvar_map_;
 };
 
 namespace transform {
 
 Pass Normalize() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(Normalize(f)); };
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return Downcast<Function>(Normalize(f));
+  };
   return CreateFunctionPass(pass_func, 1, "Normalize", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.Normalize").set_body_typed(Normalize);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.Normalize", Normalize);
+}
 
 Pass NormalizeGlobalVar() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) { return GlobalVarNormalizer::Normalize(mod); };
+  auto pass_func = [=](IRModule mod, PassContext pc) {
+    return GlobalVarNormalizer::Normalize(mod);
+  };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
                           /*pass_name=*/"NormalizeGlobalVar",
                           /*required=*/{});
 }
-TVM_REGISTER_GLOBAL("relax.transform.NormalizeGlobalVar").set_body_typed(NormalizeGlobalVar);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.NormalizeGlobalVar", NormalizeGlobalVar);
+}
 
 }  // namespace transform
 

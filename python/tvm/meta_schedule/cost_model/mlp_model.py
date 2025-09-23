@@ -32,7 +32,7 @@ import torch  # type: ignore
 import tvm
 
 from ...contrib.tar import tar, untar
-from ...runtime import NDArray
+from ...runtime import Tensor
 from ...target import Target
 from ..cost_model import PyCostModel
 from ..database import JSONDatabase
@@ -441,7 +441,7 @@ def extract_features(
     """
     extractor = extractor or PerStoreFeature(extract_workload=True)
 
-    def _feature(feature: NDArray) -> np.ndarray:
+    def _feature(feature: Tensor) -> np.ndarray:
         return feature.numpy().astype("float32")
 
     def _mean_cost(res: RunnerResult) -> float:
@@ -534,6 +534,7 @@ class State:
                         if json_file.endswith("_workload.json"):
                             workload_paths.append(json_file)
                 for workload_path in tqdm(workload_paths):
+                    # pylint: disable=protected-access,broad-exception-caught
                     try:
                         database = JSONDatabase(
                             path_workload=workload_path,
@@ -541,7 +542,7 @@ class State:
                                 "_workload.json", "_candidates.json"
                             ),
                         )
-                    except tvm._ffi.base.TVMError:  # pylint: disable=protected-access
+                    except tvm.base.TVMError:
                         continue
                     candidates, results = [], []
                     tuning_records = database.get_all_tuning_records()

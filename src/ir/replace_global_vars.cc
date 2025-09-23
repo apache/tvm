@@ -22,6 +22,8 @@
  * \brief IRModule transform to replace GlobalVar instances across any IR type.
  */
 
+#include <tvm/ffi/container/variant.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/replace_global_vars.h>
 
 #include <vector>
@@ -29,7 +31,7 @@
 namespace tvm {
 namespace transform {
 
-IRModule ReplaceGlobalVars(IRModule mod, Map<GlobalVar, GlobalVar> replacements) {
+IRModule ReplaceGlobalVars(IRModule mod, ffi::Map<GlobalVar, GlobalVar> replacements) {
   if (replacements.empty()) {
     return mod;
   }
@@ -61,29 +63,36 @@ IRModule ReplaceGlobalVars(IRModule mod, Map<GlobalVar, GlobalVar> replacements)
   return mod;
 }
 
-TVM_REGISTER_GLOBAL("transform.ReplaceGlobalVars").set_body_typed(ReplaceGlobalVars);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("transform.ReplaceGlobalVars", ReplaceGlobalVars);
+}
 
 IRModule ModuleReplaceGlobalVars(
-    IRModule mod, Map<Variant<String, GlobalVar>, Variant<String, GlobalVar>> replacements) {
-  Map<GlobalVar, GlobalVar> gvar_replacements;
+    IRModule mod,
+    ffi::Map<ffi::Variant<ffi::String, GlobalVar>, ffi::Variant<ffi::String, GlobalVar>>
+        replacements) {
+  ffi::Map<GlobalVar, GlobalVar> gvar_replacements;
   for (const auto& [before, after] : replacements) {
     GlobalVar gvar_before;
     if (auto gvar = before.as<GlobalVar>()) {
       gvar_before = gvar.value();
-    } else if (auto str = before.as<String>()) {
+    } else if (auto str = before.as<ffi::String>()) {
       gvar_before = mod->GetGlobalVar(str.value());
     } else {
-      LOG(FATAL) << "Variant<String,GlobalVar> must contain either String or GlobalVar";
+      LOG(FATAL)
+          << "ffi::Variant<ffi::String,GlobalVar> must contain either ffi::String or GlobalVar";
     }
 
     GlobalVar gvar_after;
     if (auto gvar = after.as<GlobalVar>()) {
       gvar_after = gvar.value();
-    } else if (auto str = after.as<String>()) {
+    } else if (auto str = after.as<ffi::String>()) {
       gvar_after = gvar_before;
       gvar_after.CopyOnWrite()->name_hint = str.value();
     } else {
-      LOG(FATAL) << "Variant<String,GlobalVar> must contain either String or GlobalVar";
+      LOG(FATAL)
+          << "ffi::Variant<ffi::String,GlobalVar> must contain either ffi::String or GlobalVar";
     }
 
     gvar_replacements.Set(gvar_before, gvar_after);
@@ -92,7 +101,10 @@ IRModule ModuleReplaceGlobalVars(
   return ReplaceGlobalVars(mod, gvar_replacements);
 }
 
-TVM_REGISTER_GLOBAL("ir.Module_ReplaceGlobalVars").set_body_typed(ModuleReplaceGlobalVars);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("ir.Module_ReplaceGlobalVars", ModuleReplaceGlobalVars);
+}
 
 }  // namespace transform
 }  // namespace tvm

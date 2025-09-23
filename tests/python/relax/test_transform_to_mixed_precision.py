@@ -836,7 +836,7 @@ def test_conv2d_bias_conv2d():
         "w2": np.random.uniform(size=(4, 4, 1, 1)).astype("float16"),
         "w3": np.random.uniform(size=(4,)).astype("float16"),
     }
-    binding = {k: tvm.nd.array(v) for k, v in binding.items()}
+    binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
     Input = relax.transform.BindParams("main", binding)(Input)
     Expected = relax.transform.BindParams("main", binding)(Expected)
     Expected2 = relax.transform.BindParams("main", binding)(Expected2)
@@ -975,7 +975,7 @@ def test_conv2d_bias_fp32():
         "w": np.random.uniform(size=(512, 4, 3, 3)).astype("float32"),
         "bias": np.random.uniform(size=(512,)).astype("float32"),
     }
-    binding = {k: tvm.nd.array(v) for k, v in binding_np.items()}
+    binding = {k: tvm.runtime.tensor(v) for k, v in binding_np.items()}
 
     Input_bound = relax.transform.BindParams("main", binding)(Input)
     Expected = relax.transform.BindParams("main", binding)(Expected)
@@ -983,7 +983,7 @@ def test_conv2d_bias_fp32():
     _assert_test(Input_bound, expected2=Expected)
 
     binding_np["bias"][0] = 70000  # Out of fp16 range
-    binding = {k: tvm.nd.array(v) for k, v in binding_np.items()}
+    binding = {k: tvm.runtime.tensor(v) for k, v in binding_np.items()}
     Input_bound = relax.transform.BindParams("main", binding)(Input)
     Expected_no_bias_cast = relax.transform.BindParams("main", binding)(Expected_no_bias_cast)
 

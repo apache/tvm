@@ -20,10 +20,10 @@
 #ifndef TVM_META_SCHEDULE_MUTATOR_H_
 #define TVM_META_SCHEDULE_MUTATOR_H_
 
-#include <tvm/node/reflection.h>
-#include <tvm/runtime/container/optional.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/support/random_engine.h>
 #include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/schedule/trace.h>
@@ -40,7 +40,9 @@ class MutatorNode : public runtime::Object {
   /*! \brief Virtual destructor. */
   virtual ~MutatorNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    // No fields to register
+  }
 
   /*!
    * \brief Initialize the design space generator with tuning context.
@@ -55,8 +57,8 @@ class MutatorNode : public runtime::Object {
    * \param rand_state The random state for mutation.
    * \return None if mutator failed, otherwise return the mutated trace.
    */
-  virtual Optional<tir::Trace> Apply(const tir::Trace& trace,
-                                     support::LinearCongruentialEngine::TRandState* rand_state) = 0;
+  virtual ffi::Optional<tir::Trace> Apply(
+      const tir::Trace& trace, support::LinearCongruentialEngine::TRandState* rand_state) = 0;
 
   /*!
    * \brief Clone the mutator.
@@ -64,8 +66,8 @@ class MutatorNode : public runtime::Object {
    */
   virtual Mutator Clone() const = 0;
 
-  static constexpr const char* _type_key = "meta_schedule.Mutator";
-  TVM_DECLARE_BASE_OBJECT_INFO(MutatorNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.Mutator", MutatorNode, Object);
 };
 
 /*!
@@ -78,24 +80,24 @@ class Mutator : public runtime::ObjectRef {
    * \brief The function type of `InitializeWithTuneContext` method.
    * \param context The tuning context for initialization.
    */
-  using FInitializeWithTuneContext = runtime::TypedPackedFunc<void(const TuneContext&)>;
+  using FInitializeWithTuneContext = ffi::TypedFunction<void(const TuneContext&)>;
   /*!
    * \brief Apply the mutator function to the given trace.
    * \param trace The given trace for mutation.
    * \return None if mutator failed, otherwise return the mutated trace.
    */
-  using FApply = runtime::TypedPackedFunc<Optional<tir::Trace>(
+  using FApply = ffi::TypedFunction<ffi::Optional<tir::Trace>(
       const tir::Trace&, support::LinearCongruentialEngine::TRandState rand_state)>;
   /*!
    * \brief Clone the mutator.
    * \return The cloned mutator.
    */
-  using FClone = runtime::TypedPackedFunc<Mutator()>;
+  using FClone = ffi::TypedFunction<Mutator()>;
   /*!
    * \brief Get the mutator as string with name.
    * \return The string of the mutator.
    */
-  using FAsString = runtime::TypedPackedFunc<String()>;
+  using FAsString = ffi::TypedFunction<ffi::String()>;
   /*! \brief Create a Mutator that mutates the decision of instruction Sample-Perfect-Tile */
   TVM_DLL static Mutator MutateTileSize();
   /*!
@@ -130,17 +132,15 @@ class Mutator : public runtime::ObjectRef {
   TVM_DLL static Mutator PyMutator(FInitializeWithTuneContext f_initialize_with_tune_context,
                                    FApply f_apply, FClone f_clone, FAsString f_as_string);
   /*! \brief Create default mutators for LLVM */
-  TVM_DLL static Map<Mutator, FloatImm, void> DefaultLLVM();
+  TVM_DLL static ffi::Map<Mutator, FloatImm, void> DefaultLLVM();
   /*! \brief Create default mutators for CUDA */
-  TVM_DLL static Map<Mutator, FloatImm, void> DefaultCUDA();
+  TVM_DLL static ffi::Map<Mutator, FloatImm, void> DefaultCUDA();
   /*! \brief Create default mutators for CUDA with TensorCore */
-  TVM_DLL static Map<Mutator, FloatImm, void> DefaultCUDATensorCore();
+  TVM_DLL static ffi::Map<Mutator, FloatImm, void> DefaultCUDATensorCore();
   /*! \brief Create default mutators for Hexagon */
-  TVM_DLL static Map<Mutator, FloatImm, void> DefaultHexagon();
-  /*! \brief Create default mutators for Micro */
-  TVM_DLL static Map<Mutator, FloatImm, void> DefaultMicro();
+  TVM_DLL static ffi::Map<Mutator, FloatImm, void> DefaultHexagon();
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Mutator, ObjectRef, MutatorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Mutator, ObjectRef, MutatorNode);
 };
 
 /*! \brief The mutator with customized methods on the python-side. */
@@ -159,20 +159,18 @@ class PyMutatorNode : public MutatorNode {
   /*! \brief The packed function to the `AsString` function. */
   FAsString f_as_string;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_initialize_with_tune_context` is not visited
-    // `f_apply` is not visited
-    // `f_clone` is not visited
-    // `f_as_string` is not visited
+  static void RegisterReflection() {
+    // `f_initialize_with_tune_context` is not registered
+    // `f_apply` is not registered
+    // `f_clone` is not registered
+    // `f_as_string` is not registered
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final;
-  Optional<tir::Trace> Apply(const tir::Trace& trace,
-                             support::LinearCongruentialEngine::TRandState* rand_state) final;
+  ffi::Optional<tir::Trace> Apply(const tir::Trace& trace,
+                                  support::LinearCongruentialEngine::TRandState* rand_state) final;
   Mutator Clone() const final;
-
-  static constexpr const char* _type_key = "meta_schedule.PyMutator";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyMutatorNode, MutatorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyMutator", PyMutatorNode, MutatorNode);
 };
 
 }  // namespace meta_schedule

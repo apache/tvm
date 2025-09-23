@@ -14,396 +14,84 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable, invalid-name, redefined-builtin
-"""
-The Relay Virtual Machine runtime.
+# pylint: disable=invalid-name, redefined-builtin, no-else-return, consider-using-dict-items
+"""The Relax virtual machine."""
+from enum import IntEnum
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from numbers import Number, Integral
 
-Implements a Python interface to executing the compiled VM object.
-"""
-import numpy as np
+import numpy as np  # type: ignore
 
 import tvm
-from tvm.runtime import Module
-from tvm._ffi.runtime_ctypes import TVMByteArray
-from tvm._ffi import base as _base
-from .object import Object
-from . import _ffi_api, container
+from tvm_ffi import register_global_func
+from tvm.runtime import Device, Object, PackedFunc
+from tvm.runtime.profiling import Report
+
 from ..rpc.base import RPC_SESS_MASK
 
 
-def _convert(arg, cargs):
-    def _gettype(arg):
-        if isinstance(arg, np.float16):
-            return "float16"
-        elif isinstance(arg, (_base.integer_types, bool)):
-            return "int32"
-        else:
-            return "float32"
-
-    if isinstance(arg, Object):
-        cargs.append(arg)
-    elif arg is None:
-        cargs.append(tvm.nd.array([], device=tvm.cpu(0)))
-    elif isinstance(arg, np.ndarray):
-        nd_arr = tvm.nd.array(arg, device=tvm.cpu(0))
-        cargs.append(nd_arr)
-    elif isinstance(arg, tvm.runtime.NDArray):
-        cargs.append(arg)
-    elif isinstance(arg, (tuple, list)):
-        field_args = []
-        for field in arg:
-            _convert(field, field_args)
-        cargs.append(container.tuple_object(field_args))
-    elif isinstance(arg, (_base.numeric_types, bool)):
-        dtype = _gettype(arg)
-        value = tvm.nd.array(np.array(arg, dtype=dtype), device=tvm.cpu(0))
-        cargs.append(value)
-    elif isinstance(arg, str):
-        cargs.append(arg)
-    else:
-        raise TypeError(f"Unsupported type: {type(arg)}")
-
-
-def convert(args):
-    cargs = []
-    for arg in args:
-        _convert(arg, cargs)
-
-    return cargs
-
-
-class Executable(object):
-    """Relay VM executable"""
-
-    def __init__(self, mod):
-        self.mod = mod
-        self._function_params = {}
-        self._save = self.mod["save"]
-        self._get_lib = self.mod["get_lib"]
-        self._get_bytecode = self.mod["get_bytecode"]
-        self._get_constants = self.mod["get_constants"]
-        self._get_virtual_devices = self.mod["get_virtual_devices"]
-        self._get_primitives = self.mod["get_primitives"]
-        self._get_stats = self.mod["get_stats"]
-        self._get_function_arity = self.mod["get_function_arity"]
-        self._get_function_param_name = self.mod["get_function_param_name"]
-        self._move_late_bound_consts = self.mod["move_late_bound_consts"]
-        self._get_late_bound_consts = self.mod["get_late_bound_consts"]
-        self._load_late_bound_consts = self.mod["load_late_bound_consts"]
-        self._load_late_bound_consts_from_map = self.mod["load_late_bound_consts_from_map"]
-
-    def save(self):
-        """Save the Relay VM Executable.
-
-        Returns
-        -------
-        code : bytearray
-            The binary blob representing a serialized Relay VM executable. It
-            can then be saved to disk and later deserialized into a new
-            Executable.
-
-        lib : :py:class:`~tvm.runtime.Module`
-            The runtime module that contains the generated code. It is
-            basically a library that is composed of hardware dependent code.
-
-        Notes
-        -----
-        The returned code is organized with the following sections in order.
-         - Global section. This section contains the globals used by the
-         virtual machine.
-
-         - Constant section. This section is used to store the constant pool of
-         a virtual machine.
-
-         - Primitive name section. This section is introduced to accommodate
-         the list of primitive operator names that will be invoked by the
-         virtual machine.
-
-         - Code section. The VM functions, including bytecode, are sitting in
-         this section.
-
-        Examples
-        --------
-
-        .. code-block:: python
-
-            import numpy as np
-            import tvm
-            from tvm import te
-            from tvm import relay
-            # define a simple network.
-            x = relay.var('x', shape=(10, 10))
-            f = relay.Function([x], x + x)
-            mod = tvm.IRModule({"main": f})
-            # create a Relay VM.
-            dev = tvm.cpu()
-            target = "llvm"
-            executable = relay.vm.compile(mod, target)
-            code, lib = executable.save()
-            # save and load the code and lib file.
-            tmp = tvm.contrib.utils.tempdir()
-            path_lib = tmp.relpath("lib.so")
-            lib.export_library(path_lib)
-            with open(tmp.relpath("code.ro"), "wb") as fo:
-                fo.write(code)
-            loaded_lib = tvm.runtime.load_module(path_lib)
-            loaded_code = bytearray(open(tmp.relpath("code.ro"), "rb").read())
-            # deserialize.
-            des_exec = tvm.runtime.vm.Executable.load_exec(loaded_code, loaded_lib)
-            # execute the deserialized executable.
-            x_data = np.random.rand(10, 10).astype('float32')
-            des_vm = tvm.runtime.vm.VirtualMachine(des_exec, dev)
-            res = des_vm.run(x_data)
-            print(res.numpy())
-        """
-        return self._save(), self._get_lib()
-
-    @staticmethod
-    def load_exec(bytecode, lib):
-        """Construct an executable from saved artifacts.
-
-        Parameters
-        ----------
-        bytecode : bytearray
-            The binary blob representing a the Relay VM bytecode.
-
-        lib : :py:class:`~tvm.runtime.Module`
-            The runtime module that contains the generated code.
-
-        Returns
-        -------
-        exec: Executable
-            An executable constructed using the provided artifacts.
-        """
-        if isinstance(bytecode, (bytes, str)):
-            bytecode = bytearray(bytecode)
-        elif not isinstance(bytecode, (bytearray, TVMByteArray)):
-            raise TypeError(
-                "bytecode is expected to be the type of bytearray or TVMByteArray, but received "
-                f"{type(bytecode)}"
-            )
-
-        if lib is not None and not isinstance(lib, tvm.runtime.Module):
-            raise TypeError(
-                f"lib is expected to be the type of tvm.runtime.Module, but received {type(lib)}"
-            )
-
-        return Executable(_ffi_api.Load_Executable(bytecode, lib))
-
-    @property
-    def lib(self):
-        """Get the library that contains hardware dependent code.
-
-        Returns
-        -------
-        ret : :py:class:`~tvm.runtime.Module`
-            The runtime module that contains hardware dependent code.
-        """
-        return self._get_lib()
-
-    @property
-    def stats(self):
-        """Get the statistics of the Relay VM executable.
-
-        Returns
-        -------
-        ret : String
-            The statistic information of the VM executable.
-        """
-        return self._get_stats()
-
-    @property
-    def primitive_ops(self):
-        """Get the name of the primitive ops contained in the executable.
-
-        Returns
-        -------
-        ret : List[String]
-            The list of primitive ops.
-        """
-        ret = []
-        num_primitives = _ffi_api.GetNumOfPrimitives(self.module)
-        for i in range(num_primitives):
-            ret.append(_ffi_api.GetPrimitiveFields(self.module, i))
-        return ret
-
-    @property
-    def bytecode(self):
-        """Get the bytecode of the Relay VM executable.
-
-        Returns
-        -------
-        ret : String
-            The bytecode of the executable.
-
-        Notes
-        -----
-        The bytecode is in the following format:
-          func_name reg_file_size num_instructions
-
-          param1 param2 ... paramM
-
-          instruction1
-
-          instruction2
-
-          ...
-
-          instructionN
-
-        Each instruction is printed in the following format:
-          hash opcode field1 ... fieldX # The text format.
-
-        The part starting from # is only used for visualization and debugging.
-        The real serialized code doesn't contain it, therefore the deserializer
-        doesn't need to deal with it as well.
-        """
-        return self._get_bytecode()
-
-    @property
-    def constants(self):
-        """Returns a human-readable description of all the constants in the executable.
-        Useful for debugging and diffing generated executables in unit tests."""
-        return self._get_constants()
-
-    @property
-    def virtual_devices(self):
-        """Returns a human-readable description of all the (virtual) devices in the executable."""
-        return self._get_virtual_devices()
-
-    @property
-    def primitives(self):
-        """Returns a human-readable description of all the primitives (ie PackedFuncs) in the
-        executable"""
-        return self._get_primitives()
-
-    @property
-    def globals(self):
-        """Get the globals used by the Relay VM executable.
-
-        Returns
-        -------
-        ret : List[String]
-            The globals contained in the executable.
-        """
-        ret = []
-        num_globals = _ffi_api.GetNumOfGlobals(self.module)
-        for i in range(num_globals):
-            ret.append(_ffi_api.GetGlobalFields(self.module, i))
-        return ret
-
-    @property
-    def module(self):
-        """Return the runtime module contained in a virtual machine executable."""
-        return self.mod
-
-    def get_function_params(self, func_name):
-        """Get VM Function parameters"""
-        if func_name in self._function_params:
-            return self._function_params[func_name]
-        arity = self._get_function_arity(func_name)
-        assert arity >= 0
-        params = []
-        for i in range(arity):
-            p = self._get_function_param_name(func_name, i)
-            assert p
-            params.append(p)
-        self._function_params[func_name] = params
-        return params
-
-    def move_late_bound_consts(self, path, byte_limit):
-        """Move all constants of byte size greater or equal to byte_limit to file at path"""
-        return self._move_late_bound_consts(path, byte_limit)
-
-    def get_late_bound_consts(self, byte_limit):
-        """Return all constants of byte size greater or equal to byte_limit"""
-        return self._get_late_bound_consts(byte_limit)
-
-    def load_late_bound_consts(self, path):
-        """Re-load constants previously saved to file at path"""
-        return self._load_late_bound_consts(path)
-
-    def load_late_bound_consts_from_map(self, map):
-        """Re-load constants supplied in map"""
-        return self._load_late_bound_consts_from_map(map)
+class VMInstrumentReturnKind(IntEnum):
+    NO_OP = 0
+    # skip the following call, only valid in before
+    SKIP_RUN = 1
 
 
 class VirtualMachine(object):
-    """Relay VM runtime.
-
-    Parameters
-    ----------
-    exe : Executable
-        The VM executable.
-
-    device : tvm.runtime.Device or List[tvm.runtime.Device]
-        The device(s) on which the model will run.
-        Currently at most one device per device type is supported.
-
-    memory_cfg : str or Dict[tvm.runtime.Device, str], optional
-        Config the type of memory allocator. The allocator type can be ["naive",
-        "pooled"]. If memory_cfg is None, all devices will use pooled allocator
-        by default. If memory_cfg is string, all devices will use the specified
-        allocator type. If memory_cfg is a dict, each device uses the allocator
-        type specified in the dict, or pooled allocator if not specified in the
-        dict.
-    """
+    """Relax VM runtime."""
 
     NAIVE_ALLOCATOR = 1
     POOLED_ALLOCATOR = 2
 
-    def __init__(self, exe, device, memory_cfg=None):
+    def __init__(
+        self,
+        rt_mod: Union[tvm.runtime.Module, tvm.runtime.Executable],
+        device: Union[Device, List[Device]],
+        memory_cfg: Optional[Union[str, Dict[Device, str]]] = None,
+        profile: bool = False,
+    ) -> None:
         """
-        Construct a VirtualMachine wrapper class which provides a simple
-        interface over the raw C++ Module based API.
+        Construct a VirtualMachine wrapper object.
 
         Parameters
         ----------
-        exe: Union[Executable, Module]
-            The executable either with the wrapper Python type or the raw runtime.Module.
+        rt_mod: Union[tvm.runtime.Module, tvm.runtime.Executable]
+            Runtime module exported by the result of build.
 
-            In most cases this will be the Python wrapper class tvm.runtime.vm.Executable but
-            if you instead get the underlying runtime.Module subclass (i.e `exe.mod`) you
-            can directly pass it to this method.
+        device : Union[Device, List[Device]]
+            The device to deploy the module.
 
-            This case can occur when doing things such as RPC where TVM's module APIs
-            return the raw modules, not the wrapped modules. This constructor will
-            handle this internally.
+        memory_cfg : Optional[Union[str, Dict[Device, str]]]
+            Config the type of memory allocator. The allocator type can be ["naive",
+            "pooled"]. If memory_cfg is None, all devices will use pooled allocator
+            by default. If memory_cfg is string, all devices will use the specified
+            allocator type. If memory_cfg is a dict, each device uses the allocator
+            type specified in the dict, or pooled allocator if not specified in the
+            dict.
 
-        device: Union[Device, List[Device]]
-            The device, or devices on which to execute the VM code.
-
-        memory_cfg: Optional[str]
-            The allocator behavior to use for the VM.
-
-        Returns
-        -------
-        vm: VirtualMachine
-            A VM wrapper object.
+        profile : Optional[bool]
+            Whether or not to enable profiling.
         """
-        if not isinstance(exe, Executable) and not isinstance(exe, Module):
-            raise TypeError(
-                f"exe is expected to be the type of Executable, but received {type(exe)}"
-            )
+        if not isinstance(rt_mod, tvm.runtime.Module):
+            if isinstance(rt_mod, tvm.runtime.Executable):
+                rt_mod = rt_mod.jit()
+            else:
+                raise ValueError("Expect the rt_mod to be an runtime.Module")
 
-        if not isinstance(exe, Executable):
-            exe = Executable(exe)
-
-        self.module = exe.mod["vm_load_executable"]()
-        self._exec = exe
-        self._init = self.module["init"]
-        self._invoke = self.module["invoke"]
+        load_exec = "vm_profiler_load_executable" if profile else "vm_load_executable"
+        self.module = rt_mod[load_exec]()
+        self._invoke_closure = self.module["invoke_closure"]
+        self._save_function = self.module["save_function"]
+        self._set_input = self.module["set_input"]
         self._invoke_stateful = self.module["invoke_stateful"]
         self._get_output = self.module["get_output"]
-        self._get_num_outputs = self.module["get_num_outputs"]
-        self._get_input_index = self.module["get_input_index"]
-        self._set_input = self.module["set_input"]
-        self._set_one_input = self.module["set_one_input"]
-        self._set_outputs = self.module["set_outputs"]
+        self._get_output_arity = self.module["get_output_arity"]
+        self._get_function_arity = self.module["get_function_arity"]
+        self._get_function_param_name = self.module["get_function_param_name"]
+        self._set_instrument = self.module["set_instrument"]
         self._setup_device(device, memory_cfg)
 
-    def _setup_device(self, dev, memory_cfg):
-        """Init devices and allocators."""
+    def _setup_device(self, dev: Device, memory_cfg: Union[str, Dict[Device, str]]) -> None:
+        """init devices and allocators."""
         devs = dev
         if not isinstance(dev, (list, tuple)):
             if not isinstance(dev, tvm.runtime.Device):
@@ -411,7 +99,7 @@ class VirtualMachine(object):
             devs = [dev]
 
         # CPU is required for executing shape functions
-        if not any(c.device_type % RPC_SESS_MASK == tvm.cpu().device_type for c in devs):
+        if devs[-1].dlpack_device_type() % RPC_SESS_MASK != tvm.cpu().dlpack_device_type():
             devs.append(tvm.cpu())
 
         default_alloc_type = VirtualMachine.POOLED_ALLOCATOR
@@ -424,315 +112,393 @@ class VirtualMachine(object):
             memory_cfg = {}
         elif not isinstance(memory_cfg, dict):
             raise TypeError(
-                f"memory_cfg is expected be string or dictionary, but received {type(memory_cfg)}"
+                "memory_cfg is expected be string or dictionary, "
+                + "but received {}".format(type(memory_cfg))
             )
         init_args = []
         for device in devs:
-            init_args.append(device.device_type % RPC_SESS_MASK)
-            init_args.append(device.device_id)
+            init_args.append(device.dlpack_device_type() % RPC_SESS_MASK)
+            init_args.append(device.index)
             alloc_type = memory_cfg[device] if device in memory_cfg else default_alloc_type
             init_args.append(alloc_type)
-        self._init(*init_args)
+        self.module["vm_initialization"](*init_args)
 
-    def set_input(self, func_name, *args, **kwargs):
-        """Set the input to a function.
-        If device type and device id for input tensor are the same as
-        for target one the zero copy is used. It means that internal
-        tensor is reference to memory allocated by input one.
-        Otherwise new internal NDarray is created and data is copied
+    def __getitem__(self, key: str) -> PackedFunc:
+        return self.module[key]
+
+    def invoke_closure(self, closure: Object, *args: Any) -> Object:
+        """Invoke a closure.
+
+        Parameters
+        ----------
+        closure : Object
+            The VMClosure Object.
+
+        args : list[tvm.runtime.Tensor] or list[np.ndarray]
+            The arguments to the closure.
+
+        Returns
+        -------
+        result : Object
+            The output.
+        """
+        return self._invoke_closure(closure, *args)
+
+    def save_function(
+        self,
+        func_name: str,
+        saved_name: str,
+        *args: List[Any],
+        include_return: bool = True,
+        **kwargs: Dict[str, Any],
+    ) -> None:
+        """
+        Convenience function. Takes a function from the module and saves
+        a `PackedFunc` that, when called, will invoke the function with the given arguments.
+        The `PackedFunc` can be accessed from the module using `saved_name`.
+        This is included to facilitate timing trials:
+        Invoking the returned `PackedFunc` will have less overhead from dictionary lookups
+        than normally running through the VM.
+
+        If the saved name is taken, it can be overridden, though it cannot override
+        the name of a function defined in the Relax source.
+
+        This is really creating a closure, but the function has a different name
+        to avoid confusion with `invoke_closure` (they are not meant to be used together).
+
+        Parameters
+        ----------
+        func_name : str
+            The function that should be packaged up.
+
+        saved_name : str
+            The name that the resulting closure should be saved under.
+
+        include_return : bool
+            Whether the saved PackedFunc should return its output.
+            If timing over RPC, it may not be desirable to send output
+            between machines.
+
+        args : List[Any]
+            The arguments to package up with the function.
+
+        kwargs : Dict[str, Any]
+            Any named arguments to package up with the function
+        """
+        cargs: List[Any] = []
+        if kwargs:
+            args = self._convert_func_named_args(func_name, args, **kwargs)
+        for arg in args:
+            self._convert(arg, cargs)
+        self._save_function(func_name, saved_name, int(include_return), *cargs)
+
+    def _convert(self, arg: Any, cargs: List) -> None:
+        """helper function to convert arguments to vm function."""
+
+        def _gettype(arg):
+            if isinstance(arg, np.float16):
+                return "float16"
+            elif isinstance(arg, (Integral, bool)):
+                return "int32"
+            else:
+                return "float32"
+
+        if isinstance(arg, Object):
+            cargs.append(arg)
+        elif isinstance(arg, np.ndarray):
+            nd_arr = tvm.runtime.tensor(arg, device=tvm.cpu(0))
+            cargs.append(nd_arr)
+        elif isinstance(arg, tvm.runtime.Tensor):
+            cargs.append(arg)
+        elif isinstance(arg, (tuple, list)):
+            field_args: List[Any] = []
+            for field in arg:
+                self._convert(field, field_args)
+            cargs.append(tuple(field_args))
+        elif isinstance(arg, (Number, bool)):
+            dtype = _gettype(arg)
+            value = tvm.runtime.tensor(np.array(arg, dtype=dtype), device=tvm.cpu(0))
+            cargs.append(value)
+        elif isinstance(arg, str):
+            cargs.append(arg)
+        else:
+            raise TypeError("Unsupported type: %s" % (type(arg)))
+
+    def _convert_func_named_args(self, func_name: str, args: Any, **kwargs: Any) -> Any:
+        """
+        Takes named function parameters and returns a list of those needed,
+        in the order they should appear
+        """
+        # kwargs can be a super set of the required function parameters.
+        # We only find the ones that are needed.
+        func_arity = self._get_function_arity(func_name)
+        func_params = [self._get_function_param_name(func_name, i) for i in range(func_arity)]
+        new_args = [None] * len(func_params)
+        cnt = 0
+        for k in kwargs:
+            if k in func_params:
+                idx = func_params.index(k)
+                new_args[idx] = kwargs[k]
+                cnt += 1
+            else:
+                print(f'Warning: Keyword argument "{k}" is unused in {func_name}')
+        assert len(args) + cnt == len(func_params)
+        idx = 0
+        for i, arg in enumerate(new_args):
+            if arg is None:
+                new_args[i] = args[idx]
+                idx += 1
+        return new_args
+
+    def set_input(self, func_name: str, *args: Any, **kwargs: Any) -> None:
+        """Set the inputs to a function.
+        This interface works when using VM over RPC by internally converting Tensor in
+        the arguments to DLTensor, which is supported in RPC where remote could only
+        have a minimal C runtime.
+
+        Note: If `set_input` is used, the function *must* be called using `invoke_stateful`
+        and the results must be obtained using `get_outputs`.
 
         Parameters
         ----------
         func_name : str
             The name of the function.
-
-        args : list[tvm.runtime.NDArray] or list[np.ndarray]
+        args: List[tvm.runtime.Tensor] or List[np.ndarray]
             The arguments to the function.
-
-        kwargs: dict of str to tvm.runtime.NDArray or np.ndarray
+        kwargs: dict of str to tvm.runtime.Tensor or np.ndarray
             Named arguments to the function.
         """
+        cargs: List[Any] = []
+
         if kwargs:
-            # kwargs is a super set of the required function parameters. We
-            # only find the ones that are needed.
-            func_params = self._exec.get_function_params(func_name)
-            new_args = [None] * len(func_params)
-            cnt = 0
-            for k in kwargs:
-                if k in func_params:
-                    idx = func_params.index(k)
-                    new_args[idx] = kwargs[k]
-                    cnt += 1
-            assert len(args) + cnt == len(func_params)
-            idx = 0
-            for i, arg in enumerate(new_args):
-                if arg is None:
-                    new_args[i] = args[idx]
-                    idx += 1
-            args = new_args
-        cargs = convert(args)
+            args = self._convert_func_named_args(func_name, args, **kwargs)
+
+        for arg in args:
+            self._convert(arg, cargs)
+
         self._set_input(func_name, *cargs)
 
-    def set_one_input(self, func_name, *args, **kwargs):
-        """Set the one input tensor with tag to a function.
+    def invoke_stateful(self, func_name: str) -> None:
+        """
+        Call the named function from the VM module using the arguments set using `set_input`.
+        It is an error to call `invoke_stateful` without using `set_input` first
+        (even if it's to set 0 inputs); conversely, if `set_input` has been called,
+        it is an error to call the function without using `invoke_stateful`.
+
+        The results of the call can be obtained by calling `get_outputs`.
 
         Parameters
         ----------
-        func_name : str
-            The name of the function.
-        args : [str or int, tvm.runtime.NDArray]
-            name or index of tensor and input tensor, optional
-        kwargs: dict of str or int to tvm.runtime.NDArray, optional
-            taged arguments to the function.
-        Only args or kwargs should exist
+        func_name: str
+            The name of the function to call.
         """
-        if kwargs:
-            assert len(kwargs) == 1
-            tag = next(iter(kwargs))
-            if isinstance(tag, str):
-                func_params = self._exec.get_function_params(func_name)
-                assert tag in func_params
-            self._set_one_input(func_name, tag, kwargs[tag])
-        else:
-            assert len(args) == 2
-            self._set_one_input(func_name, args[0], args[1])
-
-    def invoke(self, func_name, *args, **kwargs):
-        """Invoke a function.
-
-        Parameters
-        ----------
-        func_name : str
-            The name of the function.
-
-        args : list[tvm.runtime.NDArray] or list[np.ndarray]
-            The arguments to the function.
-
-        kwargs: dict of str to tvm.runtime.NDArray or np.ndarray
-            Named arguments to the function.
-
-        Returns
-        -------
-        result : Object
-            The output.
-        """
-        if args or kwargs:
-            self.set_input(func_name, *args, **kwargs)
-        return self._invoke(func_name)
-
-    def run(self, *args, **kwargs):
-        """Run the main function.
-
-        Parameters
-        ----------
-        args : list[tvm.runtime.NDArray] or list[np.ndarray]
-            The arguments to the function.
-
-        kwargs: dict of str to tvm.runtime.NDArray or np.ndarray
-            Named arguments to the function.
-
-        Returns
-        -------
-        result : Object
-            The output.
-        """
-        return self.invoke("main", *args, **kwargs)
-
-    def invoke_stateful(self, func_name, *args, **kwargs):
-        """Invoke a function and ignore the returned result.
-
-        Use this function when running over rpc because it is currently
-        impossible to return a ADT object over rpc. To get the outputs, use
-        :py:func`get_outputs`.
-
-        Parameters
-        ----------
-        func_name : str
-            The name of the function.
-
-        args : list[tvm.runtime.NDArray] or list[np.ndarray]
-            The arguments to the function.
-
-        kwargs: dict of str to tvm.runtime.NDArray or np.ndarray
-            Named arguments to the function.
-        """
-        if args or kwargs:
-            self.set_input(func_name, *args, **kwargs)
         self._invoke_stateful(func_name)
 
-    def invoke_with_outputs(self, func_name, input_args, output_args):
-        # TODO(vvchernov): consider scenario then output tensors set once
-        """Invoke a function with pre-allocated output tensors.
-        The output tensors should be set every invocation.
-        input_args can be None if set_input method was used before.
+    def get_outputs(self, func_name: str) -> Union[tvm.Object, Tuple[Any]]:
+        """
+        Get the value output by the function by the given name
+        after a call of `invoke_stateful`.
 
-        This invoke method allows to avoid excess copying if memory for output tensors
-        was allocated before inference.
+        It is an error to call this function without first calling `invoke_stateful`.
 
         Parameters
         ----------
-        func_name : str
-            The name of the function.
-
-        input_args: dict of str to tvm.runtime.NDArray or np.ndarray
-            Named arguments to the function.
-
-        output_args : list[tvm.runtime.NDArray] or list[DLTensor]
-            The output tensors of the function.
-        """
-        if input_args:
-            func_params = self._exec.get_function_params(func_name)
-            new_args = [None] * len(func_params)
-            cnt = 0
-            for k in input_args:
-                if k in func_params:
-                    idx = func_params.index(k)
-                    new_args[idx] = input_args[k]
-                    cnt += 1
-            assert cnt == len(func_params)
-        cargs = convert(new_args)
-        self._set_input(func_name, *cargs)
-        self._set_outputs(func_name, *output_args)
-        self._invoke(func_name)
-
-    def get_outputs(self):
-        """Get the outputs from a call to :py:func`invoke_stateful`.
+        func_name: str
+            The name of the function whose output should be fetched.
 
         Returns
         -------
-        outputs : List[NDArray]
+        ret: Union[tvm.Object, Tuple[Any]]
+            The result of the earlier call to the function via `invoke_stateful`.
+            If the result is a tuple, it returns a list of the fields.
+            The fields are potentially also tuples, so these can be arbitrily nested.
         """
-        return [self._get_output(i) for i in range(self._get_num_outputs())]
 
-    def get_input_index(self, input_name, func_name="main"):
-        """Get inputs index via input name.
+        # to deal with potentially nested tuples, we need to query for arity recursively
+        def get_output_rec(func_name, *idx):
+            arity = self._get_output_arity(func_name, *idx)
+            if arity == -1:
+                return self._get_output(func_name, *idx)
+            # otherwise we need to specify more indices
+            idx_list = list(idx)
+            return tuple(get_output_rec(func_name, *(idx_list + [i])) for i in range(arity))
+
+        return get_output_rec(func_name)
+
+    def set_instrument(self, instrument: tvm.runtime.PackedFunc) -> None:
+        """Set an instrumentation function.
+
+        If instrument is present, the function will be called
+        before/after each Call instruction. The function have
+        the following signature:
+
+        .. code:: python
+
+            def instrument(
+                func: Union[VMClosure, PackedFunc],
+                func_symbol: str,
+                before_run: bool,
+                ret_value: any,
+                *args) -> bool:
+                pass
+
+        The instrument takes the following parameters:
+        - func: function object to be called.
+        - func_symbol: the symbol name of the function.
+        - before_run: whether it is before or after call.
+        - ret_value: the return value of the call, only valid after run.
+        - args: the arguments being passed to call.
+
+        The instrument function can choose an integer,
+        which corresponds to action direction for the
+        following run. See VMInstrumentReturnKind for
+        more details.
+
         Parameters
         ----------
-        name : str
-          The input key name
-        func_name : str
-          The function name
+        instrument: tvm.runtime.PackedFunc
+            A instrumentation function that get invoked every VM call instr.
 
-        Returns
-        -------
-        index: int
-          The input index. -1 will be returned if the given input name is not found.
+        See Also
+        --------
+        VMInstrumentReturnKind: the possible return values in VM.
         """
-        return self._get_input_index(input_name, func_name)
+        self._set_instrument(instrument)
 
-    def benchmark(
+    def time_evaluator(
         self,
-        device,
-        *args,
-        func_name="main",
-        repeat=5,
-        number=5,
-        min_repeat_ms=None,
-        limit_zero_time_iterations=100,
-        end_to_end=False,
-        cooldown_interval_ms=0,
-        repeats_to_cooldown=1,
-        **kwargs,
-    ):
-        """Calculate runtime of a function by repeatedly calling it.
-
-        Use this function to get an accurate measurement of the runtime of a function. The function
-        is run multiple times in order to account for variability in measurements, processor speed
-        or other external factors.  Mean, median, standard deviation, min and max runtime are all
-        reported. On GPUs, CUDA and ROCm specifically, special on-device timers are used so that
-        synchonization and data transfer operations are not counted towards the runtime. This allows
-        for fair comparison of runtimes across different functions and models. The `end_to_end` flag
-        switches this behavior to include data transfer operations in the runtime.
-
-        The benchmarking loop looks approximately like so:
-
-        .. code-block:: python
-
-            for r in range(repeat):
-                time_start = now()
-                for n in range(number):
-                    func_name()
-                time_end = now()
-                total_times.append((time_end - time_start)/number)
-
+        func_name: str,
+        dev: Device,
+        number: int = 10,
+        repeat: int = 1,
+        min_repeat_ms: int = 0,
+        cooldown_interval_ms: int = 0,
+        repeats_to_cooldown: int = 1,
+        f_preproc: str = "",
+    ) -> Callable[..., tvm.runtime.module.BenchmarkResult]:
+        """
+        Returns an evaluator that times a function in the module.
+        This follows the same convention as time_evaluator in tvm.runtime.module.
+        This can be used in combination with save_function() so that the
+        timings avoid extra dictionary lookups.
 
         Parameters
         ----------
-        func_name : str
-            The function to benchmark
+        func_name: str
+            The name of the function in the module.
 
-        repeat : int
-            Number of times to run the outer loop of the timing code (see above). The output will
-            contain `repeat` number of datapoints.
+        dev: Device
+            The device we should run this function on.
 
-        number : int
-            Number of times to run the inner loop of the timing code. This inner loop is run in
-            between the timer starting and stopping. In order to amortize any timing overhead,
-            `number` should be increased when the runtime of the function is small (less than a 1/10
-            of a millisecond).
+        number: int
+            The number of times to run this function for taking average.
+            We call these runs as one `repeat` of measurement.
 
-        min_repeat_ms : Optional[int]
-            If set, the inner loop will be run until it takes longer than `min_repeat_ms`
-            milliseconds. This can be used to ensure that the function is run enough to get an
-            accurate measurement.
+        repeat: int, optional
+            The number of times to repeat the measurement.
+            In total, the function will be invoked (1 + number x repeat) times,
+            where the first one is warm up and will be discarded.
+            The returned result contains `repeat` costs,
+            each of which is an average of `number` costs.
 
-        limit_zero_time_iterations : Optional[int]
-            The maximum number of repeats when measured time is equal to 0.
-            It helps to avoid hanging during measurements.
+        min_repeat_ms: int, optional
+            The minimum duration of one `repeat` in milliseconds.
+            By default, one `repeat` contains `number` runs. If this parameter is set,
+            the parameters `number` will be dynamically adjusted to meet the
+            minimum duration requirement of one `repeat`.
+            i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+            will be automatically increased.
 
-        end_to_end : bool
-            If set, include time to transfer input tensors to the device and time to transfer
-            returned tensors in the total runtime. This will give accurate timings for end to end
-            workloads.
-
-        cooldown_interval_ms: Optional[int]
+        cooldown_interval_ms: int, optional
             The cooldown interval in milliseconds between the number of repeats defined by
             `repeats_to_cooldown`.
 
-        repeats_to_cooldown: Optional[int]
+        repeats_to_cooldown: int, optional
             The number of repeats before the cooldown is activated.
 
-        args : Sequence[Object]
-            Arguments to the function. These are cached before running timing code, so that data
-            transfer costs are not counted in the runtime.
+        f_preproc: str, optional
+            The preprocess function name we want to execute before executing the time evaluator.
 
-        kwargs : Dict[str, Object]
-            Named arguments to the function. These are cached like `args`.
+        Note
+        ----
+        The function will be invoked  (1 + number x repeat) times,
+        with the first call discarded in case there is lazy initialization.
+
+        Example
+        -------
+        Normal use with a VM function (may not work over RPC if the function returns a tuple):
+
+        .. code-block:: python
+
+            target = tvm.target.Target("llvm", host="llvm")
+            ex = tvm.compile(TestTimeEvaluator, target)
+            vm = relax.VirtualMachine(mod, tvm.cpu())
+            timing_res = vm.time_evaluator("func_name", tvm.cpu())(arg0, arg1, ..., argn)
+
+        Use with the stateful API:
+
+        .. code-block:: python
+
+            target = tvm.target.Target("llvm", host="llvm")
+            ex = tvm.compile(TestTimeEvaluator, target)
+            vm = relax.VirtualMachine(mod, tvm.cpu())
+            vm.set_input("func_name", arg0, arg1, ..., argn)
+            timing_res = vm.time_evaluator("invoke_stateful", tvm.cpu())("func_name")
+
+        With saved closures via `save_function` (this results in
+        fewer dictionary lookups in the timed portion):
+
+        .. code-block:: python
+
+            target = tvm.target.Target("llvm", host="llvm")
+            ex = tvm.compile(TestTimeEvaluator, target)
+            vm = relax.VirtualMachine(mod, tvm.cpu())
+            vm.save_function("func_name", "func_name_saved", arg0, arg1, ..., argn)
+            timing_res = vm.time_evaluator("func_name_saved", tvm.cpu())()
 
         Returns
         -------
-        timing_results : BenchmarkResult
-            Runtimes of the function. Use `.mean` to access the mean runtime, use `.results` to
-            access the individual runtimes (in seconds).
+        ftimer : function
+            The function that takes same argument as func and returns a BenchmarkResult.
+            The ProfileResult reports `repeat` time costs in seconds.
+
         """
-        min_repeat_ms = 0 if min_repeat_ms is None else min_repeat_ms
-        if end_to_end:
-            # We need to unpack keyword arguments into positional arguments
-            packed_args = list(args)
-            for k, v in kwargs.items():
-                i = self.get_input_index(k, func_name)
-                if i < 0:
-                    raise TypeError(f"{func_name}() got an unexpected keyword argument '{k}'")
-                while i >= len(packed_args):
-                    packed_args.append(None)
-                packed_args[i] = v
-            return self.module.time_evaluator(
-                "invoke_return_to_device",
-                device,
-                repeat=repeat,
-                number=number,
-                min_repeat_ms=min_repeat_ms,
-                limit_zero_time_iterations=limit_zero_time_iterations,
-            )(func_name, device.device_type % RPC_SESS_MASK, device.device_id, *packed_args)
-        if args or kwargs:
-            self.set_input(func_name, *args, **kwargs)
         return self.module.time_evaluator(
-            "invoke",
-            device,
-            repeat=repeat,
+            func_name,
+            dev,
             number=number,
+            repeat=repeat,
             min_repeat_ms=min_repeat_ms,
-            limit_zero_time_iterations=limit_zero_time_iterations,
             cooldown_interval_ms=cooldown_interval_ms,
             repeats_to_cooldown=repeats_to_cooldown,
-        )(func_name)
+            f_preproc=f_preproc,
+        )
+
+    def profile(self, func_name: str, *args):
+        """Profile a function call.
+
+        Parameters
+        ----------
+        func_name : str
+            The name of the function.
+
+        args: List of Tensor or other objects supported by PackedFunc.
+            The arguments to the function.
+
+        Returns
+        -------
+        report: tvm.runtime.profiling.Report
+            The formatted profiling result, showing per-op timing measurements.
+        """
+        cargs: List[Any] = []
+
+        for arg in args:
+            self._convert(arg, cargs)
+
+        report_json = self.module["profile"](func_name, *cargs)
+        return Report.from_json(report_json)
+
+
+@register_global_func("vm.builtin.debug_print")
+def _print(lineo: str, array) -> None:
+    print(f"{lineo}: shape = {array.shape}, dtype = {array.dtype}, data =\n{array}")

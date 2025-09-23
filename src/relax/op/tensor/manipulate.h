@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_OP_TENSOR_MANIPULATE_H_
 #define TVM_RELAX_OP_TENSOR_MANIPULATE_H_
 
+#include <tvm/ffi/container/variant.h>
 #include <tvm/relax/attrs/manipulate.h>
 
 #include "../op_common.h"
@@ -40,10 +41,10 @@ Expr broadcast_to(Expr x, Expr shape);
  * \param tensors An Expr in Tuple type, containing the tensors to be concatenated,
  * or a list of tensors
  * \param axis The axis along which the tensors are concatenated.
- * If it is `NullOpt`, the input tensor is required to be flattened before concatenation.
+ * If it is `std::nullopt`, the input tensor is required to be flattened before concatenation.
  * \return The concatenated tensor.
  */
-Expr concat(Expr tensors, Optional<Integer> axis);
+Expr concat(Expr tensors, ffi::Optional<int64_t> axis);
 
 /*!
  * \brief Insert new axes at the positions given by `axis`.
@@ -51,7 +52,7 @@ Expr concat(Expr tensors, Optional<Integer> axis);
  * \param axis The axes at which the input array are expanded.
  * \return The transformed result.
  */
-Expr expand_dims(Expr x, Array<Integer> axis);
+Expr expand_dims(Expr x, ffi::Array<Integer> axis);
 
 /*!
  * \brief Flatten all the tensor dimensions into one.
@@ -71,9 +72,9 @@ Expr flatten(Expr x);
  * \param input axis_separators Array of values for input buffer.
  * \return The transformed result.
  */
-Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value,
-                      Optional<Array<IntImm>> axis_separators,
-                      Optional<Array<IntImm>> input_axis_separators = NullOpt);
+Expr layout_transform(Expr x, tir::IndexMap index_map, ffi::Optional<PrimValue> pad_value,
+                      ffi::Optional<ffi::Array<IntImm>> axis_separators,
+                      ffi::Optional<ffi::Array<IntImm>> input_axis_separators = std::nullopt);
 
 /*!
  * \brief Permutes the dimensions of an array.
@@ -81,7 +82,7 @@ Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_v
  * \param axes The target axes order, reverse order if not specified.
  * \return The transposed result.
  */
-Expr permute_dims(Expr x, Optional<Array<Integer>> axes);
+Expr permute_dims(Expr x, ffi::Optional<ffi::Array<Integer>> axes);
 
 /*!
  * \brief Reshape the input array, supporting `-1` inference in the new
@@ -91,7 +92,7 @@ Expr permute_dims(Expr x, Optional<Array<Integer>> axes);
  * It is required to be either an Array of PrimExpr, or a Shape in Relax
  * \return The reshaped result.
  */
-Expr reshape(Expr x, Variant<Expr, Array<PrimExpr>> shape);
+Expr reshape(Expr x, ffi::Variant<Expr, ffi::Array<PrimExpr>> shape);
 
 /*!
  * \brief Split input tensor along axis by sections or indices.
@@ -106,18 +107,24 @@ Expr reshape(Expr x, Variant<Expr, Array<PrimExpr>> shape);
  * \param axis The axis over which to split.
  * \return The computed result.
  */
-Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis);
+Expr split(Expr x, ffi::Variant<IntImm, ffi::Array<IntImm>> indices_or_sections, int axis);
 
 /*!
  * \brief Squeeze axes in the array.
  * \param x The input data to the operator.
  * \param axis The set of axes to remove.
- * If it is `NullOpt`, remove all axis of dimensions 1.
+ * If it is `std::nullopt`, remove all axis of dimensions 1.
  * If any specified axis has dimension that does not equal 1, it is an error.
  * \return The squeezed result.
  */
-Expr squeeze(Expr x, Optional<Array<Integer>> axis);
-
+Expr squeeze(Expr x, ffi::Optional<ffi::Array<Integer>> axis);
+/*!
+ * \brief Stack tensors along the specified axis.
+ * \param tensors The input tensors to be stacked.
+ * \param axis The axis along which the tensors will be stacked.
+ * \return The stacked result.
+ */
+Expr stack(Expr tensors, ffi::Optional<Integer> axis);
 /*!
  * \brief Return a summation of data to the shape of collapse_target.
  * For details, please see the operator `relax.collapse_sum_to`.
@@ -147,7 +154,7 @@ Expr collapse_sum_to(Expr data, Expr shape);
  * from the backward. By default, use the flattened input array, and return a flat output array.
  * \return The computed result.
  */
-Expr repeat(Expr data, int repeats, Optional<Integer> axis = NullOpt);
+Expr repeat(Expr data, int repeats, ffi::Optional<int64_t> axis = std::nullopt);
 
 /*!
  * \brief Construct an array by repeating data the number of times given by reps.
@@ -164,7 +171,7 @@ Expr repeat(Expr data, int repeats, Optional<Integer> axis = NullOpt);
  * \param repeats The number of repetitions of data along each axis.
  * \return The computed result.
  */
-Expr tile(Expr data, Array<Integer> repeats);
+Expr tile(Expr data, ffi::Array<Integer> repeats);
 
 /*!
  * \brief Reverses the order of elements along given axis.
@@ -173,6 +180,65 @@ Expr tile(Expr data, Array<Integer> repeats);
  * \return The computed result.
  */
 Expr flip(Expr data, Integer axis);
+
+/*!
+ * \brief Gather elements from a tensor using indices.
+ * \param data The input tensor.
+ * \param indices The indices tensor, must have integer type.
+ * \param axis The axis along which to index. Default is 0.
+ * \return The computed result.
+ *
+ * \note The shape of indices must match the shape of data, except at dimension axis
+ *       where it must just be not null. The output will have the same shape as indices.
+ */
+Expr gather_elements(Expr data, Expr indices, int axis = 0);
+
+/*!
+ * \brief Gather values from a tensor using N-dimensional indices.
+ * \param data The input tensor.
+ * \param indices The indices tensor, must have integer type.
+ * \param batch_dims The number of batch dimensions. Default is 0.
+ * \return The computed result.
+ *
+ * \note For batch_dims > 0, the first batch_dims dimensions of data and indices must be equal.
+ *       The last dimension of indices indicates the depth of each index vector.
+ *       The output shape is batch_dims + indices.shape[:-1] + data.shape[batch_dims +
+ * indices.shape[-1]:]
+ */
+Expr gather_nd(Expr data, Expr indices, int batch_dims = 0);
+
+/*!
+ * \brief NumPy/PyTorch‑style advanced indexing with tensors.
+ * \param data The input tensor.
+ * \param indices  A Tuple expression (or list) containing the index tensors.
+ * \return The indexed tensor.
+ *
+ * \note When all shapes are static, Relax checks that the index shapes are
+ *       broadcast-compatible. Bounds checking of the values in indices is
+ *       deferred to runtime.
+ */
+Expr index_tensor(Expr data, Expr indices);
+
+/*!
+ * \brief Put values into an array according to indices.
+ * \param data The input tensor to be modified.
+ * \param indices The index positions where values should be placed.
+ *                This should be a tuple of 1D tensors (one for each dimension).
+ * \param values The values to place at the specified indices.
+ * \param accumulate Whether to accumulate (add) values rather than replace.
+ *                  If true, equivalent to tensor[indices] += values.
+ *                  If false, equivalent to tensor[indices] = values.
+ * \return The computed result with values placed at specified indices.
+ */
+Expr index_put(Expr data, Expr indices, Expr values, bool accumulate = false);
+
+/*!
+ * \brief Generate coordinate grids from input 1D tensors.
+ * \param tensors A tuple of 1D tensors representing coordinate vectors.
+ * \param indexing Indexing mode, either "ij" (matrix indexing) or "xy" (Cartesian indexing).
+ * \return A tuple of tensors representing the coordinate grids.
+ */
+Expr meshgrid(Expr tensors, ffi::Optional<ffi::String> indexing = ffi::String("ij"));
 
 /*!
  * \brief Scatter updates into an array according to indices.
@@ -184,7 +250,7 @@ Expr flip(Expr data, Integer axis);
  * either "update", "add", "mul", "mean", "max" or "min".
  * \return The computed result.
  */
-Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, String reduction);
+Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, ffi::String reduction);
 
 /*!
  * \brief Scatter updates into an array according to indices.
@@ -205,7 +271,19 @@ Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, String re
  *       The shape of `updates` must match the shape of `indices` except for the last dimension,
  *       which must match the slice shape at each index.
  */
-Expr scatter_nd(Expr data, Expr indices, Expr updates, String reduction);
+Expr scatter_nd(Expr data, Expr indices, Expr updates, ffi::String reduction);
+
+/*!
+ * \brief Embeds the values of the src tensor into input at the given dimension.
+ * \param input The input tensor to be updated.
+ * \param src The tensor to embed into input.
+ * \param dim The dimension to insert the slice into.
+ * \param start The start index of where to insert the slice.
+ * \param end The end index of where to insert the slice.
+ * \param step The how many elements to skip in
+ * \return  The computed result tensor with the same shape as `data`.
+ */
+Expr slice_scatter(Expr input, Expr src, int axis, PrimValue start, PrimValue end, PrimValue step);
 
 /*!
  * \brief Returns a one-hot tensor.

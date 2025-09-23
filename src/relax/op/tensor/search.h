@@ -30,6 +30,16 @@
 
 namespace tvm {
 namespace relax {
+/*!
+ * \brief Returns the indices of the buckets to which each value in the input belongs.
+ * \param input_tensor N-D tensor containing the search values.
+ * \param boundaries 1-D tensor, must contain a strictly increasing sequence.
+ * \param out_int32 Indicate the output data type. int32 if True, int64 otherwise.
+ * \param right Determines the behavior for values in boundaries. Similar to torch.bucketize
+
+ * \return The computed result with the same shape as input.
+ */
+Expr bucketize(Expr input_tensor, Expr boundaries, bool out_int32, bool right);
 
 /*!
  * \brief Selecting elements from either the input tensors depending on the value of the
@@ -38,10 +48,10 @@ namespace relax {
 Expr where(Expr condition, Expr x1, Expr x2);
 
 /*! \brief Computes the argmax of tensor elements over given axis. */
-Expr argmax(Expr x, Optional<Integer> axis, bool keepdims);
+Expr argmax(Expr x, ffi::Optional<int64_t> axis, bool keepdims);
 
 /*! \brief Computes the argmin of tensor elements over given axis. */
-Expr argmin(Expr x, Optional<Integer> axis, bool keepdims);
+Expr argmin(Expr x, ffi::Optional<int64_t> axis, bool keepdims);
 
 }  // namespace relax
 }  // namespace tvm

@@ -23,6 +23,7 @@
 #ifndef TVM_NODE_REPR_PRINTER_H_
 #define TVM_NODE_REPR_PRINTER_H_
 
+#include <tvm/ffi/reflection/access_path.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/script_printer.h>
 
@@ -43,37 +44,13 @@ class ReprPrinter {
 
   /*! \brief The node to be printed. */
   TVM_DLL void Print(const ObjectRef& node);
+  /*! \brief The node to be printed. */
+  TVM_DLL void Print(const ffi::Any& node);
   /*! \brief Print indent to the stream */
   TVM_DLL void PrintIndent();
   // Allow registration to be printer.
   using FType = NodeFunctor<void(const ObjectRef&, ReprPrinter*)>;
   TVM_DLL static FType& vtable();
-};
-
-/*! \brief Legacy behavior of ReprPrinter. */
-class ReprLegacyPrinter {
- public:
-  /*! \brief The indentation level. */
-  int indent{0};
-
-  explicit ReprLegacyPrinter(std::ostream& stream)  // NOLINT(*)
-      : stream(stream) {}
-
-  /*! \brief The node to be printed. */
-  TVM_DLL void Print(const ObjectRef& node);
-  /*! \brief Print indent to the stream */
-  TVM_DLL void PrintIndent();
-  /*! \brief Could the LegacyPrinter dispatch the node */
-  TVM_DLL static bool CanDispatch(const ObjectRef& node);
-  /*! \brief Return the ostream it maintains */
-  TVM_DLL std::ostream& Stream() const;
-  // Allow registration to be printer.
-  using FType = NodeFunctor<void(const ObjectRef&, ReprLegacyPrinter*)>;
-  TVM_DLL static FType& vtable();
-
- private:
-  /*! \brief The output stream */
-  std::ostream& stream;
 };
 
 /*!
@@ -91,7 +68,7 @@ TVM_DLL void Dump(const runtime::Object* node);
 }  // namespace tvm
 
 namespace tvm {
-namespace runtime {
+namespace ffi {
 // default print function for all objects
 // provide in the runtime namespace as this is where objectref originally comes from.
 inline std::ostream& operator<<(std::ostream& os, const ObjectRef& n) {  // NOLINT(*)
@@ -99,12 +76,63 @@ inline std::ostream& operator<<(std::ostream& os, const ObjectRef& n) {  // NOLI
   return os;
 }
 
-inline std::string AsLegacyRepr(const ObjectRef& n) {
-  std::ostringstream os;
-  ReprLegacyPrinter(os).Print(n);
-  return os.str();
+// default print function for any
+inline std::ostream& operator<<(std::ostream& os, const Any& n) {  // NOLINT(*)
+  ReprPrinter(os).Print(n);
+  return os;
 }
-}  // namespace runtime
-using runtime::AsLegacyRepr;
+
+template <typename... V>
+inline std::ostream& operator<<(std::ostream& os, const ffi::Variant<V...>& n) {  // NOLINT(*)
+  ReprPrinter(os).Print(Any(n));
+  return os;
+}
+
+namespace reflection {
+
+inline std::ostream& operator<<(std::ostream& os, const AccessStep& step) {
+  namespace refl = ffi::reflection;
+  switch (step->kind) {
+    case refl::AccessKind::kAttr: {
+      os << '.' << step->key.cast<ffi::String>();
+      return os;
+    }
+    case refl::AccessKind::kArrayItem: {
+      os << "[" << step->key.cast<int64_t>() << "]";
+      return os;
+    }
+    case refl::AccessKind::kMapItem: {
+      os << "[" << step->key << "]";
+      return os;
+    }
+    case refl::AccessKind::kAttrMissing: {
+      os << ".<missing attr " << step->key.cast<ffi::String>() << "`>";
+      return os;
+    }
+    case refl::AccessKind::kArrayItemMissing: {
+      os << "[<missing item at " << step->key.cast<int64_t>() << ">]";
+      return os;
+    }
+    case refl::AccessKind::kMapItemMissing: {
+      os << "[<missing item at " << step->key << ">]";
+      return os;
+    }
+    default: {
+      LOG(FATAL) << "Unknown access step kind: " << static_cast<int>(step->kind);
+    }
+  }
+  return os;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const AccessPath& path) {
+  ffi::Array<AccessStep> steps = path->ToSteps();
+  os << "<root>";
+  for (const auto& step : steps) {
+    os << step;
+  }
+  return os;
+}
+}  // namespace reflection
+}  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_NODE_REPR_PRINTER_H_

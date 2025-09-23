@@ -28,9 +28,6 @@ trap cleanup 0
 # These shards are solely for CI to enable the lint job to have some parallelism.
 
 function shard1 {
-  echo "Convert scripts to Python..."
-  tests/scripts/task_convert_scripts_to_python.sh
-
   # echo "Check Jenkinsfile generation"
   # python3 ci/jenkins/generate.py --check
 
@@ -74,9 +71,6 @@ function shard2 {
 
   echo "clang-format check..."
   tests/lint/git-clang-format.sh
-
-  echo "Rust check..."
-  tests/lint/rust_format.sh
 
   echo "Docker check..."
   tests/lint/docker-format.sh

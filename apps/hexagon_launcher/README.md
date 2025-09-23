@@ -101,106 +101,12 @@ copy the shared object with the model and the model JSON file over to the
 device (both are obtained from relay).  Also, copy all input files for the
 model as well.
 
-The following snippet illustrates how to obtain the shared object and the
-JSON file from a TFLite model (using Inception V3 as an example):
-
-```
-# Skipped imports, etc.
-
-with open("inception_v3.tflite", "rb") as f:
-    tflite_model_buf = f.read()
-tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
-
-shape_dict = { "input": [1,299,299,3] }
-dtype_dict = { "input": "float32" }
-
-mod, params = relay.frontend.from_tflite(
-    tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict
-)
-
-target = tvm.target.hexagon('v68')
-with tvm.transform.PassContext(opt_level=3):
-    lib = relay.build(mod, tvm.target.Target(target, host=target), params=params, mod_name="default")
-
-# Save model.so and model.json:
-with open('model.json', 'w') as f:
-    f.write(lib.get_graph_json())
-lib.get_lib().save('model.so')
-```
-
-The final thing is to prepare a JSON configuration file for the launcher.
-The JSON has two attributes describing the model: `model-library` and
-`model-json`, and an attribute `inputs`, which is a list of records, one
-for each input file.
-An input file record has three attributes: `file`, `shape`, and `dtype`.
-
-Below is an example of the input config file for Inception V3:
-```
-{
-  "model-library": "inceptionv3-float32.so",
-  "model-json": "inceptionv3-float32.json",
-  "inputs" : [
-    {
-      "file": "panda_299x299_fp.dat",
-      "shape": [1,299,299,3],
-      "dtype": "float32"
-    }
-  ]
-}
-```
-
-The launcher will then create the output JSON file (with the name given via
-`--out_config`) containing information about the execution time and the model
-outputs. The output JSON file has three attributes: "pcycles", "usecs" that
-contain the execution duration in terms of processor cycles and microseconds
-respectivaly, and an attribute `outputs`, which is a list of output file records
-whose syntax is identical to the input file records in the input file.
-A sample output JSON from running the Inception V3 model may look like
-```
-{
-  "pcycles": 112965680178,
-  "usecs": 79532302,
-  "outputs": [
-    {
-      "file": "output0.dat",
-      "shape": [1, 1001],
-      "dtype": "float32"
-    }
-  ]
-}
-```
-
-When using AoT, the `target` needs to be `llvm`:
-```
-aot_target = "llvm -keys=hexagon -mattr=+hvxv69,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp -mcpu=hexagonv69 -mtriple=hexagon"
-aot_host_target = aot_target
-```
-
-Build the relay module specifying AoT as executor and CPP as runtime, and save it via `export_library`:
-```
-lowered = tvm.relay.build(
-    relay_mod,
-    params=params,
-    target=tvm.target.Target(aot_target, host=aot_host_target),
-    runtime=Runtime("cpp"),
-    executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
-)
-
-lowered.export_library("model-aot.so", fcompile=tvm.contrib.hexagon.link_shared)
-```
-
-
 ## Profiling using hexagon launcher
 
 ### Enabling lightweight profiling (LWP) instrumentation
 
 This profiling option can be used to get function and loop level processor cycles.
-This needs to be enabled explicitly while compiling a model. For example:
-
-```
-with tvm.transform.PassContext(config={'tir.instrument_lwp':True} ):
-    lib = relay.build(...)
-```
+This needs to be enabled explicitly while compiling a model.
 
 Here, `instrument_lwp` is used to enable the tir pass which instruments the code with the builtin calls.
 

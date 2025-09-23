@@ -21,14 +21,12 @@ from typing import Any, Callable, Dict, List, Optional, Union, Mapping
 
 import numpy as _np  # type: ignore
 
-import tvm
-import tvm._ffi
+import tvm_ffi
 import tvm.ir
 import tvm.relax
 from tvm import DataType
-from tvm._ffi import base as _base
+import tvm.runtime
 from tvm.runtime import Object
-from tvm.runtime import ndarray as _nd
 
 from ..ir import BaseFunc, Node, Span
 from ..runtime import Scriptable, String
@@ -38,12 +36,12 @@ from . import _ffi_api
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
 # This feature is not supported until python 3.10:
 # https://docs.python.org/3.10/whatsnew/3.10.html#pep-613-typealias
-Expr = Union[tvm.ir.RelayExpr]
-Type = Union[tvm.ir.Type]
+Expr = Union[tvm.ir.RelaxExpr]
+Type = Union[tvm.ir.Type]  # pylint: disable=invalid-name
 GlobalVar = Union[tvm.ir.GlobalVar]
 
 
-@tvm._ffi.register_object("relax.Id")
+@tvm_ffi.register_object("relax.Id")
 class Id(Object):
     """Unique identifier(name) used in Var.
     Guaranteed to be stable across all passes.
@@ -57,6 +55,7 @@ class Id(Object):
 
 # NOTE: place base struct info in expr to avoid cyclic dep
 # from expr to struct info.
+@tvm_ffi.register_object("ir.StructInfo")
 class StructInfo(Node, Scriptable):
     """The base class of all StructInfo.
 
@@ -308,7 +307,7 @@ class ExprWithOp(Expr, Scriptable):
         return tvm.relax.Call(op, [self])
 
 
-class _DLTensorDTypeProxy(tvm.runtime.ObjectGeneric):
+class _DLTensorDTypeProxy(tvm.runtime.ObjectConvertible):
     """A proxy object for unpacking DLDatatype from DLTensor
 
     Exposes accessors for `DLDataType` fields `type_code`, `lanes`,
@@ -337,7 +336,7 @@ class _DLTensorDTypeProxy(tvm.runtime.ObjectGeneric):
         context that requires a `relax.Expr`.  This usage is not
         supported, and raising an error here can provide suggested
         fixes that are not present in the default error message from
-        `tvm.runtime.convert_to_object`.
+        `tvm.runtime.convert`.
         """
 
         fields = [f"{self.tensor}.dtype.{field}" for field in ["type_code", "bits", "lanes"]]
@@ -388,7 +387,7 @@ class _DLTensorDTypeProxy(tvm.runtime.ObjectGeneric):
         return tvm.relax.Call(op, [self.tensor])
 
 
-class _DLTensorShapeProxy(tvm.runtime.ObjectGeneric):
+class _DLTensorShapeProxy(tvm.runtime.ObjectConvertible):
     """A proxy object for unpacking the shape from DLTensor
 
     Exposes accessors for the `DLTensor::shape` field.  Accessing
@@ -415,7 +414,7 @@ class _DLTensorShapeProxy(tvm.runtime.ObjectGeneric):
         context that requires a `relax.Expr`.  This usage is not
         supported, and raising an error here can provide suggested
         fixes that are not present in the default error message from
-        `tvm.runtime.convert_to_object`.
+        `tvm.runtime.convert`.
         """
         raise TypeError(
             f"{self.tensor}.shape cannot be converted to a relax expression, "
@@ -458,7 +457,7 @@ class _DLTensorShapeProxy(tvm.runtime.ObjectGeneric):
         return tvm.relax.Call(op, [self.tensor, axis])
 
 
-class _DLTensorStrideProxy(tvm.runtime.ObjectGeneric):
+class _DLTensorStrideProxy(tvm.runtime.ObjectConvertible):
     """A proxy object for unpacking the strides from DLTensor
 
     Exposes accessors for the `DLTensor::strides` field.  Accessing
@@ -485,7 +484,7 @@ class _DLTensorStrideProxy(tvm.runtime.ObjectGeneric):
         context that requires a `relax.Expr`.  This usage is not
         supported, and raising an error here can provide suggested
         fixes that are not present in the default error message from
-        `tvm.runtime.convert_to_object`.
+        `tvm.runtime.convert`.
         """
         raise TypeError(
             f"{self.tensor}.strides cannot be converted to a relax expression, "
@@ -528,7 +527,7 @@ class _DLTensorStrideProxy(tvm.runtime.ObjectGeneric):
         return tvm.relax.Call(op, [self.tensor, axis])
 
 
-@tvm._ffi.register_object("relax.expr.Call")
+@tvm_ffi.register_object("relax.expr.Call")
 class Call(ExprWithOp):
     """Function call node in Relax.
 
@@ -577,7 +576,7 @@ class Call(ExprWithOp):
         )
 
 
-@tvm._ffi.register_object("relax.expr.If")
+@tvm_ffi.register_object("relax.expr.If")
 class If(ExprWithOp):
     """A conditional expression in Relax.
 
@@ -609,7 +608,7 @@ class If(ExprWithOp):
         )
 
 
-@tvm._ffi.register_object("relax.expr.Tuple")
+@tvm_ffi.register_object("relax.expr.Tuple")
 class Tuple(ExprWithOp):
     """Tuple expression that groups several fields together.
 
@@ -644,7 +643,7 @@ class Tuple(ExprWithOp):
         return len(self.fields)
 
 
-@tvm._ffi.register_object("relax.expr.TupleGetItem")
+@tvm_ffi.register_object("relax.expr.TupleGetItem")
 class TupleGetItem(ExprWithOp):
     """Get index-th item from a tuple.
 
@@ -670,7 +669,7 @@ class TupleGetItem(ExprWithOp):
         )
 
 
-@tvm._ffi.register_object("relax.expr.ShapeExpr")
+@tvm_ffi.register_object("relax.expr.ShapeExpr")
 class ShapeExpr(ExprWithOp):
     """A shape expression which allows users to construct a shape containing PrimExpr.
 
@@ -708,13 +707,13 @@ def make_shape(shape: Union[List[Any], typing.Tuple[Any, ...]]) -> ShapeExpr:
     raise ValueError("Wrong type")
 
 
-@tvm._ffi.register_object("relax.expr.Constant")
+@tvm_ffi.register_object("relax.expr.Constant")
 class Constant(ExprWithOp):
     """Constant Tensor
 
     Parameters
     ----------
-    data: tvm.nd.NDArray
+    data: tvm.runtime.Tensor
         The data of the constant tensor.
 
     struct_info: Optional[StructInfo]
@@ -728,12 +727,12 @@ class Constant(ExprWithOp):
     Scalar constants are represented by ndim-0 constant tensors.
     """
 
-    data: tvm.nd.NDArray
+    data: tvm.runtime.Tensor
     span: Optional[Span]
 
     def __init__(
         self,
-        data: tvm.nd.NDArray,
+        data: tvm.runtime.Tensor,
         struct_info: Optional[StructInfo] = None,
         span: Optional[Span] = None,
     ) -> None:
@@ -742,7 +741,7 @@ class Constant(ExprWithOp):
         )
 
 
-@tvm._ffi.register_object("relax.expr.Var")
+@tvm_ffi.register_object("relax.expr.Var")
 class Var(ExprWithOp):
     """The variable class for all Relax bindings.
 
@@ -768,7 +767,7 @@ class Var(ExprWithOp):
         span: Optional[Span] = None,
     ) -> None:
         if struct_info is not None:
-            struct_info = tvm.runtime.convert_to_object(struct_info)
+            struct_info = tvm.runtime.convert(struct_info)
             if not isinstance(struct_info, StructInfo):
                 raise TypeError(
                     "struct_info needs to be an instance of StructInfo. "
@@ -789,7 +788,7 @@ class Var(ExprWithOp):
         return name
 
 
-@tvm._ffi.register_object("relax.expr.DataflowVar")
+@tvm_ffi.register_object("relax.expr.DataflowVar")
 class DataflowVar(Var):
     """A sub-type of the variable node used to mark dataflow variables from
     normal visible "function local" bindings.
@@ -818,7 +817,7 @@ class DataflowVar(Var):
     ) -> None:
         # pylint: disable=super-init-not-called
         if struct_info is not None:
-            struct_info = tvm.runtime.convert_to_object(struct_info)
+            struct_info = tvm.runtime.convert(struct_info)
             if not isinstance(struct_info, StructInfo):
                 raise TypeError(
                     "struct_info needs to be an instance of StructInfo. "
@@ -827,16 +826,18 @@ class DataflowVar(Var):
                 )
 
         self.__init_handle_by_constructor__(
-            _ffi_api.DataflowVar  # type: ignore
-            if isinstance(name_hint, str)
-            else _ffi_api.DataflowVarFromId,  # type: ignore
+            (
+                _ffi_api.DataflowVar  # type: ignore
+                if isinstance(name_hint, str)
+                else _ffi_api.DataflowVarFromId
+            ),  # type: ignore
             name_hint,
             struct_info,
             span,
         )
 
 
-@tvm._ffi.register_object("relax.expr.PrimValue")
+@tvm_ffi.register_object("relax.expr.PrimValue")
 class PrimValue(Expr, Scriptable):
     """The prim expr representing the value."""
 
@@ -848,7 +849,7 @@ class PrimValue(Expr, Scriptable):
         self.__init_handle_by_constructor__(_ffi_api.PrimValue, value, span)  # type: ignore
 
 
-@tvm._ffi.register_object("relax.expr.StringImm")
+@tvm_ffi.register_object("relax.expr.StringImm")
 class StringImm(Expr, Scriptable):
     """Represent a string literal constant."""
 
@@ -859,7 +860,7 @@ class StringImm(Expr, Scriptable):
         self.__init_handle_by_constructor__(_ffi_api.StringImm, value, span)  # type: ignore
 
 
-@tvm._ffi.register_object("relax.expr.DataTypeImm")
+@tvm_ffi.register_object("relax.expr.DataTypeImm")
 class DataTypeImm(Expr, Scriptable):
     """Represent a data type constant."""
 
@@ -870,7 +871,7 @@ class DataTypeImm(Expr, Scriptable):
         self.__init_handle_by_constructor__(_ffi_api.DataTypeImm, value, span)  # type: ignore
 
 
-@tvm._ffi.register_object("relax.expr.Binding")
+@tvm_ffi.register_object("relax.expr.Binding")
 class Binding(Node, Scriptable):
     """The base class of a binding in Relax."""
 
@@ -878,7 +879,7 @@ class Binding(Node, Scriptable):
     span: Optional[Span]
 
 
-@tvm._ffi.register_object("relax.expr.MatchCast")
+@tvm_ffi.register_object("relax.expr.MatchCast")
 class MatchCast(Binding):
     """Runtime-match the value to the struct info.
 
@@ -910,7 +911,7 @@ class MatchCast(Binding):
         )
 
 
-@tvm._ffi.register_object("relax.expr.VarBinding")
+@tvm_ffi.register_object("relax.expr.VarBinding")
 class VarBinding(Binding):
     """Variable binding, bind he variable of the lhs with the rhs.
 
@@ -932,7 +933,7 @@ class VarBinding(Binding):
         self.__init_handle_by_constructor__(_ffi_api.VarBinding, var, value, span)  # type: ignore
 
 
-@tvm._ffi.register_object("relax.expr.BindingBlock")
+@tvm_ffi.register_object("relax.expr.BindingBlock")
 class BindingBlock(Node, Scriptable):
     """base class of binding block, bindings inside can be impure
     (with side effect or control flow)"""
@@ -944,7 +945,7 @@ class BindingBlock(Node, Scriptable):
         self.__init_handle_by_constructor__(_ffi_api.BindingBlock, bindings, span)  # type: ignore
 
 
-@tvm._ffi.register_object("relax.expr.DataflowBlock")
+@tvm_ffi.register_object("relax.expr.DataflowBlock")
 class DataflowBlock(BindingBlock):
     """dataflow block, bindings inside are pure (no side effect and no control flow)"""
 
@@ -956,7 +957,7 @@ class DataflowBlock(BindingBlock):
         self.__init_handle_by_constructor__(_ffi_api.DataflowBlock, bindings, span)  # type: ignore
 
 
-@tvm._ffi.register_object("relax.expr.SeqExpr")
+@tvm_ffi.register_object("relax.expr.SeqExpr")
 class SeqExpr(ExprWithOp):
     """A sequence of binding blocks followed by an expression."""
 
@@ -968,7 +969,7 @@ class SeqExpr(ExprWithOp):
         self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body, span)  # type: ignore
 
 
-@tvm._ffi.register_object("relax.expr.Function")
+@tvm_ffi.register_object("relax.expr.Function")
 class Function(BaseFunc, Scriptable):
     """A Relax function."""
 
@@ -1055,7 +1056,7 @@ class Function(BaseFunc, Scriptable):
         self,
         binding_map: Mapping[
             Union[str, Var],
-            Union[int, float, PrimExpr, tvm.runtime.NDArray, _np.ndarray, Expr],
+            Union[int, float, PrimExpr, tvm.runtime.Tensor, _np.ndarray, Expr],
         ],
     ) -> "Function":
         """Return a new function with updated symbolic variable
@@ -1064,7 +1065,7 @@ class Function(BaseFunc, Scriptable):
         ----------
         binding_map: Mapping[
                 Union[str, Var],
-                Union[int, float, PrimExpr, tvm.runtime.NDArray, _np.ndarray, Expr],
+                Union[int, float, PrimExpr, tvm.runtime.Tensor, _np.ndarray, Expr],
         ]
 
             The mapping of values to be replaced.
@@ -1092,7 +1093,7 @@ class Function(BaseFunc, Scriptable):
                 # Relax uses int64 for symbolic variables, but the FFI
                 # converts python integers into int32.
                 return tvm.tir.const(value, "int64")
-            elif isinstance(value, (_np.ndarray, tvm.nd.NDArray)):
+            elif isinstance(value, (_np.ndarray, tvm.runtime.Tensor)):
                 return tvm.relax.const(value)
             else:
                 return value
@@ -1107,7 +1108,7 @@ class Function(BaseFunc, Scriptable):
         return _ffi_api.FunctionInlineFunctions(self, function_map)  # type: ignore
 
 
-@tvm._ffi.register_object("relax.expr.ExternFunc")
+@tvm_ffi.register_object("relax.expr.ExternFunc")
 class ExternFunc(BaseFunc, ExprWithOp):
     """extern function, which represents a PackedFunc."""
 
@@ -1131,13 +1132,13 @@ def extern(name: str, struct_info: Optional[StructInfo] = None, span: Optional[S
 
 
 def const(
-    value: Union[bool, int, float, _np.ndarray, tvm.nd.NDArray], dtype: Optional[str] = None
+    value: Union[bool, int, float, _np.ndarray, tvm.runtime.Tensor], dtype: Optional[str] = None
 ) -> Constant:
     """Create a constant value.
 
     Parameters
     ----------
-    value: Union[bool, int, float, numpy.ndarray, tvm.nd.NDArray]
+    value: Union[bool, int, float, numpy.ndarray, tvm.runtime.Tensor]
         The constant value.
 
     dtype: Optional[str]
@@ -1152,7 +1153,7 @@ def const(
     - bool maps to "bool"
     - other using the same default rule as numpy.
     """
-    if isinstance(value, (_base.numeric_types, (bool, list))):
+    if isinstance(value, (Number, (bool, list))):
         value = _np.array(value, dtype=dtype)
 
     if not dtype:
@@ -1167,12 +1168,17 @@ def const(
     if isinstance(value, (_np.ndarray, _np.generic)):
         if dtype is not None:
             value = value.astype(dtype)
-        value = _nd.array(value)
+        value = tvm.runtime.tensor(value)
 
-    if not isinstance(value, _nd.NDArray):
-        raise ValueError("value has to be scalar or NDArray")
+    if not isinstance(value, tvm.runtime.Tensor):
+        raise ValueError("value has to be scalar or Tensor")
 
     return Constant(value)
+
+
+@tvm_ffi.register_object("relax.TEPlaceholderOp")
+class TEPlaceholderOp(tvm.te.tensor.Operation):
+    """The placeholder op that represents a relax expression."""
 
 
 def te_tensor(

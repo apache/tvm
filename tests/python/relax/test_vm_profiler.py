@@ -47,7 +47,7 @@ def get_exec(data_shape):
     mod = relax.transform.BindParams("main", params)(mod)
 
     target = "llvm"
-    return relax.build(mod, target)
+    return tvm.compile(mod, target)
 
 
 def test_conv2d_cpu():
@@ -55,7 +55,7 @@ def test_conv2d_cpu():
     ex = get_exec(data_np.shape)
 
     vm = relax.VirtualMachine(ex, tvm.cpu(), profile=True)
-    report = vm.profile("main", tvm.nd.array(data_np))
+    report = vm.profile("main", tvm.runtime.tensor(data_np))
     print(report)
 
     assert "Duration" in str(report)
@@ -76,7 +76,7 @@ def with_rpc(ex, f, data_np):
     device = remote.cpu()
 
     vm = relax.VirtualMachine(rexec, device=device, profile=True)
-    data = tvm.nd.array(data_np, device)
+    data = tvm.runtime.tensor(data_np, device)
 
     f(vm, data)
 
@@ -115,7 +115,7 @@ def test_tuple():
             return ((x, (x,)), x)
 
     target = "llvm"
-    ex = relax.build(NestedTuple, target)
+    ex = tvm.compile(NestedTuple, target)
 
     data_np = np.random.randn(16).astype("float32")
 

@@ -23,12 +23,12 @@ import warnings
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np  # type: ignore
-
+import tvm_ffi
 import tvm.ir
 from tvm.ir.container import Array
 from tvm.relax import Expr, Var, StructInfo
 from tvm.relax.dpl import DFPattern
-from tvm.runtime import NDArray, Object
+from tvm.runtime import Tensor, Object
 from tvm.tir import IndexMap, PrimFunc
 
 from . import _ffi_api
@@ -36,14 +36,14 @@ from .legalize_ops.common import LegalizeFunc
 from ..expr import Var
 
 
-@tvm._ffi.register_object("relax.FunctionPass")
+@tvm_ffi.register_object("relax.FunctionPass")
 class FunctionPass(tvm.ir.transform.Pass):
     """A pass that works on each tvm.relax.Function in a module. A function
     pass class should be created through `function_pass`.
     """
 
 
-@tvm._ffi.register_object("relax.DataflowBlockPass")
+@tvm_ffi.register_object("relax.DataflowBlockPass")
 class DataflowBlockPass(tvm.ir.transform.Pass):
     """A pass that works on each tvm.relax.DataflowBlock in a module."""
 
@@ -417,7 +417,7 @@ def CallTIRRewrite() -> tvm.ir.transform.Pass:
 
 def Normalize() -> tvm.ir.transform.Pass:
     """Transforming Relax IR to normal form, i.e., the expressions are normalized(no nesting
-    and hence the AST is in ANF), and all ``checked_type_`` and ``shape_`` of expressions are
+    and hence the AST is in ANF), and all `struct_info_` of expressions are
     available.
 
     Returns
@@ -638,7 +638,7 @@ def AttachGlobalSymbol() -> tvm.ir.transform.Pass:
 
 def BindParams(
     func_name: str,
-    params: Dict[Union[str, Var], Union[tvm.runtime.NDArray, np.ndarray]],
+    params: Dict[Union[str, Var], Union[tvm.runtime.Tensor, np.ndarray]],
 ) -> tvm.ir.transform.Pass:
     """Bind params of function of the module to constant tensors.
 
@@ -647,7 +647,7 @@ def BindParams(
     func_name: str
         The function name to be bound
 
-    params: Dict[Union[str,relax.Var], Union[tvm.runtime.NDArray, np.ndarray]]
+    params: Dict[Union[str,relax.Var], Union[tvm.runtime.Tensor, np.ndarray]]
         The map from parameter or parameter name to constant tensors.
 
     Returns
@@ -657,10 +657,11 @@ def BindParams(
     tvm_params = {}
     for k, v in params.items():
         if isinstance(v, np.ndarray):
-            v = tvm.nd.array(v)
-        assert isinstance(
-            v, tvm.runtime.NDArray
-        ), f"param values are expected to be TVM.NDArray or numpy.ndarray, but got {type(v)}"
+            v = tvm.runtime.tensor(v)
+        assert isinstance(v, (tvm.runtime.Tensor, tvm.relax.Constant)), (
+            f"param values are expected to be TVM.Tensor,"
+            f"numpy.ndarray or tvm.relax.Constant, but got {type(v)}"
+        )
         tvm_params[k] = v
 
     return _ffi_api.BindParams(func_name, tvm_params)  # type: ignore
@@ -819,7 +820,7 @@ def FuseTIR() -> tvm.ir.transform.Pass:
     return _ffi_api.FuseTIR()  # type: ignore
 
 
-@tvm._ffi.register_object("relax.transform.PatternCheckContext")
+@tvm_ffi.register_object("relax.transform.PatternCheckContext")
 class PatternCheckContext(Object):
     """
     The input of check function `FusionPattern.check`.
@@ -853,7 +854,7 @@ class PatternCheckContext(Object):
     value_to_bound_var: Mapping[Expr, Var]
 
 
-@tvm._ffi.register_object("relax.transform.FusionPattern")
+@tvm_ffi.register_object("relax.transform.FusionPattern")
 class FusionPattern(Object):
     """
     The pattern used by `FuseOpsByPattern`. It's mainly DFPattern but with other
@@ -1222,7 +1223,7 @@ def MetaScheduleTuneTIR(
 
 
 def MetaScheduleTuneIRMod(
-    params: Dict[str, NDArray],
+    params: Dict[str, Tensor],
     work_dir: str,
     max_trials_global: int,
     max_trials_per_task: Optional[int] = None,
@@ -1232,7 +1233,7 @@ def MetaScheduleTuneIRMod(
 
     Parameters
     ----------
-    params: Dict[str, NDArray]
+    params: Dict[str, Tensor]
        model params
     work_dir: str
        work directory
@@ -1611,8 +1612,6 @@ def _wrap_class_function_pass(pass_cls, pass_info):
         """Internal wrapper class to create a class instance."""
 
         def __init__(self, *args, **kwargs):
-            # initialize handle in case pass_cls creation failed.
-            self.handle = None
             inst = pass_cls(*args, **kwargs)
 
             # it is important not to capture self to
@@ -1759,8 +1758,6 @@ def _wrap_class_dataflowblock_pass(pass_cls, pass_info):
         """Internal wrapper class to create a class instance."""
 
         def __init__(self, *args, **kwargs):
-            # initialize handle in case pass_cls creation failed.
-            self.handle = None
             inst = pass_cls(*args, **kwargs)
 
             # it is important not to capture self to

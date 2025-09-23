@@ -23,6 +23,7 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -51,9 +52,9 @@ class MatchBufferLower : public StmtExprMutator {
     Stmt stmt = StmtExprMutator ::VisitStmt_(op);
     op = stmt.as<BlockNode>();
     ICHECK(op != nullptr);
-    Array<BufferRegion> reads =
+    ffi::Array<BufferRegion> reads =
         op->reads.Map(std::bind(&MatchBufferLower::VisitBufferRegion, this, std::placeholders::_1));
-    Array<BufferRegion> writes = op->writes.Map(
+    ffi::Array<BufferRegion> writes = op->writes.Map(
         std::bind(&MatchBufferLower::VisitBufferRegion, this, std::placeholders::_1));
 
     if (reads.same_as(op->reads) && writes.same_as(op->writes) && op->match_buffers.empty()) {
@@ -73,12 +74,12 @@ class MatchBufferLower : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
-    Var v = GetRef<Var>(op);
+    Var v = ffi::GetRef<Var>(op);
     auto it = var_map_.find(v);
     if (it != var_map_.end()) {
       return (*it).second;
     } else {
-      return std::move(v);
+      return v;
     }
   }
 
@@ -114,7 +115,7 @@ class MatchBufferLower : public StmtExprMutator {
     } else {
       const Buffer& buffer = (*it).first;
       const BufferRegion& source = (*it).second;
-      Array<PrimExpr> indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
+      ffi::Array<PrimExpr> indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
       ICHECK(!op->predicate.defined())
           << "Predicated buffer load is not currently supported in lower match buffer pass.";
       return BufferLoad(source->buffer, indices);
@@ -151,8 +152,8 @@ class MatchBufferLower : public StmtExprMutator {
     // Step.1.2. Check data alignment
     if (source_buffer->data_alignment % buffer->data_alignment != 0) {
       LOG(WARNING) << "Trying to bind buffer to another one with lower alignment requirement "
-                   << " required_alignment=" << buffer->data_alignment
-                   << ", provided_alignment=" << source_buffer->data_alignment;
+                   << " required alignment=" << buffer->data_alignment
+                   << ", provided alignment=" << source_buffer->data_alignment;
     }
     if (is_zero(buffer->elem_offset)) {
       ICHECK(is_zero(source_buffer->elem_offset))
@@ -169,13 +170,13 @@ class MatchBufferLower : public StmtExprMutator {
     // Step.2.2. Update element offset
     // We use the ElemOffset method to avoid duplicating the index calculation.
     {
-      Array<PrimExpr> indices;
+      ffi::Array<PrimExpr> indices;
       indices.reserve(source->region.size());
       for (const Range& range : source->region) {
         indices.push_back(range->min);
       }
 
-      Array<PrimExpr> buffer_start_indices = source_buffer->ElemOffset(indices);
+      ffi::Array<PrimExpr> buffer_start_indices = source_buffer->ElemOffset(indices);
       if (buffer_start_indices.size() == 1) {
         Bind(buffer->elem_offset, buffer_start_indices[0], buffer->name + ".elem_offset");
         CHECK(analyzer_.CanProve(truncmod(buffer->elem_offset, buffer->offset_factor) == 0))
@@ -183,7 +184,7 @@ class MatchBufferLower : public StmtExprMutator {
             << " does not satisfy the offset_factor " << buffer->offset_factor << ".";
       } else {
         // Non-zero elem_offset is ill-defined for non-flat memory.
-        // If needed in the future, will require `Array<PrimExpr>
+        // If needed in the future, will require `ffi::Array<PrimExpr>
         // elem_offsets`, with one offset for each flattened index.
         Bind(buffer->elem_offset, make_const(buffer->elem_offset.dtype(), 0));
       }
@@ -245,9 +246,9 @@ class MatchBufferLower : public StmtExprMutator {
 
  private:
   /*! \brief Buffer region mapping. */
-  Map<Buffer, BufferRegion> match_buffers_;
+  ffi::Map<Buffer, BufferRegion> match_buffers_;
   /*! \brief Var mapping for buffer signature (data, strides, element_offset, etc.) */
-  Map<Var, PrimExpr> var_map_;
+  ffi::Map<Var, PrimExpr> var_map_;
   /*! \brief The analyzer */
   arith::Analyzer analyzer_;
 };
@@ -267,7 +268,10 @@ Pass LowerMatchBuffer() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerMatchBuffer", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerMatchBuffer").set_body_typed(LowerMatchBuffer);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LowerMatchBuffer", LowerMatchBuffer);
+}
 
 }  // namespace transform
 

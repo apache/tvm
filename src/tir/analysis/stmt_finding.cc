@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -97,7 +98,8 @@ Stmt GetEnclosingLoop(const BlockNode* block, Stmt func_body) {
     }
   }
 
-  LOG(FATAL) << "Enclosing loop not found for a block " << GetRef<Block>(block);
+  LOG(FATAL) << "Enclosing loop not found for a block " << ffi::GetRef<Block>(block);
+  TVM_FFI_UNREACHABLE();
 }
 
 const BlockNode* FindAnchorBlock(const IRModule& mod) {
@@ -138,13 +140,16 @@ const BlockNode* FindAnchorBlock(const IRModule& mod) {
   return nullptr;
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.find_anchor_block").set_body_typed([](const IRModule& mod) {
-  auto ret = FindAnchorBlock(mod);
-  if (ret) {
-    return Optional<Block>(GetRef<Block>(ret));
-  }
-  return Optional<Block>(NullOpt);
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.analysis.find_anchor_block", [](const IRModule& mod) {
+    auto ret = FindAnchorBlock(mod);
+    if (ret) {
+      return ffi::Optional<Block>(ffi::GetRef<Block>(ret));
+    }
+    return ffi::Optional<Block>(std::nullopt);
+  });
+}
 
 }  // namespace tir
 }  // namespace tvm

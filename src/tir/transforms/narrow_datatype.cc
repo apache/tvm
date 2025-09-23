@@ -22,7 +22,8 @@
  * \brief narrow the datatype of indexing vars
  */
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/data_type_rewriter.h>
 #include <tvm/tir/op.h>
@@ -211,7 +212,7 @@ class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
   Stmt operator()(Stmt s) {
     visitor_(s);
     for (auto i = visitor_.vmap.begin(), last = visitor_.vmap.end(); i != last;) {
-      PrimExpr e = GetRef<PrimExpr>(i->first);
+      PrimExpr e = ffi::GetRef<PrimExpr>(i->first);
       if (e.dtype() == i->second) {
         i = visitor_.vmap.erase(i);
       } else {
@@ -267,7 +268,7 @@ class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
     PrimExpr a = this->VisitExpr(op->a);                                  \
     PrimExpr b = this->VisitExpr(op->b);                                  \
     if (op->a.same_as(a) && op->b.same_as(b) && a.dtype() == b.dtype()) { \
-      return GetRef<PrimExpr>(op);                                        \
+      return ffi::GetRef<PrimExpr>(op);                                   \
     } else {                                                              \
       if (a.dtype() != b.dtype()) {                                       \
         bool is_enabled = is_enabled_;                                    \
@@ -320,7 +321,10 @@ Pass NarrowDataType(int target_bits) {
   return CreatePrimFuncPass(pass_func, 0, "tir.NarrowDataType", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.NarrowDataType").set_body_typed(NarrowDataType);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.NarrowDataType", NarrowDataType);
+}
 
 }  // namespace transform
 }  // namespace tir

@@ -18,10 +18,8 @@
 package org.apache.tvm;
 
 public class TVMValue {
-  public final ArgTypeCode typeCode;
+  protected TVMValue() {
 
-  public TVMValue(ArgTypeCode tc) {
-    typeCode = tc;
   }
 
   public void release() {
@@ -47,7 +45,7 @@ public class TVMValue {
     throw new UnsupportedOperationException();
   }
 
-  public NDArrayBase asNDArray() {
+  public TensorBase asTensor() {
     throw new UnsupportedOperationException();
   }
 

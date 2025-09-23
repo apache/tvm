@@ -20,7 +20,7 @@
 #ifndef TVM_TE_OPERATION_CREATE_PRIMFUNC_H_
 #define TVM_TE_OPERATION_CREATE_PRIMFUNC_H_
 
-#include <tvm/runtime/container/array.h>
+#include <tvm/ffi/container/array.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tir/function.h>
 
@@ -30,7 +30,7 @@ namespace tvm {
 namespace tir {
 
 /*! \brief Use Tensor Expression to create a schedulable TensorIR func. */
-PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
+PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
                         std::optional<DataType> index_dtype_override = std::nullopt);
 
 /*! \brief The same as above but create a PrimFunc with AllocateConstNode. If the size of the
@@ -38,14 +38,12 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
  * Constant tensors will not be part of the parameters of the created PrimFunc, instead constants
  * will be embedded in the body as AllocateConstNode.
  */
-PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
-                                     const Array<runtime::NDArray>& constants,
+PrimFunc CreatePrimFuncWithConstants(const ffi::Array<te::Tensor>& arg_list,
+                                     const ffi::Array<runtime::Tensor>& constants,
                                      std::optional<DataType> index_dtype_override = std::nullopt);
 
-// Relax version
-// TODO(relax-team) combine with the relay version
 /*! \brief Use Tensor Expression to create a schedulable TensorIR func. */
-PrimFunc CreatePrimFunc(const Array<ObjectRef>& arg_list,
+PrimFunc CreatePrimFunc(const ffi::Array<ObjectRef>& arg_list,
                         std::optional<DataType> index_dtype_override);
 
 /*! \brief The same as above but create a PrimFunc with AllocateConstNode. If the size of the
@@ -53,8 +51,8 @@ PrimFunc CreatePrimFunc(const Array<ObjectRef>& arg_list,
  * Constant tensors will not be part of the parameters of the created PrimFunc, instead constants
  * will be embedded in the body as AllocateConstNode.
  */
-PrimFunc CreatePrimFuncWithConstants(const Array<ObjectRef>& arg_list,
-                                     const Array<runtime::NDArray>& constants,
+PrimFunc CreatePrimFuncWithConstants(const ffi::Array<ObjectRef>& arg_list,
+                                     const ffi::Array<runtime::Tensor>& constants,
                                      std::optional<DataType> index_dtype_override);
 
 }  // namespace tir

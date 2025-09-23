@@ -19,1016 +19,1072 @@
 
 /*!
  * \file src/runtime/vm/vm.cc
- * \brief The Relay virtual machine runtime.
  */
-
-#include <dmlc/memory_io.h>
-#include <tvm/runtime/container/adt.h>
-#include <tvm/runtime/data_type.h>
-#include <tvm/runtime/debug.h>
-#include <tvm/runtime/logging.h>
-#include <tvm/runtime/memory.h>
-#include <tvm/runtime/object.h>
+#include <dlpack/dlpack.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/memory/memory_manager.h>
+#include <tvm/runtime/nvtx.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/vm/vm.h>
 
-#include <algorithm>
-#include <chrono>
-#include <iostream>
-#include <stdexcept>
-#include <vector>
-
-#include "../file_utils.h"
-
-using namespace tvm::runtime;
+#include <optional>
+#include <thread>
 
 namespace tvm {
 namespace runtime {
 namespace vm {
 
-TVM_REGISTER_OBJECT_TYPE(VMClosureObj);
+//---------------------------------------------
+// VM Closure object
+//---------------------------------------------
 
-VMClosure::VMClosure(size_t func_index, std::vector<ObjectRef> free_vars) {
-  auto ptr = make_object<VMClosureObj>();
-  ptr->func_index = func_index;
-  ptr->free_vars = std::move(free_vars);
+VMClosure::VMClosure(ffi::String func_name, ffi::Function impl) {
+  auto ptr = ffi::make_object<VMClosureObj>();
+  ptr->func_name = func_name;
+  ptr->impl = std::move(impl);
   data_ = std::move(ptr);
 }
 
-void VMFunctionPrint(std::ostream& os, const VMFunction& vm_func) {
-  os << vm_func.name << ": " << std::endl;
-  for (size_t i = 0; i < vm_func.instructions.size(); ++i) {
-    os << i << ": " << vm_func.instructions[i] << ";" << std::endl;
-  }
-}
-
-std::ostream& operator<<(std::ostream& os, const VMFunction& vm_func) {
-  VMFunctionPrint(os, vm_func);
-  return os;
-}
-
-inline ObjectRef CopyTo(ObjectRef src, const DLDevice& dev, Optional<String> mem_scope = NullOpt) {
-  if (src->IsInstance<NDArray::ContainerType>()) {
-    auto nd_array = Downcast<NDArray>(src);
-    // TODO(mbs): Should respect device id also.
-    // TODO(vvchernov): it still does not work for different device id
-    // due to simple implementation of Get() and AllocDataSpace() methods
-    // see tvm/src/runtime/c_runtime_api.cc: L139
-    // tvm/src/runtime/cpu_device_api.cc: L47
-    if (nd_array->device.device_type != dev.device_type ||
-        nd_array->device.device_id != dev.device_id) {
-      VLOG(2) << "copying from " << nd_array->device.device_type << "["
-              << nd_array->device.device_id << "] to " << dev.device_type << "[" << dev.device_id
-              << "]";
-      return nd_array.CopyTo(dev, mem_scope);
+/*!
+ * \brief Create another ffi::Function with last arguments already bound to last_args.
+ * \param func The input func, can be a VMClosure or ffi::Function.
+ * \param last_args The arguments to bound to in the end of the function.
+ * \note The new function takes in arguments and append the last_args in the end.
+ */
+ffi::Function VMClosure::BindLastArgs(ffi::Function func, std::vector<ffi::Any> last_args) {
+  return ffi::Function([func, last_args](ffi::PackedArgs args, ffi::Any* rv) {
+    std::vector<ffi::AnyView> packed_args(args.size() + last_args.size());
+    std::copy(args.data(), args.data() + args.size(), packed_args.data());
+    for (size_t i = 0; i < last_args.size(); ++i) {
+      packed_args[args.size() + i] = last_args[i];
     }
+    func.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), rv);
+  });
+}
+
+//-----------------------------------------------------------
+// Utility functions.
+//-----------------------------------------------------------
+// Use the args after `starting_arg_idx` as a series of indices into `obj`,
+// indexing into nested Array and returning the final indexed object.
+ffi::Any IndexIntoNestedObject(ffi::Any obj, ffi::PackedArgs args, int starting_arg_idx) {
+  for (int i = starting_arg_idx; i < args.size(); i++) {
+    // the object must be an Array to be able to index into it
+    if (!obj.as<ffi::ArrayObj>()) {
+      LOG(FATAL) << "ValueError: Attempted to index into an object that is not an Array.";
+    }
+    int index = args[i].cast<int>();
+    auto arr = obj.cast<ffi::Array<ffi::Any>>();
+    // make sure the index is in bounds
+    if (index >= static_cast<int>(arr.size())) {
+      LOG(FATAL) << "IndexError: Invalid index (" << index << " >= " << arr.size() << ").";
+    }
+    obj = arr[index];
+  }
+  return obj;
+}
+
+Tensor ConvertTensorToDevice(Tensor src, const DLDevice& dev, Allocator* alloc) {
+  if (src->device.device_type == dev.device_type && src->device.device_id == dev.device_id) {
     return src;
   } else {
-    ICHECK(src->IsInstance<ADTObj>())
-        << "VM data must be NDArray or a list of NDArray, but received: " << src->_type_key;
-    std::vector<ObjectRef> ret;
-    ADT adt = Downcast<ADT>(src);
-    for (size_t i = 0; i < adt.size(); i++) {
-      ret.push_back(CopyTo(adt[i], dev, mem_scope));
+    auto res = alloc->Empty(src.Shape(), src->dtype, dev);
+    res.CopyFrom(src);
+    return res;
+  }
+}
+
+Any ConvertObjectToDevice(Any src, const Device& dev, Allocator* alloc) {
+  if (src.as<Tensor::ContainerType>()) {
+    return ConvertTensorToDevice(src.cast<Tensor>(), dev, alloc);
+  } else if (src.as<ffi::ArrayObj>()) {
+    std::vector<Any> ret;
+    auto arr = src.cast<ffi::Array<Any>>();
+    for (size_t i = 0; i < arr.size(); i++) {
+      ret.push_back(ConvertObjectToDevice(arr[i], dev, alloc));
     }
-    return ADT(adt->tag, ret.begin(), ret.end());
-  }
-}
-
-ShapeTuple ToShape(NDArray shape_tensor) {
-  std::vector<ShapeTuple::index_type> shape;
-  auto rank = shape_tensor.Shape().size();
-  auto dtype = shape_tensor.DataType();
-
-  // For 0-rank shapes we need to allocate a single scalar.
-  if (rank == 0) {
-    return shape;
-  }
-
-  // Otherwise we should be rank-1, and we will extract the number of dimensions
-  // for the output vector.
-  ICHECK_EQ(rank, 1U) << "shape tensor should be a k-length vector, found " << rank;
-  int64_t ndim = shape_tensor.Shape().at(0);
-  shape.resize(ndim);
-
-  const DLTensor* dl_tensor = shape_tensor.operator->();
-  if (dtype.is_int() && dtype.bits() == 32 && dtype.lanes() == 1) {
-    int32_t* dims = reinterpret_cast<int32_t*>(dl_tensor->data);
-    shape.assign(dims, dims + ndim);
-  } else if (dtype.is_int() && dtype.bits() == 64 && dtype.lanes() == 1) {
-    int64_t* dims = reinterpret_cast<int64_t*>(dl_tensor->data);
-    shape.assign(dims, dims + ndim);
+    return ffi::Array<Any>(ret.begin(), ret.end());
   } else {
-    LOG(FATAL) << "invalid shape tensor datatype: " << dtype;
+    return src;
   }
-
-  return ShapeTuple(shape);
 }
 
-void VirtualMachine::OpStartHook(Instruction instr) {}
-void VirtualMachine::OpStopHook() {}
-
-PackedFunc VirtualMachine::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
-  if (name == "invoke") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      ICHECK(exec_) << "The executable is not created yet.";
-
-      std::string func_name = args[0];
-      auto git = exec_->global_map.find(func_name);
-      ICHECK(git != exec_->global_map.end())
-          << "Cannot find function " << func_name << " in the executable";
-      auto func = exec_->functions[git->second];
-      if (func.params.empty()) {
-        *rv = Invoke(func, {});
-      } else {
-        auto it = inputs_.find(func_name);
-        ICHECK(it != inputs_.end()) << "Input has not been set for function " << func_name;
-        const std::vector<ObjectRef>& input_args = it->second;
-        if (set_outputs_enabled_.count(func_name) && set_outputs_enabled_[func_name]) {
-          ICHECK(outputs_.count(func_name))
-              << "Outputs have not been set for function " << func_name;
-          *rv = Invoke(func, input_args, outputs_[func_name]);
-          outputs_[func_name].clear();
-          set_outputs_enabled_[func_name] = false;
-        } else {
-          *rv = Invoke(func, input_args);
-        }
-      }
-    });
-  } else if (name == "invoke_stateful") {
-    // TODO(tkonolige, jroesch, tqchen): invoke_stateful and get_output are
-    // stop-gap measure to allow using vm over a remote connection.
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      PackedFunc invoke = GetFunction("invoke", sptr_to_self);
-      TVMRetValue rv_;
-      invoke.CallPacked(args, &rv_);
-    });
-  } else if (name == "invoke_return_to_device") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      Device host{static_cast<DLDeviceType>(args[1].operator int()), args[2].operator int()};
-
-      SetInput(args[0].operator std::string(), args, 3);
-      PackedFunc invoke = GetFunction("invoke", sptr_to_self);
-      TVMRetValue rv_;
-      invoke.CallPacked(args, &rv_);  // Invoke only uses the first arg, so the rest of the args
-                                      // should not cause an issue
-      if (rv_.type_code() == kTVMObjectHandle) {
-        ADT adt = Downcast<ADT>(rv_.operator ObjectRef());
-        std::vector<ObjectRef> transfered;
-        for (size_t i = 0; i < adt.size(); i++) {
-          transfered.push_back(CopyTo(adt[i], host));
-        }
-        *rv = ADT(adt.tag(), transfered);
-      } else {
-        *rv = CopyTo(rv_, host);
-      }
-    });
-  } else if (name == "get_output") {
-    return TypedPackedFunc<NDArray(int64_t)>([this](int64_t index) {
-      if (this->return_register_.as<ADTObj>()) {
-        return Downcast<NDArray>(Downcast<ADT>(this->return_register_)[index]);
-      } else {
-        CHECK_EQ(index, 0) << "VM output contains only one item, but you are trying to get the "
-                           << index << "th.";
-        return Downcast<NDArray>(this->return_register_);
-      }
-    });
-  } else if (name == "get_num_outputs") {
-    return TypedPackedFunc<int64_t(void)>([this]() -> int64_t {
-      // single output is an NDArray not an ADT
-      if (this->return_register_.as<ADTObj>()) {
-        return Downcast<ADT>(this->return_register_).size();
-      } else {
-        return 1;
-      }
-    });
-  } else if (name == "get_input_index") {
-    return TypedPackedFunc<int64_t(std::string, std::string)>(
-        [this](std::string input_name, std::string func_name) {
-          return GetInputIndexFromVMFunction(func_name, input_name);
-        });
-  } else if (name == "init") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      ICHECK_EQ(args.size() % 3, 0);
-      std::vector<Device> devices;
-      std::vector<AllocatorType> alloc_types;
-      for (int i = 0; i < args.size() / 3; ++i) {
-        Device dev;
-        int device_type = args[i * 3];
-        dev.device_type = DLDeviceType(device_type);
-        dev.device_id = args[i * 3 + 1];
-        int type = args[i * 3 + 2];
-        devices.push_back(dev);
-        alloc_types.push_back(AllocatorType(type));
-      }
-      this->Init(devices, alloc_types);
-    });
-  } else if (name == "set_input") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetInput(args[0], args, 1); });
-  } else if (name == "set_one_input") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      ICHECK_EQ(args.size(), 3) << "The expected number of arguments is 3 "
-                                << "(func_name, index or name, tensor)";
-      SetOneInput(args[0], args[1], args[2]);
-    });
-  } else if (name == "set_outputs") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetOutputs(args[0], args); });
-  } else if (name == "load_late_bound_consts") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
-      CHECK_EQ(args.size(), 1);
-      std::string path = args[0];
-      exec_->LoadLateBoundConstantsFromFile(path);
-    });
+ffi::Any ConvertArgToDevice(ffi::AnyView input, Device dev, Allocator* alloc) {
+  // in terms of memory-behavior.
+  // To be extra careful, we copy DLTensor.
+  // The developer can still explicitly allocate Tensor
+  // in TVM Native API or Tensor::FromDLPack to regain zero copy behavior.
+  ffi::Any ret;
+  if (auto opt_obj = input.as<ObjectRef>()) {
+    ret = ConvertObjectToDevice(opt_obj.value(), dev, alloc);
+  } else if (auto opt_dltensor = input.as<DLTensor*>()) {
+    DLTensor* tensor = opt_dltensor.value();
+    std::vector<int64_t> shape(tensor->shape, tensor->shape + tensor->ndim);
+    auto dst = alloc->Empty(shape, tensor->dtype, dev);
+    dst.CopyFrom(tensor);
+    ret = dst;
   } else {
-    LOG(FATAL) << "Unknown packed function: " << name;
+    ret = input;
   }
+  return ret;
 }
 
-void VirtualMachine::SetInput(std::string func_name, TVMArgs args, int offset) {
-  const auto& vm_func = CheckAndGetVMFunction(func_name);
-  size_t params_num = vm_func.params.size();
-  ICHECK_EQ(args.size() - offset, params_num)
-      << "The number of provided parameters doesn't match the number of arguments";
-  std::vector<ObjectRef> func_args(params_num);
-  for (int i = offset; i < args.size(); ++i) {
-    int index = i - offset;
-    Device dev = GetDevice(vm_func.param_device_indexes[index]);
-    SetInputTensorWithIndex(func_args, args[i], index, dev);
-  }
-  inputs_.erase(func_name);
-  inputs_.emplace(func_name, func_args);
-}
-
-void VirtualMachine::SetOneInput(std::string func_name, const TVMArgValue& tag,
-                                 const TVMArgValue& tensor) {
-  const auto& vm_func = CheckAndGetVMFunction(func_name);
-  size_t params_num = vm_func.params.size();
-
-  int inp_index = 0;
-  if (tag.type_code() == kTVMArgInt) {
-    inp_index = tag;
-  } else if (tag.type_code() == kTVMStr) {
-    inp_index = static_cast<int>(GetInputIndexFromName(vm_func.params, tag));
+ffi::Any ConvertRegToDevice(ffi::Any input, Device dev, Allocator* alloc) {
+  ffi::Any ret;
+  if (auto opt_obj = input.as<ObjectRef>()) {
+    ret = ConvertObjectToDevice(opt_obj.value(), dev, alloc);
   } else {
-    LOG(FATAL) << "The type of input tensor tag (" << tag.type_code()
-               << ") doesn't match integer or string";
+    ret = input;
   }
-  ICHECK_LT(inp_index, params_num);
-
-  CreateInputsOrCheckSize(func_name, params_num);
-  Device dev = GetDevice(vm_func.param_device_indexes[inp_index]);
-  SetInputTensorWithIndex(inputs_[func_name], tensor, inp_index, dev);
+  return ret;
 }
 
-void VirtualMachine::SetOutputs(std::string func_name, TVMArgs args) {
-  set_outputs_enabled_[func_name] = true;
-  size_t outputs_size = args.size();
-  // First args is func_name
-  ICHECK_GT(outputs_size, 1) << "There is no output arguments set";
+//-----------------------------------------------------------
+// VM implementations.
+//-----------------------------------------------------------
+/*!
+ * \brief The register type.
+ */
+using RegType = ffi::Any;
 
-  std::vector<ObjectRef> func_args(outputs_size - 1);
-  for (size_t i = 1; i < outputs_size; ++i) {
-    // TODO(vvchernov): device?
-    func_args[i - 1] = TensorFromTVMArgValueToObjectRef(args[i]);
-  }
-  outputs_.erase(func_name);
-  outputs_.emplace(func_name, func_args);
-}
+/*!
+ * \brief A representation of a stack frame.
+ *
+ * A stack frame is a record containing the information needed
+ * to restore the caller's virtual machine state after returning
+ * from a function call.
+ */
+struct VMFrame {
+  /*! \brief The return program counter. */
+  Index return_pc;
+  /*! \brief Statically allocated space for objects */
+  std::vector<RegType> register_file;
+  /*! \brief Register in caller's frame to put return value */
+  RegName caller_return_register;
+  /*! \brief Temporary argument tcode stack for packed func call. */
+  std::vector<ffi::AnyView> call_args;
 
-void VirtualMachine::PrintInfoAndSetInputArgs(const VMFunction& func,
-                                              const std::vector<ObjectRef>& args) {
-  VLOG(2) << "Executing Function: " << std::endl << func;
-  for (int i = 0; i < static_cast<int>(devices_.size()); ++i) {
-    VLOG(2) << "Device " << i << " has device type " << devices_[i].device_type << " and device id "
-            << devices_[i].device_id
-            << (i == exec_->host_device_index ? " (using as host device)" : "");
-  }
+  VMFrame(Index pc, Index register_file_size)
+      : return_pc(pc), register_file(register_file_size), caller_return_register(0) {}
 
-  InvokeGlobal(func, args);
-}
-
-void VirtualMachine::SetOutputTensorsToRegister(const std::string& func_name,
-                                                const std::vector<ObjectRef>& outputs) {
-  size_t size = outputs.size();
-
-  if (output_tensor_reg_indices_[func_name].empty()) {
-    output_tensor_reg_indices_[func_name] = GetOutputTensorRegIndices();
-  }
-  auto& reg_indices = output_tensor_reg_indices_[func_name];
-  ICHECK_EQ(reg_indices.size(), size)
-      << "Number of outside output tensors should be equal to model outputs number";
-  size_t i = 0;
-  for (auto it = reg_indices.begin(); it != reg_indices.end(); ++it, ++i) {
-    WriteRegister(*it, outputs[i]);
-  }
-}
-
-ObjectRef VirtualMachine::TensorFromTVMArgValueToObjectRef(const TVMArgValue& output_tensor) const {
-  if (output_tensor.type_code() == kTVMDLTensorHandle) {
-    DLTensor* dl_tensor = output_tensor;
-    return NDArray::FromExternalDLTensor(*dl_tensor);
-  } else if (output_tensor.type_code() == kTVMNDArrayHandle) {
-    return output_tensor.AsObjectRef<tvm::runtime::NDArray>();
-  } else {
-    LOG(FATAL) << "It supports tensor of DLTensor or NDArray type only! Given type is "
-               << output_tensor.type_code();
-  }
-  return ObjectRef();
-}
-
-int64_t VirtualMachine::GetInputIndexFromVMFunction(const std::string& func_name,
-                                                    const std::string& input_name) const {
-  const auto& vm_func = CheckAndGetVMFunction(func_name);
-  return GetInputIndexFromName(vm_func.params, input_name);
-}
-
-int64_t VirtualMachine::GetInputIndexFromName(const std::vector<std::string>& params,
-                                              const std::string& input_name) const {
-  // TODO(vvchernov): excess integer type?
-  for (uint64_t i = 0; i < params.size(); i++) {
-    if (input_name == params[i]) {
-      return static_cast<int64_t>(i);
+  void Clear() {
+    this->caller_return_register = 0;
+    this->call_args.clear();
+    for (RegType& reg : register_file) {
+      reg = nullptr;
     }
   }
-  return static_cast<int64_t>(-1);
+
+  void ResetForRecycle(Index pc, Index register_file_size) {
+    this->return_pc = pc;
+    this->register_file.resize(register_file_size);
+  }
+};
+
+class VirtualMachineImpl : public VirtualMachine {
+ public:
+  //---------------------------------------------------
+  // Public facing functions overloading
+  //---------------------------------------------------
+  void LoadExecutable(ObjectPtr<VMExecutable> exec) final;
+  void Init(const std::vector<Device>& devices,
+            const std::vector<AllocatorType>& alloc_types) final;
+  VMClosure GetClosure(const ffi::String& func_name) final {
+    return this->GetClosureInternal(func_name, false).value();
+  }
+  void InvokeClosurePacked(const ObjectRef& closure_or_packedfunc, ffi::PackedArgs args,
+                           ffi::Any* rv) final;
+  void SetInstrument(ffi::Function instrument) final { this->instrument_ = instrument; }
+
+  //---------------------------------------------------
+  // Functions in the vtable of Module
+  //---------------------------------------------------
+  void _Init(ffi::PackedArgs args, ffi::Any* rv);
+  void _SaveClosure(ffi::PackedArgs args, ffi::Any* rv);
+  void _InvokeClosure(ffi::PackedArgs args, ffi::Any* rv);
+  void _InvokeClosureStateful(std::string func_name);
+  void _SetInstrument(ffi::PackedArgs args, ffi::Any* rv);
+  void _GetOutputArity(ffi::PackedArgs args, ffi::Any* rv);
+  void _GetOutput(ffi::PackedArgs args, ffi::Any* rv);
+  void _SetInputWithoutParamModule(ffi::PackedArgs args, ffi::Any* rv);
+  void _SetInputWithParamModule(ffi::PackedArgs args, ffi::Any* rv);
+  int _GetFunctionArity(std::string func_name);
+  std::string _GetFunctionParamName(std::string func_name, int index);
+  ffi::Function _LookupFunction(const ffi::String& name);
+
+  TVM_MODULE_VTABLE_BEGIN("relax.VirtualMachine");
+  TVM_MODULE_VTABLE_ENTRY_PACKED("vm_initialization", &VirtualMachineImpl::_Init);
+  TVM_MODULE_VTABLE_ENTRY_PACKED("save_function", &VirtualMachineImpl::_SaveClosure);
+  TVM_MODULE_VTABLE_ENTRY_PACKED("invoke_closure", &VirtualMachineImpl::_InvokeClosure);
+  TVM_MODULE_VTABLE_ENTRY("invoke_stateful", &VirtualMachineImpl::_InvokeClosureStateful);
+  TVM_MODULE_VTABLE_ENTRY_PACKED("set_instrument", &VirtualMachineImpl::_SetInstrument);
+  TVM_MODULE_VTABLE_ENTRY_PACKED("get_output_arity", &VirtualMachineImpl::_GetOutputArity);
+  TVM_MODULE_VTABLE_ENTRY_PACKED("get_output", &VirtualMachineImpl::_GetOutput);
+  TVM_MODULE_VTABLE_ENTRY_PACKED("set_input", &VirtualMachineImpl::_SetInputWithoutParamModule);
+  TVM_MODULE_VTABLE_ENTRY_PACKED("set_input_with_param_module",
+                                 &VirtualMachineImpl::_SetInputWithParamModule);
+  TVM_MODULE_VTABLE_ENTRY("get_function_arity", &VirtualMachineImpl::_GetFunctionArity);
+  TVM_MODULE_VTABLE_ENTRY("get_function_param_name", &VirtualMachineImpl::_GetFunctionParamName);
+  TVM_MODULE_VTABLE_END_WITH_DEFAULT(&VirtualMachineImpl::_LookupFunction);
+
+  //--------------------------------------------------
+  // Additional support arguments functions for VM
+  //--------------------------------------------------
+  /*!
+   * \brief Internal implementation of GetClosure which also allow none.
+   * \param func_name The name of the function.
+   * \param allow_missing Whether none is allowed.
+   * \return The result
+   */
+  ffi::Optional<VMClosure> GetClosureInternal(const ffi::String& func_name, bool allow_missing);
+
+  /*!
+   * \brief Set inputs to a function.
+   * \param func_name The function name.
+   * \param args args[offset:] are arguments to the function. If the arguments are not of the
+   * correct device for the function, they will be copied to the device.
+   * \param with_param_module If set to true, the last argument will be a module and can be invoked
+   *        to get the argument, this is mainly used for debugging purposes and setting composite
+   * objects. \note This interface works when using VM over RPC by internally converting Tensor in
+   * the arguments to DLTensor, which is supported in RPC where remote could only have a minimal C
+   * runtime.
+   */
+  void SetInput(std::string func_name, bool with_param_module, ffi::PackedArgs args);
+
+  /*!
+   * \brief Look up whether the VM has a function by the given name.
+   * \param func_name the function's name
+   * \return The function, if it exists. Logs a fatal error if not.
+   */
+  VMFuncInfo LookupVMFuncInfo(const std::string& func_name);
+
+  /*!
+   * \brief Look up whether the VM has outputs for the given function.
+   * \param func_name the function's name
+   * \return The output, if it exists. Logs a fatal error if not.
+   */
+  RegType LookupVMOutput(const std::string& func_name);
+
+  /*!
+   * \brief Fully bind the argument of a global function and save it in the env.
+   * \param func_name The global function name to be saved.
+   * \param save_name The saved name of the function.
+   * \param include_return Whether forward the return value, set it to false allows
+   *        us to ignore forwarding return value, which can be helpful to do benchmarking
+   *        in RPC environment when return value is complicated Array.
+   *
+   * \param args The arguments to bound to the function.
+   * \note This function is used by RPC server to help benchmarking.
+   */
+  void SaveClosure(const ffi::String& func_name, const ffi::String& save_name, bool include_return,
+                   ffi::PackedArgs args);
+  /*!
+   * \brief Internal function to invoke a closure.
+   * \param closure_or_packed The closure to be invoked.
+   * \param args The arguments to the function.
+   * \return The result value.
+   */
+  RegType InvokeClosureInternal(const ObjectRef& closure_or_packed,
+                                const std::vector<RegType>& args);
+  /*!
+   * \brief Invoke a VM function by interpreting bytecode.
+   * \param fidx The function index.
+   * \param args The arguments to the function.
+   * \return The object representing the result.
+   */
+  RegType InvokeBytecode(Index fidx, const std::vector<RegType>& args);
+
+ protected:
+  /*!
+   * \brief Get function by querying all of the current module's imports.
+   * \param name The name of the function.
+   * \return The result function, can return ffi::Function(nullptr) if nothing is found.
+   */
+  ffi::Optional<ffi::Function> GetFuncFromImports(const ffi::String& name) {
+    for (auto& lib : this->imports_) {
+      if (auto opt_func = lib.cast<ffi::Module>()->GetFunction(name, true)) {
+        return *opt_func;
+      }
+    }
+    return std::nullopt;
+  }
+  /*!
+   * \brief Initialize function pool.
+   */
+  void InitFuncPool();
+
+  /*!
+   * \brief A RAII wrapper that pushes and pops VM frames.
+   */
+  class FrameGuard {
+   public:
+    VirtualMachineImpl* vm;
+    explicit FrameGuard(VirtualMachineImpl* vm, std::unique_ptr<VMFrame> frame) : vm(vm) {
+      vm->frames_.emplace_back(std::move(frame));
+    }
+    ~FrameGuard() {
+      ICHECK_GT(vm->frames_.size(), 0);
+      vm->pc_ = vm->frames_.back()->return_pc;
+      vm->frames_.back()->Clear();
+      vm->frame_free_list_.emplace_back(std::move(vm->frames_.back()));
+      vm->frames_.pop_back();
+    }
+  };
+  //-------------------------------------------------
+  // Instruction interpretations.
+  //-------------------------------------------------
+  /*!
+   * \brief Push a call frame onto the call stack.
+   * \param ret_pc The program counter to return to.
+   * \param vm_func The function to be pushed to the call stack.
+   * \return A RAII wrapper that pops the frame when going out of scope.
+   */
+  FrameGuard PushFrame(Index ret_pc, const VMFuncInfo& vm_func) {
+    std::unique_ptr<VMFrame> new_frame;
+    if (!frame_free_list_.empty()) {
+      new_frame = std::move(frame_free_list_.back());
+      frame_free_list_.pop_back();
+      new_frame->ResetForRecycle(ret_pc, vm_func.register_file_size);
+    } else {
+      new_frame = std::make_unique<VMFrame>(ret_pc, vm_func.register_file_size);
+    }
+    return FrameGuard(this, std::move(new_frame));
+  }
+  /*!
+   * \brief Write to a VM register.
+   * \param frame current vm frame.
+   * \param reg The register to write to.
+   * \param obj The object to write to.
+   */
+  TVM_ALWAYS_INLINE void WriteRegister(VMFrame* frame, RegName reg, const RegType& obj) {
+    ICHECK_LT(reg, frame->register_file.size());
+    frame->register_file[reg] = obj;
+  }
+  /*!
+   * \brief Read a VM register.
+   * \param frame current vm frame.
+   * \param reg The register to read from.
+   * \return The value of the register.
+   */
+  TVM_ALWAYS_INLINE RegType ReadRegister(VMFrame* frame, RegName reg) {
+    if (reg < Instruction::kBeginSpecialReg) {
+      return frame->register_file[reg];
+    }
+    RegType ret;
+    if (reg == Instruction::kVoidRegister) {
+      ret = nullptr;
+    } else {
+      ICHECK_EQ(reg, Instruction::kVMRegister);
+      // per convention, ctx ptr must be VirtualMachine* casted to void.
+      // this and VirtualMachine* may or may not be the same
+      // do first cast to VirtualMachine* then to void*
+      ret = static_cast<void*>(static_cast<VirtualMachine*>(this));
+    }
+    return ret;
+  }
+  /*!
+   * \brief Run call instruction.
+   * \param curr_frame The current frame.
+   * \param inst The call instruction.
+   */
+  virtual void RunInstrCall(VMFrame* curr_frame, Instruction inst);
+
+  /*! \brief Run VM dispatch loop. */
+  void RunLoop();
+
+  /*!
+   * \brief Retrieve the name of the function identified by the given index.
+   * \param idx The index into the VM executable function table.
+   * \return The name of the function.
+   */
+  const std::string& GetFuncName(int idx) { return exec_->func_table[idx].name; }
+
+  /*!
+   * \brief Retrieve the inputs for a function.
+   * \param func_name The name of the function.
+   * \return The function inputs.
+   */
+  const std::vector<RegType>& GetInputsFor(const std::string& func_name) {
+    return inputs_[func_name];
+  }
+
+  void ClearInputsFor(const std::string& func_name) { inputs_.erase(func_name); }
+
+  //--------------------------------------------------------
+  // Internal states for execution.
+  //--------------------------------------------------------
+  /*! \brief The loaded executable. */
+  ObjectPtr<VMExecutable> exec_;
+  /*! \brief The global constant pool */
+  std::vector<ffi::Any> const_pool_;
+  /*!
+   * \brief Function pool to cache functions in func_table
+   */
+  std::vector<ffi::Any> func_pool_;
+  //--------------------------------------------------------
+  // Executor interface support
+  //--------------------------------------------------------
+  /*! \brief The function name to input register mapping. */
+  std::unordered_map<std::string, std::vector<RegType>> inputs_;
+  /*! \brief The function name to output register. */
+  std::unordered_map<std::string, RegType> outputs_;
+  /*! \brief A store of closures created by `save_function`. */
+  std::unordered_map<std::string, VMClosure> saved_closures_;
+  //------------------------------------------------------------
+  // VM Instruction execution.
+  //------------------------------------------------------------
+  /*!
+   * \brief The current stack of call frames.
+   * \note: Use unique ptr to avoid re-allocation and copy when frames_ get resized.
+   */
+  std::vector<std::unique_ptr<VMFrame>> frames_;
+  /*!
+   * \brief A free list of frame
+   */
+  std::vector<std::unique_ptr<VMFrame>> frame_free_list_;
+
+  /*! \brief The virtual machine PC. */
+  Index pc_{0};
+  /*! \brief The special return register. */
+  RegType return_value_;
+  /*!\ brief instrument function. */
+  ffi::Function instrument_ = nullptr;
+};
+
+void VirtualMachineImpl::LoadExecutable(ObjectPtr<VMExecutable> exec) {
+  this->exec_ = exec;
+  this->imports_ = exec->imports();
 }
 
-const VMFunction& VirtualMachine::CheckAndGetVMFunction(const std::string& func_name) const {
+void VirtualMachineImpl::Init(const std::vector<Device>& devices,
+                              const std::vector<AllocatorType>& alloc_types) {
+  ICHECK_EQ(devices.size(), alloc_types.size());
+
+  this->devices.reserve(devices.size());
+  this->allocators.reserve(alloc_types.size());
+  for (size_t i = 0; i < devices.size(); i++) {
+    auto alloc = MemoryManager::GetOrCreateAllocator(devices[i], alloc_types[i]);
+    this->devices.push_back(devices[i]);
+    this->allocators.push_back(alloc);
+  }
+  // Setup constant sections.
+  this->const_pool_.reserve(exec_->constants.size());
+  for (const auto& constant : exec_->constants) {
+    if (auto opt_nd = constant.as<Tensor>()) {
+      this->const_pool_.push_back(ConvertRegToDevice(opt_nd.value(), devices[0], allocators[0]));
+    } else {
+      this->const_pool_.push_back(constant);
+    }
+  }
+  // Setup function sections.
+  this->InitFuncPool();
+}
+
+VMFuncInfo VirtualMachineImpl::LookupVMFuncInfo(const std::string& func_name) {
   ICHECK(exec_) << "The executable is not created yet.";
-  return exec_->GetVMFunctionWithName(func_name);
+  auto it = this->exec_->func_map.find(func_name);
+  CHECK(it != this->exec_->func_map.end()) << "ValueError: Unknown function: " << func_name;
+
+  return exec_->func_table[it->second];
 }
 
-void VirtualMachine::CreateInputsOrCheckSize(const std::string& func_name, size_t size) {
-  if (inputs_.count(func_name)) {
-    ICHECK_EQ(inputs_[func_name].size(), size)
-        << "The size of function" << func_name
-        << " doesn't match the number of provided parameters";
-  } else {
-    std::vector<ObjectRef> func_args(size);
-    inputs_.emplace(func_name, func_args);
+RegType VirtualMachineImpl::LookupVMOutput(const std::string& func_name) {
+  if (!outputs_.count(func_name)) {
+    LOG(FATAL) << "ValueError: No output saved for call of \"" << func_name
+               << "\"; use `invoke_stateful` to call it first.";
   }
+  return outputs_[func_name];
 }
 
-void VirtualMachine::SetInputTensorWithIndex(std::vector<ObjectRef>& tensors,
-                                             const TVMArgValue& inp_tensor, int index, Device dev) {
-  if (inp_tensor.type_code() == kTVMDLTensorHandle) {
-    if (NDArray::AbilityOfZeroCopyForDLTensor(inp_tensor, dev)) {
-      tensors[index] = NDArray::FromExternalDLTensor(*inp_tensor);
-    } else {
-      tensors[index] = NDArray::NewFromDLTensor(inp_tensor, dev);
+void VirtualMachineImpl::SetInput(std::string func_name, bool with_param_module,
+                                  ffi::PackedArgs args) {
+  const auto& m = exec_->func_map;
+  if (m.find(func_name) != m.end()) {
+    Index gf_idx = m.at(func_name);
+    const VMFuncInfo& vm_func = exec_->func_table[gf_idx];
+    size_t params_num = vm_func.num_args;
+    ICHECK_EQ(args.size(), params_num)
+        << "The number of provided parameters doesn't match the number of arguments for";
+    std::vector<RegType> func_args(params_num);
+    for (int i = 0; i < args.size(); ++i) {
+      if (with_param_module && i == args.size() - 1) {
+        // call param func to get the arguments(usually corresponds to param pack.)
+        func_args[i] = (args[i].cast<ffi::Module>())->GetFunction("get_params").value()();
+      } else {
+        func_args[i] = ConvertArgToDevice(args[i], devices[0], allocators[0]);
+      }
     }
+    inputs_[func_name] = func_args;
   } else {
-    tensors[index] = CopyTo(inp_tensor, dev);
+    LOG(FATAL) << "ValueError: Unknown function: " << func_name;
   }
 }
 
-inline Device VirtualMachine::GetDevice(Index device_index) const {
-  ICHECK_GE(devices_.size(), device_index) << "invalid device index: " << device_index;
-  return devices_[device_index];
+//------------------------------------------
+// Closure handling
+//------------------------------------------
+void VirtualMachineImpl::InvokeClosurePacked(const ObjectRef& closure_or_packedfunc,
+                                             ffi::PackedArgs args, ffi::Any* rv) {
+  // run packed call if it is a packed func.
+  if (auto* packed = closure_or_packedfunc.as<ffi::Function::ContainerType>()) {
+    packed->CallPacked(args.data(), args.size(), rv);
+    return;
+  }
+  // run closure call.
+  auto* clo = closure_or_packedfunc.as<VMClosureObj>();
+  ICHECK(clo != nullptr) << "Function expects a closure or ffi::Function ";
+
+  std::vector<ffi::AnyView> packed_args(args.size() + 1);
+  // per convention, ctx ptr must be VirtualMachine* casted to void.
+  // this and VirtualMachine* may or maynot be the same
+  // do first cast to VirtualMachine* then to void*
+  packed_args[0] = static_cast<void*>(static_cast<VirtualMachine*>(this));
+  std::copy(args.data(), args.data() + args.size(), packed_args.begin() + 1);
+  {
+    NVTXScopedRange scope("RelaxVM: " + clo->func_name);
+    clo->impl.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), rv);
+  }
 }
 
-inline Allocator* VirtualMachine::GetAllocator(Index device_index) const {
-  ICHECK_GE(allocators_.size(), device_index) << "invalid device index: " << device_index;
-  return allocators_[device_index];
-}
+// internal variant version of invoke closurepacked
+RegType VirtualMachineImpl::InvokeClosureInternal(const ObjectRef& closure_or_packed,
+                                                  const std::vector<RegType>& args) {
+  RegType ret;
+  auto* packed = closure_or_packed.as<ffi::Function::ContainerType>();
+  auto* clo = closure_or_packed.as<VMClosureObj>();
+  int clo_offset = clo != nullptr ? 1 : 0;
 
-void VirtualMachine::PushFrame(Index arg_count, Index ret_pc, const VMFunction& vm_func) {
-  auto frame = VMFrame(ret_pc, func_index_, arg_count, code_, vm_func.register_file_size);
-  frames_.push_back(frame);
-}
+  std::vector<ffi::AnyView> packed_args(args.size() + clo_offset);
 
-Index VirtualMachine::PopFrame() {
-  ICHECK_GT(frames_.size(), 0);
-  const VMFrame& fr = frames_.back();
-  func_index_ = fr.func_index;
-  code_ = fr.code;
-  pc_ = fr.pc;
-  auto call_stack_size = frames_.size();
-  frames_.pop_back();
-  return call_stack_size;
-}
-
-void VirtualMachine::InvokeGlobal(const VMFunction& func, const std::vector<ObjectRef>& args) {
-  VLOG(2) << "Invoking global " << func.name << " with " << args.size() << " args";
-
-  PushFrame(func.params.size(), this->pc_ + 1, func);
+  if (clo != nullptr) {
+    packed_args[0] = static_cast<void*>(static_cast<VirtualMachine*>(this));
+  }
   for (size_t i = 0; i < args.size(); ++i) {
-    WriteRegister(i, args[i]);
-    VLOG(2) << "arg " << i << " = "
-            << RuntimeObject2String(args[i], GetDevice(exec_->host_device_index));
+    packed_args[i + clo_offset] = args[i];
   }
 
-  code_ = func.instructions.data();
-  pc_ = 0;
-}
-
-ObjectRef VirtualMachine::Invoke(const VMFunction& func, const std::vector<ObjectRef>& args) {
-  PrintInfoAndSetInputArgs(func, args);
-  RunLoop();
-  return return_register_;
-}
-
-ObjectRef VirtualMachine::Invoke(const std::string& name, const std::vector<ObjectRef>& args) {
-  ICHECK(exec_) << "The executable has not been created yet.";
-  auto it = exec_->global_map.find(name);
-  ICHECK(it != exec_->global_map.end()) << "Cannot find function " << name << " in the executable";
-  Index func_index = it->second;
-  VLOG(2) << "Invoke Global " << name << " at index " << func_index;
-  return Invoke(exec_->functions[func_index], args);
-}
-
-ObjectRef VirtualMachine::Invoke(const VMFunction& func, const std::vector<ObjectRef>& input_args,
-                                 const std::vector<ObjectRef>& output_args) {
-  PrintInfoAndSetInputArgs(func, input_args);
-  SetOutputTensorsToRegister(func.name, output_args);
-  RunLoop(output_tensor_reg_indices_[func.name]);
-  return return_register_;
-}
-
-void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
-                                  Index output_size, const std::vector<ObjectRef>& args) {
-  size_t arity = 0;
-  for (Index i = 0; i < arg_count; i++) {
-    if (const auto* obj = args[i].as<ADTObj>()) {
-      arity += obj->size;
-    } else {
-      ++arity;
-    }
-  }
-
-  std::vector<TVMValue> values(arity);
-  std::vector<int> codes(arity);
-  runtime::TVMArgsSetter setter(values.data(), codes.data());
-  int idx = 0;
-  bool is_empty_output = false;
-  for (Index i = 0; i < arg_count; i++) {
-    if (const auto* dt_cell = args[i].as<ADTObj>()) {
-      for (size_t fi = 0; fi < dt_cell->size; ++fi) {
-        auto obj = (*dt_cell)[fi];
-        auto nd_array = Downcast<NDArray>(obj);
-        setter(idx++, nd_array);
-      }
-    } else {
-      auto nd_array = Downcast<NDArray>(args[i]);
-      // We can safely skip CallPacked if there is only one
-      // output and it is empty.
-      if (i == arg_count - 1 && output_size == 1) {
-        for (const auto& dim : nd_array.Shape()) {
-          if (!dim) {
-            is_empty_output = true;
-            break;
-          }
-        }
-      }
-      setter(idx++, nd_array);
-    }
-  }
-
-  if (!is_empty_output) {
-    TVMRetValue rv;
-    func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
-  }
-}
-
-void VirtualMachine::LoadExecutable(const ObjectPtr<Executable>& exec) {
-  ICHECK(exec) << "The executable is not created yet.";
-  ICHECK(exec->late_bound_constant_names.empty())
-      << "Need to load late-bound-constants before creating VM";
-  exec_ = exec;
-
-  runtime::Module lib = exec_->GetLib();
-
-  ICHECK(exec_->primitive_map.empty() || lib.operator->())
-      << "If the executable has declared primitive functions, the "
-      << "generated kernel library must non-be null.";
-
-  for (const auto& it : exec_->primitive_map) {
-    const auto& packed_name = it.first;
-    auto packed_index = static_cast<size_t>(it.second);
-    if (packed_funcs_.size() <= packed_index) {
-      packed_funcs_.resize(packed_index + 1);
-    }
-    tvm::runtime::PackedFunc pf = lib.GetFunction(packed_name, /*query_imports=*/true);
-    ICHECK(pf != nullptr) << "Cannot find function in module: " << packed_name;
-    packed_funcs_[packed_index] = pf;
-  }
-  for (size_t i = 0; i < packed_funcs_.size(); ++i) {
-    ICHECK(packed_funcs_[i] != nullptr) << "Packed function " << i << " is not initialized";
-  }
-}
-
-void VirtualMachine::Init(const std::vector<Device>& physical_devices,
-                          const std::vector<AllocatorType>& alloc_types) {
-  ICHECK_EQ(physical_devices.size(), alloc_types.size());
-
-  // Find a physical device to represent each virtual device the VM code requires.
-  // (Recall the VM instructions refer to devices by "device index" into this vector of
-  // virtual devices.)
-  const size_t num_virtual_devices = exec_->virtual_devices.size();
-  devices_.reserve(num_virtual_devices);
-  allocators_.reserve(num_virtual_devices);
-
-  for (size_t device_index = 0; device_index < num_virtual_devices; ++device_index) {
-    // We'll retain the legacy behaviour and just match by device type.
-    // TODO(mbs): Generalize.
-    DLDeviceType virtual_device_type = exec_->virtual_devices[device_index].first.device_type;
-    auto itr = std::find_if(physical_devices.begin(), physical_devices.end(),
-                            [virtual_device_type](const Device& physical_device) {
-                              return physical_device.device_type == virtual_device_type;
-                            });
-    CHECK(itr != physical_devices.end())
-        << "Unable to find a physical device (from among the " << physical_devices.size()
-        << " given) to match the virtual device with device type " << virtual_device_type;
-    const size_t i = std::distance(physical_devices.begin(), itr);
-    devices_.push_back(*itr);
-    allocators_.push_back(MemoryManager::GetOrCreateAllocator(*itr, alloc_types[i]));
-  }
-}
-
-inline void VirtualMachine::WriteRegister(Index r, const ObjectRef& val) {
-  frames_.back().register_file[r] = val;
-}
-
-ObjectRef VirtualMachine::ReadRegister(Index r) const { return frames_.back().register_file[r]; }
-
-int64_t VirtualMachine::LoadScalarInt(Index r) const {
-  int64_t result = 0;
-  const auto& obj = ReadRegister(r);
-  NDArray array = Downcast<NDArray>(CopyTo(obj, GetDevice(exec_->host_device_index)));
-
-  switch (array->dtype.bits) {
-    case 1: {
-      result = reinterpret_cast<bool*>(array->data)[0];
-      break;
-    }
-    case 8: {
-      result = reinterpret_cast<int8_t*>(array->data)[0];
-      break;
-    }
-    case 16: {
-      result = reinterpret_cast<int16_t*>(array->data)[0];
-      break;
-    }
-    case 32: {
-      result = reinterpret_cast<int32_t*>(array->data)[0];
-      break;
-    }
-    case 64: {
-      result = reinterpret_cast<int64_t*>(array->data)[0];
-      break;
-    }
-    default:
-      LOG(FATAL) << "Unknown scalar int type: " << DLDataType2String(array->dtype);
-  }
-  return result;
-}
-
-Index VirtualMachine::GetResultRegisterIndex() const {
-  Index op_index = 0;
-  while (code_[op_index].op != Opcode::Ret) {
-    ++op_index;
-  }
-
-  return code_[op_index].result;
-}
-
-void VirtualMachine::CalculatePreResultOpIndex(Index res_index) {
-  if (preresult_op_index_ == -1) {
-    preresult_op_index_ = 0;
-    while (code_[preresult_op_index_].dst != res_index) {
-      ++preresult_op_index_;
-    }
-  }
-}
-
-std::vector<Index> VirtualMachine::GetOutputTensorRegIndices() {
-  std::vector<Index> reg_indices;
-  Index res_index = GetResultRegisterIndex();
-  CalculatePreResultOpIndex(res_index);
-  auto& preres_instr = code_[preresult_op_index_];
-  auto op_code = preres_instr.op;
-  if (op_code == Opcode::AllocTensor) {
-    reg_indices.emplace_back(res_index);
-  } else if (op_code == Opcode::AllocADT) {
-    for (Index i = 0; i < preres_instr.num_fields; ++i) {
-      reg_indices.push_back(preres_instr.datatype_fields[i]);
-    }
-  } else if (op_code == Opcode::ReshapeTensor) {
-    reg_indices.push_back(preres_instr.reshape_tensor.tensor);
+  if (packed != nullptr) {
+    packed->CallPacked(packed_args.data(), packed_args.size(), &ret);
   } else {
-    LOG(FATAL) << "Operation " << size_t(op_code) << " is not supported for set_outputs method";
+    ICHECK(clo != nullptr);
+    clo->impl.CallPacked(packed_args.data(), packed_args.size(), &ret);
   }
-  return reg_indices;
+  return ret;
 }
 
-void VirtualMachine::RunLoop(const std::vector<Index>& output_tensor_reg_indices) {
-  ICHECK(this->exec_);
-  ICHECK(this->code_);
-  pc_ = 0;
-  Index frame_start = frames_.size();
-  while (true) {
-  main_loop:
-    auto const& instr = code_[this->pc_];
-    VLOG(2) << "Executing(" << pc_ << "): " << instr;
+void VirtualMachineImpl::SaveClosure(const ffi::String& func_name, const ffi::String& save_name,
+                                     bool include_return, ffi::PackedArgs args) {
+  VMClosure clo = this->GetClosure(func_name);
+  std::vector<RegType> inputs(args.size());
+  for (int i = 0; i < args.size(); ++i) {
+    inputs[i] = ConvertArgToDevice(args[i], this->devices[0], this->allocators[0]);
+  }
+  ffi::Function impl = VMClosure::BindLastArgs(clo->impl, inputs);
+  if (!include_return) {
+    impl = ffi::Function([impl](ffi::PackedArgs args, ffi::Any* rv) {
+      ffi::Any temp;
+      impl.CallPacked(args, &temp);
+    });
+  }
+  saved_closures_[save_name] = VMClosure(save_name, impl);
+}
 
-    switch (instr.op) {
-      case Opcode::Move: {
-        ObjectRef from_obj;
-        from_obj = ReadRegister(instr.from);
-        WriteRegister(instr.dst, from_obj);
-        pc_++;
-        goto main_loop;
-      }
-      case Opcode::Fatal: {
-        throw std::runtime_error("VM encountered fatal error");
-      }
-      case Opcode::LoadConst: {
-        bool is_not_cached = const_pool_.size() <= static_cast<size_t>(instr.const_index) ||
-                             !const_pool_[instr.const_index].defined();
-        if (is_not_cached) {
-          OpStartHook(instr);
-        }
-        auto constant_obj = exec_->constants[instr.const_index];
-        // We cache the allocated object in the constant pool. To measure, the
-        // first iteration will set the pool up. The other iterations will
-        // directly reuse the allocated objects.
-        if (const_pool_.size() <= static_cast<size_t>(instr.const_index)) {
-          const_pool_.resize(instr.const_index + 1);
-        }
+ffi::Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const ffi::String& func_name,
+                                                                bool allow_missing) {
+  // look up saved closures.
+  auto saved_it = saved_closures_.find(func_name);
+  if (saved_it != saved_closures_.end()) {
+    return saved_it->second;
+  }
+  auto it = exec_->func_map.find(func_name);
+  if (it == exec_->func_map.end()) {
+    if (allow_missing) return std::nullopt;
+    LOG(FATAL) << "ValueError: Unknown function: " << func_name;
+  }
 
-        if (!const_pool_[instr.const_index].defined()) {
-          auto& [dev, mem_scope] =
-              exec_->virtual_devices[exec_->const_device_indexes[instr.const_index]];
-          const_pool_[instr.const_index] = CopyTo(constant_obj, dev, String(mem_scope));
-        }
-        WriteRegister(instr.dst, const_pool_[instr.const_index]);
-        if (is_not_cached) {
-          OpStopHook();
-        }
-        pc_++;
-        goto main_loop;
-      }
-      case Opcode::LoadConsti: {
-        auto tensor = NDArray::Empty({1}, {kDLInt, 64, 1}, GetDevice(exec_->host_device_index));
-        reinterpret_cast<int64_t*>(tensor->data)[0] = instr.load_consti.val;
-        WriteRegister(instr.dst, tensor);
-        pc_++;
-        goto main_loop;
-      }
-      case Opcode::Invoke: {
-        std::vector<ObjectRef> args;
-        for (Index i = 0; i < instr.num_args; ++i) {
-          args.push_back(ReadRegister(instr.invoke_args_registers[i]));
-        }
-        InvokeGlobal(exec_->functions[instr.func_index], args);
-        frames_.back().caller_return_register = instr.dst;
-        goto main_loop;
-      }
-      case Opcode::InvokePacked: {
-        ICHECK_LE(instr.packed_index, packed_funcs_.size());
-        const auto& func = packed_funcs_[instr.packed_index];
-        const auto& arity = instr.arity;
-        std::vector<ObjectRef> args;
-        for (Index i = 0; i < arity; ++i) {
-          auto arg = ReadRegister(instr.packed_args[i]);
-          args.push_back(arg);
-#if TVM_LOG_DEBUG
-          if (i < arity) {
-            const bool is_input = i < arity - instr.output_size;
-            VLOG(2) << (is_input ? "input" : "placeholder") << " arg " << i << " = "
-                    << RuntimeObject2String(arg, GetDevice(exec_->host_device_index),
-                                            /*show_contents=*/is_input);
-          }
-#endif
-        }
+  Index gf_idx = it->second;
+  const VMFuncInfo& finfo = exec_->func_table[gf_idx];
 
-        // We no longer need to write the registers back, we write directly
-        // through the registers mutably.
-        InvokePacked(instr.packed_index, func, arity, instr.output_size, args);
+  if (finfo.kind == VMFuncInfo::FuncKind::kVMFunc) {
+    // NOTE: should not capture strong ref to self and avoid cyclic ref.
+    auto impl = ffi::Function([gf_idx](ffi::PackedArgs args, ffi::Any* rv) {
+      // Per convention, ctx ptr is a VirtualMachine*
+      VirtualMachine* ctx_ptr = static_cast<VirtualMachine*>(args[0].cast<void*>());
 
-#if TVM_LOG_DEBUG
-        for (Index i = arity - instr.output_size; i < arity; ++i) {
-          auto arg = ReadRegister(instr.packed_args[i]);
-          VLOG(2) << "output arg " << i << " = "
-                  << RuntimeObject2String(arg, GetDevice(exec_->host_device_index));
-        }
-#endif
+      std::vector<RegType> inputs(args.size() - 1);
+      for (size_t i = 0; i < inputs.size(); ++i) {
+        inputs[i] = args[i + 1];
+      }
+      *rv = static_cast<VirtualMachineImpl*>(ctx_ptr)->InvokeBytecode(gf_idx, inputs);
+    });
+    return VMClosure(func_name, impl);
+  } else {
+    ICHECK(finfo.kind == VMFuncInfo::FuncKind::kVMTIRFunc)
+        << "Cannot support closure with function kind " << static_cast<int>(finfo.kind);
+    ffi::Optional<ffi::Function> tir_func = GetFuncFromImports("__vmtir__" + finfo.name);
+    ICHECK(tir_func.has_value()) << "Cannot find underlying compiled tir function of VMTIRFunc "
+                                 << finfo.name;
+    auto impl = ffi::Function([this, finfo, tir_func](ffi::PackedArgs args, ffi::Any* rv) {
+      // Per convention, ctx ptr is a VirtualMachine*
+      VirtualMachine* ctx_ptr = static_cast<VirtualMachine*>(args[0].cast<void*>());
+      ICHECK(ctx_ptr == this);
+      ICHECK_EQ(args.size() - 1, finfo.num_args)
+          << "Function " << finfo.name << " expects " << finfo.num_args << " arguments";
+      ICHECK_GE(finfo.register_file_size, finfo.num_args + 1);
+      std::vector<ffi::Any> reg_file(finfo.register_file_size);
+      for (int64_t i = 0; i < finfo.num_args; ++i) {
+        reg_file[i] = args[i + 1];
+      }
+      void* reg_anylist_handle = reg_file.data();
+      void* const_anylist_handle = this->const_pool_.data();
+      void* func_anylist_handle = this->func_pool_.data();
+      (*tir_func)(static_cast<void*>(ctx_ptr), reg_anylist_handle, const_anylist_handle,
+                  func_anylist_handle);
+      // Return value always stored after inputs.
+      *rv = reg_file[finfo.num_args];
+    });
+    return VMClosure(func_name, impl);
+  }
+}
 
-        pc_++;
-        goto main_loop;
-      }
-      case Opcode::InvokeClosure: {
-        auto object = ReadRegister(instr.closure);
-        const auto* closure = object.as<VMClosureObj>();
-        ICHECK(closure);
-        std::vector<ObjectRef> args;
-        for (auto free_var : closure->free_vars) {
-          args.push_back(free_var);
-        }
-        for (Index i = 0; i < instr.num_closure_args; ++i) {
-          args.push_back(ReadRegister(instr.closure_args[i]));
-        }
-        InvokeGlobal(exec_->functions[closure->func_index], args);
-        frames_.back().caller_return_register = instr.dst;
-        goto main_loop;
-      }
-      case Opcode::GetField: {
-        auto object = ReadRegister(instr.object);
-        const auto& tuple = Downcast<ADT>(object);
-        auto field = tuple[instr.field_index];
-        WriteRegister(instr.dst, field);
-        pc_++;
-        goto main_loop;
-      }
-      case Opcode::GetTag: {
-        auto object = ReadRegister(instr.get_tag.object);
-        const auto& adt = Downcast<ADT>(object);
-        auto tag = adt.tag();
-        auto tag_tensor = NDArray::Empty({1}, {kDLInt, 32, 1}, GetDevice(exec_->host_device_index));
-        reinterpret_cast<int32_t*>(tag_tensor->data)[0] = tag;
-        WriteRegister(instr.dst, tag_tensor);
-        pc_++;
-        goto main_loop;
-      }
-      case Opcode::Goto: {
-        pc_ += instr.pc_offset;
-        goto main_loop;
-      }
-      case Opcode::If: {
-        int32_t test_val = LoadScalarInt(instr.if_op.test);
-        int32_t target_val = LoadScalarInt(instr.if_op.target);
+//--------------------------------------------------------------------
+// Instruction interpretations.
+//--------------------------------------------------------------------
+RegType VirtualMachineImpl::InvokeBytecode(Index gf_idx, const std::vector<RegType>& args) {
+  const VMFuncInfo& gfunc = exec_->func_table[gf_idx];
+  ICHECK(gfunc.kind == VMFuncInfo::FuncKind::kVMFunc);
 
-        if (test_val == target_val) {
-          ICHECK_NE(instr.if_op.true_offset, 0);
-          pc_ += instr.if_op.true_offset;
-        } else {
-          ICHECK_NE(instr.if_op.false_offset, 0);
-          pc_ += instr.if_op.false_offset;
-        }
+  // Get the curr instr which might be a potential caller.
+  Instruction curr_instr = exec_->GetInstruction(pc_);
+  auto guard = PushFrame(this->pc_, gfunc);
+  // Get new frame and set the caller info.
+  VMFrame* curr_frame = frames_.back().get();
+  if (curr_instr.op == Opcode::Call) {
+    curr_frame->caller_return_register = curr_instr.dst;
+  }
 
-        goto main_loop;
-      }
-      case Opcode::AllocTensor: {
-        OpStartHook(instr);
-        if (!output_tensor_reg_indices.empty() && FindIndex(output_tensor_reg_indices, instr.dst)) {
-          WriteAllocatedTensorFromOutside(instr);
-        } else {
-          WriteAllocatedTensor(instr);
-        }
-        OpStopHook();
-        pc_++;
-        goto main_loop;
-      }
-      case Opcode::AllocTensorReg: {
-        OpStartHook(instr);
-        Device cpu_dev = GetDevice(exec_->host_device_index);
-        auto shape_obj = ReadRegister(instr.alloc_tensor_reg.shape_register);
-        NDArray shape_tensor = Downcast<NDArray>(CopyTo(shape_obj, cpu_dev));
-        auto shape = ToShape(shape_tensor);
-        auto storage_obj = ReadRegister(instr.alloc_tensor_reg.storage);
-        auto storage = Downcast<Storage>(storage_obj);
-        auto offset = LoadScalarInt(instr.alloc_tensor.offset);
-        auto obj = storage->AllocNDArray(offset, shape, instr.alloc_tensor_reg.dtype);
-        VLOG(2) << "allocated "
-                << RuntimeObject2String(obj, GetDevice(exec_->host_device_index),
-                                        /*show_contents=*/false);
-
-        WriteRegister(instr.dst, obj);
-        OpStopHook();
-        pc_++;
-        goto main_loop;
-      }
-      case Opcode::AllocADT: {
-        std::vector<ObjectRef> fields;
-        for (Index i = 0; i < instr.num_fields; ++i) {
-          fields.push_back(ReadRegister(instr.datatype_fields[i]));
-        }
-        ObjectRef obj = ADT(instr.constructor_tag, fields);
-        WriteRegister(instr.dst, obj);
-        pc_++;
-        goto main_loop;
-      }
-      case Opcode::AllocClosure: {
-        std::vector<ObjectRef> free_vars;
-        for (Index i = 0; i < instr.num_freevar; i++) {
-          free_vars.push_back(ReadRegister(instr.free_vars[i]));
-        }
-        WriteRegister(instr.dst, VMClosure(instr.func_index, free_vars));
-        pc_++;
-        goto main_loop;
-      }
-      case Opcode::AllocStorage: {
-        OpStartHook(instr);
-
-        auto storage_obj = SimpleObjAllocator().make_object<StorageObj>();
-        Allocator* allocator = GetAllocator(instr.alloc_storage.device_index);
-        Device device = devices_[instr.alloc_storage.device_index];
-        ICHECK(allocator) << "Did you forget to init the VirtualMachine with devices?";
-
-        if (instr.alloc_storage.ndim > 0) {
-          std::string shape = "[";
-          for (uint32_t i = 0; i < instr.alloc_storage.ndim; ++i) {
-            if (i > 0) {
-              shape += ", ";
+  // load arguments to the register file
+  ICHECK_EQ(static_cast<size_t>(gfunc.num_args), args.size()) << "ValueError: Invoking function "
+                                                              << gfunc.name << " expects "
+                                                              << gfunc.num_args << " arguments" <<
+      [&]() {
+        std::stringstream ss;
+        if (gfunc.param_names.size()) {
+          ss << " (";
+          for (size_t i = 0; i < gfunc.param_names.size(); i++) {
+            if (i) {
+              ss << ", ";
             }
-            shape += std::to_string(instr.alloc_storage.shape[i]);
+            ss << gfunc.param_names[i];
           }
-          shape += "]";
-          std::string mem_scope = exec_->virtual_devices[instr.alloc_storage.device_index].second;
-          VLOG(2) << "allocating with ndims=" << instr.alloc_storage.ndim << ", shape=" << shape
-                  << ", dtype_hint=" << DLDataType2String(instr.alloc_storage.dtype_hint)
-                  << ", device_index=" << instr.alloc_storage.device_index
-                  << ", memory_scope=" << mem_scope;
+          ss << ")";
+        }
+        return ss.str();
+      }() << ", but " << args.size() << " arguments were provided.";
+  for (size_t i = 0; i < args.size(); ++i) {
+    WriteRegister(frames_.back().get(), i, args[i]);
+  }
+  // set program counter
+  pc_ = gfunc.start_instr;
+  RunLoop();
+  return return_value_;
+}
 
-          std::vector<ShapeTuple::index_type> shape_;
-          shape_.resize(instr.alloc_storage.ndim);
-          shape_.assign(instr.alloc_storage.shape,
-                        instr.alloc_storage.shape + instr.alloc_storage.ndim);
-          storage_obj->buffer = allocator->Alloc(device, ShapeTuple(shape_),
-                                                 instr.alloc_storage.dtype_hint, mem_scope);
-          storage_obj->allocator = allocator;
-        } else {
-          auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
-          auto alignment = instr.alloc_storage.alignment;
-          VLOG(2) << "allocating with allocation_size=" << size << ", alignment=" << alignment
-                  << ", dtype_hint=" << DLDataType2String(instr.alloc_storage.dtype_hint)
-                  << ", device_index=" << instr.alloc_storage.device_index;
-          storage_obj->buffer =
-              allocator->Alloc(device, size, alignment, instr.alloc_storage.dtype_hint);
-          storage_obj->allocator = allocator;
-        }
-        Storage storage(storage_obj);
-        WriteRegister(instr.dst, storage);
-        OpStopHook();
-        pc_++;
-        goto main_loop;
+void VirtualMachineImpl::InitFuncPool() {
+  func_pool_.resize(exec_->func_table.size());
+
+  for (size_t func_index = 0; func_index < exec_->func_table.size(); ++func_index) {
+    const VMFuncInfo& info = exec_->func_table[func_index];
+    if (info.kind == VMFuncInfo::FuncKind::kPackedFunc) {
+      // only look through imports first
+      ffi::Optional<ffi::Function> func = GetFuncFromImports(info.name);
+      if (!func.has_value()) {
+        const auto p_func = tvm::ffi::Function::GetGlobal(info.name);
+        if (p_func.has_value()) func = *p_func;
       }
-      case Opcode::ShapeOf: {
-        auto input = ReadRegister(instr.shape_of.tensor);
-        NDArray input_array = Downcast<NDArray>(input);
-        int ndim = input_array->ndim;
-        auto out_tensor =
-            NDArray::Empty({ndim}, {kDLInt, 64, 1}, GetDevice(exec_->host_device_index));
-        for (int i = 0; i < ndim; ++i) {
-          reinterpret_cast<int64_t*>(out_tensor->data)[i] = input_array->shape[i];
-        }
-        VLOG(2) << "shape = "
-                << RuntimeObject2String(out_tensor, GetDevice(exec_->host_device_index));
-        WriteRegister(instr.dst, out_tensor);
-        pc_++;
-        goto main_loop;
+      ICHECK(func.has_value())
+          << "Error: Cannot find ffi::Function " << info.name
+          << " in either Relax VM kernel library, or in TVM runtime ffi::Function registry, or in "
+             "global Relax functions of the VM executable";
+      func_pool_[func_index] = *func;
+
+    } else {
+      ICHECK(info.kind == VMFuncInfo::FuncKind::kVMFunc ||
+             info.kind == VMFuncInfo::FuncKind::kVMTIRFunc);
+      auto clo = this->GetClosure(info.name);
+      func_pool_[func_index] = clo;
+    }
+  }
+}
+
+void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
+  DLOG(INFO) << "\n  pc = " << pc_ << ", execute: " << GetFuncName(instr.func_idx);
+  int args_begin_offset = instrument_ != nullptr ? 4 : 0;
+  // Use the call arg stack from the current frame to increase reuse
+  // and avoid re-allocation
+  curr_frame->call_args.resize(args_begin_offset + instr.num_args);
+
+  // NOTE: no changes and resize to those vector ref(otherwise can leads to segfault)
+  //       in the remainder part of the function.
+  std::vector<ffi::AnyView>& call_args = curr_frame->call_args;
+
+  for (Index i = 0; i < instr.num_args; ++i) {
+    Instruction::Arg arg = instr.args[i];
+    int arg_index = args_begin_offset + i;
+    switch (arg.kind()) {
+      case Instruction::ArgKind::kRegister: {
+        call_args[arg_index] = ReadRegister(curr_frame, arg.value());
+        break;
+      }
+      case Instruction::ArgKind::kImmediate: {
+        call_args[arg_index] = arg.value();
+        break;
+      }
+      case Instruction::ArgKind::kConstIdx: {
+        call_args[arg_index] = this->const_pool_[arg.value()];
+        break;
+      }
+      case Instruction::ArgKind::kFuncIdx: {
+        ICHECK_LT(static_cast<size_t>(arg.value()), this->func_pool_.size());
+        call_args[arg_index] = this->func_pool_[arg.value()];
+        break;
+      }
+      default: {
+        LOG(FATAL) << "ValueError: Unknown argument kind: " << int(arg.kind());
+      }
+    }
+  }
+  ffi::PackedArgs args(call_args.data() + args_begin_offset, instr.num_args);
+  ffi::Any ret;
+
+  ICHECK_LT(static_cast<size_t>(instr.func_idx), this->func_pool_.size());
+
+  if (instrument_ == nullptr) {
+    this->InvokeClosurePacked(func_pool_[instr.func_idx].cast<ObjectRef>(), args, &ret);
+  } else {
+    // insert light-weight instrument callback
+    call_args[0] = func_pool_[instr.func_idx];
+    call_args[1] = GetFuncName(instr.func_idx);
+    call_args[2] = true;
+    call_args[3] = nullptr;
+
+    ffi::Any rv;
+    // store dtype to str since py callback cannot handle dtype atm.
+    std::vector<std::unique_ptr<std::string>> temp_dtype;
+    for (int i = 0; i < instr.num_args; ++i) {
+      if (call_args[i + args_begin_offset].type_index() == ffi::TypeIndex::kTVMFFIDataType) {
+        std::string str_dtype =
+            DLDataTypeToString(call_args[i + args_begin_offset].cast<DLDataType>());
+        temp_dtype.emplace_back(std::make_unique<std::string>(str_dtype));
+        call_args[i + args_begin_offset] = *temp_dtype.back();
+      }
+    }
+    int ret_kind = static_cast<int>(VMInstrumentReturnKind::kNoOp);
+    instrument_.CallPacked(call_args.data(), call_args.size(), &rv);
+    if (auto opt_int = rv.try_cast<int64_t>()) {
+      ret_kind = opt_int.value();
+    }
+    if (ret_kind != static_cast<int>(VMInstrumentReturnKind::kSkipRun)) {
+      this->InvokeClosurePacked(func_pool_[instr.func_idx].cast<ObjectRef>(), args, &ret);
+      call_args[2] = false;
+      call_args[3] = ret;
+      instrument_.CallPacked(call_args.data(), call_args.size(), &rv);
+    }
+  }
+
+  // save the return value to the register
+  // saving to special register is a NOP
+  if (instr.dst < Instruction::kBeginSpecialReg) {
+    WriteRegister(curr_frame, instr.dst, ret);
+  }
+  // increment pc
+  pc_++;
+}
+
+void VirtualMachineImpl::RunLoop() {
+  VMFrame* curr_frame = frames_.back().get();
+
+  while (true) {
+    ICHECK_LT(static_cast<size_t>(pc_), exec_->instr_offset.size()) << "run into invalid section";
+    Instruction instr = exec_->GetInstruction(pc_);
+    switch (instr.op) {
+      case Opcode::Call: {
+        this->RunInstrCall(curr_frame, instr);
+        break;
       }
       case Opcode::Ret: {
         // If we have hit the point from which we started
         // running, we should return to the caller breaking
         // the dispatch loop.
-        return_register_ = ReadRegister(instr.result);
-        auto caller_return_register = frames_.back().caller_return_register;
-
-        if (PopFrame() == frame_start) {
-          return;
-          // Otherwise we are just returning from a local call.
+        return_value_ = ReadRegister(curr_frame, instr.result);
+        RegName caller_return_register = curr_frame->caller_return_register;
+        if (frames_.size() <= 1) {
+          // directly return if no other frame in the call stack.
         } else {
-          WriteRegister(caller_return_register, return_register_);
-          goto main_loop;
+          // return from a local call.
+          // Update the current frame to be the parent frame.
+          VMFrame* parent_frame = frames_.end()[-2].get();
+          WriteRegister(parent_frame, caller_return_register, return_value_);
         }
+        return;
       }
-      case Opcode::ReshapeTensor: {
-        OpStartHook(instr);
-        Device cpu_dev = GetDevice(exec_->host_device_index);
-        auto tensor_obj = ReadRegister(instr.reshape_tensor.tensor);
-        NDArray tensor_arr = Downcast<NDArray>(tensor_obj);
-        // Read the shape from shape tensor
-        auto shape_obj = ReadRegister(instr.reshape_tensor.newshape);
-        NDArray shape_tensor = Downcast<NDArray>(CopyTo(shape_obj, cpu_dev));
-        const DLTensor* dl_tensor = shape_tensor.operator->();
-        ICHECK_EQ(dl_tensor->dtype.code, 0u);
-        ICHECK_EQ(dl_tensor->dtype.bits, 64u);
-        int64_t* dims = reinterpret_cast<int64_t*>(dl_tensor->data);
-        int64_t ndim = shape_tensor->shape[0];
-        std::vector<int64_t> shape(dims, dims + ndim);
-        // Reshape the input tensor
-        auto out_tensor = tensor_arr.CreateView(shape, tensor_arr->dtype);
-        VLOG(2) << "reshaped "
-                << RuntimeObject2String(tensor_obj, GetDevice(exec_->host_device_index)) << " to "
-                << RuntimeObject2String(out_tensor, GetDevice(exec_->host_device_index));
-        WriteRegister(instr.dst, out_tensor);
-        OpStopHook();
-        pc_++;
-        goto main_loop;
+      case Opcode::Goto: {
+        pc_ += instr.pc_offset;
+        break;
       }
-      case Opcode::DeviceCopy: {
-        OpStartHook(instr);
-        auto tensor_src = ReadRegister(instr.device_copy.src);
-        NDArray src_data = Downcast<NDArray>(tensor_src);
-        Device actual_src_dev = src_data->device;
-        Device inst_src_dev = GetDevice(instr.device_copy.src_device_index);
-        ICHECK_EQ(actual_src_dev.device_type, inst_src_dev.device_type);
-        ICHECK_EQ(actual_src_dev.device_id, inst_src_dev.device_id);
-        Device dst_dev = GetDevice(instr.device_copy.dst_device_index);
-        auto mem_scope = exec_->virtual_devices[instr.device_copy.dst_device_index].second;
-
-        NDArray dst_data = src_data.CopyTo(dst_dev, String(mem_scope));
-        WriteRegister(instr.dst, dst_data);
-        OpStopHook();
-        pc_++;
-        goto main_loop;
-      }
-      case Opcode::KillRegister: {
-        OpStartHook(instr);
-        WriteRegister(instr.dst, ObjectRef());
-        OpStopHook();
-        pc_++;
-        goto main_loop;
-      }
-      default:
-        LOG(FATAL) << "Unknown instruction opcode: " << int(instr.op);
-    }
-  }
-}
-
-void VirtualMachine::WriteAllocatedTensor(const Instruction& instr) {
-  auto shape = std::vector<int64_t>(instr.alloc_tensor.ndim);
-
-  for (uint32_t i = 0; i < instr.alloc_tensor.ndim; ++i) {
-    shape[i] = instr.alloc_tensor.shape[i];
-  }
-
-  auto storage_obj = ReadRegister(instr.alloc_tensor.storage);
-  auto offset = LoadScalarInt(instr.alloc_tensor.offset);
-  auto storage = Downcast<Storage>(storage_obj);
-  auto obj = storage->AllocNDArray(offset, shape, instr.alloc_tensor.dtype);
-  VLOG(2) << "allocated "
-          << RuntimeObject2String(obj, GetDevice(exec_->host_device_index),
-                                  /*show_contents=*/false);
-
-  WriteRegister(instr.dst, obj);
-}
-
-void VirtualMachine::WriteAllocatedTensorFromOutside(const Instruction& instr) {
-  // External tensor(s) has been already written to the register (instr.dst)
-  auto ex_arr = Downcast<NDArray>(ReadRegister(instr.dst));
-  auto ex_shape = ex_arr.Shape();
-  auto ex_size = ex_shape.size();
-  auto ex_dtype = ex_arr->dtype;
-
-  auto in_size = instr.alloc_tensor.ndim;
-  auto in_dtype = instr.alloc_tensor.dtype;
-  ICHECK_EQ(TypeEqual(in_dtype, ex_dtype), true)
-      << "Data types mismatching for internal and external output tensors";
-
-  bool size_check = false;
-  if (ex_size != in_size) {
-    size_check = true;
-  } else {
-    for (size_t i = 0; i < in_size; ++i) {
-      if (ex_shape[i] != instr.alloc_tensor.shape[i]) {
-        size_check = true;
+      case Opcode::If: {
+        int64_t cond_val = ReadRegister(curr_frame, instr.cond).cast<int64_t>();
+        if (cond_val != 0) {
+          pc_++;
+        } else {
+          ICHECK_GT(instr.false_offset, 1);
+          pc_ += instr.false_offset;
+        }
         break;
       }
     }
   }
+}
 
-  if (size_check) {
-    // Match element number
-    size_t in_el_num = 1, ex_el_num = 1;
-    for (size_t i = 0; i < ex_size; ++i) {
-      ex_el_num *= ex_shape[i];
-    }
-    for (size_t i = 0; i < in_size; ++i) {
-      in_el_num *= instr.alloc_tensor.shape[i];
-    }
-    ICHECK_EQ(in_el_num, ex_el_num)
-        << "Element number mismatching of internal and external output tensors";
-    if (code_[preresult_op_index_].op == Opcode::ReshapeTensor) {
-      int64_t* dims = instr.alloc_tensor.shape;
-      std::vector<int64_t> ref_shape(dims, dims + int64_t(in_size));
-      auto reshaped_tensor = ex_arr.CreateView(ref_shape, ex_dtype);
-      WriteRegister(instr.dst, reshaped_tensor);
-    } else {
-      LOG(FATAL) << "Internal and external output tensor shapes are mismatched";
-    }
+ObjectPtr<VirtualMachine> VirtualMachine::Create() {
+  return ffi::make_object<VirtualMachineImpl>();
+}
+
+//--------------------------------------------------------------------
+// FFI related code
+//--------------------------------------------------------------------
+
+void VirtualMachineImpl::_Init(ffi::PackedArgs args, ffi::Any* rv) {
+  ICHECK_EQ(args.size() % 3, 0);
+  std::vector<Device> devices;
+  std::vector<AllocatorType> alloc_types;
+  for (int i = 0; i < args.size(); i += 3) {
+    int device_type = args[i].cast<int>();
+    int device_id = args[i + 1].cast<int>();
+    int alloc_type = args[i + 2].cast<int>();
+    devices.push_back(Device{DLDeviceType(device_type), device_id});
+    alloc_types.push_back(AllocatorType(alloc_type));
+  }
+  this->Init(devices, alloc_types);
+}
+
+void VirtualMachineImpl::_SaveClosure(ffi::PackedArgs args, ffi::Any* rv) {
+  ICHECK_GE(args.size(), 3);
+  std::string func_name = args[0].cast<std::string>();
+  this->SaveClosure(func_name, args[1].cast<ffi::String>(), args[2].cast<bool>(), args.Slice(3));
+}
+
+void VirtualMachineImpl::_InvokeClosure(ffi::PackedArgs args, ffi::Any* rv) {
+  this->InvokeClosurePacked(args[0].cast<ObjectRef>(), args.Slice(1), rv);
+}
+
+void VirtualMachineImpl::_InvokeClosureStateful(std::string func_name) {
+  const std::unordered_map<std::string, Index>& m = this->exec_->func_map;
+  if (m.find(func_name) == m.end()) {
+    LOG(FATAL) << "ValueError: Unknown function: " << func_name;
+  }
+  if (!inputs_.count(func_name)) {
+    LOG(FATAL) << "ValueError: No inputs set for stateful call of " << func_name
+               << "; use `set_input` first.";
+    return;
+  }
+  outputs_[func_name] = this->InvokeClosureInternal(func_pool_[m.at(func_name)].cast<ObjectRef>(),
+                                                    inputs_[func_name]);
+}
+
+void VirtualMachineImpl::_SetInstrument(ffi::PackedArgs args, ffi::Any* rv) {
+  if (args[0].as<ffi::Function>()) {
+    this->SetInstrument(args[0].cast<ffi::Function>());
+  } else {
+    ffi::String func_name = args[0].cast<ffi::String>();
+    const auto factory = tvm::ffi::Function::GetGlobal(func_name);
+    CHECK(factory.has_value()) << "Cannot find factory " << func_name;
+    ffi::Any rv;
+    factory->CallPacked(args.Slice(1), &rv);
+    this->SetInstrument(rv.cast<ffi::Function>());
   }
 }
 
-bool VirtualMachine::FindIndex(const std::vector<Index>& indices, Index val) const {
-  auto it = std::find(indices.begin(), indices.end(), val);
-  return it != indices.end();
+void VirtualMachineImpl::_GetOutputArity(ffi::PackedArgs args, ffi::Any* rv) {
+  std::string func_name = args[0].cast<std::string>();
+  RegType out = LookupVMOutput(func_name);
+  ffi::Any obj = IndexIntoNestedObject(out, args, 1);
+  if (const auto* arr = obj.as<ffi::ArrayObj>()) {
+    *rv = static_cast<int>(arr->size());
+  } else {
+    *rv = -1;
+  }
 }
 
-runtime::Module CreateVirtualMachine(Executable* exec) {
-  auto vm = make_object<VirtualMachine>();
-  vm->LoadExecutable(GetObjectPtr<Executable>(exec));
-  return runtime::Module(vm);
+void VirtualMachineImpl::_GetOutput(ffi::PackedArgs args, ffi::Any* rv) {
+  std::string func_name = args[0].cast<std::string>();
+  RegType out = LookupVMOutput(func_name);
+  ffi::Any obj = IndexIntoNestedObject(out, args, 1);
+  if (obj.as<ffi::ArrayObj>()) {
+    LOG(FATAL) << "ValueError: `get_output` cannot return a tuple for RPC compatibility. "
+                  "Please specify another index argument.";
+    return;
+  }
+  *rv = obj;
 }
 
-TVM_REGISTER_GLOBAL("runtime._VirtualMachine").set_body([](TVMArgs args, TVMRetValue* rv) {
-  runtime::Module mod = args[0];
-  auto* exec = dynamic_cast<Executable*>(mod.operator->());
-  *rv = CreateVirtualMachine(exec);
-});
+void VirtualMachineImpl::_SetInputWithoutParamModule(ffi::PackedArgs args, ffi::Any* rv) {
+  std::string func_name = args[0].cast<std::string>();
+  this->SetInput(func_name, false, args.Slice(1));
+}
 
+void VirtualMachineImpl::_SetInputWithParamModule(ffi::PackedArgs args, ffi::Any* rv) {
+  std::string func_name = args[0].cast<std::string>();
+  this->SetInput(func_name, true, args.Slice(1));
+}
+
+int VirtualMachineImpl::_GetFunctionArity(std::string func_name) {
+  const VMFuncInfo& vm_func = LookupVMFuncInfo(func_name);
+  return vm_func.param_names.size();
+}
+
+std::string VirtualMachineImpl::_GetFunctionParamName(std::string func_name, int index) {
+  const VMFuncInfo& vm_func = LookupVMFuncInfo(func_name);
+  if (static_cast<size_t>(index) >= vm_func.param_names.size()) {
+    LOG(FATAL) << "ValueError: Invalid index for " << func_name << " (" << index << " out of "
+               << vm_func.param_names.size() << ")";
+  }
+  return vm_func.param_names[index];
+}
+
+ffi::Function VirtualMachineImpl::_LookupFunction(const ffi::String& name) {
+  if (ffi::Optional<VMClosure> opt = this->GetClosureInternal(name, true)) {
+    return ffi::Function([clo = opt.value(), _self = ffi::GetRef<ffi::Module>(this)](
+                             ffi::PackedArgs args, ffi::Any* rv) -> void {
+      auto* self = const_cast<VirtualMachineImpl*>(_self.as<VirtualMachineImpl>());
+      ICHECK(self);
+      self->InvokeClosurePacked(clo, args, rv);
+    });
+  }
+  return ffi::Function(nullptr);
+}
+
+//----------------------------------------------------------------
+// Profiler can be optionally disabled via a macro to reduce dep.
+//----------------------------------------------------------------
+#if TVM_VM_ENABLE_PROFILER
+
+/*!
+ * \brief An extension of VirtualMachineImpl to support per-op profiling
+ * It overrides RunInstrCall to add instrumentations around it.
+ */
+class VirtualMachineProfiler : public VirtualMachineImpl {
+ public:
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) override {
+    ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
+    if (name == "profile") {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
+        std::string f_name = args[0].cast<std::string>();
+        VMClosure clo = this->GetClosure(f_name);
+
+        std::vector<Device> devices;
+        for (auto dev : this->devices) {
+          if (dev.device_type > 0) {
+            devices.push_back(dev);
+          }
+        }
+
+        prof_ = profiling::Profiler(devices, {}, {{ffi::String("Executor"), ffi::String("VM")}});
+
+        auto inputs = GetInputsFor(f_name);
+
+        bool clear_inputs = false;
+        if (inputs.size() == 0) {
+          ICHECK(args.size() > 1) << "No input is provided";
+          SetInput(f_name, false, args.Slice(1));
+          inputs = GetInputsFor(f_name);
+          clear_inputs = true;
+        } else {
+          ICHECK_EQ(args.size(), 1) << "Inputs are already provided by set_input.";
+        }
+
+        // warmup
+        this->InvokeClosureInternal(clo, inputs);
+
+        prof_->Start();
+        this->InvokeClosureInternal(clo, inputs);
+        prof_->Stop();
+
+        // Return the report as json, since profiling::Report object is not supported by RPC
+        std::string report_json = prof_->Report()->AsJSON();
+        *rv = report_json;
+
+        prof_ = std::nullopt;  // releases hardware counters
+        if (clear_inputs) {
+          // SetInput modifies the internal states of VM. Undo the change after profiling.
+          ClearInputsFor(f_name);
+        }
+      });
+    } else {
+      return VirtualMachineImpl::GetFunction(name);
+    }
+  }
+
+ protected:
+  void RunInstrCall(VMFrame* curr_frame, Instruction inst) override {
+    bool profiling = false;
+    if (prof_ && prof_->IsRunning()) {
+      auto f_name = GetFuncName(inst.func_idx);
+      std::optional<Device> dev;
+      std::vector<Tensor> arrs;
+
+      auto f_check_tensor_arg = [&dev, &arrs](const RegType& arg) {
+        if (auto opt_nd = arg.as<Tensor>()) {
+          Tensor arr = opt_nd.value();
+          if (arr.defined()) {
+            dev = arr->device;
+            arrs.push_back(arr);
+          }
+        }
+      };
+
+      for (Index i = 0; i < inst.num_args; ++i) {
+        Instruction::Arg arg = inst.args[i];
+        if (arg.kind() == Instruction::ArgKind::kRegister) {
+          auto reg = ReadRegister(curr_frame, arg.value());
+          f_check_tensor_arg(reg);
+        } else if (arg.kind() == Instruction::ArgKind::kConstIdx) {
+          const auto& const_val = this->const_pool_[arg.value()];
+          f_check_tensor_arg(const_val);
+        }
+      }
+
+      std::unordered_map<std::string, ffi::Any> metrics;
+      metrics["Argument Shapes"] = profiling::ShapeString(arrs);
+
+      // If a suitable device is found, enable profiling.
+      if (dev) {
+        profiling = true;
+        prof_->StartCall(f_name, *dev, metrics);
+      }
+    }
+
+    VirtualMachineImpl::RunInstrCall(curr_frame, inst);
+
+    if (profiling) {
+      prof_->StopCall();
+    }
+  }
+
+ private:
+  std::optional<profiling::Profiler> prof_;
+};
+
+ObjectPtr<VirtualMachine> VirtualMachine::CreateProfiler() {
+  return ffi::make_object<VirtualMachineProfiler>();
+}
+
+#else
+ObjectPtr<VirtualMachine> VirtualMachine::CreateProfiler() {
+  LOG(FATAL) << "Profiler support is disabled";
+  return nullptr;
+}
+#endif  // TVM_VM_ENABLE_PROFILER
 }  // namespace vm
 }  // namespace runtime
 }  // namespace tvm

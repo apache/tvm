@@ -19,13 +19,13 @@
 #ifndef TVM_META_SCHEDULE_PROFILER_H_
 #define TVM_META_SCHEDULE_PROFILER_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
-#include <tvm/node/reflection.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/optional.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 
 #include <string>
@@ -47,8 +47,8 @@ class ScopedTimer {
  private:
   friend class Profiler;
 
-  explicit ScopedTimer(runtime::TypedPackedFunc<void()> deferred) : deferred_(deferred) {}
-  runtime::TypedPackedFunc<void()> deferred_;
+  explicit ScopedTimer(ffi::TypedFunction<void()> deferred) : deferred_(deferred) {}
+  ffi::TypedFunction<void()> deferred_;
 };
 
 /*! \brief A generic profiler */
@@ -57,21 +57,21 @@ class ProfilerNode : public runtime::Object {
   /*! \brief The segments that are already profiled */
   std::unordered_map<std::string, double> stats_sec;
   /*! \brief Counter for the total time used */
-  runtime::PackedFunc total_timer;
+  ffi::Function total_timer;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `stats_sec` is not visited.
-    // `total_timer` is not visited.
+  static void RegisterReflection() {
+    // `stats_sec` is not registered
+    // `total_timer` is not registered
   }
 
-  static constexpr const char* _type_key = "meta_schedule.Profiler";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ProfilerNode, runtime::Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.Profiler", ProfilerNode, runtime::Object);
 
  public:
   /*! \brief Get the internal stats of the running time */
-  Map<String, FloatImm> Get() const;
+  ffi::Map<ffi::String, FloatImm> Get() const;
   /*! \brief Return a summary of profiling results as table format */
-  String Table() const;
+  ffi::String Table() const;
 };
 
 /*!
@@ -81,20 +81,20 @@ class ProfilerNode : public runtime::Object {
 class Profiler : public runtime::ObjectRef {
  public:
   Profiler();
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Profiler, runtime::ObjectRef, ProfilerNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Profiler, runtime::ObjectRef, ProfilerNode);
 
   /*! \brief Entering the scope of the context manager */
   void EnterWithScope();
   /*! \brief Exiting the scope of the context manager */
   void ExitWithScope();
   /*! \brief Returns the current profiler */
-  static Optional<Profiler> Current();
+  static ffi::Optional<Profiler> Current();
   /*!
    * \brief Profile the time usage in the given scope in the given name.
    * \param name Name for the scope.
    * \return A scope timer for time profiling.
    */
-  static ScopedTimer TimedScope(String name);
+  static ScopedTimer TimedScope(ffi::String name);
 };
 
 }  // namespace meta_schedule

@@ -19,7 +19,8 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/iter_affine_map.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
@@ -94,8 +95,8 @@ class PTXRewriter : public StmtMutator {
         BufferStore value_store(store->buffer, imm_value, {new_indice});
         Evaluate ptx_load(Call(store->buffer->dtype, tvm::tir::builtin::ptx_ldg32(),
                                {store->buffer->data, new_predicate, new_lhs, new_indice}));
-        Array<Stmt> tmp_seq = {addr_store, local_addr_store, predicate_store, value_store,
-                               ptx_load};
+        ffi::Array<Stmt> tmp_seq = {addr_store, local_addr_store, predicate_store, value_store,
+                                    ptx_load};
         SeqStmt seq_stmt = SeqStmt(tmp_seq);
         return seq_stmt;
       }
@@ -123,7 +124,10 @@ Pass InjectPTXLDG32(bool enable_inject_ptx_intrin) {
 
 // The pass can now be invoked via the pass infrastructure, but we also add a
 // Python binding for it
-TVM_REGISTER_GLOBAL("tir.transform.InjectPTXLDG32").set_body_typed(InjectPTXLDG32);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.InjectPTXLDG32", InjectPTXLDG32);
+}
 
 }  // namespace transform
 }  // namespace tir

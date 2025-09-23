@@ -53,18 +53,18 @@ def test_bind_params(use_np_array):
 
     x_np = np.random.rand(16, 16).astype(np.float32)
     w_np = np.random.rand(16, 16).astype(np.float32)
-    x_tvm = tvm.nd.array(x_np)
-    w_tvm = tvm.nd.array(w_np)
+    x_tvm = tvm.runtime.tensor(x_np)
+    w_tvm = tvm.runtime.tensor(w_np)
     params_dict = {"w": w_np if use_np_array else w_tvm}
     mod = relax.transform.BindParams("main", params_dict)(InputModule)
     assert len(mod["main"].params) == 1
 
     target = tvm.target.Target("llvm")
-    ex_after = relax.build(mod, target)
+    ex_after = tvm.compile(mod, target)
     vm_after = relax.VirtualMachine(ex_after, tvm.cpu())
     res_after = vm_after["main"](x_tvm)
 
-    ex_before = relax.build(InputModule, target)
+    ex_before = tvm.compile(InputModule, target)
     vm_before = relax.VirtualMachine(ex_before, tvm.cpu())
     res_before = vm_before["main"](x_tvm, w_tvm)
 
@@ -97,10 +97,10 @@ def test_bind_params_symbolic_vars():
             return out
 
     m, n, k = 4, 6, 8
-    w0_tvm = tvm.nd.array(np.random.rand(n, m).astype(np.float32))
-    b0_tvm = tvm.nd.array(np.random.rand(n).astype(np.float32))
-    w1_tvm = tvm.nd.array(np.random.rand(k, n).astype(np.float32))
-    b1_tvm = tvm.nd.array(np.random.rand(k).astype(np.float32))
+    w0_tvm = tvm.runtime.tensor(np.random.rand(n, m).astype(np.float32))
+    b0_tvm = tvm.runtime.tensor(np.random.rand(n).astype(np.float32))
+    w1_tvm = tvm.runtime.tensor(np.random.rand(k, n).astype(np.float32))
+    b1_tvm = tvm.runtime.tensor(np.random.rand(k).astype(np.float32))
     params_dict = {"w0": w0_tvm, "b0": b0_tvm, "w1": w1_tvm, "b1": b1_tvm}
     mod = relax.transform.BindParams("main", params_dict)(Before)
 

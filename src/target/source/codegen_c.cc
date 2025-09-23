@@ -76,7 +76,7 @@ void CodeGenC::ReserveKeywordsAsUnique() {
   name_supply_->ReserveName("return");
 }
 
-void CodeGenC::PrintFunctionSignature(const String& function_name, const PrimFunc& func,
+void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
                                       std::ostream& os) {
   PrintFuncPrefix(os);
   PrintType(func->ret_type, os);
@@ -93,10 +93,24 @@ void CodeGenC::PrintFunctionSignature(const String& function_name, const PrimFun
       PrintStorageScope(it->second, os);
     }
 
-    PrintType(GetType(v), os);
+    auto is_tensormap_ptr = [&]() -> bool {
+      if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
+        return ptr->element_type.as<TensorMapTypeNode>();
+      }
+      return false;
+    };
+    if (is_tensormap_ptr()) {
+      os << "const __grid_constant__ CUtensorMap";
+    } else {
+      PrintType(GetType(v), os);
+    }
 
     bool no_alias = func->HasNonzeroAttr(tir::attr::kNoAlias);
     bool is_handle = v.dtype().is_handle();
+    auto* ptr = v->type_annotation.as<PointerTypeNode>();
+    if (ptr && ptr->element_type.as<TensorMapTypeNode>()) {
+      is_handle = false;
+    }
     if (no_alias && is_handle) {
       PrintRestrict(v, os);
     }
@@ -122,8 +136,8 @@ void CodeGenC::DeclareFunction(const GlobalVar& gvar, const PrimFunc& func) {
     return;
   }
 
-  auto function_name = [&]() -> String {
-    if (auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+  auto function_name = [&]() -> ffi::String {
+    if (auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
       auto name = global_symbol.value();
       ICHECK(!func_name_supply_->ContainsName(name))
           << "Function " << gvar << " must use global symbol " << name
@@ -135,7 +149,9 @@ void CodeGenC::DeclareFunction(const GlobalVar& gvar, const PrimFunc& func) {
       return gvar->name_hint;
     }
   }();
-
+  if (function_name == ffi::symbol::tvm_ffi_main) {
+    has_tvm_ffi_main_func_ = true;
+  }
   internal_functions_.insert({gvar, function_name});
 
   InitFuncState(func);
@@ -143,7 +159,7 @@ void CodeGenC::DeclareFunction(const GlobalVar& gvar, const PrimFunc& func) {
   fwd_decl_stream << ";\n";
 }
 
-String CodeGenC::GetFunctionName(const GlobalVar& gvar) {
+ffi::String CodeGenC::GetFunctionName(const GlobalVar& gvar) {
   auto it = internal_functions_.find(gvar);
   ICHECK(it != internal_functions_.end())
       << "Attempted to find name of " << gvar
@@ -240,7 +256,7 @@ std::string CodeGenC::GetBufferRef(DataType t, const BufferNode* buffer, PrimExp
   }
 
   std::string index_str = PrintExpr(index);
-  if (t.bits() == 4 || (t.bits() == 1 && t.is_int())) {
+  if ((t.bits() == 4 && !t.is_float4()) || (t.bits() == 1 && t.is_int())) {
     // This is a special case, because CodegenCUDA::PrintType()
     // returns "int" for bool and for 4-bit integers. In most cases,
     // we divide by the number of lanes to determine the index.
@@ -315,14 +331,25 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     }
     os << ')';
     return os.str();
-  } else {
-    ICHECK_LT(kind, builtin::kTVMValueKindBound_);
+  } else if (kind == builtin::kTVMFFIAnyTypeIndex) {
     std::ostringstream os;
-    os << "(((TVMValue*)";
+    os << "(((TVMFFIAny*)";
+    this->PrintExpr(buffer, os);
+    os << ")[" << index << "].type_index)";
+    return os.str();
+  } else if (kind == builtin::kTVMFFIAnyZeroPadding) {
+    std::ostringstream os;
+    os << "(((TVMFFIAny*)";
+    this->PrintExpr(buffer, os);
+    os << ")[" << index << "].zero_padding)";
+    return os.str();
+  } else if (kind == builtin::kTVMFFIAnyUnionValue) {
+    std::ostringstream os;
+    os << "(((TVMFFIAny*)";
     this->PrintExpr(buffer, os);
     os << ")[" << index << "].";
     if (t.is_handle()) {
-      os << "v_handle";
+      os << "v_ptr";
     } else if (t.is_float()) {
       os << "v_float64";
     } else if (t.is_int()) {
@@ -332,6 +359,8 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     }
     os << ")";
     return os.str();
+  } else {
+    TVM_FFI_THROW(RuntimeError) << "Unsupported type index: " << kind;
   }
 }
 
@@ -563,8 +592,9 @@ void CodeGenC::VisitExpr_(const NotNode* op, std::ostream& os) {  // NOLINT(*)
   PrintExpr(op->a, os);
 }
 
-void CodeGenC::PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
-                               bool skip_first_arg, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::PrintCallExtern(Type ret_type, ffi::String global_symbol,
+                               const ffi::Array<PrimExpr>& args, bool skip_first_arg,
+                               std::ostream& os) {  // NOLINT(*)
   os << global_symbol << "(";
   for (size_t i = static_cast<size_t>(skip_first_arg); i < args.size(); ++i) {
     this->PrintExpr(args[i], os);
@@ -579,26 +609,22 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (auto opt_call_op = op->op.as<Op>()) {
     auto call_op = opt_call_op.value();
 
-    if (op->op.same_as(builtin::tvm_check_return())) {
-      const CallNode* call = op->args[2].as<CallNode>();
-      os << "if (";
-      VisitExpr_(call, os);
-      os << " != ";
-      PrintExpr(op->args[0], os);
-      os << " ) return ";
-      PrintExpr(op->args[1], os);
-    } else if (op->op.same_as(builtin::ret())) {
+    if (op->op.same_as(builtin::ret())) {
       os << "return ";
       PrintExpr(op->args[0], os);
+    } else if (op->op.same_as(builtin::continue_loop())) {
+      os << "continue;";
+    } else if (op->op.same_as(builtin::break_loop())) {
+      os << "break;";
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       ICHECK_GE(op->args.size(), 1U);
       auto func = Downcast<StringImm>(op->args[0]);
-      this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), func->value, op->args, true, os);
+      this->PrintCallExtern(GetType(ffi::GetRef<PrimExpr>(op)), func->value, op->args, true, os);
 
       // If the call_extern refers to an function within the IRModule, then
       // the forward declaration is already provided from DeclareFunction.
       if (!func_name_supply_->ContainsName(func->value)) {
-        Array<Type> arg_types;
+        ffi::Array<Type> arg_types;
         for (size_t i = 1; i < op->args.size(); i++) {
           arg_types.push_back(GetType(op->args[i]));
         }
@@ -607,7 +633,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       }
     } else if (op_attr_global_symbol_.count(call_op)) {
       // call extern if the op itself have a global symbol.
-      this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), op_attr_global_symbol_[call_op],
+      this->PrintCallExtern(GetType(ffi::GetRef<PrimExpr>(op)), op_attr_global_symbol_[call_op],
                             op->args, false, os);
     } else if (op->op.same_as(builtin::bitwise_and())) {
       PrintBinaryIntrinsic(op, " & ", os, this);
@@ -671,6 +697,13 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << "(";
       this->PrintExpr(op->args[0], os);
       os << " == NULL)";
+    } else if (op->op.same_as(builtin::handle_add_byte_offset())) {
+      ICHECK_EQ(op->args.size(), 2U);
+      os << "((void*)((char*)";
+      this->PrintExpr(op->args[0], os);
+      os << " + ";
+      this->PrintExpr(op->args[1], os);
+      os << "))";
     } else if (op->op.same_as(builtin::reinterpret())) {
       auto target_dtype = op->dtype;
       auto source_dtype = op->args[0]->dtype;
@@ -704,7 +737,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   } else if (auto opt = op->op.as<GlobalVar>()) {
     auto gvar = opt.value();
     auto callee_name = GetFunctionName(gvar);
-    PrintCallExtern(GetType(GetRef<PrimExpr>(op)), callee_name, op->args, false, os);
+    PrintCallExtern(GetType(ffi::GetRef<PrimExpr>(op)), callee_name, op->args, false, os);
   } else {
     LOG(FATAL) << "CodeGenC: Unknown operation " << op->op << " is neither a recognized built-in, "
                << "nor a GlobalVar reference to another function in the IRModule";
@@ -750,7 +783,7 @@ void CodeGenC::VisitStmt_(const AllocateConstNode* op) {
   decl_stream << " __attribute__((section(\".rodata.tvm\"), "
               << "aligned(" << constants_byte_alignment_->value << "))) " << symbol_name << "["
               << num_elements << "] = {\n";
-  NDArrayDataToC(data, 4, decl_stream);
+  TensorDataToC(data, 4, decl_stream);
 
   decl_stream << "};\n"
               << "#ifdef __cplusplus\n"
@@ -789,6 +822,11 @@ void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLI
       }
     }
 
+    if (value_dtype.is_float4_e2m1fn() && lanes != 1) {
+      // A float4_e2m1fn element has 4 bits, which is an incomplete byte.
+      // So we cannot vector load it.
+      can_vector_load = false;
+    }
     if (can_vector_load) {
       std::string ref = GetVecLoad(op->dtype, op->buffer.get(), base.Eval());
       HandleVolatileLoads(ref, op, os);
@@ -839,7 +877,8 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
   } else {
     arith::PVar<PrimExpr> base;
 
-    if (arith::ramp(base, 1, value_dtype.lanes()).Match(index_expr)) {
+    if (arith::ramp(base, 1, value_dtype.lanes()).Match(index_expr) &&
+        !value_dtype.is_float4_e2m1fn()) {
       std::string value = this->PrintExpr(op->value);
       this->PrintVecStore(op->buffer.get(), value_dtype, base.Eval(), value);
     } else {
@@ -937,22 +976,43 @@ void CodeGenC::VisitExpr_(const ShuffleNode* op, std::ostream& os) {  // NOLINT(
   // NOTE: important to print expr first
   // in case each expr have their own nested expressions
   // print each elements
-  for (const PrimExpr& vec : op->vectors) {
-    std::string vec_value = this->PrintExpr(vec);
-    if (vec.dtype().lanes() == 1) {
+  if (op->vectors.size() > 1) {
+    for (const PrimExpr& vec : op->vectors) {
+      std::string vec_value = this->PrintExpr(vec);
+      if (vec.dtype().lanes() == 1) {
+        concat_vec.push_back(vec_value);
+      } else {
+        // print out each element
+        for (int i = 0; i < vec.dtype().lanes(); ++i) {
+          // access i-th element of each vector
+          std::ostringstream vec_elem_strm;
+          vec_elem_strm << vec_value << "[" << i << "]";
+          concat_vec.push_back(vec_elem_strm.str());
+        }
+      }
+    }
+  } else {
+    // Extract elements from a single vector-type value.
+    std::string vec_value = "(" + this->PrintExpr(op->vectors[0]) + ")";
+    if (op->vectors[0].dtype().lanes() == 1) {
       concat_vec.push_back(vec_value);
     } else {
       // print out each element
-      for (int i = 0; i < vec.dtype().lanes(); ++i) {
+      for (int i = 0; i < op->vectors[0].dtype().lanes(); ++i) {
         // access i-th element of each vector
         std::ostringstream vec_elem_strm;
-        vec_elem_strm << vec_value << "[" << i << "]";
+        PrintVecElemLoad(vec_value, op->vectors[0].dtype(), i, vec_elem_strm);
         concat_vec.push_back(vec_elem_strm.str());
       }
     }
   }
   if (op->indices.size() == 1) {
     // This is an extract element
+    CHECK(op->indices[0]->IsInstance<IntImmNode>())
+        << "The ShuffleNode indices are expected to be constants at codegen time. However, "
+        << "a non-constant index is " << op->indices[0]
+        << ". Please avoid using ShuffleNode or eliminate the ShuffleNode with loop unroll or "
+        << "vectorize.";
     int64_t idx = Downcast<IntImm>(op->indices[0])->value;
     ICHECK_LT(idx, concat_vec.size());
     os << concat_vec[idx];
@@ -963,6 +1023,11 @@ void CodeGenC::VisitExpr_(const ShuffleNode* op, std::ostream& os) {  // NOLINT(
     os << '(';
     for (size_t i = 0; i < op->indices.size(); ++i) {
       if (i != 0) os << ", ";
+      CHECK(op->indices[i]->IsInstance<IntImmNode>())
+          << "The ShuffleNode indices are expected to be constants at codegen time. However, "
+          << "a non-constant index is " << op->indices[i]
+          << ". Please avoid using ShuffleNode or eliminate the ShuffleNode with loop unroll or "
+          << "vectorize.";
       os << concat_vec[Downcast<IntImm>(op->indices[i])->value];
     }
     os << ')';
@@ -1121,9 +1186,20 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
     } else if (call->op.same_as(builtin::tvm_struct_set())) {
       ICHECK_EQ(call->args.size(), 4);
       int kind = call->args[2].as<IntImmNode>()->value;
-      std::string ref = GetStructRef(call->args[3].dtype(), call->args[0], call->args[1], kind);
+      DataType store_dtype = call->args[3].dtype();
+      std::string ref = GetStructRef(store_dtype, call->args[0], call->args[1], kind);
       std::string value = PrintExpr(call->args[3]);
       std::string cast;
+
+      if (kind == builtin::kTVMFFIAnyUnionValue &&
+          (store_dtype.bits() < 64 || store_dtype.is_handle())) {
+        this->PrintIndent();
+        // when we set any union value, we need to be careful to
+        // clear off the union value to zero if the set size is less than 64 bits
+        this->stream << GetStructRef(DataType::Int(64), call->args[0], call->args[1], kind)
+                     << " = 0;\n";
+      }
+
       if (kind == builtin::kArrStrides) {
         // cast void* to int64_t*
         cast = call->args[3]->dtype.is_handle() ? "(int64_t*)" : "";

@@ -24,6 +24,8 @@
 
 #include "unary.h"
 
+#include <tvm/ffi/reflection/registry.h>
+
 #include <utility>
 
 namespace tvm {
@@ -62,6 +64,7 @@ RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(square, /*require_float_dtype=*/false);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(sqrt, /*require_float_dtype=*/true);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(tan, /*require_float_dtype=*/true);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(tanh, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(trunc, /*require_float_dtype=*/false);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(erf, /*require_float_dtype=*/true);
 
 // relax.clip
@@ -84,7 +87,10 @@ Expr clip(Expr x, Expr min, Expr max) {
   return Call(op, {std::move(x), std::move(min), std::move(max)});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.clip").set_body_typed(clip);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.clip", clip);
+}
 
 /***************** Check operators *****************/
 

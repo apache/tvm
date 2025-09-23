@@ -236,9 +236,9 @@ def test_comm_reducer(num_args):
 
 def test_llvm_intrin():
     with pytest.raises(ValueError, match=r"Unknown llvm intrinsic function llvm.dummy"):
-        a = tvm.tir.call_llvm_intrin("int32x4", "llvm.dummy", 0)
+        a = tvm.tir.call_llvm_intrin("int32x4", "llvm.dummy")
     with pytest.raises(ValueError, match=r"Unknown llvm intrinsic function llvm.dummy"):
-        a = tvm.tir.call_llvm_pure_intrin("int32x4", "llvm.dummy", 0)
+        a = tvm.tir.call_llvm_pure_intrin("int32x4", "llvm.dummy")
 
 
 if __name__ == "__main__":

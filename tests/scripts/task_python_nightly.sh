@@ -20,10 +20,10 @@ set -euxo pipefail
 
 source tests/scripts/setup-pytest-env.sh
 
-# Rebuild cython
-make cython3
+# setup tvm-ffi into python folder
+python3 -m pip install  -v --target=python ./3rdparty/tvm-ffi/
 
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 
-run_pytest cython python-topi-nightly tests/python/topi/nightly
+run_pytest python-topi-nightly tests/python/topi/nightly

@@ -15,13 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
-import pytest
+import numpy as np
 
 import tvm
-from tvm.script import tir as T
-import numpy as np
 import tvm.testing
+from tvm.script import tir as T
 
 
 @T.prim_func
@@ -69,16 +67,16 @@ def gemm_mma_m8n8k4_row_col_fp64pf64fp64(a: T.handle, b: T.handle, c: T.handle):
 @tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m8n8k4_row_col_fp64pf64fp64():
     sch = tvm.tir.Schedule(gemm_mma_m8n8k4_row_col_fp64pf64fp64)
-    cuda_mod = tvm.build(sch.mod, target="cuda")
+    cuda_mod = tvm.compile(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-1, 1, [8, 4]).astype("float64")
     B_np = np.random.uniform(-1, 1, [8, 4]).astype("float64")
     C_np = np.zeros([8, 8]).astype("float64")
 
     ctx = tvm.cuda()
-    A_tvm = tvm.nd.array(A_np, ctx)
-    B_tvm = tvm.nd.array(B_np, ctx)
-    C_tvm = tvm.nd.array(C_np, ctx)
+    A_tvm = tvm.runtime.tensor(A_np, ctx)
+    B_tvm = tvm.runtime.tensor(B_np, ctx)
+    C_tvm = tvm.runtime.tensor(C_np, ctx)
 
     cuda_mod(A_tvm, B_tvm, C_tvm)
 
@@ -145,16 +143,16 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle):
 @tvm.testing.requires_cuda_compute_version(7)
 def test_gemm_mma_m8n8k4_row_row_fp16fp16fp16():
     sch = tvm.tir.Schedule(gemm_mma_m8n8k4_row_row_fp16fp16fp16)
-    cuda_mod = tvm.build(sch.mod, target="cuda")
+    cuda_mod = tvm.compile(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-1, 1, [16, 4]).astype("float16")
     B_np = np.random.uniform(-1, 1, [4, 16]).astype("float16")
     C_np = np.zeros([16, 16]).astype("float16")
 
     ctx = tvm.cuda()
-    A_tvm = tvm.nd.array(A_np, ctx)
-    B_tvm = tvm.nd.array(B_np, ctx)
-    C_tvm = tvm.nd.array(C_np, ctx)
+    A_tvm = tvm.runtime.tensor(A_np, ctx)
+    B_tvm = tvm.runtime.tensor(B_np, ctx)
+    C_tvm = tvm.runtime.tensor(C_np, ctx)
 
     cuda_mod(A_tvm, B_tvm, C_tvm)
 
@@ -228,16 +226,16 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle):
 @tvm.testing.requires_cuda_compute_version(7)
 def test_gemm_mma_m8n8k4_row_row_fp16fp16fp32():
     sch = tvm.tir.Schedule(gemm_mma_m8n8k4_row_row_fp16fp16fp32)
-    cuda_mod = tvm.build(sch.mod, target="cuda")
+    cuda_mod = tvm.compile(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-1, 1, [16, 4]).astype("float16")
     B_np = np.random.uniform(-1, 1, [4, 16]).astype("float16")
     C_np = np.zeros([16, 16]).astype("float32")
 
     ctx = tvm.cuda()
-    A_tvm = tvm.nd.array(A_np, ctx)
-    B_tvm = tvm.nd.array(B_np, ctx)
-    C_tvm = tvm.nd.array(C_np, ctx)
+    A_tvm = tvm.runtime.tensor(A_np, ctx)
+    B_tvm = tvm.runtime.tensor(B_np, ctx)
+    C_tvm = tvm.runtime.tensor(C_np, ctx)
 
     cuda_mod(A_tvm, B_tvm, C_tvm)
 
@@ -299,16 +297,16 @@ def gemm_mma_m8n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
 @tvm.testing.requires_cuda_compute_version(7, 5)
 def test_gemm_mma_m8n8k16_row_col_s8s8s32():
     sch = tvm.tir.Schedule(gemm_mma_m8n8k16_row_col_s8s8s32)
-    cuda_mod = tvm.build(sch.mod, target="cuda")
+    cuda_mod = tvm.compile(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-10, 10, [8, 16]).astype("int8")
     B_np = np.random.uniform(-10, 10, [8, 16]).astype("int8")
     C_np = np.zeros([8, 8]).astype("int32")
 
     ctx = tvm.cuda()
-    A_tvm = tvm.nd.array(A_np, ctx)
-    B_tvm = tvm.nd.array(B_np, ctx)
-    C_tvm = tvm.nd.array(C_np, ctx)
+    A_tvm = tvm.runtime.tensor(A_np, ctx)
+    B_tvm = tvm.runtime.tensor(B_np, ctx)
+    C_tvm = tvm.runtime.tensor(C_np, ctx)
 
     cuda_mod(A_tvm, B_tvm, C_tvm)
 
@@ -370,16 +368,16 @@ def gemm_mma_m8n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
 @tvm.testing.requires_cuda_compute_version(7, 5)
 def test_gemm_mma_m8n8k16_row_col_s8u8s32():
     sch = tvm.tir.Schedule(gemm_mma_m8n8k16_row_col_s8u8s32)
-    cuda_mod = tvm.build(sch.mod, target="cuda")
+    cuda_mod = tvm.compile(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-10, 10, [8, 16]).astype("int8")
     B_np = np.random.uniform(-10, 10, [8, 16]).astype("uint8")
     C_np = np.zeros([8, 8]).astype("int32")
 
     ctx = tvm.cuda()
-    A_tvm = tvm.nd.array(A_np, ctx)
-    B_tvm = tvm.nd.array(B_np, ctx)
-    C_tvm = tvm.nd.array(C_np, ctx)
+    A_tvm = tvm.runtime.tensor(A_np, ctx)
+    B_tvm = tvm.runtime.tensor(B_np, ctx)
+    C_tvm = tvm.runtime.tensor(C_np, ctx)
 
     cuda_mod(A_tvm, B_tvm, C_tvm)
 
@@ -441,12 +439,12 @@ def gemm_mma_m8n8k32_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
 @tvm.testing.requires_cuda_compute_version(7, 5)
 def test_gemm_mma_m8n8k32_row_col_s4s4s32():
     sch = tvm.tir.Schedule(gemm_mma_m8n8k32_row_col_s4s4s32)
-    cuda_mod = tvm.build(sch.mod, target="cuda")
+    cuda_mod = tvm.compile(sch.mod, target="cuda")
 
     ctx = tvm.cuda()
-    A_tvm = tvm.nd.empty([8, 32], "int4", ctx)
-    B_tvm = tvm.nd.empty([8, 32], "int4", ctx)
-    C_tvm = tvm.nd.empty([8, 8], "int32", ctx)
+    A_tvm = tvm.runtime.empty([8, 32], "int4", ctx)
+    B_tvm = tvm.runtime.empty([8, 32], "int4", ctx)
+    C_tvm = tvm.runtime.empty([8, 8], "int32", ctx)
 
     cuda_mod(A_tvm, B_tvm, C_tvm)
     # Currently the correctness is not checked.
@@ -504,12 +502,12 @@ def gemm_mma_m8n8k32_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
 @tvm.testing.requires_cuda_compute_version(7, 5)
 def test_gemm_mma_m8n8k32_row_col_s4u4s32():
     sch = tvm.tir.Schedule(gemm_mma_m8n8k32_row_col_s4u4s32)
-    cuda_mod = tvm.build(sch.mod, target="cuda")
+    cuda_mod = tvm.compile(sch.mod, target="cuda")
 
     ctx = tvm.cuda()
-    A_tvm = tvm.nd.empty([8, 32], "int4", ctx)
-    B_tvm = tvm.nd.empty([8, 32], "uint4", ctx)
-    C_tvm = tvm.nd.empty([8, 8], "int32", ctx)
+    A_tvm = tvm.runtime.empty([8, 32], "int4", ctx)
+    B_tvm = tvm.runtime.empty([8, 32], "uint4", ctx)
+    C_tvm = tvm.runtime.empty([8, 8], "int32", ctx)
 
     cuda_mod(A_tvm, B_tvm, C_tvm)
     # Currently the correctness is not checked.
@@ -569,16 +567,16 @@ def gemm_mma_m16n8k8_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle)
 @tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k8_row_col_fp16fp16fp32():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k8_row_col_fp16fp16fp32)
-    cuda_mod = tvm.build(sch.mod, target="cuda")
+    cuda_mod = tvm.compile(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-1, 1, [16, 8]).astype("float16")
     B_np = np.random.uniform(-1, 1, [8, 8]).astype("float16")
     C_np = np.zeros([16, 8]).astype("float32")
 
     ctx = tvm.cuda()
-    A_tvm = tvm.nd.array(A_np, ctx)
-    B_tvm = tvm.nd.array(B_np, ctx)
-    C_tvm = tvm.nd.array(C_np, ctx)
+    A_tvm = tvm.runtime.tensor(A_np, ctx)
+    B_tvm = tvm.runtime.tensor(B_np, ctx)
+    C_tvm = tvm.runtime.tensor(C_np, ctx)
 
     cuda_mod(A_tvm, B_tvm, C_tvm)
 
@@ -645,16 +643,16 @@ def gemm_mma_m16n8k16_row_col_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle
 @tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k16_row_col_fp16fp16fp16():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k16_row_col_fp16fp16fp16)
-    cuda_mod = tvm.build(sch.mod, target="cuda")
+    cuda_mod = tvm.compile(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-1, 1, [16, 16]).astype("float16")
     B_np = np.random.uniform(-1, 1, [8, 16]).astype("float16")
     C_np = np.zeros([16, 8]).astype("float16")
 
     ctx = tvm.cuda()
-    A_tvm = tvm.nd.array(A_np, ctx)
-    B_tvm = tvm.nd.array(B_np, ctx)
-    C_tvm = tvm.nd.array(C_np, ctx)
+    A_tvm = tvm.runtime.tensor(A_np, ctx)
+    B_tvm = tvm.runtime.tensor(B_np, ctx)
+    C_tvm = tvm.runtime.tensor(C_np, ctx)
 
     cuda_mod(A_tvm, B_tvm, C_tvm)
 
@@ -721,16 +719,16 @@ def gemm_mma_m16n8k16_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle
 @tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k16_row_col_fp16fp16fp32():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k16_row_col_fp16fp16fp32)
-    cuda_mod = tvm.build(sch.mod, target="cuda")
+    cuda_mod = tvm.compile(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-1, 1, [16, 16]).astype("float16")
     B_np = np.random.uniform(-1, 1, [8, 16]).astype("float16")
     C_np = np.zeros([16, 8]).astype("float32")
 
     ctx = tvm.cuda()
-    A_tvm = tvm.nd.array(A_np, ctx)
-    B_tvm = tvm.nd.array(B_np, ctx)
-    C_tvm = tvm.nd.array(C_np, ctx)
+    A_tvm = tvm.runtime.tensor(A_np, ctx)
+    B_tvm = tvm.runtime.tensor(B_np, ctx)
+    C_tvm = tvm.runtime.tensor(C_np, ctx)
 
     cuda_mod(A_tvm, B_tvm, C_tvm)
 
@@ -797,16 +795,16 @@ def gemm_mma_m16n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
 @tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k16_row_col_s8s8s32():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k16_row_col_s8s8s32)
-    cuda_mod = tvm.build(sch.mod, target="cuda")
+    cuda_mod = tvm.compile(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-10, 10, [16, 16]).astype("int8")
     B_np = np.random.uniform(-10, 10, [8, 16]).astype("int8")
     C_np = np.zeros([16, 8]).astype("int32")
 
     ctx = tvm.cuda()
-    A_tvm = tvm.nd.array(A_np, ctx)
-    B_tvm = tvm.nd.array(B_np, ctx)
-    C_tvm = tvm.nd.array(C_np, ctx)
+    A_tvm = tvm.runtime.tensor(A_np, ctx)
+    B_tvm = tvm.runtime.tensor(B_np, ctx)
+    C_tvm = tvm.runtime.tensor(C_np, ctx)
 
     cuda_mod(A_tvm, B_tvm, C_tvm)
 
@@ -873,16 +871,16 @@ def gemm_mma_m16n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
 @tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k16_row_col_s8u8s32():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k16_row_col_s8u8s32)
-    cuda_mod = tvm.build(sch.mod, target="cuda")
+    cuda_mod = tvm.compile(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-10, 10, [16, 16]).astype("int8")
     B_np = np.random.uniform(-10, 10, [8, 16]).astype("uint8")
     C_np = np.zeros([16, 8]).astype("int32")
 
     ctx = tvm.cuda()
-    A_tvm = tvm.nd.array(A_np, ctx)
-    B_tvm = tvm.nd.array(B_np, ctx)
-    C_tvm = tvm.nd.array(C_np, ctx)
+    A_tvm = tvm.runtime.tensor(A_np, ctx)
+    B_tvm = tvm.runtime.tensor(B_np, ctx)
+    C_tvm = tvm.runtime.tensor(C_np, ctx)
 
     cuda_mod(A_tvm, B_tvm, C_tvm)
 
@@ -949,16 +947,16 @@ def gemm_mma_m16n8k32_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
 @tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k32_row_col_s8s8s32():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k32_row_col_s8s8s32)
-    cuda_mod = tvm.build(sch.mod, target="cuda")
+    cuda_mod = tvm.compile(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-10, 10, [16, 32]).astype("int8")
     B_np = np.random.uniform(-10, 10, [8, 32]).astype("int8")
     C_np = np.zeros([16, 8]).astype("int32")
 
     ctx = tvm.cuda()
-    A_tvm = tvm.nd.array(A_np, ctx)
-    B_tvm = tvm.nd.array(B_np, ctx)
-    C_tvm = tvm.nd.array(C_np, ctx)
+    A_tvm = tvm.runtime.tensor(A_np, ctx)
+    B_tvm = tvm.runtime.tensor(B_np, ctx)
+    C_tvm = tvm.runtime.tensor(C_np, ctx)
 
     cuda_mod(A_tvm, B_tvm, C_tvm)
 
@@ -1025,16 +1023,16 @@ def gemm_mma_m16n8k32_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
 @tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k32_row_col_s8u8s32():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k32_row_col_s8u8s32)
-    cuda_mod = tvm.build(sch.mod, target="cuda")
+    cuda_mod = tvm.compile(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-10, 10, [16, 32]).astype("int8")
     B_np = np.random.uniform(-10, 10, [8, 32]).astype("uint8")
     C_np = np.zeros([16, 8]).astype("int32")
 
     ctx = tvm.cuda()
-    A_tvm = tvm.nd.array(A_np, ctx)
-    B_tvm = tvm.nd.array(B_np, ctx)
-    C_tvm = tvm.nd.array(C_np, ctx)
+    A_tvm = tvm.runtime.tensor(A_np, ctx)
+    B_tvm = tvm.runtime.tensor(B_np, ctx)
+    C_tvm = tvm.runtime.tensor(C_np, ctx)
 
     cuda_mod(A_tvm, B_tvm, C_tvm)
 
@@ -1101,12 +1099,12 @@ def gemm_mma_m16n8k64_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
 @tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k64_row_col_s4s4s32():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k64_row_col_s4s4s32)
-    cuda_mod = tvm.build(sch.mod, target="cuda")
+    cuda_mod = tvm.compile(sch.mod, target="cuda")
 
     ctx = tvm.cuda()
-    A_tvm = tvm.nd.empty([16, 64], "int4", ctx)
-    B_tvm = tvm.nd.empty([8, 64], "int4", ctx)
-    C_tvm = tvm.nd.empty([16, 8], "int32", ctx)
+    A_tvm = tvm.runtime.empty([16, 64], "int4", ctx)
+    B_tvm = tvm.runtime.empty([8, 64], "int4", ctx)
+    C_tvm = tvm.runtime.empty([16, 8], "int32", ctx)
 
     cuda_mod(A_tvm, B_tvm, C_tvm)
     # Currently the correctness is not checked.
@@ -1169,12 +1167,12 @@ def gemm_mma_m16n8k64_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
 @tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k64_row_col_s4u4s32():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k64_row_col_s4u4s32)
-    cuda_mod = tvm.build(sch.mod, target="cuda")
+    cuda_mod = tvm.compile(sch.mod, target="cuda")
 
     ctx = tvm.cuda()
-    A_tvm = tvm.nd.empty([16, 64], "int4", ctx)
-    B_tvm = tvm.nd.empty([8, 64], "uint4", ctx)
-    C_tvm = tvm.nd.empty([16, 8], "int32", ctx)
+    A_tvm = tvm.runtime.empty([16, 64], "int4", ctx)
+    B_tvm = tvm.runtime.empty([8, 64], "uint4", ctx)
+    C_tvm = tvm.runtime.empty([16, 8], "int32", ctx)
 
     cuda_mod(A_tvm, B_tvm, C_tvm)
     # Currently the correctness is not checked.
@@ -1238,12 +1236,12 @@ def gemm_mma_m16n8k256_row_col_b1b1s32(a: T.handle, b: T.handle, c: T.handle):
 @tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k256_row_col_b1b1s32():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k256_row_col_b1b1s32)
-    cuda_mod = tvm.build(sch.mod, target="cuda")
+    cuda_mod = tvm.compile(sch.mod, target="cuda")
 
     ctx = tvm.cuda()
-    A_tvm = tvm.nd.empty([16, 256], "int1", ctx)
-    B_tvm = tvm.nd.empty([8, 256], "int1", ctx)
-    C_tvm = tvm.nd.empty([16, 8], "int32", ctx)
+    A_tvm = tvm.runtime.empty([16, 256], "int1", ctx)
+    B_tvm = tvm.runtime.empty([8, 256], "int1", ctx)
+    C_tvm = tvm.runtime.empty([16, 8], "int32", ctx)
 
     cuda_mod(A_tvm, B_tvm, C_tvm)
     # Currently the correctness is not checked.

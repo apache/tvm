@@ -44,6 +44,8 @@ namespace arith {
 
 using namespace tir;
 
+TVM_FFI_STATIC_INIT_BLOCK() { RewriteSimplifierStatsNode::RegisterReflection(); }
+
 // Note: When using matches_one_of or PMatchesOneOf alongside these
 // macros, be careful which patterns are used in the ResExpr.  While
 // the different source expressions may be in terms of different PVar,
@@ -446,10 +448,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
     // mul co-efficient folding
     TVM_TRY_REWRITE(x + x, x * 2);
 
-    TVM_TRY_REWRITE(matches_one_of(x * y + x, y * x + x, x + y * x, x + x * y), x * (y + 1));
+    TVM_TRY_REWRITE(matches_one_of(x * y + x, y * x + x, x + y * x, x + x * y), (y + 1) * x);
 
     TVM_TRY_REWRITE(matches_one_of(x * y + x * z, y * x + x * z, x * y + z * x, y * x + z * x),
-                    x * (y + z));
+                    (y + z) * x);
 
     // DivMod rules
     // truc div
@@ -563,12 +565,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
     TVM_TRY_REWRITE(matches_one_of(max(x, y) - y, x - min(y, x)), max(x - y, 0));
     TVM_TRY_REWRITE(matches_one_of(x - min(x, y), max(y, x) - y), max(0, x - y));
 
-    // mul co-efficient folding
+    // mul co-efficient folding: pefer co-effiicent to stay at rhs
     TVM_TRY_REWRITE(x - x, ZeroWithTypeLike(x));
-    TVM_TRY_REWRITE(matches_one_of(x * y - x, y * x - x), x * (y - 1));
-    TVM_TRY_REWRITE(matches_one_of(x - y * x, x - x * y), x * (1 - y));
+    TVM_TRY_REWRITE(matches_one_of(x * y - x, y * x - x), (y - 1) * x);
+    TVM_TRY_REWRITE(matches_one_of(x - y * x, x - x * y), (1 - y) * x);
     TVM_TRY_REWRITE(matches_one_of(x * y - x * z, y * x - x * z, x * y - z * x, y * x - z * x),
-                    x * (y - z));
+                    (y - z) * x);
 
     // constant cancelation
     TVM_TRY_REWRITE((x + c1) - c2, x + (c1 - c2));
@@ -1650,7 +1652,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
   return ret;
 }
 
-Optional<PrimExpr> RewriteSimplifier::Impl::TryMatchLiteralConstraint(const PrimExpr& expr) const {
+ffi::Optional<PrimExpr> RewriteSimplifier::Impl::TryMatchLiteralConstraint(
+    const PrimExpr& expr) const {
   PrimExpr negation = Not(expr);
 
   ExprDeepEqual expr_equal;
@@ -1662,7 +1665,7 @@ Optional<PrimExpr> RewriteSimplifier::Impl::TryMatchLiteralConstraint(const Prim
       return make_const(expr->dtype, false);
     }
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const EQNode* op) {
@@ -1718,7 +1721,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(EQ ret) {
     // supported path.
     TVM_TRY_REWRITE_IF(x == x, ctrue, SideEffect(x.Eval()) <= CallEffectKind::kReadState);
   }
-  return std::move(ret);
+  return ret;
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NENode* op) {
@@ -1944,11 +1947,11 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
     TVM_TRY_RECURSIVE_REWRITE(x < c1 + y, x - y < c1);
     TVM_TRY_RECURSIVE_REWRITE(c1 + y < x, c1 < x - y);
 
-    auto merge_constants = [&]() -> Optional<PrimExpr> {
+    auto merge_constants = [&]() -> ffi::Optional<PrimExpr> {
       auto [lhs, lhs_offset] = ExtractConstantOffset(ret->a);
       auto [rhs, rhs_offset] = ExtractConstantOffset(ret->b);
       if (lhs_offset == 0 && rhs_offset == 0) {
-        return NullOpt;
+        return std::nullopt;
       }
 
       int64_t diff = rhs_offset - lhs_offset;
@@ -1962,7 +1965,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
         return lhs < rhs + make_const(rhs.dtype(), diff);
       }
 
-      return NullOpt;
+      return std::nullopt;
     }();
     if (merge_constants) {
       return RecursiveRewrite(merge_constants.value());
@@ -1979,7 +1982,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
       return RecursiveRewrite(floordiv(ret->a, common_factor) < floordiv(ret->b, common_factor));
     }
   }
-  return std::move(ret);
+  return ret;
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NotNode* op) {
@@ -2007,7 +2010,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(Not ret) {
   TVM_TRY_REWRITE(!(x != y), x == y);
   TVM_TRY_RECURSIVE_REWRITE(!(x || y), (!x) && (!y));
   TVM_TRY_RECURSIVE_REWRITE(!(x && y), (!x) || (!y));
-  return std::move(ret);
+  return ret;
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
@@ -2049,7 +2052,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
     // Otherwise, follow ExprMutator's convention of returning the
     // original object.
     if (a.same_as(op->a) && b.same_as(op->b)) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       return And(a, b);
     }
@@ -2158,7 +2161,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
-  PrimExpr orig = GetRef<PrimExpr>(op);
+  PrimExpr orig = ffi::GetRef<PrimExpr>(op);
 
   PrimExpr ret = [&]() -> PrimExpr {
     // If this extension isn't enabled, just delegate out.
@@ -2198,7 +2201,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
     // Otherwise, follow ExprMutator's convention of returning the
     // original object.
     if (a.same_as(op->a) && b.same_as(op->b)) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       return Or(a, b);
     }
@@ -2348,7 +2351,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const VarNode* op) {
-  Var var = GetRef<Var>(op);
+  Var var = ffi::GetRef<Var>(op);
   if (op->dtype == DataType::Bool()) {
     if (auto match = TryMatchLiteralConstraint(var)) {
       return match.value();
@@ -2359,7 +2362,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const VarNode* op) {
   if (it != var_map_.end()) {
     return it->second;
   }
-  return GetRef<PrimExpr>(op);
+  return ffi::GetRef<PrimExpr>(op);
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CastNode* op) {
@@ -2386,7 +2389,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LetNode* op) {
   }
   PrimExpr body = this->VisitExpr(op->body);
   if (value.same_as(op->value) && body.same_as(op->body)) {
-    return GetRef<PrimExpr>(op);
+    return ffi::GetRef<PrimExpr>(op);
   } else {
     return Let(op->var, value, body);
   }
@@ -2430,8 +2433,6 @@ void RewriteSimplifier::SetMaximumRewriteSteps(int64_t maximum) {
 RewriteSimplifier::RewriteSimplifier(Analyzer* parent) : impl_(new Impl(parent)) {}
 
 RewriteSimplifier::~RewriteSimplifier() { delete impl_; }
-
-TVM_REGISTER_NODE_TYPE(RewriteSimplifierStatsNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<RewriteSimplifierStatsNode>([](const ObjectRef& node, ReprPrinter* p) {

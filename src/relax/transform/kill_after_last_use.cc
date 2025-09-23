@@ -21,6 +21,7 @@
  * \brief Kill storage/tensor objects after last use, if not already killed
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
@@ -168,7 +169,8 @@ class CollectLastUsage : public ExprVisitor {
           << "Operator " << val->op << " should have one argument, "
           << "but instead found " << val->args.size() << " arguments: " << val->args;
       auto killed_object = val->args[0].as<VarNode>();
-      ICHECK(killed_object) << "Internal error: non-normalized expression " << GetRef<Call>(val);
+      ICHECK(killed_object) << "Internal error: non-normalized expression "
+                            << ffi::GetRef<Call>(val);
       killed_objects_.insert(killed_object);
     } else {
       // Only recursively visit if it isn't one of the special cases.
@@ -212,14 +214,14 @@ class CollectLastUsage : public ExprVisitor {
 class KillInserter : public ExprMutator {
  private:
   Expr VisitExpr_(const FunctionNode* op) override {
-    last_usage_ = CollectLastUsage::Collect(GetRef<Expr>(op));
+    last_usage_ = CollectLastUsage::Collect(ffi::GetRef<Expr>(op));
     auto mutated = ExprMutator::VisitExpr_(op);
     last_usage_.clear();
     return mutated;
   }
 
   Expr VisitExpr_(const SeqExprNode* op) override {
-    last_usage_ = CollectLastUsage::Collect(GetRef<Expr>(op));
+    last_usage_ = CollectLastUsage::Collect(ffi::GetRef<Expr>(op));
     auto mutated = ExprMutator::VisitExpr_(op);
     last_usage_.clear();
     return mutated;
@@ -230,17 +232,17 @@ class KillInserter : public ExprMutator {
     if (auto it = last_usage_.find(binding->var.get()); it != last_usage_.end()) {
       static const Op& mem_kill_tensor = Op::Get("relax.memory.kill_tensor");
       for (const auto& tensor_obj : it->second.tensors) {
-        builder_->Emit(Call(mem_kill_tensor, {GetRef<Expr>(tensor_obj)}), /*name_hint=*/"_");
+        builder_->Emit(Call(mem_kill_tensor, {ffi::GetRef<Expr>(tensor_obj)}), /*name_hint=*/"_");
       }
 
       static const Op& mem_kill_storage = Op::Get("relax.memory.kill_storage");
       for (const VarNode* storage_obj : it->second.storage) {
-        builder_->Emit(Call(mem_kill_storage, {GetRef<Expr>(storage_obj)}), /*name_hint=*/"_");
+        builder_->Emit(Call(mem_kill_storage, {ffi::GetRef<Expr>(storage_obj)}), /*name_hint=*/"_");
       }
 
       static const Op& vm_kill_object = Op::Get("relax.vm.kill_object");
       for (const VarNode* obj : it->second.objects) {
-        builder_->Emit(Call(vm_kill_object, {GetRef<Expr>(obj)}), /*name_hint=*/"_");
+        builder_->Emit(Call(vm_kill_object, {ffi::GetRef<Expr>(obj)}), /*name_hint=*/"_");
       }
     }
   }
@@ -259,14 +261,16 @@ Expr KillAfterLastUse(Expr expr) {
 namespace transform {
 
 Pass KillAfterLastUse() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function func, IRModule m, PassContext pc) {
-        return Downcast<Function>(relax::KillAfterLastUse(std::move(func)));
-      };
+  auto pass_func = [=](Function func, IRModule m, PassContext pc) {
+    return Downcast<Function>(relax::KillAfterLastUse(std::move(func)));
+  };
   return CreateFunctionPass(pass_func, /*opt_level=*/0, "KillAfterLastUse", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.KillAfterLastUse").set_body_typed(KillAfterLastUse);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.KillAfterLastUse", KillAfterLastUse);
+}
 
 }  // namespace transform
 }  // namespace relax

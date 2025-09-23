@@ -21,7 +21,8 @@
  * \file unsupported_dtype_legalize.cc
  * \brief legalize bf16/fp8 type by adding cast_to_fp32
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -59,7 +60,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
         var_remap_->erase(it);
       }
     }
-    Array<Buffer> drop_buffers;
+    ffi::Array<Buffer> drop_buffers;
     for (auto kv : *buffer_remap_) {
       if (opaque_var_access_.count(kv.first->data)) {
         drop_buffers.push_back(kv.first);
@@ -78,7 +79,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
     // remap all intermediate constant buffer to promote data types (fp16/fp32)
     if (MatchDType(op->dtype) && op->ConstantAllocationSize() != 0) {
       DataType dtype = promote_dtype_.with_lanes(op->dtype.lanes());
-      String storage_scope = "global";
+      ffi::String storage_scope = "global";
       if (auto* ptr_type = op->buffer_var->type_annotation.as<PointerTypeNode>()) {
         storage_scope = ptr_type->storage_scope;
       }
@@ -105,7 +106,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
 
   void VisitExpr_(const VarNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
-    Var buffer_var = GetRef<Var>(op);
+    Var buffer_var = ffi::GetRef<Var>(op);
     if (buffer_var.dtype().is_handle()) {
       opaque_var_access_.insert(buffer_var);
     }
@@ -152,7 +153,7 @@ class FP8ComputeLegalizePlanner : public ComputeLegalizePlanner {
     PrimExpr origin_b = PromoteToTarget(this->VisitExpr(op->b)); \
                                                                  \
     if (origin_a.same_as(op->a) && origin_b.same_as(op->b)) {    \
-      return GetRef<PrimExpr>(op);                               \
+      return ffi::GetRef<PrimExpr>(op);                          \
     } else {                                                     \
       return FUNC(origin_a, origin_b);                           \
     }                                                            \
@@ -188,7 +189,7 @@ class ComputeLegalizer : public StmtExprMutator {
     }
 
     if (op_val.same_as(op->value)) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       return cast(op->dtype, op_val);
     }
@@ -200,7 +201,7 @@ class ComputeLegalizer : public StmtExprMutator {
     PrimExpr false_value = PromoteToTarget(this->VisitExpr(op->false_value));
     if (condition.same_as(op->condition) && true_value.same_as(op->true_value) &&
         false_value.same_as(op->false_value)) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       return Select(condition, true_value, false_value);
     }
@@ -209,7 +210,7 @@ class ComputeLegalizer : public StmtExprMutator {
   PrimExpr VisitExpr_(const BroadcastNode* op) final {
     PrimExpr value = PromoteToTarget(this->VisitExpr(op->value));
     if (value.same_as(op->value)) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       return Broadcast(value, op->lanes);
     }
@@ -219,7 +220,7 @@ class ComputeLegalizer : public StmtExprMutator {
     auto fexpr = [this](const PrimExpr& e) { return PromoteToTarget(this->VisitExpr(e)); };
     auto vectors = op->vectors.Map(fexpr);
     if (vectors.same_as(op->vectors)) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       return Shuffle(vectors, op->indices);
     }
@@ -232,12 +233,12 @@ class ComputeLegalizer : public StmtExprMutator {
     }
     // update normal computations to return f32 instead.
     auto fmutate = [this](const PrimExpr& e) { return PromoteToTarget(this->VisitExpr(e)); };
-    Array<PrimExpr> args = op->args.Map(fmutate);
+    ffi::Array<PrimExpr> args = op->args.Map(fmutate);
     if (MatchDType(op->dtype)) {
       return Call(promote_dtype_.with_lanes(op->dtype.lanes()), op->op, args);
     }
     if (args.same_as(op->args)) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       return Call(op->dtype, op->op, args);
     }
@@ -247,17 +248,17 @@ class ComputeLegalizer : public StmtExprMutator {
     if (MatchDType(op->dtype)) {
       return FloatImm(promote_dtype_, op->value);
     }
-    return GetRef<PrimExpr>(op);
+    return ffi::GetRef<PrimExpr>(op);
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
-    Var var = GetRef<Var>(op);
+    Var var = ffi::GetRef<Var>(op);
 
     auto itr = var_remap_.find(var);
     if (itr != var_remap_.end()) {
       return itr->second;
     } else {
-      return std::move(var);
+      return var;
     }
   }
 
@@ -272,7 +273,7 @@ class ComputeLegalizer : public StmtExprMutator {
     PrimExpr body = VisitExpr(op->body);
 
     if (value.same_as(op->value) && var.same_as(op->var) && body.same_as(op->body)) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       return Let(var, value, body);
     }
@@ -301,7 +302,7 @@ class ComputeLegalizer : public StmtExprMutator {
     Stmt body = VisitStmt(op->body);
 
     if (value.same_as(op->value) && var.same_as(op->var) && body.same_as(op->body)) {
-      return GetRef<Stmt>(op);
+      return ffi::GetRef<Stmt>(op);
     } else {
       return LetStmt(var, value, body);
     }
@@ -311,12 +312,12 @@ class ComputeLegalizer : public StmtExprMutator {
     PrimExpr value = this->VisitExpr(op->value);
     auto fmutate = [this](const PrimExpr& e) { return this->VisitExpr(e); };
 
-    Array<PrimExpr> indices = op->indices.Map(fmutate);
+    ffi::Array<PrimExpr> indices = op->indices.Map(fmutate);
 
     Buffer new_buf = GetRemappedBuffer(op->buffer);
 
     if (value.same_as(op->value) && indices.same_as(op->indices) && new_buf.same_as(op->buffer)) {
-      return GetRef<Stmt>(op);
+      return ffi::GetRef<Stmt>(op);
     } else {
       if (MatchDType(new_buf->dtype)) {
         int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
@@ -339,7 +340,6 @@ class ComputeLegalizer : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
-
     if (auto buffer = op->node.as<Buffer>()) {
       auto it = buffer_remap_.find(buffer.value());
       if (it != buffer_remap_.end()) {
@@ -350,6 +350,43 @@ class ComputeLegalizer : public StmtExprMutator {
       if (it != var_remap_.end()) {
         return AttrStmt(it->second, op->attr_key, op->value, op->body);
       }
+    } else if (auto reducer = op->node.as<CommReducerNode>()) {
+      auto legalized_identity_elements =
+          reducer->identity_element.Map([this](PrimExpr expr) { return this->VisitExpr(expr); });
+
+      // Remap input variables
+      for (size_t i = 0; i < legalized_identity_elements.size(); i++) {
+        Var lhs_var = reducer->lhs[i];
+        if (lhs_var.dtype() != legalized_identity_elements[i].dtype()) {
+          var_remap_[lhs_var] = lhs_var.copy_with_dtype(legalized_identity_elements[i].dtype());
+        }
+        Var rhs_var = reducer->rhs[i];
+        if (rhs_var.dtype() != legalized_identity_elements[i].dtype()) {
+          var_remap_[rhs_var] = rhs_var.copy_with_dtype(legalized_identity_elements[i].dtype());
+        }
+      }
+
+      auto legalized_results =
+          reducer->result.Map([this](PrimExpr expr) { return this->VisitExpr(expr); });
+
+      auto legalized_lhs = reducer->lhs.Map([this](Var var) {
+        auto it = var_remap_.find(var);
+        if (it != var_remap_.end()) {
+          return it->second;
+        }
+        return var;
+      });
+
+      auto legalized_rhs = reducer->rhs.Map([this](Var var) {
+        auto it = var_remap_.find(var);
+        if (it != var_remap_.end()) {
+          return it->second;
+        }
+        return var;
+      });
+      return AttrStmt(CommReducer(legalized_lhs, legalized_rhs, legalized_results,
+                                  legalized_identity_elements, reducer->span),
+                      op->attr_key, op->value, op->body);
     }
     return ret;
   }
@@ -489,19 +526,19 @@ class StorageLegalizer : public StmtExprMutator {
 
  private:
   PrimExpr VisitExpr_(const VarNode* op) final {
-    Var var = GetRef<Var>(op);
+    Var var = ffi::GetRef<Var>(op);
     auto itr = var_remap_.find(var);
     if (itr != var_remap_.end()) {
       return itr->second;
     } else {
-      return std::move(var);
+      return var;
     }
   }
 
   Stmt VisitStmt_(const AllocateNode* op) final {
     if (MatchDType(op->dtype)) {
       DataType dtype = GetStorageUIntDType(op->dtype);
-      String storage_scope = "global";
+      ffi::String storage_scope = "global";
       if (auto* ptr_type = op->buffer_var->type_annotation.as<PointerTypeNode>()) {
         storage_scope = ptr_type->storage_scope;
       }
@@ -526,7 +563,7 @@ class StorageLegalizer : public StmtExprMutator {
     }
     Stmt body = VisitStmt(op->body);
     if (buf.same_as(op->buffer) && body.same_as(op->body)) {
-      return GetRef<Stmt>(op);
+      return ffi::GetRef<Stmt>(op);
     } else {
       return DeclBuffer(buf, body, op->span);
     }
@@ -538,7 +575,7 @@ class StorageLegalizer : public StmtExprMutator {
     PrimExpr body = VisitExpr(op->body);
 
     if (value.same_as(op->value) && var.same_as(op->var) && body.same_as(op->body)) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       return Let(var, value, body);
     }
@@ -550,7 +587,7 @@ class StorageLegalizer : public StmtExprMutator {
     Stmt body = VisitStmt(op->body);
 
     if (value.same_as(op->value) && var.same_as(op->var) && body.same_as(op->body)) {
-      return GetRef<Stmt>(op);
+      return ffi::GetRef<Stmt>(op);
     } else {
       return LetStmt(var, value, body);
     }
@@ -561,7 +598,7 @@ class StorageLegalizer : public StmtExprMutator {
     Buffer new_buf = GetRemappedBuffer(op->buffer);
     auto indices = op->indices.Map([this](PrimExpr expr) { return this->VisitExpr(expr); });
     if (new_buf.same_as(op->buffer) && indices.same_as(op->indices) && value.same_as(op->value)) {
-      return GetRef<Stmt>(op);
+      return ffi::GetRef<Stmt>(op);
     } else {
       if (MatchDType(op->value.dtype())) {
         ICHECK(new_buf->dtype.is_uint());
@@ -617,7 +654,7 @@ class StorageLegalizer : public StmtExprMutator {
         return reinterpret(GetStorageUIntDType(op->dtype), value);
       }
       if (op->args[0].same_as(value)) {
-        return GetRef<PrimExpr>(op);
+        return ffi::GetRef<PrimExpr>(op);
       } else {
         return reinterpret(op->dtype, value);
       }
@@ -701,11 +738,10 @@ namespace transform {
 bool CheckDataTypeSupport(const Target& target, const std::string& support_func_name) {
   bool has_native_support = false;
   if (target->kind->name == "cuda") {
-    if (const PackedFunc* get_cv =
-            tvm::runtime::Registry::Get("tvm.contrib.nvcc.get_compute_version")) {
-      std::string compute_version = (*get_cv)(target);
-      if (const PackedFunc* check_support = tvm::runtime::Registry::Get(support_func_name)) {
-        has_native_support = (*check_support)(compute_version);
+    if (auto get_cv = tvm::ffi::Function::GetGlobal("tvm.contrib.nvcc.get_compute_version")) {
+      std::string compute_version = (*get_cv)(target).cast<std::string>();
+      if (auto check_support = tvm::ffi::Function::GetGlobal(support_func_name)) {
+        has_native_support = (*check_support)(compute_version).cast<bool>();
       }
     }
   }
@@ -714,36 +750,51 @@ bool CheckDataTypeSupport(const Target& target, const std::string& support_func_
 
 Pass BF16ComputeLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    // TODO(tvm-team): skip if the target supports bf16
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget).value();
+    if (CheckDataTypeSupport(target, "tvm.contrib.nvcc.supports_bf16")) {
+      return f;
+    }
     return BF16ComputeLegalizer().Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.BF16ComputeLegalize", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.BF16ComputeLegalize").set_body_typed(BF16ComputeLegalize);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.BF16ComputeLegalize", BF16ComputeLegalize);
+}
 
 Pass BF16StorageLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    // TODO(tvm-team): skip if the target supports bf16
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget).value();
+    if (CheckDataTypeSupport(target, "tvm.contrib.nvcc.supports_bf16")) {
+      return f;
+    }
     return BF16StorageLegalizer().Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.BF16StorageLegalize", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.BF16StorageLegalize").set_body_typed(BF16StorageLegalize);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.BF16StorageLegalize", BF16StorageLegalize);
+}
 
-Pass FP8ComputeLegalize(String promote_dtype_str) {
+Pass FP8ComputeLegalize(ffi::String promote_dtype_str) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget).value();
     if (CheckDataTypeSupport(target, "tvm.contrib.nvcc.supports_fp8")) {
       return f;
     }
-    return FP8ComputeLegalizer(DataType(String2DLDataType(promote_dtype_str))).Legalize(f);
+    return FP8ComputeLegalizer(DataType(ffi::StringToDLDataType(promote_dtype_str))).Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.FP8ComputeLegalize", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.FP8ComputeLegalize").set_body_typed(FP8ComputeLegalize);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.FP8ComputeLegalize", FP8ComputeLegalize);
+}
 
 Pass FP8StorageLegalize() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
@@ -756,7 +807,10 @@ Pass FP8StorageLegalize() {
   return CreatePrimFuncPass(pass_func, 0, "tir.FP8StorageLegalize", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.FP8StorageLegalize").set_body_typed(FP8StorageLegalize);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.FP8StorageLegalize", FP8StorageLegalize);
+}
 
 }  // namespace transform
 }  // namespace tir

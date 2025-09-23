@@ -25,6 +25,7 @@
 #define TVM_ARITH_INTERVAL_SET_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/op.h>
 
 #include <limits>
@@ -49,9 +50,11 @@ class IntervalSetNode : public IntSetNode {
   PrimExpr max_value;
 
   // visitor overload.
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("min_value", &min_value);
-    v->Visit("max_value", &max_value);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IntervalSetNode>()
+        .def_ro("min_value", &IntervalSetNode::min_value)
+        .def_ro("max_value", &IntervalSetNode::max_value);
   }
 
   /*! \return Whether the interval has upper bound. */
@@ -72,9 +75,7 @@ class IntervalSetNode : public IntSetNode {
   }
   /*! \return whether interval represent everything */
   bool IsEverything() const { return is_neg_inf(min_value) && is_pos_inf(max_value); }
-
-  static constexpr const char* _type_key = "arith.IntervalSet";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IntervalSetNode, IntSetNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IntervalSet", IntervalSetNode, IntSetNode);
 };
 
 /*!
@@ -110,7 +111,7 @@ class IntervalSet : public IntSet {
   static IntervalSet Empty() { return IntervalSet(pos_inf(), neg_inf()); }
 
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IntervalSetNode);
-  TVM_DEFINE_OBJECT_REF_METHODS(IntervalSet, IntSet, IntervalSetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntervalSet, IntSet, IntervalSetNode);
 };
 
 /*!

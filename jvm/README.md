@@ -19,7 +19,7 @@
 
 This folder contains the Java interface for TVM runtime. It brings TVM runtime to Java virtual machine.
 
-- It enables you to construct NDArray from Java native array and vice versa.
+- It enables you to construct Tensor from Java native array and vice versa.
 - You can register and convert Java native functions to TVM functions.
 - It enables you to load shared libraries created by Python and C++.
 - It provides a simple interface for RPC server and client.
@@ -39,7 +39,7 @@ TVM4J contains three modules:
 - core
     * It contains all the Java interfaces.
 - native
-    * The JNI native library is compiled in this module. It does not link TVM runtime library (libtvm\_runtime.so for Linux and libtvm\_runtime.dylib for OSX). Instead, you have to specify `libtvm.so.path` which contains the TVM runtime library as Java system property.
+    * The JNI native library is compiled in this module. Need to expose libtvm_runtime to LD_LIBRARY_PATH
 - assembly
     * It assembles Java interfaces (core), JNI library (native) and TVM runtime library together. The simplest way to integrate tvm4j in your project is to rely on this module. It automatically extracts the native library to a tempfile and load it.
 
@@ -89,42 +89,13 @@ It is your job to verify the types of callback arguments, as well as the type of
 
 You can register the Java function by `Function.register` and use `Function.getFunction` to get the registered function later.
 
-## Use TVM to Generate Shared Library
-
-There's nothing special for this part. The following Python snippet generate add_cpu.so which add two vectors on CPU.
-
-```python
-import os
-import tvm
-from tvm import te
-from tvm.contrib import cc, utils
-
-def test_add(target_dir):
-    n = te.var("n")
-    A = te.placeholder((n,), name='A')
-    B = te.placeholder((n,), name='B')
-    C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
-    s = te.create_schedule(C.op)
-    fadd = tvm.build(s, [A, B, C], "llvm", name="myadd")
-
-    fadd.save(os.path.join(target_dir, "add_cpu.o"))
-    cc.create_shared(os.path.join(target_dir, "add_cpu.so"),
-            [os.path.join(target_dir, "add_cpu.o")])
-
-if __name__ == "__main__":
-    import sys
-    if len(sys.argv) != 2:
-        sys.exit(-1)
-    test_add(sys.argv[1])
-```
-
 ## Run the Generated Shared Library
 
 The following code snippet demonstrate how to load generated shared library (add_cpu.so).
 
 ```java
 import org.apache.tvm.Module;
-import org.apache.tvm.NDArray;
+import org.apache.tvm.Tensor;
 import org.apache.tvm.Device;
 
 import java.io.File;
@@ -132,15 +103,15 @@ import java.util.Arrays;
 
 public class LoadAddFunc {
   public static void main(String[] args) {
-    String loadingDir = args[0];
+    String loadingDir = args[0].cast<String>();
     Module fadd = Module.load(loadingDir + File.separator + "add_cpu.so");
 
     Device dev = Device.cpu();
 
     long[] shape = new long[]{2};
-    NDArray arr = NDArray.empty(shape, dev);
+    Tensor arr = Tensor.empty(shape, dev);
     arr.copyFrom(new float[]{3f, 4f});
-    NDArray res = NDArray.empty(shape, dev);
+    Tensor res = Tensor.empty(shape, dev);
 
     fadd.entryFunc().pushArg(arr).pushArg(arr).pushArg(res).invoke();
     System.out.println(Arrays.toString(res.asFloatArray()));

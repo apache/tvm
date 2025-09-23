@@ -32,10 +32,10 @@
 #endif
 #include <llvm/Support/CodeGen.h>
 #include <llvm/Target/TargetOptions.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/optional.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/target/target.h>
 
 #include <algorithm>
@@ -43,6 +43,28 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+// LLVM compatibility macro
+#if TVM_LLVM_VERSION >= 200
+#define llvmGetPointerTo(arg, offset) (llvm::PointerType::get((arg), (offset)))
+#else
+#define llvmGetPointerTo(arg, offset) (arg->getPointerTo(offset))
+#endif
+
+#if TVM_LLVM_VERSION >= 130
+#define llvmGetIntrinName(id) \
+  std::string(llvm::Intrinsic::getBaseName(static_cast<llvm::Intrinsic::ID>(id)))
+#elif TVM_LLVM_VERSION >= 40
+// This is the version of Intrinsic::getName that works for overloaded
+// intrinsics. Helpfully, if we provide no types to this function, it
+// will give us the overloaded name without the types appended. This
+// should be enough information for most uses.
+#define llvmGetIntrinName(id) \
+  std::string(llvm::Intrinsic::getName(static_cast<llvm::Intrinsic::ID>(id), {}))
+#else
+// Nothing to do, just return the intrinsic id number
+#define llvmGetIntrinName(id) std::to_string(id)
+#endif
 
 namespace llvm {
 class LLVMContext;
@@ -232,9 +254,14 @@ class LLVMTargetInfo {
   llvm::FastMathFlags GetFastMathFlags() const { return fast_math_flags_; }
   /*!
    * \brief Get the LLVM JIT engine type
-   * \return the type name of the JIT engine (default "mcjit" or "orcjit")
+   * \return the type name of the JIT engine (default "orcjit" or "mcjit")
    */
   const std::string GetJITEngine() const { return jit_engine_; }
+  /*!
+   * \brief Get the TVM & LLVM vector_width
+   * \return number of bits for vector width
+   */
+  const int GetVectorWidth();
   /*!
    * \brief Get the LLVM optimization level
    * \return optimization level for this target
@@ -297,14 +324,14 @@ class LLVMTargetInfo {
    * \brief Get all supported targets from the LLVM backend
    * \return list with all valid targets
    */
-  const Array<String> GetAllLLVMTargets() const;
+  const ffi::Array<ffi::String> GetAllLLVMTargets() const;
 
   /*!
    * \brief Get all CPU arches from target
    * \return list with all valid cpu architectures
    * \note The arches are fetched from the LLVM backend using the target `-mtriple`.
    */
-  const Array<String> GetAllLLVMTargetArches() const;
+  const ffi::Array<ffi::String> GetAllLLVMTargetArches() const;
 
   /*!
    * \brief Get all CPU features from target
@@ -313,7 +340,7 @@ class LLVMTargetInfo {
    * \note The features are fetched from the LLVM backend using the target `-mtriple`
    *       and the `-mcpu` architecture, but also consider the `-mattr` attributes.
    */
-  const Map<String, String> GetAllLLVMCpuFeatures() const;
+  const ffi::Map<ffi::String, ffi::String> GetAllLLVMCpuFeatures() const;
 
   /*!
    * \brief Check the target if has a specific cpu feature
@@ -348,7 +375,8 @@ class LLVMTargetInfo {
   llvm::Reloc::Model reloc_model_ = llvm::Reloc::PIC_;
   llvm::CodeModel::Model code_model_ = llvm::CodeModel::Small;
   std::shared_ptr<llvm::TargetMachine> target_machine_;
-  std::string jit_engine_ = "mcjit";
+  std::string jit_engine_ = "orcjit";
+  int vector_width_{0};
 };
 
 /*!

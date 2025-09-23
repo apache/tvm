@@ -26,38 +26,23 @@
 
 #include <dmlc/io.h>
 #include <dmlc/json.h>
-#include <tvm/runtime/executor_info.h>
-#include <tvm/runtime/metadata.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/tensor.h>
 
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include "runtime_base.h"
-
 namespace tvm {
 namespace runtime {
 
-inline String get_name_mangled(const String& module_name, const String& name) {
+inline ffi::String get_name_mangled(const ffi::String& module_name, const ffi::String& name) {
   std::stringstream ss;
-  ICHECK(module_name.defined());
-  ICHECK(name.defined());
   ss << module_name << "_" << name;
   return ss.str();
 }
-
-/*!
- * \brief Create a metadata module object.
- *
- * \param metadata Exported metadata structure.
- *
- * \return The created metadata module.
- */
-Module MetadataModuleCreate(metadata::Metadata metadata);
 
 namespace launch_param {
 
@@ -71,6 +56,9 @@ struct FunctionInfo {
   std::string name;
   std::vector<DLDataType> arg_types;
   std::vector<std::string> launch_param_tags;
+
+  enum class ArgExtraTags : int { kNone = 0, kTensorMap = 1 };
+  std::vector<ArgExtraTags> arg_extra_tags;
 
   void Save(dmlc::JSONWriter* writer) const;
   void Load(dmlc::JSONReader* reader);

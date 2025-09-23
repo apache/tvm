@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -36,7 +37,7 @@ int32_t DataType2Int(const tvm::DataType& dtype) {
   return converter.dst;
 }
 
-String Int2DataTypeStr(int32_t dtype) {
+ffi::String Int2DataTypeStr(int32_t dtype) {
   union {
     DLDataType dst;
     int32_t src;
@@ -138,6 +139,11 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
   }
 
   TResult VisitExpr_(const BufferLoadNode* op) override { return TResult(); }
+  TResult VisitStmt_(const AttrStmtNode* op) override {
+    TResult result = VisitStmt(op->body);
+    result += VisitExpr(op->value);
+    return result;
+  }
   TResult VisitStmt_(const BufferStoreNode* store) override { return VisitExpr(store->value); }
   TResult VisitStmt_(const BlockRealizeNode* block) override {
     return VisitStmt(block->block->body);
@@ -168,6 +174,13 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
     return cond;
   }
 
+  TResult VisitStmt_(const WhileNode* op) override {
+    // TODO(jikechao): Improve while loop FLOP estimation with loop bound analysis
+    TResult result = VisitExpr(op->condition);
+    result += VisitStmt(op->body);
+    return result;
+  }
+
   TResult VisitStmt_(const LetStmtNode* let) override {
     TResult value = VisitExpr(let->value);
     value += VisitStmt(let->body);
@@ -186,7 +199,9 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
   TResult VisitExpr_(const FloatImmNode* op) override { return TResult(); }
   TResult VisitExpr_(const CastNode* op) override { return VisitExpr(op->value); }
   TResult VisitStmt_(const AllocateConstNode* op) override { return VisitStmt(op->body); }
+  TResult VisitStmt_(const AllocateNode* op) override { return VisitStmt(op->body); }
   TResult VisitStmt_(const DeclBufferNode* op) override { return VisitStmt(op->body); }
+  TResult VisitStmt_(const EvaluateNode* op) override { return TResult(); }
 
   TResult VisitStmt_(const SeqStmtNode* seq) override {
     TResult result;
@@ -232,17 +247,20 @@ double EstimateTIRFlops(const IRModule& mod) {
   return PostprocessResults(result) + cached_result;
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.EstimateTIRFlops").set_body_typed([](ObjectRef obj) -> double {
-  if (auto mod = obj.as<IRModule>()) {
-    return EstimateTIRFlops(mod.value());
-  } else if (auto stmt = obj.as<Stmt>()) {
-    return EstimateTIRFlops(stmt.value());
-  } else {
-    LOG(FATAL) << "TypeError: Expect the input to be either IRModule or Stmt, but gets: "
-               << obj->GetTypeKey();
-    throw;
-  }
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.analysis.EstimateTIRFlops", [](ObjectRef obj) -> double {
+    if (auto mod = obj.as<IRModule>()) {
+      return EstimateTIRFlops(mod.value());
+    } else if (auto stmt = obj.as<Stmt>()) {
+      return EstimateTIRFlops(stmt.value());
+    } else {
+      LOG(FATAL) << "TypeError: Expect the input to be either IRModule or Stmt, but gets: "
+                 << obj->GetTypeKey();
+      throw;
+    }
+  });
+}
 
 }  // namespace tir
 }  // namespace tvm

@@ -18,6 +18,7 @@
 
 import pytest
 import tvm.testing
+import tvm_ffi
 from tvm.script.parser import tir as T
 from tvm import ir, tir
 
@@ -542,6 +543,87 @@ def test_deterministic_branch():
 
     tvm.ir.assert_structural_equal(create_func(True), create_expected(0))
     tvm.ir.assert_structural_equal(create_func(False), create_expected(1))
+
+
+def test_block_annotation_merge():
+    def _to_dict(anno: tvm_ffi.container.Map):
+        result = {}
+        for k, v in anno.items():
+            result[k] = _to_dict(v) if isinstance(v, tvm_ffi.container.Map) else v
+        return result
+
+    @T.prim_func
+    def func0():
+        with T.block():
+            T.block_attr({"key1": "block1"})
+            T.block_attr({"key2": "block2"})
+            T.evaluate(0)
+
+    assert _to_dict(func0.body.block.annotations) == {"key1": "block1", "key2": "block2"}
+
+    @T.prim_func
+    def func1():
+        with T.block():
+            T.block_attr({"key": {"key1": "block1"}})
+            T.block_attr({"key": {"key2": "block2"}})
+            T.evaluate(0)
+
+    assert _to_dict(func1.body.block.annotations) == {"key": {"key1": "block1", "key2": "block2"}}
+
+    @T.prim_func
+    def func2():
+        with T.block():
+            T.block_attr({"key1": "block1"})
+            T.block_attr({"key1": "block1"})
+            T.evaluate(0)
+
+    assert _to_dict(func2.body.block.annotations) == {"key1": "block1"}
+
+    with pytest.raises(tvm.TVMError):
+
+        @T.prim_func
+        def func3():
+            with T.block():
+                T.block_attr({"key1": "block1"})
+                T.block_attr({"key1": "block2"})
+                T.evaluate(0)
+
+
+def test_alloc_inside_block():
+    @T.prim_func(private=True)
+    def func() -> None:
+        with T.block():
+            A = T.alloc_buffer([10], "float32")
+            for i in T.serial(0, 10):
+                B = T.alloc_buffer([10], "float32")
+                for j in T.serial(0, 10):
+                    B[j] = T.float32(j)
+                    A[i] += B[j]
+
+    @T.prim_func(private=True)
+    def expected() -> None:
+        with T.block():
+            A = T.alloc_buffer([10], "float32")
+            B = T.alloc_buffer([10], "float32")
+            for i, j in T.grid(10, 10):
+                B[j] = T.float32(j)
+                A[i] += B[j]
+
+    tvm.ir.assert_structural_equal(func, expected)
+
+
+def test_ifexp():
+    @T.prim_func(private=True)
+    def func(A: T.buffer((128, 128), "float32")):
+        for i, j in T.grid(128, 128):
+            A[i, j] = i if i < j else j
+
+    @T.prim_func(private=True)
+    def expected(A: T.buffer((128, 128), "float32")):
+        for i, j in T.grid(128, 128):
+            A[i, j] = T.if_then_else(i < j, i, j)
+
+    tvm.ir.assert_structural_equal(func, expected)
 
 
 if __name__ == "__main__":

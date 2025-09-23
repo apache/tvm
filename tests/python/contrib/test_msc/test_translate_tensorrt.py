@@ -15,10 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test translate for TensorrRT. """
+"""Test translate for TensorrRT."""
 
 import pytest
-import numpy as np
 
 import torch
 from torch import fx
@@ -45,12 +44,12 @@ def build_and_run(mod, inputs):
     with target:
         mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
     with tvm.transform.PassContext(opt_level=3):
-        rt_mod = tvm.relax.build(mod, target)
+        rt_mod = tvm.compile(mod, target)
         runnable = tvm.relax.VirtualMachine(rt_mod, tvm.cuda())
     res = runnable["main"](*inputs)
-    if isinstance(res, tvm.runtime.NDArray):
-        return [res.asnumpy()]
-    return [e.asnumpy() for e in res]
+    if isinstance(res, tvm.runtime.Tensor):
+        return [res.numpy()]
+    return [e.numpy() for e in res]
 
 
 def check_names(mod):
@@ -91,7 +90,7 @@ def verify_model(torch_model, input_info, **trans_config):
     """Build model and verify results"""
 
     graph_model = fx.symbolic_trace(torch_model)
-    datas = [np.random.rand(*i[0]).astype(i[1]) for i in input_info]
+    datas = [msc_utils.random_data(i) for i in input_info]
     torch_datas = [torch.from_numpy(i) for i in datas]
     with torch.no_grad():
         golden = torch_model(*torch_datas)
@@ -105,7 +104,7 @@ def verify_model(torch_model, input_info, **trans_config):
     output_folder = msc_utils.msc_dir()
     # tranalte to tensorrt
     mod = codegen.to_tensorrt(mod, graphs, weights, output_folder=output_folder)
-    tvm_datas = [tvm.nd.array(i, device=tvm.cuda()) for i in datas]
+    tvm_datas = [tvm.runtime.tensor(i, device=tvm.cuda()) for i in datas]
     results = build_and_run(mod, tvm_datas)
     for gol, res in zip(golden, results):
         tvm.testing.assert_allclose(gol, res, atol=1e-3, rtol=1e-3)

@@ -16,6 +16,6 @@
 # under the License.
 """tvm.contrib.msc.core._ffi_api"""
 
-import tvm._ffi
+import tvm_ffi
 
-tvm._ffi._init_api("msc.core", __name__)
+tvm_ffi.init_ffi_api("msc.core", __name__)

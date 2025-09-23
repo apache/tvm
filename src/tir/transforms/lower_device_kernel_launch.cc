@@ -21,8 +21,9 @@
  * \file lower_device_kernel_launch.cc
  * \brief Split device function from host.
  */
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -42,21 +43,21 @@ struct KernelInfo {
 
   // The externally visible symbol which may refer to the PrimFunc
   // when launching a device kernel.
-  String global_symbol;
+  ffi::String global_symbol;
 
   // The parameters accepted by the PrimFunc.  Used to rewrite
   // `launch_args` to be in terms of the calling scope.
-  Array<Var> params;
+  ffi::Array<Var> params;
 
   // The launch parameters that should annotate the PrimFunc, if the
   // kernel is ever called from the host.
-  Array<String> launch_params;
+  ffi::Array<ffi::String> launch_params;
 
   // Additional arguments which must be provided to the host-side
-  // PackedFunc.  These may be in terms of the function's parameters
+  // ffi::Function.  These may be in terms of the function's parameters
   // (e.g. a function that computes the average of `N` elements, and
   // which must be launched with `N` CUDA threads).
-  Array<PrimExpr> launch_args;
+  ffi::Array<PrimExpr> launch_args;
 };
 
 /*!
@@ -79,7 +80,7 @@ class DeviceInfoCollector : public StmtVisitor {
     }
 
     collector.info_.global_symbol =
-        func->GetAttr<String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
+        func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
 
     collector.info_.launch_args = collector.info_.launch_params.Map(
         [&](const auto& param) { return collector.GetArgument(param); });
@@ -88,7 +89,7 @@ class DeviceInfoCollector : public StmtVisitor {
   }
 
  private:
-  PrimExpr GetArgument(const String& launch_param) const {
+  PrimExpr GetArgument(const ffi::String& launch_param) const {
     if (launch_param == tvm::runtime::launch_param::kUseDynamicSharedMemoryTag) {
       CHECK(dyn_shmem_size.defined())
           << "Compute kernel requires launch parameter \"" << launch_param
@@ -141,9 +142,9 @@ class DeviceInfoCollector : public StmtVisitor {
   // recording what thread axis have been visited.
   std::unordered_set<const IterVarNode*> defined_thread;
   // The extent of each thread
-  Map<String, PrimExpr> thread_extent;
+  ffi::Map<ffi::String, PrimExpr> thread_extent;
   // The amount of dynamic shared memory used
-  Optional<PrimExpr> dyn_shmem_size{NullOpt};
+  ffi::Optional<PrimExpr> dyn_shmem_size{std::nullopt};
 };
 
 class ReturnRemover : public StmtExprMutator {
@@ -195,7 +196,7 @@ class DeviceKernelMutator : public StmtExprMutator {
       func.CopyOnWrite()->body = body;
     }
 
-    current_target_ = NullOpt;
+    current_target_ = std::nullopt;
     return func;
   }
 
@@ -209,7 +210,7 @@ class DeviceKernelMutator : public StmtExprMutator {
         << "This case is not yet supported.";
 
     if (is_kernel_launch || is_call_extern) {
-      func = WithAttr(std::move(func), tvm::tir::attr::kIsGlobalFunc, Bool(true));
+      func = WithAttr(std::move(func), tvm::tir::attr::kIsGlobalFunc, true);
     }
 
     if (is_kernel_launch) {
@@ -223,12 +224,12 @@ class DeviceKernelMutator : public StmtExprMutator {
         write_ptr->body = ReturnRemover::Apply(write_ptr->body);
       }
 
-      func = WithAttrs(std::move(func),
-                       {{tvm::attr::kCallingConv, Integer(tvm::CallingConv::kDeviceKernelLaunch)},
-                        {tvm::tir::attr::kKernelLaunchParams, info.launch_params},
-                        {tvm::attr::kGlobalSymbol, info.global_symbol}});
+      func = WithAttrs(std::move(func), {{tvm::attr::kCallingConv,
+                                          static_cast<int>(tvm::CallingConv::kDeviceKernelLaunch)},
+                                         {tvm::tir::attr::kKernelLaunchParams, info.launch_params},
+                                         {tvm::attr::kGlobalSymbol, info.global_symbol}});
 
-    } else if (is_call_extern && !func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+    } else if (is_call_extern && !func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
       func = WithAttr(func, tvm::attr::kGlobalSymbol, gvar->name_hint);
     }
 
@@ -240,7 +241,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     auto node = Downcast<Call>(Parent::VisitExpr_(op));
 
     auto* gvar = op->op.as<GlobalVarNode>();
-    if (!gvar) return std::move(node);
+    if (!gvar) return node;
 
     auto it = device_info_map_.find(gvar);
     ICHECK(it != device_info_map_.end())
@@ -255,7 +256,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     if (same_target) {
       // Calls within the same target may be handled at codegen time
       // as internal subroutine calls.
-      return std::move(node);
+      return node;
     }
 
     bool same_device_type =
@@ -265,7 +266,7 @@ class DeviceKernelMutator : public StmtExprMutator {
       // calling a custom TIRToRuntime target) do not require a kernel
       // launch, but need to be replaced with call_extern.
       extern_function_call_.insert(gvar);
-      Array<PrimExpr> args;
+      ffi::Array<PrimExpr> args;
       args.push_back(StringImm(gvar->name_hint));
       for (const auto& arg : node->args) {
         args.push_back(arg);
@@ -284,8 +285,8 @@ class DeviceKernelMutator : public StmtExprMutator {
     // caller's parameters.  The param_map allows substitution of
     // parameter values into the thread extents, to generate
     // expressions that are valid within the caller.
-    Map<Var, PrimExpr> param_map = [&]() {
-      Map<Var, PrimExpr> param_map;
+    ffi::Map<Var, PrimExpr> param_map = [&]() {
+      ffi::Map<Var, PrimExpr> param_map;
       CHECK_EQ(node->args.size(), dev_info.params.size())
           << "Function " << gvar->name_hint << " accepts " << dev_info.params.size()
           << " arguments as input, but is called using " << node->args.size() << " arguments";
@@ -297,7 +298,7 @@ class DeviceKernelMutator : public StmtExprMutator {
 
     device_kernel_launch_.insert(gvar);
 
-    Array<PrimExpr> call_args;
+    ffi::Array<PrimExpr> call_args;
     call_args.push_back(StringImm(dev_info.global_symbol));
     for (PrimExpr arg : node->args) {
       call_args.push_back(arg);
@@ -311,7 +312,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     return Call(dtype, builtin::tvm_call_packed(), call_args);
   }
 
-  Optional<Target> current_target_;
+  ffi::Optional<Target> current_target_;
   std::unordered_map<const GlobalVarNode*, KernelInfo> device_info_map_;
   std::unordered_set<const GlobalVarNode*> device_kernel_launch_;
   std::unordered_set<const GlobalVarNode*> extern_function_call_;
@@ -335,7 +336,7 @@ Pass LowerDeviceKernelLaunch() {
       IRModule updates;
       for (const auto& [gvar, base_func] : mod->functions) {
         if (auto* ptr = base_func.as<PrimFuncNode>()) {
-          auto prim_func = mutator.RewriteKernelLaunchSite(gvar, GetRef<PrimFunc>(ptr));
+          auto prim_func = mutator.RewriteKernelLaunchSite(gvar, ffi::GetRef<PrimFunc>(ptr));
           if (!prim_func.same_as(base_func)) {
             updates->Add(gvar, prim_func);
           }
@@ -351,7 +352,7 @@ Pass LowerDeviceKernelLaunch() {
       IRModule updates;
       for (const auto& [gvar, base_func] : mod->functions) {
         if (auto* ptr = base_func.as<PrimFuncNode>()) {
-          auto prim_func = mutator.UpdateKernelAttributes(gvar, GetRef<PrimFunc>(ptr));
+          auto prim_func = mutator.UpdateKernelAttributes(gvar, ffi::GetRef<PrimFunc>(ptr));
           if (!prim_func.same_as(base_func)) {
             updates->Add(gvar, prim_func);
           }
@@ -369,8 +370,10 @@ Pass LowerDeviceKernelLaunch() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.LowerDeviceKernelLaunch", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerDeviceKernelLaunch")
-    .set_body_typed(LowerDeviceKernelLaunch);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LowerDeviceKernelLaunch", LowerDeviceKernelLaunch);
+}
 
 }  // namespace transform
 }  // namespace tir

@@ -56,7 +56,9 @@ class SortScanDispatcher(BackendDispatcher):
             )
             if sch is not None:
                 assert len(sch) == 1
-                self.builder_.update_func(gvar, sch[0].mod["main"].with_attr("tir.is_scheduled", 1))
+                self.builder_.update_func(
+                    gvar, sch[0].mod["main"].with_attr("tir.is_scheduled", True)
+                )
 
     def _append_calls_to_update(self, tir_call: relax.Call, target: Target) -> None:
         gvar = tir_call.args[0]
@@ -73,16 +75,28 @@ class SortScanDispatcher(BackendDispatcher):
         if not isinstance(call.op, Op):
             return super().visit_call_(call)
 
+        if call.op.name == "relax.bucketize":
+            input_tensor = call.args[0]
+            boundaries = call.args[1]
+            right = call.attrs.right
+            tgt = self._get_target(call.struct_info)
+            te_func = topi.searchsorted
+            with tgt:
+                if self.is_gpu_target(tgt):
+                    te_func = topi.gpu.searchsorted
+            return self.builder_.call_te(
+                te_func, boundaries, input_tensor, right, input_tensor.struct_info.dtype
+            )
         if call.op.name == "relax.sort":
             tgt = self._get_target(call.struct_info)
             te_func = topi.sort
             kwargs = {}
             with tgt:
                 if can_use_thrust(tgt, "tvm.contrib.thrust.sort"):
-                    te_func = topi.cuda.sort_thrust
+                    te_func = topi.gpu.sort_thrust
                     kwargs["workspace"] = self.allocate_workspace(call)
                 elif self.is_gpu_target(tgt):
-                    te_func = topi.cuda.sort
+                    te_func = topi.gpu.sort
             return self.builder_.call_te(
                 te_func, call.args[0], call.attrs.axis, not call.attrs.descending, **kwargs
             )
@@ -92,10 +106,10 @@ class SortScanDispatcher(BackendDispatcher):
             kwargs = {}
             with tgt:
                 if can_use_thrust(tgt, "tvm.contrib.thrust.sort"):
-                    te_func = topi.cuda.argsort_thrust
+                    te_func = topi.gpu.argsort_thrust
                     kwargs["workspace"] = self.allocate_workspace(call)
                 elif self.is_gpu_target(tgt):
-                    te_func = topi.cuda.argsort
+                    te_func = topi.gpu.argsort
             return self.builder_.call_te(
                 te_func,
                 call.args[0],
@@ -109,10 +123,10 @@ class SortScanDispatcher(BackendDispatcher):
             te_func = topi.topk
             kwargs = {}
             if can_use_thrust(tgt, "tvm.contrib.thrust.sort"):
-                te_func = topi.cuda.topk_thrust
+                te_func = topi.gpu.topk_thrust
                 kwargs["workspace"] = self.allocate_workspace(call)
             elif self.is_gpu_target(tgt):
-                te_func = topi.cuda.topk
+                te_func = topi.gpu.topk
             tir_call = self.builder_.call_te(
                 te_func,
                 call.args[0],
@@ -141,7 +155,7 @@ class SortScanDispatcher(BackendDispatcher):
                 and call.op.name == "relax.cumsum"
                 and call.attrs.exclusive == 0
             ):
-                from tvm.relax.backend_tir import (  # pylint: disable=import-outside-toplevel
+                from tvm.relax.backend.gpu_generic import (  # pylint: disable=import-outside-toplevel
                     gpu_2d_continuous_cumsum,
                 )
 
@@ -176,11 +190,11 @@ class SortScanDispatcher(BackendDispatcher):
 
             with tgt:
                 if call.op.name == "relax.cumsum":
-                    te_func = topi.cuda.cumsum if self.is_gpu_target(tgt) else topi.cumsum
+                    te_func = topi.gpu.cumsum if self.is_gpu_target(tgt) else topi.cumsum
                     if can_use_thrust(tgt, "tvm.contrib.thrust.sum_scan"):
                         kwargs["workspace"] = self.allocate_workspace(call)
                 elif call.op.name == "relax.cumprod":
-                    te_func = topi.cuda.cumprod if self.is_gpu_target(tgt) else topi.cumprod
+                    te_func = topi.gpu.cumprod if self.is_gpu_target(tgt) else topi.cumprod
                 else:
                     raise ValueError(f"Unsupported op: {call.op.name}")
                 tir_call = self.builder_.call_te(

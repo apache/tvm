@@ -27,7 +27,7 @@ import numpy as np
 import onnx
 import onnxruntime
 import pytest
-from onnx import ModelProto, TensorProto, helper, mapping
+from onnx import ModelProto, TensorProto, helper
 
 import tvm
 import tvm.testing
@@ -35,6 +35,7 @@ from tvm import relax
 from tvm.relax.frontend.onnx import from_onnx
 from tvm.script import relax as R
 from tvm.script import tir as T
+from tvm.script import ir as I
 
 bg = np.random.MT19937(0)
 rg = np.random.Generator(bg)
@@ -53,25 +54,30 @@ def generate_random_inputs(
         for dim in i.type.tensor_type.shape.dim:
             shape.append(dim.dim_value)
 
-        # Extract datatype for the input.
-        if i.type.tensor_type.elem_type:
-            dtype = str(onnx.mapping.TENSOR_TYPE_TO_NP_TYPE[i.type.tensor_type.elem_type])
-        else:
-            dtype = "float32"
-
-        # Generate random inputs for each input.
-        if dtype == "bool":
-            # random_value = np.random.choice(a=[False, True], size=shape)
-            random_value = rg.choice(a=[False, True], size=shape)
-        elif dtype.startswith("int"):
-            # Keep non-zero values
-            random_value = rg.integers(low=-63, high=63, size=shape).astype(dtype)
-            random_value[random_value <= 0] -= 1
-        else:
-            random_value = rg.standard_normal(size=shape).astype(dtype)
-        input_values[i.name] = random_value
+        input_values[i.name] = generate_random_value(shape, i.type.tensor_type.elem_type)
 
     return input_values
+
+
+def generate_random_value(shape, elem_type) -> np.ndarray:
+    # Extract datatype for the input.
+    if elem_type:
+        dtype = str(helper.tensor_dtype_to_np_dtype(elem_type))
+    else:
+        dtype = "float32"
+
+    # Generate random inputs for each input.
+    if dtype == "bool":
+        # random_value = np.random.choice(a=[False, True], size=shape)
+        random_value = rg.choice(a=[False, True], size=shape)
+    elif dtype.startswith("int"):
+        # Keep non-zero values
+        random_value = rg.integers(low=-63, high=63, size=shape).astype(dtype)
+        random_value[random_value <= 0] -= 1
+    else:
+        random_value = rg.standard_normal(size=shape).astype(dtype)
+
+    return random_value
 
 
 def check_correctness(
@@ -81,6 +87,7 @@ def check_correctness(
     opset: int = 14,
     rtol: float = 1e-7,
     atol: float = 1e-5,
+    check_dtypes: bool = False,
 ) -> None:
     """Run an onnx model in both onnxruntime and TVM through our importer
        confirm that the results match. Otherwise, an exception will be raised.
@@ -98,6 +105,8 @@ def check_correctness(
     atol: float
         Set the tolerance of correctness checking. Some ops may be show more
         arithmetic variance than others.
+    check_dtypes: bool
+        Check if data types are the same.
     """
     # Configure model format.
     if ir_version is not None:
@@ -126,7 +135,7 @@ def check_correctness(
     tvm_model, params = relax.frontend.detach_params(tvm_model)
     # Compile the relax graph into a VM then run.
     with tvm.transform.PassContext(opt_level=3):
-        ex = relax.build(tvm_model, target="llvm")
+        ex = tvm.compile(tvm_model, target="llvm")
         vm = relax.VirtualMachine(ex, tvm.cpu())
     # Prepare inputs.
     input_list = [
@@ -146,22 +155,42 @@ def check_correctness(
         # while the ONNX output number is one, which is a list
         tvm_output = [tvm_output]
 
+    def _get_numpy_subdtype(narray):
+        if np.issubdtype(narray.dtype, np.integer):
+            return "integer"
+        elif np.issubdtype(narray.dtype, np.floating):
+            return "floating"
+        elif np.issubdtype(narray.dtype, np.bool_):
+            return "bool"
+        elif np.issubdtype(narray.dtype, np.complexfloating):
+            return "complexfloating"
+        else:
+            return "other"
+
     def _check_output(tvm_out, ort_out):
         if isinstance(tvm_out, tuple) and isinstance(ort_out, (tvm.runtime.ShapeTuple, list)):
             assert len(tvm_out) == len(ort_out), "Unequal number of outputs"
             for tvm_out_i, ort_out_i in zip(tvm_out, ort_out):
                 _check_output(tvm_out_i, ort_out_i)
-        elif isinstance(tvm_out, tvm.nd.NDArray) and isinstance(ort_out, np.ndarray):
+        elif isinstance(tvm_out, tvm.runtime.Tensor) and isinstance(ort_out, np.ndarray):
+            if check_dtypes:
+                assert tvm_out.numpy().dtype == ort_out.dtype
             tvm.testing.assert_allclose(tvm_out.numpy(), ort_out, rtol=rtol, atol=atol)
         elif isinstance(tvm_out, tvm.runtime.ShapeTuple) and isinstance(ort_out, np.ndarray):
-            shape_out = tvm.nd.array([int(i) for i in tvm_out])
+            shape_out = tvm.runtime.tensor([int(i) for i in tvm_out])
+            if check_dtypes:
+                assert _get_numpy_subdtype(shape_out.numpy()) == _get_numpy_subdtype(ort_out)
             tvm.testing.assert_allclose(shape_out.numpy(), ort_out, rtol=rtol, atol=atol)
+        elif isinstance(tvm_out, (int, float, bool)) and isinstance(ort_out, np.ndarray):
+            if check_dtypes:
+                assert _get_numpy_subdtype(np.array(tvm_out)) == _get_numpy_subdtype(ort_out)
+            tvm.testing.assert_allclose(np.array(tvm_out), ort_out, rtol=rtol, atol=atol)
         else:
             raise ValueError(f"Unsupported types: {type(tvm_out)}, {type(ort_out)}")
 
     # Check that number of outputs match.
     assert len(tvm_output) == len(ort_output), "Unequal number of outputs"
-    for (tvm_out, ort_out) in zip(tvm_output, ort_output):
+    for tvm_out, ort_out in zip(tvm_output, ort_output):
         # TODO Allow configurable tolerance.
         if ort_out is not None:
             _check_output(tvm_out, ort_out)
@@ -219,6 +248,31 @@ def verify_unary(
     check_correctness(model, opset=opset)
 
 
+def verify_unary_dynamic_shape(
+    op_name,
+    shape,
+    shape_instance,
+    attrs={},
+    domain=None,
+    input_dtype=TensorProto.FLOAT,
+    output_dtype=TensorProto.FLOAT,
+    opset=14,
+):
+    test_node = helper.make_node(op_name, ["x"], ["y"], **attrs, domain=domain)
+    graph = helper.make_graph(
+        [test_node],
+        "elemwise_test",
+        inputs=[
+            helper.make_tensor_value_info("x", input_dtype, shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", output_dtype, shape)],
+    )
+
+    model = helper.make_model(graph, producer_name="elemwise_test")
+    inputs = {"x": generate_random_value(shape_instance, input_dtype)}
+    check_correctness(model, inputs, opset=opset)
+
+
 def verify_binary(
     op_name, shape_a, shape_b, shape_c, attrs={}, domain=None, dtype=TensorProto.FLOAT, opset=14
 ):
@@ -234,7 +288,7 @@ def verify_binary(
     )
 
     model = helper.make_model(graph, producer_name="binary_test")
-    check_correctness(model, opset=opset)
+    check_correctness(model, opset=opset, check_dtypes=True)
 
 
 def verify_binary_scalar(op_name, attrs={}, domain=None, dtype=TensorProto.INT32, opset=14):
@@ -249,7 +303,7 @@ def verify_binary_scalar(op_name, attrs={}, domain=None, dtype=TensorProto.INT32
     )
 
     model = helper.make_model(graph, producer_name="binary_test")
-    check_correctness(model, opset=opset)
+    check_correctness(model, opset=opset, check_dtypes=True)
 
 
 def verify_compare(op_name, shape, attrs={}, domain=None):
@@ -369,13 +423,11 @@ def test_binary_bool(op_name: str):
     verify_binary(op_name, [32, 32], [32, 32], [32, 32], dtype=TensorProto.BOOL)
 
 
-@pytest.mark.skip(reason="opset 18 is not supported in CI")
 @pytest.mark.parametrize("op_name", ["BitwiseAnd", "BitwiseOr", "BitwiseXor"])
 def test_bitwise(op_name: str):
     verify_binary(op_name, [32, 32], [32, 32], [32, 32], dtype=TensorProto.UINT64, opset=18)
 
 
-@pytest.mark.skip(reason="opset 18 is not supported in CI")
 def test_bitwise_not():
     verify_unary(
         "BitwiseNot",
@@ -414,9 +466,9 @@ def test_bitwise_shift(direction: str):
         "Sinh",
         "Cosh",
         "Tanh",
-        "Asin",
-        "Acos",
-        "Atan",
+        # "Asin",  // TODO @jikechao, fix the precision loss due to the Taylor approximation
+        # "Acos",
+        # "Atan",
         "Asinh",
         "Acosh",
         "Atanh",
@@ -510,6 +562,68 @@ def test_gather():
     _verify_gather([3, 3], [[0, 2]], [3, 1, 2], 1)
 
 
+@pytest.mark.parametrize(
+    "data_shape, indices_shape, axis",
+    [
+        ([3, 4, 5], [1, 4, 5], 0),
+        ([3, 4, 5], [3, 2, 5], 1),
+        ([3, 4, 5], [3, 4, 2], 2),
+    ],
+)
+def test_gather_elements(data_shape, indices_shape, axis):
+    gather_elements_node = helper.make_node("GatherElements", ["data", "indices"], ["y"], axis=axis)
+
+    graph = helper.make_graph(
+        [gather_elements_node],
+        "gather_elements_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+            helper.make_tensor_value_info("indices", TensorProto.INT64, indices_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, indices_shape)],
+    )
+
+    model = helper.make_model(graph, producer_name="gather_elements_test")
+    input_values = {
+        "data": np.random.randn(*data_shape).astype("float32"),
+        "indices": np.random.randint(0, data_shape[axis], indices_shape).astype("int64"),
+    }
+    check_correctness(model, inputs=input_values)
+
+
+@pytest.mark.parametrize(
+    "data_shape, indices_shape, batch_dims",
+    [
+        ([2, 2], [2, 2], 0),
+        ([2, 2], [2, 1], 0),
+        ([2, 2, 2], [1], 0),
+        ([2, 2, 2], [2, 2], 0),
+        ([2, 2, 2], [2, 1, 2], 0),
+        ([2, 2, 2], [2, 2], 1),
+        ([2, 2, 2], [2, 1], 1),
+    ],
+)
+def test_gather_nd(data_shape, indices_shape, batch_dims):
+    gather_nd_node = helper.make_node("GatherND", ["data", "indices"], ["y"], batch_dims=batch_dims)
+
+    graph = helper.make_graph(
+        [gather_nd_node],
+        "gather_nd_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+            helper.make_tensor_value_info("indices", TensorProto.INT64, indices_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, None)],
+    )
+
+    model = helper.make_model(graph, producer_name="gather_nd_test")
+    input_values = {
+        "data": np.random.randn(*data_shape).astype("float32"),
+        "indices": np.random.randint(0, 2, indices_shape).astype("int64"),
+    }
+    check_correctness(model, inputs=input_values)
+
+
 @pytest.mark.parametrize("axis", [0, 1, 2])
 @pytest.mark.parametrize(("name", "opset"), [("Scatter", 10), ("ScatterElements", 11)])
 def test_scatter(axis: int, name: str, opset: int):
@@ -565,6 +679,34 @@ def test_scatter_nd(reduction):
     verify_scatter_nd([4, 4, 4], [2, 1], [2, 4, 4])
     verify_scatter_nd([4, 5, 6], [2, 3, 2], [2, 3, 6])
     verify_scatter_nd([10], [5, 1], [5])
+
+
+@pytest.mark.parametrize("tensor_shape", [[32, 32]])
+@pytest.mark.parametrize("condition_shape", [None, [8], [16]])
+@pytest.mark.parametrize("axis", [None, 0, 1])
+def test_compress(
+    tensor_shape: List[int],
+    condition_shape: Optional[List[int]],
+    axis: Optional[int],
+):
+    if condition_shape is None and axis is None:
+        pytest.skip("Either condition_shape or axis must be specified")
+    if condition_shape is None:
+        condition_shape = [tensor_shape[axis]]
+    compress_node = helper.make_node("Compress", ["tensor", "condition"], ["output"], axis=axis)
+    graph = helper.make_graph(
+        [compress_node],
+        "compress_test",
+        inputs=[
+            helper.make_tensor_value_info("tensor", TensorProto.FLOAT, tensor_shape),
+            helper.make_tensor_value_info("condition", TensorProto.BOOL, condition_shape),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("output", TensorProto.FLOAT, [])
+        ],  # shape is unknown
+    )
+    model = helper.make_model(graph, producer_name="compress_test")
+    check_correctness(model, opset=11)
 
 
 def test_size():
@@ -822,13 +964,12 @@ def test_selu():
     verify_unary("Selu", [3, 32, 32], attrs={"alpha": 0.25, "gamma": 0.3})
 
 
-@pytest.mark.skip(reason="opset 18 is not supported in CI")
 def test_mish():
     verify_unary("Mish", [3, 32, 32], opset=18)
 
 
 def test_prelu():
-    verify_binary("PRelu", [3, 32, 32], [3, 32, 32], [3, 32, 32])
+    verify_binary("PRelu", [3, 32, 32], [1], [3, 32, 32])
 
 
 def test_thresholded_relu():
@@ -856,23 +997,57 @@ def test_shrink():
 @pytest.mark.parametrize("dilation", [1, 2])
 @pytest.mark.parametrize("bias", [True, False])
 @pytest.mark.parametrize("pad", [0, 2])
-def test_conv(stride: int, dilation: int, pad: int, bias: bool):
+@pytest.mark.parametrize("auto_pad", ["SAME_UPPER", "SAME_LOWER", "VALID"])
+def test_conv(stride: int, dilation: int, pad: int, bias: bool, auto_pad: str):
     def _verify_conv(input_shape, weight_shape):
         nd = len(weight_shape) - 2
-        output_shape = [input_shape[0], weight_shape[0]] + [
-            (input_shape[i] + 2 * pad - dilation * (weight_shape[i] - 1) - 1) // stride + 1
-            for i in range(2, len(input_shape))
-        ]
-        bias_shape = [output_shape[1]]
-        conv_node = helper.make_node(
-            "Conv",
-            inputs=["x", "w"] + (["b"] if bias else []),
-            outputs=["y"],
-            strides=[stride] * nd,
-            dilations=[dilation] * nd,
-            pads=[pad] * nd * 2,
-            group=input_shape[1] // weight_shape[1],
-        )
+        if auto_pad == "VALID":
+            output_shape = [input_shape[0], weight_shape[0]] + [
+                (input_shape[i] - dilation * (weight_shape[i] - 1) - 1) // stride + 1
+                for i in range(2, len(input_shape))
+            ]
+            bias_shape = [output_shape[1]]
+            conv_node = helper.make_node(
+                "Conv",
+                inputs=["x", "w"] + (["b"] if bias else []),
+                outputs=["y"],
+                strides=[stride] * nd,
+                dilations=[dilation] * nd,
+                auto_pad=auto_pad,
+                group=input_shape[1] // weight_shape[1],
+            )
+        elif auto_pad in ("SAME_UPPER", "SAME_LOWER"):
+            if dilation == 2:
+                # auto_pad = "SAME" and dilation = 2 is not supported in ONNX
+                return
+            output_shape = [input_shape[0], weight_shape[0]] + [
+                (input_shape[i] + stride - 1) // stride for i in range(2, len(input_shape))
+            ]
+            bias_shape = [output_shape[1]]
+            conv_node = helper.make_node(
+                "Conv",
+                inputs=["x", "w"] + (["b"] if bias else []),
+                outputs=["y"],
+                strides=[stride] * nd,
+                dilations=[dilation] * nd,
+                auto_pad=auto_pad,
+                group=input_shape[1] // weight_shape[1],
+            )
+        else:
+            output_shape = [input_shape[0], weight_shape[0]] + [
+                (input_shape[i] + 2 * pad - dilation * (weight_shape[i] - 1) - 1) // stride + 1
+                for i in range(2, len(input_shape))
+            ]
+            bias_shape = [output_shape[1]]
+            conv_node = helper.make_node(
+                "Conv",
+                inputs=["x", "w"] + (["b"] if bias else []),
+                outputs=["y"],
+                strides=[stride] * nd,
+                dilations=[dilation] * nd,
+                pads=[pad] * nd * 2,
+                group=input_shape[1] // weight_shape[1],
+            )
         graph = helper.make_graph(
             [conv_node],
             "conv_test",
@@ -945,7 +1120,7 @@ def test_pow():
     verify_binary("Pow", [32, 32], [32, 32], [32, 32])
 
 
-@pytest.mark.parametrize("reverse", [False])
+@pytest.mark.parametrize("reverse", [True, False])
 @pytest.mark.parametrize("exclusive", [False])
 def test_cumsum(reverse, exclusive):
     cumsum_node = helper.make_node(
@@ -1013,6 +1188,85 @@ def test_squeeze(axis):
     check_correctness(model, opset=13)
 
 
+@pytest.mark.parametrize("axis", [[0, 2], None])
+def test_squeeze_constant(axis):
+    shape = [1, 32, 1, 32]
+    constant = make_constant_node(
+        "x", onnx.TensorProto.FLOAT, shape, rg.standard_normal(size=shape).astype("float32")
+    )
+    if axis:
+        squeeze_node = helper.make_node("Squeeze", ["x", "axes"], ["y"])
+    else:
+        squeeze_node = helper.make_node("Squeeze", ["x"], ["y"])
+
+    initializer = (
+        [helper.make_tensor("axes", TensorProto.INT64, [len(axis)], axis)] if axis else None
+    )
+
+    graph = helper.make_graph(
+        [constant, squeeze_node],
+        "squeeze_test",
+        inputs=[],
+        initializer=initializer,
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [32, 32])],
+    )
+
+    model = helper.make_model(graph, producer_name="squeeze_test")
+    check_correctness(model, opset=13)
+
+
+@pytest.mark.parametrize("axis", [[0]])
+@pytest.mark.parametrize("A", [8, 16, 32])
+@pytest.mark.parametrize("B", [8, 16, 32])
+def test_dynamic_squeeze(axis, A, B):
+    squeeze_node = helper.make_node("Squeeze", ["x", "axes"], ["y"])
+    shape = [1, "A", "B"]
+
+    initializer = (
+        [helper.make_tensor("axes", TensorProto.INT64, [len(axis)], axis)] if axis else None
+    )
+
+    graph = helper.make_graph(
+        [squeeze_node],
+        "squeeze_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, shape),
+        ],
+        initializer=initializer,
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, ["A", "B"])],
+    )
+
+    model = helper.make_model(graph, producer_name="squeeze_test")
+    inputs = {"x": rg.standard_normal(size=[1, A, B]).astype("float32")}
+    check_correctness(model, inputs, opset=13)
+
+
+@pytest.mark.parametrize("axis", [[0]])
+@pytest.mark.parametrize("A", [8, 16, 32])
+def test_dynamic_shape_squeeze(axis, A):
+    shape_node = helper.make_node("Shape", ["x"], ["y"])
+    squeeze_node = helper.make_node("Squeeze", ["y", "axes"], ["z"])
+    shape = ["A"]
+
+    initializer = (
+        [helper.make_tensor("axes", TensorProto.INT64, [len(axis)], axis)] if axis else None
+    )
+
+    graph = helper.make_graph(
+        [shape_node, squeeze_node],
+        "squeeze_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, shape),
+        ],
+        initializer=initializer,
+        outputs=[helper.make_tensor_value_info("z", TensorProto.INT64, [])],
+    )
+
+    model = helper.make_model(graph, producer_name="squeeze_test")
+    inputs = {"x": rg.standard_normal(size=[A]).astype("float32")}
+    check_correctness(model, inputs, opset=13)
+
+
 def test_const():
     shape = [32, 32]
     const_node = helper.make_node(
@@ -1049,22 +1303,86 @@ def test_mean_variance_norm():
 
 
 def test_layer_norm():
-    layer_norm_node = helper.make_node("LayerNormalization", ["a", "b", "c"], ["d"], epsilon=1e-12)
+    layer_norm_node = helper.make_node(
+        "LayerNormalization", ["input", "scale", "bias"], ["Y"], epsilon=1e-12
+    )
 
     graph = helper.make_graph(
         [layer_norm_node],
         "layer_norm_test",
         inputs=[
-            helper.make_tensor_value_info("a", TensorProto.FLOAT, [32, 32]),
-            helper.make_tensor_value_info("b", TensorProto.FLOAT, [32]),
-            helper.make_tensor_value_info("c", TensorProto.FLOAT, [32]),
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, [32, 32]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, [32]),
+            helper.make_tensor_value_info("bias", TensorProto.FLOAT, [32]),
         ],
         outputs=[
-            helper.make_tensor_value_info("d", TensorProto.FLOAT, [32, 32]),
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [32, 32]),
         ],
     )
 
     model = helper.make_model(graph, producer_name="layer_norm_test")
+    check_correctness(model)
+
+    # Test case with no bias that is an optional input
+    layer_norm_node = helper.make_node(
+        "LayerNormalization", ["input", "scale"], ["Y"], epsilon=1e-12
+    )
+
+    graph = helper.make_graph(
+        [layer_norm_node],
+        "layer_norm_test",
+        inputs=[
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, [32, 32]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, [32]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [32, 32]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="layer_norm_test")
+    check_correctness(model)
+
+
+def test_layer_norm_with_nd_gamma_beta():
+    layer_norm_node = helper.make_node(
+        "LayerNormalization", ["input", "scale", "bias"], ["Y"], axis=1, epsilon=1e-12
+    )
+
+    graph = helper.make_graph(
+        [layer_norm_node],
+        "layer_norm_with_nd_gamma_beta_test",
+        inputs=[
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 3, 4, 4]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, [3, 4, 4]),
+            helper.make_tensor_value_info("bias", TensorProto.FLOAT, [3, 4, 4]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 3, 4, 4]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="layer_norm_with_nd_gamma_beta_test")
+    check_correctness(model)
+
+    # Test case with no bias that is an optional input
+    layer_norm_node = helper.make_node(
+        "LayerNormalization", ["input", "scale"], ["Y"], axis=1, epsilon=1e-12
+    )
+
+    graph = helper.make_graph(
+        [layer_norm_node],
+        "layer_norm_with_nd_gamma_beta_test",
+        inputs=[
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, [32, 32]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, [32]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [32, 32]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="layer_norm_with_nd_gamma_beta_test")
     check_correctness(model)
 
 
@@ -1252,24 +1570,24 @@ def test_embedlayernormalization():
     )
 
 
-def create_reduce_test_parameters():
+def create_reduce_test_parameters_axes_attr():
     output = []
     for value in [True, False]:
-        output.append(("ReduceMax", value))
-        output.append(("ReduceMean", value))
-        output.append(("ReduceMin", value))
-        output.append(("ReduceProd", value))
-        output.append(("ReduceSum", value))
-        output.append(("ReduceSumSquare", value))
-        output.append(("ReduceLogSum", value))
-        output.append(("ReduceLogSumExp", value))
-        output.append(("ReduceL1", value))
-        output.append(("ReduceL2", value))
+        output.append(("ReduceMax", value, 11))
+        output.append(("ReduceMean", value, 13))
+        output.append(("ReduceMin", value, 11))
+        output.append(("ReduceProd", value, 13))
+        output.append(("ReduceSum", value, 11))
+        output.append(("ReduceSumSquare", value, 13))
+        output.append(("ReduceLogSum", value, 13))
+        output.append(("ReduceLogSumExp", value, 13))
+        output.append(("ReduceL1", value, 13))
+        output.append(("ReduceL2", value, 13))
     return output
 
 
-@pytest.mark.parametrize("func, dynamic", create_reduce_test_parameters())
-def test_all_reduce_funcs(func, dynamic):
+@pytest.mark.parametrize("func, dynamic, opset", create_reduce_test_parameters_axes_attr())
+def test_all_reduce_funcs_axes_attr(func, dynamic, opset):
     def verify_reduce_func(func, data, axis, keepdims):
         inshape = data.shape
         outshape = np.sum(data, axis=axis, keepdims=keepdims == 1).shape
@@ -1298,7 +1616,7 @@ def test_all_reduce_funcs(func, dynamic):
 
         inputs_dict = {"x": data}
         # Reduction ops accumulate arithmetic errors, so we use a higher tolerance.
-        check_correctness(model, inputs_dict, opset=11, rtol=1e-4, atol=1e-4)
+        check_correctness(model, inputs_dict, opset=opset, rtol=1e-4, atol=1e-4)
 
     for keepdims in [True, False]:
         verify_reduce_func(
@@ -1323,6 +1641,129 @@ def test_all_reduce_funcs(func, dynamic):
 
         verify_reduce_func(
             func, np.random.randn(1, 3, 4, 1).astype(np.float32), axis=(1,), keepdims=keepdims
+        )
+
+
+def create_reduce_test_parameters_axes_input():
+    output = []
+    for dynamic in [True, False]:
+        output.append(("ReduceMax", dynamic, 18))
+        output.append(("ReduceMean", dynamic, 18))
+        output.append(("ReduceMin", dynamic, 18))
+        output.append(("ReduceProd", dynamic, 18))
+        output.append(("ReduceSum", dynamic, 13))
+        output.append(("ReduceSumSquare", dynamic, 18))
+        output.append(("ReduceLogSum", dynamic, 18))
+        output.append(("ReduceLogSumExp", dynamic, 18))
+        output.append(("ReduceL1", dynamic, 18))
+        output.append(("ReduceL2", dynamic, 18))
+    return output
+
+
+@pytest.mark.parametrize("func, dynamic, opset", create_reduce_test_parameters_axes_input())
+def test_all_reduce_funcs_axes_input(func, dynamic, opset):
+    def verify_reduce_func(func, data, axes, keepdims, noop_with_empty_axes=False):
+        inshape = data.shape
+
+        inputs = ["x"]
+        initializers = []
+
+        # Optional `axes` input
+        if axes is not None:
+            axes_name = "reduce_axes"
+            axes_np = np.asarray(axes, dtype=np.int64)
+            axes_init = helper.make_tensor(
+                name=axes_name,
+                data_type=TensorProto.INT64,
+                dims=axes_np.shape,
+                vals=axes_np,
+            )
+            initializers.append(axes_init)
+            inputs.append(axes_name)
+
+        # Determine input and output shapes
+        if not axes and not noop_with_empty_axes:
+            outshape = np.sum(data, axis=None, keepdims=keepdims).shape
+        elif not axes and noop_with_empty_axes:
+            outshape = inshape
+        else:
+            outshape = np.sum(data, axis=axes, keepdims=keepdims).shape
+
+        if dynamic:
+            in_list = ["?"] * len(inshape)
+            out_list = ["?"] * len(outshape)
+        else:
+            in_list = list(inshape)
+            out_list = list(outshape)
+
+        # Make a model node
+        node = helper.make_node(
+            func,
+            inputs=inputs,
+            outputs=["y"],
+            keepdims=keepdims,
+            noop_with_empty_axes=noop_with_empty_axes,
+        )
+
+        # Make a model graph and a model
+        graph = helper.make_graph(
+            [node],
+            "reduce18_test",
+            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, in_list)],
+            initializer=initializers,
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, out_list)],
+        )
+        model = helper.make_model(graph, producer_name="reduce18_test")
+
+        # Run TVM importer vs onnxruntime
+        inputs_dict = {"x": data}
+        check_correctness(model, inputs_dict, opset=opset, rtol=1e-4, atol=1e-4)
+
+    # Verify
+    for keepdims in [True, False]:
+        # no `axes` input && `noop_with_empty_axes` = 0 -> reduce over all dimensions.
+        verify_reduce_func(
+            func,
+            np.random.randn(3, 2, 2).astype(np.float32),
+            axes=[],
+            keepdims=keepdims,
+            noop_with_empty_axes=False,
+        )
+
+        # no `axes` input && `noop_with_empty_axes` = 0 -> reduce over all dimensions.
+        verify_reduce_func(
+            func,
+            np.random.randn(3, 2, 2).astype(np.float32),
+            axes=None,
+            keepdims=keepdims,
+            noop_with_empty_axes=False,
+        )
+
+        # no `axes` input && `noop_with_empty_axes` = 1 -> return the input unchanged.
+        verify_reduce_func(
+            func,
+            np.random.randn(4, 3).astype(np.float32),
+            axes=[],
+            keepdims=keepdims,
+            noop_with_empty_axes=True,
+        )
+
+        # no `axes` input && `noop_with_empty_axes` = 1 -> return the input unchanged.
+        # (onnxruntime bug) Runtime error on the onnxruntime part
+        # verify_reduce_func(
+        #     func,
+        #     np.random.randn(4, 3).astype(np.float32),
+        #     axes=None,
+        #     keepdims=keepdims,
+        #     noop_with_empty_axes=True,
+        # )
+
+        # `axes` provided -> reduce over specified axes.
+        verify_reduce_func(
+            func,
+            np.random.randn(3, 3, 3, 1).astype(np.float32),
+            axes=(1, 2),
+            keepdims=keepdims,
         )
 
 
@@ -1393,10 +1834,6 @@ def test_topk(axis: int, largest: int):
 
 @pytest.mark.parametrize("dynamic", [False, True])
 def test_expand(dynamic):
-    if dynamic:
-        # TODO: Support dynamic shape for Expand
-        pytest.skip("Dynamic expand is not supported yet")
-
     def _test_expand(name, data, shape, ref_data):
         shape_array = np.array(shape)
         shape_node = onnx.helper.make_node(
@@ -1427,17 +1864,149 @@ def test_expand(dynamic):
         model = helper.make_model(graph, producer_name=name)
         check_correctness(model, inputs={"in": data})
 
-    in_shape = (3, 1)
-    shape = (3, 4)
-    data = np.random.uniform(size=in_shape).astype(np.float32)
-    ref_data = np.tile(data, 4)
-    _test_expand("expand_with_dim_unchanged_test", data, shape, ref_data)
+    def _test_expand_dynamic_shapeexpr(name, data, shape_data, shape, ref_data):
+        shape_node = onnx.helper.make_node("Shape", inputs=["in_2"], outputs=["shape"])
+        expand_node = helper.make_node("Expand", ["in", "shape"], ["out"])
+        in_shape = list(data.shape)
+        out_shape = list(ref_data.shape)
+        graph = helper.make_graph(
+            [shape_node, expand_node],
+            "expand_test",
+            inputs=[
+                helper.make_tensor_value_info("in", TensorProto.FLOAT, in_shape),
+                helper.make_tensor_value_info("in_2", TensorProto.FLOAT, shape),
+            ],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, out_shape)],
+        )
 
-    in_shape = (3, 1)
-    shape = (1, 3, 4)
-    data = np.random.uniform(size=in_shape).astype(np.float32)
-    ref_data = np.tile(data, (1, 1, 4))
-    _test_expand("expand_with_diff_dim", data, shape, ref_data)
+        model = helper.make_model(graph, producer_name=name)
+        check_correctness(model, inputs={"in": data, "in_2": shape_data})
+
+    if not dynamic:
+        in_shape = (3, 1)
+        shape = (3, 4)
+        data = np.random.uniform(size=in_shape).astype(np.float32)
+        ref_data = np.tile(data, 4)
+        _test_expand("expand_with_dim_unchanged_test", data, shape, ref_data)
+
+        in_shape = (3, 1)
+        shape = (1, 3, 4)
+        data = np.random.uniform(size=in_shape).astype(np.float32)
+        ref_data = np.tile(data, (1, 1, 4))
+        _test_expand("expand_with_diff_dim", data, shape, ref_data)
+
+        in_shape = (3, 1)
+        shape = (1, 1, 3, 1)
+        data = np.random.uniform(size=in_shape).astype(np.float32)
+        ref_data = np.tile(data, (1, 1, 1, 1))
+        _test_expand("expand_with_the_same_suffix_dims", data, shape, ref_data)
+    else:
+        in_shape = (1, 32, 32)
+        shape = ("batch", 32, 32)
+        data = np.random.uniform(size=in_shape).astype(np.float32)
+        shape_data = np.random.uniform(size=(64, 32, 32)).astype(np.float32)
+        ref_data = np.tile(data, (64, 1, 1))
+        _test_expand_dynamic_shapeexpr("expand_with_dynamic_dim", data, shape_data, shape, ref_data)
+
+
+def test_expand_incompatible_broadcasting():
+    """
+    This test case reproduces the error where input tensor shape at dim 1 is 25
+    and target shape at dim 3 is 56, which violates ONNX broadcasting rules
+    """
+
+    def _test_expand_error_case(name, data_shape, target_shape_vals):
+        data = np.random.uniform(size=data_shape).astype(np.float32)
+
+        shape_array = np.array(target_shape_vals, dtype=np.int64)
+        shape_node = onnx.helper.make_node(
+            "Constant",
+            inputs=[],
+            outputs=["shape"],
+            value=onnx.helper.make_tensor(
+                name="const_tensor",
+                data_type=onnx.TensorProto.INT64,
+                dims=shape_array.shape,
+                vals=shape_array.flatten(),
+            ),
+        )
+
+        expand_node = helper.make_node("Expand", ["in", "shape"], ["out"])
+
+        graph = helper.make_graph(
+            [shape_node, expand_node],
+            "expand_error_test",
+            inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(data.shape))],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, target_shape_vals)],
+        )
+
+        model = helper.make_model(graph, producer_name=name)
+
+        with pytest.raises(ValueError) as exc_info:
+            from_onnx(model, keep_params_in_input=True)
+
+        error_msg = str(exc_info.value)
+        assert (
+            "broadcast" in error_msg.lower() or "incompatible" in error_msg.lower()
+        ), f"Expected broadcasting error, but got: {error_msg}"
+
+    # Test case 1: Reproduce the exact error from the issue-17769
+    # Input shape: (25,), target shape: (1, 1, 1, 56)
+    # This should faill because input dim 1 (25) != target dim 3 (56) and neither is 1
+    _test_expand_error_case(
+        "expand_incompatible_25_to_56",
+        data_shape=(25,),
+        target_shape_vals=(1, 1, 1, 56),
+    )
+
+    # Test case 2: Another incompatible case
+    # Input shape: (1, 25), target shape: (1, 1, 1, 56)
+    # After right-alignment, input (1, 1, 1, 25) vs. target (1, 1, 1, 56)
+    # This should fail because 25 != 56 and neither is 1
+    _test_expand_error_case(
+        "expand_incompatible_aligned_25_to_56",
+        data_shape=(1, 25),
+        target_shape_vals=(1, 1, 1, 56),
+    )
+
+    # Test case 3: Valid case for comparison - should not raise error
+    def _test_expand_valid_case():
+        """Test a valid expand case to ensure our fix doesn't break valid operations"""
+        data_shape = (1, 25)
+        target_shape_vals = [2, 25]  # Valid: input (1, 25) can broadcast to (2, 25)
+
+        data = np.random.uniform(size=data_shape).astype(np.float32)
+        shape_array = np.array(target_shape_vals, dtype=np.int64)
+
+        shape_node = onnx.helper.make_node(
+            "Constant",
+            inputs=[],
+            outputs=["shape"],
+            value=onnx.helper.make_tensor(
+                name="const_tensor",
+                data_type=onnx.TensorProto.INT64,
+                dims=shape_array.shape,
+                vals=shape_array.flatten(),
+            ),
+        )
+
+        expand_node = helper.make_node("Expand", ["in", "shape"], ["out"])
+
+        graph = helper.make_graph(
+            [shape_node, expand_node],
+            "expand_valid_test",
+            inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(data.shape))],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, target_shape_vals)],
+        )
+
+        model = helper.make_model(graph, producer_name="expand_valid_test_case")
+
+        try:
+            tvm_model = from_onnx(model, keep_params_in_input=True)
+        except Exception as e:
+            pytest.fail(f"Valid expand case should not fail, but got error: {e}")
+
+    _test_expand_valid_case()
 
 
 # TODO(jwfromm) Current approach to dynamic expand is technically not well formed. Reenable once fixed.
@@ -1449,7 +2018,7 @@ def test_constantofshape():
             ["input"],
             ["output"],
             value=helper.make_tensor(
-                "value", mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)], (1,), (value,)
+                "value", helper.np_dtype_to_tensor_dtype(np.dtype(dtype)), (1,), (value,)
             ),
         )
 
@@ -1469,7 +2038,7 @@ def test_constantofshape():
             ],
             outputs=[
                 helper.make_tensor_value_info(
-                    "output", mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)], input_dim
+                    "output", helper.np_dtype_to_tensor_dtype(np.dtype(dtype)), input_dim
                 )
             ],
         )
@@ -1546,6 +2115,68 @@ def test_slice():
     #     ends=[0, 0, 1],
     #     steps=[-1, -3, -2],
     # )
+
+
+def test_slice_dynamic_shape():
+    def verify_slice(
+        data_shape, data_instance_shape, output_shape, starts, ends, axes=None, steps=None
+    ):
+        if isinstance(starts, list):
+            starts = np.array(starts, "int64")
+        if isinstance(ends, list):
+            ends = np.array(ends, "int64")
+        if isinstance(axes, list):
+            axes = np.array(axes, "int64")
+        if isinstance(steps, list):
+            steps = np.array(steps, "int64")
+
+        slice_inputs = ["y", "starts", "ends"]
+        initializer = [
+            helper.make_tensor("starts", TensorProto.INT64, starts.shape, starts),
+            helper.make_tensor("ends", TensorProto.INT64, ends.shape, ends),
+        ]
+
+        if axes is not None:
+            initializer.append(helper.make_tensor("axes", TensorProto.INT64, axes.shape, axes))
+            slice_inputs.append("axes")
+        if steps is not None:
+            initializer.append(helper.make_tensor("steps", TensorProto.INT64, steps.shape, steps))
+            slice_inputs.append("steps")
+
+        shape_node = helper.make_node("Shape", inputs=["x"], outputs=["y"])
+        slice_node = helper.make_node("Slice", inputs=slice_inputs, outputs=["z"])
+
+        graph = helper.make_graph(
+            [shape_node, slice_node],
+            "slice_test",
+            inputs=[
+                helper.make_tensor_value_info("x", TensorProto.FLOAT, data_shape),
+            ],
+            outputs=[helper.make_tensor_value_info("z", TensorProto.INT64, output_shape)],
+            initializer=initializer,
+        )
+
+        model = helper.make_model(graph, producer_name="slice_test")
+        inputs = {"x": rg.standard_normal(size=data_instance_shape).astype("float32")}
+        check_correctness(model, inputs)
+
+    verify_slice([20, 10, 5], [20, 10, 5], [2], starts=[0], ends=[2], axes=[0])
+    verify_slice(["A", 10, 5], [20, 10, 5], [2], starts=[0], ends=[2], axes=[0])
+    verify_slice(["A", "B", 5], [20, 10, 5], [2], starts=[0], ends=[2], axes=[0])
+    verify_slice([20, 10, "C"], [20, 10, 5], [2], starts=[0], ends=[2], axes=[0])
+    verify_slice(["A", "B", "C"], [20, 10, 5], [2], starts=[0], ends=[2], axes=[0])
+
+    verify_slice([20, 10, 5], [20, 10, 5], [1], starts=[1], ends=[2], axes=[0])
+    verify_slice(["A", 10, 5], [20, 10, 5], [1], starts=[1], ends=[2], axes=[0])
+    verify_slice(["A", "B", 5], [20, 10, 5], [1], starts=[1], ends=[2], axes=[0])
+    verify_slice([20, 10, "C"], [20, 10, 5], [1], starts=[1], ends=[2], axes=[0])
+    verify_slice(["A", "B", "C"], [20, 10, 5], [1], starts=[1], ends=[2], axes=[0])
+
+    verify_slice([20, 10, 5], [20, 10, 5], [2], starts=[1], ends=[3], axes=[0])
+    verify_slice(["A", 10, 5], [20, 10, 5], [2], starts=[1], ends=[3], axes=[0])
+    verify_slice(["A", "B", 5], [20, 10, 5], [2], starts=[1], ends=[3], axes=[0])
+    verify_slice([20, 10, "C"], [20, 10, 5], [2], starts=[1], ends=[3], axes=[0])
+    verify_slice(["A", "B", "C"], [20, 10, 5], [2], starts=[1], ends=[3], axes=[0])
 
 
 # TODO Enable dynamism
@@ -1658,7 +2289,6 @@ def test_attention(dynamic):
 
 @pytest.mark.parametrize("dynamic", [True, False])
 def test_pad(dynamic):
-
     if dynamic:
         pytest.skip("Dynamic pad not supported")
 
@@ -1716,7 +2346,6 @@ def test_pad(dynamic):
 
 @pytest.mark.parametrize("dynamic", [True, False])
 def test_pad_v2(dynamic):
-
     if dynamic:
         pytest.skip("Dynamic pad not supported")
 
@@ -1791,16 +2420,19 @@ def test_split(fp_arith, dynamic):
 
         inputs = [
             helper.make_tensor_value_info(
-                "input", mapping.NP_TYPE_TO_TENSOR_TYPE[indata.dtype], indata_shape
+                "input", helper.np_dtype_to_tensor_dtype(indata.dtype), indata_shape
             )
         ]
 
+        split_constant = None
         if pass_split:
             if opset >= 13:
                 np_split = np.array(split).astype(np.int64)
-                initializer.append(
-                    helper.make_tensor("split", TensorProto.INT64, list(np_split.shape), np_split)
+                split_constant = make_constant_node(
+                    "split", onnx.TensorProto.INT64, list(np_split.shape), np_split
                 )
+                input_names.append("split")
+
         node = helper.make_node(
             "Split",
             inputs=input_names,
@@ -1812,15 +2444,17 @@ def test_split(fp_arith, dynamic):
             split_attr = helper.make_attribute("split", split)
             node.attribute.append(split_attr)
 
+        nodes = [split_constant, node] if split_constant else [node]
+
         graph = helper.make_graph(
-            [node],
+            nodes,
             "split_test",
             inputs=inputs,
             initializer=initializer,
             outputs=[
                 helper.make_tensor_value_info(
                     f"output_{i}",
-                    mapping.NP_TYPE_TO_TENSOR_TYPE[indata.dtype],
+                    helper.np_dtype_to_tensor_dtype(indata.dtype),
                     list(outdata_shapes[i]),
                 )
                 for i in range(len(split_index))
@@ -1892,8 +2526,34 @@ def test_tile(dynamic):
     verify_tile(x.shape, repeats, z_array.shape)
 
 
-def test_resize():
-    resize_node = helper.make_node("Resize", ["X", "", "scales"], ["Y"], mode="cubic")
+def _generate_roi_cases():
+    # Base case when with_roi is False
+    roi_list = [
+        pytest.param(False, None, id="no_roi"),
+    ]
+
+    # Valid when with_roi is True
+    roi_cases = [
+        [0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 1.0],
+        [0.1, 0.1, 0.9, 0.9],
+        [0.2, 0.2, 0.8, 0.8],
+        [0.3, 0.3, 0.7, 0.7],
+        [0.4, 0.4, 0.6, 0.6],
+        [0.5, 0.5, 0.5, 0.5],
+        [0.1, 0.2, 0.9, 0.8],
+    ]
+    for roi in roi_cases:
+        roi_list.append(pytest.param(True, roi, id=f"roi_{'_'.join(str(x) for x in roi)}"))
+
+    return roi_list
+
+
+@pytest.mark.parametrize("with_roi, roi_list", _generate_roi_cases())
+def test_resize(with_roi, roi_list):
+    resize_node = helper.make_node(
+        "Resize", ["X", "roi" if with_roi else "", "scales"], ["Y"], mode="cubic"
+    )
 
     graph = helper.make_graph(
         [resize_node],
@@ -1903,6 +2563,7 @@ def test_resize():
         ],
         initializer=[
             helper.make_tensor("scales", TensorProto.FLOAT, [4], [1.0, 1.0, 2.0, 2.0]),
+            *([helper.make_tensor("roi", TensorProto.FLOAT, [4], roi_list)] if with_roi else []),
         ],
         outputs=[
             helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 3, 64, 64]),
@@ -1978,194 +2639,57 @@ def test_batch_norm():
     check_correctness(model, opset=15)
 
 
-def test_maxpool_and_averagepool():
-    for pool_name in ["MaxPool", "AveragePool"]:
+@pytest.mark.parametrize("pool_name", ["MaxPool", "AveragePool", "LpPool"])
+@pytest.mark.parametrize(
+    "shape, auto_pad, kernel_shape, strides, pads",
+    [
         # Pool1D
-        verify_unary(
-            pool_name,
-            [1, 1, 32],
-            dict(
-                auto_pad="NOTSET",
-                kernel_shape=[3],
-                pads=[1, 1],
-                strides=[1],
-            ),
-        )
+        ([1, 1, 32], "NOTSET", [3], [1], [1, 1]),
         # Pool1D with stride
-        verify_unary(
-            pool_name,
-            [1, 1, 32],
-            dict(
-                auto_pad="NOTSET",
-                kernel_shape=[3],
-                pads=[1, 2],
-                strides=[2],
-            ),
-        )
+        ([1, 1, 32], "NOTSET", [3], [2], [1, 1]),
         # Pool1D with stride and autopadding
-        verify_unary(
-            pool_name,
-            [1, 1, 32],
-            dict(
-                auto_pad="SAME_UPPER",
-                kernel_shape=[7],
-                pads=None,
-                strides=[2],
-            ),
-        )
-        verify_unary(
-            pool_name,
-            [1, 1, 32],
-            dict(
-                auto_pad="SAME_LOWER",
-                kernel_shape=[4],
-                pads=None,
-                strides=[4],
-            ),
-        )
-        verify_unary(
-            pool_name,
-            [1, 1, 32],
-            dict(
-                auto_pad="VALID",
-                kernel_shape=[5],
-                pads=None,
-                strides=[5],
-            ),
-        )
-        verify_unary(
-            pool_name,
-            [1, 1, 32],
-            dict(
-                auto_pad="SAME_UPPER",
-                kernel_shape=[3],
-                pads=None,
-            ),
-        )
+        ([1, 1, 32], "SAME_UPPER", [7], [2], None),
+        ([1, 1, 32], "SAME_LOWER", [4], [4], None),
+        ([1, 1, 32], "VALID", [5], [5], None),
+        ([1, 1, 32], "SAME_UPPER", [3], [1], None),
         # Pool2D
-        verify_unary(
-            pool_name,
-            [1, 1, 32, 32],
-            dict(
-                auto_pad="NOTSET",
-                kernel_shape=[3, 3],
-                pads=[1, 1, 1, 1],
-                strides=[1, 1],
-            ),
-        )
+        ([1, 1, 32, 32], "NOTSET", [3, 3], [1, 1], [1, 1, 1, 1]),
         # Pool2D with stride
-        verify_unary(
-            pool_name,
-            [1, 1, 32, 32],
-            dict(
-                auto_pad="NOTSET",
-                kernel_shape=[3, 3],
-                pads=[1, 1, 1, 1],
-                strides=[2, 2],
-            ),
-        )
+        ([1, 1, 32, 32], "NOTSET", [3, 3], [2, 2], [1, 1, 1, 1]),
         # Pool2D with stride and autopadding
-        verify_unary(
-            pool_name,
-            [1, 1, 32, 32],
-            dict(
-                auto_pad="SAME_UPPER",
-                kernel_shape=[3, 7],
-                pads=None,
-                strides=[3, 2],
-            ),
-        )
-        verify_unary(
-            pool_name,
-            [1, 1, 32, 32],
-            dict(
-                auto_pad="SAME_LOWER",
-                kernel_shape=[3, 3],
-                pads=None,
-                strides=[2, 2],
-            ),
-        )
-        verify_unary(
-            pool_name,
-            [1, 1, 32, 32],
-            dict(
-                auto_pad="VALID",
-                kernel_shape=[3, 3],
-                pads=None,
-                strides=[2, 2],
-            ),
-        )
-        verify_unary(
-            pool_name,
-            [1, 1, 32, 32],
-            dict(
-                auto_pad="SAME_UPPER",
-                kernel_shape=[3, 3],
-                pads=None,
-            ),
-        )
+        ([1, 1, 32, 32], "SAME_UPPER", [3, 7], [3, 2], None),
+        ([1, 1, 32, 32], "SAME_LOWER", [3, 3], [2, 2], None),
+        ([1, 1, 32, 32], "VALID", [3, 3], [2, 2], None),
+        ([1, 1, 32, 32], "SAME_UPPER", [3, 3], [1, 1], None),
         # Pool3D
-        verify_unary(
-            pool_name,
-            [1, 1, 32, 32, 32],
-            dict(
-                auto_pad="NOTSET",
-                kernel_shape=[3, 3, 4],
-                pads=[1, 2, 1, 1, 2, 2],
-                strides=[1, 1, 1],
-            ),
-        )
+        ([1, 1, 32, 32, 32], "NOTSET", [3, 3, 4], [1, 1, 1], [1, 2, 1, 1, 2, 2]),
         # Pool3D with stride
-        verify_unary(
-            pool_name,
-            [1, 1, 32, 32, 32],
-            dict(
-                auto_pad="NOTSET",
-                kernel_shape=[3, 4, 3],
-                pads=[1, 1, 1, 1, 1, 2],
-                strides=[2, 2, 3],
-            ),
-        )
+        ([1, 1, 32, 32, 32], "NOTSET", [3, 4, 3], [2, 2, 3], [1, 1, 1, 1, 1, 2]),
         # Pool3D with stride and autopadding
-        verify_unary(
-            pool_name,
-            [1, 1, 32, 32, 32],
-            dict(
-                auto_pad="SAME_UPPER",
-                kernel_shape=[4, 3, 3],
-                pads=None,
-                strides=[3, 2, 2],
-            ),
-        )
-        verify_unary(
-            pool_name,
-            [1, 1, 32, 32, 32],
-            dict(
-                auto_pad="SAME_LOWER",
-                kernel_shape=[3, 3, 4],
-                pads=None,
-                strides=[2, 2, 2],
-            ),
-        )
-        verify_unary(
-            pool_name,
-            [1, 1, 32, 32, 32],
-            dict(
-                auto_pad="VALID",
-                kernel_shape=[3, 3, 5],
-                pads=None,
-                strides=[2, 2, 3],
-            ),
-        )
-        verify_unary(
-            pool_name,
-            [1, 1, 32, 32, 32],
-            dict(
-                auto_pad="SAME_UPPER",
-                kernel_shape=[3, 3, 5],
-                pads=None,
-            ),
-        )
+        ([1, 1, 32, 32, 32], "SAME_UPPER", [4, 3, 3], [3, 2, 2], None),
+        ([1, 1, 32, 32, 32], "SAME_LOWER", [3, 3, 4], [2, 2, 2], None),
+        ([1, 1, 32, 32, 32], "VALID", [3, 3, 5], [2, 2, 3], None),
+        ([1, 1, 32, 32, 32], "SAME_UPPER", [3, 3, 5], [1, 1, 1], None),
+    ],
+)
+def test_pool(
+    pool_name: str,
+    shape: List[int],
+    auto_pad: str,
+    kernel_shape: List[int],
+    strides: List[int],
+    pads: List[int],
+):
+    verify_unary(
+        pool_name,
+        shape,
+        attrs={
+            "kernel_shape": kernel_shape,
+            "strides": strides,
+            "pads": pads,
+            "auto_pad": auto_pad,
+        },
+    )
 
 
 def test_global_average_pool():
@@ -2226,6 +2750,12 @@ def test_flatten():
     verify_unary("Flatten", [1, 3, 32, 32], attrs={"axis": 2})
 
 
+def test_flatten_dynamic():
+    verify_unary_dynamic_shape("Flatten", [1, "A", "B", 32], [1, 3, 32, 32], attrs={"axis": 0})
+    verify_unary_dynamic_shape("Flatten", [1, "A", "B", 32], [1, 3, 32, 32], attrs={"axis": -1})
+    verify_unary_dynamic_shape("Flatten", [1, "A", "B", 32], [1, 3, 32, 32], attrs={"axis": 2})
+
+
 def test_onehot():
     one_hot_node = helper.make_node("OneHot", ["indices", "depth", "values"], ["y"], axis=1)
     graph = helper.make_graph(
@@ -2268,7 +2798,7 @@ def test_unique(axis: Optional[int], sorted: int):
     check_correctness(model)
 
 
-@pytest.mark.parametrize("shape", [(), (1,), (2, 3), (4, 5, 6)])
+@pytest.mark.parametrize("shape", [(), (1,), (2, 3), (4, 5, 6), (7, 8, 9, 10)])
 def test_nonzero(shape):
     verify_unary("NonZero", shape, input_dtype=TensorProto.BOOL, output_dtype=TensorProto.INT64)
 
@@ -2541,6 +3071,202 @@ def test_params_names_start_with_onnx():
     )
     model = helper.make_model(graph, producer_name="test_params_names_start_with_onnx")
     check_correctness(model)
+
+
+def test_shape_dim_string_expression():
+    def _verify(x_shape, example_shape):
+        identity_node = helper.make_node("Identity", ["x"], ["y"])
+
+        graph = helper.make_graph(
+            [identity_node],
+            "test_var_shape_dim_containing_expressions_onnx",
+            inputs=[
+                helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape),
+            ],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, x_shape)],
+        )
+        model = helper.make_model(
+            graph, producer_name="test_var_shape_dim_containing_expressions_onnx"
+        )
+
+        inputs = {"x": generate_random_value(example_shape, TensorProto.FLOAT)}
+        check_correctness(model, inputs)
+
+    _verify(["A", "B", "A + B"], [3, 9, 12])
+    _verify(["A", "B", "A - B"], [9, 3, 6])
+    _verify(["A", "B", "A * B"], [9, 3, 27])
+    _verify(["A", "B", "A // B"], [9, 3, 3])
+
+
+def test_shape_dim_string_expression_graph_add():
+    identity_node = helper.make_node("Identity", ["x"], ["y"])
+
+    x_shape = ["A", "B", "A + B"]
+
+    graph = helper.make_graph(
+        [identity_node],
+        "test_var_shape_dim_containing_expressions_onnx",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, x_shape)],
+    )
+    model = helper.make_model(graph, producer_name="test_var_shape_dim_containing_expressions_onnx")
+
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+
+    # fmt: off
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("A", "B", "A + B"), dtype="float32")) -> R.Tensor(("A", "B", "A + B"), dtype="float32"):
+            A = T.int64(is_size_var=True)
+            B = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((A, B, A + B), dtype="float32") = x
+                R.output(gv)
+            return gv
+    # fmt: on
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_shape_dim_string_expression_graph_subtract():
+    identity_node = helper.make_node("Identity", ["x"], ["y"])
+
+    x_shape = ["A", "B", "A - B"]
+
+    graph = helper.make_graph(
+        [identity_node],
+        "test_var_shape_dim_containing_expressions_onnx",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, x_shape)],
+    )
+    model = helper.make_model(graph, producer_name="test_var_shape_dim_containing_expressions_onnx")
+
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+
+    # fmt: off
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("A", "B", "A - B"), dtype="float32")) -> R.Tensor(("A", "B", "A - B"), dtype="float32"):
+            A = T.int64(is_size_var=True)
+            B = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((A, B, A - B), dtype="float32") = x
+                R.output(gv)
+            return gv
+    # fmt: on
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_shape_dim_string_expression_graph_mul():
+    identity_node = helper.make_node("Identity", ["x"], ["y"])
+
+    x_shape = ["A", "B", "A * B"]
+
+    graph = helper.make_graph(
+        [identity_node],
+        "test_var_shape_dim_containing_expressions_onnx",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, x_shape)],
+    )
+    model = helper.make_model(graph, producer_name="test_var_shape_dim_containing_expressions_onnx")
+
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+
+    # fmt: off
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("A", "B", "A * B"), dtype="float32")) -> R.Tensor(("A", "B", "A * B"), dtype="float32"):
+            A = T.int64(is_size_var=True)
+            B = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((A, B, A * B), dtype="float32") = x
+                R.output(gv)
+            return gv
+    # fmt: on
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_shape_dim_string_expression_graph_div_1():
+    identity_node = helper.make_node("Identity", ["x"], ["y"])
+
+    # this will result in a floordiv despite not using // since the operands are always int
+    x_shape = ["A", "B", "A / B"]
+
+    graph = helper.make_graph(
+        [identity_node],
+        "test_var_shape_dim_containing_expressions_onnx",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, x_shape)],
+    )
+    model = helper.make_model(graph, producer_name="test_var_shape_dim_containing_expressions_onnx")
+
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+
+    # fmt: off
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("A", "B", "A // B"), dtype="float32")) -> R.Tensor(("A", "B", "A // B"), dtype="float32"):
+            A = T.int64(is_size_var=True)
+            B = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((A, B, A // B), dtype="float32") = x
+                R.output(gv)
+            return gv
+    # fmt: on
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_shape_dim_string_expression_graph_div_2():
+    identity_node = helper.make_node("Identity", ["x"], ["y"])
+
+    x_shape = ["A", "B", "A // B"]
+
+    graph = helper.make_graph(
+        [identity_node],
+        "test_var_shape_dim_containing_expressions_onnx",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, x_shape)],
+    )
+    model = helper.make_model(graph, producer_name="test_var_shape_dim_containing_expressions_onnx")
+
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+
+    # fmt: off
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("A", "B", "A // B"), dtype="float32")) -> R.Tensor(("A", "B", "A // B"), dtype="float32"):
+            A = T.int64(is_size_var=True)
+            B = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((A, B, A // B), dtype="float32") = x
+                R.output(gv)
+            return gv
+    # fmt: on
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
 if __name__ == "__main__":

@@ -33,6 +33,7 @@
 #endif
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/op.h>
 
 #include <limits>
@@ -59,10 +60,10 @@ using namespace presburger;
 class PresburgerSetNode : public IntSetNode {
  public:
   PresburgerSetNode() : space(PresburgerSpace::getRelationSpace()) {}
-  explicit PresburgerSetNode(const PresburgerSpace& space, const Array<Var>& vars)
+  explicit PresburgerSetNode(const PresburgerSpace& space, const ffi::Array<Var>& vars)
       : disjuncts({}), space(space), vars(vars) {}
   explicit PresburgerSetNode(const std::vector<IntegerRelation>& disjuncts,
-                             const PresburgerSpace& space, const Array<Var>& vars)
+                             const PresburgerSpace& space, const ffi::Array<Var>& vars)
       : disjuncts(disjuncts), space(space), vars(vars) {}
 
   /*! \brief Represent the union of multiple IntegerRelation */
@@ -71,7 +72,10 @@ class PresburgerSetNode : public IntSetNode {
   PresburgerSpace space;
 
   // visitor overload.
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PresburgerSetNode>();
+  }
 
   /*!
    * \brief Do inplace union with given disjunct
@@ -87,7 +91,7 @@ class PresburgerSetNode : public IntSetNode {
    * \param constraint The added constraint to the PresburgerSet.
    * \param vars The specified domain vars in constraint expression.
    */
-  void UpdateConstraint(const PrimExpr& constraint, const Array<Var>& vars);
+  void UpdateConstraint(const PrimExpr& constraint, const ffi::Array<Var>& vars);
 
   /*!
    * \brief Generate expression that represents the constraint
@@ -99,25 +103,23 @@ class PresburgerSetNode : public IntSetNode {
    * \brief Set domain vars
    * \param new_vars Vars that will be taken as the domain vars
    */
-  void SetVars(const Array<Var>& new_vars) { vars = new_vars; }
+  void SetVars(const ffi::Array<Var>& new_vars) { vars = new_vars; }
 
   /*!
    * \brief Get the current domain vars
    * \return The current doamin vars
    */
-  Array<Var> GetVars() const { return vars; }
+  ffi::Array<Var> GetVars() const { return vars; }
 
   /*! \return whether integer set is empty */
   bool IsEmpty() const {
     return std::all_of(disjuncts.begin(), disjuncts.end(),
                        std::mem_fn(&IntegerRelation::isIntegerEmpty));
   }
-
-  static constexpr const char* _type_key = "arith.PresburgerSet";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PresburgerSetNode, IntSetNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.PresburgerSet", PresburgerSetNode, IntSetNode);
 
  private:
-  Array<Var> vars;
+  ffi::Array<Var> vars;
 };
 
 /*!
@@ -132,7 +134,7 @@ class PresburgerSet : public IntSet {
    * \param vars The variables that the constraint describes about.
    * \return The created PresburgerSet.
    */
-  TVM_DLL PresburgerSet(const std::vector<IntegerRelation>& disjuncts, const Array<Var>& vars);
+  TVM_DLL PresburgerSet(const std::vector<IntegerRelation>& disjuncts, const ffi::Array<Var>& vars);
 
   /*!
    * \brief Make a new instance of PresburgerSet, collect all vars as space vars.
@@ -142,7 +144,7 @@ class PresburgerSet : public IntSet {
   TVM_DLL PresburgerSet(const PrimExpr& constraint);
 
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PresburgerSetNode);
-  TVM_DEFINE_OBJECT_REF_METHODS(PresburgerSet, IntSet, PresburgerSetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PresburgerSet, IntSet, PresburgerSetNode);
 };
 #endif  // TVM_MLIR_VERSION >= 150
 #else   // TVM_MLIR_VERSION
@@ -150,10 +152,11 @@ class PresburgerSet : public IntSet {
 class PresburgerSetNode : public IntSetNode {
  public:
   // dummy visitor overload.
-  void VisitAttrs(tvm::AttrVisitor* v) { LOG(FATAL) << "MLIR is not enabled!"; }
-
-  static constexpr const char* _type_key = "arith.PresburgerSet";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PresburgerSetNode, IntSetNode);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PresburgerSetNode>();
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.PresburgerSet", PresburgerSetNode, IntSetNode);
 };
 
 class PresburgerSet : public IntSet {
@@ -171,14 +174,14 @@ class PresburgerSet : public IntSet {
  * \param sets The sets to be combined
  * \return the set after union
  */
-PresburgerSet Union(const Array<PresburgerSet>& sets);
+PresburgerSet Union(const ffi::Array<PresburgerSet>& sets);
 
 /*!
  * \brief Create an intersected set of all sets
  * \param sets The sets to be intersected
  * \return The intersect set
  */
-PresburgerSet Intersect(const Array<PresburgerSet>& sets);
+PresburgerSet Intersect(const ffi::Array<PresburgerSet>& sets);
 
 /*!
  * \brief Evaluate the range of given expression based on the constraint

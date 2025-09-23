@@ -92,6 +92,28 @@ TVM_DLL runtime::DataType GetRuntimeDataType(const Type& type);
 TVM_DLL PrimExpr ret(PrimExpr value, Span span = Span());
 
 /*!
+ * \brief Return from a thread.
+ *
+ * \param span The location of this operation in the source.
+ * \return The return expression.
+ */
+TVM_DLL PrimExpr thread_return(Span span = Span());
+
+/*!
+ * \brief Continue current loop.
+ * \param span The location of this operation in the source.
+ * \return The continue loop expression.
+ */
+TVM_DLL PrimExpr continue_loop(Span span = Span());
+
+/*!
+ * \brief Break current loop.
+ * \param span The location of this operation in the source.
+ * \return The break loop expression.
+ */
+TVM_DLL PrimExpr break_loop(Span span = Span());
+
+/*!
  * Query the maximum possible value of dtype.
  * \param dtype The data type.
  * \param span The location of this operation in the source.
@@ -395,6 +417,15 @@ TVM_DLL PrimExpr indexmod(PrimExpr a, PrimExpr b, Span span = Span());
  */
 TVM_DLL PrimExpr floordiv(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
+ * \brief Compute log(exp(a) + exp(b)).
+ *
+ * \param a Left operand.
+ * \param b Right operand.
+ * \param span The location of this operation in the source.
+ * \return The result expression.
+ */
+TVM_DLL PrimExpr logaddexp(PrimExpr a, PrimExpr b, Span span = Span());
+/*!
  * \brief compute ceil(a / b)
  *
  * \param a left operand
@@ -404,6 +435,7 @@ TVM_DLL PrimExpr floordiv(PrimExpr a, PrimExpr b, Span span = Span());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
+
 TVM_DLL PrimExpr ceildiv(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
  * \brief compute the remainder of floordiv
@@ -513,7 +545,7 @@ TVM_DLL PrimExpr pow(PrimExpr x, PrimExpr y, Span span = Span());
  * \param x The input data
  * \param span The location of this operation in the source.
  *
- * \return The aboslute value of input data x
+ * \return The absolute value of input data x
  */
 TVM_DLL PrimExpr abs(PrimExpr x, Span span = Span());
 /*!
@@ -548,7 +580,7 @@ TVM_DLL PrimExpr isinf(PrimExpr x, Span span = Span());
  * \param span The location of this operation in the source.
  * \return The result.
  */
-TVM_DLL PrimExpr sum(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {},
+TVM_DLL PrimExpr sum(PrimExpr source, ffi::Array<tir::IterVar> axis, ffi::Array<PrimExpr> init = {},
                      Span span = Span());
 
 /*!
@@ -558,7 +590,7 @@ TVM_DLL PrimExpr sum(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> 
  * \param init The value with which to initialize the output.
  * \param span The location of this operation in the source.
  */
-TVM_DLL PrimExpr all(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {},
+TVM_DLL PrimExpr all(PrimExpr source, ffi::Array<tir::IterVar> axis, ffi::Array<PrimExpr> init = {},
                      Span span = Span());
 
 /*!
@@ -569,7 +601,7 @@ TVM_DLL PrimExpr all(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> 
  * \param span The location of this operation in the source.
  * \return The result.
  */
-TVM_DLL PrimExpr any(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {},
+TVM_DLL PrimExpr any(PrimExpr source, ffi::Array<tir::IterVar> axis, ffi::Array<PrimExpr> init = {},
                      Span span = Span());
 
 /*!
@@ -580,7 +612,7 @@ TVM_DLL PrimExpr any(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> 
  * \param span The location of this operation in the source.
  * \return The result.
  */
-TVM_DLL PrimExpr max(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {},
+TVM_DLL PrimExpr max(PrimExpr source, ffi::Array<tir::IterVar> axis, ffi::Array<PrimExpr> init = {},
                      Span span = Span());
 
 /*!
@@ -591,7 +623,7 @@ TVM_DLL PrimExpr max(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> 
  * \param span The location of this operation in the source.
  * \return The result.
  */
-TVM_DLL PrimExpr min(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {},
+TVM_DLL PrimExpr min(PrimExpr source, ffi::Array<tir::IterVar> axis, ffi::Array<PrimExpr> init = {},
                      Span span = Span());
 
 /*!
@@ -602,8 +634,8 @@ TVM_DLL PrimExpr min(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> 
  * \param span The location of this operation in the source.
  * \return The result.
  */
-TVM_DLL PrimExpr prod(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {},
-                      Span span = Span());
+TVM_DLL PrimExpr prod(PrimExpr source, ffi::Array<tir::IterVar> axis,
+                      ffi::Array<PrimExpr> init = {}, Span span = Span());
 
 /*!
  * \brief Calculate floor(x)
@@ -865,7 +897,7 @@ inline bool is_const_number(const PrimExpr& x);
  * \tparam FReduce The type of the reduction.
  */
 template <typename FReduce>
-inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr>& values,
+inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const ffi::Array<PrimExpr>& values,
                       Span span = Span()) {
   for (PrimExpr val : values) {
     init_value = freduce(init_value, val, span);
@@ -940,7 +972,7 @@ inline PrimExpr MakeConstScalar(DataType t, ValueType value, Span span = Span())
       return LargeUIntImm(t, static_cast<int64_t>(low), static_cast<int64_t>(high), span);
     }
   }
-  if (t.is_float() || t.is_bfloat16() || t.is_float8())
+  if (t.is_float() || t.is_bfloat16() || t.is_float8() || t.is_float6() || t.is_float4())
     return FloatImm(t, static_cast<double>(value), span);
   // For now, we store const scalar values of custom datatypes within doubles; later, during the
   // datatypes lowering pass, we will lower the value to its true representation in the format
@@ -1071,6 +1103,7 @@ TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(indexmod);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(truncdiv);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(truncmod);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(floordiv);
+TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(logaddexp);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(floormod);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(right_shift);  // NOLINT(*)
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(left_shift);   // NOLINT(*)

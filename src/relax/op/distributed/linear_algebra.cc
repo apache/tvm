@@ -25,7 +25,8 @@ namespace relax {
 namespace distributed {
 
 StructInfo InferDistStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
-  Array<distributed::DTensorStructInfo> input_dtensor_sinfos = GetInputDTensorStructInfo(call, ctx);
+  ffi::Array<distributed::DTensorStructInfo> input_dtensor_sinfos =
+      GetInputDTensorStructInfo(call, ctx);
   TensorStructInfo x1_sinfo, x2_sinfo;
   x1_sinfo = input_dtensor_sinfos[0]->tensor_sinfo;
   x2_sinfo = input_dtensor_sinfos[1]->tensor_sinfo;
@@ -67,11 +68,11 @@ StructInfo InferDistStructInfoMatmul(const Call& call, const BlockBuilder& ctx) 
     ctx->ReportFatal(Diagnostic::Error(call) << "input of distributed operator must have shape");
   }
 
-  Array<PrimExpr> x1_shape_prefix{x1_shape->values.begin(),
-                                  x1_shape->values.end() - 2 + x1_prepended};
-  Array<PrimExpr> x2_shape_prefix{x2_shape->values.begin(),
-                                  x2_shape->values.end() - 2 + x2_appended};
-  Optional<Array<PrimExpr>> output_shape_prefix =
+  ffi::Array<PrimExpr> x1_shape_prefix{x1_shape->values.begin(),
+                                       x1_shape->values.end() - 2 + x1_prepended};
+  ffi::Array<PrimExpr> x2_shape_prefix{x2_shape->values.begin(),
+                                       x2_shape->values.end() - 2 + x2_appended};
+  ffi::Optional<ffi::Array<PrimExpr>> output_shape_prefix =
       InferBinaryBroadcastShape(call, ctx, x1_shape_prefix, x2_shape_prefix);
   ICHECK(output_shape_prefix.defined()) << "Failed to infer output shape of Matmul";
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
@@ -84,7 +85,7 @@ StructInfo InferDistStructInfoMatmul(const Call& call, const BlockBuilder& ctx) 
                      << x1_reduction_length << " and " << x2_reduction_length << " respectively.");
   }
 
-  Array<PrimExpr> output_shape = output_shape_prefix.value();
+  ffi::Array<PrimExpr> output_shape = output_shape_prefix.value();
   if (!x1_prepended) {
     output_shape.push_back(x1_shape->values[x1_ndim - 2]);
   }

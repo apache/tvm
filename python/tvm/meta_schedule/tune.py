@@ -24,6 +24,7 @@ from .measure_callback import MeasureCallback
 from .runner import Runner
 from .task_scheduler import TaskScheduler
 from .tune_context import TuneContext
+from .post_optimization import PostOpt
 
 
 def tune_tasks(
@@ -41,6 +42,7 @@ def tune_tasks(
     measure_callbacks: MeasureCallback.CallbackListType = "default",
     task_scheduler: TaskScheduler.TaskSchedulerType = "gradient",
     module_equality: str = "structural",
+    post_optimization: Optional[bool] = False,
 ) -> Database:
     """Tune a list of tasks. Using a task scheduler.
 
@@ -75,12 +77,14 @@ def tune_tasks(
         It must be one of the followings:
 
             - "structural": Use StructuralEqual/Hash
-            - "ignore-ndarray": Same as "structural", but ignore ndarray raw data during equality
+            - "ignore-tensor": Same as "structural", but ignore tensor raw data during equality
                 testing and hashing.
             - "anchor-block": Apply equality testing and hashing on the anchor block extracted from
-                a given module. The "ignore-ndarray" varint is used for the extracted blocks or in
+                a given module. The "ignore-tensor" varint is used for the extracted blocks or in
                 case no anchor block is found. For the definition of the anchor block, see
                 tir/analysis/analysis.py.
+    post_optimization : Optional[Bool]
+        Generate post-optimization using Droplet Search as exploitation space.
 
     Returns
     -------
@@ -127,4 +131,7 @@ def tune_tasks(
         database=database,
         cost_model=cost_model,
     )
+    if post_optimization:
+        post_opt = PostOpt(work_dir, tasks[0].target)
+        post_opt.run()
     return database

@@ -80,13 +80,16 @@ Which eventually jumps to the following line in C++, which creates a RPC client 
 [https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L123-L129](https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L123-L129)
 
 ```cpp
-TVM_REGISTER_GLOBAL("rpc.Connect").set_body([](TVMArgs args, TVMRetValue* rv) {
-  std::string url = args[0];
-  int port = args[1];
-  std::string key = args[2];
-  *rv = RPCClientConnect(url, port, key,
-                         TVMArgs(args.values + 3, args.type_codes + 3, args.size() - 3));
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("rpc.Connect", [](ffi::PackedArgs args, ffi::Any* rv) {
+    auto url = args[0].cast<std::string>();
+    int port = args[1].cast<int>();
+    auto key = args[2].cast<std::string>();
+    *rv = RPCClientConnect(url, port, key,
+                          ffi::PackedArgs(args.values + 3, args.type_codes + 3, args.size() - 3));
+  });
+}
 ```
 
 `tvm.contrib.hexagon.create_hexagon_session` is defined here. It establishes a link between android and hexagon, this code runs on android.
@@ -94,10 +97,13 @@ TVM_REGISTER_GLOBAL("rpc.Connect").set_body([](TVMArgs args, TVMRetValue* rv) {
 [https://github.com/apache/tvm/blob/cd2fa69677516048e165e84a88c774dfb0ee65d1/src/runtime/hexagon/rpc/android/session.cc#L106](https://github.com/apache/tvm/blob/cd2fa69677516048e165e84a88c774dfb0ee65d1/src/runtime/hexagon/rpc/android/session.cc#L106)
 
 ```cpp
-TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
-      std::string session_name = args[0];
-      int remote_stack_size_bytes = args[1];
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed(
+      "tvm.contrib.hexagon.create_hexagon_session", [](ffi::PackedArgs args, ffi::Any* rv) {
+      auto session_name = args[0].cast<std::string>();
+      int remote_stack_size_bytes = args[1].cast<int>();
       HexagonTransportChannel* hexagon_channel =
           new HexagonTransportChannel(hexagon_rpc_URI CDSP_DOMAIN, remote_stack_size_bytes);
       std::unique_ptr<RPCChannel> channel(hexagon_channel);
@@ -105,6 +111,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
       auto sess = CreateClientSession(ep);
       *rv = CreateRPCSessionModule(sess);
     });
+}
 ```
 
 `HexagonTransportChannel` is the one that actually knows how to talk to Hexagon. It uses functions such as `hexagon_rpc_send`, `hexagon_rpc_receive` defined in
@@ -118,23 +125,23 @@ TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
 [https://github.com/apache/tvm/blob/b2757817af7ba3aefe16ea3ccb6d4982dd7fd531/python/tvm/runtime/ndarray.py#L183](https://github.com/apache/tvm/blob/b2757817af7ba3aefe16ea3ccb6d4982dd7fd531/python/tvm/runtime/ndarray.py#L183)
 
 ```python
-check_call(_LIB.TVMArrayCopyFromBytes(self.handle, data, nbytes))
+check_call(_LIB.TVMTensorCopyFromBytes(self.handle, data, nbytes))
 ```
 
-[https://github.com/apache/tvm/blob/37cd9837ff302e4490696ca57a9fbba6404c7046/src/runtime/ndarray.cc#L322](https://github.com/apache/tvm/blob/37cd9837ff302e4490696ca57a9fbba6404c7046/src/runtime/ndarray.cc#L322)
+[https://github.com/apache/tvm/blob/37cd9837ff302e4490696ca57a9fbba6404c7046/src/runtime/tensor.cc#L322](https://github.com/apache/tvm/blob/37cd9837ff302e4490696ca57a9fbba6404c7046/src/runtime/tensor.cc#L322)
 
 ```cpp
-int TVMArrayCopyFromBytes(TVMArrayHandle handle, void* data, size_t nbytes) {
+int TVMTensorCopyFromBytes(TVMArrayHandle handle, void* data, size_t nbytes) {
   API_BEGIN();
-  ArrayCopyFromBytes(handle, data, nbytes);
+  TensorCopyFromBytes(handle, data, nbytes);
   API_END();
 }
 ```
 
-Now we come to `ArrayCopyFromBytes` function. The first non-obvious question is, which `DeviceAPI` is selected by `DeviceAPI::Get(handle->device)`?
+Now we come to `TensorCopyFromBytes` function. The first non-obvious question is, which `DeviceAPI` is selected by `DeviceAPI::Get(handle->device)`?
 
 ```cpp
-void ArrayCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
+void TensorCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
   ...
   DLTensor from;
   ...
@@ -178,7 +185,7 @@ At first, it is not obvious where this `CopyDataFromTo` jumps to (initially I th
 [https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L107](https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L107)
 
 ```cpp
-Module RPCClientConnect(std::string url, int port, std::string key, TVMArgs init_seq) {
+Module RPCClientConnect(std::string url, int port, std::string key, ffi::PackedArgs init_seq) {
   auto endpt = RPCConnect(url, port, "client:" + key, init_seq);
   return CreateRPCSessionModule(CreateClientSession(endpt));
 }
@@ -228,9 +235,9 @@ The handler is passed to the following function
 [https://github.com/apache/tvm/blob/899bc064e1bf8df915bcadc979a6f37210cdce33/src/runtime/rpc/rpc_endpoint.cc#L909-L922](https://github.com/apache/tvm/blob/899bc064e1bf8df915bcadc979a6f37210cdce33/src/runtime/rpc/rpc_endpoint.cc#L909-L922)
 
 ```cpp
-void RPCCopyAmongRemote(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
-  DLTensor* from = args[0];
-  DLTensor* to = args[1];
+void RPCCopyAmongRemote(RPCSession* handler, ffi::PackedArgs args, ffi::Any* rv) {
+  auto from = args[0].cast<DLTensor*>();
+  auto to = args[1].cast<DLTensor*>();
   ...
   handler->GetDeviceAPI(dev)->CopyDataFromTo(from, to, stream);
 }

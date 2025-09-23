@@ -19,37 +19,29 @@
 
 /*!
  * \file src/support/scalars.h
- * \brief Helpers for converting between scalars in native, text, TIR immediate and NDArray forms.
+ * \brief Helpers for converting between scalars in native, text, TIR immediate and Tensor forms.
  */
 
 #ifndef TVM_SUPPORT_SCALARS_H_
 #define TVM_SUPPORT_SCALARS_H_
 
 #include <string>
-#include <utility>
 
 #include "tvm/ir/expr.h"
-#include "tvm/relay/expr.h"
-#include "tvm/runtime/ndarray.h"
+#include "tvm/runtime/tensor.h"
 
 namespace tvm {
 namespace support {
 
-/*! \brief Returns true if a tensor of empty shape and given dtype is considered a Relay scalar. */
-bool IsSimpleScalarDtype(DataType dtype);
+/*! \brief Returns Tensor 'scalar' for given TIR immediate. */
+runtime::Tensor IntImmToTensor(const IntImm& int_imm);
+runtime::Tensor FloatImmToTensor(const FloatImm& float_imm);
+runtime::Tensor BoolToTensor(bool value);
 
-/*! \brief Returns true if \p constant_node is a float/int/bool scalar. */
-bool IsSimpleScalar(const relay::ConstantNode* constant_node);
+/*! \brief Returns literal text for Tensor 'scalar'. */
+std::string TensorScalarToString(const runtime::Tensor& data);
 
-/*! \brief Returns NDArray 'scalar' for given TIR immediate. */
-runtime::NDArray IntImmToNDArray(const IntImm& int_imm);
-runtime::NDArray FloatImmToNDArray(const FloatImm& float_imm);
-runtime::NDArray BoolToNDArray(bool value);
-
-/*! \brief Returns Relay literal text for NDArray 'scalar'. */
-std::string NDArrayScalarToString(const runtime::NDArray& data);
-
-/*! \brief Returns Relay literal text for given TIR immediate. */
+/*! \brief Returns literal text for given TIR immediate. */
 std::string IntImmToString(const IntImm& int_imm);
 std::string FloatImmToString(const FloatImm& float_imm);
 
@@ -69,13 +61,40 @@ constexpr double kMaxFloat16 = 65504.0;
 // See https://en.wikipedia.org/wiki/Bfloat16_floating-point_format
 constexpr double kMaxBFloat16 = 3.895313892515354759047080037148786688e38;
 
-// 2^8 * (1 + 6/8)
-// See https://arxiv.org/pdf/2209.05433.pdf
-constexpr double kMaxE4M3 = 448;
-
 // 2^15 * (1 + 3/4)
 // See https://arxiv.org/pdf/2209.05433.pdf
 constexpr double kMaxE5M2 = 57344;
+
+// 2^15 * (1 + 3/4)
+constexpr double kMaxE5M2FNUZ = 57344;
+
+// 2^8 * (1 + 6/8)
+// See https://arxiv.org/pdf/2209.05433.pdf
+constexpr double kMaxE4M3FN = 448;
+
+// 2^8 * (1 + 6/8)
+constexpr double kMaxE4M3 = 448;
+
+// 2^8 * (1 + 6/8)
+constexpr double kMaxE4M3FNUZ = 448;
+
+// 2^4 * 1.875
+constexpr double kMaxE4M3B11FNUZ = 30;
+
+// 2^4 * 1.9375
+constexpr double kMaxE3M4 = 31;
+
+// 2^(255 - 127)
+constexpr double kMaxE8M0FNU = 3.4028236692093846e38;
+
+// 2^2 * (1 + 7/8)
+constexpr double kMaxE2M3FN = 7.5;
+
+// 2^4 * (1 + 3/4)
+constexpr double kMaxE3M2FN = 28.0;
+
+// 2^2 * (1 + 1/2)
+constexpr double kMaxE2M1FN = 6.0;
 
 }  // namespace support
 }  // namespace tvm

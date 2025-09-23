@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/meta_schedule/extracted_task.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/tensor.h>
@@ -27,9 +28,9 @@
 namespace tvm {
 namespace meta_schedule {
 
-ExtractedTask::ExtractedTask(String task_name, IRModule mod, Target target,
-                             Array<IRModule> dispatched, int weight) {
-  ObjectPtr<ExtractedTaskNode> n = make_object<ExtractedTaskNode>();
+ExtractedTask::ExtractedTask(ffi::String task_name, IRModule mod, Target target,
+                             ffi::Array<IRModule> dispatched, int weight) {
+  ObjectPtr<ExtractedTaskNode> n = ffi::make_object<ExtractedTaskNode>();
   n->task_name = task_name;
   n->mod = mod;
   n->target = target;
@@ -38,12 +39,16 @@ ExtractedTask::ExtractedTask(String task_name, IRModule mod, Target target,
   data_ = n;
 }
 
-TVM_REGISTER_NODE_TYPE(ExtractedTaskNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ExtractedTask")
-    .set_body_typed([](String task_name, IRModule mod, Target target, Array<IRModule> dispatched,
-                       int weight) -> ExtractedTask {
-      return ExtractedTask(task_name, mod, target, dispatched, weight);
-    });
+TVM_FFI_STATIC_INIT_BLOCK() { ExtractedTaskNode::RegisterReflection(); }
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.ExtractedTask",
+                        [](ffi::String task_name, IRModule mod, Target target,
+                           ffi::Array<IRModule> dispatched, int weight) -> ExtractedTask {
+                          return ExtractedTask(task_name, mod, target, dispatched, weight);
+                        });
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

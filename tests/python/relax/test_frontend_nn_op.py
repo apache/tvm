@@ -128,6 +128,54 @@ def test_sum():
     tvm.ir.assert_structural_equal(irmodule["test"], test)
 
 
+def test_max():
+    class Model(Module):
+        def test(self, x: Tensor):
+            z0 = op.max(x, axis=[1, 2], keepdims=True)
+            return z0
+
+    # fmt: off
+    @R.function
+    def test(x: R.Tensor((3, 5, 2, 4), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((3, 1, 1, 4), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            max: R.Tensor((3, 1, 1, 4), dtype="float32") = R.max(x, axis=[1, 2], keepdims=True)
+            gv1: R.Tuple(R.Tensor((3, 1, 1, 4), dtype="float32"), R.Tuple(R.Object)) = max, (_io,)
+            R.output(gv1)
+        return gv1
+    # fmt: on
+
+    m = Model()
+    irmodule, _ = m.export_tvm(
+        spec={"test": {"x": spec.Tensor([3, 5, 2, 4], "float32")}}, debug=True
+    )
+    tvm.ir.assert_structural_equal(irmodule["test"], test)
+
+
+def test_min():
+    class Model(Module):
+        def test(self, x: Tensor):
+            z0 = op.min(x, axis=[1, 2], keepdims=True)
+            return z0
+
+    # fmt: off
+    @R.function
+    def test(x: R.Tensor((3, 5, 2, 4), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((3, 1, 1, 4), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            min: R.Tensor((3, 1, 1, 4), dtype="float32") = R.min(x, axis=[1, 2], keepdims=True)
+            gv1: R.Tuple(R.Tensor((3, 1, 1, 4), dtype="float32"), R.Tuple(R.Object)) = min, (_io,)
+            R.output(gv1)
+        return gv1
+    # fmt: on
+
+    m = Model()
+    irmodule, _ = m.export_tvm(
+        spec={"test": {"x": spec.Tensor([3, 5, 2, 4], "float32")}}, debug=True
+    )
+    tvm.ir.assert_structural_equal(irmodule["test"], test)
+
+
 def test_manipulate():
     class Model(Module):
         def test(self, x: Tensor):
@@ -257,7 +305,7 @@ def test_image():
                 method="nearest_neighbor",
                 coordinate_transformation_mode="asymmetric",
                 rounding_method="round",
-                cubic_alpha=-0.5,
+                cubic_alpha=-0.75,
                 cubic_exclude=0,
                 extrapolation_value=0,
                 out_dtype="void",
@@ -337,13 +385,16 @@ def test_nn():
     class Model(Module):
         def test(self, x: Tensor, weight: Tensor, bias: Tensor):
             relu_out = op.relu(x)
+            relu6_out = op.relu6(x)
             silu_out = op.silu(x)
             gelu_out = op.gelu(x)
             sigmoid_out = op.sigmoid(x)
             tanh_out = op.tanh(x)
             exp_out = op.exp(x)
             negative_out = op.negative(x)
+            softplus_out = op.softplus(x, beta=1.0, threshold=20.0)
             softmax_out = op.softmax(x, axis=2)
+            prelu_out = op.prelu(x, alpha=bias)
             rms_norm_out = op.rms_norm(x, weight, axes=[-2, -1])
             rms_norm_with_bias_out = op.rms_norm(x, weight, axes=[-2, -1])
             group_norm_out = op.group_norm(x, num_groups=1, weight=bias, bias=bias)
@@ -359,13 +410,18 @@ def test_nn():
         R.func_attr({"num_input": 4})
         with R.dataflow():
             relu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.relu(x)
+            relu6: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.relu6(x)
             silu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.silu(x)
             gelu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.gelu(x)
             sigmoid: R.Tensor((2, 3, 4, 5), dtype="float32") = R.sigmoid(x)
             tanh: R.Tensor((2, 3, 4, 5), dtype="float32") = R.tanh(x)
             exp: R.Tensor((2, 3, 4, 5), dtype="float32") = R.exp(x)
             negative: R.Tensor((2, 3, 4, 5), dtype="float32") = R.negative(x)
+            softplus: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.softplus(
+                x, beta=1.0, threshold=20.0
+            )
             softmax: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.softmax(x, axis=2)
+            prelu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.prelu(x, bias)
             rms_norm: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.rms_norm(
                 x, weight, axes=[-2, -1], epsilon=1.0000000000000001e-05
             )
@@ -527,7 +583,7 @@ def test_tensor_expr_op():
     class Expected:
         @T.prim_func(private=True)
         def add_one(A: T.Buffer((T.int64(10), T.int64(10)), "float32"), T_add: T.Buffer((T.int64(10), T.int64(10)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for ax0, ax1 in T.grid(T.int64(10), T.int64(10)):
                 with T.block("T_add"):
@@ -659,7 +715,7 @@ def test_tensor_ir_inplace_op():
     def inplace_take(
         var_weight: T.handle, var_pos: T.handle, var_embeddings: T.handle, offset: T.int64
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         vocab_size = T.int64()
         weight = T.match_buffer(var_weight, (vocab_size, hidden_size), dtype)
         seq_len = T.int64()
@@ -692,7 +748,7 @@ def test_tensor_ir_inplace_op():
         def inplace_take(
             var_weight: T.handle, var_pos: T.handle, var_embeddings: T.handle, offset: T.int64
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             vocab_size = T.int64()
             weight = T.match_buffer(var_weight, (vocab_size, hidden_size), dtype)
             seq_len = T.int64()
@@ -843,7 +899,7 @@ def test_extern():
 
 
 def test_empty():
-    @tvm.register_func("test_empty_assert", override=True)
+    @tvm.register_global_func("test_empty_assert", override=True)
     def test_empty_assert(_lineo, x):
         assert x.shape == (10, 10)
         assert x.dtype == "float32"
@@ -855,7 +911,7 @@ def test_empty():
             return result
 
     irmodule, _ = Model().export_tvm(spec={"test": {}}, debug=True)
-    ex = relax.build(irmodule, "llvm")
+    ex = tvm.compile(irmodule, "llvm")
     vm = relax.VirtualMachine(ex, tvm.cpu())
     effects = vm["_initialize_effect"]()
     vm["test"](*effects)
@@ -863,7 +919,6 @@ def test_empty():
 
 @tvm.testing.requires_cuda
 def test_multinomial_from_uniform():
-
     prob_shape = (3, 5)
     sample_shape = (6, 1)
 
@@ -912,7 +967,7 @@ def test_multinomial_from_uniform():
     with target:
         mod = relax.backend.DispatchSampling()(mod)
         mod = tir.transform.DefaultGPUSchedule()(mod)
-    ex = relax.build(mod, target)
+    ex = tvm.compile(mod, target)
     dev = tvm.device(str(target), 0)
     vm = relax.VirtualMachine(ex, dev)
 
@@ -921,10 +976,12 @@ def test_multinomial_from_uniform():
     np_rand = np.random.rand(*prob_shape).astype(np.float32)
     # normalize it to get the random prob
     np_prob = np_rand / np_rand.sum(axis=1, keepdims=True)
-    nd_prob = tvm.nd.array(np_prob, dev)
+    nd_prob = tvm.runtime.tensor(np_prob, dev)
     # special sample to get deterministic results
-    nd_sample = tvm.nd.array(np.array([[1], [0], [1], [1], [0], [1]]).astype(np.float32), dev)
-    nd_sample_indices = tvm.nd.array(np.array([[0], [1], [1], [2], [2], [2]]).astype(np.int64), dev)
+    nd_sample = tvm.runtime.tensor(np.array([[1], [0], [1], [1], [0], [1]]).astype(np.float32), dev)
+    nd_sample_indices = tvm.runtime.tensor(
+        np.array([[0], [1], [1], [2], [2], [2]]).astype(np.int64), dev
+    )
     inputs = [nd_prob, nd_sample, nd_sample_indices, effects]
     res = vm["foo"](*inputs)
     tvm.testing.assert_allclose(
@@ -1044,17 +1101,19 @@ def test_sample_top_p_top_k_from_sorted_prob():
     with target:
         mod = tir.transform.DefaultGPUSchedule()(mod)
 
-    ex = relax.build(mod, target)
+    ex = tvm.compile(mod, target)
     dev = tvm.cuda(0)
     vm = relax.VirtualMachine(ex, dev)
 
     effects = vm["_initialize_effect"]()
-    sorted_prob = tvm.nd.array(np.array([[0.5, 0.4, 0.1], [0.4, 0.3, 0.3]]).astype(np.float32), dev)
-    indices = tvm.nd.array(np.array([[2, 1, 0], [2, 0, 1]]).astype(np.int64), dev)
-    top_p = tvm.nd.array(np.array([[0.6], [0.9]]).astype(np.float32), dev)
-    top_k = tvm.nd.array(np.array([[3], [2]]).astype(np.int64), dev)
-    usample = tvm.nd.array(np.array([[0.5], [0.6], [0.7]]).astype(np.float32), dev)
-    sample_indices = tvm.nd.array(np.array([[0], [1], [1]]).astype(np.int64), dev)
+    sorted_prob = tvm.runtime.tensor(
+        np.array([[0.5, 0.4, 0.1], [0.4, 0.3, 0.3]]).astype(np.float32), dev
+    )
+    indices = tvm.runtime.tensor(np.array([[2, 1, 0], [2, 0, 1]]).astype(np.int64), dev)
+    top_p = tvm.runtime.tensor(np.array([[0.6], [0.9]]).astype(np.float32), dev)
+    top_k = tvm.runtime.tensor(np.array([[3], [2]]).astype(np.int64), dev)
+    usample = tvm.runtime.tensor(np.array([[0.5], [0.6], [0.7]]).astype(np.float32), dev)
+    sample_indices = tvm.runtime.tensor(np.array([[0], [1], [1]]).astype(np.int64), dev)
 
     inputs = [sorted_prob, indices, top_p, top_k, usample, sample_indices, effects]
 
@@ -1083,7 +1142,7 @@ def test_renormalize_top_p_top_k_prob():
     class Expected:
         @T.prim_func(private=True)
         def filter_with_top_p_top_k(A: T.Buffer((T.int64(2), T.int64(3)), "float32"), B: T.Buffer((T.int64(2), T.int64(1)), "float32"), filter_with_top_p_top_k: T.Buffer((T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i, j in T.grid(T.int64(2), T.int64(3)):
                 with T.block("filter_with_top_p_top_k"):
@@ -1160,15 +1219,17 @@ def test_renormalize_top_p_top_k_prob():
         mod = relax.transform.LegalizeOps()(mod)
         mod = tir.transform.DefaultGPUSchedule()(mod)
 
-    ex = relax.build(mod, target)
+    ex = tvm.compile(mod, target)
     dev = tvm.cuda(0)
     vm = relax.VirtualMachine(ex, dev)
 
     effects = vm["_initialize_effect"]()
-    prob = tvm.nd.array(np.array([[0.2, 0.3, 0.5], [0.3, 0.3, 0.4]]).astype(np.float32), dev)
-    sorted_prob = tvm.nd.array(np.array([[0.5, 0.3, 0.2], [0.4, 0.3, 0.3]]).astype(np.float32), dev)
-    top_p = tvm.nd.array(np.array([[0.6], [0.9]]).astype(np.float32), dev)
-    top_k = tvm.nd.array(np.array([[3], [2]]).astype(np.int64), dev)
+    prob = tvm.runtime.tensor(np.array([[0.2, 0.3, 0.5], [0.3, 0.3, 0.4]]).astype(np.float32), dev)
+    sorted_prob = tvm.runtime.tensor(
+        np.array([[0.5, 0.3, 0.2], [0.4, 0.3, 0.3]]).astype(np.float32), dev
+    )
+    top_p = tvm.runtime.tensor(np.array([[0.6], [0.9]]).astype(np.float32), dev)
+    top_k = tvm.runtime.tensor(np.array([[3], [2]]).astype(np.int64), dev)
 
     inputs = [prob, sorted_prob, top_p, top_k, effects]
 

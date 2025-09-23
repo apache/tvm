@@ -35,20 +35,17 @@
  *    4. This pass currently works for op_pattern kElemWise and kBroadcast.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
-#include <tvm/relay/op_attr_types.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include <optional>
-
 #include "../../arith/constraint_extract.h"
 #include "../../arith/ir_mutator_with_analyzer.h"
-#include "../../arith/unwrap_vector_expr.h"
-#include "simplify.h"
 #include "tvm/ir/expr.h"
 namespace tvm {
 namespace tir {
@@ -122,13 +119,13 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   using Parent::VisitStmt_;
 
   // This struct stores all the relevant data related to asssume statement
-  struct assume_struct {             // Consider the example : T.assume(i < 14 or A[i] == 0)
-    PrimExpr buffer_context;         // The context of the assume statement (the bound on the axis)
-    PrimExpr buffer_predicate;       // The condition inside assume statement (i < 14) excluding
-                                     // bufferload expression (A[i] == 0)
-    tir::BufferLoad buffer_load;     // Storing the buffer load Eg: A[i] in A[i] == 0
-    PrimExpr buffer_value;           // Storing the value for the buffer Eg : 0 in A[i] == 0
-    Array<PrimExpr> buffer_indices;  // Storing the indices of the buffer Eg : i
+  struct assume_struct {          // Consider the example : T.assume(i < 14 or A[i] == 0)
+    PrimExpr buffer_context;      // The context of the assume statement (the bound on the axis)
+    PrimExpr buffer_predicate;    // The condition inside assume statement (i < 14) excluding
+                                  // bufferload expression (A[i] == 0)
+    tir::BufferLoad buffer_load;  // Storing the buffer load Eg: A[i] in A[i] == 0
+    PrimExpr buffer_value;        // Storing the value for the buffer Eg : 0 in A[i] == 0
+    ffi::Array<PrimExpr> buffer_indices;  // Storing the indices of the buffer Eg : i
   };
   // List of conditions in a scope
   std::vector<PrimExpr> conditions_;
@@ -165,7 +162,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     With<arith::ConstraintContext> analyzer_context;
     size_t old_num_constraints{0};
     size_t new_num_constraints{0};
-    Optional<PrimExpr> assume{NullOpt};
+    ffi::Optional<PrimExpr> assume{std::nullopt};
 
     // Disable default-generated copy/move assignment and constructors
     InternalConstraintContext(const InternalConstraintContext&) = delete;
@@ -212,7 +209,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
         return buf_value;
       }
     }
-    return GetRef<PrimExpr>(op);
+    return ffi::GetRef<PrimExpr>(op);
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
@@ -361,13 +358,13 @@ Pass UseAssumeToReduceBranches() {
     // the primfunc has op_pattern defined and is an elementwise op.
     // AnnotateTIROpPattern pass will set op_pattern in op attributes of the primfunc.
     if (n->attrs.GetAttr<Integer>("op_pattern").defined()) {
-      Optional<Integer> opt_pattern = f->GetAttr<Integer>("op_pattern");
+      ffi::Optional<Integer> opt_pattern = f->GetAttr<Integer>("op_pattern");
       if (opt_pattern.defined()) {
-        relay::OpPatternKind pattern;
-        pattern = static_cast<relay::OpPatternKind>(Downcast<IntImm>(opt_pattern)->value);
+        relax::OpPatternKind pattern;
+        pattern = static_cast<relax::OpPatternKind>(Downcast<IntImm>(opt_pattern)->value);
 
-        if (pattern == relay::OpPatternKind::kElemWise ||
-            pattern == relay::OpPatternKind::kBroadcast) {
+        if (pattern == relax::OpPatternKind::kElemWise ||
+            pattern == relax::OpPatternKind::kBroadcast) {
           // If the primfunc contains assume statement then, run the mutator pass.
           AssumeChecker assume_checker;
           assume_checker(std::move(n->body));
@@ -385,8 +382,10 @@ Pass UseAssumeToReduceBranches() {
   return CreatePrimFuncPass(pass_func, 0, "tir.UseAssumeToReduceBranches", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.UseAssumeToReduceBranches")
-    .set_body_typed(UseAssumeToReduceBranches);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.UseAssumeToReduceBranches", UseAssumeToReduceBranches);
+}
 
 }  // namespace transform
 

@@ -28,9 +28,9 @@ namespace contrib {
 namespace msc {
 
 void CppPrinter::PrintTypedDoc(const LiteralDoc& doc) {
-  const ObjectRef& value = doc->value;
+  const ffi::Any& value = doc->value;
   bool defined = false;
-  if (!value.defined()) {
+  if (value == nullptr) {
     output_ << "nullptr";
     defined = true;
   } else if (const auto* int_imm = value.as<IntImmNode>()) {
@@ -167,7 +167,7 @@ void CppPrinter::PrintTypedDoc(const ScopeDoc& doc) {
 void CppPrinter::PrintTypedDoc(const FunctionDoc& doc) {
   MaybePrintComment(doc, true);
   for (const AssignDoc& arg_doc : doc->args) {
-    ICHECK(arg_doc->comment == nullptr) << "Function arg cannot have comment attached to them.";
+    ICHECK(!arg_doc->comment.has_value()) << "Function arg cannot have comment attached to them.";
   }
   if (doc->return_type.defined()) {
     if (!IsEmptyDoc(doc->return_type.value())) {
@@ -217,7 +217,7 @@ void CppPrinter::PrintTypedDoc(const ClassDoc& doc) {
 }
 
 void CppPrinter::PrintTypedDoc(const CommentDoc& doc) {
-  if (doc->comment.defined()) {
+  if (doc->comment.has_value()) {
     output_ << "// " << doc->comment.value();
   }
 }
@@ -273,7 +273,8 @@ void CppPrinter::PrintTypedDoc(const StructDoc& doc) {
 void CppPrinter::PrintTypedDoc(const ConstructorDoc& doc) {
   MaybePrintComment(doc, true);
   for (const AssignDoc& arg_doc : doc->args) {
-    ICHECK(arg_doc->comment == nullptr) << "Constructor arg cannot have comment attached to them.";
+    ICHECK(!arg_doc->comment.has_value())
+        << "Constructor arg cannot have comment attached to them.";
   }
   PrintDoc(doc->name, false);
   output_ << "(";
@@ -293,7 +294,7 @@ void CppPrinter::PrintTypedDoc(const ConstructorDoc& doc) {
 void CppPrinter::PrintTypedDoc(const LambdaDoc& doc) {
   MaybePrintComment(doc, true);
   for (const AssignDoc& arg_doc : doc->args) {
-    ICHECK(arg_doc->comment == nullptr) << "Function arg cannot have comment attached to them.";
+    ICHECK(!arg_doc->comment.has_value()) << "Function arg cannot have comment attached to them.";
   }
   output_ << "auto ";
   PrintDoc(doc->name, false);
@@ -347,7 +348,7 @@ bool CppPrinter::IsEmptyDoc(const ExprDoc& doc) {
   return id_doc->name == DocSymbol::Empty();
 }
 
-void CppPrinter::PrintIndentedBlock(const Array<StmtDoc>& docs) {
+void CppPrinter::PrintIndentedBlock(const ffi::Array<StmtDoc>& docs) {
   IncreaseIndent();
   for (const StmtDoc& d : docs) {
     PrintDoc(d);

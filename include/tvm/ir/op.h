@@ -25,13 +25,14 @@
 #ifndef TVM_IR_OP_H_
 #define TVM_IR_OP_H_
 
-#include <dmlc/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
+#include <tvm/ir/env_func.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
-#include <tvm/ir/type_relation.h>
 #include <tvm/node/attr_registry_map.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/runtime/logging.h>
 
 #include <string>
 #include <utility>
@@ -55,24 +56,24 @@ class OpAttrMap;
  *
  * \sa Op
  */
-class OpNode : public RelayExprNode {
+class OpNode : public RelaxExprNode {
  public:
   /*! \brief name of the operator */
-  String name;
+  ffi::String name;
   /*! \brief the type of the operator */
   mutable FuncType op_type;
   /*!
    * \brief detailed description of the operator
    *  This can be used to generate docstring automatically for the operator.
    */
-  String description;
+  ffi::String description;
   /* \brief Information of input arguments to the operator */
-  Array<AttrFieldInfo> arguments;
+  ffi::Array<AttrFieldInfo> arguments;
   /*!
    * \brief The type key of the attribute field
    *  This can be empty, in which case it defaults to anything.
    */
-  String attrs_type_key;
+  ffi::String attrs_type_key;
   /*!
    * \brief attribute type index,
    * this field varies in each run and is not exposed to frontend.
@@ -90,39 +91,20 @@ class OpNode : public RelayExprNode {
    */
   int32_t support_level = 10;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("op_type", &op_type);
-    v->Visit("description", &description);
-    v->Visit("arguments", &arguments);
-    v->Visit("attrs_type_key", &attrs_type_key);
-    v->Visit("num_inputs", &num_inputs);
-    v->Visit("support_level", &support_level);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<OpNode>()
+        .def_ro("name", &OpNode::name)
+        .def_ro("op_type", &OpNode::op_type, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("description", &OpNode::description, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("arguments", &OpNode::arguments, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("attrs_type_key", &OpNode::attrs_type_key, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("num_inputs", &OpNode::num_inputs, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("support_level", &OpNode::support_level, refl::AttachFieldFlag::SEqHashIgnore());
   }
 
-  bool SEqualReduce(const OpNode* other, SEqualReducer equal) const {
-    // pointer equality is fine as there is only one op with the same name.
-    return this == other;
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    // Name uniquely identifies an Op.
-    hash_reduce(name);
-  }
-
-  /*!
-   * \brief Check that if current op is a "primtive operator".
-   * That is the arguments are all type variables, and there is a single
-   * type relation applied to the input and output types.
-   */
-  bool IsPrimitiveOp() const {
-    if (is_primitive_ != -1) return is_primitive_ != 0;
-    is_primitive_ = this->IsPrimitiveOp_() ? 1 : 0;
-    return is_primitive_ != 0;
-  }
-
-  static constexpr const char* _type_key = "Op";
-  TVM_DECLARE_FINAL_OBJECT_INFO(OpNode, RelayExprNode);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUniqueInstance;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Op", OpNode, RelaxExprNode);
 
  private:
   /*! \return the internal attr registry index. */
@@ -137,32 +119,16 @@ class OpNode : public RelayExprNode {
   friend class AttrRegistry;
   friend class OpRegEntry;
 
-  friend bool IsPrimitiveOp(const RelayExpr&);
   // Program internal unique index of operator.
   // Used to help index the program.
   uint32_t index_{0};
-  // whether this is a primitive op. -1 means unknown.
-  mutable int is_primitive_{-1};
-  // Internal function to compute if it is primitive op
-  bool IsPrimitiveOp_() const {
-    const auto& fn_ty = this->op_type;
-    ICHECK(fn_ty.get() != nullptr) << "op_type of " << this->name << " is not registered";
-    if (fn_ty->type_constraints.size() != 1) return false;
-    const TypeRelationNode* rel = fn_ty->type_constraints[0].as<TypeRelationNode>();
-    if (rel == nullptr) return false;
-    // validate if the type parameter matches up
-    for (size_t i = 0; i < fn_ty->type_params.size(); ++i) {
-      if (!fn_ty->type_params[i].same_as(rel->args[i])) return false;
-    }
-    return true;
-  }
 };
 
 /*!
  * \brief Managed reference class to OpNode.
  * \sa OpNode
  */
-class Op : public RelayExpr {
+class Op : public RelaxExpr {
  public:
   /*!
    * \brief Get additional registered attribute about operators.
@@ -172,22 +138,22 @@ class Op : public RelayExpr {
    * \tparam ValueType The type of the attribute.
    */
   template <typename ValueType>
-  inline static OpAttrMap<ValueType> GetAttrMap(const String& attr_name);
+  inline static OpAttrMap<ValueType> GetAttrMap(const ffi::String& attr_name);
   /*!
    * \brief Checks if an attr map is present in the registry.
    * \param attr_name The name of the attribute.
    * \return bool True if the attr is present.
    */
-  TVM_DLL static bool HasAttrMap(const String& attr_name);
+  TVM_DLL static bool HasAttrMap(const ffi::String& attr_name);
   /*!
    * \brief Get an Op for a given operator name.
    *  Will raise an error if the op has not been registered.
    * \param op_name Name of the operator.
    * \return Pointer to a Op, valid throughout program lifetime.
    */
-  TVM_DLL static const Op& Get(const String& op_name);
+  TVM_DLL static const Op& Get(const ffi::String& op_name);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Op, RelayExpr, OpNode)
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Op, RelaxExpr, OpNode);
 
  private:
   /*!
@@ -195,7 +161,7 @@ class Op : public RelayExpr {
    * \param key The attribute key
    * \return The attr map.
    */
-  TVM_DLL static const AttrRegistryMapContainerMap<Op>& GetAttrMapContainer(const String& key);
+  TVM_DLL static const AttrRegistryMapContainerMap<Op>& GetAttrMapContainer(const ffi::String& key);
 };
 
 /*!
@@ -223,17 +189,6 @@ class OpRegEntry {
   inline OpRegEntry& add_argument(const std::string& name, const std::string& type,
                                   const std::string& description);
   /*!
-   * \brief Attach the type function corresponding to the return type.
-   * \param rel_name The type relation name to register.
-   * \param type_rel_func The backing relation function which can solve an arbitrary
-   * relation on variables.
-   * \return reference to self.
-   */
-  inline OpRegEntry& add_type_rel(
-      const std::string& rel_name,
-      runtime::TypedPackedFunc<bool(const Array<Type>&, int, const Attrs&, const TypeReporter&)>
-          type_rel_func);
-  /*!
    * \brief Set the attrs type key and index to be AttrsType.
    * \tparam AttrsType the attribute type to b set.
    * \return reference to self.
@@ -245,7 +200,7 @@ class OpRegEntry {
    * \param key The attribute type key to be set.
    * \return reference to self.
    */
-  inline OpRegEntry& set_attrs_type_key(const String& key);
+  inline OpRegEntry& set_attrs_type_key(const ffi::String& key);
   /*!
    * \brief Set the num_inputs
    * \param n The number of inputs to be set.
@@ -293,7 +248,7 @@ class OpRegEntry {
    * \param name The name of the operator.
    * \return the corresponding entry.
    */
-  TVM_DLL static OpRegEntry& RegisterOrGet(const String& name);
+  TVM_DLL static OpRegEntry& RegisterOrGet(const ffi::String& name);
 
  private:
   template <typename, typename>
@@ -307,11 +262,11 @@ class OpRegEntry {
   // return internal pointer to op.
   inline OpNode* get();
   // update the attribute OpAttrMap
-  TVM_DLL void UpdateAttr(const String& key, runtime::TVMRetValue value, int plevel);
+  TVM_DLL void UpdateAttr(const ffi::String& key, ffi::Any value, int plevel);
 };
 
 /*!
- * \brief Map<Op,ValueType> used to store meta-information about Op.
+ * \brief ffi::Map<Op,ValueType> used to store meta-information about Op.
  * \tparam ValueType The type of the value stored in map.
  */
 template <typename ValueType>
@@ -324,7 +279,7 @@ class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
    *         or if expr is not an Op.
    * \return the const reference to the content value.
    */
-  inline ValueType get(const RelayExpr& expr, ValueType def_value) const;
+  inline ValueType get(const RelaxExpr& expr, ValueType def_value) const;
 
   using TParent = AttrRegistryMap<Op, ValueType>;
   using TParent::count;
@@ -362,7 +317,7 @@ class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
 // implementations
 
 template <typename ValueType>
-inline OpAttrMap<ValueType> Op::GetAttrMap(const String& key) {
+inline OpAttrMap<ValueType> Op::GetAttrMap(const ffi::String& key) {
   return OpAttrMap<ValueType>(Op::GetAttrMapContainer(key));
 }
 
@@ -375,65 +330,11 @@ inline OpRegEntry& OpRegEntry::describe(const std::string& descr) {  // NOLINT(*
 
 inline OpRegEntry& OpRegEntry::add_argument(const std::string& name, const std::string& type,
                                             const std::string& description) {
-  auto n = make_object<AttrFieldInfoNode>();
+  auto n = ffi::make_object<AttrFieldInfoNode>();
   n->name = name;
   n->type_info = type;
   n->description = description;
   get()->arguments.push_back(AttrFieldInfo(n));
-  return *this;
-}
-
-inline OpRegEntry& OpRegEntry::add_type_rel(
-    const std::string& rel_name,
-    runtime::TypedPackedFunc<bool(const Array<Type>&, int, const Attrs&, const TypeReporter&)>
-        type_rel_func) {
-  auto func_name = std::string("tvm.relay.type_relation.") + rel_name;
-  TypeRelationFn env_type_rel_func;
-
-  if (runtime::Registry::Get(func_name)) {
-    auto env_func = EnvFunc::Get(func_name);
-    env_type_rel_func = env_func;
-  } else {
-    runtime::Registry::Register(func_name).set_body(type_rel_func.packed());
-    auto env_func = EnvFunc::Get(func_name);
-    env_type_rel_func = env_func;
-  }
-
-  Array<TypeVar> type_params;
-  Array<Type> arg_types;
-
-  // Add inputs.
-  std::string input_name_prefix = "in";
-  for (int i = 0; i < get()->num_inputs; i++) {
-    auto name = input_name_prefix + std::to_string(i);
-    auto param = TypeVar(name, TypeKind::kType);
-    type_params.push_back(param);
-    arg_types.push_back(param);
-  }
-
-  Array<Type> ty_call_args = arg_types;
-
-  // Add output type.
-  auto out_param = TypeVar("out", TypeKind::kType);
-  type_params.push_back(out_param);
-  // this will trigger copy on write.
-  ty_call_args.push_back(out_param);
-
-  // The attributes of primitive op is nullptr
-  //
-  // The attributes of primitive operator can vary at the call site.
-  // The type of sum is also dependent on Attrs being passed.
-  // So puting nullptr in the Attrs means that the operator is polymorphic on Attrs.
-  //
-  // A common example is sum(x, axis), where the choice of axis
-  // can affect the type of the function.
-  TypeConstraint type_rel =
-      TypeRelation(env_type_rel_func, ty_call_args, arg_types.size(), Attrs());
-
-  auto func_type = FuncType(arg_types, out_param, type_params, {type_rel});
-
-  get()->op_type = func_type;
-
   return *this;
 }
 
@@ -449,9 +350,9 @@ inline OpRegEntry& OpRegEntry::set_attrs_type() {  // NOLINT(*)
   return *this;
 }
 
-inline OpRegEntry& OpRegEntry::set_attrs_type_key(const String& key) {  // NOLINT(*)
+inline OpRegEntry& OpRegEntry::set_attrs_type_key(const ffi::String& key) {  // NOLINT(*)
   get()->attrs_type_key = key;
-  get()->attrs_type_index = Object::TypeKey2Index(key);
+  get()->attrs_type_index = tvm::ffi::TypeKeyToIndex(key.c_str());
   return *this;
 }
 
@@ -464,40 +365,20 @@ template <typename ValueType>
 inline OpRegEntry& OpRegEntry::set_attr(  // NOLINT(*)
     const std::string& attr_name, const ValueType& value, int plevel) {
   ICHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
-  runtime::TVMRetValue rv;
-  rv = value;
-  UpdateAttr(attr_name, rv, plevel);
+  UpdateAttr(attr_name, Any(value), plevel);
   return *this;
 }
 
 // member functions of OpAttrMap
 
 template <typename ValueType>
-inline ValueType OpAttrMap<ValueType>::get(const RelayExpr& expr, ValueType def_value) const {
+inline ValueType OpAttrMap<ValueType>::get(const RelaxExpr& expr, ValueType def_value) const {
   ICHECK(expr.defined());
   if (const OpNode* op = expr.as<OpNode>()) {
-    return this->map_.get(GetRef<Op>(op), def_value);
+    return this->map_.get(ffi::GetRef<Op>(op), def_value);
   } else {
     return def_value;
   }
-}
-
-/*!
- * \brief Check that an expression is a "primitive operator".
- *
- * Will return true if the expression is an operator which
- * matches the form of primitive operators registered directly
- * by the Relay codebase.
- *
- * That is the arguments are all type variables, and there is a single
- * type relation applied to the input and output types.
- *
- * \param expr An expression.
- * \return Whether the expression is primitive op.
- */
-inline bool IsPrimitiveOp(const RelayExpr& expr) {
-  const auto* op = expr.as<OpNode>();
-  return op != nullptr && op->IsPrimitiveOp();
 }
 
 }  // namespace tvm

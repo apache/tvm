@@ -21,8 +21,9 @@
  * \file src/runtime/contrib/cudnn/softmax.cc
  * \brief Use external cudnn softmax function
  */
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 
 #include "cudnn_utils.h"
 
@@ -31,16 +32,17 @@ namespace contrib {
 
 using namespace runtime;
 
-void softmax_impl(cudnnSoftmaxAlgorithm_t alg, TVMArgs args, TVMRetValue* ret) {
-  DLTensor* x = args[0];
-  DLTensor* y = args[1];
-  int axis = args[2];
+void softmax_impl(cudnnSoftmaxAlgorithm_t alg, ffi::PackedArgs args, ffi::Any* ret) {
+  auto x = args[0].cast<DLTensor*>();
+  auto y = args[1].cast<DLTensor*>();
+  int axis = args[2].cast<int>();
   int ndim = x->ndim;
   int64_t* shape = x->shape;
   if (axis < 0) axis += ndim;
   ICHECK(axis >= 0 && axis < ndim);
-
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
+  int device_id;
+  CUDA_CALL(cudaGetDevice(&device_id));
+  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
   entry_ptr->softmax_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(x->dtype);
 
   // Set mode and shape descriptor
@@ -77,13 +79,17 @@ void softmax_impl(cudnnSoftmaxAlgorithm_t alg, TVMArgs args, TVMRetValue* ret) {
                                  entry_ptr->softmax_entry.shape_desc, y->data));
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.softmax.forward")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
-      softmax_impl(CUDNN_SOFTMAX_ACCURATE, args, ret);
-    });
-
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.log_softmax.forward")
-    .set_body([](TVMArgs args, TVMRetValue* ret) { softmax_impl(CUDNN_SOFTMAX_LOG, args, ret); });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("tvm.contrib.cudnn.softmax.forward",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    softmax_impl(CUDNN_SOFTMAX_ACCURATE, args, ret);
+                  })
+      .def_packed("tvm.contrib.cudnn.log_softmax.forward", [](ffi::PackedArgs args, ffi::Any* ret) {
+        softmax_impl(CUDNN_SOFTMAX_LOG, args, ret);
+      });
+}
 
 }  // namespace contrib
 }  // namespace tvm

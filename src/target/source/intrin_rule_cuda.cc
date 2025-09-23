@@ -53,7 +53,13 @@ struct CUDAMath {
           return "";
       }
     } else if (t.is_bfloat16()) {
-      return 'h' + name;
+      if (name == "fabs") {
+        return "__habs";
+      } else if (name == "round") {
+        return "hrint";
+      } else {
+        return "h" + name;
+      }
     } else if (t.is_int() || t.is_uint()) {
       switch (t.bits()) {
         case 32:
@@ -138,7 +144,7 @@ static PrimExpr DispatchCUDAShuffle(const PrimExpr& e) {
   const CallNode* call = e.as<CallNode>();
   ICHECK(call != nullptr);
   ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
-  Array<PrimExpr> cuda_args{{call->args[0], call->args[1], call->args[2], call->args[3]}};
+  ffi::Array<PrimExpr> cuda_args{{call->args[0], call->args[1], call->args[2], call->args[3]}};
   return Call(call->dtype, T()(call->dtype, Downcast<Op>(call->op)), cuda_args);
 }
 

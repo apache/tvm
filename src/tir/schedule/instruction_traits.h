@@ -44,25 +44,25 @@ namespace tir {
  *   static constexpr bool kIsPure = false;
  *
  *   // Convertible to `InstructionKindNode::FInstructionApply`
- *   static Array<ObjectRef> ApplyToSchedule(
+ *   static ffi::Array<ObjectRef> ApplyToSchedule(
  *      const tir::Schedule& sch,
- *      const Array<ObjectRef>& inputs,
- *      const Array<ObjectRef>& attrs,
- *      const Optional<ObjectRef>& decision);
+ *      const ffi::Array<ObjectRef>& inputs,
+ *      const ffi::Array<ObjectRef>& attrs,
+ *      const ffi::Optional<ObjectRef>& decision);
  *
  *   // Convertible to `InstructionKindNode::FInstructionAsPython`
- *   static String AsPython(
- *      const Array<String>& inputs,
- *      const Array<ObjectRef>& attrs,
- *      const Optional<ObjectRef>& decision,
- *      const Array<String>& outputs);
+ *   static ffi::String AsPython(
+ *      const ffi::Array<ffi::String>& inputs,
+ *      const ffi::Array<ObjectRef>& attrs,
+ *      const ffi::Optional<ObjectRef>& decision,
+ *      const ffi::Array<ffi::String>& outputs);
  *
  *   // Convertible to `InstructionKindNode::FInstructionAttrsAsJSON`
  *   static ObjectRef AttrsAsJSON(
- *      const Array<ObjectRef>& attrs);
+ *      const ffi::Array<ObjectRef>& attrs);
  *
  *   // Convertible to `InstructionKindNode::FInstructionAttrsFromJSON`
- *   static Array<ObjectRef> AttrsFromJSON(
+ *   static ffi::Array<ObjectRef> AttrsFromJSON(
  *      const ObjectRef& attrs_record);
  * };
  *
@@ -108,12 +108,12 @@ namespace tir {
  *   // - The next `kNumInputs` arguments are input random variables
  *   // - The next `kNumAttrs` arguments are attributes
  *   // - The next argument is decision, if `kNumDecisions == 1`
- *   static Array<Var> UnpackedApplyToSchedule(
+ *   static ffi::Array<Var> UnpackedApplyToSchedule(
  *      Schedule sch,
  *      LoopRV loop_rv,
  *      Integer n,
  *      Integer max_innermost_factor,
- *      Optional<Array<Integer>> decision) {
+ *      ffi::Optional<ffi::Array<Integer>> decision) {
  *     return sch->SamplePerfectTile(loop_rv, n->value, max_innermost_factor->value, decision);
  *   }
  *
@@ -123,12 +123,12 @@ namespace tir {
  *   // - The next `kNumInputs` arguments are names of input random variables
  *   // - The next `kNumAttrs` arguments are attributes
  *   // - The next argument is decision, if `kNumDecisions == 1`
- *   static String UnpackedAsPython(
- *      Array<String> outputs,
- *      String loop_rv,
+ *   static ffi::String UnpackedAsPython(
+ *      ffi::Array<ffi::String> outputs,
+ *      ffi::String loop_rv,
  *      Integer n,
  *      Integer max_innermost_factor,
- *      Optional<Array<Integer>> decision) {
+ *      ffi::Optional<ffi::Array<Integer>> decision) {
  *     PythonAPICall py("sample_perfect_tile");
  *     py.Input("loop", loop_rv);
  *     py.Input("n", n->value);
@@ -152,17 +152,16 @@ struct UnpackedInstTraits {
    * `TTraits::UnpackedApplyToSchedule`
    * \sa InstructionKindNode::f_apply_to_schedule
    */
-  static Array<ObjectRef> ApplyToSchedule(const Schedule& sch, const Array<ObjectRef>& inputs,
-                                          const Array<ObjectRef>& attrs,
-                                          const Optional<ObjectRef>& decision);
+  static ffi::Array<Any> ApplyToSchedule(const Schedule& sch, const ffi::Array<Any>& inputs,
+                                         const ffi::Array<Any>& attrs, const Any& decision);
 
   /*!
    * \brief Unpack the arguments in the calling convention, and feed them into
    * `TTraits::UnpackedAsPython`
    * \sa InstructionKindNode::f_as_python
    */
-  static String AsPython(const Array<ObjectRef>& inputs, const Array<ObjectRef>& attrs,
-                         const Optional<ObjectRef>& decision, const Array<String>& outputs);
+  static ffi::String AsPython(const ffi::Array<Any>& inputs, const ffi::Array<Any>& attrs,
+                              const Any& decision, const ffi::Array<ffi::String>& outputs);
 
   /*! \brief No customized serializer by default */
   static constexpr std::nullptr_t AttrsAsJSON = nullptr;
@@ -172,15 +171,12 @@ struct UnpackedInstTraits {
 
  protected:
   template <size_t index_offset>
-  static TVM_ALWAYS_INLINE void _SetInputs(const runtime::TVMArgsSetter& setter,
-                                           const Array<ObjectRef>& inputs);
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const ffi::Array<Any>& inputs);
   template <size_t index_offset>
-  static TVM_ALWAYS_INLINE void _SetAttrs(const runtime::TVMArgsSetter& setter,
-                                          const Array<ObjectRef>& attrs);
+  static TVM_ALWAYS_INLINE void _SetAttrs(AnyView* packed_args, const ffi::Array<Any>& attrs);
   template <size_t index_offset>
-  static TVM_ALWAYS_INLINE void _SetDecision(const runtime::TVMArgsSetter& setter,
-                                             const Optional<ObjectRef>& decision);
-  static TVM_ALWAYS_INLINE Array<ObjectRef> _ConvertOutputs(const TVMRetValue& rv);
+  static TVM_ALWAYS_INLINE void _SetDecision(AnyView* packed_args, const Any& decision);
+  static TVM_ALWAYS_INLINE ffi::Array<Any> _ConvertOutputs(const ffi::Any& rv);
 };
 
 /*!
@@ -194,44 +190,47 @@ class PythonAPICall {
    * \brief Constructor
    * \param method_name The name of the schedule API to be called
    */
-  explicit PythonAPICall(String method_name) : method_name_(method_name), output_(NullOpt) {}
+  explicit PythonAPICall(ffi::String method_name)
+      : method_name_(method_name), output_(std::nullopt) {}
   /*! \brief Add an integer input */
-  inline void Input(String arg_name, int arg);
+  inline void Input(ffi::String arg_name, int arg);
   /*! \brief Add an integer input */
-  inline void Input(String arg_name, int64_t arg);
+  inline void Input(ffi::String arg_name, int64_t arg);
   /*! \brief Add a bool input */
-  inline void Input(String arg_name, bool arg);
+  inline void Input(ffi::String arg_name, bool arg);
   /*! \brief Add a double input */
-  inline void Input(String arg_name, double arg);
+  inline void Input(ffi::String arg_name, double arg);
   /*! \brief Add an input random variable */
-  inline void Input(String arg_name, String arg);
+  inline void Input(ffi::String arg_name, ffi::String arg);
+  /*! \brief Add an input random variable */
+  inline void Input(ffi::String arg_name, std::string arg);
   /*! \brief Add an input, dispatched to different implementations according to the object's type */
-  inline void Input(String arg_name, ObjectRef arg);
+  inline void Input(ffi::String arg_name, Any arg);
   /*! \brief Add the decision */
-  inline void Decision(ObjectRef decision);
+  inline void Decision(Any decision);
   /*!
    * \brief Add a single output random variable
    * \param unit_array An array containing only one element
    */
-  inline void SingleOutput(Array<String> unit_array);
+  inline void SingleOutput(ffi::Array<ffi::String> unit_array);
   /*! \brief Add a list of output random variables */
-  inline void OutputList(Array<String> outputs);
+  inline void OutputList(ffi::Array<ffi::String> outputs);
   /*! \returns The schedule API call in python syntax */
-  inline String Str() const;
+  inline ffi::String Str() const;
 
  private:
   /*! \brief Converts a TVM object to python string and print to the output stream */
-  inline void AsPythonString(const ObjectRef& obj, std::ostream& os);
+  inline void AsPythonString(const Any& obj, std::ostream& os);
 
  private:
   /*! \brief The name of the API to call */
-  String method_name_;
+  ffi::String method_name_;
   /*! \brief The output of the instruction */
-  Optional<String> output_;
+  ffi::Optional<ffi::String> output_;
   /*! \brief The names of input arguments */
-  std::vector<String> arg_names_;
+  std::vector<ffi::String> arg_names_;
   /*! \brief The values of input arguments */
-  std::vector<String> args_;
+  std::vector<ffi::String> args_;
 };
 
 /********** implementation details **********/
@@ -274,12 +273,11 @@ template <typename>
 struct _IsTVMArray : std::false_type {};
 
 template <typename T>
-struct _IsTVMArray<runtime::Array<T>> : std::true_type {};
+struct _IsTVMArray<ffi::Array<T>> : std::true_type {};
 
 template <typename T>
 struct _IsSingleObject
-    : std::integral_constant<bool, std::is_base_of<ObjectRef, T>::value && !_IsTVMArray<T>::value> {
-};
+    : std::integral_constant<bool, !_IsTVMArray<T>::value && !std::is_void<T>::value> {};
 
 template <class T>
 using ReturnType = typename _MethodType<std::remove_cv_t<T>>::return_type;
@@ -300,114 +298,107 @@ static constexpr int IsSingleObject = _IsSingleObject<std::remove_cv_t<T>>::valu
 };  // namespace details
 
 template <class TTraits>
-Array<ObjectRef> UnpackedInstTraits<TTraits>::ApplyToSchedule(const Schedule& sch,
-                                                              const Array<ObjectRef>& inputs,
-                                                              const Array<ObjectRef>& attrs,
-                                                              const Optional<ObjectRef>& decision) {
+ffi::Array<Any> UnpackedInstTraits<TTraits>::ApplyToSchedule(const Schedule& sch,
+                                                             const ffi::Array<Any>& inputs,
+                                                             const ffi::Array<Any>& attrs,
+                                                             const Any& decision) {
   using method_type = decltype(TTraits::UnpackedApplyToSchedule);
   using return_type = details::ReturnType<method_type>;
-  static_assert(details::ArgumentAreAllObjects<method_type>,
-                "All arguments to `UnpackedApplyToSchedule` must be subclasses of ObjectRef");
+  // static_assert(details::ArgumentAreAllObjects<method_type>,
+  //              "All arguments to `UnpackedApplyToSchedule` must be subclasses of ObjectRef");
   constexpr size_t kNumArgs = details::NumArgs<method_type>;
   constexpr size_t kNumInputs = TTraits::kNumInputs;
   constexpr size_t kNumAttrs = TTraits::kNumAttrs;
   constexpr size_t kNumDecisions = TTraits::kNumDecisions;
   static_assert(kNumArgs == 1 + kNumInputs + kNumAttrs + kNumDecisions,
                 "length of argument list mismatch");
-  TVMValue tvm_values[kNumArgs];
-  int tvm_type_codes[kNumArgs];
-  runtime::TVMArgsSetter setter(tvm_values, tvm_type_codes);
-  setter(0, sch);
-  TTraits::template _SetInputs<1>(setter, inputs);
-  TTraits::template _SetAttrs<1 + kNumInputs>(setter, attrs);
-  TTraits::template _SetDecision<1 + kNumInputs + kNumAttrs>(setter, decision);
-  PackedFunc pf([](const TVMArgs& args, TVMRetValue* rv) -> void {
-    using runtime::detail::unpack_call;
+  AnyView packed_args[kNumArgs];
+  packed_args[0] = sch;
+  TTraits::template _SetInputs<1>(packed_args, inputs);
+  TTraits::template _SetAttrs<1 + kNumInputs>(packed_args, attrs);
+  TTraits::template _SetDecision<1 + kNumInputs + kNumAttrs>(packed_args, decision);
+  ffi::Function pf([](const ffi::PackedArgs& args, ffi::Any* rv) -> void {
     constexpr size_t kNumArgs = details::NumArgs<method_type>;
     ICHECK_EQ(args.size(), kNumArgs);
-    unpack_call<return_type, kNumArgs>(nullptr, TTraits::UnpackedApplyToSchedule, args, rv);
+    ffi::details::unpack_call<return_type>(std::make_index_sequence<kNumArgs>{}, nullptr,
+                                           TTraits::UnpackedApplyToSchedule, args.data(),
+                                           args.size(), rv);
   });
-  TVMRetValue rv;
-  pf.CallPacked(TVMArgs(tvm_values, tvm_type_codes, kNumArgs), &rv);
+  ffi::Any rv;
+  pf.CallPacked(ffi::PackedArgs(packed_args, kNumArgs), &rv);
   return TTraits::_ConvertOutputs(rv);
 }
 
 template <class TTraits>
-String UnpackedInstTraits<TTraits>::AsPython(const Array<ObjectRef>& inputs,
-                                             const Array<ObjectRef>& attrs,
-                                             const Optional<ObjectRef>& decision,
-                                             const Array<String>& outputs) {
+ffi::String UnpackedInstTraits<TTraits>::AsPython(const ffi::Array<Any>& inputs,
+                                                  const ffi::Array<Any>& attrs, const Any& decision,
+                                                  const ffi::Array<ffi::String>& outputs) {
   using method_type = decltype(TTraits::UnpackedAsPython);
   using return_type = details::ReturnType<method_type>;
-  static_assert(details::ArgumentAreAllObjects<method_type>,
-                "All arguments to `UnpackedAsPython` must be subclasses of ObjectRef");
+  // static_assert(details::ArgumentAreAllObjects<method_type>,
+  //               "All arguments to `UnpackedAsPython` must be subclasses of ObjectRef");
   constexpr size_t kNumArgs = details::NumArgs<method_type>;
   constexpr size_t kNumInputs = TTraits::kNumInputs;
   constexpr size_t kNumAttrs = TTraits::kNumAttrs;
   constexpr size_t kNumDecisions = TTraits::kNumDecisions;
   static_assert(kNumArgs == 1 + kNumInputs + kNumAttrs + kNumDecisions,
                 "length of argument list mismatch");
-  TVMValue tvm_values[kNumArgs];
-  int tvm_type_codes[kNumArgs];
-  runtime::TVMArgsSetter setter(tvm_values, tvm_type_codes);
-  setter(0, outputs);
-  TTraits::template _SetInputs<1>(setter, inputs);
-  TTraits::template _SetAttrs<1 + kNumInputs>(setter, attrs);
-  TTraits::template _SetDecision<1 + kNumInputs + kNumAttrs>(setter, decision);
-  PackedFunc pf([](const TVMArgs& args, TVMRetValue* rv) -> void {
-    using runtime::detail::unpack_call;
+
+  AnyView packed_args[kNumArgs];
+  packed_args[0] = outputs;
+  TTraits::template _SetInputs<1>(packed_args, inputs);
+  TTraits::template _SetAttrs<1 + kNumInputs>(packed_args, attrs);
+  TTraits::template _SetDecision<1 + kNumInputs + kNumAttrs>(packed_args, decision);
+  ffi::Function pf([](const ffi::PackedArgs& args, ffi::Any* rv) -> void {
     constexpr size_t kNumArgs = details::NumArgs<method_type>;
     ICHECK_EQ(args.size(), kNumArgs);
-    unpack_call<return_type, kNumArgs>(nullptr, TTraits::UnpackedAsPython, args, rv);
+    ffi::details::unpack_call<return_type>(std::make_index_sequence<kNumArgs>{}, nullptr,
+                                           TTraits::UnpackedAsPython, args.data(), args.size(), rv);
   });
-  TVMRetValue rv;
-  pf.CallPacked(TVMArgs(tvm_values, tvm_type_codes, kNumArgs), &rv);
-  String result = rv;
-  return result;
+  ffi::Any rv;
+  pf.CallPacked(ffi::PackedArgs(packed_args, kNumArgs), &rv);
+  return rv.cast<ffi::String>();
 }
 
 template <class TTraits>
 template <size_t index_offset>
-TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetInputs(const runtime::TVMArgsSetter& setter,
-                                                               const Array<ObjectRef>& inputs) {
+TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetInputs(AnyView* packed_args,
+                                                               const ffi::Array<Any>& inputs) {
   constexpr size_t kNumInputs = TTraits::kNumInputs;
   ICHECK_EQ(kNumInputs, inputs.size())
       << "ValueError: Incorrect kNumInputs for instruction: " << TTraits::kName;
-  const ObjectRef* ptr = inputs.template as<ArrayNode>()->begin();
   for (size_t i = 0; i < kNumInputs; ++i) {
-    setter(i + index_offset, *(ptr + i));
+    packed_args[i + index_offset] = inputs[i];
   }
 }
 
 template <class TTraits>
 template <size_t index_offset>
-TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetAttrs(const runtime::TVMArgsSetter& setter,
-                                                              const Array<ObjectRef>& attrs) {
+TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetAttrs(AnyView* packed_args,
+                                                              const ffi::Array<Any>& attrs) {
   constexpr size_t kNumAttrs = TTraits::kNumAttrs;
   ICHECK_EQ(kNumAttrs, attrs.size())
       << "ValueError: Incorrect kNumAttrs for instruction: " << TTraits::kName;
-  const ObjectRef* ptr = attrs.as<ArrayNode>()->begin();
   for (size_t i = 0; i < kNumAttrs; ++i) {
-    setter(i + index_offset, *(ptr + i));
+    packed_args[i + index_offset] = attrs[i];
   }
 }
 
 template <class TTraits>
 template <size_t index_offset>
-TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetDecision(
-    const runtime::TVMArgsSetter& setter, const Optional<ObjectRef>& decision) {
+TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetDecision(AnyView* packed_args,
+                                                                 const Any& decision) {
   constexpr size_t kNumDecisions = TTraits::kNumDecisions;
   static_assert(kNumDecisions <= 1, "an instruction is supposed to have at most 1 decision");
   if (kNumDecisions == 1) {
-    setter(index_offset, decision);
+    packed_args[index_offset] = decision;
   } else {
-    ICHECK(!decision.defined());
+    ICHECK(decision == nullptr);
   }
 }
 
 template <class TTraits>
-TVM_ALWAYS_INLINE Array<ObjectRef> UnpackedInstTraits<TTraits>::_ConvertOutputs(
-    const TVMRetValue& rv) {
+TVM_ALWAYS_INLINE ffi::Array<Any> UnpackedInstTraits<TTraits>::_ConvertOutputs(const ffi::Any& rv) {
   using method_type = decltype(TTraits::UnpackedApplyToSchedule);
   using return_type = details::ReturnType<method_type>;
   constexpr int is_array = details::IsTVMArray<return_type>;
@@ -418,36 +409,28 @@ TVM_ALWAYS_INLINE Array<ObjectRef> UnpackedInstTraits<TTraits>::_ConvertOutputs(
   if (is_void) {
     return {};
   } else if (is_single_obj) {
-    ObjectRef obj = rv;
-    return {obj};
+    return {rv};
   } else if (is_array) {
-    ObjectRef obj = rv;
-    const ArrayNode* array = obj.as<ArrayNode>();
-    return GetRef<Array<ObjectRef>>(array);
+    return rv.cast<ffi::Array<Any>>();
   }
 }
 
 /********** PythonAPICall **********/
 
-inline void PythonAPICall::AsPythonString(const ObjectRef& obj, std::ostream& os) {
-  if (!obj.defined()) {
+inline void PythonAPICall::AsPythonString(const Any& obj, std::ostream& os) {
+  if (obj == nullptr) {
     os << "None";
-  } else if (const auto* str = obj.as<runtime::StringObj>()) {
-    os << str->data;
-  } else if (const auto* int_imm = obj.as<IntImmNode>()) {
-    os << int_imm->value;
-  } else if (const auto* float_imm = obj.as<FloatImmNode>()) {
+  } else if (auto opt_str = obj.as<ffi::String>()) {
+    os << *opt_str;
+  } else if (const auto opt_int_imm = obj.try_cast<IntImm>()) {
+    os << (*opt_int_imm)->value;
+  } else if (const auto opt_float_imm = obj.try_cast<FloatImm>()) {
     os.precision(17);
-    os << float_imm->value;
-  } else if (const auto* runtime_int = obj.as<runtime::Int::ContainerType>()) {
-    os << runtime_int->value;
-  } else if (const auto* runtime_float = obj.as<runtime::Float::ContainerType>()) {
-    os.precision(17);
-    os << runtime_float->value;
-  } else if (const auto* array = obj.as<ArrayNode>()) {
+    os << (*opt_float_imm)->value;
+  } else if (const auto* array = obj.as<ffi::ArrayObj>()) {
     os << '[';
     bool is_first = true;
-    for (const ObjectRef& e : *array) {
+    for (Any e : *array) {
       if (is_first) {
         is_first = false;
       } else {
@@ -456,7 +439,7 @@ inline void PythonAPICall::AsPythonString(const ObjectRef& obj, std::ostream& os
       AsPythonString(e, os);
     }
     os << ']';
-  } else if (const auto* dict = obj.as<MapNode>()) {
+  } else if (const auto* dict = obj.as<ffi::MapObj>()) {
     os << '{';
     bool is_first = true;
     std::vector<std::pair<std::string, std::string>> dict_items;
@@ -479,23 +462,23 @@ inline void PythonAPICall::AsPythonString(const ObjectRef& obj, std::ostream& os
     }
     os << '}';
   } else {
-    LOG(FATAL) << "ValueError: Cannot translate type '" << obj->GetTypeKey()
+    LOG(FATAL) << "ValueError: Cannot translate type '" << obj.GetTypeKey()
                << "' to python. Its value is: " << obj;
     throw;
   }
 }
 
-void PythonAPICall::Input(String arg_name, int arg) {
+void PythonAPICall::Input(ffi::String arg_name, int arg) {
   arg_names_.emplace_back(std::move(arg_name));
   args_.push_back(std::to_string(arg));
 }
 
-void PythonAPICall::Input(String arg_name, int64_t arg) {
+void PythonAPICall::Input(ffi::String arg_name, int64_t arg) {
   arg_names_.emplace_back(std::move(arg_name));
   args_.push_back(std::to_string(arg));
 }
 
-void PythonAPICall::Input(String arg_name, bool arg) {
+void PythonAPICall::Input(ffi::String arg_name, bool arg) {
   static const char* true_str = "True";
   static const char* false_str = "False";
   arg_names_.emplace_back(std::move(arg_name));
@@ -506,7 +489,7 @@ void PythonAPICall::Input(String arg_name, bool arg) {
   }
 }
 
-void PythonAPICall::Input(String arg_name, double arg) {
+void PythonAPICall::Input(ffi::String arg_name, double arg) {
   arg_names_.emplace_back(std::move(arg_name));
   std::ostringstream os;
   os.precision(17);
@@ -514,30 +497,35 @@ void PythonAPICall::Input(String arg_name, double arg) {
   args_.push_back(os.str());
 }
 
-void PythonAPICall::Input(String arg_name, String arg) {
+void PythonAPICall::Input(ffi::String arg_name, ffi::String arg) {
   arg_names_.emplace_back(std::move(arg_name));
   args_.emplace_back(std::move(arg));
 }
 
-void PythonAPICall::Input(String arg_name, ObjectRef arg) {
+void PythonAPICall::Input(ffi::String arg_name, std::string arg) {
+  arg_names_.emplace_back(std::move(arg_name));
+  args_.emplace_back(std::move(arg));
+}
+
+void PythonAPICall::Input(ffi::String arg_name, Any arg) {
   arg_names_.emplace_back(std::move(arg_name));
   std::ostringstream os;
   AsPythonString(arg, os);
   args_.push_back(os.str());
 }
 
-void PythonAPICall::Decision(ObjectRef decision) {
-  if (decision.defined()) {
+void PythonAPICall::Decision(Any decision) {
+  if (decision != nullptr) {
     this->Input("decision", decision);
   }
 }
 
-void PythonAPICall::SingleOutput(Array<String> unit_array) {
+void PythonAPICall::SingleOutput(ffi::Array<ffi::String> unit_array) {
   ICHECK_EQ(unit_array.size(), 1);
   this->output_ = unit_array[0];
 }
 
-void PythonAPICall::OutputList(Array<String> outputs) {
+void PythonAPICall::OutputList(ffi::Array<ffi::String> outputs) {
   if (outputs.empty()) {
     return;
   }
@@ -553,9 +541,9 @@ void PythonAPICall::OutputList(Array<String> outputs) {
   this->output_ = os.str();
 }
 
-String PythonAPICall::Str() const {
+ffi::String PythonAPICall::Str() const {
   std::ostringstream os;
-  if (output_.defined()) {
+  if (output_.has_value()) {
     os << output_.value() << " = ";
   }
   os << "sch." << method_name_ << '(';

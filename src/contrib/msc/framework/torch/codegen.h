@@ -56,10 +56,10 @@ class TorchCodeGen : public PyCodeGen<TorchCodeGenConfig, TorchCodeGenHelper> {
   void CodeGenInference() final;
 
   /*! \brief Get the docs for the op*/
-  const Array<Doc> GetOpCodes(const MSCJoint& node) final;
+  const ffi::Array<Doc> GetOpCodes(const MSCJoint& node) final;
 
   /*! \brief Get tensor type of the framework*/
-  const String TensorType() const final { return "torch.Tensor"; }
+  const ffi::String TensorType() const final { return "torch.Tensor"; }
 
  private:
   bool is_init_;

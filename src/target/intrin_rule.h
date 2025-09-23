@@ -24,7 +24,7 @@
 #ifndef TVM_TARGET_INTRIN_RULE_H_
 #define TVM_TARGET_INTRIN_RULE_H_
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 
@@ -79,7 +79,7 @@ inline PrimExpr DispatchPureExtern(const PrimExpr& e) {
   name = T()(dtype, name.substr(4));
 
   if (name.length() != 0) {
-    Array<PrimExpr> new_args = {StringImm(name)};
+    ffi::Array<PrimExpr> new_args = {StringImm(name)};
     for (auto arg : call->args) {
       new_args.push_back(arg);
     }

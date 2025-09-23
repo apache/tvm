@@ -32,10 +32,11 @@ def test_llvm_add_pipeline():
     A = te.placeholder((n,), name="A")
     B = te.placeholder((n,), name="B")
     C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
-    s = te.create_schedule(C.op)
-    xo, xi = s[C].split(C.op.axis[0], factor=4)
-    s[C].parallel(xo)
-    s[C].vectorize(xi)
+
+    sch = tvm.tir.Schedule(te.create_prim_func([A, B, C]))
+    xo, xi = sch.split(sch.get_loops("C")[0], factors=[None, 4])
+    sch.parallel(xo)
+    sch.vectorize(xi)
 
     def verify_elf(path, e_machine):
         with open(path, "rb") as fi:
@@ -48,9 +49,9 @@ def test_llvm_add_pipeline():
     def build_i386():
         temp = utils.tempdir()
         target = "llvm -mtriple=i386-pc-linux-gnu"
-        f = tvm.build(s, [A, B, C], target)
+        f = tvm.tir.build(sch.mod, target=target)
         path = temp.relpath("myadd.o")
-        f.save(path)
+        f.write_to_file(path)
         verify_elf(path, 0x03)
 
     def build_arm():
@@ -59,12 +60,12 @@ def test_llvm_add_pipeline():
             print("Skip because %s is not enabled.." % target)
             return
         temp = utils.tempdir()
-        f = tvm.build(s, [A, B, C], target)
+        f = tvm.tir.build(sch.mod, target=target)
         path = temp.relpath("myadd.o")
-        f.save(path)
+        f.write_to_file(path)
         verify_elf(path, 0x28)
         asm_path = temp.relpath("myadd.asm")
-        f.save(asm_path)
+        f.write_to_file(asm_path)
         # Do a RPC verification, launch kernel on Arm Board if available.
         host = os.environ.get("TVM_RPC_ARM_HOST", None)
         remote = None
@@ -80,9 +81,9 @@ def test_llvm_add_pipeline():
             farm = remote.load_module("myadd.o")
             dev = remote.cpu(0)
             n = nn
-            a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-            b = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-            c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
+            a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
+            b = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
+            c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
             farm(a, b, c)
             tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
             print("Verification finish on remote..")

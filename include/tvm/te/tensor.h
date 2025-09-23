@@ -25,6 +25,7 @@
 #define TVM_TE_TENSOR_H_
 
 #include <tvm/arith/bound.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
@@ -49,6 +50,7 @@ class Operation : public ObjectRef {
   /*! \brief default constructor  */
   Operation() {}
   explicit Operation(ObjectPtr<Object> n) : ObjectRef(n) {}
+  explicit Operation(ffi::UnsafeInit tag) : ObjectRef(tag) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -68,31 +70,27 @@ class Operation : public ObjectRef {
 class TensorNode : public DataProducerNode {
  public:
   /*! \brief The shape of the tensor */
-  Array<PrimExpr> shape;
+  ffi::Array<PrimExpr> shape;
   /*! \brief data type in the content of the tensor */
   DataType dtype;
   /*! \brief the source operation, can be None */
   Operation op;
   /*! \brief the output index from source operation */
   int value_index{0};
-  /*! \brief constructor */
-  TensorNode() {}
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("shape", &shape);
-    v->Visit("dtype", &dtype);
-    v->Visit("op", &op);
-    v->Visit("value_index", &value_index);
-  }
+  static void RegisterReflection();
 
-  Array<PrimExpr> GetShape() const final { return shape; }
+  ffi::Array<PrimExpr> GetShape() const final { return shape; }
 
   DataType GetDataType() const final { return dtype; }
 
-  TVM_DLL String GetNameHint() const final;
+  TVM_DLL PrimExpr ToPrimExpr() const final;
 
-  static constexpr const char* _type_key = "Tensor";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TensorNode, DataProducerNode);
+  TVM_DLL ffi::String GetNameHint() const final;
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.Tensor", TensorNode, DataProducerNode);
 };
 
 /*!
@@ -107,10 +105,10 @@ class Tensor : public DataProducer {
    * \param support_negative_indices Whether to normalize indices in the case of negative indices.
    * \return the result expression representing tensor read.
    */
-  inline PrimExpr IndexTensor(Array<PrimExpr> indices, bool support_negative_indices) const;
+  inline PrimExpr IndexTensor(ffi::Array<PrimExpr> indices, bool support_negative_indices) const;
 
  public:
-  TVM_DLL Tensor(Array<PrimExpr> shape, DataType dtype, Operation op, int value_index);
+  TVM_DLL Tensor(ffi::Array<PrimExpr> shape, DataType dtype, Operation op, int value_index);
   /*!
    * \brief check if two tensors equals each other.
    * \param other tensor to be checked.
@@ -132,7 +130,7 @@ class Tensor : public DataProducer {
    */
   template <typename... Args>
   inline PrimExpr operator()(Args&&... args) const {
-    Array<PrimExpr> indices{std::forward<Args>(args)...};
+    ffi::Array<PrimExpr> indices{std::forward<Args>(args)...};
     return operator()(indices);
   }
   /*!
@@ -140,13 +138,13 @@ class Tensor : public DataProducer {
    * \param indices the indices.
    * \return the result expression representing tensor read.
    */
-  TVM_DLL PrimExpr operator()(Array<PrimExpr> indices) const;
+  TVM_DLL PrimExpr operator()(ffi::Array<PrimExpr> indices) const;
   /*!
    * \brief Take elements from the tensor
    * \param indices the indices.
    * \return the result expression representing tensor read.
    */
-  TVM_DLL PrimExpr operator()(Array<Var> indices) const;
+  TVM_DLL PrimExpr operator()(ffi::Array<Var> indices) const;
   /*!
    * \brief Take elements from the tensor with support for negative indices.
    * \param args The indices
@@ -154,7 +152,7 @@ class Tensor : public DataProducer {
    */
   template <typename... Args>
   TVM_DLL PrimExpr IndexWithNegativeIndices(Args&&... args) const {
-    Array<PrimExpr> indices{std::forward<Args>(args)...};
+    ffi::Array<PrimExpr> indices{std::forward<Args>(args)...};
     return IndexWithNegativeIndices(indices);
   }
   /*!
@@ -162,13 +160,13 @@ class Tensor : public DataProducer {
    * \param indices the indices.
    * \return the result expression representing tensor read.
    */
-  TVM_DLL PrimExpr IndexWithNegativeIndices(Array<PrimExpr> indices) const;
+  TVM_DLL PrimExpr IndexWithNegativeIndices(ffi::Array<PrimExpr> indices) const;
   /*!
    * \brief Take elements from the tensor with support for negative indices.
    * \param indices the indices.
    * \return the result expression representing tensor read.
    */
-  TVM_DLL PrimExpr IndexWithNegativeIndices(Array<Var> indices) const;
+  TVM_DLL PrimExpr IndexWithNegativeIndices(ffi::Array<Var> indices) const;
 
   /*!
    * \brief data structure to represent a slice that fixes first k coordinates.
@@ -207,7 +205,7 @@ class Tensor : public DataProducer {
    */
   inline Slice operator[](PrimExpr i) const { return Slice(*this, {i}); }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Tensor, DataProducer, TensorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tensor, DataProducer, TensorNode);
 };
 
 // Implementations of inline functions

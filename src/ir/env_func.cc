@@ -20,15 +20,18 @@
 /*!
  * \file env_func.cc
  */
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/env_func.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 
 namespace tvm {
 
-using runtime::PackedFunc;
-using runtime::TVMArgs;
-using runtime::TVMRetValue;
+TVM_FFI_STATIC_INIT_BLOCK() { EnvFuncNode::RegisterReflection(); }
+
+using ffi::Any;
+using ffi::Function;
+using ffi::PackedArgs;
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<EnvFuncNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -37,32 +40,34 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 ObjectPtr<Object> CreateEnvNode(const std::string& name) {
-  auto* f = runtime::Registry::Get(name);
-  ICHECK(f != nullptr) << "Cannot find global function \'" << name << '\'';
-  ObjectPtr<EnvFuncNode> n = make_object<EnvFuncNode>();
+  auto f = tvm::ffi::Function::GetGlobal(name);
+  ICHECK(f.has_value()) << "Cannot find global function \'" << name << '\'';
+  ObjectPtr<EnvFuncNode> n = ffi::make_object<EnvFuncNode>();
   n->func = *f;
   n->name = name;
   return n;
 }
 
-EnvFunc EnvFunc::Get(const String& name) { return EnvFunc(CreateEnvNode(name)); }
+EnvFunc EnvFunc::Get(const ffi::String& name) { return EnvFunc(CreateEnvNode(name)); }
 
-TVM_REGISTER_GLOBAL("ir.EnvFuncGet").set_body_typed(EnvFunc::Get);
-
-TVM_REGISTER_GLOBAL("ir.EnvFuncCall").set_body([](TVMArgs args, TVMRetValue* rv) {
-  EnvFunc env = args[0];
-  ICHECK_GE(args.size(), 1);
-  env->func.CallPacked(TVMArgs(args.values + 1, args.type_codes + 1, args.size() - 1), rv);
-});
-
-TVM_REGISTER_GLOBAL("ir.EnvFuncGetPackedFunc").set_body_typed([](const EnvFunc& n) {
-  return n->func;
-});
-
-TVM_REGISTER_NODE_TYPE(EnvFuncNode)
-    .set_creator(CreateEnvNode)
-    .set_repr_bytes([](const Object* n) -> std::string {
-      return static_cast<const EnvFuncNode*>(n)->name;
-    });
-
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("ir.EnvFuncGet", EnvFunc::Get)
+      .def_packed("ir.EnvFuncCall",
+                  [](ffi::PackedArgs args, ffi::Any* rv) {
+                    EnvFunc env = args[0].cast<EnvFunc>();
+                    ICHECK_GE(args.size(), 1);
+                    env->func.CallPacked(args.Slice(1), rv);
+                  })
+      .def("ir.EnvFuncGetFunction", [](const EnvFunc& n) { return n->func; });
+  // override EnvFuncNode to use name as the repr
+  refl::TypeAttrDef<EnvFuncNode>()
+      .def("__data_to_json__",
+           [](const EnvFuncNode* node) {
+             // simply save as the string
+             return node->name;
+           })
+      .def("__data_from_json__", EnvFunc::Get);
+}
 }  // namespace tvm

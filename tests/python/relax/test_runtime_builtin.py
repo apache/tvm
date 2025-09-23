@@ -28,7 +28,7 @@ from tvm.relax.testing.runtime_builtin import MatchShapeCode, MakeShapeCode
 def test_make_shape():
     MK = MakeShapeCode
     make_shape = tvm.get_global_func("vm.builtin.make_shape")
-    heap = tvm.nd.array(np.arange(10).astype("int64"))
+    heap = tvm.runtime.tensor(np.arange(10).astype("int64"))
     s = make_shape(heap, 3, MK.USE_IMM, 10, MK.LOAD_SHAPE, 0, MK.LOAD_SHAPE, 2)
 
     assert s == tvm.runtime.container.ShapeTuple([10, 0, 2])
@@ -37,12 +37,12 @@ def test_make_shape():
 def test_match_shape():
     MS = MatchShapeCode
     match_shape = tvm.get_global_func("vm.builtin.match_shape")
-    heap = tvm.nd.array(np.zeros(10).astype("int64"))
+    heap = tvm.runtime.tensor(np.zeros(10).astype("int64"))
 
     assert heap.numpy()[2] == 0
 
     s = tvm.runtime.container.ShapeTuple([1, 2, 3])
-    x = tvm.nd.array(np.zeros([1, 2, 3]))
+    x = tvm.runtime.tensor(np.zeros([1, 2, 3]))
 
     match_shape(s, heap, 3, MS.ASSERT_EQUAL_TO_IMM, 1, MS.STORE_TO_HEAP, 2, MS.NO_OP, 0, "")
 
@@ -86,7 +86,7 @@ def test_check_shape_info():
 
 def test_check_tensor_info():
     check_tensor_info = tvm.get_global_func("vm.builtin.check_tensor_info")
-    x = tvm.nd.array(np.zeros((2, 3)).astype("int32"))
+    x = tvm.runtime.tensor(np.zeros((2, 3)).astype("int32"))
 
     check_tensor_info(x, 2, "int32", "")
     check_tensor_info(x, -1, "int32", "")
@@ -116,7 +116,7 @@ def test_check_tensor_info():
 
 def test_check_tuple_info():
     check_tuple_info = tvm.get_global_func("vm.builtin.check_tuple_info")
-    x = tvm.nd.array(np.zeros((2, 3)).astype("int32"))
+    x = tvm.runtime.tensor(np.zeros((2, 3)).astype("int32"))
     t = tvm.runtime.convert([x, x, x])
 
     check_tuple_info(t, 3, "")
@@ -133,7 +133,7 @@ def test_check_tuple_info():
 def test_check_func_info():
     check_func_info = tvm.get_global_func("vm.builtin.check_func_info")
     f = tvm.runtime.convert(lambda x: x)
-    x = tvm.nd.array(np.zeros((2, 3)).astype("int32"))
+    x = tvm.runtime.tensor(np.zeros((2, 3)).astype("int32"))
 
     check_func_info(f, "")
 
@@ -144,8 +144,8 @@ def test_check_func_info():
 
 def test_tuple_getitem():
     tuple_getitem = tvm.get_global_func("vm.builtin.tuple_getitem")
-    x = tvm.nd.array(np.zeros((2, 3)).astype("int32"))
-    y = tvm.nd.array(np.zeros((2, 3)).astype("int32"))
+    x = tvm.runtime.tensor(np.zeros((2, 3)).astype("int32"))
+    y = tvm.runtime.tensor(np.zeros((2, 3)).astype("int32"))
     t = tvm.runtime.convert([x, y])
 
     assert tuple_getitem(t, 0) == x
@@ -157,10 +157,10 @@ def test_attention_kv_cache():
     fappend = tvm.get_global_func("vm.builtin.attention_kv_cache_append")
     fview = tvm.get_global_func("vm.builtin.attention_kv_cache_view")
 
-    cache = fcreate(tvm.nd.empty((1, 2), dtype="int32"), tvm.runtime.ShapeTuple([2, 2]), 0)
+    cache = fcreate(tvm.runtime.empty((1, 2), dtype="int32"), tvm.runtime.ShapeTuple([2, 2]), 0)
     num_steps = 2
     for i in range(num_steps):
-        cache = fappend(cache, tvm.nd.array(i * np.ones((1, 2)).astype("int32")))
+        cache = fappend(cache, tvm.runtime.tensor(i * np.ones((1, 2)).astype("int32")))
 
     res = fview(cache, tvm.runtime.ShapeTuple((num_steps, 2))).numpy()
     for i in range(num_steps):
@@ -168,8 +168,8 @@ def test_attention_kv_cache():
         assert res[i][1] == i
 
 
-def test_ndarray_cache():
-    fload = tvm.get_global_func("vm.builtin.ndarray_cache.load")
+def test_tensor_cache():
+    fload = tvm.get_global_func("vm.builtin.tensor_cache.load")
     fget_params = tvm.get_global_func("vm.builtin.param_array_from_cache")
 
     param_dict = {
@@ -178,8 +178,8 @@ def test_ndarray_cache():
     }
 
     temp = utils.tempdir()
-    tvmjs.dump_ndarray_cache(param_dict, temp.path, encode_format="f32-to-bf16")
-    fload(str(temp.path), tvm.cpu().device_type, 0)
+    tvmjs.dump_tensor_cache(param_dict, temp.path, encode_format="f32-to-bf16")
+    fload(str(temp.path), tvm.cpu().dlpack_device_type(), 0)
     res = fget_params("x", -1)
     for i, v in enumerate(res):
         v_np = param_dict[f"x_{i}"]
@@ -188,8 +188,8 @@ def test_ndarray_cache():
         np.testing.assert_allclose(v.numpy(), v_np, atol=1e-6, rtol=1e-6)
 
 
-def test_ndarray_cache_update():
-    fload = tvm.get_global_func("vm.builtin.ndarray_cache.load")
+def test_tensor_cache_update():
+    fload = tvm.get_global_func("vm.builtin.tensor_cache.load")
     fget_params = tvm.get_global_func("vm.builtin.param_array_from_cache")
 
     param_dict = {
@@ -198,13 +198,13 @@ def test_ndarray_cache_update():
     }
 
     temp = utils.tempdir()
-    tvmjs.dump_ndarray_cache(param_dict, temp.path, encode_format="f32-to-bf16")
+    tvmjs.dump_tensor_cache(param_dict, temp.path, encode_format="f32-to-bf16")
     param_dict["x_1"] = np.random.uniform(size=[10, 20]).astype("float32")
     param_dict["x_2"] = np.random.uniform(size=[10]).astype("float32")
-    tvmjs.dump_ndarray_cache(
+    tvmjs.dump_tensor_cache(
         param_dict, temp.path, encode_format="f32-to-bf16", update_if_exists=True
     )
-    fload(str(temp.path), tvm.cpu().device_type, 0)
+    fload(str(temp.path), tvm.cpu().dlpack_device_type(), 0)
     res = fget_params("x", -1)
     for i, v in enumerate(res):
         v_np = param_dict[f"x_{i}"]
@@ -220,7 +220,7 @@ def test_attention_kv_cache_window_override():
 
     current_pos = 4
     cache = fcreate(
-        tvm.nd.array(np.full((16, 2), -1).astype("int32")),
+        tvm.runtime.tensor(np.full((16, 2), -1).astype("int32")),
         tvm.runtime.ShapeTuple([16, 2]),
         current_pos,
     )
@@ -230,7 +230,7 @@ def test_attention_kv_cache_window_override():
     for i in range(1, num_steps):
         np_array = i * np.ones((i, 2)).astype("int32")
         np_all_arrays = np.concatenate((np_all_arrays, np_array), axis=0)
-        cache = foverride(cache, tvm.nd.array(np_array), 16)
+        cache = foverride(cache, tvm.runtime.tensor(np_array), 16)
         current_pos = (current_pos + i) % 16
 
     res = fview(cache, tvm.runtime.ShapeTuple((16, 2))).numpy()
@@ -252,7 +252,7 @@ def test_attention_kv_cache_window_override_with_sinks():
     current_pos = 0
 
     cache = fcreate(
-        tvm.nd.array(np.full((16, 2), -1).astype("int32")),
+        tvm.runtime.tensor(np.full((16, 2), -1).astype("int32")),
         tvm.runtime.ShapeTuple([16, 2]),
         current_pos,
     )
@@ -262,7 +262,7 @@ def test_attention_kv_cache_window_override_with_sinks():
     for i in range(num_steps):
         np_array = i * np.ones((1, 2)).astype("int32")
         np_all_arrays = np.concatenate((np_all_arrays, np_array), axis=0)
-        cache = foverride(cache, tvm.nd.array(np_array), 16, num_attention_sinks)
+        cache = foverride(cache, tvm.runtime.tensor(np_array), 16, num_attention_sinks)
 
         if has_sink:
             current_pos = max((current_pos + 1) % 16, num_attention_sinks)

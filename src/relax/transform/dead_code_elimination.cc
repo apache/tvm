@@ -32,6 +32,7 @@
  * Any binding blocks that are left empty will be removed by the normalizer.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/analysis.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -90,7 +91,8 @@ IRModule RemoveUnusedFunctions(IRModule mod, const std::unordered_set<GlobalVar>
   return mod;
 }
 
-IRModule DeadCodeElimination(const IRModule& arg_mod, Array<runtime::String> entry_function_names) {
+IRModule DeadCodeElimination(const IRModule& arg_mod,
+                             ffi::Array<ffi::String> entry_function_names) {
   IRModule mod = arg_mod;
 
   // S0: Make a list of all user-specified entry functions and
@@ -133,13 +135,17 @@ IRModule DeadCodeElimination(const IRModule& arg_mod, Array<runtime::String> ent
 
 namespace transform {
 
-Pass DeadCodeElimination(Array<runtime::String> entry_functions) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relax::DeadCodeElimination(m, entry_functions); };
+Pass DeadCodeElimination(ffi::Array<ffi::String> entry_functions) {
+  auto pass_func = [=](IRModule m, PassContext pc) {
+    return relax::DeadCodeElimination(m, entry_functions);
+  };
   return CreateModulePass(pass_func, 1, "DeadCodeElimination", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.DeadCodeElimination").set_body_typed(DeadCodeElimination);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.DeadCodeElimination", DeadCodeElimination);
+}
 
 }  // namespace transform
 }  // namespace relax

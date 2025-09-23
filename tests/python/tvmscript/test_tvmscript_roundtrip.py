@@ -375,7 +375,6 @@ def opt_gemm_mod_host():
                                 for x_c in T.serial(0, 32):
                                     C_global[T.ramp((x_c * 32), 1, 32)] = T.call_llvm_pure_intrin(
                                         T.uint32(97),
-                                        T.uint32(3),
                                         T.broadcast(
                                             A[
                                                 (
@@ -393,7 +392,6 @@ def opt_gemm_mod_host():
                                     )
                                     C_global[T.ramp((x_c * 32), 1, 32)] = T.call_llvm_pure_intrin(
                                         T.uint32(97),
-                                        T.uint32(3),
                                         T.broadcast(
                                             A[
                                                 (
@@ -416,7 +414,6 @@ def opt_gemm_mod_host():
                                     )
                                     C_global[T.ramp((x_c * 32), 1, 32)] = T.call_llvm_pure_intrin(
                                         T.uint32(97),
-                                        T.uint32(3),
                                         T.broadcast(
                                             A[
                                                 (
@@ -439,7 +436,6 @@ def opt_gemm_mod_host():
                                     )
                                     C_global[T.ramp((x_c * 32), 1, 32)] = T.call_llvm_pure_intrin(
                                         T.uint32(97),
-                                        T.uint32(3),
                                         T.broadcast(
                                             A[
                                                 (
@@ -3216,7 +3212,6 @@ def llvm_intrin_call():
                 )
                 B[vi] = T.call_llvm_pure_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.ctpop.i8"),
-                    T.uint32(1),
                     A[vi],
                     dtype="uint8",
                 )
@@ -3644,7 +3639,7 @@ def let_stmt_value():
 def string_stride():
     @T.prim_func
     def main(a: T.handle, b: T.handle):
-        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         n = T.int32()
         A = T.match_buffer(a, (n,), strides=("A_s0",), buffer_type="auto")
         B = T.match_buffer(b, (n,), strides=("B_s0",), buffer_type="auto")
@@ -3663,7 +3658,7 @@ def string_stride():
 def string_stride_int64():
     @T.prim_func
     def main(a: T.handle, b: T.handle):
-        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         n = T.int64()
         A_s0 = T.int64()
         B_s0 = T.int64()
@@ -3679,7 +3674,8 @@ def merge_shape_var_def():
     # uninitialized vars
     @T.prim_func(check_well_formed=False)
     def main(A: T.handle, B: T.handle):
-        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+        # fmt: off
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         m, n = T.int32(), T.int32()
         A_1 = T.match_buffer(A, (m, n), strides=("A_1_s0", "A_1_s1"), buffer_type="auto")
         B_1 = T.match_buffer(B, (m, n), strides=("B_1_s0", "B_1_s1"), buffer_type="auto")
@@ -3687,8 +3683,8 @@ def merge_shape_var_def():
             if T.likely(i_outer * 10 + i_inner < m):
                 for j_inner in range(5):
                     if T.likely(j_outer * 5 + j_inner < n):
-                        cse_var_2: T.int32 = j_outer * 5 + j_inner
-                        cse_var_1: T.int32 = i_outer * 10 + i_inner
+                        cse_v2: T.int32 = j_outer * 5 + j_inner
+                        cse_v1: T.int32 = i_outer * 10 + i_inner
                         B_2 = T.Buffer(
                             (B_1.strides[0] * m,),
                             data=B_1.data,
@@ -3701,9 +3697,10 @@ def merge_shape_var_def():
                             strides=("A_2_s0",),
                             buffer_type="auto",
                         )
-                        B_2[cse_var_1 * B_1.strides[0] + cse_var_2 * B_1.strides[1]] = A_2[
-                            cse_var_1 * A_1.strides[0] + cse_var_2 * A_1.strides[1]
+                        B_2[cse_v1 * B_1.strides[0] + cse_v2 * B_1.strides[1]] = A_2[
+                            cse_v1 * A_1.strides[0] + cse_v2 * A_1.strides[1]
                         ]
+        # fmt: on
 
     return main
 
@@ -3895,6 +3892,7 @@ def undefined_data_ptr_in_decl_buffer():
     Allocate/DeclBuffer pair, performing a round-trip through
     TVMScript should not introduce an Allocate node.
     """
+
     # uninitialized var
     @T.prim_func(check_well_formed=False)
     def func():
@@ -3945,8 +3943,7 @@ def subroutine_call_without_arguments():
         def main():
             # Should be equivalent to the bare "mod.subroutine()", but
             # that relies on `GlobalVar.__call__` returning the
-            # correct IR type.  Previously, this instead returned a
-            # `relay.Call` object.
+            # correct IR type.
             tir.call_tir(mod.subroutine)
 
         @T.prim_func
@@ -3988,9 +3985,7 @@ def func_attr_with_list():
         B: T.Buffer((128, 128), "float32"),
         D: T.Buffer((128, 128), "float32"),
     ) -> None:
-        T.func_attr(
-            {"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [T.int32(1)]}
-        )
+        T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
         C = T.alloc_buffer([128, 128], dtype="float32")
         for i0, i1, i2 in T.grid(128, 128, 128):
             with T.block("C"):
@@ -4003,6 +3998,22 @@ def func_attr_with_list():
                 T.block_attr({"layout_free_placeholders": [C]})
                 x, y = T.axis.remap("SS", [i0, i1])
                 D[x, y] = C[x, y] + T.float32(1)
+
+    return func
+
+
+def func_with_loop_jumps():
+    @T.prim_func
+    def func(In: T.Buffer((1,), "int32"), Out: T.Buffer((2,), "int32")):
+        Out[0] = 0
+        Out[1] = 0
+        for i in range(1000):
+            if i % 13 == 0:
+                Out[1] = Out[1] + 1
+                continue
+            Out[0] = Out[0] + 1
+            if Out[0] >= In[0]:
+                break
 
     return func
 
@@ -4225,6 +4236,7 @@ ir_generator = tvm.testing.parameter(
     return_zero_private,
     return_zero_private_with_attr,
     func_attr_with_list,
+    func_with_loop_jumps,
     *op_of_literal(),
     *relax_match_cast_struct_info_proxy(),
     relax_symbolic_size_var,
@@ -4266,6 +4278,15 @@ def test_return_none_no_trailing_type():
     func = return_none()
     script = func.script()
     assert "-> None" not in script
+
+
+def test_address_of_buffer():
+    @T.prim_func
+    def func(a: T.handle):
+        A = T.match_buffer(a, (128, 128), "float32")
+        T.evaluate(T.address_of(A))
+
+    assert "T.address_of(A[0, 0])" in func.script()
 
 
 if __name__ == "__main__":

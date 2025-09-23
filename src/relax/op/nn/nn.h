@@ -41,9 +41,9 @@ namespace relax {
  * \param RequireFloatDtype A boolean indicating if the input is required to have float dtype.
  */
 #define RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(OpName, OpRegName, RequireFloatDtype) \
+  RELAX_UNARY_OP_INTERFACE(OpName, OpRegName)                                     \
   RELAX_REGISTER_UNARY_OP(OpRegName).set_attr<FInferStructInfo>(                  \
-      "FInferStructInfo", InferStructInfoUnaryArith<RequireFloatDtype>);          \
-  RELAX_UNARY_OP_INTERFACE(OpName, OpRegName);
+      "FInferStructInfo", InferStructInfoUnaryArith<RequireFloatDtype>)
 
 /*! \brief Rectified linear unit. */
 Expr relu(Expr data);
@@ -57,29 +57,45 @@ Expr gelu(Expr data);
 /*! \brief Gaussian Error Linear Units function approximated by tanh. */
 Expr gelu_tanh(Expr data);
 
+/*! \brief Parametric Rectified Linear Unit function.*/
+Expr prelu(Expr data, Expr alpha, int axis);
+
+/*! \brief Scaled Exponential Linear Unit function. */
+Expr selu(Expr data);
+
 /*! \brief Sigmoid Linear Unit function. */
 Expr silu(Expr data);
 
 /*! \brief Softmax function. */
 Expr softmax(Expr data, int axis);
 
+/*! \brief Softplus function. */
+Expr softplus(Expr data, double beta, double threshold);
+
 /*! \brief LogSoftmax function. */
 Expr log_softmax(Expr data, int axis);
 
+/*! \brief Pixel Shuffle function. */
+Expr pixel_shuffle(Expr data, int upscale_factor);
+
 /*! \brief Compute batch normalization. */
 Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_var,  //
-                int axis, double epsilon, bool center, bool scale, double momentum);
+                int axis, double epsilon, bool center, bool scale, double momentum, bool training);
 
 /*! \brief Compute layer normalization. */
-Expr layer_norm(Expr data, Expr gamma, Expr beta, Array<Integer> axes, double epsilon, bool center,
-                bool scale);
+Expr layer_norm(Expr data, Expr gamma, Expr beta, ffi::Array<Integer> axes, double epsilon,
+                bool center, bool scale);
 
 /*! \brief Compute group normalization. */
 Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_axis,
-                Array<Integer> axes, double epsilon, bool center, bool scale);
+                ffi::Array<Integer> axes, double epsilon, bool center, bool scale);
+
+/*! \brief Compute instance normalization. */
+Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, ffi::Array<Integer> axes,
+                   double epsilon, bool center, bool scale);
 
 /*! \brief Compute root mean square normalization. */
-Expr rms_norm(Expr data, Expr weight, Array<Integer> axes, double epsilon);
+Expr rms_norm(Expr data, Expr weight, ffi::Array<Integer> axes, double epsilon);
 
 /*!
  * \brief Applies the dropout operation to the input tensor.
@@ -95,7 +111,7 @@ Expr dropout(Expr data, double rate);
 Expr cross_entropy_with_logits(Expr predictions, Expr labels);
 
 /*! \brief Negative log likelihood loss. */
-Expr nll_loss(Expr predictions, Expr targets, Optional<Expr> weights, String reduction,
+Expr nll_loss(Expr predictions, Expr targets, ffi::Optional<Expr> weights, ffi::String reduction,
               int ignore_index);
 
 }  // namespace relax

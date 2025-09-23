@@ -16,28 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../../target/parsers/aprofile.h"
 #include "../utils.h"
 
 namespace tvm {
 namespace meta_schedule {
 
-String GetRuleKindFromTarget(const Target& target) {
+ffi::String GetRuleKindFromTarget(const Target& target) {
   if (target->kind->name == "llvm") {
-    static const PackedFunc* target_has_feature_fn_ptr =
-        runtime::Registry::Get("target.target_has_feature");
-    ICHECK(target_has_feature_fn_ptr != nullptr)
-        << "The `target.target_has_feature` func is not in tvm registry.";
-    bool have_avx512vnni = (*target_has_feature_fn_ptr)("avx512vnni", target);
-    bool have_avxvnni = (*target_has_feature_fn_ptr)("avxvnni", target);
+    static auto target_has_feature_fn_ptr =
+        tvm::ffi::Function::GetGlobalRequired("target.target_has_feature");
+    bool have_avx512vnni = target_has_feature_fn_ptr("avx512vnni", target).cast<bool>();
+    bool have_avxvnni = target_has_feature_fn_ptr("avxvnni", target).cast<bool>();
     if (have_avx512vnni || have_avxvnni) {
       return "vnni";
     } else {
-      bool have_avx512f = (*target_has_feature_fn_ptr)("avx512f", target);
-      bool have_avx512bw = (*target_has_feature_fn_ptr)("avx512bw", target);
+      bool have_avx512f = target_has_feature_fn_ptr("avx512f", target).cast<bool>();
+      bool have_avx512bw = target_has_feature_fn_ptr("avx512bw", target).cast<bool>();
       if (have_avx512bw && have_avx512f) {
         return "avx512";
       }
+    }
+    bool have_rvv = target_has_feature_fn_ptr("v", target).cast<bool>();
+    if (have_rvv) {
+      return "rvv";
     }
 
     TargetJSON target_json = target::parsers::aprofile::ParseTarget(target->Export());
@@ -55,7 +59,7 @@ String GetRuleKindFromTarget(const Target& target) {
     return "hexagon";
   }
   if (target->kind->name == "cuda") {
-    if (Optional<String> opt_sm = target->GetAttr<String>("arch")) {
+    if (ffi::Optional<ffi::String> opt_sm = target->GetAttr<ffi::String>("arch")) {
       std::string sm = opt_sm.value();
       if (support::StartsWith(sm, "sm_")) {
         sm = sm.substr(3);
@@ -88,10 +92,10 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
       !(sch_rules.defined() &&      //
         postprocs.defined() &&      //
         mutator_probs.defined())) {
-    String kind = GetRuleKindFromTarget(context->target.value());
-    Array<ScheduleRule> default_sch_rules;
-    Array<Postproc> default_postprocs;
-    Map<Mutator, FloatImm> default_mutator_probs;
+    ffi::String kind = GetRuleKindFromTarget(context->target.value());
+    ffi::Array<ScheduleRule> default_sch_rules;
+    ffi::Array<Postproc> default_postprocs;
+    ffi::Map<Mutator, FloatImm> default_mutator_probs;
     // for target with skylake-avx512
     if (kind == "llvm") {
       default_sch_rules = ScheduleRule::DefaultLLVM();
@@ -117,10 +121,13 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
       default_sch_rules = ScheduleRule::DefaultX86("avx512");
       default_postprocs = Postproc::DefaultCPUTensorization();
       default_mutator_probs = Mutator::DefaultLLVM();
-    } else if (kind == "c") {
-      default_sch_rules = ScheduleRule::DefaultMicro();
-      default_postprocs = Postproc::DefaultMicro();
-      default_mutator_probs = Mutator::DefaultMicro();
+    } else if (kind == "rvv") {
+      static auto llvm_get_vector_width =
+          tvm::ffi::Function::GetGlobalRequired("target.llvm_get_vector_width");
+      const int vlen = llvm_get_vector_width(context->target.value()).cast<int>();
+      default_sch_rules = ScheduleRule::DefaultRISCV(vlen);
+      default_postprocs = Postproc::DefaultRISCV();
+      default_mutator_probs = Mutator::DefaultLLVM();
     } else if (kind == "asimd") {
       default_sch_rules = ScheduleRule::DefaultARM("neon");
       default_postprocs = Postproc::DefaultCPUTensorization();
@@ -167,7 +174,7 @@ void PySpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context)
   f_initialize_with_tune_context(context);
 }
 
-Array<tir::Schedule> PySpaceGeneratorNode::GenerateDesignSpace(const IRModule& mod) {
+ffi::Array<tir::Schedule> PySpaceGeneratorNode::GenerateDesignSpace(const IRModule& mod) {
   ICHECK(f_generate_design_space != nullptr)
       << "PySpaceGenerator's GenerateDesignSpace method not implemented!";
   return f_generate_design_space(mod);
@@ -179,11 +186,12 @@ SpaceGenerator PySpaceGeneratorNode::Clone() const {
 }
 
 SpaceGenerator SpaceGenerator::PySpaceGenerator(
-    Optional<Array<ScheduleRule>> sch_rules, Optional<Array<Postproc>> postprocs,
-    Optional<Map<Mutator, FloatImm>> mutator_probs,
+    ffi::Optional<ffi::Array<ScheduleRule>> sch_rules,
+    ffi::Optional<ffi::Array<Postproc>> postprocs,
+    ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs,
     FInitializeWithTuneContext f_initialize_with_tune_context,
     FGenerateDesignSpace f_generate_design_space, FClone f_clone) {
-  ObjectPtr<PySpaceGeneratorNode> n = make_object<PySpaceGeneratorNode>();
+  ObjectPtr<PySpaceGeneratorNode> n = ffi::make_object<PySpaceGeneratorNode>();
   n->sch_rules = sch_rules;
   n->postprocs = postprocs;
   n->mutator_probs = mutator_probs;
@@ -193,17 +201,21 @@ SpaceGenerator SpaceGenerator::PySpaceGenerator(
   return SpaceGenerator(n);
 }
 
-TVM_REGISTER_OBJECT_TYPE(SpaceGeneratorNode);
-TVM_REGISTER_NODE_TYPE(PySpaceGeneratorNode);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  SpaceGeneratorNode::RegisterReflection();
+  PySpaceGeneratorNode::RegisterReflection();
+}
 
-TVM_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorInitializeWithTuneContext")
-    .set_body_method<SpaceGenerator>(&SpaceGeneratorNode::InitializeWithTuneContext);
-TVM_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorGenerateDesignSpace")
-    .set_body_method<SpaceGenerator>(&SpaceGeneratorNode::GenerateDesignSpace);
-TVM_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorPySpaceGenerator")
-    .set_body_typed(SpaceGenerator::PySpaceGenerator);
-TVM_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorClone")
-    .set_body_method<SpaceGenerator>(&SpaceGeneratorNode::Clone);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_method("meta_schedule.SpaceGeneratorInitializeWithTuneContext",
+                  &SpaceGeneratorNode::InitializeWithTuneContext)
+      .def_method("meta_schedule.SpaceGeneratorGenerateDesignSpace",
+                  &SpaceGeneratorNode::GenerateDesignSpace)
+      .def("meta_schedule.SpaceGeneratorPySpaceGenerator", SpaceGenerator::PySpaceGenerator)
+      .def_method("meta_schedule.SpaceGeneratorClone", &SpaceGeneratorNode::Clone);
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

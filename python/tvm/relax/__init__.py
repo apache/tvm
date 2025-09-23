@@ -16,8 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, wrong-import-position
 """The Relax IR namespace containing the IR, type, operator, builder, vm, etc."""
-from tvm.runtime import relax_vm as vm
-from tvm.runtime.relax_vm import VirtualMachine, VMInstrumentReturnKind
+from tvm.runtime import vm
+from tvm.runtime.vm import VirtualMachine, VMInstrumentReturnKind
 
 from .type_converter import args_converter
 
@@ -55,7 +55,7 @@ from .ty import (
     Type,
     ObjectType,
     ShapeType,
-    DynTensorType,
+    TensorType,
     TupleType,
     FuncType,
     PackedFuncType,
@@ -91,11 +91,15 @@ from .struct_info import (
 )
 
 # pipeline
+from .pipeline import get_default_pipeline
 from .pipeline import get_pipeline
 from .pipeline import register_pipeline
 
 # utils
 from .utils import convert_to_expr
+
+# BasePyModule
+from .base_py_module import BasePyModule
 
 # Import submodules in the last to avoid dependency
 from . import exec_builder
@@ -113,6 +117,6 @@ from . import frontend
 from . import utils
 
 # VM
-from .vm_build import build, Executable
+from .vm_build import build, VMExecutable
 
 from .binding_rewrite import DataflowBlockRewrite

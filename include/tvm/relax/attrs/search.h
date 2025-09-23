@@ -30,17 +30,39 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes for search operators */
-struct ArgmaxArgminAttrs : public tvm::AttrsNode<ArgmaxArgminAttrs> {
-  Optional<Integer> axis;
+struct ArgmaxArgminAttrs : public AttrsNodeReflAdapter<ArgmaxArgminAttrs> {
+  ffi::Optional<int64_t> axis;
   bool keepdims;
 
-  TVM_DECLARE_ATTRS(ArgmaxArgminAttrs, "relax.attrs.ArgmaxArgminAttrs") {
-    TVM_ATTR_FIELD(axis).describe("The axis along which to perform the argmin/argmax.");
-    TVM_ATTR_FIELD(keepdims).describe(
-        "If this is set to `True`, the reduced axis is left in the result as dimension with size "
-        "one.");
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ArgmaxArgminAttrs>()
+        .def_ro("axis", &ArgmaxArgminAttrs::axis,
+                "The axis along which to perform the argmin/argmax.")
+        .def_ro("keepdims", &ArgmaxArgminAttrs::keepdims,
+                "If this is set to `True`, the reduced axis is left in the result as dimension "
+                "with size "
+                "one.");
   }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ArgmaxArgminAttrs", ArgmaxArgminAttrs,
+                                    BaseAttrsNode);
 };  // struct ArgmaxArgminAttrs
+
+/*! \brief Attributes for bucketize operator */
+struct BucketizeAttrs : public tvm::AttrsNodeReflAdapter<BucketizeAttrs> {
+  bool out_int32;
+  bool right;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BucketizeAttrs>()
+        .def_ro("out_int32", &BucketizeAttrs::out_int32,
+                "Indicate the output datatype, int32 if True, int64 otherwise.")
+        .def_ro("right", &BucketizeAttrs::right,
+                "Determines the behavior for values in boundaries");
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.BucketizeAttrs", BucketizeAttrs, BaseAttrsNode);
+};  // struct BucketizeAttrs
 
 }  // namespace relax
 }  // namespace tvm

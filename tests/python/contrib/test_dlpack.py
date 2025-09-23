@@ -23,21 +23,19 @@ from tvm.contrib.dlpack import to_pytorch_func
 
 def verify_torch_dlpack():
     a = np.random.randn(1337)
-    tvm_a = tvm.nd.array(a)
-    np.testing.assert_equal(tvm.nd.from_dlpack(tvm_a.to_dlpack()).numpy(), a)
+    tvm_a = tvm.runtime.tensor(a)
+    np.testing.assert_equal(tvm.runtime.from_dlpack(tvm_a).numpy(), a)
 
     try:
         import torch
         import torch.utils.dlpack
 
         x = torch.rand(56, 56)
-        tvm_x = tvm.nd.from_dlpack(torch.utils.dlpack.to_dlpack(x))
+        tvm_x = tvm.runtime.from_dlpack(torch.utils.dlpack.to_dlpack(x))
         np.testing.assert_equal(x.numpy(), tvm_x.numpy())
-        y = tvm.nd.from_dlpack(tvm_x)
+        y = tvm.runtime.from_dlpack(tvm_x)
         np.testing.assert_equal(y.numpy(), tvm_x.numpy())
-        np.testing.assert_equal(
-            torch.utils.dlpack.from_dlpack(y.to_dlpack()).numpy(), tvm_x.numpy()
-        )
+        np.testing.assert_equal(torch.utils.dlpack.from_dlpack(y).numpy(), tvm_x.numpy())
 
         n = tvm.runtime.convert(137)
         xx = torch.rand(137, 137)
@@ -49,10 +47,9 @@ def verify_torch_dlpack():
 
         k = te.reduce_axis((0, n), name="k")
         ZZ = te.compute((n, n), lambda i, j: te.sum(XX[i, k] * YY[k, j], axis=k))
-        s = te.create_schedule(ZZ.op)
         # No need to speficy target_host if it's llvm
         # Otherwise you will need to specify the target and target_host
-        f = tvm.build(s, [XX, YY, ZZ], name="f")
+        f = tvm.compile(te.create_prim_func([XX, YY, ZZ]))
 
         f_pytorch = to_pytorch_func(f)
         zz2 = torch.empty(137, 137)

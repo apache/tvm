@@ -37,7 +37,7 @@ Overall Flow
 In this guide, we will study an example compilation flow in the compiler. The figure below shows the flow. At a high-level, it contains several steps:
 
 - **Model Creation**: Create the IRModule to be optimized and compiled, which contains a collection of functions that internally represent the model.
-  Users can manually construct IRModule via NNModule, TVMScript, or import a pre-trained model from from Relax frontend.
+  Users can manually construct IRModule via NNModule, TVMScript, or import a pre-trained model from Relax frontend.
 - **Transformation**: The compiler transforms an IRModule to another functionally equivalent or approximately
   equivalent(e.g. in the case of quantization) IRModule. Many of the transformations are target (backend) independent.
   We also allow target to affect the configuration of the transformation pipeline.
@@ -103,8 +103,8 @@ cross-level transformations
 Apache TVM brings a unity strategy to optimize the end-to-end models. As the IRModule includes both relax and tir functions, the cross-level transformations are designed to mutate
 the IRModule by applying different transformations to these two types of functions.
 
-For example, ``relax.LegalizeOps`` pass mutates the IRModule by lowering relax operators, add corresponding TIR PrimFunc into the IRModule, and replace the relax operators
-with calls to the lowered TIR PrimFunc. Another example is operator fusion pipeline in relax (including ``relax.FuseOps`` and ``relax.FuseTIR``), which fuse multiple consecutive tensor operations
+For example, ``relax.LegalizeOps`` pass mutates the IRModule by lowering relax operators, adding corresponding TIR PrimFunc into the IRModule, and replacing the relax operators
+with calls to the lowered TIR PrimFunc. Another example is operator fusion pipeline in relax (including ``relax.FuseOps`` and ``relax.FuseTIR``), which fuses multiple consecutive tensor operations
 into one. Different from the previous implementations, relax fusion pipeline analyzes the pattern of TIR functions and detects the best fusion rules automatically rather
 than human-defined operator fusion patterns.
 
@@ -114,7 +114,7 @@ Target Translation
 The target translation phase transforms an IRModule to the corresponding target executable format.
 For backends such as x86 and ARM, we use the LLVM IRBuilder to build in-memory LLVM IR.
 We can also generate source-level languages such as CUDA C and OpenCL.
-Finally, we support direct translations of a Relay function (sub-graph) to specific targets via external code generators.
+Finally, we support direct translations of a Relax function (sub-graph) to specific targets via external code generators.
 It is important that the final code generation phase is as lightweight as possible. Vast majority of transformations
 and lowering should be performed before the target translation phase.
 
@@ -133,7 +133,7 @@ The main goal of TVM's runtime is to provide a minimal API for loading and execu
     import tvm
     # Example runtime execution program in python, with type annotated
     mod: tvm.runtime.Module = tvm.runtime.load_module("compiled_artifact.so")
-    arr: tvm.runtime.NDArray = tvm.nd.array([1, 2, 3], device=tvm.cuda(0))
+    arr: tvm.runtime.Tensor = tvm.runtime.tensor([1, 2, 3], device=tvm.cuda(0))
     fun: tvm.runtime.PackedFunc = mod["addone"]
     fun(arr)
     print(arr.numpy())
@@ -142,7 +142,7 @@ The main goal of TVM's runtime is to provide a minimal API for loading and execu
 :py:class:`tvm.runtime.Module` encapsulates the result of compilation. A runtime.Module contains a GetFunction method to obtain PackedFuncs by name.
 
 :py:class:`tvm.runtime.PackedFunc` is a type-erased function interface for both the generated functions. A runtime.PackedFunc can take arguments and return values with the
-following types: POD types(int, float), string, runtime.PackedFunc, runtime.Module, runtime.NDArray, and other sub-classes of runtime.Object.
+following types: POD types(int, float), string, runtime.PackedFunc, runtime.Module, runtime.Tensor, and other sub-classes of runtime.Object.
 
 :py:class:`tvm.runtime.Module` and :py:class:`tvm.runtime.PackedFunc` are powerful mechanisms to modularize the runtime. For example, to get the above `addone` function on CUDA, we can use LLVM to generate the host-side code to compute the launching parameters(e.g. size of the thread groups) and then call into another PackedFunc from a CUDAModule that is backed by the CUDA driver API. The same mechanism can be used for OpenCL kernels.
 
@@ -155,7 +155,7 @@ The above example only deals with a simple `addone` function. The code snippet b
    factory: tvm.runtime.Module = tvm.runtime.load_module("resnet18.so")
    # Create a stateful graph execution module for resnet18 on cuda(0)
    gmod: tvm.runtime.Module = factory["resnet18"](tvm.cuda(0))
-   data: tvm.runtime.NDArray = get_input_data()
+   data: tvm.runtime.Tensor = get_input_data()
    # set input
    gmod["set_input"](0, data)
    # execute the model
@@ -170,13 +170,13 @@ Summary and Discussions
 
 In summary, the key data structures in the compilation flows are:
 
-- IRModule: contains relay.Function and tir.PrimFunc
+- IRModule: contains relax.Function and tir.PrimFunc
 - runtime.Module: contains runtime.PackedFunc
 
 Most parts of the compilation are transformations among the key data structures.
 
-- relay/transform and tir/transform are determinstic rule-based transformations
-- auto_scheduler and autotvm contains the search-based transformations
+- relax/transform and tir/transform are deterministic rule-based transformations
+- meta-schedule contains the search-based transformations
 
 Finally, the compilation flow example is only a typical use-case of the TVM stack.
 We expose these key data structures and transformations to python and C++ APIs. As a result, you can use TVM just like the way you use numpy,
@@ -198,7 +198,7 @@ tvm/runtime
 The runtime serves as the foundation of the TVM stack. It provides the mechanism to load and execute compiled artifacts.
 The runtime defines a stable standard set of C APIs to interface with frontend languages such as Python and Rust.
 
-`runtime::Object` is one of the primary data structures in TVM runtime besides the `runtime::PackedFunc`.
+`runtime::Object` is one of the primary data structures in TVM runtime besides the `ffi::Function`.
 It is a reference-counted base class with a type index to support runtime type checking and downcasting.
 The object system allows the developer to introduce new data structures to the runtime, such as Array, Map, and new IR data structures.
 
@@ -221,7 +221,6 @@ for learning-based optimizations.
 .. toctree::
    :maxdepth: 1
 
-   debugger
    introduction_to_module_serialization
    device_target_interactions
 
@@ -247,15 +246,15 @@ The ability to save/store, and inspect an IR node provides a foundation for maki
 
 tvm/ir
 ------
-The `tvm/ir` folder contains the unified data structure and interfaces across for all IR function variants.
-The components in `tvm/ir` are shared by `tvm/relay` and `tvm/tir`, notable ones include
+The `tvm/ir` folder contains the unified data structure and interfaces across all IR function variants.
+The components in `tvm/ir` are shared by `tvm/relax` and `tvm/tir`, notable ones include
 
 - IRModule
 - Type
 - PassContext and Pass
 - Op
 
-Different variants of functions(e.g. relay.Function and tir.PrimFunc) can co-exist in an IRModule.
+Different variants of functions(e.g. relax.Function and tir.PrimFunc) can co-exist in an IRModule.
 While these variants may not have the same content representation, they use the same data structure to represent types.
 As a consequence, we use the same data structure to represent function (type) signatures of these variants.
 The unified type system allows one function variant to call another function
@@ -300,7 +299,7 @@ tvm/relax
 ---------
 
 Relax is the high-level IR used to represent the computational graph of a model. Various optimizations are defined in ``relax.transform``.
-Note that Relax usually works closely the the TensorIR IRModule, most of the transformations are applied on the both Relax and TensorIR functions
+Note that Relax usually works closely with the TensorIR IRModule, most of the transformations are applied on both Relax and TensorIR functions
 in the IRModule. Please refer to the :ref:`Relax Deep Dive <relax-deep-dive>` for more details.
 
 tvm/tir
@@ -330,7 +329,7 @@ TE stands for Tensor Expression. TE is a domain-specific language (DSL) for desc
 itself is not a self-contained function that can be stored into IRModule. We can use ``te.create_prim_func`` to convert a tensor expression to a ``tir::PrimFunc``
 and then integrate it into the IRModule.
 
-While possible to construct operators directly via TIR or tensor expressions (TE) for each use case it is tedious to do so.
+While possible to construct operators directly via TIR or tensor expressions (TE) for each use case, it is tedious to do so.
 `topi` (Tensor operator inventory) provides a set of pre-defined operators defined by numpy and found in common deep learning workloads.
 
 tvm/meta_schedule

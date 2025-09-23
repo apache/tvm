@@ -21,7 +21,8 @@
  *  Lower TVM related builtin intrinsics such as packed call.
  * \file tir/transforms/lower_tvm_buildin.cc
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
@@ -39,7 +40,7 @@ namespace tir {
 class BuiltinLower : public StmtExprMutator {
  public:
   static PrimFunc Build(PrimFunc func) {
-    Optional<PrimExpr> device_type = NullOpt;
+    ffi::Optional<PrimExpr> device_type = std::nullopt;
     if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
       device_type = Integer(target.value()->kind->default_device_type);
     }
@@ -49,7 +50,8 @@ class BuiltinLower : public StmtExprMutator {
     return func;
   }
 
-  explicit BuiltinLower(Optional<PrimExpr> device_type = NullOpt) : device_type_(device_type) {}
+  explicit BuiltinLower(ffi::Optional<PrimExpr> device_type = std::nullopt)
+      : device_type_(device_type) {}
 
   // NOTE: Right now, we make the following scoping requirement
   // for memory allocated by the following primitives
@@ -94,8 +96,7 @@ class BuiltinLower : public StmtExprMutator {
   struct AllocaScope {
     Buffer stack_shape;
     Var stack_array = Var("stack_array", DataType::Handle());
-    Var stack_value = Var("stack_value", DataType::Handle());
-    Buffer stack_tcode;
+    Var stack_ffi_any = Var("stack_ffi_any", DataType::Handle());
 
     StackSizes max_sizes;
     StackSizes run_sizes;
@@ -127,8 +128,6 @@ class BuiltinLower : public StmtExprMutator {
       auto& scope = precheck.alloca_scope_.back();
       scope.stack_shape =
           decl_buffer({IntImm(DataType::Int(64), 0)}, DataType::Int(64), "stack_shape");
-      scope.stack_tcode =
-          decl_buffer({IntImm(DataType::UInt(64), 0)}, DataType::Int(32), "stack_tcode");
     }
 
     precheck.VisitStmt(stmt);
@@ -168,13 +167,7 @@ class BuiltinLower : public StmtExprMutator {
       }
 
       if (scope.max_sizes.arg_stack != 0) {
-        scope.stack_tcode = decl_buffer({IntImm(DataType::UInt(64), scope.max_sizes.arg_stack)},
-                                        DataType::Int(32), "stack_tcode");
-        stmt =
-            LetStmt(scope.stack_value, StackAlloca("arg_value", scope.max_sizes.arg_stack), stmt);
-
-        stmt = DeclBuffer(scope.stack_tcode, stmt);
-        stmt = LetStmt(scope.stack_tcode->data, StackAlloca("arg_tcode", scope.max_sizes.arg_stack),
+        stmt = LetStmt(scope.stack_ffi_any, StackAlloca("tvm_ffi_any", scope.max_sizes.arg_stack),
                        stmt);
       }
     }
@@ -324,7 +317,7 @@ class BuiltinLower : public StmtExprMutator {
     }
 
     if (min.same_as(op->min) && extent.same_as(op->extent) && body.same_as(op->body)) {
-      return GetRef<Stmt>(op);
+      return ffi::GetRef<Stmt>(op);
     } else {
       auto n = CopyOnWrite(op);
       n->min = std::move(min);
@@ -337,20 +330,17 @@ class BuiltinLower : public StmtExprMutator {
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_call_packed())) {
       return MakeCallPackedGeneric(op, 0, builtin::tvm_call_packed_lowered(),
-                                   /* use_string_lookup */ true,
                                    /* use_last_value_as_traced_value*/ false);
     } else if (op->op.same_as(builtin::tvm_call_cpacked())) {
       return MakeCallPackedGeneric(op, 0, builtin::tvm_call_cpacked_lowered(),
-                                   /* use_string_lookup */ false,
                                    /* use_last_value_as_traced_value*/ false);
     } else if (op->op.same_as(builtin::tvm_call_trace_packed())) {
       return MakeCallPackedGeneric(op, 0, builtin::tvm_call_trace_packed_lowered(),
-                                   /* use_string_lookup */ true,
                                    /* use_last_value_as_traced_value*/ true);
     } else if (op->op.same_as(builtin::anylist_setitem_call_packed())) {
-      return MakeAnyListSetItemCallPacked(op, builtin::tvm_call_packed_lowered(), true);
+      return MakeAnyListSetItemCallPacked(op, builtin::tvm_call_packed_lowered());
     } else if (op->op.same_as(builtin::anylist_setitem_call_cpacked())) {
-      return MakeAnyListSetItemCallPacked(op, builtin::tvm_call_cpacked_lowered(), false);
+      return MakeAnyListSetItemCallPacked(op, builtin::tvm_call_cpacked_lowered());
     } else if (op->op.same_as(builtin::tvm_stack_make_shape())) {
       return MakeShape(op);
     } else if (op->op.same_as(builtin::tvm_stack_make_array())) {
@@ -380,7 +370,7 @@ class BuiltinLower : public StmtExprMutator {
                   << "but was instead the expression " << device_type_ << " with type "
                   << device_type_.value()->GetTypeKey();
 
-    String device_name = runtime::DLDeviceType2Str(as_int->value);
+    ffi::String device_name = runtime::DLDeviceType2Str(as_int->value);
     return StringImm("device_api." + device_name + "." + method_name);
   }
 
@@ -490,57 +480,70 @@ class BuiltinLower : public StmtExprMutator {
     return TVMStructGet(DataType::Handle(), scope.stack_array, idx, builtin::kArrAddr);
   }
 
-  void SetPackedArg(PrimExpr arg, const Var& value_stack, const Buffer& tcode_stack,
-                    size_t stack_offset, std::vector<tir::Stmt>* prep_seq) {
+  void SetPackedArg(PrimExpr arg, const Var& args_stack, size_t stack_offset,
+                    std::vector<tir::Stmt>* prep_seq) {
     auto* call_pattern = arg.as<CallNode>();
     if (call_pattern && call_pattern->op.same_as(builtin::anylist_getitem())) {
       // call runtime function to set anylist
-      prep_seq->emplace_back(
-          Evaluate(Call(DataType::Int(32), Op::Get("tir.TVMBackendAnyListSetPackedArg"),
-                        {call_pattern->args[0], call_pattern->args[1], value_stack,
-                         tcode_stack->data, ConstInt32(stack_offset)})));
+      prep_seq->emplace_back(Evaluate(Call(
+          DataType::Int(32), Op::Get("tir.TVMBackendAnyListSetPackedArg"),
+          {call_pattern->args[0], call_pattern->args[1], args_stack, ConstInt32(stack_offset)})));
     } else {
-      DataType api_type = APIType(arg.dtype());
-      if (arg.dtype() != api_type) {
-        arg = Cast(api_type, arg);
+      DataType api_dtype = APIType(arg.dtype());
+      if (arg.dtype() != api_dtype) {
+        arg = Cast(api_dtype, arg);
       }
-      prep_seq->emplace_back(
-          TVMStructSet(value_stack, stack_offset, builtin::kTVMValueContent, arg));
-      int arg_tcode = api_type.code();
-      if (api_type.is_handle() && arg.as<StringImmNode>()) {
-        arg_tcode = kTVMStr;
-      } else if (IsArrayHandle(arg)) {
-        arg_tcode = kTVMDLTensorHandle;
-      } else if (arg.dtype().is_bool()) {
-        arg_tcode = kTVMArgBool;
-      }
+
+      int arg_type_index = [&]() {
+        if (api_dtype.is_bool()) return ffi::TypeIndex::kTVMFFIBool;
+        if (api_dtype.is_int() || api_dtype.is_uint()) return ffi::TypeIndex::kTVMFFIInt;
+        if (api_dtype.is_float()) return ffi::TypeIndex::kTVMFFIFloat;
+        if (api_dtype.is_handle() && arg.as<StringImmNode>()) {
+          return ffi::TypeIndex::kTVMFFIRawStr;
+        } else if (IsArrayHandle(arg)) {
+          return ffi::TypeIndex::kTVMFFIDLTensorPtr;
+        } else if (api_dtype.is_handle()) {
+          return ffi::TypeIndex::kTVMFFIOpaquePtr;
+        } else {
+          LOG(FATAL) << "Unsupported type: " << api_dtype;
+        }
+      }();
+
       // opaque handle need to set the kind properly
-      if (arg_tcode == kTVMOpaqueHandle) {
-        prep_seq->emplace_back(IfThenElse(
-            Call(DataType::Bool(), builtin::isnullptr(), {arg}),
-            BufferStore(tcode_stack, ConstInt32(kTVMNullptr), {ConstInt32(stack_offset)}),
-            BufferStore(tcode_stack, ConstInt32(arg_tcode), {ConstInt32(stack_offset)})));
-      } else {
+      if (arg_type_index == ffi::TypeIndex::kTVMFFIOpaquePtr) {
         prep_seq->emplace_back(
-            BufferStore(tcode_stack, ConstInt32(arg_tcode), {ConstInt32(stack_offset)}));
+            IfThenElse(Call(DataType::Bool(), builtin::isnullptr(), {arg}),
+                       TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
+                                    ConstInt32(ffi::TypeIndex::kTVMFFINone)),
+                       TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
+                                    ConstInt32(ffi::TypeIndex::kTVMFFIOpaquePtr))));
+      } else {
+        prep_seq->emplace_back(TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
+                                            ConstInt32(arg_type_index)));
       }
+      // set zero padding to ensure compatibility with FFI convention
+      prep_seq->emplace_back(
+          TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyZeroPadding, ConstInt32(0)));
+      // handle arg value
+      // NOTE: the intrinsic codegen will handle padding value clear for 32bit
+      // types or types that are smaller than 64 bits.
+      prep_seq->emplace_back(
+          TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyUnionValue, arg));
     }
   }
 
-  PrimExpr MakeAnyListSetItemCallPacked(const CallNode* op, const Op& lowered_op,
-                                        bool use_string_lookup) {
+  PrimExpr MakeAnyListSetItemCallPacked(const CallNode* op, const Op& lowered_op) {
     PrimExpr list_handle = op->args[0];
     PrimExpr list_index = op->args[1];
 
-    Call call = MakeCallPackedGeneric(op, 2, lowered_op, use_string_lookup, false);
-    PrimExpr value_stack = call->args[1];
-    PrimExpr tcode_stack = call->args[2];
+    Call call = MakeCallPackedGeneric(op, 2, lowered_op, false);
+    PrimExpr args_stack = call->args[1];
     // The stack offset of return value stack_end
-    PrimExpr ret_offset = call->args[4];
+    PrimExpr ret_offset = call->args[3];
     auto& prep_seq = prep_seq_stack_.back();
     prep_seq.emplace_back(Evaluate(call));
     return Call(DataType::Int(32), Op::Get("tir.TVMBackendAnyListMoveFromPackedReturn"),
-                {list_handle, list_index, value_stack, tcode_stack, ret_offset});
+                {list_handle, list_index, args_stack, ret_offset});
   }
   /*!
    * \brief Generic tool to make low-level
@@ -549,11 +552,10 @@ class BuiltinLower : public StmtExprMutator {
    * \param op The call
    * \param name_offset The beginning of function name and call packed section.
    * \param lowered_packed_op The target lowered op.
-   * \param use_string_lookup Whether to lookup function by string.
    * \param pass_last_arg_as_traced_value Whether to pass last argument as traced value
    */
   Call MakeCallPackedGeneric(const CallNode* op, size_t name_offset, const Op& lowered_packed_op,
-                             bool use_string_lookup, bool pass_last_arg_as_traced_value) {
+                             bool pass_last_arg_as_traced_value) {
     auto& scope = alloca_scope_.back();
     auto& prep_seq = prep_seq_stack_.back();
 
@@ -564,10 +566,6 @@ class BuiltinLower : public StmtExprMutator {
     size_t args_begin = name_offset + 1;
     size_t args_end = op->args.size();
 
-    // cpacked expects a resource_handle parameter
-    if (!use_string_lookup) {
-      --args_end;
-    }
     size_t num_args = args_end - args_begin;
 
     // The extra one slot is for return value.
@@ -577,9 +575,16 @@ class BuiltinLower : public StmtExprMutator {
     op = expr.as<CallNode>();
 
     for (size_t i = 0; i < num_args; ++i) {
-      this->SetPackedArg(op->args[args_begin + i], scope.stack_value, scope.stack_tcode,
-                         arg_stack_begin + i, &prep_seq);
+      this->SetPackedArg(op->args[args_begin + i], scope.stack_ffi_any, arg_stack_begin + i,
+                         &prep_seq);
     }
+    // explicitly set return value to None to avoid bad state interpretation
+    prep_seq.emplace_back(TVMStructSet(scope.stack_ffi_any, num_args, builtin::kTVMFFIAnyTypeIndex,
+                                       ConstInt32(ffi::TypeIndex::kTVMFFINone)));
+    prep_seq.emplace_back(
+        TVMStructSet(scope.stack_ffi_any, num_args, builtin::kTVMFFIAnyZeroPadding, ConstInt32(0)));
+    prep_seq.emplace_back(TVMStructSet(scope.stack_ffi_any, num_args, builtin::kTVMFFIAnyUnionValue,
+                                       make_zero(DataType::Int(64))));
     // Verify stack size matches earlier value.
     if (is_precheck_) {
       scope.UpdateMax();
@@ -589,21 +594,10 @@ class BuiltinLower : public StmtExprMutator {
     scope.run_sizes.shape_stack = restore_shape_stack;
     scope.run_sizes.array_stack = restore_array_stack;
     scope.run_sizes.arg_stack = arg_stack_begin;
-    Array<PrimExpr> packed_args = {op->args[name_offset], scope.stack_value,
-                                   scope.stack_tcode->data, ConstInt32(arg_stack_begin),
-                                   ConstInt32(arg_stack_begin + num_args)};
-    // cpacked call resource_handle
-    if (!use_string_lookup) {
-      ICHECK(!pass_last_arg_as_traced_value);
-      PrimExpr last_arg = op->args[args_end];
-      const VarNode* var_node = last_arg.as<VarNode>();
-      if (var_node != nullptr) {
-        tir::Var resource_handle = GetRef<Var>(var_node);
-        packed_args.push_back(StringImm(resource_handle->name_hint));
-      } else {
-        packed_args.push_back(last_arg);
-      }
-    } else if (pass_last_arg_as_traced_value) {
+    ffi::Array<PrimExpr> packed_args = {op->args[name_offset], scope.stack_ffi_any,
+                                        ConstInt32(arg_stack_begin),
+                                        ConstInt32(arg_stack_begin + num_args)};
+    if (pass_last_arg_as_traced_value) {
       // pass in last element as traced value
       // used by call_packed_traced
       packed_args.push_back(op->args[op->args.size() - 1]);
@@ -632,7 +626,7 @@ class BuiltinLower : public StmtExprMutator {
     std::string fdevapi_prefix = "device_api.";
     fdevapi_prefix += runtime::DLDeviceType2Str(device_type_.as<IntImmNode>()->value);
 
-    Array<PrimExpr> args = {
+    ffi::Array<PrimExpr> args = {
         GetDeviceMethodName("alloc_nd"),
         device_type_.value(),
         device_id_.value(),
@@ -663,8 +657,8 @@ class BuiltinLower : public StmtExprMutator {
 
   // The prepration sequence to be emitted before the current statement.
   std::vector<std::vector<Stmt>> prep_seq_stack_;
-  Optional<PrimExpr> device_type_{NullOpt};
-  Optional<PrimExpr> device_id_{NullOpt};
+  ffi::Optional<PrimExpr> device_type_{std::nullopt};
+  ffi::Optional<PrimExpr> device_id_{std::nullopt};
 
   bool is_precheck_{false};
 
@@ -685,7 +679,10 @@ Pass LowerTVMBuiltin() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerTVMBuiltin", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerTVMBuiltin").set_body_typed(LowerTVMBuiltin);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LowerTVMBuiltin", LowerTVMBuiltin);
+}
 
 }  // namespace transform
 }  // namespace tir

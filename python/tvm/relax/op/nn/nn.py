@@ -17,10 +17,10 @@
 """Relax Neural Network (NN) operators"""
 from typing import List, Optional, Tuple, Union
 
-from tvm import DataType
+from tvm import DataType, relax
 from tvm.tir import FloatImm
 
-from ...expr import Expr, const
+from ...expr import Expr
 from . import _ffi_api
 
 
@@ -513,7 +513,12 @@ def conv2d_transpose(
     )
 
 
-def pad(data, pad_width, pad_value=0, pad_mode="constant"):
+def pad(
+    data: Expr,
+    pad_width: Union[List[int], Tuple[int, ...]],
+    pad_mode: Optional[str] = "constant",
+    pad_value: Optional[float] = 0.0,
+):
     r"""Padding
 
     This operator takes in a tensor and pads each axis by the specified
@@ -523,23 +528,58 @@ def pad(data, pad_width, pad_value=0, pad_mode="constant"):
     ----------
     data: relax.Expr
         The input data to the operator
-    pad_width: tuple of <tuple of <int>>, required
+    pad_width: Union[List[int], Tuple[int, ...]], required
         Number of values padded to the edges of each axis, in the format
         of ((before_1, after_1), ..., (before_N, after_N))
-    pad_value: float
-        The value used for padding
-    pad_mode: 'constant', 'edge', 'reflect'
-        'constant' pads with constant_value pad_value
-        'edge' pads using the edge values of the input array
-        'reflect' pads by reflecting values with respect to the edge
+    pad_mode: Optional[str]
+        'constant', 'reflect', 'replicate', 'circular'
+        'constant' pads with constant value pad_value
+        'reflect' pads by mirroring values excluding the edge
+        'replicate' pads by repeating the edge values.
+        'circular' pads by looping values from the other side
+        Default is 'constant'
+    pad_value: Optional[Union[float, Expr]]
+        The value used for padding. Default is 0.
+
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    if not isinstance(pad_value, Expr):
-        pad_value = const(pad_value)
-    return _ffi_api.pad(data, pad_width, pad_value, pad_mode)
+    return _ffi_api.pad(data, pad_width, pad_mode, pad_value)
+
+
+def pixel_shuffle(data: Expr, upscale_factor: int):
+    r"""
+    Pixel Shuffle Operator
+
+    This operator performs the pixel shuffle operation on the input tensor,
+    which is often used for efficient sub-pixel convolution in image
+    super-resolution tasks. It rearranges elements in a tensor of shape
+    (N, C × r^2, H, W) to a tensor of shape (N, C, H × r, W × r), where `r`
+    is the upscale factor.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input tensor to the pixel shuffle operator. It must have 4 dimensions
+        with the format (N, C * r^2, H, W), where `r` is the upscale factor.
+
+    upscale_factor : int
+        The upscaling factor `r`. It determines how much to increase the spatial
+        resolution (height and width) of the input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The transformed tensor with shape (N, C, H * r, W * r).
+
+    Example
+    -------
+    If the input tensor has shape (1, 8, 10, 15) and `upscale_factor` is 2,
+    the resulting tensor will have shape (1, 2, 20, 30).
+    """
+    return _ffi_api.pixel_shuffle(data, upscale_factor)
 
 
 def max_pool1d(
@@ -800,7 +840,7 @@ def avg_pool1d(
     padding: Union[int, Tuple[int, ...]] = (0, 0),
     dilation: Union[int, Tuple[int, int]] = (1,),
     ceil_mode: bool = False,
-    count_include_pad: bool = False,
+    count_include_pad: bool = True,
     layout: str = "NCW",
     out_layout: Optional[str] = None,
 ) -> Expr:
@@ -968,7 +1008,7 @@ def avg_pool3d(
     padding: Union[int, Tuple[int, ...]] = (0, 0, 0),
     dilation: Union[int, Tuple[int, int]] = (1, 1, 1),
     ceil_mode: bool = False,
-    count_include_pad: bool = False,
+    count_include_pad: bool = True,
     layout: str = "NCDHW",
     out_layout: Optional[str] = None,
 ) -> Expr:
@@ -1227,6 +1267,25 @@ def relu(data: Expr) -> Expr:
     return _ffi_api.relu(data)  # type: ignore
 
 
+def relu6(data: Expr) -> Expr:
+    r"""ReLU6 activation function.
+
+    .. math::
+        \text{ReLU6}(x) = \min(\max(x, 0), 6)
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return relax.op.clip(data, 0, 6)
+
+
 def leakyrelu(data: Expr, alpha: float = 0.01) -> Expr:
     """Rectified linear unit.
 
@@ -1298,6 +1357,30 @@ def gelu_tanh(data: Expr) -> Expr:
     return _ffi_api.gelu_tanh(data)  # type: ignore
 
 
+def selu(data: Expr) -> Expr:
+    r"""Scaled Exponential Linear Unit (SELU).
+
+    .. math::
+        \text{SELU}(x) = \lambda \begin{cases}
+            x & \text{if } x > 0 \\
+            \alpha (e^x - 1) & \text{if } x \leq 0
+        \end{cases}
+
+    where :math:`\lambda \approx 1.0507` and :math:`\alpha \approx 1.6733`.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.selu(data)
+
+
 def silu(data: Expr) -> Expr:
     r"""Sigmoid Linear Unit function
 
@@ -1348,6 +1431,31 @@ def softmax(data: Expr, axis: int = -1) -> Expr:
     return _ffi_api.softmax(data, axis)  # type: ignore
 
 
+def softplus(data: Expr, beta: float = 1.0, threshold: float = 20.0) -> Expr:
+    r"""Softplus activation function.
+
+    .. math:: \text{Softplus}(x) = \frac{1}{\beta} \log(1 + e^{\beta x})
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data.
+
+    beta : float, optional
+        Controls the smoothness of the transition. Default is 1.0.
+
+    threshold : float, optional
+        The value beyond which the function is approximated as linear
+        to avoid numerical instability. Default is 20.0.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.softplus(data, beta, threshold)
+
+
 def log_softmax(data: Expr, axis: int = -1) -> Expr:
     r"""Computes log softmax.
 
@@ -1376,6 +1484,32 @@ def log_softmax(data: Expr, axis: int = -1) -> Expr:
     return _ffi_api.log_softmax(data, axis)  # type: ignore
 
 
+def prelu(data: Expr, alpha: Expr, axis: int = 1) -> Expr:
+    r"""Parametric Rectified Linear Unit (PReLU).
+
+    .. math::
+        PReLU(x) = x \text{ if } x > 0 \text{ else } \alpha * x
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input tensor.
+
+    alpha : relax.Expr
+        The learnable slope tensor, applied channel-wise.
+
+    axis : int
+        The axis along which the `alpha` values are applied
+        Default is 1 (assuming NCHW format).
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.prelu(data, alpha, axis)
+
+
 def batch_norm(
     data: Expr,
     gamma: Expr,
@@ -1387,6 +1521,7 @@ def batch_norm(
     center: bool = True,
     scale: bool = True,
     momentum: float = 0.1,
+    training: bool = True,
 ) -> Expr:
     r"""
     Batch normalization layer (Ioffe and Szegedy, 2014).
@@ -1475,13 +1610,28 @@ def batch_norm(
     momentum : float
         The value used for the moving_mean and moving_var update.
 
+    training : bool
+        A boolean value to indicate whether training or in eval mode. By default.
+          relax batch_norm is training mode. To transform it to inference mode,
+          can use DecomposeOpsForInference.
+
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
     return _ffi_api.batch_norm(  # type: ignore
-        data, gamma, beta, moving_mean, moving_var, axis, epsilon, center, scale, momentum
+        data,
+        gamma,
+        beta,
+        moving_mean,
+        moving_var,
+        axis,
+        epsilon,
+        center,
+        scale,
+        momentum,
+        training,
     )
 
 
@@ -1604,6 +1754,61 @@ def group_norm(
     )
 
 
+def instance_norm(
+    data: Expr,
+    gamma: Expr,
+    beta: Expr,
+    channel_axis: int,
+    axes: List[int],
+    epsilon: float = 1e-5,
+    center: bool = True,
+    scale: bool = True,
+) -> Expr:
+    r"""
+    Instance normalization
+
+    Parameters
+    ----------
+    data : relax.Expr
+        Input to which instance_norm will be applied.
+
+    gamma : relax.Expr
+        The gamma scale factor.
+
+    beta : relax.Expr
+        The beta offset factor.
+
+    axes : Union[int, List[int]]
+        The axes that along which the normalization is applied.
+
+    epsilon : float
+        Small float added to variance to avoid dividing by zero.
+
+    center : bool
+        Indicating if the beta offset will be added to the normalized tensor.
+
+    scale : bool
+        Indicating if the gamma scale will be multiplied.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    if isinstance(axes, int):
+        axes = [axes]
+    return _ffi_api.instance_norm(  # type: ignore
+        data,
+        gamma,
+        beta,
+        channel_axis,
+        axes,
+        epsilon,
+        center,
+        scale,
+    )
+
+
 def rms_norm(
     data: Expr,
     weight: Expr,
@@ -1618,7 +1823,7 @@ def rms_norm(
 
     .. math::
 
-        out = \frac{data}{\sqrt{mean(data, axis)+\epsilon}} * weight + bias
+        out = \frac{data}{\sqrt{mean(data, axis)+\epsilon}} * weight
 
     Parameters
     ----------
@@ -1627,9 +1832,6 @@ def rms_norm(
 
     weight : relax.Expr
         The scale factor.
-
-    bias : relax.Expr
-        The offset factor.
 
     axes : Union[int, List[int]]
         The axes that along which the normalization is applied.
@@ -1754,6 +1956,103 @@ def attention(
     window_size: Optional[int] = None,
 ) -> Expr:
     r"""Computes fused multi head attention.
+
+    All input tensors are of 4-D tensors with BSNH layout.
+
+    .. math::
+        FMA(Q, K, V) = \text{Softmax}(Q @ K^T) @ V
+
+    .. note::
+        The input tensor is required to have float16 dtype
+
+    Parameters
+    ----------
+    query: relax.Expr
+        The input query to the operator. The layout of the input query should be
+        (batch_size, seq_len, num_head, head_dim).
+
+    key: relax.Expr
+        The input key to the operator. The layout of the input key should be
+        (batch_size, seq_len_kv, num_head, head_dim).
+
+    value: relax.Expr
+        The input value to the operator. The layout of the input value should be
+        (batch_size, seq_len_kv, num_head, head_dim_v).
+
+    bias: Optional[Expr]
+        The optional attention bias to the operator. The layout of the attention bias should be
+        a 4-D tensor ending with seq_len_kv, and broadcastable to
+        (batch_size, num_head, seq_len, seq_len_kv).
+
+    scale: Optional[float]
+        The scale value to be applied to the attention score, by default 1 / sqrt(head_dim).
+
+    causal_mask: Optional[str]
+        The optional causal mask, i.e. 'TopLeft' and 'BottomRight'.
+        For 'TopLeft', the mask matrix is as `np.tril(*, k=0)`,
+        while for 'BottomRight', the mask matrix is as `np.tril(*, k=abs(seq_len - seq_len_kv))`
+        For example, with seq_len = 4, seq_len_kv = 2,
+        mask for 'TopLeft':
+
+        .. code:: python
+
+            [[1, 0],
+            [1, 1],
+            [1, 1],
+            [1, 1]]
+
+        mask for 'BottomRight':
+
+        .. code:: python
+
+            [[1, 1],
+            [1, 1],
+            [1, 1],
+            [1, 1]]
+
+        with seq_len = 2, seq_len_kv = 4,
+        mask for 'TopLeft':
+
+        .. code:: python
+
+            [[1, 0, 0, 0],
+            [1, 1, 0, 0]]
+
+        mask for 'BottomRight':
+
+        .. code:: python
+
+            [[1, 1, 1, 0],
+            [1, 1, 1, 1]]
+
+    window_size: Optional[int]
+        The size of the window for sliding-window attention.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result. The layout of the output should be
+        (batch_size, seq_len, num_head, head_dim_v).
+    """
+    return _ffi_api.attention(
+        query, key, value, bias, scale, causal_mask, window_size
+    )  # type: ignore
+
+
+def attention_bias(
+    query: Expr,
+    key: Expr,
+    value: Expr,
+    bias: Optional[Expr] = None,
+    scale: Optional[FloatImm] = None,
+    causal_mask: Optional[str] = None,
+    window_size: Optional[int] = None,
+) -> Expr:
+    r"""Computes fused multi head attention.
+
+    IRModule.script() transforms attention op to attention_bias which is incompatible
+    with TVMScript Parser.
+    The function makes TVMScript's print compatible with TVMScript's parser.
 
     All input tensors are of 4-D tensors with BSNH layout.
 

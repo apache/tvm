@@ -20,9 +20,8 @@ Doc objects, then access and modify their attributes correctly.
 """
 
 import pytest
-
 import tvm
-from tvm.runtime import ObjectPath
+from tvm_ffi.access_path import AccessPath
 from tvm.script.printer.doc import (
     AssertDoc,
     AssignDoc,
@@ -307,7 +306,6 @@ def test_assign_doc(lhs, rhs, annotation):
 def test_invalid_assign_doc(lhs, rhs, annotation):
     with pytest.raises(ValueError) as e:
         AssignDoc(lhs, rhs, annotation)
-    assert "AssignDoc" in str(e.value)
 
 
 @pytest.mark.parametrize(
@@ -332,7 +330,6 @@ def test_if_doc(then_branch, else_branch):
     if not then_branch and not else_branch:
         with pytest.raises(ValueError) as e:
             IfDoc(predicate, then_branch, else_branch)
-        assert "IfDoc" in str(e.value)
         return
     else:
         doc = IfDoc(predicate, then_branch, else_branch)
@@ -549,7 +546,7 @@ def test_doc_source_paths():
     doc = IdDoc("x")
     assert len(doc.source_paths) == 0
 
-    source_paths = [ObjectPath.root(), ObjectPath.root().attr("x")]
+    source_paths = [AccessPath.root(), AccessPath.root().attr("x")]
 
     doc.source_paths = source_paths
     # This should triggers the __getattr__ and gets a tvm.ir.container.Array

@@ -47,7 +47,7 @@ class Conv2dReLUx2:
         data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight11: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "dnnl.conv2d_relu"})
+        R.func_attr({"Primitive": True, "Composite": "dnnl.conv2d_relu"})
         with R.dataflow():
             lv1: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.conv2d(
                 data1,
@@ -63,7 +63,7 @@ class Conv2dReLUx2:
         conv1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight21: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "dnnl.conv2d_relu"})
+        R.func_attr({"Primitive": True, "Composite": "dnnl.conv2d_relu"})
         with R.dataflow():
             lv2: R.Tensor((1, 64, 54, 54), dtype="float32") = R.nn.conv2d(
                 conv1,
@@ -159,9 +159,9 @@ class Diamond:
 
     @R.function(private=True)
     def fused_relax_nn_gelu(
-        lv: R.Tensor((1, 64, 54, 54), dtype="float32")
+        lv: R.Tensor((1, 64, 54, 54), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "compiler_A.gelu"})
+        R.func_attr({"Primitive": True, "Composite": "compiler_A.gelu"})
         with R.dataflow():
             gv: R.Tensor((1, 64, 54, 54), dtype="float32") = R.nn.gelu(lv)
             R.output(gv)
@@ -169,9 +169,9 @@ class Diamond:
 
     @R.function(private=True)
     def fused_relax_nn_relu(
-        lv1: R.Tensor((1, 64, 54, 54), dtype="float32")
+        lv1: R.Tensor((1, 64, 54, 54), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "compiler_A.relu"})
+        R.func_attr({"Primitive": True, "Composite": "compiler_A.relu"})
         with R.dataflow():
             gv1: R.Tensor((1, 64, 54, 54), dtype="float32") = R.nn.relu(lv1)
             R.output(gv1)
@@ -182,7 +182,7 @@ class Diamond:
         lv5: R.Tensor((1, 64, 54, 54), dtype="float32"),
         gelu1: R.Tensor((1, 64, 54, 54), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "compiler_A.add"})
+        R.func_attr({"Primitive": True, "Composite": "compiler_A.add"})
         with R.dataflow():
             gv3: R.Tensor((1, 64, 54, 54), dtype="float32") = R.add(lv5, gelu1)
             R.output(gv3)
@@ -193,7 +193,7 @@ class Diamond:
         data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "compiler_A.conv2d"})
+        R.func_attr({"Primitive": True, "Composite": "compiler_A.conv2d"})
         with R.dataflow():
             gv4: R.Tensor((1, 64, 54, 54), dtype="float32") = R.nn.conv2d(
                 data1,
@@ -243,7 +243,7 @@ class Diamond_merged:
 
         @R.function
         def lv1(
-            lv11: R.Tensor((1, 64, 54, 54), dtype="float32")
+            lv11: R.Tensor((1, 64, 54, 54), dtype="float32"),
         ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
             # function attr dict
             R.func_attr({"Composite": "compiler_A.relu"})
@@ -257,7 +257,7 @@ class Diamond_merged:
 
         @R.function
         def lv21(
-            lv4: R.Tensor((1, 64, 54, 54), dtype="float32")
+            lv4: R.Tensor((1, 64, 54, 54), dtype="float32"),
         ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
             # function attr dict
             R.func_attr({"Composite": "compiler_A.gelu"})
@@ -321,9 +321,9 @@ class Diamond_cyclic_dep:
 
     @R.function(private=True)
     def fused_relax_nn_gelu(
-        lv: R.Tensor((1, 64, 54, 54), dtype="float32")
+        lv: R.Tensor((1, 64, 54, 54), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "compiler_B.gelu"})
+        R.func_attr({"Primitive": True, "Composite": "compiler_B.gelu"})
         with R.dataflow():
             gv: R.Tensor((1, 64, 54, 54), dtype="float32") = R.nn.gelu(lv)
             R.output(gv)
@@ -331,9 +331,9 @@ class Diamond_cyclic_dep:
 
     @R.function(private=True)
     def fused_relax_nn_relu(
-        lv1: R.Tensor((1, 64, 54, 54), dtype="float32")
+        lv1: R.Tensor((1, 64, 54, 54), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "compiler_A.relu"})
+        R.func_attr({"Primitive": True, "Composite": "compiler_A.relu"})
         with R.dataflow():
             gv1: R.Tensor((1, 64, 54, 54), dtype="float32") = R.nn.relu(lv1)
             R.output(gv1)
@@ -344,7 +344,7 @@ class Diamond_cyclic_dep:
         lv5: R.Tensor((1, 64, 54, 54), dtype="float32"),
         gelu1: R.Tensor((1, 64, 54, 54), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "compiler_A.add"})
+        R.func_attr({"Primitive": True, "Composite": "compiler_A.add"})
         with R.dataflow():
             gv3: R.Tensor((1, 64, 54, 54), dtype="float32") = R.add(lv5, gelu1)
             R.output(gv3)
@@ -355,7 +355,7 @@ class Diamond_cyclic_dep:
         data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "compiler_A.conv2d"})
+        R.func_attr({"Primitive": True, "Composite": "compiler_A.conv2d"})
         with R.dataflow():
             gv4: R.Tensor((1, 64, 54, 54), dtype="float32") = R.nn.conv2d(
                 data1,
@@ -418,7 +418,7 @@ class Diamond_cyclic_dep_merged:
 
         @R.function
         def lv1(
-            lv11: R.Tensor((1, 64, 54, 54), dtype="float32")
+            lv11: R.Tensor((1, 64, 54, 54), dtype="float32"),
         ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
             R.func_attr({"Composite": "compiler_A.relu"})
             with R.dataflow():
@@ -432,13 +432,13 @@ class Diamond_cyclic_dep_merged:
 
     @R.function
     def fused_relax_nn_gelu1_compiler_B(
-        lv2: R.Tensor((1, 64, 54, 54), dtype="float32")
+        lv2: R.Tensor((1, 64, 54, 54), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
         R.func_attr({"Codegen": "compiler_B"})
 
         @R.function
         def lv21(
-            lv3: R.Tensor((1, 64, 54, 54), dtype="float32")
+            lv3: R.Tensor((1, 64, 54, 54), dtype="float32"),
         ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
             R.func_attr({"Composite": "compiler_B.gelu"})
             with R.dataflow():
@@ -489,9 +489,9 @@ class MultipleProducers:
 
     @R.function(private=True)
     def fused_relax_nn_relu(
-        x11: R.Tensor((10,), dtype="float32")
+        x11: R.Tensor((10,), dtype="float32"),
     ) -> R.Tensor((10,), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "compiler_A.relu"})
+        R.func_attr({"Primitive": True, "Composite": "compiler_A.relu"})
         with R.dataflow():
             gv2: R.Tensor((10,), dtype="float32") = R.nn.relu(x11)
             R.output(gv2)
@@ -499,9 +499,9 @@ class MultipleProducers:
 
     @R.function(private=True)
     def fused_relax_nn_gelu(
-        x21: R.Tensor((10,), dtype="float32")
+        x21: R.Tensor((10,), dtype="float32"),
     ) -> R.Tensor((10,), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "compiler_A.gelu"})
+        R.func_attr({"Primitive": True, "Composite": "compiler_A.gelu"})
         with R.dataflow():
             gv3: R.Tensor((10,), dtype="float32") = R.nn.gelu(x21)
             R.output(gv3)
@@ -511,7 +511,7 @@ class MultipleProducers:
     def fused_relax_add(
         lv: R.Tensor((10,), dtype="float32"), gelu1: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "compiler_A.add"})
+        R.func_attr({"Primitive": True, "Composite": "compiler_A.add"})
         with R.dataflow():
             gv: R.Tensor((10,), dtype="float32") = R.add(lv, gelu1)
             R.output(gv)
@@ -599,9 +599,9 @@ class MultipleProducersCyclic:
 
     @R.function(private=True)
     def fused_relax_nn_relu(
-        x11: R.Tensor((10,), dtype="float32")
+        x11: R.Tensor((10,), dtype="float32"),
     ) -> R.Tensor((10,), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "compiler_A.relu"})
+        R.func_attr({"Primitive": True, "Composite": "compiler_A.relu"})
         with R.dataflow():
             gv2: R.Tensor((10,), dtype="float32") = R.nn.relu(x11)
             R.output(gv2)
@@ -609,9 +609,9 @@ class MultipleProducersCyclic:
 
     @R.function(private=True)
     def fused_relax_nn_gelu(
-        x21: R.Tensor((10,), dtype="float32")
+        x21: R.Tensor((10,), dtype="float32"),
     ) -> R.Tensor((10,), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "compiler_A.gelu"})
+        R.func_attr({"Primitive": True, "Composite": "compiler_A.gelu"})
         with R.dataflow():
             gv3: R.Tensor((10,), dtype="float32") = R.nn.gelu(x21)
             R.output(gv3)
@@ -621,7 +621,7 @@ class MultipleProducersCyclic:
     def fused_relax_add(
         lv: R.Tensor((10,), dtype="float32"), gelu1: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "compiler_A.add"})
+        R.func_attr({"Primitive": True, "Composite": "compiler_A.add"})
         with R.dataflow():
             gv: R.Tensor((10,), dtype="float32") = R.add(lv, gelu1)
             R.output(gv)
@@ -644,7 +644,7 @@ class MultipleProducersCyclic_merged:
 
     @R.function
     def fused_relax_nn_relu1_compiler_A(
-        x11: R.Tensor((10,), dtype="float32")
+        x11: R.Tensor((10,), dtype="float32"),
     ) -> R.Tensor((10,), dtype="float32"):
         # function attr dict
         R.func_attr({"Codegen": "compiler_A"})
@@ -722,9 +722,9 @@ class MergeCompilerRegionsExample:
 
     @R.function(private=True)
     def fused_relax_nn_relu(
-        add2: R.Tensor((10,), dtype="float32")
+        add2: R.Tensor((10,), dtype="float32"),
     ) -> R.Tensor((10,), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "compiler_A.relu"})
+        R.func_attr({"Primitive": True, "Composite": "compiler_A.relu"})
         with R.dataflow():
             gv: R.Tensor((10,), dtype="float32") = R.nn.relu(add2)
             R.output(gv)
@@ -734,7 +734,7 @@ class MergeCompilerRegionsExample:
     def fused_relax_add(
         x11: R.Tensor((10,), dtype="float32"), x21: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "compiler_A.add"})
+        R.func_attr({"Primitive": True, "Composite": "compiler_A.add"})
         with R.dataflow():
             gv2: R.Tensor((10,), dtype="float32") = R.add(x11, x21)
             R.output(gv2)
@@ -742,9 +742,9 @@ class MergeCompilerRegionsExample:
 
     @R.function(private=True)
     def fused_relax_nn_gelu(
-        x31: R.Tensor((10,), dtype="float32")
+        x31: R.Tensor((10,), dtype="float32"),
     ) -> R.Tensor((10,), dtype="float32"):
-        R.func_attr({"Primitive": 1, "Composite": "compiler_B.gelu"})
+        R.func_attr({"Primitive": True, "Composite": "compiler_B.gelu"})
         with R.dataflow():
             gv3: R.Tensor((10,), dtype="float32") = R.nn.gelu(x31)
             R.output(gv3)
@@ -817,7 +817,7 @@ class MergeCompilerRegionsExampleRef:
 
     @R.function
     def fused_relax_nn_gelu1_compiler_B(
-        x3: R.Tensor((10,), dtype="float32")
+        x3: R.Tensor((10,), dtype="float32"),
     ) -> R.Tensor((10,), dtype="float32"):
         R.func_attr({"Codegen": "compiler_B"})
 
@@ -873,7 +873,7 @@ class ModuleWithNonComposite:
         data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
-        R.func_attr({"Composite": "tensorrt.conv2d", "Primitive": 1})
+        R.func_attr({"Composite": "tensorrt.conv2d", "Primitive": True})
         with R.dataflow():
             gv: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.conv2d(
                 data1,
@@ -993,10 +993,6 @@ def test_merge_producers_cyclic_dep():
 
 
 def test_merge_compiler_regions_example():
-    """
-    A tricky example from https://discuss.tvm.apache.org/t/relay-improved-graph-partitioning-algorithm/5830
-    See also the corresponding test case for Relay MergeCompilerRegions in relay/test_pass_merge_compiler_regions.py.
-    """
     check(
         MergeCompilerRegionsExample,
         MergeCompilerRegionsExampleRef,
@@ -1015,7 +1011,7 @@ def test_reshape():
         def fused_relax_matmul(
             lv: R.Tensor((1, 784), dtype="float32"), lv1: R.Tensor((784, 512), dtype="float32")
         ) -> R.Tensor((1, 512), dtype="float32"):
-            R.func_attr({"Composite": "tensorrt.matmul", "Primitive": 1})
+            R.func_attr({"Composite": "tensorrt.matmul", "Primitive": True})
             with R.dataflow():
                 gv: R.Tensor((1, 512), dtype="float32") = R.matmul(lv, lv1, out_dtype="float32")
                 R.output(gv)
@@ -1025,7 +1021,7 @@ def test_reshape():
         def fused_relax_reshape(
             inp_0: R.Tensor((1, 1, 28, 28), dtype="float32"), param_0: R.Shape([1, 784])
         ) -> R.Tensor((1, 784), dtype="float32"):
-            R.func_attr({"Composite": "tensorrt.reshape", "Primitive": 1})
+            R.func_attr({"Composite": "tensorrt.reshape", "Primitive": True})
             with R.dataflow():
                 gv: R.Tensor((1, 784), dtype="float32") = R.reshape(inp_0, param_0)
                 R.output(gv)
@@ -1131,9 +1127,9 @@ def test_handle_existence_of_call_tir():
 
         @R.function(private=True)
         def fused_relax_nn_relu(
-            Input: R.Tensor([10], dtype="float32")
+            Input: R.Tensor([10], dtype="float32"),
         ) -> R.Tensor([10], dtype="float32"):
-            R.func_attr({"Composite": "compiler_A.relu", "Primitive": 1})
+            R.func_attr({"Composite": "compiler_A.relu", "Primitive": True})
             with R.dataflow():
                 Output = R.nn.relu(Input)
                 R.output(Output)
@@ -1144,7 +1140,7 @@ def test_handle_existence_of_call_tir():
             Input: T.Buffer(T.int64(10), "float32"),
             Output: T.Buffer(T.int64(10), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for i in range(T.int64(10)):
                 with T.block("compute"):
                     vi = T.axis.remap("S", [i])
@@ -1152,9 +1148,9 @@ def test_handle_existence_of_call_tir():
 
         @R.function(private=True)
         def fused_relax_nn_gelu(
-            Input: R.Tensor([10], dtype="float32")
+            Input: R.Tensor([10], dtype="float32"),
         ) -> R.Tensor([10], dtype="float32"):
-            R.func_attr({"Composite": "compiler_A.gelu", "Primitive": 1})
+            R.func_attr({"Composite": "compiler_A.gelu", "Primitive": True})
             with R.dataflow():
                 Output = R.nn.gelu(Input)
                 R.output(Output)
@@ -1174,13 +1170,13 @@ def test_handle_existence_of_call_tir():
 
         @R.function
         def fused_relax_nn_relu1_compiler_A(
-            Input: R.Tensor([10], dtype="float32")
+            Input: R.Tensor([10], dtype="float32"),
         ) -> R.Tensor([10], dtype="float32"):
             R.func_attr({"Codegen": "compiler_A"})
 
             @R.function
             def composite_lambda(
-                Input: R.Tensor([10], dtype="float32")
+                Input: R.Tensor([10], dtype="float32"),
             ) -> R.Tensor([10], dtype="float32"):
                 R.func_attr({"Composite": "compiler_A.relu"})
                 with R.dataflow():
@@ -1196,7 +1192,7 @@ def test_handle_existence_of_call_tir():
             Input: T.Buffer(T.int64(10), "float32"),
             Output: T.Buffer(T.int64(10), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for i in range(T.int64(10)):
                 with T.block("compute"):
                     vi = T.axis.remap("S", [i])
@@ -1204,13 +1200,13 @@ def test_handle_existence_of_call_tir():
 
         @R.function
         def fused_relax_nn_gelu1_compiler_A(
-            Input: R.Tensor([10], dtype="float32")
+            Input: R.Tensor([10], dtype="float32"),
         ) -> R.Tensor([10], dtype="float32"):
             R.func_attr({"Codegen": "compiler_A"})
 
             @R.function
             def composite_lambda(
-                Input: R.Tensor([10], dtype="float32")
+                Input: R.Tensor([10], dtype="float32"),
             ) -> R.Tensor([10], dtype="float32"):
                 R.func_attr({"Composite": "compiler_A.gelu"})
                 with R.dataflow():

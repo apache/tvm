@@ -42,7 +42,7 @@ using namespace tvm::te;
  *
  * \return The index after flattening
  */
-inline PrimExpr RavelIndex(Array<PrimExpr> indices, Array<PrimExpr> shape) {
+inline PrimExpr RavelIndex(ffi::Array<PrimExpr> indices, ffi::Array<PrimExpr> shape) {
   ICHECK_EQ(indices.size(), shape.size()) << "indices and shape must have equal size";
   if (indices.size() == 0U) {
     return 0;
@@ -66,7 +66,7 @@ inline PrimExpr RavelIndex(Array<PrimExpr> indices, Array<PrimExpr> shape) {
  *
  * \return The coordinate corresponding to the 1D index
  */
-inline Array<PrimExpr> UnravelIndex(PrimExpr idx, Array<PrimExpr> shape) {
+inline ffi::Array<PrimExpr> UnravelIndex(PrimExpr idx, ffi::Array<PrimExpr> shape) {
   std::vector<PrimExpr> indices;
 
   for (int i = static_cast<int>(shape.size()) - 1; i >= 0; --i) {

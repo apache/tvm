@@ -21,6 +21,7 @@
  * \file is_pure_function.cc
  * \brief PrimFunc purity analysis
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
@@ -29,6 +30,8 @@
 
 namespace tvm {
 namespace tir {
+
+using AccessPath = ffi::reflection::AccessPath;
 
 namespace {
 class PurityChecker : TIRVisitorWithPath {
@@ -42,12 +45,12 @@ class PurityChecker : TIRVisitorWithPath {
  private:
   explicit PurityChecker(bool assert_on_error) : assert_on_error_(assert_on_error) {}
 
-  void VisitStmt_(const AllocateNode* op, ObjectPath path) override {
+  void VisitStmt_(const AllocateNode* op, AccessPath path) override {
     internal_allocations_.insert(op->buffer_var);
     TIRVisitorWithPath::VisitStmt_(op, path);
   }
 
-  void VisitStmt_(const BufferStoreNode* op, ObjectPath path) override {
+  void VisitStmt_(const BufferStoreNode* op, AccessPath path) override {
     TIRVisitorWithPath::VisitStmt_(op, path);
 
     if (!internal_allocations_.count(op->buffer->data)) {
@@ -59,7 +62,7 @@ class PurityChecker : TIRVisitorWithPath {
     }
   }
 
-  void VisitExpr_(const CallNode* call, ObjectPath path) override {
+  void VisitExpr_(const CallNode* call, AccessPath path) override {
     TIRVisitorWithPath::VisitExpr_(call, path);
 
     static auto op_call_effect = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
@@ -76,7 +79,7 @@ class PurityChecker : TIRVisitorWithPath {
       LOG_IF(FATAL, assert_on_error_)
           << "AssertionError: "
           << "Pure functions must not contain calls to impure operators, "
-          << "but " << GetRef<PrimExpr>(call) << " calls operator " << call->op
+          << "but " << ffi::GetRef<PrimExpr>(call) << " calls operator " << call->op
           << ", which has side effect " << effect;
     }
   }
@@ -91,7 +94,10 @@ bool IsPureFunction(const PrimFunc& func, bool assert_on_error) {
   return PurityChecker::Check(func, assert_on_error);
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.is_pure_function").set_body_typed(IsPureFunction);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.analysis.is_pure_function", IsPureFunction);
+}
 
 }  // namespace tir
 }  // namespace tvm

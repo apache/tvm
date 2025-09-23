@@ -38,7 +38,9 @@ using ir::CalleeCollector;
 struct Visitor : ExprVisitor {
   explicit Visitor(CalleeCollector* collector) : collector(collector) {}
   CalleeCollector* collector;
-  void VisitExpr_(const GlobalVarNode* node) override { collector->Mark(GetRef<GlobalVar>(node)); }
+  void VisitExpr_(const GlobalVarNode* node) override {
+    collector->Mark(ffi::GetRef<GlobalVar>(node));
+  }
 };
 
 }  // namespace

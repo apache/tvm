@@ -22,11 +22,11 @@ from typing import Any, Callable, List, Optional, Union
 
 import numpy as np  # type: ignore
 import psutil  # type: ignore
-from tvm._ffi import get_global_func, register_func
+from tvm_ffi import get_global_func, register_global_func
 from tvm.error import TVMError
 from tvm.ir import Array, IRModule, Map
 from tvm.rpc import RPCSession
-from tvm.runtime import PackedFunc, String
+from tvm.runtime import PackedFunc
 from tvm.tir import FloatImm, IntImm
 
 
@@ -113,7 +113,6 @@ def derived_object(cls: type) -> type:
 
         def __init__(self, *args, **kwargs):
             """Constructor."""
-            self.handle = None
             self._inst = cls(*args, **kwargs)
 
             super().__init__(
@@ -164,7 +163,7 @@ def derived_object(cls: type) -> type:
     return TVMDerivedObject
 
 
-@register_func("meta_schedule.cpu_count")
+@register_global_func("meta_schedule.cpu_count")
 def _cpu_count_impl(logical: bool = True) -> int:
     """Return the number of logical or physical CPUs in the system
 
@@ -220,7 +219,7 @@ def cpu_count(logical: bool = True) -> int:
     return _cpu_count_impl(logical)
 
 
-@register_func("meta_schedule.using_ipython")
+@register_global_func("meta_schedule.using_ipython")
 def _using_ipython() -> bool:
     """Return whether the current process is running in an IPython shell.
 
@@ -235,7 +234,7 @@ def _using_ipython() -> bool:
         return False
 
 
-@register_func("meta_schedule.print_interactive_table")
+@register_global_func("meta_schedule.print_interactive_table")
 def print_interactive_table(data: str) -> None:
     """Print the dataframe interactive table in notebook.
 
@@ -328,7 +327,7 @@ def get_global_func_on_rpc_session(
     return result
 
 
-@register_func("meta_schedule.remove_build_dir")
+@register_global_func("meta_schedule.remove_build_dir")
 def remove_build_dir(artifact_path: str) -> None:
     """Clean up the build directory"""
     shutil.rmtree(os.path.dirname(artifact_path))
@@ -353,7 +352,7 @@ def _json_de_tvm(obj: Any) -> Any:
         return obj
     if isinstance(obj, (IntImm, FloatImm)):
         return obj.value
-    if isinstance(obj, (str, String)):
+    if isinstance(obj, (str,)):
         return str(obj)
     if isinstance(obj, Array):
         return [_json_de_tvm(i) for i in obj]
@@ -383,7 +382,7 @@ def _get_default_str(obj: Any) -> str:
     return (
         # pylint: disable=protected-access
         f"meta_schedule.{obj.__class__.__name__}"
-        + f"({_to_hex_address(obj._outer().handle)})"  # type: ignore
+        + f"({_to_hex_address(obj._outer().__ctypes_handle__())})"  # type: ignore
         # pylint: enable=protected-access
     )
 

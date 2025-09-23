@@ -19,6 +19,7 @@
 
 #include <HAP_farf.h>
 #include <dlfcn.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include <algorithm>
 #include <cassert>
@@ -27,13 +28,12 @@
 #include <sstream>
 #include <string>
 
-#include "../../../library_module.h"
 #include "../../../minrpc/minrpc_server.h"
 #include "../../hexagon_common.h"
 #include "../../profiler/prof_utils.h"
 #include "hexagon_sim_proto.h"
+#include "tvm/ffi/function.h"
 #include "tvm/runtime/packed_func.h"
-#include "tvm/runtime/registry.h"
 
 namespace tvm {
 namespace runtime {
@@ -301,9 +301,9 @@ int main(int argc, char* argv[]) {
   void* self = dlopen(argv[0], RTLD_GLOBAL);
   ICHECK(self != nullptr);
 
-  const auto* api = tvm::runtime::Registry::Get("device_api.hexagon");
-  ICHECK(api != nullptr);
-  tvm::runtime::Registry::Register("device_api.cpu", true).set_body(*api);
+  const auto api = tvm::ffi::Function::GetGlobal("device_api.hexagon");
+  ICHECK(api.has_value());
+  tvm::ffi::Function::SetGlobal("device_api.cpu", *api, true);
 
   tvm::runtime::hexagon::SimulatorRPCServer server;
 
@@ -332,24 +332,28 @@ __attribute__((weak)) void _Get_eh_data() {}
 __attribute__((weak)) void _Parse_fde_instr() {}
 }
 
-TVM_REGISTER_GLOBAL("tvm.hexagon.load_module")
-    .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
-      std::string soname = args[0];
-      tvm::ObjectPtr<tvm::runtime::Library> n = tvm::runtime::CreateDSOLibraryObject(soname);
-      *rv = CreateModuleFromLibrary(n);
-    });
-
-TVM_REGISTER_GLOBAL("tvm.hexagon.get_profile_output")
-    .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
-      std::string profiling_mode = args[0];
-      std::string out_file = args[1];
-      if (profiling_mode.compare("lwp") == 0) {
-        *rv = WriteLWPOutput(out_file);
-      } else {
-        HEXAGON_PRINT(ERROR, "ERROR: Unsupported profiling mode: %s", profiling_mode.c_str());
-        *rv = false;
-      }
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("tvm.hexagon.load_module",
+                  [](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
+                    auto soname = args[0].cast<std::string>();
+                    auto floader =
+                        tvm::ffi::Function::GetGlobalRequired("ffi.Module.load_from_file.so");
+                    *rv = floader(soname, "so");
+                  })
+      .def_packed(
+          "tvm.hexagon.get_profile_output", [](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
+            auto profiling_mode = args[0].cast<std::string>();
+            auto out_file = args[1].cast<std::string>();
+            if (profiling_mode.compare("lwp") == 0) {
+              *rv = WriteLWPOutput(out_file);
+            } else {
+              HEXAGON_PRINT(ERROR, "ERROR: Unsupported profiling mode: %s", profiling_mode.c_str());
+              *rv = false;
+            }
+          });
+}
 
 void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
   std::ofstream fs(file_name, std::ios::out | std::ios::binary);
@@ -357,9 +361,12 @@ void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
   fs.write(&data[0], data.length());
 }
 
-TVM_REGISTER_GLOBAL("tvm.rpc.server.upload")
-    .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
-      std::string file_name = args[0];
-      std::string data = args[1];
-      SaveBinaryToFile(file_name, data);
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("tvm.rpc.server.upload",
+                               [](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
+                                 auto file_name = args[0].cast<std::string>();
+                                 auto data = args[1].cast<std::string>();
+                                 SaveBinaryToFile(file_name, data);
+                               });
+}

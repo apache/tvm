@@ -55,9 +55,7 @@ MARKERS = {
     "vulkan": "mark a test as requiring vulkan",
     "metal": "mark a test as requiring metal",
     "llvm": "mark a test as requiring llvm",
-    "ethosn": "mark a test as requiring ethosn",
     "hexagon": "mark a test as requiring hexagon",
-    "corstone300": "mark a test as requiring Corstone300 FVP",
 }
 
 
@@ -164,7 +162,6 @@ def _add_target_specific_marks(metafunc):
 
             new_argvalues = []
             for argvalue in argvalues:
-
                 if isinstance(argvalue, _pytest.mark.structures.ParameterSet):
                     # The parametrized value is already a
                     # pytest.param, so track any marks already
@@ -361,8 +358,6 @@ if HAVE_XDIST:
                 # serialized
                 items = {
                     "test_tvm_testing_features": "functional-tests",
-                    "tests/python/micro/test_crt": "crt-tests",
-                    "tests/python/driver/tvmc": "tvmc-tests",
                 }
 
                 for nodeid_pattern, suite_name in items.items():

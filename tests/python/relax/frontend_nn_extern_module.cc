@@ -21,8 +21,8 @@
  * \brief Testing code to be compiled by Relax nn.SourceModule
  */
 #include <dlpack/dlpack.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/packed_func.h>
 
 namespace {
 
@@ -65,5 +65,5 @@ int _test_sym(DLTensor* a, DLTensor* b, DLTensor* c) {
   return 0;
 }
 }  // namespace
-TVM_DLL_EXPORT_TYPED_FUNC(ext_scalar_add, _scalar_add);
-TVM_DLL_EXPORT_TYPED_FUNC(ext_test_sym, _test_sym);
+TVM_FFI_DLL_EXPORT_TYPED_FUNC(ext_scalar_add, _scalar_add);
+TVM_FFI_DLL_EXPORT_TYPED_FUNC(ext_test_sym, _test_sym);

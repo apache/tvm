@@ -17,15 +17,15 @@
 """Abstraction for array data structures."""
 from numbers import Integral
 
-import tvm._ffi
-from tvm._ffi.base import string_types
+import tvm_ffi
+import tvm
 from tvm.ir import PointerType, PrimExpr, PrimType, Range
 from tvm.runtime import Object, Scriptable, convert
 
 from . import _ffi_api
 
 
-@tvm._ffi.register_object("tir.Buffer")
+@tvm_ffi.register_object("tir.Buffer")
 class Buffer(Object, Scriptable):
     """Symbolic data buffer in TVM.
 
@@ -85,7 +85,7 @@ class Buffer(Object, Scriptable):
           # Get access ptr for read with extent
           buffer.access_ptr("r", extent = 100)
         """
-        if isinstance(access_mask, string_types):
+        if isinstance(access_mask, str):
             mask = 0
             for value in access_mask:
                 if value == "r":
@@ -304,29 +304,6 @@ def decl_buffer(
     buffer : tvm.tir.Buffer
         The created buffer
 
-    Example
-    -------
-    Here's an example of how broadcast buffer can be used to define a symbolic broadcast operation,
-
-    .. code-block:: python
-
-        m0, m1, m2 = te.var("m0"), te.var("m1"), te.var("m2")
-        n0, n1, n2 = te.var("n0"), te.var("n1"), te.var("n2")
-        o0, o1, o2 = te.var("o0"), te.var("o1"), te.var("o2")
-        A = te.placeholder((m0, m1, m2), name='A')
-        B = te.placeholder((n0, n1, n2), name='B')
-        C = te.compute((o0, o1, o2), lambda i, j, k: A[i, j, k] + B[i, j, k], name='C')
-        Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="auto_broadcast")
-        Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="auto_broadcast")
-        s = te.create_schedule(C.op)
-        fadd = tvm.build(s, [A, B, C], target='llvm', name='bcast_add', binds={A:Ab, B:Bb})
-        dev = tvm.cpu(0)
-        a = tvm.nd.array(np.random.uniform(size=(2, 4, 3)).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=(2, 1, 3)).astype(B.dtype), dev)
-        c = tvm.nd.array(np.zeros((2, 4, 3), dtype=C.dtype), dev)
-        fadd(a, b, c)
-        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
-
     Note
     ----
     Buffer data structure reflects the DLTensor structure in dlpack.
@@ -373,6 +350,6 @@ def decl_buffer(
     )
 
 
-@tvm._ffi.register_object("tir.DataProducer")
+@tvm_ffi.register_object("tir.DataProducer")
 class DataProducer(Object):
     pass

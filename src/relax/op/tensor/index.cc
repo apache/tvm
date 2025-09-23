@@ -24,7 +24,9 @@
 
 #include "index.h"
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
+#include <tvm/topi/transform.h>
 
 #include <algorithm>
 #include <optional>
@@ -35,18 +37,26 @@
 namespace tvm {
 namespace relax {
 
-/* relax.take */
-TVM_REGISTER_NODE_TYPE(TakeAttrs);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TakeAttrs::RegisterReflection();
+  StridedSliceAttrs::RegisterReflection();
+}
 
-Expr take(Expr x, Expr indices, Optional<Integer> axis) {
-  ObjectPtr<TakeAttrs> attrs = make_object<TakeAttrs>();
+/* relax.take */
+
+Expr take(Expr x, Expr indices, ffi::Optional<int64_t> axis, ffi::String mode) {
+  ObjectPtr<TakeAttrs> attrs = ffi::make_object<TakeAttrs>();
   attrs->axis = std::move(axis);
+  attrs->mode = std::move(mode);
 
   static const Op& op = Op::Get("relax.take");
   return Call(op, {std::move(x), std::move(indices)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.take").set_body_typed(take);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.take", take);
+}
 
 StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
   CheckNumArguments(call, ctx);
@@ -60,7 +70,7 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
     if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
       return tensor_sinfo.value();
     } else if (auto prim_sinfo = sinfo.as<PrimStructInfoNode>()) {
-      return TensorStructInfo(ShapeExpr(Array<PrimExpr>{}), prim_sinfo->dtype);
+      return TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>{}), prim_sinfo->dtype);
     } else {
       ctx->ReportFatal(Diagnostic::Error(call)
                        << "Operator " << call->op << " requires the indices argument to be "
@@ -84,7 +94,7 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
   }
 
   const auto* attrs = call->attrs.as<TakeAttrs>();
-  if (!attrs->axis.defined() && data_sinfo->ndim != 1) {
+  if (!attrs->axis.has_value() && data_sinfo->ndim != 1) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Take op expects the input data to be 1-dimensional tensor when the axis "
                         "is not specified. However, the given data tensor has ndim "
@@ -94,9 +104,10 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
     return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
   }
 
-  int axis = attrs->axis.defined()
-                 ? NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value()->value)
-                 : 0;
+  int axis = 0;
+  if (attrs->axis.has_value()) {
+    axis = NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value());
+  }
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   const auto* indices_shape = indices_sinfo->shape.as<ShapeExprNode>();
   if (data_shape == nullptr || indices_shape == nullptr) {
@@ -104,7 +115,7 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
                             data_sinfo->vdevice);
   }
 
-  Array<PrimExpr> output_shape;
+  ffi::Array<PrimExpr> output_shape;
   for (int i = 0; i < data_sinfo->ndim; i++) {
     if (i == axis) {
       for (int j = 0; j < indices_sinfo->ndim; j++)
@@ -125,9 +136,8 @@ TVM_REGISTER_OP("relax.take")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.strided_slice */
-TVM_REGISTER_NODE_TYPE(StridedSliceAttrs);
 
-Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, Optional<Expr> strides,
+Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, ffi::Optional<Expr> strides,
                    bool assume_inbound) {
   // Initial validation of the arguments.  A more complete validation
   // will be done when inferring the StructInfo, but that requires the
@@ -155,10 +165,10 @@ Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, Optional<Expr> strid
   check_tuple("end", end);
   if (strides.defined()) check_tuple("strides", strides.value());
 
-  ObjectPtr<StridedSliceAttrs> attrs = make_object<StridedSliceAttrs>();
+  ObjectPtr<StridedSliceAttrs> attrs = ffi::make_object<StridedSliceAttrs>();
   attrs->assume_inbound = assume_inbound;
 
-  Array<Expr> args = {x, axes, begin, end};
+  ffi::Array<Expr> args = {x, axes, begin, end};
   if (strides.defined()) {
     args.push_back(strides.value());
   }
@@ -169,29 +179,9 @@ Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, Optional<Expr> strid
   return call;
 }
 
-TVM_REGISTER_GLOBAL("relax.op.strided_slice").set_body_typed(strided_slice);
-
-inline PrimExpr CanonicalizeIndex(PrimExpr index, PrimExpr extent, PrimExpr stride) {
-  // Handle Python-style negative indices
-  index = if_then_else(index < 0, index + extent, index);
-  // Clamp the result to valid indices
-  PrimExpr lower_bound = tvm::if_then_else(stride < 0, -1, 0);
-  PrimExpr upper_bound = tvm::if_then_else(stride < 0, extent - 1, extent);
-  index = tvm::min(tvm::max(index, lower_bound), upper_bound);
-
-  return index;
-}
-
-PrimExpr GetLength(PrimExpr begin, PrimExpr end, PrimExpr stride, PrimExpr extent,
-                   bool assume_inbound) {
-  if (assume_inbound) {
-    return ceildiv(end - begin, stride);
-  } else {
-    begin = CanonicalizeIndex(begin, extent, stride);
-    end = CanonicalizeIndex(end, extent, stride);
-    return tvm::if_then_else(stride < 0, ceildiv(begin - end, -stride),
-                             ceildiv(end - begin, stride));
-  }
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.strided_slice", strided_slice);
 }
 
 /* \brief Helper function to unpack a relax::Tuple
@@ -208,33 +198,33 @@ PrimExpr GetLength(PrimExpr begin, PrimExpr end, PrimExpr stride, PrimExpr exten
  * a tuple from a `TensorStructInfo`.)
  *
  * \tparam PrimType The subtype of PrimExpr to extract.  For example,
- *     extracting an `Array<Integer>`
+ *     extracting an `ffi::Array<Integer>`
  *
  * \param sinfo The StructInfo to inspect
  *
  * \returns An array of the `PrimType`, if it can be extracted.
- *     Otherwise, `NullOpt`.
+ *     Otherwise, `std::nullopt`.
  */
 template <typename PrimType = PrimExpr,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, PrimType>>>
-Optional<Array<PrimType>> UnpackTupleOfPrimValue(Optional<StructInfo> sinfo) {
-  if (!sinfo) return NullOpt;
+ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<StructInfo> sinfo) {
+  if (!sinfo) return std::nullopt;
 
   // An ObjectStructInfo may contain a tuple of the desired type, but
   // it isn't yet known whether it does.  Return early, as we cannot
-  // provide a known `Array<PrimType>` to the caller.
-  if (sinfo.as<ObjectStructInfoNode>()) return NullOpt;
+  // provide a known `ffi::Array<PrimType>` to the caller.
+  if (sinfo.as<ObjectStructInfoNode>()) return std::nullopt;
 
   auto tuple = sinfo.as<TupleStructInfoNode>();
   CHECK(tuple) << "TypeError: "
                << "The struct info " << sinfo << " cannot contain a tuple whose elements are "
                << PrimType::ContainerType::_type_key;
 
-  Array<PrimType> output;
+  ffi::Array<PrimType> output;
   for (size_t i = 0; i < tuple->fields.size(); i++) {
     auto field = tuple->fields[i];
 
-    if (field.as<ObjectStructInfoNode>()) return NullOpt;
+    if (field.as<ObjectStructInfoNode>()) return std::nullopt;
 
     auto prim_sinfo = field.as<PrimStructInfoNode>();
     CHECK(prim_sinfo) << "TypeError: "
@@ -243,10 +233,10 @@ Optional<Array<PrimType>> UnpackTupleOfPrimValue(Optional<StructInfo> sinfo) {
                       << PrimType::ContainerType::_type_key << ", because element " << i
                       << " has struct info " << field;
 
-    if (!prim_sinfo->value.defined()) return NullOpt;
+    if (!prim_sinfo->value.defined()) return std::nullopt;
 
-    Optional<PrimType> element = prim_sinfo->value.as<PrimType>();
-    if (!element) return NullOpt;
+    ffi::Optional<PrimType> element = prim_sinfo->value.as<PrimType>();
+    if (!element) return std::nullopt;
 
     output.push_back(element.value());
   }
@@ -267,20 +257,20 @@ Optional<Array<PrimType>> UnpackTupleOfPrimValue(Optional<StructInfo> sinfo) {
  * a tuple from a `TensorStructInfo`.)
  *
  * \tparam PrimType The subtype of PrimExpr to extract.  For example,
- *     extracting an `Array<Integer>`
+ *     extracting an `ffi::Array<Integer>`
  *
  * \param expr The `relax::Expr` to inspect
  *
  * \returns An array of the `PrimType`, if it can be extracted.
- *     Otherwise, `NullOpt`.
+ *     Otherwise, `std::nullopt`.
  */
 template <typename PrimType = PrimExpr,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, PrimType>>>
-Optional<Array<PrimType>> UnpackTupleOfPrimValue(Optional<Expr> expr) {
+ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<Expr> expr) {
   if (expr) {
     return UnpackTupleOfPrimValue<PrimType>(GetStructInfo(expr.value()));
   } else {
-    return NullOpt;
+    return std::nullopt;
   }
 }
 
@@ -295,22 +285,22 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
   Expr axes = call->args[1];
   Expr begin = call->args[2];
   Expr end = call->args[3];
-  Optional<Expr> strides = [&]() -> Optional<Expr> {
+  ffi::Optional<Expr> strides = [&]() -> ffi::Optional<Expr> {
     if (n_args > 4) {
       return call->args[4];
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   }();
 
   auto axes_sinfo = GetStructInfo(call->args[1]);
   auto begin_sinfo = GetStructInfo(call->args[2]);
   auto end_sinfo = GetStructInfo(call->args[3]);
-  auto strides_sinfo = [&]() -> Optional<StructInfo> {
+  auto strides_sinfo = [&]() -> ffi::Optional<StructInfo> {
     if (n_args > 4) {
       return GetStructInfo(call->args[4]);
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   }();
 
@@ -352,7 +342,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
   const auto* data_sinfo = data->struct_info_.as<TensorStructInfoNode>();
 
   DataType dtype = DataType::Void();
-  Optional<VDevice> vdevice = NullOpt;
+  ffi::Optional<VDevice> vdevice = std::nullopt;
   int ndim = kUnknownNDim;
   if (data_sinfo) {
     dtype = data_sinfo->dtype;
@@ -360,16 +350,16 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
     ndim = data_sinfo->ndim;
   }
 
-  Optional<Expr> shape = [&]() -> Optional<Expr> {
-    if (!data_sinfo) return NullOpt;
-    if (!data_sinfo->shape) return NullOpt;
+  ffi::Optional<Expr> shape = [&]() -> ffi::Optional<Expr> {
+    if (!data_sinfo) return std::nullopt;
+    if (!data_sinfo->shape) return std::nullopt;
 
     auto opt_axes_tuple = UnpackTupleOfPrimValue<Integer>(axes);
-    if (!opt_axes_tuple) return NullOpt;
+    if (!opt_axes_tuple) return std::nullopt;
     auto axes_tuple = opt_axes_tuple.value();
 
     auto opt_begin_tuple = UnpackTupleOfPrimValue(begin);
-    if (!opt_begin_tuple) return NullOpt;
+    if (!opt_begin_tuple) return std::nullopt;
     auto begin_tuple = opt_begin_tuple.value();
 
     CHECK_EQ(axes_tuple.size(), begin_tuple.size())
@@ -379,7 +369,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
         << ") and " << begin_tuple.size() << " 'begin' indices specified (" << begin_tuple << ")";
 
     auto opt_end_tuple = UnpackTupleOfPrimValue(end);
-    if (!opt_end_tuple) return NullOpt;
+    if (!opt_end_tuple) return std::nullopt;
     auto end_tuple = opt_end_tuple.value();
 
     CHECK_EQ(axes_tuple.size(), end_tuple.size())
@@ -388,14 +378,14 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
         << "However, there are " << axes_tuple.size() << " axes specified (" << axes_tuple
         << ") and " << end_tuple.size() << " 'end' indices specified (" << end_tuple << ")";
 
-    Array<PrimExpr> strides_tuple;
+    ffi::Array<PrimExpr> strides_tuple;
     if (strides.defined()) {
       auto opt_strides_tuple = UnpackTupleOfPrimValue(strides);
-      if (!opt_strides_tuple) return NullOpt;
+      if (!opt_strides_tuple) return std::nullopt;
 
       strides_tuple = opt_strides_tuple.value();
     } else {
-      strides_tuple = Array<PrimExpr>(axes_tuple.size(), IntImm(DataType::Int(64), 1));
+      strides_tuple = ffi::Array<PrimExpr>(axes_tuple.size(), IntImm(DataType::Int(64), 1));
     }
 
     CHECK_EQ(axes_tuple.size(), strides_tuple.size())
@@ -410,13 +400,13 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
     if (axes_tuple.empty() && !opt_data_shape.defined()) {
       return data_sinfo->shape.value();
     } else if (!opt_data_shape.defined()) {
-      return NullOpt;
+      return std::nullopt;
     }
 
     std::vector<int> axes = NormalizeAxes(call, ctx, data_sinfo->ndim, axes_tuple);
     auto attrs = call->attrs.as<StridedSliceAttrs>();
 
-    Array<PrimExpr> output_shape = data_sinfo->GetShape().value();
+    ffi::Array<PrimExpr> output_shape = data_sinfo->GetShape().value();
     for (size_t i = 0; i < axes.size(); i++) {
       size_t axis = axes[i];
       PrimExpr input_dim = output_shape[axis];
@@ -424,7 +414,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
       PrimExpr end = end_tuple[i];
 
       PrimExpr output_dim =
-          GetLength(begin, end, strides_tuple[i], input_dim, attrs->assume_inbound);
+          topi::GetLength(begin, end, strides_tuple[i], input_dim, attrs->assume_inbound);
 
       arith::Analyzer* analyzer = ctx->GetAnalyzer();
       std::optional<With<arith::ConstraintContext>> context;
@@ -446,9 +436,9 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
   }
 }
 
-InferLayoutOutput InferLayoutStridedSlice(const Call& call,
-                                          const Map<String, Array<String>>& desired_layouts,
-                                          const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutStridedSlice(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
 
   const auto* attrs = call->attrs.as<StridedSliceAttrs>();
@@ -460,15 +450,19 @@ InferLayoutOutput InferLayoutStridedSlice(const Call& call,
                                         << "but expression " << call << " has argument "
                                         << call->args[0] << " of unknown dimensionality.";
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  // Can't handle sub indexed layouts.
+  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+    existing_layout = LayoutDecision(InitialLayout(tensor_sinfo->ndim));
+  }
 
   auto opt_axes_tuple = UnpackTupleOfPrimValue<Integer>(GetStructInfo(call->args[1]));
   CHECK(opt_axes_tuple) << "Layout inference of " << call->op
                         << " requires slices to be along static axes.  "
                         << "However, expression " << call << " slices along non-static axes "
                         << call->args[1];
-  Array<Integer> axes_tuple = opt_axes_tuple.value();
+  ffi::Array<Integer> axes_tuple = opt_axes_tuple.value();
 
-  Array<Expr> new_axes;
+  ffi::Array<Expr> new_axes;
   for (const auto& axis : axes_tuple) {
     int new_axis = FindAxis(existing_layout->layout, axis->value);
     new_axes.push_back(relax::PrimValue::Int64(new_axis));
@@ -496,7 +490,10 @@ Expr dynamic_strided_slice(Expr x,      //
   return Call(op, {std::move(x), std::move(begin), std::move(end), std::move(strides)}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.dynamic_strided_slice").set_body_typed(dynamic_strided_slice);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.dynamic_strided_slice", dynamic_strided_slice);
+}
 
 StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& ctx) {
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
@@ -518,7 +515,7 @@ StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& 
   }
 
   int n_axis = data_sinfo->ndim;
-  auto diag_def = [&](const TensorStructInfoNode* sinfo, String name) {
+  auto diag_def = [&](const TensorStructInfoNode* sinfo, ffi::String name) {
     ICHECK(sinfo) << "Dynamic strided slice requires the input " << name
                   << " to be have the struct info. Please try normalizing the inputs.";
     CHECK_EQ(sinfo->ndim, 1) << "Dynamic strided slice requires " << name
@@ -527,7 +524,7 @@ StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& 
     ICHECK(shape) << "Dynamic strided slice requires the input " << name
                   << " to have well-defined shape.";
     // NOTE(tvm-team): This strong restriction seems necessary for now until we have a generic
-    // solution in converting 1d Tensor with unknown num_elem to Array<PrimExpr>.
+    // solution in converting 1d Tensor with unknown num_elem to ffi::Array<PrimExpr>.
     const auto* num_elem = shape->values[0].as<IntImmNode>();
     ICHECK(num_elem) << "Dynamic strided slice requires the input " << name
                      << " to have a known integer shape value.";

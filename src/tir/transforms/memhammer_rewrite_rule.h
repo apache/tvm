@@ -20,7 +20,7 @@
 #define TVM_TIR_TRANSFORMS_MEMHAMMER_REWRITE_RULE_H_
 
 #include <tvm/arith/iter_affine_map.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -37,9 +37,9 @@ namespace tir {
 /*! \brief The set containing all possible constraints of a data copy */
 struct ConstraintSet {
   /*! \brief The extents of the thread binding loops */
-  Map<String, Integer> thread_extent;
+  ffi::Map<ffi::String, Integer> thread_extent;
   /*! \brief The outer loops surrounding the data copy */
-  Array<For> outer_loops;
+  ffi::Array<For> outer_loops;
   /*! \brief The read region of the data copy */
   BufferRegion read_region;
   /*! \brief The write region of the data copy */
@@ -51,21 +51,21 @@ struct ConstraintSet {
   /*! \brief The vectorization length in bytes */
   int vector_bytes = 1;
 
-  explicit ConstraintSet(Map<String, Integer> thread_extent,  //
-                         Array<For> outer_loops,              //
-                         BufferRegion read_region,            //
-                         BufferRegion write_region,           //
-                         int data_bits,                       //
-                         const Map<String, ObjectRef>& ann)
+  explicit ConstraintSet(ffi::Map<ffi::String, Integer> thread_extent,  //
+                         ffi::Array<For> outer_loops,                   //
+                         BufferRegion read_region,                      //
+                         BufferRegion write_region,                     //
+                         int data_bits,                                 //
+                         const ffi::Map<ffi::String, ffi::Any>& ann)
       : thread_extent(thread_extent),
         outer_loops(outer_loops),
         read_region(read_region),
         write_region(write_region),
         data_bits(data_bits) {
-    if (Optional<ObjectRef> add_local_stage = ann.Get("local_stage")) {
+    if (auto add_local_stage = ann.Get("local_stage")) {
       this->add_local_stage = Downcast<Integer>(add_local_stage.value())->value;
     }
-    if (Optional<ObjectRef> vector_bytes = ann.Get("vector_bytes")) {
+    if (auto vector_bytes = ann.Get("vector_bytes")) {
       this->vector_bytes = Downcast<Integer>(vector_bytes.value())->value;
     }
   }
@@ -74,9 +74,9 @@ struct ConstraintSet {
 /*! \brief The set containing all possible outputs of a rewrite rule */
 struct OutputSet {
   /*! \brief New buffers allocated after rewrite */
-  Array<Buffer> alloc_buffer;
+  ffi::Array<Buffer> alloc_buffer;
   /*! \brief The minimal padding size of a buffer in base 2 logarithm */
-  Map<Buffer, Integer> padding_min;
+  ffi::Map<Buffer, Integer> padding_min;
 };
 
 /*!
@@ -248,9 +248,9 @@ class WmmaToShared : public RewriteRule {
  * \return a pair. The first is the stmt after transformation.
  *         The second is the SeqStmt that contains 2 stages (one original and another inserted).
  */
-std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, String storage_scope,
-                                          Optional<For> compute_location,
-                                          const Array<For>& outer_loops, Buffer* alloc_buffer);
+std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::String storage_scope,
+                                          ffi::Optional<For> compute_location,
+                                          const ffi::Array<For>& outer_loops, Buffer* alloc_buffer);
 
 }  // namespace tir
 }  // namespace tvm

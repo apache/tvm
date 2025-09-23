@@ -48,7 +48,7 @@ class MyModule:
         B: T.Buffer((128, 128), "float32"),
         C: T.Buffer((128, 128), "float32"),
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         Y = T.alloc_buffer((128, 128))
         for i, j, k in T.grid(128, 128, 128):
             with T.block("Y"):
@@ -72,13 +72,13 @@ a_np = np.random.uniform(size=(128, 128)).astype("float32")
 b_np = np.random.uniform(size=(128, 128)).astype("float32")
 c_np = a_np @ b_np
 
-a_nd = tvm.nd.array(a_np)
-b_nd = tvm.nd.array(b_np)
-c_nd = tvm.nd.array(np.zeros((128, 128), dtype="float32"))
+a_nd = tvm.runtime.tensor(a_np)
+b_nd = tvm.runtime.tensor(b_np)
+c_nd = tvm.runtime.tensor(np.zeros((128, 128), dtype="float32"))
 
 
 def evaluate(mod: tvm.IRModule):
-    lib = tvm.build(mod, target="llvm")
+    lib = tvm.tir.build(mod, target="llvm")
     # check correctness
     lib(a_nd, b_nd, c_nd)
     np.testing.assert_allclose(c_nd.numpy(), c_np, rtol=1e-5)

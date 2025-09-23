@@ -24,7 +24,8 @@
  *        in a block exceeds the limit
  */
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
@@ -38,10 +39,11 @@ namespace tir {
 
 class GPUCodeVerifier : public StmtExprVisitor {
  public:
-  std::vector<String> Verify(Stmt stmt, int64_t max_local_memory_per_block,
-                             int64_t max_shared_memory_per_block, int64_t max_threads_per_block,
-                             int64_t max_thread_x, int64_t max_thread_y, int64_t max_thread_z,
-                             int64_t max_vthread, int64_t max_vector_bytes, int64_t max_kernels) {
+  std::vector<ffi::String> Verify(Stmt stmt, int64_t max_local_memory_per_block,
+                                  int64_t max_shared_memory_per_block,
+                                  int64_t max_threads_per_block, int64_t max_thread_x,
+                                  int64_t max_thread_y, int64_t max_thread_z, int64_t max_vthread,
+                                  int64_t max_vector_bytes, int64_t max_kernels) {
     max_local_memory_per_block_ = static_cast<size_t>(max_local_memory_per_block);
     max_shared_memory_per_block_ = static_cast<size_t>(max_shared_memory_per_block);
     max_threads_per_block_ = static_cast<size_t>(max_threads_per_block);
@@ -186,7 +188,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
     StmtVisitor::VisitStmt_(op);
   }
 
-  void CheckBufferIndicesVectorizable(const Array<PrimExpr> indices) {
+  void CheckBufferIndicesVectorizable(const ffi::Array<PrimExpr> indices) {
     for (const auto index : indices) {
       if (const auto* ramp = index.as<RampNode>()) {
         if (!is_one(ramp->stride) &&
@@ -262,7 +264,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
   size_t max_vector_bytes_;
   size_t max_kernels_;
 
-  std::vector<String> errors_;
+  std::vector<ffi::String> errors_;
 
   void Reset_() {
     local_memory_per_block_ = 0;
@@ -273,7 +275,8 @@ class GPUCodeVerifier : public StmtExprVisitor {
   }
 };
 
-std::vector<String> VerifyGPUCode_(const PrimFunc& func, Map<String, PrimExpr> constraints) {
+std::vector<ffi::String> VerifyGPUCode_(const PrimFunc& func,
+                                        ffi::Map<ffi::String, PrimExpr> constraints) {
   GPUCodeVerifier verifier;
 
   int64_t max_local_memory_per_block = INT64_MAX;
@@ -316,16 +319,19 @@ std::vector<String> VerifyGPUCode_(const PrimFunc& func, Map<String, PrimExpr> c
                          max_vthread, max_vector_bytes, max_kernels);
 }
 
-bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constraints) {
+bool VerifyGPUCode(const PrimFunc& func, ffi::Map<ffi::String, PrimExpr> constraints) {
   auto errs = VerifyGPUCode_(func, constraints);
   return errs.size() == 0;
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.verify_gpu_code").set_body_typed(VerifyGPUCode);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.analysis.verify_gpu_code", VerifyGPUCode);
+}
 
 namespace transform {
 
-Pass VerifyGPUCode(Map<String, PrimExpr> constraints) {
+Pass VerifyGPUCode(ffi::Map<ffi::String, PrimExpr> constraints) {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
       if (auto func = kv.second.as<PrimFunc>()) {
@@ -337,7 +343,7 @@ Pass VerifyGPUCode(Map<String, PrimExpr> constraints) {
           }
           LOG(FATAL) << "RuntimeError: GPU constraint(s) violated:\n"
                      << s.str() << "  In function\n"
-                     << func;
+                     << func.value();
         }
       }
     }
@@ -346,7 +352,10 @@ Pass VerifyGPUCode(Map<String, PrimExpr> constraints) {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.VerifyGPUCode", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.VerifyGPUCode").set_body_typed(VerifyGPUCode);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.VerifyGPUCode", VerifyGPUCode);
+}
 
 }  // namespace transform
 }  // namespace tir

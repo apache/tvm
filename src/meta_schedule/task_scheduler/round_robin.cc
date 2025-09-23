@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -27,13 +29,11 @@ class RoundRobinNode final : public TaskSchedulerNode {
   /*! \brief The current task id processed. */
   int task_id = -1;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    TaskSchedulerNode::VisitAttrs(v);
-    v->Visit("task_id", &task_id);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RoundRobinNode>().def_ro("task_id", &RoundRobinNode::task_id);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.RoundRobin";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RoundRobinNode, TaskSchedulerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RoundRobin", RoundRobinNode, TaskSchedulerNode);
 
  protected:
   int NextTaskId() final {
@@ -55,16 +55,19 @@ class RoundRobinNode final : public TaskSchedulerNode {
   }
 };
 
-TaskScheduler TaskScheduler::RoundRobin(PackedFunc logger) {
-  ObjectPtr<RoundRobinNode> n = make_object<RoundRobinNode>();
+TaskScheduler TaskScheduler::RoundRobin(ffi::Function logger) {
+  ObjectPtr<RoundRobinNode> n = ffi::make_object<RoundRobinNode>();
   n->logger = logger;
   n->task_id = -1;
   return TaskScheduler(n);
 }
 
-TVM_REGISTER_NODE_TYPE(RoundRobinNode);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerRoundRobin")
-    .set_body_typed(TaskScheduler::RoundRobin);
+TVM_FFI_STATIC_INIT_BLOCK() { RoundRobinNode::RegisterReflection(); }
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.TaskSchedulerRoundRobin", TaskScheduler::RoundRobin);
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

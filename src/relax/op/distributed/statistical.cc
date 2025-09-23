@@ -25,7 +25,8 @@ namespace relax {
 namespace distributed {
 
 StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& ctx) {
-  Array<distributed::DTensorStructInfo> input_dtensor_sinfos = GetInputDTensorStructInfo(call, ctx);
+  ffi::Array<distributed::DTensorStructInfo> input_dtensor_sinfos =
+      GetInputDTensorStructInfo(call, ctx);
   TensorStructInfo data_sinfo = input_dtensor_sinfos[0]->tensor_sinfo;
 
   const auto* attrs = call->attrs.as<StatisticalAttrs>();
@@ -60,7 +61,7 @@ StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& 
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Input of distributed operator must be known shape");
   }
-  Array<PrimExpr> out_shape;
+  ffi::Array<PrimExpr> out_shape;
   out_shape.reserve(out_ndim);
   for (int i = 0; i < data_sinfo->ndim; ++i) {
     if (attrs->axis.defined() && std::find(axes.begin(), axes.end(), i) == axes.end()) {

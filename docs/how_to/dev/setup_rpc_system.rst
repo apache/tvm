@@ -50,7 +50,7 @@ As above figure shown, because there aren’t physical connection channels betwe
 Setup RPC Tracker and RPC Proxy
 -------------------------------
 
-In general, RPC tracker and RPC proxy only need to be run on host machine, e.g., development server or PC, they needn't depend on any enironment of device machine, so the only work need to do for setting up them is executing below commands on the corresponding machine after installing Apache TVM according to the official document `<https://tvm.apache.org/docs/install/index.html>`_.
+In general, RPC tracker and RPC proxy only need to be run on host machine, e.g., development server or PC, they needn't depend on any environment of device machine, so the only work need to do for setting up them is executing below commands on the corresponding machine after installing Apache TVM according to the official document `<https://tvm.apache.org/docs/install/index.html>`_.
 
 - RPC Tracker
 
@@ -108,7 +108,6 @@ After executing commands like something below under the root directory of TVM re
   # You maybe need to enable other options, e.g., USE_OPENCL, USE_xPU.
   $ sed -i "s|USE_LLVM.*)|USE_LLVM OFF)|" config.cmake
   $ sed -i "s|USE_LIBBACKTRACE.*)|USE_LIBBACKTRACE OFF)|" config.cmake
-  $ sed -i "s|USE_MICRO.*)|USE_MICRO OFF)|" config.cmake
 
   $ cmake -DCMAKE_TOOLCHAIN_FILE=/YYY/aarch64-linux-gnu.cmake -DCMAKE_BUILD_TYPE=Release ..
   $ cmake --build . -j -- runtime
@@ -185,7 +184,7 @@ Troubleshooting
 
 The package ``numpy`` is imported in some Python files which RPC server dependent on, and eliminating the import relationship is difficult, for some devices cross compiling ``numpy`` is very hard to do too.
 
-But acturally the TVM runtime doesn't really dependent on ``numpy``, so a very simple workaround is create a dummy ``numpy``, just need to copy the below content into a file named ``numpy.py`` and place it into directory like ``/usr/local/lib/python3.9/site-packages``.
+But actually the TVM runtime doesn't really dependent on ``numpy``, so a very simple workaround is create a dummy ``numpy``, just need to copy the below content into a file named ``numpy.py`` and place it into directory like ``/usr/local/lib/python3.9/site-packages``.
 
 .. code-block:: python
 

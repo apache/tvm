@@ -14,18 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" Operation class for computation declaration."""
+"""Operation class for computation declaration."""
 import inspect
 
 # pylint: disable=invalid-name
 from numbers import Integral as _Integral
 from typing import List, Optional, Union
 
-import tvm._ffi
 import tvm.arith._ffi_api
 import tvm.tir
 import tvm.tir._ffi_api
-from tvm._ffi.base import string_types
 from tvm.ir import Array
 from tvm.runtime import convert
 
@@ -130,26 +128,10 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None, varargs_names=N
     dim_var = [tvm.tir.IterVar((0, s), x, 0) for x, s in zip(arg_names, shape[:out_ndim])]
     body = fcompute(*[v.var for v in dim_var])
 
-    if isinstance(body, _tensor.TensorIntrinCall):
-        for i, s in enumerate(shape[out_ndim:]):
-            var_name = "ax" + str(i)
-            dim_var.append(tvm.tir.IterVar((0, s), var_name, 4))
-        op_node = _ffi_api.TensorComputeOp(
-            name,
-            tag,
-            dim_var,
-            body.reduce_axis,
-            out_ndim,
-            body.intrin,
-            body.tensors,
-            body.regions,
-            body.scalar_inputs,
-        )
-    else:
-        if not isinstance(body, (list, tuple)):
-            body = [body]
-        body = convert(body)
-        op_node = _ffi_api.ComputeOp(name, tag, attrs, dim_var, body)
+    if not isinstance(body, (list, tuple)):
+        body = [body]
+    body = convert(body)
+    op_node = _ffi_api.ComputeOp(name, tag, attrs, dim_var, body)
 
     num = op_node.num_outputs
     outputs = tuple(op_node.output(i) for i in range(num))
@@ -470,7 +452,7 @@ def const(value, dtype="int32", span=None):
 
     Parameters
     ----------
-    value : Union[bool, int, float, numpy.ndarray, tvm.nd.NDArray]
+    value : Union[bool, int, float, numpy.ndarray, tvm.runtime.Tensor]
         The constant value.
 
     dtype : str
@@ -532,7 +514,7 @@ def thread_axis(dom=None, tag="", name="", span=None):
     axis : IterVar
         The thread itervar.
     """
-    if isinstance(dom, string_types):
+    if isinstance(dom, str):
         tag, dom = dom, None
     if not tag:
         raise ValueError("tag must be given as Positional or keyword argument")
@@ -620,3 +602,6 @@ def create_prim_func(
     if not isinstance(ops, (list, tuple, Array)):
         ops = [ops]
     return _ffi_api.CreatePrimFunc(ops, index_dtype_override)
+
+
+AXIS_SEPARATOR = tvm.tir.IndexMap.AXIS_SEPARATOR
