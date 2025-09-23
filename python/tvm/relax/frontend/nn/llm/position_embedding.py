@@ -497,14 +497,14 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
             expr = tir.Let(var, value, expr)
         return expr
 
-    @T.prim_func(private=True)
+    @T.prim_func
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
         var_position_map: T.handle,
         var_q: T.handle,
         var_k: T.handle,
         var_v: T.handle,
-        apply_rope: T.int64,
+        apply_rope: T.int32,
     ):
         T.func_attr(
             {
