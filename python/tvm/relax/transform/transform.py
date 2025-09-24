@@ -219,7 +219,7 @@ def Gradient(
                 # return value: (orig_return_values, tuple(adjoints))
                 return ((lv1, lv2), (x_adjoint, y_adjoint))
     """
-    if require_grads is not None and not isinstance(require_grads, list):
+    if require_grads is not None and not isinstance(require_grads, (list, tvm_ffi.Array)):
         require_grads = [require_grads]
 
     return _ffi_api.Gradient(func_name, require_grads, target_index)  # type: ignore

@@ -48,6 +48,7 @@
 #include "src/runtime/tensor.cc"
 #include "src/runtime/workspace_pool.cc"
 // relax setup
+#include "3rdparty/tvm-ffi/src/ffi/backtrace.cc"
 #include "3rdparty/tvm-ffi/src/ffi/container.cc"
 #include "3rdparty/tvm-ffi/src/ffi/dtype.cc"
 #include "3rdparty/tvm-ffi/src/ffi/error.cc"
@@ -58,7 +59,6 @@
 #include "3rdparty/tvm-ffi/src/ffi/function.cc"
 #include "3rdparty/tvm-ffi/src/ffi/object.cc"
 #include "3rdparty/tvm-ffi/src/ffi/tensor.cc"
-#include "3rdparty/tvm-ffi/src/ffi/traceback.cc"
 #include "src/runtime/memory/memory_manager.cc"
 #include "src/runtime/nvtx.cc"
 #include "src/runtime/vm/attn_backend.cc"
