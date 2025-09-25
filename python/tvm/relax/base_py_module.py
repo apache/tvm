@@ -32,6 +32,13 @@ try:
 except ImportError:
     to_dlpack_legacy = None
 
+try:
+    from tvm_ffi._optional_torch_c_dlpack import load_torch_c_dlpack_extension
+
+    _FASTER_DLPACK_EXTENSION = load_torch_c_dlpack_extension()
+except ImportError:
+    _FASTER_DLPACK_EXTENSION = None
+
 
 class BasePyModule:
     """Base class that allows Python functions in IRModule with DLPack conversion.
@@ -369,20 +376,29 @@ class BasePyModule:
         return self._convert_single_pytorch_to_tvm(tensors)
 
     def _convert_single_pytorch_to_tvm(self, tensor: Any) -> Tensor:
-        """Convert a single PyTorch tensor to TVM Tensor with robust fallbacks."""
+        """Convert a single PyTorch tensor to TVM Tensor with faster DLPack converter."""
         # pylint: disable=import-outside-toplevel
         import torch
 
         if isinstance(tensor, Tensor):
             return tensor
         if isinstance(tensor, torch.Tensor):
-            # 1. Try modern `torch.to_dlpack` (preferred for PyTorch >= 1.7)
+            # 1. Try faster C++ DLPack converter
+            if _FASTER_DLPACK_EXTENSION is not None:
+                try:
+                    dlpack = torch.to_dlpack(tensor)
+                    return tvm.runtime.from_dlpack(dlpack)
+                except (AttributeError, ValueError):
+                    pass  # Fall through to the next method
+
+            # 2. Try modern `torch.to_dlpack` (preferred for PyTorch >= 1.7)
             try:
                 dlpack = torch.to_dlpack(tensor)
                 return tvm.runtime.from_dlpack(dlpack)
             except (AttributeError, ValueError):
                 pass  # Fall through to the next method
-            # 2. Try legacy `torch.utils.dlpack.to_dlpack`
+
+            # 3. Try legacy `torch.utils.dlpack.to_dlpack`
             if to_dlpack_legacy:
                 try:
                     dlpack = to_dlpack_legacy(tensor)
@@ -392,7 +408,8 @@ class BasePyModule:
                         f"Warning: Legacy DLPack conversion failed ({error_legacy}), "
                         f"using numpy fallback."
                     )
-            # 3. If all DLPack methods fail, use numpy fallback
+
+            # 4. If all DLPack methods fail, use numpy fallback
             numpy_array = tensor.detach().cpu().numpy()
             return tvm.runtime.tensor(numpy_array, device=self.device)
 
@@ -406,28 +423,37 @@ class BasePyModule:
             ) from error
 
     def _convert_tvm_to_pytorch(
-        self, tvm_arrays: Union[Any, List[Any]]
+        self, tvm_tensors: Union[Any, List[Any]]
     ) -> Union["torch.Tensor", List["torch.Tensor"]]:
         """Convert TVM Tensors to PyTorch tensors using DLPack."""
-        if isinstance(tvm_arrays, (list, tuple)):
-            return [self._convert_single_tvm_to_pytorch(arr) for arr in tvm_arrays]
-        return self._convert_single_tvm_to_pytorch(tvm_arrays)
+        if isinstance(tvm_tensors, (list, tuple)):
+            return [self._convert_single_tvm_to_pytorch(tensor) for tensor in tvm_tensors]
+        return self._convert_single_tvm_to_pytorch(tvm_tensors)
 
-    def _convert_single_tvm_to_pytorch(self, tvm_array: Any) -> "torch.Tensor":
-        """Convert a single TVM Tensor to PyTorch tensor using DLPack."""
+    def _convert_single_tvm_to_pytorch(self, tvm_tensor: Any) -> "torch.Tensor":
+        """Convert a single TVM Tensor to PyTorch tensor using faster DLPack converter."""
         # pylint: disable=import-outside-toplevel
         import torch
 
-        if isinstance(tvm_array, torch.Tensor):
-            return tvm_array
-        if not isinstance(tvm_array, Tensor):
-            return torch.tensor(tvm_array)
+        if isinstance(tvm_tensor, torch.Tensor):
+            return tvm_tensor
+        if not isinstance(tvm_tensor, Tensor):
+            return torch.tensor(tvm_tensor)
+
+        # 1. Try faster C++ DLPack converter
+        if _FASTER_DLPACK_EXTENSION is not None:
+            try:
+                return torch.from_dlpack(tvm_tensor)
+            except (AttributeError, ValueError):
+                pass  # Fall through to the next method
+
+        # 2. Try standard DLPack conversion
         try:
-            return torch.from_dlpack(tvm_array)
+            return torch.from_dlpack(tvm_tensor)
         # pylint: disable=broad-exception-caught
         except Exception as error:
             print(f"Warning: DLPack conversion from TVM failed ({error}), using numpy fallback")
-            numpy_array = tvm_array.numpy()
+            numpy_array = tvm_tensor.numpy()
             return torch.from_numpy(numpy_array)
 
     def get_function(self, name: str) -> Optional[PackedFunc]:
