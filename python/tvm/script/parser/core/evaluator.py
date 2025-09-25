@@ -324,10 +324,18 @@ class ExprEvaluator:
         res : Any
             The evaluation result.
         """
-        value = self._eval_expr(fields["left"])
-        for op, rhs in zip(fields["ops"], fields["comparators"]):
-            value = _eval_op(op, values=[value, self._eval_expr(rhs)])
-        return value
+        values = [self._eval_expr(fields["left"])]
+        values.extend([self._eval_expr(rhs) for rhs in fields["comparators"]])
+        result = None
+        assert len(fields["ops"]) == len(values) - 1
+
+        for index, op in enumerate(fields["ops"]):
+            sub_result = _eval_op(op, values=[values[index], values[index + 1]])
+            if result is None:
+                result = sub_result
+            else:
+                result = _eval_op(doc.And(), values=[result, sub_result])
+        return result
 
     def _eval_unary_op(self, fields: Dict[str, Any]) -> Any:
         """The doc AST unary operation node evaluating method.
