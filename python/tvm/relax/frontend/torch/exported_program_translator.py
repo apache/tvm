@@ -254,11 +254,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # Input shape: (seq_len, batch, input_size)
             seq_len, batch_size, input_size = input_shape
 
-        if hasattr(seq_len, "value"):
+        if isinstance(seq_len, tvm.tir.IntImm):
             seq_len = seq_len.value
-        if hasattr(batch_size, "value"):
+        if isinstance(batch_size, tvm.tir.IntImm):
             batch_size = batch_size.value
-        if hasattr(input_size, "value"):
+        if isinstance(input_size, tvm.tir.IntImm):
             input_size = input_size.value
         # Extract hidden size from the LSTM parameters
         # The parameters are: [weight_ih, weight_hh, bias_ih, bias_hh]
