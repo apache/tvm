@@ -17,6 +17,7 @@
 import operator
 import pytest
 import torch
+import numpy as np
 from torch import nn
 from torch.nn import Module
 from torch.export import export
@@ -5914,6 +5915,102 @@ def test_dtypes(torch_dtype, relax_dtype):
     verify_model(Model(), example_args, {}, Expected)
 
 
+def test_mm():
+    class MatrixMultiply(Module):
+        def forward(self, a, b):
+            return torch.mm(a, b)
+
+    example_args = (
+        torch.randn(2, 3, dtype=torch.float32),
+        torch.randn(3, 4, dtype=torch.float32),
+    )
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            a: R.Tensor((2, 3), dtype="float32"),
+            b: R.Tensor((3, 4), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 4), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 4), dtype="float32") = R.matmul(a, b, out_dtype="float32")
+                gv: R.Tuple(R.Tensor((2, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(MatrixMultiply(), example_args, {}, Expected)
+
+
+def test_lstm():
+    class BasicLSTM(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.lstm = nn.LSTM(
+                input_size=4,
+                hidden_size=8,
+                num_layers=1,
+                batch_first=True,
+                bidirectional=False,
+            )
+
+        def forward(self, x):
+            y, _ = self.lstm(x)
+            return y
+
+    torch.manual_seed(42)
+    x = torch.randn(2, 3, 4, dtype=torch.float32)
+    model = BasicLSTM()
+    with torch.no_grad():
+        pytorch_output = model(x)
+    exported_program = export(model, args=(x,))
+    mod = from_exported_program(exported_program)
+    target = tvm.target.Target("llvm")
+    ex = relax.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    x_tvm = tvm.runtime.tensor(x.numpy())
+    tvm_output = vm["main"](x_tvm)
+    if hasattr(tvm_output, "numpy"):
+        tvm_output_np = tvm_output.numpy()
+    else:
+        tvm_output_np = tvm_output[0].numpy()
+    assert (
+        pytorch_output.shape == tvm_output_np.shape
+    ), f"Shape mismatch: PyTorch {pytorch_output.shape} vs TVM {tvm_output_np.shape}"
+    np.testing.assert_allclose(pytorch_output.numpy(), tvm_output_np, rtol=1e-4, atol=1e-5)
+
+    class SeqFirstLSTM(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.lstm = nn.LSTM(
+                input_size=3,
+                hidden_size=6,
+                num_layers=1,
+                batch_first=False,
+                bidirectional=False,
+            )
+
+        def forward(self, x):
+            y, _ = self.lstm(x)
+            return y
+
+    torch.manual_seed(43)
+    x2 = torch.randn(4, 2, 3, dtype=torch.float32)
+    model2 = SeqFirstLSTM()
+    with torch.no_grad():
+        pytorch_output2 = model2(x2)
+    exported_program2 = export(model2, args=(x2,))
+    mod2 = from_exported_program(exported_program2)
+    ex2 = relax.build(mod2, target)
+    vm2 = relax.VirtualMachine(ex2, tvm.cpu())
+    x2_tvm = tvm.runtime.tensor(x2.numpy())
+    tvm_output2 = vm2["main"](x2_tvm)
+    if hasattr(tvm_output2, "numpy"):
+        tvm_output2_np = tvm_output2.numpy()
+    else:
+        tvm_output2_np = tvm_output2[0].numpy()
+    assert pytorch_output2.shape == tvm_output2_np.shape
+    np.testing.assert_allclose(pytorch_output2.numpy(), tvm_output2_np, rtol=1e-4, atol=1e-5)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
-1
