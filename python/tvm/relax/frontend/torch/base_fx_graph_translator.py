@@ -1997,20 +1997,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 return self.block_builder.emit(relax.TupleGetItem(x, node.args[1]))
 
             assert isinstance(x.struct_info, relax.TensorStructInfo)
-
-            # Handle simple integer indexing (e.g., getitem(tuple, 0))
             if isinstance(node.args[1], int):
-                # This is likely a tuple indexing case, but x is a tensor
-                # Return the tensor as-is for now
                 return x
-
-            # Handle complex indexing (list/tuple of indices)
             if not isinstance(node.args[1], (list, tuple)):
-                # If args[1] is not iterable, treat it as a single index
                 indices = [node.args[1]]
             else:
                 indices = node.args[1]
-
             take_indices = []
             take_axes = []
             stride_begin = []
