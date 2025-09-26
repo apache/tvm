@@ -238,8 +238,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         params = args[2] if len(args) > 2 else None
         has_biases = args[3] if len(args) > 3 else True
         num_layers = args[4] if len(args) > 4 else 1
-        dropout = args[5] if len(args) > 5 else 0.0  # Not used in inference
-        train = args[6] if len(args) > 6 else False  # Not used in inference
+        _dropout = args[5] if len(args) > 5 else 0.0  # Not used in inference
+        _train = args[6] if len(args) > 6 else False  # Not used in inference
         bidirectional = args[7] if len(args) > 7 else False
         batch_first = args[8] if len(args) > 8 else False
         if bidirectional:
