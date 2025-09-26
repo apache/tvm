@@ -120,6 +120,11 @@ def default_tir_pipeline():
                 tir.transform.LowerDeviceKernelLaunch(),
             ]
         )
+        # Optional GPU verification based on PassContext configuration.
+        if bool(config.get("tir.verify_gpu_code", False)):
+            # Conservative default cap; users can override per device via PassContext config.
+            cap = int(config.get("tir.cuda.max_shared_memory_per_block", 48 * 1024))
+            passes.append(tir.transform.VerifyGPUCode({"max_shared_memory_per_block": cap}))
         mod = tvm.ir.transform.Sequential(passes)(mod)
         return mod
 

@@ -50,3 +50,12 @@ def test_verify_gpu_code_flags_shared_mem_overflow():
         _ = verify(mod)
 
 
+def test_pipeline_passcontext_verifies_shared_mem_overflow():
+    mod = tvm.IRModule({"main": __tir_kernel_exceed_smem__})
+    # Enable pipeline-level verification with a conservative cap
+    with tvm.transform.PassContext(config={"tir.verify_gpu_code": True, "tir.cuda.max_shared_memory_per_block": 48 * 1024}):
+        with pytest.raises(tvm.error.TVMError):
+            # Building device code should trigger the verifier
+            _ = tvm.tir.build(mod, target="cuda")
+
+
