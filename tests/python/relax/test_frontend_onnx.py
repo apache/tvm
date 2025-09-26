@@ -1909,6 +1909,106 @@ def test_expand(dynamic):
         _test_expand_dynamic_shapeexpr("expand_with_dynamic_dim", data, shape_data, shape, ref_data)
 
 
+def test_expand_incompatible_broadcasting():
+    """
+    This test case reproduces the error where input tensor shape at dim 1 is 25
+    and target shape at dim 3 is 56, which violates ONNX broadcasting rules
+    """
+
+    def _test_expand_error_case(name, data_shape, target_shape_vals):
+        data = np.random.uniform(size=data_shape).astype(np.float32)
+
+        shape_array = np.array(target_shape_vals, dtype=np.int64)
+        shape_node = onnx.helper.make_node(
+            "Constant",
+            inputs=[],
+            outputs=["shape"],
+            value=onnx.helper.make_tensor(
+                name="const_tensor",
+                data_type=onnx.TensorProto.INT64,
+                dims=shape_array.shape,
+                vals=shape_array.flatten(),
+            ),
+        )
+
+        expand_node = helper.make_node("Expand", ["in", "shape"], ["out"])
+
+        graph = helper.make_graph(
+            [shape_node, expand_node],
+            "expand_error_test",
+            inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(data.shape))],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, target_shape_vals)],
+        )
+
+        model = helper.make_model(graph, producer_name=name)
+
+        with pytest.raises(ValueError) as exc_info:
+            from_onnx(model, keep_params_in_input=True)
+
+        error_msg = str(exc_info.value)
+        assert (
+            "broadcast" in error_msg.lower() or "incompatible" in error_msg.lower()
+        ), f"Expected broadcasting error, but got: {error_msg}"
+
+    # Test case 1: Reproduce the exact error from the issue-17769
+    # Input shape: (25,), target shape: (1, 1, 1, 56)
+    # This should faill because input dim 1 (25) != target dim 3 (56) and neither is 1
+    _test_expand_error_case(
+        "expand_incompatible_25_to_56",
+        data_shape=(25,),
+        target_shape_vals=(1, 1, 1, 56),
+    )
+
+    # Test case 2: Another incompatible case
+    # Input shape: (1, 25), target shape: (1, 1, 1, 56)
+    # After right-alignment, input (1, 1, 1, 25) vs. target (1, 1, 1, 56)
+    # This should fail because 25 != 56 and neither is 1
+    _test_expand_error_case(
+        "expand_incompatible_aligned_25_to_56",
+        data_shape=(1, 25),
+        target_shape_vals=(1, 1, 1, 56),
+    )
+
+    # Test case 3: Valid case for comparison - should not raise error
+    def _test_expand_valid_case():
+        """Test a valid expand case to ensure our fix doesn't break valid operations"""
+        data_shape = (1, 25)
+        target_shape_vals = [2, 25]  # Valid: input (1, 25) can broadcast to (2, 25)
+
+        data = np.random.uniform(size=data_shape).astype(np.float32)
+        shape_array = np.array(target_shape_vals, dtype=np.int64)
+
+        shape_node = onnx.helper.make_node(
+            "Constant",
+            inputs=[],
+            outputs=["shape"],
+            value=onnx.helper.make_tensor(
+                name="const_tensor",
+                data_type=onnx.TensorProto.INT64,
+                dims=shape_array.shape,
+                vals=shape_array.flatten(),
+            ),
+        )
+
+        expand_node = helper.make_node("Expand", ["in", "shape"], ["out"])
+
+        graph = helper.make_graph(
+            [shape_node, expand_node],
+            "expand_valid_test",
+            inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(data.shape))],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, target_shape_vals)],
+        )
+
+        model = helper.make_model(graph, producer_name="expand_valid_test_case")
+
+        try:
+            tvm_model = from_onnx(model, keep_params_in_input=True)
+        except Exception as e:
+            pytest.fail(f"Valid expand case should not fail, but got error: {e}")
+
+    _test_expand_valid_case()
+
+
 # TODO(jwfromm) Current approach to dynamic expand is technically not well formed. Reenable once fixed.
 @pytest.mark.skip("Produces ill-formed IR")
 def test_constantofshape():
