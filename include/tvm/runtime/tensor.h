@@ -63,7 +63,7 @@ class Tensor : public tvm::ffi::Tensor {
   Tensor(ffi::Tensor&& other) : tvm::ffi::Tensor(std::move(other)) {}  // NOLINT(*)
   Tensor(const ffi::Tensor& other) : tvm::ffi::Tensor(other) {}        // NOLINT(*)
 
-  ffi::Shape Shape() const { return this->shape(); }
+  ffi::ShapeView Shape() const { return this->shape(); }
   runtime::DataType DataType() const { return runtime::DataType(this->dtype()); }
 
   // DLPack handling
