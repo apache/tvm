@@ -121,8 +121,18 @@ def default_tir_pipeline():
             ]
         )
         # Optional GPU verification based on PassContext configuration.
+        # Usage example:
+        #
+        #   with tvm.transform.PassContext(config={
+        #       "tir.verify_gpu_code": True,
+        #       # Optional per-device cap override; for Ampere (e.g., RTX A6000, SM 86),
+        #       # you may choose 96 KB (98304 bytes). Default is conservative 48 KB.
+        #       # "tir.cuda.max_shared_memory_per_block": 96 * 1024,
+        #   }):
+        #       lib = tvm.tir.build(mod, target="cuda")
+        #
+        # This check is opt-in and does not change defaults.
         if bool(config.get("tir.verify_gpu_code", False)):
-            # Conservative default cap; users can override per device via PassContext config.
             cap = int(config.get("tir.cuda.max_shared_memory_per_block", 48 * 1024))
             passes.append(tir.transform.VerifyGPUCode({"max_shared_memory_per_block": cap}))
         mod = tvm.ir.transform.Sequential(passes)(mod)

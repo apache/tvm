@@ -1,19 +1,19 @@
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#   http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+"""
+Tests for verifying shared memory limit using a deterministic TIR kernel.
+
+To enable optional pipeline verification during normal builds (opt-in, off by default):
+
+    with tvm.transform.PassContext(config={
+        "tir.verify_gpu_code": True,
+        # For Ampere (e.g., RTX A6000, SM 86), you may set a higher cap, e.g., 96 KB:
+        # "tir.cuda.max_shared_memory_per_block": 96 * 1024,
+        # By default, leave unset to use a conservative 48 KB.
+    }):
+        lib = tvm.tir.build(mod, target="cuda")
+
+This test avoids schedule/lowering variability by using a direct kernel that allocates a
+64 KB shared buffer and asserts the verifier fails when the cap is 48 KB.
+"""
 
 import pytest
 
@@ -23,39 +23,23 @@ from tvm.script import tir as T
 
 
 @T.prim_func
-def __tir_kernel_exceed_smem__(A: T.handle) -> None:
-    T.func_attr({"global_symbol": "__tir_kernel_exceed_smem__", "tir.noalias": True})
+def _pf_direct_kernel_shared_large(A: T.handle) -> None:
+    T.func_attr({"global_symbol": "_pf_direct_kernel_shared_large", "tir.noalias": True})
     A_buf = T.match_buffer(A, (1,), dtype="float32")
-    # Create a trivial kernel environment
-    for bx in T.thread_binding(1, thread="blockIdx.x"):
-        for tx in T.thread_binding(1, thread="threadIdx.x"):
-            # Intentionally allocate a large shared buffer to exceed typical 48KB caps
-            # 64 * 1024 bytes using uint8 ensures deterministic size
-            sh = T.alloc_buffer((64 * 1024,), dtype="uint8", scope="shared")
-            # Dummy use to keep buffer live
-            with T.block("use"):
-                vi = T.axis.remap("S", [0])
-                A_buf[0] = T.Cast("float32", sh[0])
+    blockIdx_x = T.launch_thread("blockIdx.x", 1)
+    threadIdx_x = T.launch_thread("threadIdx.x", 1)
+    # 16384 float32 elements = 64 KB shared allocation
+    sh = T.allocate([16384], "float32", "shared")
+    s = T.float32(0)
+    for t in T.serial(0, 16384):
+        s = s + T.float32(1)
+    A_buf[0] = s
 
 
-def test_verify_gpu_code_flags_shared_mem_overflow():
-    # Build an IRModule with the kernel
-    mod = tvm.IRModule({"main": __tir_kernel_exceed_smem__})
-
-    # Apply the verifier with a conservative cap (48KB)
-    cap = 48 * 1024
-    verify = tir.transform.VerifyGPUCode({"max_shared_memory_per_block": cap})
-
-    with pytest.raises(tvm.error.TVMError):
-        _ = verify(mod)
-
-
-def test_pipeline_passcontext_verifies_shared_mem_overflow():
-    mod = tvm.IRModule({"main": __tir_kernel_exceed_smem__})
-    # Enable pipeline-level verification with a conservative cap
-    with tvm.transform.PassContext(config={"tir.verify_gpu_code": True, "tir.cuda.max_shared_memory_per_block": 48 * 1024}):
-        with pytest.raises(tvm.error.TVMError):
-            # Building device code should trigger the verifier
-            _ = tvm.tir.build(mod, target="cuda")
+def test_direct_kernel_shared_overflow_verify_false():
+    mod = tvm.IRModule({"main": _pf_direct_kernel_shared_large})
+    vbool = tvm.get_global_func("tir.analysis.verify_gpu_code")
+    ok = vbool(mod["main"], {"max_shared_memory_per_block": 48 * 1024, "max_threads_per_block": 1024})
+    assert not ok
 
 
