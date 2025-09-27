@@ -66,6 +66,7 @@ def get_dll_directories():
 
     # Pip lib directory
     dll_path.append(ffi_dir)
+    dll_path.append(os.path.join(ffi_dir, "lib"))
     # Default cmake build directory
     dll_path.append(os.path.join(source_dir, "build"))
     dll_path.append(os.path.join(source_dir, "build", "Release"))
