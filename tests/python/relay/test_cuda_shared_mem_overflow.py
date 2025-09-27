@@ -43,4 +43,3 @@ def test_direct_kernel_shared_overflow_verify_false():
         mod["main"], {"max_shared_memory_per_block": 48 * 1024, "max_threads_per_block": 1024}
     )
     assert not ok
-
