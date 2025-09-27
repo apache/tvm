@@ -39,7 +39,8 @@ def _pf_direct_kernel_shared_large(A: T.handle) -> None:
 def test_direct_kernel_shared_overflow_verify_false():
     mod = tvm.IRModule({"main": _pf_direct_kernel_shared_large})
     vbool = tvm.get_global_func("tir.analysis.verify_gpu_code")
-    ok = vbool(mod["main"], {"max_shared_memory_per_block": 48 * 1024, "max_threads_per_block": 1024})
+    ok = vbool(
+        mod["main"], {"max_shared_memory_per_block": 48 * 1024, "max_threads_per_block": 1024}
+    )
     assert not ok
-
 
