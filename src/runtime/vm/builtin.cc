@@ -510,7 +510,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("vm.builtin.shape_of", &Tensor::Shape)
+      .def_method("vm.builtin.shape_of", [](Tensor data) -> ffi::Shape { return data.Shape(); })
       .def("vm.builtin.copy", [](ffi::Any a) -> ffi::Any { return a; })
       .def(
           "vm.builtin.reshape",
