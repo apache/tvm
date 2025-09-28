@@ -3254,7 +3254,9 @@ def test_unbind():
     @tvm.script.ir_module
     class expected3:
         @R.function
-        def main(data: R.Tensor((3, 1, 3), dtype="float32")) -> R.Tuple(R.Tensor((3, 3), dtype="float32")):
+        def main(
+            data: R.Tensor((3, 1, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3, 3), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((3, 3), dtype="float32") = R.squeeze(data, axis=[1])
                 lv1: R.Tuple(R.Tensor((3, 3), dtype="float32")) = (lv,)
