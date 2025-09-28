@@ -3251,9 +3251,25 @@ def test_unbind():
                 R.output(gv)
             return gv
 
+    @tvm.script.ir_module
+    class expected3:
+        @R.function
+        def main(
+            data: R.Tensor((3, 1, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 3), dtype="float32") = R.squeeze(data, axis=[1])
+                lv1: R.Tuple(R.Tensor((3, 3), dtype="float32")) = (lv,)
+                lv2: R.Tensor((3, 3), dtype="float32") = lv1[0]
+                gv: R.Tuple(R.Tensor((3, 3), dtype="float32")) = (lv2,)
+                R.output(gv)
+            return gv
+
     example_args = (torch.randn(3, 3, 10, 10, dtype=torch.float32),)
     verify_model(Unbind1(), example_args, {}, expected1)
     verify_model(Unbind2(), example_args, {}, expected2)
+    single_dim_args = (torch.randn(3, 1, 3, dtype=torch.float32),)
+    verify_model(Unbind2(), single_dim_args, {}, expected3)
 
 
 def test_interpolate():
