@@ -18,15 +18,22 @@
 """
 Tests for verifying shared memory limit using a deterministic TIR kernel.
 
-To enable optional pipeline verification during normal builds (opt-in, off by default):
+Composition guidance (no default pipeline changes):
 
-    with tvm.transform.PassContext(config={
-        "tir.verify_gpu_code": True,
-        # For Ampere (e.g., RTX A6000, SM 86), you may set a higher cap, e.g., 96 KB:
-        # "tir.cuda.max_shared_memory_per_block": 96 * 1024,
-        # By default, leave unset to use a conservative 48 KB.
-    }):
-        lib = tvm.tir.build(mod, target="cuda")
+    # Option A: Use the analysis helper directly on a PrimFunc
+    vbool = tvm.get_global_func("tir.analysis.verify_gpu_code")
+    assert not vbool(func, {"max_shared_memory_per_block": 48 * 1024})
+
+    # Option B: Compose a verification pass after lowering
+    seq = tvm.ir.transform.Sequential([
+        tir.transform.ConvertBlocksToOpaque(),
+        tir.transform.LiftThreadBinding(),
+        tir.transform.FlattenBuffer(),
+        tir.transform.SplitHostDevice(),
+        tir.transform.MergeSharedMemoryAllocations(),
+        tir.transform.VerifyGPUCode({"max_shared_memory_per_block": 48 * 1024}),
+    ])
+    _ = seq(mod)
 
 This test avoids schedule/lowering variability by using a direct kernel that allocates a
 64 KB shared buffer and asserts the verifier fails when the cap is 48 KB.
