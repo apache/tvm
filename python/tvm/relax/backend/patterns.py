@@ -27,6 +27,7 @@ from tvm.relax.dpl.pattern import (
     wildcard,
     GlobalVarPattern,
     TuplePattern,
+    # make_fused_bias_activation_pattern,
 )
 
 
@@ -35,10 +36,15 @@ def _with_bias_activation_pattern(
     annotations: Dict[str, DFPattern],
     with_bias: bool = False,
     activation: str = None,
+    allow_reshape: bool = False,
 ) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
     if with_bias:
         annotations["bias"] = bias = wildcard()
-        out = is_op("relax.add")(out, bias)
+        if allow_reshape:
+            reshaped_bias = is_op("relax.reshape")(bias, wildcard(), varg_default_wildcard=True)
+            out = is_op("relax.add")(out, reshaped_bias, varg_default_wildcard=True)
+        else:
+            out = is_op("relax.add")(out, bias)
 
     if activation:
         out = is_op(activation)(out)
@@ -50,6 +56,7 @@ def make_fused_bias_activation_pattern(
     op_name: str,
     with_bias: bool = False,
     activation: str = None,
+    allow_reshape: bool = False,
 ) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
     """
     A simple utility to create patterns for an operation fused with bias addition and activation.
@@ -80,7 +87,7 @@ def make_fused_bias_activation_pattern(
     out = is_op(op_name)(lhs, rhs)
     annotations = {"lhs": lhs, "rhs": rhs, "root": out}
 
-    return _with_bias_activation_pattern(out, annotations, with_bias, activation)
+    return _with_bias_activation_pattern(out, annotations, with_bias, activation, allow_reshape)
 
 
 def make_residual_block_pattern(
