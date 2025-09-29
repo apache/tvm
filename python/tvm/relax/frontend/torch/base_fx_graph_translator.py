@@ -2001,6 +2001,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 return self.block_builder.emit(relax.TupleGetItem(x, node.args[1]))
 
             assert isinstance(x.struct_info, relax.TensorStructInfo)
+            if isinstance(node.args[1], int):
+                return x
+            if not isinstance(node.args[1], (list, tuple)):
+                indices = [node.args[1]]
+            else:
+                indices = node.args[1]
             take_indices = []
             take_axes = []
             stride_begin = []
@@ -2011,10 +2017,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             i = 0
             shape = self.shape_of(x)
             non_ellipsis_cnt = 0
-            for index in node.args[1]:
+            for index in indices:
                 if isinstance(index, (int, slice, torch.fx.Node)):
                     non_ellipsis_cnt += 1
-            for index in node.args[1]:
+            for index in indices:
                 if isinstance(index, int):
                     stride_begin.append(index)
                     stride_end.append(index + 1)
