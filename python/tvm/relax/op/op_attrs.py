@@ -239,6 +239,11 @@ class AttentionAttrs(Attrs):
     """Attributes used in attention operator"""
 
 
+@tvm_ffi.register_object("relax.attrs.AllClassNonMaximumSuppressionAttrs")
+class AllClassNonMaximumSuppressionAttrs(Attrs):
+    """Attributes for vision.all_class_non_max_suppression"""
+
+
 @tvm_ffi.register_object("relax.attrs.Conv1DAttrs")
 class Conv1DAttrs(Attrs):
     """Attributes for nn.conv1d"""
