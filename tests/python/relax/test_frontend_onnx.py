@@ -828,6 +828,36 @@ def test_bias_gelu():
     verify_binary("BiasGelu", [32, 32], [32], [32, 32], domain="com.microsoft")
 
 
+def test_fast_gelu():
+    """Test FastGelu with and without bias"""
+    # Test FastGelu without bias
+    fast_gelu_node = helper.make_node("FastGelu", ["x"], ["y"], domain="com.microsoft")
+    graph = helper.make_graph(
+        [fast_gelu_node],
+        "fast_gelu_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [32, 32])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [32, 32])],
+    )
+    model = helper.make_model(graph, producer_name="fast_gelu_test")
+    check_correctness(model)
+
+    # Test FastGelu with bias
+    fast_gelu_with_bias_node = helper.make_node(
+        "FastGelu", ["x", "bias"], ["y"], domain="com.microsoft"
+    )
+    graph_with_bias = helper.make_graph(
+        [fast_gelu_with_bias_node],
+        "fast_gelu_with_bias_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [32, 32]),
+            helper.make_tensor_value_info("bias", TensorProto.FLOAT, [32]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [32, 32])],
+    )
+    model_with_bias = helper.make_model(graph_with_bias, producer_name="fast_gelu_with_bias_test")
+    check_correctness(model_with_bias)
+
+
 def test_where():
     where_node = helper.make_node("Where", ["a", "b", "c"], ["d"])
 

@@ -1155,11 +1155,12 @@ class FastGelu(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
+        x = inputs[0]
         if inputs[1]:
             bias = inputs[1]
             bias_shape = bias.struct_info.shape
             assert len(bias_shape) == 1, "bias term must be a 1D tensor"
-            x += bias
+            x = relax.op.add(x, bias)
 
         # Declare consts
         const_dtype = x.struct_info.dtype
