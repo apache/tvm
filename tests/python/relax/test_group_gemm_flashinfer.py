@@ -18,14 +18,14 @@
 """Test for FlashInfer GroupedGemm TVM integration"""
 
 import math
+
 import numpy as np
 import pytest
 import torch
+
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.contrib import utils
-from tvm.relax.backend.cuda import flashinfer
 
 DEFAULT_WORKSPACE_SIZE = 32 * 1024 * 1024
 fp8_dtype = "float8_e4m3fn"
@@ -389,36 +389,11 @@ def test_grouped_gemm_correctness(
     device = tvm.cuda(0)
     target = tvm.target.Target.from_device(device)
 
-    def _load_module(name: str, static_modules):
-        """Helper function to load compiled modules."""
-        assert len(static_modules) > 0
-        if len(static_modules) == 1:
-            return static_modules[0]
-        static_mod = static_modules[0]
-        for mod in static_modules[1:]:
-            static_mod.import_module(mod)
-        temp = tvm.contrib.utils.tempdir()
-        mod_path = temp.relpath(f"{name}.so")
-        static_mod.export_library(mod_path)
-        return tvm.runtime.load_module(mod_path)
-
     # Generate the module
-    modules = relax.backend.cuda.flashinfer.gen_grouped_gemm_module(
-        dtype_a=dtype_a,
-        dtype_b=dtype_b,
-        dtype_out=dtype_out,
-        scale_granularity_m=scale_granularity_m,
-        scale_granularity_n=scale_granularity_n,
-        scale_granularity_k=scale_granularity_k,
-        scale_major_mode=scale_major_mode,
-        mma_sm=mma_sm,
-        target=target,
-        num_threads=4,
-    )
+    mod = relax.backend.cuda.flashinfer.gen_grouped_gemm_module(target=target)[0]
 
     # Load the module
-    mod = _load_module("flashinfer_grouped_gemm", modules)
-    grouped_gemm_fn = mod["grouped_gemm_fp8_run"]
+    grouped_gemm_fn = mod["group_gemm_fp8_nt_groupwise"]
 
     # Generate test data
     test_data = generate_test_data(
@@ -460,7 +435,11 @@ def test_grouped_gemm_correctness(
         test_data["m_indptr"],  # m_indptr
         test_data["n"],  # n (scalar)
         test_data["k"],  # k (scalar)
-        None,  # cuda_stream (use default stream)
+        scale_granularity_m,
+        scale_granularity_n,
+        scale_granularity_k,
+        scale_major_mode,
+        mma_sm,
     )
 
     # Compute reference result
