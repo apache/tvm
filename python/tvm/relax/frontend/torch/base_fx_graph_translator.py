@@ -102,6 +102,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return [self._retrieve_args(x) for x in node]
         elif isinstance(node, dict):
             return {self._retrieve_args(k): self._retrieve_args(v) for k, v in node.items()}
+        elif node is None:
+            # Convert None to a Relax null_value expression
+            return relax.op.null_value()
         else:
             return node
 
