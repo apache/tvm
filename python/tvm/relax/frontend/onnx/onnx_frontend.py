@@ -1172,7 +1172,9 @@ class FastGelu(OnnxOpConverter):
         # Compute FastGelu
         term1 = relax.op.multiply(half, x)
         term2 = relax.op.multiply(const1, x)
-        term3 = relax.op.multiply(const2, relax.op.power(x, relax.const(3, const_dtype)))
+        # use x^3 = x * x * x instead of pow(x, 3) for better performance
+        x_cubed = relax.op.multiply(relax.op.multiply(x, x), x)
+        term3 = relax.op.multiply(const2, x_cubed)
         tanh = relax.op.tanh(relax.op.add(term2, term3))
         return relax.op.multiply(term1, relax.op.add(one, tanh))
 
