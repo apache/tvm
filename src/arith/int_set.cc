@@ -34,6 +34,7 @@
 #include <utility>
 
 #include "constraint_extract.h"
+#include "int_operator.h"
 #include "interval_set.h"
 #include "pattern_match.h"
 
@@ -332,17 +333,7 @@ inline IntervalSet Combine<tir::FloorMod>(Analyzer* analyzer, IntervalSet a, Int
 
         if (dividend_mod.defined() && dividend_mod->coeff > 0) {
           // Calculate GCD of dividend coefficient and divisor
-          int64_t gcd = 1;
-          if (dividend_mod->coeff != 0 && div_val != 0) {
-            int64_t a_coeff = std::abs(dividend_mod->coeff);
-            int64_t b_val = std::abs(div_val);
-            while (b_val != 0) {
-              int64_t temp = b_val;
-              b_val = a_coeff % b_val;
-              a_coeff = temp;
-            }
-            gcd = a_coeff;
-          }
+          int64_t gcd = ZeroAwareGCD(dividend_mod->coeff, div_val);
 
           if (gcd > 1 && div_val % gcd == 0) {
             // The dividend is a multiple of gcd, and divisor is also a multiple of gcd
