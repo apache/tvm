@@ -111,6 +111,10 @@ TVM_DECLARE_LOGICAL_OP(Not);
 
 /*!
  * \brief Combine two interval set under arithmetic operations.
+ * \param analyzer The analyzer for simplification and proving
+ * \param a The first interval set
+ * \param b The second interval set
+ * \param op The operation node, used to extract dtype and other properties
  * \note this can possibly relax the set.
  */
 template <typename Op, typename OpNode>
