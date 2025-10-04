@@ -288,6 +288,14 @@ class ConstIntBoundAnalyzer::Impl
         // If gcd_coeff_mod > 1, we can get tighter bounds
         // The result will be of the form gcd_coeff_mod * k + (base % modulus)
         // where k ranges to cover [0, modulus - gcd_coeff_mod]
+        //
+        // Example: expr = (bx * 2048 + tx * 16) % 7168
+        //          where bx in [0, 3584), tx in [0, 128)
+        //          ModularSet(expr) = 16*k (coeff=16, base=0)
+        //          GCD(16, 7168) = 16
+        //          Result can only be {0, 16, 32, ..., 7152}
+        //          Without this optimization: bound = [0, 7167]
+        //          With this optimization: bound = [0, 7152]
         if (gcd_coeff_mod > 1) {
           int64_t base_mod = mod_a->base % modulus;
           if (base_mod < 0) base_mod += modulus;
@@ -352,6 +360,14 @@ class ConstIntBoundAnalyzer::Impl
         // If gcd_coeff_mod > 1, we can get tighter bounds
         // The result will be of the form gcd_coeff_mod * k + (base % modulus)
         // where k ranges to cover [0, modulus - gcd_coeff_mod]
+        //
+        // Example: expr = (bx * 2048 + tx * 16) % 7168
+        //          where bx in [0, 3584), tx in [0, 128)
+        //          ModularSet(expr) = 16*k (coeff=16, base=0)
+        //          GCD(16, 7168) = 16
+        //          Result can only be {0, 16, 32, ..., 7152}
+        //          Without this optimization: bound = [0, 7167]
+        //          With this optimization: bound = [0, 7152]
         if (gcd_coeff_mod > 1) {
           int64_t base_mod = mod_a->base % modulus;
           if (base_mod < 0) base_mod += modulus;
