@@ -283,7 +283,7 @@ class ConstIntBoundAnalyzer::Impl
       if (parent_ && b.min_value == b.max_value) {
         ModularSet mod_a = parent_->modular_set(op->a);
         int64_t modulus = b.min_value;
-        int64_t gcd_coeff_mod = ComputeGCD(mod_a->coeff, modulus);
+        int64_t gcd_coeff_mod = ZeroAwareGCD(mod_a->coeff, modulus);
 
         // If gcd_coeff_mod > 1, we can get tighter bounds
         // The result will be of the form gcd_coeff_mod * k + (base % modulus)
@@ -347,7 +347,7 @@ class ConstIntBoundAnalyzer::Impl
       if (parent_ && b.min_value == b.max_value) {
         ModularSet mod_a = parent_->modular_set(op->a);
         int64_t modulus = b.min_value;
-        int64_t gcd_coeff_mod = ComputeGCD(mod_a->coeff, modulus);
+        int64_t gcd_coeff_mod = ZeroAwareGCD(mod_a->coeff, modulus);
 
         // If gcd_coeff_mod > 1, we can get tighter bounds
         // The result will be of the form gcd_coeff_mod * k + (base % modulus)
@@ -564,22 +564,7 @@ class ConstIntBoundAnalyzer::Impl
     // If the range of b does not have 0, use BinaryOpBoundary.
     return BinaryOpBoundary(a, b, op);
   }
-  /*!
-   * \brief Compute GCD of two integers.
-   * \param a The first integer.
-   * \param b The second integer.
-   * \return the result.
-   */
-  static int64_t ComputeGCD(int64_t a, int64_t b) {
-    a = std::abs(a);
-    b = std::abs(b);
-    while (b != 0) {
-      int64_t temp = b;
-      b = a % b;
-      a = temp;
-    }
-    return a;
-  }
+
   /*!
    * \brief Compute x + y, aware of inf.
    * \param x The left operand.
