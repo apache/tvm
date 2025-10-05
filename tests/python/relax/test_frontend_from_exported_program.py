@@ -6028,5 +6028,27 @@ def test_lstm():
     np.testing.assert_allclose(pytorch_output2.numpy(), tvm_output2_np, rtol=1e-4, atol=1e-5)
 
 
+def test_tensor_none_tuple():
+    example_args = (torch.tensor([1.0, 2.0, 3.0]),)
+
+    class TensorNoneModel(Module):
+        def forward(self, x):
+            return x + 1, None
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((3,), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3,), dtype="float32"), R.Object):
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="float32") = R.add(x, R.const(1.0, "float32"))
+                gv: R.Tuple(R.Tensor((3,), dtype="float32"), R.Object) = (lv, R.null_value())
+                R.output(gv)
+            return gv
+
+    verify_model(TensorNoneModel(), example_args, {}, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
