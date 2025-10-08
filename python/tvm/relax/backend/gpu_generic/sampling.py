@@ -19,6 +19,7 @@
 
 import math
 from typing import Callable, Optional
+import tvm
 from tvm.script import tir as T
 from tvm.tir import PrimFunc
 
@@ -282,7 +283,7 @@ def gpu_multinomial_from_uniform(
                     # at least one iteration
                     while T.tvm_thread_invariant(
                         (step_iter[()] == 0 or aggregate[()] < u - eps)
-                        and T.Cast("int64", step_iter[()]) < T.ceildiv(vocab_size, block_elem)
+                        and T.Cast("int32" if "webgpu" in str(tvm.target.Target.current()) else "int64", step_iter[()]) < T.Cast("int32" if "webgpu" in str(tvm.target.Target.current()) else "int64", T.ceildiv(vocab_size, block_elem))
                     ):
                         single_batch_sampling(
                             prob,
@@ -290,7 +291,7 @@ def gpu_multinomial_from_uniform(
                             vocab_size,
                             ty,
                             tx,
-                            T.Cast("int64", step_iter[()]),
+                            T.Cast("int32" if "webgpu" in str(tvm.target.Target.current()) else "int64", step_iter[()]),
                             0.0,
                             aggregate,
                             u,
