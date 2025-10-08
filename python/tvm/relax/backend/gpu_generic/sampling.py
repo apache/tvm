@@ -286,7 +286,8 @@ def gpu_multinomial_from_uniform(
                     # at least one iteration
                     while T.tvm_thread_invariant(
                         (step_iter[()] == 0 or aggregate[()] < u - eps)
-                        and T.Cast(target_dtype, step_iter[()]) < T.Cast(target_dtype, T.ceildiv(vocab_size, block_elem))
+                        and T.Cast(target_dtype, step_iter[()])
+                        < T.Cast(target_dtype, T.ceildiv(vocab_size, block_elem))
                     ):
                         single_batch_sampling(
                             prob,

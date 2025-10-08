@@ -222,7 +222,7 @@ def _sort_common(
         target = tvm.target.Target.current()
         is_webgpu = "webgpu" in str(target)
         target_dtype = "int32" if is_webgpu else "int64"
-        
+
         first = ib.allocate(target_dtype, (1,), name="first", scope="local")
         mid = ib.allocate(target_dtype, (1,), name="mid", scope="local")
         last = ib.allocate(target_dtype, (1,), name="last", scope="local")
