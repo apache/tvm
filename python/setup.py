@@ -145,12 +145,12 @@ def config_cython():
     try:
         from Cython.Build import cythonize
 
-        # for python 3.12+, use limited API for future compact
+        # for python 3.8+, use limited API for future compact
         limited_api_kwargs = {}
-        if sys.version_info >= (3, 12):
+        if sys.version_info >= (3, 8):
             limited_api_kwargs = {
                 "define_macros": [
-                    ("Py_LIMITED_API", 0x030C0000),
+                    ("Py_LIMITED_API", 0x03080000),
                 ],
                 "py_limited_api": True,
             }
