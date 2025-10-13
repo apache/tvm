@@ -58,9 +58,9 @@ constexpr int kSimplifyRewriteCanonicalRewrite = 3;
 class IntGroupBoundsNode : public Object {
  public:
   PrimExpr coef;
-  Array<PrimExpr> lower;
-  Array<PrimExpr> equal;
-  Array<PrimExpr> upper;
+  ffi::Array<PrimExpr> lower;
+  ffi::Array<PrimExpr> equal;
+  ffi::Array<PrimExpr> upper;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -72,9 +72,7 @@ class IntGroupBoundsNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-
-  static constexpr const char* _type_key = "arith.IntGroupBounds";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IntGroupBoundsNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IntGroupBounds", IntGroupBoundsNode, Object);
 };
 
 /*!
@@ -93,8 +91,8 @@ class IntGroupBounds : public ObjectRef {
    * \param equal equalities
    * \param upper the upper bounds (include)
    */
-  TVM_DLL IntGroupBounds(PrimExpr coef, Array<PrimExpr> lower, Array<PrimExpr> equal,
-                         Array<PrimExpr> upper);
+  TVM_DLL IntGroupBounds(PrimExpr coef, ffi::Array<PrimExpr> lower, ffi::Array<PrimExpr> equal,
+                         ffi::Array<PrimExpr> upper);
 
   /*!
    * \brief Construct bounds from a range.
@@ -106,7 +104,7 @@ class IntGroupBounds : public ObjectRef {
   /*!
    * \brief Perform substitution on all components of the struct.
    */
-  IntGroupBounds Substitute(const Map<Var, PrimExpr>& subst) const;
+  IntGroupBounds Substitute(const ffi::Map<Var, PrimExpr>& subst) const;
 
   /*!
    * \brief Find the best range from the grouped bounds.
@@ -114,7 +112,7 @@ class IntGroupBounds : public ObjectRef {
    * \return The best range (has the least difference between the lower bound and upper bound).
    *         undefined if (-inf, +inf).
    */
-  Range FindBestRange(const Map<Var, Range>& vranges_addl = {}) const;
+  Range FindBestRange(const ffi::Map<Var, Range>& vranges_addl = {}) const;
 
   /*!
    * \brief Combine the bounds with another range.
@@ -123,7 +121,7 @@ class IntGroupBounds : public ObjectRef {
    */
   IntGroupBounds operator+(const Range& r);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IntGroupBounds, ObjectRef, IntGroupBoundsNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntGroupBounds, ObjectRef, IntGroupBoundsNode);
 };
 
 /*!
@@ -134,14 +132,14 @@ class IntGroupBounds : public ObjectRef {
 class IntConstraintsNode : public Object {
  public:
   // e.g., \alpha, \beta, must be integers
-  Array<Var> variables;
+  ffi::Array<Var> variables;
   // e.g., 1 <= \alpha <= N, etc.
   // it is absolutely ok to include ranges for parameters
   // (variables that are not in this->variables) in this map
-  Map<Var, Range> ranges;
+  ffi::Map<Var, Range> ranges;
   // linear equalities or inequalities
   // e.g., A \alpha = \beta or A \alpha <= \beta
-  Array<PrimExpr> relations;
+  ffi::Array<PrimExpr> relations;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -152,9 +150,7 @@ class IntConstraintsNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-
-  static constexpr const char* _type_key = "arith.IntConstraints";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IntConstraintsNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IntConstraints", IntConstraintsNode, Object);
 };
 
 /*!
@@ -170,9 +166,10 @@ class IntConstraints : public ObjectRef {
    * \param relations The linear relations between the variables
    *                  (either equations or inequalities)
    */
-  TVM_DLL IntConstraints(Array<Var> variables, Map<Var, Range> ranges, Array<PrimExpr> relations);
+  TVM_DLL IntConstraints(ffi::Array<Var> variables, ffi::Map<Var, Range> ranges,
+                         ffi::Array<PrimExpr> relations);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IntConstraints, ObjectRef, IntConstraintsNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntConstraints, ObjectRef, IntConstraintsNode);
 };
 
 /*!
@@ -193,8 +190,8 @@ class IntConstraintsTransformNode : public Object {
  public:
   IntConstraints src;
   IntConstraints dst;
-  Map<Var, PrimExpr> src_to_dst;
-  Map<Var, PrimExpr> dst_to_src;
+  ffi::Map<Var, PrimExpr> src_to_dst;
+  ffi::Map<Var, PrimExpr> dst_to_src;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -206,9 +203,8 @@ class IntConstraintsTransformNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-
-  static constexpr const char* _type_key = "arith.IntConstraintsTransform";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IntConstraintsTransformNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IntConstraintsTransform", IntConstraintsTransformNode,
+                                    Object);
 };
 
 /*!
@@ -228,7 +224,8 @@ class IntConstraintsTransform : public ObjectRef {
    *                   e.g., {m -> a, n -> -b}
    */
   TVM_DLL IntConstraintsTransform(IntConstraints src, IntConstraints dst,
-                                  Map<Var, PrimExpr> src_to_dst, Map<Var, PrimExpr> dst_to_src);
+                                  ffi::Map<Var, PrimExpr> src_to_dst,
+                                  ffi::Map<Var, PrimExpr> dst_to_src);
 
   /*!
    * \brief Chain-compose two IntConstraintsTransform together.
@@ -239,10 +236,11 @@ class IntConstraintsTransform : public ObjectRef {
    */
   IntConstraintsTransform operator+(const IntConstraintsTransform& other) const;
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IntConstraintsTransform, ObjectRef, IntConstraintsTransformNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntConstraintsTransform, ObjectRef,
+                                             IntConstraintsTransformNode);
 };
 
-typedef std::pair<Map<Var, IntGroupBounds>, Array<PrimExpr>> PartialSolvedInequalities;
+typedef std::pair<ffi::Map<Var, IntGroupBounds>, ffi::Array<PrimExpr>> PartialSolvedInequalities;
 
 /*!
  * \brief Obtain Smith Normal Form of linear equation A x = y.
@@ -301,8 +299,9 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
  * \param bounds grouped boundary of the variables.
  * \param relations other relations.
  */
-Array<PrimExpr> AsConditions(const Array<Var>& variables, const Map<Var, IntGroupBounds>& bounds,
-                             const Array<PrimExpr>& relations);
+ffi::Array<PrimExpr> AsConditions(const ffi::Array<Var>& variables,
+                                  const ffi::Map<Var, IntGroupBounds>& bounds,
+                                  const ffi::Array<PrimExpr>& relations);
 
 /*!
  * \brief Solve linear inequalities and infer the range of each variable.

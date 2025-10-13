@@ -23,10 +23,10 @@ import operator
 import os
 from functools import reduce
 from typing import Optional, Sequence
+from tvm_ffi import register_global_func
 
 import tvm
 from tvm import relax, runtime
-from tvm.ffi.registry import register_func
 from tvm.contrib.nvcc import get_cuda_version
 from tvm.topi.utils import get_const_tuple
 
@@ -821,7 +821,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         return span
 
 
-@register_func("contrib.cutlass.tune_relax_function")
+@register_global_func("contrib.cutlass.tune_relax_function")
 def profile_relax_function(functions, options):
     """Tune and annotate CUTLASS composite functions with shape, dtype and generated templates."""
     tmp_dir = options.get("tmp_dir", "./tmp")
@@ -840,7 +840,7 @@ def profile_relax_function(functions, options):
     return annotated_functions
 
 
-@register_func("contrib.cutlass.compile")
+@register_global_func("contrib.cutlass.compile")
 def compile_cutlass_module(c_source_module, options):
     """Compile all CUTLASS kernels in the given C-source module.
 

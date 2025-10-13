@@ -102,6 +102,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return [self._retrieve_args(x) for x in node]
         elif isinstance(node, dict):
             return {self._retrieve_args(k): self._retrieve_args(v) for k, v in node.items()}
+        elif node is None:
+            return relax.op.null_value()
         else:
             return node
 
@@ -1275,9 +1277,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
         assert isinstance(dim, int), "Expected 2nd argument of unbind as int"
         selections = self.shape_of(x)[dim].value
-        ret, split = [], self.block_builder.emit(relax.op.split(x, selections, dim))
-        for i in range(selections):
-            ret.append(self.block_builder.emit(relax.op.squeeze(split[i], axis=dim)))
+        ret = []
+        if selections == 1:
+            ret.append(self.block_builder.emit(relax.op.squeeze(x, axis=dim)))
+        else:
+            split = self.block_builder.emit(relax.op.split(x, selections, dim))
+            for i in range(selections):
+                ret.append(self.block_builder.emit(relax.op.squeeze(split[i], axis=dim)))
         return self.block_builder.emit(relax.Tuple(ret))
 
     ########## Statistical ##########
@@ -1997,6 +2003,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 return self.block_builder.emit(relax.TupleGetItem(x, node.args[1]))
 
             assert isinstance(x.struct_info, relax.TensorStructInfo)
+            if isinstance(node.args[1], int):
+                return x
+            if not isinstance(node.args[1], (list, tuple)):
+                indices = [node.args[1]]
+            else:
+                indices = node.args[1]
             take_indices = []
             take_axes = []
             stride_begin = []
@@ -2007,10 +2019,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             i = 0
             shape = self.shape_of(x)
             non_ellipsis_cnt = 0
-            for index in node.args[1]:
+            for index in indices:
                 if isinstance(index, (int, slice, torch.fx.Node)):
                     non_ellipsis_cnt += 1
-            for index in node.args[1]:
+            for index in indices:
                 if isinstance(index, int):
                     stride_begin.append(index)
                     stride_end.append(index + 1)

@@ -31,7 +31,6 @@
 #include <tvm/meta_schedule/runner.h>
 #include <tvm/meta_schedule/search_strategy.h>
 #include <tvm/meta_schedule/space_generator.h>
-#include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
 #include <tvm/support/random_engine.h>
 #include <tvm/target/target.h>
@@ -49,15 +48,15 @@ class TuneContextNode : public runtime::Object {
   using TRandState = support::LinearCongruentialEngine::TRandState;
 
   /*! \brief The workload to be tuned. */
-  Optional<IRModule> mod;
+  ffi::Optional<IRModule> mod;
   /*! \brief The target to be tuned for. */
-  Optional<Target> target;
+  ffi::Optional<Target> target;
   /*! \brief The design space generator. */
-  Optional<SpaceGenerator> space_generator;
+  ffi::Optional<SpaceGenerator> space_generator;
   /*! \brief The search strategy. */
-  Optional<SearchStrategy> search_strategy;
+  ffi::Optional<SearchStrategy> search_strategy;
   /*! \brief The name of the tuning task. */
-  Optional<String> task_name;
+  ffi::Optional<ffi::String> task_name;
   /*! \brief The number of threads to be used. */
   int num_threads;
   /*! \brief The random state. */
@@ -88,8 +87,8 @@ class TuneContextNode : public runtime::Object {
    */
   TuneContext Clone() const;
 
-  static constexpr const char* _type_key = "meta_schedule.TuneContext";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TuneContextNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.TuneContext", TuneContextNode, Object);
 };
 
 /*!
@@ -99,6 +98,13 @@ class TuneContextNode : public runtime::Object {
 class TuneContext : public runtime::ObjectRef {
  public:
   using TRandState = support::LinearCongruentialEngine::TRandState;
+  /*!
+   * \brief Constructor from ObjectPtr<TuneContextNode>.
+   * \param data The object pointer.
+   */
+  explicit TuneContext(ObjectPtr<TuneContextNode> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   /*!
    * \brief Constructor.
    * \param mod The workload to be tuned.
@@ -110,11 +116,12 @@ class TuneContext : public runtime::ObjectRef {
    * \param rand_state The random state.
    * \param logger The tuning task's logging function.
    */
-  TVM_DLL explicit TuneContext(Optional<IRModule> mod, Optional<Target> target,
-                               Optional<SpaceGenerator> space_generator,
-                               Optional<SearchStrategy> search_strategy, Optional<String> task_name,
-                               int num_threads, TRandState rand_state, ffi::Function logger);
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TuneContext, ObjectRef, TuneContextNode);
+  TVM_DLL explicit TuneContext(ffi::Optional<IRModule> mod, ffi::Optional<Target> target,
+                               ffi::Optional<SpaceGenerator> space_generator,
+                               ffi::Optional<SearchStrategy> search_strategy,
+                               ffi::Optional<ffi::String> task_name, int num_threads,
+                               TRandState rand_state, ffi::Function logger);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TuneContext, ObjectRef, TuneContextNode);
 };
 
 }  // namespace meta_schedule

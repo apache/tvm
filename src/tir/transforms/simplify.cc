@@ -77,9 +77,8 @@ struct SimplifyConfigNode : public AttrsNodeReflAdapter<SimplifyConfigNode> {
                 "branch",
                 refl::DefaultValue(false));
   }
-
-  static constexpr const char* _type_key = "tir.transform.SimplifyConfig";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(SimplifyConfigNode, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.SimplifyConfig", SimplifyConfigNode,
+                                    BaseAttrsNode);
 
   RewriteSimplifier::Extension GetEnabledExtensions() const {
     RewriteSimplifier::Extension flags = RewriteSimplifier::kNone;
@@ -115,7 +114,7 @@ std::unordered_set<const VarNode*> CollectVarsUsedInBufferDefinition(const Stmt&
 
     void VisitBuffer(const Buffer& buf) {
       // Collect variables that should remain defined
-      VarUseDefAnalyzer usage(Array<Var>{});
+      VarUseDefAnalyzer usage(ffi::Array<Var>{});
       usage(buf->data);
       for (const auto& dim : buf->shape) {
         usage(dim);
@@ -140,18 +139,17 @@ std::unordered_set<const VarNode*> CollectVarsUsedInBufferDefinition(const Stmt&
 
 class SimplifyConfig : public Attrs {
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(SimplifyConfig, Attrs, SimplifyConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SimplifyConfig, Attrs, SimplifyConfigNode);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ SimplifyConfigNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { SimplifyConfigNode::RegisterReflection(); }
 
-TVM_REGISTER_NODE_TYPE(SimplifyConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.Simplify", SimplifyConfig);
 
 class StmtSimplifier : public IRMutatorWithAnalyzer {
  public:
   static PrimFunc Apply(PrimFunc func, Analyzer* analyzer,
-                        Optional<SimplifyConfig> config_opt = std::nullopt) {
+                        ffi::Optional<SimplifyConfig> config_opt = std::nullopt) {
     auto config = config_opt.value_or(AttrsWithDefaultValues<arith::SimplifyConfig>());
     analyzer->rewrite_simplify.SetEnabledExtensions(config->GetEnabledExtensions());
 
@@ -195,7 +193,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   Stmt Simplify(Stmt stmt) { return operator()(std::move(stmt)); }
 
   Stmt VisitStmt(const Stmt& stmt) override {
-    Optional<Stmt> cache = this->current_stmt_;
+    ffi::Optional<Stmt> cache = this->current_stmt_;
     this->current_stmt_ = stmt;
     Stmt output = Parent::VisitStmt(stmt);
     this->current_stmt_ = std::move(cache);
@@ -250,7 +248,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     if (can_inline && !used_in_buffer_def) {
       return body;
     } else if (value.same_as(op->value) && body.same_as(op->body)) {
-      return GetRef<Stmt>(op);
+      return ffi::GetRef<Stmt>(op);
     } else {
       auto n = this->CopyOnWrite(op);
       n->value = std::move(value);
@@ -260,7 +258,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const IfThenElseNode* op) override {
-    if (Optional<Bool> cond = ProveCondition(op->condition)) {
+    if (ffi::Optional<Bool> cond = ProveCondition(op->condition)) {
       if (cond.value()->value) {
         return this->VisitStmt(op->then_case);
       } else if (op->else_case) {
@@ -275,7 +273,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
 
   PrimExpr VisitExpr_(const CallNode* op) override {
     if (op->op.same_as(builtin::if_then_else())) {
-      if (Optional<Bool> cond = ProveCondition(op->args[0])) {
+      if (ffi::Optional<Bool> cond = ProveCondition(op->args[0])) {
         if (cond.value()->value) {
           return this->VisitExpr(op->args[1]);
         } else {
@@ -304,7 +302,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   }
 
  private:
-  bool ArrayDeepEqual(const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs) {
+  bool ArrayDeepEqual(const ffi::Array<PrimExpr>& lhs, const ffi::Array<PrimExpr>& rhs) {
     if (lhs.size() != rhs.size()) {
       return false;
     }
@@ -321,7 +319,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
    * Uses more aggressive optimization, such as performing additional
    * inlining and tracking known buffer values.
    */
-  Optional<Bool> ProveCondition(PrimExpr condition) const {
+  ffi::Optional<Bool> ProveCondition(PrimExpr condition) const {
     condition = Substitute(condition, non_inlined_bindings_);
     if (config_->propagate_knowns_to_prove_conditional) {
       ICHECK(touch_pattern_.has_value());
@@ -339,8 +337,8 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   SimplifyConfig config_;
   std::optional<ControlFlowGraph> touch_pattern_;
 
-  Map<Var, PrimExpr> non_inlined_bindings_;
-  Optional<Stmt> current_stmt_{std::nullopt};
+  ffi::Map<Var, PrimExpr> non_inlined_bindings_;
+  ffi::Optional<Stmt> current_stmt_{std::nullopt};
   std::unordered_set<const VarNode*> used_in_buffer_def_;
 };
 
@@ -364,10 +362,10 @@ Pass Simplify() {
   return CreatePrimFuncPass(pass_func, 0, "tir.Simplify", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.Simplify", Simplify);
-});
+}
 
 }  // namespace transform
 }  // namespace tir

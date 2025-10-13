@@ -46,7 +46,7 @@ class DataflowBlockRewriteNode : public Object {
   /*! \brief Insert a Binding statement. */
   void Add(Binding binding);
   /*! \brief Insert an expression as VarBinding with variable name. */
-  void Add(String var_name, Expr expr, bool is_dfvar = false) {
+  void Add(ffi::String var_name, Expr expr, bool is_dfvar = false) {
     auto var = is_dfvar ? DataflowVar(var_name, GetStructInfo(expr))  //
                         : Var(var_name, GetStructInfo(expr));
     Add(VarBinding(std::move(var), std::move(expr)));
@@ -74,18 +74,16 @@ class DataflowBlockRewriteNode : public Object {
         .def_ro("dfb", &DataflowBlockRewriteNode::dfb_)
         .def_ro("root_fn", &DataflowBlockRewriteNode::root_fn_);
   }
-
-  static constexpr const char* _type_key = "relax.DataflowBlockRewrite";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DataflowBlockRewriteNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DataflowBlockRewrite", DataflowBlockRewriteNode, Object);
 
  protected:
   friend class DataflowBlockRewrite;
 
-  DataflowBlock dfb_;                    //!< The rewritten dataflow block.
-  Optional<Function> root_fn_;           //!< The rewritten function.
-  const FunctionNode* original_fn_ptr_;  //!< Pointer to the original function.
-  Map<Var, Array<Var>> to_users_;        //!< Map from variable to its users.
-  Array<Var> fn_outputs_;                //!< Variables required by function outputs.
+  DataflowBlock dfb_;                        //!< The rewritten dataflow block.
+  ffi::Optional<Function> root_fn_;          //!< The rewritten function.
+  const FunctionNode* original_fn_ptr_;      //!< Pointer to the original function.
+  ffi::Map<Var, ffi::Array<Var>> to_users_;  //!< Map from variable to its users.
+  ffi::Array<Var> fn_outputs_;               //!< Variables required by function outputs.
 
  private:
   NameSupply name_supply_;  //!< Name supply for tracking and generating unique names.
@@ -108,7 +106,8 @@ class DataflowBlockRewrite : public ObjectRef {
     return static_cast<DataflowBlockRewriteNode*>(get_mutable());
   }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(DataflowBlockRewrite, ObjectRef, DataflowBlockRewriteNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowBlockRewrite, ObjectRef,
+                                             DataflowBlockRewriteNode);
 };
 
 }  // namespace relax

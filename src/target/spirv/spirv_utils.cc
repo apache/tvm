@@ -129,8 +129,8 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenSPIRV: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
-    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    ICHECK(global_symbol.defined())
+    auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+    ICHECK(global_symbol.has_value())
         << "CodeGenSPIRV: Expect PrimFunc to have the global_symbol attribute";
 
     std::string f_name = global_symbol.value();

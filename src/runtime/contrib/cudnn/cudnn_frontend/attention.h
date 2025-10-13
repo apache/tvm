@@ -69,12 +69,12 @@ class CuDNNSDPARunnerNode : public tvm::runtime::Object {
 class CuDNNSDPARunner : public tvm::runtime::ObjectRef {
  public:
   static CuDNNSDPARunner Create() {
-    auto n = make_object<CuDNNSDPARunnerNode>();
+    auto n = ffi::make_object<CuDNNSDPARunnerNode>();
     return CuDNNSDPARunner(n);
   }
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(CuDNNSDPARunner, tvm::runtime::ObjectRef,
-                                        CuDNNSDPARunnerNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CuDNNSDPARunner, tvm::runtime::ObjectRef,
+                                             CuDNNSDPARunnerNode);
 };
 
 }  // namespace contrib

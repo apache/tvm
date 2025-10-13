@@ -20,13 +20,13 @@
 from typing import Optional
 
 import tvm
-import tvm.ffi
+import tvm_ffi
 from tvm.runtime import Object
 from . import Binding, DataflowBlock, Expr, Function, Var
 from . import _ffi_api
 
 
-@tvm.ffi.register_object("relax.DataflowBlockRewrite")
+@tvm_ffi.register_object("relax.DataflowBlockRewrite")
 class DataflowBlockRewrite(Object):
     """
     A binding/statement-level dataflow block rewriter.

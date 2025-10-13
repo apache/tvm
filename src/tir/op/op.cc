@@ -246,19 +246,26 @@ PrimExpr ret(PrimExpr value, Span span) {
   return tir::Call(value.dtype(), tir::builtin::ret(), {value}, span);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.ret", ret);
-});
-
 PrimExpr thread_return(Span span) {
   return tir::Call(DataType::Void(), tir::builtin::thread_return(), {}, span);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+PrimExpr continue_loop(Span span) {
+  return tir::Call(DataType::Void(), tir::builtin::continue_loop(), {}, span);
+}
+
+PrimExpr break_loop(Span span) {
+  return tir::Call(DataType::Void(), tir::builtin::break_loop(), {}, span);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.thread_return", thread_return);
-});
+  refl::GlobalDef()
+      .def("tir.ret", ret)
+      .def("tir.thread_return", thread_return)
+      .def("tir.continue_loop", continue_loop)
+      .def("tir.break_loop", break_loop);
+};
 
 // maximum and min limits
 PrimExpr max_value(const DataType& dtype, Span span) {
@@ -815,11 +822,11 @@ PrimExpr bitwise_neg(PrimExpr a, Span span) {
   return tir::Call(a.dtype(), tir::builtin::bitwise_not(), {a}, span);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.bitwise_not",
                         [](PrimExpr a, Span span) { return bitwise_neg(a, span); });
-});
+}
 
 // pow
 PrimExpr pow(PrimExpr x, PrimExpr y, Span span) {
@@ -923,7 +930,7 @@ PrimExpr isinf(PrimExpr x, Span span) {
 // isfinite
 PrimExpr isfinite(PrimExpr x, Span span) { return !isinf(x, span) && !isnan(x, span); }
 
-PrimExpr sum(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span span) {
+PrimExpr sum(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
   Var x("x", source.dtype(), span), y("y", source.dtype(), span);
   PrimExpr result = tir::Add(x, y, span);
   PrimExpr identity_element = make_zero(source.dtype(), span);
@@ -931,7 +938,7 @@ PrimExpr sum(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span sp
   return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init, span);
 }
 
-PrimExpr all(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span span) {
+PrimExpr all(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
   type_check_boolean_args(source, "tvm::all");
   Var x("x", source.dtype(), span), y("y", source.dtype());
   PrimExpr result = tir::And(x, y, span);
@@ -940,7 +947,7 @@ PrimExpr all(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span sp
   return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init, span);
 }
 
-PrimExpr any(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span span) {
+PrimExpr any(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
   type_check_boolean_args(source, "tvm::any");
   Var x("x", source.dtype(), span), y("y", source.dtype(), span);
   PrimExpr result = tir::Or(x, y, span);
@@ -949,7 +956,7 @@ PrimExpr any(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span sp
   return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init, span);
 }
 
-PrimExpr max(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span span) {
+PrimExpr max(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
   Var x("x", source.dtype(), span), y("y", source.dtype(), span);
   PrimExpr result = tir::Max(x, y, span);
   PrimExpr identity_element = min_value(source.dtype(), span);
@@ -957,7 +964,7 @@ PrimExpr max(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span sp
   return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init, span);
 }
 
-PrimExpr min(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span span) {
+PrimExpr min(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
   Var x("x", source.dtype(), span), y("y", source.dtype(), span);
   PrimExpr result = tir::Min(x, y, span);
   PrimExpr identity_element = max_value(source.dtype(), span);
@@ -965,7 +972,7 @@ PrimExpr min(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span sp
   return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init, span);
 }
 
-PrimExpr prod(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span span) {
+PrimExpr prod(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
   Var x("x", source.dtype(), span), y("y", source.dtype(), span);
   PrimExpr result = tir::Mul(x, y, span);
   PrimExpr identity_element = make_const(source.dtype(), 1, span);
@@ -1127,7 +1134,7 @@ TVM_TIR_REGISTER_OP("TVMBackendFreeWorkspace")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 // expose basic functions to node namespace
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("node._const",
@@ -1158,7 +1165,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("tir.trunc", tvm::trunc)
       .def("tir._cast", tvm::cast)
       .def("tir.reinterpret", tvm::reinterpret);
-});
+}
 
 // operator overloading, smarter than make
 #define DEF_MAKE_BINARY_OP(Node, Func) \
@@ -1177,7 +1184,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     }                                                                                          \
   })
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir._OpIfThenElse",
@@ -1214,7 +1221,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .DEF_MAKE_BIT_OP(bitwise_xor, bitwise_xor)
       .DEF_MAKE_BIT_OP(left_shift, left_shift)  // NOLINT(*)
       .DEF_MAKE_BIT_OP(right_shift, right_shift);
-});
+}
 
 PrimExpr fast_erf_float_expr(PrimExpr arg, int bits) {
   auto plus_4 = make_const(DataType::Float(bits), 4.f);

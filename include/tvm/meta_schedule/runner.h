@@ -26,7 +26,6 @@
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/meta_schedule/arg_info.h>
-#include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
 
 namespace tvm {
@@ -36,11 +35,11 @@ namespace meta_schedule {
 class RunnerInputNode : public runtime::Object {
  public:
   /*! \brief The path to the built artifact. */
-  String artifact_path;
+  ffi::String artifact_path;
   /*! \brief The type of device. */
-  String device_type;
+  ffi::String device_type;
   /*! \brief The argument information. */
-  Array<ArgInfo> args_info;
+  ffi::Array<ArgInfo> args_info;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -49,10 +48,7 @@ class RunnerInputNode : public runtime::Object {
         .def_ro("device_type", &RunnerInputNode::device_type)
         .def_ro("args_info", &RunnerInputNode::args_info);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.RunnerInput";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(RunnerInputNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RunnerInput", RunnerInputNode, runtime::Object);
 };
 
 /*!
@@ -67,17 +63,18 @@ class RunnerInput : public runtime::ObjectRef {
    * \param device_type The type of device.
    * \param args_info The argument information.
    */
-  TVM_DLL explicit RunnerInput(String artifact_path, String device_type, Array<ArgInfo> args_info);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(RunnerInput, runtime::ObjectRef, RunnerInputNode);
+  TVM_DLL explicit RunnerInput(ffi::String artifact_path, ffi::String device_type,
+                               ffi::Array<ArgInfo> args_info);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RunnerInput, runtime::ObjectRef, RunnerInputNode);
 };
 
 /*! \brief Runner's output containing measurement result of MeasureCandidate or error msg if any. */
 class RunnerResultNode : public runtime::Object {
  public:
   /*! \brief The run time in seconds.*/
-  Optional<Array<FloatImm>> run_secs;
+  ffi::Optional<ffi::Array<FloatImm>> run_secs;
   /*! \brief The error message, if any. */
-  Optional<String> error_msg;
+  ffi::Optional<ffi::String> error_msg;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -85,10 +82,8 @@ class RunnerResultNode : public runtime::Object {
         .def_ro("run_secs", &RunnerResultNode::run_secs)
         .def_ro("error_msg", &RunnerResultNode::error_msg);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.RunnerResult";
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(RunnerResultNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RunnerResult", RunnerResultNode,
+                                    runtime::Object);
 };
 
 /*!
@@ -102,8 +97,9 @@ class RunnerResult : public runtime::ObjectRef {
    * \brief The run time in seconds.
    * \brief The error message, if any.
    */
-  TVM_DLL explicit RunnerResult(Optional<Array<FloatImm>> run_secs, Optional<String> error_msg);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(RunnerResult, runtime::ObjectRef, RunnerResultNode);
+  TVM_DLL explicit RunnerResult(ffi::Optional<ffi::Array<FloatImm>> run_secs,
+                                ffi::Optional<ffi::String> error_msg);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RunnerResult, runtime::ObjectRef, RunnerResultNode);
 };
 
 /*!
@@ -150,9 +146,8 @@ class RunnerFutureNode : public runtime::Object {
     ICHECK(f_result != nullptr) << "PyRunnerFuture's Result method not implemented!";
     return f_result();
   }
-
-  static constexpr const char* _type_key = "meta_schedule.RunnerFuture";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RunnerFutureNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RunnerFuture", RunnerFutureNode,
+                                    runtime::Object);
 };
 
 /*!
@@ -170,8 +165,7 @@ class RunnerFuture : public runtime::ObjectRef {
    * \param f_result The packed function to fetch runner output if it is ready.
    */
   TVM_DLL explicit RunnerFuture(FDone f_done, FResult f_result);
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(RunnerFuture, runtime::ObjectRef,
-                                                    RunnerFutureNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RunnerFuture, runtime::ObjectRef, RunnerFutureNode);
 };
 
 /*! \brief The abstract runner interface. */
@@ -183,7 +177,7 @@ class RunnerNode : public runtime::Object {
    * \return The runner futures.
    * \sa RunnerFuture
    */
-  using FRun = ffi::TypedFunction<Array<RunnerFuture>(Array<RunnerInput>)>;
+  using FRun = ffi::TypedFunction<ffi::Array<RunnerFuture>(ffi::Array<RunnerInput>)>;
 
   /*! \brief Default destructor */
   virtual ~RunnerNode() = default;
@@ -193,10 +187,10 @@ class RunnerNode : public runtime::Object {
    * \param runner_inputs The runner's inputs.
    * \return The runner futures.
    */
-  virtual Array<RunnerFuture> Run(Array<RunnerInput> runner_inputs) = 0;
+  virtual ffi::Array<RunnerFuture> Run(ffi::Array<RunnerInput> runner_inputs) = 0;
 
-  static constexpr const char* _type_key = "meta_schedule.Runner";
-  TVM_DECLARE_BASE_OBJECT_INFO(RunnerNode, runtime::Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.Runner", RunnerNode, runtime::Object);
 };
 
 /*!
@@ -206,14 +200,18 @@ class RunnerNode : public runtime::Object {
 class Runner : public runtime::ObjectRef {
  public:
   using FRun = RunnerNode::FRun;
-
+  /*!
+   * \brief Constructor from ObjectPtr<RunnerNode>.
+   * \param data The object pointer.
+   */
+  explicit Runner(ObjectPtr<RunnerNode> data) : ObjectRef(data) { TVM_FFI_ICHECK(data != nullptr); }
   /*!
    * \brief Create a runner with customized build method on the python-side.
    * \param f_run The packed function to run the built artifacts and get runner futures.
    * \return The runner created.
    */
   TVM_DLL static Runner PyRunner(FRun f_run);
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Runner, runtime::ObjectRef, RunnerNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Runner, runtime::ObjectRef, RunnerNode);
 };
 
 /*! \brief An abstract runner with customized build method on the python-side. */
@@ -226,13 +224,11 @@ class PyRunnerNode : public RunnerNode {
     // `f_run` is not registered
   }
 
-  Array<RunnerFuture> Run(Array<RunnerInput> runner_inputs) final {
+  ffi::Array<RunnerFuture> Run(ffi::Array<RunnerInput> runner_inputs) final {
     ICHECK(f_run != nullptr) << "PyRunner's Run method not implemented!";
     return f_run(runner_inputs);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.PyRunner";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyRunnerNode, RunnerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyRunner", PyRunnerNode, RunnerNode);
 };
 
 }  // namespace meta_schedule

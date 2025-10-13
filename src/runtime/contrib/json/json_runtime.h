@@ -25,9 +25,9 @@
 #ifndef TVM_RUNTIME_CONTRIB_JSON_JSON_RUNTIME_H_
 #define TVM_RUNTIME_CONTRIB_JSON_JSON_RUNTIME_H_
 
-#include <tvm/runtime/module.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/runtime/profiling.h>
+#include <tvm/runtime/tensor.h>
 
 #include <cstddef>
 #include <string>
@@ -47,25 +47,23 @@ namespace json {
  * \brief A json runtime that executes the serialized JSON format. This runtime
  * can be extended by user defined runtime for execution.
  */
-class JSONRuntimeBase : public ModuleNode {
+class JSONRuntimeBase : public ffi::ModuleObj {
  public:
   JSONRuntimeBase(const std::string& symbol_name, const std::string& graph_json,
-                  const Array<String> const_names)
+                  const ffi::Array<ffi::String> const_names)
       : symbol_name_(symbol_name), graph_json_(graph_json), const_names_(const_names) {
     LoadGraph(graph_json_);
   }
 
-  ~JSONRuntimeBase() override = default;
-
-  const char* type_key() const override { return "json"; }  // May be overridden
+  const char* kind() const override { return "json"; }  // May be overridden
 
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const override {
-    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+    return ffi::Module::kBinarySerializable | ffi::Module::kRunnable;
   }
 
   /*! \brief Initialize a specific json runtime. */
-  virtual void Init(const Array<NDArray>& consts) = 0;
+  virtual void Init(const ffi::Array<Tensor>& consts) = 0;
 
   /*! \brief Invoke the execution engine to inteprete a specific json runtime. */
   virtual void Run() = 0;
@@ -95,7 +93,8 @@ class JSONRuntimeBase : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The packed function.
    */
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) override {
+    ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
     if (name == "get_symbol") {
       return ffi::Function(
           [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = this->symbol_name_; });
@@ -124,8 +123,8 @@ class JSONRuntimeBase : public ModuleNode {
         // Bind argument tensors to data entries.
         this->SetInputOutputBuffers(args);
 
-        if (auto opt_str = rv->try_cast<String>()) {
-          String purpose = std::move(opt_str.value());
+        if (auto opt_str = rv->try_cast<ffi::String>()) {
+          ffi::String purpose = std::move(opt_str.value());
           if ("debug_dump" == purpose) {
             *rv = this->DebugDump();
           }
@@ -134,7 +133,7 @@ class JSONRuntimeBase : public ModuleNode {
           profiling::Profiler* prof = static_cast<profiling::Profiler*>(rv->cast<void*>());
           this->RunProfile(prof);
         }
-        // String vendor_prof = this->RunProfile(prof);
+        // ffi::String vendor_prof = this->RunProfile(prof);
       });
     } else if ("__init_" + this->symbol_name_ == name) {
       // The function to initialize constant tensors.
@@ -142,17 +141,20 @@ class JSONRuntimeBase : public ModuleNode {
         ICHECK_EQ(args.size(), 1U);
         std::lock_guard<std::mutex> guard(this->initialize_mutex_);
         if (!this->initialized_) {
-          this->Init(args[0].cast<Array<NDArray>>());
+          this->Init(args[0].cast<ffi::Array<Tensor>>());
           this->initialized_ = true;
         }
         *rv = 0;
       });
     } else {
-      return ffi::Function(nullptr);
+      return std::nullopt;
     }
   }
 
-  void SaveToBinary(dmlc::Stream* stream) override {
+  ffi::Bytes SaveToBytes() const override {
+    std::string buffer;
+    dmlc::MemoryStringStream ms(&buffer);
+    dmlc::Stream* stream = &ms;
     // Save the symbol
     stream->Write(symbol_name_);
     // Save the graph
@@ -163,12 +165,14 @@ class JSONRuntimeBase : public ModuleNode {
       consts.push_back(it);
     }
     stream->Write(consts);
+    return ffi::Bytes(buffer);
   }
 
   template <typename T,
             typename = typename std::enable_if<std::is_base_of<JSONRuntimeBase, T>::value>::type>
-  static Module LoadFromBinary(void* strm) {
-    dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+  static ffi::Module LoadFromBytes(const ffi::Bytes& bytes) {
+    dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
+    dmlc::Stream* stream = &ms;
     std::string symbol;
     std::string graph_json;
     std::vector<std::string> consts;
@@ -176,12 +180,12 @@ class JSONRuntimeBase : public ModuleNode {
     ICHECK(stream->Read(&symbol)) << "Loading symbol name failed";
     ICHECK(stream->Read(&graph_json)) << "Loading graph json failed";
     ICHECK(stream->Read(&consts)) << "Loading the const name list failed";
-    Array<String> const_names;
+    ffi::Array<ffi::String> const_names;
     for (const auto& it : consts) {
       const_names.push_back(it);
     }
-    auto n = make_object<T>(symbol, graph_json, const_names);
-    return Module(n);
+    auto n = ffi::make_object<T>(symbol, graph_json, const_names);
+    return ffi::Module(n);
   }
 
   /*!
@@ -190,7 +194,7 @@ class JSONRuntimeBase : public ModuleNode {
    * \param format the format to return.
    * \return A string of JSON.
    */
-  String GetSource(const String& format = "json") override { return graph_json_; }
+  ffi::String InspectSource(const ffi::String& format) const override { return graph_json_; }
 
  protected:
   /*!
@@ -208,14 +212,14 @@ class JSONRuntimeBase : public ModuleNode {
                                            : EntryID(outputs_[i - input_var_eid_.size()]);
 
       const DLTensor* arg;
-      if (auto opt_nd = args[i].as<NDArray>()) {
-        NDArray arr = opt_nd.value();
+      if (auto opt_nd = args[i].as<Tensor>()) {
+        Tensor arr = opt_nd.value();
         arg = arr.operator->();
       } else {
         arg = args[i].cast<DLTensor*>();
       }
 
-      // Assign input/output the NDArray pointers to data entry so that we can directly
+      // Assign input/output the Tensor pointers to data entry so that we can directly
       // read/write host buffers.
       data_entry_[eid] = arg;
     }
@@ -264,9 +268,9 @@ class JSONRuntimeBase : public ModuleNode {
    * \brief Set up the constants/weights for inference by binding their DLTensor pointer to
    * the corresponding data entry.
    *
-   * \param consts A list of constant NDArray to be used.
+   * \param consts A list of constant Tensor to be used.
    */
-  void SetupConstants(const Array<NDArray>& consts) {
+  void SetupConstants(const ffi::Array<Tensor>& consts) {
     for (size_t i = 0; i < consts.size(); ++i) {
       data_entry_[EntryID(const_idx_[i], 0)] = consts[i].operator->();
     }
@@ -309,7 +313,7 @@ class JSONRuntimeBase : public ModuleNode {
   /*! \brief The graph. */
   std::string graph_json_;
   /*! \brief The required constant names. */
-  Array<String> const_names_;
+  ffi::Array<ffi::String> const_names_;
   /*! \brief The json graph nodes. */
   std::vector<JSONGraphNode> nodes_;
   /*! \brief The input nodes, including variables and constants. */

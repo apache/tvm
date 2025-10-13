@@ -171,6 +171,12 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     for (int i = 0; i < args.size(); ++i) {
       if (args[i] == nullptr) continue;
       if (args[i].type_index() == ffi::TypeIndex::kTVMFFIModule) continue;
+      if (args[i].type_index() == ffi::TypeIndex::kTVMFFISmallStr ||
+          args[i].type_index() == ffi::TypeIndex::kTVMFFISmallBytes)
+        continue;
+      if (args[i].type_index() == ffi::TypeIndex::kTVMFFIStr ||
+          args[i].type_index() == ffi::TypeIndex::kTVMFFIBytes)
+        continue;
       if (const Object* obj = args[i].as<Object>()) {
         if (!obj->IsInstance<RPCObjectRefObj>()) {
           LOG(FATAL) << "ValueError: Cannot pass argument " << i << ", type " << obj->GetTypeKey()
@@ -218,33 +224,46 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     this->Write(cdata);
   }
 
-  void WriteObject(Object* obj) {
+  void WriteFFIAny(const TVMFFIAny* in) {
     // NOTE: for now all remote object are encoded as RPCObjectRef
     // follow the same disco protocol in case we would like to upgrade later
-    //
-    // Rationale note: Only handle remote object allows the same mechanism to work for minRPC
-    // which is needed for wasm and other env that goes through C API
-    if (obj->IsInstance<RPCObjectRefObj>()) {
-      auto* ref = static_cast<RPCObjectRefObj*>(obj);
+    // TODO(tqchen): consider merge with disco protocol
+    const AnyView* any_view_ptr = reinterpret_cast<const AnyView*>(in);
+    if (const auto* ref = any_view_ptr->as<RPCObjectRefObj>()) {
       this->template Write<uint32_t>(runtime::TypeIndex::kRuntimeRPCObjectRef);
       uint64_t handle = reinterpret_cast<uint64_t>(ref->object_handle());
       this->template Write<int64_t>(handle);
+    } else if (auto opt_str = any_view_ptr->as<ffi::String>()) {
+      this->template Write<uint32_t>(ffi::TypeIndex::kTVMFFIStr);
+      this->template Write<uint64_t>((*opt_str).size());
+      this->template WriteArray<char>((*opt_str).data(), (*opt_str).size());
+    } else if (auto opt_bytes = any_view_ptr->as<ffi::Bytes>()) {
+      this->template Write<uint32_t>(ffi::TypeIndex::kTVMFFIBytes);
+      this->template Write<uint64_t>((*opt_bytes).size());
+      this->template WriteArray<char>((*opt_bytes).data(), (*opt_bytes).size());
     } else {
       LOG(FATAL) << "ValueError: Object type is not supported in RPC calling convention: "
-                 << obj->GetTypeKey() << " (type_index = " << obj->type_index() << ")";
+                 << any_view_ptr->GetTypeKey() << " (type_index = " << any_view_ptr->type_index()
+                 << ")";
     }
   }
-  uint64_t GetObjectBytes(Object* obj) {
-    if (obj->IsInstance<RPCObjectRefObj>()) {
+  uint64_t GetFFIAnyProtocolBytes(const TVMFFIAny* in) {
+    const AnyView* any_view_ptr = reinterpret_cast<const AnyView*>(in);
+    if (any_view_ptr->as<RPCObjectRefObj>()) {
       return sizeof(uint32_t) + sizeof(int64_t);
+    } else if (auto opt_str = any_view_ptr->as<ffi::String>()) {
+      return sizeof(uint32_t) + sizeof(uint64_t) + (*opt_str).size();
+    } else if (auto opt_bytes = any_view_ptr->as<ffi::Bytes>()) {
+      return sizeof(uint32_t) + sizeof(uint64_t) + (*opt_bytes).size();
     } else {
       LOG(FATAL) << "ValueError: Object type is not supported in RPC calling convention: "
-                 << obj->GetTypeKey() << " (type_index = " << obj->type_index() << ")";
+                 << any_view_ptr->GetTypeKey() << " (type_index = " << any_view_ptr->type_index()
+                 << ")";
       TVM_FFI_UNREACHABLE();
     }
   }
 
-  void ReadObject(TVMFFIAny* out) {
+  void ReadFFIAny(TVMFFIAny* out) {
     // NOTE: for now all remote object are encoded as RPCObjectRef
     // follow the same disco protocol in case we would like to upgrade later
     //
@@ -258,11 +277,28 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       // Always wrap things back in RPCObjectRef
       // this is because we want to enable multi-hop RPC
       // and next hop would also need to check the object index
-      RPCObjectRef rpc_obj(make_object<RPCObjectRefObj>(reinterpret_cast<void*>(handle), nullptr));
+      RPCObjectRef rpc_obj(
+          ffi::make_object<RPCObjectRefObj>(reinterpret_cast<void*>(handle), nullptr));
       // Legacy ABI translation
       // TODO(tqchen): remove this once we have upgraded to new ABI
       *reinterpret_cast<AnyView*>(out) = rpc_obj;
-      object_arena_.push_back(rpc_obj);
+      any_arena_.emplace_back(rpc_obj);
+    } else if (type_index == ffi::TypeIndex::kTVMFFIStr) {
+      uint64_t size;
+      this->template Read<uint64_t>(&size);
+      std::string data(size, '\0');
+      this->template ReadArray<char>(data.data(), size);
+      ffi::String ret(std::move(data));
+      *reinterpret_cast<AnyView*>(out) = ret;
+      any_arena_.emplace_back(ret);
+    } else if (type_index == ffi::TypeIndex::kTVMFFIBytes) {
+      uint64_t size;
+      this->template Read<uint64_t>(&size);
+      std::string data(size, '\0');
+      this->template ReadArray<char>(data.data(), size);
+      ffi::Bytes ret(std::move(data));
+      *reinterpret_cast<AnyView*>(out) = ret;
+      any_arena_.emplace_back(ret);
     } else {
       LOG(FATAL) << "ValueError: Object type is not supported in Disco calling convention: "
                  << Object::TypeIndex2Key(type_index) << " (type_index = " << type_index << ")";
@@ -281,7 +317,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
 
   /*! \brief Recycle all the memory used in the arena */
   void RecycleAll() {
-    this->object_arena_.clear();
+    this->any_arena_.clear();
     this->arena_.RecycleAll();
   }
 
@@ -306,7 +342,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   // Internal arena
   support::Arena arena_;
   // internal arena for temp objects
-  std::vector<ObjectRef> object_arena_;
+  std::vector<ffi::Any> any_arena_;
 
   // State switcher
   void SwitchToState(State state) {
@@ -430,7 +466,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     if (code == RPCCode::kException) {
       // switch to the state before sending exception.
       this->SwitchToState(kRecvPacketNumBytes);
-      String msg = args[0].cast<String>();
+      ffi::String msg = args[0].cast<ffi::String>();
       if (!support::StartsWith(msg, "RPCSessionTimeoutError: ")) {
         msg = "RPCError: Error caught from RPC call:\n" + msg;
       }
@@ -590,13 +626,13 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
                    << " Error caught from session constructor " << constructor_name << ":\n"
                    << e.what();
       }
-      auto opt_con_ret = con_ret.as<runtime::Module>();
+      auto opt_con_ret = con_ret.as<ffi::Module>();
       // Legacy ABI translation
       ICHECK(opt_con_ret.has_value())
           << "Server[" << name_ << "]:"
           << " Constructor " << constructor_name << " need to return an RPCModule";
-      Module mod = opt_con_ret.value();
-      std::string tkey = mod->type_key();
+      ffi::Module mod = opt_con_ret.value();
+      std::string tkey = mod->kind();
       ICHECK_EQ(tkey, "rpc") << "Constructor " << constructor_name << " to return an RPCModule";
       serving_session_ = RPCModuleGetSession(mod);
       this->ReturnVoid();
@@ -959,7 +995,7 @@ void RPCDevAllocDataWithScope(RPCSession* handler, ffi::PackedArgs args, ffi::An
   int ndim = arr->ndim;
   int64_t* shape = arr->shape;
   DLDataType dtype = arr->dtype;
-  auto mem_scope = args[1].cast<Optional<String>>();
+  auto mem_scope = args[1].cast<ffi::Optional<ffi::String>>();
   void* data = handler->GetDeviceAPI(dev)->AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
   *rv = data;
 }
@@ -1151,7 +1187,7 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
   }
 
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                       Optional<String> mem_scope) final {
+                       ffi::Optional<ffi::String> mem_scope) final {
     DLTensor temp;
     temp.data = nullptr;
     temp.device = dev;
@@ -1160,7 +1196,7 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     temp.shape = const_cast<int64_t*>(shape);
     temp.strides = nullptr;
     temp.byte_offset = 0;
-    if (mem_scope.defined()) {
+    if (mem_scope.has_value()) {
       return endpoint_
           ->SysCallRemote(RPCCode::kDevAllocDataWithScope, &temp,
                           static_cast<std::string>(mem_scope.value()))

@@ -36,10 +36,10 @@ TVM_DLL DiscoWorker* DiscoWorker::ThreadLocal() {
 void DiscoWorker::SetRegister(int reg_id, ffi::AnyView value) {
   ICHECK(0 <= reg_id && reg_id < static_cast<int>(register_file.size()));
   ffi::Any& rv = register_file.at(reg_id);
-  if (rv.type_index() == ffi::TypeIndex::kTVMFFINDArray &&
-      value.type_index() == ffi::TypeIndex::kTVMFFINDArray) {
-    NDArray dst = rv.cast<NDArray>();
-    NDArray src = value.cast<NDArray>();
+  if (rv.type_index() == ffi::TypeIndex::kTVMFFITensor &&
+      value.type_index() == ffi::TypeIndex::kTVMFFITensor) {
+    Tensor dst = rv.cast<Tensor>();
+    Tensor src = value.cast<Tensor>();
     dst.CopyFrom(src);
   } else {
     rv = value;
@@ -112,25 +112,25 @@ struct DiscoWorker::Impl {
     }
   }
 
-  static NDArray GetNDArrayFromHost(DiscoWorker* self) {
+  static Tensor GetTensorFromHost(DiscoWorker* self) {
     std::lock_guard<std::mutex> lock(self->worker_zero_data->queue_mutex_);
-    NDArray array = self->worker_zero_data->host_arrays.front();
+    Tensor array = self->worker_zero_data->host_arrays.front();
     self->worker_zero_data->host_arrays.pop();
     return array;
   }
 
   static void CopyFromWorker0(DiscoWorker* self, int reg_id) {
     if (self->worker_id == 0) {
-      NDArray tgt = GetNDArrayFromHost(self);
-      NDArray src = GetReg(self, reg_id).cast<NDArray>();
+      Tensor tgt = GetTensorFromHost(self);
+      Tensor src = GetReg(self, reg_id).cast<Tensor>();
       tgt.CopyFrom(src);
     }
   }
 
   static void CopyToWorker0(DiscoWorker* self, int reg_id) {
     if (self->worker_id == 0) {
-      NDArray src = GetNDArrayFromHost(self);
-      NDArray tgt = GetReg(self, reg_id).cast<NDArray>();
+      Tensor src = GetTensorFromHost(self);
+      Tensor tgt = GetReg(self, reg_id).cast<Tensor>();
       tgt.CopyFrom(src);
     }
   }

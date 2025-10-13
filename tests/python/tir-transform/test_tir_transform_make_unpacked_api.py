@@ -68,7 +68,7 @@ def test_device_setup(mod, target, dev):
     assert f.body.value == 0
     assert f.body.body.node == "default"
     assert f.body.body.attr_key == "device_type"
-    assert f.body.body.value == dev.device_type
+    assert f.body.body.value == dev.dlpack_device_type()
 
 
 def test_no_buffers_no_device_setup():

@@ -116,7 +116,7 @@ void InitCCLPerWorker(ffi::Shape device_ids, std::string unique_id_bytes) {
   }
 }
 
-void AllReduce(NDArray send, ReduceKind reduce_kind, bool in_group, NDArray recv) {
+void AllReduce(Tensor send, ReduceKind reduce_kind, bool in_group, Tensor recv) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   ffi::Shape shape = send.Shape();
   int64_t numel = shape->Product();
@@ -131,7 +131,7 @@ void AllReduce(NDArray send, ReduceKind reduce_kind, bool in_group, NDArray recv
                           in_group ? ctx->group_comm : ctx->global_comm, stream));
 }
 
-void AllGather(NDArray send, bool in_group, NDArray recv) {
+void AllGather(Tensor send, bool in_group, Tensor recv) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   ffi::Shape shape = send.Shape();
   int64_t numel = shape->Product();
@@ -141,7 +141,7 @@ void AllGather(NDArray send, bool in_group, NDArray recv) {
                           in_group ? ctx->group_comm : ctx->global_comm, stream));
 }
 
-void BroadcastFromWorker0(Optional<NDArray> send, bool in_group, NDArray recv) {
+void BroadcastFromWorker0(ffi::Optional<Tensor> send, bool in_group, Tensor recv) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   int worker_id = ctx->worker->worker_id;
   int group_size = ctx->worker->num_workers / ctx->worker->num_groups;
@@ -150,13 +150,13 @@ void BroadcastFromWorker0(Optional<NDArray> send, bool in_group, NDArray recv) {
   const void* send_data = [&]() -> const void* {
     if (is_sender) {
       CHECK(send.defined());
-      CHECK(send.value().Shape()->Product() == recv.Shape()->Product());
+      CHECK(send.value().Shape().Product() == recv.Shape().Product());
       return send.value()->data;
     } else {
       return nullptr;
     }
   }();
-  int64_t numel = recv.Shape()->Product();
+  int64_t numel = recv.Shape().Product();
 
   deviceStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclBroadcast(send_data, recv->data, numel,
@@ -164,7 +164,7 @@ void BroadcastFromWorker0(Optional<NDArray> send, bool in_group, NDArray recv) {
                           /*root=*/0, in_group ? ctx->group_comm : ctx->global_comm, stream));
 }
 
-void ScatterFromWorker0(Optional<NDArray> send, bool in_group, NDArray recv) {
+void ScatterFromWorker0(ffi::Optional<Tensor> send, bool in_group, Tensor recv) {
   CHECK(recv.defined()) << "ValueError: buffer `recv` must not be None";
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   int worker_id = ctx->worker->worker_id;
@@ -175,8 +175,8 @@ void ScatterFromWorker0(Optional<NDArray> send, bool in_group, NDArray recv) {
   deviceStream_t stream = ctx->GetDefaultStream();
   if (is_sender) {
     CHECK(send.defined()) << "ValueError: buffer `send` must be provided when worker_id == 0.";
-    NDArray buffer = send.value();
-    int64_t numel = buffer.Shape()->Product();
+    Tensor buffer = send.value();
+    int64_t numel = buffer.Shape().Product();
     CHECK_EQ(numel % num_receiver, 0) << "ValueError: Scattering evenly requires that the number "
                                          "of elements in the buffer to be "
                                          "divisible by the number of workers, but got numel = "
@@ -184,11 +184,11 @@ void ScatterFromWorker0(Optional<NDArray> send, bool in_group, NDArray recv) {
     DataType dtype(buffer->dtype);
     int64_t numel_per_shard = numel / num_receiver;
     int64_t bytes_per_shard = numel_per_shard * dtype.bytes();
-    CHECK_EQ(numel_per_shard, recv.Shape()->Product())
+    CHECK_EQ(numel_per_shard, recv.Shape().Product())
         << "ValueError: The number of elements in buffer `recv` must be the same as each shard "
            "of "
            "buffer `send`. `send.size` is "
-        << numel << ", but `recv.size` is " << recv.Shape()->Product() << ".";
+        << numel << ", but `recv.size` is " << recv.Shape().Product() << ".";
     NCCL_CALL(ncclGroupStart());
     uint8_t* data = static_cast<uint8_t*>(buffer->data);
     for (int i = 0; i < num_receiver; ++i) {
@@ -204,14 +204,14 @@ void ScatterFromWorker0(Optional<NDArray> send, bool in_group, NDArray recv) {
     }
     NCCL_CALL(ncclGroupStart());
   }
-  int64_t numel = recv.Shape()->Product();
+  int64_t numel = recv.Shape().Product();
   DataType dtype(recv->dtype);
   NCCL_CALL(ncclRecv(recv->data, numel, AsNCCLDataType(dtype), 0,
                      in_group ? ctx->group_comm : ctx->global_comm, stream));
   NCCL_CALL(ncclGroupEnd());
 }
 
-void GatherToWorker0(NDArray send, bool in_group, Optional<NDArray> recv) {
+void GatherToWorker0(Tensor send, bool in_group, ffi::Optional<Tensor> recv) {
   CHECK(send.defined()) << "ValueError: buffer `send` must not be None";
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   int worker_id = ctx->worker->worker_id;
@@ -222,8 +222,8 @@ void GatherToWorker0(NDArray send, bool in_group, Optional<NDArray> recv) {
   deviceStream_t stream = ctx->GetDefaultStream();
   if (is_sender) {
     CHECK(recv.defined()) << "ValueError: buffer `recv` must be provided when worker_id == 0.";
-    NDArray buffer = recv.value();
-    int64_t numel = buffer.Shape()->Product();
+    Tensor buffer = recv.value();
+    int64_t numel = buffer.Shape().Product();
     CHECK_EQ(numel % num_receiver, 0) << "ValueError: Gathering evenly requires that the number "
                                          "of elements in the buffer to be "
                                          "divisible by the number of workers, but got numel = "
@@ -231,11 +231,11 @@ void GatherToWorker0(NDArray send, bool in_group, Optional<NDArray> recv) {
     DataType dtype(buffer->dtype);
     int64_t numel_per_shard = numel / num_receiver;
     int64_t bytes_per_shard = numel_per_shard * dtype.bytes();
-    CHECK_EQ(numel_per_shard, send.Shape()->Product())
+    CHECK_EQ(numel_per_shard, send.Shape().Product())
         << "ValueError: The number of elements in buffer `send` must be the same as each shard "
            "of "
            "buffer `recv`. `recv.size` is "
-        << numel << ", but `send.size` is " << send.Shape()->Product() << ".";
+        << numel << ", but `send.size` is " << send.Shape().Product() << ".";
     NCCL_CALL(ncclGroupStart());
     uint8_t* data = static_cast<uint8_t*>(buffer->data);
     for (int i = 0; i < num_receiver; ++i) {
@@ -251,25 +251,25 @@ void GatherToWorker0(NDArray send, bool in_group, Optional<NDArray> recv) {
     }
     NCCL_CALL(ncclGroupStart());
   }
-  int64_t numel = send.Shape()->Product();
+  int64_t numel = send.Shape().Product();
   DataType dtype(send->dtype);
   NCCL_CALL(ncclSend(send->data, numel, AsNCCLDataType(dtype), 0,
                      in_group ? ctx->group_comm : ctx->global_comm, stream));
   NCCL_CALL(ncclGroupEnd());
 }
 
-void RecvFromWorker0(NDArray buffer) {
+void RecvFromWorker0(Tensor buffer) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   deviceStream_t stream = ctx->GetDefaultStream();
   CHECK_NE(ctx->worker->worker_id, 0)
       << "ValueError: Worker 0 is not allowed to call RecvFromWorker0.";
   NCCL_CALL(ncclGroupStart());
-  NCCL_CALL(ncclRecv(buffer->data, buffer.Shape()->Product(), AsNCCLDataType(buffer.DataType()), 0,
+  NCCL_CALL(ncclRecv(buffer->data, buffer.Shape().Product(), AsNCCLDataType(buffer.DataType()), 0,
                      ctx->global_comm, stream));
   NCCL_CALL(ncclGroupEnd());
 }
 
-void SendToNextGroup(NDArray buffer) {
+void SendToNextGroup(Tensor buffer) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   deviceStream_t stream = ctx->GetDefaultStream();
   int worker_id = ctx->worker->worker_id;
@@ -278,12 +278,12 @@ void SendToNextGroup(NDArray buffer) {
   CHECK_LT(receiver_id, ctx->worker->num_workers)
       << "The current group is already the last group and there is no such a next group.";
   NCCL_CALL(ncclGroupStart());
-  NCCL_CALL(ncclSend(buffer->data, buffer.Shape()->Product(), AsNCCLDataType(buffer.DataType()),
+  NCCL_CALL(ncclSend(buffer->data, buffer.Shape().Product(), AsNCCLDataType(buffer.DataType()),
                      receiver_id, ctx->global_comm, stream));
   NCCL_CALL(ncclGroupEnd());
 }
 
-void RecvFromPrevGroup(NDArray buffer) {
+void RecvFromPrevGroup(Tensor buffer) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   deviceStream_t stream = ctx->GetDefaultStream();
   int worker_id = ctx->worker->worker_id;
@@ -292,12 +292,12 @@ void RecvFromPrevGroup(NDArray buffer) {
   CHECK_GE(sender_id, 0)
       << "The current group is already the first group and there is no such a previous group.";
   NCCL_CALL(ncclGroupStart());
-  NCCL_CALL(ncclRecv(buffer->data, buffer.Shape()->Product(), AsNCCLDataType(buffer.DataType()),
+  NCCL_CALL(ncclRecv(buffer->data, buffer.Shape().Product(), AsNCCLDataType(buffer.DataType()),
                      sender_id, ctx->global_comm, stream));
   NCCL_CALL(ncclGroupEnd());
 }
 
-void SendToWorker(NDArray buffer, int receiver_id) {
+void SendToWorker(Tensor buffer, int receiver_id) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   deviceStream_t stream = ctx->GetDefaultStream();
   int worker_id = ctx->worker->worker_id;
@@ -305,18 +305,18 @@ void SendToWorker(NDArray buffer, int receiver_id) {
       << "Invalid receiver id " << receiver_id << ". The world size is "
       << ctx->worker->num_workers;
   CHECK_NE(worker_id, receiver_id) << "Cannot send to worker itself.";
-  NCCL_CALL(ncclSend(buffer->data, buffer.Shape()->Product(), AsNCCLDataType(buffer.DataType()),
+  NCCL_CALL(ncclSend(buffer->data, buffer.Shape().Product(), AsNCCLDataType(buffer.DataType()),
                      receiver_id, ctx->global_comm, stream));
 }
 
-void RecvFromWorker(NDArray buffer, int sender_id) {
+void RecvFromWorker(Tensor buffer, int sender_id) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   deviceStream_t stream = ctx->GetDefaultStream();
   int worker_id = ctx->worker->worker_id;
   CHECK(sender_id >= 0 && sender_id < ctx->worker->num_workers)
       << "Invalid sender id " << sender_id << ". The world size is " << ctx->worker->num_workers;
   CHECK_NE(worker_id, sender_id) << "Cannot receive from the worker itself.";
-  NCCL_CALL(ncclRecv(buffer->data, buffer.Shape()->Product(), AsNCCLDataType(buffer.DataType()),
+  NCCL_CALL(ncclRecv(buffer->data, buffer.Shape().Product(), AsNCCLDataType(buffer.DataType()),
                      sender_id, ctx->global_comm, stream));
 }
 
@@ -327,19 +327,19 @@ void SyncWorker() {
   StreamSynchronize(stream);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.disco.compiled_ccl", []() -> String { return TVM_DISCO_CCL_NAME; })
+      .def("runtime.disco.compiled_ccl", []() -> ffi::String { return TVM_DISCO_CCL_NAME; })
       .def("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl", InitCCL)
       .def("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker", InitCCLPerWorker)
       .def("runtime.disco." TVM_DISCO_CCL_NAME ".allreduce",
-           [](NDArray send, int kind, bool in_group, NDArray recv) {
+           [](Tensor send, int kind, bool in_group, Tensor recv) {
              CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
              nccl::AllReduce(send, static_cast<ReduceKind>(kind), in_group, recv);
            })
       .def("runtime.disco." TVM_DISCO_CCL_NAME ".allgather",
-           [](NDArray send, bool in_group, NDArray recv) { nccl::AllGather(send, in_group, recv); })
+           [](Tensor send, bool in_group, Tensor recv) { nccl::AllGather(send, in_group, recv); })
       .def("runtime.disco." TVM_DISCO_CCL_NAME ".broadcast_from_worker0", BroadcastFromWorker0)
       .def("runtime.disco." TVM_DISCO_CCL_NAME ".scatter_from_worker0", ScatterFromWorker0)
       .def("runtime.disco." TVM_DISCO_CCL_NAME ".gather_to_worker0", GatherToWorker0)
@@ -350,7 +350,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_worker", RecvFromWorker)
       .def("runtime.disco." TVM_DISCO_CCL_NAME ".sync_worker", SyncWorker)
       .def("runtime.disco." TVM_DISCO_CCL_NAME ".test_send_to_next_group_recv_from_prev_group",
-           [](NDArray buffer) {
+           [](Tensor buffer) {
              CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
              CHECK_EQ(ctx->worker->num_workers, 4) << "The test requires the world size to be 4.";
              CHECK_EQ(ctx->worker->num_groups, 2) << "The test requires the group size to be 2.";
@@ -362,18 +362,17 @@ TVM_FFI_STATIC_INIT_BLOCK({
                tvm::runtime::nccl::RecvFromPrevGroup(buffer);
              }
            })
-      .def("runtime.disco." TVM_DISCO_CCL_NAME ".test_worker2_sends_to_worker0",
-           [](NDArray buffer) {
-             CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
-             CHECK_EQ(ctx->worker->num_workers, 4) << "The test requires the world size to be 4.";
-             CHECK_EQ(ctx->worker->num_groups, 2) << "The test requires the group size to be 2.";
-             if (ctx->worker->worker_id == 2) {
-               tvm::runtime::nccl::SendToWorker(buffer, 0);
-             } else if (ctx->worker->worker_id == 0) {
-               tvm::runtime::nccl::RecvFromWorker(buffer, 2);
-             }
-           });
-});
+      .def("runtime.disco." TVM_DISCO_CCL_NAME ".test_worker2_sends_to_worker0", [](Tensor buffer) {
+        CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
+        CHECK_EQ(ctx->worker->num_workers, 4) << "The test requires the world size to be 4.";
+        CHECK_EQ(ctx->worker->num_groups, 2) << "The test requires the group size to be 2.";
+        if (ctx->worker->worker_id == 2) {
+          tvm::runtime::nccl::SendToWorker(buffer, 0);
+        } else if (ctx->worker->worker_id == 0) {
+          tvm::runtime::nccl::RecvFromWorker(buffer, 2);
+        }
+      });
+}
 
 }  // namespace nccl
 }  // namespace runtime

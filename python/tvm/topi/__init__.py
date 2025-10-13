@@ -50,6 +50,7 @@ from .signal import *
 from . import nn
 from . import utils
 from . import image
+from . import vision
 from . import gpu
 
 # error reporting

@@ -22,7 +22,6 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/schedule/schedule.h>
 
@@ -64,8 +63,8 @@ class PostprocNode : public runtime::Object {
    */
   virtual Postproc Clone() const = 0;
 
-  static constexpr const char* _type_key = "meta_schedule.Postproc";
-  TVM_DECLARE_BASE_OBJECT_INFO(PostprocNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.Postproc", PostprocNode, Object);
 };
 
 /*!
@@ -94,7 +93,7 @@ class Postproc : public runtime::ObjectRef {
    * \brief Get the postprocessor function as string with name.
    * \return The string of the postprocessor function.
    */
-  using FAsString = ffi::TypedFunction<String()>;
+  using FAsString = ffi::TypedFunction<ffi::String()>;
   /*!
    * \brief Create a postprocessor with customized methods on the python-side.
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
@@ -164,17 +163,19 @@ class Postproc : public runtime::ObjectRef {
    */
   TVM_DLL static Postproc RewriteLayout();
   /*! \brief Create default postprocessors for LLVM */
-  TVM_DLL static Array<Postproc, void> DefaultLLVM();
+  TVM_DLL static ffi::Array<Postproc, void> DefaultLLVM();
   /*! \brief Create default postprocessors for x86 (AVX512 and VNNI) */
-  TVM_DLL static Array<Postproc, void> DefaultCPUTensorization();
+  TVM_DLL static ffi::Array<Postproc, void> DefaultCPUTensorization();
+  /*! \brief Create default postprocessors for RISCV */
+  TVM_DLL static ffi::Array<Postproc, void> DefaultRISCV();
   /*! \brief Create default postprocessors for CUDA */
-  TVM_DLL static Array<Postproc, void> DefaultCUDA();
+  TVM_DLL static ffi::Array<Postproc, void> DefaultCUDA();
   /*! \brief Create default postprocessors for CUDA with TensorCore */
-  TVM_DLL static Array<Postproc, void> DefaultCUDATensorCore();
+  TVM_DLL static ffi::Array<Postproc, void> DefaultCUDATensorCore();
   /*! \brief Create default postprocessors for Hexagon */
-  TVM_DLL static Array<Postproc, void> DefaultHexagon();
+  TVM_DLL static ffi::Array<Postproc, void> DefaultHexagon();
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Postproc, ObjectRef, PostprocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Postproc, ObjectRef, PostprocNode);
 };
 
 /*! \brief The postprocessor with customized methods on the python-side. */
@@ -203,9 +204,7 @@ class PyPostprocNode : public PostprocNode {
   void InitializeWithTuneContext(const TuneContext& context) final;
   bool Apply(const tir::Schedule& sch) final;
   Postproc Clone() const final;
-
-  static constexpr const char* _type_key = "meta_schedule.PyPostproc";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyPostprocNode, PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyPostproc", PyPostprocNode, PostprocNode);
 };
 
 }  // namespace meta_schedule

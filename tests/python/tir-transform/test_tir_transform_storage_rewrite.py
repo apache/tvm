@@ -26,7 +26,7 @@ from tvm.script import tir as T
 
 def register_mem(scope_tb, max_bits):
     # Register mem
-    @tvm.register_func("tvm.info.mem.%s" % scope_tb)
+    @tvm.register_global_func("tvm.info.mem.%s" % scope_tb)
     def mem_info_inp_buffer():
         return tvm.ir.make_node(
             "target.MemoryInfo",

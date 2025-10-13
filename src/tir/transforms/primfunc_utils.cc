@@ -36,7 +36,7 @@ transform::Pass AnnotateEntryFunc() {
       auto [gvar, base_func] = *mod->functions.begin();
       if (!base_func->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
         if (auto ptr = base_func.as<PrimFuncNode>()) {
-          mod->Update(gvar, WithAttr(GetRef<PrimFunc>(ptr), tir::attr::kIsEntryFunc, true));
+          mod->Update(gvar, WithAttr(ffi::GetRef<PrimFunc>(ptr), tir::attr::kIsEntryFunc, true));
         }
       }
       return mod;
@@ -47,11 +47,11 @@ transform::Pass AnnotateEntryFunc() {
     bool has_external_non_primfuncs = false;
     IRModule with_annotations;
     for (const auto& [gvar, base_func] : mod->functions) {
-      bool is_external = base_func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
+      bool is_external = base_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
       if (is_external) {
         if (auto ptr = base_func.as<PrimFuncNode>()) {
-          with_annotations->Add(gvar,
-                                WithAttr(GetRef<PrimFunc>(ptr), tir::attr::kIsEntryFunc, true));
+          with_annotations->Add(
+              gvar, WithAttr(ffi::GetRef<PrimFunc>(ptr), tir::attr::kIsEntryFunc, true));
         } else {
           has_external_non_primfuncs = true;
         }
@@ -79,12 +79,12 @@ transform::Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond) {
   return tir::transform::CreatePrimFuncPass(fpass, 0, "tir.Filter", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.transform.AnnotateEntryFunc", AnnotateEntryFunc)
       .def("tir.transform.Filter", Filter);
-});
+}
 
 }  // namespace transform
 }  // namespace tir

@@ -151,7 +151,7 @@ def static_shape_tuning_pipeline(
         # the name should be f"{func_name}_transform_params"
         params = vm["main_transform_params"](params["main"])
 
-        input_data = tvm.nd.array(np.random.randn(1, 3, 224, 224).astype("float32"))
+        input_data = tvm.runtime.tensor(np.random.randn(1, 3, 224, 224).astype("float32"))
         out = vm["main"](input_data, *params).numpy()
     """
 

@@ -50,8 +50,8 @@ def test_inject_ptx_intrin():
     A_np = np.random.rand(16).astype("float32")
     B_np = np.zeros((32)).astype("float32")
     dev = tvm.cuda(0)
-    A_nd = tvm.nd.array(A_np, device=dev)
-    B_nd = tvm.nd.array(B_np, device=dev)
+    A_nd = tvm.runtime.tensor(A_np, device=dev)
+    B_nd = tvm.runtime.tensor(B_np, device=dev)
     mod(A_nd, B_nd)
 
     C_np = np.zeros((32)).astype("float32")

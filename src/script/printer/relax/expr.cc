@@ -29,57 +29,57 @@ namespace printer {
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::PrimValue>(  //
-        "", [](relax::PrimValue n, ObjectPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::PrimValue n, AccessPath n_p, IRDocsifier d) -> Doc {
           // TODO(@junrushao): float numbers
           return Relax(d, "prim_value")->Call({d->AsDoc<ExprDoc>(n->value, n_p->Attr("value"))});
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::StringImm>(  //
-        "", [](relax::StringImm n, ObjectPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::StringImm n, AccessPath n_p, IRDocsifier d) -> Doc {
           return Relax(d, "str")->Call({LiteralDoc::Str(n->value, n_p->Attr("value"))});
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::DataTypeImm>(  //
-        "", [](relax::DataTypeImm n, ObjectPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::DataTypeImm n, AccessPath n_p, IRDocsifier d) -> Doc {
           return Relax(d, "dtype")->Call({LiteralDoc::DataType(n->value, n_p->Attr("value"))});
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Tuple>(  //
-        "", [](relax::Tuple n, ObjectPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::Tuple n, AccessPath n_p, IRDocsifier d) -> Doc {
           // TODO(@junrushao): revisit tuple printing
           if (n->fields.empty()) {
             return Relax(d, "tuple")->Call({});
           }
-          Array<ExprDoc> fields_doc;
-          ObjectPath fields_p = n_p->Attr("fields");
+          ffi::Array<ExprDoc> fields_doc;
+          AccessPath fields_p = n_p->Attr("fields");
           for (int i = 0, l = n->fields.size(); i < l; ++i) {
-            fields_doc.push_back(d->AsDoc<ExprDoc>(n->fields[i], fields_p->ArrayIndex(i)));
+            fields_doc.push_back(d->AsDoc<ExprDoc>(n->fields[i], fields_p->ArrayItem(i)));
           }
           return TupleDoc(fields_doc);
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::TupleGetItem>(  //
-        "", [](relax::TupleGetItem n, ObjectPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::TupleGetItem n, AccessPath n_p, IRDocsifier d) -> Doc {
           ExprDoc idx = LiteralDoc::Int(n->index, n_p->Attr("index"));
           return d->AsDoc<ExprDoc>(n->tuple, n_p->Attr("tuple"))[{idx}];
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::ShapeExpr>(  //
-        "", [](relax::ShapeExpr n, ObjectPath n_p, IRDocsifier d) -> Doc {
-          Array<ExprDoc> values_doc;
-          ObjectPath values_p = n_p->Attr("values");
+        "", [](relax::ShapeExpr n, AccessPath n_p, IRDocsifier d) -> Doc {
+          ffi::Array<ExprDoc> values_doc;
+          AccessPath values_p = n_p->Attr("values");
           for (int i = 0, l = n->values.size(); i < l; ++i) {
-            values_doc.push_back(PrintShapeVar(n->values[i], values_p->ArrayIndex(i), d));
+            values_doc.push_back(PrintShapeVar(n->values[i], values_p->ArrayItem(i), d));
           }
           return Relax(d, "shape")->Call({ListDoc(values_doc)});
         });
 
-Optional<ExprDoc> SpecialScalar(const runtime::NDArray& n, const ObjectPath& p) {
+ffi::Optional<ExprDoc> SpecialScalar(const runtime::Tensor& n, const AccessPath& p) {
   DataType dtype = n.DataType();
   const void* data = n->data;
   if (n->ndim != 0 || n->device.device_type != kDLCPU) {
@@ -134,8 +134,8 @@ Optional<ExprDoc> SpecialScalar(const runtime::NDArray& n, const ObjectPath& p) 
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Constant>(  //
-        "", [](relax::Constant n, ObjectPath n_p, IRDocsifier d) -> Doc {
-          if (Optional<ExprDoc> s = SpecialScalar(n->data, n_p->Attr("data"))) {
+        "", [](relax::Constant n, AccessPath n_p, IRDocsifier d) -> Doc {
+          if (ffi::Optional<ExprDoc> s = SpecialScalar(n->data, n_p->Attr("data"))) {
             if (n->struct_info_.as<relax::distributed::DTensorStructInfoNode>()) {
               ExprDoc ann = d->AsDoc<ExprDoc>(n->struct_info_, n_p->Attr("struct_info_"));
               return Relax(d, "dist.const")->Call({s.value(), ann});
@@ -149,7 +149,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return d->AddMetadata(n);
         });
 
-Doc PrintRelaxVar(relax::Var n, ObjectPath p, IRDocsifier d) {
+Doc PrintRelaxVar(relax::Var n, AccessPath p, IRDocsifier d) {
   if (!d->IsVarDefined(n)) {
     ExprDoc ann = d->AsDoc<ExprDoc>(n->struct_info_, p->Attr("struct_info_"));
     Frame f = d->frames.back();

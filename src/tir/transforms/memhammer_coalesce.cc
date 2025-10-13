@@ -40,13 +40,13 @@ Stmt FuseNestLoops(Stmt body) {
   }
   suffix += "_fused";
   Var fused_var = loops[0]->loop_var.copy_with_suffix(suffix);
-  Map<Var, PrimExpr> subst_map;
+  ffi::Map<Var, PrimExpr> subst_map;
   PrimExpr tot = fused_var;
   for (int i = n - 1; i >= 0; i--) {
     subst_map.Set(loops[i]->loop_var, floormod(tot, loops[i]->extent));
     tot = floordiv(tot, loops[i]->extent);
   }
-  auto f_substitute = [&](const Var& v) -> Optional<PrimExpr> {
+  auto f_substitute = [&](const Var& v) -> ffi::Optional<PrimExpr> {
     return subst_map.Get(v).value_or(v);
   };
   PrimExpr fused_extent = 1;
@@ -74,19 +74,19 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   // generate thread binding loops
   std::vector<int> factors{-1};
   std::vector<std::string> thread_axis;
-  if (Optional<Integer> o_t = constraints.thread_extent.Get("threadIdx.z")) {
+  if (ffi::Optional<Integer> o_t = constraints.thread_extent.Get("threadIdx.z")) {
     int t = o_t.value()->value;
     tot_threads *= t;
     factors.push_back(t);
     thread_axis.push_back("threadIdx.z");
   }
-  if (Optional<Integer> o_t = constraints.thread_extent.Get("threadIdx.y")) {
+  if (ffi::Optional<Integer> o_t = constraints.thread_extent.Get("threadIdx.y")) {
     int t = o_t.value()->value;
     tot_threads *= t;
     factors.push_back(t);
     thread_axis.push_back("threadIdx.y");
   }
-  if (Optional<Integer> o_t = constraints.thread_extent.Get("threadIdx.x")) {
+  if (ffi::Optional<Integer> o_t = constraints.thread_extent.Get("threadIdx.x")) {
     int t = o_t.value()->value;
     tot_threads *= t;
     factors.push_back(t);
@@ -114,7 +114,7 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
     substitute_value += new_loop_vars[i];
   }
   // Construct the new loop nest
-  Stmt body = Substitute(loop->body, [&](const Var& v) -> Optional<PrimExpr> {
+  Stmt body = Substitute(loop->body, [&](const Var& v) -> ffi::Optional<PrimExpr> {
     if (v.same_as(loop->loop_var)) {
       return substitute_value;
     } else {
@@ -152,17 +152,17 @@ Stmt CoalescedAccess::Rewrite(const Stmt& stmt, const ConstraintSet& constraints
  * the index mapping
  * \return The mapping in the form of j0, ..., jm, where j0, ... jm = f(i0, ..., in)
  */
-Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constraints) {
+ffi::Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constraints) {
   Stmt body = stmt;
   while (const ForNode* loop = body.as<ForNode>()) {
     body = loop->body;
   }
   const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
   BufferRegion write_region = constraints.write_region;
-  const Array<PrimExpr>& write_index = buf_store->indices;
+  const ffi::Array<PrimExpr>& write_index = buf_store->indices;
   ICHECK(write_region->region.size() == write_index.size() &&
          write_region->buffer.same_as(buf_store->buffer));
-  Array<PrimExpr> result;
+  ffi::Array<PrimExpr> result;
   arith::Analyzer analyzer;
   for (int i = 0; i < static_cast<int>(write_region->region.size()); i++) {
     PrimExpr pattern = analyzer.Simplify(write_index[i] - write_region->region[i]->min);
@@ -176,10 +176,10 @@ Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constraints) {
 Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                              OutputSet* output) const {
   Stmt body = stmt;
-  Map<Var, Range> var_range;
-  Array<PrimExpr> loop_vars;
+  ffi::Map<Var, Range> var_range;
+  ffi::Array<PrimExpr> loop_vars;
   // Step 1. Get index mapping
-  Array<PrimExpr> mapping_pattern = GetMapping(stmt, constraints);
+  ffi::Array<PrimExpr> mapping_pattern = GetMapping(stmt, constraints);
   while (const ForNode* loop = body.as<ForNode>()) {
     var_range.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     loop_vars.push_back(loop->loop_var);
@@ -191,22 +191,23 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   auto iter_map =
       arith::DetectIterMap(mapping_pattern, var_range, Bool(true), arith::Bijective, &analyzer);
   CHECK_EQ(iter_map->indices.size(), loop_vars.size());
-  Map<Var, PrimExpr> inverse_mapping = arith::InverseAffineIterMap(iter_map->indices, loop_vars);
+  ffi::Map<Var, PrimExpr> inverse_mapping =
+      arith::InverseAffineIterMap(iter_map->indices, loop_vars);
   // Step 3. Generate new body
   BufferRegion read_region = constraints.read_region;
   BufferRegion write_region = constraints.write_region;
-  Array<PrimExpr> write_index;
-  Array<PrimExpr> read_index;
-  Array<Var> new_loop_vars;
-  Map<Var, PrimExpr> substitute_map;
+  ffi::Array<PrimExpr> write_index;
+  ffi::Array<PrimExpr> read_index;
+  ffi::Array<Var> new_loop_vars;
+  ffi::Map<Var, PrimExpr> substitute_map;
   // Step 3.1 construct target buffer indices
   for (int i = 0, j = 0; i < static_cast<int>(write_region->region.size()); i++) {
     if (is_one(write_region->region[i]->extent)) {
       write_index.push_back(write_region->region[i]->min);
     } else {
-      Var var = runtime::Downcast<Var>(loop_vars[j]).copy_with_suffix("_inverse");
+      Var var = Downcast<Var>(loop_vars[j]).copy_with_suffix("_inverse");
       new_loop_vars.push_back(var);
-      substitute_map.Set(runtime::Downcast<Var>(loop_vars[j++]), var);
+      substitute_map.Set(Downcast<Var>(loop_vars[j++]), var);
       write_index.push_back(write_region->region[i]->min + var);
     }
   }

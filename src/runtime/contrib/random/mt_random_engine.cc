@@ -24,7 +24,7 @@
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 #include <tvm/runtime/threading_backend.h>
 
 #include <algorithm>
@@ -75,7 +75,7 @@ class RandomEngine {
    */
   void SampleUniform(DLTensor* data, float low, float high) {
     ICHECK_GT(high, low) << "high must be bigger than low";
-    ICHECK(data->strides == nullptr);
+    ICHECK(ffi::IsContiguous(*data));
 
     DLDataType dtype = data->dtype;
     int64_t size = 1;
@@ -99,7 +99,7 @@ class RandomEngine {
    */
   void SampleNormal(DLTensor* data, float loc, float scale) {
     ICHECK_GT(scale, 0) << "standard deviation must be positive";
-    ICHECK(data->strides == nullptr);
+    ICHECK(ffi::IsContiguous(*data));
 
     DLDataType dtype = data->dtype;
     int64_t size = 1;
@@ -122,11 +122,11 @@ class RandomEngine {
     if (data->device.device_type == kDLCPU) {
       FillData(data);
     } else {
-      runtime::NDArray local = runtime::NDArray::Empty(
+      runtime::Tensor local = runtime::Tensor::Empty(
           std::vector<int64_t>{data->shape, data->shape + data->ndim}, data->dtype, {kDLCPU, 0});
-      DLTensor* tensor = const_cast<ffi::NDArrayObj*>(local.operator->());
+      DLTensor* tensor = const_cast<ffi::TensorObj*>(local.operator->());
       FillData(tensor);
-      runtime::NDArray::CopyFromTo(tensor, data);
+      runtime::Tensor::CopyFromTo(tensor, data);
     }
   }
 
@@ -134,11 +134,11 @@ class RandomEngine {
     if (data->device.device_type == kDLCPU) {
       FillDataForMeasure(data);
     } else {
-      runtime::NDArray local = runtime::NDArray::Empty(
+      runtime::Tensor local = runtime::Tensor::Empty(
           std::vector<int64_t>{data->shape, data->shape + data->ndim}, data->dtype, {kDLCPU, 0});
-      DLTensor* tensor = const_cast<ffi::NDArrayObj*>(local.operator->());
+      DLTensor* tensor = const_cast<ffi::TensorObj*>(local.operator->());
       FillDataForMeasure(tensor);
-      runtime::NDArray::CopyFromTo(tensor, data);
+      runtime::Tensor::CopyFromTo(tensor, data);
     }
   }
 

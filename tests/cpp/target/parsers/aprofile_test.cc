@@ -44,9 +44,9 @@ static bool CheckArchitectureAvailability() {
 #if TVM_LLVM_VERSION > 120
   auto llvm_instance = std::make_unique<codegen::LLVMInstance>();
   codegen::LLVMTargetInfo llvm_backend(*llvm_instance, "llvm");
-  Array<String> targets = llvm_backend.GetAllLLVMTargets();
+  ffi::Array<ffi::String> targets = llvm_backend.GetAllLLVMTargets();
   int expected_target_count = 0;
-  for (String target : targets) {
+  for (ffi::String target : targets) {
     if (target == "aarch64" || target == "arm") {
       expected_target_count += 1;
     }
@@ -74,9 +74,10 @@ class AProfileParser : public ::testing::Test {
 class AProfileParserTestWithParam : public AProfileParser,
                                     public testing::WithParamInterface<float> {};
 
-static TargetFeatures ParseTargetWithAttrs(String mcpu, String mtriple, Array<String> mattr) {
+static TargetFeatures ParseTargetWithAttrs(ffi::String mcpu, ffi::String mtriple,
+                                           ffi::Array<ffi::String> mattr) {
   TargetJSON target_json = {
-      {"kind", String("llvm")},
+      {"kind", ffi::String("llvm")},
       {"mtriple", mtriple},
       {"mattr", mattr},
   };
@@ -93,8 +94,8 @@ std::string FloatToStringWithoutTrailingZeros(float value) {
 }
 
 TEST_F(AProfileParser, ParseTargetKeys) {
-  TargetJSON target = ParseTarget({{"kind", String("llvm")}});
-  Array<String> keys = Downcast<Array<String>>(target.at("keys"));
+  TargetJSON target = ParseTarget({{"kind", ffi::String("llvm")}});
+  ffi::Array<ffi::String> keys = Downcast<ffi::Array<ffi::String>>(target.at("keys"));
   ASSERT_EQ(keys.size(), 2);
   ASSERT_EQ(keys[0], "arm_cpu");
   ASSERT_EQ(keys[1], "cpu");
@@ -102,11 +103,11 @@ TEST_F(AProfileParser, ParseTargetKeys) {
 
 TEST_F(AProfileParser, ParseTargetWithExistingKeys) {
   TargetJSON target = ParseTarget({
-      {"kind", String("llvm")},
-      {"keys", Array<String>{"cpu"}},
+      {"kind", ffi::String("llvm")},
+      {"keys", ffi::Array<ffi::String>{"cpu"}},
   });
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
-  Array<String> keys = Downcast<Array<String>>(target.at("keys"));
+  ffi::Array<ffi::String> keys = Downcast<ffi::Array<ffi::String>>(target.at("keys"));
   ASSERT_EQ(keys.size(), 2);
   ASSERT_EQ(keys[0], "cpu");
   ASSERT_EQ(keys[1], "arm_cpu");
@@ -114,18 +115,18 @@ TEST_F(AProfileParser, ParseTargetWithExistingKeys) {
 
 TEST_F(AProfileParser, ParseTargetWithDuplicateKey) {
   TargetJSON target = ParseTarget({
-      {"kind", String("llvm")},
-      {"keys", Array<String>{"cpu", "arm_cpu"}},
+      {"kind", ffi::String("llvm")},
+      {"keys", ffi::Array<ffi::String>{"cpu", "arm_cpu"}},
   });
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
-  Array<String> keys = Downcast<Array<String>>(target.at("keys"));
+  ffi::Array<ffi::String> keys = Downcast<ffi::Array<ffi::String>>(target.at("keys"));
   ASSERT_EQ(keys.size(), 2);
   ASSERT_EQ(keys[0], "cpu");
   ASSERT_EQ(keys[1], "arm_cpu");
 }
 
 TEST_F(AProfileParser, ParseTargetDefaults) {
-  TargetJSON target = ParseTarget({{"kind", String("llvm")}});
+  TargetJSON target = ParseTarget({{"kind", ffi::String("llvm")}});
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
 
   ASSERT_EQ(Downcast<Bool>(features.at("is_aarch64")), false);
@@ -157,8 +158,8 @@ TEST_F(AProfileParser, IsAArch32Triple) {
 
 TEST_F(AProfileParser, IsAArch32BlankCPU) {
   TargetJSON target = ParseTarget({
-      {"kind", String("llvm")},
-      {"mtriple", String("arm-unknown-linux-gnu")},
+      {"kind", ffi::String("llvm")},
+      {"mtriple", ffi::String("arm-unknown-linux-gnu")},
   });
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
   ASSERT_EQ(IsArch(target), true);
@@ -317,7 +318,12 @@ TEST_F(AProfileParser, DefaultSVESupportSVESupport) {
   TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr});
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
   EXPECT_TRUE(IsArch(target));
+#if TVM_LLVM_VERSION >= 190 || (TVM_LLVM_VERSION / 10) == 13
+  // The generic aarch64 should not have SVE enabled
+  EXPECT_FALSE(Downcast<Bool>(features.at("has_sve")));
+#else
   EXPECT_TRUE(Downcast<Bool>(features.at("has_sve")));
+#endif
 
   // Check that the "has_sve" feature is set when "+sve" is explicitly set as an attribute.
   target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr, "+sve"});
@@ -359,7 +365,12 @@ TEST_F(AProfileParser, DefaultFP16Support) {
   TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr});
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
   EXPECT_TRUE(IsArch(target));
+#if TVM_LLVM_VERSION >= 190 || (TVM_LLVM_VERSION / 10) == 13
+  // The generic aarch64 should not have FP16 enabled
+  EXPECT_FALSE(Downcast<Bool>(features.at("has_fp16_simd")));
+#else
   EXPECT_TRUE(Downcast<Bool>(features.at("has_fp16_simd")));
+#endif
 
   // Check that the "has_fp16_simd" feature is set when "+fullfp16" is explicitly set as an
   // attribute.
@@ -386,7 +397,7 @@ TEST_F(AProfileParser, UnexpectedTargetKind) {
   EXPECT_THROW(
       {
         try {
-          ParseTarget({{"kind", String("c")}});
+          ParseTarget({{"kind", ffi::String("c")}});
         } catch (const tvm::InternalError& e) {
           EXPECT_THAT(e.what(), HasSubstr("Expected target kind 'llvm', but got 'c'"));
           throw;
@@ -399,7 +410,7 @@ TEST(AProfileParserInvalid, LLVMUnsupportedArchitecture) {
   if (has_aarch64_and_arm_targets) {
     GTEST_SKIP() << "LLVM has been compiled for the correct targets.";
   }
-  TargetJSON target = ParseTarget({{"kind", String("llvm")}});
+  TargetJSON target = ParseTarget({{"kind", ffi::String("llvm")}});
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
   for (auto feature : features) {
     ASSERT_EQ(Downcast<Bool>(feature.second), false);

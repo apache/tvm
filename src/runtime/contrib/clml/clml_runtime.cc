@@ -149,7 +149,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    * \param const_names The names of each constant in the sub-graph.
    */
   explicit CLMLRuntime(const std::string& symbol_name, const std::string& graph_json,
-                       const Array<String>& const_names)
+                       const ffi::Array<ffi::String>& const_names)
       : JSONRuntimeBase(symbol_name, graph_json, const_names), clml_symbol(symbol_name) {}
 
   ~CLMLRuntime() {
@@ -193,7 +193,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \return module type key.
    */
-  const char* type_key() const override { return "clml"; }
+  const char* kind() const override { return "clml"; }
 
   /*!
    * \brief Initialize runtime. Create CLML layer from JSON
@@ -201,7 +201,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \param consts The constant params from compiled model.
    */
-  void Init(const Array<NDArray>& consts) override {
+  void Init(const ffi::Array<Tensor>& consts) override {
     ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
     SetupConstants(consts);
@@ -270,7 +270,7 @@ class CLMLRuntime : public JSONRuntimeBase {
                     "same by exporting CLML_DISABLE_RECORDABLE_QUEUE at runtime.";
     }
     cl_command_queue queue = CLML_QUEUE;
-    Map<String, NDArray> dump_tensors;
+    ffi::Map<ffi::String, Tensor> dump_tensors;
     std::ostringstream os;
     dmlc::JSONWriter writer(&os);
     writer.BeginObject();
@@ -293,7 +293,7 @@ class CLMLRuntime : public JSONRuntimeBase {
       // Dump tensor to CPU
       std::vector<int64_t> shape = node.GetOpShape()[0];
       DLDataType tvm_dtype = node.GetOpDataType()[0];
-      NDArray narr = NDArray::Empty(ffi::Shape(shape), tvm_dtype, {kDLCPU, 0});
+      Tensor narr = Tensor::Empty(ffi::Shape(shape), tvm_dtype, {kDLCPU, 0});
       CopyDataFromCLMLTensor(clml_desc, narr.operator->()->data);
 
       // Naming convention
@@ -354,7 +354,7 @@ class CLMLRuntime : public JSONRuntimeBase {
           std::vector<int64_t> shape = nodes_[nid].GetOpShape()[0];
           DLDataType tvm_dtype = nodes_[nid].GetOpDataType()[0];
           shape_str.append(profiling::ShapeString(shape, tvm_dtype));
-          metrics["Argument Shapes"] = String(shape_str);
+          metrics["Argument Shapes"] = ffi::String(shape_str);
 
           prof->StartCall("CopyIn", cws->tentry->device, metrics);
           CLML_CALL(clEnqueueCopyMLTensorDataQCOM, queue, layer_.in_placeholder[nid]->tensor,
@@ -380,7 +380,7 @@ class CLMLRuntime : public JSONRuntimeBase {
       std::vector<int64_t> shape = node.GetOpShape()[0];
       DLDataType tvm_dtype = node.GetOpDataType()[0];
       shape_str.append(profiling::ShapeString(shape, tvm_dtype));
-      metrics["Argument Shapes"] = String(shape_str);
+      metrics["Argument Shapes"] = ffi::String(shape_str);
 
       // Launch call
       prof->StartCall(clml_symbol + "-" + this->layer_.layer_names[i], cws->tentry->device,
@@ -412,7 +412,7 @@ class CLMLRuntime : public JSONRuntimeBase {
         std::vector<int64_t> shape = nodes_[eid].GetOpShape()[0];
         DLDataType tvm_dtype = nodes_[eid].GetOpDataType()[0];
         shape_str.append(profiling::ShapeString(shape, tvm_dtype));
-        metrics["Argument Shapes"] = String(shape_str);
+        metrics["Argument Shapes"] = ffi::String(shape_str);
 
         prof->StartCall("CopyOut", cws->tentry->device, metrics);
         CLML_CALL(clEnqueueCopyMLTensorDataQCOM, queue, layer_.outputs[i]->tensor,
@@ -466,8 +466,8 @@ class CLMLRuntime : public JSONRuntimeBase {
           cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
           int dtype_size = cl_dtype == CL_FLOAT ? 4 : 2;
           void* tmpptr = reinterpret_cast<void*>(malloc(isize * dtype_size));
-          TVMArrayCopyToBytes(const_cast<DLTensor*>(data_entry_[eid]), const_cast<void*>(tmpptr),
-                              isize * dtype_size);
+          TVMTensorCopyToBytes(const_cast<DLTensor*>(data_entry_[eid]), const_cast<void*>(tmpptr),
+                               isize * dtype_size);
           CopyDataToCLMLTensor(layer_.inputs[nid], tmpptr);
           free(tmpptr);
         }
@@ -553,8 +553,8 @@ class CLMLRuntime : public JSONRuntimeBase {
 
         void* tmpptr = reinterpret_cast<void*>(malloc(osize * dtype_size));
         CopyDataFromCLMLTensor(layer_.outputs[0], tmpptr);
-        TVMArrayCopyFromBytes(const_cast<DLTensor*>(data_entry_[eid]), const_cast<void*>(tmpptr),
-                              osize * dtype_size);
+        TVMTensorCopyFromBytes(const_cast<DLTensor*>(data_entry_[eid]), const_cast<void*>(tmpptr),
+                               osize * dtype_size);
         free(tmpptr);
       }
     }
@@ -1826,18 +1826,18 @@ class CLMLRuntime : public JSONRuntimeBase {
   std::string clml_symbol;
 };
 
-runtime::Module CLMLRuntimeCreate(const String& symbol_name, const String& graph_json,
-                                  const Array<String>& const_names) {
-  auto n = make_object<CLMLRuntime>(symbol_name, graph_json, const_names);
-  return runtime::Module(n);
+ffi::Module CLMLRuntimeCreate(const ffi::String& symbol_name, const ffi::String& graph_json,
+                              const ffi::Array<ffi::String>& const_names) {
+  auto n = ffi::make_object<CLMLRuntime>(symbol_name, graph_json, const_names);
+  return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.clml_runtime_create", CLMLRuntimeCreate)
-      .def("runtime.module.loadbinary_clml", JSONRuntimeBase::LoadFromBinary<CLMLRuntime>);
-});
+      .def("ffi.Module.load_from_bytes.clml", JSONRuntimeBase::LoadFromBytes<CLMLRuntime>);
+}
 }  //  namespace contrib
 }  //  namespace runtime
 }  //  namespace tvm

@@ -352,8 +352,8 @@ def test_constant():
     func = te.create_prim_func([C, A])
     func = tvm.compile(func)
     a_np = np.random.uniform(size=(M,)).astype(A.dtype)
-    c = tvm.nd.array(np.zeros(M, dtype=C.dtype))
-    x = func(c, tvm.nd.array(a_np))
+    c = tvm.runtime.tensor(np.zeros(M, dtype=C.dtype))
+    x = func(c, tvm.runtime.tensor(a_np))
     tvm.testing.assert_allclose(a_np + 2, c.numpy())
 
 
@@ -367,8 +367,8 @@ def test_data_dependent_access():
 
     a_np = np.random.uniform(size=(10,)).astype(A.dtype)
     b_np = np.arange(10, dtype=B.dtype)
-    c = tvm.nd.array(np.zeros(10, dtype=C.dtype))
-    func(c, tvm.nd.array(a_np), tvm.nd.array(b_np))
+    c = tvm.runtime.tensor(np.zeros(10, dtype=C.dtype))
+    func(c, tvm.runtime.tensor(a_np), tvm.runtime.tensor(b_np))
     tvm.testing.assert_allclose(a_np[b_np], c.numpy())
 
 

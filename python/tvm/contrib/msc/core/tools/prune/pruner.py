@@ -104,22 +104,22 @@ class BasePruner(WeightTool):
         return super()._parse_strategys([_update_stages(s) for s in strategy_list])
 
     def _reset(
-        self, graphs: List[MSCGraph], weights: Dict[str, tvm.nd.array]
-    ) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
+        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
+    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Reset the tool
 
         Parameters
         ----------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The weights.
 
         Returns
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The weights.
         """
 
@@ -315,22 +315,22 @@ class BasePruner(WeightTool):
             self._plan[w_node.name]["out_indices"] = []
 
     def prune_graphs(
-        self, graphs: List[MSCGraph], weights: Dict[str, tvm.nd.array]
-    ) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
+        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
+    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Reset the tool
 
         Parameters
         ----------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The weights.
 
         Returns
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: dict<str, tvm.nd.array>
+        weights: dict<str, tvm.runtime.tensor>
             The weights.
         """
 
@@ -375,7 +375,7 @@ class BasePruner(WeightTool):
                         if w_config["out_indices"]:
                             data = PruneMethod.prune_axis(data, out_axis, w_config["out_indices"])
                         pruned_tensors[w_name] = _prune_by_shape(weight, data.shape)
-                        pruned_weights[w_name] = tvm.nd.array(data)
+                        pruned_weights[w_name] = tvm.runtime.tensor(data)
                         w_node.set_attr(
                             "pruned_shape",
                             ",".join([str(i) for i in pruned_tensors[w_name].get_shape()]),

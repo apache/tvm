@@ -1174,6 +1174,92 @@ def exp(x: Tensor, name: str = "exp") -> Tensor:
     return wrap_nested(_op.exp(x._expr), name)
 
 
+def log(x: Tensor, name: str = "log") -> Tensor:
+    r"""Applies the natural logarithm function.
+
+    .. math::
+        \text{Log}(x) = \log(x)
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data to the operator.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return wrap_nested(_op.log(x._expr), name)
+
+
+def floor(x: Tensor, name: str = "floor") -> Tensor:
+    r"""Computes the floor of the input tensor.
+
+    .. math::
+        \text{Floor}(x) = \floor(x)
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data to the operator.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return wrap_nested(_op.floor(x._expr), name)
+
+
+def arange(
+    start: int,
+    end: Optional[int] = None,
+    step: int = 1,
+    dtype: Optional[str] = "float32",
+    name: str = "arange",
+) -> Tensor:
+    r"""Construct a tensor with evenly spaced elements.
+
+    Parameters
+    ----------
+    start : int
+        The start of the interval.
+
+    end : Optional[int]
+        The end of the interval. If not given, it will be set to start,
+        and start will be set to 0.
+
+    step : int
+        The step size.
+
+    dtype : Optional[str]
+        The data type of the created tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.arange(start, end, step, dtype), name)
+
+
 def permute(x: Tensor, axes: Optional[List[int]], name: str = "permute") -> Tensor:
     """Permutes the dimensions of the input tensor.
 
@@ -2087,7 +2173,7 @@ def extern(
     out: OutType,
 ) -> OutType:
     """Invoke an extern function during runtime. The extern function must be registered with the "
-    TVM runtime using `reflection::GlobalDef().def` (C++), or `tvm.register_func` (Python).
+    TVM runtime using `reflection::GlobalDef().def` (C++), or `tvm.register_global_func` (Python).
 
     Parameters
     ----------
@@ -2144,7 +2230,7 @@ def debug_func(
 
     .. code-block:: python
 
-        @tvm.register_func(name_of_debug_func)
+        @tvm.register_global_func(name_of_debug_func)
         def debug_func(lineno: str, arg_0, arg_1, ...) -> None:
             ...
 

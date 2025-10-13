@@ -35,9 +35,10 @@ namespace transform {
 
 class MetaScheduleTuner {
  public:
-  explicit MetaScheduleTuner(Target target, String work_dir, Integer max_trials_global,
-                             Integer max_trials_per_task, Optional<Array<String>> op_names,
-                             Map<String, runtime::NDArray> params = {})
+  explicit MetaScheduleTuner(Target target, ffi::String work_dir, Integer max_trials_global,
+                             Integer max_trials_per_task,
+                             ffi::Optional<ffi::Array<ffi::String>> op_names,
+                             ffi::Map<ffi::String, runtime::Tensor> params = {})
       : target_(target),
         work_dir_(work_dir),
         max_trials_global_(max_trials_global),
@@ -64,15 +65,15 @@ class MetaScheduleTuner {
 
  private:
   Target target_;
-  String work_dir_;
+  ffi::String work_dir_;
   Integer max_trials_global_;
   Integer max_trials_per_task_;
-  Optional<Array<String>> op_names_;
-  Map<String, runtime::NDArray> params_;
+  ffi::Optional<ffi::Array<ffi::String>> op_names_;
+  ffi::Map<ffi::String, runtime::Tensor> params_;
   tvm::ffi::Function normalize_mod_func_;
 };
 
-Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = false) {
+Pass MetaScheduleApplyDatabase(ffi::Optional<ffi::String> work_dir, bool enable_warning = false) {
   using tvm::meta_schedule::Database;
   Target target = Target::Current(false);
   const std::optional<tvm::ffi::Function> normalize_mod_func_ =
@@ -80,28 +81,28 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = 
   ICHECK(normalize_mod_func_.has_value()) << "Normalization function is not found.";
 
   auto pass_func = [=](IRModule mod, PassContext ctx) {
-    Database database{nullptr};
+    Database database{ffi::UnsafeInit()};
     if (Database::Current().defined()) {
       database = Database::Current().value();
     } else {
-      ICHECK(work_dir.defined());
-      String path_workload = work_dir.value() + "/database_workload.json";
-      String path_tuning_record = work_dir.value() + "/database_tuning_record.json";
+      ICHECK(work_dir.has_value());
+      ffi::String path_workload = work_dir.value() + "/database_workload.json";
+      ffi::String path_tuning_record = work_dir.value() + "/database_tuning_record.json";
       LOG(WARNING) << "Creating JSONDatabase. Workload at: " << path_workload
                    << ", Tuning records at: " << path_tuning_record;
       database = meta_schedule::Database::JSONDatabase(path_workload, path_tuning_record, true);
     }
 
-    Map<GlobalVar, BaseFunc> result;
-    auto mod_eq_structural = meta_schedule::ModuleEquality::Create("ignore-ndarray");
+    ffi::Map<GlobalVar, BaseFunc> result;
+    auto mod_eq_structural = meta_schedule::ModuleEquality::Create("ignore-tensor");
     for (const auto& iter : mod->functions) {
       GlobalVar gv = iter.first;
       BaseFunc base_func = iter.second;
       if (const auto* prim_func_node = base_func.as<tir::PrimFuncNode>()) {
-        tir::PrimFunc prim_func = GetRef<tir::PrimFunc>(prim_func_node);
+        tir::PrimFunc prim_func = ffi::GetRef<tir::PrimFunc>(prim_func_node);
 
         IRModule tir_mod = (*normalize_mod_func_)(prim_func).cast<IRModule>();
-        if (Optional<meta_schedule::TuningRecord> opt_record =
+        if (ffi::Optional<meta_schedule::TuningRecord> opt_record =
                 database->QueryTuningRecord(tir_mod, target, gv->name_hint)) {
           meta_schedule::TuningRecord record = opt_record.value();
           tir::Schedule sch{nullptr};
@@ -146,10 +147,10 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = 
   return CreateModulePass(pass_func, 0, "MetaScheduleApplyDatabase", {});
 }
 
-Pass MetaScheduleTuneIRMod(Map<String, runtime::NDArray> params, String work_dir,
+Pass MetaScheduleTuneIRMod(ffi::Map<ffi::String, runtime::Tensor> params, ffi::String work_dir,
                            Integer max_trials_global,
-                           Optional<Integer> max_trials_per_task = std::nullopt,
-                           Optional<Array<String>> op_names = std::nullopt) {
+                           ffi::Optional<Integer> max_trials_per_task = std::nullopt,
+                           ffi::Optional<ffi::Array<ffi::String>> op_names = std::nullopt) {
   Target target = Target::Current(false);
   auto pass_func = [=](IRModule m, PassContext ctx) {
     auto max_trials_task = max_trials_per_task.value_or(max_trials_global);
@@ -162,7 +163,7 @@ Pass MetaScheduleTuneIRMod(Map<String, runtime::NDArray> params, String work_dir
                           /*traceable*/ true);
 }
 
-Pass MetaScheduleTuneTIR(String work_dir, Integer max_trials_global) {
+Pass MetaScheduleTuneTIR(ffi::String work_dir, Integer max_trials_global) {
   Target target = Target::Current(false);
   ffi::TypedFunction<tir::PrimFunc(tir::PrimFunc, IRModule, PassContext)> pass_func =
       [=](tir::PrimFunc f, IRModule mod, PassContext ctx) {
@@ -176,13 +177,13 @@ Pass MetaScheduleTuneTIR(String work_dir, Integer max_trials_global) {
                                             /*traceable*/ true);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.transform.MetaScheduleApplyDatabase", MetaScheduleApplyDatabase)
       .def("relax.transform.MetaScheduleTuneIRMod", MetaScheduleTuneIRMod)
       .def("relax.transform.MetaScheduleTuneTIR", MetaScheduleTuneTIR);
-});
+}
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

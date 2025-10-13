@@ -26,8 +26,8 @@
 #else
 #include <dlfcn.h>
 #include <tvm/ffi/c_api.h>
-#include <tvm/ffi/container/ndarray.h>
 #include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/function.h>
 #endif
 #include <cstring>
@@ -110,6 +110,7 @@ JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFFIFunctionPushArgHandle(J
   TVMFFIAny temp;
   temp.v_int64 = static_cast<int64_t>(arg);
   temp.type_index = static_cast<int>(argTypeIndex);
+  temp.zero_padding = 0;
   stack->packed_args.emplace_back(tvm::ffi::AnyView::CopyFromTVMFFIAny(temp));
 }
 
@@ -175,6 +176,7 @@ JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIFunctionCall(JNIEnv* en
   TVMFFIJVMStack* stack = TVMFFIJVMStack::ThreadLocal();
   TVMFFIAny ret_val;
   ret_val.type_index = tvm::ffi::TypeIndex::kTVMFFINone;
+  ret_val.zero_padding = 0;
   ret_val.v_int64 = 0;
   int ret = TVMFFIFunctionCall(reinterpret_cast<TVMFFIObjectHandle>(jhandle),
                                reinterpret_cast<TVMFFIAny*>(stack->packed_args.data()),
@@ -320,10 +322,10 @@ JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIFunctionSetGlobal(JNIEn
 // Module
 JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIObjectFree(JNIEnv* env, jobject obj,
                                                                     jlong jhandle) {
-  return TVMFFIObjectFree(reinterpret_cast<TVMFFIObjectHandle>(jhandle));
+  return TVMFFIObjectDecRef(reinterpret_cast<TVMFFIObjectHandle>(jhandle));
 }
 
-// NDArray
+// Tensor
 
 JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIDLTensorGetShape(JNIEnv* env, jobject obj,
                                                                           jlong jhandle,
@@ -354,7 +356,7 @@ JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIDLTensorCopyFromTo(JNIE
                                                                             jlong jfrom,
                                                                             jlong jto) {
   TVM_FFI_SAFE_CALL_BEGIN();
-  static auto fcopy_from_to = tvm::ffi::Function::GetGlobalRequired("runtime.TVMArrayCopyFromTo");
+  static auto fcopy_from_to = tvm::ffi::Function::GetGlobalRequired("runtime.TVMTensorCopyFromTo");
   fcopy_from_to(reinterpret_cast<DLTensor*>(jfrom), reinterpret_cast<DLTensor*>(jto));
   TVM_FFI_SAFE_CALL_END();
 }
@@ -368,7 +370,7 @@ JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIDLTensorCopyFromJArray(
   DLTensor* to = reinterpret_cast<DLTensor*>(jto);
   size_t size = tvm::ffi::GetDataSize(*to);
   static auto fcopy_from_bytes =
-      tvm::ffi::Function::GetGlobalRequired("runtime.TVMArrayCopyFromBytes");
+      tvm::ffi::Function::GetGlobalRequired("runtime.TVMTensorCopyFromBytes");
   fcopy_from_bytes(to, static_cast<void*>(pdata), size);
   env->ReleaseByteArrayElements(jarr, pdata, 0);
   TVM_FFI_SAFE_CALL_END();
@@ -382,7 +384,8 @@ JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIDLTensorCopyToJArray(JN
   DLTensor* from = reinterpret_cast<DLTensor*>(jfrom);
   size_t size = tvm::ffi::GetDataSize(*from);
   jbyte* pdata = env->GetByteArrayElements(jarr, NULL);
-  static auto fcopy_to_bytes = tvm::ffi::Function::GetGlobalRequired("runtime.TVMArrayCopyToBytes");
+  static auto fcopy_to_bytes =
+      tvm::ffi::Function::GetGlobalRequired("runtime.TVMTensorCopyToBytes");
   fcopy_to_bytes(from, static_cast<void*>(pdata), size);
   env->ReleaseByteArrayElements(jarr, static_cast<jbyte*>(pdata),
                                 0);  // copy back to java array automatically
@@ -399,7 +402,7 @@ JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmSynchronize(JNIEnv* env, j
   TVM_FFI_SAFE_CALL_END();
 }
 
-JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmNDArrayEmpty(
+JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmTensorEmpty(
     JNIEnv* env, jobject obj, jlongArray jshape, jint jdtypeCode, jint jdtypeBits, jint jdtypeLanes,
     jint jdeviceType, jint jdeviceId, jobject jret) {
   TVM_FFI_SAFE_CALL_BEGIN();
@@ -412,8 +415,8 @@ JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmNDArrayEmpty(
   dtype.lanes = static_cast<int16_t>(jdtypeLanes);
   DLDevice device{static_cast<DLDeviceType>(jdeviceType), jdeviceId};
   env->ReleaseLongArrayElements(jshape, shapeArray, 0);
-  static auto fempty = tvm::ffi::Function::GetGlobalRequired("runtime.TVMArrayAllocWithScope");
-  tvm::ffi::NDArray out = fempty(shape, dtype, device, nullptr).cast<tvm::ffi::NDArray>();
+  static auto fempty = tvm::ffi::Function::GetGlobalRequired("runtime.TVMTensorAllocWithScope");
+  tvm::ffi::Tensor out = fempty(shape, dtype, device, nullptr).cast<tvm::ffi::Tensor>();
   void* handle = tvm::ffi::details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(out));
   setLongField(env, jret, reinterpret_cast<jlong>(handle));
   TVM_FFI_SAFE_CALL_END();

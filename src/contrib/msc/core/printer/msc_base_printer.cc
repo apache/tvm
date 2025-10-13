@@ -113,8 +113,8 @@ void MSCBasePrinter::PrintTypedDoc(const LiteralDoc& doc) {
     } else {
       output_ << float_imm->value;
     }
-  } else if (const auto* string_obj = value.as<ffi::StringObj>()) {
-    output_ << "\"" << tvm::support::StrEscape(string_obj->data, string_obj->size) << "\"";
+  } else if (auto opt_str = value.as<ffi::String>()) {
+    output_ << "\"" << tvm::support::StrEscape((*opt_str).data(), (*opt_str).size()) << "\"";
   } else {
     LOG(FATAL) << "TypeError: Unsupported literal value type: " << value.GetTypeKey();
   }
@@ -158,7 +158,7 @@ void MSCBasePrinter::PrintTypedDoc(const ExprStmtDoc& doc) {
 }
 
 void MSCBasePrinter::MaybePrintComment(const StmtDoc& stmt, bool multi_lines) {
-  if (stmt->comment.defined()) {
+  if (stmt->comment.has_value()) {
     if (multi_lines) {
       for (const auto& l : StringUtils::Split(stmt->comment.value(), "\n")) {
         PrintDoc(CommentDoc(l));

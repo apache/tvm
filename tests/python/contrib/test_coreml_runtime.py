@@ -73,7 +73,7 @@ def test_coreml_runtime():
         # inference via tvm coreml runtime
         runtime = coreml_runtime.create("main", model_path, dev)
         for name in inputs:
-            runtime.set_input(name, tvm.nd.array(inputs[name], dev))
+            runtime.set_input(name, tvm.runtime.tensor(inputs[name], dev))
         runtime.invoke()
         tvm_outputs = [runtime.get_output(i).numpy() for i in range(runtime.get_num_outputs())]
 

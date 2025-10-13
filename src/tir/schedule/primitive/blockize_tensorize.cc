@@ -52,18 +52,18 @@ class SubspaceNotDivisibleError : public ScheduleError {
         scope_loop_(std::move(scope_loop)),
         inner_block_(std::move(inner_block)) {}
 
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return "ScheduleError: The bindings of the inner block can not be blockized.";
   }
 
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     return "ScheduleError: The bindings of the inner block {0} can not be blockized by the loops "
            "starting at {1}.";
   }
 
   IRModule mod() const final { return mod_; }
 
-  Array<ObjectRef> LocationsOfInterest() const final { return {inner_block_, scope_loop_}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {inner_block_, scope_loop_}; }
 
  private:
   IRModule mod_;
@@ -86,17 +86,17 @@ class SubspaceNotDivisibleError : public ScheduleError {
  * \param inner_iters The iters of the inner space
  * \return The result of the subspace division.
  */
-Array<Array<arith::IterMark>> TrivialSubspaceDivision(const Array<IterVar>& iter_vars,
-                                                      const Array<PrimExpr>& bindings,
-                                                      const PrimExpr& predicate,
-                                                      const Array<Var>& outer_iters,
-                                                      const Array<Var>& inner_iters) {
+ffi::Array<ffi::Array<arith::IterMark>> TrivialSubspaceDivision(
+    const ffi::Array<IterVar>& iter_vars, const ffi::Array<PrimExpr>& bindings,
+    const PrimExpr& predicate, const ffi::Array<Var>& outer_iters,
+    const ffi::Array<Var>& inner_iters) {
   if (!is_one(predicate)) return {};
-  Array<Array<arith::IterMark>> res;
+  ffi::Array<ffi::Array<arith::IterMark>> res;
   std::unordered_set<const VarNode*> outer_loop_vars;
   std::unordered_set<const VarNode*> inner_loop_vars;
 
-  auto make_uses_var = [](const Array<Var>& vars) -> std::function<bool(const PrimExpr& expr)> {
+  auto make_uses_var =
+      [](const ffi::Array<Var>& vars) -> std::function<bool(const PrimExpr& expr)> {
     std::unordered_set<const VarNode*> var_set;
     var_set.reserve(vars.size());
     for (const Var& var : vars) {
@@ -154,15 +154,16 @@ Array<Array<arith::IterMark>> TrivialSubspaceDivision(const Array<IterVar>& iter
  * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
  * \param loop_sref_as_outer Whether loop_sref is divided into outer or inner
  */
-Array<Array<arith::IterMark>> SubspaceDivide(const BlockRealize& realize,
-                                             const StmtSRef& block_sref,  //
-                                             const StmtSRef& loop_sref,   //
-                                             std::vector<const ForNode*>* loops,
-                                             arith::Analyzer* analyzer, bool preserve_unit_iters,
-                                             bool loop_sref_as_outer = false) {
-  Array<Var> inner_vars;
-  Array<Var> outer_vars;
-  Map<Var, Range> loop_var_domain;
+ffi::Array<ffi::Array<arith::IterMark>> SubspaceDivide(const BlockRealize& realize,
+                                                       const StmtSRef& block_sref,  //
+                                                       const StmtSRef& loop_sref,   //
+                                                       std::vector<const ForNode*>* loops,
+                                                       arith::Analyzer* analyzer,
+                                                       bool preserve_unit_iters,
+                                                       bool loop_sref_as_outer = false) {
+  ffi::Array<Var> inner_vars;
+  ffi::Array<Var> outer_vars;
+  ffi::Map<Var, Range> loop_var_domain;
   bool inner = true;
   for (StmtSRefNode* sref = block_sref->parent;    //
        sref && sref->stmt->IsInstance<ForNode>();  //
@@ -179,7 +180,7 @@ Array<Array<arith::IterMark>> SubspaceDivide(const BlockRealize& realize,
       inner = false;
     }
   }
-  Array<Array<arith::IterMark>> result =
+  ffi::Array<ffi::Array<arith::IterMark>> result =
       arith::SubspaceDivide(realize->iter_values, loop_var_domain, inner_vars, realize->predicate,
                             arith::IterMapLevel::Surjective, analyzer,
                             /*simplify_trivial_iterators=*/!preserve_unit_iters);
@@ -203,17 +204,18 @@ Array<Array<arith::IterMark>> SubspaceDivide(const BlockRealize& realize,
  * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
  * \return A substitution plan to the iterators in the original inner block.
  */
-Map<Var, PrimExpr> DeriveBlockBinding(const Array<IterVar>& iter_vars,                //
-                                      const Array<Array<arith::IterMark>>& division,  //
-                                      Array<IterVar>* outer_iter_vars,                //
-                                      Array<PrimExpr>* outer_bindings,                //
-                                      Array<IterVar>* inner_iter_vars,                //
-                                      Array<PrimExpr>* inner_bindings,                //
-                                      bool preserve_unit_iters, bool reuse_outer = false) {
+ffi::Map<Var, PrimExpr> DeriveBlockBinding(
+    const ffi::Array<IterVar>& iter_vars,                     //
+    const ffi::Array<ffi::Array<arith::IterMark>>& division,  //
+    ffi::Array<IterVar>* outer_iter_vars,                     //
+    ffi::Array<PrimExpr>* outer_bindings,                     //
+    ffi::Array<IterVar>* inner_iter_vars,                     //
+    ffi::Array<PrimExpr>* inner_bindings,                     //
+    bool preserve_unit_iters, bool reuse_outer = false) {
   using arith::IterMapExpr;
   using arith::IterMapExprNode;
   using arith::NormalizeIterMapToExpr;
-  Map<Var, PrimExpr> block_var_subst;
+  ffi::Map<Var, PrimExpr> block_var_subst;
   ICHECK_EQ(iter_vars.size() + 1, division.size());
   arith::Analyzer ana;
   for (int i = 0, n = iter_vars.size(); i < n; ++i) {
@@ -282,15 +284,15 @@ Map<Var, PrimExpr> DeriveBlockBinding(const Array<IterVar>& iter_vars,          
  * \return The inner block created.
  */
 BlockRealize GenerateInner(bool is_write_reduction,
-                           const Array<IterVar>& iter_vars,     //
-                           const Array<PrimExpr>& iter_values,  //
-                           const PrimExpr& predicate,           //
+                           const ffi::Array<IterVar>& iter_vars,     //
+                           const ffi::Array<PrimExpr>& iter_values,  //
+                           const PrimExpr& predicate,                //
                            Block block) {
   BlockNode* n = block.CopyOnWrite();
   n->iter_vars = iter_vars;
   n->init = std::nullopt;
   if (is_write_reduction) {
-    Array<BufferRegion> reads;
+    ffi::Array<BufferRegion> reads;
     reads.reserve(block->writes.size() + block->reads.size());
     reads.insert(reads.end(), block->writes.begin(), block->writes.end());
     reads.insert(reads.end(), block->reads.begin(), block->reads.end());
@@ -308,15 +310,15 @@ BlockRealize GenerateInner(bool is_write_reduction,
  * \return The subtree of the init block and its outer loops.
  */
 Stmt GenerateOuterInit(const Stmt& block_init, const BlockRealize& inner_realize,
-                       const std::vector<const ForNode*>& loops, String block_name) {
+                       const std::vector<const ForNode*>& loops, ffi::String block_name) {
   const Block& inner_block = inner_realize->block;
-  Map<Var, Var> subst_map;
+  ffi::Map<Var, Var> subst_map;
   // Step 1: Create new block vars for the block inside the init stmt of outer block
   // A iter is used in the block if
   // 1) It is data parallel
   // 2) It is used in the original init block
-  Array<IterVar> iter_vars;
-  Array<PrimExpr> iter_values;
+  ffi::Array<IterVar> iter_vars;
+  ffi::Array<PrimExpr> iter_values;
   ICHECK_EQ(inner_block->iter_vars.size(), inner_realize->iter_values.size());
   int n = inner_block->iter_vars.size();
   iter_vars.reserve(n);
@@ -326,7 +328,7 @@ Stmt GenerateOuterInit(const Stmt& block_init, const BlockRealize& inner_realize
     const PrimExpr& iter_value = inner_realize->iter_values[i];
     if (old_iter_var->iter_type == IterVarType::kDataPar &&
         UsesVar(block_init, old_iter_var->var)) {
-      ObjectPtr<IterVarNode> new_iter_var = make_object<IterVarNode>(*old_iter_var.get());
+      ObjectPtr<IterVarNode> new_iter_var = ffi::make_object<IterVarNode>(*old_iter_var.get());
       new_iter_var->var = new_iter_var->var.copy_with_suffix("_init");
       subst_map.Set(old_iter_var->var, new_iter_var->var);
       iter_vars.push_back(IterVar(new_iter_var));
@@ -354,7 +356,7 @@ Stmt GenerateOuterInit(const Stmt& block_init, const BlockRealize& inner_realize
       }
     }
     if (is_init_loop) {
-      ObjectPtr<ForNode> new_loop = make_object<ForNode>(*loop);
+      ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
       new_loop->loop_var = loop->loop_var.copy_with_suffix("");
       new_loop->body = std::move(stmt);
       subst_map.Set(loop->loop_var, new_loop->loop_var);
@@ -373,10 +375,10 @@ Stmt GenerateOuterInit(const Stmt& block_init, const BlockRealize& inner_realize
  * \param analyzer The analyzer for arithmetic simplification.
  * \return The substituted stmt.
  */
-Stmt Substitute(const Stmt& stmt, const Map<Var, PrimExpr>& sub,
-                Map<Block, Block>* block_sref_reuse, arith::Analyzer* analyzer) {
+Stmt Substitute(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
+                ffi::Map<Block, Block>* block_sref_reuse, arith::Analyzer* analyzer) {
   struct Replacer : public StmtExprMutator {
-    explicit Replacer(const Map<Var, PrimExpr>& sub, Map<Block, Block>* block_sref_reuse,
+    explicit Replacer(const ffi::Map<Var, PrimExpr>& sub, ffi::Map<Block, Block>* block_sref_reuse,
                       arith::Analyzer* analyzer)
         : sub_(sub), block_sref_reuse_(block_sref_reuse), analyzer_(analyzer) {}
 
@@ -389,14 +391,14 @@ Stmt Substitute(const Stmt& stmt, const Map<Var, PrimExpr>& sub,
     }
 
     PrimExpr VisitExpr_(const VarNode* op) final {
-      if (Optional<PrimExpr> e = sub_.Get(GetRef<Var>(op))) {
+      if (ffi::Optional<PrimExpr> e = sub_.Get(ffi::GetRef<Var>(op))) {
         return e.value();
       }
       return StmtExprMutator::VisitExpr_(op);
     }
 
     Stmt VisitStmt_(const BlockNode* op) final {
-      Block src = GetRef<Block>(op);
+      Block src = ffi::GetRef<Block>(op);
       Block tgt = Downcast<Block>(StmtExprMutator::VisitStmt_(op));
       if (!src.same_as(tgt)) {
         block_sref_reuse_->Set(src, tgt);
@@ -404,8 +406,8 @@ Stmt Substitute(const Stmt& stmt, const Map<Var, PrimExpr>& sub,
       return tgt;
     }
 
-    const Map<Var, PrimExpr>& sub_;
-    Map<Block, Block>* block_sref_reuse_;
+    const ffi::Map<Var, PrimExpr>& sub_;
+    ffi::Map<Block, Block>* block_sref_reuse_;
     arith::Analyzer* analyzer_;
   };
   return Replacer(sub, block_sref_reuse, analyzer)(stmt);
@@ -417,16 +419,16 @@ Stmt Substitute(const Stmt& stmt, const Map<Var, PrimExpr>& sub,
  * \param dom_map The variables to be relaxed
  * \return The relaxed regions
  */
-Array<BufferRegion> EvalSetRegions(const Array<BufferRegion>& regions,
-                                   const Map<Var, arith::IntSet>& dom_map) {
-  Array<BufferRegion> results;
+ffi::Array<BufferRegion> EvalSetRegions(const ffi::Array<BufferRegion>& regions,
+                                        const ffi::Map<Var, arith::IntSet>& dom_map) {
+  ffi::Array<BufferRegion> results;
   results.reserve(regions.size());
   for (const BufferRegion& buffer_region : regions) {
     const Buffer& buffer = buffer_region->buffer;
-    Array<arith::IntSet> relaxed = arith::EvalSet(buffer_region->region, dom_map);
+    ffi::Array<arith::IntSet> relaxed = arith::EvalSet(buffer_region->region, dom_map);
     ICHECK_EQ(relaxed.size(), buffer->shape.size());
     int ndim = buffer->shape.size();
-    Array<Range> new_region;
+    ffi::Array<Range> new_region;
     new_region.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
       new_region.push_back(relaxed[i].CoverRange(RangeFromExtent(buffer->shape[i])));
@@ -441,23 +443,24 @@ Array<BufferRegion> EvalSetRegions(const Array<BufferRegion>& regions,
  * \param regions The input regions for the union.
  * \return The union regions
  */
-Array<BufferRegion> UnionRegions(const Array<BufferRegion>& regions) {
-  typedef std::vector<Array<arith::IntSet>> ranges_t;
+ffi::Array<BufferRegion> UnionRegions(const ffi::Array<BufferRegion>& regions) {
+  typedef std::vector<ffi::Array<arith::IntSet>> ranges_t;
   std::unordered_map<Buffer, ranges_t, ObjectPtrHash, ObjectPtrEqual> intset_map;
   for (const BufferRegion& buffer_region : regions) {
     const Buffer& buffer = buffer_region->buffer;
     if (intset_map.find(buffer) == intset_map.end()) {
-      intset_map[buffer] = {buffer->shape.size(), Array<arith::IntSet>()};
+      intset_map[buffer] = {buffer->shape.size(), ffi::Array<arith::IntSet>()};
     }
-    std::vector<Array<arith::IntSet>> dim_range(buffer->shape.size(), Array<arith::IntSet>());
+    std::vector<ffi::Array<arith::IntSet>> dim_range(buffer->shape.size(),
+                                                     ffi::Array<arith::IntSet>());
     for (size_t dim = 0; dim < buffer->shape.size(); ++dim) {
       intset_map[buffer][dim].push_back(arith::IntSet::FromRange(buffer_region->region[dim]));
     }
   }
-  Array<BufferRegion> results;
+  ffi::Array<BufferRegion> results;
   for (const auto& it : intset_map) {
     const Buffer& buffer = it.first;
-    Array<Range> regions;
+    ffi::Array<Range> regions;
     for (size_t dim = 0; dim < buffer->shape.size(); ++dim) {
       const arith::IntSet intset = arith::Union(it.second[dim]);
       regions.push_back({intset.min(), intset.max() + 1});
@@ -475,7 +478,7 @@ Array<BufferRegion> UnionRegions(const Array<BufferRegion>& regions) {
  */
 Stmt MakeLoopNest(Stmt stmt, const std::vector<const ForNode*>& loops) {
   for (const ForNode* loop : loops) {
-    ObjectPtr<ForNode> new_loop = make_object<ForNode>(*loop);
+    ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
     new_loop->body = std::move(stmt);
     stmt = For(new_loop);
   }
@@ -483,7 +486,7 @@ Stmt MakeLoopNest(Stmt stmt, const std::vector<const ForNode*>& loops) {
 }
 
 BlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
-                          Map<Block, Block>* block_sref_reuse, arith::Analyzer* analyzer,
+                          ffi::Map<Block, Block>* block_sref_reuse, arith::Analyzer* analyzer,
                           bool preserve_unit_iters) {
   TVM_SREF_TO_FOR(loop_sref);
   // Step 1: Check and get the only block under `loop`.
@@ -492,25 +495,25 @@ BlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
   StmtSRef block_sref = self->stmt2ref.at(block.get());
   // Step 2: Derive subspace division
   std::vector<const ForNode*> loops;
-  Array<Array<arith::IterMark>> division =
+  ffi::Array<ffi::Array<arith::IterMark>> division =
       SubspaceDivide(block_realize, block_sref, loop_sref, &loops, analyzer, preserve_unit_iters);
   if (division.empty()) {
-    throw SubspaceNotDivisibleError(self->mod, GetRef<For>(loops.back()), block);
+    throw SubspaceNotDivisibleError(self->mod, ffi::GetRef<For>(loops.back()), block);
   }
   PrimExpr outer_predicate = division.back()[0]->extent;
   PrimExpr inner_predicate = division.back()[1]->extent;
   // Step 3. Derive block bindings for both outer and inner block.
-  Array<IterVar> outer_iter_vars;
-  Array<IterVar> inner_iter_vars;
-  Array<PrimExpr> outer_bindings;
-  Array<PrimExpr> inner_bindings;
-  Map<Var, PrimExpr> block_var_subst =                       //
+  ffi::Array<IterVar> outer_iter_vars;
+  ffi::Array<IterVar> inner_iter_vars;
+  ffi::Array<PrimExpr> outer_bindings;
+  ffi::Array<PrimExpr> inner_bindings;
+  ffi::Map<Var, PrimExpr> block_var_subst =                  //
       DeriveBlockBinding(block->iter_vars, division,         //
                          &outer_iter_vars, &outer_bindings,  //
                          &inner_iter_vars, &inner_bindings,  //
                          preserve_unit_iters);
   // Step 4: Do var substitution to adjust to the new block bindings
-  Map<Var, arith::IntSet> inner_iter_dom;
+  ffi::Map<Var, arith::IntSet> inner_iter_dom;
   for (const IterVar& iter : inner_iter_vars) {
     inner_iter_dom.Set(iter->var, arith::IntSet::FromRange(iter->dom));
     analyzer->Bind(iter->var, iter->dom);
@@ -549,12 +552,12 @@ BlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
             block_subst->init.defined()  //
                 ? GenerateOuterInit(block_subst->init.value(), inner_realize, loops,
                                     block_subst->name_hint + "_init")
-                : Optional<Stmt>(std::nullopt)));
+                : ffi::Optional<Stmt>(std::nullopt)));
 }
 
 StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref, bool preserve_unit_iters) {
   arith::Analyzer analyzer;
-  Map<Block, Block> block_sref_reuse;
+  ffi::Map<Block, Block> block_sref_reuse;
   BlockRealize blockized =
       BlockizeImpl(self, loop_sref, &block_sref_reuse, &analyzer, preserve_unit_iters);
   self->Replace(loop_sref, blockized, block_sref_reuse);
@@ -566,34 +569,34 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref, bool preserve_u
   return result;
 }
 
-BlockRealize BlockizeBlocks(const ScheduleState& self, const Array<StmtSRef>& block_srefs,
-                            const StmtSRef& lca, Map<Block, Block>* block_sref_reuse,
+BlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRef>& block_srefs,
+                            const StmtSRef& lca, ffi::Map<Block, Block>* block_sref_reuse,
                             bool preserve_unit_iters) {
-  Array<Stmt> seq_body;
+  ffi::Array<Stmt> seq_body;
   PrimExpr outer_predicate{nullptr};
-  Array<IterVar> outer_iter_vars{nullptr};
-  Array<PrimExpr> outer_bindings{nullptr};
-  Array<BufferRegion> read_regions;
-  Array<BufferRegion> write_regions;
+  ffi::Array<IterVar> outer_iter_vars{nullptr};
+  ffi::Array<PrimExpr> outer_bindings{nullptr};
+  ffi::Array<BufferRegion> read_regions;
+  ffi::Array<BufferRegion> write_regions;
   std::string outer_block_name = "outer_";
-  Map<Var, Var> loop_var_subst;
+  ffi::Map<Var, Var> loop_var_subst;
   arith::Analyzer analyzer;
   for (const auto& block_sref : block_srefs) {
     auto block_realize = GetBlockRealize(self, block_sref);
     auto block = block_realize->block;
     // Step 1: Derive subspace division
     std::vector<const ForNode*> loops;
-    Array<Array<arith::IterMark>> division = SubspaceDivide(block_realize, block_sref, lca, &loops,
-                                                            &analyzer, preserve_unit_iters, true);
+    ffi::Array<ffi::Array<arith::IterMark>> division = SubspaceDivide(
+        block_realize, block_sref, lca, &loops, &analyzer, preserve_unit_iters, true);
     if (division.empty()) {
-      throw SubspaceNotDivisibleError(self->mod, GetRef<For>(loops.back()), block);
+      throw SubspaceNotDivisibleError(self->mod, ffi::GetRef<For>(loops.back()), block);
     }
     outer_predicate = division.back()[0]->extent;
     PrimExpr inner_predicate = division.back()[1]->extent;
     // Step 2. Derive block bindings for both outer and inner block.
-    Array<IterVar> inner_iter_vars;
-    Array<PrimExpr> inner_bindings;
-    Map<Var, PrimExpr> block_var_subst =                       //
+    ffi::Array<IterVar> inner_iter_vars;
+    ffi::Array<PrimExpr> inner_bindings;
+    ffi::Map<Var, PrimExpr> block_var_subst =                  //
         DeriveBlockBinding(block->iter_vars, division,         //
                            &outer_iter_vars, &outer_bindings,  //
                            &inner_iter_vars, &inner_bindings,  //
@@ -604,7 +607,7 @@ BlockRealize BlockizeBlocks(const ScheduleState& self, const Array<StmtSRef>& bl
         loop_var_subst.Set(Downcast<Var>(outer_bindings[i]), outer_iter_vars[i]->var);
       }
     }
-    Map<Var, arith::IntSet> inner_iter_dom;
+    ffi::Map<Var, arith::IntSet> inner_iter_dom;
     for (const IterVar& iter : inner_iter_vars) {
       Range dom = Substitute(iter->dom, loop_var_subst);
       inner_iter_dom.Set(iter->var, arith::IntSet::FromRange(dom));
@@ -637,7 +640,7 @@ BlockRealize BlockizeBlocks(const ScheduleState& self, const Array<StmtSRef>& bl
     block_sref_reuse->Set(block, inner_realize->block);
     Stmt stmt = inner_realize;
     for (const ForNode* loop : loops) {
-      ObjectPtr<ForNode> new_loop = make_object<ForNode>(*loop);
+      ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
       new_loop->body = std::move(stmt);
       new_loop->extent = Substitute(new_loop->extent, loop_var_subst);
       stmt = For(new_loop);
@@ -654,19 +657,19 @@ BlockRealize BlockizeBlocks(const ScheduleState& self, const Array<StmtSRef>& bl
             /*writes=*/UnionRegions(write_regions),
             /*name_hint=*/outer_block_name,
             /*body=*/SeqStmt(seq_body),
-            /*init=*/Optional<Stmt>(std::nullopt)));
+            /*init=*/ffi::Optional<Stmt>(std::nullopt)));
 }
 
 class BlockizeRewriter : public StmtMutator {
  public:
-  static Stmt Rewrite(const StmtSRef& lca, const Array<StmtSRef>& blocks,
+  static Stmt Rewrite(const StmtSRef& lca, const ffi::Array<StmtSRef>& blocks,
                       const BlockRealize& blockized) {
     BlockizeRewriter rewriter(lca, blocks, blockized);
-    return rewriter(GetRef<Stmt>(lca->stmt));
+    return rewriter(ffi::GetRef<Stmt>(lca->stmt));
   }
 
  private:
-  explicit BlockizeRewriter(const StmtSRef& lca, const Array<StmtSRef>& blocks,
+  explicit BlockizeRewriter(const StmtSRef& lca, const ffi::Array<StmtSRef>& blocks,
                             const BlockRealize& blockized)
       : lca_(lca), blocks_(blocks), blockized_(blockized) {}
 
@@ -676,7 +679,7 @@ class BlockizeRewriter : public StmtMutator {
     int idx_start = -1;
     int last_found_idx = -1;
     size_t cur_idx = 0;
-    Array<Stmt> new_seq;
+    ffi::Array<Stmt> new_seq;
     for (const Stmt& it : seq->seq) {
       target_in_ = false;
       Stmt stmt = StmtMutator::VisitStmt(it);
@@ -717,17 +720,18 @@ class BlockizeRewriter : public StmtMutator {
         break;
       }
     }
-    return GetRef<Stmt>(block);
+    return ffi::GetRef<Stmt>(block);
   }
 
   StmtSRef lca_;
-  Array<StmtSRef> blocks_;
+  ffi::Array<StmtSRef> blocks_;
   BlockRealize blockized_;
   bool target_in_ = false;
 };
 
-StmtSRef Blockize(ScheduleState self, const Array<StmtSRef>& blocks, bool preserve_unit_iters) {
-  Map<Block, Block> block_sref_reuse;
+StmtSRef Blockize(ScheduleState self, const ffi::Array<StmtSRef>& blocks,
+                  bool preserve_unit_iters) {
+  ffi::Map<Block, Block> block_sref_reuse;
   auto lca = GetSRefLowestCommonAncestor(blocks);
   BlockRealize blockized =
       BlockizeBlocks(self, blocks, lca, &block_sref_reuse, preserve_unit_iters);
@@ -743,17 +747,17 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
                bool preserve_unit_iters) {
   // Step 1: Blockize the subtree rooted at the given loop if needed
   BlockRealize block_realize{nullptr};
-  Optional<Block> old_block = std::nullopt;
+  ffi::Optional<Block> old_block = std::nullopt;
   if (sref->stmt->IsInstance<BlockNode>()) {
     block_realize = GetBlockRealize(self, sref);
     old_block = block_realize->block;
   } else if (sref->stmt->IsInstance<ForNode>()) {
     arith::Analyzer analyzer;
-    Map<Block, Block> block_sref_reuse;
+    ffi::Map<Block, Block> block_sref_reuse;
     block_realize = BlockizeImpl(self, sref, &block_sref_reuse, &analyzer, preserve_unit_iters);
   } else {
     LOG(FATAL) << "TypeError: Tensorize only support For or Block, but gets: "
-               << GetRef<Stmt>(sref->stmt);
+               << ffi::GetRef<Stmt>(sref->stmt);
     throw;
   }
 
@@ -762,7 +766,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   PrimFunc intrin_impl = DeepCopy(intrin->impl);
 
   int index_dtype_bits = -1;
-  auto f_update_max_dtype_bits_from_region = [&](const Array<BufferRegion>& buffer_regions) {
+  auto f_update_max_dtype_bits_from_region = [&](const ffi::Array<BufferRegion>& buffer_regions) {
     for (const BufferRegion& buffer_region : buffer_regions) {
       for (const auto& range : buffer_region->region) {
         index_dtype_bits = std::max(index_dtype_bits, range->min.dtype().bits());
@@ -794,7 +798,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     ICHECK(comparator.rhs_buffer_map_.count(desc));
     impl2cur[impl] = comparator.rhs_buffer_map_[desc];
   }
-  std::unordered_map<Buffer, Array<Range>, ObjectPtrHash, ObjectPtrEqual> impl2region;
+  std::unordered_map<Buffer, ffi::Array<Range>, ObjectPtrHash, ObjectPtrEqual> impl2region;
   Block impl_block = Downcast<BlockRealize>(intrin_impl->body)->block;
   for (const BufferRegion& read : impl_block->reads) {
     impl2region.emplace(read->buffer, read->region);
@@ -804,16 +808,16 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   }
   // Step 4: Create MatchBufferRegion for the params of the impl function of the tensor
   // intrin to make them subregions of the buffer in the original IR.
-  Array<MatchBufferRegion> match_buffer_regions;
+  ffi::Array<MatchBufferRegion> match_buffer_regions;
   match_buffer_regions.reserve(intrin_impl->params.size());
   for (int i = 0, n = intrin_impl->params.size(); i < n; ++i) {
     const Buffer& impl = intrin_impl->buffer_map.at(intrin_impl->params[i]);
     const Buffer& cur = impl2cur.at(impl);
-    const Array<Range>& old_region = impl2region.at(impl);
+    const ffi::Array<Range>& old_region = impl2region.at(impl);
     const std::vector<PrimExpr>& indices_base = comparator.buffer_indices_.at(cur);
     int offset = static_cast<int>(indices_base.size()) - static_cast<int>(old_region.size());
     ICHECK(offset >= 0);
-    Array<Range> new_region;
+    ffi::Array<Range> new_region;
     new_region.reserve(cur->shape.size());
     for (int i = 0; i < offset; i++) {
       PrimExpr min = indices_base[i];
@@ -867,14 +871,14 @@ struct BlockizeTraits : public UnpackedInstTraits<BlockizeTraits> {
   static BlockRV UnpackedApplyToSchedule(Schedule sch, ObjectRef target, Bool preserve_unit_iters) {
     if (auto loop = target.as<LoopRV>()) {
       return sch->Blockize(loop.value(), preserve_unit_iters.operator bool());
-    } else if (auto blocks = target.as<Array<BlockRV>>()) {
+    } else if (auto blocks = target.as<ffi::Array<BlockRV>>()) {
       return sch->Blockize(blocks.value(), preserve_unit_iters.operator bool());
     }
     LOG(FATAL) << "TypeError: expect Loop or list of Blocks, but gets:" << target->GetTypeKey();
   }
 
-  static String UnpackedAsPython(Array<String> outputs, ObjectRef target,
-                                 Bool preserve_unit_iters) {
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ObjectRef target,
+                                      Bool preserve_unit_iters) {
     PythonAPICall py("blockize");
     py.Input("target", target);
     py.Input("preserve_unit_iters", preserve_unit_iters.operator bool());
@@ -895,7 +899,7 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv, String intrin,
+  static void UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv, ffi::String intrin,
                                       Bool preserve_unit_iters) {
     if (auto block = block_or_loop_rv.as<BlockRV>()) {
       sch->Tensorize(block.value(), intrin, preserve_unit_iters.operator bool());
@@ -907,8 +911,8 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
     }
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String block_or_loop_rv, String intrin,
-                                 Bool preserve_unit_iters) {
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_or_loop_rv,
+                                      ffi::String intrin, Bool preserve_unit_iters) {
     PythonAPICall py("tensorize");
     py.Input("block_or_loop", block_or_loop_rv);
     py.Input("tensor_intrin", intrin);

@@ -375,7 +375,6 @@ def opt_gemm_mod_host():
                                 for x_c in T.serial(0, 32):
                                     C_global[T.ramp((x_c * 32), 1, 32)] = T.call_llvm_pure_intrin(
                                         T.uint32(97),
-                                        T.uint32(3),
                                         T.broadcast(
                                             A[
                                                 (
@@ -393,7 +392,6 @@ def opt_gemm_mod_host():
                                     )
                                     C_global[T.ramp((x_c * 32), 1, 32)] = T.call_llvm_pure_intrin(
                                         T.uint32(97),
-                                        T.uint32(3),
                                         T.broadcast(
                                             A[
                                                 (
@@ -416,7 +414,6 @@ def opt_gemm_mod_host():
                                     )
                                     C_global[T.ramp((x_c * 32), 1, 32)] = T.call_llvm_pure_intrin(
                                         T.uint32(97),
-                                        T.uint32(3),
                                         T.broadcast(
                                             A[
                                                 (
@@ -439,7 +436,6 @@ def opt_gemm_mod_host():
                                     )
                                     C_global[T.ramp((x_c * 32), 1, 32)] = T.call_llvm_pure_intrin(
                                         T.uint32(97),
-                                        T.uint32(3),
                                         T.broadcast(
                                             A[
                                                 (
@@ -3216,7 +3212,6 @@ def llvm_intrin_call():
                 )
                 B[vi] = T.call_llvm_pure_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.ctpop.i8"),
-                    T.uint32(1),
                     A[vi],
                     dtype="uint8",
                 )
@@ -4007,6 +4002,22 @@ def func_attr_with_list():
     return func
 
 
+def func_with_loop_jumps():
+    @T.prim_func
+    def func(In: T.Buffer((1,), "int32"), Out: T.Buffer((2,), "int32")):
+        Out[0] = 0
+        Out[1] = 0
+        for i in range(1000):
+            if i % 13 == 0:
+                Out[1] = Out[1] + 1
+                continue
+            Out[0] = Out[0] + 1
+            if Out[0] >= In[0]:
+                break
+
+    return func
+
+
 def op_of_literal():
     op_list = [
         (T.exp, 0),
@@ -4225,6 +4236,7 @@ ir_generator = tvm.testing.parameter(
     return_zero_private,
     return_zero_private_with_attr,
     func_attr_with_list,
+    func_with_loop_jumps,
     *op_of_literal(),
     *relax_match_cast_struct_info_proxy(),
     relax_symbolic_size_var,

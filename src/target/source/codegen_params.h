@@ -24,7 +24,7 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_PARAMS_H_
 #define TVM_TARGET_SOURCE_CODEGEN_PARAMS_H_
 
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <iostream>
 #include <string>
@@ -36,8 +36,8 @@ namespace codegen {
  * \brief Write a C representation of arr to os.
  *
  * This function generates a comma-separated, indented list of C integer listeals suitable for use
- * in an initializer. The NDArray is flattened and then the list is produced element by element.
- * For the int16_t NDArray [-3, -2, -1, 0, 1, 2, 3, ...], and indent_chars = 4, the following output
+ * in an initializer. The Tensor is flattened and then the list is produced element by element.
+ * For the int16_t Tensor [-3, -2, -1, 0, 1, 2, 3, ...], and indent_chars = 4, the following output
  * is produced:
  *     -0x0003, -0x0002, -0x0001, +0x0000, +0x0001, +0x0002, +0x0003
  *
@@ -45,8 +45,8 @@ namespace codegen {
  * \param indent_chars Number of chars to indent
  * \param os Output stream where the array data should be written.
  */
-void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream& os,
-                    const std::string& eol = "\n");
+void TensorDataToC(::tvm::runtime::Tensor arr, int indent_chars, std::ostream& os,
+                   const std::string& eol = "\n");
 
 }  // namespace codegen
 }  // namespace tvm

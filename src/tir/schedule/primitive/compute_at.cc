@@ -33,21 +33,21 @@ template <bool is_consumer>
 class NotAllRequiredBlocksAreVisitedError : public ScheduleError {
  public:
   explicit NotAllRequiredBlocksAreVisitedError(IRModule mod, int num_not_visited,
-                                               const Array<StmtSRef>& required)
+                                               const ffi::Array<StmtSRef>& required)
       : mod_(mod), num_not_visited_(num_not_visited) {
     required_.reserve(required.size());
     for (const StmtSRef& block_sref : required) {
       const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
-      required_.push_back(GetRef<Block>(block));
+      required_.push_back(ffi::GetRef<Block>(block));
     }
   }
 
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return "ScheduleError: Not all required blocks are under the loop scope";
   }
 
-  String DetailRenderTemplate() const final {
-    String relation = is_consumer ? "consumer(s)" : "producer(s)";
+  ffi::String DetailRenderTemplate() const final {
+    ffi::String relation = is_consumer ? "consumer(s)" : "producer(s)";
     std::ostringstream os;
     os << "The primitive requires all the " << relation
        << " of the given block to be present under the target loop. However, there are "
@@ -61,14 +61,14 @@ class NotAllRequiredBlocksAreVisitedError : public ScheduleError {
 
   IRModule mod() const final { return mod_; }
 
-  Array<ObjectRef> LocationsOfInterest() const final {
+  ffi::Array<ObjectRef> LocationsOfInterest() const final {
     return {required_.begin(), required_.end()};
   }
 
  private:
   IRModule mod_;
   int num_not_visited_;
-  Array<Block> required_;
+  ffi::Array<Block> required_;
 };
 
 /*!
@@ -96,22 +96,22 @@ class NotInSameScopeError : public ScheduleError {
     }
   }
 
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return "ScheduleError: Expected the block and loop to be under the same block scope, and loop "
            "not to be the ancestor of block";
   }
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     return "ScheduleError: Expected the block {0} and loop {1} to be under the same block scope, "
            "and loop not to be the ancestor of block";
   }
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_, loop_}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_, loop_}; }
 
  private:
   explicit NotInSameScopeError(IRModule mod, const StmtSRef& block_sref, const StmtSRef& loop_sref)
       : mod_(mod),
-        block_(GetRef<Block>(block_sref->StmtAs<BlockNode>())),
-        loop_(GetRef<For>(loop_sref->StmtAs<ForNode>())) {}
+        block_(ffi::GetRef<Block>(block_sref->StmtAs<BlockNode>())),
+        loop_(ffi::GetRef<For>(loop_sref->StmtAs<ForNode>())) {}
 
   IRModule mod_;
   Block block_;
@@ -138,8 +138,9 @@ class NotInSameScopeError : public ScheduleError {
  * \throws ScheduleError if there is no such insertion point found
  */
 template <bool require_all_producers_visited, bool require_all_consumers_visited>
-int FindInsertionPoint(const ScheduleState& self, const Array<Stmt>& subtrees,
-                       const Array<StmtSRef>& producer_srefs, const Array<StmtSRef>& consumer_srefs,
+int FindInsertionPoint(const ScheduleState& self, const ffi::Array<Stmt>& subtrees,
+                       const ffi::Array<StmtSRef>& producer_srefs,
+                       const ffi::Array<StmtSRef>& consumer_srefs,
                        std::unordered_map<const BlockNode*, const BlockRealizeNode*>* block2realize,
                        int index) {
   ProducerConsumerSplit split =
@@ -254,9 +255,9 @@ class ScopeReconstructor : private StmtMutator {
   void MakeNewLoop(int insert_position, std::vector<BlockVarDomainInfo> iter_doms,
                    arith::Analyzer* analyzer, bool preserve_unit_loops) {
     int n_iters = iter_doms.size();
-    Array<Var> loop_vars;
-    Array<PrimExpr> loop_extents;
-    Array<PrimExpr> iter_values;
+    ffi::Array<Var> loop_vars;
+    ffi::Array<PrimExpr> loop_extents;
+    ffi::Array<PrimExpr> iter_values;
     loop_vars.reserve(n_iters);
     loop_extents.reserve(n_iters);
     iter_values.reserve(n_iters);
@@ -302,9 +303,9 @@ class ScopeReconstructor : private StmtMutator {
                         /*ForKind=*/ForKind::kSerial,
                         /*body=*/std::move(new_subtree));
     }
-    Array<Stmt> subtrees = AsArray(loop_->body);
+    ffi::Array<Stmt> subtrees = AsArray(loop_->body);
     subtrees.insert(subtrees.begin() + insert_position, std::move(new_subtree));
-    ObjectPtr<ForNode> new_loop = make_object<ForNode>(*loop_.get());
+    ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop_.get());
     new_loop->body = SeqStmt(std::move(subtrees));
     this->new_loop_ = For(std::move(new_loop));
   }
@@ -312,7 +313,7 @@ class ScopeReconstructor : private StmtMutator {
  private:
   Stmt VisitStmt_(const BlockNode* block) final {
     if (block != scope_root_.get()) {
-      return GetRef<Block>(block);
+      return ffi::GetRef<Block>(block);
     }
     if (block == rm_src_stmt_.get()) {
       block = TVM_TYPE_AS(rm_tgt_stmt_, BlockNode);
@@ -358,19 +359,19 @@ class ScopeReconstructor : private StmtMutator {
  * \param relaxed Where the calculation result is stored
  */
 template <bool relax_storage_scope>
-void RelaxBufferRegions(const Map<Var, PrimExpr>& binding,
-                        const Array<BufferRegion>& buffer_regions,
+void RelaxBufferRegions(const ffi::Map<Var, PrimExpr>& binding,
+                        const ffi::Array<BufferRegion>& buffer_regions,
                         const StmtSRef& relax_path_low_inclusive,
                         const StmtSRef& relax_path_high_exclusive,
                         std::unordered_map<const BufferNode*, std::vector<NDIntSet>>* relaxed) {
   runtime::StorageScope global_scope{runtime::StorageRank::kGlobal, ""};
   // We cache the variable domains
   runtime::StorageRank previous_rank = runtime::StorageRank::kGlobal;
-  Optional<Map<Var, arith::IntSet>> var_dom = std::nullopt;
+  ffi::Optional<ffi::Map<Var, arith::IntSet>> var_dom = std::nullopt;
   // Enumerate every buffer region
   for (const BufferRegion& buffer_region : buffer_regions) {
     const Buffer& buffer = buffer_region->buffer;
-    const Array<Range>& region = buffer_region->region;
+    const ffi::Array<Range>& region = buffer_region->region;
     // Skip the buffer regions we are not interested in
     auto it = relaxed->find(buffer.get());
     if (it == relaxed->end()) {
@@ -389,7 +390,7 @@ void RelaxBufferRegions(const Map<Var, PrimExpr>& binding,
           /*extra_relax_scope=*/scope));
     }
     // Relax the region
-    Array<arith::IntSet> relaxed_region =
+    ffi::Array<arith::IntSet> relaxed_region =
         arith::EvalSet(Substitute(region, binding), var_dom.value());
     relaxed_regions.push_back({relaxed_region.begin(), relaxed_region.end()});
   }
@@ -412,7 +413,7 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
   PrimExpr required_min = analyzer->Simplify(required.min());
   PrimExpr required_max = analyzer->Simplify(required.max());
   arith::IntSet var_dom, var_bound;
-  Optional<Var> var;
+  ffi::Optional<Var> var;
   arith::PVar<Var> p_v;
   arith::PVar<PrimExpr> p_e;
   if ((p_v * p_e).Match(provided_min) || (p_e * p_v).Match(provided_min)) {
@@ -506,9 +507,10 @@ void UpdateBlockVarDomainDimwise(
 }
 
 /*! \brief Helper function to implement intset version of `InverseAffineIterMap`. */
-Map<Var, arith::IntSet> InverseAffineIterMap(const Array<arith::IterSumExpr>& iter_map,
-                                             const NDIntSet& outputs, arith::Analyzer* analyzer) {
-  Array<PrimExpr> min_point, max_point;
+ffi::Map<Var, arith::IntSet> InverseAffineIterMap(const ffi::Array<arith::IterSumExpr>& iter_map,
+                                                  const NDIntSet& outputs,
+                                                  arith::Analyzer* analyzer) {
+  ffi::Array<PrimExpr> min_point, max_point;
   min_point.reserve(outputs.size());
   max_point.reserve(outputs.size());
   for (const auto& intset : outputs) {
@@ -518,7 +520,7 @@ Map<Var, arith::IntSet> InverseAffineIterMap(const Array<arith::IterSumExpr>& it
   }
   auto rev_min = InverseAffineIterMap(iter_map, min_point);
   auto rev_max = InverseAffineIterMap(iter_map, max_point);
-  Map<Var, arith::IntSet> dom_map;
+  ffi::Map<Var, arith::IntSet> dom_map;
   for (const auto& kv : rev_min) {
     const Var& var = kv.first;
     auto it = rev_max.find(var);
@@ -543,7 +545,7 @@ Map<Var, arith::IntSet> InverseAffineIterMap(const Array<arith::IterSumExpr>& it
  * \param iter_doms The result iteration domains to be updated
  * \returns bool. Denotes whether update success
  */
-bool UpdateBlockVarDomainAffine(const BufferNode* buffer, const Array<IterVar>& iter_vars,
+bool UpdateBlockVarDomainAffine(const BufferNode* buffer, const ffi::Array<IterVar>& iter_vars,
                                 const NDIntSet& provided_region, const NDIntSet& required_region,
                                 arith::Analyzer* analyzer,
                                 std::unordered_map<const VarNode*, BlockVarDomainInfo>* iter_doms) {
@@ -552,12 +554,12 @@ bool UpdateBlockVarDomainAffine(const BufferNode* buffer, const Array<IterVar>& 
     if (!intset.CanProveSinglePoint(analyzer)) return false;
   }
   // calculate forward mapping (block vars -> provided region point)
-  Map<Var, Range> dom_map;
+  ffi::Map<Var, Range> dom_map;
   for (const IterVar& iter_var : iter_vars) {
     dom_map.Set(iter_var->var, iter_var->dom);
   }
   size_t ndim = buffer->shape.size();
-  Array<PrimExpr> provide_indices;
+  ffi::Array<PrimExpr> provide_indices;
   provide_indices.reserve(ndim);
   for (size_t i = 0; i < ndim; ++i) {
     provide_indices.push_back(provided_region[i].min());
@@ -573,8 +575,10 @@ bool UpdateBlockVarDomainAffine(const BufferNode* buffer, const Array<IterVar>& 
     required_bound.push_back(
         arith::IntSet::Interval(make_zero(buffer->shape[i]->dtype), max(buffer->shape[i] - 1, 0)));
   }
-  Map<Var, arith::IntSet> var_dom = InverseAffineIterMap(res->indices, required_region, analyzer);
-  Map<Var, arith::IntSet> var_bound = InverseAffineIterMap(res->indices, required_bound, analyzer);
+  ffi::Map<Var, arith::IntSet> var_dom =
+      InverseAffineIterMap(res->indices, required_region, analyzer);
+  ffi::Map<Var, arith::IntSet> var_bound =
+      InverseAffineIterMap(res->indices, required_bound, analyzer);
   for (const auto& kv : var_dom) {
     const Var& var = kv.first;
     auto it = var_bound.find(var);
@@ -593,7 +597,7 @@ bool UpdateBlockVarDomainAffine(const BufferNode* buffer, const Array<IterVar>& 
  * \return A list of iteration domain info corresponding to the given list of block vars
  */
 std::vector<BlockVarDomainInfo> CalculateBlockVarDomain(
-    const Array<IterVar>& iter_vars,
+    const ffi::Array<IterVar>& iter_vars,
     std::unordered_map<const BufferNode*, std::vector<NDIntSet>> provided_regions,
     std::unordered_map<const BufferNode*, std::vector<NDIntSet>> required_regions,
     arith::Analyzer* analyzer) {
@@ -657,16 +661,16 @@ template <bool is_compute_at>
 void CalculateProvidedRequiredRegions(
     const BlockNode* block, const StmtSRef& loop_sref,
     std::unordered_map<const BlockNode*, const BlockRealizeNode*> block2realize,
-    Array<StmtSRef> producer_srefs, Array<StmtSRef> consumer_srefs,
+    ffi::Array<StmtSRef> producer_srefs, ffi::Array<StmtSRef> consumer_srefs,
     std::unordered_map<const BufferNode*, std::vector<NDIntSet>>* provided_regions,
     std::unordered_map<const BufferNode*, std::vector<NDIntSet>>* required_regions) {
   // Step 1. Calculate the region provided by a single execution instance of `block`
-  const Array<BufferRegion>& provided_buffers = is_compute_at ? block->writes : block->reads;
+  const ffi::Array<BufferRegion>& provided_buffers = is_compute_at ? block->writes : block->reads;
   provided_regions->reserve(provided_buffers.size());
   required_regions->reserve(provided_buffers.size());
   for (const BufferRegion& provided_buffer_region : provided_buffers) {
     const BufferNode* buffer = provided_buffer_region->buffer.get();
-    const Array<Range>& region = provided_buffer_region->region;
+    const ffi::Array<Range>& region = provided_buffer_region->region;
     (*provided_regions)[buffer].push_back(support::NDIntSetFromRegion(region));
     (*required_regions)[buffer].clear();
   }
@@ -675,9 +679,9 @@ void CalculateProvidedRequiredRegions(
     const BlockNode* required_block = TVM_SREF_TO_BLOCK(required_block_sref);
     ICHECK(block2realize.count(required_block));
     RelaxBufferRegions</*relax_storage_scope=*/is_compute_at>(
-        /*binding=*/GetBindings(GetRef<BlockRealize>(block2realize.at(required_block))),
+        /*binding=*/GetBindings(ffi::GetRef<BlockRealize>(block2realize.at(required_block))),
         /*buffer_regions=*/is_compute_at ? required_block->reads : required_block->writes,
-        /*relax_path_low_inclusive=*/GetRef<StmtSRef>(required_block_sref->parent),
+        /*relax_path_low_inclusive=*/ffi::GetRef<StmtSRef>(required_block_sref->parent),
         /*relax_path_high_exclusive=*/loop_sref, /*relaxed=*/required_regions);
   }
 }
@@ -695,11 +699,11 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
   // Check condition 1) : scope stage pipeline
   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref,
                                           /*require_stage_pipeline=*/true);
-  Block scope_root = GetRef<Block>(scope_root_sref->StmtAs<BlockNode>());
+  Block scope_root = ffi::GetRef<Block>(scope_root_sref->StmtAs<BlockNode>());
   AddShapeVarBounds(self, scope_root_sref.get(), analyzer);
   BlockScope scope = self->GetBlockScope(scope_root_sref);
-  Array<StmtSRef> producer_srefs = GetProducers(block_sref, scope);
-  Array<StmtSRef> consumer_srefs = GetConsumers(block_sref, scope);
+  ffi::Array<StmtSRef> producer_srefs = GetProducers(block_sref, scope);
+  ffi::Array<StmtSRef> consumer_srefs = GetConsumers(block_sref, scope);
   // Check condition 2) : `block` is a complete or reduction block
   CheckCompleteOrReductionBlock(self, block_sref, scope_root_sref);
   // Check condition 3): `block` and `loop` are under the same scope,
@@ -711,7 +715,7 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
     CheckNotOutputBlock(self, block_sref, scope_root_sref);
   }
   // Step 2. Plan for the removal of `block`
-  ScopeReconstructor reconstructor(scope_root, GetRef<Block>(block), GetRef<For>(loop));
+  ScopeReconstructor reconstructor(scope_root, ffi::GetRef<Block>(block), ffi::GetRef<For>(loop));
   LeafBlockRemovalPlan(self, block_sref, &reconstructor.rm_src_stmt_, &reconstructor.rm_tgt_stmt_);
   // Step 3. Find the insertion point under `loop`
   // Check condition 5): all the required block are under the given loop
@@ -755,7 +759,7 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
   BlockInfo& block_info = self->block_info[block_sref];
   block_info.affine_binding = IsAffineBinding(
       /*realize=*/reconstructor.new_block_realize_,
-      /*loop_var_ranges=*/LoopDomainOfSRefTreePath(GetRef<StmtSRef>(block_sref->parent)),
+      /*loop_var_ranges=*/LoopDomainOfSRefTreePath(ffi::GetRef<StmtSRef>(block_sref->parent)),
       /*analyzer=*/analyzer);
 }
 
@@ -813,8 +817,8 @@ struct ComputeAtTraits : public UnpackedInstTraits<ComputeAtTraits> {
     return sch->ComputeAt(block_rv, loop_rv, preserve_unit_loops.operator bool(), index->value);
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String block_rv, String loop_rv,
-                                 Bool preserve_unit_loops, IntImm index) {
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
+                                      ffi::String loop_rv, Bool preserve_unit_loops, IntImm index) {
     PythonAPICall py("compute_at");
     py.Input("block", block_rv);
     py.Input("loop", loop_rv);
@@ -842,8 +846,8 @@ struct ReverseComputeAtTraits : public UnpackedInstTraits<ReverseComputeAtTraits
                                  index->value);
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String block_rv, String loop_rv,
-                                 Bool preserve_unit_loops, IntImm index) {
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
+                                      ffi::String loop_rv, Bool preserve_unit_loops, IntImm index) {
     PythonAPICall py("reverse_compute_at");
     py.Input("block", block_rv);
     py.Input("loop", loop_rv);

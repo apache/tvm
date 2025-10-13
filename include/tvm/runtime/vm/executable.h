@@ -85,10 +85,10 @@ struct VMFuncInfo {
  * The executable contains information (e.g. data in different memory regions)
  * to run in a virtual machine.
  */
-class VMExecutable : public runtime::ModuleNode {
+class VMExecutable : public ffi::ModuleObj {
  public:
   /*! \brief Get the property of the runtime module .*/
-  int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; };
+  int GetPropertyMask() const final { return ffi::Module::kBinarySerializable; };
 
   /*!
    * \brief Print the detailed statistics of the given code, i.e. number of
@@ -113,41 +113,41 @@ class VMExecutable : public runtime::ModuleNode {
    * \brief Print the instructions as text format.
    * \return The text format of the instructions.
    */
-  String AsText() const;
+  ffi::String AsText() const;
   /*!
    * \brief Print the instructions as python program.
    * \return The python program of the instructions, represented by a string.
    */
-  String AsPython() const;
+  ffi::String AsPython() const;
   /*!
    * \brief Write the VMExecutable to the binary stream in serialized form.
-   * \param stream The binary stream to save the executable to.
+   * \return The binary bytes that save the executable to.
    */
-  void SaveToBinary(dmlc::Stream* stream) final;
+  ffi::Bytes SaveToBytes() const final;
   /*!
    * \brief Load VMExecutable from the binary stream in serialized form.
-   * \param stream The binary stream that load the executable from.
+   * \param bytes The binary bytes that load the executable from.
    * \return The loaded executable, in the form of a `runtime::Module`.
    */
-  static Module LoadFromBinary(void* stream);
+  static ffi::Module LoadFromBytes(const ffi::Bytes& bytes);
   /*!
    * \brief Write the VMExecutable to the provided path as a file containing its serialized content.
    * \param file_name The name of the file to write the serialized data to.
    * \param format The target format of the saved file.
    */
-  void SaveToFile(const String& file_name, const String& format) final;
+  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final;
   /*! \brief Create a Relax virtual machine and load `this` as the executable. */
-  Module VMLoadExecutable() const;
+  ffi::Module VMLoadExecutable() const;
   /*! \brief Create a Relax virtual machine with profiler and load `this` as the executable. */
-  Module VMProfilerLoadExecutable() const;
+  ffi::Module VMProfilerLoadExecutable() const;
   /*! \brief Check if the VMExecutable contains a specific function. */
-  bool HasFunction(const String& name) const;
+  bool HasFunction(const ffi::String& name) const;
   /*!
    * \brief Load VMExecutable from the file.
    * \param file_name The path of the file that load the executable from.
    * \return The loaded executable, in the form of a `runtime::Module`.
    */
-  static Module LoadFromFile(const String& file_name);
+  static ffi::Module LoadFromFile(const ffi::String& file_name);
 
   /*! \brief The virtual machine's function table. */
   std::vector<VMFuncInfo> func_table;
@@ -176,22 +176,22 @@ class VMExecutable : public runtime::ModuleNode {
    * \brief Save the globals.
    * \param strm The input stream.
    */
-  void SaveGlobalSection(dmlc::Stream* strm);
+  void SaveGlobalSection(dmlc::Stream* strm) const;
   /*!
    * \brief Save the constant pool.
    * \param strm The input stream.
    */
-  void SaveConstantSection(dmlc::Stream* strm);
+  void SaveConstantSection(dmlc::Stream* strm) const;
   /*!
    * \brief Save the instructions.
    * \param strm The input stream.
    */
-  void SaveCodeSection(dmlc::Stream* strm);
+  void SaveCodeSection(dmlc::Stream* strm) const;
   /*!
    * \brief Save the packed functions.
    * \param strm The input stream.
    */
-  void SavePackedFuncNames(dmlc::Stream* strm);
+  void SavePackedFuncNames(dmlc::Stream* strm) const;
   /*!
    * \brief Load the globals.
    * \param strm The input stream.

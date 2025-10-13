@@ -25,7 +25,7 @@ import tvm
 import tvm.testing
 from tvm import te
 from tvm.ir.module import IRModule
-from tvm.ffi import register_func
+from tvm_ffi import register_global_func
 from tvm.error import TVMError
 from tvm.meta_schedule import TuneContext
 from tvm.meta_schedule.schedule_rule import PyScheduleRule

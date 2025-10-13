@@ -76,7 +76,7 @@ void ArgBinder::Bind(const PrimExpr& arg, const PrimExpr& value, const std::stri
   Bind_(arg, value, arg_name, with_let);
 }
 
-void ArgBinder::BindArray(const Array<PrimExpr>& arg, const Array<PrimExpr>& value,
+void ArgBinder::BindArray(const ffi::Array<PrimExpr>& arg, const ffi::Array<PrimExpr>& value,
                           const std::string& arg_name) {
   ICHECK_EQ(arg.size(), value.size()) << "Argument " << arg_name << " array size mismatch";
   for (size_t i = 0; i < arg.size(); ++i) {
@@ -93,8 +93,8 @@ void ArgBinder::BindBuffer(const Buffer& arg, const Buffer& value, const std::st
       << "Argument " << arg_name << " Buffer bind data type mismatch";
   if (value->data_alignment % arg->data_alignment != 0) {
     LOG(WARNING) << "Trying to bind buffer to another one with lower alignment requirement "
-                 << " required_alignment=" << arg->data_alignment
-                 << ", provided_alignment=" << value->data_alignment;
+                 << " required alignment=" << arg->data_alignment
+                 << ", provided alignment=" << value->data_alignment;
   }
 
   if (value->elem_offset.defined()) {
@@ -223,7 +223,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
     // Assert the buffer is compact
     DataType stype = buffer->DefaultIndexType();
     PrimExpr expect_stride = make_const(stype, 1);
-    Array<PrimExpr> conds;
+    ffi::Array<PrimExpr> conds;
     for (size_t i = buffer->shape.size(); i != 0; --i) {
       size_t k = i - 1;
       PrimExpr svalue = cast(stype, BufferLoad(buf_strides, {IntImm(DataType::Int(32), k)}));

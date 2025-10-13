@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """A mutator that mutates the compute-at location decision of SampleComputeLocation"""
-from tvm.ffi.registry import register_object
+from tvm_ffi.registry import register_object
 
 from .. import _ffi_api
 from .mutator import Mutator

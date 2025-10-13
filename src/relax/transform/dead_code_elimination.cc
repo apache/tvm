@@ -91,7 +91,8 @@ IRModule RemoveUnusedFunctions(IRModule mod, const std::unordered_set<GlobalVar>
   return mod;
 }
 
-IRModule DeadCodeElimination(const IRModule& arg_mod, Array<String> entry_function_names) {
+IRModule DeadCodeElimination(const IRModule& arg_mod,
+                             ffi::Array<ffi::String> entry_function_names) {
   IRModule mod = arg_mod;
 
   // S0: Make a list of all user-specified entry functions and
@@ -134,17 +135,17 @@ IRModule DeadCodeElimination(const IRModule& arg_mod, Array<String> entry_functi
 
 namespace transform {
 
-Pass DeadCodeElimination(Array<String> entry_functions) {
+Pass DeadCodeElimination(ffi::Array<ffi::String> entry_functions) {
   auto pass_func = [=](IRModule m, PassContext pc) {
     return relax::DeadCodeElimination(m, entry_functions);
   };
   return CreateModulePass(pass_func, 1, "DeadCodeElimination", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.DeadCodeElimination", DeadCodeElimination);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

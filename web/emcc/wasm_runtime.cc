@@ -37,10 +37,7 @@
 #include "src/runtime/cpu_device_api.cc"
 #include "src/runtime/device_api.cc"
 #include "src/runtime/file_utils.cc"
-#include "src/runtime/library_module.cc"
 #include "src/runtime/logging.cc"
-#include "src/runtime/module.cc"
-#include "src/runtime/ndarray.cc"
 #include "src/runtime/profiling.cc"
 #include "src/runtime/rpc/rpc_channel.cc"
 #include "src/runtime/rpc/rpc_endpoint.cc"
@@ -48,17 +45,20 @@
 #include "src/runtime/rpc/rpc_local_session.cc"
 #include "src/runtime/rpc/rpc_module.cc"
 #include "src/runtime/rpc/rpc_session.cc"
-#include "src/runtime/system_library.cc"
+#include "src/runtime/tensor.cc"
 #include "src/runtime/workspace_pool.cc"
 // relax setup
-#include "ffi/src/ffi/container.cc"
-#include "ffi/src/ffi/dtype.cc"
-#include "ffi/src/ffi/error.cc"
-#include "ffi/src/ffi/function.cc"
-#include "ffi/src/ffi/ndarray.cc"
-#include "ffi/src/ffi/object.cc"
-#include "ffi/src/ffi/testing.cc"
-#include "ffi/src/ffi/traceback.cc"
+#include "3rdparty/tvm-ffi/src/ffi/backtrace.cc"
+#include "3rdparty/tvm-ffi/src/ffi/container.cc"
+#include "3rdparty/tvm-ffi/src/ffi/dtype.cc"
+#include "3rdparty/tvm-ffi/src/ffi/error.cc"
+#include "3rdparty/tvm-ffi/src/ffi/extra/library_module.cc"
+#include "3rdparty/tvm-ffi/src/ffi/extra/library_module_system_lib.cc"
+#include "3rdparty/tvm-ffi/src/ffi/extra/module.cc"
+#include "3rdparty/tvm-ffi/src/ffi/extra/testing.cc"
+#include "3rdparty/tvm-ffi/src/ffi/function.cc"
+#include "3rdparty/tvm-ffi/src/ffi/object.cc"
+#include "3rdparty/tvm-ffi/src/ffi/tensor.cc"
 #include "src/runtime/memory/memory_manager.cc"
 #include "src/runtime/nvtx.cc"
 #include "src/runtime/vm/attn_backend.cc"
@@ -67,9 +67,9 @@
 #include "src/runtime/vm/executable.cc"
 #include "src/runtime/vm/kv_state.cc"
 #include "src/runtime/vm/lm_support.cc"
-#include "src/runtime/vm/ndarray_cache_support.cc"
 #include "src/runtime/vm/paged_kv_cache.cc"
 #include "src/runtime/vm/rnn_state.cc"
+#include "src/runtime/vm/tensor_cache_support.cc"
 #include "src/runtime/vm/vm.cc"
 
 // --- Implementations of backend and wasm runtime API. ---
@@ -105,23 +105,24 @@ void LogMessageImpl(const std::string& file, int lineno, int level, const std::s
 
 }  // namespace detail
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvmjs.testing.call",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
                     (args[0].cast<ffi::Function>()).CallPacked(args.Slice(1), ret);
                   })
-      .def_packed("tvmjs.testing.log_info_str",
-                  [](ffi::PackedArgs args, ffi::Any* ret) { LOG(INFO) << args[0].cast<String>(); })
+      .def_packed(
+          "tvmjs.testing.log_info_str",
+          [](ffi::PackedArgs args, ffi::Any* ret) { LOG(INFO) << args[0].cast<ffi::String>(); })
       .def("tvmjs.testing.add_one", [](int x) { return x + 1; })
       .def_packed("tvmjs.testing.wrap_callback", [](ffi::PackedArgs args, ffi::Any* ret) {
         ffi::Function pf = args[0].cast<ffi::Function>();
         *ret = ffi::TypedFunction<void()>([pf]() { pf(); });
       });
-});
+}
 
-void ArrayDecodeStorage(NDArray cpu_arr, std::string bytes, std::string format, std::string dtype) {
+void ArrayDecodeStorage(Tensor cpu_arr, std::string bytes, std::string format, std::string dtype) {
   if (format == "f32-to-bf16" && dtype == "float32") {
     std::vector<uint16_t> buffer(bytes.length() / 2);
     std::memcpy(buffer.data(), bytes.data(), buffer.size() * 2);
@@ -142,13 +143,13 @@ void ArrayDecodeStorage(NDArray cpu_arr, std::string bytes, std::string format, 
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tvmjs.array.decode_storage", ArrayDecodeStorage);
-});
+}
 
 // Concatenate n TVMArrays
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvmjs.runtime.ArrayConcat",
                                [](ffi::PackedArgs args, ffi::Any* ret) {
@@ -162,11 +163,11 @@ TVM_FFI_STATIC_INIT_BLOCK({
                                      data.push_back(arr_i->at(j));
                                    }
                                  }
-                                 *ret = Array<Any>(data);
+                                 *ret = ffi::Array<Any>(data);
                                });
-});
+}
 
-NDArray ConcatEmbeddings(const std::vector<NDArray>& embeddings) {
+Tensor ConcatEmbeddings(const std::vector<Tensor>& embeddings) {
   // Get output shape
   int64_t hidden_size = embeddings[0]->shape[1];
   DLDataType dtype = embeddings[0]->dtype;
@@ -182,7 +183,7 @@ NDArray ConcatEmbeddings(const std::vector<NDArray>& embeddings) {
   std::vector<int64_t> shape;
   shape.push_back(seqLen);
   shape.push_back(hidden_size);
-  NDArray result = NDArray::Empty(shape, dtype, device);
+  Tensor result = Tensor::Empty(shape, dtype, device);
 
   // Copy
   int offset = 0;
@@ -193,36 +194,36 @@ NDArray ConcatEmbeddings(const std::vector<NDArray>& embeddings) {
     copy_dst.shape = embeddings[i]->shape;
     copy_dst.byte_offset =
         offset * hidden_size * ((embeddings[i]->dtype.bits * embeddings[i]->dtype.lanes + 7) / 8);
-    NDArray::CopyFromTo(&copy_src, &copy_dst);
+    Tensor::CopyFromTo(&copy_src, &copy_dst);
     offset += embeddings[i]->shape[0];
   }
 
   return result;
 }
 
-// Concatenate n NDArrays
-TVM_FFI_STATIC_INIT_BLOCK({
+// Concatenate n Tensors
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvmjs.runtime.ConcatEmbeddings",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
-                    std::vector<NDArray> embeddings;
+                    std::vector<Tensor> embeddings;
                     for (int i = 0; i < args.size(); ++i) {
-                      embeddings.push_back(args[i].cast<NDArray>());
+                      embeddings.push_back(args[i].cast<Tensor>());
                     }
-                    NDArray result = ConcatEmbeddings(std::move(embeddings));
+                    Tensor result = ConcatEmbeddings(std::move(embeddings));
                     *ret = result;
                   })
-      .def("tvmjs.runtime.NDArrayCopyFromBytes",
-           [](NDArray nd, TVMFFIByteArray* bytes) { nd.CopyFromBytes(bytes->data, bytes->size); })
-      .def("tvmjs.runtime.NDArrayCopyToBytes", [](NDArray nd) -> ffi::Bytes {
+      .def("tvmjs.runtime.TensorCopyFromBytes",
+           [](Tensor nd, TVMFFIByteArray* bytes) { nd.CopyFromBytes(bytes->data, bytes->size); })
+      .def("tvmjs.runtime.TensorCopyToBytes", [](Tensor nd) -> ffi::Bytes {
         size_t size = GetDataSize(*(nd.operator->()));
         std::string bytes;
         bytes.resize(size);
         nd.CopyToBytes(bytes.data(), size);
         return ffi::Bytes(bytes);
       });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

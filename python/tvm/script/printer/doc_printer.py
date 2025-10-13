@@ -18,7 +18,7 @@
 
 from typing import List, Optional
 
-from tvm.runtime import ObjectPath
+from tvm_ffi.access_path import AccessPath
 from tvm.runtime.script_printer import PrinterConfig
 
 from . import _ffi_api
@@ -30,7 +30,7 @@ def to_python_script(
     indent_spaces: int = 4,
     print_line_numbers: bool = False,
     num_context_lines: Optional[int] = None,
-    path_to_underline: Optional[List[ObjectPath]] = None,
+    path_to_underline: Optional[List[AccessPath]] = None,
 ) -> str:
     """Convert Doc into Python script.
 
@@ -44,7 +44,7 @@ def to_python_script(
         Whether to print line numbers
     num_context_lines : Optional[int]
         Number of context lines to print around the underlined text
-    path_to_underline : Optional[ObjectPath]
+    path_to_underline : Optional[AccessPath]
         Object path to be underlined
 
     Returns

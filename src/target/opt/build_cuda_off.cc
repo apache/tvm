@@ -24,11 +24,11 @@
 namespace tvm {
 namespace runtime {
 
-Module CUDAModuleCreate(std::string data, std::string fmt,
-                        std::unordered_map<std::string, FunctionInfo> fmap,
-                        std::string cuda_source) {
+ffi::Module CUDAModuleCreate(std::string data, std::string fmt,
+                             std::unordered_map<std::string, FunctionInfo> fmap,
+                             std::string cuda_source) {
   LOG(FATAL) << "CUDA is not enabled";
-  return Module();
+  TVM_FFI_UNREACHABLE();
 }
 }  // namespace runtime
 }  // namespace tvm

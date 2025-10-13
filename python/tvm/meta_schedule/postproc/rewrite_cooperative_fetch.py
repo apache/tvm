@@ -17,7 +17,7 @@
 """A postprocessor that rewrites the cooperative fetch annotation to actual
 vectorized cooperative fetching in loop bindings."""
 
-from tvm.ffi.registry import register_object
+from tvm_ffi.registry import register_object
 from .. import _ffi_api
 from .postproc import Postproc
 

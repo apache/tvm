@@ -23,7 +23,6 @@ import tvm
 import tvm.testing
 from tvm import dlight as dl
 from tvm import relax
-from tvm.contrib import utils
 from tvm.relax.frontend.nn.llm.kv_cache import (
     AttnKind,
     RopeMode,
@@ -78,7 +77,7 @@ fcopy_cache = None
 fcompact_copy = None
 
 
-def set_global_func():
+def set_global_func(rope_mode: RopeMode):
     global fclear, fadd_sequence, fremove_sequence, ffork_sequence, fpopn
     global fbegin_forward, fend_forward, fattention, fattention_with_fuse_qkv, fdebug_get_kv
     global fattention_prefill, fattention_decode, fattention_prefill_ragged
@@ -98,48 +97,30 @@ def set_global_func():
     )
     fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
 
-    def load_module(name: str, static_modules: List[tvm.runtime.Module]):
-        assert len(static_modules) > 0
-        if len(static_modules) == 1:
-            return static_modules[0]
-        static_mod = static_modules[0]
-        for mod in static_modules[1:]:
-            static_mod.import_module(mod)
-        temp = utils.tempdir()
-        mod_path = temp.relpath(f"{name}.so")
-        static_mod.export_library(mod_path)
-        return tvm.runtime.load_module(mod_path)
-
     target = tvm.target.Target.from_device(device)
-    flashinfer_prefill_mod = load_module(
-        "flashinfer_prefill",
-        relax.backend.cuda.flashinfer.gen_flashinfer_prefill_module(
-            dtype_q=dtype,
-            dtype_kv=dtype,
-            dtype_o=dtype,
-            qk_head_dim=head_dim,
-            v_head_dim=head_dim,
-            target=target,
-        ),
-    )
-    flashinfer_decode_mod = load_module(
-        "flashinfer_decode",
-        relax.backend.cuda.flashinfer.gen_flashinfer_decode_module(
-            dtype_q=dtype,
-            dtype_kv=dtype,
-            dtype_o=dtype,
-            qk_head_dim=head_dim,
-            v_head_dim=head_dim,
-            target=target,
-        ),
-    )
+    flashinfer_prefill_mod = relax.backend.cuda.flashinfer.gen_flashinfer_prefill_module(
+        dtype_q=dtype,
+        dtype_kv=dtype,
+        dtype_o=dtype,
+        qk_head_dim=head_dim,
+        v_head_dim=head_dim,
+        enable_inline_rope=rope_mode == RopeMode.INLINE,
+    )[0]
+    flashinfer_decode_mod = relax.backend.cuda.flashinfer.gen_flashinfer_decode_module(
+        dtype_q=dtype,
+        dtype_kv=dtype,
+        dtype_o=dtype,
+        qk_head_dim=head_dim,
+        v_head_dim=head_dim,
+        enable_inline_rope=rope_mode == RopeMode.INLINE,
+    )[0]
 
-    fattention_prefill = flashinfer_prefill_mod["batch_prefill_with_paged_kv_cache_run"]
-    fattention_prefill_plan = flashinfer_prefill_mod["batch_prefill_with_kv_cache_plan"]
-    fattention_prefill_ragged = flashinfer_prefill_mod["batch_prefill_with_ragged_kv_cache_run"]
-    fattention_prefill_ragged_plan = flashinfer_prefill_mod["batch_prefill_with_kv_cache_plan"]
-    fattention_decode = flashinfer_decode_mod["batch_decode_with_paged_kv_cache_run"]
-    fattention_decode_plan = flashinfer_decode_mod["batch_decode_with_paged_kv_cache_plan"]
+    fattention_prefill = flashinfer_prefill_mod["batch_prefill_paged_run"]
+    fattention_prefill_plan = flashinfer_prefill_mod["batch_prefill_plan"]
+    fattention_prefill_ragged = flashinfer_prefill_mod["batch_prefill_ragged_run"]
+    fattention_prefill_ragged_plan = flashinfer_prefill_mod["batch_prefill_plan"]
+    fattention_decode = flashinfer_decode_mod["batch_decode_run"]
+    fattention_decode_plan = flashinfer_decode_mod["batch_decode_plan"]
 
     builts = []
     for tir_func in [
@@ -156,7 +137,7 @@ def set_global_func():
         with target:
             mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
         f = tvm.tir.build(mod["main"], target=target)
-        builts.append(f.entry_func)
+        builts.append(f.main)
 
     (
         ftranspose_append,
@@ -192,7 +173,7 @@ def create_kv_cache(rope_mode):
         rope_scale,
         rope_theta,
         None,  # rope_ext_factors
-        tvm.nd.empty((), dtype, device=device),
+        tvm.runtime.empty((), dtype, device=device),
         ftranspose_append,
         None,  # f_transpose_append_mla
         ["flashinfer", fattention_prefill_ragged, fattention_prefill_ragged_plan],
@@ -224,8 +205,8 @@ def verify_cached_kv(kv_cache, seq_ids, expected_k, expected_v):
         values_expected = expected_v[seq_id]
         assert keys_expected.shape == values_expected.shape
         seq_length = expected_k[seq_id].shape[1]
-        keys = tvm.nd.empty(keys_expected.shape, dtype=dtype, device=device)
-        values = tvm.nd.empty(values_expected.shape, dtype=dtype, device=device)
+        keys = tvm.runtime.empty(keys_expected.shape, dtype=dtype, device=device)
+        values = tvm.runtime.empty(values_expected.shape, dtype=dtype, device=device)
         fdebug_get_kv(kv_cache, seq_id, 0, seq_length, keys, values)
         torch.testing.assert_close(
             torch.from_numpy(keys.numpy()).to(device_torch), keys_expected, rtol=1e-3, atol=1e-3
@@ -365,8 +346,10 @@ def apply_attention(
         queries_np = global_new_q[layer_id]
         keys_np = global_new_k[layer_id]
         values_np = global_new_v[layer_id]
-        qkv = tvm.nd.array(torch.cat([queries_np, keys_np, values_np], dim=1).cpu().numpy(), device)
-        outputs = tvm.nd.empty(queries_np.shape, dtype, device=device)
+        qkv = tvm.runtime.tensor(
+            torch.cat([queries_np, keys_np, values_np], dim=1).cpu().numpy(), device
+        )
+        outputs = tvm.runtime.empty(queries_np.shape, dtype, device=device)
         fattention_with_fuse_qkv(kv_cache, layer_id, sm_scale, qkv, outputs)
 
         # Compute attention expected results.
@@ -558,8 +541,8 @@ def test_paged_attention_kv_cache_popn(kv_cache_and_rope_mode):
 
 
 if __name__ == "__main__":
-    set_global_func()
-    for rope_mode in [RopeMode.NONE, RopeMode.NORMAL, RopeMode.INLINE]:
+    for rope_mode in [RopeMode.NONE, RopeMode.NORMAL]:
+        set_global_func(rope_mode)
         cache = create_kv_cache(rope_mode)
         test_paged_attention_kv_cache_prefill_and_decode((cache, rope_mode))
         test_paged_attention_kv_cache_remove_sequence((cache, rope_mode))

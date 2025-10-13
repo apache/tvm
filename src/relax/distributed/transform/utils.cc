@@ -22,7 +22,7 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-bool SinfoCompatibleWithDistIR(Array<StructInfo> sinfos) {
+bool SinfoCompatibleWithDistIR(ffi::Array<StructInfo> sinfos) {
   bool compatible = true;
   for (const auto& sinfo : sinfos) {
     if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
@@ -34,7 +34,7 @@ bool SinfoCompatibleWithDistIR(Array<StructInfo> sinfos) {
   return compatible;
 }
 
-bool SinfoCompatibleWithRelax(Array<StructInfo> sinfos) {
+bool SinfoCompatibleWithRelax(ffi::Array<StructInfo> sinfos) {
   bool compatible = true;
   for (const auto& sinfo : sinfos) {
     if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
@@ -46,7 +46,7 @@ bool SinfoCompatibleWithRelax(Array<StructInfo> sinfos) {
   return compatible;
 }
 bool IsDistIRFunc(Function func) {
-  Array<StructInfo> param_sinfos;
+  ffi::Array<StructInfo> param_sinfos;
   for (const auto& param : func->params) {
     ICHECK(param->struct_info_);
     param_sinfos.push_back(Downcast<StructInfo>(param->struct_info_.value()));

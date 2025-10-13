@@ -45,7 +45,7 @@ class RPCDeviceAPI final : public DeviceAPI {
   }
 
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                       Optional<String> mem_scope) final {
+                       ffi::Optional<ffi::String> mem_scope) final {
     auto sess = GetSess(dev);
     auto remote_dev = RemoveRPCSessionMask(dev);
     void* data =
@@ -151,13 +151,13 @@ class RPCDeviceAPI final : public DeviceAPI {
   }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("device_api.rpc", [](ffi::PackedArgs args, ffi::Any* rv) {
     static RPCDeviceAPI inst;
     DeviceAPI* ptr = &inst;
     *rv = static_cast<void*>(ptr);
   });
-});
+}
 }  // namespace runtime
 }  // namespace tvm

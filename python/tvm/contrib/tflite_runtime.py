@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """TFLite runtime that load and run tflite models."""
-import tvm.ffi
+import tvm_ffi
 from ..rpc import base as rpc_base
 
 
@@ -35,7 +35,7 @@ def create(tflite_model_bytes, device, runtime_target="cpu"):
     tflite_runtime : TFLiteModule
         Runtime tflite module that can be used to execute the tflite model.
     """
-    device_type = device.device_type
+    device_type = device.dlpack_device_type()
 
     if runtime_target == "edge_tpu":
         runtime_func = "tvm.edgetpu_runtime.create"
@@ -45,7 +45,7 @@ def create(tflite_model_bytes, device, runtime_target="cpu"):
     if device_type >= rpc_base.RPC_SESS_MASK:
         fcreate = device._rpc_sess.get_function(runtime_func)
     else:
-        fcreate = tvm.ffi.get_global_func(runtime_func)
+        fcreate = tvm_ffi.get_global_func(runtime_func)
 
     return TFLiteModule(fcreate(bytearray(tflite_model_bytes), device))
 
@@ -86,7 +86,7 @@ class TFLiteModule(object):
         value : the input value.
            The input key
 
-        params : dict of str to NDArray
+        params : dict of str to Tensor
            Additonal arguments
         """
         self._set_input(index, value)
@@ -96,7 +96,7 @@ class TFLiteModule(object):
 
         Parameters
         ----------
-        input_dict: dict of str to NDArray
+        input_dict: dict of str to Tensor
             List of input values to be feed to
         """
         self._invoke()

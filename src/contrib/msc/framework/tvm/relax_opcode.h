@@ -49,11 +49,11 @@ class RelaxOpCode : public BaseOpCode<RelaxCodeGenConfig, RelaxCodeGenHelper> {
    * \param func_name the function name for the node.
    * \param config the config json for the node.
    */
-  explicit RelaxOpCode(const String& func_name)
+  explicit RelaxOpCode(const ffi::String& func_name)
       : BaseOpCode<RelaxCodeGenConfig, RelaxCodeGenHelper>(func_name) {}
 
   /*! \brief Convert node to docs*/
-  const Array<Doc> GetDocs() final;
+  const ffi::Array<Doc> GetDocs() final;
 
  protected:
   RelaxOpCodeStack stack_;
@@ -62,20 +62,21 @@ class RelaxOpCode : public BaseOpCode<RelaxCodeGenConfig, RelaxCodeGenHelper> {
   virtual void CodeGenBuild() = 0;
 
   /*! \brief coda stack emit docs*/
-  void BuilderEmit(const String& ret, const String& name = "");
+  void BuilderEmit(const ffi::String& ret, const ffi::String& name = "");
 
   /*! \brief Get the out_dtype attribute*/
-  const ExprDoc GetOutDtype(const String& key = "out_dtype", int input_idx = 0);
+  const ExprDoc GetOutDtype(const ffi::String& key = "out_dtype", int input_idx = 0);
 
   /*! \brief Get the axes attribute*/
-  const std::vector<int> GetAxes(const String& key = "axes");
+  const std::vector<int> GetAxes(const ffi::String& key = "axes");
 };
 
 /*!
  * \brief Get the map of available RelaxOpCode, use optype as key
  * \return Map of <string, RelaxOpCode>
  */
-const std::shared_ptr<std::unordered_map<String, std::shared_ptr<RelaxOpCode>>> GetRelaxOpCodes();
+const std::shared_ptr<std::unordered_map<ffi::String, std::shared_ptr<RelaxOpCode>>>
+GetRelaxOpCodes();
 
 }  // namespace msc
 }  // namespace contrib

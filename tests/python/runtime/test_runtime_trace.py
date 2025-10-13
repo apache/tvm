@@ -24,13 +24,13 @@ def test_trace_default_action():
     x = te.placeholder((n, n, n), name="X", dtype="float32")
     y = te.compute(x.shape, lambda i, j, k: tvm.tir.trace([i, j, k, x[i][j][k]]))
     f = tvm.compile(te.create_prim_func([x, y]), target="llvm")
-    xnd = tvm.nd.array(np.ones((n, n, n), dtype=x.dtype))
-    ynd = tvm.nd.array(np.zeros((n, n, n), dtype=y.dtype))
+    xnd = tvm.runtime.tensor(np.ones((n, n, n), dtype=x.dtype))
+    ynd = tvm.runtime.tensor(np.zeros((n, n, n), dtype=y.dtype))
     f(xnd, ynd)
 
 
 def test_trace_expr_assign():
-    @tvm.register_func("tvm.tir.trace_callback2")
+    @tvm.register_global_func("tvm.tir.trace_callback2")
     def trace_buffer(x):
         return
 
@@ -45,9 +45,9 @@ def test_trace_expr_assign():
         )
         f = tvm.compile(te.create_prim_func([x, y, z]), "llvm")
 
-        xnd = tvm.nd.array(np.ones((n, n, n), dtype=x.dtype))
-        ynd = tvm.nd.array(np.zeros((n, n, n), dtype=y.dtype))
-        znd = tvm.nd.array(np.zeros((n, n, n), dtype=z.dtype))
+        xnd = tvm.runtime.tensor(np.ones((n, n, n), dtype=x.dtype))
+        ynd = tvm.runtime.tensor(np.zeros((n, n, n), dtype=y.dtype))
+        znd = tvm.runtime.tensor(np.zeros((n, n, n), dtype=z.dtype))
         f(xnd, ynd, znd)
 
         assert np.array_equal(xnd.numpy(), np.ones((n, n, n)))
@@ -59,7 +59,7 @@ def test_trace_expr_assign():
 
 
 def test_trace_expr_sum_generated():
-    @tvm.register_func("tvm.tir.trace_callback3")
+    @tvm.register_global_func("tvm.tir.trace_callback3")
     def trace_buffer(x):
         return
 
@@ -73,9 +73,9 @@ def test_trace_expr_sum_generated():
             + tvm.tir.trace([b[i][j][k]], "tvm.tir.trace_callback3"),
         )
         f = tvm.compile(te.create_prim_func([a, b, c]))
-        xnd = tvm.nd.array(np.array(np.ones((n, n, n), dtype=a.dtype)))
-        ynd = tvm.nd.array(np.array(np.ones((n, n, n), dtype=b.dtype)))
-        znd = tvm.nd.array(np.zeros((n, n, n), dtype=c.dtype))
+        xnd = tvm.runtime.tensor(np.array(np.ones((n, n, n), dtype=a.dtype)))
+        ynd = tvm.runtime.tensor(np.array(np.ones((n, n, n), dtype=b.dtype)))
+        znd = tvm.runtime.tensor(np.zeros((n, n, n), dtype=c.dtype))
         f(xnd, ynd, znd)
         assert np.array_equal(znd.numpy(), xnd.numpy() + ynd.numpy())
 
@@ -84,7 +84,7 @@ def test_trace_expr_sum_generated():
 
 
 def test_trace_expr_sum_args():
-    @tvm.register_func("tvm.tir.trace_silent")
+    @tvm.register_global_func("tvm.tir.trace_silent")
     def silent(*args):
         return
 
@@ -103,11 +103,11 @@ def test_trace_expr_sum_args():
             + tvm.tir.trace([i, j, k, e[i][j][k]], "tvm.tir.trace_silent"),
         )
         f = tvm.compile(te.create_prim_func([a, b, d, e, c]))
-        a_nd = tvm.nd.array(np.array(np.ones((n, n, n), dtype=a.dtype)))
-        b_nd = tvm.nd.array(np.array(np.ones((n, n, n), dtype=b.dtype)))
-        d_nd = tvm.nd.array(np.array(np.ones((n, n, n), dtype=d.dtype)))
-        e_nd = tvm.nd.array(np.array(np.ones((n, n, n), dtype=e.dtype)))
-        c_nd = tvm.nd.array(np.zeros((n, n, n), dtype=c.dtype))
+        a_nd = tvm.runtime.tensor(np.array(np.ones((n, n, n), dtype=a.dtype)))
+        b_nd = tvm.runtime.tensor(np.array(np.ones((n, n, n), dtype=b.dtype)))
+        d_nd = tvm.runtime.tensor(np.array(np.ones((n, n, n), dtype=d.dtype)))
+        e_nd = tvm.runtime.tensor(np.array(np.ones((n, n, n), dtype=e.dtype)))
+        c_nd = tvm.runtime.tensor(np.zeros((n, n, n), dtype=c.dtype))
         f(a_nd, b_nd, d_nd, e_nd, c_nd)
         assert np.array_equal(
             c_nd.numpy(), a_nd.numpy() + b_nd.numpy() + d_nd.numpy() + e_nd.numpy()
@@ -118,7 +118,7 @@ def test_trace_expr_sum_args():
 
 
 def test_trace_expr_sum_custom():
-    @tvm.register_func("tvm.tir.trace_callback4")
+    @tvm.register_global_func("tvm.tir.trace_callback4")
     def trace_buffer(x):
         return
 
@@ -134,9 +134,9 @@ def test_trace_expr_sum_custom():
         f = tvm.compile(te.create_prim_func([a, b, c]))
         npa = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=a.dtype)
         npb = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=a.dtype)
-        xnd = tvm.nd.array(npa)
-        ynd = tvm.nd.array(npb)
-        znd = tvm.nd.array(np.zeros((n, n), dtype=c.dtype))
+        xnd = tvm.runtime.tensor(npa)
+        ynd = tvm.runtime.tensor(npb)
+        znd = tvm.runtime.tensor(np.zeros((n, n), dtype=c.dtype))
         f(xnd, ynd, znd)
         assert np.array_equal(znd.numpy(), npa + npb)
 
@@ -145,11 +145,11 @@ def test_trace_expr_sum_custom():
 
 
 def test_trace_can_change_traced_value_int():
-    @tvm.register_func("tvm.tir.trace_change_int_first")
+    @tvm.register_global_func("tvm.tir.trace_change_int_first")
     def trace_buffer(x):
         return 13
 
-    @tvm.register_func("tvm.tir.trace_change_int_second")
+    @tvm.register_global_func("tvm.tir.trace_change_int_second")
     def trace_buffer(x):
         return 14
 
@@ -160,9 +160,9 @@ def test_trace_can_change_traced_value_int():
         z = te.compute(x.shape, lambda i: tvm.tir.trace([y[i]], "tvm.tir.trace_change_int_second"))
         f = tvm.compile(te.create_prim_func([x, y, z]))
 
-        xnd = tvm.nd.array(np.ones((n,), dtype=x.dtype))
-        ynd = tvm.nd.array(np.zeros((n,), dtype=y.dtype))
-        znd = tvm.nd.array(np.zeros((n,), dtype=z.dtype))
+        xnd = tvm.runtime.tensor(np.ones((n,), dtype=x.dtype))
+        ynd = tvm.runtime.tensor(np.zeros((n,), dtype=y.dtype))
+        znd = tvm.runtime.tensor(np.zeros((n,), dtype=z.dtype))
         f(xnd, ynd, znd)
         check_array_first = np.array([13, 13, 13, 13])
         check_array_second = np.array([14, 14, 14, 14])
@@ -174,11 +174,11 @@ def test_trace_can_change_traced_value_int():
 
 
 def test_trace_can_change_traced_value_float():
-    @tvm.register_func("tvm.tir.trace_change_float_first")
+    @tvm.register_global_func("tvm.tir.trace_change_float_first")
     def trace_buffer(x):
         return 13.0
 
-    @tvm.register_func("tvm.tir.trace_change_float_second")
+    @tvm.register_global_func("tvm.tir.trace_change_float_second")
     def trace_buffer(x):
         return 14.0
 
@@ -191,9 +191,9 @@ def test_trace_can_change_traced_value_float():
         )
         f = tvm.compile(te.create_prim_func([x, y, z]), target="llvm")
 
-        xnd = tvm.nd.array(np.ones((n,), dtype=x.dtype))
-        ynd = tvm.nd.array(np.zeros((n,), dtype=y.dtype))
-        znd = tvm.nd.array(np.zeros((n,), dtype=z.dtype))
+        xnd = tvm.runtime.tensor(np.ones((n,), dtype=x.dtype))
+        ynd = tvm.runtime.tensor(np.zeros((n,), dtype=y.dtype))
+        znd = tvm.runtime.tensor(np.zeros((n,), dtype=z.dtype))
         f(xnd, ynd, znd)
         check_array_first = np.array([13.0, 13.0, 13.0, 13.0])
         check_array_second = np.array([14.0, 14.0, 14.0, 14.0])

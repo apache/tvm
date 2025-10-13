@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI APIs for tvm.runtime"""
-import tvm.ffi
+import tvm_ffi
 
 # Exports functions registered in runtime namespace.
-tvm.ffi._init_api("runtime", __name__)
+tvm_ffi.init_ffi_api("runtime", __name__)

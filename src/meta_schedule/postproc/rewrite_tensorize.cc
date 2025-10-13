@@ -30,15 +30,15 @@ using tir::BlockRV;
 using tir::LoopRV;
 
 void CollectTensorizationJobs(
-    const tir::Schedule& sch, const String& func_name, const tir::PrimFuncNode* func,
+    const tir::Schedule& sch, const ffi::String& func_name, const tir::PrimFuncNode* func,
     bool vectorize_init_loop,
-    std::vector<std::tuple<String, String, std::function<void(tir::BlockRV)>>>* jobs) {
+    std::vector<std::tuple<ffi::String, ffi::String, std::function<void(tir::BlockRV)>>>* jobs) {
   tir::PostOrderVisit(func->body, [=, &jobs](const ObjectRef& obj) {
     if (const auto* block = obj.as<tir::BlockNode>()) {
       tir::StmtSRef block_sref = sch->GetSRef(block);
       std::string block_name = block_sref->StmtAs<tir::BlockNode>()->name_hint;
-      if (Optional<String> intrin_name =
-              tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_auto_tensorize)) {
+      if (ffi::Optional<ffi::String> intrin_name =
+              tir::GetAnn<ffi::String>(block_sref, tir::attr::meta_schedule_auto_tensorize)) {
         if (intrin_name.value() != "") {
           jobs->emplace_back(block_name, func_name, [sch, intrin_name](tir::BlockRV block) {
             try {
@@ -49,9 +49,9 @@ void CollectTensorizationJobs(
           });
         } else if (block_name.find("init") && vectorize_init_loop) {
           jobs->emplace_back(block_name, func_name, [sch](tir::BlockRV block) {
-            Array<BlockRV> child_blocks = sch->GetChildBlocks(block);
+            ffi::Array<BlockRV> child_blocks = sch->GetChildBlocks(block);
             ICHECK(child_blocks.size() == 1);
-            Array<LoopRV> init_loops = sch->GetLoops(child_blocks[0]);
+            ffi::Array<LoopRV> init_loops = sch->GetLoops(child_blocks[0]);
             ICHECK(init_loops.size() == 1);
             sch->Vectorize(init_loops[0]);
           });
@@ -73,19 +73,18 @@ class RewriteTensorizeNode : public PostprocNode {
   bool Apply(const tir::Schedule& sch) final;
 
   Postproc Clone() const {
-    ObjectPtr<RewriteTensorizeNode> n = make_object<RewriteTensorizeNode>(*this);
+    ObjectPtr<RewriteTensorizeNode> n = ffi::make_object<RewriteTensorizeNode>(*this);
     return Postproc(n);
   }
 
   bool vectorize_init_loop = false;
-
-  static constexpr const char* _type_key = "meta_schedule.RewriteTensorize";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RewriteTensorizeNode, PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RewriteTensorize", RewriteTensorizeNode,
+                                    PostprocNode);
 };
 
 bool RewriteTensorizeNode::Apply(const tir::Schedule& sch) {
   // The rewriting jobs, 3-tuple (block_name, func_name, job_func)
-  std::vector<std::tuple<String, String, std::function<void(tir::BlockRV)>>> jobs;
+  std::vector<std::tuple<ffi::String, ffi::String, std::function<void(tir::BlockRV)>>> jobs;
   for (const auto& kv : sch->mod()->functions) {
     GlobalVar g_var = kv.first;
     BaseFunc base_func = kv.second;
@@ -94,8 +93,8 @@ bool RewriteTensorizeNode::Apply(const tir::Schedule& sch) {
     }
   }
   for (const auto& job : jobs) {
-    const String& block_name = std::get<0>(job);
-    const String& func_name = std::get<1>(job);
+    const ffi::String& block_name = std::get<0>(job);
+    const ffi::String& func_name = std::get<1>(job);
     const auto& job_func = std::get<2>(job);
     BlockRV block = sch->GetBlock(block_name, func_name);
     sch->Unannotate(block, tir::attr::meta_schedule_auto_tensorize);
@@ -105,17 +104,17 @@ bool RewriteTensorizeNode::Apply(const tir::Schedule& sch) {
 }
 
 Postproc Postproc::RewriteTensorize(bool vectorize_init_loop) {
-  ObjectPtr<RewriteTensorizeNode> n = make_object<RewriteTensorizeNode>();
+  ObjectPtr<RewriteTensorizeNode> n = ffi::make_object<RewriteTensorizeNode>();
   n->vectorize_init_loop = vectorize_init_loop;
   return Postproc(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ RewriteTensorizeNode::RegisterReflection(); });
-TVM_REGISTER_NODE_TYPE(RewriteTensorizeNode);
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() { RewriteTensorizeNode::RegisterReflection(); }
+
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.PostprocRewriteTensorize", Postproc::RewriteTensorize);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

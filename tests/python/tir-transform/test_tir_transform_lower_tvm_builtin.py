@@ -26,7 +26,7 @@ import numpy as np
 from tvm.tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 
 
-@tvm.register_func("tvm.test_matmul")
+@tvm.register_global_func("tvm.test_matmul")
 def my_matmul(a, b, c):
     c.copyfrom(np.dot(a.numpy(), b.numpy()))
 
@@ -97,13 +97,17 @@ def test_lower_call_packed():
             T.tvm_struct_set(stack_array, 2, 9, 0)
             T.tvm_struct_set(stack_array, 2, 10, 1)
             T.tvm_struct_set(stack_ffi_any, 0, 13, 7)
-            T.tvm_struct_set(stack_ffi_any, 0, 14, T.tvm_struct_get(stack_array, 0, 0, "handle"))
+            T.tvm_struct_set(stack_ffi_any, 0, 14, 0)
+            T.tvm_struct_set(stack_ffi_any, 0, 15, T.tvm_struct_get(stack_array, 0, 0, "handle"))
             T.tvm_struct_set(stack_ffi_any, 1, 13, 7)
-            T.tvm_struct_set(stack_ffi_any, 1, 14, T.tvm_struct_get(stack_array, 1, 0, "handle"))
+            T.tvm_struct_set(stack_ffi_any, 1, 14, 0)
+            T.tvm_struct_set(stack_ffi_any, 1, 15, T.tvm_struct_get(stack_array, 1, 0, "handle"))
             T.tvm_struct_set(stack_ffi_any, 2, 13, 7)
-            T.tvm_struct_set(stack_ffi_any, 2, 14, T.tvm_struct_get(stack_array, 2, 0, "handle"))
+            T.tvm_struct_set(stack_ffi_any, 2, 14, 0)
+            T.tvm_struct_set(stack_ffi_any, 2, 15, T.tvm_struct_get(stack_array, 2, 0, "handle"))
             T.tvm_struct_set(stack_ffi_any, 3, 13, 0)
-            T.tvm_struct_set(stack_ffi_any, 3, 14, T.int64(0))
+            T.tvm_struct_set(stack_ffi_any, 3, 14, 0)
+            T.tvm_struct_set(stack_ffi_any, 3, 15, T.int64(0))
             T.call_packed_lowered("tvm.test_matmul", stack_ffi_any, 0, 3)
 
     After = tvm.tir.transform.LowerTVMBuiltin()(Before)
@@ -139,7 +143,7 @@ def test_call_packed_return_non_i32():
 
     mod = build_tir()
     f = tvm.compile(mod, None)
-    a = tvm.nd.array(np.zeros(2, dtype="float32"))
+    a = tvm.runtime.tensor(np.zeros(2, dtype="float32"))
     f(a)
     tvm.testing.assert_allclose(a.numpy(), expected_value)
 

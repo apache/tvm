@@ -19,7 +19,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/reflection.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/script/printer/ir_docsifier.h>
 
@@ -31,12 +30,13 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   FrameNode::RegisterReflection();
   IRDocsifierNode::RegisterReflection();
-});
+}
 
-IdDoc IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, const String& name_hint) {
+IdDoc IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame,
+                              const ffi::String& name_hint) {
   if (auto it = obj2info.find(obj); it != obj2info.end()) {
     // TVM's IR dialects do not allow multiple definitions of the same
     // variable within an IRModule.  This branch can only be reached
@@ -52,7 +52,7 @@ IdDoc IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, const St
     return IdDoc(it->second.name.value());
   }
 
-  String name = name_hint;
+  ffi::String name = name_hint;
   if (cfg->show_object_address) {
     std::stringstream stream;
     stream << name << "_" << obj.get();
@@ -73,7 +73,7 @@ void IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, DocCreato
   frame->AddExitCallback([this, obj]() { this->RemoveVar(obj); });
 }
 
-Optional<ExprDoc> IRDocsifierNode::GetVarDoc(const ObjectRef& obj) const {
+ffi::Optional<ExprDoc> IRDocsifierNode::GetVarDoc(const ObjectRef& obj) const {
   auto it = obj2info.find(obj);
   if (it == obj2info.end()) {
     return std::nullopt;
@@ -81,11 +81,13 @@ Optional<ExprDoc> IRDocsifierNode::GetVarDoc(const ObjectRef& obj) const {
   return it->second.creator();
 }
 
-ExprDoc IRDocsifierNode::AddMetadata(const ObjectRef& obj) {
-  ICHECK(obj.defined()) << "TypeError: Cannot add nullptr to metadata";
-  String key = obj->GetTypeKey();
-  Array<ObjectRef>& array = metadata[key];
-  int index = std::find(array.begin(), array.end(), obj) - array.begin();
+ExprDoc IRDocsifierNode::AddMetadata(const ffi::Any& obj) {
+  ICHECK(obj != nullptr) << "TypeError: Cannot add nullptr to metadata";
+  ffi::String key = obj.GetTypeKey();
+  ffi::Array<ffi::Any>& array = metadata[key];
+  int index = std::find_if(array.begin(), array.end(),
+                           [&](const ffi::Any& a) { return ffi::AnyEqual()(a, obj); }) -
+              array.begin();
   if (index == static_cast<int>(array.size())) {
     array.push_back(obj);
   }
@@ -93,9 +95,9 @@ ExprDoc IRDocsifierNode::AddMetadata(const ObjectRef& obj) {
       "metadata")[{LiteralDoc::Str(key, std::nullopt)}][{LiteralDoc::Int(index, std::nullopt)}];
 }
 
-void IRDocsifierNode::AddGlobalInfo(const String& name, const GlobalInfo& ginfo) {
+void IRDocsifierNode::AddGlobalInfo(const ffi::String& name, const GlobalInfo& ginfo) {
   ICHECK(ginfo.defined()) << "TypeError: Cannot add nullptr to global_infos";
-  Array<GlobalInfo>& array = global_infos[name];
+  ffi::Array<GlobalInfo>& array = global_infos[name];
   array.push_back(ginfo);
 }
 
@@ -104,7 +106,7 @@ bool IRDocsifierNode::IsVarDefined(const ObjectRef& obj) const { return obj2info
 void IRDocsifierNode::RemoveVar(const ObjectRef& obj) {
   auto it = obj2info.find(obj);
   ICHECK(it != obj2info.end()) << "No such object: " << obj;
-  if (it->second.name.defined()) {
+  if (it->second.name.has_value()) {
     defined_names.erase(it->second.name.value());
   }
   obj2info.erase(it);
@@ -176,7 +178,6 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
       }
     }
 
-    ReflectionVTable* vtable_ = ReflectionVTable::Global();
     std::vector<const Object*> stack_;
     std::unordered_set<const Object*> visited_;
 
@@ -191,11 +192,11 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
 }
 
 IRDocsifier::IRDocsifier(const PrinterConfig& cfg) {
-  auto n = make_object<IRDocsifierNode>();
+  auto n = ffi::make_object<IRDocsifierNode>();
   n->cfg = cfg;
   n->dispatch_tokens.push_back("");
   // Define builtin keywords according to cfg.
-  for (const String& keyword : cfg->GetBuiltinKeywords()) {
+  for (const ffi::String& keyword : cfg->GetBuiltinKeywords()) {
     n->defined_names.insert(keyword);
   }
   data_ = std::move(n);
@@ -206,11 +207,8 @@ IRDocsifier::FType& IRDocsifier::vtable() {
   return inst;
 }
 
-TVM_REGISTER_NODE_TYPE(FrameNode);
-TVM_REGISTER_NODE_TYPE(IRDocsifierNode);
-
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_fallback([](ObjectRef obj, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_fallback([](ObjectRef obj, AccessPath p, IRDocsifier d) -> Doc {
       return d->AddMetadata(obj);
     });
 

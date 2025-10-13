@@ -23,6 +23,7 @@
 #ifndef TVM_NODE_REPR_PRINTER_H_
 #define TVM_NODE_REPR_PRINTER_H_
 
+#include <tvm/ffi/reflection/access_path.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/script_printer.h>
 
@@ -82,11 +83,56 @@ inline std::ostream& operator<<(std::ostream& os, const Any& n) {  // NOLINT(*)
 }
 
 template <typename... V>
-inline std::ostream& operator<<(std::ostream& os, const Variant<V...>& n) {  // NOLINT(*)
+inline std::ostream& operator<<(std::ostream& os, const ffi::Variant<V...>& n) {  // NOLINT(*)
   ReprPrinter(os).Print(Any(n));
   return os;
 }
 
+namespace reflection {
+
+inline std::ostream& operator<<(std::ostream& os, const AccessStep& step) {
+  namespace refl = ffi::reflection;
+  switch (step->kind) {
+    case refl::AccessKind::kAttr: {
+      os << '.' << step->key.cast<ffi::String>();
+      return os;
+    }
+    case refl::AccessKind::kArrayItem: {
+      os << "[" << step->key.cast<int64_t>() << "]";
+      return os;
+    }
+    case refl::AccessKind::kMapItem: {
+      os << "[" << step->key << "]";
+      return os;
+    }
+    case refl::AccessKind::kAttrMissing: {
+      os << ".<missing attr " << step->key.cast<ffi::String>() << "`>";
+      return os;
+    }
+    case refl::AccessKind::kArrayItemMissing: {
+      os << "[<missing item at " << step->key.cast<int64_t>() << ">]";
+      return os;
+    }
+    case refl::AccessKind::kMapItemMissing: {
+      os << "[<missing item at " << step->key << ">]";
+      return os;
+    }
+    default: {
+      LOG(FATAL) << "Unknown access step kind: " << static_cast<int>(step->kind);
+    }
+  }
+  return os;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const AccessPath& path) {
+  ffi::Array<AccessStep> steps = path->ToSteps();
+  os << "<root>";
+  for (const auto& step : steps) {
+    os << step;
+  }
+  return os;
+}
+}  // namespace reflection
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_NODE_REPR_PRINTER_H_

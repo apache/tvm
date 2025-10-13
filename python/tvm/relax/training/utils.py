@@ -18,10 +18,10 @@
 """Utility functions for relax training."""
 
 from typing import Optional, Callable
+from tvm_ffi import register_global_func
 
 import tvm
 from tvm import relax
-from tvm.ffi.registry import register_func
 from tvm.relax.block_builder import BlockBuilder
 
 from ..expr import Function, Var, Call
@@ -199,7 +199,7 @@ def register_te_gradient(te_grad_name: str, te_grad_func: Callable = None):
                 primfunc_name_hint=te_grad_name,
             )
 
-        register_func(func_prefix + te_grad_name, handler)
+        register_global_func(func_prefix + te_grad_name, handler)
         return func
 
     return register(te_grad_func) if te_grad_func else register

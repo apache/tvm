@@ -16,21 +16,23 @@
 # under the License.
 """TVM runtime namespace."""
 
+from tvm_ffi import convert
+from tvm_ffi._dtype import dtype as DataType, DataTypeCode
+
 # class exposures
 from .packed_func import PackedFunc
 from .object import Object
-from .object_path import ObjectPath, ObjectPathPair
 from .script_printer import Scriptable
-from .object_generic import ObjectGeneric
+from .object_generic import ObjectConvertible
 from .device import Device
-from .ndarray import NDArray
+from ._tensor import Tensor, tensor, empty
 from .module import Module
 from .profiling import Report
 from .executable import Executable
 
 # function exposures
-from .ndarray import device, cpu, cuda, opencl, vulkan, metal
-from .ndarray import vpi, rocm, ext_dev
+from ._tensor import device, cpu, cuda, opencl, vulkan, metal
+from ._tensor import vpi, rocm, ext_dev, from_dlpack
 from .module import load_module, enabled, system_lib, load_static_library, num_threads
 from .container import String, ShapeTuple
 from .object_generic import const
@@ -44,4 +46,3 @@ from .params import (
 from . import disco
 
 from .support import _regex_match
-from ..ffi import convert, dtype as DataType, DataTypeCode

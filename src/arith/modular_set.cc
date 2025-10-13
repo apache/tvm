@@ -39,12 +39,10 @@ namespace arith {
 
 using namespace tir;
 
-TVM_FFI_STATIC_INIT_BLOCK({ ModularSetNode::RegisterReflection(); });
-
-TVM_REGISTER_NODE_TYPE(ModularSetNode);
+TVM_FFI_STATIC_INIT_BLOCK() { ModularSetNode::RegisterReflection(); }
 
 ModularSet::ModularSet(int64_t coeff, int64_t base) {
-  auto node = make_object<ModularSetNode>();
+  auto node = ffi::make_object<ModularSetNode>();
   node->coeff = coeff;
   node->base = base;
   // finish construction.
@@ -60,10 +58,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 ModularSet MakeModularSet(int64_t coeff, int64_t base) { return ModularSet(coeff, base); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("arith.ModularSet", MakeModularSet);
-});
+}
 
 // internal entry for const int bound
 struct ModularSetAnalyzer::Entry {
@@ -275,7 +273,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   }
 
   Entry VisitExpr_(const VarNode* op) final {
-    Var v = GetRef<Var>(op);
+    Var v = ffi::GetRef<Var>(op);
     auto it = var_map_.find(v);
     if (it != var_map_.end()) {
       return it->second;

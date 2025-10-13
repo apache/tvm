@@ -41,7 +41,7 @@ template <typename T>
 class AllocationCalculator : public StmtExprVisitor {
  public:
   AllocationCalculator() = default;
-  tvm::Map<String, Integer> operator()(const PrimFunc& func);
+  tvm::ffi::Map<ffi::String, Integer> operator()(const PrimFunc& func);
 
  private:
   void VisitStmt_(const T* op) override;
@@ -50,11 +50,11 @@ class AllocationCalculator : public StmtExprVisitor {
 };
 
 template <typename T>
-tvm::Map<String, Integer> AllocationCalculator<T>::operator()(const PrimFunc& func) {
+tvm::ffi::Map<ffi::String, Integer> AllocationCalculator<T>::operator()(const PrimFunc& func) {
   this->VisitStmt(func->body);
-  tvm::Map<String, Integer> res;
+  tvm::ffi::Map<ffi::String, Integer> res;
   for (auto [k, v] : _max_size) {
-    res.Set(String(k), Integer(v));
+    res.Set(ffi::String(k), Integer(v));
   }
   return res;
 }
@@ -80,28 +80,30 @@ void AllocationCalculator<T>::VisitStmt_(const T* op) {
   _current_size[storage_scope] -= size;
 }
 
-tvm::Map<String, tvm::Map<String, Integer> > CalculateAllocatedBytes(const PrimFunc& func) {
-  tvm::Map<String, tvm::Map<String, Integer> > results;
+tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > CalculateAllocatedBytes(
+    const PrimFunc& func) {
+  tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > results;
   results.Set("main", AllocationCalculator<AllocateNode>()(func));
   return results;
 }
 
-tvm::Map<String, tvm::Map<String, Integer> > CalculateAllocatedBytes(const IRModule& mod) {
-  tvm::Map<String, tvm::Map<String, Integer> > results;
+tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > CalculateAllocatedBytes(
+    const IRModule& mod) {
+  tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > results;
   for (const auto& kv : mod->functions) {
     if (auto prim_func = kv.second.as<tir::PrimFunc>()) {
-      String func_name = kv.first->name_hint;
+      ffi::String func_name = kv.first->name_hint;
       results.Set(func_name, AllocationCalculator<AllocateNode>()(prim_func.value()));
     }
   }
   return results;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "tir.analysis.calculate_allocated_bytes",
-      [](ObjectRef obj) -> tvm::Map<String, tvm::Map<String, Integer> > {
+      [](ObjectRef obj) -> tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > {
         if (auto func = obj.as<PrimFunc>()) {
           return CalculateAllocatedBytes(func.value());
         } else if (auto mod = obj.as<IRModule>()) {
@@ -112,7 +114,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           throw;
         }
       });
-});
+}
 
 bool VerifyVTCMLimit(const IRModule& mod, Integer limit) {
   auto all_sizes = CalculateAllocatedBytes(mod);
@@ -144,8 +146,8 @@ int64_t GetVTCMCapacity(Target target, const transform::PassContext& pass_ctx) {
   return pass_ctx->GetConfig<Integer>("tir.vtcm_capacity", Integer(0)).value()->value;
 }
 
-Array<tvm::transform::Pass> GetVTCMCompactionPasses() {
-  auto pass_list = Array<tvm::transform::Pass>();
+ffi::Array<tvm::transform::Pass> GetVTCMCompactionPasses() {
+  auto pass_list = ffi::Array<tvm::transform::Pass>();
   pass_list.push_back(tir::transform::LowerInitBlock());
   pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
   pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
@@ -160,15 +162,15 @@ Array<tvm::transform::Pass> GetVTCMCompactionPasses() {
   return pass_list;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.analysis.get_vtcm_compaction_passes",
                         []() { return GetVTCMCompactionPasses(); });
-});
+}
 
 namespace transform {
 
-Pass VerifyVTCMLimit(Optional<Target> default_target) {
+Pass VerifyVTCMLimit(ffi::Optional<Target> default_target) {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
       if (auto opt = kv.second.as<PrimFunc>()) {
@@ -198,10 +200,10 @@ Pass VerifyVTCMLimit(Optional<Target> default_target) {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.calculate_allocated_bytes", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.VerifyVTCMLimit", VerifyVTCMLimit);
-});
+}
 
 }  // namespace transform
 }  // namespace tir

@@ -81,26 +81,24 @@ struct HoistExpressionConfigNode : public AttrsNodeReflAdapter<HoistExpressionCo
   bool FlagSet(HoistedLetBindings flag) const {
     return static_cast<int>(flag) & hoisted_let_bindings;
   }
-
-  static constexpr const char* _type_key = "tir.transforms.HoistExpressionConfig";
-  TVM_DECLARE_FINAL_OBJECT_INFO(HoistExpressionConfigNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.HoistExpressionConfig",
+                                    HoistExpressionConfigNode, Object);
 };
 
 class HoistExpressionConfig : public Attrs {
  public:
   HoistExpressionConfig(int hoisted_conditionals, int hoisted_let_bindings) {
-    auto node = make_object<HoistExpressionConfigNode>();
+    auto node = ffi::make_object<HoistExpressionConfigNode>();
     node->hoisted_conditionals = hoisted_conditionals;
     node->hoisted_let_bindings = hoisted_let_bindings;
     data_ = std::move(node);
   }
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(HoistExpressionConfig, Attrs,
-                                            HoistExpressionConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(HoistExpressionConfig, Attrs,
+                                                HoistExpressionConfigNode);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ HoistExpressionConfigNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { HoistExpressionConfigNode::RegisterReflection(); }
 
-TVM_REGISTER_NODE_TYPE(HoistExpressionConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.HoistExpression", HoistExpressionConfig);
 
 struct HoistIfThenElseConfigNode : public AttrsNodeReflAdapter<HoistIfThenElseConfigNode> {
@@ -112,20 +110,18 @@ struct HoistIfThenElseConfigNode : public AttrsNodeReflAdapter<HoistIfThenElseCo
         "support_block_scope_hoisting", &HoistIfThenElseConfigNode::support_block_scope_hoisting,
         "Hoist if cond with block scope variables", refl::DefaultValue(false));
   }
-
-  static constexpr const char* _type_key = "tir.transforms.HoistIfThenElseConfig";
-  TVM_DECLARE_FINAL_OBJECT_INFO(HoistIfThenElseConfigNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.HoistIfThenElseConfig",
+                                    HoistIfThenElseConfigNode, Object);
 };
 
 class HoistIfThenElseConfig : public Attrs {
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(HoistIfThenElseConfig, Attrs,
-                                            HoistIfThenElseConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(HoistIfThenElseConfig, Attrs,
+                                                HoistIfThenElseConfigNode);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ HoistIfThenElseConfigNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { HoistIfThenElseConfigNode::RegisterReflection(); }
 
-TVM_REGISTER_NODE_TYPE(HoistIfThenElseConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.HoistIfThenElse", HoistIfThenElseConfig);
 
 class HoistInfoCollector : public StmtExprVisitor {
@@ -252,7 +248,7 @@ class HoistInfoCollector : public StmtExprVisitor {
   }
 
   void VisitStmt_(const ForNode* op) final {
-    active_loops.push_back({op->loop_var, GetRef<Stmt>(op)});
+    active_loops.push_back({op->loop_var, ffi::GetRef<Stmt>(op)});
     active_loop_vars.insert(op->loop_var.get());
 
     Parent::VisitStmt_(op);
@@ -274,7 +270,7 @@ class HoistInfoCollector : public StmtExprVisitor {
 
     active_block_vars.insert(var.get());
     active_loop_vars.insert(var.get());
-    active_loops.push_back({var, GetRef<Stmt>(op)});
+    active_loops.push_back({var, ffi::GetRef<Stmt>(op)});
 
     Parent::VisitStmt_(op);
 
@@ -564,10 +560,10 @@ Pass HoistExpression() {
       "tir.HoistExpression");
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.HoistExpression", HoistExpression);
-});
+}
 
 Pass HoistIfThenElse() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
@@ -602,10 +598,10 @@ Pass HoistIfThenElse() {
       "tir.HoistIfThenElse");
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.HoistIfThenElse", HoistIfThenElse);
-});
+}
 
 Pass HoistIfThenElseBasic() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
@@ -625,10 +621,10 @@ Pass HoistIfThenElseBasic() {
       "tir.HoistIfThenElseBasic");
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.HoistIfThenElseBasic", HoistIfThenElseBasic);
-});
+}
 
 }  // namespace transform
 

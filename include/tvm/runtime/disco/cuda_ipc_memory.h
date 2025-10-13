@@ -70,8 +70,8 @@ class CUDAIPCMemoryObj : public Object {
   /*! \brief The integer buffer flag for all-reduce. */
   int barrier_flag;
 
-  static constexpr const char* _type_key = "tvm.runtime.disco.cuda_ipc_memory";
-  TVM_DECLARE_BASE_OBJECT_INFO(CUDAIPCMemoryObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.runtime.disco.cuda_ipc_memory", CUDAIPCMemoryObj, Object);
 };
 
 /*!
@@ -90,7 +90,7 @@ class CUDAIPCMemory : public ObjectRef {
    */
   TVM_DLL static CUDAIPCMemory GetIPCMemoryFromDevicePtr(void* ptr);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(CUDAIPCMemory, ObjectRef, CUDAIPCMemoryObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CUDAIPCMemory, ObjectRef, CUDAIPCMemoryObj);
 };
 
 }  // namespace cuda_ipc

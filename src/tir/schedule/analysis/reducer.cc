@@ -49,7 +49,7 @@ namespace tir {
  */
 class PatternMatcher : public ExprVisitor {
  public:
-  explicit PatternMatcher(Array<PrimExpr> pattern) : pattern_(std::move(pattern)) {}
+  explicit PatternMatcher(ffi::Array<PrimExpr> pattern) : pattern_(std::move(pattern)) {}
 
   void VisitExpr_(const VarNode* op) final {
     auto it = filled_map_.find(op);
@@ -258,7 +258,7 @@ class PatternMatcher : public ExprVisitor {
     }
   }
 
-  void Match(const Array<PrimExpr>& exprs_to_match) {
+  void Match(const ffi::Array<PrimExpr>& exprs_to_match) {
     this->match_success_ = true;
     this->filled_map_.clear();
 
@@ -281,7 +281,7 @@ class PatternMatcher : public ExprVisitor {
 
  private:
   bool match_success_{true};
-  Array<PrimExpr> pattern_;
+  ffi::Array<PrimExpr> pattern_;
   PrimExpr expr_to_match_;
   std::unordered_map<const VarNode*, PrimExpr> filled_map_;
 };
@@ -303,19 +303,19 @@ static const char* kRFactorCrossThreadReductionApplicableBlockDef =
 11) The buffers written by the block should have same shape
 12) The indices of all BufferStores in the reduction block should be the same)";
 
-void ErrorRFactorCrossThreadReductionNotApplicable(const Optional<ScheduleState>& self, Block block,
-                                                   int violated_cond) {
+void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleState>& self,
+                                                   Block block, int violated_cond) {
   class RFactorNotApplicableError : public ScheduleError {
    public:
     explicit RFactorNotApplicableError(IRModule mod, Block block, int violated_cond)
         : mod_(std::move(mod)), block_(std::move(block)), violated_cond_(violated_cond) {}
 
-    String FastErrorString() const final {
+    ffi::String FastErrorString() const final {
       return "ScheduleError: RFactor cannot be applied to the block since the block does not meet "
              "the requirements";
     }
 
-    String DetailRenderTemplate() const final {
+    ffi::String DetailRenderTemplate() const final {
       std::ostringstream os;
       os << "RFactor cannot be applied to block {0}, because the block violates condition #"
          << violated_cond_ << ".\n"
@@ -324,7 +324,7 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const Optional<ScheduleState>
     }
 
     IRModule mod() const final { return mod_; }
-    Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+    ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
     IRModule mod_;
     Block block_;
@@ -352,11 +352,12 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const Optional<ScheduleState>
  * \param buf2index A mapping from reduction buffers to their indices of the reduction order
  * \throw ScheduleError If rfactor or cross-thread reduction cannot be applied to the block
  */
-void ExtractReductionUpdates(const Optional<ScheduleState>& self, Block block,
-                             const LetStmtNode* let, int n_buffers, Array<BufferStore>* updates,
+void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, Block block,
+                             const LetStmtNode* let, int n_buffers,
+                             ffi::Array<BufferStore>* updates,
                              std::unordered_map<const BufferNode*, int>* buf2index) {
   std::unordered_map<const VarNode*, int> var2index;
-  Array<PrimExpr> let_values;
+  ffi::Array<PrimExpr> let_values;
   let_values.reserve(n_buffers);
   updates->resize(n_buffers);
 
@@ -390,7 +391,8 @@ void ExtractReductionUpdates(const Optional<ScheduleState>& self, Block block,
   if (p_seq == nullptr && p_buf_store == nullptr) {
     ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/5);
   }
-  Array<Stmt> seq = p_seq != nullptr ? p_seq->seq : Array<Stmt>{GetRef<BufferStore>(p_buf_store)};
+  ffi::Array<Stmt> seq =
+      p_seq != nullptr ? p_seq->seq : ffi::Array<Stmt>{ffi::GetRef<BufferStore>(p_buf_store)};
   if (static_cast<int>(seq.size()) != n_buffers) {
     ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/6);
   }
@@ -426,10 +428,10 @@ void ExtractReductionUpdates(const Optional<ScheduleState>& self, Block block,
   }
 }
 
-std::pair<Array<PrimExpr>, Array<BufferStore>> GetInitValuesAndUpdatesFromReductionBlock(
-    const Optional<ScheduleState>& self, Block block) {
-  Array<BufferStore> inits;
-  Array<BufferStore> updates;
+std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdatesFromReductionBlock(
+    const ffi::Optional<ScheduleState>& self, Block block) {
+  ffi::Array<BufferStore> inits;
+  ffi::Array<BufferStore> updates;
 
   // Step 1. Extract the BufferStores serving as block inits.
   if (auto init = block->init.as<BufferStore>()) {
@@ -455,7 +457,7 @@ std::pair<Array<PrimExpr>, Array<BufferStore>> GetInitValuesAndUpdatesFromReduct
   int n_buffers = inits.size();
   std::unordered_map<const BufferNode*, int> buf2index;
   if (const auto* update = block->body.as<BufferStoreNode>()) {
-    updates.push_back(GetRef<BufferStore>(update));
+    updates.push_back(ffi::GetRef<BufferStore>(update));
     buf2index[update->buffer.get()] = 0;
   } else {
     const auto* let = block->body.as<LetStmtNode>();
@@ -465,15 +467,15 @@ std::pair<Array<PrimExpr>, Array<BufferStore>> GetInitValuesAndUpdatesFromReduct
 
   // Step 3. Set the init values according to the buffer order in `updates`, with the help of the
   // mapping `buf2index`.
-  Array<PrimExpr> init_values;
+  ffi::Array<PrimExpr> init_values;
   init_values.resize(n_buffers);
 
   // - Check all buffers have the same shape
   // - Check all indices of the BufferStores are the same
   // - Check buffers written in the block init and the block body can match
   // - Check buffers do not duplicate
-  const Array<PrimExpr>& expected_shape = updates[0]->buffer->shape;
-  const Array<PrimExpr>& expected_indices = updates[0]->indices;
+  const ffi::Array<PrimExpr>& expected_shape = updates[0]->buffer->shape;
+  const ffi::Array<PrimExpr>& expected_indices = updates[0]->indices;
   ICHECK_EQ(expected_shape.size(), expected_indices.size());
   int n_dim = expected_indices.size();
   arith::Analyzer ana;
@@ -511,7 +513,7 @@ std::pair<Array<PrimExpr>, Array<BufferStore>> GetInitValuesAndUpdatesFromReduct
   return std::make_pair(init_values, updates);
 }
 
-bool ContainsOnlyDataParAndReductionBlockIter(const Array<IterVar>& iters) {
+bool ContainsOnlyDataParAndReductionBlockIter(const ffi::Array<IterVar>& iters) {
   for (const IterVar& iter_var : iters) {
     if (iter_var->iter_type != kDataPar && iter_var->iter_type != kCommReduce) {
       return false;
@@ -589,18 +591,18 @@ bool ReductionIterNotIndexOutputBuffer(const Block& block) {
 
 class NoMatchedReducerError : public ScheduleError {
  public:
-  explicit NoMatchedReducerError(IRModule mod, Array<PrimExpr> identities,
-                                 Array<BufferStore> combiners)
+  explicit NoMatchedReducerError(IRModule mod, ffi::Array<PrimExpr> identities,
+                                 ffi::Array<BufferStore> combiners)
       : mod_(std::move(mod)),
         identities_(std::move(identities)),
         combiners_(std::move(combiners)) {}
 
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return "ScheduleError: No matched reducer for the identity and the combiner of this reduction "
            "block. So rfactor and cross-thread reduction cannot be applied.";
   }
 
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "No matched reducer for identity " << identities_ << " and combiner " << combiners_
        << "In this case rfactor cannot be applied. You can check tvm::tir::ReducerRegistry for "
@@ -609,18 +611,18 @@ class NoMatchedReducerError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
 
   IRModule mod_;
-  Array<PrimExpr> identities_;
-  Array<BufferStore> combiners_;
+  ffi::Array<PrimExpr> identities_;
+  ffi::Array<BufferStore> combiners_;
 };
 
-std::tuple<CommReducer, Array<PrimExpr>, Array<PrimExpr>> GetReducerAndCombinerLhsRhs(
-    const Optional<ScheduleState>& self, const Array<PrimExpr>& identities,
-    const Array<BufferStore>& combiners) {
+std::tuple<CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAndCombinerLhsRhs(
+    const ffi::Optional<ScheduleState>& self, const ffi::Array<PrimExpr>& identities,
+    const ffi::Array<BufferStore>& combiners) {
   CommReducer reducer{nullptr};
-  Array<PrimExpr> combiner_lhs, combiner_rhs;
+  ffi::Array<PrimExpr> combiner_lhs, combiner_rhs;
   bool matched =
       FromIdentityCombiner(identities, combiners, &reducer, &combiner_lhs, &combiner_rhs);
   if (!matched) {
@@ -636,9 +638,10 @@ std::tuple<CommReducer, Array<PrimExpr>, Array<PrimExpr>> GetReducerAndCombinerL
 
 /******** Commutative Reducer ********/
 
-bool MatchReducer(const CommReducer& reducer, const Array<PrimExpr>& identities,
-                  const Array<PrimExpr>& combined_values, const Array<BufferLoad>& buf_loads,
-                  Array<PrimExpr>* lhs, Array<PrimExpr>* rhs) {
+bool MatchReducer(const CommReducer& reducer, const ffi::Array<PrimExpr>& identities,
+                  const ffi::Array<PrimExpr>& combined_values,
+                  const ffi::Array<BufferLoad>& buf_loads, ffi::Array<PrimExpr>* lhs,
+                  ffi::Array<PrimExpr>* rhs) {
   ExprDeepEqual equal;
   ICHECK_EQ(identities.size(), combined_values.size());
   int n_buffers = identities.size();
@@ -650,7 +653,7 @@ bool MatchReducer(const CommReducer& reducer, const Array<PrimExpr>& identities,
 
   PatternMatcher pattern_matcher(reducer->result);
   pattern_matcher.Match(combined_values);
-  Array<PrimExpr> lhs_tmp, rhs_tmp;
+  ffi::Array<PrimExpr> lhs_tmp, rhs_tmp;
   lhs_tmp.reserve(n_buffers);
   rhs_tmp.reserve(n_buffers);
   if (!pattern_matcher.Success()) {
@@ -671,11 +674,12 @@ bool MatchReducer(const CommReducer& reducer, const Array<PrimExpr>& identities,
   return true;
 }
 
-bool FromIdentityCombiner(const Array<PrimExpr>& identities, const Array<BufferStore>& combiners,
-                          CommReducer* result_reducer, Array<PrimExpr>* lhs, Array<PrimExpr>* rhs) {
+bool FromIdentityCombiner(const ffi::Array<PrimExpr>& identities,
+                          const ffi::Array<BufferStore>& combiners, CommReducer* result_reducer,
+                          ffi::Array<PrimExpr>* lhs, ffi::Array<PrimExpr>* rhs) {
   int n = identities.size();
-  Array<BufferLoad> buf_loads;
-  Array<PrimExpr> stored_values;
+  ffi::Array<BufferLoad> buf_loads;
+  ffi::Array<PrimExpr> stored_values;
   buf_loads.reserve(n);
   stored_values.reserve(n);
 
@@ -685,9 +689,9 @@ bool FromIdentityCombiner(const Array<PrimExpr>& identities, const Array<BufferS
   }
 
   // Check reduction patterns.
-  for (const ffi::TypedFunction<Optional<CommReducer>(Array<PrimExpr>)>& reducer_getter :
+  for (const ffi::TypedFunction<ffi::Optional<CommReducer>(ffi::Array<PrimExpr>)>& reducer_getter :
        GetReducerGetters()) {
-    Optional<CommReducer> reducer = reducer_getter(identities);
+    ffi::Optional<CommReducer> reducer = reducer_getter(identities);
     if (!reducer.defined()) {
       continue;
     }

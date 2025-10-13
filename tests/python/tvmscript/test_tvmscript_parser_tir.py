@@ -18,6 +18,7 @@
 
 import pytest
 import tvm.testing
+import tvm_ffi
 from tvm.script.parser import tir as T
 from tvm import ir, tir
 
@@ -545,10 +546,10 @@ def test_deterministic_branch():
 
 
 def test_block_annotation_merge():
-    def _to_dict(anno: tvm.ffi.container.Map):
+    def _to_dict(anno: tvm_ffi.container.Map):
         result = {}
         for k, v in anno.items():
-            result[k] = _to_dict(v) if isinstance(v, tvm.ffi.container.Map) else v
+            result[k] = _to_dict(v) if isinstance(v, tvm_ffi.container.Map) else v
         return result
 
     @T.prim_func
@@ -609,6 +610,40 @@ def test_alloc_inside_block():
                 A[i] += B[j]
 
     tvm.ir.assert_structural_equal(func, expected)
+
+
+def test_ifexp():
+    @T.prim_func(private=True)
+    def func(A: T.buffer((128, 128), "float32")):
+        for i, j in T.grid(128, 128):
+            A[i, j] = i if i < j else j
+
+    @T.prim_func(private=True)
+    def expected(A: T.buffer((128, 128), "float32")):
+        for i, j in T.grid(128, 128):
+            A[i, j] = T.if_then_else(i < j, i, j)
+
+    tvm.ir.assert_structural_equal(func, expected)
+
+
+def test_sequence_compare():
+    @T.prim_func(private=True)
+    def tir_func(A: T.Buffer((128, 128), "float32")):
+        for i, j in T.grid(128, 128):
+            if 0 < i < 128 and 0 < j < 128:
+                A[i, j] = 1
+            else:
+                A[i, j] = 0
+
+    @T.prim_func(private=True)
+    def expected(A: T.buffer((128, 128), "float32")):
+        for i, j in T.grid(128, 128):
+            if (0 < i and i < 128) and (0 < j and j < 128):
+                A[i, j] = 1
+            else:
+                A[i, j] = 0
+
+    tvm.ir.assert_structural_equal(tir_func, expected)
 
 
 if __name__ == "__main__":

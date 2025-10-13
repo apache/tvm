@@ -41,20 +41,18 @@ struct InjectDoubleBufferConfigNode : public AttrsNodeReflAdapter<InjectDoubleBu
         "split_loop", &InjectDoubleBufferConfigNode::split_loop, "Split loop factors",
         refl::DefaultValue(1));
   }
-
-  static constexpr const char* _type_key = "tir.transform.InjectDoubleBufferConfig";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(InjectDoubleBufferConfigNode, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.InjectDoubleBufferConfig",
+                                    InjectDoubleBufferConfigNode, BaseAttrsNode);
 };
 
 class InjectDoubleBufferConfig : public Attrs {
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(InjectDoubleBufferConfig, Attrs,
-                                            InjectDoubleBufferConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(InjectDoubleBufferConfig, Attrs,
+                                                InjectDoubleBufferConfigNode);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ InjectDoubleBufferConfigNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { InjectDoubleBufferConfigNode::RegisterReflection(); }
 
-TVM_REGISTER_NODE_TYPE(InjectDoubleBufferConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.InjectDoubleBuffer", InjectDoubleBufferConfig);
 
 // Detect double buffer variables.
@@ -124,7 +122,7 @@ class DoubleBufferInjector : public StmtExprMutator {
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AllocateNode>();
 
-      Array<PrimExpr> new_extents = {op->extents[0] * make_const(op->extents[0].dtype(), 2)};
+      ffi::Array<PrimExpr> new_extents = {op->extents[0] * make_const(op->extents[0].dtype(), 2)};
       ICHECK(entry.loop != nullptr);
       auto& alloc_nest = loop_allocs_[entry.loop];
       alloc_nest.emplace_back(Allocate(op->buffer_var, op->dtype, new_extents, op->condition,
@@ -250,7 +248,7 @@ class DoubleBufferInjector : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const VarNode* op) final {
     ICHECK(!dbuffer_info_.count(op));
-    return GetRef<PrimExpr>(op);
+    return ffi::GetRef<PrimExpr>(op);
   }
 
  private:
@@ -328,10 +326,10 @@ Pass InjectDoubleBuffer() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectDoubleBuffer", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.InjectDoubleBuffer", InjectDoubleBuffer);
-});
+}
 
 }  // namespace transform
 

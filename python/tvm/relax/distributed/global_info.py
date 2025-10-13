@@ -18,7 +18,7 @@
 """Global Info Data structures for distributed tensor."""
 from typing import List, Union, Tuple
 
-import tvm
+import tvm_ffi
 from tvm.ir import Range
 from tvm.ir.global_info import GlobalInfo
 from tvm.runtime import ShapeTuple
@@ -26,7 +26,7 @@ from tvm.runtime import ShapeTuple
 from . import _ffi_api as ffi
 
 
-@tvm.ffi.register_object("relax.distributed.DeviceMesh")
+@tvm_ffi.register_object("relax.distributed.DeviceMesh")
 class DeviceMesh(GlobalInfo):
     """Device mesh express a view of topology of devices,
        represented by an n-d matrix of device ids.

@@ -29,8 +29,9 @@ namespace tir {
  * \param buffer_access The BufferLoad or BufferStore
  * \return The indices if the indices are all Vars, otherwise std::nullopt
  */
-Optional<Array<Var>> CheckTrivialBufferIndices(const Array<PrimExpr>& buffer_access) {
-  Array<Var> indices;
+ffi::Optional<ffi::Array<Var>> CheckTrivialBufferIndices(
+    const ffi::Array<PrimExpr>& buffer_access) {
+  ffi::Array<Var> indices;
   for (const PrimExpr& index : buffer_access) {
     if (index->IsInstance<IntImmNode>()) {
       continue;
@@ -39,13 +40,13 @@ Optional<Array<Var>> CheckTrivialBufferIndices(const Array<PrimExpr>& buffer_acc
     if (var == nullptr) {
       return std::nullopt;
     }
-    indices.push_back(GetRef<Var>(var));
+    indices.push_back(ffi::GetRef<Var>(var));
   }
   return indices;
 }
 
-Optional<Array<Var>> CheckTrivialBufferAccess(const BufferRegion& buffer_region) {
-  Array<Var> indices;
+ffi::Optional<ffi::Array<Var>> CheckTrivialBufferAccess(const BufferRegion& buffer_region) {
+  ffi::Array<Var> indices;
   indices.reserve(buffer_region->region.size());
   for (const Range& range : buffer_region->region) {
     if (!tir::is_one(range->extent)) {
@@ -55,7 +56,7 @@ Optional<Array<Var>> CheckTrivialBufferAccess(const BufferRegion& buffer_region)
       continue;
     }
     if (const auto* var = range->min.as<VarNode>()) {
-      indices.push_back(GetRef<Var>(var));
+      indices.push_back(ffi::GetRef<Var>(var));
     } else {
       return std::nullopt;
     }
@@ -66,21 +67,21 @@ Optional<Array<Var>> CheckTrivialBufferAccess(const BufferRegion& buffer_region)
 /*! \brief The schedule error class when the padding size is invalid. */
 class InvalidPaddingError : public ScheduleError {
  public:
-  InvalidPaddingError(IRModule mod, Block block, Array<Integer> padding)
+  InvalidPaddingError(IRModule mod, Block block, ffi::Array<Integer> padding)
       : mod_(std::move(mod)), block_(std::move(block)), padding_(std::move(padding)) {}
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
-  String FastErrorString() const final {
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::String FastErrorString() const final {
     return "ScheduleError: The padding size for the block is invalid.";
   }
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "The padding for the block {0} are invalid. It should be a list of "
        << block_->iter_vars.size() << " positive integers. Got " << padding_;
     return os.str();
   }
 
-  static void Check(const ScheduleState& self, const Block& block, Array<Integer> padding) {
+  static void Check(const ScheduleState& self, const Block& block, ffi::Array<Integer> padding) {
     if (padding.size() != block->iter_vars.size()) {
       throw InvalidPaddingError(self->mod, block, padding);
     }
@@ -94,7 +95,7 @@ class InvalidPaddingError : public ScheduleError {
  private:
   IRModule mod_;
   Block block_;
-  Array<Integer> padding_;
+  ffi::Array<Integer> padding_;
 };
 
 /*! \brief The schedule error class when the block body is not an Einsum pattern. */
@@ -104,11 +105,11 @@ class NonEinsumError : public ScheduleError {
       : mod_(std::move(mod)), block_(std::move(block)) {}
 
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
-  String FastErrorString() const final {
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::String FastErrorString() const final {
     return "ScheduleError: The block is not a computation of Einsum pattern.";
   }
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     return "The block {0} not a computation of Einsum pattern.";
   }
 
@@ -120,13 +121,13 @@ class NonEinsumError : public ScheduleError {
 /*! \brief Data structure that represents a Einsum computation. */
 struct Einsum {
   // The output buffer
-  Array<Buffer> output_buffers;
+  ffi::Array<Buffer> output_buffers;
   // The indices of the output buffer
-  Map<Buffer, Array<Var>> output_indices;
+  ffi::Map<Buffer, ffi::Array<Var>> output_indices;
   // The input buffers
-  Array<Buffer> input_buffers;
+  ffi::Array<Buffer> input_buffers;
   // The indices of the input buffers
-  Map<Buffer, Array<Var>> input_indices;
+  ffi::Map<Buffer, ffi::Array<Var>> input_indices;
 };
 
 struct BufferPadding {
@@ -134,10 +135,10 @@ struct BufferPadding {
   Buffer padded_buffer;
 
   static BufferPadding FromBufferRegion(const BufferRegion& buffer_region,
-                                        const Map<Var, PrimExpr>& iter_extents) {
+                                        const ffi::Map<Var, PrimExpr>& iter_extents) {
     BufferPadding result;
     result.buffer = buffer_region->buffer;
-    Array<PrimExpr> shape;
+    ffi::Array<PrimExpr> shape;
     shape.reserve(buffer_region->region.size());
     int ndim = buffer_region->region.size();
     for (int i = 0; i < ndim; ++i) {
@@ -145,7 +146,7 @@ struct BufferPadding {
       ICHECK(pos->IsInstance<IntImmNode>() || pos->IsInstance<VarNode>());
       if (pos->IsInstance<IntImmNode>()) {
         shape.push_back(IntImm(pos->dtype, 1));
-      } else if (Optional<PrimExpr> extent = iter_extents.Get(Downcast<Var>(pos))) {
+      } else if (ffi::Optional<PrimExpr> extent = iter_extents.Get(Downcast<Var>(pos))) {
         shape.push_back(extent.value());
       } else {
         shape.push_back(buffer_region->buffer->shape[i]);
@@ -156,12 +157,12 @@ struct BufferPadding {
     return result;
   }
 
-  Stmt MakeCopyBlock(bool is_read, Array<Block>* blocks, arith::Analyzer* analyzer) {
-    Array<Var> loop_vars;
-    Array<Range> loop_doms;
-    Array<IterVar> iter_vars;
-    Array<Range> instance_dom;
-    Array<PrimExpr> indices;
+  Stmt MakeCopyBlock(bool is_read, ffi::Array<Block>* blocks, arith::Analyzer* analyzer) {
+    ffi::Array<Var> loop_vars;
+    ffi::Array<Range> loop_doms;
+    ffi::Array<IterVar> iter_vars;
+    ffi::Array<Range> instance_dom;
+    ffi::Array<PrimExpr> indices;
     int ndim = buffer->shape.size();
     for (int i = 0; i < ndim; ++i) {
       PrimExpr dim{nullptr};
@@ -199,7 +200,8 @@ struct BufferPadding {
     }
     Block new_block(iter_vars, {read_region}, {write_region}, padded_buffer->name, std::move(body));
     blocks->push_back(new_block);
-    body = BlockRealize(Array<PrimExpr>{loop_vars.begin(), loop_vars.end()}, Bool(true), new_block);
+    body = BlockRealize(ffi::Array<PrimExpr>{loop_vars.begin(), loop_vars.end()}, Bool(true),
+                        new_block);
     for (int i = ndim - 1; i >= 0; --i) {
       body = For(loop_vars[i], loop_doms[i]->min, loop_doms[i]->extent, ForKind::kSerial,
                  std::move(body));
@@ -218,7 +220,7 @@ Einsum ExtractEinsum(const ScheduleState& self, const Block& block) {
       throw NonEinsumError(self->mod, block);
     }
     buffer_used.insert(buffer.get());
-    if (Optional<Array<Var>> opt_indices = CheckTrivialBufferAccess(block->reads[i])) {
+    if (ffi::Optional<ffi::Array<Var>> opt_indices = CheckTrivialBufferAccess(block->reads[i])) {
       result.input_buffers.push_back(buffer);
       result.input_indices.Set(buffer, opt_indices.value());
     } else {
@@ -232,7 +234,7 @@ Einsum ExtractEinsum(const ScheduleState& self, const Block& block) {
       throw NonEinsumError(self->mod, block);
     }
     buffer_used.insert(buffer.get());
-    if (Optional<Array<Var>> opt_indices = CheckTrivialBufferAccess(block->writes[i])) {
+    if (ffi::Optional<ffi::Array<Var>> opt_indices = CheckTrivialBufferAccess(block->writes[i])) {
       result.output_buffers.push_back(buffer);
       result.output_indices.Set(buffer, opt_indices.value());
     } else {
@@ -247,12 +249,12 @@ class BufferNotAllocatedInScopeError : public ScheduleError {
   explicit BufferNotAllocatedInScopeError(IRModule mod, Buffer buffer)
       : mod_(std::move(mod)), buffer_(std::move(buffer)) {}
 
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return "ScheduleError: The buffer is not allocated as an intermediate buffer in current "
            "PrimFunc.";
   }
 
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "The buffer " << buffer_->name
        << " is not allocated as an intermediate buffer in current PrimFunc.";
@@ -260,7 +262,7 @@ class BufferNotAllocatedInScopeError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
 
  private:
   IRModule mod_;
@@ -273,11 +275,11 @@ class InvalidProducerError : public ScheduleError {
   explicit InvalidProducerError(IRModule mod, Block producer)
       : mod_(std::move(mod)), producer_(std::move(producer)) {}
 
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return "ScheduleError: The producer block cannot be padded.";
   }
 
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "The producer block {0} cannot be padded. It should write to a single buffer and the "
           "body should be a BufferStore.";
@@ -285,7 +287,7 @@ class InvalidProducerError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {producer_}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {producer_}; }
 
  private:
   IRModule mod_;
@@ -296,32 +298,32 @@ class InvalidProducerError : public ScheduleError {
 class PadEinsumBufferReplacer : public StmtExprMutator {
  public:
   Stmt VisitStmt_(const BlockNode* old_block_ptr) final {
-    Block old_block = GetRef<Block>(old_block_ptr);
+    Block old_block = ffi::GetRef<Block>(old_block_ptr);
     Block block = Downcast<Block>(StmtMutator::VisitStmt_(old_block_ptr));
-    Array<IterVar> iter_vars;
+    ffi::Array<IterVar> iter_vars;
     iter_vars.reserve(block->iter_vars.size());
     for (const IterVar& iter_var : block->iter_vars) {
-      if (Optional<PrimExpr> new_dom = iter2padded_extents.Get(iter_var->var)) {
-        ObjectPtr<IterVarNode> new_iter_var = make_object<IterVarNode>(*iter_var.get());
+      if (ffi::Optional<PrimExpr> new_dom = iter2padded_extents.Get(iter_var->var)) {
+        ObjectPtr<IterVarNode> new_iter_var = ffi::make_object<IterVarNode>(*iter_var.get());
         new_iter_var->dom = Range::FromMinExtent(iter_var->dom->min, new_dom.value());
         iter_vars.push_back(IterVar(new_iter_var));
       } else {
         iter_vars.push_back(iter_var);
       }
     }
-    Array<BufferRegion> reads;
+    ffi::Array<BufferRegion> reads;
     reads.reserve(block->reads.size());
     for (const BufferRegion& read : block->reads) {
-      if (Optional<Buffer> buffer = buffer_map_.Get(read->buffer)) {
+      if (ffi::Optional<Buffer> buffer = buffer_map_.Get(read->buffer)) {
         reads.push_back(BufferRegion(buffer.value(), read->region));
       } else {
         reads.push_back(read);
       }
     }
-    Array<BufferRegion> writes;
+    ffi::Array<BufferRegion> writes;
     writes.reserve(block->writes.size());
     for (const BufferRegion& write : block->writes) {
-      if (Optional<Buffer> buffer = buffer_map_.Get(write->buffer)) {
+      if (ffi::Optional<Buffer> buffer = buffer_map_.Get(write->buffer)) {
         writes.push_back(BufferRegion(buffer.value(), write->region));
       } else {
         writes.push_back(write);
@@ -335,10 +337,10 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const ForNode* old_for_ptr) final {
-    For old_for = GetRef<For>(old_for_ptr);
+    For old_for = ffi::GetRef<For>(old_for_ptr);
     For new_for = Downcast<For>(StmtMutator::VisitStmt_(old_for_ptr));
-    if (Optional<PrimExpr> new_extent = loop_var2padded_extent.Get(new_for->loop_var)) {
-      ObjectPtr<ForNode> new_for_ptr = make_object<ForNode>(*new_for.get());
+    if (ffi::Optional<PrimExpr> new_extent = loop_var2padded_extent.Get(new_for->loop_var)) {
+      ObjectPtr<ForNode> new_for_ptr = ffi::make_object<ForNode>(*new_for.get());
       new_for_ptr->extent = new_extent.value();
       new_for = For(new_for_ptr);
     }
@@ -347,7 +349,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
 
   Stmt VisitStmt_(const BufferStoreNode* old_store_ptr) final {
     BufferStore store = Downcast<BufferStore>(StmtMutator::VisitStmt_(old_store_ptr));
-    if (Optional<Buffer> buffer = buffer_map_.Get(store->buffer)) {
+    if (ffi::Optional<Buffer> buffer = buffer_map_.Get(store->buffer)) {
       return BufferStore(buffer.value(), store->value, store->indices);
     } else {
       return store;
@@ -356,29 +358,29 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const BufferLoadNode* old_load_ptr) final {
     BufferLoad load = Downcast<BufferLoad>(ExprMutator::VisitExpr_(old_load_ptr));
-    if (Optional<Buffer> buffer = buffer_map_.Get(load->buffer)) {
+    if (ffi::Optional<Buffer> buffer = buffer_map_.Get(load->buffer)) {
       return BufferLoad(buffer.value(), load->indices);
     } else {
       return load;
     }
   }
 
-  Map<Var, PrimExpr> iter2padded_extents;
-  Map<Var, PrimExpr> loop_var2padded_extent;
-  Map<Buffer, Buffer> buffer_map_;
-  Map<Block, Block> block_sref_reuse_;
+  ffi::Map<Var, PrimExpr> iter2padded_extents;
+  ffi::Map<Var, PrimExpr> loop_var2padded_extent;
+  ffi::Map<Buffer, Buffer> buffer_map_;
+  ffi::Map<Block, Block> block_sref_reuse_;
 };
 
-void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const Array<Integer>& padding) {
+void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<Integer>& padding) {
   arith::Analyzer analyzer;
   // Step 1: Input checking and error handling
   const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   BlockRealize realize = GetBlockRealize(self, block_sref);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
   const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_sref);
-  InvalidPaddingError::Check(self, GetRef<Block>(block), padding);
+  InvalidPaddingError::Check(self, ffi::GetRef<Block>(block), padding);
   // Step 2. Extract the Einsum pattern
-  ExtractEinsum(self, GetRef<Block>(block));
+  ExtractEinsum(self, ffi::GetRef<Block>(block));
   // Step 3. Figure out the padding needed
   PadEinsumBufferReplacer replacer;
   for (int i = 0, n = padding.size(); i < n; ++i) {
@@ -388,15 +390,15 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const Array<Integ
     if (!analyzer.CanProveEqual(new_dom, dom)) {
       replacer.iter2padded_extents.Set(iter->var, new_dom);
       if (const auto* loop_var = realize->iter_values[i].as<VarNode>()) {
-        replacer.iter2padded_extents.Set(GetRef<Var>(loop_var), new_dom);
-        replacer.loop_var2padded_extent.Set(GetRef<Var>(loop_var), new_dom);
+        replacer.iter2padded_extents.Set(ffi::GetRef<Var>(loop_var), new_dom);
+        replacer.loop_var2padded_extent.Set(ffi::GetRef<Var>(loop_var), new_dom);
       }
     }
   }
-  auto f_needs_padding = [&replacer](const Array<Range>& region) {
+  auto f_needs_padding = [&replacer](const ffi::Array<Range>& region) {
     for (const Range& range : region) {
       if (const auto* var = range->min.as<VarNode>()) {
-        if (replacer.iter2padded_extents.count(GetRef<Var>(var))) {
+        if (replacer.iter2padded_extents.count(ffi::GetRef<Var>(var))) {
           return true;
         }
       }
@@ -404,7 +406,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const Array<Integ
     return false;
   };
   // Step 3. Convert the subtree under the scope root
-  Array<Stmt> scope_body;
+  ffi::Array<Stmt> scope_body;
   if (const auto* seq_stmt = scope_block->body.as<SeqStmtNode>()) {
     scope_body = seq_stmt->seq;
   } else {
@@ -426,10 +428,10 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const Array<Integ
   }
   ICHECK_NE(pos, -1);
   // Step 5. For each buffer, if it needs padding, create a new buffer and a new block
-  Array<Stmt> read_blocks;
-  Array<Stmt> write_blocks;
-  Array<Block> new_copy_blocks;
-  Array<Buffer> alloc_buffers;
+  ffi::Array<Stmt> read_blocks;
+  ffi::Array<Stmt> write_blocks;
+  ffi::Array<Block> new_copy_blocks;
+  ffi::Array<Buffer> alloc_buffers;
   for (const BufferRegion& buffer_region : block->reads) {
     if (f_needs_padding(buffer_region->region)) {
       BufferPadding bp =
@@ -449,7 +451,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const Array<Integ
     }
   }
   // Step 6. Create new scope body
-  Array<Stmt> new_scope_body;
+  ffi::Array<Stmt> new_scope_body;
   for (int i = 0; i < static_cast<int>(scope_body.size()); ++i) {
     if (i != pos) {
       new_scope_body.push_back(scope_body[i]);
@@ -462,12 +464,12 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const Array<Integ
   // Step 7. Create new scope
   Block new_scope_block{nullptr};
   {
-    ObjectPtr<BlockNode> n = make_object<BlockNode>(*scope_block);
+    ObjectPtr<BlockNode> n = ffi::make_object<BlockNode>(*scope_block);
     n->body = SeqStmt::Flatten(new_scope_body);
     n->alloc_buffers.insert(n->alloc_buffers.end(), alloc_buffers.begin(), alloc_buffers.end());
     new_scope_block = Block(n);
   }
-  replacer.block_sref_reuse_.Set(GetRef<Block>(scope_block), new_scope_block);
+  replacer.block_sref_reuse_.Set(ffi::GetRef<Block>(scope_block), new_scope_block);
   // Step 8. Do replacement and update flags
   self->Replace(scope_sref, new_scope_block, replacer.block_sref_reuse_);
   for (const Block& block : new_copy_blocks) {
@@ -490,11 +492,12 @@ struct PadEinsumTraits : public UnpackedInstTraits<PadEinsumTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block, Array<Integer> padding) {
+  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block, ffi::Array<Integer> padding) {
     sch->PadEinsum(block, padding);
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String block, Array<Integer> padding) {
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
+                                      ffi::Array<Integer> padding) {
     PythonAPICall py("pad_einsum");
     py.Input("block", block);
     py.Input("padding", padding);

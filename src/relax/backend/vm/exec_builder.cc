@@ -30,13 +30,11 @@ namespace relax {
 
 using namespace vm;
 
-TVM_FFI_STATIC_INIT_BLOCK({ ExecBuilderNode::RegisterReflection(); });
-
-TVM_REGISTER_NODE_TYPE(ExecBuilderNode);
+TVM_FFI_STATIC_INIT_BLOCK() { ExecBuilderNode::RegisterReflection(); }
 
 ExecBuilder ExecBuilderNode::Create() {
-  ExecBuilder ret(make_object<ExecBuilderNode>());
-  ret->exec_ = make_object<VMExecutable>();
+  ExecBuilder ret(ffi::make_object<ExecBuilderNode>());
+  ret->exec_ = ffi::make_object<VMExecutable>();
   return ret;
 }
 
@@ -56,24 +54,15 @@ vm::Instruction::Arg ExecBuilderNode::ConvertConstant_(Any cvalue) {
       return vm::Instruction::Arg::Immediate(val);
     }
   }
-
   // run dedup for object with structural equality
-  if (auto opt_obj = cvalue.as<ObjectRef>()) {
-    ObjectRef obj = opt_obj.value();
-    auto it = const_dedup_map_.find(obj);
-    if (it != const_dedup_map_.end()) {
-      return vm::Instruction::Arg::ConstIdx(it->second);
-    }
-    vm::Index idx = exec_->constants.size();
-    exec_->constants.push_back(cvalue);
-    const_dedup_map_[obj] = idx;
-    return vm::Instruction::Arg::ConstIdx(idx);
-  } else {
-    // emit normal constant
-    vm::Index idx = exec_->constants.size();
-    exec_->constants.push_back(cvalue);
-    return vm::Instruction::Arg::ConstIdx(idx);
+  auto it = const_dedup_map_.find(cvalue);
+  if (it != const_dedup_map_.end()) {
+    return vm::Instruction::Arg::ConstIdx(it->second);
   }
+  vm::Index idx = exec_->constants.size();
+  exec_->constants.push_back(cvalue);
+  const_dedup_map_[cvalue] = idx;
+  return vm::Instruction::Arg::ConstIdx(idx);
 }
 
 void ExecBuilderNode::DeclareFunction(const std::string& func_name, VMFuncInfo::FuncKind kind) {
@@ -101,7 +90,7 @@ vm::Instruction::Arg ExecBuilderNode::GetFunction(const std::string& func_name) 
 }
 
 void ExecBuilderNode::EmitFunction(const std::string& func_name, int64_t num_inputs,
-                                   Optional<Array<String>> param_names,
+                                   ffi::Optional<ffi::Array<ffi::String>> param_names,
                                    vm::VMFuncInfo::FuncKind kind, int64_t init_register_size) {
   auto it = exec_->func_map.find(func_name);
   if (it == exec_->func_map.end()) {
@@ -330,7 +319,7 @@ void ExecBuilderNode::Formalize() {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.ExecBuilderCreate", ExecBuilderNode::Create)
@@ -342,17 +331,17 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     *ret = builder->ConvertConstant(rt).data();
                   })
       .def("relax.ExecBuilderEmitFunction",
-           [](ExecBuilder builder, String func, int64_t num_inputs,
-              Optional<Array<String>> param_names) {
+           [](ExecBuilder builder, ffi::String func, int64_t num_inputs,
+              ffi::Optional<ffi::Array<ffi::String>> param_names) {
              builder->EmitFunction(func, num_inputs, param_names);
            })
       .def_method("relax.ExecBuilderEndFunction", &ExecBuilderNode::EndFunction)
       .def("relax.ExecBuilderDeclareFunction",
-           [](ExecBuilder builder, String name, int32_t kind) {
+           [](ExecBuilder builder, ffi::String name, int32_t kind) {
              builder->DeclareFunction(name, static_cast<VMFuncInfo::FuncKind>(kind));
            })
       .def("relax.ExecBuilderEmitCall",
-           [](ExecBuilder builder, String name, Array<IntImm> args, int64_t dst) {
+           [](ExecBuilder builder, ffi::String name, ffi::Array<IntImm> args, int64_t dst) {
              std::vector<Instruction::Arg> args_;
              for (size_t i = 0; i < args.size(); ++i) {
                args_.push_back(Instruction::Arg::FromData(args[i]->value));
@@ -381,13 +370,14 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](ExecBuilder builder, int64_t value) {
              return Instruction::Arg::ConstIdx(value).data();
            })
-      .def("relax.ExecBuilderF",
-           [](ExecBuilder builder, String value) { return builder->GetFunction(value).data(); })
+      .def(
+          "relax.ExecBuilderF",
+          [](ExecBuilder builder, ffi::String value) { return builder->GetFunction(value).data(); })
       .def("relax.ExecBuilderGet", [](ExecBuilder builder) {
         ObjectPtr<VMExecutable> p_exec = builder->Get();
-        return runtime::Module(p_exec);
+        return ffi::Module(p_exec);
       });
-});
+}
 
 }  // namespace relax
 }  // namespace tvm

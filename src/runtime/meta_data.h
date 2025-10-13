@@ -28,7 +28,7 @@
 #include <dmlc/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <string>
 #include <unordered_map>
@@ -38,10 +38,8 @@
 namespace tvm {
 namespace runtime {
 
-inline String get_name_mangled(const String& module_name, const String& name) {
+inline ffi::String get_name_mangled(const ffi::String& module_name, const ffi::String& name) {
   std::stringstream ss;
-  ICHECK(module_name.defined());
-  ICHECK(name.defined());
   ss << module_name << "_" << name;
   return ss.str();
 }

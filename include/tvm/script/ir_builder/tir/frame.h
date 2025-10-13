@@ -23,6 +23,8 @@
 #include <tvm/script/ir_builder/ir/frame.h>
 #include <tvm/tir/stmt.h>
 
+#include <utility>
+
 namespace tvm {
 namespace script {
 namespace ir_builder {
@@ -36,15 +38,13 @@ namespace tir {
 class TIRFrameNode : public IRBuilderFrameNode {
  public:
   /*! \brief The Stmt within in this frame. */
-  Array<tvm::tir::Stmt> stmts;
+  ffi::Array<tvm::tir::Stmt> stmts;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TIRFrameNode>().def_ro("stmts", &TIRFrameNode::stmts);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.TIRFrame";
-  TVM_DECLARE_BASE_OBJECT_INFO(TIRFrameNode, IRBuilderFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.tir.TIRFrame", TIRFrameNode, IRBuilderFrameNode);
 };
 
 /*!
@@ -54,10 +54,11 @@ class TIRFrameNode : public IRBuilderFrameNode {
  */
 class TIRFrame : public IRBuilderFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TIRFrame, IRBuilderFrame, TIRFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TIRFrame, IRBuilderFrame, TIRFrameNode);
 
  protected:
   TIRFrame() = default;
+  explicit TIRFrame(ObjectPtr<TIRFrameNode> data) : IRBuilderFrame(data) {}
 };
 
 /*!
@@ -68,21 +69,21 @@ class TIRFrame : public IRBuilderFrame {
 class PrimFuncFrameNode : public TIRFrameNode {
  public:
   /*! \brief The name of the block. */
-  Optional<String> name;
+  ffi::Optional<ffi::String> name;
   /*! \brief Function parameters. */
-  Array<tvm::tir::Var> args;
+  ffi::Array<tvm::tir::Var> args;
   /*! \brief Whether the PrimFunc is annotated as private. */
   bool is_private;
   /*! \brief The return type of the function. */
-  Optional<Type> ret_type;
+  ffi::Optional<Type> ret_type;
   /*! \brief Maps some parameters to specific Buffer data structures. */
-  Map<tvm::tir::Var, tvm::tir::Buffer> buffer_map;
+  ffi::Map<tvm::tir::Var, tvm::tir::Buffer> buffer_map;
   /*! \brief Additional attributes storing the meta-data */
-  Map<String, Any> attrs;
+  ffi::Map<ffi::String, Any> attrs;
   /*! \brief The variable map bound to thread env. */
-  Map<tvm::tir::Var, tvm::tir::IterVar> env_threads;
+  ffi::Map<tvm::tir::Var, tvm::tir::IterVar> env_threads;
   /*! \brief The buffer allocated in root block. */
-  Array<tvm::tir::Buffer> root_alloc_buffers;
+  ffi::Array<tvm::tir::Buffer> root_alloc_buffers;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -96,9 +97,8 @@ class PrimFuncFrameNode : public TIRFrameNode {
         .def_ro("env_threads", &PrimFuncFrameNode::env_threads)
         .def_ro("root_alloc_buffers", &PrimFuncFrameNode::root_alloc_buffers);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.PrimFuncFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PrimFuncFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.PrimFuncFrame", PrimFuncFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -115,7 +115,11 @@ class PrimFuncFrameNode : public TIRFrameNode {
  */
 class PrimFuncFrame : public TIRFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PrimFuncFrame, TIRFrame, PrimFuncFrameNode);
+  explicit PrimFuncFrame(ObjectPtr<PrimFuncFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimFuncFrame, TIRFrame, PrimFuncFrameNode);
 };
 
 /*!
@@ -126,28 +130,28 @@ class PrimFuncFrame : public TIRFrame {
 class BlockFrameNode : public TIRFrameNode {
  public:
   /*! \brief The name of the block. */
-  String name;
+  ffi::String name;
   /*! \brief The variables of the block. */
-  Array<tvm::tir::IterVar> iter_vars;
+  ffi::Array<tvm::tir::IterVar> iter_vars;
   /*! \brief The read buffer regions of the block. */
-  Optional<Array<tvm::tir::BufferRegion>> reads;
+  ffi::Optional<ffi::Array<tvm::tir::BufferRegion>> reads;
   /*! \brief The write buffer regions of the block. */
-  Optional<Array<tvm::tir::BufferRegion>> writes;
+  ffi::Optional<ffi::Array<tvm::tir::BufferRegion>> writes;
   /*! \brief The init statement of the bolck. */
-  Optional<tvm::tir::Stmt> init;
+  ffi::Optional<tvm::tir::Stmt> init;
   /*! \brief The buffer allocated in the block. */
-  Array<tvm::tir::Buffer> alloc_buffers;
+  ffi::Array<tvm::tir::Buffer> alloc_buffers;
   /*! \brief The match buffer regions. */
-  Array<tvm::tir::MatchBufferRegion> match_buffers;
+  ffi::Array<tvm::tir::MatchBufferRegion> match_buffers;
   /*! \brief The annotation of the block. */
-  Optional<Map<String, Any>> annotations;
+  ffi::Optional<ffi::Map<ffi::String, Any>> annotations;
   /*! \brief The corresponding values of the iter vars. */
-  Array<PrimExpr> iter_values;
+  ffi::Array<PrimExpr> iter_values;
   /*!
    * \brief The predicate of the block realization, the block will only be executed when the
    * predicate is true.
    */
-  Optional<PrimExpr> predicate;
+  ffi::Optional<PrimExpr> predicate;
   /*! \brief The flag whether to construct BlockRealize or Block. */
   bool no_realize;
 
@@ -166,9 +170,8 @@ class BlockFrameNode : public TIRFrameNode {
         .def_ro("predicate", &BlockFrameNode::predicate)
         .def_ro("no_realize", &BlockFrameNode::no_realize);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.BlockFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BlockFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.BlockFrame", BlockFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -186,7 +189,11 @@ class BlockFrameNode : public TIRFrameNode {
 
 class BlockFrame : public TIRFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockFrame, TIRFrame, BlockFrameNode);
+  explicit BlockFrame(ObjectPtr<BlockFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockFrame, TIRFrame, BlockFrameNode);
 };
 
 /*!
@@ -200,9 +207,8 @@ class BlockInitFrameNode : public TIRFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BlockInitFrameNode>();
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.BlockInitFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BlockInitFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.BlockInitFrame", BlockInitFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -224,7 +230,11 @@ class BlockInitFrameNode : public TIRFrameNode {
  */
 class BlockInitFrame : public TIRFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockInitFrame, TIRFrame, BlockInitFrameNode);
+  explicit BlockInitFrame(ObjectPtr<BlockInitFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockInitFrame, TIRFrame, BlockInitFrameNode);
 };
 
 /*!
@@ -241,12 +251,13 @@ class ForFrameNode : public TIRFrameNode {
    * \param loop_body The loop body
    * \return A stmt, the loop nest
    */
-  using FMakeForLoop = ffi::TypedFunction<tvm::tir::Stmt(
-      Array<tvm::tir::Var> loop_vars, Array<Range> loop_extents, tvm::tir::Stmt loop_body)>;
+  using FMakeForLoop =
+      ffi::TypedFunction<tvm::tir::Stmt(ffi::Array<tvm::tir::Var> loop_vars,
+                                        ffi::Array<Range> loop_extents, tvm::tir::Stmt loop_body)>;
   /*! \brief The loop variable. */
-  Array<tvm::tir::Var> vars;
+  ffi::Array<tvm::tir::Var> vars;
   /*! \brief The domains of iteration. */
-  Array<Range> doms;
+  ffi::Array<Range> doms;
   /*! \brief The for loop generating function. */
   FMakeForLoop f_make_for_loop;
 
@@ -257,9 +268,7 @@ class ForFrameNode : public TIRFrameNode {
         .def_ro("doms", &ForFrameNode::doms);
     // `f_make_for_loop` is not registered as it's not visited.
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.ForFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ForFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.ForFrame", ForFrameNode, TIRFrameNode);
 
  public:
   /*!
@@ -276,7 +285,11 @@ class ForFrameNode : public TIRFrameNode {
  */
 class ForFrame : public TIRFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ForFrame, TIRFrame, ForFrameNode);
+  explicit ForFrame(ObjectPtr<ForFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ForFrame, TIRFrame, ForFrameNode);
 };
 
 /*!
@@ -298,9 +311,8 @@ class AssertFrameNode : public TIRFrameNode {
         .def_ro("condition", &AssertFrameNode::condition)
         .def_ro("message", &AssertFrameNode::message);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.AssertFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AssertFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AssertFrame", AssertFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -317,7 +329,11 @@ class AssertFrameNode : public TIRFrameNode {
  */
 class AssertFrame : public TIRFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AssertFrame, TIRFrame, AssertFrameNode);
+  explicit AssertFrame(ObjectPtr<AssertFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AssertFrame, TIRFrame, AssertFrameNode);
 };
 
 /*!
@@ -338,9 +354,7 @@ class LetFrameNode : public TIRFrameNode {
         .def_ro("var", &LetFrameNode::var)
         .def_ro("value", &LetFrameNode::value);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.LetFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LetFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.LetFrame", LetFrameNode, TIRFrameNode);
 
  public:
   /*!
@@ -357,7 +371,11 @@ class LetFrameNode : public TIRFrameNode {
  */
 class LetFrame : public TIRFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(LetFrame, TIRFrame, LetFrameNode);
+  explicit LetFrame(ObjectPtr<LetFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LetFrame, TIRFrame, LetFrameNode);
 };
 
 /*!
@@ -369,7 +387,7 @@ class LaunchThreadFrameNode : public TIRFrameNode {
   /*! \brief The extent of environment thread. */
   PrimExpr extent;
   /*! \brief The attribute key, could be either virtual_thread or thread_extent. */
-  String attr_key;
+  ffi::String attr_key;
   /*! \brief The iteration variable. */
   tvm::tir::IterVar iter_var;
 
@@ -380,9 +398,8 @@ class LaunchThreadFrameNode : public TIRFrameNode {
         .def_ro("attr_key", &LaunchThreadFrameNode::attr_key)
         .def_ro("iter_var", &LaunchThreadFrameNode::iter_var);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.LaunchThreadFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LaunchThreadFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.LaunchThreadFrame",
+                                    LaunchThreadFrameNode, TIRFrameNode);
 
  public:
   /*!
@@ -399,8 +416,11 @@ class LaunchThreadFrameNode : public TIRFrameNode {
  */
 class LaunchThreadFrame : public TIRFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(LaunchThreadFrame, TIRFrame,
-                                                    LaunchThreadFrameNode);
+  explicit LaunchThreadFrame(ObjectPtr<LaunchThreadFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LaunchThreadFrame, TIRFrame, LaunchThreadFrameNode);
 };
 
 /*!
@@ -413,7 +433,7 @@ class RealizeFrameNode : public TIRFrameNode {
   /*! \brief The region of buffer access. */
   tvm::tir::BufferRegion buffer_slice;
   /*! \brief The storage scope associated with this realization. */
-  String storage_scope;
+  ffi::String storage_scope;
   /*! \brief The condition expression. */
   PrimExpr condition;
 
@@ -424,9 +444,8 @@ class RealizeFrameNode : public TIRFrameNode {
         .def_ro("storage_scope", &RealizeFrameNode::storage_scope)
         .def_ro("condition", &RealizeFrameNode::condition);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.RealizeFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RealizeFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.RealizeFrame", RealizeFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -443,7 +462,11 @@ class RealizeFrameNode : public TIRFrameNode {
  */
 class RealizeFrame : public TIRFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(RealizeFrame, TIRFrame, RealizeFrameNode);
+  explicit RealizeFrame(ObjectPtr<RealizeFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RealizeFrame, TIRFrame, RealizeFrameNode);
 };
 
 /*!
@@ -454,15 +477,15 @@ class RealizeFrame : public TIRFrame {
 class AllocateFrameNode : public TIRFrameNode {
  public:
   /*! \brief The extents of the allocate. */
-  Array<PrimExpr> extents;
+  ffi::Array<PrimExpr> extents;
   /*! \brief The data type of the buffer. */
   DataType dtype;
   /*! \brief The storage scope. */
-  String storage_scope;
+  ffi::String storage_scope;
   /*! \brief The condition. */
   PrimExpr condition;
   /*! \brief Additional annotation hints. */
-  Map<String, Any> annotations;
+  ffi::Map<ffi::String, Any> annotations;
   /*! \brief The buffer var. */
   tvm::tir::Var buffer_var;
 
@@ -476,9 +499,8 @@ class AllocateFrameNode : public TIRFrameNode {
         .def_ro("annotations", &AllocateFrameNode::annotations)
         .def_ro("buffer_var", &AllocateFrameNode::buffer_var);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.AllocateFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AllocateFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AllocateFrame", AllocateFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -495,7 +517,11 @@ class AllocateFrameNode : public TIRFrameNode {
  */
 class AllocateFrame : public TIRFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AllocateFrame, TIRFrame, AllocateFrameNode);
+  explicit AllocateFrame(ObjectPtr<AllocateFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AllocateFrame, TIRFrame, AllocateFrameNode);
 };
 
 /*!
@@ -508,13 +534,13 @@ class AllocateConstFrameNode : public TIRFrameNode {
   /*! \brief The data type of the buffer. */
   DataType dtype;
   /*! \brief The extents of the allocate. */
-  Array<PrimExpr> extents;
+  ffi::Array<PrimExpr> extents;
   /*! \brief The data associated with the constant. */
-  tvm::runtime::NDArray data;
+  tvm::runtime::Tensor data;
   /*! \brief The buffer var */
   tvm::tir::Var buffer_var;
   /*! \brief Additional annotations about the allocation. */
-  Map<String, Any> annotations;
+  ffi::Map<ffi::String, Any> annotations;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -525,9 +551,8 @@ class AllocateConstFrameNode : public TIRFrameNode {
         .def_ro("buffer_var", &AllocateConstFrameNode::buffer_var)
         .def_ro("annotations", &AllocateConstFrameNode::annotations);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.AllocateConstFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AllocateConstFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AllocateConstFrame",
+                                    AllocateConstFrameNode, TIRFrameNode);
 
  public:
   /*!
@@ -544,8 +569,13 @@ class AllocateConstFrameNode : public TIRFrameNode {
  */
 class AllocateConstFrame : public TIRFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AllocateConstFrame, TIRFrame,
-                                                    AllocateConstFrameNode);
+  explicit AllocateConstFrame(ObjectPtr<AllocateConstFrameNode> data)
+      : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AllocateConstFrame, TIRFrame,
+                                                AllocateConstFrameNode);
 };
 /*!
  * \brief A frame that represents attribute node.
@@ -555,9 +585,9 @@ class AllocateConstFrame : public TIRFrame {
 class AttrFrameNode : public TIRFrameNode {
  public:
   /*! \brief The node to annotate the attribute. */
-  ObjectRef node;
+  Any node;
   /*! \brief Attribute type key. */
-  String attr_key;
+  ffi::String attr_key;
   /*! \brief The value of the attribute. */
   PrimExpr value;
 
@@ -568,9 +598,7 @@ class AttrFrameNode : public TIRFrameNode {
         .def_ro("attr_key", &AttrFrameNode::attr_key)
         .def_ro("value", &AttrFrameNode::value);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.AttrFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AttrFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AttrFrame", AttrFrameNode, TIRFrameNode);
 
  public:
   /*!
@@ -587,7 +615,11 @@ class AttrFrameNode : public TIRFrameNode {
  */
 class AttrFrame : public TIRFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AttrFrame, TIRFrame, AttrFrameNode);
+  explicit AttrFrame(ObjectPtr<AttrFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AttrFrame, TIRFrame, AttrFrameNode);
 };
 
 /*!
@@ -604,9 +636,8 @@ class WhileFrameNode : public TIRFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<WhileFrameNode>().def_ro("condition", &WhileFrameNode::condition);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.WhileFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(WhileFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.WhileFrame", WhileFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -623,7 +654,11 @@ class WhileFrameNode : public TIRFrameNode {
  */
 class WhileFrame : public TIRFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(WhileFrame, TIRFrame, WhileFrameNode);
+  explicit WhileFrame(ObjectPtr<WhileFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(WhileFrame, TIRFrame, WhileFrameNode);
 };
 
 /*!
@@ -636,9 +671,9 @@ class IfFrameNode : public TIRFrameNode {
   /*! \brief The condition of the if statement. */
   PrimExpr condition;
   /*! \brief The statements in the true branch. */
-  Optional<Array<tvm::tir::Stmt>> then_stmts;
+  ffi::Optional<ffi::Array<tvm::tir::Stmt>> then_stmts;
   /*! \brief The stetements in the false branch. */
-  Optional<Array<tvm::tir::Stmt>> else_stmts;
+  ffi::Optional<ffi::Array<tvm::tir::Stmt>> else_stmts;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -647,9 +682,7 @@ class IfFrameNode : public TIRFrameNode {
         .def_ro("then_stmts", &IfFrameNode::then_stmts)
         .def_ro("else_stmts", &IfFrameNode::else_stmts);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.IfFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IfFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.IfFrame", IfFrameNode, TIRFrameNode);
 
  public:
   /*!
@@ -666,7 +699,10 @@ class IfFrameNode : public TIRFrameNode {
  */
 class IfFrame : public TIRFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IfFrame, TIRFrame, IfFrameNode);
+  explicit IfFrame(ObjectPtr<IfFrameNode> data) : TIRFrame(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IfFrame, TIRFrame, IfFrameNode);
 };
 
 /*!
@@ -680,9 +716,7 @@ class ThenFrameNode : public TIRFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ThenFrameNode>();
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.ThenFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ThenFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.ThenFrame", ThenFrameNode, TIRFrameNode);
 
  public:
   /*!
@@ -704,7 +738,10 @@ class ThenFrameNode : public TIRFrameNode {
  */
 class ThenFrame : public TIRFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ThenFrame, TIRFrame, ThenFrameNode);
+  explicit ThenFrame(ObjectPtr<ThenFrameNode> data) : TIRFrame(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ThenFrame, TIRFrame, ThenFrameNode);
 };
 
 /*!
@@ -718,9 +755,7 @@ class ElseFrameNode : public TIRFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ElseFrameNode>();
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.ElseFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ElseFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.ElseFrame", ElseFrameNode, TIRFrameNode);
 
  public:
   /*!
@@ -742,7 +777,11 @@ class ElseFrameNode : public TIRFrameNode {
  */
 class ElseFrame : public TIRFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ElseFrame, TIRFrame, ElseFrameNode);
+  explicit ElseFrame(ObjectPtr<ElseFrameNode> data) : TIRFrame(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ElseFrame, TIRFrame, ElseFrameNode);
 };
 
 class DeclBufferFrameNode : public TIRFrameNode {
@@ -758,9 +797,8 @@ class DeclBufferFrameNode : public TIRFrameNode {
         .def_ro("buffer", &DeclBufferFrameNode::buffer)
         .def_ro("allocated", &DeclBufferFrameNode::allocated);
   }
-
-  static constexpr const char* _type_key = "script.ir_builder.tir.DeclBufferFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DeclBufferFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.DeclBufferFrame", DeclBufferFrameNode,
+                                    TIRFrameNode);
 
  public:
   void ExitWithScope() final;
@@ -768,7 +806,10 @@ class DeclBufferFrameNode : public TIRFrameNode {
 
 class DeclBufferFrame : public TIRFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(DeclBufferFrame, TIRFrame, DeclBufferFrameNode);
+  explicit DeclBufferFrame(ObjectPtr<DeclBufferFrameNode> data) : TIRFrame(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DeclBufferFrame, TIRFrame, DeclBufferFrameNode);
 };
 
 }  // namespace tir

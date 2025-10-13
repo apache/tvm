@@ -40,7 +40,7 @@ namespace tir {
 
 class ParamsCollector : public StmtExprVisitor {
  public:
-  explicit ParamsCollector(const Map<tir::Var, runtime::NDArray>& constant_map)
+  explicit ParamsCollector(const ffi::Map<tir::Var, runtime::Tensor>& constant_map)
       : constant_map_(constant_map) {}
   std::vector<const tir::VarNode*> CollectParams(tir::Stmt body) {
     this->VisitStmt(body);
@@ -75,16 +75,16 @@ class ParamsCollector : public StmtExprVisitor {
 
  private:
   std::vector<const tir::VarNode*> constant_list_;
-  Map<tir::Var, runtime::NDArray> constant_map_;
+  ffi::Map<tir::Var, runtime::Tensor> constant_map_;
 };
 
-PrimFunc BindParams(PrimFunc f, const Array<runtime::NDArray>& constants) {
-  Map<tir::Var, runtime::NDArray> constant_map;
+PrimFunc BindParams(PrimFunc f, const ffi::Array<runtime::Tensor>& constants) {
+  ffi::Map<tir::Var, runtime::Tensor> constant_map;
 
   // Remove constants from the primfunc signature
   size_t num_constants = constants.size();
   size_t start = f->params.size() - num_constants;
-  Array<tir::Var> params;
+  ffi::Array<tir::Var> params;
   for (unsigned i = 0; i < start; i++) {
     params.push_back(f->params[i]);
   }
@@ -101,9 +101,9 @@ PrimFunc BindParams(PrimFunc f, const Array<runtime::NDArray>& constants) {
 
   // Allocate constants within the primfunc
   for (auto i : constant_list) {
-    auto var = GetRef<Var>(i);
+    auto var = ffi::GetRef<Var>(i);
     int ndim = constant_map[var]->ndim;
-    Array<PrimExpr> extents;
+    ffi::Array<PrimExpr> extents;
 
     for (int i = 0; i < ndim; i++) {
       int shape = constant_map[var]->shape[i];
@@ -126,7 +126,7 @@ PrimFunc BindParams(PrimFunc f, const Array<runtime::NDArray>& constants) {
 
 namespace transform {
 
-Pass BindParams(const Array<runtime::NDArray>& constants) {
+Pass BindParams(const ffi::Array<runtime::Tensor>& constants) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     return BindParams(f, constants);
   };

@@ -47,7 +47,7 @@ struct GenerateBodyOutput {
   std::string decl;
   std::vector<std::string> buffers;
   std::vector<Output> outputs;
-  Array<String> headers;
+  ffi::Array<ffi::String> headers;
 };
 
 // The base class to generate the declaration functions in C.
@@ -83,31 +83,28 @@ class CodegenCBase {
     code_stream_ << "#ifdef __cplusplus\n";
     code_stream_ << "extern \"C\" {\n";
     code_stream_ << "#endif\n";
-    code_stream_ << "TVM_DLL int32_t ";
+    code_stream_ << "TVM_FFI_DLL_EXPORT int32_t ";
     code_stream_ << func_name << "(";
-    code_stream_ << "TVMValue* args, ";
-    code_stream_ << "int* type_code, ";
-    code_stream_ << "int num_args, ";
-    code_stream_ << "TVMValue* out_value, ";
-    code_stream_ << "int* out_type_code) {\n";
+    code_stream_ << "tvm::ffi::PackedArgs args, ";
+    code_stream_ << "tvm::ffi::AnyView* out_value) {\n";
   }
 
   /*!
-   * \brief Adds a line to convert TVMValue args to DLTensors
+   * \brief Adds a line to convert tvm::ffi::PackedArgs args to DLTensors
    */
   void PrintArgToData(int idx) {
     PrintIndents();
     code_stream_ << "DLTensor* arg" << idx << " = ";
-    code_stream_ << "(DLTensor*)(((TVMValue*)args)[" << idx << "].v_handle);\n";
+    code_stream_ << "(DLTensor*)(args[" << idx << "].cast<DLTensor*>());\n";
   }
 
   /*!
-   * \brief Adds a line to convert TVMValue rets to DLTensors
+   * \brief Adds a line to convert tvm::ffi::PackedArgs rets to DLTensors
    */
   void PrintRetToData(int idx) {
     PrintIndents();
     code_stream_ << "DLTensor* ret" << idx << " = ";
-    code_stream_ << "(DLTensor*)(((TVMValue*)args)[" << idx << "].v_handle);\n";
+    code_stream_ << "(DLTensor*)(args[" << idx << "].cast<DLTensor*>());\n";
   }
 
   /*!
@@ -118,7 +115,7 @@ class CodegenCBase {
    *
    * \code
    *
-   * Array<NDArray> foo_consts;
+   * ffi::Array<Tensor> foo_consts;
    *
    * // An example code for the generated C function.
    * int foo_wrapper_(DLTensor* arg0,
@@ -132,7 +129,7 @@ class CodegenCBase {
    *
    * TVM_FFI_DLL_EXPORT_TYPED_FUNC(foo, foo_wrapper_);
    *
-   * int foo_init_wrapper_(Array<NDArray> arr) {
+   * int foo_init_wrapper_(ffi::Array<Tensor> arr) {
    *   foo_consts = arr;
    *   return 0;
    * }
@@ -223,7 +220,7 @@ class CodegenCBase {
       // codegen. Moreover, in microTVM we dont expect this part to be generated.
       code_stream_ << "#ifdef __cplusplus\n";
       code_stream_ << "int " << func_name
-                   << "_init_wrapper_(tvm::Array<tvm::runtime::NDArray> arr) {\n";
+                   << "_init_wrapper_(tvm::ffi::Array<tvm::runtime::Tensor> arr) {\n";
       EnterScope();
       PrintIndents();
       code_stream_ << func_name << "_consts = arr;\n";
@@ -236,7 +233,7 @@ class CodegenCBase {
     }
   }
 
-  void GenerateBackendCFunc(const std::string& func_name, const Array<Var>& args,
+  void GenerateBackendCFunc(const std::string& func_name, const ffi::Array<Var>& args,
                             const std::string& const_arr_name, const std::vector<Output>& outs,
                             bool pass_dl_tensor = false) {
     std::vector<std::string> arg_types;
@@ -269,7 +266,7 @@ class CodegenCBase {
    *
    * \return The emitted code string.
    */
-  std::string JitImpl(const std::string& ext_func_id, const Array<Var>& args,
+  std::string JitImpl(const std::string& ext_func_id, const ffi::Array<Var>& args,
                       const std::vector<std::string>& buf_decl,
                       const std::vector<std::string>& body, const std::string& const_arr_name,
                       const std::vector<Output>& outs) {
@@ -372,7 +369,7 @@ class CodegenCBase {
   }
 
   /*!
-   * \brief Creates a checker to check if the NDArray pool is initialized
+   * \brief Creates a checker to check if the Tensor pool is initialized
    *
    * \param symobl The Symbol of the current function
    *
@@ -392,8 +389,8 @@ class CodegenCBase {
    *
    * \return The created declaration
    */
-  std::string CreateNDArrayPool(const std::string& symbol) const {
-    return "tvm::Array<tvm::runtime::NDArray> " + symbol + "_consts;";
+  std::string CreateTensorPool(const std::string& symbol) const {
+    return "tvm::ffi::Array<tvm::runtime::Tensor> " + symbol + "_consts;";
   }
 
   /*!

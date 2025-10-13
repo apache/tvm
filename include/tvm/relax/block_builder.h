@@ -104,7 +104,7 @@ class BlockBuilderNode : public Object {
    * GlobalVar directly.
    * \return The global var bound to the added function.
    */
-  virtual GlobalVar AddFunction(const BaseFunc& func, String func_name_hint) = 0;
+  virtual GlobalVar AddFunction(const BaseFunc& func, ffi::String func_name_hint) = 0;
 
   /*!
    * \brief Update a Relax function or a TIR PrimFunc in the internal context module.
@@ -128,7 +128,7 @@ class BlockBuilderNode : public Object {
    * \return The Expr bound to the input \p var.
    * \note For function parameters, this function returns std::nullopt.
    */
-  virtual Optional<Expr> LookupBinding(const Var& var) = 0;
+  virtual ffi::Optional<Expr> LookupBinding(const Var& var) = 0;
 
   /*!
    * \brief Begin a new scope, with optional parameters that
@@ -144,7 +144,7 @@ class BlockBuilderNode : public Object {
    *
    * \sa EndScope
    */
-  virtual void BeginScope(Optional<Array<Var>> params) = 0;
+  virtual void BeginScope(ffi::Optional<ffi::Array<Var>> params) = 0;
 
   /*!
    * \brief Begin a new scope, which inherits visible parameters from
@@ -204,7 +204,7 @@ class BlockBuilderNode : public Object {
    * \note This Emit function normalizes the \p expr, and
    *       performs shape and type deductions by calling Normalize.
    */
-  virtual Var Emit(Expr expr, String name_hint = "") = 0;
+  virtual Var Emit(Expr expr, ffi::String name_hint = "") = 0;
 
   /*!
    * \brief Emit a MatchCast.
@@ -213,7 +213,7 @@ class BlockBuilderNode : public Object {
    * \param name_hint Name hint for the bound variable.
    * \return The variable bound to the MatchCast.
    */
-  virtual Var EmitMatchCast(Expr value, StructInfo struct_info, String name_hint = "") = 0;
+  virtual Var EmitMatchCast(Expr value, StructInfo struct_info, ffi::String name_hint = "") = 0;
 
   /*!
    * \brief Generate an output for the current dataflow block.
@@ -221,7 +221,7 @@ class BlockBuilderNode : public Object {
    * \param name_hint Name hint for the bound variable.
    * \return The variable bound to \p output.
    */
-  virtual Var EmitOutput(Expr output, String name_hint = "") = 0;
+  virtual Var EmitOutput(Expr output, ffi::String name_hint = "") = 0;
 
   /*!
    * \brief Emit a binding that is already normalized.
@@ -257,8 +257,8 @@ class BlockBuilderNode : public Object {
    */
   virtual arith::Analyzer* GetAnalyzer() = 0;
 
-  static constexpr const char* _type_key = "relax.BlockBuilder";
-  TVM_DECLARE_BASE_OBJECT_INFO(BlockBuilderNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.BlockBuilder", BlockBuilderNode, Object);
 };
 
 class BlockBuilder : public ObjectRef {
@@ -274,7 +274,7 @@ class BlockBuilder : public ObjectRef {
    *       ctx_mod so you can lookup the context functions for cross function
    *       call analysis.
    */
-  TVM_DLL static BlockBuilder Create(Optional<IRModule> ctx_mod);
+  TVM_DLL static BlockBuilder Create(ffi::Optional<IRModule> ctx_mod);
 
   /*! \brief A marker struct to disable FNormalize
    *
@@ -315,10 +315,10 @@ class BlockBuilder : public ObjectRef {
    *       ctx_mod so you can lookup the context functions for cross function
    *       call analysis.
    */
-  TVM_DLL static BlockBuilder Create(Optional<IRModule> ctx_mod,
+  TVM_DLL static BlockBuilder Create(ffi::Optional<IRModule> ctx_mod,
                                      DisableOperatorSpecificNormalizationForTVMScript tag);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BlockBuilder, ObjectRef, BlockBuilderNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BlockBuilder, ObjectRef, BlockBuilderNode);
 };
 
 }  // namespace relax

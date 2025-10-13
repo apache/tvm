@@ -24,7 +24,7 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <memory>
 #include <vector>
@@ -49,7 +49,7 @@ class HexagonBuffer {
    * space in which to allocate. Defaults to global system
    * memory (DDR).
    */
-  HexagonBuffer(size_t nbytes, size_t alignment, Optional<String> scope);
+  HexagonBuffer(size_t nbytes, size_t alignment, ffi::Optional<ffi::String> scope);
 
   /* \brief Allocate 2d (discontiguous) memory within Hexagon accessible
    * memory scopes.
@@ -65,7 +65,7 @@ class HexagonBuffer {
    * space in which to allocate. Defaults to global system
    * memory (DDR).
    */
-  HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment, Optional<String> scope);
+  HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment, ffi::Optional<ffi::String> scope);
 
   //! \brief Destruction deallocates the underlying allocations.
   ~HexagonBuffer();
@@ -140,7 +140,7 @@ class HexagonBuffer {
   size_t TotalBytes() const { return nbytes_per_allocation_ * allocations_.size(); }
 
   //! \brief Assign a storage scope to the buffer.
-  void SetStorageScope(Optional<String> scope);
+  void SetStorageScope(ffi::Optional<ffi::String> scope);
   /*! \brief Array of raw pointer allocations required by the buffer.
    *
    *  For 1d (contiguous) storage a single allocation will result.

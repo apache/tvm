@@ -21,9 +21,9 @@ from typing import Callable, Dict, List, Optional, Union
 from typing_extensions import Literal
 
 # isort: on
-from tvm.ffi import register_object
+from tvm_ffi import register_object
 from tvm.ir import IRModule
-from tvm.runtime import NDArray, Object
+from tvm.runtime import Tensor, Object
 from tvm.target import Target
 
 from .. import _ffi_api
@@ -39,19 +39,19 @@ class BuilderInput(Object):
         The IRModule to be built.
     target : Target
         The target to be built for.
-    params: Optional[Dict[str, NDArray]]
+    params: Optional[Dict[str, Tensor]]
         The parameters for Relax build module
     """
 
     mod: IRModule
     target: Target
-    params: Optional[Dict[str, NDArray]]
+    params: Optional[Dict[str, Tensor]]
 
     def __init__(
         self,
         mod: IRModule,
         target: Target,
-        params: Optional[Dict[str, NDArray]] = None,
+        params: Optional[Dict[str, Tensor]] = None,
     ) -> None:
         """Constructor.
 
@@ -61,7 +61,7 @@ class BuilderInput(Object):
             The IRModule to be built.
         target : Target
             The target to be built for.
-        params: Optional[Dict[str, NDArray]]
+        params: Optional[Dict[str, Tensor]]
             The parameters for Relax build module
         """
         self.__init_handle_by_constructor__(

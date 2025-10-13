@@ -16,7 +16,7 @@
 # under the License.
 """Package tvm.script.ir_builder.ir.frame"""
 
-from tvm.ffi import register_object as _register_object
+from tvm_ffi import register_object as _register_object
 
 from ..base import IRBuilderFrame
 

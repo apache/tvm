@@ -31,15 +31,15 @@ namespace meta_schedule {
  * \brief Tile a subset of loops in the block according to the given tensor intrinsic, and annotate
  * the tiled block for tensorization by postproc rewrite.
  */
-Optional<tir::BlockRV> TileForIntrin(tir::Schedule sch, tir::BlockRV block,
-                                     const std::string& intrin_name) {
-  Optional<tir::LoopRV> tiled_loop_rv = TileWithTensorIntrin(sch, block, intrin_name);
+ffi::Optional<tir::BlockRV> TileForIntrin(tir::Schedule sch, tir::BlockRV block,
+                                          const std::string& intrin_name) {
+  ffi::Optional<tir::LoopRV> tiled_loop_rv = TileWithTensorIntrin(sch, block, intrin_name);
   if (!tiled_loop_rv) {
     return std::nullopt;
   }
   ICHECK(tiled_loop_rv.defined());
   tir::BlockRV outer_block = sch->Blockize(tiled_loop_rv.value());
-  sch->Annotate(outer_block, tir::attr::meta_schedule_auto_tensorize, String(intrin_name));
+  sch->Annotate(outer_block, tir::attr::meta_schedule_auto_tensorize, ffi::String(intrin_name));
   return outer_block;
 }
 
@@ -48,7 +48,7 @@ Optional<tir::BlockRV> TileForIntrin(tir::Schedule sch, tir::BlockRV block,
  */
 class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
  protected:
-  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
     auto desc_func = tir::TensorIntrin::Get(intrin_name).value()->desc;
     if (!CheckAutoTensorizeApplicable(sch, block_rv, desc_func)) {
       TVM_PY_LOG(INFO, logger) << "The workload cannot be tensorized.";
@@ -68,7 +68,7 @@ class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
     ObjectPtr<MultiLevelTilingWithIntrinNode> n =
-        make_object<MultiLevelTilingWithIntrinNode>(*this);
+        ffi::make_object<MultiLevelTilingWithIntrinNode>(*this);
     return ScheduleRule(n);
   }
 
@@ -87,18 +87,17 @@ class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
 
  public:
   /*! \brief The name of a tensor intrinsic. */
-  String intrin_name;
-
-  static constexpr const char* _type_key = "meta_schedule.MultiLevelTilingWithIntrin";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MultiLevelTilingWithIntrinNode, MultiLevelTilingNode);
+  ffi::String intrin_name;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MultiLevelTilingWithIntrin",
+                                    MultiLevelTilingWithIntrinNode, MultiLevelTilingNode);
 };
 
-ScheduleRule ScheduleRule::MultiLevelTilingWithIntrin(String intrin_name, String structure,
-                                                      Optional<Array<String>> tile_binds,
-                                                      Optional<Integer> max_innermost_factor,
-                                                      Optional<Array<Integer>> vector_load_lens,
-                                                      Optional<Map<String, ffi::Any>> reuse_read,
-                                                      Optional<Map<String, ffi::Any>> reuse_write) {
+ScheduleRule ScheduleRule::MultiLevelTilingWithIntrin(
+    ffi::String intrin_name, ffi::String structure,
+    ffi::Optional<ffi::Array<ffi::String>> tile_binds, ffi::Optional<Integer> max_innermost_factor,
+    ffi::Optional<ffi::Array<Integer>> vector_load_lens,
+    ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
+    ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write) {
   ICHECK(tir::TensorIntrin::Get(intrin_name).defined())
       << "Provided tensor intrinsic " << intrin_name << " is not registered.";
   auto node = MultiLevelTilingInitCommon<MultiLevelTilingWithIntrinNode>(
@@ -107,12 +106,11 @@ ScheduleRule ScheduleRule::MultiLevelTilingWithIntrin(String intrin_name, String
   return ScheduleRule(node);
 }
 
-TVM_REGISTER_NODE_TYPE(MultiLevelTilingWithIntrinNode);
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ScheduleRuleMultiLevelTilingWithIntrin",
                         ScheduleRule::MultiLevelTilingWithIntrin);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

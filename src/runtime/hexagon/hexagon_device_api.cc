@@ -27,7 +27,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <cstdlib>
 #include <cstring>
@@ -52,7 +52,7 @@ void HexagonDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) {
 
 // DataSpace: static allocations for Hexagon
 void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                                       Optional<String> mem_scope) {
+                                       ffi::Optional<ffi::String> mem_scope) {
   CHECK(shape || ndim == 0) << "shape array is null for a non-scalar tensor, ndim = " << ndim;
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
 
@@ -74,7 +74,7 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
   //         in Hexagon's "indirect tensor" format:
   //         - shape[0] indicates the number of tensor-content memory allocations.
   //         - shape[1] indicates the size of each tensor-content memory allocation.
-  if (!mem_scope.defined() || mem_scope.value() == "global") {
+  if (!mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global") {
     return DeviceAPI::AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
   }
 
@@ -122,7 +122,7 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignme
   CHECK(runtime_hexbuffs) << "Attempted to allocate Hexagon data with "
                           << "HexagonDeviceAPI::AllocDataSpace before initializing resources.  "
                           << "Please call HexagonDeviceAPI::AcquireResources";
-  return runtime_hexbuffs->AllocateHexagonBuffer(nbytes, alignment, String("global"));
+  return runtime_hexbuffs->AllocateHexagonBuffer(nbytes, alignment, ffi::String("global"));
 }
 
 void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
@@ -191,7 +191,7 @@ void HexagonDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void
   memcpy(static_cast<char*>(to) + to_offset, static_cast<const char*>(from) + from_offset, size);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("device_api.hexagon.dma_copy_dltensor",
@@ -272,7 +272,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     type_hint.lanes = 1;
 
                     HexagonDeviceAPI* hexapi = HexagonDeviceAPI::Global();
-                    *rv = hexapi->AllocDataSpace(dev, ndim, shape, type_hint, String(scope));
+                    *rv = hexapi->AllocDataSpace(dev, ndim, shape, type_hint, ffi::String(scope));
                   })
       .def_packed("device_api.hexagon.free_nd",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -309,7 +309,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         DeviceAPI* ptr = HexagonDeviceAPI::Global();
         *rv = static_cast<void*>(ptr);
       });
-});
+}
 
 }  // namespace hexagon
 }  // namespace runtime

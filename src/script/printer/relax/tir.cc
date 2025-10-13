@@ -41,7 +41,7 @@ RelaxFrameNode* GetRelaxFrame(IRDocsifier d) {
   return f;
 }
 
-Doc PrintTIRVar(tir::Var n, ObjectPath n_p, IRDocsifier d) {
+Doc PrintTIRVar(tir::Var n, AccessPath n_p, IRDocsifier d) {
   ICHECK(n->dtype.is_scalar()) << "TypeError: "
                                << "Relax only uses scalar TIR variables,"
                                << "but received TIR variable " << n << " with dtype " << n->dtype;
@@ -58,11 +58,11 @@ Doc PrintTIRVar(tir::Var n, ObjectPath n_p, IRDocsifier d) {
       ICHECK(f->is_func);
       f->func_vars->insert(n.get());
     }
-    IdDoc var = d->Define(n, GetRef<Frame>(f), n->name_hint.empty() ? "v" : n->name_hint);
+    IdDoc var = d->Define(n, ffi::GetRef<Frame>(f), n->name_hint.empty() ? "v" : n->name_hint);
     var->source_paths.push_back(n_p);
     f->stmts.push_back(AssignDoc(var, PrintVarCreation(n, n_p, d), std::nullopt));
   }
-  if (Optional<ExprDoc> doc = d->GetVarDoc(n)) {
+  if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(n)) {
     return doc.value();
   }
   LOG(FATAL) << "IndexError: Variable is not defined in the environment: " << n;
@@ -74,7 +74,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<tir::SizeVar>("relax", P
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::IntImm>(                                             //
-        "relax", [](tvm::IntImm n, ObjectPath n_p, IRDocsifier d) -> Doc {  //
+        "relax", [](tvm::IntImm n, AccessPath n_p, IRDocsifier d) -> Doc {  //
           // TODO(@junrushao): support non-int64 cases
           if (n->dtype.is_bool()) {
             return LiteralDoc::Boolean(n->value, n_p);
@@ -85,8 +85,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::GlobalVar>(                                             //
-        "relax", [](tvm::GlobalVar n, ObjectPath n_p, IRDocsifier d) -> Doc {  //
-          if (Optional<ExprDoc> doc = d->GetVarDoc(n)) {
+        "relax", [](tvm::GlobalVar n, AccessPath n_p, IRDocsifier d) -> Doc {  //
+          if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(n)) {
             return doc.value();
           } else {
             IdDoc ret(n->name_hint);
@@ -97,8 +97,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::IRModule>(                                               //
-        "relax", [](tvm::IRModule mod, ObjectPath n_p, IRDocsifier d) -> Doc {  //
-          Optional<ExprDoc> doc = d->GetVarDoc(mod);
+        "relax", [](tvm::IRModule mod, AccessPath n_p, IRDocsifier d) -> Doc {  //
+          ffi::Optional<ExprDoc> doc = d->GetVarDoc(mod);
           ICHECK(doc) << "Unable to print IRModule before definition in Relax.";
           if (d->cfg->module_alias.empty()) {
             // Use Module Name directly
@@ -117,7 +117,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Range>("relax", [](Range range, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<Range>("relax", [](Range range, AccessPath p, IRDocsifier d) -> Doc {
       return Relax(d, "Range")
           ->Call({
               d->AsDoc<ExprDoc>(range->min, p->Attr("min")),

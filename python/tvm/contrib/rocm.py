@@ -20,7 +20,7 @@ import subprocess
 import os
 from os.path import join, exists
 
-import tvm.ffi
+import tvm_ffi
 from tvm.base import py_str
 import tvm.runtime
 import tvm.target
@@ -99,7 +99,7 @@ def rocm_link(in_file, out_file, lld=None):
         raise RuntimeError(msg)
 
 
-@tvm.ffi.register_func("tvm_callback_rocm_link")
+@tvm_ffi.register_global_func("tvm_callback_rocm_link")
 def callback_rocm_link(obj_bin):
     """Links object file generated from LLVM to HSA Code Object
 
@@ -123,7 +123,7 @@ def callback_rocm_link(obj_bin):
     return cobj_bin
 
 
-@tvm.ffi.register_func("tvm_callback_rocm_bitcode_path")
+@tvm_ffi.register_global_func("tvm_callback_rocm_bitcode_path")
 def callback_rocm_bitcode_path(rocdl_dir=None):
     """Utility function to find ROCm device library bitcodes
 
@@ -227,7 +227,7 @@ def have_matrixcore(compute_version=None):
     return False
 
 
-@tvm.ffi.register_func("tvm_callback_rocm_get_arch")
+@tvm_ffi.register_global_func("tvm_callback_rocm_get_arch")
 def get_rocm_arch(rocm_path=None):
     """Utility function to get the AMD GPU architecture
 

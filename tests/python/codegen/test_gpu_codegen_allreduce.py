@@ -76,8 +76,8 @@ def test_allreduce_sum(dims, target, dev):
     # prepare input and output array
     a_np = np.random.rand(1, d1, d2, d3).astype("float32")
     b_np = a_np.sum(axis=-1).astype("float32")
-    a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(np.zeros_like(b_np), dev)
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.tensor(np.zeros_like(b_np), dev)
 
     # launch kernel
     f(a, b)
@@ -94,7 +94,7 @@ def optional_metal_compile_callback(define_metal_compile_callback):
 
     if define_metal_compile_callback:
 
-        @tvm.register_func(name, override=True)
+        @tvm.register_global_func(name, override=True)
         def compile_metal(src, target):
             return tvm.contrib.xcode.compile_metal(src, sdk="macosx")
 
@@ -102,9 +102,9 @@ def optional_metal_compile_callback(define_metal_compile_callback):
 
     if define_metal_compile_callback:
         if cached is None:
-            tvm.ffi.registry.remove_global_func(name)
+            tvm_ffi.registry.remove_global_func(name)
         else:
-            tvm.register_func(name, cached, override=True)
+            tvm.register_global_func(name, cached, override=True)
 
 
 @tvm.testing.requires_metal(support_required="compile-only")
@@ -143,8 +143,8 @@ def test_allreduce_max(dims, target, dev):
     # prepare input and output array
     a_np = -np.random.rand(1, d1, d2, d3).astype("float32")
     b_np = a_np.max(axis=-1).astype("float32")
-    a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(np.zeros_like(b_np), dev)
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.tensor(np.zeros_like(b_np), dev)
 
     # launch kernel
     f(a, b)

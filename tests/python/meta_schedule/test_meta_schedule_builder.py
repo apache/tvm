@@ -25,7 +25,7 @@ import pytest
 import tvm.testing
 
 from tvm import script
-from tvm.ffi import register_func
+from tvm_ffi import register_global_func
 from tvm.meta_schedule.builder import (
     BuilderInput,
     BuilderResult,
@@ -163,7 +163,7 @@ def test_meta_schedule_error_handle_build_func():
     """Test the error handing during building"""
 
     def initializer():
-        @register_func("meta_schedule.builder.test_build")
+        @register_global_func("meta_schedule.builder.test_build")
         def test_build(mod: Module, target: Target, _) -> None:  # pylint: disable=unused-variable
             raise ValueError("Builder intended Test Error (build func).")
 
@@ -182,7 +182,7 @@ def test_meta_schedule_error_handle_export_func():
     """Test the error handing during building"""
 
     def initializer():
-        @register_func("meta_schedule.builder.test_export")
+        @register_global_func("meta_schedule.builder.test_export")
         def test_build(mod: Module) -> str:  # pylint: disable=unused-variable
             raise ValueError("Builder intended Test Error (export func).")
 
@@ -201,7 +201,7 @@ def test_meta_schedule_error_handle_time_out():
     """Test the error handing time out during building"""
 
     def initializer():
-        @register_func("meta_schedule.builder.test_time_out")
+        @register_global_func("meta_schedule.builder.test_time_out")
         def timeout_build(mod, target, _):  # pylint: disable=unused-argument, unused-variable
             time.sleep(2)
 

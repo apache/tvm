@@ -37,10 +37,9 @@ namespace vm {
 //---------------------------------------------
 // VM Closure object
 //---------------------------------------------
-TVM_REGISTER_OBJECT_TYPE(VMClosureObj);
 
-VMClosure::VMClosure(String func_name, ffi::Function impl) {
-  auto ptr = make_object<VMClosureObj>();
+VMClosure::VMClosure(ffi::String func_name, ffi::Function impl) {
+  auto ptr = ffi::make_object<VMClosureObj>();
   ptr->func_name = func_name;
   ptr->impl = std::move(impl);
   data_ = std::move(ptr);
@@ -75,7 +74,7 @@ ffi::Any IndexIntoNestedObject(ffi::Any obj, ffi::PackedArgs args, int starting_
       LOG(FATAL) << "ValueError: Attempted to index into an object that is not an Array.";
     }
     int index = args[i].cast<int>();
-    auto arr = Downcast<ffi::Array<ffi::Any>>(obj);
+    auto arr = obj.cast<ffi::Array<ffi::Any>>();
     // make sure the index is in bounds
     if (index >= static_cast<int>(arr.size())) {
       LOG(FATAL) << "IndexError: Invalid index (" << index << " >= " << arr.size() << ").";
@@ -85,7 +84,7 @@ ffi::Any IndexIntoNestedObject(ffi::Any obj, ffi::PackedArgs args, int starting_
   return obj;
 }
 
-NDArray ConvertNDArrayToDevice(NDArray src, const DLDevice& dev, Allocator* alloc) {
+Tensor ConvertTensorToDevice(Tensor src, const DLDevice& dev, Allocator* alloc) {
   if (src->device.device_type == dev.device_type && src->device.device_id == dev.device_id) {
     return src;
   } else {
@@ -96,15 +95,15 @@ NDArray ConvertNDArrayToDevice(NDArray src, const DLDevice& dev, Allocator* allo
 }
 
 Any ConvertObjectToDevice(Any src, const Device& dev, Allocator* alloc) {
-  if (src.as<NDArray::ContainerType>()) {
-    return ConvertNDArrayToDevice(Downcast<NDArray>(src), dev, alloc);
+  if (src.as<Tensor::ContainerType>()) {
+    return ConvertTensorToDevice(src.cast<Tensor>(), dev, alloc);
   } else if (src.as<ffi::ArrayObj>()) {
     std::vector<Any> ret;
-    auto arr = Downcast<ffi::Array<Any>>(src);
+    auto arr = src.cast<ffi::Array<Any>>();
     for (size_t i = 0; i < arr.size(); i++) {
       ret.push_back(ConvertObjectToDevice(arr[i], dev, alloc));
     }
-    return Array<Any>(ret.begin(), ret.end());
+    return ffi::Array<Any>(ret.begin(), ret.end());
   } else {
     return src;
   }
@@ -113,8 +112,8 @@ Any ConvertObjectToDevice(Any src, const Device& dev, Allocator* alloc) {
 ffi::Any ConvertArgToDevice(ffi::AnyView input, Device dev, Allocator* alloc) {
   // in terms of memory-behavior.
   // To be extra careful, we copy DLTensor.
-  // The developer can still explicitly allocate NDArray
-  // in TVM Native API or NDArray::FromDLPack to regain zero copy behavior.
+  // The developer can still explicitly allocate Tensor
+  // in TVM Native API or Tensor::FromDLPack to regain zero copy behavior.
   ffi::Any ret;
   if (auto opt_obj = input.as<ObjectRef>()) {
     ret = ConvertObjectToDevice(opt_obj.value(), dev, alloc);
@@ -190,7 +189,7 @@ class VirtualMachineImpl : public VirtualMachine {
   void LoadExecutable(ObjectPtr<VMExecutable> exec) final;
   void Init(const std::vector<Device>& devices,
             const std::vector<AllocatorType>& alloc_types) final;
-  VMClosure GetClosure(const String& func_name) final {
+  VMClosure GetClosure(const ffi::String& func_name) final {
     return this->GetClosureInternal(func_name, false).value();
   }
   void InvokeClosurePacked(const ObjectRef& closure_or_packedfunc, ffi::PackedArgs args,
@@ -211,7 +210,7 @@ class VirtualMachineImpl : public VirtualMachine {
   void _SetInputWithParamModule(ffi::PackedArgs args, ffi::Any* rv);
   int _GetFunctionArity(std::string func_name);
   std::string _GetFunctionParamName(std::string func_name, int index);
-  ffi::Function _LookupFunction(const String& name);
+  ffi::Function _LookupFunction(const ffi::String& name);
 
   TVM_MODULE_VTABLE_BEGIN("relax.VirtualMachine");
   TVM_MODULE_VTABLE_ENTRY_PACKED("vm_initialization", &VirtualMachineImpl::_Init);
@@ -237,7 +236,7 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param allow_missing Whether none is allowed.
    * \return The result
    */
-  Optional<VMClosure> GetClosureInternal(const String& func_name, bool allow_missing);
+  ffi::Optional<VMClosure> GetClosureInternal(const ffi::String& func_name, bool allow_missing);
 
   /*!
    * \brief Set inputs to a function.
@@ -246,7 +245,7 @@ class VirtualMachineImpl : public VirtualMachine {
    * correct device for the function, they will be copied to the device.
    * \param with_param_module If set to true, the last argument will be a module and can be invoked
    *        to get the argument, this is mainly used for debugging purposes and setting composite
-   * objects. \note This interface works when using VM over RPC by internally converting NDArray in
+   * objects. \note This interface works when using VM over RPC by internally converting Tensor in
    * the arguments to DLTensor, which is supported in RPC where remote could only have a minimal C
    * runtime.
    */
@@ -277,7 +276,7 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param args The arguments to bound to the function.
    * \note This function is used by RPC server to help benchmarking.
    */
-  void SaveClosure(const String& func_name, const String& save_name, bool include_return,
+  void SaveClosure(const ffi::String& func_name, const ffi::String& save_name, bool include_return,
                    ffi::PackedArgs args);
   /*!
    * \brief Internal function to invoke a closure.
@@ -301,12 +300,13 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param name The name of the function.
    * \return The result function, can return ffi::Function(nullptr) if nothing is found.
    */
-  ffi::Function GetFuncFromImports(const String& name) {
+  ffi::Optional<ffi::Function> GetFuncFromImports(const ffi::String& name) {
     for (auto& lib : this->imports_) {
-      ffi::Function func = lib->GetFunction(name, true);
-      if (func.defined()) return func;
+      if (auto opt_func = lib.cast<ffi::Module>()->GetFunction(name, true)) {
+        return *opt_func;
+      }
     }
-    return ffi::Function(nullptr);
+    return std::nullopt;
   }
   /*!
    * \brief Initialize function pool.
@@ -453,7 +453,7 @@ class VirtualMachineImpl : public VirtualMachine {
 
 void VirtualMachineImpl::LoadExecutable(ObjectPtr<VMExecutable> exec) {
   this->exec_ = exec;
-  this->imports_ = exec_->imports();
+  this->imports_ = exec->imports();
 }
 
 void VirtualMachineImpl::Init(const std::vector<Device>& devices,
@@ -470,7 +470,7 @@ void VirtualMachineImpl::Init(const std::vector<Device>& devices,
   // Setup constant sections.
   this->const_pool_.reserve(exec_->constants.size());
   for (const auto& constant : exec_->constants) {
-    if (auto opt_nd = constant.as<NDArray>()) {
+    if (auto opt_nd = constant.as<Tensor>()) {
       this->const_pool_.push_back(ConvertRegToDevice(opt_nd.value(), devices[0], allocators[0]));
     } else {
       this->const_pool_.push_back(constant);
@@ -509,7 +509,7 @@ void VirtualMachineImpl::SetInput(std::string func_name, bool with_param_module,
     for (int i = 0; i < args.size(); ++i) {
       if (with_param_module && i == args.size() - 1) {
         // call param func to get the arguments(usually corresponds to param pack.)
-        func_args[i] = (args[i].cast<Module>()).GetFunction("get_params")();
+        func_args[i] = (args[i].cast<ffi::Module>())->GetFunction("get_params").value()();
       } else {
         func_args[i] = ConvertArgToDevice(args[i], devices[0], allocators[0]);
       }
@@ -572,7 +572,7 @@ RegType VirtualMachineImpl::InvokeClosureInternal(const ObjectRef& closure_or_pa
   return ret;
 }
 
-void VirtualMachineImpl::SaveClosure(const String& func_name, const String& save_name,
+void VirtualMachineImpl::SaveClosure(const ffi::String& func_name, const ffi::String& save_name,
                                      bool include_return, ffi::PackedArgs args) {
   VMClosure clo = this->GetClosure(func_name);
   std::vector<RegType> inputs(args.size());
@@ -589,8 +589,8 @@ void VirtualMachineImpl::SaveClosure(const String& func_name, const String& save
   saved_closures_[save_name] = VMClosure(save_name, impl);
 }
 
-Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const String& func_name,
-                                                           bool allow_missing) {
+ffi::Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const ffi::String& func_name,
+                                                                bool allow_missing) {
   // look up saved closures.
   auto saved_it = saved_closures_.find(func_name);
   if (saved_it != saved_closures_.end()) {
@@ -621,9 +621,9 @@ Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const String& func_na
   } else {
     ICHECK(finfo.kind == VMFuncInfo::FuncKind::kVMTIRFunc)
         << "Cannot support closure with function kind " << static_cast<int>(finfo.kind);
-    ffi::Function tir_func = GetFuncFromImports("__vmtir__" + finfo.name);
-    ICHECK(tir_func != nullptr) << "Cannot find underlying compiled tir function of VMTIRFunc "
-                                << finfo.name;
+    ffi::Optional<ffi::Function> tir_func = GetFuncFromImports("__vmtir__" + finfo.name);
+    ICHECK(tir_func.has_value()) << "Cannot find underlying compiled tir function of VMTIRFunc "
+                                 << finfo.name;
     auto impl = ffi::Function([this, finfo, tir_func](ffi::PackedArgs args, ffi::Any* rv) {
       // Per convention, ctx ptr is a VirtualMachine*
       VirtualMachine* ctx_ptr = static_cast<VirtualMachine*>(args[0].cast<void*>());
@@ -638,8 +638,8 @@ Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const String& func_na
       void* reg_anylist_handle = reg_file.data();
       void* const_anylist_handle = this->const_pool_.data();
       void* func_anylist_handle = this->func_pool_.data();
-      tir_func(static_cast<void*>(ctx_ptr), reg_anylist_handle, const_anylist_handle,
-               func_anylist_handle);
+      (*tir_func)(static_cast<void*>(ctx_ptr), reg_anylist_handle, const_anylist_handle,
+                  func_anylist_handle);
       // Return value always stored after inputs.
       *rv = reg_file[finfo.num_args];
     });
@@ -697,16 +697,16 @@ void VirtualMachineImpl::InitFuncPool() {
     const VMFuncInfo& info = exec_->func_table[func_index];
     if (info.kind == VMFuncInfo::FuncKind::kPackedFunc) {
       // only look through imports first
-      ffi::Function func = GetFuncFromImports(info.name);
-      if (!func.defined()) {
+      ffi::Optional<ffi::Function> func = GetFuncFromImports(info.name);
+      if (!func.has_value()) {
         const auto p_func = tvm::ffi::Function::GetGlobal(info.name);
-        if (p_func.has_value()) func = *(p_func);
+        if (p_func.has_value()) func = *p_func;
       }
-      ICHECK(func.defined())
+      ICHECK(func.has_value())
           << "Error: Cannot find ffi::Function " << info.name
           << " in either Relax VM kernel library, or in TVM runtime ffi::Function registry, or in "
              "global Relax functions of the VM executable";
-      func_pool_[func_index] = func;
+      func_pool_[func_index] = *func;
 
     } else {
       ICHECK(info.kind == VMFuncInfo::FuncKind::kVMFunc ||
@@ -846,7 +846,9 @@ void VirtualMachineImpl::RunLoop() {
   }
 }
 
-ObjectPtr<VirtualMachine> VirtualMachine::Create() { return make_object<VirtualMachineImpl>(); }
+ObjectPtr<VirtualMachine> VirtualMachine::Create() {
+  return ffi::make_object<VirtualMachineImpl>();
+}
 
 //--------------------------------------------------------------------
 // FFI related code
@@ -869,7 +871,7 @@ void VirtualMachineImpl::_Init(ffi::PackedArgs args, ffi::Any* rv) {
 void VirtualMachineImpl::_SaveClosure(ffi::PackedArgs args, ffi::Any* rv) {
   ICHECK_GE(args.size(), 3);
   std::string func_name = args[0].cast<std::string>();
-  this->SaveClosure(func_name, args[1].cast<String>(), args[2].cast<bool>(), args.Slice(3));
+  this->SaveClosure(func_name, args[1].cast<ffi::String>(), args[2].cast<bool>(), args.Slice(3));
 }
 
 void VirtualMachineImpl::_InvokeClosure(ffi::PackedArgs args, ffi::Any* rv) {
@@ -894,7 +896,7 @@ void VirtualMachineImpl::_SetInstrument(ffi::PackedArgs args, ffi::Any* rv) {
   if (args[0].as<ffi::Function>()) {
     this->SetInstrument(args[0].cast<ffi::Function>());
   } else {
-    String func_name = args[0].cast<String>();
+    ffi::String func_name = args[0].cast<ffi::String>();
     const auto factory = tvm::ffi::Function::GetGlobal(func_name);
     CHECK(factory.has_value()) << "Cannot find factory " << func_name;
     ffi::Any rv;
@@ -950,10 +952,10 @@ std::string VirtualMachineImpl::_GetFunctionParamName(std::string func_name, int
   return vm_func.param_names[index];
 }
 
-ffi::Function VirtualMachineImpl::_LookupFunction(const String& name) {
-  if (Optional<VMClosure> opt = this->GetClosureInternal(name, true)) {
-    return ffi::Function([clo = opt.value(), _self = GetRef<Module>(this)](ffi::PackedArgs args,
-                                                                           ffi::Any* rv) -> void {
+ffi::Function VirtualMachineImpl::_LookupFunction(const ffi::String& name) {
+  if (ffi::Optional<VMClosure> opt = this->GetClosureInternal(name, true)) {
+    return ffi::Function([clo = opt.value(), _self = ffi::GetRef<ffi::Module>(this)](
+                             ffi::PackedArgs args, ffi::Any* rv) -> void {
       auto* self = const_cast<VirtualMachineImpl*>(_self.as<VirtualMachineImpl>());
       ICHECK(self);
       self->InvokeClosurePacked(clo, args, rv);
@@ -973,7 +975,8 @@ ffi::Function VirtualMachineImpl::_LookupFunction(const String& name) {
  */
 class VirtualMachineProfiler : public VirtualMachineImpl {
  public:
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) override {
+    ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
     if (name == "profile") {
       return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         std::string f_name = args[0].cast<std::string>();
@@ -986,7 +989,7 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
           }
         }
 
-        prof_ = profiling::Profiler(devices, {}, {{String("Executor"), String("VM")}});
+        prof_ = profiling::Profiler(devices, {}, {{ffi::String("Executor"), ffi::String("VM")}});
 
         auto inputs = GetInputsFor(f_name);
 
@@ -1018,7 +1021,7 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
         }
       });
     } else {
-      return VirtualMachineImpl::GetFunction(name, sptr_to_self);
+      return VirtualMachineImpl::GetFunction(name);
     }
   }
 
@@ -1028,11 +1031,11 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
     if (prof_ && prof_->IsRunning()) {
       auto f_name = GetFuncName(inst.func_idx);
       std::optional<Device> dev;
-      std::vector<NDArray> arrs;
+      std::vector<Tensor> arrs;
 
-      auto f_check_ndarray_arg = [&dev, &arrs](const RegType& arg) {
-        if (auto opt_nd = arg.as<NDArray>()) {
-          NDArray arr = opt_nd.value();
+      auto f_check_tensor_arg = [&dev, &arrs](const RegType& arg) {
+        if (auto opt_nd = arg.as<Tensor>()) {
+          Tensor arr = opt_nd.value();
           if (arr.defined()) {
             dev = arr->device;
             arrs.push_back(arr);
@@ -1044,14 +1047,14 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
         Instruction::Arg arg = inst.args[i];
         if (arg.kind() == Instruction::ArgKind::kRegister) {
           auto reg = ReadRegister(curr_frame, arg.value());
-          f_check_ndarray_arg(reg);
+          f_check_tensor_arg(reg);
         } else if (arg.kind() == Instruction::ArgKind::kConstIdx) {
           const auto& const_val = this->const_pool_[arg.value()];
-          f_check_ndarray_arg(const_val);
+          f_check_tensor_arg(const_val);
         }
       }
 
-      std::unordered_map<std::string, ObjectRef> metrics;
+      std::unordered_map<std::string, ffi::Any> metrics;
       metrics["Argument Shapes"] = profiling::ShapeString(arrs);
 
       // If a suitable device is found, enable profiling.
@@ -1073,7 +1076,7 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
 };
 
 ObjectPtr<VirtualMachine> VirtualMachine::CreateProfiler() {
-  return make_object<VirtualMachineProfiler>();
+  return ffi::make_object<VirtualMachineProfiler>();
 }
 
 #else

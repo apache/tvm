@@ -587,7 +587,7 @@ def MatmulPrimFunc() -> IRModule:
 
 
 @pytest.mark.parametrize("f_mod", [MatmulPrimFunc])
-@pytest.mark.parametrize("mod_eq", ["structural", "ignore-ndarray", "anchor-block"])
+@pytest.mark.parametrize("mod_eq", ["structural", "ignore-tensor", "anchor-block"])
 def test_json_database_commit_workload(f_mod, mod_eq):
     mod: IRModule = f_mod()
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -596,7 +596,7 @@ def test_json_database_commit_workload(f_mod, mod_eq):
 
 
 @pytest.mark.parametrize("f_mod", [MatmulPrimFunc])
-@pytest.mark.parametrize("mod_eq", ["structural", "ignore-ndarray", "anchor-block"])
+@pytest.mark.parametrize("mod_eq", ["structural", "ignore-tensor", "anchor-block"])
 def test_memory_database_commit_workload(f_mod, mod_eq):
     mod: IRModule = f_mod()
     database = ms.database.MemoryDatabase(module_equality=mod_eq)

@@ -34,7 +34,7 @@ def from_tensorflow(
     build_config: Optional[Dict[str, str]] = None,
     opt_config: Optional[Dict[str, str]] = None,
     as_msc: bool = True,
-) -> Tuple[Union[MSCGraph, tvm.IRModule], Dict[str, tvm.nd.array]]:
+) -> Tuple[Union[MSCGraph, tvm.IRModule], Dict[str, tvm.runtime.Tensor]]:
     """Change tensorflow GraphDef to MSCGraph.
 
     Parameters

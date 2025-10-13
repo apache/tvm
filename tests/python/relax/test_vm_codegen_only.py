@@ -51,7 +51,7 @@ def test_vm_copy(exec_mode):
     mod = TestVMMove
     target = tvm.target.Target("llvm", host="llvm")
     ex = codegen(mod, target, exec_mode)
-    inp = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
+    inp = tvm.runtime.tensor(np.random.rand(3, 4).astype(np.float32))
     vm = relax.VirtualMachine(ex, tvm.cpu())
     res = check_saved_func(vm, "foo", inp)
     tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
@@ -73,14 +73,14 @@ def test_vm_to_device(exec_mode):
     mod = TestVMToDevice
     target = tvm.target.Target("llvm", host="llvm")
     ex = codegen(mod, target, exec_mode)
-    inp = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
+    inp = tvm.runtime.tensor(np.random.rand(3, 4).astype(np.float32))
     vm = relax.VirtualMachine(ex, tvm.cpu())
     res = check_saved_func(vm, "foo", inp)
     tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
     # check the resulting tensor is on cpu:0
     assert res.device == tvm.cpu(0)
-    assert res.device.device_type == 1
-    assert res.device.device_id == 0
+    assert res.device.dlpack_device_type() == 1
+    assert res.device.index == 0
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
@@ -100,7 +100,7 @@ def test_if_cond_const(exec_mode):
     target = tvm.target.Target("llvm", host="llvm")
     ex = codegen(mod, target, exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    inp = tvm.nd.array(np.random.rand(3, 4))
+    inp = tvm.runtime.tensor(np.random.rand(3, 4))
     res = vm["main"](inp)
     tvm.testing.assert_allclose(res.numpy(), inp.numpy())
 
@@ -145,14 +145,14 @@ def test_if_cond(exec_mode):
     target = tvm.target.Target("llvm", host="llvm")
     ex = codegen(mod, target, exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    inp = tvm.nd.array(np.random.rand(3, 4))
-    res = vm["ife"](tvm.nd.array(1), inp)
+    inp = tvm.runtime.tensor(np.random.rand(3, 4))
+    res = vm["ife"](tvm.runtime.tensor(1), inp)
     tvm.testing.assert_allclose(res.numpy(), inp.numpy() + inp.numpy(), rtol=1e-7, atol=1e-7)
-    res = vm["ife"](tvm.nd.array(True), inp)
+    res = vm["ife"](tvm.runtime.tensor(True), inp)
     tvm.testing.assert_allclose(res.numpy(), inp.numpy() + inp.numpy(), rtol=1e-7, atol=1e-7)
-    res = vm["ife"](tvm.nd.array(0), inp)
+    res = vm["ife"](tvm.runtime.tensor(0), inp)
     tvm.testing.assert_allclose(res.numpy(), inp.numpy() * inp.numpy(), rtol=1e-7, atol=1e-7)
-    res = vm["ife"](tvm.nd.array(False), inp)
+    res = vm["ife"](tvm.runtime.tensor(False), inp)
     tvm.testing.assert_allclose(res.numpy(), inp.numpy() * inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
@@ -171,7 +171,7 @@ def test_vm_return_const_tuple(exec_mode):
     target = tvm.target.Target("llvm", host="llvm")
     ex = codegen(mod, target, exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    inp = tvm.nd.array(np.random.rand(2, 3))
+    inp = tvm.runtime.tensor(np.random.rand(2, 3))
     res0, res1, res2 = vm["main"](inp)
     tvm.testing.assert_allclose(res0.numpy(), np.array([1, 2]))
     tvm.testing.assert_allclose(res1.numpy(), np.array([3, 4]))
@@ -203,7 +203,7 @@ def test_vm_const_as_call_arg(exec_mode):
     target = tvm.target.Target("llvm", host="llvm")
     ex = codegen(mod, target, exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    inp = tvm.nd.array(np.random.rand(1, 2))
+    inp = tvm.runtime.tensor(np.random.rand(1, 2))
     res = vm["main"](inp)
     tvm.testing.assert_allclose(res.numpy(), np.array([4, 6]) + inp.numpy())
 
@@ -262,7 +262,7 @@ def test_shape_check_builtin(exec_mode):
     target = tvm.target.Target("llvm", host="llvm")
     ex = codegen(mod, target, exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    x = tvm.nd.array(np.zeros((1, 2)).astype("float32"))
+    x = tvm.runtime.tensor(np.zeros((1, 2)).astype("float32"))
     res = vm["main"](x)
     assert res == tvm.runtime.container.ShapeTuple([2, 1, 2])
 
@@ -272,11 +272,11 @@ def test_shape_check_builtin(exec_mode):
 
     # wrong ndim
     with pytest.raises(ValueError, match=r".*ndim.*"):
-        vm["main"](tvm.nd.array(np.zeros(1).astype("float32")))
+        vm["main"](tvm.runtime.tensor(np.zeros(1).astype("float32")))
 
     # wrong dtype
     with pytest.raises(ValueError, match=r".*dtype.*"):
-        vm["main"](tvm.nd.array(np.zeros((1, 2)).astype("int32")))
+        vm["main"](tvm.runtime.tensor(np.zeros((1, 2)).astype("int32")))
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
@@ -352,7 +352,7 @@ def test_vm_builtin_reshape(exec_mode):
     vm = relax.VirtualMachine(ex, dev)
 
     input_np = np.random.rand(3, 4).astype("float32")
-    input = tvm.nd.array(input_np, dev)
+    input = tvm.runtime.tensor(input_np, dev)
     res = vm["main"](input)
     expected = input_np.reshape(6, 2)
     tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-7, atol=1e-7)

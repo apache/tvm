@@ -31,11 +31,11 @@ namespace relax {
 
 /*! \brief Attributes used in image resize2d operator */
 struct Resize2DAttrs : public AttrsNodeReflAdapter<Resize2DAttrs> {
-  Array<FloatImm> roi;
-  String layout;
-  String method;
-  String coordinate_transformation_mode;
-  String rounding_method;
+  ffi::Array<FloatImm> roi;
+  ffi::String layout;
+  ffi::String method;
+  ffi::String coordinate_transformation_mode;
+  ffi::String rounding_method;
   double cubic_alpha;
   int cubic_exclude;
   double extrapolation_value;
@@ -75,9 +75,7 @@ struct Resize2DAttrs : public AttrsNodeReflAdapter<Resize2DAttrs> {
             "The dtype of the output tensor. It it is not specified, the output will have the same "
             "dtype as input if not specified.");
   }
-
-  static constexpr const char* _type_key = "relax.attrs.Resize2DAttrs";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(Resize2DAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Resize2DAttrs", Resize2DAttrs, BaseAttrsNode);
 };  // struct Resize2dAttrs
 
 }  // namespace relax

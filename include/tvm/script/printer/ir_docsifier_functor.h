@@ -35,7 +35,7 @@ namespace script {
 namespace printer {
 
 /*!
- * \brief Dynamic dispatch functor based on ObjectPath.
+ * \brief Dynamic dispatch functor based on AccessPath.
  *
  * This functor dispatches based on the type of object and the input dispatch token.
  */
@@ -61,7 +61,7 @@ class IRDocsifierFunctor {
    * dispatch function for TObjectRef with the default dispatch token (empty string).
    */
   template <class TObjectRef>
-  R operator()(const String& token, TObjectRef obj, Args... args) const {
+  R operator()(const ffi::String& token, TObjectRef obj, Args... args) const {
     uint32_t type_index = obj.defined() ? obj->type_index() : 0;
     const ffi::Function* pf = nullptr;
     if ((pf = LookupDispatchTable(token, type_index)) != nullptr) {
@@ -91,7 +91,7 @@ class IRDocsifierFunctor {
    * This takes a type-erased packed function as input. It should be used
    * through FFI boundary, for example, registering dispatch function from Python.
    */
-  TSelf& set_dispatch(String token, uint32_t type_index, ffi::Function f) {
+  TSelf& set_dispatch(ffi::String token, uint32_t type_index, ffi::Function f) {
     std::vector<ffi::Function>* table = &dispatch_table_[token];
     if (table->size() <= type_index) {
       table->resize(type_index + 1, nullptr);
@@ -120,7 +120,7 @@ class IRDocsifierFunctor {
    */
   template <typename TObjectRef, typename TCallable,
             typename = std::enable_if_t<IsDispatchFunction<TObjectRef, TCallable>::value>>
-  TSelf& set_dispatch(String token, TCallable f) {
+  TSelf& set_dispatch(ffi::String token, TCallable f) {
     return set_dispatch(token, TObjectRef::ContainerType::RuntimeTypeIndex(),
                         ffi::TypedFunction<R(TObjectRef, Args...)>(f));
   }
@@ -140,7 +140,7 @@ class IRDocsifierFunctor {
    * This is useful when dispatch function comes from other language's runtime, and
    * those function should be removed before that language runtime shuts down.
    */
-  void remove_dispatch(String token, uint32_t type_index) {
+  void remove_dispatch(ffi::String token, uint32_t type_index) {
     std::vector<ffi::Function>* table = &dispatch_table_[token];
     if (table->size() <= type_index) {
       return;
@@ -155,7 +155,7 @@ class IRDocsifierFunctor {
    * \param type_index The TVM object type index.
    * \return Returns the functor if the lookup succeeds, nullptr otherwise.
    */
-  const ffi::Function* LookupDispatchTable(const String& token, uint32_t type_index) const {
+  const ffi::Function* LookupDispatchTable(const ffi::String& token, uint32_t type_index) const {
     auto it = dispatch_table_.find(token);
     if (it == dispatch_table_.end()) {
       return nullptr;

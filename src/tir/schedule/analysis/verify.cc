@@ -56,19 +56,20 @@ class SRefTreeVerifier : public StmtVisitor {
     }
     ICHECK(self_->stmt2ref.count(block))
         << "InternalError: A BlockNode should appear in sref map, but it didn't\n"
-        << GetRef<Stmt>(block);
+        << ffi::GetRef<Stmt>(block);
     ++n_sref_visited_;
     ++n_block_sref_visited_;
     const StmtSRef& sref = self_->stmt2ref.at(block);
     ICHECK(self_->block_info.count(sref))
         << "InternalError: Cannot find scope information of the BlockNode:\n"
-        << GetRef<Stmt>(block);
+        << ffi::GetRef<Stmt>(block);
     ICHECK(sref->parent == ancestors_.back())
         << "InternalError: Parent information mismatch for BlockNode:\n"
-        << GetRef<Stmt>(block) << "\nIts parent is supposed to be:\n"
-        << GetRef<Stmt>(ancestors_.back()->stmt) << "\nHowever, its parent is incorrect and is:\n"
-        << (sref->parent ? Optional<Stmt>(GetRef<Stmt>(sref->parent->stmt))
-                         : Optional<Stmt>(std::nullopt));
+        << ffi::GetRef<Stmt>(block) << "\nIts parent is supposed to be:\n"
+        << ffi::GetRef<Stmt>(ancestors_.back()->stmt)
+        << "\nHowever, its parent is incorrect and is:\n"
+        << (sref->parent ? ffi::Optional<Stmt>(ffi::GetRef<Stmt>(sref->parent->stmt))
+                         : ffi::Optional<Stmt>(std::nullopt));
     ancestors_.push_back(sref.operator->());
     if (block->init.defined()) {
       ++init_block_depth_;
@@ -88,16 +89,17 @@ class SRefTreeVerifier : public StmtVisitor {
     }
     ICHECK(self_->stmt2ref.count(loop))
         << "InternalError: A ForNode should appear in sref map, but it didn't\n"
-        << GetRef<Stmt>(loop);
+        << ffi::GetRef<Stmt>(loop);
     ++n_sref_visited_;
     const StmtSRef& sref = self_->stmt2ref.at(loop);
-    Optional<Stmt> stmt = std::nullopt;
+    ffi::Optional<Stmt> stmt = std::nullopt;
     ICHECK(sref->parent == ancestors_.back())
         << "InternalError: Parent information mismatch for ForNode:\n"
-        << GetRef<Stmt>(loop) << "\nIts parent is supposed to be:\n"
-        << GetRef<Stmt>(ancestors_.back()->stmt) << "\nHowever, its parent is incorrect and is:\n"
-        << (sref->parent ? Optional<Stmt>(GetRef<Stmt>(sref->parent->stmt))
-                         : Optional<Stmt>(std::nullopt));
+        << ffi::GetRef<Stmt>(loop) << "\nIts parent is supposed to be:\n"
+        << ffi::GetRef<Stmt>(ancestors_.back()->stmt)
+        << "\nHowever, its parent is incorrect and is:\n"
+        << (sref->parent ? ffi::Optional<Stmt>(ffi::GetRef<Stmt>(sref->parent->stmt))
+                         : ffi::Optional<Stmt>(std::nullopt));
     ancestors_.push_back(sref.operator->());
     StmtVisitor::VisitStmt_(loop);
     ancestors_.pop_back();

@@ -86,7 +86,7 @@ def test_vector_comparison(target, dev, dtype):
 
     # Verify we generate the boolx4 type declaration and the OpSelect
     # v4{float,half,int} instruction
-    assembly = f.imported_modules[0].get_source()
+    assembly = f.imports[0].inspect_source()
     matches = re.findall("%v4bool = OpTypeVector %bool 4", assembly)
     assert len(matches) == 1
     matches = re.findall("OpSelect %v4.*", assembly)
@@ -99,7 +99,7 @@ def test_array_copy(dev, dtype, fuzz_seed):
     log_arr_size = np.random.uniform(low=np.log(1), high=np.log(32768))
     arr_size = np.exp(log_arr_size).astype(int)
     a_np = np.random.uniform(size=(arr_size,)).astype(dtype)
-    a = tvm.nd.empty((arr_size,), dtype, dev).copyfrom(a_np)
+    a = tvm.runtime.empty((arr_size,), dtype, dev).copyfrom(a_np)
     b_np = a.numpy()
     tvm.testing.assert_allclose(a_np, b_np)
     tvm.testing.assert_allclose(a_np, a.numpy())
@@ -123,8 +123,10 @@ def test_array_vectorize_add(target, dev, dtype):
     sch.bind(xi, "threadIdx.x")
     f = tvm.compile(sch.mod, target=target)
 
-    a = tvm.nd.empty((arr_size,), A.dtype, dev).copyfrom(np.random.uniform(size=(arr_size, lanes)))
-    c = tvm.nd.empty((arr_size,), B.dtype, dev)
+    a = tvm.runtime.empty((arr_size,), A.dtype, dev).copyfrom(
+        np.random.uniform(size=(arr_size, lanes))
+    )
+    c = tvm.runtime.empty((arr_size,), B.dtype, dev)
     f(a, c)
     tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
@@ -146,8 +148,8 @@ def test_vulkan_bool_load(target, dev):
 
     a_np = np.random.uniform(size=arr_size) > 0.5
     b_np = np.zeros((arr_size,), dtype="int32")
-    a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(b_np, dev)
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.tensor(b_np, dev)
     f(a, b)
     ref = a_np.astype(np.int32)
     tvm.testing.assert_allclose(b.numpy(), ref)
@@ -198,8 +200,8 @@ def test_vulkan_constant_passing(target, dev, vulkan_parameter_impl, vulkan_para
 
     n = 1024
     scalars = np.array([1 for _ in scalars]).astype(dtype)
-    a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-    b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
+    a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
+    b = tvm.runtime.tensor(np.zeros(n, dtype=B.dtype), dev)
     f_add(*scalars, a, b)
 
     tvm.testing.assert_allclose(a.numpy() + sum(scalars), b.numpy())
@@ -244,13 +246,13 @@ def test_vulkan_while_if(target, dev):
     # Build
     func = tvm.compile(sch.mod, target=target)
 
-    a = tvm.nd.array(np.array([5], dtype=A.dtype), dev)
-    b = tvm.nd.array(np.zeros(n, dtype=A.dtype), dev)
+    a = tvm.runtime.tensor(np.array([5], dtype=A.dtype), dev)
+    b = tvm.runtime.tensor(np.zeros(n, dtype=A.dtype), dev)
     func(a, b)
     tvm.testing.assert_allclose(b.numpy(), [55])
 
-    a = tvm.nd.array(np.array([-5], dtype=A.dtype), dev)
-    b = tvm.nd.array(np.zeros(n, dtype=A.dtype), dev)
+    a = tvm.runtime.tensor(np.array([-5], dtype=A.dtype), dev)
+    b = tvm.runtime.tensor(np.zeros(n, dtype=A.dtype), dev)
     func(a, b)
     tvm.testing.assert_allclose(b.numpy(), [210])
 
@@ -295,8 +297,8 @@ def test_vulkan_local_threadidx(target, dev):
     n = 32
     a_np = np.arange(n).astype(dtype=A.dtype)
     b_np = np.zeros((n,), dtype="int32")
-    a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(b_np, dev)
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.tensor(b_np, dev)
     func(a, b)
     tvm.testing.assert_allclose(b.numpy(), a_np)
 
@@ -386,9 +388,9 @@ class TestVectorizedIndices:
         f = tvm.compile(mod, target=target)
 
         a_np, reorder_np, b_np = ref_data
-        a = tvm.nd.array(a_np, dev)
-        r = tvm.nd.array(reorder_np, dev)
-        b = tvm.nd.array(np.zeros(shape=b_np.shape, dtype="int32"), dev)
+        a = tvm.runtime.tensor(a_np, dev)
+        r = tvm.runtime.tensor(reorder_np, dev)
+        b = tvm.runtime.tensor(np.zeros(shape=b_np.shape, dtype="int32"), dev)
         f(a, r, b)
         tvm.testing.assert_allclose(b.numpy(), b_np)
 
@@ -426,7 +428,7 @@ def test_negative_operand_divmod(target, dev):
 
     built = tvm.compile(func, target=target)
 
-    a_dev = tvm.nd.empty([N, 2], "int32", dev)
+    a_dev = tvm.runtime.empty([N, 2], "int32", dev)
     built(a_dev)
     a = a_dev.numpy()
 
@@ -538,9 +540,9 @@ def test_cooperative_matrix(out_dtype):
 
         dev = tvm.device(target, 0)
 
-        A = tvm.nd.array(np.random.randn(M, K).astype("float16"), dev)
-        B = tvm.nd.array(np.random.randn(K, N).astype("float16"), dev)
-        C = tvm.nd.array(np.random.randn(M, N).astype(out_dtype), dev)
+        A = tvm.runtime.tensor(np.random.randn(M, K).astype("float16"), dev)
+        B = tvm.runtime.tensor(np.random.randn(K, N).astype("float16"), dev)
+        C = tvm.runtime.tensor(np.random.randn(M, N).astype(out_dtype), dev)
 
         f(A, B, C)
 
@@ -614,8 +616,8 @@ def test_unary():
         else:
             data = np.random.uniform(0.1, 0.9, size=n)
 
-        a = tvm.nd.array(data.astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(n, dtype=A.dtype), dev)
+        a = tvm.runtime.tensor(data.astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(n, dtype=A.dtype), dev)
         func(a, b)
         tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=1e-3, rtol=1e-3)
 

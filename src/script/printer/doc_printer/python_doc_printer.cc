@@ -182,7 +182,7 @@ class PythonDocPrinter : public DocPrinter {
   }
 
   template <typename DocType>
-  void PrintJoinedDocs(const Array<DocType>& docs, const std::string& separator) {
+  void PrintJoinedDocs(const ffi::Array<DocType>& docs, const std::string& separator) {
     bool is_first = true;
     for (auto& doc : docs) {
       if (is_first) {
@@ -194,7 +194,7 @@ class PythonDocPrinter : public DocPrinter {
     }
   }
 
-  void PrintIndentedBlock(const Array<StmtDoc>& docs) {
+  void PrintIndentedBlock(const ffi::Array<StmtDoc>& docs) {
     IncreaseIndent();
     for (const StmtDoc& d : docs) {
       NewLine();
@@ -207,7 +207,7 @@ class PythonDocPrinter : public DocPrinter {
     DecreaseIndent();
   }
 
-  void PrintDecorators(const Array<ExprDoc>& decorators) {
+  void PrintDecorators(const ffi::Array<ExprDoc>& decorators) {
     for (const ExprDoc& decorator : decorators) {
       output_ << "@";
       PrintDoc(decorator);
@@ -252,7 +252,7 @@ class PythonDocPrinter : public DocPrinter {
   }
 
   void MaybePrintCommentInline(const StmtDoc& stmt) {
-    if (stmt->comment.defined()) {
+    if (stmt->comment.has_value()) {
       const std::string& comment = stmt->comment.value();
       bool has_newline = std::find(comment.begin(), comment.end(), '\n') != comment.end();
       CHECK(!has_newline) << "ValueError: the comment string of " << stmt->GetTypeKey()
@@ -265,7 +265,7 @@ class PythonDocPrinter : public DocPrinter {
   }
 
   void MaybePrintCommenMultiLines(const StmtDoc& stmt, bool new_line = false) {
-    if (stmt->comment.defined()) {
+    if (stmt->comment.has_value()) {
       std::vector<std::string> comment_lines = support::Split(stmt->comment.value(), '\n');
       bool first_line = true;
       size_t start_pos = output_.tellp();
@@ -285,7 +285,7 @@ class PythonDocPrinter : public DocPrinter {
     }
   }
 
-  void PrintDocString(const String& comment) {
+  void PrintDocString(const ffi::String& comment) {
     size_t start_pos = output_.tellp();
     output_ << "\"\"\"";
 
@@ -304,7 +304,7 @@ class PythonDocPrinter : public DocPrinter {
     underlines_exempted_.push_back({start_pos, end_pos});
   }
 
-  void PrintBlockComment(const String& comment) {
+  void PrintBlockComment(const ffi::String& comment) {
     IncreaseIndent();
     NewLine();
     PrintDocString(comment);
@@ -313,8 +313,8 @@ class PythonDocPrinter : public DocPrinter {
 };
 
 void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
-  const ObjectRef& value = doc->value;
-  if (!value.defined()) {
+  const ffi::Any& value = doc->value;
+  if (value == nullptr) {
     output_ << "None";
   } else if (const auto* int_imm = value.as<IntImmNode>()) {
     if (int_imm->dtype.is_bool()) {
@@ -351,10 +351,10 @@ void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
       output_ << float_imm->value;
     }
 
-  } else if (const auto* string_obj = value.as<ffi::StringObj>()) {
-    output_ << "\"" << support::StrEscape(string_obj->data, string_obj->size) << "\"";
+  } else if (const auto opt_str = value.as<ffi::String>()) {
+    output_ << "\"" << support::StrEscape((*opt_str).data(), (*opt_str).size()) << "\"";
   } else {
-    LOG(FATAL) << "TypeError: Unsupported literal value type: " << value->GetTypeKey();
+    LOG(FATAL) << "TypeError: Unsupported literal value type: " << value.GetTypeKey();
   }
 }
 
@@ -484,7 +484,7 @@ void PythonDocPrinter::PrintTypedDoc(const CallDoc& doc) {
     } else {
       output_ << ", ";
     }
-    const String& keyword = doc->kwargs_keys[i];
+    const ffi::String& keyword = doc->kwargs_keys[i];
     output_ << keyword;
     output_ << "=";
     PrintDoc(doc->kwargs_values[i]);
@@ -663,7 +663,7 @@ void PythonDocPrinter::PrintTypedDoc(const ReturnDoc& doc) {
 
 void PythonDocPrinter::PrintTypedDoc(const FunctionDoc& doc) {
   for (const AssignDoc& arg_doc : doc->args) {
-    ICHECK(arg_doc->comment == nullptr) << "Function arg cannot have comment attached to them.";
+    ICHECK(!arg_doc->comment.has_value()) << "Function arg cannot have comment attached to them.";
   }
 
   PrintDecorators(doc->decorators);
@@ -682,7 +682,7 @@ void PythonDocPrinter::PrintTypedDoc(const FunctionDoc& doc) {
 
   output_ << ":";
 
-  if (doc->comment.defined()) {
+  if (doc->comment.has_value()) {
     PrintBlockComment(doc->comment.value());
   }
   PrintIndentedBlock(doc->body);
@@ -696,25 +696,25 @@ void PythonDocPrinter::PrintTypedDoc(const ClassDoc& doc) {
   PrintDoc(doc->name);
   output_ << ":";
 
-  if (doc->comment.defined()) {
+  if (doc->comment.has_value()) {
     PrintBlockComment(doc->comment.value());
   }
   PrintIndentedBlock(doc->body);
 }
 
 void PythonDocPrinter::PrintTypedDoc(const CommentDoc& doc) {
-  if (doc->comment.defined()) {
+  if (doc->comment.has_value()) {
     MaybePrintCommenMultiLines(doc, false);
   }
 }
 
 void PythonDocPrinter::PrintTypedDoc(const DocStringDoc& doc) {
-  if (doc->comment.defined() && !doc->comment.value().empty()) {
+  if (doc->comment.has_value() && !doc->comment.value().empty()) {
     PrintDocString(doc->comment.value());
   }
 }
 
-String DocToPythonScript(Doc doc, const PrinterConfig& cfg) {
+ffi::String DocToPythonScript(Doc doc, const PrinterConfig& cfg) {
   if (cfg->num_context_lines < 0) {
     cfg->num_context_lines = std::numeric_limits<int32_t>::max();
   }
@@ -728,10 +728,10 @@ String DocToPythonScript(Doc doc, const PrinterConfig& cfg) {
   return result.substr(0, last_space);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("script.printer.DocToPythonScript", DocToPythonScript);
-});
+}
 
 }  // namespace printer
 }  // namespace script

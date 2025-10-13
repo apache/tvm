@@ -20,7 +20,7 @@
 #include <dlpack/dlpack.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -51,10 +51,10 @@ using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
 class NNAPIRuntime : public JSONRuntimeBase {
  public:
   explicit NNAPIRuntime(const std::string& symbol_name, const std::string& graph_json,
-                        const Array<String>& const_names)
+                        const ffi::Array<ffi::String>& const_names)
       : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
 
-  const char* type_key() const final { return "nnapi"; }
+  const char* kind() const final { return "nnapi"; }
 
 #ifdef TVM_GRAPH_EXECUTOR_NNAPI
   struct CompiledModel {
@@ -70,7 +70,7 @@ class NNAPIRuntime : public JSONRuntimeBase {
 
   std::optional<CompiledModel> compiled_model_;
 
-  void Init(const Array<NDArray>& consts) final {
+  void Init(const ffi::Array<Tensor>& consts) final {
     ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required constants.";
     SetupConstants(consts);
@@ -225,7 +225,7 @@ class NNAPIRuntime : public JSONRuntimeBase {
   std::unordered_map<uint32_t, NNAPIOperand> node_output_map_;
 
 #else   // ifdef TVM_GRAPH_EXECUTOR_NNAPI
-  void Init(const Array<NDArray>& consts) final {
+  void Init(const ffi::Array<Tensor>& consts) final {
     LOG(FATAL) << "NNAPI runtime is not enabled. Build with USE_NNAPI_RUNTIME to enable it.";
   }
 
@@ -235,18 +235,18 @@ class NNAPIRuntime : public JSONRuntimeBase {
 #endif  // ifdef TVM_GRAPH_EXECUTOR_NNAPI
 };
 
-runtime::Module NNAPIRuntimeCreate(const String& symbol_name, const String& graph_json,
-                                   const Array<String>& const_names) {
-  auto n = make_object<NNAPIRuntime>(symbol_name, graph_json, const_names);
-  return runtime::Module(n);
+ffi::Module NNAPIRuntimeCreate(const ffi::String& symbol_name, const ffi::String& graph_json,
+                               const ffi::Array<ffi::String>& const_names) {
+  auto n = ffi::make_object<NNAPIRuntime>(symbol_name, graph_json, const_names);
+  return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.nnapi_runtime_create", NNAPIRuntimeCreate)
-      .def("runtime.module.loadbinary_nnapi", JSONRuntimeBase::LoadFromBinary<NNAPIRuntime>);
-});
+      .def("ffi.Module.load_from_bytes.nnapi", JSONRuntimeBase::LoadFromBytes<NNAPIRuntime>);
+}
 
 }  // namespace contrib
 }  // namespace runtime

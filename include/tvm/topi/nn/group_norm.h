@@ -37,7 +37,7 @@ namespace nn {
 using namespace tvm::te;
 
 inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& beta,
-                         int num_groups, int channel_axis, const Array<Integer>& axes,
+                         int num_groups, int channel_axis, const ffi::Array<Integer>& axes,
                          double epsilon, std::string name = "T_group_norm",
                          std::string tag = kInjective) {
   const auto& data_type = data->dtype;
@@ -50,11 +50,11 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   bool is_float16 = data_type == DataType::Float(16);
   // reshape data C -> G, C/G
   int ndim = data->shape.size();
-  channel_axis = GetRealAxis(static_cast<int>(ndim), Array<Integer>({channel_axis}))[0];
+  channel_axis = GetRealAxis(static_cast<int>(ndim), ffi::Array<Integer>({channel_axis}))[0];
 
   auto shape = data->shape;
   auto group_size = floordiv(shape[channel_axis], num_groups);
-  auto new_shape = Array<PrimExpr>();
+  auto new_shape = ffi::Array<PrimExpr>();
   for (int i = 0; i < ndim; ++i) {
     if (i == channel_axis) {
       new_shape.push_back(num_groups);
@@ -82,7 +82,7 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   // get the new axes to normalize after reshape
   std::vector<int> new_axes{channel_axis + 1};
   for (auto axis : axes) {
-    int new_axis = GetRealAxis(static_cast<int>(ndim), Array<Integer>({axis}))[0];
+    int new_axis = GetRealAxis(static_cast<int>(ndim), ffi::Array<Integer>({axis}))[0];
     if (new_axis < channel_axis) {
       new_axes.push_back(new_axis);
     } else if (new_axis > channel_axis) {
@@ -100,8 +100,9 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
       MakeReduceTargetShape(new_axes, data_reshaped, /*keepdims=*/false, /*atleast1d=*/true);
   auto func = MakeTupleSumReducer();
 
-  auto compute = [ndim, &new_axes, &reduce_axes, &func, &data_reshaped](const Array<Var>& indices) {
-    Array<PrimExpr> eval_range;
+  auto compute = [ndim, &new_axes, &reduce_axes, &func,
+                  &data_reshaped](const ffi::Array<Var>& indices) {
+    ffi::Array<PrimExpr> eval_range;
     int arg_counter = 0;
     int red_counter = 0;
 
@@ -129,8 +130,8 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   for (auto axis : new_axes) {
     reduce_extent *= data_reshaped->shape[axis];
   }
-  auto group_norm_func = [&](const Array<Var>& indices) {
-    Array<Var> reduce_indices, non_reduce_indices, gamma_indices;
+  auto group_norm_func = [&](const ffi::Array<Var>& indices) {
+    ffi::Array<Var> reduce_indices, non_reduce_indices, gamma_indices;
     for (int i = 0, n = static_cast<int>(indices.size()); i < n; ++i) {
       if (std::find(new_axes.begin(), new_axes.end(), i) != new_axes.end()) {
         reduce_indices.push_back(indices[i]);

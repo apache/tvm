@@ -64,20 +64,20 @@ struct BaseCollectInfo {
    * model weights, and computed tensors that require neither model
    * weights nor runtime arguments (e.g. `R.zeros([16], "float16")`).
    */
-  std::unordered_set<Variant<relax::Var, tir::Var>, ObjectPtrHash, ObjectPtrEqual>
+  std::unordered_set<ffi::Variant<relax::Var, tir::Var>, ObjectPtrHash, ObjectPtrEqual>
       requires_compile_time_param;
 
   /*! \brief Variables that are required at runtime */
-  std::unordered_set<Variant<relax::Var, tir::Var>, ObjectPtrHash, ObjectPtrEqual>
+  std::unordered_set<ffi::Variant<relax::Var, tir::Var>, ObjectPtrHash, ObjectPtrEqual>
       required_at_runtime;
 
  protected:
-  Array<Var> GetCompileTimeOutputsHelper(const Array<Var>& params) const {
+  ffi::Array<Var> GetCompileTimeOutputsHelper(const ffi::Array<Var>& params) const {
     // The output of the compile-time function is in the following order:
     // 1) Any parameter that is required at runtime in the original order, followed by,
     // 2) Any binding that is computable at compile-time and required at runtime in the original
     // order.
-    Array<Var> output;
+    ffi::Array<Var> output;
     for (const auto& param : params) {
       if (required_at_runtime.count(param)) {
         output.push_back(param);
@@ -93,11 +93,12 @@ struct BaseCollectInfo {
     return output;
   }
 
-  Function MakeCompileTimeFunctionHelper(const Array<Var> params, const Array<Binding>& bindings,
-                                         const Array<tir::Var>& output_symbolic_vars,
-                                         const Array<Var>& outputs) const {
-    Array<Binding> output_var_binding;
-    Array<Expr> output_exprs;
+  Function MakeCompileTimeFunctionHelper(const ffi::Array<Var> params,
+                                         const ffi::Array<Binding>& bindings,
+                                         const ffi::Array<tir::Var>& output_symbolic_vars,
+                                         const ffi::Array<Var>& outputs) const {
+    ffi::Array<Binding> output_var_binding;
+    ffi::Array<Expr> output_exprs;
     if (output_symbolic_vars.size()) {
       output_exprs.push_back(
           ShapeExpr(output_symbolic_vars.Map([](tir::Var var) -> PrimExpr { return var; })));
@@ -131,14 +132,14 @@ struct BaseCollectInfo {
 
 struct GlobalCollectInfo : public BaseCollectInfo {
   // The original functions
-  Array<Function> orig_functions;
+  ffi::Array<Function> orig_functions;
   // The parameters of the compile-time function.
-  Array<Var> params;
+  ffi::Array<Var> params;
   // The cross-function mapping between variables.
-  Map<relax::Var, Expr> var_remap;
+  ffi::Map<relax::Var, Expr> var_remap;
   // The cross-function between between TIR variables.
-  Map<tir::Var, PrimExpr> tir_var_remap;
-  Array<tir::Var> GetPropagatedSymbolicVariables() const {
+  ffi::Map<tir::Var, PrimExpr> tir_var_remap;
+  ffi::Array<tir::Var> GetPropagatedSymbolicVariables() const {
     auto vars_from_original_params =
         DefinableTIRVarsInStructInfo(TupleStructInfo(params.Map(GetStructInfo)));
     auto vars_from_transformed_params = [&]() -> std::unordered_set<tir::Var> {
@@ -147,7 +148,7 @@ struct GlobalCollectInfo : public BaseCollectInfo {
       return {tir_vars.begin(), tir_vars.end()};
     }();
 
-    Array<tir::Var> output;
+    ffi::Array<tir::Var> output;
     for (const auto& tir_var : vars_from_original_params) {
       if (required_at_runtime.count(tir_var) && !vars_from_transformed_params.count(tir_var)) {
         output.push_back(tir_var);
@@ -160,7 +161,7 @@ struct GlobalCollectInfo : public BaseCollectInfo {
     return MakeCompileTimeFunctionHelper(params, computable_at_compile_time,
                                          GetPropagatedSymbolicVariables(), GetCompileTimeOutputs());
   }
-  Array<Var> GetCompileTimeOutputs() const { return GetCompileTimeOutputsHelper(params); }
+  ffi::Array<Var> GetCompileTimeOutputs() const { return GetCompileTimeOutputsHelper(params); }
 };
 struct LocalCollectInfo : public BaseCollectInfo {
   /* \brief The analyzed function */
@@ -171,15 +172,16 @@ struct LocalCollectInfo : public BaseCollectInfo {
 
   GlobalCollectInfo* global_info = nullptr;
 
-  Array<Var> GetCompileTimeInputs() const {
-    return Array<Var>(orig_func->params.begin() + num_runtime_params, orig_func->params.end());
+  ffi::Array<Var> GetCompileTimeInputs() const {
+    return ffi::Array<Var>(orig_func->params.begin() + num_runtime_params, orig_func->params.end());
   }
 
-  Array<Var> GetRuntimeInputs() const {
-    return Array<Var>(orig_func->params.begin(), orig_func->params.begin() + num_runtime_params);
+  ffi::Array<Var> GetRuntimeInputs() const {
+    return ffi::Array<Var>(orig_func->params.begin(),
+                           orig_func->params.begin() + num_runtime_params);
   }
 
-  Array<tir::Var> GetPropagatedSymbolicVariables() const {
+  ffi::Array<tir::Var> GetPropagatedSymbolicVariables() const {
     auto vars_from_any_param =
         DefinableTIRVarsInStructInfo(TupleStructInfo(orig_func->params.Map(GetStructInfo)));
 
@@ -195,7 +197,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
       return {tir_var_vec.begin(), tir_var_vec.end()};
     }();
 
-    Array<tir::Var> output;
+    ffi::Array<tir::Var> output;
     for (const auto& tir_var : vars_from_any_param) {
       if (required_at_runtime.count(tir_var) && !vars_from_runtime_params.count(tir_var) &&
           !vars_from_transformed_params.count(tir_var)) {
@@ -205,7 +207,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
     return output;
   }
 
-  Array<Var> GetCompileTimeOutputs() const {
+  ffi::Array<Var> GetCompileTimeOutputs() const {
     return GetCompileTimeOutputsHelper(GetCompileTimeInputs());
   }
 
@@ -216,29 +218,29 @@ struct LocalCollectInfo : public BaseCollectInfo {
   }
 
   Function MakeRuntimeFunction() const {
-    Array<Binding> bindings;
+    ffi::Array<Binding> bindings;
 
     // Any parameter that isn't available until runtime must be an
     // input, along with any output from the compile-time function.
     // Compile-time outputs must have a fresh non-dataflow var to
     // serve as the parameter.  This trivial binding will later be
     // removed with CanonicalizeBindings.
-    Array<Var> params = GetRuntimeInputs();
+    ffi::Array<Var> params = GetRuntimeInputs();
     auto propagated_tir_vars = [&]() {
-      Array<tir::Var> local_tir_vars = GetPropagatedSymbolicVariables();
+      ffi::Array<tir::Var> local_tir_vars = GetPropagatedSymbolicVariables();
       if (!global_info) {
         return local_tir_vars;
       }
       // When global lifting is enabled, the compile-time outputs are the global outputs, but the
       // variables in the global outputs to the local variables.
-      Map<tir::Var, tir::Var> reverse_map;
+      ffi::Map<tir::Var, tir::Var> reverse_map;
       for (const auto& var : local_tir_vars) {
         if (auto it = global_info->tir_var_remap.find(var);
             it != global_info->tir_var_remap.end()) {
           reverse_map.Set(Downcast<tir::Var>((*it).second), var);
         }
       }
-      Array<tir::Var> global_tir_vars = global_info->GetPropagatedSymbolicVariables();
+      ffi::Array<tir::Var> global_tir_vars = global_info->GetPropagatedSymbolicVariables();
       global_tir_vars = global_tir_vars.Map([&](const tir::Var& var) {
         if (auto it = reverse_map.find(var); it != reverse_map.end()) {
           return Downcast<tir::Var>((*it).second);
@@ -256,20 +258,20 @@ struct LocalCollectInfo : public BaseCollectInfo {
       Var shape_expr("vars_from_compile_time_params", shape_sinfo);
       params.push_back(shape_expr);
     }
-    Array<Var> compile_time_outputs = [&]() {
-      Array<Var> local_outputs = GetCompileTimeOutputs();
+    ffi::Array<Var> compile_time_outputs = [&]() {
+      ffi::Array<Var> local_outputs = GetCompileTimeOutputs();
       if (!global_info) {
         return local_outputs;
       }
       // When global lifting is enabled, the compile-time outputs are the global outputs, but the
       // variables in the global outputs to the local variables.
-      Map<Var, Var> reverse_map;
+      ffi::Map<Var, Var> reverse_map;
       for (const auto& var : local_outputs) {
         if (auto it = global_info->var_remap.find(var); it != global_info->var_remap.end()) {
           reverse_map.Set(Downcast<Var>((*it).second), var);
         }
       }
-      Array<Var> global_outputs = global_info->GetCompileTimeOutputs();
+      ffi::Array<Var> global_outputs = global_info->GetCompileTimeOutputs();
       global_outputs = global_outputs.Map([&](const Var& var) {
         if (auto it = reverse_map.find(var); it != reverse_map.end()) {
           return Downcast<Var>((*it).second);
@@ -378,7 +380,7 @@ class BaseLiftableBindingCollector : public ExprVisitor {
     return true;
   }
 
-  std::unordered_set<Variant<Var, tir::Var>, ObjectPtrHash, ObjectPtrEqual> liftable_vars_;
+  std::unordered_set<ffi::Variant<Var, tir::Var>, ObjectPtrHash, ObjectPtrEqual> liftable_vars_;
   bool is_in_dataflow_block_{false};
 };
 
@@ -389,32 +391,31 @@ class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
     visitor(func);
     visitor.info_.orig_func = func;
 
-    auto set_union =
-        [&](std::unordered_set<Variant<relax::Var, tir::Var>, ObjectPtrHash, ObjectPtrEqual>&
-                target_set,
-            const std::unordered_set<Variant<relax::Var, tir::Var>, ObjectPtrHash, ObjectPtrEqual>&
-                source_set,
-            const Map<relax::Var, Expr>& var_remap, const Map<tir::Var, PrimExpr>& tir_var_remap) {
-          // In-place update the set in global info by unioning with the local set, variable
-          // mappings are applied.
-          for (const auto& relax_or_tir_var : source_set) {
-            if (relax_or_tir_var.as<relax::VarNode>()) {
-              if (auto it = var_remap.find(Downcast<Var>(relax_or_tir_var));
-                  it != var_remap.end()) {
-                target_set.insert(Downcast<relax::Var>((*it).second));
-              } else {
-                target_set.insert(Downcast<relax::Var>(relax_or_tir_var));
-              }
-            } else {
-              if (auto it = tir_var_remap.find(Downcast<tir::Var>(relax_or_tir_var));
-                  it != tir_var_remap.end()) {
-                target_set.insert(Downcast<tir::Var>((*it).second));
-              } else {
-                target_set.insert(Downcast<tir::Var>(relax_or_tir_var));
-              }
-            }
+    auto set_union = [&](std::unordered_set<ffi::Variant<relax::Var, tir::Var>, ObjectPtrHash,
+                                            ObjectPtrEqual>& target_set,
+                         const std::unordered_set<ffi::Variant<relax::Var, tir::Var>, ObjectPtrHash,
+                                                  ObjectPtrEqual>& source_set,
+                         const ffi::Map<relax::Var, Expr>& var_remap,
+                         const ffi::Map<tir::Var, PrimExpr>& tir_var_remap) {
+      // In-place update the set in global info by unioning with the local set, variable
+      // mappings are applied.
+      for (const auto& relax_or_tir_var : source_set) {
+        if (relax_or_tir_var.as<relax::VarNode>()) {
+          if (auto it = var_remap.find(Downcast<Var>(relax_or_tir_var)); it != var_remap.end()) {
+            target_set.insert(Downcast<relax::Var>((*it).second));
+          } else {
+            target_set.insert(Downcast<relax::Var>(relax_or_tir_var));
           }
-        };
+        } else {
+          if (auto it = tir_var_remap.find(Downcast<tir::Var>(relax_or_tir_var));
+              it != tir_var_remap.end()) {
+            target_set.insert(Downcast<tir::Var>((*it).second));
+          } else {
+            target_set.insert(Downcast<tir::Var>(relax_or_tir_var));
+          }
+        }
+      }
+    };
 
     if (global_info) {
       set_union(global_info->requires_compile_time_param, visitor.info_.requires_compile_time_param,
@@ -508,8 +509,8 @@ class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
 /*! \brief Visitor to find the correspondence between parameters in multiple functions. */
 class ParamRemapper : private ExprFunctor<void(const Expr&, const Expr&)> {
  public:
-  static std::pair<Map<Var, Expr>, Map<tir::Var, PrimExpr>> GetParamMapping(
-      const Array<Function>& functions) {
+  static std::pair<ffi::Map<Var, Expr>, ffi::Map<tir::Var, PrimExpr>> GetParamMapping(
+      const ffi::Array<Function>& functions) {
     ParamRemapper mapper;
     if (functions.size()) {
       auto num_inputs_0 = functions[0]->GetAttr<Integer>(attr::kNumInput).value()->value;
@@ -536,15 +537,15 @@ class ParamRemapper : private ExprFunctor<void(const Expr&, const Expr&)> {
  private:
   void VisitExpr_(const VarNode* lhs_var, const Expr& rhs_expr) final {
     auto rhs_var = Downcast<Var>(rhs_expr);
-    if (auto it = var_remap_.find(GetRef<Var>(lhs_var)); it != var_remap_.end()) {
+    if (auto it = var_remap_.find(ffi::GetRef<Var>(lhs_var)); it != var_remap_.end()) {
       CHECK((*it).second.same_as(rhs_var));
     } else {
-      var_remap_.Set(GetRef<Var>(lhs_var), rhs_var);
+      var_remap_.Set(ffi::GetRef<Var>(lhs_var), rhs_var);
     }
     CHECK(tvm::ffi::StructuralEqual::Equal(lhs_var->struct_info_, rhs_var->struct_info_,
                                            /*map_free_vars=*/true))
         << "The struct info of the parameters should be the same for all target functions";
-    auto lhs_tir_vars = DefinableTIRVarsInStructInfo(GetStructInfo(GetRef<Var>(lhs_var)));
+    auto lhs_tir_vars = DefinableTIRVarsInStructInfo(GetStructInfo(ffi::GetRef<Var>(lhs_var)));
     auto rhs_tir_vars = DefinableTIRVarsInStructInfo(GetStructInfo(rhs_expr));
     ICHECK_EQ(lhs_tir_vars.size(), rhs_tir_vars.size());
     for (size_t i = 0; i < lhs_tir_vars.size(); i++) {
@@ -556,15 +557,15 @@ class ParamRemapper : private ExprFunctor<void(const Expr&, const Expr&)> {
     }
   }
 
-  Map<Var, Expr> var_remap_;
-  Map<tir::Var, PrimExpr> tir_var_remap_;
+  ffi::Map<Var, Expr> var_remap_;
+  ffi::Map<tir::Var, PrimExpr> tir_var_remap_;
 };
 
 class GlobalLiftableBindingCollector : public BaseLiftableBindingCollector {
  public:
-  static GlobalCollectInfo Collect(const Array<Function>& functions,
-                                   const Map<Var, Expr>& var_remap,
-                                   const Map<tir::Var, PrimExpr>& tir_var_remap) {
+  static GlobalCollectInfo Collect(const ffi::Array<Function>& functions,
+                                   const ffi::Map<Var, Expr>& var_remap,
+                                   const ffi::Map<tir::Var, PrimExpr>& tir_var_remap) {
     GlobalLiftableBindingCollector collector(var_remap, tir_var_remap);
     ICHECK(functions.size());
     for (const auto& func : functions) {
@@ -574,9 +575,9 @@ class GlobalLiftableBindingCollector : public BaseLiftableBindingCollector {
       }
       collector(func);
     }
-    Array<Var> params(functions[0]->params.begin() +
-                          functions[0]->GetAttr<Integer>(attr::kNumInput).value()->value,
-                      functions[0]->params.end());
+    ffi::Array<Var> params(functions[0]->params.begin() +
+                               functions[0]->GetAttr<Integer>(attr::kNumInput).value()->value,
+                           functions[0]->params.end());
     // todo(@tvm-team): use c++20 designated initializers when windows CI supports it
     GlobalCollectInfo info = GlobalCollectInfo();
     info.orig_functions = functions;
@@ -611,8 +612,8 @@ class GlobalLiftableBindingCollector : public BaseLiftableBindingCollector {
   }
 
  private:
-  GlobalLiftableBindingCollector(const Map<Var, Expr>& var_remap,
-                                 const Map<tir::Var, PrimExpr> tir_var_remap)
+  GlobalLiftableBindingCollector(const ffi::Map<Var, Expr>& var_remap,
+                                 const ffi::Map<tir::Var, PrimExpr> tir_var_remap)
       : var_remap_(var_remap), tir_var_remap_(tir_var_remap) {}
   void VisitBinding(const Binding& binding) override {
     CHECK(!binding->IsInstance<MatchCastNode>()) << "MatchCast is not supported in global lifting";
@@ -633,9 +634,9 @@ class GlobalLiftableBindingCollector : public BaseLiftableBindingCollector {
   // The cross-function mapping between variables. This is initialized with the mapping from the
   // function parameters, and is updated with the mapping between binding variables asthe collector
   // visits the bindings.
-  Map<Var, Expr> var_remap_;
+  ffi::Map<Var, Expr> var_remap_;
   // The cross-function between between TIR variables.
-  Map<tir::Var, PrimExpr> tir_var_remap_;
+  ffi::Map<tir::Var, PrimExpr> tir_var_remap_;
   std::vector<Binding> unified_bindings_;
   // The mapping between the unified bindings and the original bindings in different functions.
   // The unified binding is the binding with all variables replaced by the unified variables as
@@ -678,7 +679,7 @@ class ConsumeBundledParams : public ExprMutator {
       builder_->Emit(
           Call(call_pure_packed,
                {builtin_tuple_reset_item, tuple_get_item->tuple, PrimValue(tuple_get_item->index)},
-               tvm::Attrs(), {TupleStructInfo(Array<StructInfo>{})}));
+               tvm::Attrs(), {TupleStructInfo(ffi::Array<StructInfo>{})}));
     } else {
       ExprMutator::VisitBinding_(binding, tuple_get_item);
     }
@@ -700,10 +701,10 @@ class ConsumeBundledParams : public ExprMutator {
 };
 
 std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
-    const IRModule& mod, const Variant<Bool, Array<String>>& shared_transform) {
+    const IRModule& mod, const ffi::Variant<Bool, ffi::Array<ffi::String>>& shared_transform) {
   std::vector<std::pair<GlobalVar, Function>> target_functions;
-  if (shared_transform.as<Array<String>>().value_or(Array<String>{}).size()) {
-    auto names = shared_transform.as<Array<String>>().value();
+  if (shared_transform.as<ffi::Array<ffi::String>>().value_or(ffi::Array<ffi::String>{}).size()) {
+    auto names = shared_transform.as<ffi::Array<ffi::String>>().value();
     for (const auto& name : names) {
       auto gvar = mod->global_var_map_.Get(name);
       CHECK(gvar) << "When LiftTransformParams is called with a list of function names, "
@@ -752,11 +753,11 @@ std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
 
 namespace transform {
 
-Pass PartitionTransformParams(Variant<Bool, Array<String>> shared_transform) {
+Pass PartitionTransformParams(ffi::Variant<Bool, ffi::Array<ffi::String>> shared_transform) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     std::optional<GlobalCollectInfo> global_collect_info;
 
-    CHECK((shared_transform.as<Bool>() || shared_transform.as<Array<String>>()))
+    CHECK((shared_transform.as<Bool>() || shared_transform.as<ffi::Array<ffi::String>>()))
         << "shared_transform should be a boolean or an array of function names";
 
     auto target_functions = GetTargetFunctions(mod, shared_transform);
@@ -783,7 +784,7 @@ Pass PartitionTransformParams(Variant<Bool, Array<String>> shared_transform) {
       updated_runtime_functions->Add(gvar, new_runtime_func);
     }
 
-    Map<String, Function> lifted_transform_functions;
+    ffi::Map<ffi::String, Function> lifted_transform_functions;
     if (global_collect_info.has_value()) {
       auto global_transform = global_collect_info.value().MakeCompileTimeFunc();
       lifted_transform_functions.Set("transform_params", global_transform);
@@ -818,7 +819,7 @@ Pass PartitionTransformParams(Variant<Bool, Array<String>> shared_transform) {
   return tvm::transform::CreateModulePass(pass_func, 1, "PartitionTransformParams", {});
 }
 
-Pass LiftTransformParams(Variant<Bool, Array<String>> shared_transform) {
+Pass LiftTransformParams(ffi::Variant<Bool, ffi::Array<ffi::String>> shared_transform) {
   // A post-proc utility as as the third step in LiftTransformParams
   //
   // 1. PartitionTransformParams: Partition each function into a
@@ -867,10 +868,10 @@ Pass LiftTransformParams(Variant<Bool, Array<String>> shared_transform) {
       "LiftTransformParams");
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.LiftTransformParams", LiftTransformParams);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

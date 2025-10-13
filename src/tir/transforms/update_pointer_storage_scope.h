@@ -36,7 +36,7 @@ namespace tir {
 class UpdatePointerStorageScope : public StmtExprMutator {
  public:
   explicit UpdatePointerStorageScope(
-      const std::unordered_map<const VarNode*, String>& new_storage_scopes);
+      const std::unordered_map<const VarNode*, ffi::String>& new_storage_scopes);
 
   virtual PrimExpr VisitExpr_(const VarNode*);
   virtual PrimExpr VisitExpr_(const BufferLoadNode*);

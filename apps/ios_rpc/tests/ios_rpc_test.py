@@ -39,7 +39,7 @@ MODES = {"proxy": rpc.connect, "tracker": rpc.connect_tracker, "standalone": rpc
 
 
 # override metal compiler to compile to iphone
-@tvm.register_func("tvm_callback_metal_compile")
+@tvm.register_global_func("tvm_callback_metal_compile")
 def compile_metal(src, target):
     return xcode.compile_metal(src, sdk=sdk)
 
@@ -72,8 +72,8 @@ def test_rpc_module(host, port, key, mode):
     dev = remote.metal(0)
     f1 = remote.load_module("dev_lib.dylib")
     a_np = np.random.uniform(size=1024).astype(A.dtype)
-    a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
     time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
     cost = time_f(a, b).mean
     print("Metal: %g secs/op" % cost)

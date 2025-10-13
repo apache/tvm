@@ -24,7 +24,7 @@
 #ifndef TVM_RUNTIME_ROCM_ROCM_MODULE_H_
 #define TVM_RUNTIME_ROCM_ROCM_MODULE_H_
 
-#include <tvm/runtime/module.h>
+#include <tvm/ffi/extra/module.h>
 
 #include <memory>
 #include <string>
@@ -47,9 +47,9 @@ static constexpr const int kMaxNumGPUs = 32;
  * \param fmap The map function information map of each function.
  * \param rocm_source Optional, rocm source file
  */
-Module ROCMModuleCreate(std::string data, std::string fmt,
-                        std::unordered_map<std::string, FunctionInfo> fmap, std::string rocm_source,
-                        std::string assembly);
+ffi::Module ROCMModuleCreate(std::string data, std::string fmt,
+                             std::unordered_map<std::string, FunctionInfo> fmap,
+                             std::string rocm_source, std::string assembly);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_ROCM_ROCM_MODULE_H_

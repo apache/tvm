@@ -34,7 +34,7 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK({ OpNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { OpNode::RegisterReflection(); }
 
 using ffi::Any;
 using ffi::Function;
@@ -44,47 +44,49 @@ using tir::FLowerIntrinsic;
 using OpRegistry = AttrRegistry<OpRegEntry, Op>;
 
 // find operator by name
-const Op& Op::Get(const String& name) {
+const Op& Op::Get(const ffi::String& name) {
   const OpRegEntry* reg = OpRegistry::Global()->Get(name);
   ICHECK(reg != nullptr) << "AttributeError: Operator " << name << " is not registered";
   return reg->op();
 }
 
 OpRegEntry::OpRegEntry(uint32_t reg_index) {
-  ObjectPtr<OpNode> n = make_object<OpNode>();
+  ObjectPtr<OpNode> n = ffi::make_object<OpNode>();
   n->index_ = reg_index;
   op_ = Op(n);
 }
 
-OpRegEntry& OpRegEntry::RegisterOrGet(const String& name) {
+OpRegEntry& OpRegEntry::RegisterOrGet(const ffi::String& name) {
   return OpRegistry::Global()->RegisterOrGet(name);
 }
 
 // Get attribute map by key
-const AttrRegistryMapContainerMap<Op>& Op::GetAttrMapContainer(const String& attr_name) {
+const AttrRegistryMapContainerMap<Op>& Op::GetAttrMapContainer(const ffi::String& attr_name) {
   return OpRegistry::Global()->GetAttrMap(attr_name);
 }
 
 // Check if a key is present in the registry.
-bool Op::HasAttrMap(const String& attr_name) { return OpRegistry::Global()->HasAttrMap(attr_name); }
+bool Op::HasAttrMap(const ffi::String& attr_name) {
+  return OpRegistry::Global()->HasAttrMap(attr_name);
+}
 
 // Resets attr of the OpAttrMap.
 void OpRegEntry::reset_attr(const std::string& attr_name) {
   OpRegistry::Global()->ResetAttr(attr_name, op_);
 }
 
-void OpRegEntry::UpdateAttr(const String& key, ffi::Any value, int plevel) {
+void OpRegEntry::UpdateAttr(const ffi::String& key, ffi::Any value, int plevel) {
   OpRegistry::Global()->UpdateAttr(key, op_, value, plevel);
 }
 
 // Frontend APIs
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ir.ListOpNames", []() { return OpRegistry::Global()->ListAllNames(); })
-      .def("ir.GetOp", [](String name) -> Op { return Op::Get(name); })
+      .def("ir.GetOp", [](ffi::String name) -> Op { return Op::Get(name); })
       .def("ir.OpGetAttr",
-           [](Op op, String attr_name) -> ffi::Any {
+           [](Op op, ffi::String attr_name) -> ffi::Any {
              auto op_map = Op::GetAttrMap<ffi::Any>(attr_name);
              ffi::Any rv;
              if (op_map.count(op)) {
@@ -93,19 +95,19 @@ TVM_FFI_STATIC_INIT_BLOCK({
              return rv;
            })
       .def("ir.OpHasAttr",
-           [](Op op, String attr_name) -> bool { return Op::HasAttrMap(attr_name); })
+           [](Op op, ffi::String attr_name) -> bool { return Op::HasAttrMap(attr_name); })
       .def("ir.OpSetAttr",
-           [](Op op, String attr_name, ffi::AnyView value, int plevel) {
+           [](Op op, ffi::String attr_name, ffi::AnyView value, int plevel) {
              auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
              reg.set_attr(attr_name, value, plevel);
            })
       .def("ir.OpResetAttr",
-           [](Op op, String attr_name) {
+           [](Op op, ffi::String attr_name) {
              auto& reg = OpRegistry::Global()->RegisterOrGet(op->name);
              reg.reset_attr(attr_name);
            })
       .def("ir.RegisterOp",
-           [](String op_name, String descr) {
+           [](ffi::String op_name, ffi::String descr) {
              const OpRegEntry* reg = OpRegistry::Global()->Get(op_name);
              ICHECK(reg == nullptr)
                  << "AttributeError: Operator " << op_name << " is registered before";
@@ -113,7 +115,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              op.describe(descr);
            })
       .def("ir.OpAddArgument",
-           [](Op op, String name, String type, String description) {
+           [](Op op, ffi::String name, ffi::String type, ffi::String description) {
              auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
              reg.add_argument(name, type, description);
            })
@@ -128,12 +130,12 @@ TVM_FFI_STATIC_INIT_BLOCK({
              reg.set_num_inputs(n);
            })
       .def("ir.OpSetAttrsTypeKey",
-           [](Op op, String key) {
+           [](Op op, ffi::String key) {
              auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
              reg.set_attrs_type_key(key);
            })
       .def("ir.RegisterOpAttr",
-           [](String op_name, String attr_key, ffi::AnyView value, int plevel) {
+           [](ffi::String op_name, ffi::String attr_key, ffi::AnyView value, int plevel) {
              auto& reg = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
              // enable resgiteration and override of certain properties
              if (attr_key == "num_inputs" && plevel > 128) {
@@ -145,21 +147,19 @@ TVM_FFI_STATIC_INIT_BLOCK({
              }
            })
       .def("ir.RegisterOpLowerIntrinsic",
-           [](String name, ffi::Function f, String target, int plevel) {
+           [](ffi::String name, ffi::Function f, ffi::String target, int plevel) {
              tvm::OpRegEntry::RegisterOrGet(name).set_attr<FLowerIntrinsic>(
                  target + ".FLowerIntrinsic", f, plevel);
            });
-});
-
-ObjectPtr<Object> CreateOp(const std::string& name) {
-  // Hack use ffi::Any as exchange
-  auto op = Op::Get(name);
-  ICHECK(op.defined()) << "Cannot find op \'" << name << '\'';
-  return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(op);
+  // override OpNode to use name as the repr
+  refl::TypeAttrDef<OpNode>()
+      .def("__data_to_json__",
+           [](const OpNode* node) -> ffi::String {
+             // simply save as the string
+             return node->name;
+           })
+      .def("__data_from_json__", [](const ffi::String& name) -> Op { return Op::Get(name); });
 }
-
-TVM_REGISTER_NODE_TYPE(OpNode).set_creator(CreateOp).set_repr_bytes(
-    [](const Object* n) -> std::string { return static_cast<const OpNode*>(n)->name; });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<OpNode>([](const ObjectRef& ref, ReprPrinter* p) {

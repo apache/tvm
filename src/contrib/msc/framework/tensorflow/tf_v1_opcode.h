@@ -50,14 +50,14 @@ class TFV1OpCode : public BaseOpCode<TensorflowCodeGenConfig, TFV1CodeGenHelper>
    * \param func_name the function name for the node.
    * \param config the config json for the node.
    */
-  explicit TFV1OpCode(const String& func_name)
+  explicit TFV1OpCode(const ffi::String& func_name)
       : BaseOpCode<TensorflowCodeGenConfig, TFV1CodeGenHelper>(func_name) {}
 
   /*! \brief Convert node to docs*/
-  const Array<Doc> GetDocs() final;
+  const ffi::Array<Doc> GetDocs() final;
 
   /*! \brief Get dtype string*/
-  const String DType(const DataType& dtype) final {
+  const ffi::String DType(const DataType& dtype) final {
     return "tf_v1." + BaseOpCode<TensorflowCodeGenConfig, TFV1CodeGenHelper>::DType(dtype);
   }
 
@@ -68,16 +68,17 @@ class TFV1OpCode : public BaseOpCode<TensorflowCodeGenConfig, TFV1CodeGenHelper>
   virtual void CodeGenBuild() = 0;
 
   /*! \brief Get padding mode or array*/
-  const std::pair<String, Array<String>> GetPadding(const String& strides_key,
-                                                    const String& kernel_key = "",
-                                                    const String& padding_key = "padding");
+  const std::pair<ffi::String, ffi::Array<ffi::String>> GetPadding(
+      const ffi::String& strides_key, const ffi::String& kernel_key = "",
+      const ffi::String& padding_key = "padding");
 };
 
 /*!
  * \brief Get the map of available TFV1OpCode, use optype as key
  * \return Map of <string, TFV1OpCode>
  */
-const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TFV1OpCode>>> GetTFV1OpCodes();
+const std::shared_ptr<std::unordered_map<ffi::String, std::shared_ptr<TFV1OpCode>>>
+GetTFV1OpCodes();
 
 }  // namespace msc
 }  // namespace contrib

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """A callback that removes the build artifacts from the disk"""
-from tvm.ffi import register_object
+from tvm_ffi import register_object
 
 from .. import _ffi_api
 from .measure_callback import MeasureCallback

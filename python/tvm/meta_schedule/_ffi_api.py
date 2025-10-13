@@ -15,6 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI APIs for tvm.meta_schedule"""
-from ..ffi import _init_api
+import tvm_ffi
 
-_init_api("meta_schedule", __name__)  # pylint: disable=protected-access
+tvm_ffi.init_ffi_api("meta_schedule", __name__)  # pylint: disable=protected-access

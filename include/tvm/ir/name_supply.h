@@ -50,7 +50,7 @@ class NameSupplyNode : public Object {
    * \param prefix The prefix to be used with this NameSupply.
    * \param name_map The map used to guarantee uniqueness.
    */
-  NameSupplyNode(const String& prefix, std::unordered_map<std::string, int> name_map)
+  NameSupplyNode(const ffi::String& prefix, std::unordered_map<std::string, int> name_map)
       : prefix_(prefix), name_map(std::move(name_map)) {}
 
   /*!
@@ -61,7 +61,8 @@ class NameSupplyNode : public Object {
    * \param add_underscore If set to true, add '_' between prefix and a digit.
    * \return A unique name.
    */
-  String FreshName(const String& name, bool add_prefix = true, bool add_underscore = true);
+  ffi::String FreshName(const ffi::String& name, bool add_prefix = true,
+                        bool add_underscore = true);
 
   /*!
    * \brief Reserves an existing name with this NameSupply.
@@ -70,7 +71,7 @@ class NameSupplyNode : public Object {
    * name before reserving it. \return The name that was reserved with the NameSupply. It can be
    * different if a prefix is added.
    */
-  String ReserveName(const String& name, bool add_prefix = true);
+  ffi::String ReserveName(const ffi::String& name, bool add_prefix = true);
 
   /*!
    * \brief Checks if this NameSupply already generated a name.
@@ -79,17 +80,17 @@ class NameSupplyNode : public Object {
    * name before checking for it. \return True if the name has already been generated. False
    * otherwise.
    */
-  bool ContainsName(const String& name, bool add_prefix = true);
+  bool ContainsName(const ffi::String& name, bool add_prefix = true);
 
   // Prefix for all GlobalVar names. It can be empty.
   std::string prefix_;
 
-  static constexpr const char* _type_key = "ir.NameSupply";
-  TVM_DECLARE_FINAL_OBJECT_INFO(NameSupplyNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.NameSupply", NameSupplyNode, Object);
 
  private:
   /*! \brief Helper function to add the NameSupply prefix to the name. */
-  String add_prefix_to_name(const String& name);
+  ffi::String add_prefix_to_name(const ffi::String& name);
 
   /*!
    * \brief Function that will generate a unique name.
@@ -114,7 +115,7 @@ class NameSupply : public ObjectRef {
    * \param prefix The prefix to be used with this NameSupply.
    * \param name_map An optional map.
    */
-  TVM_DLL explicit NameSupply(const String& prefix = "",
+  TVM_DLL explicit NameSupply(const ffi::String& prefix = "",
                               std::unordered_map<std::string, int> name_map = {});
 
   /*!
@@ -127,7 +128,7 @@ class NameSupply : public ObjectRef {
   TVM_DLL explicit NameSupply(Iter begin, Iter end, Lambda f)
       : NameSupply("", GetNameMap(begin, end, f)) {}
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(NameSupply, ObjectRef, NameSupplyNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(NameSupply, ObjectRef, NameSupplyNode);
 
  private:
   template <typename Iter, typename Lambda>

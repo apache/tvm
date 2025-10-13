@@ -18,7 +18,7 @@
 """The expression functor of Relax."""
 from typing import Callable, Optional
 
-import tvm
+import tvm_ffi
 from tvm.ir import Op
 from tvm.runtime import Object
 from tvm.runtime.support import derived_object
@@ -261,8 +261,8 @@ class ExprFunctor:
             raise TypeError("Invalid type: {0}".format(type(var)))
 
 
-@tvm.ffi.register_object("expr_functor.PyExprVisitor")
-class _PyExprVisitor(Object):
+@tvm_ffi.register_object("expr_functor.PyExprVisitor")
+class _PyExprVisitor(tvm_ffi.core.Object):
     """
     A TVM object to support customization of ExprVisitor on the python side.
     This is the decorated result returned from visitor decorator.
@@ -781,7 +781,7 @@ class PyExprVisitor:
         return _ffi_api.ExprVisitorVisitSpan(self._outer(), span)  # type: ignore
 
 
-@tvm.ffi.register_object("expr_functor.PyExprMutator")
+@tvm_ffi.register_object("expr_functor.PyExprMutator")
 class _PyExprMutator(Object):
     """
     A TVM object to support customization of ExprMutator on the python side.

@@ -106,7 +106,7 @@ def benchmark(
     input_infos = populuate_input_shape(args, dym_var_sample)
     # generate input tensors, including scalars
     # scalars are appended to the end of the list due to parsing order
-    input_tensors: List[Union[tvm.nd.NDArray, int]] = []
+    input_tensors: List[Union[tvm.runtime.Tensor, int]] = []
     scalar_input_tensors: List[int] = []
     for input_shape, input_dtype in input_infos:
         if input_dtype == "scalar":
@@ -116,7 +116,7 @@ def benchmark(
         else:
             # normal case like [1, n, 128], generate random tensor
             input_tensors.append(
-                tvm.nd.array(generate_input_data(list(input_shape), input_dtype), device=dev)
+                tvm.runtime.tensor(generate_input_data(list(input_shape), input_dtype), device=dev)
             )
     # append scalar input tensors for rotary embedding
     input_tensors.extend(scalar_input_tensors)
@@ -143,8 +143,8 @@ def benchmark(
 
         _, profile_result = rpc_run(
             rt_mod,
-            device_type=dev.DEVICE_TYPE_TO_NAME[dev.device_type],
-            args=[w.numpy() if isinstance(w, tvm.nd.NDArray) else w for w in input_tensors],
+            device_type=dev._DEVICE_TYPE_TO_NAME[dev.dlpack_device_type()],
+            args=[w.numpy() if isinstance(w, tvm.runtime.Tensor) else w for w in input_tensors],
             rpc_config=rpc_config,
             evaluator_config=evaluator_config,
         )

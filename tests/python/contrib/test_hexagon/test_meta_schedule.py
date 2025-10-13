@@ -174,9 +174,9 @@ def verify_dense(sch, target, m_size, n_size, k_size, hexagon_session):
                         k_output * 4 + t_idx
                     ]
 
-    a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(pack_width, dev)
-    c = tvm.nd.array(np.zeros((m_size, n_size), dtype="int32"), dev)
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.tensor(pack_width, dev)
+    c = tvm.runtime.tensor(np.zeros((m_size, n_size), dtype="int32"), dev)
 
     mod(a, b, c)
     np.testing.assert_equal(c.numpy(), c_np)
@@ -294,7 +294,7 @@ class ModuleVRMPYAutoTensorize:
                         b_buffer[0, 0:128], dtype="int32x32"
                     )  # type: ignore
                     c_buffer[0:32] = T.call_llvm_pure_intrin(  # type: ignore
-                        4390, T.uint32(3), c_buffer[0:32], b_i32x32, a_i32, dtype="int32x32"
+                        4390, c_buffer[0:32], b_i32x32, a_i32, dtype="int32x32"
                     )
 
 

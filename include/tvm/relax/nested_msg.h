@@ -33,6 +33,7 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/struct_info.h>
 
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -115,7 +116,7 @@ namespace relax {
  *       use this class or logic of a similar kind.
  */
 template <typename T>
-class NestedMsg : public ObjectRef {
+class NestedMsg {
  public:
   // default constructors.
   NestedMsg() = default;
@@ -123,12 +124,6 @@ class NestedMsg : public ObjectRef {
   NestedMsg(NestedMsg<T>&&) = default;
   NestedMsg<T>& operator=(const NestedMsg<T>&) = default;
   NestedMsg<T>& operator=(NestedMsg<T>&&) = default;
-  /*!
-   * \brief Construct from an ObjectPtr
-   *        whose type already satisfies the constraint
-   * \param ptr
-   */
-  explicit NestedMsg(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
   /*! \brief Nullopt handling */
   NestedMsg(std::nullopt_t) {}  // NOLINT(*)
   // nullptr handling.
@@ -140,24 +135,25 @@ class NestedMsg : public ObjectRef {
   }
   // normal value handling.
   NestedMsg(T other)  // NOLINT(*)
-      : ObjectRef(std::move(other)) {}
+      : data_(std::move(other)) {}
   NestedMsg<T>& operator=(T other) {
-    ObjectRef::operator=(std::move(other));
+    data_ = std::move(other);
     return *this;
   }
-  // Array<NestedMsg<T>> handling
-  NestedMsg(Array<NestedMsg<T>, void> other)  // NOLINT(*)
-      : ObjectRef(std::move(other)) {}
-  NestedMsg<T>& operator=(Array<NestedMsg<T>, void> other) {
-    ObjectRef::operator=(std::move(other));
+  // ffi::Array<NestedMsg<T>> handling
+  NestedMsg(ffi::Array<NestedMsg<T>, void> other)  // NOLINT(*)
+      : data_(other) {}
+
+  NestedMsg<T>& operator=(ffi::Array<NestedMsg<T>, void> other) {
+    data_ = std::move(other);
     return *this;
   }
 
   // initializer list handling
   NestedMsg(std::initializer_list<NestedMsg<T>> other)  // NOLINT(*)
-      : NestedMsg(Array<NestedMsg<T>, void>(other)) {}
+      : NestedMsg(ffi::Array<NestedMsg<T>, void>(other)) {}
   NestedMsg<T>& operator=(std::initializer_list<NestedMsg<T>> other) {
-    return operator=(Array<NestedMsg<T>, void>(other));
+    return operator=(ffi::Array<NestedMsg<T>, void>(other));
   }
 
   // delete the int constructor
@@ -170,13 +166,16 @@ class NestedMsg : public ObjectRef {
   bool operator!=(std::nullptr_t) const { return data_ != nullptr; }
 
   /*! \return Whether the nested message is not-null leaf value */
-  bool IsLeaf() const { return data_ != nullptr && data_->IsInstance<LeafContainerType>(); }
+  bool IsLeaf() const {
+    return data_.type_index() != ffi::TypeIndex::kTVMFFINone &&
+           data_.type_index() != ffi::TypeIndex::kTVMFFIArray;
+  }
 
   /*! \return Whether the nested message is null */
-  bool IsNull() const { return data_ == nullptr; }
+  bool IsNull() const { return data_.type_index() == ffi::TypeIndex::kTVMFFINone; }
 
   /*! \return Whether the nested message is nested */
-  bool IsNested() const { return data_ != nullptr && data_->IsInstance<ffi::ArrayObj>(); }
+  bool IsNested() const { return data_.type_index() == ffi::TypeIndex::kTVMFFIArray; }
 
   /*!
    * \return The underlying leaf value.
@@ -184,24 +183,24 @@ class NestedMsg : public ObjectRef {
    */
   T LeafValue() const {
     ICHECK(IsLeaf());
-    return T(data_);
+    return ffi::details::AnyUnsafe::CopyFromAnyViewAfterCheck<T>(data_);
   }
 
   /*!
    * \return a corresponding nested array.
    * \note This checks if the underlying data type is array.
    */
-  Array<NestedMsg<T>, void> NestedArray() const {
-    ICHECK(IsNested());
-    return Array<NestedMsg<T>, void>(data_);
+  ffi::Array<NestedMsg<T>, void> NestedArray() const {
+    return ffi::details::AnyUnsafe::CopyFromAnyViewAfterCheck<ffi::Array<NestedMsg<T>, void>>(
+        data_);
   }
 
-  using ContainerType = Object;
-  using LeafContainerType = typename T::ContainerType;
-
-  static_assert(std::is_base_of<ObjectRef, T>::value, "NestedMsg is only defined for ObjectRef.");
-
-  static constexpr bool _type_is_nullable = true;
+ private:
+  ffi::Any data_;
+  // private constructor
+  explicit NestedMsg(ffi::Any data) : data_(data) {}
+  template <typename, typename>
+  friend struct ffi::TypeTraits;
 };
 
 /*!
@@ -240,8 +239,8 @@ bool Equal(const NestedMsg<T>& lhs, const NestedMsg<T>& rhs, FType fequal) {
     return rhs.IsLeaf() && fequal(lhs.LeafValue(), rhs.LeafValue());
   } else {
     if (!rhs.IsNested()) return false;
-    Array<NestedMsg<T>> arr_lhs = lhs.NestedArray();
-    Array<NestedMsg<T>> arr_rhs = rhs.NestedArray();
+    ffi::Array<NestedMsg<T>> arr_lhs = lhs.NestedArray();
+    ffi::Array<NestedMsg<T>> arr_rhs = rhs.NestedArray();
     if (arr_lhs.size() != arr_rhs.size()) return false;
     for (size_t i = 0; i < arr_lhs.size(); ++i) {
       if (!Equal(arr_lhs[i], arr_rhs[i], fequal)) return false;
@@ -266,7 +265,7 @@ bool Equal(const NestedMsg<T>& lhs, const NestedMsg<T>& rhs, FType fequal) {
 template <typename T, typename FType>
 NestedMsg<T> MapToNestedMsg(Expr expr, FType fmapleaf) {
   if (auto* tuple = expr.as<TupleNode>()) {
-    Array<NestedMsg<T>> res;
+    ffi::Array<NestedMsg<T>> res;
     res.reserve(tuple->fields.size());
     for (Expr x : tuple->fields) {
       res.push_back(MapToNestedMsg<T, FType>(x, fmapleaf));
@@ -293,7 +292,7 @@ NestedMsg<T> MapToNestedMsg(Expr expr, FType fmapleaf) {
 template <typename T, typename FType>
 NestedMsg<T> MapToNestedMsg(StructInfo sinfo, FType fmapleaf) {
   if (auto* tuple = sinfo.as<TupleStructInfoNode>()) {
-    Array<NestedMsg<T>> res;
+    ffi::Array<NestedMsg<T>> res;
     res.reserve(tuple->fields.size());
     for (StructInfo x : tuple->fields) {
       res.push_back(MapToNestedMsg<T, FType>(x, fmapleaf));
@@ -322,7 +321,7 @@ template <typename T, typename FType>
 NestedMsg<T> MapToNestedMsgBySInfo(Expr expr, FType fmapleaf) {
   auto sinfo = GetStructInfo(expr);
   if (auto* tuple = sinfo.as<TupleStructInfoNode>()) {
-    Array<NestedMsg<T>> res;
+    ffi::Array<NestedMsg<T>> res;
     res.reserve(tuple->fields.size());
     for (size_t i = 0; i < tuple->fields.size(); ++i) {
       Expr field;
@@ -348,9 +347,9 @@ NestedMsg<T> MapToNestedMsgBySInfo(Expr expr, FType fmapleaf) {
  *
  * \param msg The input nested message.
  * \param fmapleaf The mapping function for each leaf with signature
- * `TargetType fmapleaf(Optional<T>)`.
+ * `TargetType fmapleaf(ffi::Optional<T>)`.
  * \param fcombine The function for combining all childs of a node into TargetType with signature
- * `TargetType fmapleaf(Array<TargetType>)`.
+ * `TargetType fmapleaf(ffi::Array<TargetType>)`.
  * \tparam TargetType the target type to map nested msg to.
  * \tparam T the content type of nested msg.
  * \tparam FMapLeaf The leaf mapping function type.
@@ -364,8 +363,8 @@ TargetType NestedMsgTo(NestedMsg<T> msg, FMapLeaf fmapleaf, FCombine fcombine) {
     return fmapleaf(msg.LeafValue());
   } else {
     ICHECK(msg.IsNested());
-    Array<NestedMsg<T>> arr = msg.NestedArray();
-    Array<TargetType> subexpr;
+    ffi::Array<NestedMsg<T>> arr = msg.NestedArray();
+    ffi::Array<TargetType> subexpr;
     subexpr.reserve(arr.size());
     for (size_t i = 0; i < arr.size(); ++i) {
       subexpr.push_back(NestedMsgTo<TargetType>(arr[i], fmapleaf, fcombine));
@@ -382,14 +381,14 @@ TargetType NestedMsgTo(NestedMsg<T> msg, FMapLeaf fmapleaf, FCombine fcombine) {
  * then recursively combines the results as tuple expr.
  *
  * \param msg The input nested message.
- * \param fmapleaf The mapping function for each leaf with signature `Expr fmapleaf(Optional<T>)`.
- * \tparam T the content type of nested msg.
- * \tparam FType The mapping function type.
+ * \param fmapleaf The mapping function for each leaf with signature `Expr
+ * fmapleaf(ffi::Optional<T>)`. \tparam T the content type of nested msg. \tparam FType The mapping
+ * function type.
  */
 template <typename T, typename FType>
 Expr NestedMsgToExpr(NestedMsg<T> msg, FType fmapleaf) {
-  return NestedMsgTo<Expr>(msg, fmapleaf, [](Array<Expr> arr) {
-    Optional<Expr> simplified_tuple;
+  return NestedMsgTo<Expr>(msg, fmapleaf, [](ffi::Array<Expr> arr) {
+    ffi::Optional<Expr> simplified_tuple;
     bool simplified_flag = false;
     if (arr.size() >= 1) {
       simplified_flag = true;
@@ -438,11 +437,11 @@ NestedMsg<T> CombineNestedMsg(NestedMsg<T> lhs, NestedMsg<T> rhs, FType fcombine
   } else {
     ICHECK(lhs.IsNested());
     ICHECK(rhs.IsNested()) << "Cannot combine leaf with nested";
-    Array<NestedMsg<T>> arr_lhs = lhs.NestedArray();
-    Array<NestedMsg<T>> arr_rhs = rhs.NestedArray();
+    ffi::Array<NestedMsg<T>> arr_lhs = lhs.NestedArray();
+    ffi::Array<NestedMsg<T>> arr_rhs = rhs.NestedArray();
     ICHECK_EQ(arr_lhs.size(), arr_rhs.size())
         << "Cannot combine two nested array with different sizes";
-    Array<NestedMsg<T>> res;
+    ffi::Array<NestedMsg<T>> res;
     res.reserve(arr_lhs.size());
     for (size_t i = 0; i < arr_lhs.size(); ++i) {
       res.push_back(CombineNestedMsg<T, FType>(arr_lhs[i], arr_rhs[i], fcombine));
@@ -467,8 +466,8 @@ NestedMsg<T> MapNestedMsg(NestedMsg<T> msg, FType fmapleaf) {
     return fmapleaf(msg.LeafValue());
   } else {
     ICHECK(msg.IsNested());
-    Array<NestedMsg<T>> arr = msg.NestedArray();
-    Array<NestedMsg<T>> res;
+    ffi::Array<NestedMsg<T>> arr = msg.NestedArray();
+    ffi::Array<NestedMsg<T>> res;
     res.reserve(arr.size());
     for (int i = 0; i < static_cast<int>(arr.size()); ++i) {
       res.push_back(MapNestedMsg(arr[i], fmapleaf));
@@ -494,7 +493,7 @@ template <typename T, typename FType>
 void DecomposeNestedMsg(Expr expr, NestedMsg<T> msg, FType fvisitleaf) {
   if (auto* tuple = expr.as<TupleNode>()) {
     ICHECK(msg.IsNested()) << "Expected nested to match tuple";
-    Array<NestedMsg<T>> arr = msg.NestedArray();
+    ffi::Array<NestedMsg<T>> arr = msg.NestedArray();
     ICHECK_EQ(arr.size(), tuple->fields.size()) << "Expected nested array size to match tuple size";
     for (size_t i = 0; i < arr.size(); ++i) {
       DecomposeNestedMsg(tuple->fields[i], arr[i], fvisitleaf);
@@ -513,7 +512,7 @@ void DecomposeNestedMsg(Expr expr, NestedMsg<T> msg, FType fvisitleaf) {
  *
  * \param expr The input expression to be transform. 
  * \param msgs The input messages to guide the transformation.
- * \param ftransleaf with signature ftransleaf(Expr, Array<NestedMsg<T>>)->Expr
+ * \param ftransleaf with signature ftransleaf(Expr, ffi::Array<NestedMsg<T>>)->Expr
  * \tparam T the content type of nested msg
  * \tparam N the number of messages
  * \tparam FType The visit function type.
@@ -522,13 +521,13 @@ template <typename T, std::size_t N, typename FType>
 Expr TransformTupleLeaf(Expr expr, std::array<NestedMsg<T>, N> msgs, FType ftransleaf) {
   StructInfo sinfo = GetStructInfo(expr);
   if (const auto* tuple = sinfo.as<TupleStructInfoNode>()) {
-    std::array<Array<NestedMsg<T>>, N> msg_arrays;
+    std::array<ffi::Array<NestedMsg<T>>, N> msg_arrays;
     for (size_t i = 0; i < N; ++i) {
       ICHECK(msgs[i].IsNested()) << "Expected nested to match tuple";
       msg_arrays[i] = msgs[i].NestedArray();
     }
     bool same = true;
-    Array<Expr> fields;
+    ffi::Array<Expr> fields;
     fields.reserve(tuple->fields.size());
     for (size_t i = 0; i < tuple->fields.size(); ++i) {
       Expr field;
@@ -562,7 +561,7 @@ Expr TransformTupleLeaf(Expr expr, std::array<NestedMsg<T>, N> msgs, FType ftran
  *
  * \param sinfo The input sinfo to be transform. 
  * \param msgs The input messages to guide the transformation.
- * \param ftransleaf with signature ftransleaf(StructInfo, Array<NestedMsg<T>>)->StructInfo
+ * \param ftransleaf with signature ftransleaf(StructInfo, ffi::Array<NestedMsg<T>>)->StructInfo
  * \tparam T the content type of nested msg
  * \tparam N the number of messages
  * \tparam FType The visit function type.
@@ -571,13 +570,13 @@ template <typename T, std::size_t N, typename FType>
 StructInfo TransformTupleLeaf(StructInfo sinfo, std::array<NestedMsg<T>, N> msgs,
                               FType ftransleaf) {
   if (const auto* tuple = sinfo.as<TupleStructInfoNode>()) {
-    std::array<Array<NestedMsg<T>>, N> msg_arrays;
+    std::array<ffi::Array<NestedMsg<T>>, N> msg_arrays;
     for (size_t i = 0; i < N; ++i) {
       ICHECK(msgs[i].IsNested()) << "Expected nested to match tuple";
       msg_arrays[i] = msgs[i].NestedArray();
     }
     bool same = true;
-    Array<StructInfo> fields;
+    ffi::Array<StructInfo> fields;
     fields.reserve(tuple->fields.size());
     for (size_t i = 0; i < tuple->fields.size(); ++i) {
       StructInfo field = tuple->fields[i];
@@ -598,5 +597,83 @@ StructInfo TransformTupleLeaf(StructInfo sinfo, std::array<NestedMsg<T>, N> msgs
 }
 
 }  // namespace relax
+
+namespace ffi {
+
+template <typename T>
+inline constexpr bool use_default_type_traits_v<relax::NestedMsg<T>> = false;
+
+template <typename T>
+struct TypeTraits<relax::NestedMsg<T>> : public TypeTraitsBase {
+  TVM_FFI_INLINE static void CopyToAnyView(const relax::NestedMsg<T>& src, TVMFFIAny* result) {
+    *result = ffi::AnyView(src.data_).CopyToTVMFFIAny();
+  }
+
+  TVM_FFI_INLINE static void MoveToAny(relax::NestedMsg<T> src, TVMFFIAny* result) {
+    *result = details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(src.data_));
+  }
+
+  TVM_FFI_INLINE static std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
+    return TypeTraitsBase::GetMismatchTypeInfo(src);
+  }
+
+  static bool CheckAnyStrict(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFINone) {
+      return true;
+    }
+    if (TypeTraits<T>::CheckAnyStrict(src)) {
+      return true;
+    }
+    if (src->type_index == TypeIndex::kTVMFFIArray) {
+      const ffi::ArrayObj* array = reinterpret_cast<const ffi::ArrayObj*>(src->v_obj);
+      for (size_t i = 0; i < array->size(); ++i) {
+        const Any& any_v = (*array)[i];
+        if (!details::AnyUnsafe::CheckAnyStrict<relax::NestedMsg<T>>(any_v)) return false;
+      }
+    }
+    return true;
+  }
+
+  TVM_FFI_INLINE static relax::NestedMsg<T> CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    return relax::NestedMsg<T>(Any(AnyView::CopyFromTVMFFIAny(*src)));
+  }
+
+  TVM_FFI_INLINE static relax::NestedMsg<T> MoveFromAnyAfterCheck(TVMFFIAny* src) {
+    return relax::NestedMsg<T>(details::AnyUnsafe::MoveTVMFFIAnyToAny(std::move(*src)));
+  }
+
+  static std::optional<relax::NestedMsg<T>> TryCastFromAnyView(const TVMFFIAny* src) {
+    if (CheckAnyStrict(src)) {
+      return CopyFromAnyViewAfterCheck(src);
+    }
+    // slow path run conversion
+    if (src->type_index == TypeIndex::kTVMFFINone) {
+      return relax::NestedMsg<T>(std::nullopt);
+    }
+    if (auto opt_value = TypeTraits<T>::TryCastFromAnyView(src)) {
+      return relax::NestedMsg<T>(*std::move(opt_value));
+    }
+    if (src->type_index == TypeIndex::kTVMFFIArray) {
+      const ArrayObj* n = reinterpret_cast<const ArrayObj*>(src->v_obj);
+      ffi::Array<relax::NestedMsg<T>> result;
+      result.reserve(n->size());
+      for (size_t i = 0; i < n->size(); i++) {
+        const Any& any_v = (*n)[i];
+        if (auto opt_v = any_v.try_cast<relax::NestedMsg<T>>()) {
+          result.push_back(*std::move(opt_v));
+        } else {
+          return std::nullopt;
+        }
+      }
+      return relax::NestedMsg<T>(result);
+    }
+    return std::nullopt;
+  }
+
+  TVM_FFI_INLINE static std::string TypeStr() {
+    return "NestedMsg<" + details::Type2Str<T>::v() + ">";
+  }
+};
+}  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_RELAX_NESTED_MSG_H_

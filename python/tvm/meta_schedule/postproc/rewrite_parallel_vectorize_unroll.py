@@ -17,7 +17,7 @@
 """A postprocessor that applies parallelization, vectorization and auto unrolling
 according to the annotation of each block"""
 
-from tvm.ffi.registry import register_object
+from tvm_ffi.registry import register_object
 from .. import _ffi_api
 from .postproc import Postproc
 

@@ -63,14 +63,14 @@ bool HasBufferLoad(PrimExpr expr) {
   return visitor.found_buffer_load;
 }
 
-Optional<PrimExpr> SubstituteParamValues(const Array<Var>& param_vars,
-                                         const Array<PrimExpr>& param_values,
-                                         const PrimExpr& expr) {
+ffi::Optional<PrimExpr> SubstituteParamValues(const ffi::Array<Var>& param_vars,
+                                              const ffi::Array<PrimExpr>& param_values,
+                                              const PrimExpr& expr) {
   ICHECK_EQ(param_vars.size(), param_values.size())
       << "Expression was defined as having " << param_vars.size() << " parameters, but received "
       << param_values.size() << " arguments.";
 
-  Map<tir::Var, PrimExpr> var_map;
+  ffi::Map<tir::Var, PrimExpr> var_map;
   for (size_t i = 0; i < param_values.size(); i++) {
     var_map.Set(param_vars[i], param_values[i]);
   }
@@ -151,7 +151,7 @@ class BufferConstraintApply : public IRMutatorWithAnalyzer {
  public:
   using Parent = IRMutatorWithAnalyzer;
 
-  BufferConstraintApply(const Map<Buffer, Array<Var>>& axis_var_lookup,
+  BufferConstraintApply(const ffi::Map<Buffer, ffi::Array<Var>>& axis_var_lookup,
                         const std::vector<BufferTouch>& knowns, Analyzer* analyzer)
       : Parent(analyzer), axis_var_lookup_(axis_var_lookup), knowns_(knowns) {}
 
@@ -163,10 +163,10 @@ class BufferConstraintApply : public IRMutatorWithAnalyzer {
         continue;
       }
 
-      Optional<Var> lane_var = std::nullopt;
+      ffi::Optional<Var> lane_var = std::nullopt;
       IntImm num_lanes;
 
-      Array<PrimExpr> indices = op->indices.Map([&](const auto& index) {
+      ffi::Array<PrimExpr> indices = op->indices.Map([&](const auto& index) {
         if (index.dtype().lanes() == 1) {
           return index;
         } else {
@@ -192,11 +192,11 @@ class BufferConstraintApply : public IRMutatorWithAnalyzer {
       }
     }
 
-    return GetRef<PrimExpr>(op);
+    return ffi::GetRef<PrimExpr>(op);
   }
 
  private:
-  const Map<Buffer, Array<Var>>& axis_var_lookup_;
+  const ffi::Map<Buffer, ffi::Array<Var>>& axis_var_lookup_;
   const std::vector<BufferTouch>& knowns_;
 };
 
@@ -339,13 +339,13 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
 
   void VisitExpr_(const BufferLoadNode* op) override {
     Parent::VisitExpr_(op);
-    BufferLoad load = GetRef<BufferLoad>(op);
+    BufferLoad load = ffi::GetRef<BufferLoad>(op);
     VisitAccess(load, BufferTouch::AccessType::Read, load);
   }
 
   void VisitStmt_(const BufferStoreNode* op) override {
     Parent::VisitStmt_(op);
-    VisitAccess(GetRef<BufferStore>(op), BufferTouch::AccessType::Write, op->value);
+    VisitAccess(ffi::GetRef<BufferStore>(op), BufferTouch::AccessType::Write, op->value);
     // Appending a control block ensures that all control blocks have
     // at most one statement that changes the buffer contents.
     auto prev_block = CurrentControlBlock();
@@ -554,7 +554,7 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
     With<ConstraintContext> analyzer_context;
     size_t old_num_constraints{0};
     size_t new_num_constraints{0};
-    Optional<PrimExpr> assume{std::nullopt};
+    ffi::Optional<PrimExpr> assume{std::nullopt};
 
     // Disable default-generated copy/move assignment and constructors
     InternalConstraintContext(const InternalConstraintContext&) = delete;
@@ -623,7 +623,7 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
   // binding.  When making a predicate in terms of the buffer indices,
   // these need to be substituted out.
   // std::unordered_map<const VarNode*, PrimExpr> let_bindings_using_loop_;
-  Map<Var, PrimExpr> let_bindings_using_loop_;
+  ffi::Map<Var, PrimExpr> let_bindings_using_loop_;
 
   // Track in order to know what conditions limit the buffer access
   std::vector<PrimExpr> conditions_;
@@ -635,17 +635,17 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
   ControlFlowGraph* out_;
 };
 
-std::pair<BufferTouch, Map<Var, Range>> ControlFlowGraph::ControlFlowBlock::MakeBufferTouch(
-    const tir::Buffer& buf, Array<Var> index_variables, Array<PrimExpr> indices,
+std::pair<BufferTouch, ffi::Map<Var, Range>> ControlFlowGraph::ControlFlowBlock::MakeBufferTouch(
+    const tir::Buffer& buf, ffi::Array<Var> index_variables, ffi::Array<PrimExpr> indices,
     BufferTouch::AccessType touch_type, PrimExpr known_value_expr) const {
   const auto& current_block = *this;
 
   Analyzer local_analyzer;
 
-  Optional<Var> lane_var = std::nullopt;
+  ffi::Optional<Var> lane_var = std::nullopt;
   IntImm num_lanes;
 
-  Array<PrimExpr> index_expressions = indices.Map([&](const auto& index) {
+  ffi::Array<PrimExpr> index_expressions = indices.Map([&](const auto& index) {
     if (index.dtype().lanes() == 1) {
       return index;
     } else {
@@ -656,9 +656,9 @@ std::pair<BufferTouch, Map<Var, Range>> ControlFlowGraph::ControlFlowBlock::Make
     }
   });
 
-  Array<Var> loop_vars;
+  ffi::Array<Var> loop_vars;
 
-  Map<Var, Range> loop_ranges;
+  ffi::Map<Var, Range> loop_ranges;
   for (const auto& loop_entry : current_block.active_loop_iterators) {
     loop_vars.push_back(loop_entry.loop_var);
     loop_ranges.Set(loop_entry.loop_var, loop_entry.loop_range);
@@ -675,7 +675,7 @@ std::pair<BufferTouch, Map<Var, Range>> ControlFlowGraph::ControlFlowBlock::Make
   IntConstraintsTransform transform = [&]() {
     ICHECK_EQ(index_variables.size(), index_expressions.size());
 
-    Array<PrimExpr> relations;
+    ffi::Array<PrimExpr> relations;
 
     for (size_t i = 0; i < index_expressions.size(); i++) {
       PrimExpr expr = index_expressions[i];
@@ -689,16 +689,16 @@ std::pair<BufferTouch, Map<Var, Range>> ControlFlowGraph::ControlFlowBlock::Make
     return arith::SolveLinearEquations(system);
   }();
 
-  Map<Var, PrimExpr> loop_var_to_axis_var = transform->src_to_dst;
-  Map<Var, Range> free_params = transform->dst->ranges;
+  ffi::Map<Var, PrimExpr> loop_var_to_axis_var = transform->src_to_dst;
+  ffi::Map<Var, Range> free_params = transform->dst->ranges;
   PrimExpr transform_predicate =
       std::accumulate(transform->dst->relations.begin(), transform->dst->relations.end(),
                       PrimExpr(Bool(true)), [](PrimExpr a, PrimExpr b) { return a && b; });
 
   transform_predicate = SimplifyAsAndOfOrs(transform_predicate, &local_analyzer);
 
-  auto find_removable_params = [&]() -> Map<Var, PrimExpr> {
-    Map<Var, PrimExpr> removable_params;
+  auto find_removable_params = [&]() -> ffi::Map<Var, PrimExpr> {
+    ffi::Map<Var, PrimExpr> removable_params;
 
     // The arith::SolveLinearEquations is more general than the
     // utilities in iter_affine_map.h, but can introduce free
@@ -712,13 +712,13 @@ std::pair<BufferTouch, Map<Var, Range>> ControlFlowGraph::ControlFlowBlock::Make
             return;
           }
 
-          Var var = GetRef<Var>(var_ptr);
+          Var var = ffi::GetRef<Var>(var_ptr);
           if (free_params.count(var) == 0) {
             return;
           }
 
-          bool uses_free_param =
-              UsesVar(b, [&](const VarNode* v) { return free_params.count(GetRef<Var>(v)) > 0; });
+          bool uses_free_param = UsesVar(
+              b, [&](const VarNode* v) { return free_params.count(ffi::GetRef<Var>(v)) > 0; });
           if (uses_free_param) {
             return;
           }
@@ -746,7 +746,7 @@ std::pair<BufferTouch, Map<Var, Range>> ControlFlowGraph::ControlFlowBlock::Make
       return local_analyzer.Simplify(Substitute(expr, removable_params));
     };
 
-    Map<Var, PrimExpr> new_map;
+    ffi::Map<Var, PrimExpr> new_map;
     for (const auto [loop_var, expr] : loop_var_to_axis_var) {
       static_cast<void>(expr);  // gcc 7.x bug, https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
       new_map.Set(loop_var, update(expr));
@@ -808,7 +808,7 @@ std::pair<BufferTouch, Map<Var, Range>> ControlFlowGraph::ControlFlowBlock::Make
 
 BufferTouch ControlFlowGraph::ControlFlowBlock::MakeBufferTouch(ControlFlowGraph* graph,
                                                                 const tir::Buffer& buf,
-                                                                const Array<PrimExpr>& indices,
+                                                                const ffi::Array<PrimExpr>& indices,
                                                                 BufferTouch::AccessType touch_type,
                                                                 PrimExpr known_value_expr) const {
   ICHECK(graph);
@@ -949,7 +949,7 @@ std::ostream& operator<<(std::ostream& os, const BufferState& state) {
 }
 
 PrimExpr BufferState::SubstituteKnownBufferValues(
-    PrimExpr expr, const Map<tir::Buffer, Array<tir::Var>>& axis_var_lookup,
+    PrimExpr expr, const ffi::Map<tir::Buffer, ffi::Array<tir::Var>>& axis_var_lookup,
     Analyzer* analyzer) const {
   BufferConstraintApply mutator(axis_var_lookup, constraints_, analyzer);
   return mutator(std::move(expr));
@@ -961,7 +961,7 @@ void BufferState::AddCondition(const PrimExpr& condition) {
   }
 }
 
-void BufferState::Substitute(const Map<Var, PrimExpr>& var_remap, Analyzer* analyzer) {
+void BufferState::Substitute(const ffi::Map<Var, PrimExpr>& var_remap, Analyzer* analyzer) {
   if (var_remap.size()) {
     for (auto& prior : constraints_) {
       PrimExpr updated = tvm::tir::Substitute(prior.predicate, var_remap);
@@ -1026,12 +1026,12 @@ class BufferRegionCollector : public ExprVisitor {
  public:
   struct Region {
     PrimExpr region_predicate;
-    std::unordered_map<const BufferLoadNode*, Optional<PrimExpr>> known_values;
+    std::unordered_map<const BufferLoadNode*, ffi::Optional<PrimExpr>> known_values;
   };
 
-  static std::vector<Region> Collect(const Map<Buffer, Array<Var>>& axis_var_lookup,
+  static std::vector<Region> Collect(const ffi::Map<Buffer, ffi::Array<Var>>& axis_var_lookup,
                                      const std::vector<BufferTouch>& knowns,
-                                     const std::vector<Optional<PrimExpr>>& exprs,
+                                     const std::vector<ffi::Optional<PrimExpr>>& exprs,
                                      Analyzer* analyzer) {
     BufferRegionCollector collector(axis_var_lookup, knowns, analyzer);
     for (const auto& expr : exprs) {
@@ -1046,7 +1046,7 @@ class BufferRegionCollector : public ExprVisitor {
  private:
   using Parent = ExprVisitor;
 
-  BufferRegionCollector(const Map<Buffer, Array<Var>>& axis_var_lookup,
+  BufferRegionCollector(const ffi::Map<Buffer, ffi::Array<Var>>& axis_var_lookup,
                         const std::vector<BufferTouch>& knowns, Analyzer* analyzer)
       : analyzer_(analyzer), axis_var_lookup_(axis_var_lookup), knowns_(knowns) {
     regions_.push_back(Region{Bool(true), {}});
@@ -1058,7 +1058,7 @@ class BufferRegionCollector : public ExprVisitor {
     // Helper struct for the known values of this BufferLoad
     struct Known {
       PrimExpr predicate;
-      Optional<PrimExpr> value;
+      ffi::Optional<PrimExpr> value;
     };
 
     std::vector<Known> new_regions;
@@ -1077,7 +1077,7 @@ class BufferRegionCollector : public ExprVisitor {
       touch_predicate = SimplifyAsAndOfOrs(touch_predicate, analyzer_);
 
       if (!is_zero(touch_predicate)) {
-        Optional<PrimExpr> known_value =
+        ffi::Optional<PrimExpr> known_value =
             SubstituteParamValues(axis_vars, op->indices, constraint.value);
         new_regions.push_back(Known{touch_predicate, known_value});
 
@@ -1112,14 +1112,14 @@ class BufferRegionCollector : public ExprVisitor {
 
   Analyzer* analyzer_;
   std::vector<Region> regions_;
-  const Map<Buffer, Array<Var>>& axis_var_lookup_;
+  const ffi::Map<Buffer, ffi::Array<Var>>& axis_var_lookup_;
   const std::vector<BufferTouch>& knowns_;
 };
 
 class BufferRegionValueReplacer : public IRMutatorWithAnalyzer {
  public:
   static PrimExpr Apply(
-      const std::unordered_map<const BufferLoadNode*, Optional<PrimExpr>>& known_values,
+      const std::unordered_map<const BufferLoadNode*, ffi::Optional<PrimExpr>>& known_values,
       PrimExpr expr, Analyzer* analyzer) {
     BufferRegionValueReplacer mutator(known_values, analyzer);
     PrimExpr result = mutator(expr);
@@ -1134,7 +1134,7 @@ class BufferRegionValueReplacer : public IRMutatorWithAnalyzer {
   using Parent = IRMutatorWithAnalyzer;
 
   BufferRegionValueReplacer(
-      const std::unordered_map<const BufferLoadNode*, Optional<PrimExpr>>& known_values,
+      const std::unordered_map<const BufferLoadNode*, ffi::Optional<PrimExpr>>& known_values,
       Analyzer* analyzer)
       : Parent(analyzer), known_values_(known_values) {}
 
@@ -1145,17 +1145,17 @@ class BufferRegionValueReplacer : public IRMutatorWithAnalyzer {
     if (it != known_values_.end() && it->second) {
       return it->second.value();
     } else {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     }
   }
 
-  const std::unordered_map<const BufferLoadNode*, Optional<PrimExpr>>& known_values_;
+  const std::unordered_map<const BufferLoadNode*, ffi::Optional<PrimExpr>>& known_values_;
 };
 
-void BufferState::ApplyTouches(const Map<Buffer, Array<Var>>& axis_var_lookup,
+void BufferState::ApplyTouches(const ffi::Map<Buffer, ffi::Array<Var>>& axis_var_lookup,
                                const std::vector<BufferTouch>& touch_points, Analyzer* analyzer) {
   std::vector<BufferTouch> new_knowns;
-  Map<Buffer, PrimExpr> keep_prior_known_at;
+  ffi::Map<Buffer, PrimExpr> keep_prior_known_at;
 
   for (auto& touch : touch_points) {
     if (touch.touch_type == BufferTouch::AccessType::Read) {
@@ -1209,7 +1209,7 @@ void BufferState::ApplyTouches(const Map<Buffer, Array<Var>>& axis_var_lookup,
 
       for (size_t i = 0; i < new_knowns.size(); i++) {
         if (new_knowns[i].buffer.same_as(constraint.buffer)) {
-          Optional<PrimExpr> overwritten_with = new_knowns[i].value;
+          ffi::Optional<PrimExpr> overwritten_with = new_knowns[i].value;
           if (overwritten_with && analyzer->CanProveEqual(prev_value, overwritten_with.value())) {
             expand_known_at =
                 SimplifyAsAndOfOrs(expand_known_at || new_knowns[i].predicate, analyzer);
@@ -1237,18 +1237,18 @@ void BufferState::ApplyTouches(const Map<Buffer, Array<Var>>& axis_var_lookup,
       constraints_.end());
 }
 
-void BufferState::BackpropUnusedIndices(const Map<Buffer, Array<Var>>& axis_var_lookup,
+void BufferState::BackpropUnusedIndices(const ffi::Map<Buffer, ffi::Array<Var>>& axis_var_lookup,
                                         const std::vector<BufferTouch>& touch_points,
                                         Analyzer* analyzer) {
   std::vector<BufferTouch> new_knowns;
-  Map<Buffer, PrimExpr> keep_prior_known_at;
+  ffi::Map<Buffer, PrimExpr> keep_prior_known_at;
 
-  Map<Buffer, PrimExpr> regions_written;
-  Map<Buffer, PrimExpr> regions_read;
+  ffi::Map<Buffer, PrimExpr> regions_written;
+  ffi::Map<Buffer, PrimExpr> regions_read;
   for (auto it = touch_points.rbegin(); it != touch_points.rend(); it++) {
     const auto& touch = *it;
 
-    Map<Buffer, PrimExpr>* to_update{nullptr};
+    ffi::Map<Buffer, PrimExpr>* to_update{nullptr};
     if (touch.touch_type == BufferTouch::AccessType::Write) {
       to_update = &regions_written;
 
@@ -1264,7 +1264,7 @@ void BufferState::BackpropUnusedIndices(const Map<Buffer, Array<Var>>& axis_var_
   }
 
   auto update_map = [&](auto& map) {
-    Map<Buffer, PrimExpr> new_map;
+    ffi::Map<Buffer, PrimExpr> new_map;
     for (auto [buffer, predicate] : map) {
       new_map.Set(buffer, SimplifyAsAndOfOrs(predicate, analyzer));
     }
@@ -1303,7 +1303,7 @@ void BufferState::BackpropUnusedIndices(const Map<Buffer, Array<Var>>& axis_var_
       constraints_.end());
 }
 
-void BufferState::RemoveFreeParameters(const Map<Var, Range>& free_predicate_parameters,
+void BufferState::RemoveFreeParameters(const ffi::Map<Var, Range>& free_predicate_parameters,
                                        Analyzer* analyzer) {
   for (auto& known : constraints_) {
     known.predicate = NarrowPredicateExpression(known.predicate, free_predicate_parameters);
@@ -1325,7 +1325,7 @@ bool BufferState::IsEquivalentTo(const BufferState& other, Analyzer* analyzer) c
   return true;
 }
 
-Optional<Array<Var>> ControlFlowGraph::GetIndexVariables(const Buffer& buf) const {
+ffi::Optional<ffi::Array<Var>> ControlFlowGraph::GetIndexVariables(const Buffer& buf) const {
   if (auto it = axis_var_lookup_.find(buf); it != axis_var_lookup_.end()) {
     return (*it).second;
   } else {
@@ -1333,12 +1333,13 @@ Optional<Array<Var>> ControlFlowGraph::GetIndexVariables(const Buffer& buf) cons
   }
 }
 
-Array<Var> ControlFlowGraph::GetIndexVariables(const Buffer& buf, const Array<PrimExpr>& indices) {
+ffi::Array<Var> ControlFlowGraph::GetIndexVariables(const Buffer& buf,
+                                                    const ffi::Array<PrimExpr>& indices) {
   if (auto it = axis_var_lookup_.find(buf); it != axis_var_lookup_.end()) {
     return (*it).second;
   }
 
-  Array<Var> vars;
+  ffi::Array<Var> vars;
   for (size_t i = 0; i < indices.size(); i++) {
     std::stringstream ss;
     ss << buf->name << "_axis_" << i;
@@ -1620,7 +1621,7 @@ void ControlFlowGraph::BackwardPropagateUnusedValues(std::optional<size_t> flow_
 
 bool ControlFlowGraph::IsOverwrittenWithoutEffect(const tir::BufferStore& store,
                                                   const Stmt& context) const {
-  Optional<Array<Var>> index_variables = GetIndexVariables(store->buffer);
+  ffi::Optional<ffi::Array<Var>> index_variables = GetIndexVariables(store->buffer);
   if (!index_variables) {
     return false;
   }

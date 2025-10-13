@@ -18,7 +18,7 @@
 to store the block level dependences"""
 
 from typing import Union, Optional
-from tvm.ffi import register_object
+from tvm_ffi import register_object
 from tvm.ir.module import IRModule
 from tvm.runtime import Object
 from tvm.tir import Block, PrimFunc

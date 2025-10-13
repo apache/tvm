@@ -20,13 +20,14 @@
  * \file src/node/structural_hash.cc
  */
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/extra/base64.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
-#include <tvm/node/object_path.h>
-#include <tvm/node/reflection.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/runtime/profiling.h>
 #include <tvm/target/codegen.h>
@@ -40,13 +41,44 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("node.StructuralHash",
                         [](const Any& object, bool map_free_vars) -> int64_t {
                           return ffi::StructuralHash::Hash(object, map_free_vars);
                         });
-});
+  refl::TypeAttrDef<ffi::ModuleObj>()
+      .def("__data_to_json__",
+           [](const ffi::ModuleObj* node) {
+             std::string bytes = codegen::SerializeModuleToBytes(ffi::GetRef<ffi::Module>(node),
+                                                                 /*export_dso*/ false);
+             return ffi::Base64Encode(ffi::Bytes(bytes));
+           })
+      .def("__data_from_json__", [](const ffi::String& base64_bytes) {
+        ffi::Bytes bytes = ffi::Base64Decode(base64_bytes);
+        ffi::Module rtmod = codegen::DeserializeModuleFromBytes(bytes.operator std::string());
+        return rtmod;
+      });
+
+  refl::TypeAttrDef<runtime::Tensor::Container>()
+      .def("__data_to_json__",
+           [](const runtime::Tensor::Container* node) {
+             std::string blob;
+             dmlc::MemoryStringStream mstrm(&blob);
+             support::Base64OutStream b64strm(&mstrm);
+             runtime::SaveDLTensor(&b64strm, node);
+             b64strm.Finish();
+             return ffi::String(blob);
+           })
+      .def("__data_from_json__", [](const std::string& blob) {
+        dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
+        support::Base64InStream b64strm(&mstrm);
+        b64strm.InitPosition();
+        runtime::Tensor temp;
+        ICHECK(temp.Load(&b64strm));
+        return temp;
+      });
+}
 
 uint64_t StructuralHash::operator()(const ffi::Any& object) const {
   return ffi::StructuralHash::Hash(object, false);
@@ -58,91 +90,6 @@ struct RefToObjectPtr : public ObjectRef {
   }
 };
 
-TVM_REGISTER_REFLECTION_VTABLE(ffi::StringObj)
-    .set_creator([](const std::string& bytes) { return RefToObjectPtr::Get(String(bytes)); })
-    .set_repr_bytes([](const Object* n) -> std::string {
-      return GetRef<String>(static_cast<const ffi::StringObj*>(n)).operator std::string();
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ffi::StringObj>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const ffi::StringObj*>(node.get());
-      p->stream << '"' << support::StrEscape(op->data, op->size) << '"';
-    });
-
-TVM_REGISTER_REFLECTION_VTABLE(ffi::BytesObj)
-    .set_creator([](const std::string& bytes) { return RefToObjectPtr::Get(String(bytes)); })
-    .set_repr_bytes([](const Object* n) -> std::string {
-      return GetRef<ffi::Bytes>(static_cast<const ffi::BytesObj*>(n)).operator std::string();
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ffi::BytesObj>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const ffi::BytesObj*>(node.get());
-      p->stream << "b\"" << support::StrEscape(op->data, op->size) << '"';
-    });
-
-TVM_REGISTER_REFLECTION_VTABLE(runtime::ModuleNode)
-    .set_creator([](const std::string& blob) {
-      runtime::Module rtmod = codegen::DeserializeModuleFromBytes(blob);
-      return RefToObjectPtr::Get(rtmod);
-    })
-    .set_repr_bytes([](const Object* n) -> std::string {
-      const auto* rtmod = static_cast<const runtime::ModuleNode*>(n);
-      return codegen::SerializeModuleToBytes(GetRef<runtime::Module>(rtmod), /*export_dso*/ false);
-    });
-
-TVM_REGISTER_REFLECTION_VTABLE(runtime::NDArray::Container)
-    .set_creator([](const std::string& blob) {
-      dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
-      support::Base64InStream b64strm(&mstrm);
-      b64strm.InitPosition();
-      runtime::NDArray temp;
-      ICHECK(temp.Load(&b64strm));
-      return RefToObjectPtr::Get(temp);
-    })
-    .set_repr_bytes([](const Object* n) -> std::string {
-      std::string blob;
-      dmlc::MemoryStringStream mstrm(&blob);
-      support::Base64OutStream b64strm(&mstrm);
-      const auto* ndarray = static_cast<const runtime::NDArray::Container*>(n);
-      runtime::SaveDLTensor(&b64strm, ndarray);
-      b64strm.Finish();
-      return blob;
-    });
-
-TVM_REGISTER_REFLECTION_VTABLE(ffi::ArrayObj)
-    .set_creator([](const std::string&) -> ObjectPtr<Object> {
-      return ffi::make_object<ffi::ArrayObj>();
-    });
-
-TVM_REGISTER_REFLECTION_VTABLE(ffi::ShapeObj)
-    .set_creator([](const std::string& blob) {
-      // Store shape tuple in blob to avoid large integer overflow in JSON.
-      dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
-      support::Base64InStream b64strm(&mstrm);
-      b64strm.InitPosition();
-      uint64_t size;
-      b64strm.Read<uint64_t>(&size);
-      std::vector<int64_t> data(size);
-      b64strm.ReadArray(data.data(), size);
-      ffi::Shape shape(data);
-      return RefToObjectPtr::Get(shape);
-    })
-    .set_repr_bytes([](const Object* n) -> std::string {
-      std::string blob;
-      dmlc::MemoryStringStream mstrm(&blob);
-      support::Base64OutStream b64strm(&mstrm);
-      const auto* shape = static_cast<const ffi::ShapeObj*>(n);
-      b64strm.Write<uint64_t>(shape->size);
-      b64strm.WriteArray(shape->data, shape->size);
-      b64strm.Finish();
-      return blob;
-    });
-
-TVM_REGISTER_REFLECTION_VTABLE(ffi::MapObj)
-    .set_creator([](const std::string&) -> ObjectPtr<Object> { return ffi::MapObj::Empty(); });
-
 struct ReportNodeTrait {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -153,8 +100,7 @@ struct ReportNodeTrait {
   }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ ReportNodeTrait::RegisterReflection(); });
-TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::ReportNode);
+TVM_FFI_STATIC_INIT_BLOCK() { ReportNodeTrait::RegisterReflection(); }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::ReportNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -170,9 +116,8 @@ struct CountNodeTrait {
   }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ CountNodeTrait::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { CountNodeTrait::RegisterReflection(); }
 
-TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::CountNode);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::CountNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const runtime::profiling::CountNode*>(node.get());
@@ -187,14 +132,13 @@ struct DurationNodeTrait {
   }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ DurationNodeTrait::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { DurationNodeTrait::RegisterReflection(); }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::DurationNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const runtime::profiling::DurationNode*>(node.get());
       p->stream << op->GetTypeKey() << "(" << op->microseconds << ")";
     });
-TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::DurationNode);
 
 struct PercentNodeTrait {
   static void RegisterReflection() {
@@ -204,9 +148,8 @@ struct PercentNodeTrait {
   }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ PercentNodeTrait::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { PercentNodeTrait::RegisterReflection(); }
 
-TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::PercentNode);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::PercentNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const runtime::profiling::PercentNode*>(node.get());
@@ -221,9 +164,8 @@ struct RatioNodeTrait {
   }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ RatioNodeTrait::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { RatioNodeTrait::RegisterReflection(); }
 
-TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::RatioNode);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::RatioNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const runtime::profiling::RatioNode*>(node.get());

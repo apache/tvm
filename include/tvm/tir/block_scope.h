@@ -72,8 +72,8 @@ class StmtSRefNode : public Object {
     refl::ObjectDef<StmtSRefNode>().def_ro("seq_index", &StmtSRefNode::seq_index);
   }
 
-  static constexpr const char* _type_key = "tir.StmtSRef";
-  TVM_DECLARE_FINAL_OBJECT_INFO(StmtSRefNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.StmtSRef", StmtSRefNode, Object);
 
   /*! \brief Reset the object inplace to the invalid state */
   void Reset() {
@@ -114,10 +114,7 @@ class StmtSRef : public ObjectRef {
    */
   TVM_DLL explicit StmtSRef(const StmtNode* stmt, StmtSRefNode* parent, int64_t seq_index);
 
-  /*! \return The mutable pointer to the StmtSRefNode */
-  StmtSRefNode* get() const { return static_cast<StmtSRefNode*>(data_.get()); }
-
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(StmtSRef, ObjectRef, StmtSRefNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StmtSRef, ObjectRef, StmtSRefNode);
 
  public:
   /*!
@@ -226,9 +223,7 @@ class DependencyNode : public Object {
         .def_ro("dst", &DependencyNode::dst)
         .def_ro("kind", &DependencyNode::kind);
   }
-
-  static constexpr const char* _type_key = "tir.Dependency";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DependencyNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Dependency", DependencyNode, Object);
 };
 
 /*!
@@ -239,7 +234,7 @@ class Dependency : public ObjectRef {
  public:
   /*! \brief Constructor */
   TVM_DLL explicit Dependency(StmtSRef src, StmtSRef dst, DepKind kind);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Dependency, ObjectRef, DependencyNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Dependency, ObjectRef, DependencyNode);
 };
 
 /*!
@@ -262,18 +257,16 @@ class BlockScopeNode : public Object {
    * \note We intentionally didn't use tvm::Map as the data structure, because we need the values
    * inside to be mutable so that they could be further maintained properly during transformations.
    */
-  std::unordered_map<StmtSRef, Array<Dependency>, ObjectPtrHash, ObjectPtrEqual> src2deps;
+  std::unordered_map<StmtSRef, ffi::Array<Dependency>, ObjectPtrHash, ObjectPtrEqual> src2deps;
   /*! \brief Lookup table for the `dst` of dependencies */
-  std::unordered_map<StmtSRef, Array<Dependency>, ObjectPtrHash, ObjectPtrEqual> dst2deps;
+  std::unordered_map<StmtSRef, ffi::Array<Dependency>, ObjectPtrHash, ObjectPtrEqual> dst2deps;
   /*! \brief The mapping from the buffer to the blocks who write it */
-  std::unordered_map<Buffer, Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual> buffer_writers;
+  std::unordered_map<Buffer, ffi::Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual> buffer_writers;
 
   static void RegisterReflection() {
     // No fields to register as they are not visited
   }
-
-  static constexpr const char* _type_key = "tir.BlockScope";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BlockScopeNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BlockScope", BlockScopeNode, Object);
 
  public:
   /******** Dependency ********/
@@ -282,13 +275,13 @@ class BlockScopeNode : public Object {
    * \param src The queried block
    * \return The dependencies
    */
-  TVM_DLL Array<Dependency> GetDepsBySrc(const StmtSRef& src) const;
+  TVM_DLL ffi::Array<Dependency> GetDepsBySrc(const StmtSRef& src) const;
   /*!
    * \brief Get all dependencies whose `dst` equals `dst`
    * \param dst The queried block
    * \return The dependencies
    */
-  TVM_DLL Array<Dependency> GetDepsByDst(const StmtSRef& dst) const;
+  TVM_DLL ffi::Array<Dependency> GetDepsByDst(const StmtSRef& dst) const;
 };
 
 /*!
@@ -297,6 +290,13 @@ class BlockScopeNode : public Object {
  */
 class BlockScope : public ObjectRef {
  public:
+  /*!
+   * \brief Constructor from ObjectPtr<BlockScopeNode>.
+   * \param data The object pointer.
+   */
+  explicit BlockScope(ObjectPtr<BlockScopeNode> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   /*! \brief The constructor creating an empty block scope with on dependency information */
   TVM_DLL BlockScope();
   /*!
@@ -305,9 +305,9 @@ class BlockScope : public ObjectRef {
    * \param child_block_srefs The srefs to the leaf blocks
    * \note We assume the leaf blocks are given in pre-DFS order
    */
-  TVM_DLL explicit BlockScope(const Array<StmtSRef>& child_block_srefs);
+  TVM_DLL explicit BlockScope(const ffi::Array<StmtSRef>& child_block_srefs);
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockScope, ObjectRef, BlockScopeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockScope, ObjectRef, BlockScopeNode);
 };
 
 }  // namespace tir

@@ -19,9 +19,9 @@ import os
 import tempfile
 from typing import Callable, Dict, List, Optional, Union
 
-from tvm.ffi import register_func
+from tvm_ffi import register_global_func
 from tvm.ir import IRModule
-from tvm.runtime import Module, NDArray, load_param_dict, save_param_dict
+from tvm.runtime import Module, Tensor, load_param_dict, save_param_dict
 from tvm.target import Target
 
 from ...contrib.popen_pool import MapResult, PopenPoolExecutor, StatusKind
@@ -33,18 +33,18 @@ logger = get_logger(__name__)  # pylint: disable=invalid-name
 
 
 T_BUILD = Callable[  # pylint: disable=invalid-name
-    [IRModule, Target, Optional[Dict[str, NDArray]]], Module
+    [IRModule, Target, Optional[Dict[str, Tensor]]], Module
 ]
 T_EXPORT = Callable[[Module], str]  # pylint: disable=invalid-name
 
 
-def _serialize_params(params: Optional[Dict[str, NDArray]]) -> Optional[bytearray]:
+def _serialize_params(params: Optional[Dict[str, Tensor]]) -> Optional[bytearray]:
     if params is None:
         return None
     return save_param_dict(params)
 
 
-def _deserialize_params(params: Optional[bytearray]) -> Optional[Dict[str, NDArray]]:
+def _deserialize_params(params: Optional[bytearray]) -> Optional[Dict[str, Tensor]]:
     if params is None:
         return None
     return load_param_dict(params)
@@ -81,7 +81,7 @@ class LocalBuilder(PyBuilder):
         def default_build(
             mod: IRModule,
             target: Target,
-            params: Optional[Dict[str, NDArray]]
+            params: Optional[Dict[str, Tensor]]
         ) -> Module:
             ...
 
@@ -192,7 +192,7 @@ class LocalBuilder(PyBuilder):
                 )
             else:
                 raise ValueError("Unreachable: unexpected result: {map_result}")
-        del pool
+        pool.shutdown()
         return results
 
     def _sanity_check(self) -> None:
@@ -208,7 +208,7 @@ class LocalBuilder(PyBuilder):
         )
         value = pool.submit(_check, self.f_build, self.f_export)
         value.result()
-        del pool
+        pool.shutdown()
 
 
 def _worker_func(
@@ -234,8 +234,8 @@ def _worker_func(
     return artifact_path
 
 
-@register_func("meta_schedule.builder.default_build")
-def default_build(mod: IRModule, target: Target, _params: Optional[Dict[str, NDArray]]) -> Module:
+@register_global_func("meta_schedule.builder.default_build")
+def default_build(mod: IRModule, target: Target, _params: Optional[Dict[str, Tensor]]) -> Module:
     """Default build function.
 
     Parameters
@@ -244,7 +244,7 @@ def default_build(mod: IRModule, target: Target, _params: Optional[Dict[str, NDA
         The IRModule to be built.
     target : Target
         The target to be built.
-    _params : Optional[Dict[str, NDArray]]
+    _params : Optional[Dict[str, Tensor]]
         The parameters to be used for the build. Must be None.
 
     Returns
@@ -257,11 +257,11 @@ def default_build(mod: IRModule, target: Target, _params: Optional[Dict[str, NDA
     from tvm.tir.transform import RemoveWeightLayoutRewriteBlock
 
     # pylint: enable=import-outside-toplevel
-    mod = RemoveWeightLayoutRewriteBlock(skip_ndarray_rewrite=True)(mod)
+    mod = RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite=True)(mod)
     return tvm_build(mod, target=target)
 
 
-@register_func("meta_schedule.builder.default_export")
+@register_global_func("meta_schedule.builder.default_export")
 def default_export(mod: Module) -> str:
     """Default export function.
 
@@ -282,7 +282,7 @@ def default_export(mod: Module) -> str:
     return artifact_path
 
 
-@register_func("meta_schedule.builder.get_local_builder")
+@register_global_func("meta_schedule.builder.get_local_builder")
 def get_local_builder() -> LocalBuilder:
     """Get the local builder.
 

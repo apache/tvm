@@ -40,31 +40,31 @@ def test_import_static_library():
 
     assert mod0.implements_function("myadd0")
     assert mod1.implements_function("myadd1")
-    assert mod1.is_dso_exportable
+    assert mod1.is_compilation_exportable()
 
     # mod1 is currently an 'llvm' module.
     # Save and reload it as a vanilla 'static_library'.
     temp = utils.tempdir()
     mod1_o_path = temp.relpath("mod1.o")
-    mod1.save(mod1_o_path)
+    mod1.write_to_file(mod1_o_path)
     mod1_o = tvm.runtime.load_static_library(mod1_o_path, ["myadd1"])
     assert mod1_o.implements_function("myadd1")
-    assert mod1_o.is_dso_exportable
+    assert mod1_o.is_compilation_exportable()
 
     # Import mod1 as a static library into mod0 and compile to its own DSO.
     mod0.import_module(mod1_o)
     mod0_dso_path = temp.relpath("mod0.so")
-    mod0.export_library(mod0_dso_path)
+    tvm.runtime.Executable(mod0).export_library(mod0_dso_path)
 
     # The imported mod1 is statically linked into mod0.
     loaded_lib = tvm.runtime.load_module(mod0_dso_path)
-    assert loaded_lib.type_key == "library"
-    assert len(loaded_lib.imported_modules) == 0
+    assert loaded_lib.kind == "library"
+    assert len(loaded_lib.imports) == 0
     assert loaded_lib.implements_function("myadd0")
     assert loaded_lib.get_function("myadd0")
     assert loaded_lib.implements_function("myadd1")
     assert loaded_lib.get_function("myadd1")
-    assert not loaded_lib.is_dso_exportable
+    assert not loaded_lib.is_compilation_exportable()
 
 
 if __name__ == "__main__":

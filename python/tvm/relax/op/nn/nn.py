@@ -1621,7 +1621,17 @@ def batch_norm(
         The computed result.
     """
     return _ffi_api.batch_norm(  # type: ignore
-        data, gamma, beta, moving_mean, moving_var, axis, epsilon, center, scale, momentum, training
+        data,
+        gamma,
+        beta,
+        moving_mean,
+        moving_var,
+        axis,
+        epsilon,
+        center,
+        scale,
+        momentum,
+        training,
     )
 
 
@@ -1813,7 +1823,7 @@ def rms_norm(
 
     .. math::
 
-        out = \frac{data}{\sqrt{mean(data, axis)+\epsilon}} * weight + bias
+        out = \frac{data}{\sqrt{mean(data, axis)+\epsilon}} * weight
 
     Parameters
     ----------
@@ -1822,9 +1832,6 @@ def rms_norm(
 
     weight : relax.Expr
         The scale factor.
-
-    bias : relax.Expr
-        The offset factor.
 
     axes : Union[int, List[int]]
         The axes that along which the normalization is applied.

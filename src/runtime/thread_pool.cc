@@ -141,7 +141,7 @@ class ParallelLauncher {
   // The counter page.
   std::atomic<int32_t>* sync_counter_{nullptr};
   // The error message
-  std::vector<Optional<tvm::ffi::Error>> par_errors_;
+  std::vector<ffi::Optional<tvm::ffi::Error>> par_errors_;
 };
 
 /*! \brief Lock-free single-producer-single-consumer queue for each thread */
@@ -379,7 +379,7 @@ class ThreadPool {
  * \brief args[0] is the AffinityMode, args[1] is the number of threads.
  *  args2 is a list of CPUs which is used to set the CPU affinity.
  */
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("runtime.config_threadpool",
@@ -389,7 +389,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     int nthreads = args[1].cast<int>();
                     std::vector<unsigned int> cpus;
                     if (args.size() >= 3) {
-                      auto cpu_array = args[2].cast<Array<String>>();
+                      auto cpu_array = args[2].cast<ffi::Array<ffi::String>>();
                       for (auto cpu : cpu_array) {
                         ICHECK(IsNumber(cpu))
                             << "The CPU core information '" << cpu << "' is not a number.";
@@ -399,7 +399,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     threading::Configure(mode, nthreads, cpus);
                   })
       .def("runtime.NumThreads", []() -> int32_t { return threading::NumThreads(); });
-});
+}
 
 namespace threading {
 

@@ -81,7 +81,7 @@ class SSAVerifier final : public StmtExprVisitor {
   }
 
   void VisitExpr_(const VarNode* node) final {
-    auto var = GetRef<Var>(node);
+    auto var = ffi::GetRef<Var>(node);
     if (match_scope_) {
       MarkDef(var, var, true);
     }
@@ -140,10 +140,10 @@ bool VerifySSA(const PrimFunc& func) {
   return visitor.is_ssa_;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.analysis.verify_ssa", VerifySSA);
-});
+}
 
 namespace transform {
 
@@ -159,10 +159,10 @@ Pass VerifySSA() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.VerifySSA", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.VerifySSA", VerifySSA);
-});
+}
 
 }  // namespace transform
 

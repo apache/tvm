@@ -33,7 +33,7 @@
 
 #if defined(USE_CUSTOM_DSO_LOADER) && USE_CUSTOM_DSO_LOADER == 1
 // internal TVM header to achieve Library class
-#include <../../../src/runtime/library_module.h>
+#include <../../../3rdparty/tvm-ffi/src/ffi/extra/library_module.h>
 #include <custom_dlfcn.h>
 #endif
 
@@ -52,7 +52,7 @@ void LogMessageImpl(const std::string& file, int lineno, int level, const std::s
 
 }  // namespace detail
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvm.rpc.server.workpath",
@@ -70,7 +70,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           NSBundle* bundle = [NSBundle mainBundle];
           base = [[bundle privateFrameworksPath] stringByAppendingPathComponent:@"tvm"];
 
-          if (tvm::ffi::Function::GetGlobal("runtime.module.loadfile_dylib_custom")) {
+          if (tvm::ffi::Function::GetGlobal("ffi.Module.load_from_file.dylib_custom")) {
             // Custom dso loader is present. Will use it.
             base = NSTemporaryDirectory();
             fmt = "dylib_custom";
@@ -85,7 +85,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         *rv = Module::LoadFromFile(name, fmt);
         LOG(INFO) << "Load module from " << name << " ...";
       });
-});
+}
 
 #if defined(USE_CUSTOM_DSO_LOADER) && USE_CUSTOM_DSO_LOADER == 1
 
@@ -112,15 +112,15 @@ class UnsignedDSOLoader final : public Library {
 };
 
 // Add UnsignedDSOLoader plugin in global registry
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("runtime.module.loadfile_dylib_custom",
+  refl::GlobalDef().def_packed("ffi.Module.load_from_file.dylib_custom",
                                [](ffi::PackedArgs args, ffi::Any* rv) {
-                                 auto n = make_object<UnsignedDSOLoader>();
+                                 auto n = ffi::make_object<UnsignedDSOLoader>();
                                  n->Init(args[0]);
-                                 *rv = CreateModuleFromLibrary(n);
+                                 *rv = tvm::ffi::CreateLibraryModule(n);
                                });
-});
+}
 
 #endif
 

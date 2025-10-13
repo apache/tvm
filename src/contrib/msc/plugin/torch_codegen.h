@@ -79,7 +79,7 @@ class TorchPluginCodeGen : public BasePluginCodeGen<TorchPluginCodeGenConfig> {
   void CodeGenOpDefine(const Plugin& plugin) final;
 
   /*! \brief Codegen cmake file*/
-  void CodeGenCmake(const std::set<String>& devices) final;
+  void CodeGenCmake(const std::set<ffi::String>& devices) final;
 
   /*! \brief Codegen manager depends*/
   void CodeGenManagerDepends() final;
@@ -94,18 +94,18 @@ class TorchPluginCodeGen : public BasePluginCodeGen<TorchPluginCodeGenConfig> {
   void CodeGenConvertDepends() final;
 
   /*! \brief Codegen convert function for plugin*/
-  const String CodeGenOpConvert(const Plugin& plugin) final;
+  const ffi::String CodeGenOpConvert(const Plugin& plugin) final;
 
  private:
   /*! \brief Codegen malloc for outputs/buffers*/
-  void CodeGenMalloc(const Plugin& plugin, const Array<PluginTensor>& tensors,
-                     const String& collect);
+  void CodeGenMalloc(const Plugin& plugin, const ffi::Array<PluginTensor>& tensors,
+                     const ffi::String& collect);
 
   /*! \brief Codegen compute*/
-  void CodeGenCompute(const Plugin& plugin, const String& device);
+  void CodeGenCompute(const Plugin& plugin, const ffi::String& device);
 
   /*! \brief Entry name of torch function*/
-  const String EntryName(const Plugin& plugin) {
+  const ffi::String EntryName(const Plugin& plugin) {
     std::string lower_name;
     const std::string& name = std::string(plugin->name);
     for (size_t i = 0; i < name.size(); i++) {
@@ -119,7 +119,7 @@ class TorchPluginCodeGen : public BasePluginCodeGen<TorchPluginCodeGenConfig> {
   }
 
   /*! \brief Type name in torch*/
-  const String ToTorchType(const String& type) {
+  const ffi::String ToTorchType(const ffi::String& type) {
     if (type == "float") {
       return "double";
     }

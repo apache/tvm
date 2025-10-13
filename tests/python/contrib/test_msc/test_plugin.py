@@ -241,7 +241,7 @@ def _get_tvm_model(tvm_manager):
             data = block_builder.emit_output(data)
         block_builder.emit_func_output(data)
     mod = block_builder.finalize()
-    return BindParams("main", {"weight": tvm.nd.array(weights)})(mod)
+    return BindParams("main", {"weight": tvm.runtime.tensor(weights)})(mod)
 
 
 def _build_plugin(frameworks, plugin_root):
@@ -264,7 +264,7 @@ def _run_relax(relax_mod, target_name, data):
     with tvm.transform.PassContext(opt_level=3):
         relax_exec = tvm.compile(relax_mod, target)
         runnable = tvm.relax.VirtualMachine(relax_exec, device)
-    data = tvm.nd.array(data, device)
+    data = tvm.runtime.tensor(data, device)
     return runnable["main"](data).numpy()
 
 

@@ -660,11 +660,11 @@ def test_output():
     transformed = {}
     expected = [params[0].transpose(1, 0, 2, 3), params[1]]
 
-    @tvm.register_func("get_item", override=True)
+    @tvm.register_global_func("get_item", override=True)
     def get_item(i):
-        return tvm.nd.array(params[i], dev)
+        return tvm.runtime.tensor(params[i], dev)
 
-    @tvm.register_func("set_item", override=True)
+    @tvm.register_global_func("set_item", override=True)
     def set_item(i, value):
         assert i not in transformed, f"Set item called multiple times for index {i}"
         transformed[i] = value.numpy()

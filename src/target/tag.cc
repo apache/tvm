@@ -32,26 +32,24 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK({ TargetTagNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { TargetTagNode::RegisterReflection(); }
 
-TVM_REGISTER_NODE_TYPE(TargetTagNode);
-
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("target.TargetTagListTags", TargetTag::ListTags)
       .def("target.TargetTagAddTag", TargetTag::AddTag);
-});
+}
 
 /**********  Registry-related code  **********/
 
 using TargetTagRegistry = AttrRegistry<TargetTagRegEntry, TargetTag>;
 
-TargetTagRegEntry& TargetTagRegEntry::RegisterOrGet(const String& target_tag_name) {
+TargetTagRegEntry& TargetTagRegEntry::RegisterOrGet(const ffi::String& target_tag_name) {
   return TargetTagRegistry::Global()->RegisterOrGet(target_tag_name);
 }
 
-Optional<Target> TargetTag::Get(const String& target_tag_name) {
+ffi::Optional<Target> TargetTag::Get(const ffi::String& target_tag_name) {
   const TargetTagRegEntry* reg = TargetTagRegistry::Global()->Get(target_tag_name);
   if (reg == nullptr) {
     return std::nullopt;
@@ -59,15 +57,15 @@ Optional<Target> TargetTag::Get(const String& target_tag_name) {
   return Target(reg->tag_->config);
 }
 
-Map<String, Target> TargetTag::ListTags() {
-  Map<String, Target> result;
-  for (const String& tag : TargetTagRegistry::Global()->ListAllNames()) {
+ffi::Map<ffi::String, Target> TargetTag::ListTags() {
+  ffi::Map<ffi::String, Target> result;
+  for (const ffi::String& tag : TargetTagRegistry::Global()->ListAllNames()) {
     result.Set(tag, TargetTag::Get(tag).value());
   }
   return result;
 }
 
-Target TargetTag::AddTag(String name, Map<String, ffi::Any> config, bool override) {
+Target TargetTag::AddTag(ffi::String name, ffi::Map<ffi::String, ffi::Any> config, bool override) {
   TargetTagRegEntry& tag = TargetTagRegEntry::RegisterOrGet(name).set_name();
   ICHECK(override || tag.tag_->config.empty())
       << "Tag \"" << name << "\" has been previously defined as: " << tag.tag_->config;
@@ -79,73 +77,78 @@ Target TargetTag::AddTag(String name, Map<String, ffi::Any> config, bool overrid
 
 #if TVM_LLVM_HAS_AARCH64_TARGET
 TVM_REGISTER_TARGET_TAG("raspberry-pi/4b-aarch64")
-    .set_config({{"kind", String("llvm")},
-                 {"mtriple", String("aarch64-linux-gnu")},
-                 {"mcpu", String("cortex-a72")},
-                 {"mattr", Array<String>{"+neon"}},
+    .set_config({{"kind", ffi::String("llvm")},
+                 {"mtriple", ffi::String("aarch64-linux-gnu")},
+                 {"mcpu", ffi::String("cortex-a72")},
+                 {"mattr", ffi::Array<ffi::String>{"+neon"}},
                  {"num-cores", 4},
-                 {"host", Map<String, ffi::Any>{{"kind", String("llvm")},
-                                                {"mtriple", String("aarch64-linux-gnu")},
-                                                {"mcpu", String("cortex-a72")},
-                                                {"mattr", Array<String>{"+neon"}},
-                                                {"num-cores", 4}}}});
+                 {"host",
+                  ffi::Map<ffi::String, ffi::Any>{{"kind", ffi::String("llvm")},
+                                                  {"mtriple", ffi::String("aarch64-linux-gnu")},
+                                                  {"mcpu", ffi::String("cortex-a72")},
+                                                  {"mattr", ffi::Array<ffi::String>{"+neon"}},
+                                                  {"num-cores", 4}}}});
 
 #if TVM_LLVM_VERSION >= 110
 TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-xavier")
-    .set_config({{"kind", String("cuda")},
-                 {"arch", String("sm_72")},
+    .set_config({{"kind", ffi::String("cuda")},
+                 {"arch", ffi::String("sm_72")},
                  {"max_shared_memory_per_block", 49152},
                  {"max_threads_per_block", 1024},
                  {"thread_warp_size", 32},
                  {"registers_per_block", 65536},
-                 {"host", Map<String, ffi::Any>{{"kind", String("llvm")},
-                                                {"mtriple", String("aarch64-linux-gnu")},
-                                                {"mcpu", String("carmel")},
-                                                {"num-cores", 8}}}});
+                 {"host",
+                  ffi::Map<ffi::String, ffi::Any>{{"kind", ffi::String("llvm")},
+                                                  {"mtriple", ffi::String("aarch64-linux-gnu")},
+                                                  {"mcpu", ffi::String("carmel")},
+                                                  {"num-cores", 8}}}});
 
 TVM_REGISTER_TARGET_TAG("nvidia/jetson-orin-nano")
-    .set_config({{"kind", String("cuda")},
-                 {"arch", String("sm_87")},
+    .set_config({{"kind", ffi::String("cuda")},
+                 {"arch", ffi::String("sm_87")},
                  {"max_shared_memory_per_block", 49152},
                  {"max_threads_per_block", 1024},
                  {"thread_warp_size", 32},
                  {"registers_per_block", 65536},
-                 {"host", Map<String, ffi::Any>{{"kind", String("llvm")},
-                                                {"mtriple", String("aarch64-linux-gnu")},
-                                                {"mcpu", String("carmel")},
-                                                {"num-cores", 6}}}});
+                 {"host",
+                  ffi::Map<ffi::String, ffi::Any>{{"kind", ffi::String("llvm")},
+                                                  {"mtriple", ffi::String("aarch64-linux-gnu")},
+                                                  {"mcpu", ffi::String("carmel")},
+                                                  {"num-cores", 6}}}});
 
 TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-orin-32gb")
-    .set_config({{"kind", String("cuda")},
-                 {"arch", String("sm_87")},
+    .set_config({{"kind", ffi::String("cuda")},
+                 {"arch", ffi::String("sm_87")},
                  {"max_shared_memory_per_block", 49152},
                  {"max_threads_per_block", 1024},
                  {"thread_warp_size", 32},
                  {"registers_per_block", 65536},
-                 {"host", Map<String, ffi::Any>{{"kind", String("llvm")},
-                                                {"mtriple", String("aarch64-linux-gnu")},
-                                                {"mcpu", String("cortex-a78")},
-                                                {"num-cores", 8}}}});
+                 {"host",
+                  ffi::Map<ffi::String, ffi::Any>{{"kind", ffi::String("llvm")},
+                                                  {"mtriple", ffi::String("aarch64-linux-gnu")},
+                                                  {"mcpu", ffi::String("cortex-a78")},
+                                                  {"num-cores", 8}}}});
 
 TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-orin-64gb")
-    .set_config({{"kind", String("cuda")},
-                 {"arch", String("sm_87")},
+    .set_config({{"kind", ffi::String("cuda")},
+                 {"arch", ffi::String("sm_87")},
                  {"max_shared_memory_per_block", 49152},
                  {"max_threads_per_block", 1024},
                  {"thread_warp_size", 32},
                  {"registers_per_block", 65536},
-                 {"host", Map<String, ffi::Any>{{"kind", String("llvm")},
-                                                {"mtriple", String("aarch64-linux-gnu")},
-                                                {"mcpu", String("cortex-a78")},
-                                                {"num-cores", 12}}}});
+                 {"host",
+                  ffi::Map<ffi::String, ffi::Any>{{"kind", ffi::String("llvm")},
+                                                  {"mtriple", ffi::String("aarch64-linux-gnu")},
+                                                  {"mcpu", ffi::String("cortex-a78")},
+                                                  {"num-cores", 12}}}});
 #endif  // TVM_LLVM_VERSION >= 110
 #endif  // TVM_LLVM_HAS_AARCH64_TARGET
 
 #define TVM_REGISTER_CUDA_TAG(Name, Arch, SharedMem, RegPerBlock) \
   TVM_REGISTER_TARGET_TAG(Name).set_config({                      \
-      {"kind", String("cuda")},                                   \
-      {"keys", Array<String>{"cuda", "gpu"}},                     \
-      {"arch", String(Arch)},                                     \
+      {"kind", ffi::String("cuda")},                              \
+      {"keys", ffi::Array<ffi::String>{"cuda", "gpu"}},           \
+      {"arch", ffi::String(Arch)},                                \
       {"max_shared_memory_per_block", SharedMem},                 \
       {"max_threads_per_block", 1024},                            \
       {"thread_warp_size", 32},                                   \
@@ -273,6 +276,8 @@ TVM_REGISTER_CUDA_TAG("nvidia/nvs-5200m", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/nvs-4200m", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-4090", "sm_89", 49152, 65536)
     .with_config("l2_cache_size_bytes", 75497472);
+TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-5060-ti", "sm_120", 49152, 65536)
+    .with_config("l2_cache_size_bytes", 33554432);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-3090-ti", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-3090", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-3080-ti", "sm_86", 49152, 65536);
@@ -421,10 +426,10 @@ TVM_REGISTER_CUDA_TAG("nvidia/tegra-x1", "sm_53", 49152, 32768);
 
 #undef TVM_REGISTER_CUDA_TAG
 
-#define TVM_REGISTER_TAG_AWS_C5(Name, Cores, Arch)                                 \
-  TVM_REGISTER_TARGET_TAG(Name).set_config({{"kind", String("llvm")},              \
-                                            {"keys", Array<String>{"x86", "cpu"}}, \
-                                            {"mcpu", String(Arch)},                \
+#define TVM_REGISTER_TAG_AWS_C5(Name, Cores, Arch)                                           \
+  TVM_REGISTER_TARGET_TAG(Name).set_config({{"kind", ffi::String("llvm")},                   \
+                                            {"keys", ffi::Array<ffi::String>{"x86", "cpu"}}, \
+                                            {"mcpu", ffi::String(Arch)},                     \
                                             {"num-cores", Cores}});
 
 TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.large", 1, "skylake-avx512");
@@ -439,25 +444,25 @@ TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.24xlarge", 48, "cascadelake");
 #undef TVM_REGISTER_TAG_AWS_C5
 
 #if TVM_LLVM_VERSION >= 190
-#define TVM_REGISTER_METAL_GPU_TAG(Name, ThreadsPerBlock, SharedMem, WarpSize)  \
-  TVM_REGISTER_TARGET_TAG(Name).set_config(                                     \
-      {{"kind", String("metal")},                                               \
-       {"max_threads_per_block", ThreadsPerBlock},                              \
-       {"max_shared_memory_per_block", SharedMem},                              \
-       {"thread_warp_size", WarpSize},                                          \
-       {"host", Map<String, ffi::Any>{{"kind", String("llvm")},                 \
-                                      {"mtriple", String("arm64-apple-macos")}, \
-                                      {"mcpu", String("apple-m4")}}}});
+#define TVM_REGISTER_METAL_GPU_TAG(Name, ThreadsPerBlock, SharedMem, WarpSize)                 \
+  TVM_REGISTER_TARGET_TAG(Name).set_config(                                                    \
+      {{"kind", ffi::String("metal")},                                                         \
+       {"max_threads_per_block", ThreadsPerBlock},                                             \
+       {"max_shared_memory_per_block", SharedMem},                                             \
+       {"thread_warp_size", WarpSize},                                                         \
+       {"host", ffi::Map<ffi::String, ffi::Any>{{"kind", ffi::String("llvm")},                 \
+                                                {"mtriple", ffi::String("arm64-apple-macos")}, \
+                                                {"mcpu", ffi::String("apple-m4")}}}});
 #else
-#define TVM_REGISTER_METAL_GPU_TAG(Name, ThreadsPerBlock, SharedMem, WarpSize)  \
-  TVM_REGISTER_TARGET_TAG(Name).set_config(                                     \
-      {{"kind", String("metal")},                                               \
-       {"max_threads_per_block", ThreadsPerBlock},                              \
-       {"max_shared_memory_per_block", SharedMem},                              \
-       {"thread_warp_size", WarpSize},                                          \
-       {"host", Map<String, ffi::Any>{{"kind", String("llvm")},                 \
-                                      {"mtriple", String("arm64-apple-macos")}, \
-                                      {"mcpu", String("apple-latest")}}}});
+#define TVM_REGISTER_METAL_GPU_TAG(Name, ThreadsPerBlock, SharedMem, WarpSize)                 \
+  TVM_REGISTER_TARGET_TAG(Name).set_config(                                                    \
+      {{"kind", ffi::String("metal")},                                                         \
+       {"max_threads_per_block", ThreadsPerBlock},                                             \
+       {"max_shared_memory_per_block", SharedMem},                                             \
+       {"thread_warp_size", WarpSize},                                                         \
+       {"host", ffi::Map<ffi::String, ffi::Any>{{"kind", ffi::String("llvm")},                 \
+                                                {"mtriple", ffi::String("arm64-apple-macos")}, \
+                                                {"mcpu", ffi::String("apple-latest")}}}});
 #endif
 
 #if TVM_LLVM_HAS_AARCH64_TARGET

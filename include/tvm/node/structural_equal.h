@@ -24,8 +24,8 @@
 #define TVM_NODE_STRUCTURAL_EQUAL_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/reflection/access_path.h>
 #include <tvm/node/functor.h>
-#include <tvm/node/object_path.h>
 #include <tvm/runtime/data_type.h>
 
 #include <cmath>
@@ -58,10 +58,10 @@ class BaseValueEqual {
 
   bool operator()(const int64_t& lhs, const int64_t& rhs) const { return lhs == rhs; }
   bool operator()(const uint64_t& lhs, const uint64_t& rhs) const { return lhs == rhs; }
-  bool operator()(const Optional<int64_t>& lhs, const Optional<int64_t>& rhs) const {
+  bool operator()(const ffi::Optional<int64_t>& lhs, const ffi::Optional<int64_t>& rhs) const {
     return lhs == rhs;
   }
-  bool operator()(const Optional<double>& lhs, const Optional<double>& rhs) const {
+  bool operator()(const ffi::Optional<double>& lhs, const ffi::Optional<double>& rhs) const {
     return lhs == rhs;
   }
   bool operator()(const int& lhs, const int& rhs) const { return lhs == rhs; }
@@ -72,27 +72,6 @@ class BaseValueEqual {
   bool operator()(const ENum& lhs, const ENum& rhs) const {
     return lhs == rhs;
   }
-};
-
-/*!
- * \brief Pair of `ObjectPath`s, one for each object being tested for structural equality.
- */
-class ObjectPathPairNode : public Object {
- public:
-  ObjectPath lhs_path;
-  ObjectPath rhs_path;
-
-  ObjectPathPairNode(ObjectPath lhs_path, ObjectPath rhs_path);
-
-  static constexpr const char* _type_key = "node.ObjectPathPair";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ObjectPathPairNode, Object);
-};
-
-class ObjectPathPair : public ObjectRef {
- public:
-  ObjectPathPair(ObjectPath lhs_path, ObjectPath rhs_path);
-
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ObjectPathPair, ObjectRef, ObjectPathPairNode);
 };
 
 /*!
@@ -129,5 +108,6 @@ class StructuralEqual : public BaseValueEqual {
   TVM_DLL bool operator()(const ffi::Any& lhs, const ffi::Any& rhs,
                           const bool map_free_params = false) const;
 };
+
 }  // namespace tvm
 #endif  // TVM_NODE_STRUCTURAL_EQUAL_H_

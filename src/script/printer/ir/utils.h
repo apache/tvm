@@ -37,28 +37,26 @@ namespace printer {
 
 class IRFrameNode : public FrameNode {
  public:
-  Map<String, Array<GlobalInfo>>* global_infos = nullptr;
+  ffi::Map<ffi::String, ffi::Array<GlobalInfo>>* global_infos = nullptr;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     // global infos is not exposed
   }
-
-  static constexpr const char* _type_key = "script.printer.IRFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IRFrameNode, FrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.IRFrame", IRFrameNode, FrameNode);
 };
 
 class IRFrame : public Frame {
  public:
   explicit IRFrame(const IRDocsifier& d) {
-    ObjectPtr<IRFrameNode> n = make_object<IRFrameNode>();
+    ObjectPtr<IRFrameNode> n = ffi::make_object<IRFrameNode>();
     n->stmts.clear();
     n->d = d.get();
     n->global_infos = nullptr;
     data_ = std::move(n);
   }
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IRFrame, Frame, IRFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRFrame, Frame, IRFrameNode);
 };
 
 /*! \brief Redirected method for the ReprPrinter */
