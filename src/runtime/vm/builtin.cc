@@ -735,7 +735,7 @@ int TVMBackendAnyListMoveFromPackedReturn(void* anylist, int index, TVMFFIAny* a
   using namespace tvm::runtime;
   TVM_FFI_SAFE_CALL_BEGIN();
   auto* list = static_cast<tvm::ffi::Any*>(anylist);
-  list[index] = tvm::ffi::details::AnyUnsafe::MoveTVMFFIAnyToAny(std::move(args[ret_offset]));
+  list[index] = tvm::ffi::details::AnyUnsafe::MoveTVMFFIAnyToAny(&args[ret_offset]);
   TVM_FFI_SAFE_CALL_END();
 }
 }  // extern "C"
