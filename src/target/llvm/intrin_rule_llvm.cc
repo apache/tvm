@@ -181,7 +181,7 @@ TVM_REGISTER_OP("tir.asin")
       /* --- domain limit check --- */
       PrimExpr lower = make_const(x.dtype(), -1.0);
       PrimExpr upper = make_const(x.dtype(), 1.0);
-      PrimExpr out_range = tir::Or(x<lower, x> upper);
+      PrimExpr out_range = tir::Or(x<lower, x>upper);
       // Use a quiet NaN constant
       PrimExpr nan_const = make_const(x.dtype(), std::numeric_limits<double>::quiet_NaN());
       // select: if out of [-1,1] → NaN, else → series
