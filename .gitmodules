@@ -24,4 +24,4 @@
 	url = https://github.com/madler/zlib.git
 [submodule "3rdparty/tvm-ffi"]
 	path = 3rdparty/tvm-ffi
-	url = https://github.com/junrushao/tvm-ffi
+	url = https://github.com/apache/tvm-ffi
