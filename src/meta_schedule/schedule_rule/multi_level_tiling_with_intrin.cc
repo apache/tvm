@@ -85,7 +85,6 @@ class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
     return MultiLevelTilingNode::ApplySubRules(states);
   }
 
-
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
