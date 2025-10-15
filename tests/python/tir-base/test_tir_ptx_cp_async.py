@@ -94,7 +94,7 @@ def ptx_cp_async_barrier(
             B[tx, i] = A_shared[tx, i]
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@tvm.testing.requires_cuda_compute_version(9)
 def test_ptx_cp_async_barrier():
     f = ptx_cp_async_barrier
 
