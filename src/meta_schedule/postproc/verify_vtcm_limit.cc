@@ -59,6 +59,12 @@ class VerifyVTCMLimitNode : public PostprocNode {
     ObjectPtr<VerifyVTCMLimitNode> n = ffi::make_object<VerifyVTCMLimitNode>(*this);
     return Postproc(n);
   }
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<VerifyVTCMLimitNode>();
+  }
+
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.VerifyVTCMLimit", VerifyVTCMLimitNode,
                                     PostprocNode);
 };
@@ -70,6 +76,7 @@ Postproc Postproc::VerifyVTCMLimit() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  VerifyVTCMLimitNode::RegisterReflection();
   refl::GlobalDef().def("meta_schedule.PostprocVerifyVTCMLimit", Postproc::VerifyVTCMLimit);
 }
 

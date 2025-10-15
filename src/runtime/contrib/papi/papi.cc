@@ -288,7 +288,6 @@ MetricCollector CreatePAPIMetricCollector(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<MetricCollectorNode>();
   refl::GlobalDef().def("runtime.profiling.PAPIMetricCollector",
                         [](ffi::Map<DeviceWrapper, ffi::Array<ffi::String>> metrics) {
                           return PAPIMetricCollector(metrics);

@@ -39,6 +39,12 @@ using tir::Schedule;
 class MultiLevelTilingWideVectorNode : public MultiLevelTilingNode {
  public:
   size_t vector_length_in_bits;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MultiLevelTilingWideVectorNode>();
+  }
+
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MultiLevelTilingWideVector",
                                     MultiLevelTilingWideVectorNode, MultiLevelTilingNode);
 
@@ -129,6 +135,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingWideVector(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  MultiLevelTilingWideVectorNode::RegisterReflection();
   refl::GlobalDef().def("meta_schedule.ScheduleRuleMultiLevelTilingWideVector",
                         ScheduleRule::MultiLevelTilingWideVector);
 }

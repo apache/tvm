@@ -125,6 +125,7 @@ class RewriteReductionBlockNode : public PostprocNode {
     ObjectPtr<RewriteReductionBlockNode> n = ffi::make_object<RewriteReductionBlockNode>(*this);
     return Postproc(n);
   }
+
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RewriteReductionBlock",
                                     RewriteReductionBlockNode, PostprocNode);
 };
@@ -178,11 +179,10 @@ Postproc Postproc::RewriteReductionBlock() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  RewriteReductionBlockNode::RegisterReflection();
   refl::GlobalDef().def("meta_schedule.PostprocRewriteReductionBlock",
                         Postproc::RewriteReductionBlock);
 }
-
-TVM_FFI_STATIC_INIT_BLOCK() { RewriteReductionBlockNode::RegisterReflection(); }
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -60,8 +60,8 @@ class ProfilerNode : public runtime::Object {
   ffi::Function total_timer;
 
   static void RegisterReflection() {
-    // `stats_sec` is not registered
-    // `total_timer` is not registered
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ProfilerNode>();
   }
 
   static constexpr const bool _type_mutable = true;

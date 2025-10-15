@@ -85,7 +85,13 @@ class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
     return MultiLevelTilingNode::ApplySubRules(states);
   }
 
+
  public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MultiLevelTilingWithIntrinNode>();
+  }
+
   /*! \brief The name of a tensor intrinsic. */
   ffi::String intrin_name;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MultiLevelTilingWithIntrin",
@@ -108,6 +114,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingWithIntrin(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  MultiLevelTilingWithIntrinNode::RegisterReflection();
   refl::GlobalDef().def("meta_schedule.ScheduleRuleMultiLevelTilingWithIntrin",
                         ScheduleRule::MultiLevelTilingWithIntrin);
 }

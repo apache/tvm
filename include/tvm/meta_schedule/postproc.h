@@ -40,7 +40,8 @@ class PostprocNode : public runtime::Object {
   virtual ~PostprocNode() = default;
 
   static void RegisterReflection() {
-    // No fields to register
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PostprocNode>();
   }
 
   /*!
@@ -199,6 +200,8 @@ class PyPostprocNode : public PostprocNode {
     // `f_apply` is not registered
     // `f_clone` is not registered
     // `f_as_string` is not registered
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PyPostprocNode>();
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final;

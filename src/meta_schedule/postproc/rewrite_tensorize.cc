@@ -78,6 +78,7 @@ class RewriteTensorizeNode : public PostprocNode {
   }
 
   bool vectorize_init_loop = false;
+
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RewriteTensorize", RewriteTensorizeNode,
                                     PostprocNode);
 };
@@ -109,10 +110,10 @@ Postproc Postproc::RewriteTensorize(bool vectorize_init_loop) {
   return Postproc(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { RewriteTensorizeNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  RewriteTensorizeNode::RegisterReflection();
   refl::GlobalDef().def("meta_schedule.PostprocRewriteTensorize", Postproc::RewriteTensorize);
 }
 
