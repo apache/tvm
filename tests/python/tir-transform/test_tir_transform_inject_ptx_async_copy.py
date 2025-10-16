@@ -214,6 +214,7 @@ def ptx_global_to_shared_copy_fp32x1_barrier(
             B[tx, i] = A_shared[tx, i]
 
 
+@pytest.mark.xfail(reason="temp skip test due to cuda env update")
 @tvm.testing.requires_cuda
 def test_inject_async_copy_barrier():
     dtype = "float32"
