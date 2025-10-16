@@ -96,7 +96,6 @@ def ptx_cp_async_barrier(
 
 
 @pytest.mark.xfail(reason="temp skip test due to cuda env update")
-@tvm.testing.requires_cuda_compute_version(8)
 def test_ptx_cp_async_barrier():
     f = ptx_cp_async_barrier
 
