@@ -86,6 +86,12 @@ class NameSupplyNode : public Object {
   std::string prefix_;
 
   static constexpr const bool _type_mutable = true;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<NameSupplyNode>();
+  }
+
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.NameSupply", NameSupplyNode, Object);
 
  private:

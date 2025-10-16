@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <dmlc/io.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/object.h>
@@ -191,6 +192,11 @@ Session Session::ThreadedSession(int num_workers, int num_group) {
       << "The number of workers should be divisible by the number of worker group.";
   ObjectPtr<ThreadedSessionObj> n = ffi::make_object<ThreadedSessionObj>(num_workers, num_group);
   return Session(std::move(n));
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<ThreadedSessionObj>();
 }
 
 }  // namespace runtime

@@ -24,6 +24,7 @@
 #include "rpc_session.h"
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 
 #include <array>
@@ -126,6 +127,8 @@ void RPCSession::InsertToSessionTable(std::shared_ptr<RPCSession> sess) {
   ICHECK_EQ(sess->table_index_, 0);
   sess->table_index_ = RPCSessTable::Global()->Insert(sess);
 }
+
+TVM_FFI_STATIC_INIT_BLOCK() { tvm::ffi::reflection::ObjectDef<RPCObjectRefObj>(); }
 
 }  // namespace runtime
 }  // namespace tvm

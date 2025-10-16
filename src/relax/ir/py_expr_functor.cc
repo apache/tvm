@@ -554,6 +554,7 @@ class PyExprMutator : public ObjectRef {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<PyExprVisitorNode>();
   refl::GlobalDef()
       .def("relax.MakePyExprVisitor", PyExprVisitor::MakePyExprVisitor)
       .def("relax.PyExprVisitorVisitExpr",

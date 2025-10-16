@@ -264,7 +264,8 @@ class BlockScopeNode : public Object {
   std::unordered_map<Buffer, ffi::Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual> buffer_writers;
 
   static void RegisterReflection() {
-    // No fields to register as they are not visited
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BlockScopeNode>();
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BlockScope", BlockScopeNode, Object);
 

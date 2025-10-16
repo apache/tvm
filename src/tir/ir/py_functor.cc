@@ -215,7 +215,8 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
   }
 
   static void RegisterReflection() {
-    // No fields to register as they are not visited
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PyStmtExprVisitorNode>();
   }
 
   static constexpr const bool _type_mutable = true;
@@ -581,7 +582,8 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
   }
 
   static void RegisterReflection() {
-    // No fields to register as they are not visited
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PyStmtExprMutatorNode>();
   }
 
   static constexpr const bool _type_mutable = true;
