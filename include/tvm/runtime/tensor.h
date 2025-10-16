@@ -74,6 +74,7 @@ class Tensor : public tvm::ffi::Tensor {
   static Tensor FromDLPackVersioned(DLManagedTensorVersioned* tensor) {
     return tvm::ffi::Tensor::FromDLPackVersioned(tensor, kAllocAlignment, true);
   }
+  inline const DLTensor* operator->() const { return this->get(); }
   /*!
    * \brief Copy data content from another array.
    * \param other The source array to be copied from.
