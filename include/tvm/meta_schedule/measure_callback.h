@@ -43,7 +43,8 @@ class MeasureCallbackNode : public runtime::Object {
   virtual ~MeasureCallbackNode() = default;
 
   static void RegisterReflection() {
-    // No fields to register
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MeasureCallbackNode>();
   }
 
   /*!
@@ -95,6 +96,8 @@ class PyMeasureCallbackNode : public MeasureCallbackNode {
   static void RegisterReflection() {
     // `f_apply` is not registered
     // `f_as_string` is not registered
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PyMeasureCallbackNode>();
   }
 
   void Apply(const TaskScheduler& task_scheduler,                     //

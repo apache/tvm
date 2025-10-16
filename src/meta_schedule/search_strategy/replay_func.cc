@@ -63,7 +63,8 @@ class ReplayFuncNode : public SearchStrategyNode {
   std::unique_ptr<State> state_ = nullptr;
 
   static void RegisterReflection() {
-    // No fields to register
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ReplayFuncNode>();
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.ReplayFunc", ReplayFuncNode, SearchStrategyNode);
 

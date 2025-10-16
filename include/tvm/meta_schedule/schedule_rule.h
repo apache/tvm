@@ -43,7 +43,8 @@ class ScheduleRuleNode : public runtime::Object {
   virtual ~ScheduleRuleNode() = default;
 
   static void RegisterReflection() {
-    // No fields to register
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ScheduleRuleNode>();
   }
 
   /*!
@@ -337,6 +338,8 @@ class PyScheduleRuleNode : public ScheduleRuleNode {
     // `f_apply` is not registered
     // `f_as_string` is not registered
     // `f_clone` is not registered
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PyScheduleRuleNode>();
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final;

@@ -497,6 +497,10 @@ struct TypeTraits<runtime::DataType> : public TypeTraitsBase {
   }
 
   TVM_FFI_INLINE static std::string TypeStr() { return ffi::StaticTypeKey::kTVMFFIDataType; }
+
+  TVM_FFI_INLINE static std::string TypeSchema() {
+    return R"({"type":")" + std::string(ffi::StaticTypeKey::kTVMFFIDataType) + R"("})";
+  }
 };
 
 }  // namespace ffi

@@ -51,7 +51,8 @@ enum class BufferIndexType : int32_t {
 class BlockRVNode : public runtime::Object {
  public:
   static void RegisterReflection() {
-    // No fields to register as they are not visited
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BlockRVNode>();
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BlockRV", BlockRVNode, runtime::Object);
 };
@@ -73,7 +74,8 @@ class BlockRV : public runtime::ObjectRef {
 class LoopRVNode : public runtime::Object {
  public:
   static void RegisterReflection() {
-    // No fields to register as they are not visited
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<LoopRVNode>();
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.LoopRV", LoopRVNode, runtime::Object);
 };

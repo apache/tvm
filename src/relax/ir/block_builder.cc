@@ -1055,6 +1055,7 @@ BlockBuilder BlockBuilder::Create(ffi::Optional<IRModule> mod,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<BlockBuilderNode>();
   refl::GlobalDef()
       .def("relax.BlockBuilderCreate",
            [](ffi::Optional<IRModule> mod) { return BlockBuilder::Create(mod); })

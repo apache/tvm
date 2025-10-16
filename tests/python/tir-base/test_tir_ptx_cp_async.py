@@ -18,6 +18,7 @@ import tvm
 from tvm.script import tir as T
 import numpy as np
 import tvm.testing
+import pytest
 
 
 @T.prim_func
