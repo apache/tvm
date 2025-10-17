@@ -41,7 +41,8 @@ class MutatorNode : public runtime::Object {
   virtual ~MutatorNode() = default;
 
   static void RegisterReflection() {
-    // No fields to register
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MutatorNode>();
   }
 
   /*!

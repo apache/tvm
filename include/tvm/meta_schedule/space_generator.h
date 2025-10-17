@@ -227,6 +227,8 @@ class PySpaceGeneratorNode : public SpaceGeneratorNode {
     // `f_initialize_with_tune_context` is not registered
     // `f_generate_design_space` is not registered
     // `f_clone` is not registered
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PySpaceGeneratorNode>();
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final;

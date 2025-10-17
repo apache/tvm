@@ -244,7 +244,7 @@ def BF16ComputeLegalize():
     return _ffi_api.BF16ComputeLegalize()  # type: ignore
 
 
-def FP8ComputeLegalize(promote_dtype_str: str = "float32"):
+def FP8ComputeLegalize(promote_dtype: str = "float32"):
     """Legalize fp8 compute Ops.
 
     Parameters
@@ -257,7 +257,7 @@ def FP8ComputeLegalize(promote_dtype_str: str = "float32"):
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.FP8ComputeLegalize(promote_dtype_str)  # type: ignore
+    return _ffi_api.FP8ComputeLegalize(promote_dtype)  # type: ignore
 
 
 def BF16StorageLegalize():
@@ -428,6 +428,19 @@ def AnnotateDeviceRegions():
         The result pass
     """
     return _ffi_api.AnnotateDeviceRegions()  # type: ignore
+
+
+def AnnotateIrregularLoop():
+    """Annotate irregular loop mark. Loop transformations like
+    peeling, partition, unroll, etc is not allowed on irregular
+    loop with internal loop continuation and breaks.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.AnnotateIrregularLoop()  # type: ignore
 
 
 def SplitHostDevice():

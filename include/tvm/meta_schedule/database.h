@@ -391,6 +391,8 @@ class PyDatabaseNode : public DatabaseNode {
     // `f_query_schedule` is not registered
     // `f_query_ir_module` is not registered
     // `f_size` is not registered
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PyDatabaseNode>();
   }
 
   bool HasWorkload(const IRModule& mod) final {

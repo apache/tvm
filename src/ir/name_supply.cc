@@ -93,6 +93,7 @@ std::string NameSupplyNode::GetUniqueName(std::string name, bool add_underscore)
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  NameSupplyNode::RegisterReflection();
   refl::GlobalDef()
       .def("ir.NameSupply", [](ffi::String prefix) { return NameSupply(prefix); })
       .def_method("ir.NameSupply_FreshName", &NameSupplyNode::FreshName)

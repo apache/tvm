@@ -249,6 +249,8 @@ class PySearchStrategyNode : public SearchStrategyNode {
     // `f_generate_measure_candidates` is not registered
     // `f_notify_runner_results` is not registered
     // `f_clone` is not registered
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PySearchStrategyNode>();
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final;

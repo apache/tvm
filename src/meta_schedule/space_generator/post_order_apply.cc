@@ -37,7 +37,8 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
   TRandState rand_state_ = -1;
 
   static void RegisterReflection() {
-    // No fields to register
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PostOrderApplyNode>();
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final {

@@ -25,7 +25,6 @@ import tvm
 import tvm.testing
 from tvm import dlight as dl
 from tvm import relax
-from tvm.contrib import utils
 from tvm.relax.frontend.nn.llm.kv_cache import (
     AttnKind,
     RopeMode,
@@ -115,47 +114,27 @@ def set_global_func(dtype):
     fis_empty = tvm.get_global_func("vm.builtin.attention_kv_cache_empty")
     fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv_mla")
 
-    def load_module(name: str, static_modules: List[tvm.runtime.Module]):
-        assert len(static_modules) > 0
-        if len(static_modules) == 1:
-            return static_modules[0]
-        static_mod = static_modules[0]
-        for mod in static_modules[1:]:
-            static_mod.import_module(mod)
-        temp = utils.tempdir()
-        mod_path = temp.relpath(f"{name}.so")
-        static_mod.export_library(mod_path)
-        return tvm.runtime.load_module(mod_path)
-
     target = tvm.target.Target.from_device(device)
-    flashinfer_prefill_mod = load_module(
-        "flashinfer_prefill",
-        relax.backend.cuda.flashinfer.gen_flashinfer_prefill_module(
-            dtype_q=dtype,
-            dtype_kv=dtype,
-            dtype_o=dtype,
-            qk_head_dim=qk_nope_head_dim + qk_rope_head_dim,
-            v_head_dim=v_head_dim,
-            target=target,
-            enable_inline_rope=False,
-        ),
-    )
-    flashinfer_mla_mod = load_module(
-        "flashinfer_mla",
-        relax.backend.cuda.flashinfer.gen_flashinfer_mla_module(
-            dtype_q=dtype,
-            dtype_kv=dtype,
-            dtype_o=dtype,
-            head_dim_ckv=kv_lora_rank,
-            head_dim_kpe=qk_rope_head_dim,
-            target=target,
-        ),
-    )
+    flashinfer_prefill_mod = relax.backend.cuda.flashinfer.gen_flashinfer_prefill_module(
+        dtype_q=dtype,
+        dtype_kv=dtype,
+        dtype_o=dtype,
+        qk_head_dim=qk_nope_head_dim + qk_rope_head_dim,
+        v_head_dim=v_head_dim,
+        enable_inline_rope=False,
+    )[0]
+    flashinfer_mla_mod = relax.backend.cuda.flashinfer.gen_flashinfer_mla_module(
+        dtype_q=dtype,
+        dtype_kv=dtype,
+        dtype_o=dtype,
+        head_dim_ckv=kv_lora_rank,
+        head_dim_kpe=qk_rope_head_dim,
+    )[0]
 
-    fattn_prefill_ragged = flashinfer_prefill_mod["batch_prefill_with_ragged_kv_cache_run"]
-    fattn_prefill_ragged_plan = flashinfer_prefill_mod["batch_prefill_with_kv_cache_plan"]
-    fmla_prefill = flashinfer_mla_mod["batch_mla_paged_attention_run"]
-    fmla_prefill_plan = flashinfer_mla_mod["batch_mla_paged_attention_plan"]
+    fattn_prefill_ragged = flashinfer_prefill_mod["batch_prefill_ragged_run"]
+    fattn_prefill_ragged_plan = flashinfer_prefill_mod["batch_prefill_plan"]
+    fmla_prefill = flashinfer_mla_mod["batch_mla_run"]
+    fmla_prefill_plan = flashinfer_mla_mod["batch_mla_plan"]
 
     builts = []
     for tir_func in [
@@ -221,7 +200,13 @@ def create_kv_cache(dtype):
         tvm.runtime.empty((), dtype, device=device),
         None,  # f_transpose_append_mha
         ftranspose_append,
-        ["flashinfer", fattn_prefill_ragged, fattn_prefill_ragged_plan],  # fattn_prefill_ragged
+        [
+            "flashinfer",
+            fattn_prefill_ragged,
+            fattn_prefill_ragged_plan,
+            qk_nope_head_dim + qk_rope_head_dim,
+            v_head_dim,
+        ],  # fattn_prefill_ragged
         [],  # fattn_prefill
         [],  # fattn_decode
         [],  # fattn_prefill_sliding_window

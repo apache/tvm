@@ -246,19 +246,26 @@ PrimExpr ret(PrimExpr value, Span span) {
   return tir::Call(value.dtype(), tir::builtin::ret(), {value}, span);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.ret", ret);
-}
-
 PrimExpr thread_return(Span span) {
   return tir::Call(DataType::Void(), tir::builtin::thread_return(), {}, span);
 }
 
+PrimExpr continue_loop(Span span) {
+  return tir::Call(DataType::Void(), tir::builtin::continue_loop(), {}, span);
+}
+
+PrimExpr break_loop(Span span) {
+  return tir::Call(DataType::Void(), tir::builtin::break_loop(), {}, span);
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.thread_return", thread_return);
-}
+  refl::GlobalDef()
+      .def("tir.ret", ret)
+      .def("tir.thread_return", thread_return)
+      .def("tir.continue_loop", continue_loop)
+      .def("tir.break_loop", break_loop);
+};
 
 // maximum and min limits
 PrimExpr max_value(const DataType& dtype, Span span) {

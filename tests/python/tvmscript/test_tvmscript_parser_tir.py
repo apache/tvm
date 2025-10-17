@@ -612,5 +612,39 @@ def test_alloc_inside_block():
     tvm.ir.assert_structural_equal(func, expected)
 
 
+def test_ifexp():
+    @T.prim_func(private=True)
+    def func(A: T.buffer((128, 128), "float32")):
+        for i, j in T.grid(128, 128):
+            A[i, j] = i if i < j else j
+
+    @T.prim_func(private=True)
+    def expected(A: T.buffer((128, 128), "float32")):
+        for i, j in T.grid(128, 128):
+            A[i, j] = T.if_then_else(i < j, i, j)
+
+    tvm.ir.assert_structural_equal(func, expected)
+
+
+def test_sequence_compare():
+    @T.prim_func(private=True)
+    def tir_func(A: T.Buffer((128, 128), "float32")):
+        for i, j in T.grid(128, 128):
+            if 0 < i < 128 and 0 < j < 128:
+                A[i, j] = 1
+            else:
+                A[i, j] = 0
+
+    @T.prim_func(private=True)
+    def expected(A: T.buffer((128, 128), "float32")):
+        for i, j in T.grid(128, 128):
+            if (0 < i and i < 128) and (0 < j and j < 128):
+                A[i, j] = 1
+            else:
+                A[i, j] = 0
+
+    tvm.ir.assert_structural_equal(tir_func, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

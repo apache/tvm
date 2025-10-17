@@ -24,6 +24,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/backend.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/type.h>
@@ -52,6 +53,8 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
       return ShapeOf(call);
     } else if (call->op == tensor_to_shape_op_) {
       return TensorToShape(call);
+    } else if (call->op == call_py_func_op_) {
+      return CallPyFunc(call);
     } else if (call->op == to_vdevice_op_) {
       return ToDevice(call);
     } else if (call->op == make_closure_op_) {
@@ -139,6 +142,21 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     return Call(builtin_tensor_to_shape_, call_node->args, Attrs(), {GetStructInfo(call_node)});
   }
 
+  Expr CallPyFunc(const Call& call_node) {
+    ICHECK(call_node->args.size() == 2);
+    ICHECK(call_node->struct_info_.defined());
+
+    // Create tuple with function name and arguments tuple
+    ffi::Array<Expr> tuple_fields;
+    tuple_fields.push_back(call_node->args[0]);  // function name
+    tuple_fields.push_back(call_node->args[1]);  // arguments tuple
+    auto combined_tuple = Tuple(tuple_fields);
+
+    // Direct call to vm.builtin.call_py_func
+    return Call(builtin_call_py_func_, {combined_tuple}, call_node->attrs, call_node->sinfo_args,
+                call_node->span);
+  }
+
   Expr ToDevice(const Call& call_node) {
     // TODO(yongwww): replace ToVDeviceAttrs with related Expr
     ICHECK(call_node->args.size() == 1);
@@ -198,6 +216,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   const Op& reshape_op_ = Op::Get("relax.reshape");
   const Op& shape_of_op_ = Op::Get("relax.shape_of");
   const Op& tensor_to_shape_op_ = Op::Get("relax.tensor_to_shape");
+  const Op& call_py_func_op_ = Op::Get("relax.call_py_func");
   const Op& to_vdevice_op_ = Op::Get("relax.to_vdevice");
   const Op& make_closure_op_ = Op::Get("relax.make_closure");
   const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
@@ -216,6 +235,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   const ExternFunc builtin_reshape_{"vm.builtin.reshape"};
   const ExternFunc builtin_shape_of_{"vm.builtin.shape_of"};
   const ExternFunc builtin_tensor_to_shape_{"vm.builtin.tensor_to_shape"};
+  const ExternFunc builtin_call_py_func_{"vm.builtin.call_py_func"};
   const ExternFunc builtin_to_device_{"vm.builtin.to_device"};
   const ExternFunc builtin_make_closure_{"vm.builtin.make_closure"};
   const ExternFunc builtin_invoke_closure_{"vm.builtin.invoke_closure"};

@@ -214,6 +214,7 @@ def ptx_global_to_shared_copy_fp32x1_barrier(
             B[tx, i] = A_shared[tx, i]
 
 
+@pytest.mark.xfail(reason="temp skip test due to cuda env update")
 @tvm.testing.requires_cuda
 def test_inject_async_copy_barrier():
     dtype = "float32"
@@ -264,8 +265,8 @@ extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__
 extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C) {
   __shared__ float A_shared[64];
   __shared__ float B_shared[64];
-  A_shared[((int)threadIdx.x)] = 0.000000e+00f;
-  B_shared[((int)threadIdx.x)] = 0.000000e+00f;
+  A_shared[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
+  B_shared[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
 __asm__ __volatile__("cp.async.commit_group;");
 
 

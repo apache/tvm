@@ -23,6 +23,8 @@ namespace tvm {
 namespace tir {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<ScheduleNode>();
   BlockRVNode::RegisterReflection();
   LoopRVNode::RegisterReflection();
 }

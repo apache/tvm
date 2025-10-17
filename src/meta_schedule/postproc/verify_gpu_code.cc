@@ -206,6 +206,12 @@ class VerifyGPUCodeNode : public PostprocNode {
     n->target_constraints_ = this->target_constraints_;
     return Postproc(n);
   }
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<VerifyGPUCodeNode>();
+  }
+
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.VerifyGPUCode", VerifyGPUCodeNode, PostprocNode);
 };
 
@@ -216,6 +222,7 @@ Postproc Postproc::VerifyGPUCode() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  VerifyGPUCodeNode::RegisterReflection();
   refl::GlobalDef().def("meta_schedule.PostprocVerifyGPUCode", Postproc::VerifyGPUCode);
 }
 
