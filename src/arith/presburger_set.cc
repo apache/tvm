@@ -277,6 +277,7 @@ PresburgerSet MakePresburgerSet(const PrimExpr& constraint) { return PresburgerS
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  PresburgerSetNode::RegisterReflection();
   refl::GlobalDef().def("arith.PresburgerSet", MakePresburgerSet);
 }
 

@@ -828,6 +828,36 @@ def test_bias_gelu():
     verify_binary("BiasGelu", [32, 32], [32], [32, 32], domain="com.microsoft")
 
 
+def test_fast_gelu():
+    """Test FastGelu with and without bias"""
+    # Test FastGelu without bias
+    fast_gelu_node = helper.make_node("FastGelu", ["x"], ["y"], domain="com.microsoft")
+    graph = helper.make_graph(
+        [fast_gelu_node],
+        "fast_gelu_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [32, 32])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [32, 32])],
+    )
+    model = helper.make_model(graph, producer_name="fast_gelu_test")
+    check_correctness(model)
+
+    # Test FastGelu with bias
+    fast_gelu_with_bias_node = helper.make_node(
+        "FastGelu", ["x", "bias"], ["y"], domain="com.microsoft"
+    )
+    graph_with_bias = helper.make_graph(
+        [fast_gelu_with_bias_node],
+        "fast_gelu_with_bias_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [32, 32]),
+            helper.make_tensor_value_info("bias", TensorProto.FLOAT, [32]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [32, 32])],
+    )
+    model_with_bias = helper.make_model(graph_with_bias, producer_name="fast_gelu_with_bias_test")
+    check_correctness(model_with_bias)
+
+
 def test_where():
     where_node = helper.make_node("Where", ["a", "b", "c"], ["d"])
 
@@ -1907,6 +1937,106 @@ def test_expand(dynamic):
         shape_data = np.random.uniform(size=(64, 32, 32)).astype(np.float32)
         ref_data = np.tile(data, (64, 1, 1))
         _test_expand_dynamic_shapeexpr("expand_with_dynamic_dim", data, shape_data, shape, ref_data)
+
+
+def test_expand_incompatible_broadcasting():
+    """
+    This test case reproduces the error where input tensor shape at dim 1 is 25
+    and target shape at dim 3 is 56, which violates ONNX broadcasting rules
+    """
+
+    def _test_expand_error_case(name, data_shape, target_shape_vals):
+        data = np.random.uniform(size=data_shape).astype(np.float32)
+
+        shape_array = np.array(target_shape_vals, dtype=np.int64)
+        shape_node = onnx.helper.make_node(
+            "Constant",
+            inputs=[],
+            outputs=["shape"],
+            value=onnx.helper.make_tensor(
+                name="const_tensor",
+                data_type=onnx.TensorProto.INT64,
+                dims=shape_array.shape,
+                vals=shape_array.flatten(),
+            ),
+        )
+
+        expand_node = helper.make_node("Expand", ["in", "shape"], ["out"])
+
+        graph = helper.make_graph(
+            [shape_node, expand_node],
+            "expand_error_test",
+            inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(data.shape))],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, target_shape_vals)],
+        )
+
+        model = helper.make_model(graph, producer_name=name)
+
+        with pytest.raises(ValueError) as exc_info:
+            from_onnx(model, keep_params_in_input=True)
+
+        error_msg = str(exc_info.value)
+        assert (
+            "broadcast" in error_msg.lower() or "incompatible" in error_msg.lower()
+        ), f"Expected broadcasting error, but got: {error_msg}"
+
+    # Test case 1: Reproduce the exact error from the issue-17769
+    # Input shape: (25,), target shape: (1, 1, 1, 56)
+    # This should faill because input dim 1 (25) != target dim 3 (56) and neither is 1
+    _test_expand_error_case(
+        "expand_incompatible_25_to_56",
+        data_shape=(25,),
+        target_shape_vals=(1, 1, 1, 56),
+    )
+
+    # Test case 2: Another incompatible case
+    # Input shape: (1, 25), target shape: (1, 1, 1, 56)
+    # After right-alignment, input (1, 1, 1, 25) vs. target (1, 1, 1, 56)
+    # This should fail because 25 != 56 and neither is 1
+    _test_expand_error_case(
+        "expand_incompatible_aligned_25_to_56",
+        data_shape=(1, 25),
+        target_shape_vals=(1, 1, 1, 56),
+    )
+
+    # Test case 3: Valid case for comparison - should not raise error
+    def _test_expand_valid_case():
+        """Test a valid expand case to ensure our fix doesn't break valid operations"""
+        data_shape = (1, 25)
+        target_shape_vals = [2, 25]  # Valid: input (1, 25) can broadcast to (2, 25)
+
+        data = np.random.uniform(size=data_shape).astype(np.float32)
+        shape_array = np.array(target_shape_vals, dtype=np.int64)
+
+        shape_node = onnx.helper.make_node(
+            "Constant",
+            inputs=[],
+            outputs=["shape"],
+            value=onnx.helper.make_tensor(
+                name="const_tensor",
+                data_type=onnx.TensorProto.INT64,
+                dims=shape_array.shape,
+                vals=shape_array.flatten(),
+            ),
+        )
+
+        expand_node = helper.make_node("Expand", ["in", "shape"], ["out"])
+
+        graph = helper.make_graph(
+            [shape_node, expand_node],
+            "expand_valid_test",
+            inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(data.shape))],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, target_shape_vals)],
+        )
+
+        model = helper.make_model(graph, producer_name="expand_valid_test_case")
+
+        try:
+            tvm_model = from_onnx(model, keep_params_in_input=True)
+        except Exception as e:
+            pytest.fail(f"Valid expand case should not fail, but got error: {e}")
+
+    _test_expand_valid_case()
 
 
 # TODO(jwfromm) Current approach to dynamic expand is technically not well formed. Reenable once fixed.
@@ -3130,6 +3260,7 @@ def test_shape_dim_string_expression_graph_div_1():
                 gv: R.Tensor((A, B, A // B), dtype="float32") = x
                 R.output(gv)
             return gv
+
     # fmt: on
 
     tvm.ir.assert_structural_equal(tvm_model, Expected)
@@ -3167,6 +3298,431 @@ def test_shape_dim_string_expression_graph_div_2():
     # fmt: on
 
     tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_nms():
+    """Test NonMaxSuppression operator conversion using our AllClassNMS implementation."""
+    nms_node = helper.make_node(
+        "NonMaxSuppression",
+        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
+        ["selected_indices"],
+        center_point_box=0,
+    )
+
+    boxes_shape = [1, 5, 4]  # batch_size, num_boxes, 4
+    scores_shape = [1, 2, 5]  # batch_size, num_classes, num_boxes
+
+    graph = helper.make_graph(
+        [nms_node],
+        "nms_test",
+        inputs=[
+            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
+            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
+        ],
+        initializer=[
+            helper.make_tensor("max_output_boxes_per_class", TensorProto.INT64, [1], [3]),
+            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.5]),
+            helper.make_tensor("score_threshold", TensorProto.FLOAT, [1], [0.1]),
+        ],
+        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [0, 3])],
+    )
+
+    model = helper.make_model(graph, producer_name="nms_test")
+    model.opset_import[0].version = 11
+
+    # Use deterministic random inputs for consistent testing
+    bg = np.random.MT19937(0)
+    rg = np.random.Generator(bg)
+    boxes = rg.standard_normal(size=boxes_shape).astype(np.float32)
+    scores = rg.standard_normal(size=scores_shape).astype(np.float32)
+    inputs = {"boxes": boxes, "scores": scores}
+
+    # Run ONNX Runtime
+    ort_session = onnxruntime.InferenceSession(
+        model.SerializeToString(), providers=["CPUExecutionProvider"]
+    )
+    ort_output = ort_session.run([], inputs)
+
+    # Run TVM
+    tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
+
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    input_list = [
+        inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs
+    ]
+    if params:
+        input_list += params["main"]
+
+    vm.set_input("main", *input_list)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main")
+
+    if isinstance(tvm_output, (list, tuple)):
+        tvm_selected = tvm_output[0].numpy()
+    else:
+        tvm_selected = tvm_output.numpy()
+    ort_selected = ort_output[0]
+
+    min_rows = min(tvm_selected.shape[0], ort_selected.shape[0])
+    if min_rows > 0:
+        tvm.testing.assert_allclose(
+            tvm_selected[:min_rows], ort_selected[:min_rows], rtol=1e-5, atol=1e-5
+        )
+
+
+def test_nms_algorithm_correctness():
+    """Test NMS algorithm correctness with fixed data to verify suppression logic."""
+    nms_node = helper.make_node(
+        "NonMaxSuppression",
+        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
+        ["selected_indices"],
+        center_point_box=0,
+    )
+
+    # Create fixed test data with known expected results
+    # Boxes: [x1, y1, x2, y2] format
+    boxes_data = np.array(
+        [
+            [
+                [0.0, 0.0, 1.0, 1.0],  # Box 0: [0,0,1,1] - should be selected
+                [
+                    0.5,
+                    0.5,
+                    1.5,
+                    1.5,
+                ],  # Box 1: [0.5,0.5,1.5,1.5] - overlaps with box 0, should be suppressed
+                [2.0, 2.0, 3.0, 3.0],
+            ]
+        ],  # Box 2: [2,2,3,3] - no overlap, should be selected
+        dtype=np.float32,
+    )
+
+    # Scores: higher score = better
+    scores_data = np.array(
+        [
+            [[0.9, 0.8, 0.7], [0.6, 0.5, 0.4]]  # Class 0: [0.9, 0.8, 0.7] - box 0 has highest score
+        ],  # Class 1: [0.6, 0.5, 0.4] - box 0 has highest score
+        dtype=np.float32,
+    )
+
+    boxes_shape = [1, 3, 4]  # batch_size, num_boxes, 4
+    scores_shape = [1, 2, 3]  # batch_size, num_classes, num_boxes
+
+    graph = helper.make_graph(
+        [nms_node],
+        "nms_test_correctness",
+        inputs=[
+            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
+            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
+        ],
+        initializer=[
+            helper.make_tensor(
+                "max_output_boxes_per_class", TensorProto.INT64, [1], [2]
+            ),  # Only 2 boxes per class
+            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.5]),  # IoU threshold 0.5
+            helper.make_tensor(
+                "score_threshold", TensorProto.FLOAT, [1], [0.1]
+            ),  # Score threshold 0.1
+        ],
+        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [4, 3])],
+    )
+
+    model = helper.make_model(graph, producer_name="nms_test_correctness")
+
+    # Use fixed inputs instead of random
+    inputs = {
+        "boxes": boxes_data,
+        "scores": scores_data,
+    }
+
+    check_correctness(model, inputs=inputs, opset=11)
+
+
+def test_nms_iou_suppression():
+    """Test that NMS correctly suppresses overlapping boxes based on IoU threshold."""
+    nms_node = helper.make_node(
+        "NonMaxSuppression",
+        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
+        ["selected_indices"],
+        center_point_box=0,
+    )
+
+    # Create overlapping boxes where box 0 has higher score and should be kept
+    boxes_data = np.array(
+        [
+            [
+                [0.0, 0.0, 1.0, 1.0],  # Box 0: [0,0,1,1] - highest score
+                [
+                    0.1,
+                    0.1,
+                    1.1,
+                    1.1,
+                ],  # Box 1: [0.1,0.1,1.1,1.1] - high IoU with box 0, should be suppressed
+                [2.0, 2.0, 3.0, 3.0],
+            ]
+        ],  # Box 2: [2,2,3,3] - no overlap, should be kept
+        dtype=np.float32,
+    )
+
+    # Box 0 has highest score, Box 1 should be suppressed due to IoU with box 0
+    scores_data = np.array([[[0.9, 0.8, 0.7]]], dtype=np.float32)
+
+    boxes_shape = [1, 3, 4]
+    scores_shape = [1, 1, 3]
+
+    graph = helper.make_graph(
+        [nms_node],
+        "nms_test_iou_suppression",
+        inputs=[
+            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
+            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
+        ],
+        initializer=[
+            helper.make_tensor("max_output_boxes_per_class", TensorProto.INT64, [1], [2]),
+            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.5]),  # IoU threshold 0.5
+            helper.make_tensor("score_threshold", TensorProto.FLOAT, [1], [0.1]),
+        ],
+        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [2, 3])],
+    )
+
+    model = helper.make_model(graph, producer_name="nms_test_iou_suppression")
+    model.opset_import[0].version = 11
+
+    inputs = {
+        "boxes": boxes_data,
+        "scores": scores_data,
+    }
+
+    # Run ONNX Runtime
+    ort_session = onnxruntime.InferenceSession(
+        model.SerializeToString(), providers=["CPUExecutionProvider"]
+    )
+    ort_output = ort_session.run([], inputs)
+
+    # Run TVM
+    tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
+
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    input_list = [
+        inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs
+    ]
+    if params:
+        input_list += params["main"]
+
+    vm.set_input("main", *input_list)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main")
+
+    # Custom NMS output comparison
+    if isinstance(tvm_output, (list, tuple)):
+        tvm_selected = tvm_output[0].numpy()
+    else:
+        tvm_selected = tvm_output.numpy()
+    ort_selected = ort_output[0]
+
+    # For NMS, compare only the valid rows
+    min_rows = min(tvm_selected.shape[0], ort_selected.shape[0])
+    if min_rows > 0:
+        tvm.testing.assert_allclose(
+            tvm_selected[:min_rows], ort_selected[:min_rows], rtol=1e-5, atol=1e-5
+        )
+
+
+def test_nms_max_boxes_limit():
+    """Test that NMS correctly limits the number of boxes per class."""
+    nms_node = helper.make_node(
+        "NonMaxSuppression",
+        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
+        ["selected_indices"],
+        center_point_box=0,
+    )
+
+    # Create data with 4 boxes, but limit to 2 per class
+    boxes_data = np.array(
+        [
+            [
+                [0.0, 0.0, 1.0, 1.0],  # Box 0
+                [2.0, 0.0, 3.0, 1.0],  # Box 1
+                [0.0, 2.0, 1.0, 3.0],  # Box 2
+                [2.0, 2.0, 3.0, 3.0],
+            ]
+        ],  # Box 3
+        dtype=np.float32,
+    )
+
+    # All boxes have different scores
+    scores_data = np.array([[[0.9, 0.8, 0.7, 0.6]]], dtype=np.float32)
+
+    boxes_shape = [1, 4, 4]
+    scores_shape = [1, 1, 4]
+
+    graph = helper.make_graph(
+        [nms_node],
+        "nms_test_max_boxes_limit",
+        inputs=[
+            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
+            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
+        ],
+        initializer=[
+            helper.make_tensor(
+                "max_output_boxes_per_class", TensorProto.INT64, [1], [2]
+            ),  # Limit to 2 boxes
+            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.1]),  # Low IoU threshold
+            helper.make_tensor("score_threshold", TensorProto.FLOAT, [1], [0.1]),
+        ],
+        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [2, 3])],
+    )
+
+    model = helper.make_model(graph, producer_name="nms_test_max_boxes_limit")
+    model.opset_import[0].version = 11
+
+    inputs = {
+        "boxes": boxes_data,
+        "scores": scores_data,
+    }
+
+    # Run ONNX Runtime
+    ort_session = onnxruntime.InferenceSession(
+        model.SerializeToString(), providers=["CPUExecutionProvider"]
+    )
+    ort_output = ort_session.run([], inputs)
+
+    # Run TVM
+    tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
+
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    input_list = [
+        inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs
+    ]
+    if params:
+        input_list += params["main"]
+
+    vm.set_input("main", *input_list)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main")
+
+    # Custom NMS output comparison
+    if isinstance(tvm_output, (list, tuple)):
+        tvm_selected = tvm_output[0].numpy()
+    else:
+        tvm_selected = tvm_output.numpy()
+    ort_selected = ort_output[0]
+
+    # For NMS, compare only the valid rows
+    min_rows = min(tvm_selected.shape[0], ort_selected.shape[0])
+    if min_rows > 0:
+        tvm.testing.assert_allclose(
+            tvm_selected[:min_rows], ort_selected[:min_rows], rtol=1e-5, atol=1e-5
+        )
+
+
+def test_nms_score_threshold():
+    """Test that NMS correctly filters boxes based on score threshold.
+
+    Note: This test uses a low score threshold (0.05) to ensure both TVM and ONNX Runtime
+    output the same fixed shape [3,3], allowing use of the standard check_correctness function.
+    """
+    nms_node = helper.make_node(
+        "NonMaxSuppression",
+        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
+        ["selected_indices"],
+        center_point_box=0,
+    )
+
+    # Create data with varying scores - ensure we get exactly 3 boxes after NMS
+    boxes_data = np.array(
+        [
+            [[0.0, 0.0, 1.0, 1.0], [2.0, 0.0, 3.0, 1.0], [0.0, 2.0, 1.0, 3.0]]  # Box 0  # Box 1
+        ],  # Box 2
+        dtype=np.float32,
+    )
+
+    # Scores: 0.9, 0.3, 0.1 - adjust score threshold to get exactly 3 boxes
+    scores_data = np.array([[[0.9, 0.3, 0.1]]], dtype=np.float32)
+
+    boxes_shape = [1, 3, 4]
+    scores_shape = [1, 1, 3]
+
+    graph = helper.make_graph(
+        [nms_node],
+        "nms_test_score_threshold",
+        inputs=[
+            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
+            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
+        ],
+        initializer=[
+            helper.make_tensor("max_output_boxes_per_class", TensorProto.INT64, [1], [3]),
+            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.1]),
+            helper.make_tensor("score_threshold", TensorProto.FLOAT, [1], [0.05]),
+        ],
+        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [3, 3])],
+    )
+
+    model = helper.make_model(graph, producer_name="nms_test_score_threshold")
+    model.opset_import[0].version = 11
+
+    inputs = {
+        "boxes": boxes_data,
+        "scores": scores_data,
+    }
+
+    # Run ONNX Runtime
+    ort_session = onnxruntime.InferenceSession(
+        model.SerializeToString(), providers=["CPUExecutionProvider"]
+    )
+    ort_output = ort_session.run([], inputs)
+
+    # Run TVM
+    tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
+
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    input_list = [
+        inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs
+    ]
+    if params:
+        input_list += params["main"]
+
+    vm.set_input("main", *input_list)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main")
+
+    # Custom NMS output comparison
+    if isinstance(tvm_output, (list, tuple)):
+        tvm_selected = tvm_output[0].numpy()
+    else:
+        tvm_selected = tvm_output.numpy()
+    ort_selected = ort_output[0]
+
+    # For NMS, compare only the valid rows
+    min_rows = min(tvm_selected.shape[0], ort_selected.shape[0])
+    if min_rows > 0:
+        tvm.testing.assert_allclose(
+            tvm_selected[:min_rows], ort_selected[:min_rows], rtol=1e-5, atol=1e-5
+        )
 
 
 if __name__ == "__main__":

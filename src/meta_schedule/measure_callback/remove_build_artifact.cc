@@ -37,6 +37,12 @@ class RemoveBuildArtifactNode : public MeasureCallbackNode {
       }
     }
   }
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RemoveBuildArtifactNode>();
+  }
+
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RemoveBuildArtifact", RemoveBuildArtifactNode,
                                     MeasureCallbackNode);
 };
@@ -48,6 +54,7 @@ MeasureCallback MeasureCallback::RemoveBuildArtifact() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  RemoveBuildArtifactNode::RegisterReflection();
   refl::GlobalDef().def("meta_schedule.MeasureCallbackRemoveBuildArtifact",
                         MeasureCallback::RemoveBuildArtifact);
 }

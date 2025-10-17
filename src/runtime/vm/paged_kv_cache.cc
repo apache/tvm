@@ -2052,7 +2052,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
               temp_float_attn_workspace_, temp_int_attn_workspace_[0],
               temp_int_pinned_attn_workspace_[0], &cur_append_lengths_indptr_host_,
               &cur_append_lengths_indptr_host_, cur_batch_size_,
-              cur_append_lengths_indptr_host_.back(), num_qo_heads_, num_kv_heads_, qk_head_dim_,
+              cur_append_lengths_indptr_host_.back(), num_qo_heads_, num_qo_heads_, qk_head_dim_,
               v_head_dim_, /*causal=*/true, copy_stream_);
         }
       }

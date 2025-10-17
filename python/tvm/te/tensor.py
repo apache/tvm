@@ -131,16 +131,6 @@ class PlaceholderOp(Operation):
 class BaseComputeOp(Operation):
     """Compute operation."""
 
-    @property
-    def axis(self):
-        """Represent the IterVar axis, defined when it is a ComputeOp"""
-        return self.__getattr__("axis")
-
-    @property
-    def reduce_axis(self):
-        """Represent axis of reductions, only defined when it is a ComputeOp"""
-        return self.__getattr__("reduce_axis")
-
 
 @tvm_ffi.register_object("te.ComputeOp")
 class ComputeOp(BaseComputeOp):
@@ -150,11 +140,6 @@ class ComputeOp(BaseComputeOp):
 @tvm_ffi.register_object("te.ScanOp")
 class ScanOp(Operation):
     """Scan operation."""
-
-    @property
-    def scan_axis(self):
-        """Represent the scan axis, only defined when it is a ScanOp"""
-        return self.__getattr__("scan_axis")
 
 
 @tvm_ffi.register_object("te.ExternOp")

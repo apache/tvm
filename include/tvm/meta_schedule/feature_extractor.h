@@ -40,7 +40,8 @@ class FeatureExtractorNode : public runtime::Object {
   virtual ~FeatureExtractorNode() = default;
 
   static void RegisterReflection() {
-    // No fields to register
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<FeatureExtractorNode>();
   }
 
   /*!
@@ -79,6 +80,8 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
   static void RegisterReflection() {
     // `f_extract_from` is not registered
     // `f_as_string` is not registered
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PyFeatureExtractorNode>();
   }
 
   ffi::Array<tvm::runtime::Tensor> ExtractFrom(

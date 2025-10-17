@@ -175,7 +175,8 @@ export class Memory {
    * @returns The object type index.
    */
   loadObjectTypeIndex(objectHandle: Pointer): number {
-    return this.loadI32(objectHandle);
+    // The object layout is [ref_counter (i64), type_index (i32), ...].
+    return this.loadI32(objectHandle + SizeOf.I64);
   }
   /**
    * Load the type key from the type info pointer.

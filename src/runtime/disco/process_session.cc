@@ -194,6 +194,7 @@ void WorkerProcess(int worker_id, int num_workers, int num_group, int64_t read_f
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<ProcessSessionObj>();
   refl::GlobalDef()
       .def("runtime.disco.SessionProcess", Session::ProcessSession)
       .def("runtime.disco.WorkerProcess", WorkerProcess);

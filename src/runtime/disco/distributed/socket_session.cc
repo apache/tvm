@@ -307,6 +307,7 @@ Session SocketSession(int num_nodes, int num_workers_per_node, int num_groups,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<SocketSessionObj>();
   refl::GlobalDef()
       .def("runtime.disco.SocketSession", SocketSession)
       .def("runtime.disco.socket_session_init_workers",
