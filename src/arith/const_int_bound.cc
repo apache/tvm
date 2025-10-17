@@ -130,7 +130,8 @@ class ConstIntBoundAnalyzer::Impl
       auto it = var_map_.find(var);
       if (it != var_map_.end()) {
         ICHECK(it->second == info)
-            << "Trying to update var \'" << var << "\'" << " with a different const bound: "
+            << "Trying to update var \'" << var << "\'"
+            << " with a different const bound: "
             << "original=" << ConstIntBound(it->second.min_value, it->second.max_value)
             << ", new=" << ConstIntBound(info.min_value, info.max_value);
       }

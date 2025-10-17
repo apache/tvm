@@ -676,13 +676,13 @@ void IntSetAnalyzer::Impl::Update(const Var& var, const IntSet& info, bool can_o
 
       ICHECK(ExprDeepEqual()(old_info.min(), info.min()))
           << "Trying to update var \'" << var << "\'"
-          << " with a different minimum value: " << "original=" << old_info.min()
-          << ", new=" << info.min();
+          << " with a different minimum value: "
+          << "original=" << old_info.min() << ", new=" << info.min();
 
       ICHECK(ExprDeepEqual()(old_info.max(), info.max()))
           << "Trying to update var \'" << var << "\'"
-          << " with a different maximum value: " << "original=" << old_info.max()
-          << ", new=" << info.max();
+          << " with a different maximum value: "
+          << "original=" << old_info.max() << ", new=" << info.max();
     }
   }
   dom_map_.Set(var, info);
@@ -1230,7 +1230,8 @@ ffi::Array<IntSet> EstimateRegionUpperBound(const ffi::Array<Range>& region,
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IntervalSetNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const IntervalSetNode*>(node.get());
-      p->stream << "IntervalSet" << "[" << op->min_value << ", " << op->max_value << ']';
+      p->stream << "IntervalSet"
+                << "[" << op->min_value << ", " << op->max_value << ']';
     });
 
 TVM_FFI_STATIC_INIT_BLOCK() {
