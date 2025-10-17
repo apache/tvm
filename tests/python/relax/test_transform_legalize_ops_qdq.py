@@ -212,7 +212,7 @@ def test_quantize_fp32_to_int8_scalar_param():
                         "int8",
                         T.max(
                             T.min(
-                                T.round(A[v_i0, v_i1] * T.float32(0.5)) + T.float32(1),
+                                T.round(A[v_i0, v_i1] / T.float32(2)) + T.float32(1),
                                 T.float32(127),
                             ),
                             T.float32(-128),
@@ -311,7 +311,7 @@ def test_quantize_fp16_to_int8_scalar_param():
                         "int8",
                         T.max(
                             T.min(
-                                T.round(A[v_i0, v_i1] * T.float16(0.5)) + T.float16(1),
+                                T.round(A[v_i0, v_i1] / T.float16(2)) + T.float16(1),
                                 T.float16(127),
                             ),
                             T.float16(-128),
