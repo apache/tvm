@@ -387,5 +387,15 @@ def test_union_lower_bound():
     assert result.max_value.same_as(pos_inf)
 
 
+def test_modular_set():
+    ck = IntSetChecker()
+    x = tvm.te.var("x", dtype="int32")
+    y = tvm.te.var("y", dtype="int32")
+    expr = (x * 2048 + y * 16) % 7168
+    ck.verify(
+        expr, {x: tvm.arith.IntervalSet(0, 128), y: tvm.arith.IntervalSet(0, 3584)}, (0, 7152)
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()
