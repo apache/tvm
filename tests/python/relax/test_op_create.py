@@ -661,7 +661,7 @@ def test_arange_infer_struct_info_shape_var():
     _check_inference(
         bb,
         relax.op.arange(start, stop, 2),
-        relax.TensorStructInfo((T.cast(T.ceil((stop - start) * 0.5), "int64"),), "float32"),
+        relax.TensorStructInfo((T.cast(T.ceil((stop - start) / 2), "int64"),), "float32"),
     )
     _check_inference(
         bb,

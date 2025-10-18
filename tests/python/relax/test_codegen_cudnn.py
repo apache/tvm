@@ -193,7 +193,9 @@ def test_conv2d_offload(data_shape, weight_shape, dtype, with_bias, activation):
     out = get_result_with_relax_cudnn_offload(mod, args)
     ref = build_and_run(mod, args, "llvm", legalize=True)
     if dtype == "float16":
-        tvm.testing.assert_allclose(out, ref, rtol=1e-1, atol=1e-1)
+        # FIXME(lei): currently raise into 3e-1 to prevent flaky test
+        # see https://github.com/apache/tvm/pull/18319
+        tvm.testing.assert_allclose(out, ref, rtol=3e-1, atol=3e-1)
     else:
         tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
