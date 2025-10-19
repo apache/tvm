@@ -28,6 +28,7 @@
 
 #include "./scalable_expression.h"
 #include "const_fold.h"
+#include <tvm/arith/pattern.h>
 #include "product_normal_form.h"
 
 namespace tvm {
@@ -41,6 +42,7 @@ Analyzer::Analyzer()
       int_set(this) {}
 
 void Analyzer::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
+  var_range_map_.erase(var);
   PrimExpr new_expr = expr;
   new_expr = this->canonical_simplify(new_expr);
   new_expr = this->rewrite_simplify(new_expr);
@@ -55,6 +57,7 @@ void Analyzer::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
 
 void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
   ICHECK(range.defined());
+  var_range_map_[var] = range;
   if (tir::is_one(range->extent)) {
     this->Bind(var, range->min, allow_override);
   } else {
@@ -195,37 +198,167 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
   }
   PrimExpr simplified = Simplify(expr);
   const int64_t* as_int = tir::as_const_int(simplified);
-  if (as_int && *as_int) return true;
+  if (as_int && *as_int) {
+    return true;
+  }
+  auto compute_linear_bound = [&](PrimExpr target, bool upper) -> Optional<PrimExpr> {
+    bool changed = false;
+    PrimExpr current = target;
+    for (const auto& kv : var_range_map_) {
+      Array<PrimExpr> coeffs = DetectLinearEquation(current, {kv.first});
+      if (coeffs.size() != 2) continue;
+      PrimExpr coeff = this->Simplify(coeffs[0]);
+      const int64_t* coeff_int = tir::as_const_int(coeff);
+      if (!coeff_int || *coeff_int == 0) {
+        continue;
+      }
+      bool coeff_nonneg = *coeff_int >= 0;
+
+      PrimExpr base = this->Simplify(coeffs[1]);
+      PrimExpr range_min = kv.second->min;
+      PrimExpr range_extent = kv.second->extent;
+      PrimExpr one = tir::make_const(range_min.dtype(), 1);
+      PrimExpr range_max = this->Simplify(range_min + range_extent - one);
+      PrimExpr chosen = coeff_nonneg ? (upper ? range_max : range_min)
+                                     : (upper ? range_min : range_max);
+      current = this->Simplify(coeff * chosen + base);
+      changed = true;
+    }
+    if (!changed) return Optional<PrimExpr>();
+    return current;
+  };
+
   if (strength >= ProofStrength::kSymbolicBound) {
     // NOTE: we intentionally only pattern match common bound predicate i < bound
     // and put this implementation at the top-level.
     // This is to avoid repeatitive calling of this function
     // that causes speed issues.
     // This strategy can only be called from top-level and not from sub-analyzers.
+    const auto* ptr_lt = simplified.as<tir::LTNode>();
+    const auto* ptr_le = simplified.as<tir::LENode>();
+    const auto* ptr_gt = simplified.as<tir::GTNode>();
+    const auto* ptr_ge = simplified.as<tir::GENode>();
+
     Optional<PrimExpr> pos_diff;
     int lower_bound = 0;
-    if (const auto* ptr_lt = expr.as<tir::LTNode>()) {
+    if (ptr_lt) {
       pos_diff = ptr_lt->b - ptr_lt->a;
       lower_bound = 1;
-    }
-    if (const auto* ptr_le = expr.as<tir::LENode>()) {
+    } else if (ptr_le) {
       pos_diff = ptr_le->b - ptr_le->a;
       lower_bound = 0;
-    }
-    if (const auto* ptr_gt = expr.as<tir::GTNode>()) {
+    } else if (ptr_gt) {
       pos_diff = ptr_gt->a - ptr_gt->b;
       lower_bound = 1;
-    }
-    if (const auto* ptr_ge = expr.as<tir::GENode>()) {
+    } else if (ptr_ge) {
       pos_diff = ptr_ge->a - ptr_ge->b;
       lower_bound = 0;
     }
     if (pos_diff) {
-      IntSet iset = this->int_set(this->Simplify(pos_diff.value()));
-      if (iset.HasLowerBound()) {
-        ConstIntBound relaxed_lower_bound = this->const_int_bound(this->Simplify(iset.min()));
-        if (relaxed_lower_bound->min_value >= lower_bound) return true;
+      PrimExpr simplified_diff = this->Simplify(pos_diff.value());
+
+      ConstIntBound diff_bound = this->const_int_bound(simplified_diff);
+      if (diff_bound->min_value >= lower_bound) {
+        return true;
       }
+
+      IntSet iset = this->int_set(simplified_diff);
+      if (iset.HasLowerBound()) {
+        PrimExpr lower_expr = iset.min();
+
+        PrimExpr required_expr = tir::make_const(lower_expr.dtype(), lower_bound);
+        if (this->CanProve(lower_expr >= required_expr, strength)) {
+          return true;
+        }
+
+        ConstIntBound relaxed_lower_bound = this->const_int_bound(this->Simplify(lower_expr));
+        if (relaxed_lower_bound->min_value >= lower_bound) {
+          return true;
+        }
+      }
+
+      PrimExpr zero = tir::make_zero(simplified_diff.dtype());
+      CompareResult diff_cmp = this->transitive_comparisons.TryCompare(simplified_diff, zero);
+      if (diff_cmp == CompareResult::kGT ||
+          (lower_bound == 0 && diff_cmp == CompareResult::kGE)) {
+        return true;
+      }
+
+      PrimExpr required = tir::make_const(simplified_diff.dtype(), lower_bound);
+      CompareResult diff_vs_required =
+          this->transitive_comparisons.TryCompare(simplified_diff, required);
+      if (diff_vs_required == CompareResult::kGT || diff_vs_required == CompareResult::kGE ||
+          diff_vs_required == CompareResult::kEQ) {
+        return true;
+      }
+    }
+
+    auto try_linear_bound = [&](const PrimExpr& lhs, const PrimExpr& rhs,
+                                bool strict) -> bool {
+      if (auto bound = compute_linear_bound(lhs, /*upper=*/true)) {
+        PrimExpr bound_expr = bound.value();
+        if (this->CanProve(strict ? (bound_expr < rhs) : (bound_expr <= rhs), strength)) {
+          return true;
+        }
+        if (strict) {
+          PrimExpr one = tir::make_const(bound_expr.dtype(), 1);
+          PrimExpr next = this->Simplify(bound_expr + one);
+          if (this->CanProve(next <= rhs, strength)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    if (ptr_lt && try_linear_bound(ptr_lt->a, ptr_lt->b, /*strict=*/true)) {
+      return true;
+    }
+    if (ptr_le && try_linear_bound(ptr_le->a, ptr_le->b, /*strict=*/false)) {
+      return true;
+    }
+    if (ptr_gt && try_linear_bound(ptr_gt->b, ptr_gt->a, /*strict=*/true)) {
+      return true;
+    }
+    if (ptr_ge && try_linear_bound(ptr_ge->b, ptr_ge->a, /*strict=*/false)) {
+      return true;
+    }
+
+    if (ptr_lt) {
+      if (const auto* var_ptr = ptr_lt->a.as<VarNode>()) {
+        Var var = GetRef<Var>(var_ptr);
+        auto it = var_range_map_.find(var);
+        if (it != var_range_map_.end()) {
+          PrimExpr upper_exclusive = this->Simplify(it->second->min + it->second->extent);
+          if (this->CanProve(upper_exclusive <= ptr_lt->b, strength)) {
+            return true;
+          }
+        }
+      }
+
+      IntSet lhs_iset = this->int_set(ptr_lt->a);
+      if (lhs_iset.HasUpperBound()) {
+        PrimExpr lhs_upper = this->Simplify(lhs_iset.max());
+        PrimExpr one = tir::make_const(lhs_upper.dtype(), 1);
+        PrimExpr next_value = this->Simplify(lhs_upper + one);
+        if (this->CanProve(next_value <= ptr_lt->b, strength)) {
+          return true;
+        }
+      }
+    }
+
+    if (ptr_lt) {
+      CompareResult cmp = this->transitive_comparisons.TryCompare(ptr_lt->a, ptr_lt->b);
+      if (cmp == CompareResult::kLT) return true;
+    } else if (ptr_le) {
+      CompareResult cmp = this->transitive_comparisons.TryCompare(ptr_le->a, ptr_le->b);
+      if (cmp == CompareResult::kLE || cmp == CompareResult::kLT) return true;
+    } else if (ptr_gt) {
+      CompareResult cmp = this->transitive_comparisons.TryCompare(ptr_gt->a, ptr_gt->b);
+      if (cmp == CompareResult::kGT) return true;
+    } else if (ptr_ge) {
+      CompareResult cmp = this->transitive_comparisons.TryCompare(ptr_ge->a, ptr_ge->b);
+      if (cmp == CompareResult::kGE || cmp == CompareResult::kGT) return true;
     }
   }
 

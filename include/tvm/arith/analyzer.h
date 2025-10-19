@@ -792,6 +792,9 @@ class TVM_DLL Analyzer {
    * \note Analyzer will call into sub-analyzers to get the result.
    */
   PrimExpr Simplify(const PrimExpr& expr, int steps = 2);
+
+private:
+  std::unordered_map<Var, Range, ObjectPtrHash, ObjectPtrEqual> var_range_map_;
 };
 
 }  // namespace arith
