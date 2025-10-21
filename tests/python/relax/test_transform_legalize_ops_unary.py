@@ -85,6 +85,7 @@ def _test_symbolic_shape(name: str, relax_op: Callable, te_func: Callable, dtype
         ("cos", R.cos, topi.cos, "float32"),
         ("cosh", R.cosh, topi.cosh, "float32"),
         ("exp", R.exp, topi.exp, "float32"),
+        ("exp", R.exp, topi.exp, "int32"),
         ("floor", R.floor, topi.floor, "float32"),
         ("floor", R.floor, topi.identity, "int32"),
         ("log", R.log, topi.log, "float32"),
