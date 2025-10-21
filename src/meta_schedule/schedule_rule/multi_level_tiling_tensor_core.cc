@@ -90,6 +90,12 @@ class TensorCoreStateNode : public StateNode {
   bool use_async;
 
   State Copy() const final;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TensorCoreStateNode>();
+  }
+
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.TensorCoreState", TensorCoreStateNode,
                                     StateNode);
 };
@@ -191,6 +197,12 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
   std::vector<TensorCoreIntrinGroup> intrin_groups;
   /*! \brief Whether to use software pipeline */
   bool use_software_pipeline = false;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MultiLevelTilingTensorCoreNode>();
+  }
+
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MultiLevelTilingTensorCore",
                                     MultiLevelTilingTensorCoreNode, MultiLevelTilingNode);
 
@@ -927,6 +939,8 @@ ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  MultiLevelTilingTensorCoreNode::RegisterReflection();
+  TensorCoreStateNode::RegisterReflection();
   refl::GlobalDef().def("meta_schedule.ScheduleRuleMultiLevelTilingTensorCore",
                         ScheduleRule::MultiLevelTilingTensorCore);
 }

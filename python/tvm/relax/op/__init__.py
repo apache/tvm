@@ -155,6 +155,7 @@ from .unary import (
     tanh,
     trunc,
 )
+from .vision import all_class_non_max_suppression
 
 
 def _register_op_make():

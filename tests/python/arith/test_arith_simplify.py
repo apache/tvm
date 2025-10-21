@@ -21,6 +21,7 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
+import tvm.ir
 
 
 def test_simplify_reshape_flattened_index():
@@ -142,6 +143,17 @@ def test_simplify_floor_mod_with_linear_offset():
     assert ana.can_prove_equal(tvm.tir.floormod(expr1, divisor1), 0)
     divisor2 = 32 * (past_decoder_sequence_length + 1)
     assert ana.can_prove_equal(tvm.tir.floormod(expr1, divisor2), 0)
+
+
+def test_simplify_float_division():
+    # Test for the discussion:
+    # https://discuss.tvm.apache.org/t/discuss-is-constant-division-to-multiplication-rewrite-in-tvm-necessary/18615
+    ana = tvm.arith.Analyzer()
+    x = tir.Var("x", "float32")
+    ry = x / 27
+    # in old version, the division will be rewritten into x * T.float32(1 / 27)
+    sy = ana.rewrite_simplify(ry)
+    tvm.ir.assert_structural_equal(ry, sy)
 
 
 if __name__ == "__main__":

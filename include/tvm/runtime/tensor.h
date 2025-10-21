@@ -63,7 +63,7 @@ class Tensor : public tvm::ffi::Tensor {
   Tensor(ffi::Tensor&& other) : tvm::ffi::Tensor(std::move(other)) {}  // NOLINT(*)
   Tensor(const ffi::Tensor& other) : tvm::ffi::Tensor(other) {}        // NOLINT(*)
 
-  ffi::Shape Shape() const { return this->shape(); }
+  ffi::ShapeView Shape() const { return this->shape(); }
   runtime::DataType DataType() const { return runtime::DataType(this->dtype()); }
 
   // DLPack handling
@@ -74,6 +74,7 @@ class Tensor : public tvm::ffi::Tensor {
   static Tensor FromDLPackVersioned(DLManagedTensorVersioned* tensor) {
     return tvm::ffi::Tensor::FromDLPackVersioned(tensor, kAllocAlignment, true);
   }
+  inline const DLTensor* operator->() const { return this->get(); }
   /*!
    * \brief Copy data content from another array.
    * \param other The source array to be copied from.

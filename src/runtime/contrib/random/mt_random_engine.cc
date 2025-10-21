@@ -124,8 +124,9 @@ class RandomEngine {
     } else {
       runtime::Tensor local = runtime::Tensor::Empty(
           std::vector<int64_t>{data->shape, data->shape + data->ndim}, data->dtype, {kDLCPU, 0});
-      DLTensor* tensor = const_cast<ffi::TensorObj*>(local.operator->());
-      FillData(tensor);
+
+      const DLTensor* tensor = local.GetDLTensorPtr();
+      FillData(const_cast<DLTensor*>(tensor));
       runtime::Tensor::CopyFromTo(tensor, data);
     }
   }
@@ -136,8 +137,8 @@ class RandomEngine {
     } else {
       runtime::Tensor local = runtime::Tensor::Empty(
           std::vector<int64_t>{data->shape, data->shape + data->ndim}, data->dtype, {kDLCPU, 0});
-      DLTensor* tensor = const_cast<ffi::TensorObj*>(local.operator->());
-      FillDataForMeasure(tensor);
+      const DLTensor* tensor = local.GetDLTensorPtr();
+      FillDataForMeasure(const_cast<DLTensor*>(tensor));
       runtime::Tensor::CopyFromTo(tensor, data);
     }
   }

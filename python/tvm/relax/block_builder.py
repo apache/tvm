@@ -299,6 +299,10 @@ class BlockBuilder(Object):
         """
         if isinstance(expr, (list, tuple)):
             return Tuple([self._normalize_python_tuple(element) for element in expr])
+        elif expr is None:
+            from . import op
+
+            return op.null_value()
         else:
             return expr
 

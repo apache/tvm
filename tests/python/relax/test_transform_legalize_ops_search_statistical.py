@@ -627,7 +627,7 @@ def test_mean():
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder_red[ax0, ax1])
                     T.writes(T_divide[ax0, ax1])
-                    T_divide[ax0, ax1] = rxplaceholder_red[ax0, ax1] * T.float32(0.1)
+                    T_divide[ax0, ax1] = rxplaceholder_red[ax0, ax1] / T.float32(10)
     # fmt: on
 
     mod = LegalizeOps()(Mean)
@@ -718,7 +718,7 @@ def test_std():
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3])
                     T.writes(T_divide[v_ax0, v_ax1, v_ax2, v_ax3])
-                    T_divide[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3] * T.float32(0.0083333333333333332)
+                    T_divide[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3] / T.float32(120.0)
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with T.block("T_subtract"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -743,7 +743,7 @@ def test_std():
                 vi = T.axis.spatial(1, T.int64(0))
                 T.reads(T_multiply_red[()])
                 T.writes(T_divide_1[()])
-                T_divide_1[()] = T_multiply_red[()] * T.float32(0.0083333333333333332)
+                T_divide_1[()] = T_multiply_red[()] / T.float32(120.0)
             with T.block("compute"):
                 vi = T.axis.spatial(1, T.int64(0))
                 T.reads(T_divide_1[()])
@@ -881,7 +881,7 @@ def test_variance():
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(rxplaceholder_red[ax0, ax1, ax2, ax3])
                     T.writes(T_divide_1[ax0, ax1, ax2, ax3])
-                    T_divide_1[ax0, ax1, ax2, ax3] = rxplaceholder_red[ax0, ax1, ax2, ax3] * T.float32(0.10000000000000001)
+                    T_divide_1[ax0, ax1, ax2, ax3] = rxplaceholder_red[ax0, ax1, ax2, ax3] / T.float32(10.0)
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with T.block("T_subtract"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -907,7 +907,7 @@ def test_variance():
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(T_multiply_red[ax0, ax1, ax2, ax3])
                     T.writes(T_divide[ax0, ax1, ax2, ax3])
-                    T_divide[ax0, ax1, ax2, ax3] = T_multiply_red[ax0, ax1, ax2, ax3] * T.float32(0.10000000000000001)
+                    T_divide[ax0, ax1, ax2, ax3] = T_multiply_red[ax0, ax1, ax2, ax3] / T.float32(10)
     # fmt: on
 
     mod = LegalizeOps()(Variance)
@@ -1027,7 +1027,7 @@ def test_variance_no_keepdims():
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3])
                     T.writes(T_divide_1[v_ax0, v_ax1, v_ax2, v_ax3])
-                    T_divide_1[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3] * T.float32(0.10000000000000001)
+                    T_divide_1[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3] / T.float32(10)
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with T.block("T_subtract"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -1053,7 +1053,7 @@ def test_variance_no_keepdims():
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(T_multiply_red[v_ax0, v_ax1])
                     T.writes(T_divide[v_ax0, v_ax1])
-                    T_divide[v_ax0, v_ax1] = T_multiply_red[v_ax0, v_ax1] * T.float32(0.10000000000000001)
+                    T_divide[v_ax0, v_ax1] = T_multiply_red[v_ax0, v_ax1] / T.float32(10)
 
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float32")) -> R.Tensor((3, 4), dtype="float32"):

@@ -784,6 +784,9 @@ Report Report::FromJSON(ffi::String json) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<MetricCollectorNode>();
+  refl::ObjectDef<DeviceWrapperNode>();
+
   refl::GlobalDef()
       .def_method("runtime.profiling.AsTable", &ReportNode::AsTable)
       .def("runtime.profiling.AsCSV", [](Report n) { return n->AsCSV(); })
