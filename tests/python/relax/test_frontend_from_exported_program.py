@@ -735,6 +735,40 @@ def test_logsoftmax():
     verify_model(LogSoftmax2(), example_args, {}, expected1)
 
 
+def test_logsigmoid():
+    class LogSigmoid(Module):
+        def __init__(self):
+            super().__init__()
+            self.ls = torch.nn.LogSigmoid()
+ 
+        def forward(self, input):
+            return self.ls(input)
+ 
+    class LogSigmoid2(Module):
+        def forward(self, input):
+            return torch.nn.functional.logsigmoid(input)
+ 
+    @tvm.script.ir_module
+    class expected_logsigmoid:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                neg_input = R.negative(input)
+                exp_neg = R.exp(neg_input)
+                add_one = R.add(exp_neg, R.const(1.0, "float32"))
+                log_val = R.log(add_one)
+                result = R.negative(log_val)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (result,)
+                R.output(gv)
+            return gv
+ 
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+    verify_model(LogSigmoid(), example_args, {}, expected_logsigmoid)
+    verify_model(LogSigmoid2(), example_args, {}, expected_logsigmoid)
+
+
 def test_prelu():
     class Prelu1(Module):
         def __init__(self, num_parameters=1, alpha=0.25):

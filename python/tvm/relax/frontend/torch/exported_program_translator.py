@@ -831,6 +831,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "log1p.default": self._log1p,
             "logical_not.default": self._unary_op(relax.op.logical_not),
             "log_softmax.int": self._log_softmax,
+            "logsigmoid.default": self._logsigmoid,
             "neg.default": self._unary_op(relax.op.negative),
             "pad.default": self._pad,
             "pixel_shuffle.default": self._pixel_shuffle,

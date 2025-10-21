@@ -1107,7 +1107,15 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         weight = args[1]
         bias = args[2] if len(args) > 2 else None
         return self.block_builder.emit(relax.op.linear(x, weight, bias, "float32"))
-
+     
+    def _logsigmoid(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        neg_x = self.block_builder.emit(relax.op.negative(x))
+        exp_neg_x = self.block_builder.emit(relax.op.exp(neg_x))
+        add_one = self.block_builder.emit(relax.op.add(exp_neg_x, relax.const(1.0, dtype="float32")))
+        log_val = self.block_builder.emit(relax.op.log(add_one))
+        return self.block_builder.emit(relax.op.negative(log_val))
+    
     def _max_pool1d_impl(
         self,
         x: relax.Expr,
