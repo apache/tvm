@@ -88,6 +88,22 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return tensor.shape
         raise ValueError("Unsupported type: {}".format(type(tensor)))
 
+    @staticmethod
+    def _is_no_bias(bias):
+        """Check if bias represents 'no bias' condition.
+
+        This handles both Python None and relax.op.null_value() expressions
+        that might be used to represent missing bias parameters.
+        """
+        if bias is None:
+            return True
+
+        # Check if this is a null_value expression
+        if isinstance(bias, relax.Call) and bias.op.name == "relax.null_value":
+            return True
+
+        return False
+
     def retrieve_args(self, node: fx.Node):
         return self._retrieve_args(node.args)
 
@@ -103,7 +119,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         elif isinstance(node, dict):
             return {self._retrieve_args(k): self._retrieve_args(v) for k, v in node.items()}
         elif node is None:
-            return relax.op.null_value()
+            return None
         else:
             return node
 
@@ -758,7 +774,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             )
         )
 
-        if bias is None:
+        if self._is_no_bias(bias):
             return conv1d_transpose
 
         assert len(self.shape_of(bias)) == 1
@@ -812,7 +828,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             )
         )
 
-        if bias is None:
+        if self._is_no_bias(bias):
             return conv2d_transpose
 
         assert len(self.shape_of(bias)) == 1
@@ -864,7 +880,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             )
         )
 
-        if bias is None:
+        if self._is_no_bias(bias):
             return conv1d
         assert len(self.shape_of(bias)) == 1
         bias = relax.op.reshape(bias, (1, -1, 1))
@@ -913,7 +929,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             )
         )
 
-        if bias is None:
+        if self._is_no_bias(bias):
             return conv2d
         assert len(self.shape_of(bias)) == 1
         bias = relax.op.reshape(bias, (1, -1, 1, 1))
@@ -962,7 +978,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             )
         )
 
-        if bias is None:
+        if self._is_no_bias(bias):
             return conv3d
         assert len(self.shape_of(bias)) == 1
         bias = relax.op.reshape(bias, (1, -1, 1, 1, 1))
