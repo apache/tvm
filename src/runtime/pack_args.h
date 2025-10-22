@@ -39,6 +39,10 @@
 
 namespace tvm {
 namespace runtime {
+
+/*! \brief TileLang Grid constant */
+constexpr unsigned int kDLGridConstant = 30U;
+
 /*!
  * \brief argument union type of 32bit.
  */
