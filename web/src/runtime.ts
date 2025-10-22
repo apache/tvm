@@ -193,7 +193,7 @@ class RuntimeContext implements Disposable {
     this.moduleImport = getGlobalFunc("ffi.ModuleImportModule");
     this.tensorEmpty = getGlobalFunc("runtime.TVMTensorAllocWithScope");
     this.tensorCopyFromTo = getGlobalFunc("runtime.TVMTensorCopyFromTo");
-    this.tensorCopyFromJSBytes = getGlobalFunc("tvmjs.runtime.NDTensorCopyFromBytes");
+    this.tensorCopyFromJSBytes = getGlobalFunc("tvmjs.runtime.TensorCopyFromBytes");
     this.tensorCopyToJSBytes = getGlobalFunc("tvmjs.runtime.TensorCopyToBytes");
     this.arrayGetItem = getGlobalFunc("ffi.ArrayGetItem");
     this.arrayGetSize = getGlobalFunc("ffi.ArraySize");
