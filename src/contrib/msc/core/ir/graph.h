@@ -342,17 +342,17 @@ struct JsonWeightGraph {
 class MSCTensorNode : public Object {
  public:
   /*! \brief The name of tensor. */
-  String name;
+  ffi::String name;
   /*! \brief The alias of tensor, can be changed. */
-  mutable String alias;
+  mutable ffi::String alias;
   /*! \brief The data type of tensor. */
   DataType dtype;
   /*! \brief The layout of tensor. */
   tvm::tir::Layout layout;
   /*! \brief The shape of tensor. */
-  Array<Integer> shape;
+  ffi::Array<Integer> shape;
   /*! \brief The prims of tensor. */
-  Array<String> prims;
+  ffi::Array<ffi::String> prims;
   /*! \brief Export tensor to json. */
   const JsonMSCTensor ToJson() const;
   /*! \brief Load tensor from json struct. */
@@ -364,17 +364,17 @@ class MSCTensorNode : public Object {
   /*! \brief Get dim at given index. */
   const Integer DimAt(int index) const;
   /*! \brief Get dim at given axis. */
-  const Integer DimAt(const String& axis) const;
+  const Integer DimAt(const ffi::String& axis) const;
   /*! \brief Get prim at given index. */
-  const String PrimAt(int index) const;
+  const ffi::String PrimAt(int index) const;
   /*! \brief Get prim at given axis. */
-  const String PrimAt(const String& axis) const;
+  const ffi::String PrimAt(const ffi::String& axis) const;
   /*! \brief Get layout index of given axis. */
-  int32_t LayoutOf(const String& axis) const;
+  int32_t LayoutOf(const ffi::String& axis) const;
   /*! \brief Get size of the tensor. */
   const Integer GetSize() const;
   /*! \brief Get name of the dtype. */
-  const String DTypeName() const;
+  const ffi::String DTypeName() const;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -387,21 +387,8 @@ class MSCTensorNode : public Object {
         .def_ro("prims", &MSCTensorNode::prims);
   }
 
-  bool SEqualReduce(const MSCTensorNode* other, SEqualReducer equal) const {
-    return equal(name, other->name) && equal(dtype, other->dtype) && equal(shape, other->shape) &&
-           equal(layout, other->layout) && equal(prims, other->prims);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(name);
-    hash_reduce(dtype);
-    hash_reduce(shape);
-    hash_reduce(layout);
-    hash_reduce(prims);
-  }
-
-  static constexpr const char* _type_key = "msc.core.MSCTensor";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MSCTensorNode, Object);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.MSCTensor", MSCTensorNode, Object);
 };
 
 /*!
@@ -419,9 +406,9 @@ class MSCTensor : public ObjectRef {
    * \param alias The alias of the tensor.
    * \param prims The prims of the tensor shape.
    */
-  TVM_DLL MSCTensor(const String& name, const DataType& dtype, const String& layout,
-                    const Array<Integer>& shape, const String& alias = "",
-                    const Array<String>& prims = Array<String>());
+  TVM_DLL MSCTensor(const ffi::String& name, const DataType& dtype, const ffi::String& layout,
+                    const ffi::Array<Integer>& shape, const ffi::String& alias = "",
+                    const ffi::Array<ffi::String>& prims = ffi::Array<ffi::String>());
 
   /*!
    * \brief The json constructor.
@@ -435,7 +422,7 @@ class MSCTensor : public ObjectRef {
    */
   TVM_DLL MSCTensor(const std::string& json_str);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(MSCTensor, ObjectRef, MSCTensorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MSCTensor, ObjectRef, MSCTensorNode);
 };
 
 /*!
@@ -447,15 +434,15 @@ class BaseJointNode : public Object {
   /*! \brief The index of node, can be changed. */
   mutable int index;
   /*! \brief The name of node. */
-  String name;
+  ffi::String name;
   /*! \brief The shared_ref of node, can be changed. */
-  String shared_ref;
+  ffi::String shared_ref;
   /*! \brief The attributes of node. */
-  mutable Map<String, String> attrs;
+  mutable ffi::Map<ffi::String, ffi::String> attrs;
   /*! \brief The parents of node. */
-  Array<ObjectRef> parents;
+  ffi::Array<ObjectRef> parents;
   /*! \brief The children of node. */
-  mutable Array<ObjectRef> children;
+  mutable ffi::Array<ObjectRef> children;
   /*! \brief Add child to the node. */
   size_t AddChild(const BaseJoint& child) const;
   /*! \brief Get parent from the node. */
@@ -463,27 +450,27 @@ class BaseJointNode : public Object {
   /*! \brief Get child from the node. */
   const BaseJoint ChildAt(int index) const;
   /*! \brief Check if has the attribute. */
-  bool HasAttr(const String& key) const;
+  bool HasAttr(const ffi::String& key) const;
   /*! \brief Get the attribute by type. */
-  bool GetAttr(const String& key, std::string* val) const;
-  bool GetAttr(const String& key, int* val) const;
-  bool GetAttr(const String& key, int64_t* val) const;
-  bool GetAttr(const String& key, float* val) const;
-  bool GetAttr(const String& key, bool* val) const;
-  bool GetAttr(const String& key, std::vector<std::string>* val) const;
-  bool GetAttr(const String& key, std::vector<int>* val) const;
-  bool GetAttr(const String& key, std::vector<int64_t>* val) const;
-  bool GetAttr(const String& key, std::vector<float>* val) const;
-  bool GetAttr(const String& key, std::vector<bool>* val) const;
+  bool GetAttr(const ffi::String& key, std::string* val) const;
+  bool GetAttr(const ffi::String& key, int* val) const;
+  bool GetAttr(const ffi::String& key, int64_t* val) const;
+  bool GetAttr(const ffi::String& key, float* val) const;
+  bool GetAttr(const ffi::String& key, bool* val) const;
+  bool GetAttr(const ffi::String& key, std::vector<std::string>* val) const;
+  bool GetAttr(const ffi::String& key, std::vector<int>* val) const;
+  bool GetAttr(const ffi::String& key, std::vector<int64_t>* val) const;
+  bool GetAttr(const ffi::String& key, std::vector<float>* val) const;
+  bool GetAttr(const ffi::String& key, std::vector<bool>* val) const;
   /*! \brief Check and get the attribute by type. */
   template <typename T>
-  const T GetTypeAttr(const String& key) const {
+  const T GetTypeAttr(const ffi::String& key) const {
     T val;
     ICHECK(GetAttr(key, &val)) << "Can not get attr " << key;
     return val;
   }
   template <typename T>
-  const std::vector<T> GetTypeArrayAttr(const String& key) const {
+  const std::vector<T> GetTypeArrayAttr(const ffi::String& key) const {
     std::vector<T> val;
     ICHECK(GetAttr(key, &val)) << "Can not get attr " << key;
     return val;
@@ -500,25 +487,9 @@ class BaseJointNode : public Object {
         .def_ro("children", &BaseJointNode::children);
   }
 
-  bool SEqualReduce(const BaseJointNode* other, SEqualReducer equal) const {
-    return equal(name, other->name) && equal(shared_ref, other->shared_ref) &&
-           equal(attrs, other->attrs) && equal(parents, other->parents) &&
-           equal(children, other->children);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(name);
-    hash_reduce(shared_ref);
-    hash_reduce(attrs);
-    hash_reduce(parents);
-    hash_reduce(children);
-  }
-
-  static constexpr const char* _type_key = "msc.core.BaseJoint";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const uint32_t _type_child_slots = 2;
-  TVM_DECLARE_BASE_OBJECT_INFO(BaseJointNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("msc.core.BaseJoint", BaseJointNode, Object);
 };
 
 /*!
@@ -527,7 +498,7 @@ class BaseJointNode : public Object {
  */
 class BaseJoint : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(BaseJoint, ObjectRef, BaseJointNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BaseJoint, ObjectRef, BaseJointNode);
 };
 
 /*!
@@ -537,42 +508,42 @@ class MSCJoint;
 class MSCJointNode : public BaseJointNode {
  public:
   /*! \brief The op type of node. */
-  String optype;
+  ffi::String optype;
   /*! \brief The scope of node. */
-  Array<String> scope;
+  ffi::Array<ffi::String> scope;
   /*! \brief The inputs of node, can be changed. */
-  Array<Array<Integer>> inputs;
+  ffi::Array<ffi::Array<Integer>> inputs;
   /*! \brief The outputs of node. */
-  Array<MSCTensor> outputs;
+  ffi::Array<MSCTensor> outputs;
   /*! \brief The weights of node. */
-  Map<String, MSCTensor> weights;
+  ffi::Map<ffi::String, MSCTensor> weights;
   /*! \brief Export node to json. */
   const JsonMSCJoint ToJson() const;
   /*! \brief Load node from json struct. */
-  void FromJson(const JsonMSCJoint& j_joint, const Map<String, BaseJoint>& nodes);
+  void FromJson(const JsonMSCJoint& j_joint, const ffi::Map<ffi::String, BaseJoint>& nodes);
   /*! \brief Load node from json string. */
-  void FromJson(const std::string& json_str, const Map<String, BaseJoint>& nodes);
+  void FromJson(const std::string& json_str, const ffi::Map<ffi::String, BaseJoint>& nodes);
   /*! \brief Get input from the node. */
   const MSCTensor InputAt(int index) const;
   /*! \brief Get inputs from the node. */
-  const Array<MSCTensor> GetInputs() const;
+  const ffi::Array<MSCTensor> GetInputs() const;
   /*! \brief Get output from the node. */
   const MSCTensor OutputAt(int index) const;
   /*! \brief Get outputs from the node. */
-  const Array<MSCTensor> GetOutputs() const;
+  const ffi::Array<MSCTensor> GetOutputs() const;
   /*! \brief Get weight from the node. */
-  const MSCTensor WeightAt(const String& wtype) const;
+  const MSCTensor WeightAt(const ffi::String& wtype) const;
   /*! \brief Get parent from the node. */
   const MSCJoint ParentAt(int index) const;
   /*! \brief Get child from the node. */
   const MSCJoint ChildAt(int index) const;
   /*! \brief Get Producer of the input. */
   const MSCJoint ProducerOf(int index) const;
-  const MSCJoint ProducerOf(const String& input_name) const;
+  const MSCJoint ProducerOf(const ffi::String& input_name) const;
   const MSCJoint ProducerOf(const MSCTensor& input) const;
   /*! \brief Get Producer and out index of the input. */
   const std::pair<MSCJoint, size_t> ProducerAndIdxOf(int index) const;
-  const std::pair<MSCJoint, size_t> ProducerAndIdxOf(const String& name) const;
+  const std::pair<MSCJoint, size_t> ProducerAndIdxOf(const ffi::String& name) const;
   const std::pair<MSCJoint, size_t> ProducerAndIdxOf(const MSCTensor& input) const;
 
   static void RegisterReflection() {
@@ -585,23 +556,8 @@ class MSCJointNode : public BaseJointNode {
         .def_ro("weights", &MSCJointNode::weights);
   }
 
-  bool SEqualReduce(const MSCJointNode* other, SEqualReducer equal) const {
-    return BaseJointNode::SEqualReduce(other, equal) && equal(optype, other->optype) &&
-           equal(scope, other->scope) && equal(inputs, other->inputs) &&
-           equal(outputs, other->outputs) && equal(weights, other->weights);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    BaseJointNode::SHashReduce(hash_reduce);
-    hash_reduce(optype);
-    hash_reduce(scope);
-    hash_reduce(inputs);
-    hash_reduce(outputs);
-    hash_reduce(weights);
-  }
-
-  static constexpr const char* _type_key = "msc.core.MSCJoint";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MSCJointNode, BaseJointNode);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.MSCJoint", MSCJointNode, BaseJointNode);
 };
 
 /*!
@@ -621,28 +577,30 @@ class MSCJoint : public BaseJoint {
    * \param outputs The outputs of the node.
    * \param weights The weights of the node.
    */
-  TVM_DLL MSCJoint(int index, const String& name, const String& shared_ref, const String& optype,
-                   const Map<String, String>& attrs, const Array<String>& scope,
+  TVM_DLL MSCJoint(int index, const ffi::String& name, const ffi::String& shared_ref,
+                   const ffi::String& optype, const ffi::Map<ffi::String, ffi::String>& attrs,
+                   const ffi::Array<ffi::String>& scope,
                    const std::vector<std::pair<BaseJoint, size_t>>& inputs,
-                   const Array<MSCTensor>& outputs, const Map<String, MSCTensor>& weights);
+                   const ffi::Array<MSCTensor>& outputs,
+                   const ffi::Map<ffi::String, MSCTensor>& weights);
 
   /*!
    * \brief The json constructor.
    * \param j_joint The json describe of the node.
    */
-  TVM_DLL MSCJoint(const JsonMSCJoint& j_joint, const Map<String, BaseJoint>& nodes);
+  TVM_DLL MSCJoint(const JsonMSCJoint& j_joint, const ffi::Map<ffi::String, BaseJoint>& nodes);
 
   /*!
    * \brief The json constructor.
    * \param json_str The json describe of the node.
    */
-  TVM_DLL MSCJoint(const std::string& json_str, const Map<String, BaseJoint>& nodes);
+  TVM_DLL MSCJoint(const std::string& json_str, const ffi::Map<ffi::String, BaseJoint>& nodes);
 
   /*! \brief Clone the node. */
   TVM_DLL static const MSCJoint Clone(const MSCJoint& node,
                                       const std::vector<std::pair<BaseJoint, size_t>>& inputs);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(MSCJoint, BaseJoint, MSCJointNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MSCJoint, BaseJoint, MSCJointNode);
 };
 
 /*!
@@ -652,13 +610,13 @@ class MSCPrim;
 class MSCPrimNode : public BaseJointNode {
  public:
   /*! \brief The op of prim. */
-  String optype;
+  ffi::String optype;
   /*! \brief Export prim to json. */
   const JsonMSCPrim ToJson() const;
   /*! \brief Load prim from json struct. */
-  void FromJson(const JsonMSCPrim& j_prim, const Map<String, BaseJoint>& prims);
+  void FromJson(const JsonMSCPrim& j_prim, const ffi::Map<ffi::String, BaseJoint>& prims);
   /*! \brief Load prim from json string. */
-  void FromJson(const std::string& json_str, const Map<String, BaseJoint>& prims);
+  void FromJson(const std::string& json_str, const ffi::Map<ffi::String, BaseJoint>& prims);
   /*! \brief Get parent from the prim. */
   const MSCPrim ParentAt(int index) const;
   /*! \brief Get child from the prim. */
@@ -668,18 +626,7 @@ class MSCPrimNode : public BaseJointNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MSCPrimNode>().def_ro("optype", &MSCPrimNode::optype);
   }
-
-  bool SEqualReduce(const MSCPrimNode* other, SEqualReducer equal) const {
-    return BaseJointNode::SEqualReduce(other, equal) && equal(optype, other->optype);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    BaseJointNode::SHashReduce(hash_reduce);
-    hash_reduce(optype);
-  }
-
-  static constexpr const char* _type_key = "msc.core.MSCPrim";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MSCPrimNode, BaseJointNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.MSCPrim", MSCPrimNode, BaseJointNode);
 };
 
 /*!
@@ -696,23 +643,24 @@ class MSCPrim : public BaseJoint {
    * \param parents The parents of the prim.
    * \param attrs The attributes of the prim.
    */
-  TVM_DLL MSCPrim(int index, const String& name, const String& optype,
-                  const Array<BaseJoint>& parents,
-                  const Map<String, String>& attrs = Map<String, String>());
+  TVM_DLL MSCPrim(
+      int index, const ffi::String& name, const ffi::String& optype,
+      const ffi::Array<BaseJoint>& parents,
+      const ffi::Map<ffi::String, ffi::String>& attrs = ffi::Map<ffi::String, ffi::String>());
 
   /*!
    * \brief The json constructor.
    * \param j_prim The json describe of the prim.
    */
-  TVM_DLL MSCPrim(const JsonMSCPrim& j_prim, const Map<String, BaseJoint>& prims);
+  TVM_DLL MSCPrim(const JsonMSCPrim& j_prim, const ffi::Map<ffi::String, BaseJoint>& prims);
 
   /*!
    * \brief The json constructor.
    * \param json_str The json describe of the prim.
    */
-  TVM_DLL MSCPrim(const std::string& json_str, const Map<String, BaseJoint>& prims);
+  TVM_DLL MSCPrim(const std::string& json_str, const ffi::Map<ffi::String, BaseJoint>& prims);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(MSCPrim, BaseJoint, MSCPrimNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MSCPrim, BaseJoint, MSCPrimNode);
 };
 
 /*!
@@ -722,17 +670,17 @@ class WeightJoint;
 class WeightJointNode : public BaseJointNode {
  public:
   /*! \brief The weight reference of weight node. */
-  String weight_type;
+  ffi::String weight_type;
   /*! \brief The weight of weight node. */
   MSCTensor weight;
   /*! \brief The friends of weight node. */
-  mutable Array<BaseJoint> friends;
+  mutable ffi::Array<BaseJoint> friends;
   /*! \brief Export node to json. */
   const JsonWeightJoint ToJson() const;
   /*! \brief Load node from json struct. */
-  void FromJson(const JsonWeightJoint& j_joint, const Map<String, BaseJoint>& nodes);
+  void FromJson(const JsonWeightJoint& j_joint, const ffi::Map<ffi::String, BaseJoint>& nodes);
   /*! \brief Load node from json string. */
-  void FromJson(const std::string& json_str, const Map<String, BaseJoint>& nodes);
+  void FromJson(const std::string& json_str, const ffi::Map<ffi::String, BaseJoint>& nodes);
   /*! \brief Get parent from the node. */
   const WeightJoint ParentAt(int index) const;
   /*! \brief Get child from the node. */
@@ -745,21 +693,7 @@ class WeightJointNode : public BaseJointNode {
         .def_ro("weight", &WeightJointNode::weight)
         .def_ro("friends", &WeightJointNode::friends);
   }
-
-  bool SEqualReduce(const WeightJointNode* other, SEqualReducer equal) const {
-    return BaseJointNode::SEqualReduce(other, equal) && equal(weight_type, other->weight_type) &&
-           equal(weight, other->weight) && equal(friends, other->friends);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    BaseJointNode::SHashReduce(hash_reduce);
-    hash_reduce(weight_type);
-    hash_reduce(weight);
-    hash_reduce(friends);
-  }
-
-  static constexpr const char* _type_key = "msc.core.WeightJoint";
-  TVM_DECLARE_FINAL_OBJECT_INFO(WeightJointNode, BaseJointNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.WeightJoint", WeightJointNode, BaseJointNode);
 };
 
 /*!
@@ -779,25 +713,26 @@ class WeightJoint : public BaseJoint {
    * \param attrs The attributes of the node.
    * \param friends The friends of the node.
    */
-  TVM_DLL WeightJoint(int index, const String& name, const String& shared_ref,
-                      const String& weight_type, const MSCTensor& weight,
-                      const Array<BaseJoint> parents,
-                      const Map<String, String>& attrs = Map<String, String>(),
-                      const Array<BaseJoint>& friends = Array<BaseJoint>());
+  TVM_DLL WeightJoint(
+      int index, const ffi::String& name, const ffi::String& shared_ref,
+      const ffi::String& weight_type, const MSCTensor& weight, const ffi::Array<BaseJoint> parents,
+      const ffi::Map<ffi::String, ffi::String>& attrs = ffi::Map<ffi::String, ffi::String>(),
+      const ffi::Array<BaseJoint>& friends = ffi::Array<BaseJoint>());
 
   /*!
    * \brief The json constructor.
    * \param j_joint The json describe of the node.
    */
-  TVM_DLL WeightJoint(const JsonWeightJoint& j_joint, const Map<String, BaseJoint>& nodes);
+  TVM_DLL WeightJoint(const JsonWeightJoint& j_joint,
+                      const ffi::Map<ffi::String, BaseJoint>& nodes);
 
   /*!
    * \brief The json constructor.
    * \param json_str The json describe of the node.
    */
-  TVM_DLL WeightJoint(const std::string& json_str, const Map<String, BaseJoint>& nodes);
+  TVM_DLL WeightJoint(const std::string& json_str, const ffi::Map<ffi::String, BaseJoint>& nodes);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(WeightJoint, BaseJoint, WeightJointNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(WeightJoint, BaseJoint, WeightJointNode);
 };
 
 /*!
@@ -806,13 +741,13 @@ class WeightJoint : public BaseJoint {
 class BaseGraphNode : public Object {
  public:
   /*! \brief The name of graph. */
-  String name;
+  ffi::String name;
   /*! \brief The node names in graph, can be changed. */
-  Array<String> node_names;
+  ffi::Array<ffi::String> node_names;
   /*! \brief The nodes in graph, can be changed. */
-  Map<String, BaseJoint> nodes;
+  ffi::Map<ffi::String, BaseJoint> nodes;
   /*! \brief Check if node in the graph. */
-  const bool HasNode(const String& name) const;
+  const bool HasNode(const ffi::String& name) const;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -822,22 +757,10 @@ class BaseGraphNode : public Object {
         .def_ro("node_names", &BaseGraphNode::node_names);
   }
 
-  bool SEqualReduce(const BaseGraphNode* other, SEqualReducer equal) const {
-    return equal(name, other->name) && equal(nodes, other->nodes) &&
-           equal(node_names, other->node_names);
-  }
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(name);
-    hash_reduce(nodes);
-    hash_reduce(node_names);
-  }
-
-  static constexpr const char* _type_key = "msc.core.BaseGraph";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const uint32_t _type_child_slots = 2;
-  TVM_DECLARE_BASE_OBJECT_INFO(BaseGraphNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("msc.core.BaseGraph", BaseGraphNode, Object);
 };
 
 /*!
@@ -846,7 +769,7 @@ class BaseGraphNode : public Object {
  */
 class BaseGraph : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(BaseGraph, ObjectRef, BaseGraphNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BaseGraph, ObjectRef, BaseGraphNode);
 };
 
 /*!
@@ -856,17 +779,17 @@ class MSCGraph;
 class MSCGraphNode : public BaseGraphNode {
  public:
   /*! \brief The shape node names in graph. */
-  Array<String> prim_names;
+  ffi::Array<ffi::String> prim_names;
   /*! \brief The shape nodes in graph. */
-  Map<String, MSCPrim> prims;
+  ffi::Map<ffi::String, MSCPrim> prims;
   /*! \brief The input names of graph. */
-  Array<String> input_names;
+  ffi::Array<ffi::String> input_names;
   /*! \brief The output names of graph. */
-  Array<String> output_names;
+  ffi::Array<ffi::String> output_names;
   /*! \brief The tensor alias in graph, get by AnalysisGraph. */
-  mutable Map<String, String> tensor_alias;
+  mutable ffi::Map<ffi::String, ffi::String> tensor_alias;
   /*! \brief The weights in graph, get by AnalysisGraph. */
-  Map<String, Array<String>> weight_holders;
+  ffi::Map<ffi::String, ffi::Array<ffi::String>> weight_holders;
   /*! \brief Export graph to json. */
   const JsonMSCGraph ToJson() const;
   /*! \brief Load graph from json. */
@@ -874,41 +797,42 @@ class MSCGraphNode : public BaseGraphNode {
   /*! \brief Load graph from json string. */
   void FromJson(const std::string& json_str);
   /*! \brief Export graph to prototxt. */
-  const String ToPrototxt() const;
+  const ffi::String ToPrototxt() const;
   /*! \brief Find node in graph. */
-  const MSCJoint FindNode(const String& name) const;
+  const MSCJoint FindNode(const ffi::String& name) const;
   /*! \brief Find prim in graph. */
-  const MSCPrim FindPrim(const String& name) const;
+  const MSCPrim FindPrim(const ffi::String& name) const;
   /*! \brief Get input from the graph. */
   const MSCTensor InputAt(int index) const;
   /*! \brief Get inputs from the graph. */
-  const Array<MSCTensor> GetInputs() const;
+  const ffi::Array<MSCTensor> GetInputs() const;
   /*! \brief Get output from the graph. */
   const MSCTensor OutputAt(int index) const;
   /*! \brief Get outputs from the graph. */
-  const Array<MSCTensor> GetOutputs() const;
+  const ffi::Array<MSCTensor> GetOutputs() const;
   /*! \brief Get entries from the graph. */
-  const Array<MSCJoint> GetEntries() const;
+  const ffi::Array<MSCJoint> GetEntries() const;
   /*! \brief Get exits from the graph. */
-  const Array<MSCJoint> GetExits() const;
+  const ffi::Array<MSCJoint> GetExits() const;
   /*! \brief Check if tensor in the graph. */
-  const bool HasTensor(const String& name) const;
+  const bool HasTensor(const ffi::String& name) const;
   /*! \brief Find tensor from the graph. */
-  const MSCTensor FindTensor(const String& name) const;
+  const MSCTensor FindTensor(const ffi::String& name) const;
   /*! \brief Find producer of tensor from the graph. */
-  const MSCJoint FindProducer(const String& name) const;
+  const MSCJoint FindProducer(const ffi::String& name) const;
   /*! \brief Find producer of tensor from the graph. */
   const MSCJoint FindProducer(const MSCTensor& tensor) const;
   /*! \brief Find producer and output index of tensor from the graph. */
-  const std::pair<MSCJoint, size_t> FindProducerAndIdx(const String& name) const;
+  const std::pair<MSCJoint, size_t> FindProducerAndIdx(const ffi::String& name) const;
   /*! \brief Find producer and output index of tensor from the graph. */
   const std::pair<MSCJoint, size_t> FindProducerAndIdx(const MSCTensor& tensor) const;
   /*! \brief Find consumers of tensor from the graph. */
-  const Array<MSCJoint> FindConsumers(const String& name) const;
+  const ffi::Array<MSCJoint> FindConsumers(const ffi::String& name) const;
   /*! \brief Find consumers of tensor from the graph. */
-  const Array<MSCJoint> FindConsumers(const MSCTensor& tensor) const;
+  const ffi::Array<MSCJoint> FindConsumers(const MSCTensor& tensor) const;
   /*! \brief Find consumers and input indices of tensor from the graph. */
-  const std::vector<std::pair<MSCJoint, size_t>> FindConsumersAndIndices(const String& name) const;
+  const std::vector<std::pair<MSCJoint, size_t>> FindConsumersAndIndices(
+      const ffi::String& name) const;
   /*! \brief Find consumers and input indices of tensor from the graph. */
   const std::vector<std::pair<MSCJoint, size_t>> FindConsumersAndIndices(
       const MSCTensor& tensor) const;
@@ -924,24 +848,7 @@ class MSCGraphNode : public BaseGraphNode {
         .def_ro("output_names", &MSCGraphNode::output_names)
         .def_ro("weight_holders", &MSCGraphNode::weight_holders);
   }
-
-  bool SEqualReduce(const MSCGraphNode* other, SEqualReducer equal) const {
-    return BaseGraphNode::SEqualReduce(other, equal) && equal(prims, other->prims) &&
-           equal(prim_names, other->prim_names) && equal(input_names, other->input_names) &&
-           equal(output_names, other->output_names) && equal(weight_holders, other->weight_holders);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    BaseGraphNode::SHashReduce(hash_reduce);
-    hash_reduce(prims);
-    hash_reduce(prim_names);
-    hash_reduce(input_names);
-    hash_reduce(output_names);
-    hash_reduce(weight_holders);
-  }
-
-  static constexpr const char* _type_key = "msc.core.MSCGraph";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MSCGraphNode, BaseGraphNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.MSCGraph", MSCGraphNode, BaseGraphNode);
 };
 
 /*!
@@ -958,9 +865,10 @@ class MSCGraph : public BaseGraph {
    * \param output_names The output names of the graph.
    * \param prims The prims in the graph.
    */
-  TVM_DLL MSCGraph(const String& name, const Array<MSCJoint>& nodes,
-                   const Array<String>& input_names, const Array<String>& output_names,
-                   const Array<MSCPrim>& prims = Array<MSCPrim>());
+  TVM_DLL MSCGraph(const ffi::String& name, const ffi::Array<MSCJoint>& nodes,
+                   const ffi::Array<ffi::String>& input_names,
+                   const ffi::Array<ffi::String>& output_names,
+                   const ffi::Array<MSCPrim>& prims = ffi::Array<MSCPrim>());
 
   /*!
    * \brief The json constructor.
@@ -974,7 +882,7 @@ class MSCGraph : public BaseGraph {
    */
   TVM_DLL MSCGraph(const std::string& json_str);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(MSCGraph, BaseGraph, MSCGraphNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MSCGraph, BaseGraph, MSCGraphNode);
 };
 
 /*!
@@ -983,10 +891,11 @@ class MSCGraph : public BaseGraph {
 class WeightGraphNode : public BaseGraphNode {
  public:
   /*! \brief build from MSCGraph. */
-  void Build(const MSCGraph& graph, const Map<String, Array<String>>& prunable_types,
-             const Map<String, String>& relation_types);
+  void Build(const MSCGraph& graph,
+             const ffi::Map<ffi::String, ffi::Array<ffi::String>>& prunable_types,
+             const ffi::Map<ffi::String, ffi::String>& relation_types);
   /*! \brief Find node in graph. */
-  const WeightJoint FindNode(const String& name) const;
+  const WeightJoint FindNode(const ffi::String& name) const;
   /*! \brief Export graph to json. */
   const JsonWeightGraph ToJson() const;
   /*! \brief Load graph from json. */
@@ -994,21 +903,13 @@ class WeightGraphNode : public BaseGraphNode {
   /*! \brief Load graph from json string. */
   void FromJson(const std::string& json_str);
   /*! \brief Export graph to prototxt. */
-  const String ToPrototxt() const;
+  const ffi::String ToPrototxt() const;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<WeightGraphNode>();
   }
-
-  bool SEqualReduce(const WeightGraphNode* other, SEqualReducer equal) const {
-    return BaseGraphNode::SEqualReduce(other, equal);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { BaseGraphNode::SHashReduce(hash_reduce); }
-
-  static constexpr const char* _type_key = "msc.core.WeightGraph";
-  TVM_DECLARE_FINAL_OBJECT_INFO(WeightGraphNode, BaseGraphNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.WeightGraph", WeightGraphNode, BaseGraphNode);
 };
 
 /*!
@@ -1023,8 +924,9 @@ class WeightGraph : public BaseGraph {
    * \param prunable_types The prunable types.
    * \param relation_types The relation types.
    */
-  TVM_DLL WeightGraph(const MSCGraph& graph, const Map<String, Array<String>>& prunable_types,
-                      const Map<String, String>& relation_types);
+  TVM_DLL WeightGraph(const MSCGraph& graph,
+                      const ffi::Map<ffi::String, ffi::Array<ffi::String>>& prunable_types,
+                      const ffi::Map<ffi::String, ffi::String>& relation_types);
 
   /*!
    * \brief The json constructor.
@@ -1038,10 +940,11 @@ class WeightGraph : public BaseGraph {
    */
   TVM_DLL WeightGraph(const std::string& json_str);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(WeightGraph, BaseGraph, WeightGraphNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(WeightGraph, BaseGraph, WeightGraphNode);
 };
 
-MSCGraph PruneWeights(const MSCGraph& graph, const Map<String, MSCTensor>& pruned_tensors);
+MSCGraph PruneWeights(const MSCGraph& graph,
+                      const ffi::Map<ffi::String, MSCTensor>& pruned_tensors);
 
 }  // namespace msc
 }  // namespace contrib

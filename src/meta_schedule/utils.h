@@ -136,7 +136,7 @@ inline bool using_ipython() {
  * \brief Print out the performance table interactively in jupyter notebook.
  * \param str The serialized performance table.
  */
-inline void print_interactive_table(const String& data) {
+inline void print_interactive_table(const ffi::String& data) {
   const auto f_print_interactive_table =
       tvm::ffi::Function::GetGlobal("meta_schedule.print_interactive_table");
   ICHECK(f_print_interactive_table.has_value())
@@ -214,14 +214,14 @@ std::string JSONDumps(Any json_obj);
  * \param hash_code The hash code
  * \return The string representation of the hash code
  */
-inline String SHash2Str(Workload::THashCode hash_code) { return std::to_string(hash_code); }
+inline ffi::String SHash2Str(Workload::THashCode hash_code) { return std::to_string(hash_code); }
 
 /*!
  * \brief Converts an TVM object to the hex string representation of its structural hash.
  * \param obj The TVM object.
  * \return The hex string representation of the hash code.
  */
-inline String SHash2Hex(const ObjectRef& obj) {
+inline ffi::String SHash2Hex(const ObjectRef& obj) {
   std::ostringstream os;
   size_t hash_code = 0;
   if (obj.defined()) {
@@ -272,7 +272,7 @@ inline IRModule DeepCopyIRModule(IRModule mod) { return LoadJSON(SaveJSON(mod)).
  * \param delim The delimiter
  * \return The concatenated string
  */
-inline std::string Concat(const Array<String>& strs, const std::string& delim) {
+inline std::string Concat(const ffi::Array<ffi::String>& strs, const std::string& delim) {
   if (strs.empty()) {
     return "";
   }
@@ -292,7 +292,7 @@ inline std::string Concat(const Array<String>& strs, const std::string& delim) {
  * \return The BlockRV
  */
 inline tir::BlockRV GetRVFromSRef(const tir::Schedule& sch, const tir::StmtSRef& block_sref,
-                                  const String& global_var_name) {
+                                  const ffi::String& global_var_name) {
   const tir::BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   return sch->GetBlock(block->name_hint, global_var_name);
 }
@@ -303,7 +303,7 @@ inline tir::BlockRV GetRVFromSRef(const tir::Schedule& sch, const tir::StmtSRef&
  */
 struct ThreadedTraceApply {
   /*! \brief Constructor */
-  explicit ThreadedTraceApply(const Array<Postproc>& postprocs)
+  explicit ThreadedTraceApply(const ffi::Array<Postproc>& postprocs)
       : n_(postprocs.size()), items_(new Item[n_]) {
     for (int i = 0; i < n_; ++i) {
       items_[i].postproc = postprocs[i];
@@ -321,8 +321,8 @@ struct ThreadedTraceApply {
    * \param rand_state The random seed
    * \return The schedule created, or std::nullopt if any postprocessor fails
    */
-  Optional<tir::Schedule> Apply(const IRModule& mod, const tir::Trace& trace,
-                                TRandState* rand_state) {
+  ffi::Optional<tir::Schedule> Apply(const IRModule& mod, const tir::Trace& trace,
+                                     TRandState* rand_state) {
     tir::Schedule sch =
         tir::Schedule::Traced(mod,
                               /*rand_state=*/ForkSeed(rand_state),
@@ -360,7 +360,7 @@ struct ThreadedTraceApply {
   /*! \brief A helper data structure that stores the fail count for each postprocessor. */
   struct Item {
     /*! \brief The postprocessor. */
-    Postproc postproc{nullptr};
+    Postproc postproc{ffi::UnsafeInit()};
     /*! \brief The thread-safe postprocessor failure counter. */
     std::atomic<int> fail_counter{0};
   };
@@ -397,7 +397,7 @@ inline int GetTargetNumCores(const Target& target) {
  * \return The median of the running time in millisecond
  */
 inline double GetRunMsMedian(const RunnerResult& runner_result) {
-  Array<FloatImm> run_secs = runner_result->run_secs.value();
+  ffi::Array<FloatImm> run_secs = runner_result->run_secs.value();
   ICHECK(!run_secs.empty());
   std::vector<double> v;
   v.reserve(run_secs.size());
@@ -417,10 +417,10 @@ inline double GetRunMsMedian(const RunnerResult& runner_result) {
  * \param obj The object to be converted
  * \return The array of floating point numbers
  */
-inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
+inline ffi::Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
   const ffi::ArrayObj* arr = obj.as<ffi::ArrayObj>();
   ICHECK(arr) << "TypeError: Expect an array, but gets: " << obj->GetTypeKey();
-  Array<FloatImm> results;
+  ffi::Array<FloatImm> results;
   results.reserve(arr->size());
   for (Any val : *arr) {
     auto float_value = [&]() -> FloatImm {
@@ -444,10 +444,10 @@ inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
  * \param obj The object to be converted
  * \return The array of integers
  */
-inline Array<Integer> AsIntArray(const ObjectRef& obj) {
+inline ffi::Array<Integer> AsIntArray(const ObjectRef& obj) {
   const ffi::ArrayObj* arr = obj.as<ffi::ArrayObj>();
   ICHECK(arr) << "TypeError: Expect an array, but gets: " << obj->GetTypeKey();
-  Array<Integer> results;
+  ffi::Array<Integer> results;
   results.reserve(arr->size());
   for (Any val : *arr) {
     auto int_value = [&]() -> int64_t {
@@ -467,7 +467,7 @@ inline Array<Integer> AsIntArray(const ObjectRef& obj) {
 struct SortTuningRecordByMeanRunSecs {
   static const constexpr double kMaxMeanTime = 1e10;
 
-  static double Mean(const Array<FloatImm>& a) {
+  static double Mean(const ffi::Array<FloatImm>& a) {
     if (a.empty()) {
       return kMaxMeanTime;
     }
@@ -492,8 +492,8 @@ struct SortTuningRecordByMeanRunSecs {
  */
 inline void CloneRules(const SpaceGeneratorNode* src, SpaceGeneratorNode* dst) {
   if (src->sch_rules.defined()) {
-    Array<ScheduleRule> original = src->sch_rules.value();
-    Array<ScheduleRule> sch_rules;
+    ffi::Array<ScheduleRule> original = src->sch_rules.value();
+    ffi::Array<ScheduleRule> sch_rules;
     sch_rules.reserve(original.size());
     for (const ScheduleRule& sch_rule : original) {
       sch_rules.push_back(sch_rule->Clone());
@@ -501,8 +501,8 @@ inline void CloneRules(const SpaceGeneratorNode* src, SpaceGeneratorNode* dst) {
     dst->sch_rules = std::move(sch_rules);
   }
   if (src->postprocs.defined()) {
-    Array<Postproc> original = src->postprocs.value();
-    Array<Postproc> postprocs;
+    ffi::Array<Postproc> original = src->postprocs.value();
+    ffi::Array<Postproc> postprocs;
     postprocs.reserve(original.size());
     for (const Postproc& postproc : original) {
       postprocs.push_back(postproc->Clone());
@@ -510,8 +510,8 @@ inline void CloneRules(const SpaceGeneratorNode* src, SpaceGeneratorNode* dst) {
     dst->postprocs = std::move(postprocs);
   }
   if (src->mutator_probs.defined()) {
-    Map<Mutator, FloatImm> original = src->mutator_probs.value();
-    Map<Mutator, FloatImm> mutator_probs;
+    ffi::Map<Mutator, FloatImm> original = src->mutator_probs.value();
+    ffi::Map<Mutator, FloatImm> mutator_probs;
     for (const auto& kv : original) {
       mutator_probs.Set(kv.first->Clone(), kv.second);
     }
@@ -532,7 +532,7 @@ inline bool IsGPUTarget(const std::string& target_name) {
  * \return The AutoInline schedule rule for the given target.
  */
 inline ScheduleRule GetDefaultAutoInline(const std::string& target_name) {
-  Array<ScheduleRule> rules{nullptr};
+  ffi::Array<ScheduleRule> rules{nullptr};
   if (target_name == "llvm") {
     rules = ScheduleRule::DefaultLLVM();
   } else if (target_name == "hexagon") {
@@ -557,7 +557,7 @@ inline ScheduleRule GetDefaultAutoInline(const std::string& target_name) {
  * \param arr The array of FloatImm.
  * \return The summary of the values in the given array.
  */
-inline double Sum(const Array<FloatImm>& arr) {
+inline double Sum(const ffi::Array<FloatImm>& arr) {
   double sum = 0;
   for (const FloatImm& f : arr) {
     sum += f->value;
@@ -568,21 +568,21 @@ inline double Sum(const Array<FloatImm>& arr) {
 /*! \brief Collecting all the blocks */
 class BlockCollector : public tir::StmtVisitor {
  public:
-  static Array<tir::BlockRV> Collect(const tir::Schedule& sch,
-                                     const ffi::Function f_block_filter = nullptr) {  //
+  static ffi::Array<tir::BlockRV> Collect(const tir::Schedule& sch,
+                                          const ffi::Function f_block_filter = nullptr) {  //
     return BlockCollector(sch, f_block_filter).Run();
   }
 
  private:
   /*! \brief Entry point */
-  Array<tir::BlockRV> Run() {
+  ffi::Array<tir::BlockRV> Run() {
     std::vector<tir::BlockRV> results;
-    auto f_collect = [this, &results](tir::PrimFunc func, String func_name) {
+    auto f_collect = [this, &results](tir::PrimFunc func, ffi::String func_name) {
       func_name_ = func_name;
       block_names_.clear();
       blocks_to_collect_.clear();
       VisitStmt(func->body);
-      for (const String& name : blocks_to_collect_) {
+      for (const ffi::String& name : blocks_to_collect_) {
         results.push_back(sch_->GetBlock(name, func_name_));
       }
     };
@@ -596,7 +596,7 @@ class BlockCollector : public tir::StmtVisitor {
         // `gv->name_hint` is the name of the function
         // `base_func` can be PrimFunc or relax::Function
         if (const auto* func = base_func.as<tir::PrimFuncNode>()) {
-          f_collect(GetRef<tir::PrimFunc>(func), gv->name_hint);
+          f_collect(ffi::GetRef<tir::PrimFunc>(func), gv->name_hint);
         }
       }
     }
@@ -617,7 +617,7 @@ class BlockCollector : public tir::StmtVisitor {
     // Otherwise collect all blocks.
     Bool collect_block = Bool(true);
     if (f_block_filter_ != nullptr) {
-      collect_block = f_block_filter_(GetRef<tir::Block>(block)).cast<Bool>();
+      collect_block = f_block_filter_(ffi::GetRef<tir::Block>(block)).cast<Bool>();
     }
     if (collect_block) {
       blocks_to_collect_.push_back(block->name_hint);
@@ -629,15 +629,15 @@ class BlockCollector : public tir::StmtVisitor {
   /*! \brief An optional packed func that allows only certain blocks to be collected. */
   const ffi::Function f_block_filter_;
   /*! \brief The set of func name and block name pair */
-  std::unordered_set<String> block_names_;
+  std::unordered_set<ffi::String> block_names_;
   /* \brief The list of blocks to collect in order */
-  Array<String> blocks_to_collect_;
+  ffi::Array<ffi::String> blocks_to_collect_;
   /*! \brief Name of the current PrimFunc */
-  String func_name_;
+  ffi::String func_name_;
 };
 
-void JSONFileAppendLine(const String& path, const std::string& line);
-std::vector<Any> JSONFileReadLines(const String& path, int num_threads, bool allow_missing);
+void JSONFileAppendLine(const ffi::String& path, const std::string& line);
+std::vector<Any> JSONFileReadLines(const ffi::String& path, int num_threads, bool allow_missing);
 }  // namespace meta_schedule
 }  // namespace tvm
 

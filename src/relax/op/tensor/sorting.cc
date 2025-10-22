@@ -31,17 +31,16 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   SortAttrs::RegisterReflection();
   ArgsortAttrs::RegisterReflection();
   TopKAttrs::RegisterReflection();
-});
+}
 
 /* relax.sort */
-TVM_REGISTER_NODE_TYPE(SortAttrs);
 
 Expr sort(Expr data, int axis, bool descending) {
-  auto attrs = make_object<SortAttrs>();
+  auto attrs = ffi::make_object<SortAttrs>();
   attrs->axis = std::move(axis);
   attrs->descending = std::move(descending);
 
@@ -49,10 +48,10 @@ Expr sort(Expr data, int axis, bool descending) {
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.sort", sort);
-});
+}
 
 StructInfo InferStructInfoSort(const Call& call, const BlockBuilder& ctx) {
   return GetUnaryInputTensorStructInfo(call, ctx);
@@ -66,10 +65,9 @@ TVM_REGISTER_OP("relax.sort")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.argsort */
-TVM_REGISTER_NODE_TYPE(ArgsortAttrs);
 
 Expr argsort(Expr data, int axis, bool descending, DataType dtype) {
-  auto attrs = make_object<ArgsortAttrs>();
+  auto attrs = ffi::make_object<ArgsortAttrs>();
   attrs->axis = std::move(axis);
   attrs->descending = std::move(descending);
   attrs->dtype = std::move(dtype);
@@ -78,10 +76,10 @@ Expr argsort(Expr data, int axis, bool descending, DataType dtype) {
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.argsort", argsort);
-});
+}
 
 StructInfo InferStructInfoArgsort(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -101,10 +99,9 @@ TVM_REGISTER_OP("relax.argsort")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.topk */
-TVM_REGISTER_NODE_TYPE(TopKAttrs);
 
-Expr topk(Expr data, int k, int axis, String ret_type, bool largest, DataType dtype) {
-  auto attrs = make_object<TopKAttrs>();
+Expr topk(Expr data, int k, int axis, ffi::String ret_type, bool largest, DataType dtype) {
+  auto attrs = ffi::make_object<TopKAttrs>();
   attrs->k = std::move(k);
   attrs->axis = std::move(axis);
   attrs->ret_type = std::move(ret_type);
@@ -115,10 +112,10 @@ Expr topk(Expr data, int k, int axis, String ret_type, bool largest, DataType dt
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.topk", topk);
-});
+}
 
 StructInfo InferStructInfoTopK(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -127,7 +124,7 @@ StructInfo InferStructInfoTopK(const Call& call, const BlockBuilder& ctx) {
   DataType indices_type = attrs->dtype.is_void() ? data_sinfo->dtype : attrs->dtype;
   int ndim = data_sinfo->ndim;
   int k = attrs->k;
-  String ret_type = attrs->ret_type;
+  ffi::String ret_type = attrs->ret_type;
   int axis = attrs->axis;
   if (axis < 0 && ndim > 0) {
     axis += ndim;
@@ -140,7 +137,7 @@ StructInfo InferStructInfoTopK(const Call& call, const BlockBuilder& ctx) {
         TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice));
     output_sinfos.push_back(TensorStructInfo(indices_type, data_sinfo->ndim, data_sinfo->vdevice));
   } else {
-    Array<PrimExpr> out_shape = data_shape->values;
+    ffi::Array<PrimExpr> out_shape = data_shape->values;
     const auto* int_dim = out_shape[axis].as<IntImmNode>();
     if (k > 0 && (int_dim == nullptr || k < int_dim->value)) {
       out_shape.Set(axis, k);

@@ -218,7 +218,7 @@ def _benchmark_hexagon_elementwise_add_kernel(
             # Create an actual Hexagon-native shared object file, initially stored on the
             # host's file system...
             host_dso_binary_path = os.path.join(host_files_dir_path, "test_binary.so")
-            built_module.save(host_dso_binary_path)
+            built_module.write_to_file(host_dso_binary_path)
             print(f"SAVED BINARY TO HOST PATH: {host_dso_binary_path}")
 
             # Upload the .so to the Android device's file system (or wherever is appropriate
@@ -242,9 +242,9 @@ def _benchmark_hexagon_elementwise_add_kernel(
             )
 
             # Create the target-side tensors to hold the primfunc's inputs and outputs...
-            input1_data = tvm.nd.empty(shape, dtype, hexagon_session.device, mem_scope)
-            input2_data = tvm.nd.empty(shape, dtype, hexagon_session.device, mem_scope)
-            output_data = tvm.nd.empty(shape, dtype, hexagon_session.device, mem_scope)
+            input1_data = tvm.runtime.empty(shape, dtype, hexagon_session.device, mem_scope)
+            input2_data = tvm.runtime.empty(shape, dtype, hexagon_session.device, mem_scope)
+            output_data = tvm.runtime.empty(shape, dtype, hexagon_session.device, mem_scope)
 
             # Populate the primfunc's input tensors...
             input1_data.copyfrom(host_numpy_input1_data)

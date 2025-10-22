@@ -23,11 +23,11 @@
 namespace tvm {
 namespace tir {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   StmtSRefNode::RegisterReflection();
   DependencyNode::RegisterReflection();
   BlockScopeNode::RegisterReflection();
-});
+}
 
 /******** Utility functions ********/
 
@@ -52,7 +52,7 @@ void AddDependency(BlockScopeNode* self, const StmtSRef& src, const StmtSRef& ds
 /******** Constructors ********/
 
 StmtSRef::StmtSRef(const StmtNode* stmt, StmtSRefNode* parent, int64_t seq_index) {
-  ObjectPtr<StmtSRefNode> n = make_object<StmtSRefNode>();
+  ObjectPtr<StmtSRefNode> n = ffi::make_object<StmtSRefNode>();
   n->stmt = stmt;
   n->parent = parent;
   n->seq_index = seq_index;
@@ -70,19 +70,19 @@ StmtSRef StmtSRef::RootMark() {
 }
 
 Dependency::Dependency(StmtSRef src, StmtSRef dst, DepKind kind) {
-  ObjectPtr<DependencyNode> node = make_object<DependencyNode>();
+  ObjectPtr<DependencyNode> node = ffi::make_object<DependencyNode>();
   node->src = std::move(src);
   node->dst = std::move(dst);
   node->kind = kind;
   data_ = std::move(node);
 }
 
-BlockScope::BlockScope() { data_ = make_object<BlockScopeNode>(); }
+BlockScope::BlockScope() { data_ = ffi::make_object<BlockScopeNode>(); }
 
-BlockScope::BlockScope(const Array<StmtSRef>& child_block_srefs) {
-  ObjectPtr<BlockScopeNode> n = make_object<BlockScopeNode>();
-  SMap<Buffer, Array<StmtSRef>> buffer_readers;
-  SMap<Buffer, Array<StmtSRef>>& buffer_writers = n->buffer_writers;
+BlockScope::BlockScope(const ffi::Array<StmtSRef>& child_block_srefs) {
+  ObjectPtr<BlockScopeNode> n = ffi::make_object<BlockScopeNode>();
+  SMap<Buffer, ffi::Array<StmtSRef>> buffer_readers;
+  SMap<Buffer, ffi::Array<StmtSRef>>& buffer_writers = n->buffer_writers;
   for (const StmtSRef& child_block_sref : child_block_srefs) {
     const BlockNode* child_block = TVM_SREF_TO_BLOCK(child_block_sref);
     // Step 1. Update `buffer_readers` and `buffer_writers` for each buffer
@@ -125,7 +125,7 @@ BlockScope::BlockScope(const Array<StmtSRef>& child_block_srefs) {
 
 /******** Dependency ********/
 
-Array<Dependency> BlockScopeNode::GetDepsBySrc(const StmtSRef& block_sref) const {
+ffi::Array<Dependency> BlockScopeNode::GetDepsBySrc(const StmtSRef& block_sref) const {
   auto iter = this->src2deps.find(block_sref);
   if (iter != this->src2deps.end()) {
     return iter->second;
@@ -134,7 +134,7 @@ Array<Dependency> BlockScopeNode::GetDepsBySrc(const StmtSRef& block_sref) const
   }
 }
 
-Array<Dependency> BlockScopeNode::GetDepsByDst(const StmtSRef& block_sref) const {
+ffi::Array<Dependency> BlockScopeNode::GetDepsByDst(const StmtSRef& block_sref) const {
   auto iter = this->dst2deps.find(block_sref);
   if (iter != this->dst2deps.end()) {
     return iter->second;
@@ -193,24 +193,22 @@ void SRefTreeCreator::VisitStmt_(const SeqStmtNode* seq_stmt) {
 
 /******** FFI ********/
 
-TVM_REGISTER_NODE_TYPE(StmtSRefNode);
-TVM_REGISTER_NODE_TYPE(DependencyNode);
-TVM_REGISTER_NODE_TYPE(BlockScopeNode);
-
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.StmtSRefStmt",
-           [](StmtSRef sref) -> Optional<Stmt> { return GetRef<Optional<Stmt>>(sref->stmt); })
+           [](StmtSRef sref) -> ffi::Optional<Stmt> {
+             return ffi::GetRef<ffi::Optional<Stmt>>(sref->stmt);
+           })
       .def("tir.StmtSRefParent",
-           [](StmtSRef sref) -> Optional<StmtSRef> {
-             return GetRef<Optional<StmtSRef>>(sref->parent);
+           [](StmtSRef sref) -> ffi::Optional<StmtSRef> {
+             return ffi::GetRef<ffi::Optional<StmtSRef>>(sref->parent);
            })
       .def("tir.StmtSRefRootMark", StmtSRef::RootMark)
       .def("tir.StmtSRefInlineMark", StmtSRef::InlineMark)
       .def_method("tir.BlockScopeGetDepsBySrc", &BlockScopeNode::GetDepsBySrc)
       .def_method("tir.BlockScopeGetDepsByDst", &BlockScopeNode::GetDepsByDst);
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

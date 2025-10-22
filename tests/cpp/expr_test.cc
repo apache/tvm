@@ -51,5 +51,5 @@ TEST(ExprNodeRef, Basic) {
   Var x("x");
   PrimExpr z = max(x + 1 + 2, 100);
   const tir::MaxNode* op = z.as<tir::MaxNode>();
-  ICHECK(GetRef<ObjectRef>(op).same_as(z));
+  ICHECK(ffi::GetRef<ObjectRef>(op).same_as(z));
 }

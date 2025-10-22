@@ -41,9 +41,9 @@ class MatchResultNode : public Object {
   /*! The matched tir pattern*/
   TIRPattern pattern;
   /*! \brief The evaluated values of symbolic vars. */
-  Array<PrimExpr> symbol_values;
+  ffi::Array<PrimExpr> symbol_values;
   /*! \brief The matched buffers of input and output. */
-  Array<tir::Buffer> matched_buffers;
+  ffi::Array<tir::Buffer> matched_buffers;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -52,9 +52,7 @@ class MatchResultNode : public Object {
         .def_ro("symbol_values", &MatchResultNode::symbol_values)
         .def_ro("matched_buffers", &MatchResultNode::matched_buffers);
   }
-
-  static constexpr const char* _type_key = "relax.MatchResult";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MatchResultNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.MatchResult", MatchResultNode, Object);
 };
 
 /*!
@@ -68,13 +66,13 @@ class MatchResult : public ObjectRef {
    * \param symbol_values The evaluated values of symbolic vars.
    * \param matched_buffers The matched buffers of input and output.
    */
-  TVM_DLL explicit MatchResult(TIRPattern pattern, Array<PrimExpr> symbol_values,
-                               Array<tir::Buffer> matched_buffers);
+  TVM_DLL explicit MatchResult(TIRPattern pattern, ffi::Array<PrimExpr> symbol_values,
+                               ffi::Array<tir::Buffer> matched_buffers);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(MatchResult, ObjectRef, MatchResultNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchResult, ObjectRef, MatchResultNode);
 };
 
-using FCodegen = ffi::TypedFunction<Array<ObjectRef>(Array<MatchResult> match_results)>;
+using FCodegen = ffi::TypedFunction<ffi::Array<ffi::Any>(ffi::Array<MatchResult> match_results)>;
 }  // namespace relax
 }  // namespace tvm
 #endif  // TVM_RELAX_TIR_PATTERN_H_

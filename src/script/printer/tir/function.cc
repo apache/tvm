@@ -65,7 +65,7 @@ int CountVarOccurrence(const tir::PrimFunc& f, const tir::Var& v) {
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::PrimFunc>("", [](tir::PrimFunc func, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tir::PrimFunc>("", [](tir::PrimFunc func, AccessPath p, IRDocsifier d) -> Doc {
       With<TIRFrame> f(d, func);
       (*f)->AddDispatchToken(d, "tir");
       IdDoc func_name = IdDoc(FindFunctionName(d, func).value_or("main"));
@@ -82,17 +82,17 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         ++buffer_data_counter.at(data_var);
       }
       // Step 1. Handle `func->params`
-      Array<AssignDoc> args;
+      ffi::Array<AssignDoc> args;
       args.reserve(n_args);
       std::unordered_set<const tir::BufferNode*> buffer_inlined;
       for (int i = 0; i < n_args; ++i) {
         tir::Var var = func->params[i];
-        ObjectPath var_p = p->Attr("params")->ArrayIndex(i);
+        AccessPath var_p = p->Attr("params")->ArrayItem(i);
         if (d->cfg->syntax_sugar && CountVarOccurrence(func, var) == 2 &&
             func->buffer_map.count(var)) {
           tir::Buffer buffer = func->buffer_map[var];
           if (IsSimpleBuffer(buffer) && buffer_data_counter.at(buffer->data.get()) == 1) {
-            ObjectPath buffer_p = p->Attr("buffer_map")->MapValue(var);
+            AccessPath buffer_p = p->Attr("buffer_map")->MapItem(var);
             IdDoc lhs = DefineBuffer(buffer, *f, d);
             ExprDoc annotation = BufferAttn(buffer, buffer_p, *f, d);
             args.push_back(AssignDoc(lhs, std::nullopt, annotation));
@@ -107,8 +107,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       if (func->attrs.defined() && !func->attrs->dict.empty()) {
         // for global symbol, don't display it if it matches the func name
         if (func->attrs->dict.count(tvm::attr::kGlobalSymbol) &&
-            Downcast<String>(func->attrs->dict.at(tvm::attr::kGlobalSymbol)) == func_name->name) {
-          Map<String, Any> new_attrs;
+            Downcast<ffi::String>(func->attrs->dict.at(tvm::attr::kGlobalSymbol)) ==
+                func_name->name) {
+          ffi::Map<ffi::String, Any> new_attrs;
           for (auto kv : func->attrs->dict) {
             if (kv.first != tvm::attr::kGlobalSymbol) {
               new_attrs.Set(kv.first, kv.second);
@@ -134,7 +135,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             continue;
           }
           ExprDoc param_doc = args[i]->lhs;
-          ObjectPath buffer_p = p->Attr("buffer_map")->MapValue(param);
+          AccessPath buffer_p = p->Attr("buffer_map")->MapItem(param);
           ExprDoc lhs = DefineBuffer(buffer, *f, d);
           ExprDoc rhs = BufferDecl(buffer, "match_buffer", {param_doc}, buffer_p, *f, d,
                                    BufferVarDefinition::MatchBuffer);
@@ -142,7 +143,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         }
       }
       // Step 4. Handle `func->body`
-      Optional<tir::Block> implicit_root_block = [&]() -> Optional<tir::Block> {
+      ffi::Optional<tir::Block> implicit_root_block = [&]() -> ffi::Optional<tir::Block> {
         const tir::BlockRealizeNode* root_block_realize = func->body.as<tir::BlockRealizeNode>();
         if (root_block_realize && !root_block_realize->iter_values.size() &&
             tir::is_one(root_block_realize->predicate)) {
@@ -163,12 +164,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       }();
       if (d->cfg->syntax_sugar && implicit_root_block) {
         tir::Block root_block = implicit_root_block.value();
-        ObjectPath root_block_p = p->Attr("body")->Attr("block");
+        AccessPath root_block_p = p->Attr("body")->Attr("block");
         (*f)->stmts.push_back(CommentDoc("with T.block(\"root\"):"));
         // Handle root block `alloc_buffer`
         for (int i = 0, n = root_block->alloc_buffers.size(); i < n; ++i) {
           tir::Buffer buffer = root_block->alloc_buffers[i];
-          ObjectPath buffer_p = root_block_p->Attr("alloc_buffers")->ArrayIndex(i);
+          AccessPath buffer_p = root_block_p->Attr("alloc_buffers")->ArrayItem(i);
           IdDoc lhs = DefineBuffer(buffer, *f, d);
           ExprDoc rhs = BufferDecl(buffer, "alloc_buffer", {}, buffer_p, *f, d,
                                    BufferVarDefinition::DataPointer);
@@ -178,7 +179,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       } else {
         AsDocBody(func->body, p->Attr("body"), f->get(), d);
       }
-      Optional<ExprDoc> ret_type = std::nullopt;
+      ffi::Optional<ExprDoc> ret_type = std::nullopt;
       if (func->ret_type.defined()) {
         const auto* as_tuple = func->ret_type.as<TupleTypeNode>();
         if (!as_tuple || as_tuple->fields.size()) {
@@ -189,9 +190,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       ExprDoc decorator = TIR(d, "prim_func");
       // mark private if there is no global symbol
       if (!func->attrs.defined() || !func->attrs->dict.count(tvm::attr::kGlobalSymbol)) {
-        Array<ExprDoc> pos_args;
+        ffi::Array<ExprDoc> pos_args;
         decorator = decorator->Call(pos_args, {"private"},
-                                    {LiteralDoc::Boolean(true, Optional<ObjectPath>())});
+                                    {LiteralDoc::Boolean(true, ffi::Optional<AccessPath>())});
       }
 
       return HeaderWrapper(d, FunctionDoc(
@@ -206,8 +207,8 @@ TVM_SCRIPT_REPR(tir::PrimFuncNode, ReprPrintTIR);
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::GlobalVar>(                                           //
-        "tir", [](tvm::GlobalVar n, ObjectPath n_p, IRDocsifier d) -> Doc {  //
-          if (Optional<ExprDoc> doc = d->GetVarDoc(n)) {
+        "tir", [](tvm::GlobalVar n, AccessPath n_p, IRDocsifier d) -> Doc {  //
+          if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(n)) {
             return doc.value();
           } else {
             IdDoc ret(n->name_hint);
@@ -218,8 +219,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::IRModule>(                                             //
-        "tir", [](tvm::IRModule mod, ObjectPath n_p, IRDocsifier d) -> Doc {  //
-          Optional<ExprDoc> doc = d->GetVarDoc(mod);
+        "tir", [](tvm::IRModule mod, AccessPath n_p, IRDocsifier d) -> Doc {  //
+          ffi::Optional<ExprDoc> doc = d->GetVarDoc(mod);
           ICHECK(doc) << "Unable to print IRModule before definition in TIR.";
           return doc.value();
         });

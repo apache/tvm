@@ -18,7 +18,7 @@
 from typing import Optional
 
 import pytest
-from tvm.runtime import ObjectPath
+from tvm_ffi.access_path import AccessPath
 from tvm.script import tir as T
 
 
@@ -34,13 +34,13 @@ def _func():
     T.evaluate(7)
 
 
-def test_annotation_multi_object_paths():
+def test_annotation_multi_access_paths():
     result = _func.with_attr("global_symbol", "main").script(
         path_to_annotate={
-            ObjectPath.root().attr("body").attr("seq").array_index(1): "annotation 1",
-            ObjectPath.root().attr("body").attr("seq").array_index(3): "annotation 3",
-            ObjectPath.root().attr("body").attr("seq").array_index(5): "annotation 5",
-            ObjectPath.root().attr("body").attr("seq").array_index(7): "annotation 7",
+            AccessPath.root().attr("body").attr("seq").array_item(1): "annotation 1",
+            AccessPath.root().attr("body").attr("seq").array_item(3): "annotation 3",
+            AccessPath.root().attr("body").attr("seq").array_item(5): "annotation 5",
+            AccessPath.root().attr("body").attr("seq").array_item(7): "annotation 7",
         }
     )
     assert (

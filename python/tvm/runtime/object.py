@@ -17,22 +17,11 @@
 # pylint: disable=invalid-name, unused-import
 """Runtime Object API"""
 
-from tvm.ffi.core import Object
-import tvm.ffi.core
+from tvm_ffi.core import Object
+import tvm_ffi.core
 from . import _ffi_node_api
 
 
-def __object_dir__(obj):
-    class_names = dir(obj.__class__)
-    fnames = _ffi_node_api.NodeListAttrNames(obj)
-    size = fnames(-1)
-    return sorted([fnames(i) for i in range(size)] + class_names)
-
-
-tvm.ffi.core._set_class_object(Object)
-# override the default repr function for tvm.ffi.core.Object
-tvm.ffi.core.__object_repr__ = _ffi_node_api.AsRepr
-tvm.ffi.core.__object_save_json__ = _ffi_node_api.SaveJSON
-tvm.ffi.core.__object_load_json__ = _ffi_node_api.LoadJSON
-tvm.ffi.core.__object_getattr__ = _ffi_node_api.NodeGetAttr
-tvm.ffi.core.__object_dir__ = __object_dir__
+tvm_ffi.core._set_class_object(Object)
+# override the default repr function for tvm_ffi.core.Object
+tvm_ffi.core.__object_repr__ = _ffi_node_api.AsRepr

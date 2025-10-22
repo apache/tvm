@@ -25,7 +25,7 @@ namespace contrib {
 
 using namespace runtime;
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.contrib.mps.matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
     auto A = args[0].cast<DLTensor*>();
@@ -37,9 +37,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
     ICHECK_EQ(A->ndim, 2);
     ICHECK_EQ(B->ndim, 2);
     ICHECK_EQ(C->ndim, 2);
-    ICHECK(C->strides == nullptr);
-    ICHECK(B->strides == nullptr);
-    ICHECK(A->strides == nullptr);
+    ICHECK(ffi::IsContiguous(*C));
+    ICHECK(ffi::IsContiguous(*B));
+    ICHECK(ffi::IsContiguous(*A));
     ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
     ICHECK(TypeMatch(B->dtype, kDLFloat, 32));
     ICHECK(TypeMatch(C->dtype, kDLFloat, 32));
@@ -95,7 +95,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     [sgemm encodeToCommandBuffer:cb leftMatrix:matrixA rightMatrix:matrixB resultMatrix:matrixC];
     [cb commit];
   });
-});
+}
 
 }  // namespace contrib
 }  // namespace tvm

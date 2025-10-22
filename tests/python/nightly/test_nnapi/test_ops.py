@@ -255,7 +255,7 @@ def test_astype():
         tracker,
         mod,
         inputs=[
-            tvm.nd.array(np.random.uniform(size=(8, 10, 15)).astype("float32")),
+            tvm.runtime.tensor(np.random.uniform(size=(8, 10, 15)).astype("float32")),
         ],
     )
 
@@ -284,7 +284,7 @@ def test_mean():
         tracker,
         mod,
         inputs=[
-            tvm.nd.array(np.random.uniform(size=(1, 10, 15)).astype("float32")),
+            tvm.runtime.tensor(np.random.uniform(size=(1, 10, 15)).astype("float32")),
         ],
     )
 
@@ -351,7 +351,7 @@ def test_max_pool2d():
 
 
 def verify(remote_obj, tracker, mod, inputs):
-    inputs_tvm: List[tvm.nd.NDArray] = [tvm.nd.array(v) for v in inputs]
+    inputs_tvm: List[tvm.runtime.Tensor] = [tvm.runtime.tensor(v) for v in inputs]
     outputs = _build_and_run_network(remote_obj, tracker, mod, inputs_tvm)
     nnapi_out = outputs[0]
     expected_out = outputs[1]

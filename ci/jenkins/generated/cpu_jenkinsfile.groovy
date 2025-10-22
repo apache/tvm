@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2025-06-03T18:16:35.861918
+// Generated at 2025-08-24T16:41:22.367054
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -516,7 +516,7 @@ def run_build(node_type) {
         cmake_build(ci_cpu, 'build')
         make_cpp_tests(ci_cpu, 'build')
         sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/cpptest build/build.ninja build/CMakeFiles/rules.ninja",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu --items build/libtvm.so build/libtvm_runtime.so build/lib/libtvm_ffi.so build/config.cmake build/libtvm_allvisible.so build/cpptest build/build.ninja build/CMakeFiles/rules.ninja",
             label: 'Upload artifacts to S3',
           )
           })
@@ -532,6 +532,9 @@ def build() {
   stage('Build') {
     try {
         run_build('CPU-SPOT')
+    } catch (hudson.AbortException abortEx) {
+        echo "Received normal AbortException, exit now. Details:" + abortEx.toString()
+        throw abortEx
     } catch (Throwable ex) {
       echo 'Exception during SPOT run ' + ex.toString()
       if (is_last_build()) {

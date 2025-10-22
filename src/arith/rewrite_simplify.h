@@ -64,17 +64,17 @@ struct RewriteSimplifierStatsNode : Object {
         .def_ro("max_recursive_depth", &RewriteSimplifierStatsNode::max_recursive_depth)
         .def_ro("num_recursive_rewrites", &RewriteSimplifierStatsNode::num_recursive_rewrites);
   }
-
-  static constexpr const char* _type_key = "arith.RewriteSimplifierStats";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RewriteSimplifierStatsNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.RewriteSimplifierStats", RewriteSimplifierStatsNode,
+                                    Object);
 };
 
 struct RewriteSimplifierStats : ObjectRef {
   explicit RewriteSimplifierStats(RewriteSimplifierStatsNode data) {
-    data_ = make_object<RewriteSimplifierStatsNode>(data);
+    data_ = ffi::make_object<RewriteSimplifierStatsNode>(data);
   }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(RewriteSimplifierStats, ObjectRef, RewriteSimplifierStatsNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(RewriteSimplifierStats, ObjectRef,
+                                             RewriteSimplifierStatsNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(RewriteSimplifierStatsNode);
 };
 
@@ -193,7 +193,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
    * matches a constraint, return the boolean it should be replaced
    * with.  Otherwise, return false.
    */
-  Optional<PrimExpr> TryMatchLiteralConstraint(const PrimExpr& expr) const;
+  ffi::Optional<PrimExpr> TryMatchLiteralConstraint(const PrimExpr& expr) const;
 
   /*! \brief Rewrite rules for Less Than comparisons
    *

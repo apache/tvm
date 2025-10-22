@@ -55,8 +55,9 @@ std::vector<int32_t> SampleWithoutReplacement(
  * \return The random variable sampled from candidates
  */
 TVM_DLL int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_state,
-                                  const Array<Integer>& candidates, const Array<FloatImm>& probs,
-                                  Optional<Integer>* decision);
+                                  const ffi::Array<Integer>& candidates,
+                                  const ffi::Array<FloatImm>& probs,
+                                  ffi::Optional<Integer>* decision);
 /*!
  * \brief Create a sampling function that does multinomial sampling.
  * \param rand_state The random state.
@@ -98,7 +99,7 @@ TVM_DLL std::vector<int64_t> SamplePerfectTile(
 TVM_DLL std::vector<int64_t> SamplePerfectTile(
     support::LinearCongruentialEngine::TRandState* rand_state,  //
     const tir::StmtSRef& loop_sref, int32_t n_split, int32_t max_innermost_factor,
-    Optional<Array<Integer>>* decision);
+    ffi::Optional<ffi::Array<Integer>>* decision);
 /*!
  * \brief Sample the factors to a partitioned tile for a specific loop
  *
@@ -136,7 +137,7 @@ TVM_DLL std::vector<int64_t> SamplePartitionedTile(
 TVM_DLL std::vector<int64_t> SamplePartitionedTile(
     support::LinearCongruentialEngine::TRandState* rand_state,  //
     const tir::StmtSRef& loop_sref, int32_t n_split, int32_t partition_pos,
-    int32_t innerpart_factor, Optional<Array<Integer>>* decision);
+    int32_t innerpart_factor, ffi::Optional<ffi::Array<Integer>>* decision);
 /*!
  * \brief Sample a compute-at location of the given block
  * \param self The schedule state
@@ -147,7 +148,7 @@ TVM_DLL std::vector<int64_t> SamplePartitionedTile(
  */
 TVM_DLL tir::StmtSRef SampleComputeLocation(
     tir::ScheduleState self, support::LinearCongruentialEngine::TRandState* rand_state,
-    const tir::StmtSRef& block_sref, Optional<Integer>* decision);
+    const tir::StmtSRef& block_sref, ffi::Optional<Integer>* decision);
 
 /******** Schedule: Get blocks & loops ********/
 /*!
@@ -157,35 +158,36 @@ TVM_DLL tir::StmtSRef SampleComputeLocation(
  * \param gvar The function to be retrieved
  * \return A list of blocks with the specific name
  */
-Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const GlobalVar& gv);
+ffi::Array<StmtSRef> GetBlocks(const ScheduleState& self, const ffi::String& name,
+                               const GlobalVar& gv);
 /*!
  * \brief Gets the parent loops of the block in its scope, from outer to inner
  * \param self The schedule state
  * \param block_sref The query block
  * \return A list of loops above the given block in its scope, from outer to inner
  */
-Array<StmtSRef> GetLoops(const StmtSRef& block_sref);
+ffi::Array<StmtSRef> GetLoops(const StmtSRef& block_sref);
 /*!
  * \brief Get the leaf blocks of a specific block/loop
  * \param self The schedule state
  * \param parent_sref The query block/loop
  * \return A list of leaf blocks inside a specific block/loop
  */
-Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent_sref);
+ffi::Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent_sref);
 /*!
  * \brief Get the producers of a specific block
  * \param self The schedule state
  * \param block_sref The block in the query
  * \return A list of blocks, the producers of the given block
  */
-Array<StmtSRef> GetProducers(const ScheduleState& self, const StmtSRef& block_sref);
+ffi::Array<StmtSRef> GetProducers(const ScheduleState& self, const StmtSRef& block_sref);
 /*!
  * \brief Get the consumers of a specific block
  * \param self The schedule state
  * \param block_rv The block in the query
  * \return A list of blocks, the consumers of the given block
  */
-Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sref);
+ffi::Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sref);
 /*!
  * \brief Get the list of output blocks within the given scope
  * An output block is a block which has atleast one buffer being written
@@ -194,7 +196,7 @@ Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sr
  * \return A list of all blocks that write to some output buffer
  * block
  */
-Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const StmtSRef& scope_sref);
+ffi::Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const StmtSRef& scope_sref);
 /******** Schedule: Transform loops ********/
 /*!
  * Split a loop into a list of consecutive loops. It requires:
@@ -210,9 +212,9 @@ Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const StmtSRef& scope
  *      Warning: enabling this feature may result in incorrect code generation if not used
  * carefully. \return An array of srefs to the loops after splitting
  */
-TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
-                              const Array<PrimExpr>& factors, bool preserve_unit_iters,
-                              bool disable_predication);
+TVM_DLL ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
+                                   const ffi::Array<PrimExpr>& factors, bool preserve_unit_iters,
+                                   bool disable_predication);
 
 /*!
  * Partition a loop into a list of consecutive loops. It requires:
@@ -223,8 +225,9 @@ TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
  * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
  * \return An array of srefs to the loops after partitioning
  */
-TVM_DLL Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref,
-                                      const Array<PrimExpr>& factors, bool preserve_unit_iters);
+TVM_DLL ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref,
+                                           const ffi::Array<PrimExpr>& factors,
+                                           bool preserve_unit_iters);
 
 /*!
  * \brief Merge a list of loops into one. The loops under their LCA requires:
@@ -236,7 +239,7 @@ TVM_DLL Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_s
  * \param loop_srefs An array of srefs to the loops to be merged
  * \return The new loop after merge
  */
-TVM_DLL StmtSRef Merge(ScheduleState self, const Array<StmtSRef>& loop_srefs);
+TVM_DLL StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs);
 
 /*!
  * \brief Fuse a list of consecutive loops into one. It requires:
@@ -249,7 +252,7 @@ TVM_DLL StmtSRef Merge(ScheduleState self, const Array<StmtSRef>& loop_srefs);
  * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
  * \return The sref to the fused loop
  */
-TVM_DLL StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs,
+TVM_DLL StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
                       bool preserve_unit_loops);
 /*!
  * \brief Reorder a list of loops. It doesn't require the loops to be consecutive.
@@ -264,7 +267,7 @@ TVM_DLL StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs,
  * \param self The state of the schedule
  * \param ordered_loop_srefs An array of srefs which indicates the new order of loops
  */
-TVM_DLL void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs);
+TVM_DLL void Reorder(ScheduleState self, const ffi::Array<StmtSRef>& ordered_loop_srefs);
 
 /*!
  * \brief Reorder itervars inside a block.
@@ -273,7 +276,7 @@ TVM_DLL void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_sre
  * \param new_order The new itervar order.
  */
 TVM_DLL void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
-                                 const Array<Integer>& new_order);
+                                 const ffi::Array<Integer>& new_order);
 
 /*!
  * \brief Create a new unit loop on top of the specific block or loop.
@@ -320,7 +323,7 @@ TVM_DLL void Vectorize(ScheduleState self, const StmtSRef& loop_sref);
  * \param loop_sref The sref of the loop to be bound to the thread axis
  * \param thread_axis The thread axis to be bound to the loop
  */
-TVM_DLL void Bind(ScheduleState self, const StmtSRef& loop_sref, const String& thread_axis);
+TVM_DLL void Bind(ScheduleState self, const StmtSRef& loop_sref, const ffi::String& thread_axis);
 /*!
  * \brief Unroll the input loop. It requires nothing
  * \param self The state of the schedule
@@ -340,7 +343,8 @@ TVM_DLL void Unroll(ScheduleState self, const StmtSRef& loop_sref);
  * \return The cache stage block.
  */
 TVM_DLL StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buffer_index,
-                           const String& storage_scope, const Array<StmtSRef> consumer_blocks = {});
+                           const ffi::String& storage_scope,
+                           const ffi::Array<StmtSRef> consumer_blocks = {});
 /*!
  * \brief Create a block that writes a buffer region into a write cache. It requires:
  * 1) There is only one block that writes the target buffer.
@@ -353,8 +357,8 @@ TVM_DLL StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int r
  * \return The cache stage block.
  */
 TVM_DLL StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_buffer_index,
-                            const String& storage_scope,
-                            const Array<StmtSRef> consumer_blocks = {});
+                            const ffi::String& storage_scope,
+                            const ffi::Array<StmtSRef> consumer_blocks = {});
 /*!
  * \brief Create a block that reads a buffer region into a read cache. It requires:
  * 1) There is at most one block who writes the buffer in the scope.
@@ -369,7 +373,7 @@ TVM_DLL StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int 
  * \return The cache stage block.
  */
 TVM_DLL StmtSRef ReindexCacheRead(ScheduleState self, const StmtSRef& block_sref,
-                                  int read_buffer_index, const String& storage_scope,
+                                  int read_buffer_index, const ffi::String& storage_scope,
                                   const IndexMap& index_map);
 /*!
  * \brief Create a block that writes a buffer region into a write cache. It requires:
@@ -385,7 +389,7 @@ TVM_DLL StmtSRef ReindexCacheRead(ScheduleState self, const StmtSRef& block_sref
  * \return The cache stage block.
  */
 TVM_DLL StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sref,
-                                   int write_buffer_index, const String& storage_scope,
+                                   int write_buffer_index, const ffi::String& storage_scope,
                                    const IndexMap& index_map);
 
 /*!
@@ -398,8 +402,8 @@ TVM_DLL StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sre
  * \param storage_scope The target storage scope
  * \return The cache stage blocks, cache read block together with cache write block.
  */
-TVM_DLL Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref,
-                                     int read_buffer_index, const String& storage_scope);
+TVM_DLL ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref,
+                                          int read_buffer_index, const ffi::String& storage_scope);
 /*!
  * \brief Create a block to cache precomputed index for later use.
  * if there is no index computation, keep unchanged.
@@ -408,8 +412,8 @@ TVM_DLL Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_s
  * \param cse_thresh The repeat threshold that determines a common sub expr
  * \return The cache stage block.
  */
-TVM_DLL Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
-                                   const String& storage_scope, int cse_thresh);
+TVM_DLL ffi::Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
+                                        const ffi::String& storage_scope, int cse_thresh);
 /*!
  *!
  * \brief Create a block that read/write a buffer region into a read/write cache with reindexing.
@@ -429,10 +433,10 @@ TVM_DLL StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buf
 /******** Schedule: Data movement ********/
 
 TVM_DLL StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
-                        int read_buffer_index, const String& storage_scope);
+                        int read_buffer_index, const ffi::String& storage_scope);
 
 TVM_DLL StmtSRef WriteAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
-                         int write_buffer_index, const String& storage_scope);
+                         int write_buffer_index, const ffi::String& storage_scope);
 
 /******** Schedule: Compute location ********/
 /*!
@@ -561,7 +565,7 @@ TVM_DLL void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int bu
  * \param storage_scope The storage scope to be set
  */
 TVM_DLL void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
-                      const String& storage_scope);
+                      const ffi::String& storage_scope);
 /*!
  * \brief Set the data type of a buffer, where the buffer is specified by a block and a
  * write-index
@@ -573,7 +577,7 @@ TVM_DLL void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer
  * \param dtype The data type to be set
  */
 TVM_DLL void UnsafeSetDType(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
-                            const String& dtype);
+                            const ffi::String& dtype);
 /*!
  * \brief Set the axis separator of a buffer, where the buffer is specified by a block and a read
  * or write index
@@ -584,7 +588,7 @@ TVM_DLL void UnsafeSetDType(ScheduleState self, const StmtSRef& block_sref, int 
  */
 TVM_DLL void SetAxisSeparator(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                               BufferIndexType buffer_index_type,
-                              const Array<IntImm>& axis_separators);
+                              const ffi::Array<IntImm>& axis_separators);
 
 /******** Schedule: Blockize & Tensorize ********/
 
@@ -604,7 +608,7 @@ TVM_DLL StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref, bool pr
  * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
  * \return The new block
  */
-TVM_DLL StmtSRef Blockize(ScheduleState self, const Array<StmtSRef>& blocks,
+TVM_DLL StmtSRef Blockize(ScheduleState self, const ffi::Array<StmtSRef>& blocks,
                           bool preserve_unit_iters);
 
 /*!
@@ -625,7 +629,7 @@ TVM_DLL void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref,
  * \param ann_key The annotation key
  * \param ann_val The annotation value
  */
-TVM_DLL void Annotate(ScheduleState self, const StmtSRef& sref, const String& ann_key,
+TVM_DLL void Annotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann_key,
                       const Any& ann_val);
 /*!
  * \brief Unannotate a block/loop's annotation with key ann_key
@@ -633,7 +637,7 @@ TVM_DLL void Annotate(ScheduleState self, const StmtSRef& sref, const String& an
  * \param sref The block/loop to be unannotated
  * \param ann_key The annotation key
  */
-TVM_DLL void Unannotate(ScheduleState self, const StmtSRef& sref, const String& ann_key);
+TVM_DLL void Unannotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann_key);
 
 /******** Schedule: Layout transformation ********/
 /*!
@@ -656,7 +660,8 @@ TVM_DLL void Unannotate(ScheduleState self, const StmtSRef& sref, const String& 
  */
 TVM_DLL void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                              BufferIndexType buffer_index_type, const IndexMap& index_map,
-                             const Optional<IndexMap>& pad_value, bool assume_injective_transform);
+                             const ffi::Optional<IndexMap>& pad_value,
+                             bool assume_injective_transform);
 
 /*!
  * \brief Apply a transformation represented by IndexMap to block
@@ -688,7 +693,7 @@ TVM_DLL StmtSRef DecomposePadding(ScheduleState self, const StmtSRef& block_sref
  * \param padding The padding for each block iter.
  */
 TVM_DLL void PadEinsum(ScheduleState self, const StmtSRef& block_sref,
-                       const Array<Integer>& padding);
+                       const ffi::Array<Integer>& padding);
 /******** Schedule: Buffer transformation ********/
 /*!
  * \brief Compute the target buffer via rolling buffering.
@@ -715,7 +720,8 @@ TVM_DLL void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int w
  * \param buf_index_array The array of buffer indices we hide access.
  */
 TVM_DLL void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref,
-                                    const String& buf_type, const Array<IntImm>& buf_index_array);
+                                    const ffi::String& buf_type,
+                                    const ffi::Array<IntImm>& buf_index_array);
 
 /*!
  * \brief Annotate the read or write region of a specific buffer in a block

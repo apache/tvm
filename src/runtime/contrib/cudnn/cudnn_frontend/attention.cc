@@ -98,13 +98,13 @@ void CuDNNSDPARunnerNode::Init(int64_t batch, int64_t seq_len, int64_t num_heads
   auto [o, stats] = graph_->sdpa(q, k, v, sdpa_options);
   CHECK(stats == nullptr);
   o->set_output(true).set_dim({batch, num_heads, seq_len, head_size_v}).set_stride(o_stride);
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
+  int device_id;
+  CUDA_CALL(cudaGetDevice(&device_id));
+  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
   CUDNN_FRONTEND_CALL(graph_->build(entry_ptr->handle, {cudnn_frontend::HeurMode_t::A}));
 }
 
 void CuDNNSDPARunnerNode::Run(const DLTensor* qkv, DLTensor* workspace, DLTensor* out) {
-  CUDNN_CALL(
-      cudnnSetStream(CuDNNThreadEntry::ThreadLocal()->handle, tvm::runtime::GetCUDAStream()));
   auto* qkv_base = reinterpret_cast<uint8_t*>(qkv->data) + qkv->byte_offset;
   auto* q_ptr = reinterpret_cast<uint16_t*>(qkv_base) + offset_q_;
   auto* k_ptr = reinterpret_cast<uint16_t*>(qkv_base) + offset_k_;
@@ -116,7 +116,7 @@ void CuDNNSDPARunnerNode::Run(const DLTensor* qkv, DLTensor* workspace, DLTensor
   std::unordered_map<cudnn_frontend::graph::Tensor_attributes::uid_t, void*> inputs = {
       {kTensorIDQ, q_ptr}, {kTensorIDK, k_ptr}, {kTensorIDV, v_ptr}, {kTensorIDOut, out_ptr}};
 
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
+  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(qkv->device);
   CUDNN_FRONTEND_CALL(graph_->execute(entry_ptr->handle, inputs, workspace->data));
 }
 

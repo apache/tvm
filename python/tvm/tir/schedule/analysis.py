@@ -17,7 +17,7 @@
 """Analysis used in TensorIR scheduling"""
 from typing import List, Optional
 
-import tvm.ffi
+import tvm_ffi
 from tvm.runtime import Object
 
 from ..buffer import Buffer
@@ -62,7 +62,7 @@ def suggest_index_map(
     )
 
 
-@tvm.ffi.register_object("tir.schedule.TensorizeInfo")
+@tvm_ffi.register_object("tir.schedule.TensorizeInfo")
 class TensorizeInfo(Object):
     """Necessary information used for tensorization."""
 
@@ -90,7 +90,7 @@ def get_tensorize_loop_mapping(
     return _ffi_api.GetTensorizeLoopMapping(sch, block, desc_func, allow_padding)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.schedule.AutoTensorizeMappingInfo")
+@tvm_ffi.register_object("tir.schedule.AutoTensorizeMappingInfo")
 class AutoTensorizeMappingInfo(Object):
     """Necessary information used to perform transformations for tensorization."""
 

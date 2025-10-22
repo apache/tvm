@@ -23,6 +23,8 @@ from typing import Callable, Optional
 
 from . import _ffi_api
 from . import function_pass as _fpass
+from ... import ir as _ir
+from ... import ffi as _ffi
 
 
 def Apply(ftransform):
@@ -46,6 +48,11 @@ def Apply(ftransform):
         return ftransform(func)
 
     return _fpass.prim_func_pass(_transform, opt_level=0, name="Apply")  # type: ignore
+
+
+@_ffi.register_object("tir.transform.LoopPartitionConfig")
+class LoopPartitionConfig(_ir.Attrs):
+    """Config for loop partition pass"""
 
 
 def LoopPartition():
@@ -85,6 +92,11 @@ def InjectVirtualThread():
         The result pass
     """
     return _ffi_api.InjectVirtualThread()  # type: ignore
+
+
+@_ffi.register_object("tir.transform.InjectDoubleBufferConfig")
+class InjectDoubleBufferConfig(_ir.Attrs):
+    """Config for inject double buffer pass"""
 
 
 def InjectDoubleBuffer():
@@ -149,6 +161,11 @@ def PointerValueTypeRewrite():
     return _ffi_api.PointerValueTypeRewrite()  # type: ignore
 
 
+@_ffi.register_object("tir.transform.UnrollLoopConfig")
+class UnrollLoopConfig(_ir.Attrs):
+    """Config for unroll loop pass"""
+
+
 def UnrollLoop():
     """Unroll the constant loop marked by unroll.
 
@@ -162,6 +179,11 @@ def UnrollLoop():
     return _ffi_api.UnrollLoop()  # type: ignore
 
 
+@_ffi.register_object("tir.transform.ReduceBranchingThroughOvercomputeConfig")
+class ReduceBranchingThroughOvercomputeConfig(_ir.Attrs):
+    """Config for reduce branching through overcompute pass"""
+
+
 def ReduceBranchingThroughOvercompute():
     """Reduce branching by introducing overcompute
 
@@ -171,6 +193,11 @@ def ReduceBranchingThroughOvercompute():
         The result pass
     """
     return _ffi_api.ReduceBranchingThroughOvercompute()  # type: ignore
+
+
+@_ffi.register_object("tir.transform.RemoveNoOpConfig")
+class RemoveNoOpConfig(_ir.Attrs):
+    """Config for remove no op pass"""
 
 
 def RemoveNoOp():
@@ -217,7 +244,7 @@ def BF16ComputeLegalize():
     return _ffi_api.BF16ComputeLegalize()  # type: ignore
 
 
-def FP8ComputeLegalize(promote_dtype_str: str = "float32"):
+def FP8ComputeLegalize(promote_dtype: str = "float32"):
     """Legalize fp8 compute Ops.
 
     Parameters
@@ -230,7 +257,7 @@ def FP8ComputeLegalize(promote_dtype_str: str = "float32"):
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.FP8ComputeLegalize(promote_dtype_str)  # type: ignore
+    return _ffi_api.FP8ComputeLegalize(promote_dtype)  # type: ignore
 
 
 def BF16StorageLegalize():
@@ -275,6 +302,11 @@ def RewriteUnsafeSelect():
         The result pass
     """
     return _ffi_api.RewriteUnsafeSelect()  # type: ignore
+
+
+@_ffi.register_object("tir.transform.SimplifyConfig")
+class SimplifyConfig(_ir.Attrs):
+    """Config for simplify pass"""
 
 
 def Simplify():
@@ -341,7 +373,7 @@ def MakePackedAPI():
     For static shapes, the `BufferNode::shape`, `BufferNode::strides`,
     and `BufferNode::elem_offset` member variables are used to
     generate runtime checks on the corresponding member variables in
-    the user-provided `DLTensor*` or `tvm.nd.array` argument.  (e.g. A
+    the user-provided `DLTensor*` or `tvm.runtime.tensor` argument.  (e.g. A
     PrimFunc that accepts a buffer of shape `[16,32]` validates that
     the `DLTensor::shape` array is `[16,32]`.)
 
@@ -396,6 +428,19 @@ def AnnotateDeviceRegions():
         The result pass
     """
     return _ffi_api.AnnotateDeviceRegions()  # type: ignore
+
+
+def AnnotateIrregularLoop():
+    """Annotate irregular loop mark. Loop transformations like
+    peeling, partition, unroll, etc is not allowed on irregular
+    loop with internal loop continuation and breaks.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.AnnotateIrregularLoop()  # type: ignore
 
 
 def SplitHostDevice():
@@ -607,6 +652,11 @@ def VerifyVTCMLimit(limit=None):
     return _ffi_api.VerifyVTCMLimit(limit)  # type: ignore
 
 
+@_ffi.register_object("tir.transform.HoistIfThenElseConfig")
+class HoistIfThenElseConfig(_ir.Attrs):
+    """Config for hoist if then else pass"""
+
+
 # pylint: disable=no-else-return,inconsistent-return-statements
 def HoistIfThenElse(variant: Optional[str] = None):
     """Hoist loop-invariant IfThenElse nodes to outside the eligible loops.
@@ -684,6 +734,11 @@ class HoistedLetBindings(enum.Flag):
 
     All = RequiredByConditional | LetStmt | LetExpr
     """ Enable all hoisting of let bindings """
+
+
+@_ffi.register_object("tir.transform.HoistExpressionConfig")
+class HoistExpressionConfig(_ir.Attrs):
+    """Config for hoist expression pass"""
 
 
 def HoistExpression():
@@ -1010,26 +1065,26 @@ def InjectPTXAsyncCopy():
     return _ffi_api.InjectPTXAsyncCopy()  # type: ignore
 
 
-def RemoveWeightLayoutRewriteBlock(skip_ndarray_rewrite=False):
+def RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite=False):
     """Remove weight layout rewrite block before benchmarking during tuning stage.
 
     Parameters
     ----------
-    skip_ndarray_rewrite : bool
-        If True, exact rewrite of NDArray, according to the given index map, will be skipped.
-        Only the shape of the NDArray is transformed correctly, and the content of the destination
+    skip_tensor_rewrite : bool
+        If True, exact rewrite of Tensor, according to the given index map, will be skipped.
+        Only the shape of the Tensor is transformed correctly, and the content of the destination
         array will be filled with random values.
 
-        When this pass is called many times during MetaSchedule tuning, the raw data of NDArray,
-        before and after rewrite, does not matter. Since NDArray layout rewrite, using IndexMap's
-        MapNDArray, is currently slow, skipping the exact rewrite is sometimes necessary.
+        When this pass is called many times during MetaSchedule tuning, the raw data of Tensor,
+        before and after rewrite, does not matter. Since Tensor layout rewrite, using IndexMap's
+        MapTensor, is currently slow, skipping the exact rewrite is sometimes necessary.
 
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.RemoveWeightLayoutRewriteBlock(skip_ndarray_rewrite)  # type: ignore
+    return _ffi_api.RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite)  # type: ignore
 
 
 def ManifestSharedMemoryLocalStage():

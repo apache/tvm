@@ -71,24 +71,29 @@ class DisallowDynamicLoopNode : public PostprocNode {
   bool Apply(const tir::Schedule& sch) final { return !tir::DynamicExtentFinder::Find(sch->mod()); }
   // Inherited from PostprocNode
   Postproc Clone() const {
-    ObjectPtr<DisallowDynamicLoopNode> n = make_object<DisallowDynamicLoopNode>(*this);
+    ObjectPtr<DisallowDynamicLoopNode> n = ffi::make_object<DisallowDynamicLoopNode>(*this);
     return Postproc(n);
   }
 
-  static constexpr const char* _type_key = "meta_schedule.DisallowDynamicLoop";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DisallowDynamicLoopNode, PostprocNode);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DisallowDynamicLoopNode>();
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.DisallowDynamicLoop", DisallowDynamicLoopNode,
+                                    PostprocNode);
 };
 
 Postproc Postproc::DisallowDynamicLoop() {
-  ObjectPtr<DisallowDynamicLoopNode> n = make_object<DisallowDynamicLoopNode>();
+  ObjectPtr<DisallowDynamicLoopNode> n = ffi::make_object<DisallowDynamicLoopNode>();
   return Postproc(n);
 }
 
-TVM_REGISTER_NODE_TYPE(DisallowDynamicLoopNode);
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  DisallowDynamicLoopNode::RegisterReflection();
   refl::GlobalDef().def("meta_schedule.PostprocDisallowDynamicLoop", Postproc::DisallowDynamicLoop);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -27,6 +27,7 @@ from .base import (
     call_dps_packed,
     call_inplace_packed,
     call_pure_packed,
+    call_py_func,
     call_tir,
     call_tir_inplace,
     call_tir_with_grad,
@@ -154,6 +155,7 @@ from .unary import (
     tanh,
     trunc,
 )
+from .vision import all_class_non_max_suppression
 
 
 def _register_op_make():

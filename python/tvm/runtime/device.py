@@ -18,7 +18,7 @@
 # pylint: disable=invalid-name
 import json
 
-import tvm.ffi
+import tvm_ffi
 
 from . import _ffi_api
 
@@ -26,7 +26,7 @@ from . import _ffi_api
 RPC_SESS_MASK = 128
 
 
-class Device(tvm.ffi.core.Device):
+class Device(tvm_ffi.core.Device):
     """TVM device strucure."""
 
     def _GetDeviceAttr(self, device_type, device_id, attr_id):
@@ -48,7 +48,7 @@ class Device(tvm.ffi.core.Device):
             True if the device exists
 
         """
-        return self._GetDeviceAttr(self.device_type, self.device_id, 0) != 0
+        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 0) != 0
 
     @property
     def max_threads_per_block(self):
@@ -64,7 +64,7 @@ class Device(tvm.ffi.core.Device):
             The number of threads on each block
 
         """
-        return self._GetDeviceAttr(self.device_type, self.device_id, 1)
+        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 1)
 
     @property
     def warp_size(self):
@@ -81,7 +81,7 @@ class Device(tvm.ffi.core.Device):
             Number of threads that execute concurrently
 
         """
-        return self._GetDeviceAttr(self.device_type, self.device_id, 2)
+        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 2)
 
     @property
     def max_shared_memory_per_block(self):
@@ -97,7 +97,7 @@ class Device(tvm.ffi.core.Device):
             Total amount of shared memory per block in bytes
 
         """
-        return self._GetDeviceAttr(self.device_type, self.device_id, 3)
+        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 3)
 
     @property
     def compute_version(self):
@@ -116,7 +116,7 @@ class Device(tvm.ffi.core.Device):
             The version string in `major.minor` format.
 
         """
-        return self._GetDeviceAttr(self.device_type, self.device_id, 4)
+        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 4)
 
     @property
     def device_name(self):
@@ -132,7 +132,7 @@ class Device(tvm.ffi.core.Device):
             The name of the device.
 
         """
-        return self._GetDeviceAttr(self.device_type, self.device_id, 5)
+        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 5)
 
     @property
     def max_clock_rate(self):
@@ -148,7 +148,7 @@ class Device(tvm.ffi.core.Device):
             The maximum clock frequency of the device (kHz)
 
         """
-        return self._GetDeviceAttr(self.device_type, self.device_id, 6)
+        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 6)
 
     @property
     def multi_processor_count(self):
@@ -164,7 +164,7 @@ class Device(tvm.ffi.core.Device):
             Thee number of compute units in the device
 
         """
-        return self._GetDeviceAttr(self.device_type, self.device_id, 7)
+        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 7)
 
     @property
     def max_thread_dimensions(self):
@@ -180,7 +180,7 @@ class Device(tvm.ffi.core.Device):
             The maximum length of threadIdx.x, threadIdx.y, threadIdx.z
 
         """
-        return json.loads(self._GetDeviceAttr(self.device_type, self.device_id, 8))
+        return json.loads(self._GetDeviceAttr(self.dlpack_device_type(), self.index, 8))
 
     @property
     def api_version(self):
@@ -199,7 +199,7 @@ class Device(tvm.ffi.core.Device):
             The version of the SDK
 
         """
-        return self._GetDeviceAttr(self.device_type, self.device_id, 11)
+        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 11)
 
     @property
     def driver_version(self):
@@ -218,7 +218,7 @@ class Device(tvm.ffi.core.Device):
             The version string in `major.minor.patch` format.
 
         """
-        return self._GetDeviceAttr(self.device_type, self.device_id, 12)
+        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 12)
 
     @property
     def l2_cache_size_bytes(self):
@@ -236,7 +236,7 @@ class Device(tvm.ffi.core.Device):
         ----
         The value returned by opencl's API is smaller than actual device L2 cache size.
         """
-        return self._GetDeviceAttr(self.device_type, self.device_id, 13)
+        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 13)
 
     @property
     def total_global_memory(self):
@@ -250,7 +250,7 @@ class Device(tvm.ffi.core.Device):
             Return the total size of global memory on device in bytes.
             Return None if the device does not support this feature.
         """
-        return self._GetDeviceAttr(self.device_type, self.device_id, 14)
+        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 14)
 
     @property
     def available_global_memory(self):
@@ -264,7 +264,7 @@ class Device(tvm.ffi.core.Device):
             Return the amount of unallocated global memory on device in bytes.
             Return None if the device does not support this feature.
         """
-        return self._GetDeviceAttr(self.device_type, self.device_id, 15)
+        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 15)
 
     def texture_spatial_limit(self):
         """Returns limits for textures by spatial dimensions
@@ -275,7 +275,7 @@ class Device(tvm.ffi.core.Device):
             Maximum size of the texture by spatial dimensions
 
         """
-        return self._GetDeviceAttr(self.device_type, self.device_id, 12)
+        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 12)
 
     def create_raw_stream(self):
         """Create a new runtime stream at the context.
@@ -319,19 +319,12 @@ class Device(tvm.ffi.core.Device):
         """
         _ffi_api.Device_StreamSync(self, stream or 0)
 
-    def _device_type_name_(self):
-        if self.device_type >= RPC_SESS_MASK:
-            tbl_id = self.device_type / RPC_SESS_MASK - 1
-            dev_type = self.device_type % RPC_SESS_MASK
-            return f"remote[{tbl_id}]:{Device.DEVICE_TYPE_TO_NAME[dev_type]}"
-        return Device.DEVICE_TYPE_TO_NAME[self.device_type]
-
     def __device_type_name__(self):
-        if self.device_type >= RPC_SESS_MASK:
-            tbl_id = self.device_type / RPC_SESS_MASK - 1
-            dev_type = self.device_type % RPC_SESS_MASK
-            return f"remote[{tbl_id}]:{Device.DEVICE_TYPE_TO_NAME[dev_type]}"
-        return Device.DEVICE_TYPE_TO_NAME[self.device_type]
+        if self.dlpack_device_type() >= RPC_SESS_MASK:
+            tbl_id = self.dlpack_device_type() / RPC_SESS_MASK - 1
+            dev_type = self.dlpack_device_type() % RPC_SESS_MASK
+            return f"remote[{tbl_id}]:{Device._DEVICE_TYPE_TO_NAME[dev_type]}"
+        return Device._DEVICE_TYPE_TO_NAME[self.dlpack_device_type()]
 
 
-tvm.ffi.core._set_class_device(Device)
+tvm_ffi.core._set_class_device(Device)

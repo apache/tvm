@@ -16,11 +16,7 @@
 # under the License.
 
 """FlashInfer JIT compilation module for CUDA backend"""
-import hashlib
-import json
-import os
-import subprocess
-from concurrent.futures import ThreadPoolExecutor
+import re
 from pathlib import Path
 from typing import List
 
@@ -28,150 +24,28 @@ import tvm
 from tvm.target import Target
 
 
-def _compile_flashinfer_kernels(
-    name: str, source_paths: List[Path], target: Target, num_threads: int
-) -> List[Path]:
-    from flashinfer.jit.env import (  # pylint: disable=import-outside-toplevel
-        CUTLASS_INCLUDE_DIRS,
-        FLASHINFER_CSRC_DIR,
-        FLASHINFER_INCLUDE_DIR,
-        FLASHINFER_JIT_DIR,
-        FLASHINFER_TVM_BINDING_DIR,
-    )
+def _rename_exported_func_names(source_paths: List[Path], prefix: str):
+    """Rename the ffi-exported function names in the source files to the given prefix."""
+    pattern = re.compile(r"^(\s*TVM_FFI_DLL_EXPORT_TYPED_FUNC\()([A-Za-z0-9_]+)(,.*)$")
+    for source_path in source_paths:
+        if not source_path.name.endswith("_binding.cu"):
+            continue
 
-    # ------------------------------------------------------------------------
-    # Caching Flow: create build_directory and compute cache hash.
-    # ------------------------------------------------------------------------
-    build_directory = FLASHINFER_JIT_DIR / name
-    build_directory.mkdir(parents=True, exist_ok=True)
+        original_text = source_path.read_text(encoding="utf-8")
+        lines = original_text.splitlines(keepends=True)
+        updated = False
+        for idx, line in enumerate(lines):
+            line_body = line.rstrip("\r\n")
+            line_ending = line[len(line_body) :]
+            match = pattern.match(line_body)
+            if not match:
+                continue
+            new_body = f"{match.group(1)}{prefix}_{match.group(2)}{match.group(3)}"
+            lines[idx] = new_body + line_ending
+            updated = True
 
-    def get_object_file_path(src: Path) -> Path:
-        obj_name = src.stem + ".o"
-        obj_path = build_directory / obj_name
-        return obj_path
-
-    # Compute latest modification time among all source files
-    latest_src_mtime = max(src.stat().st_mtime for src in source_paths)
-
-    # Get modification time for the current file (the one that contains this function)
-    current_file_mtime = Path(__file__).stat().st_mtime
-
-    # Build the hash key from metadata
-    hash_key = {
-        "name": name,
-        "target": str(target),
-        "latest_src_mtime": latest_src_mtime,
-        "current_file_mtime": current_file_mtime,
-    }
-
-    hash_value = hashlib.md5(
-        json.dumps(hash_key, sort_keys=True, indent=2).encode("utf-8")
-    ).hexdigest()
-
-    # Check if a valid hash exists in the build directory
-    hash_file = build_directory / "hash.md5"
-    if hash_file.exists():
-        with open(hash_file, "r") as f:
-            cached_hash = f.read().strip()
-        if cached_hash == hash_value:
-            # Check that all object files exist
-            object_files = []
-            all_exist = True
-            for src in source_paths:
-                obj_path = get_object_file_path(src)
-                if not obj_path.exists():
-                    all_exist = False
-                    break
-                object_files.append(obj_path)
-            if all_exist:
-                return object_files
-
-    # If we are here, cache is missing or outdated. Write the new hash and compile the paths
-    with open(hash_file, "w") as f:
-        f.write(hash_value)
-
-    # ------------------------------------------------------------------------
-    # 1) Common CUDA compile flags
-    # ------------------------------------------------------------------------
-    cuda_cflags = [
-        "-O3",
-        "-std=c++17",
-        "--threads",
-        str(num_threads),
-        "-g",
-        "-use_fast_math",
-        "--expt-relaxed-constexpr",
-        # DMLC default
-        "-DDMLC_USE_FOPEN64=0",
-        "-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>",
-        # Enable `-fPIC` for the host compiler
-        "-Xcompiler=-fPIC",
-        "-DFLASHINFER_ENABLE_F16",
-        "-DFLASHINFER_ENABLE_BF16",
-        "-DFLASHINFER_ENABLE_FP8_E4M3",
-        "-DFLASHINFER_ENABLE_FP8_E5M2",
-    ]
-
-    # Determine compute version
-    compute_version = "".join(tvm.contrib.nvcc.get_target_compute_version(target).split("."))
-    if compute_version in ["90"]:
-        compute_version += "a"
-    cuda_cflags += [
-        "-gencode",
-        f"arch=compute_{compute_version},code=sm_{compute_version}",
-    ]
-
-    # ------------------------------------------------------------------------
-    # 2) Include paths
-    # ------------------------------------------------------------------------
-    tvm_home = os.environ["TVM_SOURCE_DIR"]
-    include_paths = [
-        FLASHINFER_INCLUDE_DIR,
-        FLASHINFER_CSRC_DIR,
-        FLASHINFER_TVM_BINDING_DIR,
-        Path(tvm_home).resolve() / "include",
-        Path(tvm_home).resolve() / "ffi" / "include",
-        Path(tvm_home).resolve() / "3rdparty" / "dlpack" / "include",
-        Path(tvm_home).resolve() / "3rdparty" / "dmlc-core" / "include",
-    ] + CUTLASS_INCLUDE_DIRS
-
-    # ------------------------------------------------------------------------
-    # 3) Function to compile a single source file
-    # ------------------------------------------------------------------------
-    def compile_single_source(src: Path) -> Path:
-        # Derive the .o filename from the source filename
-        obj_path = get_object_file_path(src)
-
-        # Construct the command
-        cmd = (
-            ["nvcc"]
-            + cuda_cflags
-            + [f"-I{inc_path}" for inc_path in include_paths]
-            + ["-c", "-o", str(obj_path), str(src)]
-        )
-
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = proc.communicate()
-        if proc.returncode != 0:
-            raise RuntimeError(
-                f"FlashInfer JIT compilation failed for {src}\n"
-                f"Command: {' '.join(cmd)}\n"
-                f"stdout:\n{out.decode('utf-8')}\n"
-                f"stderr:\n{err.decode('utf-8')}"
-            )
-        return obj_path
-
-    # ------------------------------------------------------------------------
-    # 4) Compile each source in parallel using ThreadPoolExecutor
-    # ------------------------------------------------------------------------
-    object_files = []
-    with ThreadPoolExecutor(max_workers=num_threads) as executor:
-        futures = [executor.submit(compile_single_source, src) for src in source_paths]
-        for f in futures:
-            object_files.append(f.result())  # Will raise if there's a compilation error
-
-    # Return list of generated object files for any further linking steps
-    return object_files
+        if updated:
+            source_path.write_text("".join(lines), encoding="utf-8")
 
 
 def _load_flashinfer_modules(object_files: List[Path]) -> List[tvm.runtime.Module]:
@@ -187,9 +61,8 @@ def gen_flashinfer_prefill_module(
     dtype_o: str,
     qk_head_dim: int,
     v_head_dim: int,
-    target: Target,
-    enable_inline_rope: bool = True,
-    num_threads: int = 8,
+    enable_inline_rope: bool,
+    return_static_libs: bool = False,
 ) -> List[tvm.runtime.Module]:
     """Generate a FlashInfer module for prefill.
 
@@ -205,12 +78,12 @@ def gen_flashinfer_prefill_module(
         The head dimension of the query and key tensors.
     v_head_dim : int
         The head dimension of the value tensor.
-    target : Target
-        The target device to compile for.
     enable_inline_rope : bool
         Whether to enable inline rotary positional embedding.
-    num_threads : int
-        The number of threads to use for compilation.
+    return_static_libs : bool
+        Whether to return static library modules instead of compiled modules.
+        When it is False, it returns the loaded shared library that links all the object files.
+        When it is True, it returns the static libraries of each compiled object files.
 
     Returns
     -------
@@ -218,7 +91,7 @@ def gen_flashinfer_prefill_module(
     """
     try:
         from flashinfer.jit import (  # pylint: disable=import-outside-toplevel
-            gen_customize_batch_prefill_tvm_binding,
+            gen_customize_batch_prefill_module,
         )
     except ImportError:
         raise ImportError(
@@ -248,32 +121,33 @@ def gen_flashinfer_prefill_module(
         if backend == "fa2"
         else "#include <flashinfer/attention/hopper/variants.cuh>"
     )
-    jit_args = {
-        "backend": backend,
-        "uri": f"batch_prefill_tvm_dtype_q_{dtype_q}_"
+    jit_spec = gen_customize_batch_prefill_module(
+        backend=backend,
+        uri=f"batch_prefill_tvm_dtype_q_{dtype_q}_"
         + f"dtype_kv_{dtype_kv}_"
         + f"dtype_o_{dtype_o}_"
         + f"qk_head_dim_{qk_head_dim}_"
         + f"v_head_dim_{v_head_dim}_"
         + f"enable_inline_rope_{enable_inline_rope}",
-        "dtype_q": torch_dtype_q,
-        "dtype_kv": torch_dtype_kv,
-        "dtype_o": torch_dtype_o,
-        "idtype": torch.int32,
-        "head_dim_qk": qk_head_dim,
-        "head_dim_vo": v_head_dim,
-        "additional_tensor_names": [],
-        "additional_tensor_dtypes": [],
-        "additional_scalar_names": ["sm_scale", "rope_rcp_scale", "rope_rcp_theta"],
-        "additional_scalar_dtypes": ["double", "double", "double"],
-        "variant_name": variant_name,
-        "variant_decl": variant_decl,
-        "enable_inline_rope": enable_inline_rope,
-    }
-    uri, source_paths = gen_customize_batch_prefill_tvm_binding(**jit_args)
-    object_files = _compile_flashinfer_kernels(uri, source_paths, target, num_threads)
-    modules = _load_flashinfer_modules(object_files)
-    return modules
+        dtype_q=torch_dtype_q,
+        dtype_kv=torch_dtype_kv,
+        dtype_o=torch_dtype_o,
+        idtype=torch.int32,
+        head_dim_qk=qk_head_dim,
+        head_dim_vo=v_head_dim,
+        pos_encoding_mode=int(enable_inline_rope),
+        additional_tensor_names=[],
+        additional_tensor_dtypes=[],
+        additional_scalar_names=["sm_scale", "rope_rcp_scale", "rope_rcp_theta"],
+        additional_scalar_dtypes=["double", "double", "double"],
+        variant_name=variant_name,
+        variant_decl=variant_decl,
+    )
+    _rename_exported_func_names(jit_spec.sources, "batch_prefill")
+    if return_static_libs:
+        jit_spec.build(verbose=False)
+        return _load_flashinfer_modules(jit_spec.get_object_paths())
+    return [jit_spec.build_and_load()]
 
 
 def gen_flashinfer_decode_module(
@@ -282,8 +156,8 @@ def gen_flashinfer_decode_module(
     dtype_o: str,
     qk_head_dim: int,
     v_head_dim: int,
-    target: Target,
-    num_threads: int = 8,
+    enable_inline_rope: bool,
+    return_static_libs: bool = False,
 ) -> List[tvm.runtime.Module]:
     """Generate a FlashInfer module for decode.
 
@@ -299,10 +173,12 @@ def gen_flashinfer_decode_module(
         The head dimension of the query and key tensors.
     v_head_dim : int
         The head dimension of the value tensor.
-    target : Target
-        The target device to compile for.
-    num_threads : int
-        The number of threads to use for compilation.
+    enable_inline_rope : bool
+        Whether to enable inline rotary positional embedding.
+    return_static_libs : bool
+        Whether to return static library modules instead of compiled modules.
+        When it is False, it returns the loaded shared library that links all the object files.
+        When it is True, it returns the static libraries of each compiled object files.
 
     Returns
     -------
@@ -310,7 +186,7 @@ def gen_flashinfer_decode_module(
     """
     try:
         from flashinfer.jit import (  # pylint: disable=import-outside-toplevel
-            gen_customize_batch_decode_tvm_binding,
+            gen_customize_batch_decode_module,
         )
     except ImportError:
         raise ImportError(
@@ -325,29 +201,32 @@ def gen_flashinfer_decode_module(
     torch_dtype_q = getattr(torch, dtype_q)
     torch_dtype_kv = getattr(torch, dtype_kv)
     torch_dtype_o = getattr(torch, dtype_o)
-    jit_args = {
-        "uri": f"batch_decode_tvm_dtype_q_{dtype_q}_"
+    jit_spec = gen_customize_batch_decode_module(
+        uri=f"batch_decode_tvm_dtype_q_{dtype_q}_"
         + f"dtype_kv_{dtype_kv}_"
         + f"dtype_o_{dtype_o}_"
         + f"qk_head_dim_{qk_head_dim}_"
-        + f"v_head_dim_{v_head_dim}",
-        "dtype_q": torch_dtype_q,
-        "dtype_kv": torch_dtype_kv,
-        "dtype_o": torch_dtype_o,
-        "idtype": torch.int32,
-        "head_dim_qk": qk_head_dim,
-        "head_dim_vo": v_head_dim,
-        "additional_tensor_names": [],
-        "additional_tensor_dtypes": [],
-        "additional_scalar_names": ["sm_scale", "rope_rcp_scale", "rope_rcp_theta"],
-        "additional_scalar_dtypes": ["double", "double", "double"],
-        "variant_name": "DefaultAttention<false, false, false, false>",
-        "variant_decl": "#include <flashinfer/attention/variants.cuh>",
-    }
-    uri, source_paths = gen_customize_batch_decode_tvm_binding(**jit_args)
-    object_files = _compile_flashinfer_kernels(uri, source_paths, target, num_threads)
-    modules = _load_flashinfer_modules(object_files)
-    return modules
+        + f"v_head_dim_{v_head_dim}_"
+        + f"enable_inline_rope_{enable_inline_rope}",
+        dtype_q=torch_dtype_q,
+        dtype_kv=torch_dtype_kv,
+        dtype_o=torch_dtype_o,
+        idtype=torch.int32,
+        head_dim_qk=qk_head_dim,
+        head_dim_vo=v_head_dim,
+        pos_encoding_mode=int(enable_inline_rope),
+        additional_tensor_names=[],
+        additional_tensor_dtypes=[],
+        additional_scalar_names=["sm_scale", "rope_rcp_scale", "rope_rcp_theta"],
+        additional_scalar_dtypes=["double", "double", "double"],
+        variant_name="DefaultAttention<false, false, false, false>",
+        variant_decl="#include <flashinfer/attention/variants.cuh>",
+    )
+    _rename_exported_func_names(jit_spec.sources, "batch_decode")
+    if return_static_libs:
+        jit_spec.build(verbose=False)
+        return _load_flashinfer_modules(jit_spec.get_object_paths())
+    return [jit_spec.build_and_load()]
 
 
 def gen_flashinfer_mla_module(
@@ -356,8 +235,7 @@ def gen_flashinfer_mla_module(
     dtype_o: str,
     head_dim_ckv: int,
     head_dim_kpe: int,
-    target: Target,
-    num_threads: int = 8,
+    return_static_libs: bool = False,
 ) -> List[tvm.runtime.Module]:
     """Generate a FlashInfer module for MLA.
 
@@ -377,6 +255,10 @@ def gen_flashinfer_mla_module(
         The target device to compile for.
     num_threads : int
         The number of threads to use for compilation.
+    return_static_libs : bool
+        Whether to return static library modules instead of compiled modules.
+        When it is False, it returns the loaded shared library that links all the object files.
+        When it is True, it returns the static libraries of each compiled object files.
 
     Returns
     -------
@@ -384,7 +266,7 @@ def gen_flashinfer_mla_module(
     """
     try:
         from flashinfer.jit import (  # pylint: disable=import-outside-toplevel
-            gen_batch_mla_tvm_binding,
+            gen_batch_mla_module,
         )
     except ImportError:
         raise ImportError(
@@ -399,51 +281,65 @@ def gen_flashinfer_mla_module(
     torch_dtype_q = getattr(torch, dtype_q)
     torch_dtype_kv = getattr(torch, dtype_kv)
     torch_dtype_o = getattr(torch, dtype_o)
-    jit_args = {
-        "uri": f"batch_mla_tvm_dtype_q_{dtype_q}_"
-        + f"dtype_kv_{dtype_kv}_"
-        + f"dtype_o_{dtype_o}_"
-        + f"head_dim_ckv_{head_dim_ckv}_"
-        + f"head_dim_kpe_{head_dim_kpe}",
-        "dtype_q": torch_dtype_q,
-        "dtype_kv": torch_dtype_kv,
-        "dtype_o": torch_dtype_o,
-        "dtype_idx": torch.int32,
-        "head_dim_ckv": head_dim_ckv,
-        "head_dim_kpe": head_dim_kpe,
-    }
-    uri, source_paths = gen_batch_mla_tvm_binding(**jit_args)
-    object_files = _compile_flashinfer_kernels(uri, source_paths, target, num_threads)
-    modules = _load_flashinfer_modules(object_files)
-    return modules
+    jit_spec = gen_batch_mla_module(
+        backend="fa2",
+        dtype_q=torch_dtype_q,
+        dtype_kv=torch_dtype_kv,
+        dtype_o=torch_dtype_o,
+        dtype_idx=torch.int32,
+        head_dim_ckv=head_dim_ckv,
+        head_dim_kpe=head_dim_kpe,
+        use_profiler=False,
+    )
+    _rename_exported_func_names(jit_spec.sources, "batch_mla")
+    if return_static_libs:
+        jit_spec.build(verbose=False)
+        return _load_flashinfer_modules(jit_spec.get_object_paths())
+    return [jit_spec.build_and_load()]
 
 
-def gen_sampling_module(target: Target, num_threads: int = 8):
-    """
-    Generate a FlashInfer module for sampling kernels.
+def gen_grouped_gemm_module(
+    target: Target, return_static_libs: bool = False
+) -> List[tvm.runtime.Module]:
+    """Generate a FlashInfer module for FP8 grouped GEMM.
 
     Parameters
     ----------
     target : Target
-        The target device for which the module will be compiled.
-    num_threads : int, optional
-        The number of threads to use during compilation (default is 8).
+        The target device to compile for.
+    return_static_libs : bool
+        Whether to return static library modules instead of compiled modules.
+        When it is False, it returns the loaded shared library that links all the object files.
+        When it is True, it returns the static libraries of each compiled object files.
 
     Returns
     -------
     List[tvm.runtime.Module]
-        A list of compiled static library modules for the FlashInfer sampling kernels.
+        A list of compiled static library modules for FlashInfer FP8 grouped GEMM kernels.
+
+    Note
+    _____
+    when apply grouped gemm on A: (total_m, k), B: (batch_size, n, k), m_indptr: (batch_size, )
+    requires all m in m_indptr to be multiple of 4
     """
+    # NOTE: This function is still under development,
+    # and we currently only support SM100 grouped gemm
     try:
-        from flashinfer.jit import (  # pylint: disable=import-outside-toplevel
-            gen_sampling_tvm_binding,
+        from flashinfer.gemm import (  # pylint: disable=import-outside-toplevel
+            gen_gemm_sm100_module,
         )
     except ImportError:
         raise ImportError(
             "FlashInfer is not installed. Please follow instructions "
             "in https://docs.flashinfer.ai to install FlashInfer."
         )
-    uri, source_paths = gen_sampling_tvm_binding(uri="sampling")
-    object_files = _compile_flashinfer_kernels(uri, source_paths, target, num_threads)
-    modules = _load_flashinfer_modules(object_files)
-    return modules
+
+    compute_version = "".join(tvm.contrib.nvcc.get_target_compute_version(target).split("."))
+    if compute_version == "100":
+        jit_spec = gen_gemm_sm100_module()
+    else:
+        raise ValueError(f"Unsupported compute version: {compute_version}")
+    if return_static_libs:
+        jit_spec.build(verbose=False)
+        return _load_flashinfer_modules(jit_spec.get_object_paths())
+    return [jit_spec.build_and_load()]

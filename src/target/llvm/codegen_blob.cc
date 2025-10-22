@@ -69,11 +69,15 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
   llvm::LLVMContext* ctx = llvm_target->GetContext();
   std::string module_name = c_symbol_prefix + "devc";
   auto module = std::make_unique<llvm::Module>(module_name, *ctx);
+#if TVM_LLVM_VERSION >= 210
+  module->setTargetTriple(triple);
+#else
   module->setTargetTriple(triple.str());
+#endif
   llvm_target->SetTargetMetadata(module.get());
   module->setDataLayout(tm->createDataLayout());
   auto* blob_value = llvm::ConstantDataArray::getString(*ctx, data, false);
-  std::string mdev_blob_name = c_symbol_prefix + runtime::symbol::tvm_ffi_library_bin;
+  std::string mdev_blob_name = c_symbol_prefix + ffi::symbol::tvm_ffi_library_bin;
 
   auto* tvm_ffi_library_bin = new llvm::GlobalVariable(
       *module, blob_value->getType(), true, llvm::GlobalValue::ExternalLinkage, blob_value,
@@ -147,11 +151,11 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
         llvm::FunctionType::get(void_ty, false), llvm::GlobalValue::InternalLinkage,
         llvm::Twine("__cxx_global_var_init"), module.get());
 
-    // Create TVMBackendRegisterSystemLibSymbol function
+    // Create TVMFFIEnvModRegisterSystemLibSymbol function
     llvm::Function* tvm_backend_fn =
         llvm::Function::Create(llvm::FunctionType::get(int32_ty, {int8_ptr_ty, int8_ptr_ty}, false),
                                llvm::GlobalValue::ExternalLinkage,
-                               llvm::Twine("TVMBackendRegisterSystemLibSymbol"), module.get());
+                               llvm::Twine("TVMFFIEnvModRegisterSystemLibSymbol"), module.get());
 
     // Set necessary fn sections
     auto get_static_init_section_specifier = [&triple]() -> std::string {

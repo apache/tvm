@@ -28,6 +28,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
+#include <tvm/node/structural_equal.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include "ir_utils.h"
@@ -35,17 +36,14 @@
 namespace tvm {
 namespace tir {
 
-using ConstArrayType = Array<runtime::NDArray>;
+using ConstArrayType = ffi::Array<runtime::Tensor>;
 class Applicator : public tir::StmtMutator {
  protected:
   // returns index of the a in constant_array_, if not found - appends
-  size_t DeDup(const runtime::NDArray& a) {
-    tvm::SEqualReducer eql;
-    auto it = std::find_if(
-        constant_array_.begin(), constant_array_.end(), [&eql, a](const runtime::NDArray& v) {
-          return NDArrayContainerTrait::SEqualReduce(a.as<runtime::NDArray::Container>(),
-                                                     v.as<runtime::NDArray::Container>(), eql);
-        });
+  size_t DeDup(const runtime::Tensor& a) {
+    tvm::StructuralEqual eql;
+    auto it = std::find_if(constant_array_.begin(), constant_array_.end(),
+                           [&eql, a](const runtime::Tensor& v) { return eql(a, v); });
     if (it != constant_array_.end()) {
       return it - constant_array_.begin();
     }
@@ -64,7 +62,7 @@ class Applicator : public tir::StmtMutator {
     // and add array index.
     ICHECK(acn->data) << "data field should be defined";
     auto node = CopyOnWrite(acn);
-    node->irmod_storage_idx = Optional<Integer>(Integer(DeDup(node->data.value())));
+    node->irmod_storage_idx = ffi::Optional<Integer>(Integer(DeDup(node->data.value())));
     return Stmt(node);
   }
 
@@ -77,7 +75,7 @@ tvm::transform::Pass ExtractPrimFuncConstants() {
   auto prim_func_pass = [=](PrimFunc foo, IRModule m, tvm::transform::PassContext ctx) {
     auto* func = foo.CopyOnWrite();
     if (!m->attrs.defined()) {
-      m->attrs = DictAttrs(Map<String, ffi::Any>());
+      m->attrs = DictAttrs(ffi::Map<ffi::String, ffi::Any>());
     }
     auto* attrs = m->attrs.CopyOnWrite();
     ConstArrayType constant_array_ =
@@ -90,11 +88,11 @@ tvm::transform::Pass ExtractPrimFuncConstants() {
     if (constant_list.size()) {
       attrs->dict.Set(tvm::attr::kConstants, constant_list);
     }
-    return GetRef<PrimFunc>(func);
+    return ffi::GetRef<PrimFunc>(func);
   };
 
   auto pass_func = [=](IRModule module, tvm::transform::PassContext pc) {
-    auto m = GetRef<IRModule>(module.CopyOnWrite());
+    auto m = ffi::GetRef<IRModule>(module.CopyOnWrite());
     for (const auto& kv : m->functions) {
       if (auto func = kv.second.as<PrimFunc>()) {
         m->Update(kv.first, prim_func_pass(func.value(), m, pc));
@@ -106,10 +104,10 @@ tvm::transform::Pass ExtractPrimFuncConstants() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.ExtractPrimFuncConstants", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.ExtractPrimFuncConstants", ExtractPrimFuncConstants);
-});
+}
 
 }  // namespace transform
 

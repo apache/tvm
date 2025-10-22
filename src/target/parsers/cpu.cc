@@ -28,24 +28,24 @@ namespace target {
 namespace parsers {
 namespace cpu {
 
-Optional<String> DetectSystemTriple() {
+ffi::Optional<ffi::String> DetectSystemTriple() {
 #ifdef TVM_LLVM_VERSION
   auto pf = tvm::ffi::Function::GetGlobal("target.llvm_get_system_triple");
   ICHECK(pf.has_value()) << "The target llvm_get_system_triple was not found, "
                             "please compile with USE_LLVM = ON";
-  return (*pf)().cast<String>();
+  return (*pf)().cast<ffi::String>();
 #endif
   return {};
 }
 
 TargetJSON ParseTarget(TargetJSON target) {
-  String kind = Downcast<String>(target.Get("kind").value());
-  Optional<String> mtriple = Downcast<Optional<String>>(target.Get("mtriple"));
-  Optional<String> mcpu = Downcast<Optional<String>>(target.Get("mcpu"));
+  ffi::String kind = Downcast<ffi::String>(target.Get("kind").value());
+  ffi::Optional<ffi::String> mtriple = Downcast<ffi::Optional<ffi::String>>(target.Get("mtriple"));
+  ffi::Optional<ffi::String> mcpu = Downcast<ffi::Optional<ffi::String>>(target.Get("mcpu"));
 
   // Try to fill in the blanks by detecting target information from the system
-  if (kind == "llvm" && !mtriple.defined() && !mcpu.defined()) {
-    String system_triple = DetectSystemTriple().value_or("");
+  if (kind == "llvm" && !mtriple.has_value() && !mcpu.has_value()) {
+    ffi::String system_triple = DetectSystemTriple().value_or("");
     target.Set("mtriple", system_triple);
   }
 

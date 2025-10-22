@@ -99,14 +99,14 @@ TVM_DLL double EstimateTIRFlops(const IRModule& mod);
  * \param defs The vars that is defined.
  * \return Array of undefined vars.
  */
-TVM_DLL Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& defs);
+TVM_DLL ffi::Array<Var> UndefinedVars(const Stmt& stmt, const ffi::Array<Var>& defs);
 
 /*!
  * \brief Find undefined vars in the expression.
  * \param expr The expression to be checked.
  * \return Array of undefined vars.
  */
-TVM_DLL Array<Var> UndefinedVars(const PrimExpr& expr);
+TVM_DLL ffi::Array<Var> UndefinedVars(const PrimExpr& expr);
 
 /*!
  * \brief Find undefined vars in the expression.
@@ -114,7 +114,7 @@ TVM_DLL Array<Var> UndefinedVars(const PrimExpr& expr);
  * \param defs The vars that is defined.
  * \return Array of undefined vars.
  */
-TVM_DLL Array<Var> UndefinedVars(const PrimExpr& expr, const Array<Var>& defs);
+TVM_DLL ffi::Array<Var> UndefinedVars(const PrimExpr& expr, const ffi::Array<Var>& defs);
 
 /*!
  * \brief Analyze the side effect of an expression
@@ -195,7 +195,7 @@ TVM_DLL bool VerifyMemory(const PrimFunc& func);
  * \return valid Whether it is a valid GPU code
  *
  */
-TVM_DLL bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constraints);
+TVM_DLL bool VerifyGPUCode(const PrimFunc& func, ffi::Map<ffi::String, PrimExpr> constraints);
 
 /**
  * @brief Utility function to get the list of lowering passes to be applied to calculate the
@@ -203,7 +203,7 @@ TVM_DLL bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constrain
  *
  * @return returns list of passes
  */
-TVM_DLL Array<tvm::transform::Pass> GetVTCMCompactionPasses();
+TVM_DLL ffi::Array<tvm::transform::Pass> GetVTCMCompactionPasses();
 
 /*!
  * \brief Verifies that the VTCM usage for all prim_funcs in the given IRModule
@@ -233,8 +233,8 @@ TVM_DLL bool VerifyVTCMLimit(const PrimFunc& func, Integer limit);
  *           - second: write regions
  *           - third: opaque regions
  */
-TVM_DLL Array<Array<BufferRegion>> GetBlockAccessRegion(const Block& block,
-                                                        const Map<Var, Buffer>& buffer_var_map);
+TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetBlockAccessRegion(
+    const Block& block, const ffi::Map<Var, Buffer>& buffer_var_map);
 
 /*!
  * \brief Auto detect the block read/write region according to its body stmt. An opaque access will
@@ -244,8 +244,8 @@ TVM_DLL Array<Array<BufferRegion>> GetBlockAccessRegion(const Block& block,
  *                       It is a map from buffer var to the buffer
  * \return An array only consisting of the read regions and write regions of the input block
  */
-TVM_DLL Array<Array<BufferRegion>> GetBlockReadWriteRegion(const Block& block,
-                                                           const Map<Var, Buffer>& buffer_var_map);
+TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetBlockReadWriteRegion(
+    const Block& block, const ffi::Map<Var, Buffer>& buffer_var_map);
 
 /*! \brief Helper struct for return value of IdentifyMemCpy
  *
@@ -298,7 +298,8 @@ TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func,
  * \return Allocated memory size per scope in bytes inside the PrimFunc returned as a Map with
  * key "main" and a Map of allocated sizes as values.
  */
-TVM_DLL tvm::Map<String, tvm::Map<String, Integer>> CalculateAllocatedBytes(const PrimFunc& func);
+TVM_DLL tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer>> CalculateAllocatedBytes(
+    const PrimFunc& func);
 
 /*!
  * \brief Calculate the allocated memory per scope in bytes for each function inside the module
@@ -306,7 +307,8 @@ TVM_DLL tvm::Map<String, tvm::Map<String, Integer>> CalculateAllocatedBytes(cons
  * \return Allocated memory size per scope in bytes for each function in the IRModule returned as a
            Map with function names as keys and a Map of allocated sizes as values.
  */
-TVM_DLL tvm::Map<String, tvm::Map<String, Integer>> CalculateAllocatedBytes(const IRModule& mod);
+TVM_DLL tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer>> CalculateAllocatedBytes(
+    const IRModule& mod);
 
 /*!
  * \brief Detect the lowest common ancestor(LCA) of buffer access, including both high-level
@@ -316,7 +318,7 @@ TVM_DLL tvm::Map<String, tvm::Map<String, Integer>> CalculateAllocatedBytes(cons
  * \return The Map from buffer to the LCA of all access to it. The lca is function root if the
  *         return stmt is std::nullopt.
  */
-TVM_DLL Map<Buffer, Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func);
+TVM_DLL ffi::Map<Buffer, ffi::Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func);
 
 /*!
  * \brief Verify if the given TIR is well-formed. The verification includes:
@@ -410,7 +412,7 @@ TVM_DLL Pass VerifyMemory();
  * \returns The pass.
  * \sa tvm::tir::VerifyGPUCode
  */
-TVM_DLL Pass VerifyGPUCode(Map<String, PrimExpr> constraints);
+TVM_DLL Pass VerifyGPUCode(ffi::Map<ffi::String, PrimExpr> constraints);
 
 /*!
  * \brief Pass to checks if the size of the allocated vtcm memory satisfies the limit
@@ -421,7 +423,7 @@ TVM_DLL Pass VerifyGPUCode(Map<String, PrimExpr> constraints);
  * \returns The pass.
  * \sa tvm::tir::CalculateAllocatedBytes
  */
-TVM_DLL Pass VerifyVTCMLimit(Optional<Target> target = std::nullopt);
+TVM_DLL Pass VerifyVTCMLimit(ffi::Optional<Target> target = std::nullopt);
 
 /*!
  * \brief Statically check TIR code for out of bounds array access.

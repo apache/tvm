@@ -23,7 +23,7 @@ from numbers import Number, Integral
 import numpy as np  # type: ignore
 
 import tvm
-from tvm.ffi import register_func
+from tvm_ffi import register_global_func
 from tvm.runtime import Device, Object, PackedFunc
 from tvm.runtime.profiling import Report
 
@@ -99,7 +99,7 @@ class VirtualMachine(object):
             devs = [dev]
 
         # CPU is required for executing shape functions
-        if devs[-1].device_type % RPC_SESS_MASK != tvm.cpu().device_type:
+        if devs[-1].dlpack_device_type() % RPC_SESS_MASK != tvm.cpu().dlpack_device_type():
             devs.append(tvm.cpu())
 
         default_alloc_type = VirtualMachine.POOLED_ALLOCATOR
@@ -117,8 +117,8 @@ class VirtualMachine(object):
             )
         init_args = []
         for device in devs:
-            init_args.append(device.device_type % RPC_SESS_MASK)
-            init_args.append(device.device_id)
+            init_args.append(device.dlpack_device_type() % RPC_SESS_MASK)
+            init_args.append(device.index)
             alloc_type = memory_cfg[device] if device in memory_cfg else default_alloc_type
             init_args.append(alloc_type)
         self.module["vm_initialization"](*init_args)
@@ -134,7 +134,7 @@ class VirtualMachine(object):
         closure : Object
             The VMClosure Object.
 
-        args : list[tvm.runtime.NDArray] or list[np.ndarray]
+        args : list[tvm.runtime.Tensor] or list[np.ndarray]
             The arguments to the closure.
 
         Returns
@@ -206,9 +206,9 @@ class VirtualMachine(object):
         if isinstance(arg, Object):
             cargs.append(arg)
         elif isinstance(arg, np.ndarray):
-            nd_arr = tvm.nd.array(arg, device=tvm.cpu(0))
+            nd_arr = tvm.runtime.tensor(arg, device=tvm.cpu(0))
             cargs.append(nd_arr)
-        elif isinstance(arg, tvm.runtime.NDArray):
+        elif isinstance(arg, tvm.runtime.Tensor):
             cargs.append(arg)
         elif isinstance(arg, (tuple, list)):
             field_args: List[Any] = []
@@ -217,7 +217,7 @@ class VirtualMachine(object):
             cargs.append(tuple(field_args))
         elif isinstance(arg, (Number, bool)):
             dtype = _gettype(arg)
-            value = tvm.nd.array(np.array(arg, dtype=dtype), device=tvm.cpu(0))
+            value = tvm.runtime.tensor(np.array(arg, dtype=dtype), device=tvm.cpu(0))
             cargs.append(value)
         elif isinstance(arg, str):
             cargs.append(arg)
@@ -252,7 +252,7 @@ class VirtualMachine(object):
 
     def set_input(self, func_name: str, *args: Any, **kwargs: Any) -> None:
         """Set the inputs to a function.
-        This interface works when using VM over RPC by internally converting NDArray in
+        This interface works when using VM over RPC by internally converting Tensor in
         the arguments to DLTensor, which is supported in RPC where remote could only
         have a minimal C runtime.
 
@@ -263,9 +263,9 @@ class VirtualMachine(object):
         ----------
         func_name : str
             The name of the function.
-        args: List[tvm.runtime.NDArray] or List[np.ndarray]
+        args: List[tvm.runtime.Tensor] or List[np.ndarray]
             The arguments to the function.
-        kwargs: dict of str to tvm.runtime.NDArray or np.ndarray
+        kwargs: dict of str to tvm.runtime.Tensor or np.ndarray
             Named arguments to the function.
         """
         cargs: List[Any] = []
@@ -482,7 +482,7 @@ class VirtualMachine(object):
         func_name : str
             The name of the function.
 
-        args: List of NDArray or other objects supported by PackedFunc.
+        args: List of Tensor or other objects supported by PackedFunc.
             The arguments to the function.
 
         Returns
@@ -499,6 +499,6 @@ class VirtualMachine(object):
         return Report.from_json(report_json)
 
 
-@register_func("vm.builtin.debug_print")
+@register_global_func("vm.builtin.debug_print")
 def _print(lineo: str, array) -> None:
     print(f"{lineo}: shape = {array.shape}, dtype = {array.dtype}, data =\n{array}")

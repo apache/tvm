@@ -43,3 +43,4 @@ from .popen_pool import (
 )
 from .runner import local_run, rpc_run
 from .utils import *
+from .attrs import *

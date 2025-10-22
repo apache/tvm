@@ -40,22 +40,29 @@ class MultiLevelTilingWideVectorNode : public MultiLevelTilingNode {
  public:
   size_t vector_length_in_bits;
 
-  static constexpr const char* _type_key = "meta_schedule.MultiLevelTilingWideVector";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MultiLevelTilingWideVectorNode, MultiLevelTilingNode);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MultiLevelTilingWideVectorNode>();
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MultiLevelTilingWideVector",
+                                    MultiLevelTilingWideVectorNode, MultiLevelTilingNode);
 
  protected:
   ScheduleRule Clone() const final {
     ObjectPtr<MultiLevelTilingWideVectorNode> n =
-        make_object<MultiLevelTilingWideVectorNode>(*this);
+        ffi::make_object<MultiLevelTilingWideVectorNode>(*this);
     return ScheduleRule(n);
   }
 
-  std::pair<Array<tir::ExprRV>, Array<tir::LoopRV>> SplitLoop(const Schedule& sch, BlockRV block,
-                                                              LoopRV loop, int n_tiles) const;
+  std::pair<ffi::Array<tir::ExprRV>, ffi::Array<tir::LoopRV>> SplitLoop(const Schedule& sch,
+                                                                        BlockRV block, LoopRV loop,
+                                                                        int n_tiles) const;
 };
 
-std::pair<Array<tir::ExprRV>, Array<tir::LoopRV>> MultiLevelTilingWideVectorNode::SplitLoop(
-    const Schedule& sch, BlockRV block_rv, LoopRV loop_rv, int n_tiles) const {
+std::pair<ffi::Array<tir::ExprRV>, ffi::Array<tir::LoopRV>>
+MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, BlockRV block_rv, LoopRV loop_rv,
+                                          int n_tiles) const {
   const tir::ForNode* loop = TVM_SREF_TO_FOR(sch->GetSRef(loop_rv));
   const tir::StmtSRef block_sref = sch->GetSRef(block_rv);
   const tir::BlockNode* block_node = block_sref->StmtAs<tir::BlockNode>();
@@ -93,44 +100,45 @@ std::pair<Array<tir::ExprRV>, Array<tir::LoopRV>> MultiLevelTilingWideVectorNode
     // We split the innermost spatial loop in a way that always uses the maximum vector length.
     const int64_t* extent_int = tir::GetLoopIntExtent(loop);
     if (extent_int && *extent_int > vec_len) {
-      Array<tir::LoopRV> inner_splits = sch->Split(/*loop=*/loop_rv,
-                                                   /*factors=*/{std::nullopt, PrimExpr(vec_len)});
-      Array<tir::ExprRV> outer_factors = sch->SamplePerfectTile(
+      ffi::Array<tir::LoopRV> inner_splits =
+          sch->Split(/*loop=*/loop_rv,
+                     /*factors=*/{std::nullopt, PrimExpr(vec_len)});
+      ffi::Array<tir::ExprRV> outer_factors = sch->SamplePerfectTile(
           /*loop=*/inner_splits[0],
           /*n=*/n_tiles - 1,
           /*max_innermost_factor=*/max_innermost_factor);
-      Array<tir::LoopRV> outer_splits = sch->Split(
+      ffi::Array<tir::LoopRV> outer_splits = sch->Split(
           /*loop=*/inner_splits[0], /*factors=*/{outer_factors.begin(), outer_factors.end()});
       outer_splits.push_back(inner_splits[1]);
       outer_factors.push_back(PrimExpr(vec_len));
       return {outer_factors, outer_splits};
     } else {
-      Array<tir::ExprRV> factors(n_tiles - 1, PrimExpr(1));
+      ffi::Array<tir::ExprRV> factors(n_tiles - 1, PrimExpr(1));
       factors.push_back(loop->extent);
-      Array<tir::LoopRV> splits = sch->Split(/*loop=*/loop_rv,
-                                             /*factors=*/{factors.begin(), factors.end()});
+      ffi::Array<tir::LoopRV> splits = sch->Split(/*loop=*/loop_rv,
+                                                  /*factors=*/{factors.begin(), factors.end()});
       return {factors, splits};
     }
   }
 }
 
-ScheduleRule ScheduleRule::MultiLevelTilingWideVector(String structure,
-                                                      Integer vector_length_in_bits,
-                                                      Optional<Integer> max_innermost_factor,
-                                                      Optional<Map<String, ffi::Any>> reuse_read,
-                                                      Optional<Map<String, ffi::Any>> reuse_write) {
+ScheduleRule ScheduleRule::MultiLevelTilingWideVector(
+    ffi::String structure, Integer vector_length_in_bits,
+    ffi::Optional<Integer> max_innermost_factor,
+    ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
+    ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write) {
   auto node = MultiLevelTilingInitCommon<MultiLevelTilingWideVectorNode>(
       structure, std::nullopt, max_innermost_factor, std::nullopt, reuse_read, reuse_write);
   node->vector_length_in_bits = vector_length_in_bits->value;
   return ScheduleRule(node);
 }
 
-TVM_REGISTER_NODE_TYPE(MultiLevelTilingWideVectorNode);
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  MultiLevelTilingWideVectorNode::RegisterReflection();
   refl::GlobalDef().def("meta_schedule.ScheduleRuleMultiLevelTilingWideVector",
                         ScheduleRule::MultiLevelTilingWideVector);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

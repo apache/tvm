@@ -82,13 +82,13 @@ class CommonUtils {
    */
   TVM_DLL static int CompareVersion(const std::vector<size_t>& given_version,
                                     const std::vector<size_t>& target_version);
-  TVM_DLL static int CompareVersion(const Array<Integer>& given_version,
-                                    const Array<Integer>& target_version);
+  TVM_DLL static int CompareVersion(const ffi::Array<Integer>& given_version,
+                                    const ffi::Array<Integer>& target_version);
   /*!
    * \brief Get attr key.
    * \return The attr key.
    */
-  TVM_DLL static const String ToAttrKey(const String& key);
+  TVM_DLL static const ffi::String ToAttrKey(const ffi::String& key);
 };
 
 /*!
@@ -97,83 +97,87 @@ class CommonUtils {
 class StringUtils {
  public:
   /*!
-   * \brief Check if the String contains a substring.
+   * \brief Check if the ffi::String contains a substring.
    * \return Whether substring is contained.
    */
-  TVM_DLL static bool Contains(const String& src_string, const String& sub_string);
+  TVM_DLL static bool Contains(const ffi::String& src_string, const ffi::String& sub_string);
 
   /*!
-   * \brief Check if the String starts with a substring.
+   * \brief Check if the ffi::String starts with a substring.
    * \return Whether string starts with substring.
    */
-  TVM_DLL static bool StartsWith(const String& src_string, const String& sub_string);
+  TVM_DLL static bool StartsWith(const ffi::String& src_string, const ffi::String& sub_string);
 
   /*!
-   * \brief Check if the String ens with a substring.
+   * \brief Check if the ffi::String ens with a substring.
    * \return Whether string endswith substring.
    */
-  TVM_DLL static bool EndsWith(const String& src_string, const String& sub_string);
+  TVM_DLL static bool EndsWith(const ffi::String& src_string, const ffi::String& sub_string);
 
   /*!
-   * \brief Split the String into sub Strings.
+   * \brief Split the ffi::String into sub Strings.
    * \return The SubStrings.
    */
-  TVM_DLL static const Array<String> Split(const String& src_string, const String& sep);
+  TVM_DLL static const ffi::Array<ffi::String> Split(const ffi::String& src_string,
+                                                     const ffi::String& sep);
 
   /*!
    * \brief Join the SubStrings into String.
    * \return The String.
    */
-  TVM_DLL static const String Join(const Array<String>& sub_strings, const String& joint);
-  TVM_DLL static const String Join(const std::vector<std::string>& sub_strings,
-                                   const std::string& joint);
+  TVM_DLL static const ffi::String Join(const ffi::Array<ffi::String>& sub_strings,
+                                        const ffi::String& joint);
+  TVM_DLL static const ffi::String Join(const std::vector<std::string>& sub_strings,
+                                        const std::string& joint);
 
   /*!
    * \brief Replace the substring old to new in String.
    * \return The replaced String.
    */
-  TVM_DLL static const String Replace(const String& src_string, const String& old_str,
-                                      const String& new_str);
+  TVM_DLL static const ffi::String Replace(const ffi::String& src_string,
+                                           const ffi::String& old_str, const ffi::String& new_str);
 
   /*!
-   * \brief Split the String into two sub Strings, only split by the frist seq.
+   * \brief Split the ffi::String into two sub Strings, only split by the frist seq.
    * \return The SubStrings.
    */
-  TVM_DLL static const std::tuple<String, String> SplitOnce(const String& src_string,
-                                                            const String& sep,
-                                                            bool from_left = false);
+  TVM_DLL static const std::tuple<ffi::String, ffi::String> SplitOnce(const ffi::String& src_string,
+                                                                      const ffi::String& sep,
+                                                                      bool from_left = false);
 
   /*!
    * \brief Get the tokens between left and right.
    * \return The Tokens.
    */
-  TVM_DLL static const Array<String> GetClosures(const String& src_string, const String& left,
-                                                 const String& right);
+  TVM_DLL static const ffi::Array<ffi::String> GetClosures(const ffi::String& src_string,
+                                                           const ffi::String& left,
+                                                           const ffi::String& right);
 
   /*!
    * \brief Get the first token between left and right.
    * \return The Token.
    */
-  TVM_DLL static const String GetClosureOnce(const String& src_string, const String& left,
-                                             const String& right, bool from_left = true);
+  TVM_DLL static const ffi::String GetClosureOnce(const ffi::String& src_string,
+                                                  const ffi::String& left, const ffi::String& right,
+                                                  bool from_left = true);
 
   /*!
    * \brief Change string to upper.
    * \return The String.
    */
-  TVM_DLL static const String Upper(const String& src_string);
+  TVM_DLL static const ffi::String Upper(const ffi::String& src_string);
 
   /*!
    * \brief Change string to lower.
    * \return The String.
    */
-  TVM_DLL static const String Lower(const String& src_string);
+  TVM_DLL static const ffi::String Lower(const ffi::String& src_string);
 
   /*!
    * \brief Change Object to String.
    * \return The String.
    */
-  TVM_DLL static const String ToString(const runtime::ObjectRef& obj);
+  TVM_DLL static const ffi::String ToString(const ffi::Any& obj);
 };
 
 /*!
@@ -186,9 +190,9 @@ class ArrayUtils {
    * \return The replaced Array.
    */
   template <typename T>
-  TVM_DLL static const Array<T> Replace(const Array<T>& src_array, const T& old_ele,
-                                        const T& new_ele) {
-    Array<T> new_array;
+  TVM_DLL static const ffi::Array<T> Replace(const ffi::Array<T>& src_array, const T& old_ele,
+                                             const T& new_ele) {
+    ffi::Array<T> new_array;
     for (const auto& a : src_array) {
       if (a == old_ele) {
         new_array.push_back(new_ele);
@@ -218,8 +222,8 @@ class ArrayUtils {
    * \return The downcasted array
    */
   template <typename T>
-  TVM_DLL static const Array<T> Cast(const Array<PrimExpr>& src_array) {
-    Array<T> new_array;
+  TVM_DLL static const ffi::Array<T> Cast(const ffi::Array<PrimExpr>& src_array) {
+    ffi::Array<T> new_array;
     for (const auto& s : src_array) {
       new_array.push_back(Downcast<T>(s));
     }
@@ -231,21 +235,21 @@ class ArrayUtils {
    * \return The producted array
    */
   template <typename T>
-  TVM_DLL static const Array<Array<T>> Product(const Array<Array<T>>& arrays) {
-    Array<Array<T>> p_arrays;
+  TVM_DLL static const ffi::Array<ffi::Array<T>> Product(const ffi::Array<ffi::Array<T>>& arrays) {
+    ffi::Array<ffi::Array<T>> p_arrays;
     if (arrays.size() == 1) {
       for (const auto& a : arrays[0]) {
-        p_arrays.push_back(Array<T>{a});
+        p_arrays.push_back(ffi::Array<T>{a});
       }
       return p_arrays;
     }
-    Array<Array<T>> sub_arrays;
+    ffi::Array<ffi::Array<T>> sub_arrays;
     for (size_t i = 0; i < arrays.size() - 1; i++) {
       sub_arrays.push_back(arrays[i]);
     }
     for (const auto& p_array : Product(sub_arrays)) {
       for (const auto& a : arrays[arrays.size() - 1]) {
-        Array<T> sub_array = p_array;
+        ffi::Array<T> sub_array = p_array;
         sub_array.push_back(a);
         p_arrays.push_back(sub_array);
       }
@@ -254,22 +258,23 @@ class ArrayUtils {
   }
 
   /*!
-   * \brief Compare String arrays.
+   * \brief Compare ffi::String arrays.
    * \return Whether two array are same.
    */
-  TVM_DLL static bool CompareArrays(const Array<String>& left, const Array<String>& right,
-                                    int size = -1);
+  TVM_DLL static bool CompareArrays(const ffi::Array<ffi::String>& left,
+                                    const ffi::Array<ffi::String>& right, int size = -1);
   /*!
    * \brief Accumulate array.
    * \return The accumulate result
    */
-  TVM_DLL static PrimExpr Accumulate(const Array<PrimExpr>& array, int pos = -1);
+  TVM_DLL static PrimExpr Accumulate(const ffi::Array<PrimExpr>& array, int pos = -1);
 
   /*!
    * \brief Check if lhs array is broadcastable to rhs.
    * \return broadcastable
    */
-  TVM_DLL static bool Broadcastable(const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs);
+  TVM_DLL static bool Broadcastable(const ffi::Array<PrimExpr>& lhs,
+                                    const ffi::Array<PrimExpr>& rhs);
 };
 
 /*!
@@ -281,25 +286,26 @@ class SpanUtils {
    * \brief Set <key>value</key> to the Span.
    * \return The new Span.
    */
-  TVM_DLL static const Span SetAttr(const Span& span, const String& key, const String& value);
+  TVM_DLL static const Span SetAttr(const Span& span, const ffi::String& key,
+                                    const ffi::String& value);
 
   /*!
    * \brief Get the value in <key>value</key> from the Span.
    * \return The value String.
    */
-  TVM_DLL static const String GetAttr(const Span& span, const String& key);
+  TVM_DLL static ffi::String GetAttr(const Span& span, const ffi::String& key);
 
   /*!
    * \brief Get all the key:value in format <key>value</key> from the Span.
    * \return The Attrs Map.
    */
-  TVM_DLL static const Map<String, String> GetAttrs(const Span& span);
+  TVM_DLL static const ffi::Map<ffi::String, ffi::String> GetAttrs(const Span& span);
 
   /*!
    * \brief Create a span with <key>value</key>.
    * \return The created Span.
    */
-  TVM_DLL static const Span CreateWithAttr(const String& key, const String& value);
+  TVM_DLL static const Span CreateWithAttr(const ffi::String& key, const ffi::String& value);
 };
 
 /*!
@@ -311,21 +317,21 @@ class ExprUtils {
    * \brief Get the input types of call.
    * \return The input types.
    */
-  TVM_DLL static const Array<String> GetInputTypes(const String& optype, size_t inputs_num,
-                                                   bool as_relax);
+  TVM_DLL static const ffi::Array<ffi::String> GetInputTypes(const ffi::String& optype,
+                                                             size_t inputs_num, bool as_relax);
 
   /*!
    * \brief Get the input types of call.
    * \return The input types.
    */
-  TVM_DLL static const Array<String> GetInputTypes(const Call& call);
+  TVM_DLL static const ffi::Array<ffi::String> GetInputTypes(const Call& call);
 
   /*!
    * \brief Get the scalar value of ndarray.
    * \return The scalar value.
    */
   template <typename T>
-  TVM_DLL static const T GetScalar(const runtime::NDArray& array, size_t i = 0) {
+  TVM_DLL static const T GetScalar(const runtime::Tensor& array, size_t i = 0) {
     if (array->dtype.code == kDLInt) {
       if (array->dtype.bits == 8) {
         return T(reinterpret_cast<int8_t*>(array->data)[i]);
@@ -371,14 +377,15 @@ class ExprUtils {
    * \brief Get name in span.
    * \return The name.
    */
-  TVM_DLL static const String GetSpanName(const Expr& expr, const String& suffix = "");
+  TVM_DLL static const ffi::String GetSpanName(const Expr& expr, const ffi::String& suffix = "");
 
   /*!
    * \brief Get shape of expr.
    * \return The shape.
    */
-  TVM_DLL static const Array<PrimExpr> GetShape(const TensorStructInfo& sinfo, bool as_int = true);
-  TVM_DLL static const Array<PrimExpr> GetShape(const Expr& expr, bool as_int = true);
+  TVM_DLL static const ffi::Array<PrimExpr> GetShape(const TensorStructInfo& sinfo,
+                                                     bool as_int = true);
+  TVM_DLL static const ffi::Array<PrimExpr> GetShape(const Expr& expr, bool as_int = true);
 
   /*!
    * \brief Get dtype of expr.

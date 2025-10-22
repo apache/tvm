@@ -24,7 +24,7 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
@@ -61,7 +61,7 @@ class ACLRuntime : public JSONRuntimeBase {
    * \param const_names The names of each constant in the sub-graph.
    */
   explicit ACLRuntime(const std::string& symbol_name, const std::string& graph_json,
-                      const Array<String>& const_names)
+                      const ffi::Array<ffi::String>& const_names)
       : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
 
   /*!
@@ -69,7 +69,7 @@ class ACLRuntime : public JSONRuntimeBase {
    *
    * \return module type key.
    */
-  const char* type_key() const override { return "arm_compute_lib"; }
+  const char* kind() const override { return "arm_compute_lib"; }
 
   /*!
    * \brief Initialize runtime. Create ACL layer from JSON
@@ -77,7 +77,7 @@ class ACLRuntime : public JSONRuntimeBase {
    *
    * \param consts The constant params from compiled model.
    */
-  void Init(const Array<NDArray>& consts) override {
+  void Init(const ffi::Array<Tensor>& consts) override {
     ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
     SetupConstants(consts);
@@ -588,19 +588,19 @@ class ACLRuntime : public JSONRuntimeBase {
   }
 #endif
 };
-runtime::Module ACLRuntimeCreate(const String& symbol_name, const String& graph_json,
-                                 const Array<String>& const_names) {
-  auto n = make_object<ACLRuntime>(symbol_name, graph_json, const_names);
-  return runtime::Module(n);
+ffi::Module ACLRuntimeCreate(const ffi::String& symbol_name, const ffi::String& graph_json,
+                             const ffi::Array<ffi::String>& const_names) {
+  auto n = ffi::make_object<ACLRuntime>(symbol_name, graph_json, const_names);
+  return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.arm_compute_lib_runtime_create", ACLRuntimeCreate)
-      .def("runtime.module.loadbinary_arm_compute_lib",
-           JSONRuntimeBase::LoadFromBinary<ACLRuntime>);
-});
+      .def("ffi.Module.load_from_bytes.arm_compute_lib",
+           JSONRuntimeBase::LoadFromBytes<ACLRuntime>);
+}
 }  //  namespace contrib
 }  //  namespace runtime
 }  //  namespace tvm

@@ -29,7 +29,7 @@ void PyMutatorNode::InitializeWithTuneContext(const TuneContext& context) {
   f_initialize_with_tune_context(context);
 }
 
-Optional<tir::Trace> PyMutatorNode::Apply(
+ffi::Optional<tir::Trace> PyMutatorNode::Apply(
     const tir::Trace& trace, support::LinearCongruentialEngine::TRandState* rand_state) {
   ICHECK(f_apply != nullptr) << "PyMutator's Apply method not implemented!";
   return f_apply(trace, *rand_state);
@@ -45,7 +45,7 @@ Mutator Mutator::PyMutator(
     PyMutatorNode::FApply f_apply,                                             //
     PyMutatorNode::FClone f_clone,                                             //
     PyMutatorNode::FAsString f_as_string) {
-  ObjectPtr<PyMutatorNode> n = make_object<PyMutatorNode>();
+  ObjectPtr<PyMutatorNode> n = ffi::make_object<PyMutatorNode>();
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);
   n->f_apply = std::move(f_apply);
   n->f_clone = std::move(f_clone);
@@ -53,25 +53,25 @@ Mutator Mutator::PyMutator(
   return Mutator(n);
 }
 
-Map<Mutator, FloatImm> Mutator::DefaultLLVM() {
-  return Map<Mutator, FloatImm>{
+ffi::Map<Mutator, FloatImm> Mutator::DefaultLLVM() {
+  return ffi::Map<Mutator, FloatImm>{
       {Mutator::MutateTileSize(), FloatImm(DataType::Float(64), 0.9)},
       {Mutator::MutateComputeLocation(), FloatImm(DataType::Float(64), 0.05)},
       {Mutator::MutateUnroll(), FloatImm(DataType::Float(64), 0.03)},
       {Mutator::MutateParallel(/*max_jobs_per_core=*/16), FloatImm(DataType::Float(64), 0.02)}};
 }
 
-Map<Mutator, FloatImm> Mutator::DefaultCUDA() {
-  return Map<Mutator, FloatImm>{
+ffi::Map<Mutator, FloatImm> Mutator::DefaultCUDA() {
+  return ffi::Map<Mutator, FloatImm>{
       {Mutator::MutateTileSize(), FloatImm(DataType::Float(64), 0.9)},
       {Mutator::MutateUnroll(), FloatImm(DataType::Float(64), 0.08)},
       {Mutator::MutateThreadBinding(), FloatImm(DataType::Float(64), 0.02)}};
 }
 
-Map<Mutator, FloatImm> Mutator::DefaultCUDATensorCore() { return Mutator::DefaultCUDA(); }
+ffi::Map<Mutator, FloatImm> Mutator::DefaultCUDATensorCore() { return Mutator::DefaultCUDA(); }
 
-Map<Mutator, FloatImm> Mutator::DefaultHexagon() {
-  return Map<Mutator, FloatImm>{
+ffi::Map<Mutator, FloatImm> Mutator::DefaultHexagon() {
+  return ffi::Map<Mutator, FloatImm>{
       {Mutator::MutateTileSize(), FloatImm(DataType::Float(64), 0.9)},
       {Mutator::MutateComputeLocation(), FloatImm(DataType::Float(64), 0.05)},
       {Mutator::MutateUnroll(), FloatImm(DataType::Float(64), 0.03)},
@@ -87,21 +87,18 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << f_as_string();
     });
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   MutatorNode::RegisterReflection();
   PyMutatorNode::RegisterReflection();
-});
+}
 
-TVM_REGISTER_OBJECT_TYPE(MutatorNode);
-TVM_REGISTER_NODE_TYPE(PyMutatorNode);
-
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("meta_schedule.MutatorInitializeWithTuneContext",
                   &MutatorNode::InitializeWithTuneContext)
       .def("meta_schedule.MutatorApply",
-           [](Mutator self, tir::Trace trace, TRandState seed) -> Optional<tir::Trace> {
+           [](Mutator self, tir::Trace trace, TRandState seed) -> ffi::Optional<tir::Trace> {
              TRandState seed_ =
                  (seed != -1) ? seed : support::LinearCongruentialEngine::DeviceRandom();
              return self->Apply(trace, &seed_);
@@ -112,7 +109,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("meta_schedule.MutatorDefaultCUDA", Mutator::DefaultCUDA)
       .def("meta_schedule.MutatorDefaultCUDATensorCore", Mutator::DefaultCUDATensorCore)
       .def("meta_schedule.MutatorDefaultHexagon", Mutator::DefaultHexagon);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -203,19 +203,19 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const Target& target)
     : LLVMTargetInfo(instance, target->Export()) {}
 
 LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target) {
-  triple_ = Downcast<String>(target.Get("mtriple").value_or(String("default")));
+  triple_ = Downcast<ffi::String>(target.Get("mtriple").value_or(ffi::String("default")));
   if (triple_.empty() || triple_ == "default") {
     triple_ = llvm::sys::getDefaultTargetTriple();
   }
-  cpu_ = Downcast<String>(target.Get("mcpu").value_or(String(defaults::cpu)));
+  cpu_ = Downcast<ffi::String>(target.Get("mcpu").value_or(ffi::String(defaults::cpu)));
 
-  if (const auto& v = Downcast<Optional<Array<String>>>(target.Get("mattr"))) {
-    for (const String& s : v.value()) {
+  if (const auto& v = Downcast<ffi::Optional<ffi::Array<ffi::String>>>(target.Get("mattr"))) {
+    for (const ffi::String& s : v.value()) {
       attrs_.push_back(s);
     }
   }
   // llvm module target
-  if (Downcast<String>(target.Get("kind").value()) == "llvm") {
+  if (Downcast<ffi::String>(target.Get("kind").value()) == "llvm") {
     // legalize -mcpu with the target -mtriple
     auto arches = GetAllLLVMTargetArches();
     bool has_arch =
@@ -225,16 +225,16 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
       // give the code a chance to run with a less-specific target.
       LOG(ERROR) << "Using LLVM " << LLVM_VERSION_STRING << " with `-mcpu=" << cpu_
                  << "` is not valid in `-mtriple=" << triple_ << "`"
-                 << ", using default `-mcpu=" << String(defaults::cpu) << "`";
+                 << ", using default `-mcpu=" << ffi::String(defaults::cpu) << "`";
       // LLVM default cpu fallback
-      cpu_ = String(defaults::cpu);
+      cpu_ = ffi::String(defaults::cpu);
     }
   }
 
-  if (const auto& v = Downcast<Optional<Array<String>>>(target.Get("cl-opt"))) {
+  if (const auto& v = Downcast<ffi::Optional<ffi::Array<ffi::String>>>(target.Get("cl-opt"))) {
     llvm::StringMap<llvm::cl::Option*>& options = llvm::cl::getRegisteredOptions();
     bool parse_error = false;
-    for (const String& s : v.value()) {
+    for (const ffi::String& s : v.value()) {
       Option opt = ParseOptionString(s);
       if (opt.type == Option::OptType::Invalid) {
         parse_error = true;
@@ -252,8 +252,8 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
   }
 
   llvm::FloatABI::ABIType float_abi = llvm::FloatABI::Default;
-  if (const auto& v = Downcast<Optional<String>>(target.Get("mfloat-abi"))) {
-    String value = v.value();
+  if (const auto& v = Downcast<ffi::Optional<ffi::String>>(target.Get("mfloat-abi"))) {
+    ffi::String value = v.value();
     if (value == "hard") {
       float_abi = llvm::FloatABI::Hard;
     } else if (value == "soft") {
@@ -264,8 +264,8 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
   }
 
   // LLVM JIT engine options
-  if (const auto& v = Downcast<Optional<String>>(target.Get("jit").value_or(nullptr))) {
-    String value = v.value();
+  if (const auto& v = Downcast<ffi::Optional<ffi::String>>(target.Get("jit").value_or(nullptr))) {
+    ffi::String value = v.value();
     if ((value == "mcjit") || (value == "orcjit")) {
       jit_engine_ = value;
     } else {
@@ -274,7 +274,8 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
   }
 
   // TVM & LLVM vector width options
-  if (const auto& w = Downcast<Optional<int64_t>>(target.Get("vector-width").value_or(nullptr))) {
+  if (const auto& w =
+          Downcast<ffi::Optional<int64_t>>(target.Get("vector-width").value_or(nullptr))) {
     vector_width_ = w.value();
     if ((vector_width_ <= 0) || (vector_width_ > 65536)) {
       LOG(FATAL) << "Invalid -vector-width value: " << vector_width_;
@@ -288,7 +289,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
     code_model_ = llvm::CodeModel::Medium;
 #if TVM_LLVM_VERSION >= 140
     // get VLEN from the LLVM backend (zvlXXXb)
-    Map<String, String> features = GetAllLLVMCpuFeatures();
+    ffi::Map<ffi::String, ffi::String> features = GetAllLLVMCpuFeatures();
     // check vector ISA
     if (features.count("v") > 0) {
       vector_width_ = 0;
@@ -320,7 +321,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
   target_options_.NoNaNsFPMath = true;
   target_options_.FloatABIType = float_abi;
   if (target.find("mabi") != target.end()) {
-    target_options_.MCOptions.ABIName = Downcast<String>(target.Get("mabi").value());
+    target_options_.MCOptions.ABIName = Downcast<ffi::String>(target.Get("mabi").value());
   }
 
   auto maybe_level = target.Get("opt-level");
@@ -833,8 +834,8 @@ void LLVMTargetInfo::GetOptionValue(LLVMTargetInfo::Option* opt) const {
   }
 }
 
-const Array<String> LLVMTargetInfo::GetAllLLVMTargets() const {
-  Array<String> llvm_targets;
+const ffi::Array<ffi::String> LLVMTargetInfo::GetAllLLVMTargets() const {
+  ffi::Array<ffi::String> llvm_targets;
   // iterate all archtypes
   for (auto a = llvm::Triple::ArchType(llvm::Triple::ArchType::UnknownArch + 1);
        a < llvm::Triple::ArchType::LastArchType; a = llvm::Triple::ArchType(a + 1)) {
@@ -848,8 +849,8 @@ const Array<String> LLVMTargetInfo::GetAllLLVMTargets() const {
   return llvm_targets;
 }
 
-const Array<String> LLVMTargetInfo::GetAllLLVMTargetArches() const {
-  Array<String> cpu_arches;
+const ffi::Array<ffi::String> LLVMTargetInfo::GetAllLLVMTargetArches() const {
+  ffi::Array<ffi::String> cpu_arches;
   // get the subtarget info module
   auto llvm_instance = CreateLLVMTargetInstance(triple_, true);
   std::unique_ptr<llvm::TargetMachine> target_machine =
@@ -873,7 +874,7 @@ const Array<String> LLVMTargetInfo::GetAllLLVMTargetArches() const {
   return cpu_arches;
 }
 
-const Map<String, String> LLVMTargetInfo::GetAllLLVMCpuFeatures() const {
+const ffi::Map<ffi::String, ffi::String> LLVMTargetInfo::GetAllLLVMCpuFeatures() const {
   std::string feats = "";
   for (const auto& attr : attrs_) {
     feats += feats.empty() ? attr : ("," + attr);
@@ -892,7 +893,7 @@ const Map<String, String> LLVMTargetInfo::GetAllLLVMCpuFeatures() const {
       MCInfo->getAllProcessorFeatures();
 #endif
   // TVM doesn't have an FFI friendly Set, so use a Map instead for now
-  Map<String, String> cpu_features;
+  ffi::Map<ffi::String, ffi::String> cpu_features;
   for (const auto& feat : llvm_features) {
     if (MCInfo->checkFeatures("+" + std::string(feat.Key))) {
       cpu_features.Set(feat.Key, "");
@@ -981,7 +982,11 @@ std::string LLVMTarget::GetTargetMetadata(const llvm::Module& module) {
       return meta.str();
     }
   }
+#if TVM_LLVM_VERSION >= 210
+  return "llvm -mtriple " + module.getTargetTriple().str();
+#else
   return "llvm -mtriple " + module.getTargetTriple();
+#endif
 }
 
 void LLVMTarget::SetTargetMetadata(llvm::Module* module) const {

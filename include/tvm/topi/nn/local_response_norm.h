@@ -57,8 +57,8 @@ inline Tensor lrn(const Tensor& data, int size, int axis = 1, float alpha = 0.00
   ICHECK(axis == 1 || axis == 3) << "axis should be 1 or 3 for NCHW and NHWC";
   ICHECK(data->dtype.is_float()) << "datatype should be float";
   auto input_shape = data->shape;
-  Array<PrimExpr> pad_before{0, 0, 0, 0};
-  Array<PrimExpr> pad_after{0, 0, 0, 0};
+  ffi::Array<PrimExpr> pad_before{0, 0, 0, 0};
+  ffi::Array<PrimExpr> pad_after{0, 0, 0, 0};
   pad_before.Set(axis, static_cast<PrimExpr>(size / 2));
   pad_after.Set(axis, static_cast<PrimExpr>(size / 2));
   auto pad_data = pad(data, pad_before, pad_after, 0, "pad_data");

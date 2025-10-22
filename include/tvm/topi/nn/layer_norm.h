@@ -49,7 +49,7 @@ using namespace tvm::te;
  * \return The normalized tensor, with the same shape as data.
  */
 inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& beta,
-                         const Array<Integer>& axis, double epsilon,
+                         const ffi::Array<Integer>& axis, double epsilon,
                          std::string name = "T_layer_norm", std::string tag = kInjective) {
   const auto& data_type = data->dtype;
   const auto& gamma_type = gamma.defined() ? gamma->dtype : data_type;
@@ -69,8 +69,8 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   auto func = MakeTupleSumReducer();
 
   auto compute = [ndim, is_float16, &real_axis, &reduce_axes, &func,
-                  &data](const Array<Var>& indices) {
-    Array<PrimExpr> eval_range;
+                  &data](const ffi::Array<Var>& indices) {
+    ffi::Array<PrimExpr> eval_range;
     int arg_counter = 0;
     int red_counter = 0;
 
@@ -108,8 +108,8 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   for (int i : real_axis) {
     reduce_extent *= data->shape[i];
   }
-  auto layer_norm_func = [&](const Array<Var>& indices) {
-    Array<Var> reduce_indices, non_reduce_indices;
+  auto layer_norm_func = [&](const ffi::Array<Var>& indices) {
+    ffi::Array<Var> reduce_indices, non_reduce_indices;
     for (int i = 0, n = static_cast<int>(indices.size()); i < n; ++i) {
       if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {
         reduce_indices.push_back(indices[i]);

@@ -146,7 +146,7 @@ void RemoveParsedAnn(const Schedule& sch, const BlockRV& block_rv, const ParsedA
   }
 }
 
-int CalculateNumRewritableLoops(const Array<StmtSRef>& loop_srefs,
+int CalculateNumRewritableLoops(const ffi::Array<StmtSRef>& loop_srefs,
                                 const std::vector<int>& loop_types) {
   int rw_loops_num = 0;
   ICHECK_EQ(loop_srefs.size(), loop_types.size());
@@ -174,7 +174,7 @@ int CalculateNumRewritableLoops(const Array<StmtSRef>& loop_srefs,
 }
 
 void AdjustParallelVectorize(const Schedule& sch, const BlockRV& block_rv,
-                             const Array<LoopRV>& loop_rvs, ParsedAnnotation* parsed) {
+                             const ffi::Array<LoopRV>& loop_rvs, ParsedAnnotation* parsed) {
   StmtSRef block_sref = sch->GetSRef(block_rv);
   if (parsed->max_parallel_extent == -1 && parsed->max_vectorize_extent == -1) {
     return;
@@ -186,7 +186,7 @@ void AdjustParallelVectorize(const Schedule& sch, const BlockRV& block_rv,
     return;
   }
   // Extract loop_srefs, and calculate the iterator types
-  Array<StmtSRef> loop_srefs;
+  ffi::Array<StmtSRef> loop_srefs;
   std::vector<int> loop_types;
   {
     loop_srefs.reserve(n_loops);
@@ -198,7 +198,7 @@ void AdjustParallelVectorize(const Schedule& sch, const BlockRV& block_rv,
   }
   // check the maximal number of axes that are vectorizable (contiguous memory access)
   BlockRealize realize = GetBlockRealize(sch->state(), block_sref);
-  Array<BufferRegion> buffer_access(realize->block->reads);
+  ffi::Array<BufferRegion> buffer_access(realize->block->reads);
   buffer_access.insert(buffer_access.end(), realize->block->writes.begin(),
                        realize->block->writes.end());
   std::unordered_map<const VarNode*, PrimExpr> binding_map;
@@ -357,10 +357,11 @@ bool FindAnnotatedRootBlock(const Schedule& sch, ParsedAnnotation* parsed, Block
   return false;
 }
 
-void RewriteFuseSplitParallelVectorize(const Schedule& sch, Array<LoopRV>* loop_rvs, int vec_len) {
+void RewriteFuseSplitParallelVectorize(const Schedule& sch, ffi::Array<LoopRV>* loop_rvs,
+                                       int vec_len) {
   size_t n_loops = loop_rvs->size();
   LoopRV fused = sch->Fuse({loop_rvs->begin(), loop_rvs->end()});
-  Array<LoopRV> split = sch->Split(fused, {std::nullopt, Integer(vec_len)});
+  ffi::Array<LoopRV> split = sch->Split(fused, {std::nullopt, Integer(vec_len)});
   ICHECK_EQ(split.size(), 2);
   const LoopRV& outer = split[0];
   const LoopRV& inner = split[1];
@@ -372,7 +373,7 @@ void RewriteFuseSplitParallelVectorize(const Schedule& sch, Array<LoopRV>* loop_
   loop_rvs->Set(n_loops - 1, inner);
 }
 
-void RewriteParallel(const Schedule& sch, size_t n, Array<LoopRV>* loop_rvs) {
+void RewriteParallel(const Schedule& sch, size_t n, ffi::Array<LoopRV>* loop_rvs) {
   ICHECK_LE(n, loop_rvs->size());
   LoopRV fused = sch->Fuse({loop_rvs->begin(), loop_rvs->begin() + n});
   sch->Parallel(fused);
@@ -381,7 +382,7 @@ void RewriteParallel(const Schedule& sch, size_t n, Array<LoopRV>* loop_rvs) {
   }
 }
 
-void RewriteVectorize(const Schedule& sch, size_t n, Array<LoopRV>* loop_rvs) {
+void RewriteVectorize(const Schedule& sch, size_t n, ffi::Array<LoopRV>* loop_rvs) {
   size_t n_loops = loop_rvs->size();
   ICHECK_LE(n, n_loops);
   LoopRV fused = sch->Fuse({loop_rvs->end() - n, loop_rvs->end()});
@@ -414,10 +415,10 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
 
   bool Apply(const Schedule& sch) final {
     tir::ParsedAnnotation parsed_root;
-    tir::BlockRV root_rv{nullptr};
+    tir::BlockRV root_rv{ffi::UnsafeInit()};
     while (tir::FindAnnotatedRootBlock(sch, &parsed_root, &root_rv)) {
       for (tir::BlockRV block_rv : sch->GetChildBlocks(root_rv)) {
-        Array<tir::LoopRV> loop_rvs = sch->GetLoops(block_rv);
+        ffi::Array<tir::LoopRV> loop_rvs = sch->GetLoops(block_rv);
         if (loop_rvs.empty()) {
           continue;
         }
@@ -451,26 +452,31 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
 
   Postproc Clone() const {
     ObjectPtr<RewriteParallelVectorizeUnrollNode> n =
-        make_object<RewriteParallelVectorizeUnrollNode>(*this);
+        ffi::make_object<RewriteParallelVectorizeUnrollNode>(*this);
     return Postproc(n);
   }
 
-  static constexpr const char* _type_key = "meta_schedule.RewriteParallelVectorizeUnroll";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RewriteParallelVectorizeUnrollNode, PostprocNode);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RewriteParallelVectorizeUnrollNode>();
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RewriteParallelVectorizeUnroll",
+                                    RewriteParallelVectorizeUnrollNode, PostprocNode);
 };
 
 Postproc Postproc::RewriteParallelVectorizeUnroll() {
   ObjectPtr<RewriteParallelVectorizeUnrollNode> n =
-      make_object<RewriteParallelVectorizeUnrollNode>();
+      ffi::make_object<RewriteParallelVectorizeUnrollNode>();
   return Postproc(n);
 }
 
-TVM_REGISTER_NODE_TYPE(RewriteParallelVectorizeUnrollNode);
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  RewriteParallelVectorizeUnrollNode::RegisterReflection();
   refl::GlobalDef().def("meta_schedule.PostprocRewriteParallelVectorizeUnroll",
                         Postproc::RewriteParallelVectorizeUnroll);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

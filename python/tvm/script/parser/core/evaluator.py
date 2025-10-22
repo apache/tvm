@@ -392,14 +392,15 @@ class ExprEvaluator:
         res : Any
             The evaluation result.
         """
-        return _eval_op(
-            doc.IfExp,
-            values=[
-                self._eval_expr(fields["test"]),
-                self._eval_expr(fields["body"]),
-                self._eval_expr(fields["orelse"]),
-            ],
-        )
+        test = self._eval_expr(fields["test"])
+        body = self._eval_expr(fields["body"])
+        orelse = self._eval_expr(fields["orelse"])
+        if isinstance(test, bool):
+            return body if test else orelse
+        elif isinstance(test, tvm.tir.PrimExpr) and test.dtype == "bool":
+            return tvm.tir.op.if_then_else(test, body, orelse)
+        else:
+            raise TypeError(f"Expected Python bool or TIR bool, but got {type(test)}")
 
     def _eval_slice(self, fields: Dict[str, Any]) -> slice:
         """The doc AST slice node evaluating method.

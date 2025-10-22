@@ -48,7 +48,7 @@ def test_mul(dtype):
             f = tvm.tir.build(te.create_prim_func([A, B, C]))
 
         # Verify we see SVE load instructions and mul instructions using z registers
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         loads = re.findall("ld1[whdb]	{ z", assembly)
         matches = re.findall(
             r"mul\tz[0-9].[shdb],( p[0-9]/[m],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
@@ -80,7 +80,7 @@ def test_add(dtype):
             f = tvm.tir.build(te.create_prim_func([A, B, C]))
 
         # Verify we see SVE load instructions and add instructions using z registers
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         loads = re.findall("ld1[whdb]	{ z", assembly)
         matches = re.findall(
             r"add\tz[0-9].[shdb],( p[0-9]/[m],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
@@ -112,7 +112,7 @@ def test_sub(dtype):
             f = tvm.tir.build(te.create_prim_func([A, B, C]))
 
         # Verify we see SVE load instructions and sub instructions using z registers
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         loads = re.findall("ld1[whdb]	{ z", assembly)
         matches = re.findall(
             r"sub\tz[0-9].[shdb],( p[0-9]/[m],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
@@ -145,7 +145,7 @@ def test_muladd(dtype):
             f = tvm.tir.build(te.create_prim_func([A, B, C, D]))
 
         # Verify we see SVE load instructions and either mad or mla instructions using z registers
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         loads = re.findall("ld1[whdb]	{ z", assembly)
         matches = re.findall(
             r"mad|mla\tz[0-9].[shdb],( p[0-9]/[m],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
@@ -177,7 +177,7 @@ def test_max(dtype):
             f = tvm.tir.build(te.create_prim_func([A, B, C]))
 
         # Verify we see SVE load instructions and cmgt + sel instructions or a max instruction, all using z registers
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         loads = re.findall("ld1[whdb]	{ z", assembly)
         compare = re.findall(
             r"cmgt\tp[0-9].[shdb],( p[0-9]/[zm],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
@@ -213,7 +213,7 @@ def test_min(dtype):
             f = tvm.tir.build(te.create_prim_func([A, B, C]))
 
         # Verify we see SVE load instructions and cmgt + sel instructions or a min instruction, all using z registers
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         loads = re.findall("ld1[whdb]	{ z", assembly)
         compare = re.findall(
             r"cmgt\tp[0-9].[shdb],( p[0-9]/[zm],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
@@ -249,7 +249,7 @@ def test_div(dtype):
             f = tvm.tir.build(te.create_prim_func([A, B, C]))
 
         # Verify we see SVE load instructions and div instructions using z registers
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         loads = re.findall("ld1[whdb]	{ z", assembly)
         matches = re.findall(
             r"div\tz[0-9].[shdb],( p[0-9]/[m],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
@@ -280,7 +280,7 @@ def test_mod(dtype):
             f = tvm.tir.build(te.create_prim_func([A, B, C]))
 
         # Verify we see SVE load instructions and mls instructions using z registers
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         loads = re.findall("ld1[whdb]	{ z", assembly)
         matches = re.findall(
             r"mls\tz[0-9].[shdb],( p[0-9]/[m],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
@@ -312,7 +312,7 @@ def test_eq(dtype):
             f = tvm.tir.build(te.create_prim_func([A, B, C]))
 
         # Verify we see SVE load instructions and cmpeq or cmeq instructions using z registers
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         loads = re.findall("ld1[whdb]	{ z", assembly)
         matches = re.findall(
             r"cm(p)?eq\tp[0-9].[shdb],( p[0-9]/[zm],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
@@ -344,7 +344,7 @@ def test_neq(dtype):
             f = tvm.tir.build(te.create_prim_func([A, B, C]))
 
         # Verify we see SVE load instructions and cmpgt, cmgt, cmpne or cmne instructions, all using z registers
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         loads = re.findall("ld1[whdb]	{ z", assembly)
         matches = re.findall(
             r"cm(p)?(gt|ne)\tp[0-9].[shdb],( p[0-9]/[zm],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
@@ -375,7 +375,7 @@ def test_or(dtype):
             f = tvm.tir.build(te.create_prim_func([A, B, C]))
 
         # Verify we see SVE load instructions and orr instructions using z registers
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         loads = re.findall("ld1[whdb]	{ z", assembly)
         matches = re.findall(
             r"orr\tz[0-9].[shdb],( p[0-9]/[zm],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
@@ -406,7 +406,7 @@ def test_and(dtype):
             f = tvm.tir.build(te.create_prim_func([A, B, C]))
 
         # Verify we see SVE load instructions and and instructions using z registers
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         loads = re.findall("ld1[whdb]	{ z", assembly)
         matches = re.findall(
             r"and\tz[0-9].[shdb],( p[0-9]/[zm],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
@@ -436,7 +436,7 @@ def test_not(dtype):
             f = tvm.tir.build(te.create_prim_func([A, C]))
 
         # Verify we see SVE load instructions and eor instructions using z registers
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         loads = re.findall("ld1[whdb]	{ z", assembly)
         matches = re.findall(
             r"eor\tz[0-9].[shdb],( p[0-9]/[zm],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
@@ -471,7 +471,7 @@ def test_memcpy(dtype):
             f = tvm.tir.build(te.create_prim_func([A, B, C]))
 
         # Verify we see gather instructions in the assembly
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         loads = re.findall("ld1[whdb]	{ z", assembly)
 
         assert len(loads) > 0
@@ -503,7 +503,7 @@ def test_vscale_range_function_attribute(mattr, expect_attr):
         f = tvm.tir.build(te.create_prim_func([A, C]))
 
     # Check if the vscale_range() attribute exists
-    ll = f.get_source("ll")
+    ll = f.inspect_source("ll")
     attr = re.findall(rf".*vscale_range\(\d+,\d+\)*.", ll)
 
     if expect_attr:

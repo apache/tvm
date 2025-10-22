@@ -18,11 +18,11 @@
 import os
 from typing import Dict, List, Optional, Sequence
 
-from tvm.ffi import get_global_func, register_object
+from tvm_ffi import get_global_func, register_object
+from tvm_ffi.access_path import AccessPath
 from tvm.runtime import Object
 
 from . import _ffi_node_api
-from .object_path import ObjectPath
 
 
 @register_object("script.PrinterConfig")
@@ -45,10 +45,10 @@ class PrinterConfig(Object):
     syntax_sugar: bool
     show_object_address: bool
     show_all_struct_info: bool
-    path_to_underline: Optional[List[ObjectPath]]
-    path_to_annotate: Optional[Dict[ObjectPath, str]]
-    obj_to_underline: Optional[List[Object]]
-    obj_to_annotate: Optional[Dict[Object, str]]
+    path_to_underline: Optional[List[AccessPath]]
+    path_to_annotate: Optional[Dict[AccessPath, str]]
+    obj_to_underline: Optional[List[AccessPath]]
+    obj_to_annotate: Optional[Dict[AccessPath, str]]
 
     def __init__(
         self,
@@ -69,8 +69,8 @@ class PrinterConfig(Object):
         syntax_sugar: bool = True,
         show_object_address: bool = False,
         show_all_struct_info: bool = True,
-        path_to_underline: Optional[List[ObjectPath]] = None,
-        path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
+        path_to_underline: Optional[List[AccessPath]] = None,
+        path_to_annotate: Optional[Dict[AccessPath, str]] = None,
         obj_to_underline: Optional[List[Object]] = None,
         obj_to_annotate: Optional[Dict[Object, str]] = None,
     ) -> None:
@@ -136,8 +136,8 @@ class Scriptable:
         syntax_sugar: bool = True,
         show_object_address: bool = False,
         show_all_struct_info: bool = True,
-        path_to_underline: Optional[List[ObjectPath]] = None,
-        path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
+        path_to_underline: Optional[List[AccessPath]] = None,
+        path_to_annotate: Optional[Dict[AccessPath, str]] = None,
         obj_to_underline: Optional[List[Object]] = None,
         obj_to_annotate: Optional[Dict[Object, str]] = None,
     ) -> str:
@@ -180,9 +180,9 @@ class Scriptable:
             If True (default), annotate all variable bindings with the struct
             info of that variable.  If False, only add annotations where
             required for unambiguous round-trip of Relax -> TVMScript -> Relax.
-        path_to_underline : Optional[List[ObjectPath]] = None
+        path_to_underline : Optional[List[AccessPath]] = None
             Object path to be underlined
-        path_to_annotate : Optional[Dict[ObjectPath, str]] = None
+        path_to_annotate : Optional[Dict[AccessPath, str]] = None
             Object path to be annotated
         obj_to_underline : Optional[List[Object]] = None
             Object to be underlined
@@ -239,8 +239,8 @@ class Scriptable:
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
-        path_to_underline: Optional[List[ObjectPath]] = None,
-        path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
+        path_to_underline: Optional[List[AccessPath]] = None,
+        path_to_annotate: Optional[Dict[AccessPath, str]] = None,
         obj_to_underline: Optional[List[Object]] = None,
         obj_to_annotate: Optional[Dict[Object, str]] = None,
     ) -> str:
@@ -290,8 +290,8 @@ class Scriptable:
         syntax_sugar: bool = True,
         show_object_address: bool = False,
         show_all_struct_info: bool = True,
-        path_to_underline: Optional[List[ObjectPath]] = None,
-        path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
+        path_to_underline: Optional[List[AccessPath]] = None,
+        path_to_annotate: Optional[Dict[AccessPath, str]] = None,
         obj_to_underline: Optional[List[Object]] = None,
         obj_to_annotate: Optional[Dict[Object, str]] = None,
     ) -> None:
@@ -357,9 +357,9 @@ class Scriptable:
             If True (default), annotate all variable bindings with the struct
             info of that variable.  If False, only add annotations where
             required for unambiguous round-trip of Relax -> TVMScript -> Relax.
-        path_to_underline : Optional[List[ObjectPath]] = None
+        path_to_underline : Optional[List[AccessPath]] = None
             Object path to be underlined
-        path_to_annotate : Optional[Dict[ObjectPath, str]] = None
+        path_to_annotate : Optional[Dict[AccessPath, str]] = None
             Object path to be annotated
         obj_to_underline : Optional[List[Object]] = None
             Object to be underlined

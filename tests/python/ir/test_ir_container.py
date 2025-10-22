@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+import tvm_ffi
 import tvm
 from tvm import te
 import numpy as np
@@ -90,7 +91,7 @@ def test_getattr_map():
     a = te.var("a")
     b = te.var("b")
     amap = tvm.runtime.convert({a: 2, b: 3})
-    assert isinstance(amap, tvm.ffi.Map)
+    assert isinstance(amap, tvm_ffi.Map)
 
 
 def test_in_container():
@@ -100,12 +101,12 @@ def test_in_container():
     assert "d" not in arr
 
 
-def test_ndarray_container():
-    x = tvm.nd.array([1, 2, 3])
+def test_tensor_container():
+    x = tvm.runtime.tensor([1, 2, 3])
     arr = tvm.runtime.convert([x, x])
     assert arr[0].same_as(x)
     assert arr[1].same_as(x)
-    assert isinstance(arr[0], tvm.nd.NDArray)
+    assert isinstance(arr[0], tvm.runtime.Tensor)
 
 
 def test_return_variant_type():

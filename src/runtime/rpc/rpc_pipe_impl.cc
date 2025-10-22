@@ -76,7 +76,7 @@ class PipeChannel final : public RPCChannel {
   pid_t child_pid_;
 };
 
-Module CreatePipeClient(std::vector<std::string> cmd) {
+ffi::Module CreatePipeClient(std::vector<std::string> cmd) {
   int parent2child[2];
   int child2parent[2];
   ICHECK_EQ(pipe(parent2child), 0);
@@ -113,7 +113,7 @@ Module CreatePipeClient(std::vector<std::string> cmd) {
   return CreateRPCSessionModule(CreateClientSession(endpt));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("rpc.CreatePipeClient", [](ffi::PackedArgs args, ffi::Any* rv) {
     std::vector<std::string> cmd;
@@ -122,7 +122,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     }
     *rv = CreatePipeClient(cmd);
   });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

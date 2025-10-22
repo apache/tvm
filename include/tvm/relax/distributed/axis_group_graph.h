@@ -58,7 +58,8 @@ class BufferAxisHash {
  * \param analyzer The analyzer
  * \return The iter var whose extent to be changed
  */
-Var GetShardingVarFromIndex(PrimExpr index, Map<Var, Range> var_range, arith::Analyzer* analyzer);
+Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
+                            arith::Analyzer* analyzer);
 
 /*!
  * \brief Construct an axis group graph from a PrimFunc. Two buffer axis are connected if they
@@ -69,7 +70,7 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
   static std::vector<std::vector<TIRVarAxis>> GetTIRVarAxisGraph(const PrimFunc& prim_func) {
     BufferAxisGraphExtractor extractor;
     extractor(prim_func->body);
-    Map<Buffer, Var> inverse_buffer_map;
+    ffi::Map<Buffer, Var> inverse_buffer_map;
     for (const auto& pr : prim_func->buffer_map) {
       inverse_buffer_map.Set(pr.second, pr.first);
     }
@@ -162,14 +163,14 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
     arith::Analyzer analyzer;
     for (const auto& access_pr : buffer_access_indices_) {
       Buffer buffer = access_pr.first;
-      Array<PrimExpr> indices = access_pr.second;
+      ffi::Array<PrimExpr> indices = access_pr.second;
       for (int i = 0; i < static_cast<int>(indices.size()); i++) {
         for (const auto& another_access_pr : buffer_access_indices_) {
           if (another_access_pr.first.same_as(buffer)) {
             continue;
           }
           Buffer another_buffer = another_access_pr.first;
-          Array<PrimExpr> another_indices = another_access_pr.second;
+          ffi::Array<PrimExpr> another_indices = another_access_pr.second;
           for (int j = 0; j < static_cast<int>(another_indices.size()); j++) {
             if (Match(indices[i], buffer->shape[i], another_indices[j], another_buffer->shape[j],
                       &analyzer)) {
@@ -192,9 +193,9 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
     buffer_axis_graph_[axis2].push_back(axis1);
   }
 
-  std::vector<std::pair<Buffer, Array<PrimExpr>>> buffer_access_indices_;
+  std::vector<std::pair<Buffer, ffi::Array<PrimExpr>>> buffer_access_indices_;
   std::unordered_map<BufferAxis, std::vector<BufferAxis>, BufferAxisHash> buffer_axis_graph_;
-  Map<Var, Range> iter_var_range_;
+  ffi::Map<Var, Range> iter_var_range_;
   std::string func_name;
 };
 }  // namespace tir
@@ -439,7 +440,7 @@ class AxisGroupGraph {
         }
       }
       ICHECK(specs.size() == 1) << "multiple possible sharding for axis: ("
-                                << GetRef<Expr>(axis.tensor) << ", " << axis.dim << ")";
+                                << ffi::GetRef<Expr>(axis.tensor) << ", " << axis.dim << ")";
     }
   }
 

@@ -57,6 +57,7 @@
 #define TVM_IR_TRANSFORM_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/reflection/creator.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/diagnostic.h>
@@ -81,16 +82,16 @@ class PassContextNode : public Object {
   int opt_level{2};
 
   /*! \brief The list of required passes. */
-  Array<String> required_pass;
+  ffi::Array<ffi::String> required_pass;
   /*! \brief The list of disabled passes. */
-  Array<String> disabled_pass;
+  ffi::Array<ffi::String> disabled_pass;
   /*! \brief The diagnostic context. */
-  mutable Optional<DiagnosticContext> diag_ctx;
+  mutable ffi::Optional<DiagnosticContext> diag_ctx;
   /*! \brief Pass specific configurations. */
-  Map<String, Any> config;
+  ffi::Map<ffi::String, Any> config;
 
   /*! \brief A list of pass instrument implementations. */
-  Array<instrument::PassInstrument> instruments;
+  ffi::Array<instrument::PassInstrument> instruments;
 
   PassContextNode() = default;
 
@@ -106,21 +107,21 @@ class PassContextNode : public Object {
    * \throw Error if the key exists but the value does not match TObjectRef.
    */
   template <typename TObjectRef>
-  Optional<TObjectRef> GetConfig(
+  ffi::Optional<TObjectRef> GetConfig(
       const std::string& key,
-      Optional<TObjectRef> default_value = Optional<TObjectRef>(std::nullopt)) const {
+      ffi::Optional<TObjectRef> default_value = ffi::Optional<TObjectRef>(std::nullopt)) const {
     if (!config.defined()) return default_value;
     auto it = config.find(key);
     if (it != config.end()) {
-      return Downcast<Optional<TObjectRef>>((*it).second);
+      return Downcast<ffi::Optional<TObjectRef>>((*it).second);
     } else {
       return default_value;
     }
   }
   // variant that uses TObjectRef to enable implicit conversion to default value.
   template <typename TObjectRef>
-  Optional<TObjectRef> GetConfig(const std::string& key, TObjectRef default_value) const {
-    return GetConfig<TObjectRef>(key, Optional<TObjectRef>(default_value));
+  ffi::Optional<TObjectRef> GetConfig(const std::string& key, TObjectRef default_value) const {
+    return GetConfig<TObjectRef>(key, ffi::Optional<TObjectRef>(default_value));
   }
 
   static void RegisterReflection() {
@@ -133,10 +134,7 @@ class PassContextNode : public Object {
         .def_ro("config", &PassContextNode::config)
         .def_ro("diag_ctx", &PassContextNode::diag_ctx);
   }
-
-  static constexpr const char* _type_key = "transform.PassContext";
-  static constexpr bool _type_has_method_sequal_reduce = false;
-  TVM_DECLARE_FINAL_OBJECT_INFO(PassContextNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.PassContext", PassContextNode, Object);
 };
 
 /*!
@@ -155,7 +153,14 @@ class PassContextNode : public Object {
 class PassContext : public ObjectRef {
  public:
   PassContext() {}
-  explicit PassContext(ObjectPtr<Object> n) : ObjectRef(n) {}
+  /*!
+   * \brief constructor with UnsafeInit
+   */
+  explicit PassContext(ffi::UnsafeInit tag) : ObjectRef(tag) {}
+  /*!
+   * \brief constructor with ObjectPtr
+   */
+  explicit PassContext(ObjectPtr<PassContextNode> n) : ObjectRef(n) {}
   /*!
    * \brief const accessor.
    * \return const access pointer.
@@ -188,7 +193,7 @@ class PassContext : public ObjectRef {
    * \brief Get all supported configuration names and metadata, registered within the PassContext.
    * \return Map indexed by the config name, pointing to the metadata map as key-value
    */
-  TVM_DLL static Map<String, Map<String, String>> ListConfigs();
+  TVM_DLL static ffi::Map<ffi::String, ffi::Map<ffi::String, ffi::String>> ListConfigs();
 
   /*!
    * \brief Call instrument implementations' callbacks when entering PassContext.
@@ -242,26 +247,39 @@ class PassContext : public ObjectRef {
   template <typename ValueType>
   static int32_t RegisterConfigOption(const char* key) {
     // NOTE: we could further update the function later.
-    int32_t tindex = ffi::TypeToRuntimeTypeIndex<ValueType>::v();
-    auto* reflection = ReflectionVTable::Global();
-    auto type_key = ffi::TypeIndexToTypeKey(tindex);
-
-    auto legalization = [=](ffi::Any value) -> ffi::Any {
-      if (auto opt_map = value.try_cast<Map<String, ffi::Any>>()) {
-        return reflection->CreateObject(type_key, opt_map.value());
-      } else {
+    if constexpr (std::is_base_of_v<ObjectRef, ValueType>) {
+      int32_t tindex = ffi::TypeToRuntimeTypeIndex<ValueType>::v();
+      auto type_key = ffi::TypeIndexToTypeKey(tindex);
+      auto legalization = [=](ffi::Any value) -> ffi::Any {
+        if (auto opt_map = value.try_cast<ffi::Map<ffi::String, ffi::Any>>()) {
+          return ffi::reflection::ObjectCreator(type_key)(opt_map.value());
+        } else {
+          auto opt_val = value.try_cast<ValueType>();
+          if (!opt_val.has_value()) {
+            TVM_FFI_THROW(AttributeError)
+                << "Expect config " << key << " to have type " << type_key << ", but instead get "
+                << ffi::details::AnyUnsafe::GetMismatchTypeInfo<ValueType>(value);
+          }
+          return *opt_val;
+        }
+      };
+      RegisterConfigOption(key, type_key, legalization);
+    } else {
+      // non-object type, do not support implicit conversion from map
+      std::string type_str = ffi::TypeTraits<ValueType>::TypeStr();
+      auto legalization = [=](ffi::Any value) -> ffi::Any {
         auto opt_val = value.try_cast<ValueType>();
         if (!opt_val.has_value()) {
           TVM_FFI_THROW(AttributeError)
-              << "Expect config " << key << " to have type " << type_key << ", but instead get "
+              << "Expect config " << key << " to have type " << type_str << ", but instead get "
               << ffi::details::AnyUnsafe::GetMismatchTypeInfo<ValueType>(value);
+        } else {
+          return *opt_val;
         }
-        return value;
-      }
-    };
-
-    RegisterConfigOption(key, tindex, legalization);
-    return tindex;
+      };
+      RegisterConfigOption(key, type_str, legalization);
+    }
+    return 0;
   }
 
   // accessor.
@@ -274,7 +292,7 @@ class PassContext : public ObjectRef {
   // The exit of a pass context scope.
   TVM_DLL void ExitWithScope();
   // Register configuration key value type.
-  TVM_DLL static void RegisterConfigOption(const char* key, uint32_t value_type_index,
+  TVM_DLL static void RegisterConfigOption(const char* key, ffi::String value_type_str,
                                            std::function<ffi::Any(ffi::Any)> legalization);
 
   // Classes to get the Python `with` like syntax.
@@ -304,13 +322,13 @@ class PassInfoNode : public Object {
   int opt_level;
 
   /*! \brief The name of an optimization/analysis pass. */
-  String name;
+  ffi::String name;
 
   /*! \brief Boolean that tells whether this pass will be traced or not. */
   bool traceable;
 
   /*! \brief The passes that are required to perform the current pass. */
-  Array<String> required;
+  ffi::Array<ffi::String> required;
 
   PassInfoNode() = default;
 
@@ -322,10 +340,7 @@ class PassInfoNode : public Object {
         .def_ro("required", &PassInfoNode::required)
         .def_ro("traceable", &PassInfoNode::traceable);
   }
-
-  static constexpr const char* _type_key = "transform.PassInfo";
-  static constexpr bool _type_has_method_sequal_reduce = false;
-  TVM_DECLARE_FINAL_OBJECT_INFO(PassInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.PassInfo", PassInfoNode, Object);
 };
 
 /*!
@@ -341,9 +356,10 @@ class PassInfo : public ObjectRef {
    * \param required  The passes that are required to perform the current pass.
    * \param traceable Boolean that tells whether the pass is traceable.
    */
-  TVM_DLL PassInfo(int opt_level, String name, Array<String> required, bool traceable);
+  TVM_DLL PassInfo(int opt_level, ffi::String name, ffi::Array<ffi::String> required,
+                   bool traceable);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PassInfo, ObjectRef, PassInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInfo, ObjectRef, PassInfoNode);
 };
 
 /*!
@@ -378,9 +394,7 @@ class PassNode : public Object {
    * \return The transformed module.
    */
   virtual IRModule operator()(IRModule mod, const PassContext& pass_ctx) const = 0;
-
-  static constexpr const char* _type_key = "transform.Pass";
-  TVM_DECLARE_BASE_OBJECT_INFO(PassNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("transform.Pass", PassNode, Object);
 };
 
 class Pass : public ObjectRef {
@@ -412,7 +426,7 @@ class Pass : public ObjectRef {
    */
   IRModule operator()(IRModule mod, const PassContext& pass_ctx) const;
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Pass, ObjectRef, PassNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Pass, ObjectRef, PassNode);
 
  private:
   IRModule static AssertImmutableModule(const IRModule& mod, const PassNode* node,
@@ -433,7 +447,7 @@ class SequentialNode : public PassNode {
   PassInfo pass_info;
 
   /*! \brief A list of passes that used to compose a sequential pass. */
-  tvm::Array<Pass> passes;
+  tvm::ffi::Array<Pass> passes;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -471,9 +485,7 @@ class SequentialNode : public PassNode {
    * \return Return the updated module.
    */
   IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
-
-  static constexpr const char* _type_key = "transform.Sequential";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SequentialNode, PassNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.Sequential", SequentialNode, PassNode);
 };
 
 class Sequential : public Pass {
@@ -484,7 +496,7 @@ class Sequential : public Pass {
    * \param passes The passes to apply.
    * \param pass_info The pass metadata.
    */
-  TVM_DLL Sequential(Array<Pass> passes, PassInfo pass_info);
+  TVM_DLL Sequential(ffi::Array<Pass> passes, PassInfo pass_info);
 
   /*!
    * \brief The constructor of `Sequential`.
@@ -494,10 +506,10 @@ class Sequential : public Pass {
    *        This allows users to only provide a list of passes and execute them
    *        under a given context.
    */
-  TVM_DLL Sequential(Array<Pass> passes, String name = "sequential");
+  TVM_DLL Sequential(ffi::Array<Pass> passes, ffi::String name = "sequential");
 
   Sequential() = default;
-  explicit Sequential(ObjectPtr<Object> n) : Pass(n) {}
+  explicit Sequential(ObjectPtr<SequentialNode> n) : Pass(n) {}
 
   const SequentialNode* operator->() const;
   using ContainerType = SequentialNode;
@@ -514,7 +526,7 @@ class Sequential : public Pass {
  * \return The created module pass.
  */
 TVM_DLL Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pass_func,
-                              int opt_level, String name, Array<String> required,
+                              int opt_level, ffi::String name, ffi::Array<ffi::String> required,
                               bool traceable = false);
 
 /*
@@ -539,7 +551,7 @@ TVM_DLL Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pas
  *
  * \return The modified IRModule to IRModule pass.
  */
-TVM_DLL Pass ApplyPassToFunction(Pass pass, String func_name_regex,
+TVM_DLL Pass ApplyPassToFunction(Pass pass, ffi::String func_name_regex,
                                  bool error_if_no_function_matches_regex = false);
 
 /*!
@@ -548,7 +560,7 @@ TVM_DLL Pass ApplyPassToFunction(Pass pass, String func_name_regex,
  * \param show_meta_data Whether should we show meta data.
  * \return The pass.
  */
-TVM_DLL Pass PrintIR(String header = "", bool show_meta_data = false);
+TVM_DLL Pass PrintIR(ffi::String header = "", bool show_meta_data = false);
 
 }  // namespace transform
 }  // namespace tvm

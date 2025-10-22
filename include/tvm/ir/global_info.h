@@ -34,7 +34,7 @@ namespace tvm {
 /*!
  * \brief Abstract label for an area of memory.
  */
-using MemoryScope = String;
+using MemoryScope = ffi::String;
 
 /*!
  * \brief GlobalInfo are globally static object that are referred by the IR itself.
@@ -42,10 +42,9 @@ using MemoryScope = String;
  */
 class GlobalInfoNode : public Object {
  public:
-  static constexpr const char* _type_key = "ir.GlobalInfo";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_BASE_OBJECT_INFO(GlobalInfoNode, Object);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.GlobalInfo", GlobalInfoNode, Object);
 };
 
 /*!
@@ -54,7 +53,7 @@ class GlobalInfoNode : public Object {
  */
 class GlobalInfo : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(GlobalInfo, ObjectRef, GlobalInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GlobalInfo, ObjectRef, GlobalInfoNode);
 };
 
 /*!
@@ -78,18 +77,7 @@ class VDeviceNode : public GlobalInfoNode {
         .def_ro("memory_scope", &VDeviceNode::memory_scope);
   }
 
-  TVM_DLL bool SEqualReduce(const VDeviceNode* other, SEqualReducer equal) const {
-    return equal(target, other->target) && equal(vdevice_id, other->vdevice_id) &&
-           equal(memory_scope, other->memory_scope);
-  }
-
-  TVM_DLL void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(target);
-    hash_reduce(vdevice_id);
-    hash_reduce(memory_scope);
-  }
-  static constexpr const char* _type_key = "ir.VDevice";
-  TVM_DECLARE_FINAL_OBJECT_INFO(VDeviceNode, GlobalInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.VDevice", VDeviceNode, GlobalInfoNode);
 };
 
 /*!
@@ -99,7 +87,7 @@ class VDeviceNode : public GlobalInfoNode {
 class VDevice : public GlobalInfo {
  public:
   TVM_DLL explicit VDevice(Target tgt, int dev_id, MemoryScope mem_scope);
-  TVM_DEFINE_OBJECT_REF_METHODS(VDevice, GlobalInfo, VDeviceNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(VDevice, GlobalInfo, VDeviceNode);
 };
 
 /*!
@@ -112,14 +100,7 @@ class DummyGlobalInfoNode : public GlobalInfoNode {
     refl::ObjectDef<DummyGlobalInfoNode>();
   }
 
-  static constexpr const char* _type_key = "ir.DummyGlobalInfo";
-
-  TVM_DLL bool SEqualReduce(const DummyGlobalInfoNode* other, SEqualReducer equal) const {
-    return true;
-  }
-
-  TVM_DLL void SHashReduce(SHashReducer hash_reduce) const {}
-  TVM_DECLARE_FINAL_OBJECT_INFO(DummyGlobalInfoNode, GlobalInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.DummyGlobalInfo", DummyGlobalInfoNode, GlobalInfoNode);
 };
 
 /*!
@@ -128,7 +109,7 @@ class DummyGlobalInfoNode : public GlobalInfoNode {
  */
 class DummyGlobalInfo : public GlobalInfo {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(DummyGlobalInfo, GlobalInfo, DummyGlobalInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DummyGlobalInfo, GlobalInfo, DummyGlobalInfoNode);
 };
 
 }  // namespace tvm

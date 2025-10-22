@@ -26,33 +26,31 @@
 #include <tvm/ir/global_info.h>
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   VDeviceNode::RegisterReflection();
   DummyGlobalInfoNode::RegisterReflection();
-});
+}
 
-TVM_REGISTER_NODE_TYPE(DummyGlobalInfoNode);
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ir.DummyGlobalInfo", []() {
-    auto n = DummyGlobalInfo(make_object<DummyGlobalInfoNode>());
+    auto n = DummyGlobalInfo(ffi::make_object<DummyGlobalInfoNode>());
     return n;
   });
-});
+}
 
 VDevice::VDevice(Target tgt, int dev_id, MemoryScope mem_scope) {
-  ObjectPtr<VDeviceNode> n = make_object<VDeviceNode>();
+  ObjectPtr<VDeviceNode> n = ffi::make_object<VDeviceNode>();
   n->target = std::move(tgt);
   n->vdevice_id = std::move(dev_id);
   n->memory_scope = std::move(mem_scope);
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(VDeviceNode);
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ir.VDevice", [](Target tgt, int dev_id, MemoryScope mem_scope) {
     return VDevice(tgt, dev_id, mem_scope);
   });
-});
+}
 }  // namespace tvm

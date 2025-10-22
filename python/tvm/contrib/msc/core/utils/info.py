@@ -46,10 +46,10 @@ class MSCArray(object):
             return MSCFramework.MSC, "list", "cpu"
         if isinstance(data, np.ndarray):
             return MSCFramework.MSC, "tensor", "cpu"
-        if isinstance(data, tvm.runtime.NDArray):
-            device = tvm.runtime.Device.DEVICE_TYPE_TO_NAME[data.device.device_type]
-            if data.device.device_id:
-                device += ":{}".format(data.device.device_id)
+        if isinstance(data, tvm.runtime.Tensor):
+            device = tvm.runtime.Device._DEVICE_TYPE_TO_NAME[data.device.dlpack_device_type()]
+            if data.device.index:
+                device += ":{}".format(data.device.index)
             return MSCFramework.TVM, "tensor", device
         if isinstance(data, tvm.relax.Var):
             return MSCFramework.TVM, "var", "cpu"
@@ -71,7 +71,7 @@ class MSCArray(object):
     def abstract(self) -> str:
         """Get abstract describe of the data"""
 
-        data = self._to_ndarray()
+        data = self._to_tensor()
         prefix = "[{},{}]".format(";".join([str(s) for s in data.shape]), data.dtype.name)
         if data.size < 10:
             return "{} {}".format(prefix, ",".join([str(i) for i in data.flatten()]))
@@ -79,7 +79,7 @@ class MSCArray(object):
             prefix, data.max(), data.min(), data.sum() / data.size
         )
 
-    def _to_ndarray(self) -> np.ndarray:
+    def _to_tensor(self) -> np.ndarray:
         """Cast array like object to np.ndarray
 
         Returns
@@ -120,7 +120,7 @@ class MSCArray(object):
         if self._framework == MSCFramework.TORCH:
             return self._meta_data.to(self.get_device(device))
         if self._framework == MSCFramework.TVM:
-            return tvm.nd.array(self._cast_data(), device=self.get_device(device))
+            return tvm.runtime.tensor(self._cast_data(), device=self.get_device(device))
         return self._meta_data
 
     def cast(self, framework: str, device: str = "cpu") -> Any:
@@ -144,13 +144,13 @@ class MSCArray(object):
             return self._meta_data
         if framework == self._framework:
             return self._to_device(device)
-        data = self._to_ndarray()
+        data = self._to_tensor()
         if framework == MSCFramework.TORCH:
             import torch  # pylint: disable=import-outside-toplevel
 
             return torch.from_numpy(data).to(self.get_device(device, framework))
         if framework == MSCFramework.TVM:
-            return tvm.nd.array(data, device=self.get_device(device, framework))
+            return tvm.runtime.tensor(data, device=self.get_device(device, framework))
         return data
 
     def get_device(self, device: str, framework: str = None) -> Any:
@@ -198,7 +198,7 @@ class MSCArray(object):
             Whether the data is array like.
         """
 
-        normal_types = (np.ndarray, tvm.runtime.NDArray, tvm.relax.Var)
+        normal_types = (np.ndarray, tvm.runtime.Tensor, tvm.relax.Var)
         if isinstance(data, normal_types):
             return True
         if isinstance(data, (list, tuple)) and all(isinstance(d, (int, float)) for d in data):

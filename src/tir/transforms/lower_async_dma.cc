@@ -52,7 +52,8 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
     }
 
     // if for loop is not a memcpy of a contiguous region, it might be a cuda cp.async behavior
-    std::optional<tvm::tir::MemCpyDetails> mem_copy = IdentifyMemCpy(GetRef<For>(loop), analyzer_);
+    std::optional<tvm::tir::MemCpyDetails> mem_copy =
+        IdentifyMemCpy(ffi::GetRef<For>(loop), analyzer_);
     if (!mem_copy.has_value() || mem_copy->dest->region.size() != 1 ||
         mem_copy->source->region.size() != 1) {
       return arith::IRMutatorWithAnalyzer::VisitStmt_(loop);
@@ -159,7 +160,7 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
   std::set<int> queue_ids_;
   std::optional<int> async_queue_id_ = std::nullopt;
   bool dma_bypass_cache_;
-  Map<Var, Range> input_iters = Map<Var, Range>();
+  ffi::Map<Var, Range> input_iters = ffi::Map<Var, Range>();
 };
 
 namespace transform {
@@ -176,10 +177,10 @@ Pass LowerAsyncDMA() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerAsyncDMA", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.LowerAsyncDMA", LowerAsyncDMA);
-});
+}
 }  // namespace transform
 
 }  // namespace tir

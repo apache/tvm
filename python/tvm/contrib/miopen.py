@@ -19,7 +19,7 @@
 import ctypes
 import numpy as np
 import tvm
-import tvm.ffi
+import tvm_ffi
 
 from tvm import te
 
@@ -29,7 +29,7 @@ def _get_np_int32_array_handle(arr):
 
     Parameters
     ----------
-    arr: numpy.NDArray
+    arr: numpy.Tensor
         source numpy array
 
     Returns
@@ -94,7 +94,7 @@ def conv2d_forward(
     oshape = np.zeros((len(x.shape)), dtype=np.int32)
     xshape = x.shape
     wshape = w.shape
-    setup_func = tvm.ffi.get_global_func("tvm.contrib.miopen.conv2d.setup")
+    setup_func = tvm_ffi.get_global_func("tvm.contrib.miopen.conv2d.setup")
     algo = setup_func(
         conv_mode,
         data_type,

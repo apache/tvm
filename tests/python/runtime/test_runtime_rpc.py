@@ -53,7 +53,7 @@ pytestmark = pytest.mark.skipif(
     # Windows does not support fork so we can enable Windows for testing
     sys.platform.startswith("win") == False and multiprocessing.get_start_method() != "fork",
     reason=(
-        "pytest + multiprocessing spawn method causes tvm.register_func to "
+        "pytest + multiprocessing spawn method causes tvm.register_global_func to "
         "not work on the rpc.Server."
     ),
 )
@@ -76,11 +76,11 @@ def test_bigendian_rpc():
         f = tvm.compile(te.create_prim_func([A, B]), target=target)
 
         dev = remote.cpu(0)
-        a = tvm.nd.array(np.random.randint(0, 256, size=shape).astype(A.dtype), device=dev)
-        b = tvm.nd.array(np.zeros(shape).astype(A.dtype), device=dev)
+        a = tvm.runtime.tensor(np.random.randint(0, 256, size=shape).astype(A.dtype), device=dev)
+        b = tvm.runtime.tensor(np.zeros(shape).astype(A.dtype), device=dev)
         temp = utils.tempdir()
         path_dso = temp.relpath("dev_lib.o")
-        f.save(path_dso)
+        f.write_to_file(path_dso)
         remote.upload(path_dso)
         f = remote.load_module("dev_lib.o")
         f(a, b)
@@ -133,10 +133,10 @@ def test_rpc_array():
 
     def check_remote():
         x = np.ones((3, 4))
-        r_cpu = tvm.nd.array(x, remote.cpu(0))
+        r_cpu = tvm.runtime.tensor(x, remote.cpu(0))
         assert str(r_cpu.device).startswith("remote")
         np.testing.assert_equal(r_cpu.numpy(), x)
-        fremote = remote.get_function("rpc.test.remote_array_func")
+        fremote = remote.get_function("rpc.test.remote_tensor_func")
         fremote(r_cpu)
 
     check_remote()
@@ -152,8 +152,8 @@ def test_rpc_large_array():
         dev = remote.cpu(0)
         a_np = np.ones((5041, 720)).astype("float32")
         b_np = np.ones((720, 192)).astype("float32")
-        a = tvm.nd.array(a_np, dev)
-        b = tvm.nd.array(b_np, dev)
+        a = tvm.runtime.tensor(a_np, dev)
+        b = tvm.runtime.tensor(b_np, dev)
         np.testing.assert_equal(a.numpy(), a_np)
         np.testing.assert_equal(b.numpy(), b_np)
 
@@ -251,8 +251,8 @@ def test_rpc_remote_module():
         f.export_library(path_dso)
         remote.upload(path_dso)
         f1 = remote.load_module("dev_lib.so")
-        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=102).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(102, dtype=A.dtype), dev)
         time_f = f1.time_evaluator(f1.entry_name, remote.cpu(0), number=10)
         cost = time_f(a, b).mean
         print("%g secs/op" % cost)
@@ -266,8 +266,8 @@ def test_rpc_remote_module():
         with open(local_download_path, "wb") as fo:
             fo.write(remote.download_linked_module("dev_lib.tar"))
         fupdated = tvm.runtime.load_module(local_download_path)
-        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), tvm.cpu(0))
-        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), tvm.cpu(0))
+        a = tvm.runtime.tensor(np.random.uniform(size=102).astype(A.dtype), tvm.cpu(0))
+        b = tvm.runtime.tensor(np.zeros(102, dtype=A.dtype), tvm.cpu(0))
         fupdated(a, b)
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
@@ -289,8 +289,8 @@ def test_rpc_remote_module():
         dev = remote.cpu(0)
         f1 = remote.system_lib()
 
-        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=102).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(102, dtype=A.dtype), dev)
         time_f = f1.time_evaluator("myadd", remote.cpu(0), number=1)
         cost = time_f(a, b).mean
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
@@ -325,8 +325,8 @@ def test_rpc_remote_module():
         f.export_library(path_tar)
         remote.upload(path_tar)
         fhost = remote.load_module("myadd.tar")
-        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=102).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(102, dtype=A.dtype), dev)
         fhost(a, b)
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
@@ -369,7 +369,7 @@ def test_rpc_session_constructor_args():
         assert fecho("xyz") == "xyz"
         assert bytes(fecho(bytearray(b"123"))) == b"123"
 
-        nd = tvm.nd.array([1, 2, 3], device=client.cpu(0))
+        nd = tvm.runtime.tensor([1, 2, 3], device=client.cpu(0))
         assert nd.numpy()[1] == 2
 
     def check_error_handling():
@@ -386,7 +386,7 @@ def test_rpc_session_constructor_args():
 
 
 @tvm.testing.requires_rpc
-def test_rpc_return_ndarray():
+def test_rpc_return_tensor():
     # start server
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1")
@@ -413,7 +413,6 @@ def test_rpc_return_remote_object():
         get_elem = client.get_function("testing.GetShapeElem")
         get_size = client.get_function("testing.GetShapeSize")
         shape = make_shape(2, 3)
-        assert shape.type_key == "runtime.RPCObjectRef"
         assert get_elem(shape, 0) == 2
         assert get_elem(shape, 1) == 3
         assert get_size(shape) == 2

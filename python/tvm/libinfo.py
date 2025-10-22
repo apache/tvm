@@ -66,6 +66,7 @@ def get_dll_directories():
 
     # Pip lib directory
     dll_path.append(ffi_dir)
+    dll_path.append(os.path.join(ffi_dir, "lib"))
     # Default cmake build directory
     dll_path.append(os.path.join(source_dir, "build"))
     dll_path.append(os.path.join(source_dir, "build", "Release"))
@@ -130,10 +131,7 @@ def find_lib_path(name=None, search_path=None, optional=False):
         elif sys.platform.startswith("darwin"):
             lib_dll_names = ["libtvm.dylib"]
             runtime_dll_names = ["libtvm_runtime.dylib"]
-            ext_lib_dll_names = [
-                "3rdparty/cutlass_fpA_intB_gemm/cutlass_kernels/libfpA_intB_gemm.dylib",
-                "3rdparty/libflash_attn/src/libflash_attn.dylib",
-            ]
+            ext_lib_dll_names = []
         else:
             lib_dll_names = ["libtvm.so"]
             runtime_dll_names = ["libtvm_runtime.so"]
@@ -195,7 +193,9 @@ def find_include_path(name=None, search_path=None, optional=False):
     include_path : list(string)
         List of all found paths to header files.
     """
-    if os.environ.get("TVM_HOME", None):
+    if os.environ.get("TVM_SOURCE_DIR", None):
+        source_dir = os.environ["TVM_SOURCE_DIR"]
+    elif os.environ.get("TVM_HOME", None):
         source_dir = os.environ["TVM_HOME"]
     else:
         ffi_dir = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
@@ -204,7 +204,7 @@ def find_include_path(name=None, search_path=None, optional=False):
             if os.path.isdir(os.path.join(source_dir, "include")):
                 break
         else:
-            raise AssertionError("Cannot find the source directory given ffi_dir: {ffi_dir}")
+            raise AssertionError(f"Cannot find the source directory given ffi_dir: {ffi_dir}")
     third_party_dir = os.path.join(source_dir, "3rdparty")
 
     header_path = []
@@ -232,9 +232,16 @@ def find_include_path(name=None, search_path=None, optional=False):
         dmlc_include_path = []
     else:
         tvm_include_path = [os.path.join(p, "include") for p in header_path]
-        tvm_ffi_include_path = [os.path.join(p, "ffi/include") for p in header_path]
-        dlpack_include_path = [os.path.join(p, "dlpack/include") for p in header_path]
-        dmlc_include_path = [os.path.join(p, "dmlc-core/include") for p in header_path]
+        tvm_ffi_include_path = [
+            os.path.join(p, "3rdparty", "tvm-ffi", "include") for p in header_path
+        ]
+        dlpack_include_path = [
+            os.path.join(p, "3rdparty", "tvm-ffi", "3rdparty", "dlpack", "include")
+            for p in header_path
+        ]
+        dmlc_include_path = [
+            os.path.join(p, "3rdparty", "dmlc-core", "include") for p in header_path
+        ]
 
         # try to find include path
         include_found = [p for p in tvm_include_path if os.path.exists(p) and os.path.isdir(p)]
@@ -259,4 +266,4 @@ def find_include_path(name=None, search_path=None, optional=False):
 # We use the version of the incoming release for code
 # that is under development.
 # The following line is set by tvm/python/update_version.py
-__version__ = "0.22.dev0"
+__version__ = "0.22.0"

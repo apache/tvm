@@ -332,12 +332,6 @@ void VulkanDeviceAPI::StreamSync(Device dev, TVMStreamHandle stream) {
   device(dev.device_id).ThreadLocalStream().Synchronize();
 }
 
-void VulkanDeviceAPI::SetStream(Device dev, TVMStreamHandle stream) {
-  ICHECK_EQ(stream, static_cast<void*>(nullptr));
-}
-
-TVMStreamHandle VulkanDeviceAPI::GetCurrentStream(Device dev) { return nullptr; }
-
 void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void* to,
                                      size_t to_offset, size_t size, Device dev_from, Device dev_to,
                                      DLDataType type_hint, TVMStreamHandle stream) {
@@ -457,7 +451,7 @@ VulkanDevice& VulkanDeviceAPI::device(size_t device_id) {
   return const_cast<VulkanDevice&>(const_cast<const VulkanDeviceAPI*>(this)->device(device_id));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("device_api.vulkan",
@@ -470,7 +464,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         VulkanDeviceAPI::Global()->GetTargetProperty(dev, property, &rv);
         return rv;
       });
-});
+}
 
 }  // namespace vulkan
 }  // namespace runtime

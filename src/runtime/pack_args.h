@@ -39,9 +39,6 @@
 
 namespace tvm {
 namespace runtime {
-
-/*! \brief TileLang Grid constant */
-constexpr unsigned int kDLGridConstant = 30U;
 /*!
  * \brief argument union type of 32bit.
  */
@@ -137,8 +134,7 @@ enum ArgConvertCode {
   FLOAT64_TO_FLOAT32,
   FLOAT64_TO_FLOAT64,
   HANDLE_TO_HANDLE,
-  HANDLE_TO_TENSORMAP,
-  HANDLE_TO_REFERENCE
+  HANDLE_TO_TENSORMAP
 };
 
 inline ArgConvertCode GetArgConvertCode(DLDataType t) {

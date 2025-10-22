@@ -19,6 +19,7 @@ import inspect
 from typing import Any, Dict, Union
 
 import tvm
+from tvm.relax import ExternFunc
 from ....ir.module import IRModule
 from ...ir_builder import IRBuilder
 from . import doc
@@ -86,12 +87,14 @@ def parse(
         extra_vars = _default_globals()
 
     ann = {}
+    all_pyfuncs = {}
     if inspect.isfunction(program):
         ann = {program.__name__: program.__annotations__}
     elif inspect.isclass(program):
         for name, func in program.__dict__.items():
             if inspect.isfunction(func):
                 ann[name] = func.__annotations__
+                all_pyfuncs[name] = func
 
     source = Source(program)
     parser = Parser(source, ann)
@@ -101,6 +104,10 @@ def parse(
         except ParserError as err:
             parser.report_error(err.node, err.args[0])
     ret = builder.get()
+    # Attach pyfuncs to the IRModule
+    if inspect.isclass(program) and isinstance(ret, IRModule):
+        _attach_pyfuncs_to_irmodule(ret, all_pyfuncs)
+
     # check well-formedness in both Relax and TIR
     if check_well_formed:
         check_ret = ret
@@ -122,3 +129,65 @@ def parse(
                 err=f"{WELL_FORMED_ERROR_MESSAGE}\n\nTraceback: {str(err)}",
             )
     return ret
+
+
+def _create_python_packed_func(pyfunc):
+    """Create a PackedFunc wrapper for a Python function.
+
+    This function creates a PackedFunc that can be called from TVM runtime
+    and will execute the original Python function.
+
+    Parameters
+    ----------
+    pyfunc : Callable
+        The Python function to wrap.
+
+    Returns
+    -------
+    PackedFunc
+        A PackedFunc that wraps the Python function.
+    """
+
+    def packed_func_wrapper(*args, **kwargs):
+        """Wrapper function that calls the original Python function."""
+        try:
+            result = pyfunc(*args, **kwargs)
+            return result
+        except Exception as error:
+            print(f"Error calling Python function {pyfunc.__name__}: {error}")
+            raise
+
+    return packed_func_wrapper
+
+
+def _attach_pyfuncs_to_irmodule(irmodule, all_pyfuncs):
+    """Attach Python functions to IRModule with reduced nesting."""
+    if not all_pyfuncs:
+        return
+
+    if not hasattr(irmodule, "pyfuncs"):
+        irmodule.pyfuncs = {}
+
+    for global_var, func in irmodule.functions_items():
+        if not isinstance(func, ExternFunc):
+            continue
+        if not func.attrs.get("is_pyfunc", False):
+            continue
+
+        pyfunc_name = global_var.name_hint
+        if pyfunc_name not in all_pyfuncs:
+            continue
+
+        pyfunc = all_pyfuncs[pyfunc_name]
+        irmodule.pyfuncs[pyfunc_name] = pyfunc
+
+        try:
+            source_code = inspect.getsource(pyfunc)
+            func = func.with_attr("python_source", source_code)
+        except (OSError, TypeError):
+            func = func.with_attr("python_source", f"# Source unavailable for {pyfunc_name}")
+
+        packed_func = _create_python_packed_func(pyfunc)
+        func = func.with_attr("python_packed_func", packed_func)
+
+        irmodule[global_var] = func

@@ -34,7 +34,6 @@ Python API
     :caption: tvm.runtime
 
     runtime/runtime
-    runtime/ndarray
     runtime/vm
     runtime/disco
     runtime/profiling

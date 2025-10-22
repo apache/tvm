@@ -27,13 +27,13 @@ namespace tvm {
 namespace contrib {
 namespace msc {
 
-const String CodeGenUtils::IdxNode(const MSCJoint& node, const String& prefix,
-                                   const String& suffix) {
+const ffi::String CodeGenUtils::IdxNode(const MSCJoint& node, const ffi::String& prefix,
+                                        const ffi::String& suffix) {
   return prefix + std::to_string(node->index) + suffix;
 }
 
-const String CodeGenUtils::IdxOutput(const MSCJoint& node, const String& prefix, int idx,
-                                     const String& suffix) {
+const ffi::String CodeGenUtils::IdxOutput(const MSCJoint& node, const ffi::String& prefix, int idx,
+                                          const ffi::String& suffix) {
   const auto& idx_node = IdxNode(node, prefix, suffix);
   size_t output_size = node->outputs.size();
   if (output_size == 1 && node->optype != "tuple") {
@@ -43,20 +43,20 @@ const String CodeGenUtils::IdxOutput(const MSCJoint& node, const String& prefix,
   return idx_node + "[" + std::to_string(v_index) + "]";
 }
 
-const String CodeGenUtils::IdxInput(const MSCJoint& node, const String& prefix, int idx,
-                                    const String& suffix) {
+const ffi::String CodeGenUtils::IdxInput(const MSCJoint& node, const ffi::String& prefix, int idx,
+                                         const ffi::String& suffix) {
   const auto& pair = node->ProducerAndIdxOf(idx);
   return IdxOutput(pair.first, prefix, pair.second, suffix);
 }
 
-const String CodeGenUtils::IdxWeight(const MSCJoint& node, const String& wtype,
-                                     const String& suffix) {
+const ffi::String CodeGenUtils::IdxWeight(const MSCJoint& node, const ffi::String& wtype,
+                                          const ffi::String& suffix) {
   return wtype + "_" + std::to_string(node->index) + suffix;
 }
 
-const Array<String> CodeGenUtils::GetPrims(const MSCTensor& tensor,
-                                           const Map<String, String>& prims) {
-  Array<String> dims;
+const ffi::Array<ffi::String> CodeGenUtils::GetPrims(
+    const MSCTensor& tensor, const ffi::Map<ffi::String, ffi::String>& prims) {
+  ffi::Array<ffi::String> dims;
   if (tensor->prims.size() == 0) {
     for (size_t i = 0; i < tensor->Ndim(); i++) {
       dims.push_back(StringUtils::ToString(tensor->DimAt(i)));
@@ -70,9 +70,9 @@ const Array<String> CodeGenUtils::GetPrims(const MSCTensor& tensor,
   return dims;
 }
 
-const String CodeGenUtils::CommentNode(const MSCJoint& node, const String& prefix,
-                                       const Map<String, String>& prims) {
-  String comment = node->name + "(" + node->optype + "): <";
+const ffi::String CodeGenUtils::CommentNode(const MSCJoint& node, const ffi::String& prefix,
+                                            const ffi::Map<ffi::String, ffi::String>& prims) {
+  ffi::String comment = node->name + "(" + node->optype + "): <";
   for (size_t i = 0; i < node->inputs.size(); i++) {
     comment = comment + IdxInput(node, prefix, i) + (i == node->inputs.size() - 1 ? "> -> <" : ",");
   }

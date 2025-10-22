@@ -95,6 +95,9 @@ def build() {
   stage('Build') {
     try {
         run_build('{{ node }}-SPOT')
+    } catch (hudson.AbortException abortEx) {
+        echo "Received normal AbortException, exit now. Details:" + abortEx.toString()
+        throw abortEx
     } catch (Throwable ex) {
       echo 'Exception during SPOT run ' + ex.toString()
       if (is_last_build()) {

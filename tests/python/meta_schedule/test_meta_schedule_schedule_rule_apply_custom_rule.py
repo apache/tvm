@@ -42,7 +42,7 @@ class Matmul:
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
-@tvm.register_func("meta_schedule.cpu.test_apply_custom_rule")
+@tvm.register_global_func("meta_schedule.cpu.test_apply_custom_rule")
 def sch_fn(sch: tvm.tir.Schedule, block: tvm.tir.Block) -> List[tvm.tir.Schedule]:
     raise ValueError("Intended for meta_schedule.cpu.test_apply_custom_rule")
 

@@ -29,7 +29,7 @@ def test_get_global():
     targs = (10, 10.0, "hello")
 
     # register into global function table
-    @tvm.register_func
+    @tvm.register_global_func
     def my_packed_func(*args):
         assert tuple(args) == targs
         return 10
@@ -50,7 +50,7 @@ def test_get_callback_with_node():
     f2 = tvm.runtime.convert(test)
 
     # register into global function table
-    @tvm.register_func
+    @tvm.register_global_func
     def my_callback_with_node(y, f):
         assert y == x
         return f(y)
@@ -112,7 +112,7 @@ def test_device():
     x = test_device_func(tvm.cuda(7))
     assert x == tvm.cpu(0)
     x = tvm.opencl(10)
-    x = tvm.testing.device_test(x, x.device_type, x.device_id)
+    x = tvm.testing.device_test(x, x.dlpack_device_type(), x.index)
     assert x == tvm.opencl(10)
 
 
@@ -121,13 +121,12 @@ def test_numpy_scalar():
     assert tvm.testing.echo(np.int64(maxint)) == maxint
 
 
-def test_ndarray_args():
+def test_tensor_args():
     def check(arr):
-        assert not arr.is_view
         assert tvm.testing.object_use_count(arr) == 2
 
     fcheck = tvm.runtime.convert(check)
-    x = tvm.nd.array([1, 2, 3])
+    x = tvm.runtime.tensor([1, 2, 3])
     fcheck(x)
     assert tvm.testing.object_use_count(x) == 1
 
@@ -145,7 +144,7 @@ def test_dict_function_value_type():
 
 
 if __name__ == "__main__":
-    test_ndarray_args()
+    test_tensor_args()
     test_numpy_scalar()
     test_rvalue_ref()
     test_empty_array()

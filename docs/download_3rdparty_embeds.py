@@ -310,5 +310,9 @@ def download_and_replace_urls(files: Optional[List[str]] = None, verbose: bool =
 if __name__ == "__main__":
     args = argparse.ArgumentParser()
     args.add_argument("-v", "--verbose", action="store_true")
+    args.add_argument("-p", "--path", type=str, default=None)
     args = args.parse_args()
+
+    if args.path is not None:
+        HTML_DIR = args.path
     download_and_replace_urls(verbose=args.verbose)

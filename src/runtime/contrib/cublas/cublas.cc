@@ -20,6 +20,7 @@
 /*!
  * \file Use external cblas library call.
  */
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
@@ -515,14 +516,14 @@ inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, cublasHandle_t 
 }
 
 // matrix multiplication for row major
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tvm.contrib.cublas.matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
         auto A = args[0].cast<DLTensor*>();
         auto C = args[2].cast<DLTensor*>();
 
-        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
+        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal(A->device);
 
         CUBLASTryEnableTensorCore(entry_ptr->handle);
 
@@ -540,38 +541,38 @@ TVM_FFI_STATIC_INIT_BLOCK({
           CallGemmEx(args, ret, entry_ptr->handle);
         }
       });
-});
+}
 
 #if CUDART_VERSION >= 10010
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tvm.contrib.cublaslt.matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
         auto A = args[0].cast<DLTensor*>();
 
-        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
+        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal(A->device);
 
         CUBLASTryEnableTensorCore(entry_ptr->handle);
 
         ICHECK(TypeMatch(A->dtype, kDLInt, 8)) << "Expects dtype to be int8\n";
         cublasLtHandle_t ltHandle;
         CHECK_CUBLAS_ERROR(cublasLtCreate(&ltHandle));
-        auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-        cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
+        cudaStream_t stream =
+            static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, A->device.device_id));
         CallLtIgemm(args, ret, ltHandle, stream);
         CHECK_CUBLAS_ERROR(cublasLtDestroy(ltHandle));
       });
-});
+}
 #endif  // CUDART_VERSION >= 10010
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tvm.contrib.cublas.batch_matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
         auto A = args[0].cast<DLTensor*>();
         auto C = args[2].cast<DLTensor*>();
 
-        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
+        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal(A->device);
 
         CUBLASTryEnableTensorCore(entry_ptr->handle);
         if (TypeEqual(A->dtype, C->dtype)) {
@@ -588,7 +589,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           CallBatchGemmEx(args, ret, entry_ptr->handle);
         }
       });
-});
+}
 
 }  // namespace contrib
 }  // namespace tvm

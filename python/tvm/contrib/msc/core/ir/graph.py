@@ -18,6 +18,7 @@
 
 from typing import Dict, Tuple, List, Optional, Union, Iterable, Any
 import numpy as np
+import tvm_ffi
 
 import tvm
 from tvm.runtime import Object
@@ -25,7 +26,7 @@ from tvm.contrib.msc.core import _ffi_api
 from tvm.contrib.msc.core import utils as msc_utils
 
 
-@tvm.ffi.register_object("msc.core.MSCTensor")
+@tvm_ffi.register_object("msc.core.MSCTensor")
 class MSCTensor(Object):
     """Tensor in MSCGraph
 
@@ -194,11 +195,12 @@ class MSCTensor(Object):
         return len(self.shape)
 
 
+@tvm_ffi.register_object("msc.core.BaseJoint")
 class BaseJoint(Object):
     """Base class of all MSC Nodes."""
 
 
-@tvm.ffi.register_object("msc.core.MSCJoint")
+@tvm_ffi.register_object("msc.core.MSCJoint")
 class MSCJoint(BaseJoint):
     """Node in MSCGraph
 
@@ -423,7 +425,7 @@ class MSCJoint(BaseJoint):
         return msc_utils.dict_equal(self.get_attrs(), other.get_attrs())
 
 
-@tvm.ffi.register_object("msc.core.MSCPrim")
+@tvm_ffi.register_object("msc.core.MSCPrim")
 class MSCPrim(BaseJoint):
     """Prim in MSCGraph
 
@@ -447,7 +449,7 @@ class MSCPrim(BaseJoint):
         self.__init_handle_by_constructor__(_ffi_api.MSCPrim, index, name, optype, attrs, parents)
 
 
-@tvm.ffi.register_object("msc.core.WeightJoint")
+@tvm_ffi.register_object("msc.core.WeightJoint")
 class WeightJoint(BaseJoint):
     """Node in WeightGraph
 
@@ -561,11 +563,12 @@ class WeightJoint(BaseJoint):
         return bool(_ffi_api.WeightJointHasAttr(self, key))
 
 
+@tvm_ffi.register_object("msc.core.BaseGraph")
 class BaseGraph(Object):
     """Base class of all MSC Graphs."""
 
 
-@tvm.ffi.register_object("msc.core.MSCGraph")
+@tvm_ffi.register_object("msc.core.MSCGraph")
 class MSCGraph(BaseGraph):
     """The MSCGraph
 
@@ -954,8 +957,8 @@ class MSCGraph(BaseGraph):
         return graph_proto
 
 
-@tvm.ffi.register_object("msc.core.WeightGraph")
-class WeightGraph(Object):
+@tvm_ffi.register_object("msc.core.WeightGraph")
+class WeightGraph(BaseGraph):
     """The WeightGraph
 
     Parameters

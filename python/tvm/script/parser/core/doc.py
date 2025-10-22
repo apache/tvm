@@ -376,7 +376,12 @@ def _register_subscription_handling():
                 value=to_doc(x.value),
                 slice=doc.Tuple(
                     elts=[to_doc(i) for i in x.slice.dims],
-                    ctx=doc.Load(),
+                    ctx=doc.Load(
+                        lineno=None,
+                        col_offset=None,
+                        end_lineno=None,
+                        end_col_offset=None,
+                    ),
                     lineno=getattr(x, "lineno", None),
                     col_offset=getattr(x, "col_offset", None),
                     end_lineno=getattr(x, "end_lineno", None),

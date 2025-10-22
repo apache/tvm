@@ -75,7 +75,7 @@ class BufferNode : public Object {
    * BufferLoad/BufferStore nodes, and used by the low-level code
    * generators.
    */
-  Array<PrimExpr> shape;
+  ffi::Array<PrimExpr> shape;
   /*!
    * \brief Separators between input axes when generating flattened output axes
    *
@@ -84,17 +84,17 @@ class BufferNode : public Object {
    * non-flat memory, each entry in axis_separators should be the
    * first input axis that is part of a new flattened axis.
    */
-  Array<IntImm> axis_separators;
+  ffi::Array<IntImm> axis_separators;
   /*!
    * \brief The strides of each dimension
    *  This can be an empty array, indicating array is contiguous
    */
-  Array<PrimExpr> strides;
+  ffi::Array<PrimExpr> strides;
   /*! \brief The offset in terms of number of dtype elements (including lanes) */
   PrimExpr elem_offset;
   // Meta data
   /*! \brief optional name of the buffer */
-  String name;
+  ffi::String name;
   /*! \brief Alignment requirement of data pointer in bytes. */
   int data_alignment;
   /*!
@@ -115,38 +115,18 @@ class BufferNode : public Object {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BufferNode>()
-        .def_ro("data", &BufferNode::data)
+        .def_ro("data", &BufferNode::data, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("dtype", &BufferNode::dtype)
-        .def_ro("shape", &BufferNode::shape)
-        .def_ro("strides", &BufferNode::strides)
-        .def_ro("axis_separators", &BufferNode::axis_separators)
-        .def_ro("elem_offset", &BufferNode::elem_offset)
-        .def_ro("name", &BufferNode::name)
+        .def_ro("shape", &BufferNode::shape, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("strides", &BufferNode::strides, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("axis_separators", &BufferNode::axis_separators,
+                refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("elem_offset", &BufferNode::elem_offset, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("name", &BufferNode::name, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("data_alignment", &BufferNode::data_alignment)
         .def_ro("offset_factor", &BufferNode::offset_factor)
         .def_ro("buffer_type", &BufferNode::buffer_type)
-        .def_ro("span", &BufferNode::span);
-  }
-
-  bool SEqualReduce(const BufferNode* other, SEqualReducer equal) const {
-    // Use DefEqual as buffer can define variables in its semantics,
-    // skip name as name is not important.
-    return equal.DefEqual(data, other->data) && equal(dtype, other->dtype) &&
-           equal.DefEqual(shape, other->shape) && equal.DefEqual(strides, other->strides) &&
-           equal.DefEqual(axis_separators, other->axis_separators) &&
-           equal.DefEqual(elem_offset, other->elem_offset) &&
-           equal(data_alignment, other->data_alignment) && equal(buffer_type, other->buffer_type);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(data);
-    hash_reduce(dtype);
-    hash_reduce.DefHash(shape);
-    hash_reduce.DefHash(strides);
-    hash_reduce.DefHash(elem_offset);
-    hash_reduce.DefHash(axis_separators);
-    hash_reduce(data_alignment);
-    hash_reduce(buffer_type);
+        .def_ro("span", &BufferNode::span, refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   /*! \return preferred index type for this buffer node */
@@ -160,12 +140,11 @@ class BufferNode : public Object {
    * without adjusting for number of lanes.  (e.g. The number of
    * float16x4 elements in a buffer of type float16x4.)
    */
-  Array<PrimExpr> ElemOffset(Array<PrimExpr> index) const;
+  ffi::Array<PrimExpr> ElemOffset(ffi::Array<PrimExpr> index) const;
 
-  static constexpr const char* _type_key = "tir.Buffer";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(BufferNode, Object);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Buffer", BufferNode, Object);
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 };
 
@@ -178,9 +157,10 @@ class Buffer : public ObjectRef {
  public:
   // User can specify data_alignment and offset_factor to be 0
   // A default value will be picked.
-  TVM_DLL Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
-                 PrimExpr elem_offset, String name, int data_alignment, int offset_factor,
-                 BufferType buffer_type, Array<IntImm> axis_separators = {}, Span span = Span());
+  TVM_DLL Buffer(Var data, DataType dtype, ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> strides,
+                 PrimExpr elem_offset, ffi::String name, int data_alignment, int offset_factor,
+                 BufferType buffer_type, ffi::Array<IntImm> axis_separators = {},
+                 Span span = Span());
 
   /*!
    * \brief Return a new buffer that is equivalent with current one
@@ -196,7 +176,7 @@ class Buffer : public ObjectRef {
    *  If stride is not needed in the slice, it won't be presented
    * \return the result buffer.
    */
-  TVM_DLL Buffer MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const;
+  TVM_DLL Buffer MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> extents) const;
   /*!
    * \brief Get access ptr to the entire buffer.
    * \param access_mask The access mask
@@ -207,7 +187,7 @@ class Buffer : public ObjectRef {
    */
   TVM_DLL PrimExpr access_ptr(int access_mask, DataType ptr_type = DataType::Handle(),
                               int content_lanes = 1, PrimExpr offset = IntImm(DataType::Int(32), 0),
-                              Optional<PrimExpr> input_extent = std::nullopt) const;
+                              ffi::Optional<PrimExpr> input_extent = std::nullopt) const;
   /*!
    * \brief Create an Expr that does a vector load at begin index.
    * \param begin The beginning index
@@ -215,8 +195,8 @@ class Buffer : public ObjectRef {
    * \param predicate A vector mask of boolean values indicating which lanes of a vector are to be
    * loaded. The number lanes of the mask must be equal to the number of lanes in being loaded.
    */
-  TVM_DLL PrimExpr vload(Array<PrimExpr> begin, DataType dtype,
-                         Optional<PrimExpr> predicate = std::nullopt) const;
+  TVM_DLL PrimExpr vload(ffi::Array<PrimExpr> begin, DataType dtype,
+                         ffi::Optional<PrimExpr> predicate = std::nullopt) const;
   /*!
    * \brief Create a Stmt that does a vector store at begin index.
    * \param begin The beginning index
@@ -224,8 +204,8 @@ class Buffer : public ObjectRef {
    * \param predicate A vector mask of boolean values indicating which lanes of a vector are to be
    * stored. The number lanes of the mask must be equal to the number of lanes in value.
    */
-  TVM_DLL Stmt vstore(Array<PrimExpr> begin, PrimExpr value,
-                      Optional<PrimExpr> predicate = std::nullopt) const;
+  TVM_DLL Stmt vstore(ffi::Array<PrimExpr> begin, PrimExpr value,
+                      ffi::Optional<PrimExpr> predicate = std::nullopt) const;
 
   /*!
    * \brief Get a flattened version of the buffer
@@ -238,14 +218,14 @@ class Buffer : public ObjectRef {
    * without adjusting for number of lanes.  (e.g. The number of
    * float16x4 elements in a buffer of type float16x4.)
    */
-  Array<PrimExpr> OffsetOf(Array<PrimExpr> index) const;
+  ffi::Array<PrimExpr> OffsetOf(ffi::Array<PrimExpr> index) const;
 
   /*!
    * \brief Return the storage scope associated with this buffer.
    */
-  TVM_DLL String scope() const;
+  TVM_DLL ffi::String scope() const;
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Buffer, ObjectRef, BufferNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Buffer, ObjectRef, BufferNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferNode);
 };
 
@@ -260,9 +240,9 @@ class Buffer : public ObjectRef {
  * \return The created buffer.
  * \sa Buffer for complete constructor.
  */
-TVM_DLL Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-                           String name = "buffer", String storage_scope = "",
-                           Optional<Array<IntImm>> axis_separators = std::nullopt,
+TVM_DLL Buffer decl_buffer(ffi::Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
+                           ffi::String name = "buffer", ffi::String storage_scope = "",
+                           ffi::Optional<ffi::Array<IntImm>> axis_separators = std::nullopt,
                            Span span = Span());
 
 /*!
@@ -285,7 +265,7 @@ class DataProducerNode : public PrimExprConvertibleNode {
    * \brief Get the shape of the result.
    * \return The shape.
    */
-  virtual Array<PrimExpr> GetShape() const = 0;
+  virtual ffi::Array<PrimExpr> GetShape() const = 0;
   /*!
    * \brief Get the data type of the result.
    * \return The data type.
@@ -295,19 +275,8 @@ class DataProducerNode : public PrimExprConvertibleNode {
    * \brief Get the name hint of the data producer.
    * \return The data type.
    */
-  virtual String GetNameHint() const = 0;
-
-  bool SEqualReduce(const DataProducerNode* other, SEqualReducer equal) const {
-    // because buffer producer is opaque, we just do pointer equality.
-    return this == other;
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {}
-
-  static constexpr const char* _type_key = "tir.DataProducer";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_BASE_OBJECT_INFO(DataProducerNode, PrimExprConvertibleNode);
+  virtual ffi::String GetNameHint() const = 0;
+  TVM_FFI_DECLARE_OBJECT_INFO("tir.DataProducer", DataProducerNode, PrimExprConvertibleNode);
 };
 
 /*!
@@ -316,7 +285,7 @@ class DataProducerNode : public PrimExprConvertibleNode {
  */
 class DataProducer : public PrimExprConvertible {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(DataProducer, PrimExprConvertible, DataProducerNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataProducer, PrimExprConvertible, DataProducerNode);
 };
 
 /*!
@@ -332,7 +301,7 @@ class DataProducer : public PrimExprConvertible {
  * \param compact If the statement has already bound to a compact buffer.
  * \param memory_scope memory scope of the buffer
  */
-TVM_DLL tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype,
+TVM_DLL tir::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, DataType dtype,
                                               std::string name, int data_alignment,
                                               int offset_factor, bool compact,
                                               std::string memory_scope = "");

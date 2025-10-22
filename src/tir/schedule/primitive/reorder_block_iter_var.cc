@@ -27,29 +27,29 @@ namespace tir {
  */
 class InvalidReorderIndex : public ScheduleError {
  public:
-  explicit InvalidReorderIndex(IRModule mod, Block block, Array<Integer> new_order)
+  explicit InvalidReorderIndex(IRModule mod, Block block, ffi::Array<Integer> new_order)
       : mod_(mod), block_(block), new_order_(new_order) {}
   IRModule mod() const final { return mod_; }
-  String FastErrorString() const final {
+  ffi::String FastErrorString() const final {
     return "ScheduleError: The specified reorder indices are invalid.";
   }
-  String DetailRenderTemplate() const final {
+  ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "The user provided block itervar index order " << new_order_
        << " is not a valid permutation of [0, 1, ..., num_block_iter_vars-1] in block {0}.";
-    return String(os.str());
+    return ffi::String(os.str());
   }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
  private:
   IRModule mod_;
   Block block_;
-  Array<Integer> new_order_;
+  ffi::Array<Integer> new_order_;
 };
 
 class BlockIterVarRewriter : public StmtMutator {
  public:
-  Map<Block, Block> block_map;
+  ffi::Map<Block, Block> block_map;
   explicit BlockIterVarRewriter(const BlockNode* block_n, std::vector<int> order)
       : order_(std::move(order)), block_to_rewrite(block_n) {}
 
@@ -60,8 +60,8 @@ class BlockIterVarRewriter : public StmtMutator {
     if (op->block.get() == block_to_rewrite) {
       auto block_n = CopyOnWrite(op->block.get());
       Block block = op->block;
-      Array<IterVar> new_iter_vars;
-      Array<PrimExpr> new_iter_values;
+      ffi::Array<IterVar> new_iter_vars;
+      ffi::Array<PrimExpr> new_iter_values;
       for (int idx : order_) {
         new_iter_vars.push_back(block->iter_vars[idx]);
         new_iter_values.push_back(op->iter_values[idx]);
@@ -80,7 +80,7 @@ class BlockIterVarRewriter : public StmtMutator {
 };
 
 void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
-                         const Array<Integer>& new_order) {
+                         const ffi::Array<Integer>& new_order) {
   const BlockNode* block_n = TVM_SREF_TO_BLOCK(block_sref);
   std::vector<int> new_order_vec;
   for (const Integer& x : new_order) {
@@ -95,7 +95,7 @@ void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
     return x >= 0 && x < static_cast<int>(num_block_itervars);
   });
   if (!is_full || !is_unique || !is_within_boundary) {
-    throw InvalidReorderIndex(self->mod, GetRef<Block>(block_n), new_order);
+    throw InvalidReorderIndex(self->mod, ffi::GetRef<Block>(block_n), new_order);
   }
 
   // find parent block
@@ -103,13 +103,13 @@ void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
   const StmtSRefNode* p = block_sref.get()->parent;
   while (p != nullptr) {
     if (p->stmt->IsInstance<BlockNode>()) {
-      parent_block_n = TVM_SREF_TO_BLOCK(GetRef<StmtSRef>(p));
+      parent_block_n = TVM_SREF_TO_BLOCK(ffi::GetRef<StmtSRef>(p));
       break;
     }
     p = p->parent;
   }
-  const StmtSRef parent_block_sref = GetRef<StmtSRef>(p);
-  const Block& parent_block = GetRef<Block>(parent_block_n);
+  const StmtSRef parent_block_sref = ffi::GetRef<StmtSRef>(p);
+  const Block& parent_block = ffi::GetRef<Block>(parent_block_n);
 
   // rewrite block and blockrealize
   BlockIterVarRewriter rewriter(block_n, std::move(new_order_vec));
@@ -127,11 +127,12 @@ struct ReorderBlockIterVarTraits : public UnpackedInstTraits<ReorderBlockIterVar
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block, Array<Integer> new_order) {
+  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block, ffi::Array<Integer> new_order) {
     sch->ReorderBlockIterVar(block, new_order);
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String block, Array<Integer> new_order) {
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
+                                      ffi::Array<Integer> new_order) {
     PythonAPICall py("reorder_block_iter_var");
     py.Input("block", block);
     py.Input("new_order", new_order);

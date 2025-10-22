@@ -31,7 +31,7 @@ import {
   ArtifactCache,
   ArtifactCacheTemplate,
   ArtifactIndexedDBCache,
-  NDArrayShardEntry,
+  TensorShardEntry,
 } from "./artifact_cache";
 import * as compact from "./compact";
 import * as ctypes from "./ctypes";
@@ -112,7 +112,7 @@ class FFILibrary implements Disposable {
   }
 
   private validateInstance(): void {
-    this.checkExports(["TVMWasmAllocSpace", "TVMWasmFreeSpace", "TVMFuncFree"]);
+    this.checkExports(["TVMWasmAllocSpace", "TVMWasmFreeSpace"]);
   }
 
   private checkExports(funcNames: Array<string>): void {
@@ -156,24 +156,24 @@ class RuntimeContext implements Disposable {
   functionListGlobalNamesFunctor: PackedFunc;
   moduleGetFunction: PackedFunc;
   moduleImport: PackedFunc;
-  ndarrayEmpty: PackedFunc;
-  ndarrayCopyFromTo: PackedFunc;
-  ndarrayCopyFromJSBytes: PackedFunc;
-  ndarrayCopyToJSBytes: PackedFunc;
+  tensorEmpty: PackedFunc;
+  tensorCopyFromTo: PackedFunc;
+  tensorCopyFromJSBytes: PackedFunc;
+  tensorCopyToJSBytes: PackedFunc;
   arrayGetItem: PackedFunc;
   arrayGetSize: PackedFunc;
   arrayMake: PackedFunc;
   arrayConcat: PackedFunc;
   getSysLib: PackedFunc;
-  arrayCacheGet: PackedFunc;
-  arrayCacheUpdate: PackedFunc;
-  arrayCacheRemove: PackedFunc;
-  arrayCacheClear: PackedFunc;
+  tensorCacheGet: PackedFunc;
+  tensorCacheUpdate: PackedFunc;
+  tensorCacheRemove: PackedFunc;
+  tensorCacheClear: PackedFunc;
   arrayDecodeStorage: PackedFunc;
   paramModuleFromCache: PackedFunc;
   paramModuleFromCacheByName: PackedFunc;
   makeShapeTuple: PackedFunc;
-  ndarrayCreateView: PackedFunc;
+  tensorCreateView: PackedFunc;
   sampleTopPFromLogits: PackedFunc;
   sampleTopPFromProb: PackedFunc;
   applyRepetitionPenalty: PackedFunc;
@@ -189,26 +189,26 @@ class RuntimeContext implements Disposable {
     this.functionListGlobalNamesFunctor = getGlobalFunc(
       "ffi.FunctionListGlobalNamesFunctor"
     );
-    this.moduleGetFunction = getGlobalFunc("runtime.ModuleGetFunction");
-    this.moduleImport = getGlobalFunc("runtime.ModuleImport");
-    this.ndarrayEmpty = getGlobalFunc("runtime.TVMArrayAllocWithScope");
-    this.ndarrayCopyFromTo = getGlobalFunc("runtime.TVMArrayCopyFromTo");
-    this.ndarrayCopyFromJSBytes = getGlobalFunc("tvmjs.runtime.NDArrayCopyFromBytes");
-    this.ndarrayCopyToJSBytes = getGlobalFunc("tvmjs.runtime.NDArrayCopyToBytes");
-    this.arrayGetItem = getGlobalFunc("runtime.ArrayGetItem");
-    this.arrayGetSize = getGlobalFunc("runtime.ArraySize");
-    this.arrayMake = getGlobalFunc("runtime.Array");
+    this.moduleGetFunction = getGlobalFunc("ffi.ModuleGetFunction");
+    this.moduleImport = getGlobalFunc("ffi.ModuleImportModule");
+    this.tensorEmpty = getGlobalFunc("runtime.TVMTensorAllocWithScope");
+    this.tensorCopyFromTo = getGlobalFunc("runtime.TVMTensorCopyFromTo");
+    this.tensorCopyFromJSBytes = getGlobalFunc("tvmjs.runtime.NDTensorCopyFromBytes");
+    this.tensorCopyToJSBytes = getGlobalFunc("tvmjs.runtime.TensorCopyToBytes");
+    this.arrayGetItem = getGlobalFunc("ffi.ArrayGetItem");
+    this.arrayGetSize = getGlobalFunc("ffi.ArraySize");
+    this.arrayMake = getGlobalFunc("ffi.Array");
     this.arrayConcat = getGlobalFunc("tvmjs.runtime.ArrayConcat");
-    this.getSysLib = getGlobalFunc("runtime.SystemLib");
-    this.arrayCacheGet = getGlobalFunc("vm.builtin.ndarray_cache.get");
-    this.arrayCacheRemove = getGlobalFunc("vm.builtin.ndarray_cache.remove");
-    this.arrayCacheUpdate = getGlobalFunc("vm.builtin.ndarray_cache.update");
-    this.arrayCacheClear = getGlobalFunc("vm.builtin.ndarray_cache.clear");
+    this.getSysLib = getGlobalFunc("ffi.SystemLib");
+    this.tensorCacheGet = getGlobalFunc("vm.builtin.tensor_cache.get");
+    this.tensorCacheRemove = getGlobalFunc("vm.builtin.tensor_cache.remove");
+    this.tensorCacheUpdate = getGlobalFunc("vm.builtin.tensor_cache.update");
+    this.tensorCacheClear = getGlobalFunc("vm.builtin.tensor_cache.clear");
     this.arrayDecodeStorage = getGlobalFunc("tvmjs.array.decode_storage");
     this.paramModuleFromCache = getGlobalFunc("vm.builtin.param_module_from_cache");
     this.paramModuleFromCacheByName = getGlobalFunc("vm.builtin.param_module_from_cache_by_name");
     this.makeShapeTuple = getGlobalFunc("ffi.Shape");
-    this.ndarrayCreateView = getGlobalFunc("runtime.TVMArrayCreateView");
+    this.tensorCreateView = getGlobalFunc("runtime.TVMTensorCreateView");
     this.sampleTopPFromLogits = getGlobalFunc("vm.builtin.sample_top_p_from_logits");
     this.sampleTopPFromProb = getGlobalFunc("vm.builtin.sample_top_p_from_prob");
     this.applyRepetitionPenalty = getGlobalFunc("vm.builtin.apply_repetition_penalty");
@@ -219,20 +219,20 @@ class RuntimeContext implements Disposable {
 
   dispose(): void {
     // call array cache clear to clear all cached items
-    this.arrayCacheClear.dispose();
+    this.tensorCacheClear.dispose();
     this.arrayGetItem.dispose();
     this.arrayGetSize.dispose();
     this.arrayMake.dispose();
     this.arrayConcat.dispose();
-    this.arrayCacheGet.dispose();
-    this.arrayCacheRemove.dispose();
-    this.arrayCacheUpdate.dispose();
-    this.arrayCacheClear.dispose();
+    this.tensorCacheGet.dispose();
+    this.tensorCacheRemove.dispose();
+    this.tensorCacheUpdate.dispose();
+    this.tensorCacheClear.dispose();
     this.arrayDecodeStorage.dispose();
     this.paramModuleFromCache.dispose();
     this.paramModuleFromCacheByName.dispose();
     this.makeShapeTuple.dispose();
-    this.ndarrayCreateView.dispose();
+    this.tensorCreateView.dispose();
     this.sampleTopPFromLogits.dispose();
     this.applyRepetitionPenalty.dispose();
     this.applyPresenceAndFrequencyPenalty.dispose();
@@ -339,7 +339,7 @@ const DeviceStrToEnum: Record<string, number> = {
 };
 
 /**
- * Represent a runtime context where a NDArray can reside.
+ * Represent a runtime context where a Tensor can reside.
  */
 export class DLDevice {
   /** The device type code of the device. */
@@ -399,7 +399,7 @@ const DLDataTypeCodeToStr: Record<number, string> = {
 };
 
 /**
- * Runtime data type of NDArray.
+ * Runtime data type of Tensor.
  */
 export class DLDataType {
   /** The type code */
@@ -450,7 +450,7 @@ export class TVMObject implements Disposable {
   dispose(): void {
     if (this.handle != 0) {
       this.lib.checkCall(
-        (this.lib.exports.TVMFFIObjectFree as ctypes.FTVMFFIObjectFree)(this.handle)
+        (this.lib.exports.TVMFFIObjectDecRef as ctypes.FTVMFFIObjectDecRef)(this.handle)
       );
       this.handle = 0;
     }
@@ -497,10 +497,10 @@ class PackedFuncCell extends TVMObject {
 }
 
 /**
- * n-dimnesional array.
+ * Tensor( n-dimnesional array).
  */
 
-export class NDArray extends TVMObject {
+export class Tensor extends TVMObject {
   /** Number of dimensions. */
   ndim: number;
   /** Data type of the array. */
@@ -572,12 +572,12 @@ export class NDArray extends TVMObject {
    * @param dtype The data type of the new array.
    * @returns The new sliced ndarray.
    */
-  view(shape: Array<number>, dtype?: string): NDArray {
+  view(shape: Array<number>, dtype?: string): Tensor {
     const shapeArray = shape.map((value) => new Scalar(value, "int"));
     if (dtype === undefined) {
       dtype = this.dtype;
     }
-    return this.ctx.ndarrayCreateView(
+    return this.ctx.tensorCreateView(
       this,
       this.ctx.makeShapeTuple(...shapeArray),
       this.dtype,
@@ -591,24 +591,24 @@ export class NDArray extends TVMObject {
    */
   getDataPtr(): Pointer {
     if (this.handle === 0) {
-      throw Error("NDArray has already been disposed");
+      throw Error("Tensor has already been disposed");
     }
     return this.dataPtr;
   }
 
   /**
-   * Copy data from another NDArray or javascript array.
+   * Copy data from another Tensor or javascript array.
    * The number of elements must match.
    *
    * @param data The source data array.
    * @returns this
    */
   copyFrom(
-    data: NDArray | Array<number> | Float32Array | Float64Array |
+    data: Tensor | Array<number> | Float32Array | Float64Array |
       Int32Array | Int8Array | Uint8Array | Uint8ClampedArray
   ): this {
-    if (data instanceof NDArray) {
-      this.ctx.ndarrayCopyFromTo(data, this);
+    if (data instanceof Tensor) {
+      this.ctx.tensorCopyFromTo(data, this);
       return this;
     } else {
       const size = this.shape.reduce((a, b) => {
@@ -660,23 +660,23 @@ export class NDArray extends TVMObject {
     if (nbytes != data.length) {
       throw new Error("Expect the data's length equals nbytes=" + nbytes);
     }
-    this.ctx.ndarrayCopyFromJSBytes(this, data);
+    this.ctx.tensorCopyFromJSBytes(this, data);
     return this;
   }
   /**
-   * Return a copied Uint8Array of the raw bytes in the NDArray.
+   * Return a copied Uint8Array of the raw bytes in the Tensor.
    * @returns The result array.
    */
   toRawBytes(): Uint8Array {
     if (this.device.deviceType != DeviceStrToEnum.cpu) {
       throw new Error("Can only sync copy CPU array, use cpu_arr.copyfrom(gpu_arr) then sync instead.");
     }
-    return this.ctx.ndarrayCopyToJSBytes(this) as Uint8Array;
+    return this.ctx.tensorCopyToJSBytes(this) as Uint8Array;
   }
 
   /**
-   * Return a TypedArray copy of the NDArray, the specific type depends on
-   * the dtype of the NDArray.
+   * Return a TypedArray copy of the Tensor, the specific type depends on
+   * the dtype of the Tensor.
    * @returns The result array.
    */
   toArray(): Float32Array | Float64Array | Int32Array | Int8Array | Uint8Array {
@@ -834,7 +834,7 @@ export type InitProgressCallback = (report: InitProgressReport) => void;
 /**
  * TVM runtime instance.
  *
- * All objects(NDArray, Module, PackedFunc) returned by TVM runtim function call
+ * All objects(Tensor, Module, PackedFunc) returned by TVM runtim function call
  * and PackedFunc instance are tracked through a scope mechanism that will get
  * auto-released when we call EndScope.
  *
@@ -1179,7 +1179,7 @@ export class Instance implements Disposable {
   }
 
   //-----------------------------------------------
-  // Native NDArray Cache Support
+  // Native Tensor Cache Support
   //-----------------------------------------------
   /**
    * Register a call back for fetch progress.
@@ -1213,53 +1213,53 @@ export class Instance implements Disposable {
   }
 
   /**
-   * Get NDArray from cache.
+   * Get Tensor from cache.
    * @param name  The name of array.
    * @returns  The result.
    */
-  ndarrayCacheGet(name: string): NDArray | undefined {
-    return this.ctx.arrayCacheGet(name);
+  tensorCacheGet(name: string): Tensor | undefined {
+    return this.ctx.tensorCacheGet(name);
   }
 
   /**
-   * Get NDArray from cache.
+   * Get Tensor from cache.
    * @param name  The name of array.
    * @returns  The result.
    */
-  ndarrayCacheRemove(name: string): NDArray | undefined {
-    return this.ctx.arrayCacheRemove(name);
+  tensorCacheRemove(name: string): Tensor | undefined {
+    return this.ctx.tensorCacheRemove(name);
   }
 
   /**
-   * Update the ndarray cache.
+   * Update the tensor cache.
    * @param name The name of the array.
    * @param arr The content.
    */
-  ndarrayCacheUpdate(name: string, arr: NDArray, override = false) {
-    this.ctx.arrayCacheUpdate(name, arr, this.scalar(override ? 1 : 0, "int32"));
+  tensorCacheUpdate(name: string, arr: Tensor, override = false) {
+    this.ctx.tensorCacheUpdate(name, arr, this.scalar(override ? 1 : 0, "int32"));
   }
 
   /**
-   * Update the ndarray cache.
+   * Update the tensor cache.
    * @param name The name of the array.
    * @param arr The content.
    */
-  ndarrayCacheClear() {
-    this.ctx.arrayCacheClear();
+  tensorCacheClear() {
+    this.ctx.tensorCacheClear();
   }
 
   /**
-   * Given cacheUrl, search up items to fetch based on cacheUrl/ndarray-cache.json
+   * Given cacheUrl, search up items to fetch based on cacheUrl/tensor-cache.json
    *
-   * @param ndarrayCacheUrl The cache url.
+   * @param tensorCacheUrl The cache url.
    * @param device The device to be fetched to.
    * @param cacheScope The scope identifier of the cache
    * @param cacheType The type of the cache: "cache" or "indexedDB"
    * @param signal An optional AbortSignal to abort the fetch
    * @returns The meta data
    */
-  async fetchNDArrayCache(
-    ndarrayCacheUrl: string,
+  async fetchTensorCache(
+    tensorCacheUrl: string,
     device: DLDevice,
     cacheScope = "tvmjs",
     cacheType = "cache",
@@ -1274,28 +1274,28 @@ export class Instance implements Disposable {
       console.error("Unsupported cacheType: " + cacheType + ", using default ArtifactCache.");
       artifactCache = new ArtifactCache(cacheScope);
     }
-    const jsonUrl = new URL("ndarray-cache.json", ndarrayCacheUrl).href;
+    const jsonUrl = new URL("tensor-cache.json", tensorCacheUrl).href;
     const list = await artifactCache.fetchWithCache(jsonUrl, "json");
-    await this.fetchNDArrayCacheInternal(
-      ndarrayCacheUrl,
-      list["records"] as Array<NDArrayShardEntry>, device, artifactCache,
+    await this.fetchTensorCacheInternal(
+      tensorCacheUrl,
+      list["records"] as Array<TensorShardEntry>, device, artifactCache,
       signal);
     this.cacheMetadata = { ...this.cacheMetadata, ...(list["metadata"] as Record<string, any>) };
   }
 
 
   /**
-   * Fetch list of NDArray into the NDArrayCache.
+   * Fetch list of Tensor into the TensorCache.
    *
-   * @param ndarrayCacheUrl The cache url.
+   * @param tensorCacheUrl The cache url.
    * @param list The list of array data.
    * @param device The device to store the data to.
    * @param artifactCache The artifact cache
    * @param signal An optional AbortSignal to abort the fetch
    */
-  private async fetchNDArrayCacheInternal(
-    ndarrayCacheUrl: string,
-    list: Array<NDArrayShardEntry>,
+  private async fetchTensorCacheInternal(
+    tensorCacheUrl: string,
+    list: Array<TensorShardEntry>,
     device: DLDevice,
     artifactCache: ArtifactCacheTemplate,
     signal?: AbortSignal,
@@ -1310,7 +1310,7 @@ export class Instance implements Disposable {
     let fetchedShards = 0;
     let timeElapsed = 0;
 
-    const cacheOnly = await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href));
+    const cacheOnly = await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, tensorCacheUrl).href));
 
     // `loading`: we have finished downloading (or already cacheOnly) and are loading onto WebGPU
     const reportCallback = (iter: number, loading = false) => {
@@ -1351,7 +1351,7 @@ export class Instance implements Disposable {
       // Download params [start, end) from `list`
       for (let i = start; i < end; i++) {
         const shard = list[i];
-        const dataUrl = new URL(shard.dataPath, ndarrayCacheUrl).href;
+        const dataUrl = new URL(shard.dataPath, tensorCacheUrl).href;
         try {
           await artifactCache.addToCache(dataUrl, "arraybuffer", signal);
         } catch (err) {
@@ -1377,7 +1377,7 @@ export class Instance implements Disposable {
     // Then iteratively, load the shard from cache
     for (let i = 0; i < list.length; ++i) {
       const shard = list[i];
-      const dataUrl = new URL(shard.dataPath, ndarrayCacheUrl).href;
+      const dataUrl = new URL(shard.dataPath, tensorCacheUrl).href;
       let buffer;
       try {
         buffer = await artifactCache.fetchWithCache(dataUrl, "arraybuffer");
@@ -1399,7 +1399,7 @@ export class Instance implements Disposable {
           this.ctx.arrayDecodeStorage(cpu_arr, new Uint8Array(recSource), rec.format, rec.dtype);
           // then async stream into GPU if needed
           if (device.deviceType === DeviceStrToEnum.cpu) {
-            this.ndarrayCacheUpdate(rec.name, cpu_arr, false);
+            this.tensorCacheUpdate(rec.name, cpu_arr, false);
             cpu_arr.dispose();
           } else {
             // allocate a gpu arr and async copy to it.
@@ -1410,7 +1410,7 @@ export class Instance implements Disposable {
             });
             gpu_arr.copyFrom(cpu_arr);
             await device.sync();
-            this.ndarrayCacheUpdate(rec.name, gpu_arr, false);
+            this.tensorCacheUpdate(rec.name, gpu_arr, false);
             cpu_arr.dispose();
             gpu_arr.dispose();
           }
@@ -1463,7 +1463,7 @@ export class Instance implements Disposable {
   }
 
   /**
-   * Create an empty {@link NDArray} with given shape and dtype.
+   * Create an empty {@link Tensor} with given shape and dtype.
    *
    * @param shape The shape of the array.
    * @param dtype The data type of the array.
@@ -1474,13 +1474,13 @@ export class Instance implements Disposable {
     shape: Array<number> | number,
     dtype: string | DLDataType = "float32",
     dev: DLDevice = this.device("cpu", 0)
-  ): NDArray {
+  ): Tensor {
     shape = typeof shape === "number" ? [shape] : shape;
-    return this.ctx.ndarrayEmpty(this.makeShapeTuple(shape), dtype, dev, null);
+    return this.ctx.tensorEmpty(this.makeShapeTuple(shape), dtype, dev, null);
   }
 
   /**
-   * Create am uniform {@link NDArray} with given shape.
+   * Create am uniform {@link Tensor} with given shape.
    *
    * @param shape The shape of the array.
    * @param low The low value.
@@ -1493,7 +1493,7 @@ export class Instance implements Disposable {
     low: number,
     high: number,
     dev: DLDevice
-  ): NDArray {
+  ): Tensor {
     const ret = this.empty(shape, "float32", dev);
     const size = shape.reduce((a, b) => {
       return a * b;
@@ -1521,7 +1521,7 @@ export class Instance implements Disposable {
    * @param top_p The top_p
    * @returns The sampled index.
    */
-  sampleTopPFromLogits(logits: NDArray, temperature: number, top_p: number): number {
+  sampleTopPFromLogits(logits: Tensor, temperature: number, top_p: number): number {
     return this.ctx.sampleTopPFromLogits(logits, temperature, top_p, this.rng.randomFloat());
   }
 
@@ -1532,7 +1532,7 @@ export class Instance implements Disposable {
    * @param top_p The top_p
    * @returns The sampled index.
    */
-  sampleTopPFromProb(prob: NDArray, top_p: number): number {
+  sampleTopPFromProb(prob: Tensor, top_p: number): number {
     return this.ctx.sampleTopPFromProb(prob, top_p, this.rng.randomFloat());
   }
 
@@ -1542,7 +1542,7 @@ export class Instance implements Disposable {
    * @param token_ids The appeared token ids.
    * @param penalty The penalty factor.
    */
-  applyRepetitionPenalty(logits: NDArray, token_ids: NDArray, penalty: number) {
+  applyRepetitionPenalty(logits: Tensor, token_ids: Tensor, penalty: number) {
     return this.ctx.applyRepetitionPenalty(logits, token_ids, penalty);
   }
 
@@ -1556,9 +1556,9 @@ export class Instance implements Disposable {
    * @param frequency_penalty The penalty factor.
    */
   applyPresenceAndFrequencyPenalty(
-    logits: NDArray,
-    token_ids: NDArray,
-    token_freqs: NDArray,
+    logits: Tensor,
+    token_ids: Tensor,
+    token_freqs: Tensor,
     presence_penalty: number,
     frequency_penalty: number
   ) {
@@ -1572,7 +1572,7 @@ export class Instance implements Disposable {
    * @param logits The input logits before softmax w/ temperature.
    * @param temperature The temperature factor.
    */
-  applySoftmaxWithTemperature(logits: NDArray, temperature: number) {
+  applySoftmaxWithTemperature(logits: Tensor, temperature: number) {
     return this.ctx.applySoftmaxWithTemperature(logits, temperature);
   }
 
@@ -1587,11 +1587,11 @@ export class Instance implements Disposable {
   /**
    * Show image in canvas.
    *
-   * @param dataRGBA Image array in height x width uint32 NDArray RGBA format on GPU.
+   * @param dataRGBA Image array in height x width uint32 Tensor RGBA format on GPU.
    */
-  showImage(dataRGBA: NDArray) {
+  showImage(dataRGBA: Tensor) {
     if (dataRGBA.shape.length != 2) {
-      throw Error("Require a height x width uint32 NDArray in RGBA" +
+      throw Error("Require a height x width uint32 Tensor in RGBA" +
         "get shape=" + dataRGBA.shape.toString() + " instead."
       );
     }
@@ -1600,7 +1600,7 @@ export class Instance implements Disposable {
         "get " + DeviceEnumToStr[dataRGBA.device.deviceType] + " instead.");
     }
     if (dataRGBA.dtype != "uint32") {
-      throw Error("Require a height x width uint32 NDArray in RGBA, " +
+      throw Error("Require a height x width uint32 Tensor in RGBA, " +
         "get " + dataRGBA.dtype + " instead.");
     }
     this.lib.webGPUContext?.drawImageFromBuffer(
@@ -1644,11 +1644,11 @@ export class Instance implements Disposable {
   }
 
   /**
-   * Join a sequence of NDArrays that represent embeddings.
-   * @param inputs A list of embeddings in NDArrays, each array i has shape (m_i, hidden_size).
-   * @returns An NDArray of shape (\sum_{i} {m}, hidden_size)
+   * Join a sequence of Tensors that represent embeddings.
+   * @param inputs A list of embeddings in Tensors, each array i has shape (m_i, hidden_size).
+   * @returns An Tensor of shape (\sum_{i} {m}, hidden_size)
    */
-  concatEmbeddings(embeddings: Array<NDArray>): NDArray {
+  concatEmbeddings(embeddings: Array<Tensor>): Tensor {
     // 1. Check shape validity
     const hidden_size = embeddings[0].shape[1];
     embeddings.forEach((input) => {
@@ -1664,7 +1664,7 @@ export class Instance implements Disposable {
         "not found, but called concatEmbeddings."
       );
     }
-    return this.ctx.concatEmbeddings(...embeddings) as NDArray;
+    return this.ctx.concatEmbeddings(...embeddings) as Tensor;
   }
 
   /**
@@ -1900,7 +1900,7 @@ export class Instance implements Disposable {
       (handle: number, lib: FFILibrary, ctx: RuntimeContext) => {
         return new TVMArray(handle, lib, ctx);
       });
-    this.registerObjectConstructor("runtime.Module",
+    this.registerObjectConstructor("ffi.Module",
       (handle: number, lib: FFILibrary, ctx: RuntimeContext) => {
         return new Module(handle, lib, ctx);
       });
@@ -2019,6 +2019,7 @@ export class Instance implements Disposable {
       const tp = typeof val;
       const argOffset = packedArgs + i * SizeOf.TVMFFIAny;
       const argTypeIndexOffset = argOffset;
+      const argZeroPaddingOffset = argOffset + SizeOf.I32;
       const argValueOffset = argOffset + SizeOf.I32 * 2;
 
       // Convert string[] to a TVMArray of, hence treated as a TVMObject
@@ -2028,12 +2029,13 @@ export class Instance implements Disposable {
         val = this.makeTVMArray(tvmStringArray);
       }
 
-      // clear off the extra padding valuesbefore ptr storage
-      stack.storeI32(argTypeIndexOffset + SizeOf.I32, 0);
+      // clear off the extra zero padding before ptr storage
+      stack.storeI32(argZeroPaddingOffset, 0);
+      // clear off the extra zero padding after ptr storage
       stack.storeI32(argValueOffset + SizeOf.I32, 0);
-      if (val instanceof NDArray) {
+      if (val instanceof Tensor) {
         if (!val.isView) {
-          stack.storeI32(argTypeIndexOffset, TypeIndex.kTVMFFINDArray);
+          stack.storeI32(argTypeIndexOffset, TypeIndex.kTVMFFITensor);
           stack.storePtr(argValueOffset, val.getHandle());
         } else {
           stack.storeI32(argTypeIndexOffset, TypeIndex.kTVMFFIDLTensorPtr);
@@ -2177,6 +2179,8 @@ export class Instance implements Disposable {
       const retOffset = stack.allocRawBytes(SizeOf.TVMFFIAny);
       // pre-store the result to be null
       stack.storeI32(retOffset, TypeIndex.kTVMFFINone);
+      // clear off the extra zero padding before ptr storage
+      stack.storeI32(retOffset + SizeOf.I32, 0);
       stack.commitToWasmMemory();
       this.lib.checkCall(
         (this.exports.TVMFFIFunctionCall as ctypes.FTVMFFIFunctionCall)(
@@ -2221,15 +2225,15 @@ export class Instance implements Disposable {
       case TypeIndex.kTVMFFIOpaquePtr: {
         return this.memory.loadPointer(valuePtr);
       }
-      case TypeIndex.kTVMFFINDArray: {
+      case TypeIndex.kTVMFFITensor: {
         return this.ctx.attachToCurrentScope(
-          new NDArray(this.memory.loadPointer(valuePtr), this.lib, this.ctx, false)
+          new Tensor(this.memory.loadPointer(valuePtr), this.lib, this.ctx, false)
         );
       }
       case TypeIndex.kTVMFFIDLTensorPtr: {
         assert(callbackArg);
         // no need to attach as we are only looking at view
-        return new NDArray(this.memory.loadPointer(valuePtr), this.lib, this.ctx, true);
+        return new Tensor(this.memory.loadPointer(valuePtr), this.lib, this.ctx, true);
       }
       case TypeIndex.kTVMFFIFunction: {
         return this.ctx.attachToCurrentScope(
@@ -2249,23 +2253,29 @@ export class Instance implements Disposable {
         const strObjPtr = this.memory.loadPointer(valuePtr);
         const result = this.memory.loadByteArrayAsString(strObjPtr + SizeOf.ObjectHeader);
         this.lib.checkCall(
-          (this.lib.exports.TVMFFIObjectFree as ctypes.FTVMFFIObjectFree)(strObjPtr)
+          (this.lib.exports.TVMFFIObjectDecRef as ctypes.FTVMFFIObjectDecRef)(strObjPtr)
         );
         return result;
+      }
+      case TypeIndex.kTVMFFISmallStr: {
+        return this.memory.loadSmallStr(resultAnyPtr);
       }
       case TypeIndex.kTVMFFIStr: {
         const strObjPtr = this.memory.loadPointer(valuePtr);
         const result = this.memory.loadByteArrayAsString(strObjPtr + SizeOf.ObjectHeader);
         this.lib.checkCall(
-          (this.lib.exports.TVMFFIObjectFree as ctypes.FTVMFFIObjectFree)(strObjPtr)
+          (this.lib.exports.TVMFFIObjectDecRef as ctypes.FTVMFFIObjectDecRef)(strObjPtr)
         );
         return result;
+      }
+      case TypeIndex.kTVMFFISmallBytes: {
+        return this.memory.loadSmallBytes(resultAnyPtr);
       }
       case TypeIndex.kTVMFFIBytes: {
         const bytesObjPtr = this.memory.loadPointer(valuePtr);
         const result = this.memory.loadByteArrayAsBytes(bytesObjPtr + SizeOf.ObjectHeader);
         this.lib.checkCall(
-          (this.lib.exports.TVMFFIObjectFree as ctypes.FTVMFFIObjectFree)(bytesObjPtr)
+          (this.lib.exports.TVMFFIObjectDecRef as ctypes.FTVMFFIObjectDecRef)(bytesObjPtr)
         );
         return result;
       }

@@ -46,7 +46,7 @@
  * It is assumed that the controler can synchronize with and access the registers of worker-0.
  * The Disco session provides multiple APIs to interact specifically with the worker-0.
  * To shared data with other workers, a common paradigm in Disco is to copy data from the
- * controler-side NDArray to the worker-0, and then copy it to other workers using primitives on
+ * controler-side Tensor to the worker-0, and then copy it to other workers using primitives on
  * the data plane, for example, `broadcast` and `send`.
  *
  * **Control plane.** The controler broadcasts commands to all the workers as control signals.
@@ -74,8 +74,8 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/int_tuple.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/tensor.h>
 
 #include <queue>
 #include <string>
@@ -124,6 +124,8 @@ inline std::string DiscoAction2String(DiscoAction action) {
   LOG(FATAL) << "ValueError: Unknown DiscoAction: " << static_cast<int>(action);
 }
 
+class SessionObj;
+
 /*!
  * \brief An object that exists on all workers.
  *
@@ -141,21 +143,24 @@ class DRefObj : public Object {
    */
   inline ffi::Any DebugGetFromRemote(int worker_id);
   /*!
-   * \brief Copy from the NDArray provided to a remote worker.
+   * \brief Copy from the Tensor provided to a remote worker.
    * \param worker_id The id of the worker to be copied to.
-   * \param source The NDArray to be copied.
+   * \param source The Tensor to be copied.
    */
   inline void DebugCopyFrom(int worker_id, ffi::AnyView source);
 
-  static constexpr const char* _type_key = "runtime.disco.DRef";
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimeDiscoDRef;
   static const constexpr bool _type_final = true;
-  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(DRefObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_STATIC("runtime.disco.DRef", DRefObj, Object);
 
   /*! \brief The id of the register */
   int64_t reg_id;
   /*! \brief Back-pointer to the host controler session */
   ObjectRef session{nullptr};
+
+ private:
+  inline SessionObj* GetSession();
 };
 
 /*!
@@ -165,7 +170,8 @@ class DRefObj : public Object {
  */
 class DRef : public ObjectRef {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(DRef, ObjectRef, DRefObj);
+  explicit DRef(ObjectPtr<DRefObj> data) : ObjectRef(data) { TVM_FFI_ICHECK(data != nullptr); }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DRef, ObjectRef, DRefObj);
 };
 
 /*!
@@ -184,7 +190,7 @@ class SessionObj : public Object {
    * - std::string;
    * - DRef.
    * Examples of unsupported types:
-   * - NDArray, DLTensor;
+   * - Tensor, DLTensor;
    * - TVM Objects, including ffi::Function, Module and String;
    * \param func The function to be called.
    * \param args The variadic arguments.
@@ -204,17 +210,17 @@ class SessionObj : public Object {
   /*! \brief Get a global functions on workers. */
   TVM_DLL virtual DRef GetGlobalFunc(const std::string& name) = 0;
   /*!
-   * \brief Copy an NDArray from worker-0 to the controler-side NDArray
+   * \brief Copy an Tensor from worker-0 to the controler-side Tensor
    * \param host_array The array to be copied to worker-0
-   * \param remote_array The NDArray on worker-0
+   * \param remote_array The Tensor on worker-0
    */
-  TVM_DLL virtual void CopyFromWorker0(const NDArray& host_array, const DRef& remote_array) = 0;
+  TVM_DLL virtual void CopyFromWorker0(const Tensor& host_array, const DRef& remote_array) = 0;
   /*!
-   * \brief Copy the controler-side NDArray to worker-0
+   * \brief Copy the controler-side Tensor to worker-0
    * \param host_array The array to be copied to worker-0
-   * \param remote_array The NDArray on worker-0
+   * \param remote_array The Tensor on worker-0
    */
-  TVM_DLL virtual void CopyToWorker0(const NDArray& host_array, const DRef& remote_array) = 0;
+  TVM_DLL virtual void CopyToWorker0(const Tensor& host_array, const DRef& remote_array) = 0;
   /*!
    * \brief Synchrnoize the controler with a worker, and it will wait until worker finishes
    * executing this instruction.
@@ -230,7 +236,7 @@ class SessionObj : public Object {
    * \param ccl The name of the communication backend, e.g., nccl, rccl, mpi.
    * \param device_ids The device ids of the workers.
    */
-  TVM_DLL virtual void InitCCL(String ccl, IntTuple device_ids) = 0;
+  TVM_DLL virtual void InitCCL(ffi::String ccl, IntTuple device_ids) = 0;
   /*!
    * \brief Get the value of a register from a remote worker.
    * \param reg_id The id of the register to be fetched.
@@ -249,8 +255,9 @@ class SessionObj : public Object {
   struct FFI;
   friend struct SessionObj::FFI;
   friend class DRefObj;
-  static constexpr const char* _type_key = "runtime.disco.Session";
-  TVM_DECLARE_BASE_OBJECT_INFO(SessionObj, Object);
+
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("runtime.disco.Session", SessionObj, Object);
 
  protected:
   /*! \brief Deallocate a register id, kill it on all workers, and append it to `free_regs_`. */
@@ -282,9 +289,9 @@ class Session : public ObjectRef {
    * worker-0 does not exist in the process pool.
    */
   TVM_DLL static Session ProcessSession(int num_workers, int num_groups,
-                                        String process_pool_creator, String entrypoint);
+                                        ffi::String process_pool_creator, ffi::String entrypoint);
 
-  TVM_FFI_DEFINE_MUTABLE_OBJECT_REF_METHODS(Session, ObjectRef, SessionObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Session, ObjectRef, SessionObj);
 };
 
 /*!
@@ -314,25 +321,29 @@ class WorkerZeroData {
    * \brief The host-side arrays to passed to worker-0 for special uses, for example,
    * copy-to-worker0 and copy-from-worker0
    */
-  std::queue<NDArray> host_arrays;
+  std::queue<Tensor> host_arrays;
   /*! \brief The mutex that guards `host_arrays` */
   std::mutex queue_mutex_;
 };
 
 // Implementation details
 
+inline SessionObj* DRefObj::GetSession() {
+  return const_cast<SessionObj*>(static_cast<const SessionObj*>(session.get()));
+}
+
 DRefObj::~DRefObj() {
   if (this->session.defined()) {
-    Downcast<Session>(this->session)->DeallocReg(reg_id);
+    GetSession()->DeallocReg(reg_id);
   }
 }
 
 ffi::Any DRefObj::DebugGetFromRemote(int worker_id) {
-  return Downcast<Session>(this->session)->DebugGetFromRemote(this->reg_id, worker_id);
+  return GetSession()->DebugGetFromRemote(this->reg_id, worker_id);
 }
 
 void DRefObj::DebugCopyFrom(int worker_id, ffi::AnyView value) {
-  return Downcast<Session>(this->session)->DebugSetRegister(this->reg_id, value, worker_id);
+  return GetSession()->DebugSetRegister(this->reg_id, value, worker_id);
 }
 
 template <typename... Args>

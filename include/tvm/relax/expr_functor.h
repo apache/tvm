@@ -379,7 +379,7 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
    */
   bool VisitAndCheckStructInfoFieldUnchanged(const ObjectRef& struct_info) {
     if (const StructInfoNode* sinfo = struct_info.as<StructInfoNode>()) {
-      return this->VisitExprDepStructInfoField(GetRef<StructInfo>(sinfo)).same_as(struct_info);
+      return this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo)).same_as(struct_info);
     } else {
       return true;
     }
@@ -421,7 +421,7 @@ class ExprMutator : public ExprMutatorBase {
  public:
   using ExprMutatorBase::VisitExpr_;
 
-  ExprMutator(Optional<IRModule> mod = std::nullopt) { builder_ = BlockBuilder::Create(mod); }
+  ExprMutator(ffi::Optional<IRModule> mod = std::nullopt) { builder_ = BlockBuilder::Create(mod); }
   Expr VisitExpr(const Expr& expr) override;
   Expr VisitExpr_(const VarNode* op) override;
   Expr VisitExpr_(const DataflowVarNode* op) override;
@@ -502,7 +502,8 @@ class ExprMutator : public ExprMutatorBase {
    *
    * \note The body_expr must be an SeqExpr in the normal form.
    */
-  Expr VisitWithNewScope(const Expr& body_expr, Optional<Array<Var>> params = std::nullopt);
+  Expr VisitWithNewScope(const Expr& body_expr,
+                         ffi::Optional<ffi::Array<Var>> params = std::nullopt);
 
   /*!
    * \brief Rewrite the expr with a new scope, used in the branches of If.
@@ -526,7 +527,7 @@ class ExprMutator : public ExprMutatorBase {
    * \return The value bound to the input \p var.
    * \note For function parameters, this function returns std::nullopt.
    */
-  Optional<Expr> LookupBinding(const Var& var);
+  ffi::Optional<Expr> LookupBinding(const Var& var);
 
   /*!
    * \brief Post-order rewrite a node and normalize.

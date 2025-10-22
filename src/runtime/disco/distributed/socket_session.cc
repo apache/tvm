@@ -56,7 +56,7 @@ class DiscoSocketChannel : public DiscoChannel {
 class SocketSessionObj : public BcastSessionObj {
  public:
   explicit SocketSessionObj(int num_nodes, int num_workers_per_node, int num_groups,
-                            const String& host, int port)
+                            const ffi::String& host, int port)
       : num_nodes_(num_nodes), num_workers_per_node_(num_workers_per_node) {
     const auto f_create_local_session =
         tvm::ffi::Function::GetGlobal("runtime.disco.create_socket_session_local_workers");
@@ -173,8 +173,8 @@ class SocketSessionObj : public BcastSessionObj {
     return remote_channels_[node_id - 1]->Recv();
   }
 
-  void AppendHostNDArray(const NDArray& host_array) final {
-    local_session_->AppendHostNDArray(host_array);
+  void AppendHostTensor(const Tensor& host_array) final {
+    local_session_->AppendHostTensor(host_array);
   }
 
   void Shutdown() final {
@@ -196,9 +196,8 @@ class SocketSessionObj : public BcastSessionObj {
   }
 
   ~SocketSessionObj() { Shutdown(); }
-
-  static constexpr const char* _type_key = "runtime.disco.SocketSession";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SocketSessionObj, BcastSessionObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.SocketSession", SocketSessionObj,
+                                    BcastSessionObj);
   int num_nodes_;
   int num_workers_per_node_;
   TCPSocket socket_;
@@ -207,11 +206,10 @@ class SocketSessionObj : public BcastSessionObj {
   BcastSession local_session_{nullptr};
 };
 
-TVM_REGISTER_OBJECT_TYPE(SocketSessionObj);
-
 class RemoteSocketSession {
  public:
-  explicit RemoteSocketSession(const String& server_host, int server_port, int num_local_workers) {
+  explicit RemoteSocketSession(const ffi::String& server_host, int server_port,
+                               int num_local_workers) {
     socket_.Create();
     socket_.SetKeepAlive(true);
     SockAddr server_addr{server_host.c_str(), server_port};
@@ -289,25 +287,27 @@ class RemoteSocketSession {
   int num_workers_per_node_{-1};
 };
 
-void RemoteSocketSessionEntryPoint(const String& server_host, int server_port,
+void RemoteSocketSessionEntryPoint(const ffi::String& server_host, int server_port,
                                    int num_local_workers) {
   RemoteSocketSession proxy(server_host, server_port, num_local_workers);
   proxy.MainLoop();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("runtime.disco.RemoteSocketSession", RemoteSocketSessionEntryPoint);
-});
+}
 
-Session SocketSession(int num_nodes, int num_workers_per_node, int num_groups, const String& host,
-                      int port) {
-  auto n = make_object<SocketSessionObj>(num_nodes, num_workers_per_node, num_groups, host, port);
+Session SocketSession(int num_nodes, int num_workers_per_node, int num_groups,
+                      const ffi::String& host, int port) {
+  auto n =
+      ffi::make_object<SocketSessionObj>(num_nodes, num_workers_per_node, num_groups, host, port);
   return Session(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<SocketSessionObj>();
   refl::GlobalDef()
       .def("runtime.disco.SocketSession", SocketSession)
       .def("runtime.disco.socket_session_init_workers",
@@ -320,7 +320,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              worker->worker_id = worker->worker_id + node_id * num_workers_per_node;
              worker->num_workers = num_nodes * num_workers_per_node;
            });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

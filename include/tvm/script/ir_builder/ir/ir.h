@@ -45,14 +45,14 @@ TVM_DLL IRModuleFrame IRModule();
  *                       (i.e. func params and func return type/shape).
  * \return The corresponding GlobalVar.
  */
-TVM_DLL GlobalVar DeclFunction(const String& func_name, const BaseFunc& func_signature);
+TVM_DLL GlobalVar DeclFunction(const ffi::String& func_name, const BaseFunc& func_signature);
 
 /*!
  * \brief Define the function which is declared before.
  * \param func_name The function unique name.
  * \param func The given function implementation
  */
-TVM_DLL void DefFunction(const String& func_name, const BaseFunc& func);
+TVM_DLL void DefFunction(const ffi::String& func_name, const BaseFunc& func);
 
 }  // namespace ir
 }  // namespace ir_builder

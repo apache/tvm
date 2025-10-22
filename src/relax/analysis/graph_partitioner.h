@@ -83,7 +83,7 @@ class IndexedForwardGraph {
     std::ostringstream os;
     for (size_t i = 0; i < post_dfs_order.size(); ++i) {
       Node* node = post_dfs_order[i];
-      os << "node[" << i << "], " << GetRef<ObjectRef>(node->ref) << " outputs=[";
+      os << "node[" << i << "], " << ffi::GetRef<ObjectRef>(node->ref) << " outputs=[";
       for (auto* link = node->outputs.head; link != nullptr; link = link->next) {
         os << link->value.node->index << ", ";
       }
@@ -194,7 +194,7 @@ class GraphPartitioner {
     size_t args_num{0};
 
     /*! \brief Optional attributes to annotate the grouped function. */
-    Map<String, Any> attrs;
+    ffi::Map<ffi::String, Any> attrs;
     /*!
      * \brief Find the group root, perform path compression
      * \return The root type node.

@@ -21,6 +21,7 @@ This script runs and update all the locations that related to versions
 
 List of affected files:
 - tvm-root/python/tvm/libinfo.py
+- tvm-root/pyproject.toml
 - tvm-root/include/tvm/runtime/base.h
 - tvm-root/conda/recipe/meta.yaml
 - tvm-root/web/package.json
@@ -44,7 +45,7 @@ import subprocess
 # Two tag formats are supported:
 # - vMAJ.MIN.PATCH (e.g. v0.8.0) or
 # - vMAJ.MIN.devN (e.g. v0.8.dev0)
-__version__ = "0.22.dev0"
+__version__ = "0.22.0"
 
 # ---------------------------------------------------
 
@@ -173,6 +174,13 @@ def sync_version(pub_ver, local_ver, dry_run):
         os.path.join(PROJ_ROOT, "python", "tvm", "libinfo.py"),
         r"(?<=__version__ = \")[.0-9a-z\+]+",
         local_ver,
+        dry_run,
+    )
+    # pyproject.toml
+    update(
+        os.path.join(PROJ_ROOT, "pyproject.toml"),
+        r"(?<=version = \")[.0-9a-z\+]+",
+        pub_ver,
         dry_run,
     )
     # Use public version for other parts for now

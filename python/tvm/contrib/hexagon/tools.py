@@ -29,7 +29,7 @@ import numpy
 
 import tvm
 import tvm.contrib.cc as cc
-from ...ffi.registry import register_func
+from tvm_ffi import register_global_func
 
 
 # Linking Hexagon shared libraries.
@@ -67,10 +67,10 @@ HEXAGON_SIMULATOR_NAME = "simulator"
 
 def register_linker(f):
     """Register a function that will return the path to the Hexagon linker."""
-    return register_func("tvm.contrib.hexagon.hexagon_link", f, True)
+    return register_global_func("tvm.contrib.hexagon.hexagon_link", f, True)
 
 
-@register_func("tvm.contrib.hexagon.hexagon_link")
+@register_global_func("tvm.contrib.hexagon.hexagon_link")
 def hexagon_link() -> str:
     """Return path to the Hexagon linker."""
     return str(HEXAGON_LINK_MAIN)
@@ -112,7 +112,7 @@ def toolchain_version(toolchain=None) -> List[int]:
     raise RuntimeError("Cannot establish toolchain version")
 
 
-@register_func("tvm.contrib.hexagon.link_shared")
+@register_global_func("tvm.contrib.hexagon.link_shared")
 def link_shared(so_name, objs, extra_args=None):
     """Link shared library on Hexagon using the registered Hexagon linker.
 
@@ -248,10 +248,10 @@ if sys.platform == "darwin":
         return link_shared_macos(so_name, objs, kwargs)
 
     create_shared = __create_shared_mac
-    register_func("tvm.contrib.hexagon.link_shared", f=link_shared_macos, override=True)
+    register_global_func("tvm.contrib.hexagon.link_shared", f=link_shared_macos, override=True)
 else:  # Linux and Win32
     create_shared = cc.create_shared
-    register_func("tvm.contrib.hexagon.link_shared", f=link_shared, override=True)
+    register_global_func("tvm.contrib.hexagon.link_shared", f=link_shared, override=True)
 
 
 def create_aot_shared(so_name: Union[str, pathlib.Path], files, hexagon_arch: str, options=None):
@@ -336,7 +336,7 @@ def pack_imports(
     """
 
     path_bin = os.path.join(workspace_dir, "imports.bin")
-    pack_to_bin_f_name = "runtime.ModulePackImportsToNDArray"
+    pack_to_bin_f_name = "runtime.ModulePackImportsToTensor"
     fpack_to_bin = tvm.get_global_func(pack_to_bin_f_name)
     assert fpack_to_bin, f"Expecting {pack_to_bin_f_name} in registry"
 
@@ -404,7 +404,7 @@ def pack_imports(
 def export_module(module, out_dir, binary_name="test_binary.so"):
     """Export Hexagon shared object to a file."""
     binary_path = pathlib.Path(out_dir) / binary_name
-    module.save(str(binary_path))
+    module.write_to_file(str(binary_path))
     return binary_path
 
 
@@ -438,7 +438,7 @@ def allocate_hexagon_array(
         for dim_i, dim_f in zip(boundaries[:-1], boundaries[1:])
     ]
 
-    arr = tvm.nd.empty(physical_shape, dtype=dtype, device=dev, mem_scope=mem_scope)
+    arr = tvm.runtime.empty(physical_shape, dtype=dtype, device=dev, mem_scope=mem_scope)
 
     if data is not None:
         arr.copyfrom(data.reshape(physical_shape))

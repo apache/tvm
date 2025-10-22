@@ -30,31 +30,31 @@ namespace tvm {
 namespace te {
 using namespace tir;
 
-TVM_FFI_STATIC_INIT_BLOCK({ ScanOpNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { ScanOpNode::RegisterReflection(); }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ScanOpNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const ScanOpNode*>(node.get());
       p->stream << "scan(" << op->name << ", " << op << ")";
     });
-TVM_REGISTER_NODE_TYPE(ScanOpNode);
 
 int ScanOpNode::num_outputs() const { return static_cast<int>(update.size()); }
 
 DataType ScanOpNode::output_dtype(size_t i) const { return update[i]->dtype; }
 
-Array<PrimExpr> ScanOpNode::output_shape(size_t i) const {
+ffi::Array<PrimExpr> ScanOpNode::output_shape(size_t i) const {
   ICHECK_LT(i, state_placeholder.size());
   return state_placeholder[i]->shape;
 }
 
-ScanOp::ScanOp(std::string name, std::string tag, Optional<Map<String, ffi::Any>> attrs,
-               IterVar axis, Array<Tensor> init, Array<Tensor> update,
-               Array<Tensor> state_placeholder, Array<Tensor> inputs) {
+ScanOp::ScanOp(std::string name, std::string tag,
+               ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs, IterVar axis,
+               ffi::Array<Tensor> init, ffi::Array<Tensor> update,
+               ffi::Array<Tensor> state_placeholder, ffi::Array<Tensor> inputs) {
   if (!attrs.defined()) {
-    attrs = Map<String, ffi::Any>();
+    attrs = ffi::Map<ffi::String, ffi::Any>();
   }
-  auto n = make_object<ScanOpNode>();
+  auto n = ffi::make_object<ScanOpNode>();
   ICHECK_EQ(init.size(), update.size());
   ICHECK_EQ(init.size(), state_placeholder.size());
   arith::Analyzer analyzer;
@@ -100,32 +100,34 @@ ScanOp::ScanOp(std::string name, std::string tag, Optional<Map<String, ffi::Any>
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "te.ScanOp", [](std::string name, std::string tag, Optional<Map<String, ffi::Any>> attrs,
-                      IterVar axis, Array<Tensor> init, Array<Tensor> update,
-                      Array<Tensor> state_placeholder, Array<Tensor> inputs) {
+      "te.ScanOp",
+      [](std::string name, std::string tag, ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs,
+         IterVar axis, ffi::Array<Tensor> init, ffi::Array<Tensor> update,
+         ffi::Array<Tensor> state_placeholder, ffi::Array<Tensor> inputs) {
         return ScanOp(name, tag, attrs, axis, init, update, state_placeholder, inputs);
       });
-});
+}
 
-Array<Tensor> scan(Array<Tensor> init, Array<Tensor> update, Array<Tensor> state_placeholder,
-                   Array<Tensor> inputs, std::string name, std::string tag,
-                   Optional<Map<String, ffi::Any>> attrs) {
+ffi::Array<Tensor> scan(ffi::Array<Tensor> init, ffi::Array<Tensor> update,
+                        ffi::Array<Tensor> state_placeholder, ffi::Array<Tensor> inputs,
+                        std::string name, std::string tag,
+                        ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs) {
   IterVar scan_axis =
       IterVar(Range::FromMinExtent(init[0]->shape[0], update[0]->shape[0] - init[0]->shape[0]),
               Var(name + ".idx"), kOrdered);
   Operation op = ScanOp(name, tag, attrs, scan_axis, init, update, state_placeholder, inputs);
-  Array<Tensor> res;
+  ffi::Array<Tensor> res;
   for (int i = 0; i < op->num_outputs(); ++i) {
     res.push_back(op.output(i));
   }
   return res;
 }
 
-Array<Tensor> ScanOpNode::InputTensors() const {
-  Array<Tensor> ret;
+ffi::Array<Tensor> ScanOpNode::InputTensors() const {
+  ffi::Array<Tensor> ret;
   for (Tensor t : init) {
     ret.push_back(t);
   }

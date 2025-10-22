@@ -119,8 +119,8 @@ class StorageTokenNode : public Object {
     }
   }
 
-  static constexpr const char* _type_key = "relax.transform.StorageToken";
-  TVM_DECLARE_BASE_OBJECT_INFO(StorageTokenNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.StorageToken", StorageTokenNode, Object);
 };
 
 /*!
@@ -129,7 +129,7 @@ class StorageTokenNode : public Object {
  */
 class StorageToken : public ObjectRef {
  public:
-  explicit StorageToken(Array<PrimExpr> shape, DataType dtype, std::string storage_scope) {
+  explicit StorageToken(ffi::Array<PrimExpr> shape, DataType dtype, std::string storage_scope) {
     // Compute the tensor size from the shape.
     int64_t const_coeff = dtype.bytes() * dtype.lanes();
     PrimExpr size = tir::make_const(DataType::Int(64), 1);
@@ -142,13 +142,13 @@ class StorageToken : public ObjectRef {
     }
     size = tir::make_const(DataType::Int(64), const_coeff) * size;
 
-    ObjectPtr<StorageTokenNode> n = make_object<StorageTokenNode>();
+    ObjectPtr<StorageTokenNode> n = ffi::make_object<StorageTokenNode>();
     n->bytes = size;
     n->dtype = dtype;
     n->storage_scope = std::move(storage_scope);
     data_ = std::move(n);
   }
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(StorageToken, ObjectRef, StorageTokenNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StorageToken, ObjectRef, StorageTokenNode);
 };
 
 // We use NestedMsg to store the tokens used by each Expr.
@@ -170,7 +170,7 @@ class TokenAllocator1D {
    * \return The request result token. Return std::nullopt if there is no
    * appropriate available token in the pool.
    */
-  Optional<StorageToken> RequestReuse(StorageToken prototype) {
+  ffi::Optional<StorageToken> RequestReuse(StorageToken prototype) {
     // Step 0. Sanity check: the prototype token is supposed not to be allocated with actual storage
     ICHECK_EQ(prototype->storage_id, -1) << "The token is expected not to be allocated before.";
     // If the prototype has no reference at all, feel free to allocate new storage.
@@ -326,7 +326,7 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
   }
 
   void VisitExpr_(const TupleNode* tuple) final {
-    Array<Tokens> tokens;
+    ffi::Array<Tokens> tokens;
     tokens.reserve(tuple->fields.size());
     for (const Expr& field : tuple->fields) {
       Tokens field_tokens = GetTokens(field);
@@ -343,7 +343,7 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
       return;
     }
     ICHECK(tokens.IsNested());
-    Array<Tokens> field_tokens = tokens.NestedArray();
+    ffi::Array<Tokens> field_tokens = tokens.NestedArray();
     ICHECK_GT(static_cast<int>(field_tokens.size()), tuple_item->index);
     ICHECK_GE(tuple_item->index, 0);
     SetTokens(tuple_item, field_tokens[tuple_item->index]);
@@ -372,39 +372,27 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
  * \param dom_map The domain map of the TIR variables.
  */
 void SetTIRVarUpperBound(Function func, arith::Analyzer* ana,
-                         Map<tir::Var, arith::IntSet>* dom_map) {
+                         ffi::Map<tir::Var, arith::IntSet>* dom_map) {
   // Use the attribute-annotated TIR var upper bounds as the TIR var values for
   // memory planning.
   // NOTE: we only apply the annotated upper bounds to the TIR variables that
   // appear in the **function signature**.
-  Map<String, IntImm> var_upper_bound_attr_raw =
-      func->GetAttr<Map<String, IntImm>>("tir_var_upper_bound").value_or(Map<String, IntImm>());
-  Array<ObjectRef> non_negative_var_attr_raw =
-      func->GetAttr<Array<ObjectRef>>("tir_non_negative_var").value_or(Array<ObjectRef>());
-  std::unordered_map<String, IntImm> var_upper_bound_attr;
-  std::unordered_set<String> non_negative_var_attr;
+  ffi::Map<ffi::String, IntImm> var_upper_bound_attr_raw =
+      func->GetAttr<ffi::Map<ffi::String, IntImm>>("tir_var_upper_bound")
+          .value_or(ffi::Map<ffi::String, IntImm>());
+  ffi::Array<ffi::String> non_negative_var_attr_raw =
+      func->GetAttr<ffi::Array<ffi::String>>("tir_non_negative_var")
+          .value_or(ffi::Array<ffi::String>());
+  std::unordered_map<ffi::String, IntImm> var_upper_bound_attr;
+  std::unordered_set<ffi::String> non_negative_var_attr;
   // We manually check the value type to ensure the values are all positive IntImm.
-  for (auto it : var_upper_bound_attr_raw) {
-    const auto* key = it.first.as<ffi::StringObj>();
-    const auto* value = it.second.as<IntImmNode>();
-    CHECK(key != nullptr)
-        << "The entry key of attr `tir_var_upper_bound` should be string. However "
-        << it.first->GetTypeKey() << " is got.";
-    CHECK(value != nullptr)
-        << "The entry value of attr `tir_var_upper_bound` should be integer. However "
-        << it.second.GetTypeKey() << " is got.";
-    CHECK_GT(value->value, 0)
-        << "The entry value of attr `tir_var_upper_bound` should be a positive integer, while "
-        << value->value << " is got.";
-    var_upper_bound_attr[GetRef<String>(key)] = GetRef<IntImm>(value);
+  for (auto [key, value] : var_upper_bound_attr_raw) {
+    var_upper_bound_attr[key] = value;
   }
-  for (ObjectRef var_name : non_negative_var_attr_raw) {
-    const auto* key = var_name.as<ffi::StringObj>();
-    CHECK(key != nullptr) << "The element of attr `tir_non_negative_var` should be string. However "
-                          << var_name->GetTypeKey() << " is got.";
-    non_negative_var_attr.insert(GetRef<String>(key));
+  for (const ffi::String& var_name : non_negative_var_attr_raw) {
+    non_negative_var_attr.insert(var_name);
   }
-  Array<tir::Var> var_in_signature = TIRVarsInStructInfo(GetStructInfo(func));
+  ffi::Array<tir::Var> var_in_signature = TIRVarsInStructInfo(GetStructInfo(func));
   for (const tir::Var& tir_var : var_in_signature) {
     auto it = var_upper_bound_attr.find(tir_var->name_hint);
     if (it != var_upper_bound_attr.end()) {
@@ -428,10 +416,10 @@ void SetTIRVarUpperBound(Function func, arith::Analyzer* ana,
  * \return The upper-bounded shape. When a dimension's upper bound
  * cannot be determined, we keep the dimension unchanged.
  */
-Array<PrimExpr> GetUpperBoundShape(Array<PrimExpr> shape, arith::Analyzer* ana,
-                                   const Map<tir::Var, arith::IntSet>& dom_map) {
+ffi::Array<PrimExpr> GetUpperBoundShape(ffi::Array<PrimExpr> shape, arith::Analyzer* ana,
+                                        const ffi::Map<tir::Var, arith::IntSet>& dom_map) {
   // Use the upper bounds of TIR vars as their values.
-  Array<PrimExpr> upper_bounded_shape;
+  ffi::Array<PrimExpr> upper_bounded_shape;
   upper_bounded_shape.reserve(shape.size());
   for (const PrimExpr& dim_len : shape) {
     int64_t max_bound = ana->const_int_bound(dim_len)->max_value;
@@ -450,7 +438,7 @@ Array<PrimExpr> GetUpperBoundShape(Array<PrimExpr> shape, arith::Analyzer* ana,
 }
 
 /*! \brief Check if a shape is static (a.k.a., has no TIR variable). */
-bool IsStaticShape(Array<PrimExpr> shape) {
+bool IsStaticShape(ffi::Array<PrimExpr> shape) {
   for (const PrimExpr& dim : shape) {
     const auto* int_len = dim.as<IntImmNode>();
     if (!int_len) {
@@ -485,7 +473,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
       if (func == nullptr) {
         continue;
       }
-      initializer(GetRef<Function>(func));
+      initializer(ffi::GetRef<Function>(func));
     }
     return initializer.token_map_;
   }
@@ -498,7 +486,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
 
   void VisitExpr_(const FunctionNode* func) final {
     // Set the upper bound of TIR variables in the analyzer.
-    SetTIRVarUpperBound(GetRef<Function>(func), analyzer_, &dom_map_);
+    SetTIRVarUpperBound(ffi::GetRef<Function>(func), analyzer_, &dom_map_);
     // Recurse into the function to get its tokens.
     Tokens body_tokens = GetTokens(func->body);
     // Discard the tokens used by the function return value, as they are external referenced.
@@ -527,7 +515,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     // potential external reference.
     if (IsPrimFuncGlobalVar(call->op) || call->op->IsInstance<ExternFuncNode>() ||
         call->op == call_tir_dyn_op) {
-      Array<Expr> args =
+      ffi::Array<Expr> args =
           call->op == call_tir_dyn_op ? Downcast<Tuple>(call->args[1])->fields : call->args;
       ICHECK(!block_stack_.empty());
       for (const Expr& arg : call->args) {
@@ -573,7 +561,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     if (global_var == nullptr) {
       return false;
     }
-    auto func_it = ctx_mod_->functions.find(GetRef<GlobalVar>(global_var));
+    auto func_it = ctx_mod_->functions.find(ffi::GetRef<GlobalVar>(global_var));
     if (func_it == ctx_mod_->functions.end()) {
       return false;
     }
@@ -601,7 +589,8 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
 
     // Use the upper bounds of TIR vars as their values. The upper bound shape can still be dynamic
     // if the upper bounds of some variables are not provided.
-    Array<PrimExpr> upper_bounded_shape = GetUpperBoundShape(shape->values, analyzer_, dom_map_);
+    ffi::Array<PrimExpr> upper_bounded_shape =
+        GetUpperBoundShape(shape->values, analyzer_, dom_map_);
 
     // Create and set token.
     StringImm storage_scope = Downcast<StringImm>(call->args[3]);
@@ -678,7 +667,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
   /*! \brief The arithmetic analyzer. */
   arith::Analyzer* analyzer_;
   /*! \brief The domain map of dynamic TIR variables for analysis. */
-  Map<tir::Var, arith::IntSet> dom_map_;
+  ffi::Map<tir::Var, arith::IntSet> dom_map_;
   /*! \brief The mapping from each token to the binding block where it is created. */
   std::unordered_map<const StorageTokenNode*, const BindingBlockNode*> token2block_;
   /*! \brief The mapping from each token to the Exprs that are using this token. */
@@ -794,7 +783,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
 
   /*! \brief Request a storage reuse, or allocate storage if no appropriate storage is reusable. */
   StorageToken RequestReuseOrAlloc(StorageToken prototype) {
-    Optional<StorageToken> token = allocator_.RequestReuse(prototype);
+    ffi::Optional<StorageToken> token = allocator_.RequestReuse(prototype);
     if (!token.defined()) {
       return allocator_.Alloc(prototype, this->n_storage_++);
     } else {
@@ -854,7 +843,7 @@ class StorageAllocationRewriter : public ExprMutator {
       plan_dynamic_output_ = static_cast<bool>(
           func_->GetAttr<IntImm>(plan_dyn_attr_).value_or(IntImm(DataType::Int(32), 0))->value);
       if (plan_dynamic_output_) {
-        SetTIRVarUpperBound(GetRef<Function>(func_), &ana_, &dom_map_);
+        SetTIRVarUpperBound(ffi::GetRef<Function>(func_), &ana_, &dom_map_);
       }
       token2storage_var_.clear();
       Function func = Downcast<Function>(this->VisitExpr_(func_));
@@ -917,7 +906,7 @@ class StorageAllocationRewriter : public ExprMutator {
       ICHECK_NOTNULL(sinfo);
       const auto* shape = sinfo->shape.as<ShapeExprNode>();
       ICHECK_NOTNULL(shape);
-      Array<PrimExpr> upper_bounded_shape = GetUpperBoundShape(shape->values, &ana_, dom_map_);
+      ffi::Array<PrimExpr> upper_bounded_shape = GetUpperBoundShape(shape->values, &ana_, dom_map_);
       if (!IsStaticShape(shape->values)) {
         ICHECK(!sinfo->IsUnknownDtype());
         ICHECK_EQ(sinfo->dtype, Downcast<DataTypeImm>(call->args[1])->value);
@@ -934,7 +923,7 @@ class StorageAllocationRewriter : public ExprMutator {
         Var storage = builder_->Emit(alloc_storage, "storage");
         return Call(mem_alloc_tensor, {storage,  //
                                        /*offset=*/PrimValue::Int64(0),
-                                       /*shape=*/GetRef<ShapeExpr>(shape),  //
+                                       /*shape=*/ffi::GetRef<ShapeExpr>(shape),  //
                                        /*dtype=*/DataTypeImm(sinfo->dtype)});
       }
     }
@@ -945,7 +934,7 @@ class StorageAllocationRewriter : public ExprMutator {
   /*! \brief The arithmetic analyzer. */
   arith::Analyzer ana_;
   /*! \brief The domain map of dynamic TIR variables for analysis. */
-  Map<tir::Var, arith::IntSet> dom_map_;
+  ffi::Map<tir::Var, arith::IntSet> dom_map_;
   /*! \brief A boolean indicating whether to plan dynamic-shape function output tensors. */
   bool plan_dynamic_output_;
   /*!
@@ -984,10 +973,10 @@ Pass StaticPlanBlockMemory() {
   return CreateModulePass(pass_func, /*opt_level=*/0, "StaticPlanBlockMemory", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.StaticPlanBlockMemory", StaticPlanBlockMemory);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

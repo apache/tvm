@@ -25,22 +25,21 @@ namespace meta_schedule {
 
 class OrderedUnionDatabaseNode : public DatabaseNode {
  public:
-  Array<Database> databases;
+  ffi::Array<Database> databases;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<OrderedUnionDatabaseNode>().def_ro("databases",
                                                        &OrderedUnionDatabaseNode::databases);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.OrderedUnionDatabase";
-  TVM_DECLARE_FINAL_OBJECT_INFO(OrderedUnionDatabaseNode, DatabaseNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.OrderedUnionDatabase", OrderedUnionDatabaseNode,
+                                    DatabaseNode);
 
  public:
-  Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
-                                           const String& task_name) final {
+  ffi::Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
+                                                const ffi::String& task_name) final {
     for (const Database& db : databases) {
-      if (Optional<TuningRecord> record = db->QueryTuningRecord(mod, target, task_name)) {
+      if (ffi::Optional<TuningRecord> record = db->QueryTuningRecord(mod, target, task_name)) {
         return record;
       }
     }
@@ -62,12 +61,12 @@ class OrderedUnionDatabaseNode : public DatabaseNode {
     throw;
   }
 
-  Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
+  ffi::Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
     LOG(FATAL) << "NotImplementedError: OrderedUnionDatabase.GetTopK";
     throw;
   }
 
-  Array<TuningRecord> GetAllTuningRecords() final {
+  ffi::Array<TuningRecord> GetAllTuningRecords() final {
     LOG(FATAL) << "NotImplementedError: OrderedUnionDatabase.GetAllTuningRecords";
     throw;
   }
@@ -78,20 +77,19 @@ class OrderedUnionDatabaseNode : public DatabaseNode {
   }
 };
 
-Database Database::OrderedUnionDatabase(Array<Database> databases) {
-  ObjectPtr<OrderedUnionDatabaseNode> n = make_object<OrderedUnionDatabaseNode>();
+Database Database::OrderedUnionDatabase(ffi::Array<Database> databases) {
+  ObjectPtr<OrderedUnionDatabaseNode> n = ffi::make_object<OrderedUnionDatabaseNode>();
   n->databases = std::move(databases);
   return Database(n);
 }
 
-TVM_REGISTER_NODE_TYPE(OrderedUnionDatabaseNode);
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.DatabaseOrderedUnionDatabase",
                         Database::OrderedUnionDatabase);
-});
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({ OrderedUnionDatabaseNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { OrderedUnionDatabaseNode::RegisterReflection(); }
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -101,7 +101,7 @@ def test_vm_run():
     dev = tvm.cuda(0)
     vm = relax.VirtualMachine(ex, dev)
     x_np = np.random.uniform(size=(16, 16)).astype("float32")
-    x = tvm.nd.array(x_np, dev)
+    x = tvm.runtime.tensor(x_np, dev)
     y = vm["main"](x)
     y_np = x_np + 1.0 + 1.0 + 1.0 + 1.0
     tvm.testing.assert_allclose(y.numpy(), y_np, rtol=1e-5, atol=1e-5)
@@ -129,13 +129,13 @@ def test_capture_error_is_recoverable():
     target = tvm.target.Target("cuda")
     dev = tvm.cuda()
 
-    @tvm.register_func("test_vm_cuda_graph.invalid_impl_for_cudagraph", override=True)
+    @tvm.register_global_func("test_vm_cuda_graph.invalid_impl_for_cudagraph", override=True)
     def invalid_impl_for_cudagraph(arg_tensor):
         # Memory allocation/deallocation may not be performed while
         # capturing a cudaGraph.  This passes the warm-up run
         # performed by "vm.builtin.cuda_graph.run_or_capture", but
         # throws an exception when the cudaGraph is being captured.
-        _dummy_workspace = tvm.nd.empty([16], "float16", dev)
+        _dummy_workspace = tvm.runtime.empty([16], "float16", dev)
         return arg_tensor
 
     @I.ir_module
@@ -171,7 +171,7 @@ def test_capture_error_is_recoverable():
     built = tvm.compile(Module, target=target)
     vm = tvm.relax.VirtualMachine(built, dev)
 
-    arg = tvm.nd.array(np.arange(16).astype("float16"), dev)
+    arg = tvm.runtime.tensor(np.arange(16).astype("float16"), dev)
 
     with pytest.raises(tvm.TVMError):
         vm["main"](arg)

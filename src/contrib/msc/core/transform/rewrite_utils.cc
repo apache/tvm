@@ -29,27 +29,27 @@ namespace tvm {
 namespace contrib {
 namespace msc {
 
-Var RewriteUtils::ReEmit(BlockBuilder builder, const String& name, const Expr& expr) {
+Var RewriteUtils::ReEmit(BlockBuilder builder, const ffi::String& name, const Expr& expr) {
   expr->span = SpanUtils::SetAttr(expr->span, msc_attr::kName, name);
   return builder->Emit(expr, name);
 }
 
-Var RewriteUtils::MakeCall(BlockBuilder builder, const String& name, Expr op, Array<Expr> args,
-                           Attrs attrs) {
+Var RewriteUtils::MakeCall(BlockBuilder builder, const ffi::String& name, Expr op,
+                           ffi::Array<Expr> args, Attrs attrs) {
   const auto& call = Call(op, args, attrs);
   return ReEmit(builder, name, call);
 }
 
-Expr RewriteUtils::MakeConstant(BlockBuilder builder, const String& name, double value,
+Expr RewriteUtils::MakeConstant(BlockBuilder builder, const ffi::String& name, double value,
                                 const DataType& dtype, size_t ndim) {
-  const auto& data = support::FloatImmToNDArray(FloatImm(dtype, value));
+  const auto& data = support::FloatImmToTensor(FloatImm(dtype, value));
   Span span = SpanUtils::CreateWithAttr(msc_attr::kName, name);
   const auto& constant = Constant(data, std::nullopt, span);
   if (ndim == 0) {
     return constant;
   }
   static const Op& reshape_op = Op::Get("relax.reshape");
-  Array<PrimExpr> exp_shape(ndim, Integer(1));
+  ffi::Array<PrimExpr> exp_shape(ndim, Integer(1));
   return MakeCall(builder, name + "_exp", reshape_op, {constant, ShapeExpr(exp_shape)});
 }
 

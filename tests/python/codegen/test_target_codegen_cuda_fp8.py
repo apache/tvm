@@ -71,14 +71,14 @@ def test_fp8_conversions(input):
     target = "cuda"
     fadd = tvm.tir.build(sch.mod, target=target)
 
-    cuda_src = fadd.imported_modules[0].get_source()
+    cuda_src = fadd.imports[0].inspect_source()
     assert nv_dtype in cuda_src, f"{nv_dtype} datatype not found in generated CUDA"
 
     dev = tvm.device(target, 0)
 
-    a = tvm.nd.array(np.random.uniform(low=0, high=5, size=64).astype(dtype), dev)
-    b = tvm.nd.array(np.random.uniform(low=0, high=5, size=64).astype(dtype), dev)
-    c = tvm.nd.array(np.zeros(64, dtype=dtype), dev)
+    a = tvm.runtime.tensor(np.random.uniform(low=0, high=5, size=64).astype(dtype), dev)
+    b = tvm.runtime.tensor(np.random.uniform(low=0, high=5, size=64).astype(dtype), dev)
+    c = tvm.runtime.tensor(np.zeros(64, dtype=dtype), dev)
     fadd(a, b, c)
 
     tvm.testing.assert_allclose(
@@ -135,9 +135,9 @@ def test_fp8_packing(dtype):
 
     np_shape = (length, vector_length)
     a_np = np.random.uniform(low=0, high=5, size=np_shape).astype(dtype)
-    a = tvm.nd.empty(shape=(length,), dtype=native_dtype, device=dev)
-    r = tvm.nd.empty(shape=(length,), dtype=packed_dtype, device=dev)
-    b = tvm.nd.empty(shape=(length,), dtype=native_dtype, device=dev)
+    a = tvm.runtime.empty(shape=(length,), dtype=native_dtype, device=dev)
+    r = tvm.runtime.empty(shape=(length,), dtype=packed_dtype, device=dev)
+    b = tvm.runtime.empty(shape=(length,), dtype=native_dtype, device=dev)
     a.copyfrom(a_np)
     f(a, r, b)
     tvm.testing.assert_allclose(a.numpy().astype("float16"), b.numpy().astype("float16"))
@@ -190,7 +190,7 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
 
     target = "cuda"
     fadd = tvm.tir.build(sch.mod, target=target)
-    cuda_src = fadd.imported_modules[0].get_source()
+    cuda_src = fadd.imports[0].inspect_source()
     dev = tvm.device(target, 0)
 
     if "x" in native_dtype:
@@ -205,12 +205,12 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
 
     np_shape = (vector_length, lanes) if lanes > 1 else (vector_length,)
     a_np = np.random.uniform(low=0, high=5, size=np_shape).astype(numpytype)
-    a = tvm.nd.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+    a = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
     a.copyfrom(a_np)
     b_np = np.random.uniform(low=0, high=5, size=np_shape).astype(numpytype)
-    b = tvm.nd.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+    b = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
     b.copyfrom(b_np)
-    c = tvm.nd.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+    c = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
     fadd(a, b, c)
 
     tvm.testing.assert_allclose(
@@ -243,8 +243,8 @@ def test_half_broadcast(bcast_length):
     dev = tvm.device(target, 0)
 
     a_np = np.random.uniform(low=0, high=4, size=()).astype(dtype)
-    a = tvm.nd.array(a_np, device=dev)
-    b = tvm.nd.empty((bcast_length,), dtype=dtype, device=dev)
+    a = tvm.runtime.tensor(a_np, device=dev)
+    b = tvm.runtime.empty((bcast_length,), dtype=dtype, device=dev)
 
     func(a, b)
 
@@ -276,9 +276,9 @@ def test_half_misaligned_vector_load(vector_length):
 
     dev = tvm.device(target, 0)
     a_np = np.random.uniform(low=0, high=1, size=(length,)).astype(dtype)
-    a = tvm.nd.array(a_np, device=dev)
+    a = tvm.runtime.tensor(a_np, device=dev)
 
-    b = tvm.nd.empty((length // vector_length,), dtype=vec_dtype, device=dev)
+    b = tvm.runtime.empty((length // vector_length,), dtype=vec_dtype, device=dev)
 
     f(a, b)
 
@@ -325,12 +325,12 @@ def test_half4_vector_add():
     dev = tvm.device(target, 0)
 
     a_np = np.random.uniform(-1, 1, (length, vector_length)).astype(dtype)
-    a = tvm.nd.empty(shape=(length,), dtype=vec_dtype, device=dev)
+    a = tvm.runtime.empty(shape=(length,), dtype=vec_dtype, device=dev)
     a.copyfrom(a_np)
     b_np = np.random.uniform(-1, 1, (length, vector_length)).astype(dtype)
-    b = tvm.nd.empty(shape=(length,), dtype=vec_dtype, device=dev)
+    b = tvm.runtime.empty(shape=(length,), dtype=vec_dtype, device=dev)
     b.copyfrom(b_np)
-    c = tvm.nd.empty(shape=(length,), dtype=vec_dtype, device=dev)
+    c = tvm.runtime.empty(shape=(length,), dtype=vec_dtype, device=dev)
 
     fadd(a, b, c)
     c_expected = a_np + b_np
@@ -710,7 +710,7 @@ class BaseFP8E4M3QuantScaleOnly:
             if name:
                 mod = mod[name]
             f = tvm.tir.build(mod, target=target)
-            cuda_src = f.imported_modules[0].get_source()
+            cuda_src = f.imports[0].inspect_source()
             print(cuda_src)
 
         print_cuda(target, dequant_mod, name="dequant")
@@ -805,7 +805,7 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
         dev = tvm.device(target_str, 0)
 
         weight_np = np.random.uniform(-100, 100, weight_shape).astype(model_dtype)
-        weight = tvm.nd.array(weight_np, device=dev)
+        weight = tvm.runtime.tensor(weight_np, device=dev)
         quant_weight, scales = quant(weight)
         quant_weight_np, scales_np = quant_weight.numpy(), scales.numpy()
 
@@ -955,16 +955,16 @@ def test_moe_gemv_shfl_down_illegal_instr():
     dev = tvm.cuda(0)
 
     x_data = np.zeros((1, reduce_size), dtype=np.float16)
-    x = tvm.nd.array(x_data, device=dev)
+    x = tvm.runtime.tensor(x_data, device=dev)
 
     indptr_data = np.zeros((1, 2), dtype=np.int32)
-    indptr = tvm.nd.array(indptr_data, device=dev)
+    indptr = tvm.runtime.tensor(indptr_data, device=dev)
 
     weight_data = np.zeros((num_experts, spatial_size, reduce_size), dtype="float8_e4m3fn")
-    weight = tvm.nd.array(weight_data, device=dev)
+    weight = tvm.runtime.tensor(weight_data, device=dev)
 
     scale_data = np.zeros((1,), dtype=np.float32)
-    scale = tvm.nd.array(scale_data, device=dev)
+    scale = tvm.runtime.tensor(scale_data, device=dev)
 
     vm = relax.VirtualMachine(rt_mod, dev)
     # Ensure this runs without failure. Utilizing dlight thread extents TS, TR = 4, 64
@@ -1000,9 +1000,9 @@ def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
     a_np = np.random.rand(128).astype("float8_e4m3fn")
     b_np = np.random.rand(128).astype(dtype)
     c_np = (a_np.astype(dtype) * b_np) + 3
-    a_tvm = tvm.nd.array(a_np, device=device)
-    b_tvm = tvm.nd.array(b_np, device=device)
-    c_tvm = tvm.nd.empty((128,), dtype=dtype, device=device)
+    a_tvm = tvm.runtime.tensor(a_np, device=device)
+    b_tvm = tvm.runtime.tensor(b_np, device=device)
+    c_tvm = tvm.runtime.empty((128,), dtype=dtype, device=device)
     f(a_tvm, b_tvm, c_tvm)
     c_tvm = c_tvm.numpy()
     np.testing.assert_allclose(

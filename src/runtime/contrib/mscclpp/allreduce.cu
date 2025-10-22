@@ -18,7 +18,7 @@
  */
 
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include "msccl.cuh"
 

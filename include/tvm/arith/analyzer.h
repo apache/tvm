@@ -94,10 +94,6 @@ class ConstIntBoundNode : public Object {
         .def_ro("max_value", &ConstIntBoundNode::max_value);
   }
 
-  bool SEqualReduce(const ConstIntBoundNode* other, SEqualReducer equal) const {
-    return equal(min_value, other->min_value) && equal(max_value, other->max_value);
-  }
-
   /*! \brief Number to represent +inf */
   static const constexpr int64_t kPosInf = std::numeric_limits<int64_t>::max();
   /*!
@@ -106,8 +102,8 @@ class ConstIntBoundNode : public Object {
    */
   static const constexpr int64_t kNegInf = -kPosInf;
 
-  static constexpr const char* _type_key = "arith.ConstIntBound";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ConstIntBoundNode, Object);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.ConstIntBound", ConstIntBoundNode, Object);
 };
 
 /*!
@@ -125,7 +121,7 @@ class ConstIntBound : public ObjectRef {
 
   static const constexpr int64_t kPosInf = ConstIntBoundNode::kPosInf;
   static const constexpr int64_t kNegInf = ConstIntBoundNode::kNegInf;
-  TVM_DEFINE_OBJECT_REF_METHODS(ConstIntBound, ObjectRef, ConstIntBoundNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ConstIntBound, ObjectRef, ConstIntBoundNode);
 };
 
 /*!
@@ -218,12 +214,8 @@ class ModularSetNode : public Object {
         .def_ro("base", &ModularSetNode::base);
   }
 
-  bool SEqualReduce(const ModularSetNode* other, SEqualReducer equal) const {
-    return equal(coeff, other->coeff) && equal(base, other->base);
-  }
-
-  static constexpr const char* _type_key = "arith.ModularSet";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ModularSetNode, Object);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.ModularSet", ModularSetNode, Object);
 };
 
 /*!
@@ -234,7 +226,7 @@ class ModularSet : public ObjectRef {
  public:
   TVM_DLL ModularSet(int64_t coeff, int64_t base);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(ModularSet, ObjectRef, ModularSetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ModularSet, ObjectRef, ModularSetNode);
 };
 
 /*!
@@ -588,7 +580,7 @@ class IntSetAnalyzer {
    * \param dom_map The domain map to indicate which variable to relax.
    * \return the result of the analysis.
    */
-  TVM_DLL IntSet operator()(const PrimExpr& expr, const Map<Var, IntSet>& dom_map);
+  TVM_DLL IntSet operator()(const PrimExpr& expr, const ffi::Map<Var, IntSet>& dom_map);
 
   /*!
    * \brief Find a symbolic integer set that contains all possible
@@ -710,7 +702,7 @@ class TVM_DLL Analyzer {
    *        expression. This option should not be used if there is any dependency
    *        between variables.
    */
-  void Bind(const Map<Var, Range>& variables, bool allow_override = false);
+  void Bind(const ffi::Map<Var, Range>& variables, bool allow_override = false);
   /*!
    * \brief Whether can we prove expr >= val.
 

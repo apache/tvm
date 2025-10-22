@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test different strategies for loading data into vtcm before running HVX workloads. """
+"""Test different strategies for loading data into vtcm before running HVX workloads."""
 
 import numpy as np
 import pytest
@@ -206,7 +206,6 @@ def conv2d_async_non_contig(
                         B_i32x32: T.int32x32 = T.reinterpret(B_i8x128, dtype="int32x32")
                         C[0:32] = T.call_llvm_pure_intrin(
                             T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.acc.128B"),
-                            T.uint32(3),
                             C[0:32],
                             B_i32x32,
                             A_i32,
@@ -240,7 +239,6 @@ def conv_approximation(size_a, size_w):
                         c_buffer[vn_index, x] = 0
                 c_buffer[vn_index, T.ramp(0, 1, 32)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.acc.128B"),
-                    T.uint32(3),
                     c_buffer[vn_index, T.ramp(0, 1, 32)],
                     T.reinterpret(a_buffer[vn_index, T.ramp(0, 1, 128)], dtype="int32x32"),
                     T.reinterpret(w_buffer[vi_index, T.ramp(0, 1, 128)], dtype="int32x32"),
@@ -283,15 +281,15 @@ def evaluate(
         )
     module = hexagon_session.load_module(func_tir)
 
-    a_hexagon = tvm.runtime.ndarray.array(a_data, device=hexagon_session.device)
-    b_hexagon = tvm.runtime.ndarray.array(b_data, device=hexagon_session.device)
-    c_hexagon = tvm.runtime.ndarray.array(c_data, device=hexagon_session.device)
+    a_hexagon = tvm.runtime.tensor(a_data, device=hexagon_session.device)
+    b_hexagon = tvm.runtime.tensor(b_data, device=hexagon_session.device)
+    c_hexagon = tvm.runtime.tensor(c_data, device=hexagon_session.device)
 
     if tvm.testing.utils.IS_IN_CI:
         # Run with reduced number and repeat for CI
-        timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=1, repeat=1)
+        timer = module.time_evaluator("main", hexagon_session.device, number=1, repeat=1)
     else:
-        timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=10, repeat=10)
+        timer = module.time_evaluator("main", hexagon_session.device, number=10, repeat=10)
 
     time = timer(a_hexagon, b_hexagon, c_hexagon)
     if expected_output is not None:
@@ -656,7 +654,6 @@ class ModulePipelined:
                         b_i32x32: T.int32x32 = T.reinterpret(b_i8x128, dtype="int32x32")
                         c_buffer[0:32] = T.call_llvm_pure_intrin(
                             T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.acc.128B"),
-                            T.uint32(3),
                             c_buffer[0:32],
                             T.broadcast(a_i32, 32),
                             b_i32x32,
@@ -811,7 +808,6 @@ class ModuleBase:
                             b_i32x32: T.int32x32 = T.reinterpret(b_i8x128, dtype="int32x32")
                             c_buffer[0:32] = T.call_llvm_pure_intrin(
                                 T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.acc.128B"),
-                                T.uint32(3),
                                 c_buffer[0:32],
                                 T.broadcast(a_i32, 32),
                                 b_i32x32,

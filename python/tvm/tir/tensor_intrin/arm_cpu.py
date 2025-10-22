@@ -74,7 +74,6 @@ def neon_4x4_i8i8i32_impl(
 
         multiply_low = T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.aarch64.neon.smull.v8i16"),
-            T.uint32(2),
             vec_a,
             vec_b_low,
             dtype="int16x8",
@@ -82,7 +81,6 @@ def neon_4x4_i8i8i32_impl(
 
         pairwise_reduction_low = T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.aarch64.neon.saddlp.v4i32.v8i16"),
-            T.uint32(1),
             multiply_low,
             dtype="int32x4",
         )
@@ -91,7 +89,6 @@ def neon_4x4_i8i8i32_impl(
 
         multiply_high = T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.aarch64.neon.smull.v8i16"),
-            T.uint32(2),
             vec_a,
             vec_b_high,
             dtype="int16x8",
@@ -99,14 +96,12 @@ def neon_4x4_i8i8i32_impl(
 
         pairwise_reduction_high = T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.aarch64.neon.saddlp.v4i32.v8i16"),
-            T.uint32(1),
             multiply_high,
             dtype="int32x4",
         )
 
         C[T.ramp(T.int32(0), 1, 4)] += T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.aarch64.neon.addp.v4i32"),
-            T.uint32(2),
             pairwise_reduction_low,
             pairwise_reduction_high,
             dtype="int32x4",
@@ -159,7 +154,6 @@ def get_dotprod_intrin(in_dtype, out_dtype):
 
             C[T.ramp(T.int32(0), 1, 4)] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id(f"llvm.aarch64.neon.{instr}"),
-                T.uint32(3),
                 vec_c,
                 vec_a,
                 vec_b,
@@ -311,7 +305,6 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
                                 T.call_llvm_intrin(
                                     "void",
                                     "llvm.aarch64.sme.ld1w.horiz",
-                                    T.uint32(4),
                                     predicate,
                                     input_ptr,
                                     sub_tile,
@@ -335,7 +328,6 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
                                 T.call_llvm_intrin(
                                     "void",
                                     "llvm.aarch64.sme.st1w.vert",
-                                    T.uint32(4),
                                     predicate,
                                     output_ptr,
                                     sub_tile,
@@ -438,7 +430,6 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
                                 T.call_llvm_intrin(
                                     "void",
                                     "llvm.aarch64.sme.ld1h.horiz",
-                                    T.uint32(4),
                                     ptrue_fp16,
                                     input_ptr,
                                     sub_tile_idx,
@@ -450,7 +441,6 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
                                 T.call_llvm_intrin(
                                     "void",
                                     "llvm.aarch64.sme.ld1h.horiz",
-                                    T.uint32(4),
                                     ptrue_fp16,
                                     input_ptr,
                                     sub_tile_idx,
@@ -467,7 +457,6 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
                                 T.call_llvm_intrin(
                                     "void",
                                     "llvm.aarch64.sme.st1w.vert",
-                                    T.uint32(4),
                                     ptrue_fp32,
                                     output_ptr,
                                     sub_tile_idx,
@@ -479,7 +468,6 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
                                 T.call_llvm_intrin(
                                     "void",
                                     "llvm.aarch64.sme.st1w.vert",
-                                    T.uint32(4),
                                     ptrue_fp32,
                                     output_ptr,
                                     sub_tile_idx + 2,
@@ -692,7 +680,6 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
                                 T.call_llvm_intrin(
                                     "void",
                                     fmopa_intrin,
-                                    T.uint32(5),
                                     sub_tile,
                                     input_1[1],
                                     input_2[1],
@@ -713,7 +700,6 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
                                 T.call_llvm_intrin(
                                     "void",
                                     "llvm.aarch64.sme.st1w.horiz",
-                                    T.uint32(4),
                                     _create_active_lane_mask(
                                         C, (vert_offset + slice_idx, horiz_offset), M
                                     ),
@@ -752,9 +738,7 @@ def get_sme_init_intrin():
             T.reads()
             T.writes(C[0:SVF2, 0:SVF2])
             clear_all_tiles = T.int32(255)
-            T.evaluate(
-                T.call_llvm_intrin("void", "llvm.aarch64.sme.zero", T.uint32(1), clear_all_tiles)
-            )
+            T.evaluate(T.call_llvm_intrin("void", "llvm.aarch64.sme.zero", clear_all_tiles))
 
     return desc, impl
 

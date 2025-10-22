@@ -230,7 +230,7 @@ bool IsWriteCache(const StmtSRef& block_sref);
  * \param analyzer The analyzer
  * \return A boolean flag indicating if the binding is affine
  */
-bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_var_ranges,
+bool IsAffineBinding(const BlockRealize& realize, const ffi::Map<Var, Range>& loop_var_ranges,
                      arith::Analyzer* analyzer);
 
 /*!
@@ -251,7 +251,7 @@ void CheckAffineBinding(const ScheduleState& self, Block block);
  * \throw ScheduleError If the input block does not have an affine binding
  */
 void CheckPartialAffineBinding(const ScheduleState& self, Block block,
-                               const Optional<StmtSRef>& high_exclusive);
+                               const ffi::Optional<StmtSRef>& high_exclusive);
 
 /*!
  * \brief Extracts the ranges of loop variables in a path of the sref tree
@@ -263,17 +263,17 @@ void CheckPartialAffineBinding(const ScheduleState& self, Block block,
  * - if the storage scope is shared, it will look for threadIdx.x/y/z
  * \return The loop domain
  */
-Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
-                                         const Optional<StmtSRef>& high_exclusive = std::nullopt,
-                                         const runtime::StorageScope& extra_relax_scope =  //
-                                         runtime::StorageScope{runtime::StorageRank::kGlobal, ""});
+ffi::Map<Var, Range> LoopDomainOfSRefTreePath(
+    const StmtSRef& low_inclusive, const ffi::Optional<StmtSRef>& high_exclusive = std::nullopt,
+    const runtime::StorageScope& extra_relax_scope =  //
+    runtime::StorageScope{runtime::StorageRank::kGlobal, ""});
 
 /*!
  * \brief Returns the block var binding
  * \param realize The BlockRealize to be analyzed
  * \return The block var binding
  */
-Map<Var, PrimExpr> GetBindings(const BlockRealize& realize);
+ffi::Map<Var, PrimExpr> GetBindings(const BlockRealize& realize);
 
 /*!
  * \brief Get the vars involved in the bindings of data parallel block vars and reduction block
@@ -316,14 +316,15 @@ void CheckBlockHasTrivialBinding(const ScheduleState& self, const StmtSRef& bloc
  * \param parent_sref The StmtSRef that points to the parent block/loop
  * \return A list of StmtSRefs of leaf block
  */
-Array<StmtSRef> GetChildBlockSRefOnSRefTree(const ScheduleState& self, const StmtSRef& parent_sref);
+ffi::Array<StmtSRef> GetChildBlockSRefOnSRefTree(const ScheduleState& self,
+                                                 const StmtSRef& parent_sref);
 
 /*!
  * \brief Gets the BlockRealize of the leaf blocks of a scope where a specific block/loop is in
  * \param parent_sref The StmtSRef that points to the parent block/loop
  * \return A list of leaf BlockRealize
  */
-Array<BlockRealize> GetChildBlockRealizeOnSRefTree(const StmtSRef& parent_sref);
+ffi::Array<BlockRealize> GetChildBlockRealizeOnSRefTree(const StmtSRef& parent_sref);
 
 /*!
  * \brief Get the BlockRealize of the single child block of the block or loop specified by
@@ -357,7 +358,7 @@ IterVarType GetLoopIterType(const StmtSRef& loop_sref);
  * \return The lowest common ancestor of the input block srefs or loop srefs
  * \note The input array is required to have at least one sref
  */
-StmtSRef GetSRefLowestCommonAncestor(const Array<StmtSRef>& srefs);
+StmtSRef GetSRefLowestCommonAncestor(const ffi::Array<StmtSRef>& srefs);
 
 /*!
  * \brief Checks if the given block has been applied by multi-level tiling. We check this by
@@ -374,8 +375,8 @@ bool HasBeenMultiLevelTiled(const StmtSRef& block_sref);
  * \return All the feasible compute-at locations of the input block, given as an array of loop srefs
  *         and an array of their indices among the outer loops of the input block
  */
-std::pair<Array<StmtSRef>, std::vector<int>> CollectComputeLocation(const ScheduleState& self,
-                                                                    const StmtSRef& block_sref);
+std::pair<ffi::Array<StmtSRef>, std::vector<int>> CollectComputeLocation(
+    const ScheduleState& self, const StmtSRef& block_sref);
 
 /******** Producer-consumer relation ********/
 
@@ -385,7 +386,7 @@ std::pair<Array<StmtSRef>, std::vector<int>> CollectComputeLocation(const Schedu
  * \param scope The block scope where the given block is in
  * \return The producer blocks of the specified block
  */
-Array<StmtSRef> GetProducers(const StmtSRef& block_sref, const BlockScope& scope);
+ffi::Array<StmtSRef> GetProducers(const StmtSRef& block_sref, const BlockScope& scope);
 
 /*!
  * \brief Get the consumer blocks to the given block under the given scope
@@ -393,7 +394,7 @@ Array<StmtSRef> GetProducers(const StmtSRef& block_sref, const BlockScope& scope
  * \param scope The block scope where the given block is in
  * \return The consumer blocks of the specified block
  */
-Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const BlockScope& scope);
+ffi::Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const BlockScope& scope);
 
 /*!
  * \brief Get the list of output blocks within the given scope
@@ -403,7 +404,7 @@ Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const BlockScope& scope
  * \return A list of all blocks that write to some output buffer
  * block
  */
-Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const BlockNode* scope_block);
+ffi::Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const BlockNode* scope_block);
 
 /*!
  * \brief A solution to split a ordered list of subtrees into two parts,
@@ -431,8 +432,9 @@ struct ProducerConsumerSplit {
    * \throw ScheduleError is not valid split is found
    */
   static ProducerConsumerSplit Find(
-      const ScheduleState& state, const Array<Stmt>& subtrees,
-      const Array<StmtSRef>& producer_block_srefs, const Array<StmtSRef>& consumer_block_srefs,
+      const ScheduleState& state, const ffi::Array<Stmt>& subtrees,
+      const ffi::Array<StmtSRef>& producer_block_srefs,
+      const ffi::Array<StmtSRef>& consumer_block_srefs,
       std::unordered_map<const BlockNode*, const BlockRealizeNode*>* block2realize);
 };
 
@@ -469,8 +471,8 @@ BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const Block& bl
  * \return The defining site of the buffer and whether the buffer is allocated (otherwise the
  *         buffer is from match_buffer).
  */
-std::pair<Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
-                                                          const Buffer& buffer);
+std::pair<ffi::Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
+                                                               const Buffer& buffer);
 
 /******** Reduction Block Related ********/
 
@@ -481,8 +483,8 @@ std::pair<Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_
  * \return The extracted init values and BufferStore updates
  * \throw ScheduleError If rfactor or cross-thread reduction cannot be applied to the block
  */
-std::pair<Array<PrimExpr>, Array<BufferStore>> GetInitValuesAndUpdatesFromReductionBlock(
-    const Optional<ScheduleState>& self, Block block);
+std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdatesFromReductionBlock(
+    const ffi::Optional<ScheduleState>& self, Block block);
 
 /*!
  * \brief Check whether the input array of IterVars only contains data-parallel and reduction block
@@ -491,7 +493,7 @@ std::pair<Array<PrimExpr>, Array<BufferStore>> GetInitValuesAndUpdatesFromReduct
  * \return A boolean indicating whether the input array of IterVars only contains data-parallel and
  * reduction block iters
  */
-bool ContainsOnlyDataParAndReductionBlockIter(const Array<IterVar>& iters);
+bool ContainsOnlyDataParAndReductionBlockIter(const ffi::Array<IterVar>& iters);
 
 /*!
  * \brief Check whether the block's reduction block iters are not used to index the block's output
@@ -511,9 +513,9 @@ bool ReductionIterNotIndexOutputBuffer(const Block& block);
  * \return The corresponding CommReducer, combiner LHS values and combiner RHS values
  * \throw ScheduleError If no corresponding commutative reducer can be matched
  */
-std::tuple<CommReducer, Array<PrimExpr>, Array<PrimExpr>> GetReducerAndCombinerLhsRhs(
-    const Optional<ScheduleState>& self, const Array<PrimExpr>& identities,
-    const Array<BufferStore>& combiners);
+std::tuple<CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAndCombinerLhsRhs(
+    const ffi::Optional<ScheduleState>& self, const ffi::Array<PrimExpr>& identities,
+    const ffi::Array<BufferStore>& combiners);
 
 /******** Commutative Reducer ********/
 
@@ -522,7 +524,8 @@ std::tuple<CommReducer, Array<PrimExpr>, Array<PrimExpr>> GetReducerAndCombinerL
  * \return The list of the registered reducer-getter functions
  * \sa ReducerRegistry
  */
-std::vector<ffi::TypedFunction<Optional<CommReducer>(Array<PrimExpr>)>> GetReducerGetters();
+std::vector<ffi::TypedFunction<ffi::Optional<CommReducer>(ffi::Array<PrimExpr>)>>
+GetReducerGetters();
 
 /*!
  * \brief Given the input identities and the combiner BufferStores of a reduction, extract the
@@ -534,8 +537,9 @@ std::vector<ffi::TypedFunction<Optional<CommReducer>(Array<PrimExpr>)>> GetReduc
  * \param rhs The extracted RHS values of the reducer
  * \return A boolean indicating whether a corresponding commutative reducer is found
  */
-bool FromIdentityCombiner(const Array<PrimExpr>& identities, const Array<BufferStore>& combiners,
-                          CommReducer* result_reducer, Array<PrimExpr>* lhs, Array<PrimExpr>* rhs);
+bool FromIdentityCombiner(const ffi::Array<PrimExpr>& identities,
+                          const ffi::Array<BufferStore>& combiners, CommReducer* result_reducer,
+                          ffi::Array<PrimExpr>* lhs, ffi::Array<PrimExpr>* rhs);
 
 /******** Misc ********/
 
@@ -545,7 +549,7 @@ bool FromIdentityCombiner(const Array<PrimExpr>& identities, const Array<BufferS
  * \param storage_scope The storage scope string to be checked
  * \throw ScheduleError If the input storage scope is not valid
  */
-void CheckStorageScope(const ScheduleState& self, String storage_scope);
+void CheckStorageScope(const ScheduleState& self, ffi::String storage_scope);
 
 /*!
  * \brief Checks if a block could be successfully computed inline into its consumer
@@ -595,9 +599,9 @@ bool CanReverseComputeAt(const ScheduleState& self, const StmtSRef& block_sref,
  * \param predicate The predicate of the access
  * \param analyzer Arithmetic analyzer
  */
-Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const Array<PrimExpr>& indices,
-                                   const Array<For>& loops, const PrimExpr& predicate,
-                                   arith::Analyzer* analyzer);
+ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<PrimExpr>& indices,
+                                        const ffi::Array<For>& loops, const PrimExpr& predicate,
+                                        arith::Analyzer* analyzer);
 
 /*!
  * \brief Checks if the given AST contains the specific operators
@@ -605,7 +609,7 @@ Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const Array<PrimExpr>& 
  * \param ops The list of operators to be checked
  * \return A boolean indicating whether the AST contains the specific operators
  */
-bool HasOp(const Stmt& stmt, const Array<Op>& ops);
+bool HasOp(const Stmt& stmt, const ffi::Array<Op>& ops);
 
 /*!
  * \brief Checks if the given AST statement contains if-then-else, including
@@ -697,10 +701,11 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
  * \param dom_high_exclusive The highest node in the sref tree path
  * \return An n-dimensional integer set
  */
-Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region, const PrimExpr& predicate,
-                                             const StmtSRef& dom_low_inclusive,
-                                             const StmtSRef& dom_high_exclusive,
-                                             arith::Analyzer* analyzer);
+ffi::Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,
+                                                  const PrimExpr& predicate,
+                                                  const StmtSRef& dom_low_inclusive,
+                                                  const StmtSRef& dom_high_exclusive,
+                                                  arith::Analyzer* analyzer);
 
 /*!
  * \brief Analyze the buffer region under the sref tree path [dom_low_inclusive, dom_high_exclusive)
@@ -712,10 +717,11 @@ Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region, const P
  * \param analyzer The analyzer
  * \return An n-dimensional integer set
  */
-Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region, const PrimExpr& predicate,
-                                             const StmtSRef& dom_low_inclusive,
-                                             const StmtSRef& dom_high_exclusive,
-                                             arith::Analyzer* analyzer);
+ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region,
+                                                  const PrimExpr& predicate,
+                                                  const StmtSRef& dom_low_inclusive,
+                                                  const StmtSRef& dom_high_exclusive,
+                                                  arith::Analyzer* analyzer);
 
 /*!
  * \brief Simplify non-trivial expressions
@@ -733,13 +739,13 @@ PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, arith::Analyzer* analyzer)
 class TensorizeInfoNode : public Object {
  public:
   /*! \brief Maps loops in a target block to the ones in an intrinsic description */
-  Map<tir::StmtSRef, tir::For> loop_map;
+  ffi::Map<tir::StmtSRef, tir::For> loop_map;
   /*! \brief Maps loops in an intrinsic description to its index, outer to inner */
-  Map<tir::For, Integer> desc_loop_indexer;
+  ffi::Map<tir::For, Integer> desc_loop_indexer;
   /*! \brief Optional padded extents of the block iters when padding is needed to match the
    * intrinsic description
    */
-  Optional<Array<Integer>> block_iter_paddings;
+  ffi::Optional<ffi::Array<Integer>> block_iter_paddings;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -748,14 +754,15 @@ class TensorizeInfoNode : public Object {
         .def_ro("desc_loop_indexer", &TensorizeInfoNode::desc_loop_indexer)
         .def_ro("block_iter_paddings", &TensorizeInfoNode::block_iter_paddings);
   }
-
-  static constexpr const char* _type_key = "tir.schedule.TensorizeInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TensorizeInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.schedule.TensorizeInfo", TensorizeInfoNode, Object);
 };
 
 class TensorizeInfo : public ObjectRef {
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TensorizeInfo, ObjectRef, TensorizeInfoNode);
+  explicit TensorizeInfo(ObjectPtr<TensorizeInfoNode> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorizeInfo, ObjectRef, TensorizeInfoNode);
 };
 
 /*!
@@ -766,26 +773,27 @@ class TensorizeInfo : public ObjectRef {
  * \param allow_padding Whether to allow padding the block iters to match the intrinsic description
  * \return TensorizeInfo structure if a valid mapping is found, std::nullopt otherwise
  */
-Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
-                                                const tir::StmtSRef& block_sref,
-                                                const tir::PrimFunc& desc_func, bool allow_padding);
+ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
+                                                     const tir::StmtSRef& block_sref,
+                                                     const tir::PrimFunc& desc_func,
+                                                     bool allow_padding);
 
 /*！\brief Necessary information used to perform transformations for tensorization */
 class AutoTensorizeMappingInfoNode : public Object {
  public:
   /*! \brief Possible mappings to apply to block iters */
-  Array<IndexMap> mappings;
+  ffi::Array<IndexMap> mappings;
 
   /* Additional information from AutoTensorizeComparator */
 
   /*! \brief Mapping from LHS buffer to RHS buffer */
-  Map<Buffer, Buffer> lhs_buffer_map;
+  ffi::Map<Buffer, Buffer> lhs_buffer_map;
   /*! \brief Buffer indices on RHS */
-  Map<Buffer, Array<PrimExpr>> rhs_buffer_indices;
+  ffi::Map<Buffer, ffi::Array<PrimExpr>> rhs_buffer_indices;
   /*! \brief Block iters on LHS */
-  Array<IterVar> lhs_iters;
+  ffi::Array<IterVar> lhs_iters;
   /*! \brief Block iters on RHS */
-  Array<IterVar> rhs_iters;
+  ffi::Array<IterVar> rhs_iters;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -796,15 +804,18 @@ class AutoTensorizeMappingInfoNode : public Object {
         .def_ro("lhs_iters", &AutoTensorizeMappingInfoNode::lhs_iters)
         .def_ro("rhs_iters", &AutoTensorizeMappingInfoNode::rhs_iters);
   }
-
-  static constexpr const char* _type_key = "tir.schedule.AutoTensorizeMappingInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AutoTensorizeMappingInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.schedule.AutoTensorizeMappingInfo",
+                                    AutoTensorizeMappingInfoNode, Object);
 };
 
 class AutoTensorizeMappingInfo : public ObjectRef {
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AutoTensorizeMappingInfo, ObjectRef,
-                                            AutoTensorizeMappingInfoNode);
+  explicit AutoTensorizeMappingInfo(ObjectPtr<AutoTensorizeMappingInfoNode> data)
+      : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AutoTensorizeMappingInfo, ObjectRef,
+                                                AutoTensorizeMappingInfoNode);
 };
 
 /*!
@@ -818,9 +829,9 @@ class AutoTensorizeMappingInfo : public ObjectRef {
  * tensorized. We will need to apply the suggested layout transformations and then match against the
  * tensor intrinsics.
  */
-Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const ScheduleState& self,
-                                                               const StmtSRef& block_sref,
-                                                               const PrimFunc& desc_func);
+ffi::Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const ScheduleState& self,
+                                                                    const StmtSRef& block_sref,
+                                                                    const PrimFunc& desc_func);
 
 /*!
  * \brief Perform basic checks for auto tensorization applicability, such as the structure of

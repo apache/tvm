@@ -18,7 +18,7 @@
 import inspect
 from typing import Callable, Dict, List, Literal, Optional, Tuple, Union
 
-from tvm.ffi import register_object as _register_object
+from tvm_ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
 from tvm.ir import GlobalVar, IRModule, PrimExpr
 from tvm.runtime import Object

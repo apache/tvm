@@ -27,6 +27,8 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
 
+#include <utility>
+
 namespace tvm {
 namespace relax {
 
@@ -39,13 +41,7 @@ class ObjectStructInfoNode : public StructInfoNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ObjectStructInfoNode>();
   }
-
-  bool SEqualReduce(const ObjectStructInfoNode* other, SEqualReducer equal) const { return true; }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(0); }
-
-  static constexpr const char* _type_key = "relax.ObjectStructInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ObjectStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ObjectStructInfo", ObjectStructInfoNode, StructInfoNode);
 };
 
 /*!
@@ -56,7 +52,7 @@ class ObjectStructInfo : public StructInfo {
  public:
   TVM_DLL ObjectStructInfo(Span span = Span());
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ObjectStructInfo, StructInfo, ObjectStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ObjectStructInfo, StructInfo, ObjectStructInfoNode);
 };
 
 /*!
@@ -65,7 +61,7 @@ class ObjectStructInfo : public StructInfo {
 class PrimStructInfoNode : public StructInfoNode {
  public:
   /*! \brief Underlying primitive value, if known */
-  Optional<PrimExpr> value;
+  ffi::Optional<PrimExpr> value;
 
   /*! \brief Underlying data type of the primitive value */
   DataType dtype;
@@ -76,18 +72,7 @@ class PrimStructInfoNode : public StructInfoNode {
         .def_ro("value", &PrimStructInfoNode::value)
         .def_ro("dtype", &PrimStructInfoNode::dtype);
   }
-
-  bool SEqualReduce(const PrimStructInfoNode* other, SEqualReducer equal) const {
-    return equal(value, other->value) && equal(dtype, other->dtype);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(value);
-    hash_reduce(dtype);
-  }
-
-  static constexpr const char* _type_key = "relax.PrimStructInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PrimStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.PrimStructInfo", PrimStructInfoNode, StructInfoNode);
 };
 
 /*!
@@ -102,7 +87,7 @@ class PrimStructInfo : public StructInfo {
   /* Construct a PrimStructInfo with a known value */
   TVM_DLL PrimStructInfo(PrimExpr value, Span span = Span());
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(PrimStructInfo, StructInfo, PrimStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimStructInfo, StructInfo, PrimStructInfoNode);
 };
 
 /*!
@@ -111,7 +96,7 @@ class PrimStructInfo : public StructInfo {
 class ShapeStructInfoNode : public StructInfoNode {
  public:
   /*! \brief optionally stores the symbolic value patterns of the shape */
-  Optional<Array<PrimExpr>> values;
+  ffi::Optional<ffi::Array<PrimExpr>> values;
   /*!
    * \brief The number of dimension of the shape, can be unknown.
    * \sa kUnknownNDim
@@ -127,18 +112,7 @@ class ShapeStructInfoNode : public StructInfoNode {
         .def_ro("values", &ShapeStructInfoNode::values)
         .def_ro("ndim", &ShapeStructInfoNode::ndim);
   }
-
-  bool SEqualReduce(const ShapeStructInfoNode* other, SEqualReducer equal) const {
-    return equal(values, other->values) && equal(ndim, other->ndim);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(values);
-    hash_reduce(ndim);
-  }
-
-  static constexpr const char* _type_key = "relax.ShapeStructInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ShapeStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ShapeStructInfo", ShapeStructInfoNode, StructInfoNode);
 };
 
 /*!
@@ -152,7 +126,7 @@ class ShapeStructInfo : public StructInfo {
    * \param values The symbolic shape values
    * \param span The span of the AST.
    */
-  TVM_DLL ShapeStructInfo(Array<PrimExpr> values, Span span = Span());
+  TVM_DLL ShapeStructInfo(ffi::Array<PrimExpr> values, Span span = Span());
   /*!
    * \brief Construction with known unknown symbolic shape patterns.
    * \param ndim Number of dimensions -- can be kUnknownNDim
@@ -160,7 +134,7 @@ class ShapeStructInfo : public StructInfo {
    */
   TVM_DLL ShapeStructInfo(int ndim, Span span = Span());
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ShapeStructInfo, StructInfo, ShapeStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ShapeStructInfo, StructInfo, ShapeStructInfoNode);
 };
 
 /*!
@@ -172,11 +146,11 @@ class TensorStructInfoNode : public StructInfoNode {
    * \brief optionally store the shape expression of the tensor.
    * \note shape must be normalized: it can only be std::nullopt or ShapeExpr or Var.
    */
-  Optional<Expr> shape;
+  ffi::Optional<Expr> shape;
   /*! \brief The virtual device, indicates where the tensor
    *  is expected to be executed.
    */
-  Optional<VDevice> vdevice;
+  ffi::Optional<VDevice> vdevice;
   /*! \brief The content data type, use void to denote the dtype is unknown. */
   DataType dtype;
   /*!
@@ -192,7 +166,7 @@ class TensorStructInfoNode : public StructInfoNode {
   bool IsUnknownDtype() const { return dtype.is_void(); }
 
   /*! \return Shape if it is known. */
-  Optional<Array<PrimExpr>> GetShape() const {
+  ffi::Optional<ffi::Array<PrimExpr>> GetShape() const {
     if (!shape.defined()) return {};
     ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(this->shape.value()->struct_info_);
     return shape_sinfo->values;
@@ -206,21 +180,7 @@ class TensorStructInfoNode : public StructInfoNode {
         .def_ro("vdevice", &TensorStructInfoNode::vdevice)
         .def_ro("ndim", &TensorStructInfoNode::ndim);
   }
-
-  bool SEqualReduce(const TensorStructInfoNode* other, SEqualReducer equal) const {
-    return equal(shape, other->shape) && equal(ndim, other->ndim) &&
-           equal(vdevice, other->vdevice) && equal(dtype, other->dtype);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(shape);
-    hash_reduce(dtype);
-    hash_reduce(vdevice);
-    hash_reduce(ndim);
-  }
-
-  static constexpr const char* _type_key = "relax.TensorStructInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TensorStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TensorStructInfo", TensorStructInfoNode, StructInfoNode);
 };
 
 /*!
@@ -238,8 +198,8 @@ class TensorStructInfo : public StructInfo {
    *
    * \note shape must already be normalized.
    */
-  TVM_DLL TensorStructInfo(Expr shape, DataType dtype, Optional<VDevice> vdevice = std::nullopt,
-                           Span span = Span());
+  TVM_DLL TensorStructInfo(Expr shape, DataType dtype,
+                           ffi::Optional<VDevice> vdevice = std::nullopt, Span span = Span());
 
   /*!
    * \brief Construction with an unknown shape expression.
@@ -248,10 +208,10 @@ class TensorStructInfo : public StructInfo {
    * \param vdevice The virtual device.
    * \param span The span of the AST.
    */
-  TVM_DLL TensorStructInfo(DataType dtype, int ndim, Optional<VDevice> vdevice = std::nullopt,
+  TVM_DLL TensorStructInfo(DataType dtype, int ndim, ffi::Optional<VDevice> vdevice = std::nullopt,
                            Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(TensorStructInfo, StructInfo, TensorStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorStructInfo, StructInfo, TensorStructInfoNode);
 };
 
 /*!
@@ -260,21 +220,13 @@ class TensorStructInfo : public StructInfo {
 class TupleStructInfoNode : public StructInfoNode {
  public:
   /*! \brief The struct info of tuple fields. */
-  Array<StructInfo> fields;
+  ffi::Array<StructInfo> fields;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TupleStructInfoNode>().def_ro("fields", &TupleStructInfoNode::fields);
   }
-
-  bool SEqualReduce(const TupleStructInfoNode* other, SEqualReducer equal) const {
-    return equal(fields, other->fields);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(fields); }
-
-  static constexpr const char* _type_key = "relax.TupleStructInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TupleStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TupleStructInfo", TupleStructInfoNode, StructInfoNode);
 };
 
 /*!
@@ -288,9 +240,9 @@ class TupleStructInfo : public StructInfo {
    * \param fields Struct info of tuple fields.
    * \param span The span of the AST.
    */
-  TVM_DLL TupleStructInfo(Array<StructInfo> fields, Span span = Span());
+  TVM_DLL TupleStructInfo(ffi::Array<StructInfo> fields, Span span = Span());
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TupleStructInfo, StructInfo, TupleStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TupleStructInfo, StructInfo, TupleStructInfoNode);
 };
 
 /*!
@@ -314,7 +266,7 @@ class FuncStructInfoNode : public StructInfoNode {
    * \note When params is std::nullopt means the function can take arbitrary number of arguments.
    *       We define such functions as Opaque function.
    */
-  Optional<Array<StructInfo>> params;
+  ffi::Optional<ffi::Array<StructInfo>> params;
   /*!
    * \brief The struct info of the function's return value.
    */
@@ -324,7 +276,7 @@ class FuncStructInfoNode : public StructInfoNode {
    * \note When derive_func is not empty, then params should be std::nullopt,
    *       ret should be ObjectStructInfo()
    */
-  Optional<StructInfoDeriveFunc> derive_func;
+  ffi::Optional<StructInfoDeriveFunc> derive_func;
   /*!
    * \brief Whether the function is pure.
    * \note This parameter should be set to true only if the function is pure on all inputs.
@@ -341,26 +293,12 @@ class FuncStructInfoNode : public StructInfoNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FuncStructInfoNode>()
-        .def_ro("params", &FuncStructInfoNode::params)
+        .def_ro("params", &FuncStructInfoNode::params, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("ret", &FuncStructInfoNode::ret)
         .def_ro("derive_func", &FuncStructInfoNode::derive_func)
         .def_ro("purity", &FuncStructInfoNode::purity);
   }
-
-  bool SEqualReduce(const FuncStructInfoNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(params, other->params) && equal(ret, other->ret) &&
-           equal(purity, other->purity) && equal(derive_func, other->derive_func);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(params);
-    hash_reduce(ret);
-    hash_reduce(purity);
-    hash_reduce(derive_func);
-  }
-
-  static constexpr const char* _type_key = "relax.FuncStructInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FuncStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.FuncStructInfo", FuncStructInfoNode, StructInfoNode);
 };
 
 /*!
@@ -369,6 +307,10 @@ class FuncStructInfoNode : public StructInfoNode {
  */
 class FuncStructInfo : public StructInfo {
  public:
+  explicit FuncStructInfo(ObjectPtr<FuncStructInfoNode> data) : StructInfo(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
   /*!
    * \brief Constructor from parameter struct info and return value struct info.
    * \param params The struct info of function parameters.
@@ -379,7 +321,7 @@ class FuncStructInfo : public StructInfo {
    * \note If the ret contains variables(tir::Var and relax::Var), they must be deducible from
    * params. If you are unsure, you can always erase ret to static.
    */
-  TVM_DLL FuncStructInfo(Array<StructInfo> params, StructInfo ret, bool purity = true,
+  TVM_DLL FuncStructInfo(ffi::Array<StructInfo> params, StructInfo ret, bool purity = true,
                          Span span = Span());
 
   /*!
@@ -410,7 +352,7 @@ class FuncStructInfo : public StructInfo {
   TVM_DLL static FuncStructInfo OpaqueFunc(StructInfo ret = ObjectStructInfo(), bool purity = false,
                                            Span span = Span());
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(FuncStructInfo, StructInfo, FuncStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FuncStructInfo, StructInfo, FuncStructInfoNode);
 };
 
 /*!
@@ -421,10 +363,10 @@ class FuncStructInfo : public StructInfo {
  * \tparam T the underlying structure info type
  */
 template <typename T>
-inline Optional<T> MatchStructInfo(const Expr& expr) {
+inline ffi::Optional<T> MatchStructInfo(const Expr& expr) {
   using TNode = typename T::ContainerType;
   if (const TNode* ptr = expr->struct_info_.as<TNode>()) {
-    return GetRef<T>(ptr);
+    return ffi::GetRef<T>(ptr);
   } else {
     return std::nullopt;
   }
@@ -453,7 +395,7 @@ inline const T* GetStructInfoAs(const Expr& expr) {
 inline StructInfo GetStructInfo(const Expr& expr) {
   auto* ptr = expr->struct_info_.as<StructInfoNode>();
   ICHECK(ptr) << "The struct_info is not populated, check if you have normalized the expr";
-  return GetRef<StructInfo>(ptr);
+  return ffi::GetRef<StructInfo>(ptr);
 }
 
 /*!

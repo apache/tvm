@@ -14,6 +14,178 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+[build-system]
+requires = ["scikit-build-core>=0.10.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "tvm"
+# Note: Call version.py to update the version before building the wheel
+version = "0.22.0"
+description = "Apache TVM: An End-to-End Deep Learning Compiler Stack"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.9"
+authors = [
+    { name = "Apache TVM Community", email = "dev@tvm.apache.org" }
+]
+keywords = ["machine learning", "compiler", "deep learning", "inference"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+# Core dependencies - these are the minimum required for basic TVM functionality
+dependencies = [
+    "apache-tvm-ffi",
+    "cloudpickle",
+    "ml_dtypes",
+    "numpy",
+    "packaging",
+    "psutil",
+    "scipy",
+    "tornado",
+    "typing_extensions",
+]
+
+# Optional dependencies for different features
+[project.optional-dependencies]
+# Model importers
+importer-coreml = ["coremltools"]
+importer-keras = ["tensorflow", "tensorflow-estimator"]
+importer-onnx = ["future", "onnx", "onnxoptimizer", "onnxruntime", "torch", "torchvision"]
+importer-pytorch = ["torch", "torchvision"]
+importer-tensorflow = ["tensorflow", "tensorflow-estimator"]
+importer-tflite = ["tflite"]
+importer-paddle = ["paddlepaddle"]
+
+# AutoTVM and autoscheduler
+autotvm = ["xgboost"]
+autoscheduler = ["xgboost"]
+
+# Development and testing
+dev = [
+    "black",
+    "isort",
+    "mypy",
+    "pylint",
+    "pytest",
+    "pytest-xdist",
+    "pytest-cov",
+    "pytest-mock",
+    "pytest-benchmark",
+    "pytest-timeout",
+    "pytest-rerunfailures",
+    "pytest-repeat",
+    "pytest-xdist",
+    "pytest-cov",
+    "pytest-mock",
+    "pytest-benchmark",
+    "pytest-timeout",
+    "pytest-rerunfailures",
+    "pytest-repeat",
+]
+
+# All optional dependencies (excluding dev)
+all = [
+    "coremltools",
+    "tensorflow",
+    "tensorflow-estimator",
+    "future",
+    "onnx",
+    "onnxoptimizer",
+    "onnxruntime",
+    "torch",
+    "torchvision",
+    "tflite",
+    "paddlepaddle",
+    "xgboost",
+]
+
+[project.urls]
+Homepage = "https://tvm.apache.org/"
+Documentation = "https://tvm.apache.org/docs/"
+Repository = "https://github.com/apache/tvm"
+"Bug Tracker" = "https://github.com/apache/tvm/issues"
+
+[tool.scikit-build]
+# Point to the root CMakeLists.txt
+cmake.source-dir = "."
+cmake.build-type = "Release"
+
+# Configure the wheel to be Python version-agnostic
+wheel.py-api = "py3"
+
+# Build configuration
+build-dir = "build"
+
+# CMake configuration - ensure proper installation paths
+cmake.args = ["-DTVM_BUILD_PYTHON_MODULE=ON"]
+
+# Wheel configuration
+wheel.packages = ["python/tvm"]
+wheel.install-dir = "tvm"
+
+# Source distribution configuration
+sdist.include = [
+    # Build files
+    "/CMakeLists.txt",
+    "/pyproject.toml",
+    "/cmake/**/*",
+    "/  */*",
+
+    # Source code
+    "/src/**/*.cc",
+    "/src/**/*.h",
+    "/include/**/*.h",
+
+    # Python source
+    "/python/tvm/**/*.py",
+    "/python/tvm/**/*.pyi",
+
+    # Documentation and metadata
+    "/docs/**/*",
+    "/LICENSE",
+    "/README.md",
+    "/NOTICE",
+
+    # Tests
+    "/tests/**/*",
+]
+
+sdist.exclude = [
+    "**/.git",
+    "**/.github",
+    "**/__pycache__",
+    "**/*.pyc",
+    "build",
+    "dist",
+    "**/3rdparty/*/docs",
+    "**/3rdparty/*/media",
+    "**/3rdparty/*/examples",
+    "**/3rdparty/*/test",
+]
+
+# Logging
+logging.level = "INFO"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
 [tool.isort]
 profile = "black"
 src_paths = ["python", "tests/python"]
@@ -51,5 +223,48 @@ exclude = '''
 '''
 
 [tool.ruff]
+# Enable pycodestyle (`E`), Pyflakes (`F`), and isort (`I`) codes
+select = ["E", "F", "I"]
+ignore = []
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["A", "B", "C", "D", "E", "F", "I", "N", "UP", "W", "ARG", "B", "C4", "DTZ", "T10", "EM", "EXE", "FA", "ICN", "Q", "T20", "TID", "TCH", "RUF"]
+unfixable = []
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".darcs",
+    ".git",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "3rdparty",
+]
+
 line-length = 100
 indent-width = 4
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+
+[tool.ruff.mccabe]
+max-complexity = 10
+
+[tool.ruff.isort]
+known-first-party = ["tvm"]

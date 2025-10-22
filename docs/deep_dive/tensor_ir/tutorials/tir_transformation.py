@@ -72,9 +72,9 @@ a_np = np.random.uniform(size=(128, 128)).astype("float32")
 b_np = np.random.uniform(size=(128, 128)).astype("float32")
 c_np = a_np @ b_np
 
-a_nd = tvm.nd.array(a_np)
-b_nd = tvm.nd.array(b_np)
-c_nd = tvm.nd.array(np.zeros((128, 128), dtype="float32"))
+a_nd = tvm.runtime.tensor(a_np)
+b_nd = tvm.runtime.tensor(b_np)
+c_nd = tvm.runtime.tensor(np.zeros((128, 128), dtype="float32"))
 
 
 def evaluate(mod: tvm.IRModule):

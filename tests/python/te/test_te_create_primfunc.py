@@ -352,8 +352,8 @@ def test_constant():
     func = te.create_prim_func([C, A])
     func = tvm.compile(func)
     a_np = np.random.uniform(size=(M,)).astype(A.dtype)
-    c = tvm.nd.array(np.zeros(M, dtype=C.dtype))
-    x = func(c, tvm.nd.array(a_np))
+    c = tvm.runtime.tensor(np.zeros(M, dtype=C.dtype))
+    x = func(c, tvm.runtime.tensor(a_np))
     tvm.testing.assert_allclose(a_np + 2, c.numpy())
 
 
@@ -367,8 +367,8 @@ def test_data_dependent_access():
 
     a_np = np.random.uniform(size=(10,)).astype(A.dtype)
     b_np = np.arange(10, dtype=B.dtype)
-    c = tvm.nd.array(np.zeros(10, dtype=C.dtype))
-    func(c, tvm.nd.array(a_np), tvm.nd.array(b_np))
+    c = tvm.runtime.tensor(np.zeros(10, dtype=C.dtype))
+    func(c, tvm.runtime.tensor(a_np), tvm.runtime.tensor(b_np))
     tvm.testing.assert_allclose(a_np[b_np], c.numpy())
 
 
@@ -852,7 +852,7 @@ def test_adaptive_pooling_window():
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(x[v_ax0, v_ax1, v_ax2 * 16 // 12:v_ax2 * 16 // 12 + ((v_ax2 % 3 * 4 + 16) // 12 + 1), v_ax3 * 40 // 30:v_ax3 * 40 // 30 + ((v_ax3 % 3 * 10 + 40) // 30 + 1)])
                 T.writes(adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
-                for rv0, rv1 in T.grid(T.Select((v_ax2 * 4 + 4) % 12 == 0, (v_ax2 * 16 + 16) // 12, (v_ax2 * 16 + 16) // 12 + 1) - v_ax2 * 16 // 12, T.Select((v_ax3 * 10 + 10) % 30 == 0, (v_ax3 * 40 + 40) // 30, (v_ax3 * 40 + 40) // 30 + 1) - v_ax3 * 40 // 30):
+                for rv0, rv1 in T.grid((v_ax2 % 3 * 4 + 16) // 12 + 1, (v_ax3 % 3 * 10 + 40) // 30 + 1):
                     with T.block("adaptive_pool_sum"):
                         v_ax0_1 = T.axis.spatial((v_ax0, v_ax0 + 1), v_ax0)
                         v_ax1_1 = T.axis.spatial((v_ax1, v_ax1 + 1), v_ax1)
@@ -870,7 +870,7 @@ def test_adaptive_pooling_window():
                 T.reads(adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
                 T.writes(adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3])
                 T.block_attr({"schedule_rule": "meta_schedule.adaptive_pool_avg"})
-                adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / (T.Cast("float32", T.Select((v_ax2 * 4 + 4) % 12 == 0, (v_ax2 * 16 + 16) // 12, (v_ax2 * 16 + 16) // 12 + 1) - v_ax2 * 16 // 12) * T.Cast("float32", T.Select((v_ax3 * 10 + 10) % 30 == 0, (v_ax3 * 40 + 40) // 30, (v_ax3 * 40 + 40) // 30 + 1) - v_ax3 * 40 // 30))
+                adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / (T.Cast("float32", (v_ax2 % 3 * 4 + 16) // 12 + 1) * T.Cast("float32", (v_ax3 % 3 * 10 + 40) // 30 + 1))
         # fmt: on
 
     def te_workload():

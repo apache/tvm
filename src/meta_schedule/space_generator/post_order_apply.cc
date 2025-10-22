@@ -37,7 +37,8 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
   TRandState rand_state_ = -1;
 
   static void RegisterReflection() {
-    // No fields to register
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PostOrderApplyNode>();
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final {
@@ -45,8 +46,8 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
     this->rand_state_ = ForkSeed(&context->rand_state);
   }
 
-  Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final {
-    using ScheduleAndUnvisitedBlocks = std::pair<tir::Schedule, Array<tir::BlockRV>>;
+  ffi::Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final {
+    using ScheduleAndUnvisitedBlocks = std::pair<tir::Schedule, ffi::Array<tir::BlockRV>>;
     CHECK(sch_rules.defined()) << "ValueError: `sch_rules` is not set in PostOrderApply";
     tir::Schedule sch = tir::Schedule::Traced(
         /*mod=*/mod,
@@ -55,8 +56,8 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
         /*error_render_level=*/tir::ScheduleErrorRenderLevel::kDetail);
 
     std::vector<ScheduleAndUnvisitedBlocks> stack;
-    Array<tir::Schedule> result{sch};
-    Array<tir::BlockRV> all_blocks = BlockCollector::Collect(sch, f_block_filter_);
+    ffi::Array<tir::Schedule> result{sch};
+    ffi::Array<tir::BlockRV> all_blocks = BlockCollector::Collect(sch, f_block_filter_);
 
     for (ScheduleRule sch_rule : sch_rules.value()) {
       for (const tir::Schedule& sch : result) {
@@ -80,12 +81,12 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
           continue;
         }
         if (!ScheduleRule::IsApplyCustomRule(sch_rule)) {
-          if (tir::GetAnn<String>(sch->GetSRef(block_rv), "schedule_rule").defined()) {
+          if (tir::GetAnn<ffi::String>(sch->GetSRef(block_rv), "schedule_rule").has_value()) {
             stack.emplace_back(sch, blocks);
             continue;
           }
         }
-        Array<tir::Schedule> applied = sch_rule->Apply(sch, /*block=*/block_rv);
+        ffi::Array<tir::Schedule> applied = sch_rule->Apply(sch, /*block=*/block_rv);
         for (const tir::Schedule& sch : applied) {
           stack.emplace_back(sch, blocks);
         }
@@ -95,19 +96,19 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
   }
 
   SpaceGenerator Clone() const final {
-    ObjectPtr<PostOrderApplyNode> n = make_object<PostOrderApplyNode>(*this);
+    ObjectPtr<PostOrderApplyNode> n = ffi::make_object<PostOrderApplyNode>(*this);
     CloneRules(this, n.get());
     return SpaceGenerator(n);
   }
-  static constexpr const char* _type_key = "meta_schedule.PostOrderApply";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PostOrderApplyNode, SpaceGeneratorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PostOrderApply", PostOrderApplyNode,
+                                    SpaceGeneratorNode);
 };
 
-SpaceGenerator SpaceGenerator::PostOrderApply(ffi::Function f_block_filter,
-                                              Optional<Array<ScheduleRule>> sch_rules,
-                                              Optional<Array<Postproc>> postprocs,
-                                              Optional<Map<Mutator, FloatImm>> mutator_probs) {
-  ObjectPtr<PostOrderApplyNode> n = make_object<PostOrderApplyNode>();
+SpaceGenerator SpaceGenerator::PostOrderApply(
+    ffi::Function f_block_filter, ffi::Optional<ffi::Array<ScheduleRule>> sch_rules,
+    ffi::Optional<ffi::Array<Postproc>> postprocs,
+    ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs) {
+  ObjectPtr<PostOrderApplyNode> n = ffi::make_object<PostOrderApplyNode>();
   n->sch_rules = std::move(sch_rules);
   n->postprocs = std::move(postprocs);
   n->mutator_probs = std::move(mutator_probs);
@@ -115,14 +116,13 @@ SpaceGenerator SpaceGenerator::PostOrderApply(ffi::Function f_block_filter,
   return SpaceGenerator(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({ PostOrderApplyNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { PostOrderApplyNode::RegisterReflection(); }
 
-TVM_REGISTER_NODE_TYPE(PostOrderApplyNode);
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.SpaceGeneratorPostOrderApply",
                         SpaceGenerator::PostOrderApply);
-});
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

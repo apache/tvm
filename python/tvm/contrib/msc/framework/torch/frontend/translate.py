@@ -66,7 +66,7 @@ def from_torch(
     build_config: Optional[Dict[str, str]] = None,
     as_msc: bool = True,
     custom_convert_map: dict = None,
-) -> Tuple[Union[MSCGraph, tvm.IRModule], Dict[str, tvm.nd.array]]:
+) -> Tuple[Union[MSCGraph, tvm.IRModule], Dict[str, tvm.runtime.Tensor]]:
     """Change torch nn.Module to MSCGraph.
 
     Parameters

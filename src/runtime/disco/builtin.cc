@@ -34,41 +34,44 @@ namespace runtime {
 
 class DSOLibraryCache {
  public:
-  Module Open(const std::string& library_path) {
+  ffi::Module Open(const std::string& library_path) {
     std::lock_guard<std::mutex> lock(mutex_);
-    Module& lib = cache_[library_path];
-    if (!lib.defined()) {
-      lib = Module::LoadFromFile(library_path, "");
+    auto it = cache_.find(library_path);
+    if (it == cache_.end()) {
+      ffi::Module lib = ffi::Module::LoadFromFile(library_path);
+      cache_.emplace(library_path, lib);
+      return lib;
     }
-    return lib;
+    return it->second;
   }
 
-  std::unordered_map<std::string, Module> cache_;
+  std::unordered_map<std::string, ffi::Module> cache_;
   std::mutex mutex_;
 };
 
-Module LoadVMModule(std::string path, Optional<Device> device) {
+ffi::Module LoadVMModule(std::string path, ffi::Optional<Device> device) {
   static DSOLibraryCache cache;
-  Module dso_mod = cache.Open(path);
+  ffi::Module dso_mod = cache.Open(path);
   Device dev = UseDefaultDeviceIfNone(device);
-  ffi::Function vm_load_executable = dso_mod.GetFunction("vm_load_executable");
-  if (vm_load_executable == nullptr) {
+  ffi::Optional<ffi::Function> vm_load_executable = dso_mod->GetFunction("vm_load_executable");
+  if (!vm_load_executable.has_value()) {
     // not built by RelaxVM, return the dso_mod directly
     return dso_mod;
   }
-  auto mod = vm_load_executable().cast<Module>();
-  ffi::Function vm_initialization = mod.GetFunction("vm_initialization");
-  CHECK(vm_initialization != nullptr)
-      << "ValueError: File `" << path
-      << "` is not built by RelaxVM, because `vm_initialization` does not exist";
-  vm_initialization(static_cast<int>(dev.device_type), static_cast<int>(dev.device_id),
-                    static_cast<int>(AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
-                    static_cast<int>(AllocatorType::kPooled));
+  auto mod = (*vm_load_executable)().cast<ffi::Module>();
+  ffi::Optional<ffi::Function> vm_initialization = mod->GetFunction("vm_initialization");
+  if (!vm_initialization.has_value()) {
+    LOG(FATAL) << "ValueError: File `" << path
+               << "` is not built by RelaxVM, because `vm_initialization` does not exist";
+  }
+  (*vm_initialization)(static_cast<int>(dev.device_type), static_cast<int>(dev.device_id),
+                       static_cast<int>(AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
+                       static_cast<int>(AllocatorType::kPooled));
   return mod;
 }
 
-NDArray DiscoEmptyNDArray(ffi::Shape shape, DataType dtype, Optional<Device> device) {
-  return NDArray::Empty(shape, dtype, UseDefaultDeviceIfNone(device));
+Tensor DiscoEmptyTensor(ffi::Shape shape, DataType dtype, ffi::Optional<Device> device) {
+  return Tensor::Empty(shape, dtype, UseDefaultDeviceIfNone(device));
 }
 
 ffi::Function GetCCLFunc(const char* name) {
@@ -80,37 +83,37 @@ ffi::Function GetCCLFunc(const char* name) {
   return *pf;
 }
 
-void AllReduce(NDArray send, ReduceKind reduce_kind, bool in_group, NDArray recv) {
+void AllReduce(Tensor send, ReduceKind reduce_kind, bool in_group, Tensor recv) {
   GetCCLFunc("allreduce")(send, static_cast<int>(reduce_kind), in_group, recv);
 }
 
-void AllGather(NDArray send, bool in_group, NDArray recv) {
+void AllGather(Tensor send, bool in_group, Tensor recv) {
   GetCCLFunc("allgather")(send, in_group, recv);
 }
 
-TVM_DLL void BroadcastFromWorker0(NDArray send, bool in_group, NDArray recv) {
+TVM_DLL void BroadcastFromWorker0(Tensor send, bool in_group, Tensor recv) {
   GetCCLFunc("broadcast_from_worker0")(send, in_group, recv);
 }
 
-TVM_DLL void ScatterFromWorker0(Optional<NDArray> send, bool in_group, NDArray recv) {
+TVM_DLL void ScatterFromWorker0(ffi::Optional<Tensor> send, bool in_group, Tensor recv) {
   GetCCLFunc("scatter_from_worker0")(send, in_group, recv);
 }
 
-void GatherToWorker0(NDArray send, bool in_group, Optional<NDArray> recv) {
+void GatherToWorker0(Tensor send, bool in_group, ffi::Optional<Tensor> recv) {
   GetCCLFunc("gather_to_worker0")(send, in_group, recv);
 }
 
-void RecvFromWorker0(NDArray buffer) { GetCCLFunc("recv_from_worker0")(buffer); }
+void RecvFromWorker0(Tensor buffer) { GetCCLFunc("recv_from_worker0")(buffer); }
 
-void SendToNextGroup(NDArray buffer) { GetCCLFunc("send_to_next_group")(buffer); }
+void SendToNextGroup(Tensor buffer) { GetCCLFunc("send_to_next_group")(buffer); }
 
-void RecvFromPrevGroup(NDArray buffer) { GetCCLFunc("recv_from_prev_group")(buffer); }
+void RecvFromPrevGroup(Tensor buffer) { GetCCLFunc("recv_from_prev_group")(buffer); }
 
-void SendToWorker(NDArray buffer, int receiver_id) {
+void SendToWorker(Tensor buffer, int receiver_id) {
   GetCCLFunc("send_to_worker")(buffer, receiver_id);
 }
 
-void RecvFromWorker(NDArray buffer, int sender_id) {
+void RecvFromWorker(Tensor buffer, int sender_id) {
   GetCCLFunc("recv_from_worker")(buffer, sender_id);
 }
 
@@ -122,13 +125,13 @@ void SyncWorker() {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.disco.load_vm_module", LoadVMModule)
       .def("runtime.disco.empty",
-           [](ffi::Shape shape, DataType dtype, Optional<Device> device, bool worker0_only,
-              bool in_group) -> Optional<NDArray> {
+           [](ffi::Shape shape, DataType dtype, ffi::Optional<Device> device, bool worker0_only,
+              bool in_group) -> ffi::Optional<Tensor> {
              int worker_id = WorkerId();
              int group_size =
                  DiscoWorker::ThreadLocal()->num_workers / DiscoWorker::ThreadLocal()->num_groups;
@@ -137,11 +140,11 @@ TVM_FFI_STATIC_INIT_BLOCK({
              if (worker0_only && !is_worker0) {
                return std::nullopt;
              } else {
-               return DiscoEmptyNDArray(shape, dtype, device);
+               return DiscoEmptyTensor(shape, dtype, device);
              }
            })
       .def("runtime.disco.allreduce",
-           [](NDArray send, ffi::Shape reduce_kind, bool in_group, NDArray recv) {
+           [](Tensor send, ffi::Shape reduce_kind, bool in_group, Tensor recv) {
              int kind = IntegerFromShape(reduce_kind);
              CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
              AllReduce(send, static_cast<ReduceKind>(kind), in_group, recv);
@@ -166,7 +169,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
             "tvm.runtime.threading.set_current_thread_affinity");
         f_set_thread_affinity(ffi::Shape{cpu_ids[worker_id]});
       });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

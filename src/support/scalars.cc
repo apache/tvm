@@ -19,7 +19,7 @@
 
 /*!
  * \file src/support/scalars.cc
- * \brief Helpers for converting between scalars in native, text, TIR immediate and NDArray forms.
+ * \brief Helpers for converting between scalars in native, text, TIR immediate and Tensor forms.
  */
 
 #include "./scalars.h"
@@ -38,9 +38,9 @@ static const DataType kFloat32 = DataType::Float(32);
 static const DataType kFloat64 = DataType::Float(64);
 static const DataType kBool = DataType::Bool();
 
-runtime::NDArray IntImmToNDArray(const IntImm& int_imm) {
+runtime::Tensor IntImmToTensor(const IntImm& int_imm) {
   DLDevice dev = {DLDeviceType::kDLCPU, 0};
-  auto data = runtime::NDArray::Empty({}, int_imm->dtype, dev);
+  auto data = runtime::Tensor::Empty({}, int_imm->dtype, dev);
   if (int_imm.dtype() == kInt16) {
     auto* array = reinterpret_cast<int16_t*>(data->data);
     array[0] = static_cast<int16_t>(int_imm->value);
@@ -56,9 +56,9 @@ runtime::NDArray IntImmToNDArray(const IntImm& int_imm) {
   return data;
 }
 
-runtime::NDArray FloatImmToNDArray(const FloatImm& float_imm) {
+runtime::Tensor FloatImmToTensor(const FloatImm& float_imm) {
   DLDevice dev = {DLDeviceType::kDLCPU, 0};
-  auto data = runtime::NDArray::Empty({}, float_imm->dtype, dev);
+  auto data = runtime::Tensor::Empty({}, float_imm->dtype, dev);
   if (float_imm.dtype() == kFloat16) {
     auto* array = reinterpret_cast<uint16_t*>(data->data);
     array[0] = __gnu_f2h_ieee(static_cast<float>(float_imm->value));
@@ -74,15 +74,15 @@ runtime::NDArray FloatImmToNDArray(const FloatImm& float_imm) {
   return data;
 }
 
-runtime::NDArray BoolToNDArray(bool value) {
+runtime::Tensor BoolToTensor(bool value) {
   DLDevice dev = {DLDeviceType::kDLCPU, 0};
-  auto data = runtime::NDArray::Empty({}, kBool, dev);
+  auto data = runtime::Tensor::Empty({}, kBool, dev);
   auto array = reinterpret_cast<bool*>(data->data);
   array[0] = value;
   return data;
 }
 
-std::string NDArrayScalarToString(const runtime::NDArray& data) {
+std::string TensorScalarToString(const runtime::Tensor& data) {
   std::ostringstream os;
   DataType dtype(data->dtype);
   ICHECK_EQ(data->device.device_type, kDLCPU) << "Scalars must reside on the CPU to be printed";
@@ -108,7 +108,7 @@ std::string NDArrayScalarToString(const runtime::NDArray& data) {
     auto value = static_cast<const uint8_t*>(data->data)[0];
     os << (value ? "True" : "False");
   } else {
-    LOG(FATAL) << "Unrecognized NDArray scalar dtype: " << DLDataTypeToString(dtype);
+    LOG(FATAL) << "Unrecognized Tensor scalar dtype: " << DLDataTypeToString(dtype);
   }
   return os.str();
 }

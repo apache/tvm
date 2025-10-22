@@ -76,7 +76,7 @@ void CodeGenC::ReserveKeywordsAsUnique() {
   name_supply_->ReserveName("return");
 }
 
-void CodeGenC::PrintFunctionSignature(const String& function_name, const PrimFunc& func,
+void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
                                       std::ostream& os) {
   PrintFuncPrefix(os);
   PrintType(func->ret_type, os);
@@ -136,8 +136,8 @@ void CodeGenC::DeclareFunction(const GlobalVar& gvar, const PrimFunc& func) {
     return;
   }
 
-  auto function_name = [&]() -> String {
-    if (auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+  auto function_name = [&]() -> ffi::String {
+    if (auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
       auto name = global_symbol.value();
       ICHECK(!func_name_supply_->ContainsName(name))
           << "Function " << gvar << " must use global symbol " << name
@@ -149,7 +149,9 @@ void CodeGenC::DeclareFunction(const GlobalVar& gvar, const PrimFunc& func) {
       return gvar->name_hint;
     }
   }();
-
+  if (function_name == ffi::symbol::tvm_ffi_main) {
+    has_tvm_ffi_main_func_ = true;
+  }
   internal_functions_.insert({gvar, function_name});
 
   InitFuncState(func);
@@ -157,7 +159,7 @@ void CodeGenC::DeclareFunction(const GlobalVar& gvar, const PrimFunc& func) {
   fwd_decl_stream << ";\n";
 }
 
-String CodeGenC::GetFunctionName(const GlobalVar& gvar) {
+ffi::String CodeGenC::GetFunctionName(const GlobalVar& gvar) {
   auto it = internal_functions_.find(gvar);
   ICHECK(it != internal_functions_.end())
       << "Attempted to find name of " << gvar
@@ -334,6 +336,12 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     os << "(((TVMFFIAny*)";
     this->PrintExpr(buffer, os);
     os << ")[" << index << "].type_index)";
+    return os.str();
+  } else if (kind == builtin::kTVMFFIAnyZeroPadding) {
+    std::ostringstream os;
+    os << "(((TVMFFIAny*)";
+    this->PrintExpr(buffer, os);
+    os << ")[" << index << "].zero_padding)";
     return os.str();
   } else if (kind == builtin::kTVMFFIAnyUnionValue) {
     std::ostringstream os;
@@ -599,8 +607,9 @@ void CodeGenC::VisitExpr_(const NotNode* op, std::ostream& os) {  // NOLINT(*)
   PrintExpr(op->a, os);
 }
 
-void CodeGenC::PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
-                               bool skip_first_arg, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::PrintCallExtern(Type ret_type, ffi::String global_symbol,
+                               const ffi::Array<PrimExpr>& args, bool skip_first_arg,
+                               std::ostream& os) {  // NOLINT(*)
   os << global_symbol << "(";
   for (size_t i = static_cast<size_t>(skip_first_arg); i < args.size(); ++i) {
     this->PrintExpr(args[i], os);
@@ -618,15 +627,19 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
     if (op->op.same_as(builtin::ret())) {
       os << "return ";
       PrintExpr(op->args[0], os);
+    } else if (op->op.same_as(builtin::continue_loop())) {
+      os << "continue;";
+    } else if (op->op.same_as(builtin::break_loop())) {
+      os << "break;";
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       ICHECK_GE(op->args.size(), 1U);
       auto func = Downcast<StringImm>(op->args[0]);
-      this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), func->value, op->args, true, os);
+      this->PrintCallExtern(GetType(ffi::GetRef<PrimExpr>(op)), func->value, op->args, true, os);
 
       // If the call_extern refers to an function within the IRModule, then
       // the forward declaration is already provided from DeclareFunction.
       if (!func_name_supply_->ContainsName(func->value)) {
-        Array<Type> arg_types;
+        ffi::Array<Type> arg_types;
         for (size_t i = 1; i < op->args.size(); i++) {
           arg_types.push_back(GetType(op->args[i]));
         }
@@ -635,7 +648,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       }
     } else if (op_attr_global_symbol_.count(call_op)) {
       // call extern if the op itself have a global symbol.
-      this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), op_attr_global_symbol_[call_op],
+      this->PrintCallExtern(GetType(ffi::GetRef<PrimExpr>(op)), op_attr_global_symbol_[call_op],
                             op->args, false, os);
     } else if (op->op.same_as(builtin::bitwise_and())) {
       PrintBinaryIntrinsic(op, " & ", os, this);
@@ -739,7 +752,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   } else if (auto opt = op->op.as<GlobalVar>()) {
     auto gvar = opt.value();
     auto callee_name = GetFunctionName(gvar);
-    PrintCallExtern(GetType(GetRef<PrimExpr>(op)), callee_name, op->args, false, os);
+    PrintCallExtern(GetType(ffi::GetRef<PrimExpr>(op)), callee_name, op->args, false, os);
   } else {
     LOG(FATAL) << "CodeGenC: Unknown operation " << op->op << " is neither a recognized built-in, "
                << "nor a GlobalVar reference to another function in the IRModule";
@@ -785,7 +798,7 @@ void CodeGenC::VisitStmt_(const AllocateConstNode* op) {
   decl_stream << " __attribute__((section(\".rodata.tvm\"), "
               << "aligned(" << constants_byte_alignment_->value << "))) " << symbol_name << "["
               << num_elements << "] = {\n";
-  NDArrayDataToC(data, 4, decl_stream);
+  TensorDataToC(data, 4, decl_stream);
 
   decl_stream << "};\n"
               << "#ifdef __cplusplus\n"

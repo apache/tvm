@@ -59,7 +59,7 @@ class FragmentGetter : public StmtExprVisitor {
       ICHECK(k);
       ICHECK(layout);
 
-      std::string scope = GetPtrStorageScope(GetRef<Var>(buffer_var));
+      std::string scope = GetPtrStorageScope(ffi::GetRef<Var>(buffer_var));
       if (fragments.count(buffer_var)) {
         // check if the fragment has met before
         FragmentInfo info = fragments[buffer_var];
@@ -92,7 +92,7 @@ class FragmentGetter : public StmtExprVisitor {
       ICHECK(n);
       ICHECK(k);
 
-      std::string scope = GetPtrStorageScope(GetRef<Var>(buffer_var));
+      std::string scope = GetPtrStorageScope(ffi::GetRef<Var>(buffer_var));
       if (fragments.count(buffer_var)) {
         FragmentInfo info = fragments[buffer_var];
         ICHECK_EQ(m->value, info.m);
@@ -218,10 +218,10 @@ Pass InferFragment() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InferFragment", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.InferFragment", InferFragment);
-});
+}
 
 }  // namespace transform
 }  // namespace tir

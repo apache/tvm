@@ -16,7 +16,7 @@
 # under the License.
 """A postprocessor that rewrites reduction block by moving the init block out."""
 
-from tvm.ffi.registry import register_object
+from tvm_ffi.registry import register_object
 from .. import _ffi_api
 from .postproc import Postproc
 

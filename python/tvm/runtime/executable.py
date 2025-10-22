@@ -17,9 +17,10 @@
 # pylint: disable=invalid-name, no-member
 
 """Executable object for TVM Runtime"""
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 
 import tvm
+
 from tvm.contrib import utils as _utils
 from . import PackedFunc, Module
 
@@ -38,7 +39,7 @@ class Executable:
 
     def __call__(self, *args, **kwargs) -> Any:
         """Call the executable."""
-        return self.jit().entry_func(*args, **kwargs)
+        return self.jit().main(*args, **kwargs)
 
     def jit(
         self,
@@ -91,7 +92,7 @@ class Executable:
         # TODO(tvm-team): Update runtime.Module interface
         # to query these properties as bitmask.
         def _not_runnable(x):
-            return x.type_key in ("c", "static_library")
+            return x.kind in ("c", "static_library")
 
         # pylint:disable = protected-access
         not_runnable_list = self.mod._collect_from_import_tree(_not_runnable)
@@ -105,20 +106,27 @@ class Executable:
         # by collecting the link and allow export_library skip those modules.
         workspace_dir = _utils.tempdir()
         dso_path = workspace_dir.relpath("exported.so")
-        self.mod.export_library(dso_path, fcompile=fcompile, addons=addons, **kwargs)
+        self.export_library(dso_path, fcompile=fcompile, addons=addons, **kwargs)
         self._jitted_mod = tvm.runtime.load_module(dso_path)
         return self._jitted_mod
 
     def export_library(
         self,
-        file_name: str,
+        file_name,
         *,
-        fcompile: Optional[Union[str, Callable[[str, List[str], Dict[str, Any]], None]]] = None,
-        addons: Optional[List[str]] = None,
-        workspace_dir: Optional[str] = None,
+        fcompile=None,
+        addons=None,
+        workspace_dir=None,
         **kwargs,
-    ) -> Any:
-        """Export the executable to a library which can then be loaded back.
+    ):
+        """
+        Export the module and all imported modules into a single device library.
+
+        This function only works on host LLVM modules, other runtime::Module
+        subclasses will work with this API but they must support implement
+        the save and load mechanisms of modules completely including saving
+        from streams and files. This will pack your non-shared library module
+        into a single shared library which can later be loaded by TVM.
 
         Parameters
         ----------
@@ -127,6 +135,15 @@ class Executable:
 
         fcompile : function(target, file_list, kwargs), optional
             The compilation function to use create the final library object during
+            export.
+
+            For example, when fcompile=_cc.create_shared, or when it is not supplied but
+            module is "llvm," this is used to link all produced artifacts
+            into a final dynamic library.
+
+            This behavior is controlled by the type of object exported.
+            If fcompile has attribute object_format, will compile host library
+            to that format. Otherwise, will use default format "o".
 
         addons : list of str, optional
             Additional object files to link against.
@@ -144,20 +161,9 @@ class Executable:
         result of fcompile()  : unknown, optional
             If the compilation function returns an artifact it would be returned via
             export_library, if any.
-
-        Examples
-        --------
-        .. code:: python
-
-            ex = tvm.compile(mod, target)
-            # export the library
-            ex.export_library("exported.so")
-
-            # load it back for future uses.
-            rt_mod = tvm.runtime.load_module("exported.so")
         """
         return self.mod.export_library(
-            file_name=file_name,
+            file_name,
             fcompile=fcompile,
             addons=addons,
             workspace_dir=workspace_dir,

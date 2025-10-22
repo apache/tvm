@@ -37,13 +37,13 @@ from tvm.exec import disco_worker as _  # pylint: disable=unused-import
 
 def _numpy_to_worker_0(sess: di.Session, np_array: np.array, device):
     x_array = sess.empty(np_array.shape, "float32", device=device)
-    host_array = tvm.nd.array(np_array, device=device)
+    host_array = tvm.runtime.tensor(np_array, device=device)
     sess.copy_to_worker_0(host_array, x_array)
     return x_array
 
 
 def _numpy_from_worker_0(sess: di.Session, remote_array, shape, dtype):
-    host_array = tvm.nd.empty(shape, dtype, device=tvm.cpu())
+    host_array = tvm.runtime.empty(shape, dtype, device=tvm.cpu())
     sess.copy_from_worker_0(host_array, remote_array)
     sess.sync_worker_0()
     return host_array.numpy()
@@ -142,14 +142,14 @@ def test_float(session_kind):
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
-def test_ndarray(session_kind):
+def test_tensor(session_kind):
     num_workers = 4
     sess = session_kind(num_workers=num_workers)
     device = tvm.cpu(0)
     x_np = np.arange(6).astype("float32").reshape([2, 3])
     y_np = np.arange(6).astype("float32").reshape([2, 3]) + 1
     x_disc = _numpy_to_worker_0(sess, x_np, device=device)
-    y_disc = sess.get_global_func("tests.disco.add_one_ndarray")(x_disc)
+    y_disc = sess.get_global_func("tests.disco.add_one_tensor")(x_disc)
     y_nd = _numpy_from_worker_0(sess, y_disc, shape=y_np.shape, dtype=y_np.dtype)
     np.testing.assert_equal(y_nd, y_np)
 
@@ -174,7 +174,7 @@ def test_string_obj(session_kind):
 
     for i in range(num_workers):
         value = result.debug_get_from_remote(i)
-        assert isinstance(value, String)
+        assert isinstance(value, str)
         assert value == "hello_suffix"
 
 

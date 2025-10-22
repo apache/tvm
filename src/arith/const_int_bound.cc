@@ -39,12 +39,10 @@ namespace arith {
 
 using namespace tir;
 
-TVM_FFI_STATIC_INIT_BLOCK({ ConstIntBoundNode::RegisterReflection(); });
-
-TVM_REGISTER_NODE_TYPE(ConstIntBoundNode);
+TVM_FFI_STATIC_INIT_BLOCK() { ConstIntBoundNode::RegisterReflection(); }
 
 ConstIntBound::ConstIntBound(int64_t min_value, int64_t max_value) {
-  auto node = make_object<ConstIntBoundNode>();
+  auto node = ffi::make_object<ConstIntBoundNode>();
   node->min_value = min_value;
   node->max_value = max_value;
   data_ = std::move(node);
@@ -54,10 +52,10 @@ ConstIntBound MakeConstIntBound(int64_t min_value, int64_t max_value) {
   return ConstIntBound(min_value, max_value);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("arith.ConstIntBound", MakeConstIntBound);
-});
+}
 
 inline void PrintBoundValue(std::ostream& os, int64_t val) {
   if (val == ConstIntBound::kPosInf) {
@@ -286,11 +284,18 @@ class ConstIntBoundAnalyzer::Impl
       if (parent_ && b.min_value == b.max_value) {
         ModularSet mod_a = parent_->modular_set(op->a);
         int64_t modulus = b.min_value;
-        int64_t gcd_coeff_mod = ComputeGCD(mod_a->coeff, modulus);
+        int64_t gcd_coeff_mod = ZeroAwareGCD(mod_a->coeff, modulus);
 
         // If gcd_coeff_mod > 1, we can get tighter bounds
         // The result will be of the form gcd_coeff_mod * k + (base % modulus)
         // where k ranges to cover [0, modulus - gcd_coeff_mod]
+        //
+        // Example: expr = (bx * 2048 + tx * 16) % 7168
+        //          where bx in [0, 3584), tx in [0, 128)
+        //          GCD(16, 7168) = 16
+        //          Result can only be {0, 16, 32, ..., 7152}
+        //          Without this optimization: bound = [0, 7167]
+        //          With this optimization: bound = [0, 7152]
         if (gcd_coeff_mod > 1) {
           int64_t base_mod = mod_a->base % modulus;
           if (base_mod < 0) base_mod += modulus;
@@ -346,16 +351,23 @@ class ConstIntBoundAnalyzer::Impl
 
     if (b.min_value > 0) {
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
-
       // Try to get tighter bounds using modular set information
       if (parent_ && b.min_value == b.max_value) {
         ModularSet mod_a = parent_->modular_set(op->a);
         int64_t modulus = b.min_value;
-        int64_t gcd_coeff_mod = ComputeGCD(mod_a->coeff, modulus);
+        int64_t gcd_coeff_mod = ZeroAwareGCD(mod_a->coeff, modulus);
 
         // If gcd_coeff_mod > 1, we can get tighter bounds
         // The result will be of the form gcd_coeff_mod * k + (base % modulus)
         // where k ranges to cover [0, modulus - gcd_coeff_mod]
+        //
+        // Example: expr = (bx * 2048 + tx * 16) % 7168
+        //          where bx in [0, 3584), tx in [0, 128)
+        //          ModularSet(expr) = 16*k (coeff=16, base=0)
+        //          GCD(16, 7168) = 16
+        //          Result can only be {0, 16, 32, ..., 7152}
+        //          Without this optimization: bound = [0, 7167]
+        //          With this optimization: bound = [0, 7152]
         if (gcd_coeff_mod > 1) {
           int64_t base_mod = mod_a->base % modulus;
           if (base_mod < 0) base_mod += modulus;
@@ -428,7 +440,7 @@ class ConstIntBoundAnalyzer::Impl
   }
 
   Entry VisitExpr_(const VarNode* op) final {
-    Var v = GetRef<Var>(op);
+    Var v = ffi::GetRef<Var>(op);
     auto it = var_map_.find(v);
     if (it != var_map_.end()) {
       return it->second;
@@ -438,7 +450,7 @@ class ConstIntBoundAnalyzer::Impl
   }
 
   Entry VisitExpr_(const SizeVarNode* op) final {
-    SizeVar v = GetRef<SizeVar>(op);
+    SizeVar v = ffi::GetRef<SizeVar>(op);
     auto it = var_map_.find(v);
     if (it != var_map_.end()) {
       return it->second;
@@ -567,6 +579,23 @@ class ConstIntBoundAnalyzer::Impl
     }
     // If the range of b does not have 0, use BinaryOpBoundary.
     return BinaryOpBoundary(a, b, op);
+  }
+
+  /*!
+   * \brief Compute GCD of two integers.
+   * \param a The first integer.
+   * \param b The second integer.
+   * \return the result.
+   */
+  static int64_t ComputeGCD(int64_t a, int64_t b) {
+    a = std::abs(a);
+    b = std::abs(b);
+    while (b != 0) {
+      int64_t temp = b;
+      b = a % b;
+      a = temp;
+    }
+    return a;
   }
   /*!
    * \brief Compute GCD of two integers.
@@ -803,7 +832,7 @@ class ConstIntBoundAnalyzer::Impl
    * This expression is used as the implementation of
    * topi.math.ceil_log2, and can appear in iteration bounds.
    */
-  static Optional<PrimExpr> FindCeilLog2Arg(const CastNode* op) {
+  static ffi::Optional<PrimExpr> FindCeilLog2Arg(const CastNode* op) {
     if (op->dtype.is_int()) {
       if (auto as_call = op->value.as<CallNode>()) {
         if (as_call->op.same_as(Op::Get("tir.ceil"))) {

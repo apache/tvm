@@ -94,7 +94,7 @@ def test_make_sum():
 
 
 def test_env_func():
-    @tvm.register_func("test.env_func")
+    @tvm.register_global_func("test.env_func")
     def test(x):
         return x + 1
 
@@ -163,22 +163,31 @@ def test_dict():
     assert set(dir(x.__class__)) <= set(dir(x))
 
 
-def test_ndarray():
+def test_tensor():
     dev = tvm.cpu(0)
-    tvm_arr = tvm.nd.array(np.random.rand(4), device=dev)
+    tvm_arr = tvm.runtime.tensor(np.random.rand(4), device=dev)
     tvm_arr2 = tvm.ir.load_json(tvm.ir.save_json(tvm_arr))
     tvm.ir.assert_structural_equal(tvm_arr, tvm_arr2)
     np.testing.assert_array_equal(tvm_arr.numpy(), tvm_arr2.numpy())
 
 
-def test_ndarray_dict():
+def test_tensor_dict():
     dev = tvm.cpu(0)
     m1 = {
-        "key1": tvm.nd.array(np.random.rand(4), device=dev),
-        "key2": tvm.nd.array(np.random.rand(4), device=dev),
+        "key1": tvm.runtime.tensor(np.random.rand(4), device=dev),
+        "key2": tvm.runtime.tensor(np.random.rand(4), device=dev),
     }
     m2 = tvm.ir.load_json(tvm.ir.save_json(m1))
     tvm.ir.assert_structural_equal(m1, m2)
+
+
+def test_free_var_equal():
+    x = tvm.tir.Var("x", dtype="int32")
+    y = tvm.tir.Var("y", dtype="int32")
+    z = tvm.tir.Var("z", dtype="int32")
+    v1 = x + y
+    v1 = y + z
+    tvm.ir.assert_structural_equal(x, z, map_free_vars=True)
 
 
 def test_alloc_const():
@@ -187,7 +196,7 @@ def test_alloc_const():
     shape = (16,)
     buf = tvm.tir.decl_buffer(shape, dtype)
     np_data = np.random.rand(*shape).astype(dtype)
-    data = tvm.nd.array(np_data, device=dev)
+    data = tvm.runtime.tensor(np_data, device=dev)
     body = tvm.tir.Evaluate(0)
     alloc_const = tvm.tir.AllocateConst(buf.data, dtype, shape, data, body)
     alloc_const2 = tvm.ir.load_json(tvm.ir.save_json(alloc_const))

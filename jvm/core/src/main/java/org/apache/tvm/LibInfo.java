@@ -52,7 +52,7 @@ class LibInfo {
 
   native int tvmFFIFunctionCreateFromCallback(Function.Callback function, Base.RefLong handle);
 
-  // NDArray
+  // Tensor
   native int tvmFFIDLTensorGetShape(long handle, List<Long> shape);
 
   native int tvmFFIDLTensorCopyFromTo(long from, long to);
@@ -67,7 +67,7 @@ class LibInfo {
   // Device
   native int tvmSynchronize(int deviceType, int deviceId);
 
-  native int tvmNDArrayEmpty(long[] shape, int dtypeCode, int dtypeBits,
+  native int tvmTensorEmpty(long[] shape, int dtypeCode, int dtypeBits,
                              int dtypeLanes, int deviceType, int deviceId,
                              Base.RefLong handle);
 }

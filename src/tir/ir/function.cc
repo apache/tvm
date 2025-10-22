@@ -31,14 +31,14 @@
 namespace tvm {
 namespace tir {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   PrimFuncNode::RegisterReflection();
   TensorIntrinNode::RegisterReflection();
-});
+}
 
 namespace {
 relax::StructInfo InferStructInfo(const PrimFunc& prim_func) {
-  Array<relax::StructInfo> params;
+  ffi::Array<relax::StructInfo> params;
   for (const auto& param : prim_func->params) {
     relax::StructInfo param_sinfo = [&]() -> relax::StructInfo {
       if (auto opt_buf = prim_func->buffer_map.Get(param)) {
@@ -62,7 +62,7 @@ relax::StructInfo InferStructInfo(const PrimFunc& prim_func) {
     if (const auto* prim = prim_func->ret_type.as<PrimTypeNode>()) {
       return relax::PrimStructInfo(prim->dtype);
     } else if (IsVoidType(prim_func->ret_type)) {
-      return relax::TupleStructInfo(Array<relax::StructInfo>{});
+      return relax::TupleStructInfo(ffi::Array<relax::StructInfo>{});
     } else {
       return relax::ObjectStructInfo();
     }
@@ -75,8 +75,8 @@ relax::StructInfo InferStructInfo(const PrimFunc& prim_func) {
 }  // namespace
 
 // Get the function type of a PrimFunc
-PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
-                   Map<tir::Var, Buffer> buffer_map, DictAttrs attrs, Span span) {
+PrimFunc::PrimFunc(ffi::Array<tir::Var> params, Stmt body, Type ret_type,
+                   ffi::Map<tir::Var, Buffer> buffer_map, DictAttrs attrs, Span span) {
   if (!attrs.defined()) {
     attrs = DictAttrs();
   }
@@ -85,7 +85,7 @@ PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
     ret_type = VoidType();
   }
 
-  auto n = make_object<PrimFuncNode>();
+  auto n = ffi::make_object<PrimFuncNode>();
   n->params = std::move(params);
   n->body = std::move(body);
   n->ret_type = std::move(ret_type);
@@ -99,18 +99,16 @@ PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
 }
 
 FuncType PrimFuncNode::func_type_annotation() const {
-  Array<Type> param_types;
+  ffi::Array<Type> param_types;
   for (auto param : this->params) {
     param_types.push_back(GetType(param));
   }
   return FuncType(param_types, ret_type);
 }
 
-TVM_REGISTER_NODE_TYPE(PrimFuncNode);
-
 class TensorIntrinManager {
  public:
-  Map<String, tir::TensorIntrin> reg;
+  ffi::Map<ffi::String, tir::TensorIntrin> reg;
 
   static TensorIntrinManager* Global() {
     static TensorIntrinManager* inst = new TensorIntrinManager();
@@ -131,13 +129,13 @@ TensorIntrin::TensorIntrin(PrimFunc desc, PrimFunc impl) {
   }
   ICHECK_EQ(desc->buffer_map.size(), impl->buffer_map.size());
 
-  ObjectPtr<TensorIntrinNode> n = make_object<TensorIntrinNode>();
+  ObjectPtr<TensorIntrinNode> n = ffi::make_object<TensorIntrinNode>();
   n->desc = std::move(desc);
   n->impl = std::move(impl);
   data_ = std::move(n);
 }
 
-void TensorIntrin::Register(String name, TensorIntrin intrin, bool override) {
+void TensorIntrin::Register(ffi::String name, TensorIntrin intrin, bool override) {
   TensorIntrinManager* manager = TensorIntrinManager::Global();
   if (!override) {
     CHECK_EQ(manager->reg.count(name), 0)
@@ -146,7 +144,7 @@ void TensorIntrin::Register(String name, TensorIntrin intrin, bool override) {
   manager->reg.Set(name, intrin);
 }
 
-Optional<TensorIntrin> TensorIntrin::Get(String name, bool allow_missing) {
+ffi::Optional<TensorIntrin> TensorIntrin::Get(ffi::String name, bool allow_missing) {
   const TensorIntrinManager* manager = TensorIntrinManager::Global();
   auto it = manager->reg.find(name);
   if (it == manager->reg.end()) {
@@ -159,14 +157,12 @@ Optional<TensorIntrin> TensorIntrin::Get(String name, bool allow_missing) {
   return (*it).second;
 }
 
-TVM_REGISTER_NODE_TYPE(TensorIntrinNode);
-
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.PrimFunc",
-           [](Array<tir::Var> params, Stmt body, Type ret_type, Map<tir::Var, Buffer> buffer_map,
-              DictAttrs attrs,
+           [](ffi::Array<tir::Var> params, Stmt body, Type ret_type,
+              ffi::Map<tir::Var, Buffer> buffer_map, DictAttrs attrs,
               Span span) { return PrimFunc(params, body, ret_type, buffer_map, attrs, span); })
       .def("tir.TensorIntrin",
            [](PrimFunc desc_func, PrimFunc intrin_func) {
@@ -174,7 +170,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
            })
       .def("tir.TensorIntrinRegister", TensorIntrin::Register)
       .def("tir.TensorIntrinGet", TensorIntrin::Get);
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

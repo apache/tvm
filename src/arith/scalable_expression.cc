@@ -86,7 +86,7 @@ bool CanProveVscaleExpressionFromKnownValues(arith::Analyzer* analyzer, const Pr
   return can_prove_expr;
 }
 
-bool TargetHasVLA(Optional<Target> target) {
+bool TargetHasVLA(ffi::Optional<Target> target) {
   if (!target.defined()) {
     target = Target::Current();
   }
@@ -102,7 +102,7 @@ bool TargetHasVLA(Optional<Target> target) {
   return has_vla;
 }
 
-const std::vector<unsigned int> GetVScaleValues(Optional<Target> target) {
+const std::vector<unsigned int> GetVScaleValues(ffi::Optional<Target> target) {
   unsigned int vector_width = 0;
   std::vector<unsigned int> kVScaleValues;
   if (!target.defined()) {

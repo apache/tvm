@@ -56,7 +56,7 @@ class IndexMapNode : public Object {
    * If initial_indices is empty, then final_indices should also be
    * empty, and no mapping is applied.
    */
-  Array<Var> initial_indices;
+  ffi::Array<Var> initial_indices;
 
   /*!
    * \brief Expressions defining the indices after remapping.
@@ -68,7 +68,7 @@ class IndexMapNode : public Object {
    * If final_indices is empty, then initial_indices should also be
    * empty, and the map is an identity function.
    */
-  Array<PrimExpr> final_indices;
+  ffi::Array<PrimExpr> final_indices;
 
   /*!
    * \brief The inverse index map.
@@ -80,7 +80,7 @@ class IndexMapNode : public Object {
    *
    * \note ObjectRef is used here instead of IndexMap to avoid circular reference.
    */
-  Optional<ObjectRef> inverse_index_map;
+  ffi::Optional<ObjectRef> inverse_index_map;
 
   /*!
    * \brief Default constructor
@@ -102,7 +102,8 @@ class IndexMapNode : public Object {
    * \returns The indices in the output space.  Contains one value for
    * each expression in `final_indices`.
    */
-  Array<PrimExpr> MapIndices(const Array<PrimExpr>& indices, arith::Analyzer* analyzer) const;
+  ffi::Array<PrimExpr> MapIndices(const ffi::Array<PrimExpr>& indices,
+                                  arith::Analyzer* analyzer) const;
 
   /*! \brief Map a memory range to the output space
    *
@@ -120,7 +121,7 @@ class IndexMapNode : public Object {
    * \returns The ranges in the output space.  Contains one value for
    * each expression in `final_indices`.
    */
-  Array<Range> MapRanges(const Array<Range>& ranges, arith::Analyzer* analyzer) const;
+  ffi::Array<Range> MapRanges(const ffi::Array<Range>& ranges, arith::Analyzer* analyzer) const;
 
   /*! \brief Map a buffer shape to the output space
    *
@@ -133,46 +134,36 @@ class IndexMapNode : public Object {
    * \returns The buffer shape in the output space.  Contains one
    * value for each expression in `final_indices`.
    */
-  Array<PrimExpr> MapShape(const Array<PrimExpr>& shape, arith::Analyzer* analyzer) const;
+  ffi::Array<PrimExpr> MapShape(const ffi::Array<PrimExpr>& shape, arith::Analyzer* analyzer) const;
 
-  /* \brief Map an NDArray according to this index map
+  /* \brief Map an Tensor according to this index map
    *
-   * \param arr_src The NDArray whose layout is transformed by this index map.
+   * \param arr_src The Tensor whose layout is transformed by this index map.
    *
-   * \returns The transformed NDArray.
+   * \returns The transformed Tensor.
    */
-  runtime::NDArray MapNDArray(runtime::NDArray arr_src) const;
+  runtime::Tensor MapTensor(runtime::Tensor arr_src) const;
 
   /*!
    * \brief Convert to string representation in Python.
    * \param f_name_map Optional function to specify the stringified name of the variables.
    * \return The stringified lambda expression in Python.
    */
-  String ToPythonString(
-      const std::function<Optional<String>(const Var& var)>& f_name_map = nullptr) const;
+  ffi::String ToPythonString(
+      const std::function<ffi::Optional<ffi::String>(const Var& var)>& f_name_map = nullptr) const;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IndexMapNode>()
-        .def_ro("initial_indices", &IndexMapNode::initial_indices)
+        .def_ro("initial_indices", &IndexMapNode::initial_indices,
+                refl::AttachFieldFlag::SEqHashDef())
         .def_ro("final_indices", &IndexMapNode::final_indices)
-        .def_ro("inverse_index_map", &IndexMapNode::inverse_index_map);
+        .def_ro("inverse_index_map", &IndexMapNode::inverse_index_map,
+                refl::AttachFieldFlag::SEqHashIgnore());
   }
 
-  bool SEqualReduce(const IndexMapNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(initial_indices, other->initial_indices) &&
-           equal(final_indices, other->final_indices);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(initial_indices);
-    hash_reduce(final_indices);
-  }
-
-  static constexpr const char* _type_key = "tir.IndexMap";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(IndexMapNode, Object);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.IndexMap", IndexMapNode, Object);
 };
 
 class IndexMap : public ObjectRef {
@@ -183,8 +174,8 @@ class IndexMap : public ObjectRef {
    * \param final_indices Expressions defining the indices after remapping.
    * \param inverse_index_map The optional pre-defined inverse index map
    */
-  IndexMap(Array<Var> initial_indices, Array<PrimExpr> final_indices,
-           Optional<IndexMap> inverse_index_map = std::nullopt);
+  IndexMap(ffi::Array<Var> initial_indices, ffi::Array<PrimExpr> final_indices,
+           ffi::Optional<IndexMap> inverse_index_map = std::nullopt);
 
   /*!
    * \brief Create an index map from a packed function
@@ -193,8 +184,8 @@ class IndexMap : public ObjectRef {
    * \param inverse_index_map The optional pre-defined inverse index map
    * \return The created index map
    */
-  static IndexMap FromFunc(int ndim, ffi::TypedFunction<Array<PrimExpr>(Array<Var>)> func,
-                           Optional<IndexMap> inverse_index_map = std::nullopt);
+  static IndexMap FromFunc(int ndim, ffi::TypedFunction<ffi::Array<PrimExpr>(ffi::Array<Var>)> func,
+                           ffi::Optional<IndexMap> inverse_index_map = std::nullopt);
 
   /*! \brief Generate the inverse mapping.
    *
@@ -204,7 +195,7 @@ class IndexMap : public ObjectRef {
    * If the user has supplied an `inverse_index_map`, that map is
    * assumed to be correct and bijective, and is returned.
    */
-  IndexMap Inverse(Array<Range> initial_ranges, arith::Analyzer* analyzer) const;
+  IndexMap Inverse(ffi::Array<Range> initial_ranges, arith::Analyzer* analyzer) const;
 
   /*! \brief Rename the variables in the index map and ensure the names are unique.
    *
@@ -215,7 +206,7 @@ class IndexMap : public ObjectRef {
    * \return The renamed index map.
    */
   IndexMap RenameVariables(
-      const std::function<Optional<String>(const Var& var)>& f_name_map = nullptr) const;
+      const std::function<ffi::Optional<ffi::String>(const Var& var)>& f_name_map = nullptr) const;
 
   /*! \brief Generate the inverse mapping.
    *
@@ -226,10 +217,10 @@ class IndexMap : public ObjectRef {
    * \return The inverted index map, along with the predicate for
    * which the inverse maps to a valid range.
    */
-  std::pair<IndexMap, PrimExpr> NonSurjectiveInverse(Array<Range> initial_ranges,
+  std::pair<IndexMap, PrimExpr> NonSurjectiveInverse(ffi::Array<Range> initial_ranges,
                                                      arith::Analyzer* analyzer) const;
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IndexMap, ObjectRef, IndexMapNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IndexMap, ObjectRef, IndexMapNode);
 };
 
 /*! \brief Substitute variables in an index map.
@@ -238,7 +229,7 @@ class IndexMap : public ObjectRef {
  * \param f_subst The substitution function
  */
 IndexMap Substitute(const IndexMap& index_map,
-                    std::function<Optional<PrimExpr>(const Var& var)> f_subst);
+                    std::function<ffi::Optional<PrimExpr>(const Var& var)> f_subst);
 
 }  // namespace tir
 }  // namespace tvm

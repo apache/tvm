@@ -47,9 +47,9 @@ def test_add():
         dev = tvm.cpu(0)
         # launch the kernel.
         n = nn
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.random.uniform(size=n).astype(B.dtype), dev)
+        c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
         fadd(a, b, c)
         tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
@@ -78,8 +78,8 @@ def test_reinterpret():
         fadd = m["test_reinterpret"]
         dev = tvm.cpu(0)
         n = nn
-        a = tvm.nd.array(np.random.randint(-(2**30), 2**30, size=n).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
+        a = tvm.runtime.tensor(np.random.randint(-(2**30), 2**30, size=n).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(n, dtype=B.dtype), dev)
         fadd(a, b)
         tvm.testing.assert_allclose(b.numpy(), (2 + a.numpy()).view("float32"))
 
@@ -106,8 +106,8 @@ def test_ceil():
         fceil = m["test_ceil"]
         dev = tvm.cpu(0)
         n = nn
-        a = tvm.nd.array(np.random.rand(n).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
+        a = tvm.runtime.tensor(np.random.rand(n).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(n, dtype=B.dtype), dev)
         fceil(a, b)
         tvm.testing.assert_allclose(b.numpy(), (np.ceil(a.numpy()).view("float32")))
 
@@ -134,8 +134,8 @@ def test_floor():
         ffloor = m["test_floor"]
         dev = tvm.cpu(0)
         n = nn
-        a = tvm.nd.array(np.random.rand(n).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
+        a = tvm.runtime.tensor(np.random.rand(n).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(n, dtype=B.dtype), dev)
         ffloor(a, b)
         tvm.testing.assert_allclose(b.numpy(), (np.floor(a.numpy()).view("float32")))
 
@@ -162,8 +162,8 @@ def test_round():
         fround = m["test_round"]
         dev = tvm.cpu(0)
         n = nn
-        a = tvm.nd.array(np.random.rand(n).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
+        a = tvm.runtime.tensor(np.random.rand(n).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(n, dtype=B.dtype), dev)
         fround(a, b)
         tvm.testing.assert_allclose(b.numpy(), (np.round(a.numpy()).view("float32")))
 
@@ -184,17 +184,9 @@ def test_subroutine_call():
 
     built = tvm.tir.build(mod, target="c")
 
-    func_names = list(built["get_func_names"]())
+    source = built.inspect_source()
     assert (
-        "main" in func_names
-    ), "Externally exposed functions should be listed in available functions."
-    assert (
-        "subroutine" not in func_names
-    ), "Internal function should not be listed in available functions."
-
-    source = built.get_source()
-    assert (
-        source.count("main(void*") == 2
+        source.count("__tvm_ffi_main(void*") == 2
     ), "Expected two occurrences, for forward-declaration and definition"
     assert (
         source.count("subroutine(float*") == 2

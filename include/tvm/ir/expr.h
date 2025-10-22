@@ -39,8 +39,6 @@
 
 namespace tvm {
 
-using tvm::String;
-
 // Forward-declare VirtualDevice to avoid circular imports.
 class VirtualDevice;
 
@@ -58,15 +56,15 @@ class BaseExprNode : public Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BaseExprNode>().def_ro("span", &BaseExprNode::span, refl::DefaultValue(Span()));
+    // span do not participate in structural equal and hash.
+    refl::ObjectDef<BaseExprNode>().def_ro("span", &BaseExprNode::span, refl::DefaultValue(Span()),
+                                           refl::AttachFieldFlag::SEqHashIgnore());
   }
 
-  static constexpr const char* _type_key = "ir.BaseExpr";
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const uint32_t _type_child_slots = 64;
-  TVM_DECLARE_BASE_OBJECT_INFO(BaseExprNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.BaseExpr", BaseExprNode, Object);
 };
 
 /*!
@@ -75,7 +73,7 @@ class BaseExprNode : public Object {
  */
 class BaseExpr : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(BaseExpr, ObjectRef, BaseExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BaseExpr, ObjectRef, BaseExprNode);
 };
 
 /*!
@@ -115,9 +113,8 @@ class PrimExprNode : public BaseExprNode {
 
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
-  static constexpr const char* _type_key = "ir.PrimExpr";
   static constexpr const uint32_t _type_child_slots = 40;
-  TVM_DECLARE_BASE_OBJECT_INFO(PrimExprNode, BaseExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExpr", PrimExprNode, BaseExprNode);
 };
 
 /*!
@@ -140,13 +137,13 @@ class PrimExpr : public BaseExpr {
   /*! \return the data type of this expression. */
   DataType dtype() const { return static_cast<const PrimExprNode*>(get())->dtype; }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PrimExpr, BaseExpr, PrimExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimExpr, BaseExpr, PrimExprNode);
 
   /*!
    * \brief construct from string to form a StringImm.
    * \param value The value to be constructed.
    */
-  TVM_DLL static PrimExpr ConvertFallbackValue(String value);  // NOLINT(*)
+  TVM_DLL static PrimExpr ConvertFallbackValue(ffi::String value);  // NOLINT(*)
 };
 
 /*!
@@ -158,9 +155,7 @@ class PrimExprConvertibleNode : public Object {
  public:
   virtual ~PrimExprConvertibleNode() {}
   virtual PrimExpr ToPrimExpr() const = 0;
-
-  static constexpr const char* _type_key = "ir.PrimExprConvertible";
-  TVM_DECLARE_BASE_OBJECT_INFO(PrimExprConvertibleNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExprConvertible", PrimExprConvertibleNode, Object);
 };
 
 /*!
@@ -169,23 +164,24 @@ class PrimExprConvertibleNode : public Object {
  */
 class PrimExprConvertible : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(PrimExprConvertible, ObjectRef, PrimExprConvertibleNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimExprConvertible, ObjectRef,
+                                             PrimExprConvertibleNode);
 };
 
 namespace ffi {
-// define automatic conversion from bool, int64_t, double, String to PrimExpr
+// define automatic conversion from bool, int64_t, double, ffi::String to PrimExpr
 // These functions are declared early to avoid circular dependency
 template <>
 inline constexpr bool use_default_type_traits_v<PrimExpr> = false;
 
 template <>
 struct TypeTraits<PrimExpr>
-    : public ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double, String,
+    : public ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double, ffi::String,
                                              PrimExprConvertible> {
   TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(StrictBool value);
   TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(int64_t value);
   TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(double value);
-  TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(String value) {
+  TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(ffi::String value) {
     return PrimExpr::ConvertFallbackValue(value);
   }
   TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(PrimExprConvertible value) {
@@ -424,16 +420,16 @@ class RelaxExprNode : public BaseExprNode {
    *        expression that encapsulate both static shape and
    *        runtime information such as shape.
    */
-  mutable Optional<ObjectRef> struct_info_ = Optional<ObjectRef>();
+  mutable ffi::Optional<ObjectRef> struct_info_ = ffi::Optional<ObjectRef>();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RelaxExprNode>().def_ro("struct_info_", &RelaxExprNode::struct_info_);
+    refl::ObjectDef<RelaxExprNode>().def_ro("struct_info_", &RelaxExprNode::struct_info_,
+                                            refl::AttachFieldFlag::SEqHashIgnore());
   }
 
-  static constexpr const char* _type_key = "ir.RelaxExpr";
   static constexpr const uint32_t _type_child_slots = 22;
-  TVM_DECLARE_BASE_OBJECT_INFO(RelaxExprNode, BaseExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.RelaxExpr", RelaxExprNode, BaseExprNode);
 };
 
 /*!
@@ -442,7 +438,7 @@ class RelaxExprNode : public BaseExprNode {
  */
 class RelaxExpr : public BaseExpr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(RelaxExpr, BaseExpr, RelaxExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(RelaxExpr, BaseExpr, RelaxExprNode);
 };
 
 class GlobalVar;
@@ -457,25 +453,25 @@ class GlobalVar;
 class GlobalVarNode : public RelaxExprNode {
  public:
   /*! \brief The name of the variable, this only acts as a hint. */
-  String name_hint;
+  ffi::String name_hint;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<GlobalVarNode>().def_ro("name_hint", &GlobalVarNode::name_hint);
   }
 
-  bool SEqualReduce(const GlobalVarNode* other, SEqualReducer equal) const {
-    // name matters for global var.
-    return equal(name_hint, other->name_hint) && equal.FreeVarEqualImpl(this, other);
+  bool SEqual(const GlobalVarNode* other,
+              ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
+    return equal(name_hint, other->name_hint, false, "name_hint");
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(name_hint);
-    hash_reduce.FreeVarHashImpl(this);
+  uint64_t SHash(uint64_t init_hash,
+                 ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const {
+    return hash(name_hint, init_hash, false);
   }
 
-  static constexpr const char* _type_key = "ir.GlobalVar";
-  TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarNode, RelaxExprNode);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.GlobalVar", GlobalVarNode, RelaxExprNode);
 };
 
 /*!
@@ -484,9 +480,9 @@ class GlobalVarNode : public RelaxExprNode {
  */
 class GlobalVar : public RelaxExpr {
  public:
-  TVM_DLL explicit GlobalVar(String name_hint, Span span = {});
+  TVM_DLL explicit GlobalVar(ffi::String name_hint, Span span = {});
 
-  TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, RelaxExpr, GlobalVarNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GlobalVar, RelaxExpr, GlobalVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(GlobalVarNode);
 };
 
@@ -503,18 +499,7 @@ class IntImmNode : public PrimExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IntImmNode>().def_ro("value", &IntImmNode::value);
   }
-
-  bool SEqualReduce(const IntImmNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(value, other->value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(value);
-  }
-
-  static constexpr const char* _type_key = "ir.IntImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IntImmNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.IntImm", IntImmNode, PrimExprNode);
 };
 
 /*!
@@ -532,7 +517,7 @@ class IntImm : public PrimExpr {
    */
   TVM_DLL IntImm(DataType dtype, int64_t value, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IntImm, PrimExpr, IntImmNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntImm, PrimExpr, IntImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IntImmNode);
 };
 
@@ -549,18 +534,7 @@ class FloatImmNode : public PrimExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FloatImmNode>().def_ro("value", &FloatImmNode::value);
   }
-
-  bool SEqualReduce(const FloatImmNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(value, other->value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(value);
-  }
-
-  static constexpr const char* _type_key = "ir.FloatImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FloatImmNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.FloatImm", FloatImmNode, PrimExprNode);
 };
 
 /*!
@@ -578,7 +552,7 @@ class FloatImm : public PrimExpr {
    */
   TVM_DLL FloatImm(DataType dtype, double value, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(FloatImm, PrimExpr, FloatImmNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FloatImm, PrimExpr, FloatImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FloatImmNode);
 };
 
@@ -594,7 +568,7 @@ class Bool : public IntImm {
   Bool operator!() const { return Bool((*this)->value == 0); }
   operator bool() const { return (*this)->value != 0; }
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Bool, IntImm, IntImmNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Bool, IntImm, IntImmNode);
 };
 
 // Overload operators to make sure we have the most fine grained types.
@@ -629,7 +603,11 @@ class Integer : public IntImm {
   /*!
    * \brief constructor from node.
    */
-  explicit Integer(ObjectPtr<Object> node) : IntImm(node) {}
+  explicit Integer(ObjectPtr<IntImmNode> node) : IntImm(node) {}
+  /*!
+   * \brief constructor with UnsafeInit
+   */
+  explicit Integer(ffi::UnsafeInit tag) : IntImm(tag) {}
   /*!
    * \brief Construct integer from int value.
    */
@@ -698,22 +676,13 @@ class RangeNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RangeNode>()
         .def_ro("min", &RangeNode::min)
-        .def_ro("extent", &RangeNode::extent);
+        .def_ro("extent", &RangeNode::extent)
+        .def_ro("span", &RangeNode::span, refl::AttachFieldFlag::SEqHashIgnore());
   }
 
-  bool SEqualReduce(const RangeNode* other, SEqualReducer equal) const {
-    return equal(min, other->min) && equal(extent, other->extent);
-  }
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(min);
-    hash_reduce(extent);
-  }
-
-  static constexpr const char* _type_key = "ir.Range";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(RangeNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Range", RangeNode, Object);
 };
 
 /*! \brief Range container  */
@@ -738,7 +707,7 @@ class Range : public ObjectRef {
    */
   static Range FromMinExtent(PrimExpr min, PrimExpr extent, Span span = Span());
   // declare range.
-  TVM_DEFINE_OBJECT_REF_METHODS(Range, ObjectRef, RangeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Range, ObjectRef, RangeNode);
 };
 
 namespace ffi {
@@ -764,7 +733,9 @@ inline constexpr bool use_default_type_traits_v<Integer> = false;
 
 template <>
 struct TypeTraits<Integer> : public ObjectRefWithFallbackTraitsBase<Integer, int64_t> {
-  TVM_FFI_INLINE static Integer ConvertFallbackValue(int64_t value) { return Integer(value); }
+  TVM_FFI_INLINE static Integer ConvertFallbackValue(int64_t value) {
+    return Integer(TypeTraits<IntImm>::ConvertFallbackValue(value));
+  }
 };
 
 template <>

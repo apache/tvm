@@ -184,9 +184,8 @@ TEST_F(OpenCLCompileBin, SourceVsBinaryCompilationPerf) {
       module.InstallKernel(m_workspace, m_workspace->GetThreadEntry(), m_kernelNames[i], e);
     }
     Timestamp comp_end = std::chrono::high_resolution_clock::now();
-    auto get_pre_compiled_f = module.GetFunction("opencl.GetPreCompiledPrograms",
-                                                 tvm::ffi::GetObjectPtr<tvm::ffi::Object>(&module));
-    bytes = get_pre_compiled_f().cast<tvm::ffi::String>();
+    auto get_pre_compiled_f = module.GetFunction("opencl.GetPreCompiledPrograms").value();
+    bytes = get_pre_compiled_f().cast<std::string>();
     std::chrono::duration duration =
         std::chrono::duration_cast<std::chrono::nanoseconds>(comp_end - comp_start);
     compileFromSourceTimeMS = duration.count() * 1e-6;
@@ -195,8 +194,7 @@ TEST_F(OpenCLCompileBin, SourceVsBinaryCompilationPerf) {
   {
     OpenCLModuleNode module(m_dataSrc, "cl", m_fmap, std::string());
     module.Init();
-    module.GetFunction("opencl.SetPreCompiledPrograms",
-                       GetObjectPtr<Object>(&module))(tvm::String(bytes));
+    module.GetFunction("opencl.SetPreCompiledPrograms").value()(tvm::ffi::String(bytes));
     Timestamp comp_start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < m_kernelNames.size(); ++i) {
       OpenCLModuleNode::KTRefEntry e = {i, 1};

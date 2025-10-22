@@ -18,7 +18,7 @@ import tvm
 import numpy as np
 import pytest
 from tvm import te
-from tvm.runtime import ObjectPath
+from tvm_ffi.access_path import AccessPath
 from tvm.script import tir as T, ir as I
 
 
@@ -120,8 +120,8 @@ def test_prim_func():
     func1 = tvm.ir.load_json(tvm.ir.save_json(func0))
     tvm.ir.assert_structural_equal(func0, func1)
 
-    data0 = tvm.nd.array([1, 2, 3])
-    data1 = tvm.nd.array([1, 2, 3])
+    data0 = tvm.runtime.tensor([1, 2, 3])
+    data1 = tvm.runtime.tensor([1, 2, 3])
     # attributes and ndarrays
     func0 = func0.with_attr("data", data0)
     func1 = func1.with_attr("data", data1)
@@ -139,8 +139,8 @@ def test_prim_func_param_count_mismatch():
     func0 = tvm.tir.PrimFunc([x, y], tvm.tir.Evaluate(x))
     func1 = tvm.tir.PrimFunc([x, y, z], tvm.tir.Evaluate(x))
     lhs_path, rhs_path = get_sequal_mismatch(func0, func1)
-    expected_lhs_path = ObjectPath.root().attr("params").missing_array_element(2)
-    expected_rhs_path = ObjectPath.root().attr("params").array_index(2)
+    expected_lhs_path = AccessPath.root().attr("params").array_item_missing(2)
+    expected_rhs_path = AccessPath.root().attr("params").array_item(2)
     assert lhs_path == expected_lhs_path
     assert rhs_path == expected_rhs_path
 
@@ -153,7 +153,7 @@ def test_prim_func_param_dtype_mismatch():
     func0 = tvm.tir.PrimFunc([x, y_0], tvm.tir.Evaluate(x))
     func1 = tvm.tir.PrimFunc([x, y_1], tvm.tir.Evaluate(x))
     lhs_path, rhs_path = get_sequal_mismatch(func0, func1)
-    expected_path = ObjectPath.root().attr("params").array_index(1).attr("dtype")
+    expected_path = AccessPath.root().attr("params").array_item(1).attr("dtype")
     assert lhs_path == expected_path
     assert rhs_path == expected_path
 
@@ -167,22 +167,22 @@ def test_prim_func_body_mismatch():
     func0 = tvm.tir.PrimFunc([x_0, y_0], tvm.tir.Evaluate(x_0 + x_0))
     func1 = tvm.tir.PrimFunc([x_1, y_1], tvm.tir.Evaluate(x_1 + y_1))
     lhs_path, rhs_path = get_sequal_mismatch(func0, func1)
-    expected_path = ObjectPath.root().attr("body").attr("value").attr("b")
+    expected_path = AccessPath.root().attr("body").attr("value").attr("b")
     assert lhs_path == expected_path
     assert rhs_path == expected_path
 
 
 def test_array():
     x = np.arange(10)
-    nx = tvm.nd.array(x)
-    ny = tvm.nd.array(x)
-    nz = tvm.nd.array(x.reshape(2, 5))
+    nx = tvm.runtime.tensor(x)
+    ny = tvm.runtime.tensor(x)
+    nz = tvm.runtime.tensor(x.reshape(2, 5))
     assert consistent_equal(nx, ny)
     assert not consistent_equal(nx, nz)
 
 
 def test_env_func():
-    @tvm.register_func("test.sequal.env_func")
+    @tvm.register_global_func("test.sequal.env_func")
     def test(x):
         return x + 1
 
@@ -260,7 +260,7 @@ def test_buffer_map_mismatch():
 
     lhs_path, rhs_path = get_sequal_mismatch(func_0, func_1)
     expected_path = (
-        ObjectPath.root().attr("buffer_map").map_value(x).attr("shape").array_index(1).attr("value")
+        AccessPath.root().attr("buffer_map").map_item(x).attr("shape").array_item(1).attr("value")
     )
     assert lhs_path == expected_path
     assert rhs_path == expected_path
@@ -280,9 +280,9 @@ def test_buffer_map_length_mismatch():
 
     lhs_path, rhs_path = get_sequal_mismatch(func_0, func_1)
 
-    expected_lhs_path = ObjectPath.root().attr("buffer_map").missing_map_entry()
+    expected_lhs_path = AccessPath.root().attr("buffer_map").map_item_missing(y)
     assert lhs_path == expected_lhs_path
-    expected_rhs_path = ObjectPath.root().attr("buffer_map").map_value(y)
+    expected_rhs_path = AccessPath.root().attr("buffer_map").map_item(y)
     assert rhs_path == expected_rhs_path
 
 
@@ -316,7 +316,7 @@ def test_while_condition_mismatch():
     w_0 = tvm.tir.While(x > 0, tvm.tir.Evaluate(x))
     w_1 = tvm.tir.While(x < 0, tvm.tir.Evaluate(x))
     lhs_path, rhs_path = get_sequal_mismatch(w_0, w_1)
-    expected_path = ObjectPath.root().attr("condition")
+    expected_path = AccessPath.root().attr("condition")
     assert lhs_path == expected_path
     assert rhs_path == expected_path
 
@@ -326,7 +326,7 @@ def test_while_body_mismatch():
     w_0 = tvm.tir.While(x > 0, tvm.tir.Evaluate(x))
     w_1 = tvm.tir.While(x > 0, tvm.tir.Evaluate(x + 1))
     lhs_path, rhs_path = get_sequal_mismatch(w_0, w_1)
-    expected_path = ObjectPath.root().attr("body").attr("value")
+    expected_path = AccessPath.root().attr("body").attr("value")
     assert lhs_path == expected_path
     assert rhs_path == expected_path
 
@@ -351,7 +351,7 @@ def test_seq_mismatch():
     )
     lhs_path, rhs_path = get_sequal_mismatch(seq_0, seq_1)
     expected_path = (
-        ObjectPath.root().attr("seq").array_index(2).attr("value").attr("b").attr("value")
+        AccessPath.root().attr("seq").array_item(2).attr("value").attr("b").attr("value")
     )
     assert lhs_path == expected_path
     assert rhs_path == expected_path
@@ -371,7 +371,7 @@ def test_seq_mismatch_different_lengths():
     seq_1 = tvm.tir.SeqStmt([tvm.tir.Evaluate(x), tvm.tir.Evaluate(x + 1), tvm.tir.Evaluate(x + 3)])
     lhs_path, rhs_path = get_sequal_mismatch(seq_0, seq_1)
     expected_path = (
-        ObjectPath.root().attr("seq").array_index(2).attr("value").attr("b").attr("value")
+        AccessPath.root().attr("seq").array_item(2).attr("value").attr("b").attr("value")
     )
     assert lhs_path == expected_path
     assert rhs_path == expected_path
@@ -389,8 +389,8 @@ def test_seq_length_mismatch():
     )
     seq_1 = tvm.tir.SeqStmt([tvm.tir.Evaluate(x), tvm.tir.Evaluate(x + 1), tvm.tir.Evaluate(x + 2)])
     lhs_path, rhs_path = get_sequal_mismatch(seq_0, seq_1)
-    expected_lhs_path = ObjectPath.root().attr("seq").array_index(3)
-    expected_rhs_path = ObjectPath.root().attr("seq").missing_array_element(3)
+    expected_lhs_path = AccessPath.root().attr("seq").array_item(3)
+    expected_rhs_path = AccessPath.root().attr("seq").array_item_missing(3)
     assert lhs_path == expected_lhs_path
     assert rhs_path == expected_rhs_path
 

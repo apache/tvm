@@ -264,9 +264,9 @@ DocPrinter::DocPrinter(const PrinterConfig& options) : options_(options) {
 void DocPrinter::Append(const Doc& doc) { Append(doc, PrinterConfig()); }
 
 void DocPrinter::Append(const Doc& doc, const PrinterConfig& cfg) {
-  for (const ObjectPath& p : cfg->path_to_underline) {
+  for (const AccessPath& p : cfg->path_to_underline) {
     path_to_underline_.push_back(p);
-    current_max_path_length_.push_back(0);
+    current_max_path_depth_.push_back(0);
     current_underline_candidates_.push_back(std::vector<ByteSpan>());
   }
   PrintDoc(doc);
@@ -275,7 +275,7 @@ void DocPrinter::Append(const Doc& doc, const PrinterConfig& cfg) {
   }
 }
 
-String DocPrinter::GetString() const {
+ffi::String DocPrinter::GetString() const {
   std::string text = output_.str();
 
   // Remove any trailing indentation
@@ -348,18 +348,18 @@ void DocPrinter::PrintDoc(const Doc& doc) {
   }
 
   size_t end_pos = output_.tellp();
-  for (const ObjectPath& path : doc->source_paths) {
+  for (const AccessPath& path : doc->source_paths) {
     MarkSpan({start_pos, end_pos}, path);
   }
 }
 
-void DocPrinter::MarkSpan(const ByteSpan& span, const ObjectPath& path) {
+void DocPrinter::MarkSpan(const ByteSpan& span, const AccessPath& path) {
   int n = path_to_underline_.size();
   for (int i = 0; i < n; ++i) {
-    ObjectPath p = path_to_underline_[i];
-    if (path->Length() >= current_max_path_length_[i] && path->IsPrefixOf(p)) {
-      if (path->Length() > current_max_path_length_[i]) {
-        current_max_path_length_[i] = path->Length();
+    AccessPath p = path_to_underline_[i];
+    if (path->depth >= current_max_path_depth_[i] && path->IsPrefixOf(p)) {
+      if (path->depth > current_max_path_depth_[i]) {
+        current_max_path_depth_[i] = path->depth;
         current_underline_candidates_[i].clear();
       }
       current_underline_candidates_[i].push_back(span);

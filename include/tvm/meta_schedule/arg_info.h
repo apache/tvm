@@ -23,7 +23,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/node.h>
-#include <tvm/node/reflection.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/function.h>
@@ -34,8 +33,7 @@ namespace meta_schedule {
 /*! \brief The argument information. */
 class ArgInfoNode : public runtime::Object {
  public:
-  static constexpr const char* _type_key = "meta_schedule.ArgInfo";
-  TVM_DECLARE_BASE_OBJECT_INFO(ArgInfoNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.ArgInfo", ArgInfoNode, runtime::Object);
 
  public:
   /*! \brief Default destructor. */
@@ -61,16 +59,16 @@ class ArgInfo : public runtime::ObjectRef {
    * \param func The PrimFunc to get argument information from.
    * \return An array of the argument information derived.
    */
-  TVM_DLL static Array<ArgInfo, void> FromPrimFunc(const tir::PrimFunc& func);
+  TVM_DLL static ffi::Array<ArgInfo, void> FromPrimFunc(const tir::PrimFunc& func);
   /*!
    * \brief Extract a list of the argument information from the entry func of an IRModule
    * \param mod The IRModule to extract argument information from.
    * \param remove_preproc Whether to remove the preprocessing blocks.
    * \return An array of the argument information derived.
    */
-  TVM_DLL static Array<ArgInfo, void> FromEntryFunc(const IRModule& mod, bool remove_preproc);
+  TVM_DLL static ffi::Array<ArgInfo, void> FromEntryFunc(const IRModule& mod, bool remove_preproc);
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ArgInfo, runtime::ObjectRef, ArgInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ArgInfo, runtime::ObjectRef, ArgInfoNode);
 
  protected:
   ArgInfo() = default;
@@ -90,9 +88,7 @@ class TensorInfoNode : public ArgInfoNode {
         .def_ro("dtype", &TensorInfoNode::dtype)
         .def_ro("shape", &TensorInfoNode::shape);
   }
-
-  static constexpr const char* _type_key = "meta_schedule.TensorInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TensorInfoNode, ArgInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.TensorInfo", TensorInfoNode, ArgInfoNode);
 
  public:
   ObjectRef AsJSON() const;
@@ -116,7 +112,7 @@ class TensorInfo : public ArgInfo {
    * \return The argument information parsed.
    */
   TVM_DLL static TensorInfo FromJSON(const ObjectRef& json_obj);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TensorInfo, ArgInfo, TensorInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorInfo, ArgInfo, TensorInfoNode);
 };
 
 }  // namespace meta_schedule

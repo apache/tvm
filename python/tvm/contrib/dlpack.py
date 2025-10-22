@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Wrapping functions to bridge frameworks with DLPack support to TVM"""
-from tvm.runtime import ndarray
+import tvm.runtime
 
 
 def convert_func(tvm_func, tensor_type, to_dlpack_func):
@@ -37,7 +37,7 @@ def convert_func(tvm_func, tensor_type, to_dlpack_func):
 
     def _wrapper(*args):
         args = tuple(
-            ndarray.from_dlpack(to_dlpack_func(arg)) if isinstance(arg, tensor_type) else arg
+            tvm.runtime.from_dlpack(to_dlpack_func(arg)) if isinstance(arg, tensor_type) else arg
             for arg in args
         )
         return tvm_func(*args)

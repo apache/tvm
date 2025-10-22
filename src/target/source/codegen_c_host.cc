@@ -22,8 +22,8 @@
  */
 #include "codegen_c_host.h"
 
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
 
 #include <algorithm>
@@ -35,7 +35,9 @@
 namespace tvm {
 namespace codegen {
 
-CodeGenCHost::CodeGenCHost() { module_name_ = name_supply_->FreshName("__tvm_ffi_library_ctx"); }
+CodeGenCHost::CodeGenCHost() {
+  module_name_ = name_supply_->FreshName(ffi::symbol::tvm_ffi_library_ctx);
+}
 
 void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_decl,
                         std::string target_str, const std::unordered_set<std::string>& devices) {
@@ -54,7 +56,7 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_d
 }
 
 void CodeGenCHost::InitGlobalContext() {
-  decl_stream << "void* " << tvm::runtime::symbol::tvm_ffi_library_ctx << " = NULL;\n";
+  decl_stream << "void* " << ffi::symbol::tvm_ffi_library_ctx << " = NULL;\n";
 }
 
 void CodeGenCHost::DefineModuleName() { decl_stream << "void* " << module_name_ << " = NULL;\n"; }
@@ -65,31 +67,31 @@ void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
 
 void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func,
                                bool emit_fwd_func_decl) {
-  auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
   if (global_symbol) {
     function_names_.push_back(global_symbol.value());
   }
 
   emit_fwd_func_decl_ = emit_fwd_func_decl;
   CodeGenC::AddFunction(gvar, func);
-  if (func->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
-    ICHECK(global_symbol.defined())
+  if (func->HasNonzeroAttr(tir::attr::kIsEntryFunc) && !has_tvm_ffi_main_func_) {
+    ICHECK(global_symbol.has_value())
         << "CodeGenCHost: The entry func must have the global_symbol attribute, "
         << "but function " << gvar << " only has attributes " << func->attrs;
 
-    function_names_.push_back(runtime::symbol::tvm_module_main);
+    function_names_.push_back(ffi::symbol::tvm_ffi_main);
     stream << "// CodegenC: NOTE: Auto-generated entry function\n";
     PrintFuncPrefix(stream);
     PrintType(func->ret_type, stream);
-    stream << " " << tvm::runtime::symbol::tvm_module_main
+    stream << " " << ffi::symbol::tvm_ffi_main
            << "(void* self, void* args,int num_args, void* result) {\n";
     stream << "  return " << global_symbol.value() << "(self, args, num_args, result);\n";
     stream << "}\n";
   }
 }
 
-void CodeGenCHost::GenerateForwardFunctionDeclarations(String global_symbol,
-                                                       const Array<Type>& arg_types,
+void CodeGenCHost::GenerateForwardFunctionDeclarations(ffi::String global_symbol,
+                                                       const ffi::Array<Type>& arg_types,
                                                        const Type& ret_type) {
   if (!emit_fwd_func_decl_) {
     return;
@@ -235,7 +237,7 @@ void CodeGenCHost::PrintCallPacked(const CallNode* op) {
   } else {
     // directly use the original symbol
     ICHECK(op->op.same_as(builtin::tvm_call_cpacked_lowered()));
-    packed_func_name = func_name->value;
+    packed_func_name = ffi::symbol::tvm_ffi_symbol_prefix + func_name->value;
   }
 
   std::string args_stack = PrintExpr(op->args[1]);
@@ -245,6 +247,8 @@ void CodeGenCHost::PrintCallPacked(const CallNode* op) {
   this->PrintIndent();
   // must make sure type_index is set to none
   this->stream << result << ".type_index = kTVMFFINone;\n";
+  this->PrintIndent();
+  this->stream << result << ".zero_padding = 0;\n";
   this->PrintIndent();
   this->stream << result << ".v_int64 = 0;\n";
   this->PrintIndent();
@@ -353,15 +357,15 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
      << "? (" << a_id << ") : (" << b_id << "))";
 }
 
-runtime::Module BuildCHost(IRModule mod, Target target) {
+ffi::Module BuildCHost(IRModule mod, Target target) {
   bool output_ssa = false;
   bool emit_asserts = false;
   bool emit_fwd_func_decl = true;
 
   std::unordered_set<std::string> devices;
-  if (mod->GetAttr<Map<GlobalVar, String>>("device_contexts") != nullptr) {
-    Map<GlobalVar, String> device_contexts =
-        mod->GetAttr<Map<GlobalVar, String>>("device_contexts").value();
+  if (mod->GetAttr<ffi::Map<GlobalVar, ffi::String>>("device_contexts") != nullptr) {
+    ffi::Map<GlobalVar, ffi::String> device_contexts =
+        mod->GetAttr<ffi::Map<GlobalVar, ffi::String>>("device_contexts").value();
     for (auto const& context : device_contexts) {
       devices.insert(context.second.data());
     }
@@ -405,9 +409,9 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   return CSourceModuleCreate(code, "c", cg.GetFunctionNames());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("target.build.c", BuildCHost);
-});
+}
 }  // namespace codegen
 }  // namespace tvm

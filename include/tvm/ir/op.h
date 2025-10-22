@@ -59,21 +59,21 @@ class OpAttrMap;
 class OpNode : public RelaxExprNode {
  public:
   /*! \brief name of the operator */
-  String name;
+  ffi::String name;
   /*! \brief the type of the operator */
   mutable FuncType op_type;
   /*!
    * \brief detailed description of the operator
    *  This can be used to generate docstring automatically for the operator.
    */
-  String description;
+  ffi::String description;
   /* \brief Information of input arguments to the operator */
-  Array<AttrFieldInfo> arguments;
+  ffi::Array<AttrFieldInfo> arguments;
   /*!
    * \brief The type key of the attribute field
    *  This can be empty, in which case it defaults to anything.
    */
-  String attrs_type_key;
+  ffi::String attrs_type_key;
   /*!
    * \brief attribute type index,
    * this field varies in each run and is not exposed to frontend.
@@ -95,26 +95,16 @@ class OpNode : public RelaxExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<OpNode>()
         .def_ro("name", &OpNode::name)
-        .def_ro("op_type", &OpNode::op_type)
-        .def_ro("description", &OpNode::description)
-        .def_ro("arguments", &OpNode::arguments)
-        .def_ro("attrs_type_key", &OpNode::attrs_type_key)
-        .def_ro("num_inputs", &OpNode::num_inputs)
-        .def_ro("support_level", &OpNode::support_level);
+        .def_ro("op_type", &OpNode::op_type, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("description", &OpNode::description, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("arguments", &OpNode::arguments, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("attrs_type_key", &OpNode::attrs_type_key, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("num_inputs", &OpNode::num_inputs, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("support_level", &OpNode::support_level, refl::AttachFieldFlag::SEqHashIgnore());
   }
 
-  bool SEqualReduce(const OpNode* other, SEqualReducer equal) const {
-    // pointer equality is fine as there is only one op with the same name.
-    return this == other;
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    // Name uniquely identifies an Op.
-    hash_reduce(name);
-  }
-
-  static constexpr const char* _type_key = "ir.Op";
-  TVM_DECLARE_FINAL_OBJECT_INFO(OpNode, RelaxExprNode);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUniqueInstance;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Op", OpNode, RelaxExprNode);
 
  private:
   /*! \return the internal attr registry index. */
@@ -148,22 +138,22 @@ class Op : public RelaxExpr {
    * \tparam ValueType The type of the attribute.
    */
   template <typename ValueType>
-  inline static OpAttrMap<ValueType> GetAttrMap(const String& attr_name);
+  inline static OpAttrMap<ValueType> GetAttrMap(const ffi::String& attr_name);
   /*!
    * \brief Checks if an attr map is present in the registry.
    * \param attr_name The name of the attribute.
    * \return bool True if the attr is present.
    */
-  TVM_DLL static bool HasAttrMap(const String& attr_name);
+  TVM_DLL static bool HasAttrMap(const ffi::String& attr_name);
   /*!
    * \brief Get an Op for a given operator name.
    *  Will raise an error if the op has not been registered.
    * \param op_name Name of the operator.
    * \return Pointer to a Op, valid throughout program lifetime.
    */
-  TVM_DLL static const Op& Get(const String& op_name);
+  TVM_DLL static const Op& Get(const ffi::String& op_name);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Op, RelaxExpr, OpNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Op, RelaxExpr, OpNode);
 
  private:
   /*!
@@ -171,7 +161,7 @@ class Op : public RelaxExpr {
    * \param key The attribute key
    * \return The attr map.
    */
-  TVM_DLL static const AttrRegistryMapContainerMap<Op>& GetAttrMapContainer(const String& key);
+  TVM_DLL static const AttrRegistryMapContainerMap<Op>& GetAttrMapContainer(const ffi::String& key);
 };
 
 /*!
@@ -210,7 +200,7 @@ class OpRegEntry {
    * \param key The attribute type key to be set.
    * \return reference to self.
    */
-  inline OpRegEntry& set_attrs_type_key(const String& key);
+  inline OpRegEntry& set_attrs_type_key(const ffi::String& key);
   /*!
    * \brief Set the num_inputs
    * \param n The number of inputs to be set.
@@ -258,7 +248,7 @@ class OpRegEntry {
    * \param name The name of the operator.
    * \return the corresponding entry.
    */
-  TVM_DLL static OpRegEntry& RegisterOrGet(const String& name);
+  TVM_DLL static OpRegEntry& RegisterOrGet(const ffi::String& name);
 
  private:
   template <typename, typename>
@@ -272,11 +262,11 @@ class OpRegEntry {
   // return internal pointer to op.
   inline OpNode* get();
   // update the attribute OpAttrMap
-  TVM_DLL void UpdateAttr(const String& key, ffi::Any value, int plevel);
+  TVM_DLL void UpdateAttr(const ffi::String& key, ffi::Any value, int plevel);
 };
 
 /*!
- * \brief Map<Op,ValueType> used to store meta-information about Op.
+ * \brief ffi::Map<Op,ValueType> used to store meta-information about Op.
  * \tparam ValueType The type of the value stored in map.
  */
 template <typename ValueType>
@@ -327,7 +317,7 @@ class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
 // implementations
 
 template <typename ValueType>
-inline OpAttrMap<ValueType> Op::GetAttrMap(const String& key) {
+inline OpAttrMap<ValueType> Op::GetAttrMap(const ffi::String& key) {
   return OpAttrMap<ValueType>(Op::GetAttrMapContainer(key));
 }
 
@@ -340,7 +330,7 @@ inline OpRegEntry& OpRegEntry::describe(const std::string& descr) {  // NOLINT(*
 
 inline OpRegEntry& OpRegEntry::add_argument(const std::string& name, const std::string& type,
                                             const std::string& description) {
-  auto n = make_object<AttrFieldInfoNode>();
+  auto n = ffi::make_object<AttrFieldInfoNode>();
   n->name = name;
   n->type_info = type;
   n->description = description;
@@ -360,7 +350,7 @@ inline OpRegEntry& OpRegEntry::set_attrs_type() {  // NOLINT(*)
   return *this;
 }
 
-inline OpRegEntry& OpRegEntry::set_attrs_type_key(const String& key) {  // NOLINT(*)
+inline OpRegEntry& OpRegEntry::set_attrs_type_key(const ffi::String& key) {  // NOLINT(*)
   get()->attrs_type_key = key;
   get()->attrs_type_index = tvm::ffi::TypeKeyToIndex(key.c_str());
   return *this;
@@ -385,7 +375,7 @@ template <typename ValueType>
 inline ValueType OpAttrMap<ValueType>::get(const RelaxExpr& expr, ValueType def_value) const {
   ICHECK(expr.defined());
   if (const OpNode* op = expr.as<OpNode>()) {
-    return this->map_.get(GetRef<Op>(op), def_value);
+    return this->map_.get(ffi::GetRef<Op>(op), def_value);
   } else {
     return def_value;
   }

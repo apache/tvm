@@ -140,7 +140,7 @@ void CodeGenCUDA::Init(bool output_ssa) {
   ICHECK_EQ(vid_global_barrier_state_, runtime::symbol::tvm_global_barrier_state);
 }
 
-void CodeGenCUDA::PrintFunctionSignature(const String& function_name, const PrimFunc& func,
+void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
                                          std::ostream& os) {
   auto calling_conv =
       func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(tvm::CallingConv::kDefault));
@@ -866,8 +866,9 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
   os << sret;
 }
 
-void CodeGenCUDA::PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
-                                  bool skip_first_arg, std::ostream& os) {  // NOLINT(*)
+void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
+                                  const ffi::Array<PrimExpr>& args, bool skip_first_arg,
+                                  std::ostream& os) {  // NOLINT(*)
   DataType ret_dtype = GetRuntimeDataType(ret_type);
   if (ret_dtype.is_fixed_length_vector()) {
     //
@@ -1614,13 +1615,17 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p)
   // Type code is kBFloat
   if (op->dtype.is_bfloat16()) {
     os << "__float2bfloat16_rn";
-    os << '(' << std::scientific << op->value << 'f' << ')';
+    os << '(' << std::hexfloat << op->value << 'f';
+    os << "/*" << std::scientific << op->value << "*/";
+    os << ')';
     return;
   }
   // Type code is kFloat8_e5m2 or kE4M4Float
   if (op->dtype.is_float8() || op->dtype.is_float4()) {
     p->PrintType(op->dtype, os);
-    os << '(' << std::scientific << op->value << 'f' << ')';
+    os << '(' << std::hexfloat << op->value << 'f';
+    os << "/*" << std::scientific << op->value << "*/";
+    os << ')';
     return;
   }
   // Type code is kFloat
@@ -1655,7 +1660,8 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p)
         temp << "CUDART_NAN_F";
         p->need_math_constants_h_ = true;
       } else {
-        temp << std::scientific << op->value << 'f';
+        temp << std::hexfloat << op->value << 'f';
+        temp << "/*" << std::scientific << op->value << "*/";
       }
       p->MarkConst(temp.str());
       os << temp.str();

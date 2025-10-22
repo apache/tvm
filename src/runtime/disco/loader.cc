@@ -25,7 +25,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/disco/builtin.h>
-#include <tvm/runtime/vm/ndarray_cache_support.h>
+#include <tvm/runtime/vm/tensor_cache_support.h>
 
 #include <functional>
 #include <numeric>
@@ -39,9 +39,9 @@
 namespace tvm {
 namespace runtime {
 
-using vm::NDArrayCacheMetadata;
-using FileRecord = NDArrayCacheMetadata::FileRecord;
-using ParamRecord = NDArrayCacheMetadata::FileRecord::ParamRecord;
+using vm::TensorCacheMetadata;
+using FileRecord = TensorCacheMetadata::FileRecord;
+using ParamRecord = TensorCacheMetadata::FileRecord::ParamRecord;
 
 struct ShardInfo {
   struct TensorInfo {
@@ -78,7 +78,8 @@ ShardInfo::TensorInfo LoadTensorInfoFromJSON(const picojson::array& json_tensor_
     shape.push_back(AsType<int64_t>(shape_json[i]));
   }
   std::string dtype = AsType<std::string>(json_tensor_info[1]);
-  return ShardInfo::TensorInfo{ffi::Shape(std::move(shape)), DataType(StringToDLDataType(dtype))};
+  return ShardInfo::TensorInfo{ffi::Shape(std::move(shape)),
+                               DataType(ffi::StringToDLDataType(dtype))};
 }
 
 ShardInfo::ShardFunc LoadShardFuncFromJSON(const picojson::array& json_shard_func) {
@@ -117,28 +118,26 @@ class ShardLoaderObj : public Object {
  public:
   /*! \brief Create a shard loader. */
   static ObjectRef Create(const std::string& path_to_metadata, const std::string& metadata,
-                          std::string shard_info, Module mod);
+                          std::string shard_info, ffi::Optional<ffi::Module> mod);
   /*! \brief Load the i-th parameter */
-  NDArray Load(int weight_index) const;
+  Tensor Load(int weight_index) const;
 
-  NDArray LoadParamOnWorker0(int weight_index) const;
+  Tensor LoadParamOnWorker0(int weight_index) const;
 
   /*! \brief Load all the parameters */
-  Array<NDArray> LoadAll() const;
+  ffi::Array<Tensor> LoadAll() const;
 
-  NDArray ApplyShardFunc(const ShardInfo::ShardFunc& shard_func, const NDArray& param) const;
+  Tensor ApplyShardFunc(const ShardInfo::ShardFunc& shard_func, const Tensor& param) const;
 
   /*! \brief Load all the pre-sharded parameters */
-  Array<NDArray> LoadAllPresharded() const;
+  ffi::Array<Tensor> LoadAllPresharded() const;
 
   /*! \brief Load the i-th parameter from presharded binaries */
-  NDArray LoadPresharded(int weight_index) const;
+  Tensor LoadPresharded(int weight_index) const;
 
   /*! \brief Slice the given tensor at a specific dimension */
-  NDArray Shard(NDArray source, int dim, int num_slices) const;
-
-  static constexpr const char* _type_key = "runtime.disco.ShardLoader";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ShardLoaderObj, Object);
+  Tensor Shard(Tensor source, int dim, int num_slices) const;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.ShardLoader", ShardLoaderObj, Object);
 
  public:
   /*! \brief Information of how each weight is stored and sharded */
@@ -149,8 +148,8 @@ class ShardLoaderObj : public Object {
   };
   /*! \brief The ffi::Functions being used during sharding */
   std::unordered_map<std::string, ffi::Function> shard_funcs_;
-  /*! \brief The metadata loaded from `ndarray-cache.json` */
-  NDArrayCacheMetadata metadata_;
+  /*! \brief The metadata loaded from `tensor-cache.json` */
+  TensorCacheMetadata metadata_;
   /*! \brief Sharding information for each weight */
   std::vector<ParamInfo> param_info_;
   /*! \brief Maps the name of a shard to its index */
@@ -167,25 +166,22 @@ class ShardLoaderObj : public Object {
    * check for post-processing that may be required.  Instead, the
    * public function `Load` or `LoadPresharded` should be called.
    *
-   * \param weight_index The index of NDArray tensor to load
+   * \param weight_index The index of Tensor tensor to load
    *
    * \returns The full tensor at the specified index
    */
-  NDArray LoadDirect(int weight_index) const;
+  Tensor LoadDirect(int weight_index) const;
 };
 
-TVM_REGISTER_OBJECT_TYPE(ShardLoaderObj);
-
 ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std::string& metadata,
-                                 std::string shard_info, Module mod) {
-  if (shard_info.empty() && mod.defined()) {
-    if (ffi::Function get_shard_info = mod->GetFunction("get_shard_info");
-        get_shard_info != nullptr) {
-      shard_info = get_shard_info().cast<String>();
+                                 std::string shard_info, ffi::Optional<ffi::Module> mod) {
+  if (shard_info.empty() && mod.has_value()) {
+    if (auto get_shard_info = (*mod)->GetFunction("get_shard_info")) {
+      shard_info = (*get_shard_info)().cast<ffi::String>();
     }
   }
-  ObjectPtr<ShardLoaderObj> n = make_object<ShardLoaderObj>();
-  n->metadata_ = NDArrayCacheMetadata::LoadFromStr(metadata, path_to_metadata);
+  ObjectPtr<ShardLoaderObj> n = ffi::make_object<ShardLoaderObj>();
+  n->metadata_ = TensorCacheMetadata::LoadFromStr(metadata, path_to_metadata);
   n->current_file_ = nullptr;
   n->param_info_.clear();
   std::unordered_map<std::string, ShardInfo> shards = LoadShardInfoFromStr(shard_info);
@@ -197,9 +193,9 @@ ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std:
       ShardInfo& shard_info = shards[name];
       for (const ShardInfo::ShardFunc& shard_func : shard_info.funcs) {
         const std::string& name = shard_func.name;
-        if (ffi::Function f = mod.defined() ? mod->GetFunction(name, true) : nullptr;
-            f != nullptr) {
-          n->shard_funcs_[name] = f;
+        if (ffi::Optional<ffi::Function> f =
+                mod.has_value() ? (*mod)->GetFunction(name, true) : std::nullopt) {
+          n->shard_funcs_[name] = *f;
         } else if (const auto f = tvm::ffi::Function::GetGlobal(name)) {
           n->shard_funcs_[name] = *f;
         } else {
@@ -212,10 +208,10 @@ ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std:
   return ObjectRef(std::move(n));
 }
 
-NDArray ShardLoaderObj::ApplyShardFunc(const ShardInfo::ShardFunc& shard_func,
-                                       const NDArray& param) const {
+Tensor ShardLoaderObj::ApplyShardFunc(const ShardInfo::ShardFunc& shard_func,
+                                      const Tensor& param) const {
   Device device = param->device;
-  NDArray o = NDArray::Empty(shard_func.output_info.shape, shard_func.output_info.dtype, device);
+  Tensor o = Tensor::Empty(shard_func.output_info.shape, shard_func.output_info.dtype, device);
   ffi::Function f = this->shard_funcs_.at(shard_func.name);
   int n = static_cast<int>(shard_func.params.size());
   std::vector<ffi::AnyView> packed_args(n + 2);
@@ -239,7 +235,7 @@ std::string GetSiblingPath(const std::string& path, const std::string& filename)
   LOG(FATAL) << "ValueError: Cannot find the parent directory: " << path;
 }
 
-NDArray ShardLoaderObj::LoadParamOnWorker0(int weight_index) const {
+Tensor ShardLoaderObj::LoadParamOnWorker0(int weight_index) const {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   int worker_id = worker->worker_id;
   Device device = worker->default_device;
@@ -258,10 +254,10 @@ NDArray ShardLoaderObj::LoadParamOnWorker0(int weight_index) const {
   };
 
   if (worker_id == 0) {
-    NDArray w = load();
+    Tensor w = load();
     return w;
   } else {
-    NDArray w = NDArray::Empty(param->shape, param->dtype, device);
+    Tensor w = Tensor::Empty(param->shape, param->dtype, device);
     return w;
   }
 }
@@ -288,7 +284,7 @@ std::tuple<int, int> ParseParamShardingInfo(const ParamRecord* param) {
   return {num_shards, worker_id};
 }
 
-NDArray ShardLoaderObj::LoadDirect(int weight_index) const {
+Tensor ShardLoaderObj::LoadDirect(int weight_index) const {
   const ParamInfo& param_info = param_info_.at(weight_index);
   const ParamRecord* param = param_info.param;
   const FileRecord* file = param_info.file;
@@ -304,7 +300,7 @@ NDArray ShardLoaderObj::LoadDirect(int weight_index) const {
   return param->Load(device, &this->current_file_stream_);
 }
 
-NDArray ShardLoaderObj::Load(int weight_index) const {
+Tensor ShardLoaderObj::Load(int weight_index) const {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   int worker_id = worker->worker_id;
   int num_shards = worker->num_workers;
@@ -320,9 +316,9 @@ NDArray ShardLoaderObj::Load(int weight_index) const {
         << "ValueError: The first dimension of the "
         << "output shape must be equal to the "
         << "number of shards, but got: " << shape << " and num_shards = " << num_shards;
-    NDArray recv = NDArray::Empty(ffi::Shape(shape.begin() + 1, shape.end()), dtype, device);
+    Tensor recv = Tensor::Empty(ffi::Shape(shape.begin() + 1, shape.end()), dtype, device);
     if (worker_id == 0) {
-      NDArray w = LoadDirect(weight_index);
+      Tensor w = LoadDirect(weight_index);
       for (const ShardInfo::ShardFunc& shard_func : param_info.shard_info.funcs) {
         w = this->ApplyShardFunc(shard_func, w);
       }
@@ -333,20 +329,20 @@ NDArray ShardLoaderObj::Load(int weight_index) const {
     return recv;
   } else {
     if (worker_id == 0) {
-      NDArray w = LoadDirect(weight_index);
+      Tensor w = LoadDirect(weight_index);
       BroadcastFromWorker0(w, /*in_group=*/false, w);
       return w;
     } else {
-      NDArray w = NDArray::Empty(param->shape, param->dtype, device);
+      Tensor w = Tensor::Empty(param->shape, param->dtype, device);
       BroadcastFromWorker0(w, /*in_group=*/false, w);
       return w;
     }
   }
 }
 
-Array<NDArray> ShardLoaderObj::LoadAll() const {
+ffi::Array<Tensor> ShardLoaderObj::LoadAll() const {
   int n = static_cast<int>(param_info_.size());
-  Array<NDArray> shards;
+  ffi::Array<Tensor> shards;
   shards.reserve(n);
   for (int i = 0; i < n; ++i) {
     std::string param_name = "param_" + std::to_string(i);
@@ -357,7 +353,7 @@ Array<NDArray> ShardLoaderObj::LoadAll() const {
   return shards;
 }
 
-NDArray ShardLoaderObj::LoadPresharded(int weight_index) const {
+Tensor ShardLoaderObj::LoadPresharded(int weight_index) const {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   int worker_id = worker->worker_id;
   int num_shards = worker->num_workers;
@@ -383,13 +379,13 @@ NDArray ShardLoaderObj::LoadPresharded(int weight_index) const {
   return LoadDirect(index);
 }
 
-Array<NDArray> ShardLoaderObj::LoadAllPresharded() const {
+ffi::Array<Tensor> ShardLoaderObj::LoadAllPresharded() const {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   size_t worker_id = static_cast<size_t>(worker->worker_id);
   size_t num_workers = static_cast<size_t>(worker->num_workers);
   size_t num_params = param_info_.size() / num_workers;
 
-  Array<NDArray> params;
+  ffi::Array<Tensor> params;
   params.reserve(num_params);
   for (size_t i_param = 0; i_param < num_params; ++i_param) {
     std::string param_name = static_cast<const std::stringstream&>(
@@ -406,7 +402,7 @@ Array<NDArray> ShardLoaderObj::LoadAllPresharded() const {
   return params;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.disco.ShardLoader", ShardLoaderObj::Create)
@@ -445,7 +441,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                  << "TypeError: Expected ShardLoaderObj, but gets: " << loader_obj->GetTypeKey();
              return loader->LoadParamOnWorker0(param_index);
            });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

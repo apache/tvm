@@ -19,7 +19,7 @@
 from contextlib import contextmanager
 from typing import Dict, Optional
 
-from tvm.ffi import register_object
+from tvm_ffi import register_object
 from tvm.runtime import Object
 
 from . import _ffi_api

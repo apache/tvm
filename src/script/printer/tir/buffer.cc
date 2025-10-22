@@ -24,13 +24,14 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-Map<String, ExprDoc> BufferAttrs(tir::Buffer buffer, const ObjectPath& buffer_p, const Frame& frame,
-                                 const IRDocsifier& d, BufferVarDefinition var_definitions) {
+ffi::Map<ffi::String, ExprDoc> BufferAttrs(tir::Buffer buffer, const AccessPath& buffer_p,
+                                           const Frame& frame, const IRDocsifier& d,
+                                           BufferVarDefinition var_definitions) {
   using tvm::tir::Var;
   using tvm::tir::VarNode;
-  Map<String, ExprDoc> kwargs;
-  Array<ExprDoc> var_def_lhs;
-  Array<ExprDoc> var_def_rhs;
+  ffi::Map<ffi::String, ExprDoc> kwargs;
+  ffi::Array<ExprDoc> var_def_lhs;
+  ffi::Array<ExprDoc> var_def_rhs;
 
   // Step 0. Set up statistics
   std::unordered_map<const Object*, int> use_count;
@@ -52,14 +53,14 @@ Map<String, ExprDoc> BufferAttrs(tir::Buffer buffer, const ObjectPath& buffer_p,
   auto is_new_var = [&](const PrimExpr& e) {
     return e->IsInstance<VarNode>() && !d->IsVarDefined(e);
   };
-  auto add_out_of_line_var_def = [&](const Var& var, const ObjectPath& var_p) {
+  auto add_out_of_line_var_def = [&](const Var& var, const AccessPath& var_p) {
     ICHECK(!d->IsVarDefined(var));
     ExprDoc lhs = DefineVar(var, frame, d);
     lhs->source_paths.push_back(var_p);
     var_def_lhs.push_back(lhs);
     var_def_rhs.push_back(PrintVarCreation(var, var_p, d));
   };
-  auto try_inline_def = [&](const PrimExpr& e, const ObjectPath& e_p,
+  auto try_inline_def = [&](const PrimExpr& e, const AccessPath& e_p,
                             std::function<ExprDoc()> inline_f) {
     ICHECK(is_new_var(e));
     Var var = Downcast<Var>(e);
@@ -73,14 +74,14 @@ Map<String, ExprDoc> BufferAttrs(tir::Buffer buffer, const ObjectPath& buffer_p,
   };
   // Step 1. Handle `buffer.shape`
   {
-    const Array<PrimExpr>& shape = buffer->shape;
-    ObjectPath shape_p = buffer_p->Attr("shape");
+    const ffi::Array<PrimExpr>& shape = buffer->shape;
+    AccessPath shape_p = buffer_p->Attr("shape");
     int n = shape.size();
-    Array<ExprDoc> results;
+    ffi::Array<ExprDoc> results;
     results.reserve(n);
     for (int i = 0; i < n; ++i) {
       PrimExpr e = shape[i];
-      ObjectPath e_p = shape_p->ArrayIndex(i);
+      AccessPath e_p = shape_p->ArrayItem(i);
       if (is_new_var(e)) {
         add_out_of_line_var_def(Downcast<Var>(e), e_p);
       }
@@ -108,14 +109,14 @@ Map<String, ExprDoc> BufferAttrs(tir::Buffer buffer, const ObjectPath& buffer_p,
   }
   // Step 4. Handle `buffer.strides`
   if (!buffer->strides.empty()) {
-    const Array<PrimExpr>& strides = buffer->strides;
-    ObjectPath strides_p = buffer_p->Attr("strides");
+    const ffi::Array<PrimExpr>& strides = buffer->strides;
+    AccessPath strides_p = buffer_p->Attr("strides");
     int n = strides.size();
-    Array<ExprDoc> results;
+    ffi::Array<ExprDoc> results;
     results.reserve(n);
     for (int i = 0; i < n; ++i) {
       PrimExpr e = strides[i];
-      ObjectPath e_p = strides_p->ArrayIndex(i);
+      AccessPath e_p = strides_p->ArrayItem(i);
       if (is_new_var(e)) {
         if (try_inline_def(e, e_p, [=]() {
               return d->AsDoc<ExprDoc>(buffer, buffer_p)
@@ -148,7 +149,7 @@ Map<String, ExprDoc> BufferAttrs(tir::Buffer buffer, const ObjectPath& buffer_p,
   }
   // Step 6. Handle `buffer.scope`
   {
-    String scope = buffer.scope();
+    ffi::String scope = buffer.scope();
     if (scope != "global") {
       kwargs.Set(
           "scope",
@@ -182,17 +183,18 @@ Map<String, ExprDoc> BufferAttrs(tir::Buffer buffer, const ObjectPath& buffer_p,
   return kwargs;
 }
 
-ExprDoc BufferCall(const ExprDoc& prefix, const Map<String, ExprDoc>& attrs, Array<ExprDoc> args) {
-  Array<String> kwargs_keys;
-  Array<ExprDoc> kwargs_values;
-  for (String s : {"shape", "dtype"}) {
-    if (Optional<ExprDoc> doc = attrs.Get(s)) {
+ExprDoc BufferCall(const ExprDoc& prefix, const ffi::Map<ffi::String, ExprDoc>& attrs,
+                   ffi::Array<ExprDoc> args) {
+  ffi::Array<ffi::String> kwargs_keys;
+  ffi::Array<ExprDoc> kwargs_values;
+  for (ffi::String s : {"shape", "dtype"}) {
+    if (ffi::Optional<ExprDoc> doc = attrs.Get(s)) {
       args.push_back(doc.value());
     }
   }
-  for (String s : {"data", "strides", "elem_offset", "scope", "align", "offset_factor",
-                   "buffer_type", "axis_separators"}) {
-    if (Optional<ExprDoc> doc = attrs.Get(s)) {
+  for (ffi::String s : {"data", "strides", "elem_offset", "scope", "align", "offset_factor",
+                        "buffer_type", "axis_separators"}) {
+    if (ffi::Optional<ExprDoc> doc = attrs.Get(s)) {
       kwargs_keys.push_back(s);
       kwargs_values.push_back(doc.value());
     }
@@ -200,38 +202,39 @@ ExprDoc BufferCall(const ExprDoc& prefix, const Map<String, ExprDoc>& attrs, Arr
   return prefix->Call(args, kwargs_keys, kwargs_values);
 }
 
-ExprDoc BufferDecl(const tir::Buffer& buffer, const String& method, const Array<ExprDoc>& args,
-                   const ObjectPath& p, const Frame& frame, const IRDocsifier& d,
-                   BufferVarDefinition var_definitions) {
+ExprDoc BufferDecl(const tir::Buffer& buffer, const ffi::String& method,
+                   const ffi::Array<ExprDoc>& args, const AccessPath& p, const Frame& frame,
+                   const IRDocsifier& d, BufferVarDefinition var_definitions) {
   return BufferCall(/*prefix=*/TIR(d, method),
                     /*attrs=*/BufferAttrs(buffer, p, frame, d, var_definitions),
                     /*args=*/args);
 }
 
-ExprDoc BufferAttn(const tir::Buffer& buffer, const ObjectPath& p, const Frame& frame,
+ExprDoc BufferAttn(const tir::Buffer& buffer, const AccessPath& p, const Frame& frame,
                    const IRDocsifier& d) {
-  Map<String, ExprDoc> attrs = BufferAttrs(buffer, p, frame, d, BufferVarDefinition::DataPointer);
+  ffi::Map<ffi::String, ExprDoc> attrs =
+      BufferAttrs(buffer, p, frame, d, BufferVarDefinition::DataPointer);
   ExprDoc shape = attrs.Get("shape").value();
   ExprDoc dtype =
       attrs.Get("dtype").value_or(LiteralDoc::DataType(buffer->dtype, p->Attr("dtype")));
   return TIR(d, "Buffer")->Call({shape, dtype}, {}, {});
 }
 
-Array<Doc> BufferIndices(const Array<PrimExpr>& indices, const ObjectPath& p,
-                         const IRDocsifier& d) {
+ffi::Array<Doc> BufferIndices(const ffi::Array<PrimExpr>& indices, const AccessPath& p,
+                              const IRDocsifier& d) {
   int n = indices.size();
-  Array<Doc> indices_doc;
+  ffi::Array<Doc> indices_doc;
   indices_doc.reserve(n);
   for (int i = 0; i < n; ++i) {
     if (const auto* ramp = indices[i].as<tir::RampNode>()) {
       if (const auto* stride = ramp->stride.as<IntImmNode>()) {
-        ObjectPath ramp_p = p->Attr("indices")->ArrayIndex(i);
-        ObjectPath stride_p = ramp_p->Attr("stride");
+        AccessPath ramp_p = p->Attr("indices")->ArrayItem(i);
+        AccessPath stride_p = ramp_p->Attr("stride");
         ExprDoc start = d->AsDoc<ExprDoc>(ramp->base,  //
                                           ramp_p->Attr("base"));
         ExprDoc stop = d->AsDoc<ExprDoc>(ramp->base + ramp->lanes * ramp->stride,  //
                                          ramp_p->Attr("lanes"));
-        Optional<ExprDoc> step = std::nullopt;
+        ffi::Optional<ExprDoc> step = std::nullopt;
         if (stride->value != 1) {
           step = d->AsDoc<ExprDoc>(ramp->stride, ramp_p->Attr("stride"));
         }
@@ -239,18 +242,19 @@ Array<Doc> BufferIndices(const Array<PrimExpr>& indices, const ObjectPath& p,
         continue;
       }
     }
-    indices_doc.push_back(d->AsDoc<ExprDoc>(indices[i], p->Attr("indices")->ArrayIndex(i)));
+    indices_doc.push_back(d->AsDoc<ExprDoc>(indices[i], p->Attr("indices")->ArrayItem(i)));
   }
   return indices_doc;
 }
 
-Array<Doc> BufferSlices(const Array<Range>& region, const ObjectPath& p, const IRDocsifier& d) {
+ffi::Array<Doc> BufferSlices(const ffi::Array<Range>& region, const AccessPath& p,
+                             const IRDocsifier& d) {
   int n = region.size();
-  Array<Doc> indices;
+  ffi::Array<Doc> indices;
   indices.reserve(n);
   for (int i = 0; i < n; ++i) {
     Range range = region[i];
-    ObjectPath range_p = p->ArrayIndex(i);
+    AccessPath range_p = p->ArrayItem(i);
     ExprDoc min = d->AsDoc<ExprDoc>(range->min, range_p->Attr("min"));
     if (tir::is_one(range->extent)) {
       indices.push_back(min);
@@ -264,14 +268,14 @@ Array<Doc> BufferSlices(const Array<Range>& region, const ObjectPath& p, const I
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::BufferRegion>(
-        "", [](tir::BufferRegion buffer_region, ObjectPath p, IRDocsifier d) -> Doc {
+        "", [](tir::BufferRegion buffer_region, AccessPath p, IRDocsifier d) -> Doc {
           ExprDoc prefix = d->AsDoc<ExprDoc>(buffer_region->buffer, p->Attr("buffer"));
           return prefix[BufferSlices(buffer_region->region, p->Attr("region"), d)];
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::BufferStore>(  //
-        "", [](tir::BufferStore store, ObjectPath p, IRDocsifier d) -> Doc {
+        "", [](tir::BufferStore store, AccessPath p, IRDocsifier d) -> Doc {
           ExprDoc buffer = d->AsDoc<ExprDoc>(store->buffer, p->Attr("buffer"));
           ExprDoc value = d->AsDoc<ExprDoc>(store->value, p->Attr("value"));
 
@@ -290,7 +294,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::BufferLoad>(  //
-        "", [](tir::BufferLoad load, ObjectPath p, IRDocsifier d) -> Doc {
+        "", [](tir::BufferLoad load, AccessPath p, IRDocsifier d) -> Doc {
           ExprDoc buffer = d->AsDoc<ExprDoc>(load->buffer, p->Attr("buffer"));
 
           // Use .vload(...) syntax when there is a predicate
@@ -304,16 +308,16 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
-    .set_dispatch<tir::Buffer>("", [](tir::Buffer buffer, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tir::Buffer>("", [](tir::Buffer buffer, AccessPath p, IRDocsifier d) -> Doc {
       if (!d->IsVarDefined(buffer)) {
-        if (Optional<Frame> opt_f = FindLowestVarDef(buffer, d)) {
+        if (ffi::Optional<Frame> opt_f = FindLowestVarDef(buffer, d)) {
           ExprDoc lhs = DefineBuffer(buffer, opt_f.value(), d);
           ExprDoc rhs = BufferDecl(buffer, "Buffer", {}, p, opt_f.value(), d,
                                    BufferVarDefinition::DataPointer);
           opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
         }
       }
-      if (Optional<ExprDoc> doc = d->GetVarDoc(buffer)) {
+      if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(buffer)) {
         return doc.value();
       }
       LOG(FATAL) << "IndexError: Buffer is not defined in the environment: " << buffer;
@@ -322,7 +326,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::MatchBufferRegion>(
-        "", [](tir::MatchBufferRegion stmt, ObjectPath p, IRDocsifier d) -> Doc {
+        "", [](tir::MatchBufferRegion stmt, AccessPath p, IRDocsifier d) -> Doc {
           Frame frame = d->frames.back();
           ExprDoc lhs = DefineBuffer(stmt->buffer, frame, d);
           ExprDoc src_buffer = d->AsDoc<ExprDoc>(stmt->source, p->Attr("source"));
@@ -333,7 +337,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::ProducerLoad>(  //
-        "", [](tir::ProducerLoad load, ObjectPath p, IRDocsifier d) -> Doc {
+        "", [](tir::ProducerLoad load, AccessPath p, IRDocsifier d) -> Doc {
           ExprDoc prefix = IdDoc(load->producer->GetNameHint());
           return prefix[BufferIndices(load->indices, p->Attr("indices"), d)];
         });

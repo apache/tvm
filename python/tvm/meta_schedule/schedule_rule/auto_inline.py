@@ -17,7 +17,7 @@
 """Auto-Inline. Rule that inlines spatial blocks if it satisfies some conditions"""
 from typing import List, Optional
 
-from tvm.ffi import register_object
+from tvm_ffi import register_object
 
 from .. import _ffi_api
 from .schedule_rule import ScheduleRule

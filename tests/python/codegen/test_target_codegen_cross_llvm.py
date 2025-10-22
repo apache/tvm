@@ -51,7 +51,7 @@ def test_llvm_add_pipeline():
         target = "llvm -mtriple=i386-pc-linux-gnu"
         f = tvm.tir.build(sch.mod, target=target)
         path = temp.relpath("myadd.o")
-        f.save(path)
+        f.write_to_file(path)
         verify_elf(path, 0x03)
 
     def build_arm():
@@ -62,10 +62,10 @@ def test_llvm_add_pipeline():
         temp = utils.tempdir()
         f = tvm.tir.build(sch.mod, target=target)
         path = temp.relpath("myadd.o")
-        f.save(path)
+        f.write_to_file(path)
         verify_elf(path, 0x28)
         asm_path = temp.relpath("myadd.asm")
-        f.save(asm_path)
+        f.write_to_file(asm_path)
         # Do a RPC verification, launch kernel on Arm Board if available.
         host = os.environ.get("TVM_RPC_ARM_HOST", None)
         remote = None
@@ -81,9 +81,9 @@ def test_llvm_add_pipeline():
             farm = remote.load_module("myadd.o")
             dev = remote.cpu(0)
             n = nn
-            a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-            b = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-            c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
+            a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
+            b = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
+            c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
             farm(a, b, c)
             tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
             print("Verification finish on remote..")

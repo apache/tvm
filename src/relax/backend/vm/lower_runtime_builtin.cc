@@ -24,6 +24,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/backend.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/type.h>
@@ -52,6 +53,8 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
       return ShapeOf(call);
     } else if (call->op == tensor_to_shape_op_) {
       return TensorToShape(call);
+    } else if (call->op == call_py_func_op_) {
+      return CallPyFunc(call);
     } else if (call->op == to_vdevice_op_) {
       return ToDevice(call);
     } else if (call->op == make_closure_op_) {
@@ -60,7 +63,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
       return InvokeClosure(call);
     } else if (call->op == alloc_tensor_op_) {
       LOG(FATAL) << "VMBuiltinLower encountered " << call->op << " in expression "
-                 << GetRef<Call>(call_node) << ".  "
+                 << ffi::GetRef<Call>(call_node) << ".  "
                  << "This operation should have been lowered earlier "
                  << "using the 'relax.transform.LowerAllocTensor' pass.";
     } else if (call->op == mem_alloc_storage_op_) {
@@ -70,7 +73,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     } else if (call->op == mem_kill_storage_op_ || call->op == mem_kill_tensor_op_) {
       return MakeMemKillObject(call);
     } else if (const auto* op_node = call->op.as<OpNode>()) {
-      Op op = GetRef<Op>(op_node);
+      Op op = ffi::GetRef<Op>(op_node);
       if (lower_builtin_fmap.count(op)) {
         return lower_builtin_fmap[op](builder_, call);
       }
@@ -101,7 +104,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     ICHECK(call_node->args.size() == 2);
     ICHECK(call_node->args[0]->IsInstance<GlobalVarNode>());
     ICHECK(call_node->args[1]->IsInstance<TupleNode>());
-    Array<Expr> args;
+    ffi::Array<Expr> args;
 
     auto tir_args = Downcast<Tuple>(call_node->args[1]);
     args.push_back(call_node->args[0]);
@@ -139,12 +142,27 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     return Call(builtin_tensor_to_shape_, call_node->args, Attrs(), {GetStructInfo(call_node)});
   }
 
+  Expr CallPyFunc(const Call& call_node) {
+    ICHECK(call_node->args.size() == 2);
+    ICHECK(call_node->struct_info_.defined());
+
+    // Create tuple with function name and arguments tuple
+    ffi::Array<Expr> tuple_fields;
+    tuple_fields.push_back(call_node->args[0]);  // function name
+    tuple_fields.push_back(call_node->args[1]);  // arguments tuple
+    auto combined_tuple = Tuple(tuple_fields);
+
+    // Direct call to vm.builtin.call_py_func
+    return Call(builtin_call_py_func_, {combined_tuple}, call_node->attrs, call_node->sinfo_args,
+                call_node->span);
+  }
+
   Expr ToDevice(const Call& call_node) {
     // TODO(yongwww): replace ToVDeviceAttrs with related Expr
     ICHECK(call_node->args.size() == 1);
     ICHECK(call_node->struct_info_.defined());
     auto attrs = call_node->attrs.as<ToVDeviceAttrs>();
-    Array<Expr> args;
+    ffi::Array<Expr> args;
     args.push_back(call_node->args[0]);
     // Get the DLDeviceType and device_id from VDevice
     VDevice vdev = attrs->dst_vdevice;
@@ -160,7 +178,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     ICHECK(call_node->args[0]->IsInstance<GlobalVarNode>());
     ICHECK(call_node->args[1]->IsInstance<TupleNode>());
 
-    Array<Expr> args;
+    ffi::Array<Expr> args;
     auto func = call_node->args[0];
     auto closure_args = Downcast<Tuple>(call_node->args[1]);
 
@@ -177,7 +195,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     ICHECK(call_node->args[0]->IsInstance<VarNode>());
     ICHECK(call_node->args[1]->IsInstance<TupleNode>());
 
-    Array<Expr> args;
+    ffi::Array<Expr> args;
 
     args.push_back(call_node->args[0]);
 
@@ -192,12 +210,13 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
 
   const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
   const StructInfo object_sinfo_ = ObjectStructInfo();
-  const StructInfo void_sinfo_ = TupleStructInfo(Array<StructInfo>({}));
+  const StructInfo void_sinfo_ = TupleStructInfo(ffi::Array<StructInfo>({}));
   // object to pattern match.
   const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
   const Op& reshape_op_ = Op::Get("relax.reshape");
   const Op& shape_of_op_ = Op::Get("relax.shape_of");
   const Op& tensor_to_shape_op_ = Op::Get("relax.tensor_to_shape");
+  const Op& call_py_func_op_ = Op::Get("relax.call_py_func");
   const Op& to_vdevice_op_ = Op::Get("relax.to_vdevice");
   const Op& make_closure_op_ = Op::Get("relax.make_closure");
   const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
@@ -216,6 +235,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   const ExternFunc builtin_reshape_{"vm.builtin.reshape"};
   const ExternFunc builtin_shape_of_{"vm.builtin.shape_of"};
   const ExternFunc builtin_tensor_to_shape_{"vm.builtin.tensor_to_shape"};
+  const ExternFunc builtin_call_py_func_{"vm.builtin.call_py_func"};
   const ExternFunc builtin_to_device_{"vm.builtin.to_device"};
   const ExternFunc builtin_make_closure_{"vm.builtin.make_closure"};
   const ExternFunc builtin_invoke_closure_{"vm.builtin.invoke_closure"};
@@ -232,10 +252,10 @@ Pass LowerRuntimeBuiltin() {
   return CreateFunctionPass(pass_func, 0, "LowerRuntimeBuiltin", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.LowerRuntimeBuiltin", LowerRuntimeBuiltin);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

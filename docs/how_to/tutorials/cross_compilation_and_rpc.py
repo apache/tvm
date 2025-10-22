@@ -182,8 +182,8 @@ func = remote.load_module("lib.tar")
 
 # create arrays on the remote device
 dev = remote.cpu()
-a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), dev)
-b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
+a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(A.dtype), dev)
+b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
 # the function will run on the remote device
 func(a, b)
 np.testing.assert_equal(b.numpy(), a.numpy() + 1)
@@ -249,8 +249,8 @@ def run_opencl():
 
     # run
     dev = remote.cl()
-    a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), dev)
-    b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
+    a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(A.dtype), dev)
+    b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
     func(a, b)
     np.testing.assert_equal(b.numpy(), a.numpy() + 1)
     print("OpenCL test passed!")

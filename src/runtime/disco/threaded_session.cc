@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <dmlc/io.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/object.h>
@@ -180,20 +181,22 @@ class ThreadedSessionObj final : public BcastSessionObj {
   ffi::PackedArgs RecvReplyPacked(int worker_id) final {
     return this->workers_.at(worker_id).channel->RecvReply();
   }
-
-  static constexpr const char* _type_key = "runtime.disco.ThreadedSession";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ThreadedSessionObj, SessionObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.ThreadedSession", ThreadedSessionObj,
+                                    SessionObj);
 
   std::vector<DiscoWorkerThread> workers_;
 };
 
-TVM_REGISTER_OBJECT_TYPE(ThreadedSessionObj);
-
 Session Session::ThreadedSession(int num_workers, int num_group) {
   CHECK_EQ(num_workers % num_group, 0)
       << "The number of workers should be divisible by the number of worker group.";
-  ObjectPtr<ThreadedSessionObj> n = make_object<ThreadedSessionObj>(num_workers, num_group);
+  ObjectPtr<ThreadedSessionObj> n = ffi::make_object<ThreadedSessionObj>(num_workers, num_group);
   return Session(std::move(n));
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<ThreadedSessionObj>();
 }
 
 }  // namespace runtime

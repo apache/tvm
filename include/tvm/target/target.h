@@ -51,15 +51,15 @@ class TargetNode : public Object {
   /*! \brief The kind of the target device */
   TargetKind kind;
   /*! \brief Target host information, must be Target type */
-  Optional<ObjectRef> host;
+  ffi::Optional<ObjectRef> host;
   /*! \brief Tag of the target, can be empty */
-  String tag;
+  ffi::String tag;
   /*! \brief Keys for this target */
-  Array<String> keys;
+  ffi::Array<ffi::String> keys;
   /*! \brief Collection of attributes */
-  Map<String, Any> attrs;
+  ffi::Map<ffi::String, Any> attrs;
   /*! \brief Target features */
-  Map<String, Any> features;
+  ffi::Map<ffi::String, Any> features;
 
   /*!
    * \brief The raw string representation of the target
@@ -68,9 +68,9 @@ class TargetNode : public Object {
    */
   TVM_DLL const std::string& str() const;
   /*! \return Export target to JSON-like configuration */
-  TVM_DLL Map<String, ffi::Any> Export() const;
-  /*! \return The Optional<Target> typed target host of the TargetNode */
-  TVM_DLL Optional<Target> GetHost() const;
+  TVM_DLL ffi::Map<ffi::String, ffi::Any> Export() const;
+  /*! \return The ffi::Optional<Target> typed target host of the TargetNode */
+  TVM_DLL ffi::Optional<Target> GetHost() const;
   /*! \return The device type for this target */
   TVM_DLL int GetTargetDeviceType() const;
 
@@ -91,7 +91,7 @@ class TargetNode : public Object {
    * TODO(mbs): The ReprPrinter version should perhaps switch to this form, however currently
    * code depends on str() and << being the same.
    */
-  String ToDebugString() const;
+  ffi::String ToDebugString() const;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -112,12 +112,12 @@ class TargetNode : public Object {
    * \return An optional, std::nullopt if not found, otherwise the value found
    */
   template <typename TObjectRef>
-  Optional<TObjectRef> GetAttr(
+  ffi::Optional<TObjectRef> GetAttr(
       const std::string& attr_key,
-      Optional<TObjectRef> default_value = Optional<TObjectRef>(std::nullopt)) const {
+      ffi::Optional<TObjectRef> default_value = ffi::Optional<TObjectRef>(std::nullopt)) const {
     auto it = attrs.find(attr_key);
     if (it != attrs.end()) {
-      return Downcast<Optional<TObjectRef>>((*it).second);
+      return Downcast<ffi::Optional<TObjectRef>>((*it).second);
     } else {
       return default_value;
     }
@@ -130,8 +130,8 @@ class TargetNode : public Object {
    * \return An optional, std::nullopt if not found, otherwise the value found
    */
   template <typename TObjectRef>
-  Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
-    return GetAttr<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
+  ffi::Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
+    return GetAttr<TObjectRef>(attr_key, ffi::Optional<TObjectRef>(default_value));
   }
 
   /*!
@@ -154,8 +154,9 @@ class TargetNode : public Object {
    * \endcode
    */
   template <typename TObjectRef>
-  Optional<TObjectRef> GetFeature(const std::string& feature_key,
-                                  Optional<TObjectRef> default_value = std::nullopt) const {
+  ffi::Optional<TObjectRef> GetFeature(
+      const std::string& feature_key,
+      ffi::Optional<TObjectRef> default_value = std::nullopt) const {
     if (auto feature = features.Get(feature_key)) {
       return Downcast<TObjectRef>(feature.value());
     } else {
@@ -164,8 +165,9 @@ class TargetNode : public Object {
   }
   // variant that uses TObjectRef to enable implicit conversion to default value.
   template <typename TObjectRef>
-  Optional<TObjectRef> GetFeature(const std::string& attr_key, TObjectRef default_value) const {
-    return GetFeature<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
+  ffi::Optional<TObjectRef> GetFeature(const std::string& attr_key,
+                                       TObjectRef default_value) const {
+    return GetFeature<TObjectRef>(attr_key, ffi::Optional<TObjectRef>(default_value));
   }
 
   /*! \brief Get the keys for this target as a vector of string */
@@ -173,14 +175,8 @@ class TargetNode : public Object {
   /*! \brief Get the keys for this target as an unordered_set of string */
   TVM_DLL std::unordered_set<std::string> GetLibs() const;
 
-  bool SEqualReduce(const TargetNode* other, SEqualReducer equal) const;
-  void SHashReduce(SHashReducer hash_reduce) const;
-
-  static constexpr const char* _type_key = "target.Target";
-
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(TargetNode, Object);
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.Target", TargetNode, Object);
 
  private:
   /*! \brief Internal string repr. */
@@ -201,12 +197,12 @@ class Target : public ObjectRef {
    * \brief Construct a Target given a string
    * \param tag_or_config_or_target_str the string to parse for target
    */
-  TVM_DLL explicit Target(const String& tag_or_config_or_target_str);
+  TVM_DLL explicit Target(const ffi::String& tag_or_config_or_target_str);
   /*!
    * \brief Construct a Target using a JSON-like configuration
    * \param config The JSON-like configuration for target
    */
-  TVM_DLL explicit Target(const Map<String, ffi::Any>& config);
+  TVM_DLL explicit Target(const ffi::Map<ffi::String, ffi::Any>& config);
   /*!
    * \brief Get the current target context from thread local storage.
    * \param allow_not_defined If the context stack is empty and this is set to true, an
@@ -222,7 +218,7 @@ class Target : public ObjectRef {
    * \param host The Target typed object for target host
    */
   TVM_DLL explicit Target(Target target, Target host);
-  TVM_DEFINE_OBJECT_REF_METHODS(Target, ObjectRef, TargetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Target, ObjectRef, TargetNode);
   /*!
    * \brief Create a new Target object with given target (w.o host) and target host.
    * \param target The current Target typed object target, with or without host field.
@@ -235,8 +231,8 @@ class Target : public ObjectRef {
   Target WithoutHost() const;
 
  private:
-  Target(TargetKind kind, Optional<ObjectRef> host, String tag, Array<String> keys,
-         Map<String, ffi::Any> attrs);
+  Target(TargetKind kind, ffi::Optional<ObjectRef> host, ffi::String tag,
+         ffi::Array<ffi::String> keys, ffi::Map<ffi::String, ffi::Any> attrs);
 
   // enable with syntax.
   friend class TargetInternal;

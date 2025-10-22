@@ -86,13 +86,14 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   bool DefEqual(const Var& lhs, const Var& rhs);
   virtual bool CompareBuffer(const Buffer& lhs, const Buffer& rhs);
   bool CompareBufferRegion(const BufferRegion& lhs, const BufferRegion& rhs);
-  bool CompareAnnotation(const std::pair<String, ffi::Any>& lhs,
-                         const std::pair<String, ffi::Any>& rhs);
-  bool CompareAnnotationMap(const Map<String, ffi::Any>& lhs, const Map<String, ffi::Any>& rhs);
+  bool CompareAnnotation(const std::pair<ffi::String, ffi::Any>& lhs,
+                         const std::pair<ffi::String, ffi::Any>& rhs);
+  bool CompareAnnotationMap(const ffi::Map<ffi::String, ffi::Any>& lhs,
+                            const ffi::Map<ffi::String, ffi::Any>& rhs);
   template <typename T>
   bool CompareBufferAccess(const T* lhs, const T* rhs);
   template <typename T, typename Self, typename F>
-  bool CompareArray(const Array<T>& lhs, const Array<T>& rhs, F Self::*cmp);
+  bool CompareArray(const ffi::Array<T>& lhs, const ffi::Array<T>& rhs, F Self::*cmp);
   bool CompareRange(const Range& lhs, const Range& rhs);
   bool CompareIterVar(const IterVar& lhs, const IterVar& rhs);
   void EmitError(const std::string& error_message);
@@ -151,17 +152,17 @@ class AutoTensorizeComparator : public TensorizeComparator {
   /*! \brief Block iters in the RHS stmt. */
   std::vector<IterVar> rhs_iters_;
   /*! \brief The buffer and its access indices in the LHS stmt. */
-  std::unordered_map<Buffer, Array<PrimExpr>, ObjectPtrHash, ObjectPtrEqual>
+  std::unordered_map<Buffer, ffi::Array<PrimExpr>, ObjectPtrHash, ObjectPtrEqual>
       lhs_buffer_indices_map_;
   /*! \brief The buffer and its access indices in the RHS stmt. */
-  std::unordered_map<Buffer, Array<PrimExpr>, ObjectPtrHash, ObjectPtrEqual>
+  std::unordered_map<Buffer, ffi::Array<PrimExpr>, ObjectPtrHash, ObjectPtrEqual>
       rhs_buffer_indices_map_;
   /*! \brief Map from LHS buffer to RHS buffer */
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> lhs_buffer_map_;
 
  private:
   /*! \brief The domain of the inner block iters. */
-  Map<Var, arith::IntSet> inner_iter_dom_map_;
+  ffi::Map<Var, arith::IntSet> inner_iter_dom_map_;
 };
 
 }  // namespace tir

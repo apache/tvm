@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2025-06-03T18:16:35.839798
+// Generated at 2025-08-24T16:41:22.257116
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -520,7 +520,7 @@ def run_build(node_type) {
           label: 'Build Hexagon API',
         )
         sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/hexagon_api_output",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon --items build/libtvm.so build/libtvm_runtime.so build/lib/libtvm_ffi.so build/config.cmake build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/hexagon_api_output",
             label: 'Upload artifacts to S3',
           )
           })
@@ -536,6 +536,9 @@ def build() {
   stage('Build') {
     try {
         run_build('CPU-SPOT')
+    } catch (hudson.AbortException abortEx) {
+        echo "Received normal AbortException, exit now. Details:" + abortEx.toString()
+        throw abortEx
     } catch (Throwable ex) {
       echo 'Exception during SPOT run ' + ex.toString()
       if (is_last_build()) {

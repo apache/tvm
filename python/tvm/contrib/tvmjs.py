@@ -71,7 +71,7 @@ def _calculate_md5(filename):
     return hash_md5.hexdigest()
 
 
-class NDArrayCacheShardingManager:
+class TensorCacheShardingManager:
     """Internal helper to shard ndarrays."""
 
     def __init__(
@@ -198,10 +198,10 @@ class NDArrayCacheShardingManager:
         return len(self.curr_data)
 
 
-def dump_ndarray_cache(
+def dump_tensor_cache(
     params: Union[
-        Mapping[str, Union[np.ndarray, tvm.runtime.NDArray]],
-        Iterator[Tuple[str, Union[np.ndarray, tvm.runtime.NDArray]]],
+        Mapping[str, Union[np.ndarray, tvm.runtime.Tensor]],
+        Iterator[Tuple[str, Union[np.ndarray, tvm.runtime.Tensor]]],
     ],
     cache_dir: str,
     encode_format="f32-to-bf16",
@@ -210,13 +210,13 @@ def dump_ndarray_cache(
     show_progress: bool = True,
     update_if_exists: bool = False,
 ):
-    """Dump parameters to NDArray cache.
+    """Dump parameters to Tensor cache.
 
     Parameters
     ----------
     params: Union[
-        Mapping[str, Union[np.ndarray, tvm.runtime.NDArray]],
-        Iterator[Tuple[str, Union[np.ndarray, tvm.runtime.NDArray]]],
+        Mapping[str, Union[np.ndarray, tvm.runtime.Tensor]],
+        Iterator[Tuple[str, Union[np.ndarray, tvm.runtime.Tensor]]],
     ]
         The parameter dictionary or generator
 
@@ -257,7 +257,7 @@ def dump_ndarray_cache(
     print("Start storing to cache %s" % cache_dir)
     shard_cap_nbytes = shard_cap_mb * (1 << 20)
 
-    nd_cache_json = os.path.join(cache_dir, "ndarray-cache.json")
+    nd_cache_json = os.path.join(cache_dir, "tensor-cache.json")
     if update_if_exists and os.path.exists(nd_cache_json):
         with open(nd_cache_json, "r") as infile:
             old_data = json.load(infile)
@@ -265,7 +265,7 @@ def dump_ndarray_cache(
                 meta_data = old_data["metadata"]
             records = old_data["records"]
 
-    shard_manager = NDArrayCacheShardingManager(
+    shard_manager = TensorCacheShardingManager(
         cache_dir, "params_shard", shard_cap_nbytes, initial_shard_records=records
     )
 
@@ -277,10 +277,10 @@ def dump_ndarray_cache(
             v = v.numpy()
 
         # prefer to preserve original dtype, especially if the format was bfloat16
-        dtype = origin_v.dtype if isinstance(origin_v, tvm.nd.NDArray) else v.dtype
+        dtype = origin_v.dtype if isinstance(origin_v, tvm.runtime.Tensor) else v.dtype
 
-        if dtype in DataType.NUMPY_DTYPE_TO_STR:
-            dtype = DataType.NUMPY_DTYPE_TO_STR[dtype]
+        if dtype in DataType._NUMPY_DTYPE_TO_STR:
+            dtype = DataType._NUMPY_DTYPE_TO_STR[dtype]
         else:
             dtype = str(dtype)
 
@@ -325,15 +325,15 @@ def dump_ndarray_cache(
                 if item["dtype"] == "float32":
                     item["format"] = "raw"
                     item["dtype"] = "bfloat16"
-        b16_nd_cache_json = os.path.join(cache_dir, "ndarray-cache-b16.json")
+        b16_nd_cache_json = os.path.join(cache_dir, "tensor-cache-b16.json")
         # also dump a file that contains bf16
         with open(b16_nd_cache_json, "w") as outfile:
             json.dump({"metadata": meta_data, "records": records}, outfile, indent=4)
         print("Also saved a bf16 record to %s" % b16_nd_cache_json)
 
 
-def load_ndarray_cache(cachepath: str, device: tvm.runtime.Device):
-    """Load the ndarray cache from the directory or json.
+def load_tensor_cache(cachepath: str, device: tvm.runtime.Device):
+    """Load the tensor cache from the directory or json.
 
 
     Parameters
@@ -345,7 +345,7 @@ def load_ndarray_cache(cachepath: str, device: tvm.runtime.Device):
         The device we would like to load the data from.
     """
     if not cachepath.endswith(".json"):
-        cachepath = os.path.join(cachepath, "ndarray-cache.json")
+        cachepath = os.path.join(cachepath, "tensor-cache.json")
 
     cachedir = os.path.dirname(cachepath)
     json_info = json.loads(open(cachepath, "r").read())
@@ -366,7 +366,7 @@ def load_ndarray_cache(cachepath: str, device: tvm.runtime.Device):
             offset = rec["byteOffset"]
             nbytes = rec["nbytes"]
 
-            arr = tvm.nd.empty(shape, dtype, device=device)
+            arr = tvm.runtime.empty(shape, dtype, device=device)
             assert offset + nbytes <= len(raw_data)
             buffer_source = raw_data[offset : offset + nbytes]
             if dtype == "float8_e4m3fn":

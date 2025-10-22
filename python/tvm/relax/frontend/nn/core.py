@@ -42,9 +42,9 @@ import numpy as np  # type: ignore
 from tvm import tir
 from tvm.ir import IRModule
 from tvm.ir.transform import Pass
-from tvm.runtime import Device, NDArray
+import tvm.runtime
+from tvm.runtime import Device
 from tvm.runtime import device as as_device
-from tvm.runtime import ndarray
 from tvm.runtime.vm import VirtualMachine
 from tvm.target import Target
 
@@ -225,7 +225,7 @@ class Parameter(Tensor):
     it is called a bound parameter, otherwise it is called an unbound parameter.
     """
 
-    _data: Optional[NDArray]
+    _data: Optional[Tensor]
     attrs: Dict[str, Any]
 
     def __init__(
@@ -251,16 +251,16 @@ class Parameter(Tensor):
         self.attrs = OrderedDict()
 
     @property
-    def data(self) -> Optional[NDArray]:
+    def data(self) -> Optional[Tensor]:
         """Returns the concrete value of the parameter if it is bound to a concrete value,
-        otherwise returns None. The returned value is a tvm.runtime.NDArray."""
+        otherwise returns None. The returned value is a tvm.runtime.Tensor."""
         return self._data
 
     @data.setter
-    def data(self, data: Union[None, NDArray, np.ndarray, "torch.Tensor"]) -> None:
+    def data(self, data: Union[None, tvm.runtime.Tensor, np.ndarray, "torch.Tensor"]) -> None:
         """Set the concrete value of the parameter. The data should be one of the following:
         - None: unbind the parameter to concrete values
-        - tvm.runtime.NDArray
+        - tvm.runtime.Tensor
         - numpy.ndarray
         - torch.Tensor and any other DLPack-compliant tensors
         """
@@ -268,10 +268,10 @@ class Parameter(Tensor):
             self._data = data
             return
         # Try to do zero-copy if possible
-        if isinstance(data, NDArray):
+        if isinstance(data, tvm.runtime.Tensor):
             pass
         elif isinstance(data, np.ndarray):
-            data = ndarray.array(data)
+            data = tvm.runtime.tensor(data)
         elif hasattr(data, "__dlpack__"):
             data = _from_dlpack(data)
         else:
@@ -526,7 +526,7 @@ class Module(SubroutineMixin):
                 ),
                 device,
             )
-            params = _param_to_ndarray(params, device)
+            params = _param_to_tensor(params, device)
             return spec, vm, params
 
         device = as_device(device)
@@ -628,24 +628,26 @@ def _attribute_finder(root: Module, prefix: str, condition_yield: Callable[[Any]
             )
 
 
-def _from_dlpack(tensor) -> NDArray:
+def _from_dlpack(tensor) -> tvm.runtime.Tensor:
     try:
-        return ndarray.from_dlpack(tensor)
+        return tvm.runtime.from_dlpack(tensor)
     except RuntimeError:
         pass
     # special logic for PyTorch
     device_type = tensor.device.type
     device_id = tensor.device.index or 0
-    return ndarray.array(
+    return tvm.runtime.tensor(
         tensor.numpy(),
         device=Device(
-            Device.DEVICE_NAME_TO_TYPE[device_type],
+            Device._DEVICE_NAME_TO_TYPE[device_type],
             device_id,
         ),
     )
 
 
-def _param_to_ndarray(params: List[Tuple[str, Parameter]], device: Device) -> List[NDArray]:
+def _param_to_tensor(
+    params: List[Tuple[str, Parameter]], device: Device
+) -> List[tvm.runtime.Tensor]:
     results = []
     missing = []
     for name, param in params:

@@ -29,17 +29,16 @@ namespace tvm {
 namespace contrib {
 namespace msc {
 
-const Array<Doc> TFV1OpCode::GetDocs() {
+const ffi::Array<Doc> TFV1OpCode::GetDocs() {
   stack_.Config(this);
   CodeGenBuild();
   return stack_.GetDocs();
 }
 
-const std::pair<String, Array<String>> TFV1OpCode::GetPadding(const String& strides_key,
-                                                              const String& kernel_key,
-                                                              const String& padding_key) {
-  String pad_mod = "";
-  Array<String> padding;
+const std::pair<ffi::String, ffi::Array<ffi::String>> TFV1OpCode::GetPadding(
+    const ffi::String& strides_key, const ffi::String& kernel_key, const ffi::String& padding_key) {
+  ffi::String pad_mod = "";
+  ffi::Array<ffi::String> padding;
   std::vector<int64_t> kernel_size;
   if (node()->optype == "nn.conv2d" || node()->optype == "msc.conv2d_bias") {
     const auto& weight = node()->WeightAt("weight");
@@ -98,7 +97,7 @@ const std::pair<String, Array<String>> TFV1OpCode::GetPadding(const String& stri
 
 #define TFV1_OP_CODEGEN_METHODS(TypeName) \
  public:                                  \
-  TypeName(const String& func_name) : TFV1OpCode(func_name) {}
+  TypeName(const ffi::String& func_name) : TFV1OpCode(func_name) {}
 
 class TFV1ArgMaxMinCodeGen : public TFV1OpCode {
   TFV1_OP_CODEGEN_METHODS(TFV1ArgMaxMinCodeGen)
@@ -128,23 +127,25 @@ class TFV1AstypeCodeGen : public TFV1OpCode {
 
 class TFV1AxesCodeGen : public TFV1OpCode {
  public:
-  TFV1AxesCodeGen(const String& func_name, const String& attr_name) : TFV1OpCode(func_name) {
+  TFV1AxesCodeGen(const ffi::String& func_name, const ffi::String& attr_name)
+      : TFV1OpCode(func_name) {
     attr_name_ = attr_name;
   }
 
  protected:
   void CodeGenBuild() final {
-    const String& key = node()->HasAttr("axes") ? "axes" : "axis";
+    const ffi::String& key = node()->HasAttr("axes") ? "axes" : "axis";
     stack_.op_call().op_input_arg().op_list_arg<int>(key, attr_name_).op_name_arg();
   }
 
  private:
-  String attr_name_;
+  ffi::String attr_name_;
 };
 
 class TFV1AxisCodeGen : public TFV1OpCode {
  public:
-  TFV1AxisCodeGen(const String& func_name, const String& attr_name) : TFV1OpCode(func_name) {
+  TFV1AxisCodeGen(const ffi::String& func_name, const ffi::String& attr_name)
+      : TFV1OpCode(func_name) {
     attr_name_ = attr_name;
   }
 
@@ -154,7 +155,7 @@ class TFV1AxisCodeGen : public TFV1OpCode {
   }
 
  private:
-  String attr_name_;
+  ffi::String attr_name_;
 };
 
 class TFV1BatchnormCodeGen : public TFV1OpCode {
@@ -168,8 +169,8 @@ class TFV1BatchnormCodeGen : public TFV1OpCode {
         .op_arg<bool>("center")
         .op_arg<float>("momentum")
         .op_arg<float>("epsilon");
-    Array<String> weight_names{"gamma", "beta", "mean", "var"};
-    Array<String> init_names{"gamma", "beta", "moving_mean", "moving_variance"};
+    ffi::Array<ffi::String> weight_names{"gamma", "beta", "mean", "var"};
+    ffi::Array<ffi::String> init_names{"gamma", "beta", "moving_mean", "moving_variance"};
     for (size_t i = 0; i < weight_names.size(); i++) {
       const auto& w_doc = DocUtils::ToStr(node()->WeightAt(weight_names[i])->name);
       stack_.inplace_start("tf_v1.constant_initializer", init_names[i] + "_initializer")
@@ -219,7 +220,7 @@ class TFV1ConstantCodeGen : public TFV1OpCode {
 
 class TFV1ConvCodeGen : public TFV1OpCode {
  public:
-  TFV1ConvCodeGen(const String& func_name, bool use_bias) : TFV1OpCode(func_name) {
+  TFV1ConvCodeGen(const ffi::String& func_name, bool use_bias) : TFV1OpCode(func_name) {
     use_bias_ = use_bias;
   }
 
@@ -318,19 +319,19 @@ class TFV1PadCodeGen : public TFV1OpCode {
 
  protected:
   void CodeGenBuild() final {
-    String mode;
+    ffi::String mode;
     const auto& attr_mode = node()->GetTypeAttr<std::string>("pad_mode");
     if (attr_mode == "constant") {
       mode = "CONSTANT";
     } else {
       LOG_FATAL << "Unexpected pad mode " << node();
     }
-    Array<String> pad_width;
+    ffi::Array<ffi::String> pad_width;
     const auto& attr_pad_width = node()->GetTypeArrayAttr<int>("pad_width");
     ICHECK(attr_pad_width.size() % 2 == 0) << "pad_width should be multiple of 2, get " << node();
     for (size_t i = 0; i < attr_pad_width.size(); i += 2) {
-      const String& cur_pad = "[" + std::to_string(attr_pad_width[i]) + ", " +
-                              std::to_string(attr_pad_width[i + 1]) + "]";
+      const ffi::String& cur_pad = "[" + std::to_string(attr_pad_width[i]) + ", " +
+                                   std::to_string(attr_pad_width[i + 1]) + "]";
       pad_width.push_back(cur_pad);
     }
     const auto& val_producer = node()->ProducerOf(1);
@@ -349,7 +350,7 @@ class TFV1Pool2dCodeGen : public TFV1OpCode {
 
  protected:
   void CodeGenBuild() final {
-    String pooling_type;
+    ffi::String pooling_type;
     if (node()->optype == "nn.avg_pool2d") {
       pooling_type = "AVG";
     } else if (node()->optype == "nn.max_pool2d") {
@@ -413,7 +414,7 @@ class TFV1Resize2dCodeGen : public TFV1OpCode {
 
  protected:
   void CodeGenBuild() final {
-    String func_name;
+    ffi::String func_name;
     const auto& method = node()->GetTypeAttr<std::string>("method");
     const auto& coordinate_transformation_mode =
         node()->GetTypeAttr<std::string>("coordinate_transformation_mode");
@@ -502,8 +503,10 @@ class TFV1TupleCodeGen : public TFV1OpCode {
   void CodeGenBuild() final { stack_.op_call().op_inputs_arg(); }
 };
 
-const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TFV1OpCode>>> GetTFV1OpCodes() {
-  static auto map = std::make_shared<std::unordered_map<String, std::shared_ptr<TFV1OpCode>>>();
+const std::shared_ptr<std::unordered_map<ffi::String, std::shared_ptr<TFV1OpCode>>>
+GetTFV1OpCodes() {
+  static auto map =
+      std::make_shared<std::unordered_map<ffi::String, std::shared_ptr<TFV1OpCode>>>();
   if (!map->empty()) return map;
   // binary && unary ops
   map->emplace("abs", std::make_shared<TFV1SimpleCodeGen>("tf_v1.abs"));

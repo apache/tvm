@@ -101,16 +101,16 @@ def evaluate(hexagon_session, sch, size):
     a = np.random.randint(-128, 127, a_shape, dtype="int8")
     a_vtcm = np.zeros(a_shape, dtype="int8")
 
-    a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device, mem_scope="global")
-    a_vtcm_hexagon = tvm.runtime.ndarray.array(
+    a_hexagon = tvm.runtime.tensor(a, device=hexagon_session.device, mem_scope="global")
+    a_vtcm_hexagon = tvm.runtime.tensor(
         a_vtcm, device=hexagon_session.device, mem_scope="global.vtcm"
     )
 
     if tvm.testing.utils.IS_IN_CI:
         # Run with reduced number and repeat for CI
-        timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=1, repeat=1)
+        timer = module.time_evaluator("main", hexagon_session.device, number=1, repeat=1)
     else:
-        timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=10, repeat=10)
+        timer = module.time_evaluator("main", hexagon_session.device, number=10, repeat=10)
 
     runtime = timer(a_hexagon, a_vtcm_hexagon)
 

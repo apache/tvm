@@ -44,7 +44,7 @@ class PartialTupleUsageCollector : ExprVisitor {
     PMap<GlobalVar, size_t> num_outputs;
 
     for (const auto& [gvar, base_func] : mod->functions) {
-      bool is_exposed = base_func->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
+      bool is_exposed = base_func->attrs.GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
 
       if (!is_exposed) {
         if (auto relax_func = base_func.as<FunctionNode>()) {
@@ -98,21 +98,21 @@ class PartialTupleUsageCollector : ExprVisitor {
 
       CHECK_GE(op->index, 0) << "IndexError: "
                              << "Indices for TupleGetItem must be non-negative, "
-                             << "but expression " << GetRef<Expr>(op) << " uses a tuple index of "
-                             << op->index;
+                             << "but expression " << ffi::GetRef<Expr>(op)
+                             << " uses a tuple index of " << op->index;
       size_t index = op->index;
 
       CHECK_LT(index, used_indices.size())
           << "IndexError: "
           << "Indices for TupleGetItem must be less than the size of the tuple, "
-          << "but expression " << GetRef<Expr>(op) << " uses a tuple index of " << op->index
+          << "but expression " << ffi::GetRef<Expr>(op) << " uses a tuple index of " << op->index
           << " for a tuple of size " << used_indices.size();
       used_indices[index] = true;
     }
   }
 
   void VisitExpr_(const VarNode* op) override {
-    if (auto* usage_mask_ptr = GetCalleeUsageMask(GetRef<Var>(op))) {
+    if (auto* usage_mask_ptr = GetCalleeUsageMask(ffi::GetRef<Var>(op))) {
       auto& usage_mask = *usage_mask_ptr;
       for (size_t i = 0; i < usage_mask.size(); i++) {
         usage_mask[i] = true;
@@ -138,7 +138,7 @@ class PartialTupleUsageCollector : ExprVisitor {
   }
 
   Expr UnwrapBindings(Expr expr) const {
-    auto get_bound_value = [&](const Expr& expr) -> Optional<Expr> {
+    auto get_bound_value = [&](const Expr& expr) -> ffi::Optional<Expr> {
       if (auto var = expr.as<Var>()) {
         if (auto known_binding = known_bindings_.Get(var.value())) {
           return known_binding.value();
@@ -153,7 +153,7 @@ class PartialTupleUsageCollector : ExprVisitor {
     return expr;
   }
 
-  Map<Var, Expr> known_bindings_;
+  ffi::Map<Var, Expr> known_bindings_;
   PMap<GlobalVar, std::vector<bool>> output_usage_mask_;
 };
 
@@ -164,7 +164,7 @@ Function UpdateCallee(Function func, const std::vector<bool>& usage_mask) {
   ICHECK(old_ret_sinfo) << "All functions returning non-tuple outputs "
                         << "should have been pruned already by PartialTupleUsageCollector";
 
-  Array<Expr> outputs;
+  ffi::Array<Expr> outputs;
 
   // This helper variable will be removed by the post-proc of
   // CanonicalizeBindings and DeadCodeElimination.
@@ -267,7 +267,7 @@ Pass RemoveUnusedOutputs() {
                 num_outputs_used += used;
               }
 
-              Array<Expr> new_results;
+              ffi::Array<Expr> new_results;
               int new_result_index = 0;
               for (size_t i = 0; i < usage_mask.size(); i++) {
                 if (usage_mask[i]) {
@@ -337,10 +337,10 @@ Pass RemoveUnusedOutputs() {
       "RemoveUnusedOutputs");
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.RemoveUnusedOutputs", RemoveUnusedOutputs);
-});
+}
 
 }  // namespace transform
 
