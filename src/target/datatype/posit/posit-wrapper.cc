@@ -32,211 +32,119 @@
 
 #include <cstdint>
 
-#include "universal/posit/posit.hpp"
-// must go after posit.hpp
-#include "universal/posit/math/exponent.hpp"
-#include "universal/posit/math/hyperbolic.hpp"
-#include "universal/posit/math/logarithm.hpp"
-#include "universal/posit/math/sqrt.hpp"
-#include "universal/posit/numeric_limits.hpp"
+#include "universal/number/posit/posit.hpp"
+#include "universal/number/posit/math/exponent.hpp"
+#include "universal/number/posit/math/hyperbolic.hpp"
+#include "universal/number/posit/math/logarithm.hpp"
+#include "universal/number/posit/math/sqrt.hpp"
+#include "universal/number/posit/numeric_limits.hpp"
+#include "universal/number/posit/math/minmax.hpp"
 
-TVM_DLL sw::unum::posit<8, 2> Uint8ToPosit8es2(uint8_t in) {
-  sw::unum::bitblock<8> bb;
-  bb = static_cast<uint64_t>(in);
-  return sw::unum::posit<8, 2>().set(bb);
-}
+#include <iostream>
 
 extern "C" {
-TVM_DLL uint8_t Posit8es2toUint8(sw::unum::posit<8, 2> in) {
-  return static_cast<uint8_t>(in.get().to_ullong());
+
+static inline uint16_t posit16_bits(sw::universal::posit<16, 2> p) {
+  return static_cast<uint16_t>(p.get().to_ulong());
+}
+static inline sw::universal::posit<16, 2> posit16_from_bits(uint16_t b) {
+  sw::universal::posit<16, 2> p;
+  p.setbits(b);
+  return p;
 }
 
-TVM_DLL uint8_t MinPosit8es2() {
-  auto min = std::numeric_limits<sw::unum::posit<8, 2>>::lowest();
-  return Posit8es2toUint8(min);
+static inline uint32_t posit32_bits(sw::universal::posit<32, 2> p) {
+  return static_cast<uint32_t>(p.get().to_ulong());
+}
+static inline sw::universal::posit<32, 2> posit32_from_bits(uint32_t b) {
+  sw::universal::posit<32, 2> p;
+  p.setbits(b);
+  return p;
 }
 
-TVM_DLL float Posit8es2ToFloat(uint8_t in) { return Uint8ToPosit8es2(in).operator float(); }
-
-TVM_DLL uint8_t FloatToPosit8es2(float in) {
-  auto posit = sw::unum::posit<8, 2>(in);
-  return Posit8es2toUint8(posit);
-}
-
-TVM_DLL uint8_t Posit8es2Add(uint8_t a, uint8_t b) {
-  return Posit8es2toUint8(Uint8ToPosit8es2(a) + Uint8ToPosit8es2(b));
-}
-
-TVM_DLL uint8_t Posit8es2Sub(uint8_t a, uint8_t b) {
-  return Posit8es2toUint8(Uint8ToPosit8es2(a) - Uint8ToPosit8es2(b));
-}
-
-TVM_DLL uint8_t Posit8es2Mul(uint8_t a, uint8_t b) {
-  return Posit8es2toUint8(Uint8ToPosit8es2(a) * Uint8ToPosit8es2(b));
-}
-
-TVM_DLL uint8_t Posit8es2Div(uint8_t a, uint8_t b) {
-  return Posit8es2toUint8(Uint8ToPosit8es2(a) / Uint8ToPosit8es2(b));
-}
-
-TVM_DLL uint8_t Posit8es2Max(uint8_t a, uint8_t b) {
-  auto a_p = Uint8ToPosit8es2(a);
-  auto b_p = Uint8ToPosit8es2(b);
-  return Posit8es2toUint8(a_p > b_p ? a_p : b_p);
-}
-
-TVM_DLL uint8_t Posit8es2Sqrt(uint8_t a) {
-  return Posit8es2toUint8(sw::unum::sqrt(Uint8ToPosit8es2(a)));
-}
-
-TVM_DLL uint8_t Posit8es2Exp(uint8_t a) {
-  return Posit8es2toUint8(sw::unum::exp(Uint8ToPosit8es2(a)));
-}
-
-TVM_DLL uint8_t Posit8es2Log(uint8_t a) {
-  return Posit8es2toUint8(sw::unum::log(Uint8ToPosit8es2(a)));
-}
-
-TVM_DLL uint8_t Posit8es2Sigmoid(uint8_t a) {
-  auto posit_one = sw::unum::posit<8, 2>(1);
-  return Posit8es2toUint8(posit_one / (sw::unum::exp(-Uint8ToPosit8es2(a)) + posit_one));
-}
-
-TVM_DLL uint8_t Posit8es2Tanh(uint8_t a) {
-  return Posit8es2toUint8(sw::unum::tanh(Uint8ToPosit8es2(a)));
-}
-}
-
-TVM_DLL sw::unum::posit<16, 2> Uint16ToPosit16es2(uint16_t in) {
-  sw::unum::bitblock<16> bb;
-  bb = static_cast<uint64_t>(in);
-  return sw::unum::posit<16, 2>().set(bb);
-}
-
-extern "C" {
-TVM_DLL uint16_t Posit16es2toUint16(sw::unum::posit<16, 2> in) {
-  return static_cast<uint16_t>(in.get().to_ullong());
-}
-
-TVM_DLL uint8_t MinPosit16es2() {
-  auto min = std::numeric_limits<sw::unum::posit<16, 2>>::lowest();
-  return Posit16es2toUint16(min);
-}
-
-TVM_DLL float Posit16es2ToFloat(uint16_t in) { return Uint16ToPosit16es2(in).operator float(); }
-
+// ----- posit16 es2: uint16_t API -----
 TVM_DLL uint16_t FloatToPosit16es2(float in) {
-  auto posit = sw::unum::posit<16, 2>(in);
-  return Posit16es2toUint16(posit);
+  return posit16_bits(sw::universal::posit<16, 2>(in));
 }
-
+TVM_DLL float Posit16es2ToFloat(uint16_t in) {
+  return static_cast<float>(posit16_from_bits(in));
+}
 TVM_DLL uint16_t Posit16es2Add(uint16_t a, uint16_t b) {
-  return Posit16es2toUint16(Uint16ToPosit16es2(a) + Uint16ToPosit16es2(b));
+  return posit16_bits(posit16_from_bits(a) + posit16_from_bits(b));
 }
-
 TVM_DLL uint16_t Posit16es2Sub(uint16_t a, uint16_t b) {
-  return Posit16es2toUint16(Uint16ToPosit16es2(a) - Uint16ToPosit16es2(b));
+  return posit16_bits(posit16_from_bits(a) - posit16_from_bits(b));
 }
-
 TVM_DLL uint16_t Posit16es2Mul(uint16_t a, uint16_t b) {
-  return Posit16es2toUint16(Uint16ToPosit16es2(a) * Uint16ToPosit16es2(b));
+  return posit16_bits(posit16_from_bits(a) * posit16_from_bits(b));
 }
-
 TVM_DLL uint16_t Posit16es2Div(uint16_t a, uint16_t b) {
-  return Posit16es2toUint16(Uint16ToPosit16es2(a) / Uint16ToPosit16es2(b));
+  return posit16_bits(posit16_from_bits(a) / posit16_from_bits(b));
 }
-
 TVM_DLL uint16_t Posit16es2Max(uint16_t a, uint16_t b) {
-  auto a_p = Uint16ToPosit16es2(a);
-  auto b_p = Uint16ToPosit16es2(b);
-  return Posit16es2toUint16(a_p > b_p ? a_p : b_p);
+  auto pa = posit16_from_bits(a), pb = posit16_from_bits(b);
+  return posit16_bits(sw::universal::max(pa, pb));
 }
-
+TVM_DLL uint16_t Posit16es2Min(uint16_t a, uint16_t b) {
+  auto pa = posit16_from_bits(a), pb = posit16_from_bits(b);
+  return posit16_bits(sw::universal::min(pa, pb));
+}
 TVM_DLL uint16_t Posit16es2Sqrt(uint16_t a) {
-  return Posit16es2toUint16(sw::unum::sqrt(Uint16ToPosit16es2(a)));
+  return posit16_bits(sw::universal::sqrt(posit16_from_bits(a)));
 }
-
 TVM_DLL uint16_t Posit16es2Exp(uint16_t a) {
-  return Posit16es2toUint16(sw::unum::exp(Uint16ToPosit16es2(a)));
+  return posit16_bits(sw::universal::exp(posit16_from_bits(a)));
 }
-
 TVM_DLL uint16_t Posit16es2Log(uint16_t a) {
-  return Posit16es2toUint16(sw::unum::log(Uint16ToPosit16es2(a)));
+  return posit16_bits(sw::universal::log(posit16_from_bits(a)));
+}
+// Cast: posit32(bits)->posit16(bits) and reverse
+TVM_DLL uint16_t Posit32ToPosit16es2(uint32_t in_bits) {
+  auto p32 = posit32_from_bits(in_bits);
+  sw::universal::posit<16, 2> p16 = p32;
+  return posit16_bits(p16);
+}
+TVM_DLL uint32_t Posit16ToPosit32es2(uint16_t in_bits) {
+  auto p16 = posit16_from_bits(in_bits);
+  sw::universal::posit<32, 2> p32 = p16;
+  return posit32_bits(p32);
 }
 
-TVM_DLL uint16_t Posit16es2Sigmoid(uint16_t a) {
-  auto posit_one = sw::unum::posit<16, 2>(1);
-  return Posit16es2toUint16(posit_one / (sw::unum::exp(-Uint16ToPosit16es2(a)) + posit_one));
-}
-
-TVM_DLL uint16_t Posit16es2Tanh(uint16_t a) {
-  return Posit16es2toUint16(sw::unum::tanh(Uint16ToPosit16es2(a)));
-}
-}
-
-TVM_DLL sw::unum::posit<32, 2> Uint32ToPosit32es2(uint32_t in) {
-  sw::unum::bitblock<32> bb;
-  bb = static_cast<uint64_t>(in);
-  return sw::unum::posit<32, 2>().set(bb);
-}
-
-extern "C" {
-TVM_DLL uint32_t Posit32es2ToUint32(sw::unum::posit<32, 2> in) {
-  return static_cast<uint32_t>(in.get().to_ullong());
-}
-
-TVM_DLL uint8_t MinPosit32es2() {
-  auto min = std::numeric_limits<sw::unum::posit<32, 2>>::lowest();
-  return Posit32es2ToUint32(min);
-}
-
-TVM_DLL float Posit32es2ToFloat(uint32_t in) { return Uint32ToPosit32es2(in).operator float(); }
-
+// ----- posit32 es2: uint32_t API -----
 TVM_DLL uint32_t FloatToPosit32es2(float in) {
-  auto posit = sw::unum::posit<32, 2>(in);
-  return Posit32es2ToUint32(posit);
+  return posit32_bits(sw::universal::posit<32, 2>(in));
 }
-
+TVM_DLL float Posit32es2ToFloat(uint32_t in) {
+  return static_cast<float>(posit32_from_bits(in));
+}
 TVM_DLL uint32_t Posit32es2Add(uint32_t a, uint32_t b) {
-  return Posit32es2ToUint32(Uint32ToPosit32es2(a) + Uint32ToPosit32es2(b));
+  return posit32_bits(posit32_from_bits(a) + posit32_from_bits(b));
 }
-
 TVM_DLL uint32_t Posit32es2Sub(uint32_t a, uint32_t b) {
-  return Posit32es2ToUint32(Uint32ToPosit32es2(a) - Uint32ToPosit32es2(b));
+  return posit32_bits(posit32_from_bits(a) - posit32_from_bits(b));
 }
-
 TVM_DLL uint32_t Posit32es2Mul(uint32_t a, uint32_t b) {
-  return Posit32es2ToUint32(Uint32ToPosit32es2(a) * Uint32ToPosit32es2(b));
+  return posit32_bits(posit32_from_bits(a) * posit32_from_bits(b));
 }
-
 TVM_DLL uint32_t Posit32es2Div(uint32_t a, uint32_t b) {
-  return Posit32es2ToUint32(Uint32ToPosit32es2(a) / Uint32ToPosit32es2(b));
+  return posit32_bits(posit32_from_bits(a) / posit32_from_bits(b));
 }
-
 TVM_DLL uint32_t Posit32es2Max(uint32_t a, uint32_t b) {
-  auto a_p = Uint32ToPosit32es2(a);
-  auto b_p = Uint32ToPosit32es2(b);
-  return Posit32es2ToUint32(a_p > b_p ? a_p : b_p);
+  auto pa = posit32_from_bits(a), pb = posit32_from_bits(b);
+  return posit32_bits(sw::universal::max(pa, pb));
 }
-
+TVM_DLL uint32_t Posit32es2Min(uint32_t a, uint32_t b) {
+  auto pa = posit32_from_bits(a), pb = posit32_from_bits(b);
+  return posit32_bits(sw::universal::min(pa, pb));
+}
 TVM_DLL uint32_t Posit32es2Sqrt(uint32_t a) {
-  return Posit32es2ToUint32(sw::unum::sqrt(Uint32ToPosit32es2(a)));
+  return posit32_bits(sw::universal::sqrt(posit32_from_bits(a)));
 }
-
 TVM_DLL uint32_t Posit32es2Exp(uint32_t a) {
-  return Posit32es2ToUint32(sw::unum::exp(Uint32ToPosit32es2(a)));
+  return posit32_bits(sw::universal::exp(posit32_from_bits(a)));
 }
-
 TVM_DLL uint32_t Posit32es2Log(uint32_t a) {
-  return Posit32es2ToUint32(sw::unum::log(Uint32ToPosit32es2(a)));
+  return posit32_bits(sw::universal::log(posit32_from_bits(a)));
 }
 
-TVM_DLL uint32_t Posit32es2Sigmoid(uint32_t a) {
-  auto posit_one = sw::unum::posit<32, 2>(1);
-  return Posit32es2ToUint32(posit_one / (posit_one + sw::unum::exp(-Uint32ToPosit32es2(a))));
-}
-
-TVM_DLL uint32_t Posit32es2Tanh(uint32_t a) {
-  return Posit32es2ToUint32(sw::unum::tanh(Uint32ToPosit32es2(a)));
-}
-}
+} // extern "C"
