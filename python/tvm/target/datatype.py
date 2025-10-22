@@ -216,7 +216,7 @@ def register_op(
         )
     else:
         lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." + src_type_name
-    tvm_ffi.register_global_func(lower_func_name, lower_func)
+    _register_global_func(lower_func_name, lower_func)
 
 
 def register_min_func(func, type_name):
