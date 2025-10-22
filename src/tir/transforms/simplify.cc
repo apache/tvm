@@ -80,9 +80,6 @@ struct SimplifyConfigNode : public AttrsNodeReflAdapter<SimplifyConfigNode> {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.SimplifyConfig", SimplifyConfigNode,
                                     BaseAttrsNode);
 
-  static constexpr const char* _type_key = "tir.transform.SimplifyConfig";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(SimplifyConfigNode, BaseAttrsNode);
-
   RewriteSimplifier::Extension GetEnabledExtensions() const {
     RewriteSimplifier::Extension flags = RewriteSimplifier::kNone;
     if (transitively_prove_inequalities) {

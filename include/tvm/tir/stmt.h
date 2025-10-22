@@ -1310,6 +1310,8 @@ constexpr const char* explicit_read_region = "explicit_read_region";
  */
 constexpr const char* explicit_write_region = "explicit_write_region";
 
+constexpr const char* tilelang_assume = "tl.assume";
+
 /*! \brief ,ark a ForNode represent an irregular loop of non-structural control flow edges. */
 constexpr const char* irregular_loop_mark = "irregular_loop_mark";
 

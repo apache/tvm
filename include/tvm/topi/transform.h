@@ -1055,16 +1055,6 @@ inline Tensor take(const Tensor& a, const Tensor& indices, int batch_dims,
           return a(UnravelIndex(idx, a_shape));
         },
         name, tag);
-  } else if (mode == "nan") {
-    return compute(
-        out_shape,
-        [&](const Array<Var>& out_index) {
-          auto idx = tvm::if_then_else(
-              indices(out_index) < 0 || indices(out_index) >= a_size,
-              tvm::FloatImm(a->dtype, std::numeric_limits<float>::quiet_NaN()), indices(out_index));
-          return a(UnravelIndex(idx, a_shape));
-        },
-        name, tag);
   } else {  // mode == "wrap"
     return compute(
         out_shape,
@@ -1262,12 +1252,12 @@ inline Tensor take(const Tensor& a, ffi::Variant<Tensor, PrimExpr> indices, int 
   } else if (mode == "nan") {
     return compute(
         out_shape,
-        [&](const Array<Var>& out_index) {
-          Array<PrimExpr> indices_position;
+        [&](const ffi::Array<Var>& out_index) {
+          ffi::Array<PrimExpr> indices_position;
           for (size_t j = axis; j < static_cast<size_t>(axis + indices_len); ++j) {
             indices_position.push_back(out_index[j]);
           }
-          Array<PrimExpr> real_indices;
+          ffi::Array<PrimExpr> real_indices;
           for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
             real_indices.push_back(out_index[j]);
           }

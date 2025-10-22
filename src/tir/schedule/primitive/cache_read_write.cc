@@ -2425,19 +2425,22 @@ struct ReIndexTraits : public UnpackedInstTraits<ReIndexTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block, Integer buffer_index,
-                                         Integer buffer_index_type, bool skip_simplify) {
+                                         Integer buffer_index_type, Bool skip_simplify) {
     return sch->ReIndex(block, buffer_index.IntValue(),
-                        static_cast<BufferIndexType>(buffer_index_type->value), skip_simplify);
+                        static_cast<BufferIndexType>(buffer_index_type->value),
+                        skip_simplify.operator bool());
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      Integer buffer_index, Integer buffer_index_type) {
+                                      Integer buffer_index, Integer buffer_index_type,
+                                      Bool skip_simplify) {
     PythonAPICall py("reindex");
     py.Input("block", block);
     std::ostringstream os;
     os << "(\"" << BufferIndexType2Str(static_cast<BufferIndexType>(buffer_index_type->value))
        << "\", " << buffer_index << ")";
     py.Input("buffer", ffi::String(os.str()));
+    py.Input("skip_simplify", skip_simplify.operator bool());
     py.SingleOutput(outputs);
     return py.Str();
   }
