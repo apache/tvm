@@ -357,9 +357,9 @@ TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
     .set_target_parser(UpdateROCmAttrs);
 
 TVM_REGISTER_TARGET_KIND("hip", kDLROCM)
-    .add_attr_option<String>("mcpu")
-    .add_attr_option<String>("mtriple")
-    .add_attr_option<Array<String>>("mattr")
+    .add_attr_option<ffi::String>("mcpu")
+    .add_attr_option<ffi::String>("mtriple")
+    .add_attr_option<ffi::Array<ffi::String>>("mattr")
     // TODO(masahi): Support querying from a target device
     // On RDNA cards, thread_warp_size should be 32
     .add_attr_option<int64_t>("max_num_threads", 256)

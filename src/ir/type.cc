@@ -102,12 +102,4 @@ TensorMapType::TensorMapType(Span span) {
   data_ = std::move(n);
 }
 
-TensorMapType::TensorMapType(Span span) {
-  ObjectPtr<TensorMapTypeNode> n = make_object<TensorMapTypeNode>();
-  n->span = std::move(span);
-  data_ = std::move(n);
-}
-
-TVM_REGISTER_NODE_TYPE(TensorMapTypeNode);
-
 }  // namespace tvm

@@ -298,6 +298,8 @@ class ConstIntBoundAnalyzer::Impl
         //          With this optimization: bound = [0, 7152]
         if (gcd_coeff_mod > 1) {
           int64_t base_mod = mod_a->base % modulus;
+          if (base_mod < 0) base_mod += modulus;
+          int64_t tight_max = modulus - gcd_coeff_mod + base_mod;
           if (tight_max >= modulus) tight_max -= modulus;
           return MakeBound(base_mod, tight_max);
         }

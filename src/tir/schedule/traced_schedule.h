@@ -20,6 +20,7 @@
 #define TVM_TIR_SCHEDULE_TRACED_SCHEDULE_H_
 
 #include "./concrete_schedule.h"
+#include <tvm/ffi/container/array.h>
 
 namespace tvm {
 namespace tir {
@@ -95,7 +96,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
                                    const ffi::String& storage_scope) final;
   BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
                   BufferIndexType buffer_index_type, bool skip_simplify) final;
-  Array<BlockRV> CacheIndex(const BlockRV& block_rv, const String& storage_scope,
+  ffi::Array<BlockRV> CacheIndex(const BlockRV& block_rv, const ffi::String& storage_scope,
                             int cse_thresh) final;
   /******** Schedule: Data movement ********/
   BlockRV ReadAt(const LoopRV& loop_rv, const BlockRV& block_rv, int read_buffer_index,

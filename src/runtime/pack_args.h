@@ -39,6 +39,8 @@
 
 namespace tvm {
 namespace runtime {
+/*! \brief TileLang Grid constant */
+constexpr unsigned int kDLGridConstant = 30U;
 /*!
  * \brief argument union type of 32bit.
  */
@@ -134,7 +136,8 @@ enum ArgConvertCode {
   FLOAT64_TO_FLOAT32,
   FLOAT64_TO_FLOAT64,
   HANDLE_TO_HANDLE,
-  HANDLE_TO_TENSORMAP
+  HANDLE_TO_TENSORMAP,
+  HANDLE_TO_REFERENCE,
 };
 
 inline ArgConvertCode GetArgConvertCode(DLDataType t) {
@@ -149,6 +152,8 @@ inline ArgConvertCode GetArgConvertCode(DLDataType t) {
     if (t.bits == 32U) return FLOAT64_TO_FLOAT32;
   } else if (t.code == kDLOpaqueHandle) {
     return HANDLE_TO_HANDLE;
+  } else if (t.code == kDLGridConstant) {
+    return HANDLE_TO_REFERENCE;
   }
   LOG(FATAL) << "Cannot handle " << t << " as device function argument";
 }
@@ -191,6 +196,9 @@ inline ffi::Function PackFuncVoidAddr_(F f, const std::vector<ArgConvertCode>& c
           addr[i] = raw_args[i].v_ptr;
           break;
         }
+        case HANDLE_TO_REFERENCE: {
+          addr[i] = raw_args[i].v_obj;
+        }
       }
     }
     f(args, ret, addr);
@@ -231,6 +239,7 @@ inline ffi::Function PackFuncNonBufferArg_(F f, int base,
           break;
         }
         case HANDLE_TO_HANDLE:
+        case HANDLE_TO_REFERENCE:
         case HANDLE_TO_TENSORMAP: {
           LOG(FATAL) << "not reached";
           break;

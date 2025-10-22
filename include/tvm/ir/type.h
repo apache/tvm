@@ -309,38 +309,5 @@ class TensorMapType : public Type {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE_WITHOUT_DEFAULT_CONSTRUCTOR(TensorMapType, Type,
                                                                          TensorMapTypeNode);
 };
-
-/*!
- * \brief The type of tensor map.
- * \sa TensorMapType
- */
-class TensorMapTypeNode : public TypeNode {
- public:
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TensorMapTypeNode>().def_ro("span", &TensorMapTypeNode::span);
-  }
-
-  bool SEqualReduce(const TensorMapTypeNode* other, SEqualReducer equal) const {
-    return equal(span, other->span);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(span); }
-
-  static constexpr const char* _type_key = "ir.TensorMapType";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TensorMapTypeNode, TypeNode);
-};
-
-/*!
- * \brief Managed reference to TensorMapTypeNode.
- * \sa TensorMapTypeNode
- */
-class TensorMapType : public Type {
- public:
-  TVM_DLL TensorMapType(Span span = Span());
-
-  TVM_DEFINE_OBJECT_REF_METHODS_WITHOUT_DEFAULT_CONSTRUCTOR(TensorMapType, Type, TensorMapTypeNode);
-};
-
 }  // namespace tvm
 #endif  // TVM_IR_TYPE_H_
