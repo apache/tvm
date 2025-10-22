@@ -279,6 +279,7 @@ void BlockReadWriteDetector::VisitStmt_(const BlockRealizeNode* op) {
     }
     Update(&writes_buffers_, &write_regions_, write->buffer, relaxed_region);
   }
+  StmtVisitor::VisitStmt_(op);
 }
 
 std::vector<arith::IntSet> BlockReadWriteDetector::ConvertMatchedRegion(

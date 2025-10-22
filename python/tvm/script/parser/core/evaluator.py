@@ -174,8 +174,8 @@ class ExprEvaluator:
         if (
             isinstance(node, doc.Call)
             and hasattr(node.func, "attr")
-            and node.func.attr not in ["reads", "writes", "match_buffer", "realize"]
-        ) or isinstance(node, (doc.BinOp, doc.UnaryOp, doc.Compare, doc.BoolOp, doc.IfExp)):
+            and node.func.attr not in ["reads", "writes", "match_buffer", "realize", "copy"]
+        ) or isinstance(node, (doc.BinOp, doc.UnaryOp, doc.Compare, doc.BoolOp)):
             if isinstance(node, doc.BinOp):
                 args = [node.left, node.right]
             elif isinstance(node, doc.UnaryOp):

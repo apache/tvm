@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """Arithmetic data structure and utility"""
 import enum
-from typing import Union
+from typing import Union, Dict
 
 import tvm_ffi
 from tvm import ir, tir
@@ -227,7 +227,7 @@ class Analyzer:
         """
         return self._canonical_simplify(expr)
 
-    def int_set(self, expr: tir.PrimExpr, dom_map: dict[tir.Var, IntSet]) -> IntSet:
+    def int_set(self, expr: tir.PrimExpr, dom_map: Dict[tir.Var, IntSet]) -> IntSet:
         """Compute a symbolic IntSet that covers expr for all values in dom_map.
 
         Parameters

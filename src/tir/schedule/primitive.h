@@ -428,7 +428,7 @@ TVM_DLL ffi::Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& bloc
  * \return The reindex stage block.
  */
 TVM_DLL StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
-                         BufferIndexType buffer_index_type);
+                         BufferIndexType buffer_index_type, bool skip_simplify = false);
 
 /******** Schedule: Data movement ********/
 

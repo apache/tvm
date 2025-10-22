@@ -356,6 +356,19 @@ TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
     .set_default_keys({"rocm", "gpu"})
     .set_target_parser(UpdateROCmAttrs);
 
+TVM_REGISTER_TARGET_KIND("hip", kDLROCM)
+    .add_attr_option<String>("mcpu")
+    .add_attr_option<String>("mtriple")
+    .add_attr_option<Array<String>>("mattr")
+    // TODO(masahi): Support querying from a target device
+    // On RDNA cards, thread_warp_size should be 32
+    .add_attr_option<int64_t>("max_num_threads", 256)
+    .add_attr_option<int64_t>("max_threads_per_block", 256)
+    .add_attr_option<int64_t>("max_shared_memory_per_block", 65536)
+    .add_attr_option<int64_t>("thread_warp_size", 64)
+    .set_default_keys({"hip", "gpu"})
+    .set_target_parser(UpdateROCmAttrs);
+
 TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
     .add_attr_option<int64_t>("max_threads_per_block", 256)
     .add_attr_option<int64_t>("max_shared_memory_per_block", 16384)

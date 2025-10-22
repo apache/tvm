@@ -53,7 +53,7 @@ def get_dll_directories():
     dll_path = []
 
     if os.environ.get("TVM_LIBRARY_PATH", None):
-        dll_path.append(os.environ["TVM_LIBRARY_PATH"])
+        dll_path.extend(os.environ["TVM_LIBRARY_PATH"].split(":"))
 
     if sys.platform.startswith("linux") or sys.platform.startswith("freebsd"):
         dll_path.extend(split_env_var("LD_LIBRARY_PATH", ":"))

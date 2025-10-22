@@ -2241,7 +2241,7 @@ ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref
 }
 
 StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
-                 BufferIndexType buffer_index_type) {
+                 BufferIndexType buffer_index_type, bool skip_simplify) {
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_sref);
   Block block = ffi::GetRef<Block>(block_ptr);
   Buffer buffer = GetNthAccessBuffer(self, block, buffer_index, buffer_index_type);
@@ -2252,11 +2252,14 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
   // Load/Store and the buffer is not accessed opaquely
   ffi::Array<PrimExpr> original_indices = ReIndexCollector::Collect(self->mod, buffer, block);
   // Simplify the indices if possible
-  for (const IterVar& iter : block->iter_vars) {
-    analyzer.Bind(iter->var, iter->dom);
+  if (!skip_simplify){
+    // skip simplification in case to preserve unit loops.
+    for (const IterVar& iter : block->iter_vars) {
+        analyzer.Bind(iter->var, iter->dom);
+    }
+    original_indices.MutateByApply(
+        [&analyzer](const PrimExpr& expr) { return SimplifyNonTrivialExpr(expr, &analyzer); });
   }
-  original_indices.MutateByApply(
-      [&analyzer](const PrimExpr& expr) { return SimplifyNonTrivialExpr(expr, &analyzer); });
 
   // Collect block iters appearing in the original_indices
   std::unordered_set<Var> covered;
@@ -2418,13 +2421,13 @@ struct ReIndexTraits : public UnpackedInstTraits<ReIndexTraits> {
 
  private:
   static constexpr size_t kNumInputs = 1;
-  static constexpr size_t kNumAttrs = 2;
+  static constexpr size_t kNumAttrs = 3;
   static constexpr size_t kNumDecisions = 0;
 
   static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block, Integer buffer_index,
-                                         Integer buffer_index_type) {
+                                         Integer buffer_index_type, bool skip_simplify) {
     return sch->ReIndex(block, buffer_index.IntValue(),
-                        static_cast<BufferIndexType>(buffer_index_type->value));
+                        static_cast<BufferIndexType>(buffer_index_type->value), skip_simplify);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,

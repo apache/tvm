@@ -22,7 +22,7 @@ from typing import Any
 
 import tvm
 from tvm.ir import GlobalVar, PrimType
-from tvm.tir import Buffer, IterVar, PrimExpr, Var
+from tvm.tir import Buffer, BufferLoad, IterVar, PrimExpr, Var
 
 from ...ir_builder import ir as I
 from ...ir_builder import tir as T
@@ -138,6 +138,9 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         res = value.__enter__()
         IRBuilder.name(var_name, res)
         return res
+    elif isinstance(value, Buffer) and value.scope() == "local.var":
+        IRBuilder.name(var_name, value)
+        return BufferLoad(value, indices=[0])
     elif isinstance(value, (Buffer, IterVar)) or (
         isinstance(value, Var) and not self.var_table.exist(value)
     ):
@@ -255,8 +258,21 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         else:
             indices = self.eval_expr(lhs.slice)
         T.buffer_store(self.eval_expr(lhs.value), rhs, indices)
-    else:
-        self.eval_assign(target=lhs, source=rhs, bind_value=bind_assign_value)
+        return
+
+    # Handle local.var buffer store
+    if isinstance(lhs, doc.Name) and lhs.id in self.var_table.get():
+        lhs_value = self.eval_expr(lhs)
+        if (
+            isinstance(lhs_value, BufferLoad)
+            and lhs_value.buffer.scope() == "local.var"
+            and len(lhs_value.indices) == 1
+            and lhs_value.indices[0] == 0
+        ):
+            T.buffer_store(lhs_value.buffer, rhs, indices=[0])
+            return
+
+    self.eval_assign(target=lhs, source=rhs, bind_value=bind_assign_value)
 
 
 @dispatch.register(token="tir", type_name="AugAssign")

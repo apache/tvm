@@ -58,6 +58,11 @@ struct KernelInfo {
   // (e.g. a function that computes the average of `N` elements, and
   // which must be launched with `N` CUDA threads).
   ffi::Array<PrimExpr> launch_args;
+
+  // The extent of each thread
+  ffi::Map<ffi::String, PrimExpr> thread_extent;
+  // The amount of dynamic shared memory used
+  ffi::Optional<PrimExpr> dyn_shmem_size{std::nullopt};
 };
 
 /*!
@@ -85,6 +90,8 @@ class DeviceInfoCollector : public StmtVisitor {
     collector.info_.launch_args = collector.info_.launch_params.Map(
         [&](const auto& param) { return collector.GetArgument(param); });
 
+    collector.info_.dyn_shmem_size = collector.dyn_shmem_size;
+    collector.info_.thread_extent = collector.thread_extent;
     return collector.info_;
   }
 
@@ -233,6 +240,12 @@ class DeviceKernelMutator : public StmtExprMutator {
       func = WithAttr(func, tvm::attr::kGlobalSymbol, gvar->name_hint);
     }
 
+    const auto& info = device_info_map_.at(gvar.get());
+    const auto& thread_extent = info.thread_extent;
+    func = WithAttr(std::move(func), "thread_extent", thread_extent);
+    if (info.dyn_shmem_size.defined()) {
+      func = WithAttr(std::move(func), "dyn_shared_memory_buf", info.dyn_shmem_size.value());
+    }
     return func;
   }
 

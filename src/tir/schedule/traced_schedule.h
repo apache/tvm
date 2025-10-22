@@ -94,9 +94,9 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   ffi::Array<BlockRV> CacheInplace(const BlockRV& block_rv, int read_buffer_index,
                                    const ffi::String& storage_scope) final;
   BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
-                  BufferIndexType buffer_index_type) final;
-  ffi::Array<BlockRV> CacheIndex(const BlockRV& block_rv, const ffi::String& storage_scope,
-                                 int cse_thresh) final;
+                  BufferIndexType buffer_index_type, bool skip_simplify) final;
+  Array<BlockRV> CacheIndex(const BlockRV& block_rv, const String& storage_scope,
+                            int cse_thresh) final;
   /******** Schedule: Data movement ********/
   BlockRV ReadAt(const LoopRV& loop_rv, const BlockRV& block_rv, int read_buffer_index,
                  const ffi::String& storage_scope) final;

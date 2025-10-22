@@ -168,9 +168,8 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
       for (const auto& index : load->indices) {
         this->VisitExpr(index);
       }
-    } else {
-      StmtExprVisitor::VisitExpr_(op);
     }
+    StmtExprVisitor::VisitExpr_(op);
   }
 
   void VisitExpr_(const VarNode* buf) final {
@@ -215,6 +214,10 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
       VisitNewScope(op);
     } else if (op->attr_key == attr::virtual_thread) {
       VisitNewScope(op);
+    } else if (op->attr_key == "kWarpSpecializationScope") {
+      IfThenElse body = Downcast<IfThenElse>(op->body);
+      this->VisitStmt(body->then_case);
+      this->VisitStmt(body->else_case.value());
     } else {
       StmtExprVisitor::VisitStmt_(op);
     }

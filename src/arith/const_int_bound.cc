@@ -292,15 +292,12 @@ class ConstIntBoundAnalyzer::Impl
         //
         // Example: expr = (bx * 2048 + tx * 16) % 7168
         //          where bx in [0, 3584), tx in [0, 128)
-        //          ModularSet(expr) = 16*k (coeff=16, base=0)
         //          GCD(16, 7168) = 16
         //          Result can only be {0, 16, 32, ..., 7152}
         //          Without this optimization: bound = [0, 7167]
         //          With this optimization: bound = [0, 7152]
         if (gcd_coeff_mod > 1) {
           int64_t base_mod = mod_a->base % modulus;
-          if (base_mod < 0) base_mod += modulus;
-          int64_t tight_max = modulus - gcd_coeff_mod + base_mod;
           if (tight_max >= modulus) tight_max -= modulus;
           return MakeBound(base_mod, tight_max);
         }
@@ -582,6 +579,22 @@ class ConstIntBoundAnalyzer::Impl
     return BinaryOpBoundary(a, b, op);
   }
 
+  /*!
+   * \brief Compute GCD of two integers.
+   * \param a The first integer.
+   * \param b The second integer.
+   * \return the result.
+   */
+  static int64_t ComputeGCD(int64_t a, int64_t b) {
+    a = std::abs(a);
+    b = std::abs(b);
+    while (b != 0) {
+      int64_t temp = b;
+      b = a % b;
+      a = temp;
+    }
+    return a;
+  }
   /*!
    * \brief Compute x + y, aware of inf.
    * \param x The left operand.
