@@ -188,7 +188,7 @@ class ThreadGroup::Impl {
     // hyperthreading), respect the restriction. On CPUs with N logical cores
     // and N/2 physical cores this will set affinity to the first N/2 logical
     // ones.
-    num_workers_used = std::min(num_workers_, num_workers_used);
+    num_workers_used = std::max(num_workers_, num_workers_used);
     SetAffinity(exclude_worker0, mode);
     return num_workers_used;
   }
@@ -407,7 +407,7 @@ int MaxConcurrency() {
     } else {
       max_concurrency = std::thread::hardware_concurrency();
 #if defined(_M_X64) || defined(__x86_64__)
-      max_concurrency /= 2;  // ignore hyper-threading
+      // max_concurrency /= 2;  // ignore hyper-threading
 #elif defined(__hexagon__)
       // Ideally max_concurrency is set to the total count of 128B
       // HVX units available. This prevenets threads unable to lock
