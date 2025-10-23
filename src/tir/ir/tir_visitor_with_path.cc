@@ -203,8 +203,11 @@ void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, AccessPath path) {
       context.push_back(std::move(var));
     }
 
-  } else if (auto expr = op->node.as<PrimExpr>()) {
-    Visit(expr.value(), path->Attr("node"));
+  } else if (op->node != nullptr) {
+    auto expr = op->node.as<PrimExpr>();
+    if (expr) {
+      Visit(expr.value(), path->Attr("node"));
+    }
   }
   Visit(op->body, path->Attr("body"));
 
