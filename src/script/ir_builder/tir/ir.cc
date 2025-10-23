@@ -223,9 +223,9 @@ void Writes(ffi::Array<ObjectRef> buffer_slices) {
 }
 
 /*! \brief Recursively merge two annotations, the new attrs will override the old ones */
-Map<Any, Any> MergeAnnotations(const Map<Any, Any>& new_attrs,
-                                  const Map<Any, Any>& old_attrs) {
-  Map<Any, Any> result = old_attrs;
+ffi::Map<Any, Any> MergeAnnotations(const ffi::Map<Any, Any>& new_attrs,
+                                  const ffi::Map<Any, Any>& old_attrs) {
+  ffi::Map<Any, Any> result = old_attrs;
   for (const auto& [key, value] : new_attrs) {
     auto old_value = old_attrs.Get(key);
     // Case 1: the key is not in the old annotations, set the key to the new value
@@ -236,8 +236,8 @@ Map<Any, Any> MergeAnnotations(const Map<Any, Any>& new_attrs,
 
     // Case 2: the key is in the old annotations
     // Case 2.1: both are dicts
-    auto old_dict = old_value->try_cast<Map<Any, Any>>();
-    auto new_dict = value.try_cast<Map<Any, Any>>();
+    auto old_dict = old_value->try_cast<ffi::Map<Any, Any>>();
+    auto new_dict = value.try_cast<ffi::Map<Any, Any>>();
     if (old_dict && new_dict) {
       // Recursively merge the two dicts
       auto merged_dict = MergeAnnotations(*old_dict, *new_dict);
@@ -253,14 +253,14 @@ Map<Any, Any> MergeAnnotations(const Map<Any, Any>& new_attrs,
   return result;
 }
 
-void BlockAttrs(ffi::Map<ffi::String, Any> attrs) {
+void BlockAttrs(ffi::Map<ffi::String, ffi::Any> attrs) {
   BlockFrame frame = FindBlockFrame("T.block_attr");
   // Case 1: the block has no annotations, set the new annotations
   if (!frame->annotations.defined()) {
     frame->annotations = attrs;
   } else {
     // Case 2: the block has annotations, merge the new annotations with the old ones
-    frame->annotations = Downcast<Map<String, Any>>(MergeAnnotations(Downcast<Map<Any, Any>>(attrs), Downcast<Map<Any, Any>>(frame->annotations.value())));
+    frame->annotations = Downcast<ffi::Map<ffi::String, ffi::Any>>(MergeAnnotations(Downcast<ffi::Map<ffi::Any, ffi::Any>>(attrs), Downcast<ffi::Map<ffi::Any, ffi::Any>>(frame->annotations.value())));
   }
 }
 
@@ -271,9 +271,9 @@ Buffer AllocBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::Optional<Var
   Buffer buffer = BufferDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
                              offset_factor, buffer_type_str, axis_separators);
   IRBuilder builder = IRBuilder::Current();
-  if (Optional<BlockFrame> frame = builder->GetLastFrame<BlockFrame>()) {
+  if (ffi::Optional<BlockFrame> frame = builder->GetLastFrame<BlockFrame>()) {
     frame.value()->alloc_buffers.push_back(buffer);
-  } else if (Optional<BlockFrame> frame = builder->FindFrame<BlockFrame>()) {
+  } else if (ffi::Optional<BlockFrame> frame = builder->FindFrame<BlockFrame>()) {
     frame.value()->alloc_buffers.push_back(buffer);
   } else if (ffi::Optional<PrimFuncFrame> frame = builder->GetLastFrame<PrimFuncFrame>()) {
     frame.value()->root_alloc_buffers.push_back(buffer);
@@ -671,8 +671,8 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
       for (int i = 0; i < n; ++i) {
         PrimExpr e = buffer->strides[i];
         if (const auto* v = e.as<tvm::tir::VarNode>()) {
-          String new_name = v->name_hint.defined() ? v->name_hint : (name + "_s" + std::to_string(i));
-          Namer::Name(GetRef<tvm::tir::Var>(v), new_name);
+          ffi::String new_name = !v->name_hint.empty() ? v->name_hint : (name + "_s" + std::to_string(i));
+          Namer::Name(ffi::GetRef<tvm::tir::Var>(v), ffi::String(new_name));
         }
       }
     });
@@ -681,7 +681,7 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
     .set_dispatch<tvm::tir::SizeVarNode>([](const ObjectRef& node, ffi::String name) -> void {
       using namespace tvm::tir;
       SizeVarNode* var = const_cast<SizeVarNode*>(node.as<SizeVarNode>());
-      var->name_hint = name;
+      var->name_hint = ffi::String(name);
     });
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
