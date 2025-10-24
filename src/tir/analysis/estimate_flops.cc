@@ -193,10 +193,20 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
     return cond;
   }
 
+  TResult VisitStmt_(const AssertStmtNode* op) override {
+    TResult result = VisitExpr(op->condition);
+    if (op->message.defined()) {
+      result += VisitExpr(op->message);
+    }
+    result += VisitStmt(op->body);
+    return result;
+  }
+
   TResult VisitExpr_(const VarNode* op) override { return TResult(); }
   TResult VisitExpr_(const SizeVarNode* op) override { return TResult(); }
   TResult VisitExpr_(const IntImmNode* op) override { return TResult(); }
   TResult VisitExpr_(const FloatImmNode* op) override { return TResult(); }
+  TResult VisitExpr_(const StringImmNode* op) override { return TResult(); }
   TResult VisitExpr_(const CastNode* op) override { return VisitExpr(op->value); }
   TResult VisitStmt_(const AllocateConstNode* op) override { return VisitStmt(op->body); }
   TResult VisitStmt_(const AllocateNode* op) override { return VisitStmt(op->body); }
