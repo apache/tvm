@@ -66,6 +66,7 @@ def test_round_intrinsics_on_int():
 
 def test_unary_intrin():
     test_funcs = [
+        (tvm.tir.exp, lambda x: np.exp(x)),
         (tvm.tir.exp10, lambda x: np.power(10, x)),
         (tvm.tir.log2, lambda x: np.log2(x)),
         (tvm.tir.log10, lambda x: np.log10(x)),
