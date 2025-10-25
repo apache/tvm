@@ -907,6 +907,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "pow.Scalar": self._binary_op(relax.op.power, operator.pow),
             "pow.Tensor_Scalar": self._binary_op(relax.op.power, operator.pow),
             "pow.Tensor_Tensor": self._binary_op(relax.op.power, operator.pow),
+            # Decomposed operators
+            "mul.Tensor": self._binary_op(relax.op.multiply, operator.mul),
             "sub.Tensor": self._binary_op(relax.op.subtract, operator.sub),
             "__and__.Tensor": self._binary_op(relax.op.bitwise_and, operator.and_),
             "__and__.Scalar": self._binary_op(relax.op.bitwise_and, operator.and_),
@@ -1197,6 +1199,7 @@ def from_exported_program(
     keep_params_as_input: bool = False,
     unwrap_unit_return_tuple: bool = False,
     no_bind_return_tuple: bool = False,
+    run_ep_decomposition: bool = False,
 ) -> tvm.IRModule:
     """Convert a PyTorch ExportedProgram to a Relax program
 
@@ -1215,6 +1218,12 @@ def from_exported_program(
     no_bind_return_tuple : bool
         A boolean flag indicating whether to bind the return tuple as a relax var.
         If the flag is true and the return value is a tuple, it will not bind it to a var.
+
+    run_ep_decomposition : bool
+        A boolean flag indicating whether to run PyTorch's decomposition on the
+        exported program before translation. When True, high-level operators will
+        be decomposed into their constituent parts. Defaults to False for backward
+        compatibility.
 
     Returns
     -------
@@ -1255,8 +1264,9 @@ def from_exported_program(
         # Use the importer to import the ExportedProgram to Relax.
         mod: tvm.IRModule = from_exported_program(exported_program)
     """
-    # decompose into Core ATen operators
-    exported_program.run_decompositions()
+    # Conditionally decompose into Core ATen operators
+    if run_ep_decomposition:
+        exported_program = exported_program.run_decompositions()
 
     return ExportedProgramImporter().from_exported_program(
         exported_program,
