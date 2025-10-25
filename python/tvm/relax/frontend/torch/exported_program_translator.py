@@ -907,8 +907,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "pow.Scalar": self._binary_op(relax.op.power, operator.pow),
             "pow.Tensor_Scalar": self._binary_op(relax.op.power, operator.pow),
             "pow.Tensor_Tensor": self._binary_op(relax.op.power, operator.pow),
-            # Decomposed operators
-            "mul.Tensor": self._binary_op(relax.op.multiply, operator.mul),
             "sub.Tensor": self._binary_op(relax.op.subtract, operator.sub),
             "__and__.Tensor": self._binary_op(relax.op.bitwise_and, operator.and_),
             "__and__.Scalar": self._binary_op(relax.op.bitwise_and, operator.and_),
