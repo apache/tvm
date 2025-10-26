@@ -698,8 +698,8 @@ void CodeGenCUDA::PrintVecElemStore(const std::string& vec, DataType t, int i,
     } else {
       std::string ac = t.lanes() == 4 ? vec : (vec + "." + access[i / 4]);
       std::string type_name = t.is_int() ? "signed char" : "unsigned char";
-      stream << "reinterpret_cast<" << type_name << "*>(&(" << ac << "))[" << (i % 4)
-             << "] = (" << type_name << ")(" << value << ");\n";
+      stream << "reinterpret_cast<" << type_name << "*>(&(" << ac << "))[" << (i % 4) << "] = ("
+             << type_name << ")(" << value << ");\n";
     }
   } else if (t.is_float16()) {
     if (t.lanes() <= 4) {
