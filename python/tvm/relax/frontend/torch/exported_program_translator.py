@@ -809,9 +809,13 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "cosh.default": self._unary_op(relax.op.cosh),
             "dropout.default": lambda node: self.env[node.args[0]],
             "dropout_.default": lambda node: self.env[node.args[0]],
+            "native_dropout.default": lambda node: self.env[node.args[0]],
             "elu.default": self._elu,
             "erf.default": self._unary_op(relax.op.erf),
             "exp.default": self._unary_op(relax.op.exp),
+            "expm1.default": lambda node: self.block_builder.emit(
+                relax.op.subtract(relax.op.exp(self.env[node.args[0]]), relax.const(1.0, self.env[node.args[0]].struct_info.dtype))
+            ),
             "floor.default": self._unary_op(relax.op.floor),
             "gelu.default": self._gelu,
             "hardsigmoid.default": self._hardsigmoid,
@@ -869,6 +873,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "bitwise_or.Scalar": self._binary_op(relax.op.bitwise_or, operator.or_),
             "bitwise_or_.Tensor": self._binary_op(relax.op.bitwise_or, operator.or_),
             "bitwise_or.Tensor": self._binary_op(relax.op.bitwise_or, operator.or_),
+            "div.Scalar": self._binary_op(relax.op.divide, operator.truediv),
             "div.Tensor": self._binary_op(relax.op.divide, operator.truediv),
             "div.Tensor_mode": self._div,
             "eq.Scalar": self._binary_op(relax.op.equal, operator.eq),
@@ -1019,7 +1024,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "detach_.default": self._detach,
             "contiguous.default": lambda node: self.env[node.args[0]],  # no-op
             "clone.default": lambda node: self.env[node.args[0]],
+            "bernoulli.p": lambda node: self.env[node.args[0]],  # Dropout: just return input
             "empty.memory_format": self._empty,
+            "empty_permuted.default": self._empty,  # Similar to empty but with permuted memory layout
             "empty_like.default": self._empty_like,
             "eye.default": self._eye,
             "eye.m": self._eye,

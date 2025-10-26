@@ -31,9 +31,9 @@ from tvm.script import tir as T
 from tvm.relax.frontend.torch import from_exported_program
 
 
-def verify_model(torch_model, example_args, binding, expected, dynamic_shapes=None):
+def verify_model(torch_model, example_args, binding, expected, dynamic_shapes=None, run_ep_decomposition=True):
     exported_program = export(torch_model, args=example_args, dynamic_shapes=dynamic_shapes)
-    mod = from_exported_program(exported_program)
+    mod = from_exported_program(exported_program, run_ep_decomposition=run_ep_decomposition)
 
     binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
@@ -155,26 +155,15 @@ def test_extended_unary_ops():
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.exp(input_1)
-                lv_div: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
-                    lv, R.const(1.0, "float32")
-                )
-                lv_sub: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(
-                    lv_div, R.const(1.0, "float32")
-                )
-                lv_min: R.Tensor((1, 3, 10, 10), dtype="float32") = R.minimum(
-                    R.const(0.0, "float32"), lv_sub
-                )
-                lv_scaled: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
-                    R.const(1.0, "float32"), lv_min
-                )
-                lv_relu_x: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(input_1)
-                lv_celu: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(lv_scaled, lv_relu_x)
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv_celu,)
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(lv, R.const(1.0, "float32"))
+                lv2: R.Tensor((1, 3, 10, 10), dtype="bool") = R.greater(input_1, R.const(0.0, "float32"))
+                lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.where(lv2, input_1, lv1)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv3,)
                 R.output(gv)
             return gv
 
-    verify_model(Celu1(), example_args, {}, expected_celu)
-    verify_model(Celu2(), example_args, {}, expected_celu)
+    verify_model(Celu1(), example_args, {}, expected_celu, run_ep_decomposition=True)
+    verify_model(Celu2(), example_args, {}, expected_celu, run_ep_decomposition=True)
 
     # clamp
     class Clamp(Module):
@@ -266,20 +255,35 @@ def test_extended_unary_ops():
             return torch.ops.aten.dropout_(input, 0.5, train=True)
 
     @tvm.script.ir_module
-    class expected_dropout:
+    class expected_dropout_for_1_2:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             # block 0
             with R.dataflow():
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (input_1,)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (input,)
                 R.output(gv)
             return gv
 
-    verify_model(Dropout1(), example_args, {}, expected_dropout)
-    verify_model(Dropout2(), example_args, {}, expected_dropout)
-    verify_model(Dropout3(), example_args, {}, expected_dropout)
+    @tvm.script.ir_module
+    class expected_dropout_for_3:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.zeros(R.shape([1, 3, 10, 10]), dtype="float32")
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(lv, R.const(0.5, "float32"))
+                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(input, lv1)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv2, lv2)
+                R.output(gv)
+            return gv
+
+    verify_model(Dropout1(), example_args, {}, expected_dropout_for_1_2)
+    verify_model(Dropout2(), example_args, {}, expected_dropout_for_1_2 )
+    verify_model(Dropout3(), example_args, {}, expected_dropout_for_3)
 
     # elu
     class Elu(Module):
@@ -341,12 +345,11 @@ def test_extended_unary_ops():
             inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(inp_0, R.const(3, "float32"))
-                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(lv, 0, 6)
-                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
-                    lv1, R.const(6, "float32")
-                )
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv2,)
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(inp_0, R.const(3.0, "float32"))
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(lv, R.prim_value(0), R.prim_value(T.float64("inf")))
+                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(lv1, R.prim_value(T.float64("-inf")), R.prim_value(6))
+                lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(lv2, R.const(6.0, "float32"))
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv3,)
                 R.output(gv)
             return gv
 
@@ -371,25 +374,40 @@ def test_extended_unary_ops():
             return torch.ops.aten.hardswish_(input)
 
     @tvm.script.ir_module
-    class expected1:
+    class expected_hardswish_for_1_2:
         @R.function
         def main(
             inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(inp_0, R.const(3, "float32"))
-                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(lv, 0, 6)
-                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
-                    lv1, R.const(6, "float32")
-                )
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(inp_0, R.const(3.0, "float32"))
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(lv, R.prim_value(0), R.prim_value(T.float64("inf")))
+                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(lv1, R.prim_value(T.float64("-inf")), R.prim_value(6))
                 lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(inp_0, lv2)
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv3,)
+                lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(lv3, R.const(6.0, "float32"))
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv4,)
                 R.output(gv)
             return gv
 
-    verify_model(Hardswish(), example_args, {}, expected1)
-    verify_model(Hardswish2(), example_args, {}, expected1)
-    verify_model(Hardswish3(), example_args, {}, expected1)
+    @tvm.script.ir_module
+    class expected_hardswish_for_3:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(input, R.const(3.0, "float32"))
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(lv, R.prim_value(0), R.prim_value(T.float64("inf")))
+                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(lv1, R.prim_value(T.float64("-inf")), R.prim_value(6))
+                lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(input, lv2)
+                lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(lv3, R.const(6.0, "float32"))
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv4, lv4)
+                R.output(gv)
+            return gv
+
+    verify_model(Hardswish(), example_args, {}, expected_hardswish_for_1_2)
+    verify_model(Hardswish2(), example_args, {}, expected_hardswish_for_1_2)
+    verify_model(Hardswish3(), example_args, {}, expected_hardswish_for_3)
 
     # log2
     class Log2(Module):
