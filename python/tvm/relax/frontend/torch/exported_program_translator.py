@@ -814,7 +814,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "erf.default": self._unary_op(relax.op.erf),
             "exp.default": self._unary_op(relax.op.exp),
             "expm1.default": lambda node: self.block_builder.emit(
-                relax.op.subtract(relax.op.exp(self.env[node.args[0]]), relax.const(1.0, self.env[node.args[0]].struct_info.dtype))
+                relax.op.subtract(
+                    relax.op.exp(self.env[node.args[0]]),
+                    relax.const(1.0, self.env[node.args[0]].struct_info.dtype),
+                )
             ),
             "floor.default": self._unary_op(relax.op.floor),
             "gelu.default": self._gelu,
