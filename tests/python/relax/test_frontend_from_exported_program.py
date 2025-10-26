@@ -31,7 +31,9 @@ from tvm.script import tir as T
 from tvm.relax.frontend.torch import from_exported_program
 
 
-def verify_model(torch_model, example_args, binding, expected, dynamic_shapes=None, run_ep_decomposition=False):
+def verify_model(
+    torch_model, example_args, binding, expected, dynamic_shapes=None, run_ep_decomposition=False
+):
     exported_program = export(torch_model, args=example_args, dynamic_shapes=dynamic_shapes)
     mod = from_exported_program(exported_program, run_ep_decomposition=run_ep_decomposition)
 
@@ -427,20 +429,39 @@ def test_extended_unary_ops():
         @R.function
         def main(
             input: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")):
+        ) -> R.Tuple(
+            R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")
+        ):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(input, R.const(3.0, "float32"))
-                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(lv, R.prim_value(0), R.prim_value(T.float64("inf")))
-                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(lv1, R.prim_value(T.float64("-inf")), R.prim_value(6))
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(
+                    input, R.const(3.0, "float32")
+                )
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(
+                    lv, R.prim_value(0), R.prim_value(T.float64("inf"))
+                )
+                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(
+                    lv1, R.prim_value(T.float64("-inf")), R.prim_value(6)
+                )
                 lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(input, lv2)
-                lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(lv3, R.const(6.0, "float32"))
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv4, lv4)
+                lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
+                    lv3, R.const(6.0, "float32")
+                )
+                gv: R.Tuple(
+                    R.Tensor((1, 3, 10, 10), dtype="float32"),
+                    R.Tensor((1, 3, 10, 10), dtype="float32"),
+                ) = (lv4, lv4)
                 R.output(gv)
             return gv
 
-    verify_model(Hardswish(), example_args, {}, expected_hardswish_for_1_2, run_ep_decomposition=True)
-    verify_model(Hardswish2(), example_args, {}, expected_hardswish_for_1_2, run_ep_decomposition=True)
-    verify_model(Hardswish3(), example_args, {}, expected_hardswish_for_3, run_ep_decomposition=True)
+    verify_model(
+        Hardswish(), example_args, {}, expected_hardswish_for_1_2, run_ep_decomposition=True
+    )
+    verify_model(
+        Hardswish2(), example_args, {}, expected_hardswish_for_1_2, run_ep_decomposition=True
+    )
+    verify_model(
+        Hardswish3(), example_args, {}, expected_hardswish_for_3, run_ep_decomposition=True
+    )
 
     # log2
     class Log2(Module):
@@ -614,10 +635,17 @@ def test_extended_unary_ops():
         @R.function
         def main(
             x: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")):
+        ) -> R.Tuple(
+            R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")
+        ):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(x, R.prim_value(0), R.prim_value(6))
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv, lv)
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(
+                    x, R.prim_value(0), R.prim_value(6)
+                )
+                gv: R.Tuple(
+                    R.Tensor((1, 3, 10, 10), dtype="float32"),
+                    R.Tensor((1, 3, 10, 10), dtype="float32"),
+                ) = (lv, lv)
                 R.output(gv)
             return gv
 

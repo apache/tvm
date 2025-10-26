@@ -1029,7 +1029,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "clone.default": lambda node: self.env[node.args[0]],
             "bernoulli.p": lambda node: self.env[node.args[0]],  # Dropout: just return input
             "empty.memory_format": self._empty,
-            "empty_permuted.default": self._empty,  # Similar to empty but with permuted memory layout
+            "empty_permuted.default": self._empty,  # Similar to empty with permuted layout
             "empty_like.default": self._empty_like,
             "eye.default": self._eye,
             "eye.m": self._eye,
