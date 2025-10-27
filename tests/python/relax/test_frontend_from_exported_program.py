@@ -30,7 +30,6 @@ from tvm.script import relax as R
 from tvm.script import tir as T
 from tvm.relax.frontend.torch import from_exported_program
 
-
 def verify_model(
     torch_model, example_args, binding, expected, dynamic_shapes=None, run_ep_decomposition=False
 ):
@@ -40,7 +39,6 @@ def verify_model(
     binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
     tvm.ir.assert_structural_equal(mod, expected)
-
 
 operator_basic_unary = [
     (torch.abs, R.abs),
@@ -61,23 +59,17 @@ operator_basic_unary = [
     (torch.log, R.log),
     (torch.neg, R.negative),
     (torch.relu, R.nn.relu),
-    (torch.relu_, R.nn.relu),
     (torch.round, R.round),
     (torch.rsqrt, R.rsqrt),
-    (torch.selu, R.nn.selu),
     (torch.sigmoid, R.sigmoid),
-    (torch.ops.aten.silu, R.nn.silu),
-    (torch.ops.aten.silu_, R.nn.silu),
     (torch.sin, R.sin),
     (torch.sinh, R.sinh),
     (torch.sign, R.sign),
     (torch.sqrt, R.sqrt),
-    (torch.square, R.square),
     (torch.tan, R.tan),
     (torch.tanh, R.tanh),
     (torch.trunc, R.trunc),
 ]
-
 
 @pytest.mark.parametrize("pytorch_op, relax_op", operator_basic_unary)
 def test_basic_unary_ops(pytorch_op, relax_op):
@@ -99,7 +91,7 @@ def test_basic_unary_ops(pytorch_op, relax_op):
                 R.output(gv)
             return gv
 
-    verify_model(UnaryOp(), example_args, {}, expected)
+    verify_model(UnaryOp(), example_args, {}, expected, run_ep_decomposition=True)
 
 
 operator_bool_unary = [
@@ -656,6 +648,111 @@ def test_extended_unary_ops():
     verify_model(ReLU6_1(), example_args, {}, expected_relu6_1, run_ep_decomposition=True)
     verify_model(ReLU6_2(), example_args, {}, expected_relu6_2, run_ep_decomposition=True)
     verify_model(ReLU6_3(), example_args, {}, expected_relu6_3, run_ep_decomposition=True)
+
+    # selu
+    class SELU(Module):
+        def forward(self, input):
+            return torch.nn.functional.selu(input)
+
+    @tvm.script.ir_module
+    class expected_selu:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.exp(input)
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(R.const(1.0, "float32"), lv)
+                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(lv1)
+                lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(R.const(-1.6732631921768188, "float32"), lv2)
+                lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(input)
+                lv5: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(lv3, lv4)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv5,)
+                R.output(gv)
+            return gv
+
+    verify_model(SELU(), example_args, {}, expected_selu, run_ep_decomposition=True)
+
+    # silu
+    class SiLU(Module):
+        def forward(self, input):
+            return torch.nn.functional.silu(input)
+
+    @tvm.script.ir_module
+    class expected_silu:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.sigmoid(input)
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(input, lv)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    verify_model(SiLU(), example_args, {}, expected_silu, run_ep_decomposition=True)
+
+    # silu_
+    class SiLU_(Module):
+        def forward(self, input):
+            return torch.ops.aten.silu_(input)
+
+    @tvm.script.ir_module
+    class expected_silu_:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.sigmoid(input)
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(input, lv)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")) = (
+                    lv1,
+                    lv1,
+                )
+                R.output(gv)
+            return gv
+
+    verify_model(SiLU_(), example_args, {}, expected_silu_, run_ep_decomposition=True)
+
+    # square
+    class Square(Module):
+        def forward(self, input):
+            return torch.square(input)
+
+    @tvm.script.ir_module
+    class expected_square:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.power(input, R.const(2.0, "float32"))
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(Square(), example_args, {}, expected_square, run_ep_decomposition=True)
+
+    # relu_
+    class ReLU_(Module):
+        def forward(self, input):
+            return torch.relu_(input.clone())
+
+    @tvm.script.ir_module
+    class expected_relu_:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(input)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(ReLU_(), example_args, {}, expected_relu_, run_ep_decomposition=True)
 
 
 def test_hardtanh():
