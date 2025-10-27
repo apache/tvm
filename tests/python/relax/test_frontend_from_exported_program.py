@@ -30,6 +30,7 @@ from tvm.script import relax as R
 from tvm.script import tir as T
 from tvm.relax.frontend.torch import from_exported_program
 
+
 def verify_model(
     torch_model, example_args, binding, expected, dynamic_shapes=None, run_ep_decomposition=False
 ):
@@ -39,6 +40,7 @@ def verify_model(
     binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
     tvm.ir.assert_structural_equal(mod, expected)
+
 
 operator_basic_unary = [
     (torch.abs, R.abs),
@@ -70,6 +72,7 @@ operator_basic_unary = [
     (torch.tanh, R.tanh),
     (torch.trunc, R.trunc),
 ]
+
 
 @pytest.mark.parametrize("pytorch_op, relax_op", operator_basic_unary)
 def test_basic_unary_ops(pytorch_op, relax_op):
@@ -471,7 +474,9 @@ def test_extended_unary_ops():
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="bool")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.abs(input)
-                lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.not_equal(lv, R.const(float("inf"), "float32"))
+                lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.not_equal(
+                    lv, R.const(float("inf"), "float32")
+                )
                 lv2: R.Tensor((1, 3, 10, 10), dtype="bool") = R.equal(input, input)
                 lv3: R.Tensor((1, 3, 10, 10), dtype="bool") = R.multiply(lv2, lv1)
                 gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="bool")) = (lv3,)
@@ -683,9 +688,13 @@ def test_extended_unary_ops():
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.exp(input)
-                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(R.const(1.0, "float32"), lv)
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(
+                    R.const(1.0, "float32"), lv
+                )
                 lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(lv1)
-                lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(R.const(-1.6732631921768188, "float32"), lv2)
+                lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
+                    R.const(-1.6732631921768188, "float32"), lv2
+                )
                 lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(input)
                 lv5: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(lv3, lv4)
                 gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv5,)
@@ -724,11 +733,16 @@ def test_extended_unary_ops():
         @R.function
         def main(
             input: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")):
+        ) -> R.Tuple(
+            R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.sigmoid(input)
                 lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(input, lv)
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")) = (
+                gv: R.Tuple(
+                    R.Tensor((1, 3, 10, 10), dtype="float32"),
+                    R.Tensor((1, 3, 10, 10), dtype="float32"),
+                ) = (
                     lv1,
                     lv1,
                 )
@@ -749,7 +763,9 @@ def test_extended_unary_ops():
             input: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.power(input, R.const(2.0, "float32"))
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.power(
+                    input, R.const(2.0, "float32")
+                )
                 gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
