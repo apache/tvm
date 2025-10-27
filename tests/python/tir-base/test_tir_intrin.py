@@ -119,6 +119,16 @@ def test_unary_intrin():
             func(a2, b2)
             # all outputs should be NaN
             assert np.all(np.isnan(b2.numpy()))
+        if name == "exp":
+            n = 8
+            out_np = np.random.randint(-20, 20, size=n).astype(A.dtype)
+            a2 = tvm.runtime.tensor(out_np, dev)
+            b2 = tvm.runtime.tensor(np.empty_like(out_np), dev)
+            func(a2, b2)
+            assert b2.numpy().dtype == np.float32
+            # Verify correctness against NumPy exp
+            expected = np.exp(out_np.astype(np.float32))
+            np.testing.assert_allclose(b2.numpy(), expected, rtol=1e-5, atol=1e-5)
 
     for func in test_funcs:
         atol = rtol = 1e-3 if func[0].__name__ in ["asin", "acos", "atan"] else 1e-5
