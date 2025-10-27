@@ -321,23 +321,27 @@ def test_extended_unary_ops():
     class expected_elu:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
-            # block 0
             with R.dataflow():
-                lv_exp: R.Tensor((1, 3, 10, 10), dtype="float32") = R.exp(input_1)
-                lv_one_minus_exp: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(
-                    R.const(1.0, dtype="float32"), lv_exp
+                lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.greater(
+                    input, R.const(0.0, "float32")
                 )
-                lv_relu_one_minus_exp: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(
-                    lv_one_minus_exp
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
+                    input, R.const(1.0, "float32")
                 )
-                lv_scaled: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
-                    R.const(-1.0, dtype="float32"), lv_relu_one_minus_exp
+                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
+                    input, R.const(1.0, "float32")
                 )
-                lv_relu_x: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(input_1)
-                lv_elu: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(lv_scaled, lv_relu_x)
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv_elu,)
+                lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.exp(lv2)
+                lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(
+                    lv3, R.const(1.0, "float32")
+                )
+                lv5: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
+                    lv4, R.const(1.0, "float32")
+                )
+                lv6: R.Tensor((1, 3, 10, 10), dtype="float32") = R.where(lv, lv1, lv5)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv6,)
                 R.output(gv)
             return gv
 
