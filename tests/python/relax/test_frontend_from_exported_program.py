@@ -687,17 +687,24 @@ def test_extended_unary_ops():
             input: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.exp(input)
-                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(
-                    R.const(1.0, "float32"), lv
+                lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.greater(
+                    input, R.const(0.0, "float32")
                 )
-                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(lv1)
-                lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
-                    R.const(-1.6732631921768188, "float32"), lv2
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
+                    input, R.const(1.0507010221481323, "float32")
                 )
-                lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(input)
-                lv5: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(lv3, lv4)
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv5,)
+                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
+                    input, R.const(1.0, "float32")
+                )
+                lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.exp(lv2)
+                lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(
+                    lv3, R.const(1.0, "float32")
+                )
+                lv5: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
+                    lv4, R.const(1.7580993175506592, "float32")
+                )
+                lv6: R.Tensor((1, 3, 10, 10), dtype="float32") = R.where(lv, lv1, lv5)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv6,)
                 R.output(gv)
             return gv
 
