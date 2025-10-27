@@ -95,7 +95,6 @@ def test_basic_unary_ops(pytorch_op, relax_op):
 
 
 operator_bool_unary = [
-    (torch.isfinite, R.isfinite),
     (torch.isinf, R.isinf),
     (torch.isnan, R.isnan),
 ]
@@ -121,7 +120,7 @@ def test_bool_unary_ops(pytorch_op, relax_op):
                 R.output(gv)
             return gv
 
-    verify_model(UnaryOp(), example_args, {}, expected)
+    verify_model(UnaryOp(), example_args, {}, expected, run_ep_decomposition=True)
 
 
 def test_extended_unary_ops():
@@ -458,6 +457,28 @@ def test_extended_unary_ops():
     verify_model(
         Hardswish3(), example_args, {}, expected_hardswish_for_3, run_ep_decomposition=True
     )
+
+    # isfinite
+    class IsFinite(Module):
+        def forward(self, input):
+            return torch.isfinite(input)
+
+    @tvm.script.ir_module
+    class expected_isfinite:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="bool")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.abs(input)
+                lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.not_equal(lv, R.const(float("inf"), "float32"))
+                lv2: R.Tensor((1, 3, 10, 10), dtype="bool") = R.equal(input, input)
+                lv3: R.Tensor((1, 3, 10, 10), dtype="bool") = R.multiply(lv2, lv1)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="bool")) = (lv3,)
+                R.output(gv)
+            return gv
+
+    verify_model(IsFinite(), example_args, {}, expected_isfinite, run_ep_decomposition=True)
 
     # log2
     class Log2(Module):
