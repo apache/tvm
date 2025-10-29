@@ -295,6 +295,54 @@ if RUN_EXAMPLE:
 
 
 ######################################################################
+# Deploying to Remote Devices
+# ---------------------------
+# To deploy the exported model to a remote ARM Linux device (e.g., Raspberry Pi),
+# you can use TVM's RPC mechanism to cross-compile, upload, and run the model
+# remotely. This workflow is useful when:
+#
+# - The target device has limited resources for compilation
+# - You want to fine-tune performance by running on the actual hardware
+# - You need to deploy to embedded devices
+#
+# See :doc:`cross_compilation_and_rpc </how_to/tutorials/cross_compilation_and_rpc>`
+# for a comprehensive guide on:
+#
+# - Setting up TVM runtime on the remote device
+# - Starting an RPC server on the device
+# - Cross-compiling for ARM targets (e.g., ``llvm -mtriple=aarch64-linux-gnu``)
+# - Uploading exported libraries via RPC
+# - Running inference remotely
+#
+# Quick example for ARM deployment workflow:
+#
+# .. code-block:: python
+#
+#    import tvm.rpc as rpc
+#    from tvm import relax
+#
+#    # Step 1: Cross-compile for ARM target (on local machine)
+#    TARGET = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu")
+#    executable = relax.build(built_mod, target=TARGET)
+#    executable.export_library("mlp_arm.so")
+#
+#    # Step 2: Connect to remote device RPC server
+#    remote = rpc.connect("192.168.1.100", 9090)  # Device IP and RPC port
+#
+#    # Step 3: Upload the compiled library and parameters
+#    remote.upload("mlp_arm.so")
+#    remote.upload("model_params.npz")
+#
+#    # Step 4: Load and run on remote device
+#    lib = remote.load_module("mlp_arm.so")
+#    vm = relax.VirtualMachine(lib, remote.cpu())
+#    # ... prepare input and params, then run inference
+#
+# The key difference is using an ARM target triple during compilation and
+# uploading files via RPC instead of copying them directly.
+
+
+######################################################################
 # FAQ
 # ---
 # **Can I run the ``.so`` as a standalone executable (like ``./mlp_cpu.so``)?**
