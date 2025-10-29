@@ -1162,9 +1162,13 @@ def test_softshrink():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.abs(input)
                 lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.greater(lv, R.const(0.5, "float32"))
                 lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.sign(input)
-                lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(lv2, R.const(0.5, "float32"))
+                lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
+                    lv2, R.const(0.5, "float32")
+                )
                 lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(input, lv3)
-                lv5: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(input, R.const(0.0, "float32"))
+                lv5: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
+                    input, R.const(0.0, "float32")
+                )
                 lv6: R.Tensor((1, 3, 10, 10), dtype="float32") = R.where(lv1, lv4, lv5)
                 gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv6,)
                 R.output(gv)
@@ -1190,9 +1194,13 @@ def test_tril_triu():
         ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
             # block 0
             with R.dataflow():
-                lv: R.Tensor((10,), dtype="int64") = R.arange(R.prim_value(0), R.prim_value(10), R.prim_value(1), dtype="int64")
+                lv: R.Tensor((10,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(10), R.prim_value(1), dtype="int64"
+                )
                 lv1: R.Tensor((1, 10), dtype="int64") = R.expand_dims(lv, axis=[-2])
-                lv2: R.Tensor((10,), dtype="int64") = R.arange(R.prim_value(0), R.prim_value(10), R.prim_value(1), dtype="int64")
+                lv2: R.Tensor((10,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(10), R.prim_value(1), dtype="int64"
+                )
                 lv3: R.Tensor((10, 1), dtype="int64") = R.expand_dims(lv2, axis=[-1])
                 lv4: R.Tensor((10, 10), dtype="int64") = R.subtract(lv1, lv3)
                 lv5: R.Tensor((10, 10), dtype="bool") = R.less_equal(lv4, R.const(1, "int64"))
@@ -1216,9 +1224,13 @@ def test_tril_triu():
         ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
             # block 0
             with R.dataflow():
-                lv: R.Tensor((10,), dtype="int64") = R.arange(R.prim_value(0), R.prim_value(10), R.prim_value(1), dtype="int64")
+                lv: R.Tensor((10,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(10), R.prim_value(1), dtype="int64"
+                )
                 lv1: R.Tensor((1, 10), dtype="int64") = R.expand_dims(lv, axis=[-2])
-                lv2: R.Tensor((10,), dtype="int64") = R.arange(R.prim_value(0), R.prim_value(10), R.prim_value(1), dtype="int64")
+                lv2: R.Tensor((10,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(10), R.prim_value(1), dtype="int64"
+                )
                 lv3: R.Tensor((10, 1), dtype="int64") = R.expand_dims(lv2, axis=[-1])
                 lv4: R.Tensor((10, 10), dtype="int64") = R.subtract(lv1, lv3)
                 lv5: R.Tensor((10, 10), dtype="bool") = R.greater_equal(lv4, R.const(1, "int64"))
@@ -2058,7 +2070,9 @@ def test_baddbmm():
             inp_2: R.Tensor((4, 256, 512), dtype="float32"),
         ) -> R.Tuple(R.Tensor((4, 128, 512), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((4, 128, 512), dtype="float32") = R.matmul(inp_1, inp_2, out_dtype="float32")
+                lv: R.Tensor((4, 128, 512), dtype="float32") = R.matmul(
+                    inp_1, inp_2, out_dtype="float32"
+                )
                 lv1: R.Tensor((4, 128, 512), dtype="float32") = R.add(inp_0, lv)
                 gv: R.Tuple(R.Tensor((4, 128, 512), dtype="float32")) = (lv1,)
                 R.output(gv)
@@ -2080,7 +2094,9 @@ def test_baddbmm():
             inp_2: R.Tensor((4, 256, 512), dtype="float32"),
         ) -> R.Tuple(R.Tensor((4, 128, 512), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((4, 128, 512), dtype="float32") = R.matmul(inp_1, inp_2, out_dtype="float32")
+                lv: R.Tensor((4, 128, 512), dtype="float32") = R.matmul(
+                    inp_1, inp_2, out_dtype="float32"
+                )
                 lv1: R.Tensor((4, 128, 512), dtype="float32") = R.multiply(
                     lv, R.const(2, "float32")
                 )
@@ -2104,7 +2120,9 @@ def test_baddbmm():
             inp_2: R.Tensor((4, 256, 512), dtype="float32"),
         ) -> R.Tuple(R.Tensor((4, 128, 512), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((4, 128, 512), dtype="float32") = R.matmul(inp_1, inp_2, out_dtype="float32")
+                lv: R.Tensor((4, 128, 512), dtype="float32") = R.matmul(
+                    inp_1, inp_2, out_dtype="float32"
+                )
                 lv1: R.Tensor((4, 128, 512), dtype="float32") = R.multiply(
                     lv, R.const(2, "float32")
                 )
@@ -2179,6 +2197,7 @@ def test_bmm():
         example_args,
         {},
         Expected,
+        run_ep_decomposition=True,
     )
 
 
