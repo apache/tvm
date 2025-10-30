@@ -31,6 +31,7 @@
 #include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/schedule/trace.h>
 
+#include <filesystem>
 #include <memory>
 
 namespace tvm {

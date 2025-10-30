@@ -29,8 +29,6 @@
 #include "../src/meta_schedule/module_equality.h"
 #include "../src/meta_schedule/trace_apply.h"
 
-#include <filesystem>
-
 namespace tvm {
 namespace relax {
 namespace transform {
