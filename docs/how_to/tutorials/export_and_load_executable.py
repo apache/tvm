@@ -26,6 +26,12 @@ object, loading it back into the TVM runtime, and running the result either
 interactively or from a standalone script. This tutorial demonstrates how 
 to turn Relax (or imported PyTorch / ONNX) programs into deployable artifacts 
 using ``tvm.relax`` APIs.
+
+.. note::
+   This tutorial uses PyTorch as the source format, but the export/load workflow
+   is the same for ONNX models. For ONNX, use ``from_onnx(model, keep_params_in_input=True)``
+   instead of ``from_exported_program()``, then follow the same steps for building,
+   exporting, and loading.
 """
 
 ######################################################################
@@ -167,8 +173,10 @@ if RUN_EXAMPLE:
     # Run inference: pass input data followed by all parameters
     tvm_output = vm["main"](vm_input, *vm_params)
     
-    # TVM returns Array objects for tuple outputs, access via indexing
-    result_tensor = tvm_output[0]
+    # TVM returns Array objects for tuple outputs, access via indexing.
+    # For models imported from PyTorch, outputs are typically tuples (even for single outputs).
+    # For ONNX models, outputs may be a single Tensor directly.
+    result_tensor = tvm_output[0] if isinstance(tvm_output, (tuple, list)) else tvm_output
     
     print("VM output shape:", result_tensor.shape)
     print("VM output type:", type(tvm_output), "->", type(result_tensor))
@@ -252,8 +260,9 @@ if RUN_EXAMPLE:
 #    # Step 5: Run inference (pass input followed by all parameters)
 #    output = vm["main"](input_tensor, *params)
 #    
-#    # Step 6: Extract result (output is a TVM Array, get first element)
-#    result = output[0]
+#    # Step 6: Extract result (output may be tuple or single Tensor)
+#    # PyTorch models typically return tuples, ONNX models may return a single Tensor
+#    result = output[0] if isinstance(output, (tuple, list)) else output
 #    
 #    print("Prediction shape:", result.shape)
 #    print("Predicted class:", np.argmax(result.numpy()))
