@@ -760,6 +760,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         )
         return self.block_builder.emit(relax.op.zeros(size, dtype))
 
+    def _scalar_tensor(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        scalar_value = args[0]
+        dtype = self._convert_data_type(
+            node.kwargs.get("dtype", torch.get_default_dtype()), self.env
+        )
+        return self.block_builder.emit(relax.const(scalar_value, dtype))
+
     def _instance_norm(self, node: fx.Node):
         import numpy as np
 
@@ -851,6 +859,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "relu6_.default": self._unary_op(relax.op.nn.relu6),
             "round.default": self._round,
             "rsqrt.default": self._unary_op(relax.op.rsqrt),
+            "scalar_tensor.default": self._scalar_tensor,
             "rsub.Tensor": self._rsub,
             "rsub.Scalar": self._rsub,
             "selu.default": self._unary_op(relax.op.nn.selu),
@@ -861,6 +870,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "sin.default": self._unary_op(relax.op.sin),
             "sinh.default": self._unary_op(relax.op.sinh),
             "softmax.int": self._softmax,
+            "_softmax.default": self._softmax,
             "softplus.default": self._softplus,
             "softshrink.default": self._softshrink,
             "softsign.default": self._softsign,
