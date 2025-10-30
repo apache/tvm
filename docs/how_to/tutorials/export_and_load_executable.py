@@ -23,8 +23,8 @@ Export and Load Relax Executables
 
 This tutorial walks through exporting a compiled Relax module to a shared
 object, loading it back into the TVM runtime, and running the result either
-interactively or from a standalone script. This tutorial demonstrates how 
-to turn Relax (or imported PyTorch / ONNX) programs into deployable artifacts 
+interactively or from a standalone script. This tutorial demonstrates how
+to turn Relax (or imported PyTorch / ONNX) programs into deployable artifacts
 using ``tvm.relax`` APIs.
 
 .. note::
