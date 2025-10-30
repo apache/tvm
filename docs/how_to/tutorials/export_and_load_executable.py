@@ -166,18 +166,18 @@ if RUN_EXAMPLE:
     # Prepare input data
     input_tensor = torch.randn(1, 1, 28, 28, dtype=torch.float32)
     vm_input = tvm.runtime.tensor(input_tensor.numpy(), dev)
-    
+
     # Prepare parameters (allocate on target device)
     vm_params = [tvm.runtime.tensor(p, dev) for p in params["main"]]
 
     # Run inference: pass input data followed by all parameters
     tvm_output = vm["main"](vm_input, *vm_params)
-    
+
     # TVM returns Array objects for tuple outputs, access via indexing.
     # For models imported from PyTorch, outputs are typically tuples (even for single outputs).
     # For ONNX models, outputs may be a single Tensor directly.
     result_tensor = tvm_output[0] if isinstance(tvm_output, (tuple, list)) else tvm_output
-    
+
     print("VM output shape:", result_tensor.shape)
     print("VM output type:", type(tvm_output), "->", type(result_tensor))
 
@@ -243,14 +243,14 @@ if RUN_EXAMPLE:
 #
 #    # Step 1: Load the compiled library
 #    lib = tvm.runtime.load_module("relax_export_artifacts/mlp_cpu.so")
-#    
+#
 #    # Step 2: Create Virtual Machine
 #    device = tvm.cpu(0)
 #    vm = relax.VirtualMachine(lib, device)
 #
 #    # Step 3: Load parameters from the .npz file
 #    params_npz = np.load("relax_export_artifacts/model_params.npz")
-#    params = [tvm.runtime.tensor(params_npz[f"p_{i}"], device) 
+#    params = [tvm.runtime.tensor(params_npz[f"p_{i}"], device)
 #              for i in range(len(params_npz))]
 #
 #    # Step 4: Prepare input data
@@ -259,11 +259,11 @@ if RUN_EXAMPLE:
 #
 #    # Step 5: Run inference (pass input followed by all parameters)
 #    output = vm["main"](input_tensor, *params)
-#    
+#
 #    # Step 6: Extract result (output may be tuple or single Tensor)
 #    # PyTorch models typically return tuples, ONNX models may return a single Tensor
 #    result = output[0] if isinstance(output, (tuple, list)) else output
-#    
+#
 #    print("Prediction shape:", result.shape)
 #    print("Predicted class:", np.argmax(result.numpy()))
 #
