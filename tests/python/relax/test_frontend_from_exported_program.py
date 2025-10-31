@@ -6222,31 +6222,32 @@ def test_cross_entropy():
         @R.function
         def main(x: R.Tensor((4, 3), dtype="float32")) -> R.Tuple(R.Tensor((4,), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((4, 3), dtype="float32") = R.nn.log_softmax(x, axis=1)
-                lv1: R.Tensor((4,), dtype="bool") = R.not_equal(
+                lv: R.Tensor((4, 3), dtype="float32") = R.astype(x, dtype="float32")
+                lv1: R.Tensor((4, 3), dtype="float32") = R.nn.log_softmax(lv, axis=1)
+                lv2: R.Tensor((4,), dtype="bool") = R.not_equal(
                     R.const([0, 1, 2, 1], dtype="int64"), R.const(-100, "int64")
                 )
-                lv2: R.Tensor((), dtype="int64") = R.const(0, "int64")
-                lv3: R.Tensor((4,), dtype="int64") = R.where(
-                    lv1, R.const([0, 1, 2, 1], dtype="int64"), lv2
+                lv3: R.Tensor((), dtype="int64") = R.const(0, "int64")
+                lv4: R.Tensor((4,), dtype="int64") = R.where(
+                    lv2, R.const([0, 1, 2, 1], dtype="int64"), lv3
                 )
-                lv4: R.Tensor((4, 1), dtype="int64") = R.expand_dims(lv3, axis=[1])
-                lv5: R.Tensor((4, 1), dtype="float32") = R.gather_elements(lv, lv4, axis=1)
-                lv6: R.Tensor((4,), dtype="float32") = R.squeeze(lv5, axis=[1])
-                lv7: R.Tensor((4,), dtype="float32") = R.negative(lv6)
-                lv8: R.Tensor((4,), dtype="bool") = R.not_equal(
+                lv5: R.Tensor((4, 1), dtype="int64") = R.expand_dims(lv4, axis=[1])
+                lv6: R.Tensor((4, 1), dtype="float32") = R.gather_elements(lv1, lv5, axis=1)
+                lv7: R.Tensor((4,), dtype="float32") = R.squeeze(lv6, axis=[1])
+                lv8: R.Tensor((4,), dtype="float32") = R.negative(lv7)
+                lv9: R.Tensor((4,), dtype="bool") = R.not_equal(
                     R.const([0, 1, 2, 1], dtype="int64"), R.const(-100, "int64")
                 )
-                lv9: R.Tensor((), dtype="float32") = R.const(0.0, "float32")
-                lv10: R.Tensor((4,), dtype="float32") = R.where(lv8, lv7, lv9)
-                lv11: R.Tensor((4,), dtype="bool") = R.not_equal(
+                lv10: R.Tensor((), dtype="float32") = R.const(0.0, "float32")
+                lv11: R.Tensor((4,), dtype="float32") = R.where(lv9, lv8, lv10)
+                lv12: R.Tensor((4,), dtype="bool") = R.not_equal(
                     R.const([0, 1, 2, 1], dtype="int64"), R.const(-100, "int64")
                 )
-                lv12: R.Tensor((4,), dtype="bool") = R.sum(lv11, axis=[], keepdims=False)
-                lv13: R.Tensor((4,), dtype="float32") = R.astype(lv12, dtype="float32")
-                lv14: R.Tensor((4,), dtype="float32") = R.sum(lv10, axis=[], keepdims=False)
-                lv15: R.Tensor((4,), dtype="float32") = R.divide(lv14, lv13)
-                gv: R.Tuple(R.Tensor((4,), dtype="float32")) = (lv15,)
+                lv13: R.Tensor((4,), dtype="bool") = R.sum(lv12, axis=[], keepdims=False)
+                lv14: R.Tensor((4,), dtype="float32") = R.astype(lv13, dtype="float32")
+                lv15: R.Tensor((4,), dtype="float32") = R.sum(lv11, axis=[], keepdims=False)
+                lv16: R.Tensor((4,), dtype="float32") = R.divide(lv15, lv14)
+                gv: R.Tuple(R.Tensor((4,), dtype="float32")) = (lv16,)
                 R.output(gv)
             return gv
 
