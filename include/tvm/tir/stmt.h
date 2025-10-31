@@ -1033,8 +1033,6 @@ namespace attr {
 constexpr const char* thread_extent = "thread_extent";
 /*! \brief Mark launching of a virtual thread. */
 constexpr const char* virtual_thread = "virtual_thread";
-/*! \brief Mark assume predicates attached by TileLang transforms. */
-constexpr const char* tilelang_assume = "tilelang_assume";
 /*! \brief Mark region is processed by a co-processor */
 constexpr const char* coproc_scope = "coproc_scope";
 /*!

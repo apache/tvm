@@ -582,38 +582,6 @@ class ConstIntBoundAnalyzer::Impl
   }
 
   /*!
-   * \brief Compute GCD of two integers.
-   * \param a The first integer.
-   * \param b The second integer.
-   * \return the result.
-   */
-  static int64_t ComputeGCD(int64_t a, int64_t b) {
-    a = std::abs(a);
-    b = std::abs(b);
-    while (b != 0) {
-      int64_t temp = b;
-      b = a % b;
-      a = temp;
-    }
-    return a;
-  }
-  /*!
-   * \brief Compute GCD of two integers.
-   * \param a The first integer.
-   * \param b The second integer.
-   * \return the result.
-   */
-  static int64_t ComputeGCD(int64_t a, int64_t b) {
-    a = std::abs(a);
-    b = std::abs(b);
-    while (b != 0) {
-      int64_t temp = b;
-      b = a % b;
-      a = temp;
-    }
-    return a;
-  }
-  /*!
    * \brief Compute x + y, aware of inf.
    * \param x The left operand.
    * \param y The right operand.
