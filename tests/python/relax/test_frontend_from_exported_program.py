@@ -6138,7 +6138,9 @@ def test_norm():
     example_args = (torch.randn(1, 3, 5, 3, dtype=torch.float32),)
 
     for (p, dim, keepdim), expected in norms:
-        verify_model(Norm(p, dim=dim, keepdim=keepdim), example_args, {}, expected, run_ep_decomposition=True)
+        verify_model(
+            Norm(p, dim=dim, keepdim=keepdim), example_args, {}, expected, run_ep_decomposition=True
+        )
 
 
 def test_eye():
