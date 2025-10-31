@@ -1018,6 +1018,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "split_with_sizes.default": self._split,
             "squeeze.default": self._squeeze,
             "squeeze.dim": self._squeeze,
+            "squeeze.dims": self._squeeze,
             "stack.default": self._stack,
             "take.default": self._take,
             "tile.default": self._tile,
@@ -1075,6 +1076,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # other
             "getitem": self._getitem,
             "item.default": self._item,
+            "_local_scalar_dense.default": self._item,
         }
 
     def create_input_vars(
