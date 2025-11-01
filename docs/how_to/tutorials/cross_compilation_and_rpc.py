@@ -277,6 +277,11 @@ def run_opencl():
 # - **x86 servers**: Remote Linux servers, cloud instances
 # - **Embedded systems**: RISC-V boards, custom hardware
 # - **Accelerators**: Remote machines with GPUs, TPUs, or other accelerators
+#
+# .. note::
+#    This example uses PyTorch for demonstration, but the workflow is identical
+#    for ONNX models. Simply replace ``from_exported_program()`` with
+#    ``from_onnx(model, keep_params_in_input=True)`` and follow the same steps.
 
 # First, let's check if PyTorch is available
 try:
@@ -546,7 +551,7 @@ if HAS_TORCH and local_demo:
 ######################################################################
 # Summary
 # -------
-# This tutorial provides a comprehensive walk through of cross compilation and RPC
+# This tutorial provides a walk through of cross compilation and RPC
 # features in TVM.
 #
 # We demonstrated two approaches:
