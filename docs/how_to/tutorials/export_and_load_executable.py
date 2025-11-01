@@ -89,9 +89,6 @@ if HAS_TORCH:
 else:  # pragma: no cover
     TorchMLP = None  # type: ignore[misc, assignment]
 
-if not RUN_EXAMPLE:
-    print("Skip model conversion because PyTorch is unavailable or we are in CI.")
-
 if RUN_EXAMPLE:
     torch_model = TorchMLP().eval()
     example_args = (torch.randn(1, 1, 28, 28, dtype=torch.float32),)
@@ -126,7 +123,7 @@ if RUN_EXAMPLE:
         built_mod = pipeline(mod)
 
     # Build without params - we'll pass them at runtime
-    executable = relax.build(built_mod, target=TARGET)
+    executable = tvm.compile(built_mod, target=TARGET)
 
     library_path = ARTIFACT_DIR / "mlp_cpu.so"
     executable.export_library(str(library_path), workspace_dir=str(ARTIFACT_DIR))
@@ -176,7 +173,10 @@ if RUN_EXAMPLE:
     # TVM returns Array objects for tuple outputs, access via indexing.
     # For models imported from PyTorch, outputs are typically tuples (even for single outputs).
     # For ONNX models, outputs may be a single Tensor directly.
-    result_tensor = tvm_output[0] if isinstance(tvm_output, (tuple, list)) else tvm_output
+    if isinstance(tvm_output, tvm.ir.Array) and len(tvm_output) > 0:
+        result_tensor = tvm_output[0]
+    else:
+        result_tensor = tvm_output
 
     print("VM output shape:", result_tensor.shape)
     print("VM output type:", type(tvm_output), "->", type(result_tensor))
@@ -209,7 +209,7 @@ if RUN_EXAMPLE:
 #
 #    mod = from_exported_program(exported_program, keep_params_as_input=False)
 #    # Parameters are now embedded as constants in the module
-#    executable = relax.build(built_mod, target=TARGET)
+#    executable = tvm.compile(built_mod, target=TARGET)
 #    # Runtime: vm["main"](input)  # No need to pass params!
 #
 # This creates a single-file deployment (only the ``.so`` is needed), but you
@@ -262,7 +262,10 @@ if RUN_EXAMPLE:
 #
 #    # Step 6: Extract result (output may be tuple or single Tensor)
 #    # PyTorch models typically return tuples, ONNX models may return a single Tensor
-#    result = output[0] if isinstance(output, (tuple, list)) else output
+#    if isinstance(tvm_output, tvm.ir.Array) and len(tvm_output) > 0:
+#        result_tensor = tvm_output[0]
+#    else:
+#        result_tensor = tvm_output
 #
 #    print("Prediction shape:", result.shape)
 #    print("Predicted class:", np.argmax(result.numpy()))
@@ -332,7 +335,7 @@ if RUN_EXAMPLE:
 #
 #    # Step 1: Cross-compile for ARM target (on local machine)
 #    TARGET = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu")
-#    executable = relax.build(built_mod, target=TARGET)
+#    executable = tvm.compile(built_mod, target=TARGET)
 #    executable.export_library("mlp_arm.so")
 #
 #    # Step 2: Connect to remote device RPC server
