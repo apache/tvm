@@ -472,7 +472,7 @@ def run_pytorch_model_via_rpc():
     output = vm["main"](remote_input, *remote_params)
 
     # Extract result (handle both tuple and single tensor outputs)
-    if hasattr(output, "__len__") and len(output) > 0:
+    if isinstance(output, tvm.ir.Array) and len(output) > 0:
         result = output[0]
     else:
         result = output

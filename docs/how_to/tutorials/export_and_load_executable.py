@@ -176,7 +176,10 @@ if RUN_EXAMPLE:
     # TVM returns Array objects for tuple outputs, access via indexing.
     # For models imported from PyTorch, outputs are typically tuples (even for single outputs).
     # For ONNX models, outputs may be a single Tensor directly.
-    result_tensor = tvm_output[0] if isinstance(tvm_output, (tuple, list)) else tvm_output
+    if isinstance(tvm_output, tvm.runtime.Array) and len(tvm_output) > 0:
+        result_tensor = tvm_output[0]
+    else:
+        result_tensor = tvm_output
 
     print("VM output shape:", result_tensor.shape)
     print("VM output type:", type(tvm_output), "->", type(result_tensor))
@@ -262,7 +265,10 @@ if RUN_EXAMPLE:
 #
 #    # Step 6: Extract result (output may be tuple or single Tensor)
 #    # PyTorch models typically return tuples, ONNX models may return a single Tensor
-#    result = output[0] if isinstance(output, (tuple, list)) else output
+#    if isinstance(output, tvm.runtime.Array) and len(output) > 0:
+#        result = output[0]
+#    else:
+#        result = output
 #
 #    print("Prediction shape:", result.shape)
 #    print("Predicted class:", np.argmax(result.numpy()))
