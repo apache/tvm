@@ -173,7 +173,7 @@ if RUN_EXAMPLE:
     # TVM returns Array objects for tuple outputs, access via indexing.
     # For models imported from PyTorch, outputs are typically tuples (even for single outputs).
     # For ONNX models, outputs may be a single Tensor directly.
-    if hasattr(tvm_output, "__len__") and len(tvm_output) > 0:
+    if isinstance(tvm_output, tvm.ir.Array) and len(tvm_output) > 0:
         result_tensor = tvm_output[0]
     else:
         result_tensor = tvm_output
@@ -262,7 +262,7 @@ if RUN_EXAMPLE:
 #
 #    # Step 6: Extract result (output may be tuple or single Tensor)
 #    # PyTorch models typically return tuples, ONNX models may return a single Tensor
-#    if hasattr(tvm_output, "__len__") and len(tvm_output) > 0:
+#    if isinstance(tvm_output, tvm.ir.Array) and len(tvm_output) > 0:
 #        result_tensor = tvm_output[0]
 #    else:
 #        result_tensor = tvm_output
