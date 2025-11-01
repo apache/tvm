@@ -291,7 +291,6 @@ try:
     HAS_TORCH = True
 except ImportError:
     HAS_TORCH = False
-    print("PyTorch not available, skipping Relax example")
 
 
 def run_pytorch_model_via_rpc():
@@ -544,8 +543,8 @@ def run_pytorch_model_via_rpc():
 if HAS_TORCH and local_demo:
     try:
         run_pytorch_model_via_rpc()
-    except Exception as e:
-        print(f"Note: PyTorch RPC example skipped due to: {e}")
+    except Exception:
+        pass  # Silently skip if execution fails
 
 
 ######################################################################

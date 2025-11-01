@@ -89,9 +89,6 @@ if HAS_TORCH:
 else:  # pragma: no cover
     TorchMLP = None  # type: ignore[misc, assignment]
 
-if not RUN_EXAMPLE:
-    print("Skip model conversion because PyTorch is unavailable or we are in CI.")
-
 if RUN_EXAMPLE:
     torch_model = TorchMLP().eval()
     example_args = (torch.randn(1, 1, 28, 28, dtype=torch.float32),)
