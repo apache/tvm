@@ -5537,12 +5537,15 @@ def test_index_put():
             data: R.Tensor((64,), dtype="float32"),
             indices_0: R.Tensor((128,), dtype="int64"),
             values: R.Tensor((128,), dtype="float32"),
-        ) -> R.Tuple(R.Tensor((64,), dtype="float32")):
+        ) -> R.Tuple(R.Tensor((64,), dtype="float32"), R.Tensor((64,), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((64,), dtype="float32") = R.index_put(
                     data, R.tuple(indices_0), values, accumulate=False
                 )
-                gv: R.Tuple(R.Tensor((64,), dtype="float32")) = (lv,)
+                gv: R.Tuple(R.Tensor((64,), dtype="float32"), R.Tensor((64,), dtype="float32")) = (
+                    lv,
+                    lv,
+                )
                 R.output(gv)
             return gv
 
@@ -5567,12 +5570,14 @@ def test_index_put():
             indices_0: R.Tensor((128,), dtype="int64"),
             indices_1: R.Tensor((128,), dtype="int64"),
             values: R.Tensor((128,), dtype="float32"),
-        ) -> R.Tuple(R.Tensor((32, 64), dtype="float32")):
+        ) -> R.Tuple(R.Tensor((32, 64), dtype="float32"), R.Tensor((32, 64), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((32, 64), dtype="float32") = R.index_put(
                     data, R.tuple(indices_0, indices_1), values, accumulate=False
                 )
-                gv: R.Tuple(R.Tensor((32, 64), dtype="float32")) = (lv,)
+                gv: R.Tuple(
+                    R.Tensor((32, 64), dtype="float32"), R.Tensor((32, 64), dtype="float32")
+                ) = (lv, lv)
                 R.output(gv)
             return gv
 
@@ -5599,12 +5604,16 @@ def test_index_put():
             indices_1: R.Tensor((128,), dtype="int64"),
             indices_2: R.Tensor((128,), dtype="int64"),
             values: R.Tensor((128,), dtype="float32"),
-        ) -> R.Tuple(R.Tensor((16, 32, 64), dtype="float32")):
+        ) -> R.Tuple(
+            R.Tensor((16, 32, 64), dtype="float32"), R.Tensor((16, 32, 64), dtype="float32")
+        ):
             with R.dataflow():
                 lv: R.Tensor((16, 32, 64), dtype="float32") = R.index_put(
                     data, R.tuple(indices_0, indices_1, indices_2), values, accumulate=False
                 )
-                gv: R.Tuple(R.Tensor((16, 32, 64), dtype="float32")) = (lv,)
+                gv: R.Tuple(
+                    R.Tensor((16, 32, 64), dtype="float32"), R.Tensor((16, 32, 64), dtype="float32")
+                ) = (lv, lv)
                 R.output(gv)
             return gv
 
@@ -5633,7 +5642,10 @@ def test_index_put():
             indices_2: R.Tensor((128,), dtype="int64"),
             indices_3: R.Tensor((128,), dtype="int64"),
             values: R.Tensor((128,), dtype="float32"),
-        ) -> R.Tuple(R.Tensor((8, 16, 32, 64), dtype="float32")):
+        ) -> R.Tuple(
+            R.Tensor((8, 16, 32, 64), dtype="float32"),
+            R.Tensor((8, 16, 32, 64), dtype="float32"),
+        ):
             with R.dataflow():
                 lv: R.Tensor((8, 16, 32, 64), dtype="float32") = R.index_put(
                     data,
@@ -5641,7 +5653,10 @@ def test_index_put():
                     values,
                     accumulate=False,
                 )
-                gv: R.Tuple(R.Tensor((8, 16, 32, 64), dtype="float32")) = (lv,)
+                gv: R.Tuple(
+                    R.Tensor((8, 16, 32, 64), dtype="float32"),
+                    R.Tensor((8, 16, 32, 64), dtype="float32"),
+                ) = (lv, lv)
                 R.output(gv)
             return gv
 
@@ -5672,7 +5687,10 @@ def test_index_put():
             indices_3: R.Tensor((128,), dtype="int64"),
             indices_4: R.Tensor((128,), dtype="int64"),
             values: R.Tensor((128,), dtype="float32"),
-        ) -> R.Tuple(R.Tensor((4, 8, 16, 32, 64), dtype="float32")):
+        ) -> R.Tuple(
+            R.Tensor((4, 8, 16, 32, 64), dtype="float32"),
+            R.Tensor((4, 8, 16, 32, 64), dtype="float32"),
+        ):
             with R.dataflow():
                 lv: R.Tensor((4, 8, 16, 32, 64), dtype="float32") = R.index_put(
                     data,
@@ -5680,7 +5698,10 @@ def test_index_put():
                     values,
                     accumulate=False,
                 )
-                gv: R.Tuple(R.Tensor((4, 8, 16, 32, 64), dtype="float32")) = (lv,)
+                gv: R.Tuple(
+                    R.Tensor((4, 8, 16, 32, 64), dtype="float32"),
+                    R.Tensor((4, 8, 16, 32, 64), dtype="float32"),
+                ) = (lv, lv)
                 R.output(gv)
             return gv
 

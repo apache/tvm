@@ -1042,7 +1042,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "contiguous.default": lambda node: self.env[node.args[0]],  # no-op
             "clone.default": lambda node: self.env[node.args[0]],
             "bernoulli.p": lambda node: self.env[node.args[0]],  # Dropout: just return input
-            "_assert_tensor_metadata.default": lambda node: self.env[node.args[0]],  # metadata assertion: no-op
+            "_assert_tensor_metadata.default": lambda node: self.env[
+                node.args[0]
+            ],  # metadata assertion: no-op
             "empty.memory_format": self._empty,
             "empty_permuted.default": self._empty,  # Similar to empty with permuted layout
             "empty_like.default": self._empty_like,
