@@ -340,6 +340,8 @@ class BinaryBase(OnnxOpConverter):
             x = _to_numpy(inputs[0])
             y = _to_numpy(inputs[1])
             output = cls.numpy_op(x, y)  # pylint: disable=not-callable
+            if isinstance(x, relax.PrimValue) and isinstance(y, relax.PrimValue):
+                return relax.PrimValue(output.item())
             if x.dtype == y.dtype:
                 # no numpy precision widening
                 output = output.astype(x.dtype)
