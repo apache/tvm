@@ -277,6 +277,8 @@ Buffer AllocBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::Optional<Var
     frame.value()->alloc_buffers.push_back(buffer);
   } else if (ffi::Optional<PrimFuncFrame> frame = builder->GetLastFrame<PrimFuncFrame>()) {
     frame.value()->root_alloc_buffers.push_back(buffer);
+  } else if (ffi::Optional<PrimFuncFrame> frame = builder->FindFrame<PrimFuncFrame>()) {
+    frame.value()->root_alloc_buffers.push_back(buffer);
   } else {
     LOG(FATAL) << "ValueError: Block frame or PrimFunc frame not find. Please ensure "
                   "'T.alloc_buffer' is called under T.block() or T.prim_func()";
