@@ -1396,7 +1396,18 @@ export class Instance implements Disposable {
           });
           const recSource = buffer.slice(rec.byteOffset, rec.byteOffset + rec.nbytes);
           // first sync copy to cpu.
-          this.ctx.arrayDecodeStorage(cpu_arr, new Uint8Array(recSource), rec.format, rec.dtype);
+          this.withNewScope(() => {
+            const retValue = this.ctx.arrayDecodeStorage(
+              cpu_arr, new Uint8Array(recSource), rec.format, rec.dtype
+            );
+            if (retValue !== null && retValue instanceof TVMObject) {
+              try {
+                this.detachFromCurrentScope(retValue as any);
+              } catch {
+                // ignore
+              }
+            }
+          });
           // then async stream into GPU if needed
           if (device.deviceType === DeviceStrToEnum.cpu) {
             this.tensorCacheUpdate(rec.name, cpu_arr, false);
