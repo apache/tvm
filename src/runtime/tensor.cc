@@ -97,8 +97,8 @@ void Tensor::CopyToBytes(const DLTensor* handle, void* data, size_t nbytes,
   DeviceAPI::Get(handle->device)->StreamSync(handle->device, stream);
 }
 
-void NDArray::CopyFromBytes(const DLTensor* handle, void* data, size_t nbytes,
-                            TVMStreamHandle stream) {
+void Tensor::CopyFromBytes(const DLTensor* handle, void* data, size_t nbytes,
+                           TVMStreamHandle stream) {
   size_t arr_size = GetDataSize(*handle);
   ICHECK_EQ(arr_size, nbytes) << "ArrayCopyToBytes: size mismatch";
   ICHECK(ffi::IsContiguous(*handle)) << "ArrayCopyToBytes only support contiguous array for now";
@@ -117,8 +117,8 @@ void NDArray::CopyFromBytes(const DLTensor* handle, void* data, size_t nbytes,
   DeviceAPI::Get(handle->device)->StreamSync(handle->device, stream);
 }
 
-NDArray NDArray::Empty(ffi::Shape shape, DLDataType dtype, Device dev,
-                       ffi::Optional<ffi::String> mem_scope) {
+Tensor Tensor::Empty(ffi::Shape shape, DLDataType dtype, Device dev,
+                     ffi::Optional<ffi::String> mem_scope) {
   struct DeviceAPIAlloc {
     void AllocData(DLTensor* tensor, ffi::Optional<ffi::String> mem_scope) {
       tensor->data = DeviceAPI::Get(tensor->device)

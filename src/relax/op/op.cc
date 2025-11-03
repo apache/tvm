@@ -1506,12 +1506,11 @@ TVM_REGISTER_OP("relax.hint_on_device")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferHintOnDeviceStructInfo)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeHintOnDevice(Expr data, Device device, String memory_scope = "global") {
+Expr MakeHintOnDevice(Expr data, Device device, ffi::String memory_scope = "global") {
   static const Op& op = Op::Get("relax.hint_on_device");
   ObjectPtr<HintOnDeviceAttrs> attrs = ffi::make_object<HintOnDeviceAttrs>();
   attrs->device_type = static_cast<int32_t>(device.device_type);
   attrs->index = device.device_id;
-  attrs->memory_scope = vdevice->memory_scope;
   attrs->memory_scope = memory_scope;
   return Call(op, {data}, Attrs(attrs), {});
 }
@@ -1520,7 +1519,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("relax.op.hint_on_device", [](ffi::PackedArgs args, ffi::Any* ret) {
     if (args.size() == 3) {
-      *ret = MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>(), args[2].cast<String>());
+      *ret = MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>(), args[2].cast<ffi::String>());
     } else {
       *ret = MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>());
     }

@@ -40,7 +40,7 @@ namespace relax {
 
 using tvm::tir::Buffer;
 
-static Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tensor_sinfo) {
+static ffi::Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tensor_sinfo) {
   auto shape = tensor_sinfo->GetShape();
   ICHECK(shape.defined());
   return shape.value();
@@ -81,7 +81,7 @@ class SpecializeTIRCallArgs : ExprMutator {
     auto gv = Downcast<GlobalVar>(call->args[0]);
     auto pfunc = Downcast<tir::PrimFunc>(mod_->Lookup(gv));
     auto args = Downcast<Tuple>(call->args[1])->fields;
-    Map<tir::Var, Variant<Buffer, PrimExpr>> param_map;
+    ffi::Map<tir::Var, ffi::Variant<Buffer, PrimExpr>> param_map;
 
     for (size_t i = 0; i < args.size(); ++i) {
       auto sinfo = GetStructInfo(args[i]);
@@ -89,11 +89,11 @@ class SpecializeTIRCallArgs : ExprMutator {
           << "Expected Tensor struct Info for call :" << call->op;
       auto tensor_sinfo = Downcast<TensorStructInfo>(sinfo);
       CHECK(tensor_sinfo->shape.defined()) << "Shape undefined for call:" << call->args[0];
-      String scope = "global";
+      ffi::String scope = "global";
       if (tensor_sinfo->vdevice.defined()) {
         scope = tensor_sinfo->vdevice.value()->memory_scope;
       }
-      String name;
+      ffi::String name;
       if (args[i]->IsInstance<relax::VarNode>()) {
         name = Downcast<Var>(args[i])->name_hint();
       } else {
@@ -104,7 +104,7 @@ class SpecializeTIRCallArgs : ExprMutator {
                                               tensor_sinfo->dtype, name, scope);
       param_map.Set(pfunc->params[i], buffer);
     }
-    String scope = "global";
+    ffi::String scope = "global";
     auto out_sinfo = call->sinfo_args[0];
     if (out_sinfo->IsInstance<TensorStructInfoNode>()) {
       auto sinfo = Downcast<TensorStructInfo>(out_sinfo);
@@ -121,7 +121,7 @@ class SpecializeTIRCallArgs : ExprMutator {
           << out_sinfo;
 
       const auto& tuple_sinfo = Downcast<TupleStructInfo>(out_sinfo);
-      Array<StructInfo> sinfo_fields;
+      ffi::Array<StructInfo> sinfo_fields;
       int index = 0;
       for (const auto& si : tuple_sinfo->fields) {
         ICHECK(si->IsInstance<TensorStructInfoNode>())
@@ -164,11 +164,11 @@ Pass SpecializePrimFuncBasedOnCallSite() {
                           /*required=*/{});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.SpecializePrimFuncBasedOnCallSite",
                         SpecializePrimFuncBasedOnCallSite);
-});
+}
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

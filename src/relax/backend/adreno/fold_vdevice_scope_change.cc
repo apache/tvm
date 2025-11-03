@@ -44,15 +44,15 @@ namespace backend {
 namespace adreno {
 
 namespace {
-std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns(
-    Map<Expr, Array<Expr>> consumers) {
+std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>> CreatePatterns(
+    ffi::Map<Expr, ffi::Array<Expr>> consumers) {
   auto pat_gv = WildcardPattern();
 
   auto pat_inp = WildcardPattern();
   auto pat_call_tir = IsOp("relax.call_tir")(pat_gv, pat_inp);
   auto pattern_out = IsOp("relax.to_vdevice")(pat_call_tir);
 
-  auto rewriter = [=](Expr expr, Map<DFPattern, Expr> matches) -> Expr {
+  auto rewriter = [=](Expr expr, ffi::Map<DFPattern, Expr> matches) -> Expr {
     const auto* call_tir = matches[pat_call_tir].as<CallNode>();
     ICHECK(call_tir) << "InternalError: "
                      << "Match of relax.call_tir operator should produce Call, "
@@ -76,8 +76,8 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> Crea
     if (!tir_out_sinfo->vdevice.defined()) return expr;
 
     const VarNode* arg_var = out->args[0].as<VarNode>();
-    if (consumers.find(GetRef<Expr>(arg_var)) != consumers.end()) {
-      if (consumers[GetRef<Expr>(arg_var)].size() > 1) {
+    if (consumers.find(ffi::GetRef<Expr>(arg_var)) != consumers.end()) {
+      if (consumers[ffi::GetRef<Expr>(arg_var)].size() > 1) {
         /* Don't do to_device optimization as we are not the only consumer */
         return expr;
       }
@@ -104,7 +104,7 @@ class CollectConsumerDetails : public ExprVisitor {
  public:
   using ExprVisitor::VisitExpr_;
 
-  Map<Expr, Array<Expr>> Collect(const IRModule& mod, Function func, const Target& target) {
+  ffi::Map<Expr, ffi::Array<Expr>> Collect(const IRModule& mod, Function func, const Target& target) {
     mod_ = mod;
     target_ = target;
     VisitExpr(func->body);
@@ -127,9 +127,9 @@ class CollectConsumerDetails : public ExprVisitor {
 
   void VisitBinding_(const VarBindingNode* binding,
                      const TupleGetItemNode* tuple_get_item_node) final {
-    if (arg_to_binding.find(GetRef<Expr>(binding->var.get())) == arg_to_binding.end()) {
-      arg_to_binding.Set(GetRef<Expr>(binding->var.get()),
-                         GetRef<Expr>(tuple_get_item_node->tuple.get()));
+    if (arg_to_binding.find(ffi::GetRef<Expr>(binding->var.get())) == arg_to_binding.end()) {
+      arg_to_binding.Set(ffi::GetRef<Expr>(binding->var.get()),
+                         ffi::GetRef<Expr>(tuple_get_item_node->tuple.get()));
     }
   }
 
@@ -146,23 +146,23 @@ class CollectConsumerDetails : public ExprVisitor {
     for (auto arg : func_args->fields) {
       auto sinfo = GetStructInfo(arg);
       if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
-        Array<Expr> call_list;
+        ffi::Array<Expr> call_list;
 
         const VarNode* arg_var = arg.as<VarNode>();
 
-        if (consumers.find(GetRef<Expr>(arg_var)) != consumers.end()) {
-          call_list = consumers[GetRef<Expr>(arg_var)];
+        if (consumers.find(ffi::GetRef<Expr>(arg_var)) != consumers.end()) {
+          call_list = consumers[ffi::GetRef<Expr>(arg_var)];
         }
-        call_list.push_back(GetRef<Expr>(call));
-        consumers.Set(GetRef<Expr>(arg_var), call_list);
+        call_list.push_back(ffi::GetRef<Expr>(call));
+        consumers.Set(ffi::GetRef<Expr>(arg_var), call_list);
       }
     }
   }
 
  private:
   /* Map of each Var consumption by a call node */
-  Map<Expr, Array<Expr>> consumers;
-  Map<Expr, Expr> arg_to_binding;
+  ffi::Map<Expr, ffi::Array<Expr>> consumers;
+  ffi::Map<Expr, Expr> arg_to_binding;
   IRModule mod_;
   Target target_;
 };
@@ -179,11 +179,12 @@ Pass FoldVDeviceScopeChange() {
   };
   return CreateFunctionPass(pass_func, 1, "FoldVDeviceScopeChange", {});
 }
-TVM_FFI_STATIC_INIT_BLOCK({
+
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.backend.adreno.transform.FoldVDeviceScopeChange",
                         FoldVDeviceScopeChange);
-});
+}
 }  // namespace transform
 }  // namespace adreno
 }  // namespace backend

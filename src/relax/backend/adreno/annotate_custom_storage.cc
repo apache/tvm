@@ -258,7 +258,7 @@ namespace adreno {
 
 using tvm::tir::Buffer;
 
-static Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tensor_sinfo) {
+static ffi::Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tensor_sinfo) {
   auto shape = tensor_sinfo->GetShape();
   ICHECK(shape.defined());
   return shape.value();
@@ -274,7 +274,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
  public:
   using ExprVisitor::VisitExpr_;
 
-  std::pair<Map<Expr, Array<String>>, Map<Expr, Map<Expr, Array<String>>>> Collect(
+  std::pair<ffi::Map<Expr, ffi::Array<ffi::String>>, ffi::Map<Expr, ffi::Map<Expr, ffi::Array<ffi::String>>>> Collect(
       const IRModule& mod, Function func, const Target& target) {
     mod_ = mod;
     target_ = target;
@@ -299,17 +299,17 @@ class CollectConsumerScopeInfo : public ExprVisitor {
 
   void VisitBinding_(const VarBindingNode* binding,
                      const TupleGetItemNode* tuple_get_item_node) final {
-    if (arg_to_binding.find(GetRef<Expr>(binding->var.get())) == arg_to_binding.end()) {
-      arg_to_binding.Set(GetRef<Expr>(binding->var.get()),
-                         GetRef<Expr>(tuple_get_item_node->tuple.get()));
+    if (arg_to_binding.find(ffi::GetRef<Expr>(binding->var.get())) == arg_to_binding.end()) {
+      arg_to_binding.Set(ffi::GetRef<Expr>(binding->var.get()),
+                         ffi::GetRef<Expr>(tuple_get_item_node->tuple.get()));
     }
   }
 
   void VisitExpr_(const CallNode* call) final {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     GlobalVar gv;
-    Array<Attrs> op_attrs;
-    Optional<Integer> op_pattern = Integer(static_cast<int>(OpPatternKind::kOpaque));
+    ffi::Array<Attrs> op_attrs;
+    ffi::Optional<Integer> op_pattern = Integer(static_cast<int>(OpPatternKind::kOpaque));
     Tuple func_args;
 
     if (call->op == call_tir_op) {
@@ -326,35 +326,35 @@ class CollectConsumerScopeInfo : public ExprVisitor {
 
     bool is_texture_supported = SupportsTexture(op_attrs, op_pattern.value());
 
-    Array<String> arg_scope;
+    ffi::Array<ffi::String> arg_scope;
     for (auto arg : func_args->fields) {
       auto sinfo = GetStructInfo(arg);
       if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
         auto scope = is_texture_supported
                          ? Scope(GetShapeFromTensorStructInfo(tensor_sinfo.value()))
                          : "global";
-        Map<Expr, Array<String>> ent_call;
+        ffi::Map<Expr, ffi::Array<ffi::String>> ent_call;
         const VarNode* arg_var = arg.as<VarNode>();
-        if (scope_info.find(GetRef<Expr>(arg_var)) != scope_info.end()) {
-          ent_call = scope_info[GetRef<Expr>(arg_var)];
+        if (scope_info.find(ffi::GetRef<Expr>(arg_var)) != scope_info.end()) {
+          ent_call = scope_info[ffi::GetRef<Expr>(arg_var)];
         }
-        ent_call.Set(GetRef<Expr>(call), {scope});
-        scope_info.Set(GetRef<Expr>(arg_var), ent_call);
+        ent_call.Set(ffi::GetRef<Expr>(call), {scope});
+        scope_info.Set(ffi::GetRef<Expr>(arg_var), ent_call);
         arg_scope.push_back(scope);
       }
     }
-    call_scope_info.Set(GetRef<Expr>(call), arg_scope);
+    call_scope_info.Set(ffi::GetRef<Expr>(call), arg_scope);
   }
 
  private:
   template <typename T>
-  Array<Attrs> ExtractAttrs(const T& func) {
-    Array<Attrs> op_attrs;
-    Optional<ObjectRef> attrs = func->template GetAttr<ObjectRef>("op_attrs");
+  ffi::Array<Attrs> ExtractAttrs(const T& func) {
+    ffi::Array<Attrs> op_attrs;
+    ffi::Optional<ObjectRef> attrs = func->template GetAttr<ObjectRef>("op_attrs");
     if (attrs) {
       if (auto val = attrs.value().as<Attrs>()) {
         op_attrs.push_back(val.value());
-      } else if (auto val = attrs.value().as<Array<Attrs>>()) {
+      } else if (auto val = attrs.value().as<ffi::Array<Attrs>>()) {
         op_attrs = val.value();
       }
     }
@@ -362,12 +362,12 @@ class CollectConsumerScopeInfo : public ExprVisitor {
   }
 
   template <typename T>
-  Optional<Integer> ExtractPattern(const T& func) {
-    Optional<Integer> op_pat = func->template GetAttr<Integer>("op_pattern");
+  ffi::Optional<Integer> ExtractPattern(const T& func) {
+    ffi::Optional<Integer> op_pat = func->template GetAttr<Integer>("op_pattern");
     return op_pat;
   }
 
-  bool SupportsTexture(const Array<Attrs>& op_attrs, Integer op_pattern) {
+  bool SupportsTexture(const ffi::Array<Attrs>& op_attrs, Integer op_pattern) {
     if (op_pattern.IntValue() < OpPatternKind::kCommReduce) return true;
 
     for (auto attr : op_attrs) {
@@ -391,7 +391,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
     return false;
   }
 
-  std::string Scope(Array<PrimExpr> shape) {
+  std::string Scope(ffi::Array<PrimExpr> shape) {
     // currently we support only textures been made from 5d tensors
     // 5d requirement is not limitation of textures in general, it is limitation how
     // we are representing memory scopes/layout and flattening of textures in tir
@@ -428,10 +428,10 @@ class CollectConsumerScopeInfo : public ExprVisitor {
   }
 
   /* Map of each Var consumption by a call node and its scope */
-  Map<Expr, Map<Expr, Array<String>>> scope_info;
+  ffi::Map<Expr, ffi::Map<Expr, ffi::Array<ffi::String>>> scope_info;
   /* A map of call node and scope info for each argument it consunes */
-  Map<Expr, Array<String>> call_scope_info;
-  Map<Expr, Expr> arg_to_binding;
+  ffi::Map<Expr, ffi::Array<ffi::String>> call_scope_info;
+  ffi::Map<Expr, Expr> arg_to_binding;
   IRModule mod_;
   Target target_;
 };
@@ -446,8 +446,8 @@ class CollectProducerScopeInfo : public ExprVisitor {
  public:
   using ExprVisitor::VisitExpr_;
 
-  Map<Expr, StructInfo> Collect(const IRModule& mod, Function func,
-                                const Map<Expr, Map<Expr, Array<String>>>& scope_info,
+  ffi::Map<Expr, StructInfo> Collect(const IRModule& mod, Function func,
+                                const ffi::Map<Expr, ffi::Map<Expr, ffi::Array<ffi::String>>>& scope_info,
                                 const Target& target, const BlockBuilder& builder) {
     mod_ = mod;
     scope_info_ = scope_info;
@@ -471,18 +471,18 @@ class CollectProducerScopeInfo : public ExprVisitor {
           Op::GetAttrMap<FInferStructInfo>("FInferStructInfo");
 
       auto* op_ptr = call->op.as<OpNode>();
-      Op op = GetRef<Op>(op_ptr);
+      Op op = ffi::GetRef<Op>(op_ptr);
       ICHECK(op_map_infer_struct_info_.count(op))
           << " Cannot find the FInferStructInfo attribute registered to op: " << op->name;
-      out_sinfo = op_map_infer_struct_info_[op](GetRef<Call>(call), builder_);
+      out_sinfo = op_map_infer_struct_info_[op](ffi::GetRef<Call>(call), builder_);
     }
 
-    std::unordered_map<String, int> scope_count;
+    std::unordered_map<ffi::String, int> scope_count;
 
     // Decide the final scope based on the max consumer demand. Rest will use to_device.
     auto arg_var = binding->var.as<VarNode>();
-    if (scope_info_.find(GetRef<Expr>(arg_var)) != scope_info_.end()) {
-      for (const auto& val : scope_info_[GetRef<Expr>(arg_var)]) {
+    if (scope_info_.find(ffi::GetRef<Expr>(arg_var)) != scope_info_.end()) {
+      for (const auto& val : scope_info_[ffi::GetRef<Expr>(arg_var)]) {
         auto call_node = Downcast<Call>(val.first);
         if (scope_count.find(val.second[0]) == scope_count.end()) {
           scope_count.insert({val.second[0], 1});
@@ -492,7 +492,7 @@ class CollectProducerScopeInfo : public ExprVisitor {
         }
       }
     }
-    String final_scope = "global";
+    ffi::String final_scope = "global";
     int count = 0;
     for (const auto& sval : scope_count) {
       if (sval.second > count) {
@@ -502,11 +502,11 @@ class CollectProducerScopeInfo : public ExprVisitor {
     }
     // Applying same scope for outputs
     StructInfo updated_ret_sinfo = UpdateStructInfo(out_sinfo, {final_scope});
-    producer_sinfo.Set(GetRef<Expr>(call), updated_ret_sinfo);
+    producer_sinfo.Set(ffi::GetRef<Expr>(call), updated_ret_sinfo);
   }
 
  private:
-  StructInfo UpdateStructInfo(const StructInfo& out_sinfo, Array<String> scope) {
+  StructInfo UpdateStructInfo(const StructInfo& out_sinfo, ffi::Array<ffi::String> scope) {
     if (out_sinfo->IsInstance<TensorStructInfoNode>()) {
       auto tensor_sinfo = Downcast<TensorStructInfo>(out_sinfo);
       auto shape_arr = GetShapeFromTensorStructInfo(tensor_sinfo);
@@ -520,7 +520,7 @@ class CollectProducerScopeInfo : public ExprVisitor {
         << out_sinfo;
 
     const auto& tuple_sinfo = Downcast<TupleStructInfo>(out_sinfo);
-    Array<StructInfo> sinfo_fields;
+    ffi::Array<StructInfo> sinfo_fields;
     for (const auto& si : tuple_sinfo->fields) {
       ICHECK(si->IsInstance<TensorStructInfoNode>())
           << "Fields of TupleStructInfo must be TensorStructInfo for call_tir "
@@ -534,8 +534,8 @@ class CollectProducerScopeInfo : public ExprVisitor {
     return TupleStructInfo(sinfo_fields);
   }
 
-  Map<Expr, Map<Expr, Array<String>>> scope_info_;
-  Map<Expr, StructInfo> producer_sinfo;
+  ffi::Map<Expr, ffi::Map<Expr, ffi::Array<ffi::String>>> scope_info_;
+  ffi::Map<Expr, StructInfo> producer_sinfo;
   IRModule mod_;
   Target target_;
   BlockBuilder builder_;
@@ -572,7 +572,7 @@ class DefineVDevice : ExprMutator {
     }
     mod_.CopyOnWrite()->Update(updates_);
 
-    Array<GlobalInfo> global_vdevices_;
+    ffi::Array<GlobalInfo> global_vdevices_;
     for (auto vdev : vdevices_) {
       global_vdevices_.push_back(vdev.as<GlobalInfo>().value());
     }
@@ -606,8 +606,8 @@ class DefineVDevice : ExprMutator {
       // return call;
     }
 
-    Array<Expr> new_args;
-    StructInfo updated_ret_sinfo = producer_sinfo_[GetRef<Expr>(call_node)];
+    ffi::Array<Expr> new_args;
+    StructInfo updated_ret_sinfo = producer_sinfo_[ffi::GetRef<Expr>(call_node)];
 
     if (updated_ret_sinfo->IsInstance<TensorStructInfoNode>()) {
       auto tensor_sinfo = Downcast<TensorStructInfo>(updated_ret_sinfo);
@@ -625,7 +625,7 @@ class DefineVDevice : ExprMutator {
           << updated_ret_sinfo;
 
       const auto& tuple_sinfo = Downcast<TupleStructInfo>(updated_ret_sinfo);
-      Array<StructInfo> sinfo_fields;
+      ffi::Array<StructInfo> sinfo_fields;
       for (const auto& si : tuple_sinfo->fields) {
         ICHECK(si->IsInstance<TensorStructInfoNode>())
             << "Fields of TupleStructInfo must be TensorStructInfo for call_tir "
@@ -652,9 +652,9 @@ class DefineVDevice : ExprMutator {
     for (auto arg : func_args->fields) {
       auto sinfo = GetStructInfo(arg);
       if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
-        String scope = "global";
-        if (call_scope_info_.find(GetRef<Expr>(call_node)) != call_scope_info_.end()) {
-          scope = call_scope_info_[GetRef<Expr>(call_node)][arg_idx];
+        ffi::String scope = "global";
+        if (call_scope_info_.find(ffi::GetRef<Expr>(call_node)) != call_scope_info_.end()) {
+          scope = call_scope_info_[ffi::GetRef<Expr>(call_node)][arg_idx];
         }
         new_args.push_back(HintArg(arg, scope));
         arg_idx++;
@@ -685,7 +685,7 @@ class DefineVDevice : ExprMutator {
     return (vdevices_.back());
   }
 
-  Expr HintArg(const Expr& arg, String scope) {
+  Expr HintArg(const Expr& arg, ffi::String scope) {
     if (arg->IsInstance<ConstantNode>()) {
       if (auto tsinfo = arg->struct_info_.as<TensorStructInfoNode>()) {
         if (!tsinfo->vdevice.defined()) {
@@ -697,10 +697,10 @@ class DefineVDevice : ExprMutator {
         }
       }
     }
-    ObjectPtr<HintOnDeviceAttrs> attrs = make_object<HintOnDeviceAttrs>();
+    ObjectPtr<HintOnDeviceAttrs> attrs = ffi::make_object<HintOnDeviceAttrs>();
     const VDevice& vdev = MakeGlobalVDevice(VDevice(target_, 0, scope));
-    attrs->dev_type = vdev->target->GetTargetDeviceType();
-    attrs->dev_id = vdev->vdevice_id;
+    attrs->device_type = vdev->target->GetTargetDeviceType();
+    attrs->index = vdev->vdevice_id;
     attrs->memory_scope = vdev->memory_scope;
 
     Expr new_arg = Call(hint_on_device_op_, {arg}, Attrs{std::move(attrs)}, {});
@@ -708,7 +708,7 @@ class DefineVDevice : ExprMutator {
     return new_arg;
   }
 
-  Optional<Target> GetTarget(const StructInfo& sinfo) {
+  ffi::Optional<Target> GetTarget(const StructInfo& sinfo) {
     auto tinfo = sinfo.as<TensorStructInfoNode>();
     if (tinfo->vdevice.defined()) {
       auto vdevice = tinfo->vdevice.value();
@@ -723,10 +723,10 @@ class DefineVDevice : ExprMutator {
   IRModule mod_;
   IRModule updates_;
   Target target_;
-  Array<VDevice> vdevices_;
-  Map<Expr, Map<Expr, Array<String>>> scope_info_;
-  Map<Expr, StructInfo> producer_sinfo_;
-  Map<Expr, Array<String>> call_scope_info_;
+  ffi::Array<VDevice> vdevices_;
+  ffi::Map<Expr, ffi::Map<Expr, ffi::Array<ffi::String>>> scope_info_;
+  ffi::Map<Expr, StructInfo> producer_sinfo_;
+  ffi::Map<Expr, ffi::Array<ffi::String>> call_scope_info_;
 };
 
 namespace transform {
@@ -741,11 +741,11 @@ Pass AnnotateCustomMemoryScope(Target target) {
                           /*required=*/{});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.backend.adreno.transform.AnnotateCustomMemoryScope",
                         AnnotateCustomMemoryScope);
-});
+}
 }  // namespace transform
 }  // namespace adreno
 }  // namespace backend

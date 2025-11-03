@@ -361,8 +361,8 @@ InferLayoutOutput InferLayoutConcat(
             << call->op
             << " expects the input to be a Tuple of Tensors. However, the given input is "
             << call->args[0]->struct_info_;
-        auto t_sinfo = GetRef<TensorStructInfo>(field_tensor_sinfo);
-        Optional<ShapeExpr> t_shape = GetRef<ShapeExpr>(t_sinfo->shape.as<ShapeExprNode>());
+        auto t_sinfo = ffi::GetRef<TensorStructInfo>(field_tensor_sinfo);
+        ffi::Optional<ShapeExpr> t_shape = ffi::GetRef<ShapeExpr>(t_sinfo->shape.as<ShapeExprNode>());
         LayoutDecision curr_layout = nlayout_array[i].LeafValue();
         if (!CanProveLayoutTransform(curr_layout->layout, in_layout->layout,
                                      t_shape.value()->values)) {

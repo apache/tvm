@@ -102,6 +102,7 @@ def verify(mod, expected):
     print(mod)
     ValidateScope(expected).visit(mod)
 
+
 def test_conv2d_conv2d_fallback_to_buffer_conv2d():
     """
         layout_transform (NCHW->NCHW4c)
@@ -157,6 +158,7 @@ def test_conv2d_conv2d_fallback_to_buffer_conv2d():
         "concatenate": (["global", "global"], ["global"]),
     }
     verify(Input, Expected)
+
 
 if __name__ == "__main__":
     tvm.testing.main()
