@@ -2155,19 +2155,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              auto block_sref = sch->GetSRef(block);
              return IsOutputBlock(state, block_sref, GetScopeRoot(state, block_sref, false));
            })
-      .def("tir.schedule.GetLoopIterType", [](Schedule sch, LoopRV loop) -> ffi::String {
-        IterVarType kind = GetLoopIterType(sch->GetSRef(loop));
-        if (kind == kDataPar) {
-          return "S";
-        } else if (kind == kCommReduce) {
-          return "R";
-        } else {
-          return "O";
-        }
-      })
-      .def("tir.schedule.HasIfThenElse", [](const Stmt& stmt) -> bool {
-        return HasIfThenElse(stmt);
-      });
+      .def("tir.schedule.GetLoopIterType",
+           [](Schedule sch, LoopRV loop) -> ffi::String {
+             IterVarType kind = GetLoopIterType(sch->GetSRef(loop));
+             if (kind == kDataPar) {
+               return "S";
+             } else if (kind == kCommReduce) {
+               return "R";
+             } else {
+               return "O";
+             }
+           })
+      .def("tir.schedule.HasIfThenElse",
+           [](const Stmt& stmt) -> bool { return HasIfThenElse(stmt); });
 }
 
 }  // namespace tir

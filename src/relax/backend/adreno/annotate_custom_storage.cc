@@ -274,8 +274,9 @@ class CollectConsumerScopeInfo : public ExprVisitor {
  public:
   using ExprVisitor::VisitExpr_;
 
-  std::pair<ffi::Map<Expr, ffi::Array<ffi::String>>, ffi::Map<Expr, ffi::Map<Expr, ffi::Array<ffi::String>>>> Collect(
-      const IRModule& mod, Function func, const Target& target) {
+  std::pair<ffi::Map<Expr, ffi::Array<ffi::String>>,
+            ffi::Map<Expr, ffi::Map<Expr, ffi::Array<ffi::String>>>>
+  Collect(const IRModule& mod, Function func, const Target& target) {
     mod_ = mod;
     target_ = target;
     VisitExpr(func->body);
@@ -446,9 +447,10 @@ class CollectProducerScopeInfo : public ExprVisitor {
  public:
   using ExprVisitor::VisitExpr_;
 
-  ffi::Map<Expr, StructInfo> Collect(const IRModule& mod, Function func,
-                                const ffi::Map<Expr, ffi::Map<Expr, ffi::Array<ffi::String>>>& scope_info,
-                                const Target& target, const BlockBuilder& builder) {
+  ffi::Map<Expr, StructInfo> Collect(
+      const IRModule& mod, Function func,
+      const ffi::Map<Expr, ffi::Map<Expr, ffi::Array<ffi::String>>>& scope_info,
+      const Target& target, const BlockBuilder& builder) {
     mod_ = mod;
     scope_info_ = scope_info;
     target_ = target;

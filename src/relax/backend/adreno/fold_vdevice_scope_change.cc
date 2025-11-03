@@ -104,7 +104,8 @@ class CollectConsumerDetails : public ExprVisitor {
  public:
   using ExprVisitor::VisitExpr_;
 
-  ffi::Map<Expr, ffi::Array<Expr>> Collect(const IRModule& mod, Function func, const Target& target) {
+  ffi::Map<Expr, ffi::Array<Expr>> Collect(const IRModule& mod, Function func,
+                                           const Target& target) {
     mod_ = mod;
     target_ = target;
     VisitExpr(func->body);

@@ -1519,7 +1519,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("relax.op.hint_on_device", [](ffi::PackedArgs args, ffi::Any* ret) {
     if (args.size() == 3) {
-      *ret = MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>(), args[2].cast<ffi::String>());
+      *ret = MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>(),
+                              args[2].cast<ffi::String>());
     } else {
       *ret = MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>());
     }

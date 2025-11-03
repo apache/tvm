@@ -62,8 +62,10 @@ bool KnowAllShapeValues(const StructInfo& sinfo) {
 
 class LegalizeMutator : public ExprMutator {
  public:
-  explicit LegalizeMutator(const IRModule& mod, const ffi::Optional<ffi::Map<ffi::String, ffi::Function>>& cmap,
-                           const ffi::Optional<ffi::Array<ffi::String>> skip_ops, bool enable_warning)
+  explicit LegalizeMutator(const IRModule& mod,
+                           const ffi::Optional<ffi::Map<ffi::String, ffi::Function>>& cmap,
+                           const ffi::Optional<ffi::Array<ffi::String>> skip_ops,
+                           bool enable_warning)
       : ExprMutator(mod), mod_(std::move(mod)), enable_warning_(enable_warning) {
     if (cmap) {
       cmap_ = cmap.value();
@@ -406,8 +408,7 @@ class LegalizeMutator : public ExprMutator {
 namespace transform {
 
 Pass LegalizeOps(ffi::Optional<ffi::Map<ffi::String, ffi::Function>> cmap,
-                 ffi::Optional<ffi::Array<ffi::String>> skip_ops,
-                 bool enable_warning) {
+                 ffi::Optional<ffi::Array<ffi::String>> skip_ops, bool enable_warning) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     bool apply_legalize_ops =
         pc->GetConfig<Bool>("relax.transform.apply_legalize_ops").value_or(Bool(true))->value;

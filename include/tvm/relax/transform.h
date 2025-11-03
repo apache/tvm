@@ -250,7 +250,8 @@ TVM_DLL Pass FoldConstant();
  * \return The Pass.
  */
 TVM_DLL Pass LegalizeOps(ffi::Optional<ffi::Map<ffi::String, ffi::Function>> cmap,
-                         ffi::Optional<ffi::Array<ffi::String>> skip_ops, bool enable_warning = false);
+                         ffi::Optional<ffi::Array<ffi::String>> skip_ops,
+                         bool enable_warning = false);
 
 /*!
  * \brief Propagate virtual device information.
