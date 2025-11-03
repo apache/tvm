@@ -639,7 +639,7 @@ struct TypeTraits<relax::NestedMsg<T>> : public TypeTraitsBase {
   }
 
   TVM_FFI_INLINE static relax::NestedMsg<T> MoveFromAnyAfterCheck(TVMFFIAny* src) {
-    return relax::NestedMsg<T>(details::AnyUnsafe::MoveTVMFFIAnyToAny(std::move(*src)));
+    return relax::NestedMsg<T>(details::AnyUnsafe::MoveTVMFFIAnyToAny(src));
   }
 
   static std::optional<relax::NestedMsg<T>> TryCastFromAnyView(const TVMFFIAny* src) {
@@ -672,6 +672,14 @@ struct TypeTraits<relax::NestedMsg<T>> : public TypeTraitsBase {
 
   TVM_FFI_INLINE static std::string TypeStr() {
     return "NestedMsg<" + details::Type2Str<T>::v() + ">";
+  }
+
+  TVM_FFI_INLINE static std::string TypeSchema() {
+    std::ostringstream oss;
+    oss << R"({"type":"NestedMsg","args":[)";
+    oss << details::TypeSchema<T>::v();
+    oss << "]}";
+    return oss.str();
   }
 };
 }  // namespace ffi

@@ -34,6 +34,8 @@
 #include <tvm/runtime/vm/bytecode.h>
 #include <tvm/runtime/vm/vm.h>
 
+#include <unordered_map>
+
 namespace tvm {
 namespace runtime {
 namespace vm {
@@ -431,12 +433,84 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 //-------------------------------------
+//  Python function call support
+//-------------------------------------
+
+// Global registry for Python functions
+static std::unordered_map<std::string, ffi::Function> py_func_registry;
+
+/*!
+ * \brief Clear the Python function registry on shutdown
+ */
+void ClearPyFuncRegistry() { py_func_registry.clear(); }
+
+/*!
+ * \brief Register a Python function for call_py_func
+ * \param name The function name
+ * \param func The Python function wrapped as ffi::Function
+ */
+void RegisterPyFunc(const std::string& name, ffi::Function func) { py_func_registry[name] = func; }
+
+/*!
+ * \brief Get a registered Python function
+ * \param name The function name
+ * \return The Python function
+ */
+ffi::Function GetPyFunc(const std::string& name) {
+  auto it = py_func_registry.find(name);
+  if (it == py_func_registry.end()) {
+    LOG(FATAL) << "Python function '" << name << "' not found in registry";
+  }
+  return it->second;
+}
+
+/*!
+ * \brief Call a Python function from VM
+ * \param args The packed function arguments (tuple containing function name and arguments)
+ * \param rv The return value
+ */
+void CallPyFunc(ffi::PackedArgs args, ffi::Any* rv) {
+  // args[0] should be a tuple containing (func_name, args_tuple)
+  if (args.size() != 1) {
+    LOG(FATAL) << "vm.builtin.call_py_func expects exactly 1 argument (tuple)";
+  }
+
+  auto tuple_arg = args[0].cast<ffi::Array<ffi::Any>>();
+  if (tuple_arg.size() != 2) {
+    LOG(FATAL) << "vm.builtin.call_py_func tuple should contain (func_name, args)";
+  }
+
+  // Get function name
+  std::string func_name = tuple_arg[0].cast<ffi::String>();
+
+  // Get arguments tuple
+  auto func_args = tuple_arg[1].cast<ffi::Array<ffi::Any>>();
+
+  // Look up Python function in registry
+  ffi::Function py_func = GetPyFunc(func_name);
+
+  // Call the Python function with the arguments
+  std::vector<ffi::AnyView> py_args_vec(func_args.begin(), func_args.end());
+  ffi::PackedArgs py_args(py_args_vec.data(), py_args_vec.size());
+  py_func.CallPacked(py_args, rv);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("vm.builtin.call_py_func", CallPyFunc)
+      .def("vm.builtin.register_py_func", RegisterPyFunc)
+      .def("vm.builtin.get_py_func", GetPyFunc)
+      .def("vm.builtin.clear_py_func_registry", ClearPyFuncRegistry);
+}
+
+//-------------------------------------
 //  Builtin runtime operators.
 //-------------------------------------
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("vm.builtin.shape_of", &Tensor::Shape)
+      .def_method("vm.builtin.shape_of", [](Tensor data) -> ffi::Shape { return data.Shape(); })
       .def("vm.builtin.copy", [](ffi::Any a) -> ffi::Any { return a; })
       .def(
           "vm.builtin.reshape",
@@ -661,7 +735,7 @@ int TVMBackendAnyListMoveFromPackedReturn(void* anylist, int index, TVMFFIAny* a
   using namespace tvm::runtime;
   TVM_FFI_SAFE_CALL_BEGIN();
   auto* list = static_cast<tvm::ffi::Any*>(anylist);
-  list[index] = tvm::ffi::details::AnyUnsafe::MoveTVMFFIAnyToAny(std::move(args[ret_offset]));
+  list[index] = tvm::ffi::details::AnyUnsafe::MoveTVMFFIAnyToAny(&args[ret_offset]);
   TVM_FFI_SAFE_CALL_END();
 }
 }  // extern "C"

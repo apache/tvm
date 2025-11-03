@@ -33,6 +33,8 @@ class ScheduleFnNode : public SpaceGeneratorNode {
 
   static void RegisterReflection() {
     // `schedule_fn_` is not registered.
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ScheduleFnNode>();
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final {
@@ -80,6 +82,7 @@ class ScheduleFnNode : public SpaceGeneratorNode {
     CloneRules(this, n.get());
     return SpaceGenerator(n);
   }
+
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.ScheduleFn", ScheduleFnNode, SpaceGeneratorNode);
 };
 
@@ -95,10 +98,9 @@ SpaceGenerator SpaceGenerator::ScheduleFn(
   return SpaceGenerator(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { ScheduleFnNode::RegisterReflection(); }
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  ScheduleFnNode::RegisterReflection();
   refl::GlobalDef().def("meta_schedule.SpaceGeneratorScheduleFn", SpaceGenerator::ScheduleFn);
 }
 

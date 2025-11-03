@@ -139,6 +139,7 @@ class RewriteCooperativeFetchNode : public PostprocNode {
     ObjectPtr<RewriteCooperativeFetchNode> n = ffi::make_object<RewriteCooperativeFetchNode>(*this);
     return Postproc(n);
   }
+
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RewriteCooperativeFetch",
                                     RewriteCooperativeFetchNode, PostprocNode);
 

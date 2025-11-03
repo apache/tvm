@@ -32,7 +32,8 @@ class TracedScheduleNode : public ConcreteScheduleNode {
 
  public:
   static void RegisterReflection() {
-    // No fields to register as they are not visited
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TracedScheduleNode>();
   }
 
   ~TracedScheduleNode() = default;

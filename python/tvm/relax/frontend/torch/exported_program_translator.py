@@ -231,6 +231,460 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             align_corners=align_corners,
         )
 
+    def _lstm(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        input_tensor = args[0]
+        hx = args[1] if len(args) > 1 else None
+        params = args[2] if len(args) > 2 else None
+        has_biases = args[3] if len(args) > 3 else True
+        num_layers = args[4] if len(args) > 4 else 1
+        _dropout = args[5] if len(args) > 5 else 0.0  # Not used in inference
+        _train = args[6] if len(args) > 6 else False  # Not used in inference
+        bidirectional = args[7] if len(args) > 7 else False
+        batch_first = args[8] if len(args) > 8 else False
+        if bidirectional:
+            raise NotImplementedError("Bidirectional LSTM is not yet supported")
+        if num_layers > 1:
+            raise NotImplementedError("Multi-layer LSTM is not yet supported")
+        input_shape = self.shape_of(input_tensor)
+        if batch_first:
+            # Input shape: (batch, seq_len, input_size)
+            batch_size, seq_len, input_size = input_shape
+        else:
+            # Input shape: (seq_len, batch, input_size)
+            seq_len, batch_size, input_size = input_shape
+
+        if isinstance(seq_len, tvm.tir.IntImm):
+            seq_len = seq_len.value
+        if isinstance(batch_size, tvm.tir.IntImm):
+            batch_size = batch_size.value
+        if isinstance(input_size, tvm.tir.IntImm):
+            input_size = input_size.value
+        # Extract hidden size from the LSTM parameters
+        # The parameters are: [weight_ih, weight_hh, bias_ih, bias_hh]
+        # weight_ih shape: (4 * hidden_size, input_size)
+        # weight_hh shape: (4 * hidden_size, hidden_size)
+        if params and len(params) >= 2:
+            weight_ih = params[0]
+            weight_hh = params[1]
+            # Extract hidden size from weight dimensions
+            # weight_ih has shape (4 * hidden_size, input_size)
+            weight_ih_shape = self.shape_of(weight_ih)
+            hidden_size = weight_ih_shape[0] // 4  # 4 gates: input, forget, cell, output
+        else:
+            # Fallback to a default hidden size
+            hidden_size = 16
+        # Implement actual LSTM computation using  Relax operations
+        # LSTM equations:
+        # i_t = sigmoid(W_ii * x_t + b_ii + W_hi * h_{t-1} + b_hi)
+        # f_t = sigmoid(W_if * x_t + b_if + W_hf * h_{t-1} + b_hf)
+        # g_t = tanh(W_ig * x_t + b_ig + W_hg * h_{t-1} + b_hg)
+        # o_t = sigmoid(W_io * x_t + b_io + W_ho * h_{t-1} + b_ho)
+        # c_t = f_t * c_{t-1} + i_t * g_t
+        # h_t = o_t * tanh(c_t)
+        dtype = input_tensor.struct_info.dtype
+        if params and len(params) >= 4:
+            weight_ih = params[0]  # (4 * hidden_size, input_size)
+            weight_hh = params[1]  # (4 * hidden_size, hidden_size)
+            bias_ih = params[2] if has_biases else None  # (4 * hidden_size,)
+            bias_hh = params[3] if has_biases else None  # (4 * hidden_size,)
+        else:
+            # Fallback: create zero weights
+            weight_ih = self.block_builder.emit(
+                relax.op.zeros(relax.ShapeExpr((4 * hidden_size, input_size)), dtype)
+            )
+            weight_hh = self.block_builder.emit(
+                relax.op.zeros(relax.ShapeExpr((4 * hidden_size, hidden_size)), dtype)
+            )
+            bias_ih = None
+            bias_hh = None
+        # Initialize hidden and cell states
+        if hx is not None and len(hx) >= 2:
+            h_0 = hx[0]  # (num_layers, batch_size, hidden_size)
+            c_0 = hx[1]  # (num_layers, batch_size, hidden_size)
+            # Extract the first layer's hidden state
+            h_prev = self.block_builder.emit(
+                relax.op.take(h_0, relax.const(0, "int64"), axis=0, mode="clip")
+            )
+            c_prev = self.block_builder.emit(
+                relax.op.take(c_0, relax.const(0, "int64"), axis=0, mode="clip")
+            )
+        else:
+            h_prev = self.block_builder.emit(
+                relax.op.zeros(relax.ShapeExpr((batch_size, hidden_size)), dtype)
+            )
+            c_prev = self.block_builder.emit(
+                relax.op.zeros(relax.ShapeExpr((batch_size, hidden_size)), dtype)
+            )
+        # Reshape input for processing
+        if batch_first:
+            # Input: (batch, seq_len, input_size) -> (seq_len, batch, input_size)
+            input_reshaped = self.block_builder.emit(
+                relax.op.permute_dims(input_tensor, axes=[1, 0, 2])
+            )
+        else:
+            input_reshaped = input_tensor
+        weight_ih_t = self.block_builder.emit(relax.op.permute_dims(weight_ih, axes=[1, 0]))
+        weight_hh_t = self.block_builder.emit(relax.op.permute_dims(weight_hh, axes=[1, 0]))
+        outputs = []
+        for t in range(seq_len):
+            # Get input at time t: (batch_size, input_size)
+            x_t = self.block_builder.emit(
+                relax.op.take(input_reshaped, relax.const(t, "int64"), axis=0, mode="clip")
+            )
+            # Compute gates: W_ih * x_t + W_hh * h_{t-1} + bias
+            # Input-to-hidden: (batch_size, input_size) @ (4*hidden_size, input_size).T
+            ih_gates = self.block_builder.emit(relax.op.linear_algebra.matmul(x_t, weight_ih_t))
+
+            # Hidden-to-hidden: (batch_size, hidden_size) @ (4*hidden_size, hidden_size).T
+            hh_gates = self.block_builder.emit(relax.op.linear_algebra.matmul(h_prev, weight_hh_t))
+            # Add biases if present
+            if bias_ih is not None and bias_hh is not None:
+                gates = self.block_builder.emit(
+                    relax.op.add(relax.op.add(relax.op.add(ih_gates, bias_ih), hh_gates), bias_hh)
+                )
+            elif bias_ih is not None:
+                gates = self.block_builder.emit(
+                    relax.op.add(relax.op.add(ih_gates, bias_ih), hh_gates)
+                )
+            elif bias_hh is not None:
+                gates = self.block_builder.emit(
+                    relax.op.add(relax.op.add(ih_gates, hh_gates), bias_hh)
+                )
+            else:
+                gates = self.block_builder.emit(relax.op.add(ih_gates, hh_gates))
+            # Split gates: (batch_size, 4 * hidden_size) -> 4 x (batch_size, hidden_size)
+            gate_size = hidden_size
+            i_gate = self.block_builder.emit(
+                relax.op.strided_slice(gates, axes=[1], begin=[0], end=[gate_size])
+            )
+            f_gate = self.block_builder.emit(
+                relax.op.strided_slice(gates, axes=[1], begin=[gate_size], end=[2 * gate_size])
+            )
+            g_gate = self.block_builder.emit(
+                relax.op.strided_slice(gates, axes=[1], begin=[2 * gate_size], end=[3 * gate_size])
+            )
+            o_gate = self.block_builder.emit(
+                relax.op.strided_slice(gates, axes=[1], begin=[3 * gate_size], end=[4 * gate_size])
+            )
+            # Apply activations
+            i_t = self.block_builder.emit(relax.op.sigmoid(i_gate))
+            f_t = self.block_builder.emit(relax.op.sigmoid(f_gate))
+            g_t = self.block_builder.emit(relax.op.tanh(g_gate))
+            o_t = self.block_builder.emit(relax.op.sigmoid(o_gate))
+            # Update cell state: c_t = f_t * c_{t-1} + i_t * g_t
+            c_t = self.block_builder.emit(
+                relax.op.add(relax.op.multiply(f_t, c_prev), relax.op.multiply(i_t, g_t))
+            )
+            # Update hidden state: h_t = o_t * tanh(c_t)
+            h_t = self.block_builder.emit(relax.op.multiply(o_t, relax.op.tanh(c_t)))
+            # Store output
+            outputs.append(h_t)
+            # Update for next iteration
+            h_prev = h_t
+            c_prev = c_t
+        # Stack outputs: (seq_len, batch_size, hidden_size)
+        output = self.block_builder.emit(relax.op.stack(outputs, axis=0))
+        # Reshape back to batch_first if needed
+        if batch_first:
+            # (seq_len, batch_size, hidden_size) -> (batch_size, seq_len, hidden_size)
+            output = self.block_builder.emit(relax.op.permute_dims(output, axes=[1, 0, 2]))
+        return output
+
+    def _gru(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        input_tensor = args[0]
+        hx = args[1] if len(args) > 1 else None
+        params = args[2] if len(args) > 2 else None
+        has_biases = args[3] if len(args) > 3 else True
+        num_layers = args[4] if len(args) > 4 else 1
+        _dropout = args[5] if len(args) > 5 else 0.0  # Not used in inference
+        _train = args[6] if len(args) > 6 else False  # Not used in inference
+        bidirectional = args[7] if len(args) > 7 else False
+        batch_first = args[8] if len(args) > 8 else False
+
+        if bidirectional:
+            raise NotImplementedError("Bidirectional GRU is not yet supported")
+
+        input_shape = self.shape_of(input_tensor)
+        if batch_first:
+            batch_size, seq_len, input_size = input_shape
+        else:
+            seq_len, batch_size, input_size = input_shape
+
+        if isinstance(seq_len, tvm.tir.IntImm):
+            seq_len = seq_len.value
+        if isinstance(batch_size, tvm.tir.IntImm):
+            batch_size = batch_size.value
+        if isinstance(input_size, tvm.tir.IntImm):
+            input_size = input_size.value
+
+        if params and len(params) >= 2:
+            # For multi-layer, we need to extract the first layer's weights
+            # to determine hidden size
+            if num_layers > 1:
+                # Multi-layer: params[0] is first layer's weight_ih
+                weight_ih = params[0]
+            else:
+                # Single layer: params[0] is weight_ih
+                weight_ih = params[0]
+            # Extract hidden size from weight dimensions
+            # weight_ih has shape (3 * hidden_size, input_size)
+            weight_ih_shape = self.shape_of(weight_ih)
+            hidden_size = weight_ih_shape[0] // 3  # 3 gates: reset, update, new
+        else:
+            # Fallback to a default hidden size
+            hidden_size = 16
+
+        # Implement actual GRU computation using Relax operations
+        # GRU equations:
+        # r_t = sigmoid(W_ir * x_t + b_ir + W_hr * h_{t-1} + b_hr)
+        # z_t = sigmoid(W_iz * x_t + b_iz + W_hz * h_{t-1} + b_hz)
+        # n_t = tanh(W_in * x_t + b_in + r_t * (W_hn * h_{t-1} + b_hn))
+        # h_t = (1 - z_t) * n_t + z_t * h_{t-1}
+        dtype = input_tensor.struct_info.dtype
+
+        # Reshape input for processing
+        if batch_first:
+            # Input: (batch, seq_len, input_size) -> (seq_len, batch, input_size)
+            input_reshaped = self.block_builder.emit(
+                relax.op.permute_dims(input_tensor, axes=[1, 0, 2])
+            )
+        else:
+            input_reshaped = input_tensor
+
+        # Initialize hidden states for all layers
+        if hx is not None:
+            # hx shape: (num_layers, batch_size, hidden_size)
+            h_states = []
+            for layer in range(num_layers):
+                h_layer = self.block_builder.emit(
+                    relax.op.take(hx, relax.const(layer, "int64"), axis=0, mode="clip")
+                )
+                h_states.append(h_layer)
+        else:
+            h_states = []
+            for layer in range(num_layers):
+                h_layer = self.block_builder.emit(
+                    relax.op.zeros(relax.ShapeExpr((batch_size, hidden_size)), dtype)
+                )
+                h_states.append(h_layer)
+
+        outputs = []
+
+        for t in range(seq_len):
+            # Get input at time t: (batch_size, input_size)
+            x_t = self.block_builder.emit(
+                relax.op.take(input_reshaped, relax.const(t, "int64"), axis=0, mode="clip")
+            )
+
+            # Process through each layer
+            current_input = x_t
+            new_h_states = []
+
+            for layer in range(num_layers):
+                # Get layer parameters
+                if params and len(params) >= 4 * num_layers:
+                    # Multi-layer case: params are organized as
+                    # [layer0_ih, layer0_hh, layer0_bias_ih, layer0_bias_hh, layer1_ih, ...]
+                    param_offset = layer * 4
+                    weight_ih = params[param_offset]
+                    weight_hh = params[param_offset + 1]
+                    bias_ih = params[param_offset + 2] if has_biases else None
+                    bias_hh = params[param_offset + 3] if has_biases else None
+                elif params and len(params) >= 4:
+                    # Single layer case
+                    weight_ih = params[0]
+                    weight_hh = params[1]
+                    bias_ih = params[2] if has_biases else None
+                    bias_hh = params[3] if has_biases else None
+                else:
+                    # Fallback: create zero weights
+                    weight_ih = self.block_builder.emit(
+                        relax.op.zeros(
+                            relax.ShapeExpr(
+                                (3 * hidden_size, input_size if layer == 0 else hidden_size)
+                            ),
+                            dtype,
+                        )
+                    )
+                    weight_hh = self.block_builder.emit(
+                        relax.op.zeros(relax.ShapeExpr((3 * hidden_size, hidden_size)), dtype)
+                    )
+                    bias_ih = None
+                    bias_hh = None
+
+                # Get previous hidden state for this layer
+                h_prev = h_states[layer]
+
+                # Split weights by gates: PyTorch GRU gate order: reset, update, new (r, z, n)
+                gate_size = hidden_size
+
+                # Reset gate weights
+                weight_ih_r = self.block_builder.emit(
+                    relax.op.strided_slice(weight_ih, axes=[0], begin=[0], end=[gate_size])
+                )
+                weight_hh_r = self.block_builder.emit(
+                    relax.op.strided_slice(weight_hh, axes=[0], begin=[0], end=[gate_size])
+                )
+
+                # Update gate weights
+                weight_ih_z = self.block_builder.emit(
+                    relax.op.strided_slice(
+                        weight_ih, axes=[0], begin=[gate_size], end=[2 * gate_size]
+                    )
+                )
+                weight_hh_z = self.block_builder.emit(
+                    relax.op.strided_slice(
+                        weight_hh, axes=[0], begin=[gate_size], end=[2 * gate_size]
+                    )
+                )
+
+                # New gate weights
+                weight_ih_n = self.block_builder.emit(
+                    relax.op.strided_slice(
+                        weight_ih, axes=[0], begin=[2 * gate_size], end=[3 * gate_size]
+                    )
+                )
+                weight_hh_n = self.block_builder.emit(
+                    relax.op.strided_slice(
+                        weight_hh, axes=[0], begin=[2 * gate_size], end=[3 * gate_size]
+                    )
+                )
+
+                # Transpose weights for matmul
+                weight_ih_r_t = self.block_builder.emit(
+                    relax.op.permute_dims(weight_ih_r, axes=[1, 0])
+                )
+                weight_hh_r_t = self.block_builder.emit(
+                    relax.op.permute_dims(weight_hh_r, axes=[1, 0])
+                )
+                weight_ih_z_t = self.block_builder.emit(
+                    relax.op.permute_dims(weight_ih_z, axes=[1, 0])
+                )
+                weight_hh_z_t = self.block_builder.emit(
+                    relax.op.permute_dims(weight_hh_z, axes=[1, 0])
+                )
+                weight_ih_n_t = self.block_builder.emit(
+                    relax.op.permute_dims(weight_ih_n, axes=[1, 0])
+                )
+                weight_hh_n_t = self.block_builder.emit(
+                    relax.op.permute_dims(weight_hh_n, axes=[1, 0])
+                )
+
+                # Compute reset gate: r_t = sigmoid(W_ir * x_t + b_ir + W_hr * h_{t-1} + b_hr)
+                r_ih = self.block_builder.emit(
+                    relax.op.linear_algebra.matmul(current_input, weight_ih_r_t)
+                )
+                r_hh = self.block_builder.emit(
+                    relax.op.linear_algebra.matmul(h_prev, weight_hh_r_t)
+                )
+                if bias_ih is not None and bias_hh is not None:
+                    bias_ih_r = self.block_builder.emit(
+                        relax.op.strided_slice(bias_ih, axes=[0], begin=[0], end=[gate_size])
+                    )
+                    bias_hh_r = self.block_builder.emit(
+                        relax.op.strided_slice(bias_hh, axes=[0], begin=[0], end=[gate_size])
+                    )
+                    r_t = self.block_builder.emit(
+                        relax.op.sigmoid(
+                            relax.op.add(
+                                relax.op.add(relax.op.add(r_ih, bias_ih_r), r_hh), bias_hh_r
+                            )
+                        )
+                    )
+                else:
+                    r_t = self.block_builder.emit(relax.op.sigmoid(relax.op.add(r_ih, r_hh)))
+
+                # Compute update gate: z_t = sigmoid(W_iz * x_t + b_iz + W_hz * h_{t-1} + b_hz)
+                z_ih = self.block_builder.emit(
+                    relax.op.linear_algebra.matmul(current_input, weight_ih_z_t)
+                )
+                z_hh = self.block_builder.emit(
+                    relax.op.linear_algebra.matmul(h_prev, weight_hh_z_t)
+                )
+                if bias_ih is not None and bias_hh is not None:
+                    bias_ih_z = self.block_builder.emit(
+                        relax.op.strided_slice(
+                            bias_ih, axes=[0], begin=[gate_size], end=[2 * gate_size]
+                        )
+                    )
+                    bias_hh_z = self.block_builder.emit(
+                        relax.op.strided_slice(
+                            bias_hh, axes=[0], begin=[gate_size], end=[2 * gate_size]
+                        )
+                    )
+                    z_t = self.block_builder.emit(
+                        relax.op.sigmoid(
+                            relax.op.add(
+                                relax.op.add(relax.op.add(z_ih, bias_ih_z), z_hh), bias_hh_z
+                            )
+                        )
+                    )
+                else:
+                    z_t = self.block_builder.emit(relax.op.sigmoid(relax.op.add(z_ih, z_hh)))
+
+                # Compute new gate: n_t = tanh(W_in * x_t + b_in + r_t * (W_hn * h_{t-1} + b_hn))
+                n_ih = self.block_builder.emit(
+                    relax.op.linear_algebra.matmul(current_input, weight_ih_n_t)
+                )
+                n_hh = self.block_builder.emit(
+                    relax.op.linear_algebra.matmul(h_prev, weight_hh_n_t)
+                )
+                if bias_ih is not None and bias_hh is not None:
+                    bias_ih_n = self.block_builder.emit(
+                        relax.op.strided_slice(
+                            bias_ih, axes=[0], begin=[2 * gate_size], end=[3 * gate_size]
+                        )
+                    )
+                    bias_hh_n = self.block_builder.emit(
+                        relax.op.strided_slice(
+                            bias_hh, axes=[0], begin=[2 * gate_size], end=[3 * gate_size]
+                        )
+                    )
+                    n_t = self.block_builder.emit(
+                        relax.op.tanh(
+                            relax.op.add(
+                                relax.op.add(n_ih, bias_ih_n),
+                                relax.op.multiply(r_t, relax.op.add(n_hh, bias_hh_n)),
+                            )
+                        )
+                    )
+                else:
+                    n_t = self.block_builder.emit(
+                        relax.op.tanh(relax.op.add(n_ih, relax.op.multiply(r_t, n_hh)))
+                    )
+
+                # Update hidden state: h_t = (1 - z_t) * n_t + z_t * h_{t-1}
+                one_minus_z = self.block_builder.emit(
+                    relax.op.subtract(relax.const(1.0, dtype), z_t)
+                )
+                h_t = self.block_builder.emit(
+                    relax.op.add(
+                        relax.op.multiply(one_minus_z, n_t), relax.op.multiply(z_t, h_prev)
+                    )
+                )
+
+                new_h_states.append(h_t)
+
+                current_input = h_t
+
+            # Update hidden states for next time step
+            h_states = new_h_states
+
+            # Store output (from the last layer)
+            outputs.append(h_states[-1])
+
+        # Stack outputs: (seq_len, batch_size, hidden_size)
+        output = self.block_builder.emit(relax.op.stack(outputs, axis=0))
+
+        # Reshape back to batch_first if needed
+        if batch_first:
+            # (seq_len, batch_size, hidden_size) -> (batch_size, seq_len, hidden_size)
+            output = self.block_builder.emit(relax.op.permute_dims(output, axes=[1, 0, 2]))
+
+        return output
+
     ########## Manipulation ##########
 
     def _narrow(self, node: fx.Node) -> relax.Var:
@@ -306,6 +760,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         )
         return self.block_builder.emit(relax.op.zeros(size, dtype))
 
+    def _scalar_tensor(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        scalar_value = args[0]
+        dtype = self._convert_data_type(
+            node.kwargs.get("dtype", torch.get_default_dtype()), self.env
+        )
+        return self.block_builder.emit(relax.const(scalar_value, dtype))
+
     def _instance_norm(self, node: fx.Node):
         import numpy as np
 
@@ -355,9 +817,16 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "cosh.default": self._unary_op(relax.op.cosh),
             "dropout.default": lambda node: self.env[node.args[0]],
             "dropout_.default": lambda node: self.env[node.args[0]],
+            "native_dropout.default": lambda node: self.env[node.args[0]],
             "elu.default": self._elu,
             "erf.default": self._unary_op(relax.op.erf),
             "exp.default": self._unary_op(relax.op.exp),
+            "expm1.default": lambda node: self.block_builder.emit(
+                relax.op.subtract(
+                    relax.op.exp(self.env[node.args[0]]),
+                    relax.const(1.0, self.env[node.args[0]].struct_info.dtype),
+                )
+            ),
             "floor.default": self._unary_op(relax.op.floor),
             "gelu.default": self._gelu,
             "hardsigmoid.default": self._hardsigmoid,
@@ -376,7 +845,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "log10.default": self._log10,
             "log1p.default": self._log1p,
             "logical_not.default": self._unary_op(relax.op.logical_not),
+            "logical_and.default": self._binary_op(relax.op.logical_and, operator.and_),
             "log_softmax.int": self._log_softmax,
+            "_log_softmax.default": self._log_softmax,
             "neg.default": self._unary_op(relax.op.negative),
             "pad.default": self._pad,
             "pixel_shuffle.default": self._pixel_shuffle,
@@ -388,6 +859,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "relu6_.default": self._unary_op(relax.op.nn.relu6),
             "round.default": self._round,
             "rsqrt.default": self._unary_op(relax.op.rsqrt),
+            "scalar_tensor.default": self._scalar_tensor,
             "rsub.Tensor": self._rsub,
             "rsub.Scalar": self._rsub,
             "selu.default": self._unary_op(relax.op.nn.selu),
@@ -398,6 +870,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "sin.default": self._unary_op(relax.op.sin),
             "sinh.default": self._unary_op(relax.op.sinh),
             "softmax.int": self._softmax,
+            "_softmax.default": self._softmax,
             "softplus.default": self._softplus,
             "softshrink.default": self._softshrink,
             "softsign.default": self._softsign,
@@ -415,6 +888,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "bitwise_or.Scalar": self._binary_op(relax.op.bitwise_or, operator.or_),
             "bitwise_or_.Tensor": self._binary_op(relax.op.bitwise_or, operator.or_),
             "bitwise_or.Tensor": self._binary_op(relax.op.bitwise_or, operator.or_),
+            "div.Scalar": self._binary_op(relax.op.divide, operator.truediv),
             "div.Tensor": self._binary_op(relax.op.divide, operator.truediv),
             "div.Tensor_mode": self._div,
             "eq.Scalar": self._binary_op(relax.op.equal, operator.eq),
@@ -432,6 +906,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "lt.Scalar": self._binary_op(relax.op.less, operator.lt),
             "lt.Tensor": self._binary_op(relax.op.less, operator.lt),
             "matmul.default": self._binary_op(
+                partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul
+            ),
+            "mm.default": self._binary_op(
                 partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul
             ),
             "max.other": self._binary_op(relax.op.maximum, max),
@@ -488,6 +965,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "instance_norm.default": self._instance_norm,
             "layer_norm.default": self._layer_norm,
             "linear.default": self._linear,
+            "lstm.input": self._lstm,
+            "gru.input": self._gru,
             "max_pool1d.default": self._max_pool1d,
             "max_pool2d.default": self._max_pool2d,
             "max_pool3d.default": self._max_pool3d,
@@ -524,6 +1003,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "flip.default": self._flip,
             "gather.default": self._gather,
             "index.Tensor": self._index_tensor,
+            "index_put.default": self._index_put,
             "index_put_.default": self._index_put,
             "meshgrid.indexing": self._meshgrid,
             "meshgrid.default": self._meshgrid,
@@ -539,6 +1019,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "split_with_sizes.default": self._split,
             "squeeze.default": self._squeeze,
             "squeeze.dim": self._squeeze,
+            "squeeze.dims": self._squeeze,
             "stack.default": self._stack,
             "take.default": self._take,
             "tile.default": self._tile,
@@ -560,7 +1041,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "detach_.default": self._detach,
             "contiguous.default": lambda node: self.env[node.args[0]],  # no-op
             "clone.default": lambda node: self.env[node.args[0]],
+            "bernoulli.p": lambda node: self.env[node.args[0]],  # Dropout: just return input
+            "_assert_tensor_metadata.default": lambda node: self.env[
+                node.args[0]
+            ],  # metadata assertion: no-op
             "empty.memory_format": self._empty,
+            "empty_permuted.default": self._empty,  # Similar to empty with permuted layout
             "empty_like.default": self._empty_like,
             "eye.default": self._eye,
             "eye.m": self._eye,
@@ -594,6 +1080,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # other
             "getitem": self._getitem,
             "item.default": self._item,
+            "_local_scalar_dense.default": self._item,
         }
 
     def create_input_vars(
@@ -738,6 +1225,7 @@ def from_exported_program(
     keep_params_as_input: bool = False,
     unwrap_unit_return_tuple: bool = False,
     no_bind_return_tuple: bool = False,
+    run_ep_decomposition: bool = False,
 ) -> tvm.IRModule:
     """Convert a PyTorch ExportedProgram to a Relax program
 
@@ -756,6 +1244,12 @@ def from_exported_program(
     no_bind_return_tuple : bool
         A boolean flag indicating whether to bind the return tuple as a relax var.
         If the flag is true and the return value is a tuple, it will not bind it to a var.
+
+    run_ep_decomposition : bool
+        A boolean flag indicating whether to run PyTorch's decomposition on the
+        exported program before translation. When True, high-level operators will
+        be decomposed into their constituent parts. Defaults to False for backward
+        compatibility.
 
     Returns
     -------
@@ -796,8 +1290,9 @@ def from_exported_program(
         # Use the importer to import the ExportedProgram to Relax.
         mod: tvm.IRModule = from_exported_program(exported_program)
     """
-    # decompose into Core ATen operators
-    exported_program.run_decompositions()
+    # Conditionally decompose into Core ATen operators
+    if run_ep_decomposition:
+        exported_program = exported_program.run_decompositions()
 
     return ExportedProgramImporter().from_exported_program(
         exported_program,

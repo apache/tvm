@@ -23,7 +23,6 @@ import tvm
 import tvm.testing
 from tvm import dlight as dl
 from tvm import relax
-from tvm.contrib import utils
 from tvm.relax.frontend.nn.llm.kv_cache import (
     AttnKind,
     RopeMode,
@@ -78,7 +77,7 @@ fcopy_cache = None
 fcompact_copy = None
 
 
-def set_global_func():
+def set_global_func(rope_mode: RopeMode):
     global fclear, fadd_sequence, fremove_sequence, ffork_sequence, fpopn
     global fbegin_forward, fend_forward, fattention, fattention_with_fuse_qkv, fdebug_get_kv
     global fattention_prefill, fattention_decode, fattention_prefill_ragged
@@ -98,48 +97,30 @@ def set_global_func():
     )
     fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
 
-    def load_module(name: str, static_modules: List[tvm.runtime.Module]):
-        assert len(static_modules) > 0
-        if len(static_modules) == 1:
-            return static_modules[0]
-        static_mod = static_modules[0]
-        for mod in static_modules[1:]:
-            static_mod.import_module(mod)
-        temp = utils.tempdir()
-        mod_path = temp.relpath(f"{name}.so")
-        static_mod.export_library(mod_path)
-        return tvm.runtime.load_module(mod_path)
-
     target = tvm.target.Target.from_device(device)
-    flashinfer_prefill_mod = load_module(
-        "flashinfer_prefill",
-        relax.backend.cuda.flashinfer.gen_flashinfer_prefill_module(
-            dtype_q=dtype,
-            dtype_kv=dtype,
-            dtype_o=dtype,
-            qk_head_dim=head_dim,
-            v_head_dim=head_dim,
-            target=target,
-        ),
-    )
-    flashinfer_decode_mod = load_module(
-        "flashinfer_decode",
-        relax.backend.cuda.flashinfer.gen_flashinfer_decode_module(
-            dtype_q=dtype,
-            dtype_kv=dtype,
-            dtype_o=dtype,
-            qk_head_dim=head_dim,
-            v_head_dim=head_dim,
-            target=target,
-        ),
-    )
+    flashinfer_prefill_mod = relax.backend.cuda.flashinfer.gen_flashinfer_prefill_module(
+        dtype_q=dtype,
+        dtype_kv=dtype,
+        dtype_o=dtype,
+        qk_head_dim=head_dim,
+        v_head_dim=head_dim,
+        enable_inline_rope=rope_mode == RopeMode.INLINE,
+    )[0]
+    flashinfer_decode_mod = relax.backend.cuda.flashinfer.gen_flashinfer_decode_module(
+        dtype_q=dtype,
+        dtype_kv=dtype,
+        dtype_o=dtype,
+        qk_head_dim=head_dim,
+        v_head_dim=head_dim,
+        enable_inline_rope=rope_mode == RopeMode.INLINE,
+    )[0]
 
-    fattention_prefill = flashinfer_prefill_mod["batch_prefill_with_paged_kv_cache_run"]
-    fattention_prefill_plan = flashinfer_prefill_mod["batch_prefill_with_kv_cache_plan"]
-    fattention_prefill_ragged = flashinfer_prefill_mod["batch_prefill_with_ragged_kv_cache_run"]
-    fattention_prefill_ragged_plan = flashinfer_prefill_mod["batch_prefill_with_kv_cache_plan"]
-    fattention_decode = flashinfer_decode_mod["batch_decode_with_paged_kv_cache_run"]
-    fattention_decode_plan = flashinfer_decode_mod["batch_decode_with_paged_kv_cache_plan"]
+    fattention_prefill = flashinfer_prefill_mod["batch_prefill_paged_run"]
+    fattention_prefill_plan = flashinfer_prefill_mod["batch_prefill_plan"]
+    fattention_prefill_ragged = flashinfer_prefill_mod["batch_prefill_ragged_run"]
+    fattention_prefill_ragged_plan = flashinfer_prefill_mod["batch_prefill_plan"]
+    fattention_decode = flashinfer_decode_mod["batch_decode_run"]
+    fattention_decode_plan = flashinfer_decode_mod["batch_decode_plan"]
 
     builts = []
     for tir_func in [
@@ -560,8 +541,8 @@ def test_paged_attention_kv_cache_popn(kv_cache_and_rope_mode):
 
 
 if __name__ == "__main__":
-    set_global_func()
-    for rope_mode in [RopeMode.NONE, RopeMode.NORMAL, RopeMode.INLINE]:
+    for rope_mode in [RopeMode.NONE, RopeMode.NORMAL]:
+        set_global_func(rope_mode)
         cache = create_kv_cache(rope_mode)
         test_paged_attention_kv_cache_prefill_and_decode((cache, rope_mode))
         test_paged_attention_kv_cache_remove_sequence((cache, rope_mode))

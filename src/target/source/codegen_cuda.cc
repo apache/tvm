@@ -640,12 +640,12 @@ void CodeGenCUDA::PrintVecElemLoad(const std::string& vec, DataType t, int i,
   static const char access[] = {'x', 'y', 'z', 'w'};
   ICHECK(i >= 0 && i < (t.bits() == 8 ? 16 : (t.bits() == 16 || t.bits() == 32) ? 8 : 4));
   if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
-    std::string type_name = t.is_int() ? "char" : "unsigned char";
+    std::string type_name = t.is_int() ? "signed char" : "unsigned char";
     if (t.lanes() == 2 || t.lanes() == 3) {
       os << vec << "." << access[i % t.lanes()];
     } else {
       std::string ac = t.lanes() == 4 ? vec : (vec + "." + access[i / 4]);
-      os << "((" << type_name << ")(" << ac << " >> " << i % 4 * 8 << "))";
+      os << "(reinterpret_cast<const " << type_name << "*>(&(" << ac << "))[" << (i % 4) << "])";
     }
   } else if (t.is_float16()) {
     if (t.lanes() <= 4) {
@@ -697,12 +697,9 @@ void CodeGenCUDA::PrintVecElemStore(const std::string& vec, DataType t, int i,
              << "(" << value << ");\n";
     } else {
       std::string ac = t.lanes() == 4 ? vec : (vec + "." + access[i / 4]);
-      stream << ac << "=";
-      // Do not read the first undef lane.
-      if (i != 0) {
-        stream << ac << " & ~(0x000000ff << " << i % 4 * 8 << ") |";
-      }
-      stream << "(" << value << " << " << i % 4 * 8 << ");\n";
+      std::string type_name = t.is_int() ? "signed char" : "unsigned char";
+      stream << "reinterpret_cast<" << type_name << "*>(&(" << ac << "))[" << (i % 4) << "] = ("
+             << type_name << ")(" << value << ");\n";
     }
   } else if (t.is_float16()) {
     if (t.lanes() <= 4) {

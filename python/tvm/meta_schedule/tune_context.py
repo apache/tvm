@@ -53,9 +53,8 @@ def _normalize_mod(mod: Union[PrimFunc, IRModule]) -> IRModule:
     if not isinstance(mod, IRModule):
         raise TypeError(f"Expected `mod` to be PrimFunc or IRModule, but gets: {mod}")
     func_names = mod.get_global_vars()
-    (func_name,) = func_names
-    if len(func_names) == 1 and func_name.name_hint != "main":
-        mod = IRModule({"main": mod[func_name]})
+    if len(func_names) == 1 and func_names[0].name_hint != "main":
+        mod = IRModule({"main": mod[func_names[0]]})
     return mod
 
 
