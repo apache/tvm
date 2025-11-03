@@ -1403,8 +1403,11 @@ export class Instance implements Disposable {
             if (retValue !== null && retValue instanceof TVMObject) {
               try {
                 this.detachFromCurrentScope(retValue as any);
-              } catch {
-                // ignore
+              } catch (err) {
+                if (!(err instanceof Error && err.message.includes("Cannot find obj"))) {
+                  this.env.logger("Unable to detach: " + err);
+                  throw err;
+                }
               }
             }
           });
