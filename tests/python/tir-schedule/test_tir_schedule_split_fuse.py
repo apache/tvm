@@ -822,7 +822,6 @@ def test_unsupported_target_scalable_split(capfd):
     assert warning_msg in captured
 
 
-
 def test_fused_symbolic_2D_tiling():
     @T.prim_func
     def before(a: T.handle, b: T.handle, M: T.int32, N: T.int32) -> None:
@@ -837,11 +836,14 @@ def test_fused_symbolic_2D_tiling():
     def expected(a: T.handle, b: T.handle, M: T.int32, N: T.int32):
         A = T.match_buffer(a, (M, N))
         B = T.match_buffer(b, (M, N))
-        for i_0_j_0_fused, i_1, j_1 in T.grid((N + 15) // 16 * ((M + 63) // 64), 64, 16):
+        for i_0_j_0_fused, i_1, j_1 in T.grid(((M + 63) // 64) * ((N + 15) // 16), 64, 16):
             with T.block("B"):
                 vi = T.axis.spatial(M, i_0_j_0_fused // ((N + 15) // 16) * 64 + i_1)
                 vj = T.axis.spatial(N, i_0_j_0_fused % ((N + 15) // 16) * 16 + j_1)
-                T.where(i_0_j_0_fused // ((N + 15) // 16) * 64 + i_1 < M and i_0_j_0_fused % ((N + 15) // 16) * 16 + j_1 < N)
+                T.where(
+                    i_0_j_0_fused // ((N + 15) // 16) * 64 + i_1 < M
+                    and i_0_j_0_fused % ((N + 15) // 16) * 16 + j_1 < N
+                )
                 B[vi, vj] = A[vi, vj] * T.float32(2.0)
 
     sch = tir.Schedule(before, debug_mask="all")
