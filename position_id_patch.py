@@ -5,8 +5,10 @@ from transformers import AutoModel
 from torch.export import export as torch_export
 from tvm.relax.frontend.torch import from_exported_program
 
+
 class StateDictWrapper(dict):
     """Wrap exported state_dict and inject extra keys (non-persistent buffers)."""
+
     def __init__(self, base_dict, extra):
         super().__init__(base_dict)
         self.extra = extra
@@ -21,6 +23,7 @@ class StateDictWrapper(dict):
             return self.extra[key]
         return super().get(key, default)
 
+
 class M(nn.Module):
     def __init__(self):
         super().__init__()
@@ -30,6 +33,7 @@ class M(nn.Module):
     def forward(self, x, mask=None):
         out = self.bert(x, attention_mask=mask).last_hidden_state[:, 0, :]
         return self.cls(out)
+
 
 def main():
     torch.manual_seed(0)
@@ -72,7 +76,9 @@ def main():
     except Exception as e:
         print("\n TVM import failed with exception:")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     main()
