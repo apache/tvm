@@ -532,6 +532,17 @@ void TracedScheduleNode::ReverseComputeInline(const BlockRV& block_rv) {
                                       /*outputs=*/{}));
 }
 
+void TracedScheduleNode::FuseReductionEpilogue(const BlockRV& reduction_block_rv,
+                                               const BlockRV& epilogue_block_rv) {
+  ConcreteScheduleNode::FuseReductionEpilogue(reduction_block_rv, epilogue_block_rv);
+
+  static const InstructionKind& kind = InstructionKind::Get("FuseReductionEpilogue");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{reduction_block_rv, epilogue_block_rv},
+                                      /*attrs=*/{},
+                                      /*outputs=*/{}));
+}
+
 /******** Schedule: Reduction ********/
 
 BlockRV TracedScheduleNode::DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) {
