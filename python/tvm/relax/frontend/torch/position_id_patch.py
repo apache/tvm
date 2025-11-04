@@ -1,12 +1,31 @@
-# sol-script-fixed.py
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 import torch
 import torch.nn as nn
-from transformers import AutoModel
 from torch.export import export as torch_export
+from transformers import AutoModel
+
 from tvm.relax.frontend.torch import from_exported_program
+
 
 class StateDictWrapper(dict):
     """Wrap exported state_dict and inject extra keys (non-persistent buffers)."""
+
     def __init__(self, base_dict, extra):
         super().__init__(base_dict)
         self.extra = extra
@@ -21,6 +40,7 @@ class StateDictWrapper(dict):
             return self.extra[key]
         return super().get(key, default)
 
+
 class M(nn.Module):
     def __init__(self):
         super().__init__()
@@ -30,6 +50,7 @@ class M(nn.Module):
     def forward(self, x, mask=None):
         out = self.bert(x, attention_mask=mask).last_hidden_state[:, 0, :]
         return self.cls(out)
+
 
 def main():
     torch.manual_seed(0)
@@ -72,7 +93,9 @@ def main():
     except Exception as e:
         print("\n TVM import failed with exception:")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     main()
