@@ -1725,7 +1725,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         # Support both "dim" and "dims" parameters
         if dim is None:
             dim = node.kwargs.get("dims", None)
-        
+
         # If dims is a list, filter out axes where dimension is not 1
         # This is needed because PyTorch decomposition may pass all axes
         if isinstance(dim, (list, tuple)) and len(dim) > 0:
@@ -1738,7 +1738,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                     valid_dims.append(d)
             # If no valid dims, use None to squeeze all size-1 dimensions
             dim = valid_dims if valid_dims else None
-        
+
         return self.block_builder.emit(relax.op.squeeze(x, dim))
 
     def _stack(self, node: fx.Node) -> relax.Var:

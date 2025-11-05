@@ -701,11 +701,23 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         return self.block_builder.emit(relax.op.take(x, index, dim))
 
     def _slice(self, node: fx.Node) -> relax.Var:
+        import sys
+
         x = self.env[node.args[0]]
-        axes = [node.args[1]]
-        begin = [node.args[2]]
-        end = [node.args[3]]
-        stride = [node.args[4] if len(node.args) > 4 else 1]
+        dim = node.args[1] if len(node.args) > 1 else 0
+        start = node.args[2] if len(node.args) > 2 else None
+        end_val = node.args[3] if len(node.args) > 3 else None
+        step = node.args[4] if len(node.args) > 4 else 1
+
+        if start is None:
+            start = 0
+        if end_val is None:
+            end_val = sys.maxsize
+
+        axes = [dim]
+        begin = [start]
+        end = [end_val]
+        stride = [step]
         return self.block_builder.emit(relax.op.strided_slice(x, axes, begin, end, stride))
 
     def _unflatten(self, node: fx.Node) -> relax.Var:
