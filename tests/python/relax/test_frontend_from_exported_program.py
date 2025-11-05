@@ -4545,18 +4545,18 @@ def test_squeeze():
     class Expected2:
         @R.function
         def main(
-            inp_0: R.Tensor((3, 1, 4, 1), dtype="float32")
+            input: R.Tensor((3, 1, 4, 1), dtype="float32")
         ) -> R.Tuple(R.Tensor((3, 4), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((3, 4), dtype="float32") = R.squeeze(inp_0, axis=None)
+                lv: R.Tensor((3, 4), dtype="float32") = R.squeeze(input, axis=[1, 3])
                 gv: R.Tuple(R.Tensor((3, 4), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 
     example_args = (torch.randn(3, 1, 4, 1, dtype=torch.float32),)
 
-    verify_model(Squeeze1(), example_args, {}, Expected1)
-    verify_model(Squeeze2(), example_args, {}, Expected2)
+    verify_model(Squeeze1(), example_args, {}, Expected1, run_ep_decomposition=True)
+    verify_model(Squeeze2(), example_args, {}, Expected2, run_ep_decomposition=True)
 
 
 def test_stack():
