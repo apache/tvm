@@ -569,9 +569,11 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
         )
         # long factors is the first half, short factors is the second half
         long_factors = T.Buffer((rotary_dim // 2,), "float32", data=ext_factors.data)
-        short_factors = T.Buffer((rotary_dim // 2,), "float32", data=ext_factors.data, elem_offset=(rotary_dim // 2))  # type: ignore
+        short_factors = T.Buffer(
+            (rotary_dim // 2,), "float32", data=ext_factors.data, elem_offset=(rotary_dim // 2)
+        )
 
-        if(seq_len > original_max_position_embeddings):
+        if seq_len > original_max_position_embeddings:
             for iters in T.grid(seq_len, fused_heads, head_dim):
                 with T.block("llama_fused_rope"):
                     s, h, d = T.axis.remap("SSS", iters)
