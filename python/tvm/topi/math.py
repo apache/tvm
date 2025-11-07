@@ -464,6 +464,8 @@ def log(x):
     y : tvm.te.Tensor
         The result.
     """
+    if x.dtype.startswith("int"):
+        x = te.compute(x.shape, lambda *i: x(*i).astype("float32"))
     return te.compute(x.shape, lambda *i: te.log(x(*i)))
 
 
@@ -481,6 +483,8 @@ def log2(x):
     y : tvm.te.Tensor
         The result.
     """
+    if x.dtype.startswith("int"):
+        x = te.compute(x.shape, lambda *i: x(*i).astype("float32"))
     return te.compute(x.shape, lambda *i: te.log2(x(*i)))
 
 
