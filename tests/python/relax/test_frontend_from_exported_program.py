@@ -3715,15 +3715,9 @@ def test_interpolate():
             return gv
 
     example_args = (torch.randn(1, 3, 112, 112, dtype=torch.float32),)
-    verify_model(
-        InterpolateBilinear(), example_args, {}, expected_bilinear, run_ep_decomposition=True
-    )
-    verify_model(
-        InterpolateNearest(), example_args, {}, expected_nearest, run_ep_decomposition=True
-    )
-    verify_model(
-        InterpolateBicubic(), example_args, {}, expected_bicubic, run_ep_decomposition=True
-    )
+    verify_model(InterpolateBilinear(), example_args, {}, expected_bilinear)
+    verify_model(InterpolateNearest(), example_args, {}, expected_nearest)
+    verify_model(InterpolateBicubic(), example_args, {}, expected_bicubic)
 
 
 def test_mean():
