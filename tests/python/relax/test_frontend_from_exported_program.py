@@ -3056,12 +3056,12 @@ def test_linear():
         ) -> R.Tuple(R.Tensor((1, 3, 10, 7), dtype="float32")):
             # block 0
             with R.dataflow():
-                lv: R.Tensor((10, 7), dtype="float32") = R.permute_dims(w1, axes=None)
-                lv1: R.Tensor((1, 3, 10, 7), dtype="float32") = R.matmul(
-                    input_1, lv, out_dtype="float32"
-                )
-                lv2: R.Tensor((1, 3, 10, 7), dtype="float32") = R.add(lv1, w2)
-                gv: R.Tuple(R.Tensor((1, 3, 10, 7), dtype="float32")) = (lv2,)
+                lv: R.Tensor((30, 10), dtype="float32") = R.reshape(input_1, R.shape([30, 10]))
+                lv1: R.Tensor((10, 7), dtype="float32") = R.permute_dims(w1, axes=[1, 0])
+                lv2: R.Tensor((30, 7), dtype="float32") = R.matmul(lv, lv1, out_dtype="float32")
+                lv3: R.Tensor((30, 7), dtype="float32") = R.add(w2, lv2)
+                lv4: R.Tensor((1, 3, 10, 7), dtype="float32") = R.reshape(lv3, R.shape([1, 3, 10, 7]))
+                gv: R.Tuple(R.Tensor((1, 3, 10, 7), dtype="float32")) = (lv4,)
                 R.output(gv)
             return gv
 
@@ -3082,11 +3082,11 @@ def test_linear():
         ) -> R.Tuple(R.Tensor((1, 3, 10, 7), dtype="float32")):
             # block 0
             with R.dataflow():
-                lv: R.Tensor((10, 7), dtype="float32") = R.permute_dims(w1, axes=None)
-                lv1: R.Tensor((1, 3, 10, 7), dtype="float32") = R.matmul(
-                    input_1, lv, out_dtype="float32"
-                )
-                gv: R.Tuple(R.Tensor((1, 3, 10, 7), dtype="float32")) = (lv1,)
+                lv: R.Tensor((10, 7), dtype="float32") = R.permute_dims(w1, axes=[1, 0])
+                lv1: R.Tensor((30, 10), dtype="float32") = R.reshape(input_1, R.shape([30, 10]))
+                lv2: R.Tensor((30, 7), dtype="float32") = R.matmul(lv1, lv, out_dtype="float32")
+                lv3: R.Tensor((1, 3, 10, 7), dtype="float32") = R.reshape(lv2, R.shape([1, 3, 10, 7]))
+                gv: R.Tuple(R.Tensor((1, 3, 10, 7), dtype="float32")) = (lv3,)
                 R.output(gv)
             return gv
 
@@ -3094,15 +3094,15 @@ def test_linear():
 
     model = Dense1()
     binding = {"w1": model.linear.weight.detach().numpy(), "w2": model.linear.bias.detach().numpy()}
-    verify_model(model, example_args, binding, expected1)
+    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
 
     model = Dense1Func()
     binding = {"w1": model.weight.detach().numpy(), "w2": model.bias.detach().numpy()}
-    verify_model(model, example_args, binding, expected1)
+    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
 
     model = Dense2()
     binding = {"w1": model.linear.weight.detach().numpy()}
-    verify_model(model, example_args, binding, expected2)
+    verify_model(model, example_args, binding, expected2, run_ep_decomposition=True)
 
 
 def test_maxpool1d():
@@ -3195,9 +3195,9 @@ def test_maxpool1d():
     example_args3 = (torch.randn(1, 3, 10, dtype=torch.float32),)
 
     # Verify the models
-    verify_model(MaxPool1d(), example_args1, {}, expected1)
-    verify_model(MaxPool1d_functional(), example_args2, {}, expected2)
-    verify_model(MaxPool1d2(), example_args3, {}, expected3)
+    verify_model(MaxPool1d(), example_args1, {}, expected1, run_ep_decomposition=True)
+    verify_model(MaxPool1d_functional(), example_args2, {}, expected2, run_ep_decomposition=True)
+    verify_model(MaxPool1d2(), example_args3, {}, expected3, run_ep_decomposition=True)
 
 
 def test_maxpool2d():
@@ -3296,10 +3296,10 @@ def test_maxpool2d():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(MaxPool2d(), example_args, {}, expected1)
-    verify_model(MaxPool2d_functional(), example_args, {}, expected1)
-    verify_model(MaxPool2d2(), example_args, {}, expected2)
-    verify_model(MaxPool2d3(), example_args, {}, expected3)
+    verify_model(MaxPool2d(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(MaxPool2d_functional(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(MaxPool2d2(), example_args, {}, expected2, run_ep_decomposition=True)
+    verify_model(MaxPool2d3(), example_args, {}, expected3, run_ep_decomposition=True)
 
 
 def test_maxpool3d():
@@ -3400,10 +3400,10 @@ def test_maxpool3d():
     example_args3 = (torch.randn(1, 3, 10, 10, 10, dtype=torch.float32),)
 
     # Verify the models with expected IR modules
-    verify_model(MaxPool3d(), example_args1, {}, expected1)
-    verify_model(MaxPool3d_functional(), example_args1, {}, expected1)
-    verify_model(MaxPool3d2(), example_args2, {}, expected2)
-    verify_model(MaxPool3d3(), example_args3, {}, expected3)
+    verify_model(MaxPool3d(), example_args1, {}, expected1, run_ep_decomposition=True   )
+    verify_model(MaxPool3d_functional(), example_args1, {}, expected1, run_ep_decomposition=True)
+    verify_model(MaxPool3d2(), example_args2, {}, expected2, run_ep_decomposition=True)
+    verify_model(MaxPool3d3(), example_args3, {}, expected3, run_ep_decomposition=True)
 
 
 def test_scaled_dot_product_attention():
@@ -3481,6 +3481,7 @@ def test_scaled_dot_product_attention():
         ),
         {},
         Expected1,
+        run_ep_decomposition=True,
     )
 
     verify_model(
@@ -3493,6 +3494,7 @@ def test_scaled_dot_product_attention():
         ),
         {},
         Expected2,
+        run_ep_decomposition=True,
     )
 
 
