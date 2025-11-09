@@ -2748,10 +2748,30 @@ def test_pad():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(PadModel(pad=[1, 1, 2, 2]), example_args, {}, expected_constant)
-    verify_model(PadModel(pad=[1, 1, 2, 2], mode="reflect"), example_args, {}, expected_reflect)
-    verify_model(PadModel(pad=[1, 1, 2, 2], mode="replicate"), example_args, {}, expected_replicate)
-    verify_model(PadModel(pad=[1, 1, 2, 2], mode="circular"), example_args, {}, expected_circular)
+    verify_model(
+        PadModel(pad=[1, 1, 2, 2]), example_args, {}, expected_constant, run_ep_decomposition=True
+    )
+    verify_model(
+        PadModel(pad=[1, 1, 2, 2], mode="reflect"),
+        example_args,
+        {},
+        expected_reflect,
+        run_ep_decomposition=True,
+    )
+    verify_model(
+        PadModel(pad=[1, 1, 2, 2], mode="replicate"),
+        example_args,
+        {},
+        expected_replicate,
+        run_ep_decomposition=True,
+    )
+    verify_model(
+        PadModel(pad=[1, 1, 2, 2], mode="circular"),
+        example_args,
+        {},
+        expected_circular,
+        run_ep_decomposition=True,
+    )
 
 
 def test_pixel_shuffle():
@@ -2786,8 +2806,12 @@ def test_pixel_shuffle():
             return gv
 
     example_args = (torch.randn(1, 8, 10, 15, dtype=torch.float32),)
-    verify_model(PixelShuffle1(upscale_factor=2), example_args, {}, expected)
-    verify_model(PixelShuffle2(upscale_factor=2), example_args, {}, expected)
+    verify_model(
+        PixelShuffle1(upscale_factor=2), example_args, {}, expected, run_ep_decomposition=True
+    )
+    verify_model(
+        PixelShuffle2(upscale_factor=2), example_args, {}, expected, run_ep_decomposition=True
+    )
 
 
 def test_einsum():
@@ -2832,10 +2856,10 @@ def test_einsum():
             return gv
 
     example_args = (torch.randn(4, 4, dtype=torch.float32),)
-    verify_model(Einsum1(), example_args, {}, Expected1)
+    verify_model(Einsum1(), example_args, {}, Expected1, run_ep_decomposition=True)
 
     example_args = (torch.randn(5, dtype=torch.float32), torch.randn(4, dtype=torch.float32))
-    verify_model(Einsum2(), example_args, {}, Expected2)
+    verify_model(Einsum2(), example_args, {}, Expected2, run_ep_decomposition=True)
 
 
 def test_outer():
@@ -2859,7 +2883,7 @@ def test_outer():
         torch.randn(3, dtype=torch.float32),
         torch.randn(4, dtype=torch.float32),
     )
-    verify_model(Outer(), example_args, {}, expected)
+    verify_model(Outer(), example_args, {}, expected, run_ep_decomposition=True)
 
 
 def test_embedding():
@@ -2889,7 +2913,7 @@ def test_embedding():
 
     model = Embedding()
     binding = {"w1": model.embedding.weight.detach().numpy()}
-    verify_model(model, example_args, binding, expected1)
+    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
 
 
 def test_groupnorm():
@@ -2938,7 +2962,7 @@ def test_groupnorm():
         "w1": model.gn.weight.detach().numpy(),
         "w2": model.gn.bias.detach().numpy(),
     }
-    verify_model(model, example_args, binding, expected1)
+    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
 
 
 def test_instancenorm2d():
@@ -2983,7 +3007,7 @@ def test_instancenorm2d():
         "w1": torch.ones(3).detach().numpy(),
         "w2": torch.zeros(3).detach().numpy(),
     }
-    verify_model(model, example_args, binding, expected1)
+    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
 
 
 def test_layernorm():
@@ -3025,7 +3049,7 @@ def test_layernorm():
         "w1": model.ln.weight.detach().numpy(),
         "w2": model.ln.bias.detach().numpy(),
     }
-    verify_model(LayerNorm(), example_args, binding, expected1)
+    verify_model(LayerNorm(), example_args, binding, expected1, run_ep_decomposition=True)
 
 
 def test_linear():
@@ -3060,7 +3084,9 @@ def test_linear():
                 lv1: R.Tensor((10, 7), dtype="float32") = R.permute_dims(w1, axes=[1, 0])
                 lv2: R.Tensor((30, 7), dtype="float32") = R.matmul(lv, lv1, out_dtype="float32")
                 lv3: R.Tensor((30, 7), dtype="float32") = R.add(w2, lv2)
-                lv4: R.Tensor((1, 3, 10, 7), dtype="float32") = R.reshape(lv3, R.shape([1, 3, 10, 7]))
+                lv4: R.Tensor((1, 3, 10, 7), dtype="float32") = R.reshape(
+                    lv3, R.shape([1, 3, 10, 7])
+                )
                 gv: R.Tuple(R.Tensor((1, 3, 10, 7), dtype="float32")) = (lv4,)
                 R.output(gv)
             return gv
@@ -3085,7 +3111,9 @@ def test_linear():
                 lv: R.Tensor((10, 7), dtype="float32") = R.permute_dims(w1, axes=[1, 0])
                 lv1: R.Tensor((30, 10), dtype="float32") = R.reshape(input_1, R.shape([30, 10]))
                 lv2: R.Tensor((30, 7), dtype="float32") = R.matmul(lv1, lv, out_dtype="float32")
-                lv3: R.Tensor((1, 3, 10, 7), dtype="float32") = R.reshape(lv2, R.shape([1, 3, 10, 7]))
+                lv3: R.Tensor((1, 3, 10, 7), dtype="float32") = R.reshape(
+                    lv2, R.shape([1, 3, 10, 7])
+                )
                 gv: R.Tuple(R.Tensor((1, 3, 10, 7), dtype="float32")) = (lv3,)
                 R.output(gv)
             return gv
@@ -3400,7 +3428,7 @@ def test_maxpool3d():
     example_args3 = (torch.randn(1, 3, 10, 10, 10, dtype=torch.float32),)
 
     # Verify the models with expected IR modules
-    verify_model(MaxPool3d(), example_args1, {}, expected1, run_ep_decomposition=True   )
+    verify_model(MaxPool3d(), example_args1, {}, expected1, run_ep_decomposition=True)
     verify_model(MaxPool3d_functional(), example_args1, {}, expected1, run_ep_decomposition=True)
     verify_model(MaxPool3d2(), example_args2, {}, expected2, run_ep_decomposition=True)
     verify_model(MaxPool3d3(), example_args3, {}, expected3, run_ep_decomposition=True)
