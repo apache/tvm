@@ -6527,5 +6527,29 @@ def test_gru():
     np.testing.assert_allclose(pytorch_output2.numpy(), tvm_output2_np, rtol=1e-4, atol=1e-5)
 
 
+def test_dynamic_shape_with_range_constraints():
+    class DynamicModel(torch.nn.Module):
+        def forward(self, x1, x2):
+            return torch.ops.aten.add.Tensor(x1, x2)
+
+    example_args = (torch.randn(8, 4), torch.randn(8, 4))
+    batch = torch.export.Dim("batch", min=1, max=64)
+    dynamic_shapes = {"x1": {0: batch}, "x2": {0: batch}}
+    exported_program = export(DynamicModel(), args=example_args, dynamic_shapes=dynamic_shapes)
+
+    mod = from_exported_program(exported_program)
+
+    main_func = mod["main"]
+    assert hasattr(main_func, "attrs"), "Function should have attributes"
+
+    if "shape_var_constraints" in main_func.attrs:
+        constraints = main_func.attrs["shape_var_constraints"]
+        assert len(constraints) > 0, "Should have at least one constraint"
+
+        for symbol_name, (min_val, max_val) in constraints.items():
+            assert min_val == 1, f"Expected min=1 for {symbol_name}, got {min_val}"
+            assert max_val == 64, f"Expected max=64 for {symbol_name}, got {max_val}"
+
+
 if __name__ == "__main__":
     tvm.testing.main()

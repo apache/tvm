@@ -1097,11 +1097,28 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def create_input_vars(
         self, exported_program: torch.export.ExportedProgram
-    ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var]]:
+    ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var], Dict[str, Tuple[int, int]]]:
         """Create relax input vars."""
         parameters_buffers_constants = OrderedDict()
         user_inputs = OrderedDict()
         torch_symbol_to_relax_var: Dict[str, tvm.tir.Var] = {}
+        range_constraints = {}
+
+        if hasattr(exported_program, "range_constraints"):
+            for symbol, value_range in exported_program.range_constraints.items():
+                symbol_name = str(symbol)
+                if hasattr(value_range, "lower") and hasattr(value_range, "upper"):
+                    try:
+                        lower = int(value_range.lower)
+                    except (OverflowError, AttributeError, TypeError):
+                        continue
+
+                    try:
+                        upper = int(value_range.upper)
+                    except (OverflowError, AttributeError, TypeError):
+                        continue
+
+                    range_constraints[symbol_name] = (lower, upper)
 
         for spec in exported_program.graph_signature.input_specs:
             name_hint = spec.arg.name
@@ -1119,13 +1136,19 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 torch_shape = exported_program.state_dict[spec.target].shape
                 torch_dtype = exported_program.state_dict[spec.target].dtype
 
-            # TODO(mshr-h): Support range constraints
-            relax_shape = [
-                torch_symbol_to_relax_var.setdefault(str(s), tvm.tir.SizeVar(str(s), "int64"))
-                if isinstance(s, torch.SymInt)
-                else s
-                for s in torch_shape
-            ]
+            # Create TIR variables for symbolic dimensions
+            relax_shape = []
+            for s in torch_shape:
+                if isinstance(s, torch.SymInt):
+                    symbol_name = str(s)
+                    if symbol_name not in torch_symbol_to_relax_var:
+                        torch_symbol_to_relax_var[symbol_name] = tvm.tir.SizeVar(
+                            symbol_name, "int64"
+                        )
+                    relax_shape.append(torch_symbol_to_relax_var[symbol_name])
+                else:
+                    relax_shape.append(s)
+
             dtype = self._convert_data_type(torch_dtype)
 
             relax_var = relax.Var(name_hint, relax.TensorStructInfo(relax_shape, dtype))
@@ -1134,7 +1157,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             else:
                 parameters_buffers_constants[name_hint] = relax_var
 
-        return parameters_buffers_constants, user_inputs
+        return parameters_buffers_constants, user_inputs, range_constraints
 
     def from_exported_program(
         self,
@@ -1147,7 +1170,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         from torch import fx  # type: ignore
 
         # Create input variables.
-        parameter_buffer_constant_vars, user_input_vars = self.create_input_vars(exported_program)
+        (
+            parameter_buffer_constant_vars,
+            user_input_vars,
+            range_constraints,
+        ) = self.create_input_vars(exported_program)
         inputs_vars = user_input_vars.copy()
         inputs_vars.update(parameter_buffer_constant_vars)
 
@@ -1155,6 +1182,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         self.block_builder = relax.BlockBuilder()
         func_name = "main"
         func_attrs = {"num_input": len(user_input_vars)} if keep_params_as_input else None
+        if range_constraints:
+            if func_attrs is None:
+                func_attrs = {}
+            func_attrs["shape_var_constraints"] = range_constraints
 
         nodes: List[fx.Node] = exported_program.graph.nodes
 
