@@ -227,7 +227,6 @@ class RuntimeContext implements Disposable {
     this.tensorCacheGet.dispose();
     this.tensorCacheRemove.dispose();
     this.tensorCacheUpdate.dispose();
-    this.tensorCacheClear.dispose();
     this.arrayDecodeStorage.dispose();
     this.paramModuleFromCache.dispose();
     this.paramModuleFromCacheByName.dispose();
@@ -1396,21 +1395,7 @@ export class Instance implements Disposable {
           });
           const recSource = buffer.slice(rec.byteOffset, rec.byteOffset + rec.nbytes);
           // first sync copy to cpu.
-          this.withNewScope(() => {
-            const retValue = this.ctx.arrayDecodeStorage(
-              cpu_arr, new Uint8Array(recSource), rec.format, rec.dtype
-            );
-            if (retValue !== null && retValue instanceof TVMObject) {
-              try {
-                this.detachFromCurrentScope(retValue as any);
-              } catch (err) {
-                if (!(err instanceof Error && err.message.includes("Cannot find obj"))) {
-                  this.env.logger("Unable to detach: " + err);
-                  throw err;
-                }
-              }
-            }
-          });
+          this.ctx.arrayDecodeStorage(cpu_arr, new Uint8Array(recSource), rec.format, rec.dtype);
           // then async stream into GPU if needed
           if (device.deviceType === DeviceStrToEnum.cpu) {
             this.tensorCacheUpdate(rec.name, cpu_arr, false);

@@ -34,6 +34,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/ffi/extra/module.h>
 
 #include "../../src/runtime/rpc/rpc_local_session.h"
 

@@ -30,6 +30,7 @@
 #define TVM_FFI_ALWAYS_LOG_BEFORE_THROW 1
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
+#include <tvm/ffi/any.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 
@@ -52,6 +53,8 @@
 #include "3rdparty/tvm-ffi/src/ffi/container.cc"
 #include "3rdparty/tvm-ffi/src/ffi/dtype.cc"
 #include "3rdparty/tvm-ffi/src/ffi/error.cc"
+#include "3rdparty/tvm-ffi/src/ffi/extra/env_c_api.cc"
+#include "3rdparty/tvm-ffi/src/ffi/extra/env_context.cc"
 #include "3rdparty/tvm-ffi/src/ffi/extra/library_module.cc"
 #include "3rdparty/tvm-ffi/src/ffi/extra/library_module_system_lib.cc"
 #include "3rdparty/tvm-ffi/src/ffi/extra/module.cc"
@@ -145,7 +148,20 @@ void ArrayDecodeStorage(Tensor cpu_arr, std::string bytes, std::string format, s
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tvmjs.array.decode_storage", ArrayDecodeStorage);
+  refl::GlobalDef().def_packed("tvmjs.array.decode_storage", 
+                               [](ffi::PackedArgs args, ffi::Any* ret) {
+                                 Tensor cpu_arr = args[0].cast<Tensor>();
+                                 auto bytes = args[1].cast<ffi::Bytes>();
+                                 std::string format = args[2].cast<ffi::String>().operator std::string();
+                                 std::string dtype = args[3].cast<ffi::String>().operator std::string();
+                                 ArrayDecodeStorage(cpu_arr, bytes, format, dtype);
+                                 if (ret != nullptr) {
+                                  auto* ret_data = reinterpret_cast<TVMFFIAny*>(ret);
+                                  ret_data->type_index = TVMFFITypeIndex::kTVMFFINone;
+                                  ret_data->zero_padding = 0;
+                                  ret_data->v_int64 = 0;
+                                 }
+                               });
 }
 
 // Concatenate n TVMArrays
@@ -217,7 +233,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("tvmjs.runtime.TensorCopyFromBytes",
            [](Tensor nd, TVMFFIByteArray* bytes) { nd.CopyFromBytes(bytes->data, bytes->size); })
       .def("tvmjs.runtime.TensorCopyToBytes", [](Tensor nd) -> ffi::Bytes {
-        size_t size = GetDataSize(*(nd.operator->()));
+        size_t size = ffi::GetDataSize(*(nd.operator->()));
         std::string bytes;
         bytes.resize(size);
         nd.CopyToBytes(bytes.data(), size);
