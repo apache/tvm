@@ -2020,7 +2020,6 @@ void CodeGenLLVM::VisitStmt_(const BufferStoreNode* op) {
 
 void CodeGenLLVM::VisitStmt_(const ForNode* op) {
   EmitDebugLocation(op);
-  ICHECK(is_zero(op->min));
   analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
   if (op->kind == ForKind::kUnrolled) {
     LOG(WARNING) << "Unroll hint get ignore at CodeGenLLVM backend, "
@@ -2028,8 +2027,9 @@ void CodeGenLLVM::VisitStmt_(const ForNode* op) {
   } else {
     ICHECK(op->kind == ForKind::kSerial);
   }
-  CreateSerialFor(MakeValue(op->min), MakeValue(op->extent),
-                  llvm::ConstantInt::getSigned(GetLLVMType(op->extent), 1), op->loop_var, op->body);
+  PrimExpr step = op->step.value_or(make_const(op->extent->dtype, 1));
+  CreateSerialFor(MakeValue(op->min), MakeValue(op->extent), MakeValue(step), op->loop_var,
+                  op->body);
 }
 
 void CodeGenLLVM::VisitStmt_(const WhileNode* op) {

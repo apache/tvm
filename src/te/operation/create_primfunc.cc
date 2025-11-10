@@ -611,7 +611,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     }
     for (size_t j = cur.loop_vars.size(); j > 0; --j) {
       const auto& [loop_var, dom] = cur.loop_vars[j - 1];
-      body = For(loop_var, dom->min, dom->extent, ForKind::kSerial, body);
+      body = For::ForSimple(loop_var, dom->min, dom->extent, ForKind::kSerial, body);
     }
   }
   return body;
@@ -725,6 +725,7 @@ void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info,
   } else if (const auto extern_op = op.as<te::ExternOp>()) {
     // Case 3. ExternOp (te.extern)
     root_stmts->push_back(GenerateStmtFromExternOp(extern_op.value(), info));
+  } else if (const auto scan_op = op.as<te::ScanOp>()) {
   } else {
     ICHECK(false) << "TypeError: Unsupported Operation: " << op->GetTypeKey() << ". "
                   << "Only te.placeholder and te.compute are allowed for now.";

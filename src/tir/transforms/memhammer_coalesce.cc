@@ -53,8 +53,8 @@ Stmt FuseNestLoops(Stmt body) {
   for (int i = 0; i < n; i++) {
     fused_extent *= loops[i]->extent;
   }
-  return For(fused_var, 0, fused_extent, ForKind::kSerial,
-             Substitute(std::move(body), f_substitute));
+  return For::ForSimple(fused_var, 0, fused_extent, ForKind::kSerial,
+                        Substitute(std::move(body), f_substitute));
 }
 
 /*!
@@ -125,12 +125,13 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   if (!analyzer.CanProve(predicate)) {
     body = IfThenElse(predicate, body);
   }
-  body = For(new_loop_vars.back(), 0, vector_len, ForKind::kVectorized, std::move(body));
+  body = For::ForSimple(new_loop_vars.back(), 0, vector_len, ForKind::kVectorized, std::move(body));
   for (int i = n - 2; i >= 1; i--) {
     body = For(new_loop_vars[i], 0, factors[i], ForKind::kThreadBinding, std::move(body),
-               IterVar(Range(nullptr), Var(thread_axis[i - 1]), kThreadIndex, thread_axis[i - 1]));
+               IterVar(Range(nullptr), Var(thread_axis[i - 1]), kThreadIndex, thread_axis[i - 1]),
+               {}, std::nullopt);
   }
-  return For(new_loop_vars[0], 0, factors[0], ForKind::kSerial, std::move(body));
+  return For::ForSimple(new_loop_vars[0], 0, factors[0], ForKind::kSerial, std::move(body));
 }
 
 Stmt CoalescedAccess::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
@@ -227,7 +228,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   // Step 3.3 construct loop body
   for (int i = static_cast<int>(new_loop_vars.size()) - 1; i >= 0; i--) {
     PrimExpr extent = write_region->region[i]->extent;
-    ret = For(new_loop_vars[i], 0, extent, ForKind::kSerial, std::move(ret));
+    ret = For::ForSimple(new_loop_vars[i], 0, extent, ForKind::kSerial, std::move(ret));
   }
   return ret;
 }

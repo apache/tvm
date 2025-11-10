@@ -703,7 +703,7 @@ class BlockizeRewriter : public StmtMutator {
   Stmt VisitStmt_(const ForNode* loop) final {
     if (loop == lca_->stmt) {
       return For(loop->loop_var, loop->min, loop->extent, loop->kind, RewriteSeq(loop->body),
-                 loop->thread_binding, loop->annotations, loop->span);
+                 loop->thread_binding, loop->annotations, loop->step, loop->span);
     }
     return StmtMutator::VisitStmt_(loop);
   }

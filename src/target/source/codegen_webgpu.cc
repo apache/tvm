@@ -668,12 +668,19 @@ void CodeGenWebGPU::VisitStmt_(const AllocateNode* op) {
 
 void CodeGenWebGPU::VisitStmt_(const ForNode* op) {
   std::string extent = PrintExpr(op->extent);
+  std::string step = op->step.has_value() ? PrintExpr(*op->step) : "";
   std::string vid = AllocVarID(op->loop_var.get());
   ICHECK(is_zero(op->min));
   PrintIndent();
   stream << "for (var " << vid << " : ";
   PrintType(op->loop_var.dtype(), stream);
-  stream << " = 0; " << vid << " < " << extent << "; " << vid << "++) {\n";
+  stream << " = 0; " << vid << " < " << extent << "; " << vid;
+  if (step.empty()) {
+    stream << "++";
+  } else {
+    stream << " += " << step;
+  }
+  stream << ") {\n";
   int for_scope = BeginScope();
   PrintStmt(op->body);
   this->EndScope(for_scope);

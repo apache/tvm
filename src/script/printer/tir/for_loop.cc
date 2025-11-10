@@ -39,7 +39,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           if (l->kind != tir::ForKind::kSerial ||  //
               !tir::is_zero(l->min) ||             //
               !l->annotations.empty() ||           //
-              f_var_dep(l->extent)) {
+              !l->HasTrivialStep() || f_var_dep(l->extent)) {
             break;
           }
           grid.push_back(l);
@@ -69,7 +69,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       ffi::Optional<ExprDoc> max = std::nullopt;
       ffi::Optional<ExprDoc> annotations = std::nullopt;
       ffi::Optional<ExprDoc> thread = std::nullopt;
-      if (tir::is_zero(loop->min)) {
+      if (tir::is_zero(loop->min) && loop->HasTrivialStep()) {
         max = d->AsDoc<ExprDoc>(loop->extent, loop_p->Attr("extent"));
       } else {
         min = d->AsDoc<ExprDoc>(loop->min, loop_p->Attr("min"));
@@ -78,10 +78,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       if (!loop->annotations.empty()) {
         annotations = d->AsDoc<ExprDoc>(loop->annotations, loop_p->Attr("annotations"));
       }
+      bool use_range_sugar = false;
       ExprDoc prefix{ffi::UnsafeInit()};
       if (loop->kind == tir::ForKind::kSerial) {
         if (loop->annotations.empty()) {
           prefix = IdDoc("range");
+          use_range_sugar = true;
         } else {
           prefix = TIR(d, "serial");
         }
@@ -114,6 +116,15 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       if (annotations.defined()) {
         kwargs_keys.push_back("annotations");
         kwargs_values.push_back(annotations.value());
+      }
+      if (!loop->HasTrivialStep()) {
+        ExprDoc step = d->AsDoc<ExprDoc>(*loop->step, loop_p->Attr("step"));
+        if (use_range_sugar) {
+          args.push_back(step);
+        } else {
+          kwargs_keys.push_back("step");
+          kwargs_values.push_back(step);
+        }
       }
       ExprDoc rhs = prefix->Call(args, kwargs_keys, kwargs_values);
       AsDocBody(loop->body, loop_p->Attr("body"), (*f).get(), d);

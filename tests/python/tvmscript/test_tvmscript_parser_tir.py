@@ -327,6 +327,32 @@ def test_tir_starred_for_loop():
     tvm.ir.assert_structural_equal(starred, non_starred)
 
 
+def test_tir_loop_steps():
+    N = T.Var("N", "int32")
+
+    @T.prim_func(private=True)
+    def loop_with_steps(
+        A: T.Buffer((N,)), B: T.Buffer((N,)), C: T.Buffer((N,)), tid: T.int32, v: T.int32
+    ):
+        for i in T.serial(tid, N, step=2):
+            C[i] = A[i] + B[i]
+        for i in T.unroll(tid, N, step=3):
+            C[i] = A[i] + B[i]
+        for i in T.vectorized(tid, N, step=4):
+            C[i] = A[i] + B[i]
+        for i in T.parallel(tid, N, step=5):
+            C[i] = A[i] + B[i]
+        for i in range(tid, N, v):
+            C[i] = A[i] + B[i]
+
+    stmts = loop_with_steps.body.seq
+    assert stmts[0].step == 2
+    assert stmts[1].step == 3
+    assert stmts[2].step == 4
+    assert stmts[3].step == 5
+    assert stmts[4].step.name == "v"
+
+
 def test_tir_empty_tuple_index():
     @T.macro
     def bar(val):

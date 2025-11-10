@@ -672,10 +672,20 @@ void CodeGenSPIRV::VisitStmt_(const BufferStoreNode* op) {
 }
 
 void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
-  ICHECK(is_zero(op->min));
   analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
   spirv::Value init_value = MakeValue(op->min);
   spirv::Value extent_value = MakeValue(op->extent);
+  spirv::PhiValue loop_var = builder_->MakePhi(init_value.stype, 2);
+
+  // loop step
+  spirv::Value step;
+  if (op->HasTrivialStep()) {
+    step = op->loop_var.dtype().is_int() ? builder_->IntImm(loop_var.stype, 1)
+                                         : builder_->UIntImm(loop_var.stype, 1);
+  } else {
+    step = MakeValue(tvm::cast(op->extent->dtype, *op->step));
+  }
+
   // Must get init label after making value(to make sure they are correct)
   spirv::Label init_label = builder_->CurrentLabel();
   spirv::Label head_label = builder_->NewLabel();
@@ -690,7 +700,6 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
 
   // Loop head
   builder_->StartLabel(head_label);
-  spirv::PhiValue loop_var = builder_->MakePhi(init_value.stype, 2);
   loop_var.SetIncoming(0, init_value, init_label);
   spirv::Value loop_cond = builder_->LT(loop_var, extent_value);
   uint32_t control =
@@ -707,9 +716,8 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
 
   // loop continue
   builder_->StartLabel(continue_label);
-  spirv::Value one = op->loop_var.dtype().is_int() ? builder_->IntImm(loop_var.stype, 1)
-                                                   : builder_->UIntImm(loop_var.stype, 1);
-  spirv::Value next_value = builder_->Add(loop_var, one);
+
+  spirv::Value next_value = builder_->Add(loop_var, step);
   loop_var.SetIncoming(1, next_value, builder_->CurrentLabel());
   builder_->MakeInst(spv::OpBranch, head_label);
   // loop merge
