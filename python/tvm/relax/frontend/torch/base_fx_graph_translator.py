@@ -1379,6 +1379,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
         return self.block_builder.emit(relax.op.variance(x, dim, keepdims=keepdim))
 
+    def _any(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+        keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+        # For boolean tensors, any is equivalent to max (checking if any element is True)
+        return self.block_builder.emit(relax.op.max(x, dim, keepdims=keepdim))
+
     ########## Search ##########
 
     def _argmax_argmin(self, op: Callable) -> Callable:

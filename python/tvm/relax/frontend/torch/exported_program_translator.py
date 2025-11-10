@@ -930,6 +930,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "remainder.Tensor": self._binary_op(relax.op.floor_mod, operator.mod),
             "remainder.Scalar": self._binary_op(relax.op.floor_mod, operator.mod),
             "mul.Tensor": self._binary_op(relax.op.multiply, operator.mul),
+            "mul.Scalar": self._binary_op(relax.op.multiply, operator.mul),
             "mul_.Tensor": self._binary_op(relax.op.multiply, operator.mul),
             "ne.Tensor": self._binary_op(relax.op.not_equal, operator.ne),
             "ne.Scalar": self._binary_op(relax.op.not_equal, operator.ne),
@@ -988,6 +989,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "upsample_nearest2d.vec": self._upsample_nearest2d,
             "upsample_bicubic2d.vec": self._upsample_bicubic2d,
             # statistical
+            "any.dim": self._any,
             "mean.dim": self._mean,
             "prod.default": self._prod,
             "std.correction": self._std,

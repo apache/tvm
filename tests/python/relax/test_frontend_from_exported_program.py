@@ -2748,30 +2748,10 @@ def test_pad():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(
-        PadModel(pad=[1, 1, 2, 2]), example_args, {}, expected_constant, run_ep_decomposition=True
-    )
-    verify_model(
-        PadModel(pad=[1, 1, 2, 2], mode="reflect"),
-        example_args,
-        {},
-        expected_reflect,
-        run_ep_decomposition=True,
-    )
-    verify_model(
-        PadModel(pad=[1, 1, 2, 2], mode="replicate"),
-        example_args,
-        {},
-        expected_replicate,
-        run_ep_decomposition=True,
-    )
-    verify_model(
-        PadModel(pad=[1, 1, 2, 2], mode="circular"),
-        example_args,
-        {},
-        expected_circular,
-        run_ep_decomposition=True,
-    )
+    verify_model(PadModel(pad=[1, 1, 2, 2]), example_args, {}, expected_constant)
+    verify_model(PadModel(pad=[1, 1, 2, 2], mode="reflect"), example_args, {}, expected_reflect)
+    verify_model(PadModel(pad=[1, 1, 2, 2], mode="replicate"), example_args, {}, expected_replicate)
+    verify_model(PadModel(pad=[1, 1, 2, 2], mode="circular"), example_args, {}, expected_circular)
 
 
 def test_pixel_shuffle():
@@ -2798,10 +2778,16 @@ def test_pixel_shuffle():
             x: R.Tensor((1, 8, 10, 15), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 2, 20, 30), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((1, 2, 20, 30), dtype="float32") = R.nn.pixel_shuffle(
-                    x, upscale_factor=2
+                lv: R.Tensor((1, 2, 2, 2, 10, 15), dtype="float32") = R.reshape(
+                    x, R.shape([1, 2, 2, 2, 10, 15])
                 )
-                gv: R.Tuple(R.Tensor((1, 2, 20, 30), dtype="float32")) = (lv,)
+                lv1: R.Tensor((1, 2, 10, 2, 15, 2), dtype="float32") = R.permute_dims(
+                    lv, axes=[0, 1, 4, 2, 5, 3]
+                )
+                lv2: R.Tensor((1, 2, 20, 30), dtype="float32") = R.reshape(
+                    lv1, R.shape([1, 2, 20, 30])
+                )
+                gv: R.Tuple(R.Tensor((1, 2, 20, 30), dtype="float32")) = (lv2,)
                 R.output(gv)
             return gv
 
@@ -2856,10 +2842,10 @@ def test_einsum():
             return gv
 
     example_args = (torch.randn(4, 4, dtype=torch.float32),)
-    verify_model(Einsum1(), example_args, {}, Expected1, run_ep_decomposition=True)
+    verify_model(Einsum1(), example_args, {}, Expected1, run_ep_decomposition=False)
 
     example_args = (torch.randn(5, dtype=torch.float32), torch.randn(4, dtype=torch.float32))
-    verify_model(Einsum2(), example_args, {}, Expected2, run_ep_decomposition=True)
+    verify_model(Einsum2(), example_args, {}, Expected2, run_ep_decomposition=False)
 
 
 def test_outer():
@@ -2871,11 +2857,12 @@ def test_outer():
     class expected:
         @R.function
         def main(
-            a: R.Tensor((3,), dtype="float32"), b: R.Tensor((4,), dtype="float32")
+            x: R.Tensor((3,), dtype="float32"), y: R.Tensor((4,), dtype="float32")
         ) -> R.Tuple(R.Tensor((3, 4), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((3, 4), dtype="float32") = R.outer(a, b)
-                gv: R.Tuple(R.Tensor((3, 4), dtype="float32")) = (lv,)
+                lv: R.Tensor((3, 1), dtype="float32") = R.reshape(x, R.shape([3, 1]))
+                lv1: R.Tensor((3, 4), dtype="float32") = R.multiply(lv, y)
+                gv: R.Tuple(R.Tensor((3, 4), dtype="float32")) = (lv1,)
                 R.output(gv)
             return gv
 
@@ -2962,7 +2949,7 @@ def test_groupnorm():
         "w1": model.gn.weight.detach().numpy(),
         "w2": model.gn.bias.detach().numpy(),
     }
-    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected1)
 
 
 def test_instancenorm2d():
@@ -3007,7 +2994,7 @@ def test_instancenorm2d():
         "w1": torch.ones(3).detach().numpy(),
         "w2": torch.zeros(3).detach().numpy(),
     }
-    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected1)
 
 
 def test_layernorm():
@@ -3049,7 +3036,7 @@ def test_layernorm():
         "w1": model.ln.weight.detach().numpy(),
         "w2": model.ln.bias.detach().numpy(),
     }
-    verify_model(LayerNorm(), example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(LayerNorm(), example_args, binding, expected1)
 
 
 def test_linear():
@@ -3223,9 +3210,9 @@ def test_maxpool1d():
     example_args3 = (torch.randn(1, 3, 10, dtype=torch.float32),)
 
     # Verify the models
-    verify_model(MaxPool1d(), example_args1, {}, expected1, run_ep_decomposition=True)
-    verify_model(MaxPool1d_functional(), example_args2, {}, expected2, run_ep_decomposition=True)
-    verify_model(MaxPool1d2(), example_args3, {}, expected3, run_ep_decomposition=True)
+    verify_model(MaxPool1d(), example_args1, {}, expected1)
+    verify_model(MaxPool1d_functional(), example_args2, {}, expected2)
+    verify_model(MaxPool1d2(), example_args3, {}, expected3)
 
 
 def test_maxpool2d():
@@ -3324,10 +3311,10 @@ def test_maxpool2d():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(MaxPool2d(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(MaxPool2d_functional(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(MaxPool2d2(), example_args, {}, expected2, run_ep_decomposition=True)
-    verify_model(MaxPool2d3(), example_args, {}, expected3, run_ep_decomposition=True)
+    verify_model(MaxPool2d(), example_args, {}, expected1)
+    verify_model(MaxPool2d_functional(), example_args, {}, expected1)
+    verify_model(MaxPool2d2(), example_args, {}, expected2)
+    verify_model(MaxPool2d3(), example_args, {}, expected3)
 
 
 def test_maxpool3d():
@@ -3428,10 +3415,10 @@ def test_maxpool3d():
     example_args3 = (torch.randn(1, 3, 10, 10, 10, dtype=torch.float32),)
 
     # Verify the models with expected IR modules
-    verify_model(MaxPool3d(), example_args1, {}, expected1, run_ep_decomposition=True)
-    verify_model(MaxPool3d_functional(), example_args1, {}, expected1, run_ep_decomposition=True)
-    verify_model(MaxPool3d2(), example_args2, {}, expected2, run_ep_decomposition=True)
-    verify_model(MaxPool3d3(), example_args3, {}, expected3, run_ep_decomposition=True)
+    verify_model(MaxPool3d(), example_args1, {}, expected1)
+    verify_model(MaxPool3d_functional(), example_args1, {}, expected1)
+    verify_model(MaxPool3d2(), example_args2, {}, expected2)
+    verify_model(MaxPool3d3(), example_args3, {}, expected3)
 
 
 def test_scaled_dot_product_attention():
@@ -3443,27 +3430,76 @@ def test_scaled_dot_product_attention():
     class Expected1:
         @R.function
         def main(
-            inp_0: R.Tensor((32, 8, 128, 64), dtype="float32"),
-            inp_1: R.Tensor((32, 8, 128, 64), dtype="float32"),
-            inp_2: R.Tensor((32, 8, 128, 64), dtype="float32"),
+            q: R.Tensor((32, 8, 128, 64), dtype="float32"),
+            k: R.Tensor((32, 8, 128, 64), dtype="float32"),
+            v: R.Tensor((32, 8, 128, 64), dtype="float32"),
         ) -> R.Tuple(R.Tensor((32, 8, 128, 64), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
-                    inp_0, axes=[0, 2, 1, 3]
+                lv: R.Tensor((32, 8, 128, 64), dtype="float32") = R.multiply(
+                    q, R.const(0.35355338454246521, "float32")
                 )
-                lv1: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
-                    inp_1, axes=[0, 2, 1, 3]
+                lv1: R.Tensor((32, 8, 64, 128), dtype="float32") = R.permute_dims(
+                    k, axes=[0, 1, 3, 2]
                 )
-                lv2: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
-                    inp_2, axes=[0, 2, 1, 3]
+                lv2: R.Tensor((32, 8, 64, 128), dtype="float32") = R.multiply(
+                    lv1, R.const(0.35355338454246521, "float32")
                 )
-                lv3: R.Tensor((32, 128, 8, 64), dtype="float32") = R.nn.attention(
-                    lv, lv1, lv2, scale=None
+                lv3: R.Tensor((32, 8, 128, 64), dtype="float32") = R.broadcast_to(
+                    lv, R.shape([32, 8, 128, 64])
                 )
-                lv4: R.Tensor((32, 8, 128, 64), dtype="float32") = R.permute_dims(
-                    lv3, axes=[0, 2, 1, 3]
+                lv4: R.Tensor((256, 128, 64), dtype="float32") = R.reshape(
+                    lv3, R.shape([256, 128, 64])
                 )
-                gv: R.Tuple(R.Tensor((32, 8, 128, 64), dtype="float32")) = (lv4,)
+                lv5: R.Tensor((32, 8, 64, 128), dtype="float32") = R.broadcast_to(
+                    lv2, R.shape([32, 8, 64, 128])
+                )
+                lv6: R.Tensor((256, 64, 128), dtype="float32") = R.reshape(
+                    lv5, R.shape([256, 64, 128])
+                )
+                lv7: R.Tensor((256, 128, 128), dtype="float32") = R.matmul(
+                    lv4, lv6, out_dtype="float32"
+                )
+                lv8: R.Tensor((32, 8, 128, 128), dtype="float32") = R.reshape(
+                    lv7, R.shape([32, 8, 128, 128])
+                )
+                lv9: R.Tensor((32, 8, 128, 128), dtype="float32") = R.nn.softmax(lv8, axis=-1)
+                lv10: R.Tensor((32, 8, 128, 128), dtype="bool") = R.equal(
+                    lv8, R.const(float("-inf"), "float32")
+                )
+                lv11: R.Tensor((32, 8, 128, 128), dtype="bool") = R.logical_not(lv10)
+                lv12: R.Tensor((32, 8, 128, 1), dtype="bool") = R.max(
+                    lv11, axis=[-1], keepdims=True
+                )
+                lv13: R.Tensor((32, 8, 128, 1), dtype="bool") = R.logical_not(lv12)
+                lv14: R.Tensor((32, 8, 128, 128), dtype="float32") = R.full_like(
+                    lv9, R.const(0, "int32"), dtype="void"
+                )
+                lv15: R.Tensor((32, 8, 128, 128), dtype="float32") = R.where(lv13, lv14, lv9)
+                lv16: R.Tensor((32, 8, 128, 128), dtype="float32") = R.broadcast_to(
+                    lv15, R.shape([32, 8, 128, 128])
+                )
+                lv17: R.Tensor((256, 128, 128), dtype="float32") = R.reshape(
+                    lv16, R.shape([256, 128, 128])
+                )
+                lv18: R.Tensor((32, 8, 128, 64), dtype="float32") = R.broadcast_to(
+                    v, R.shape([32, 8, 128, 64])
+                )
+                lv19: R.Tensor((256, 128, 64), dtype="float32") = R.reshape(
+                    lv18, R.shape([256, 128, 64])
+                )
+                lv20: R.Tensor((256, 128, 64), dtype="float32") = R.matmul(
+                    lv17, lv19, out_dtype="float32"
+                )
+                lv21: R.Tensor((32, 8, 128, 64), dtype="float32") = R.reshape(
+                    lv20, R.shape([32, 8, 128, 64])
+                )
+                lv22: R.Tensor((128, 32, 8, 64), dtype="float32") = R.permute_dims(
+                    lv21, axes=[2, 0, 1, 3]
+                )
+                lv23: R.Tensor((32, 8, 128, 64), dtype="float32") = R.permute_dims(
+                    lv22, axes=[1, 2, 0, 3]
+                )
+                gv: R.Tuple(R.Tensor((32, 8, 128, 64), dtype="float32")) = (lv23,)
                 R.output(gv)
             return gv
 
@@ -3475,28 +3511,78 @@ def test_scaled_dot_product_attention():
     class Expected2:
         @R.function
         def main(
-            inp_0: R.Tensor((32, 8, 128, 64), dtype="float32"),
-            inp_1: R.Tensor((32, 8, 128, 64), dtype="float32"),
-            inp_2: R.Tensor((32, 8, 128, 64), dtype="float32"),
-            inp_3: R.Tensor((32, 8, 128, 128), dtype="float32"),
+            q: R.Tensor((32, 8, 128, 64), dtype="float32"),
+            k: R.Tensor((32, 8, 128, 64), dtype="float32"),
+            v: R.Tensor((32, 8, 128, 64), dtype="float32"),
+            mask: R.Tensor((32, 8, 128, 128), dtype="float32"),
         ) -> R.Tuple(R.Tensor((32, 8, 128, 64), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
-                    inp_0, axes=[0, 2, 1, 3]
+                lv: R.Tensor((32, 8, 128, 64), dtype="float32") = R.multiply(
+                    q, R.const(0.35355338454246521, "float32")
                 )
-                lv1: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
-                    inp_1, axes=[0, 2, 1, 3]
+                lv1: R.Tensor((32, 8, 64, 128), dtype="float32") = R.permute_dims(
+                    k, axes=[0, 1, 3, 2]
                 )
-                lv2: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
-                    inp_2, axes=[0, 2, 1, 3]
+                lv2: R.Tensor((32, 8, 64, 128), dtype="float32") = R.multiply(
+                    lv1, R.const(0.35355338454246521, "float32")
                 )
-                lv3: R.Tensor((32, 128, 8, 64), dtype="float32") = R.nn.attention(
-                    lv, lv1, lv2, inp_3, scale=None
+                lv3: R.Tensor((32, 8, 128, 64), dtype="float32") = R.broadcast_to(
+                    lv, R.shape([32, 8, 128, 64])
                 )
-                lv4: R.Tensor((32, 8, 128, 64), dtype="float32") = R.permute_dims(
-                    lv3, axes=[0, 2, 1, 3]
+                lv4: R.Tensor((256, 128, 64), dtype="float32") = R.reshape(
+                    lv3, R.shape([256, 128, 64])
                 )
-                gv: R.Tuple(R.Tensor((32, 8, 128, 64), dtype="float32")) = (lv4,)
+                lv5: R.Tensor((32, 8, 64, 128), dtype="float32") = R.broadcast_to(
+                    lv2, R.shape([32, 8, 64, 128])
+                )
+                lv6: R.Tensor((256, 64, 128), dtype="float32") = R.reshape(
+                    lv5, R.shape([256, 64, 128])
+                )
+                lv7: R.Tensor((256, 128, 128), dtype="float32") = R.matmul(
+                    lv4, lv6, out_dtype="float32"
+                )
+                lv8: R.Tensor((32, 8, 128, 128), dtype="float32") = R.reshape(
+                    lv7, R.shape([32, 8, 128, 128])
+                )
+                lv9: R.Tensor((32, 8, 128, 128), dtype="float32") = R.add(lv8, mask)
+                lv10: R.Tensor((32, 8, 128, 128), dtype="float32") = R.nn.softmax(lv9, axis=-1)
+                lv11: R.Tensor((32, 8, 128, 128), dtype="bool") = R.equal(
+                    lv9, R.const(float("-inf"), "float32")
+                )
+                lv12: R.Tensor((32, 8, 128, 128), dtype="bool") = R.logical_not(lv11)
+                lv13: R.Tensor((32, 8, 128, 1), dtype="bool") = R.max(
+                    lv12, axis=[-1], keepdims=True
+                )
+                lv14: R.Tensor((32, 8, 128, 1), dtype="bool") = R.logical_not(lv13)
+                lv15: R.Tensor((32, 8, 128, 128), dtype="float32") = R.full_like(
+                    lv10, R.const(0, "int32"), dtype="void"
+                )
+                lv16: R.Tensor((32, 8, 128, 128), dtype="float32") = R.where(lv14, lv15, lv10)
+                lv17: R.Tensor((32, 8, 128, 128), dtype="float32") = R.broadcast_to(
+                    lv16, R.shape([32, 8, 128, 128])
+                )
+                lv18: R.Tensor((256, 128, 128), dtype="float32") = R.reshape(
+                    lv17, R.shape([256, 128, 128])
+                )
+                lv19: R.Tensor((32, 8, 128, 64), dtype="float32") = R.broadcast_to(
+                    v, R.shape([32, 8, 128, 64])
+                )
+                lv20: R.Tensor((256, 128, 64), dtype="float32") = R.reshape(
+                    lv19, R.shape([256, 128, 64])
+                )
+                lv21: R.Tensor((256, 128, 64), dtype="float32") = R.matmul(
+                    lv18, lv20, out_dtype="float32"
+                )
+                lv22: R.Tensor((32, 8, 128, 64), dtype="float32") = R.reshape(
+                    lv21, R.shape([32, 8, 128, 64])
+                )
+                lv23: R.Tensor((128, 32, 8, 64), dtype="float32") = R.permute_dims(
+                    lv22, axes=[2, 0, 1, 3]
+                )
+                lv24: R.Tensor((32, 8, 128, 64), dtype="float32") = R.permute_dims(
+                    lv23, axes=[1, 2, 0, 3]
+                )
+                gv: R.Tuple(R.Tensor((32, 8, 128, 64), dtype="float32")) = (lv24,)
                 R.output(gv)
             return gv
 
