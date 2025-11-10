@@ -342,7 +342,7 @@ def test_tir_loop_steps():
             C[i] = A[i] + B[i]
         for i in T.parallel(tid, N, step=5):
             C[i] = A[i] + B[i]
-        for i in range(tid, N, v):
+        for i in T.serial(tid, N, step=v):
             C[i] = A[i] + B[i]
 
     stmts = loop_with_steps.body.seq

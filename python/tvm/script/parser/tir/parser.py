@@ -176,6 +176,17 @@ def range_sugar(
     annotations: Dict[str, Any] = None,
 ) -> T.frame.ForFrame:
     """The sugar for python range builtin."""
+
+    # Since `tir.For` do not support reversed iteration semantic,
+    # the step must be checked to be positive integer when use range sugar
+    if step is not None:
+        try:
+            step = int(step)
+            if step < 0:
+                raise ValueError(f"Only support positive step in range(), get {step}")
+        except TypeError:  # pylint: disable=broad-except
+            raise ValueError(f"Only support literal step in range(), get {step}")
+
     return T.serial(start, stop, annotations=annotations, step=step)
 
 

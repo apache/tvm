@@ -4031,7 +4031,7 @@ def func_with_loop_steps():
             C[i] = A[i] + B[i]
         for i in T.parallel(tid, 1024, step=5):
             C[i] = A[i] + B[i]
-        for i in range(tid, 1024, v):
+        for i in range(tid, 1024, 6):
             C[i] = A[i] + B[i]
 
     return func
