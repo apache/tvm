@@ -148,20 +148,20 @@ void ArrayDecodeStorage(Tensor cpu_arr, std::string bytes, std::string format, s
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("tvmjs.array.decode_storage",
-                               [](ffi::PackedArgs args, ffi::Any* ret) {
-                                 Tensor cpu_arr = args[0].cast<Tensor>();
-                                 auto bytes = args[1].cast<ffi::Bytes>();
-                                 std::string format = args[2].cast<ffi::String>().operator std::string();
-                                 std::string dtype = args[3].cast<ffi::String>().operator std::string();
-                                 ArrayDecodeStorage(cpu_arr, bytes, format, dtype);
-                                 if (ret != nullptr) {
-                                  auto* ret_data = reinterpret_cast<TVMFFIAny*>(ret);
-                                  ret_data->type_index = TVMFFITypeIndex::kTVMFFINone;
-                                  ret_data->zero_padding = 0;
-                                  ret_data->v_int64 = 0;
-                                 }
-                               });
+  refl::GlobalDef().def_packed(
+      "tvmjs.array.decode_storage", [](ffi::PackedArgs args, ffi::Any* ret) {
+        Tensor cpu_arr = args[0].cast<Tensor>();
+        auto bytes = args[1].cast<ffi::Bytes>();
+        std::string format = args[2].cast<ffi::String>().operator std::string();
+        std::string dtype = args[3].cast<ffi::String>().operator std::string();
+        ArrayDecodeStorage(cpu_arr, bytes, format, dtype);
+        if (ret != nullptr) {
+          auto* ret_data = reinterpret_cast<TVMFFIAny*>(ret);
+          ret_data->type_index = TVMFFITypeIndex::kTVMFFINone;
+          ret_data->zero_padding = 0;
+          ret_data->v_int64 = 0;
+        }
+      });
 }
 
 // Concatenate n TVMArrays
