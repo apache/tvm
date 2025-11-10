@@ -148,7 +148,7 @@ void ArrayDecodeStorage(Tensor cpu_arr, std::string bytes, std::string format, s
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("tvmjs.array.decode_storage", 
+  refl::GlobalDef().def_packed("tvmjs.array.decode_storage",
                                [](ffi::PackedArgs args, ffi::Any* ret) {
                                  Tensor cpu_arr = args[0].cast<Tensor>();
                                  auto bytes = args[1].cast<ffi::Bytes>();
