@@ -586,7 +586,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                                 h,
                                 d,
                                 position_map[s],
-                                long_factors,
+                                long_factors if is_longrope_scaling else None,
                             ),
                             qkv[s, h, d],
                         )
@@ -599,7 +599,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                                 h,
                                 d,
                                 position_map[s],
-                                long_factors,
+                                long_factors if is_longrope_scaling else None,
                             ),
                             qkv[s, h, d],
                         )
@@ -618,7 +618,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                                 h,
                                 d,
                                 position_map[s],
-                                short_factors,
+                                short_factors if is_longrope_scaling else None,
                             ),
                             qkv[s, h, d],
                         )
@@ -631,7 +631,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                                 h,
                                 d,
                                 position_map[s],
-                                short_factors,
+                                short_factors if is_longrope_scaling else None,
                             ),
                             qkv[s, h, d],
                         )
