@@ -227,7 +227,6 @@ class RuntimeContext implements Disposable {
     this.tensorCacheGet.dispose();
     this.tensorCacheRemove.dispose();
     this.tensorCacheUpdate.dispose();
-    this.tensorCacheClear.dispose();
     this.arrayDecodeStorage.dispose();
     this.paramModuleFromCache.dispose();
     this.paramModuleFromCacheByName.dispose();
