@@ -1131,19 +1131,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 torch_shape = exported_program.state_dict[spec.target].shape
                 torch_dtype = exported_program.state_dict[spec.target].dtype
 
-            # Create TIR variables for symbolic dimensions
-            relax_shape = []
-            for s in torch_shape:
-                if isinstance(s, torch.SymInt):
-                    symbol_name = str(s)
-                    if symbol_name not in torch_symbol_to_relax_var:
-                        torch_symbol_to_relax_var[symbol_name] = tvm.tir.SizeVar(
-                            symbol_name, "int64"
-                        )
-                    relax_shape.append(torch_symbol_to_relax_var[symbol_name])
-                else:
-                    relax_shape.append(s)
-
+            relax_shape = [
+                torch_symbol_to_relax_var.setdefault(str(s), tvm.tir.SizeVar(str(s), "int64"))
+                if isinstance(s, torch.SymInt)
+                else s
+                for s in torch_shape
+            ]
             dtype = self._convert_data_type(torch_dtype)
 
             relax_var = relax.Var(name_hint, relax.TensorStructInfo(relax_shape, dtype))
@@ -1180,7 +1173,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         if range_constraints:
             if func_attrs is None:
                 func_attrs = {}
-            func_attrs["shape_var_constraints"] = range_constraints
+            tir_var_upper_bound = {
+                var_name: upper for var_name, (_, upper) in range_constraints.items()
+            }
+            func_attrs["tir_var_upper_bound"] = tir_var_upper_bound
 
         nodes: List[fx.Node] = exported_program.graph.nodes
 

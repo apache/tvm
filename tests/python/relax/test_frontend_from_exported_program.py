@@ -6532,24 +6532,27 @@ def test_dynamic_shape_with_range_constraints():
         def forward(self, x1, x2):
             return torch.ops.aten.add.Tensor(x1, x2)
 
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x1: R.Tensor(("s24", 4), dtype="float32"), x2: R.Tensor(("s24", 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor(("s24", 4), dtype="float32")):
+            s24 = T.int64(is_size_var=True)
+            R.func_attr({"tir_var_upper_bound": {"s24": 64}})
+            with R.dataflow():
+                lv: R.Tensor((s24, 4), dtype="float32") = R.add(x1, x2)
+                gv: R.Tuple(R.Tensor((s24, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
     example_args = (torch.randn(8, 4), torch.randn(8, 4))
     batch = torch.export.Dim("batch", min=1, max=64)
     dynamic_shapes = {"x1": {0: batch}, "x2": {0: batch}}
     exported_program = export(DynamicModel(), args=example_args, dynamic_shapes=dynamic_shapes)
 
-    mod = from_exported_program(exported_program)
-
-    main_func = mod["main"]
-    assert hasattr(main_func, "attrs"), "Function should have attributes"
-
-    if "shape_var_constraints" in main_func.attrs:
-        constraints = main_func.attrs["shape_var_constraints"]
-        assert len(constraints) > 0, "Should have at least one constraint"
-
-        for symbol_name, (min_val, max_val) in constraints.items():
-            assert min_val == 1, f"Expected min=1 for {symbol_name}, got {min_val}"
-            assert max_val == 64, f"Expected max=64 for {symbol_name}, got {max_val}"
-
+    mod = from_exported_program(exported_program, run_ep_decomposition=True)
+    tvm.ir.assert_structural_equal(mod, Expected)
 
 if __name__ == "__main__":
     tvm.testing.main()
