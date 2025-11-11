@@ -26,6 +26,7 @@ from tvm.script import tir as T
 
 try:
     from ml_dtypes import float4_e2m1fn
+
     ML_DTYPES_AVAILABLE = True
 except ImportError:
     ML_DTYPES_AVAILABLE = False
@@ -83,7 +84,7 @@ def test_e2m1_vector_conversions(promoted_dtype):
     else:
         # float4_e2m1fn possible values: [0, 0.5, 1, 1.5, 2, 3, 4, 6]
         # We will create int8 arrays with valid FP4 bit patterns
-        valid_fp4_values = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] # 4-bit values
+        valid_fp4_values = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]  # 4-bit values
         a_np = np.random.choice(valid_fp4_values, size=np_shape).astype(np.int8)
         b_np = np.random.choice(valid_fp4_values, size=np_shape).astype(np.int8)
 
