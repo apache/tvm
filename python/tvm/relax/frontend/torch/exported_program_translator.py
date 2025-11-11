@@ -1110,15 +1110,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 if hasattr(value_range, "lower") and hasattr(value_range, "upper"):
                     try:
                         lower = int(value_range.lower)
-                    except (OverflowError, AttributeError, TypeError):
-                        continue
-
-                    try:
                         upper = int(value_range.upper)
+                        range_constraints[symbol_name] = (lower, upper)
                     except (OverflowError, AttributeError, TypeError):
                         continue
-
-                    range_constraints[symbol_name] = (lower, upper)
 
         for spec in exported_program.graph_signature.input_specs:
             name_hint = spec.arg.name
