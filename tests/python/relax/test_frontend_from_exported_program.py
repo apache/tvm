@@ -6663,5 +6663,75 @@ def test_gru():
     np.testing.assert_allclose(pytorch_output2.numpy(), tvm_output2_np, rtol=1e-4, atol=1e-5)
 
 
+def test_advanced_indexing_with_randn():
+    """Test model with randn and advanced indexing write returning a tuple."""
+    N = 5
+
+    class AdvancedIndexingModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.elu = nn.ELU()
+
+        def forward(self, x):
+            L = torch.zeros(N, N, dtype=x.dtype, device=x.device)
+            idx = torch.arange(N, device=x.device)
+            v = torch.randn(N, device=x.device)
+            v = self.elu(v) + 1.0 + 1e-8
+            L[idx, idx] = v
+            y = x + 1
+            return y, L
+
+    torch.manual_seed(0)
+    example_input = torch.randn(2, N)
+    model = AdvancedIndexingModel().eval()
+
+    exported_program = export(model, (example_input,))
+
+    mod = from_exported_program(exported_program)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 5), dtype="float32")
+        ) -> R.Tuple(R.Tensor((2, 5), dtype="float32"), R.Tensor((5, 5), dtype="float32")):
+            with R.dataflow():
+                lv0 = R.zeros((5, 5), dtype="float32")
+
+                # Use zeros instead of random normal distribution
+                lv1 = R.zeros((5,), dtype="float32")
+
+                lv2 = R.nn.relu(lv1)
+                lv3 = R.add(lv2, R.const(1.0, "float32"))
+                v = R.add(lv3, R.const(1e-8, "float32"))
+
+                idx = R.arange(
+                    R.const(0, "int64"), R.const(5, "int64"), R.const(1, "int64"), dtype="int64"
+                )
+
+                L = R.tensor_update(lv0, (idx, idx), v)
+                y = R.add(x, R.const(1, "float32"))
+
+                gv = R.tuple(y, L)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+    target = "llvm"
+    dev = tvm.cpu()
+
+    exe = relax.build(mod, target=target)
+    vm = relax.VirtualMachine(exe, dev)
+    tvm_res = vm["main"](tvm.nd.array(example_input.numpy()))
+
+    torch_res = model(example_input)
+
+    np.testing.assert_allclose(torch_res[0].numpy(), tvm_res[0].numpy(), rtol=1e-7, atol=1e-7)
+
+    assert tvm_res[1].shape == (N, N)
+    assert tvm_res[1].dtype == "float32"
+
+
 if __name__ == "__main__":
     tvm.testing.main()

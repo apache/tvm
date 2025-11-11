@@ -64,6 +64,22 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         x = self.env[node.args[0]]
         return self.block_builder.emit(relax.op.divide(relax.const(1.0, x.struct_info.dtype), x))
 
+    def _randn(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+
+        size = args[0] if isinstance(args[0], (list, tuple)) else args
+
+        dtype = node.kwargs.get("dtype", "float32")
+        if isinstance(dtype, torch.dtype):
+            dtype = self._convert_data_type(dtype)
+
+        shape = relax.ShapeExpr(size)
+
+        # TODO: This is a temporary solution that returns zeros instead of random values
+        # since random initialization is mainly used during training, not inference.
+        # This should be updated once Relax adds proper random number generation support.
+        return self.block_builder.emit(relax.op.zeros(shape, dtype))
+
     ########## Neural Network ##########
 
     def _batch_norm(self, node: fx.Node, training: bool) -> relax.Var:
@@ -864,6 +880,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "pad.default": self._pad,
             "pixel_shuffle.default": self._pixel_shuffle,
             "prelu.default": self._prelu,
+            "randn.default": self._randn,
             "reciprocal.default": self._reciprocal,
             "relu.default": self._unary_op(relax.op.nn.relu),
             "relu_.default": self._unary_op(relax.op.nn.relu),
