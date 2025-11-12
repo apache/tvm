@@ -430,6 +430,8 @@ class ConstIntBoundAnalyzer::Impl
       return VisitLeftShift(op);
     } else if (op->op.same_as(tir::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
+    } else if (op->op.same_as(tir::builtin::bitwise_xor())) {
+      return VisitBitwiseXor(op);
     } else if (op->op.same_as(tir::builtin::vscale()) && TargetHasVLA(curr_target)) {
       auto kVScaleValues = GetVScaleValues(curr_target);
       unsigned int max_val = *std::max_element(kVScaleValues.begin(), kVScaleValues.end());
@@ -494,6 +496,39 @@ class ConstIntBoundAnalyzer::Impl
       }
       return Everything(op->dtype);
     }
+  }
+
+  Entry VisitBitwiseXor(const CallNode* op) {
+    Entry a = VisitExpr(op->args[0]);
+    Entry b = VisitExpr(op->args[1]);
+    // For non-negative operands (common for index math),
+    // the result is within [0, (1 << k) - 1], where k is the maximum
+    // number of bits required to represent either operand's upper bound.
+    // This is a conservative but safe bound and is sufficient for layout
+    // index computations.
+    if (a.min_value >= 0 && b.min_value >= 0) {
+      // Compute bit width of the larger upper bound; cap at 63 to avoid UB.
+      auto bit_width = [](int64_t v) {
+        if (v <= 0) return 0;
+        int bw = 0;
+        while (v) {
+          ++bw;
+          v >>= 1;
+        }
+        return bw;
+      };
+      int bw_a = bit_width(a.max_value);
+      int bw_b = bit_width(b.max_value);
+      int k = std::max(bw_a, bw_b);
+      if (k >= 63) {
+        // Too wide; fall back to dtype limits.
+        return Everything(op->dtype);
+      }
+      int64_t ub = (static_cast<int64_t>(1) << k) - 1;
+      return MakeBound(0, ub);
+    }
+    // If signs are unknown, avoid incorrect assumptions.
+    return Everything(op->dtype);
   }
 
   std::function<void()> EnterConstraint(const PrimExpr& constraint) {
