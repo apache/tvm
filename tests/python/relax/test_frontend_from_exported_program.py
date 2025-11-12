@@ -6663,5 +6663,33 @@ def test_gru():
     np.testing.assert_allclose(pytorch_output2.numpy(), tvm_output2_np, rtol=1e-4, atol=1e-5)
 
 
+def test_dynamic_shape_with_range_constraints():
+    class DynamicModel(torch.nn.Module):
+        def forward(self, x1, x2):
+            return torch.ops.aten.add.Tensor(x1, x2)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x1: R.Tensor(("s0", 4), dtype="float32"), x2: R.Tensor(("s0", 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor(("s0", 4), dtype="float32")):
+            s0 = T.int64(is_size_var=True)
+            R.func_attr({"tir_var_upper_bound": {"s0": 64}})
+            with R.dataflow():
+                lv: R.Tensor((s0, 4), dtype="float32") = R.add(x1, x2)
+                gv: R.Tuple(R.Tensor((s0, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(8, 4), torch.randn(8, 4))
+    batch = torch.export.Dim("batch", min=1, max=64)
+    dynamic_shapes = {"x1": {0: batch}, "x2": {0: batch}}
+    exported_program = export(DynamicModel(), args=example_args, dynamic_shapes=dynamic_shapes)
+
+    mod = from_exported_program(exported_program, run_ep_decomposition=True)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
