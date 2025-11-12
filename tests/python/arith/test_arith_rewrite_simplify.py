@@ -93,7 +93,7 @@ class TestVector(BaseCompare):
     x, y, z = te.var("x"), te.var("y"), te.var("z")
     x64 = te.var("x", dtype="int64")
     vx = te.var("vx", dtype="int32x2")
-    vc = te.var("vc", dtype="uint1")
+    vc = te.var("vc", dtype="bool")
     test_case = tvm.testing.parameter(
         # Add rules
         TestCase(tvm.tir.Ramp(x, 1, 4) + tvm.tir.Ramp(y, 2, 4), tvm.tir.Ramp(x + y, 3, 4)),
@@ -285,22 +285,22 @@ class TestVector(BaseCompare):
             tvm.te.max(vx, tvm.te.max(y, x).astype("int32x2")),
         ),
         ## Logical rules
-        TestCase(y.astype("int32x2").equal(x.astype("int32x2")), (y.equal(x)).astype("uint1x2")),
+        TestCase(y.astype("int32x2").equal(x.astype("int32x2")), (y.equal(x)).astype("boolx2")),
         TestCase(
             tvm.tir.NE(y.astype("int32x2"), (x.astype("int32x2"))),
-            (tvm.tir.NE(y, x)).astype("uint1x2"),
+            (tvm.tir.NE(y, x)).astype("boolx2"),
         ),
-        TestCase(y.astype("int32x2") > x.astype("int32x2"), (x < y).astype("uint1x2")),
-        TestCase(y.astype("int32x2") >= x.astype("int32x2"), (x <= y).astype("uint1x2")),
-        TestCase(y.astype("int32x2") < x.astype("int32x2"), (y < x).astype("uint1x2")),
-        TestCase(y.astype("int32x2") <= x.astype("int32x2"), (y <= x).astype("uint1x2")),
+        TestCase(y.astype("int32x2") > x.astype("int32x2"), (x < y).astype("boolx2")),
+        TestCase(y.astype("int32x2") >= x.astype("int32x2"), (x <= y).astype("boolx2")),
+        TestCase(y.astype("int32x2") < x.astype("int32x2"), (y < x).astype("boolx2")),
+        TestCase(y.astype("int32x2") <= x.astype("int32x2"), (y <= x).astype("boolx2")),
         TestCase(
-            tvm.tir.And(y.astype("int32x2") <= x.astype("int32x2"), vc.astype("uint1x2")),
-            (tvm.tir.And(y <= x, vc)).astype("uint1x2"),
+            tvm.tir.And(y.astype("int32x2") <= x.astype("int32x2"), vc.astype("boolx2")),
+            (tvm.tir.And(y <= x, vc)).astype("boolx2"),
         ),
         TestCase(
-            tvm.tir.Or(y.astype("int32x2") <= x.astype("int32x2"), vc.astype("uint1x2")),
-            (tvm.tir.Or(y <= x, vc)).astype("uint1x2"),
+            tvm.tir.Or(y.astype("int32x2") <= x.astype("int32x2"), vc.astype("boolx2")),
+            (tvm.tir.Or(y <= x, vc)).astype("boolx2"),
         ),
     )
 

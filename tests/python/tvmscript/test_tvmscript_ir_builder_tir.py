@@ -366,7 +366,7 @@ def test_ir_builder_tir_allocate():
     # the expected allocate
     buffer_var = tir.Var("v", tvm.ir.PointerType(tvm.ir.PrimType("float32"), "local"))
     ir_expected = tir.Allocate(
-        buffer_var, "float32", [10], tvm.tir.const(1, "uint1"), tir.Evaluate(1)
+        buffer_var, "float32", [10], tvm.tir.const(1, "bool"), tir.Evaluate(1)
     )
 
     # Check if the generated ir is expected
