@@ -1003,6 +1003,80 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             groups=groups,
         )
 
+    def _convolution(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        weight = args[1]
+        bias = args[2] if len(args) > 2 else None
+        stride = args[3] if len(args) > 3 else 1
+        padding = args[4] if len(args) > 4 else 0
+        dilation = args[5] if len(args) > 5 else 1
+        transposed = args[6] if len(args) > 6 else False
+        output_padding = args[7] if len(args) > 7 else 0
+        groups = args[8] if len(args) > 8 else 1
+
+        input_shape = self.shape_of(x)
+        ndim = len(input_shape)
+
+        if transposed:
+            if ndim == 3:  # 1D convolution (N, C, W)
+                return self._conv_transpose1d_impl(
+                    x,
+                    weight,
+                    bias=bias,
+                    strides=stride,
+                    padding=padding,
+                    dilation=dilation,
+                    groups=groups,
+                    output_padding=output_padding,
+                )
+            elif ndim == 4:  # 2D convolution (N, C, H, W)
+                return self._conv_transpose2d_impl(
+                    x,
+                    weight,
+                    bias=bias,
+                    strides=stride,
+                    padding=padding,
+                    dilation=dilation,
+                    groups=groups,
+                    output_padding=output_padding,
+                )
+            else:
+                raise ValueError(f"Unsupported transposed convolution dimensionality: {ndim}")
+        else:
+            if ndim == 3:  # 1D convolution (N, C, W)
+                return self._conv1d_impl(
+                    x,
+                    weight,
+                    bias=bias,
+                    strides=stride,
+                    padding=padding,
+                    dilation=dilation,
+                    groups=groups,
+                )
+            elif ndim == 4:  # 2D convolution (N, C, H, W)
+                return self._conv2d_impl(
+                    x,
+                    weight,
+                    bias=bias,
+                    strides=stride,
+                    padding=padding,
+                    dilation=dilation,
+                    groups=groups,
+                )
+            elif ndim == 5:  # 3D convolution (N, C, D, H, W)
+                return self._conv3d_impl(
+                    x,
+                    weight,
+                    bias=bias,
+                    strides=stride,
+                    padding=padding,
+                    dilation=dilation,
+                    groups=groups,
+                )
+            else:
+                raise ValueError(f"Unsupported convolution dimensionality: {ndim}")
+
     def _cross_entropy_loss(
         self,
         preds: relax.Expr,
