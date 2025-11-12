@@ -256,7 +256,7 @@ class BuiltinLower : public StmtExprMutator {
     Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
 
     Stmt alloc_nullptr_check = IfThenElse(
-        Call(DataType::Bool(1), builtin::isnullptr(), {op->buffer_var}), throw_last_error);
+        Call(DataType::Bool(), builtin::isnullptr(), {op->buffer_var}), throw_last_error);
     PrimExpr free_op = Call(DataType::Int(32), Op::Get("tir.TVMBackendFreeWorkspace"),
                             {cast(DataType::Int(32), device_type_.value()),
                              cast(DataType::Int(32), device_id_.value()), op->buffer_var});
@@ -617,7 +617,7 @@ class BuiltinLower : public StmtExprMutator {
     Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
 
     Stmt body = SeqStmt(
-        {IfThenElse(Call(DataType::Bool(1), builtin::isnullptr(), {let->var}), throw_last_error),
+        {IfThenElse(Call(DataType::Bool(), builtin::isnullptr(), {let->var}), throw_last_error),
          let->body, free_stmt});
 
     DataType dtype =
