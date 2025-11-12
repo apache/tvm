@@ -5254,7 +5254,9 @@ def test_keep_params():
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
     model = Conv2D1()
     exported_program = torch.export.export(model, example_args)
-    mod = from_exported_program(exported_program, keep_params_as_input=True)
+    mod = from_exported_program(
+        exported_program, keep_params_as_input=True, run_ep_decomposition=True
+    )
     mod, params = detach_params(mod)
     tvm.ir.assert_structural_equal(mod, expected1)
     func = mod["main"]
