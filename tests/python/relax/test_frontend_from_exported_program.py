@@ -6536,13 +6536,13 @@ def test_dynamic_shape_with_range_constraints():
     class Expected:
         @R.function
         def main(
-            x1: R.Tensor(("s24", 4), dtype="float32"), x2: R.Tensor(("s24", 4), dtype="float32")
-        ) -> R.Tuple(R.Tensor(("s24", 4), dtype="float32")):
-            s24 = T.int64(is_size_var=True)
-            R.func_attr({"tir_var_upper_bound": {"s24": 64}})
+            x1: R.Tensor(("s0", 4), dtype="float32"), x2: R.Tensor(("s0", 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor(("s0", 4), dtype="float32")):
+            s0 = T.int64(is_size_var=True)
+            R.func_attr({"tir_var_upper_bound": {"s0": 64}})
             with R.dataflow():
-                lv: R.Tensor((s24, 4), dtype="float32") = R.add(x1, x2)
-                gv: R.Tuple(R.Tensor((s24, 4), dtype="float32")) = (lv,)
+                lv: R.Tensor((s0, 4), dtype="float32") = R.add(x1, x2)
+                gv: R.Tuple(R.Tensor((s0, 4), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 
