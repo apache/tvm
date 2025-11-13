@@ -1783,21 +1783,23 @@ def test_avg_pool1d():
     class expected1:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10), dtype="float32")
+            input: R.Tensor((1, 3, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10), dtype="float32") = R.nn.avg_pool1d(
-                    input_1,
-                    pool_size=[1],
-                    strides=[1],
-                    dilation=[1],
-                    padding=[0, 0],
+                lv: R.Tensor((1, 3, 1, 10), dtype="float32") = R.expand_dims(input, axis=[-2])
+                lv1: R.Tensor((1, 3, 1, 10), dtype="float32") = R.nn.avg_pool2d(
+                    lv,
+                    pool_size=[1, 1],
+                    strides=[1, 1],
+                    dilation=[1, 1],
+                    padding=[0, 0, 0, 0],
                     ceil_mode=False,
-                    count_include_pad=True,
-                    layout="NCW",
-                    out_layout="NCW",
+                    count_include_pad=False,
+                    layout="NCHW",
+                    out_layout="NCHW",
                 )
-                gv: R.Tuple(R.Tensor((1, 3, 10), dtype="float32")) = (lv,)
+                lv2: R.Tensor((1, 3, 10), dtype="float32") = R.squeeze(lv1, axis=[-2])
+                gv: R.Tuple(R.Tensor((1, 3, 10), dtype="float32")) = (lv2,)
                 R.output(gv)
             return gv
 
@@ -1818,20 +1820,24 @@ def test_avg_pool1d():
     @tvm.script.ir_module
     class expected2:
         @R.function
-        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")):
+        def main(
+            input: R.Tensor((1, 3, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 6), dtype="float32")):
             with R.dataflow():
-                lv = R.nn.avg_pool1d(
-                    input_1,
-                    pool_size=[3],
-                    strides=[2],
-                    dilation=[1],
-                    padding=[1, 1],
+                lv: R.Tensor((1, 3, 1, 10), dtype="float32") = R.expand_dims(input, axis=[-2])
+                lv1: R.Tensor((1, 3, 1, 6), dtype="float32") = R.nn.avg_pool2d(
+                    lv,
+                    pool_size=[1, 3],
+                    strides=[1, 2],
+                    dilation=[1, 1],
+                    padding=[0, 1, 0, 1],
                     ceil_mode=True,
-                    count_include_pad=True,
-                    layout="NCW",
-                    out_layout="NCW",
+                    count_include_pad=False,
+                    layout="NCHW",
+                    out_layout="NCHW",
                 )
-                gv = (lv,)
+                lv2: R.Tensor((1, 3, 6), dtype="float32") = R.squeeze(lv1, axis=[-2])
+                gv: R.Tuple(R.Tensor((1, 3, 6), dtype="float32")) = (lv2,)
                 R.output(gv)
             return gv
 
@@ -1842,20 +1848,24 @@ def test_avg_pool1d():
     @tvm.script.ir_module
     class expected3:
         @R.function
-        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")):
+        def main(
+            input: R.Tensor((1, 3, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 5), dtype="float32")):
             with R.dataflow():
-                lv = R.nn.avg_pool1d(
-                    input_1,
-                    pool_size=[2],
-                    strides=[2],
-                    dilation=[1],
-                    padding=[0, 0],
+                lv: R.Tensor((1, 3, 1, 10), dtype="float32") = R.expand_dims(input, axis=[-2])
+                lv1: R.Tensor((1, 3, 1, 5), dtype="float32") = R.nn.avg_pool2d(
+                    lv,
+                    pool_size=[1, 2],
+                    strides=[1, 2],
+                    dilation=[1, 1],
+                    padding=[0, 0, 0, 0],
                     ceil_mode=False,
-                    count_include_pad=True,
-                    layout="NCW",
-                    out_layout="NCW",
+                    count_include_pad=False,
+                    layout="NCHW",
+                    out_layout="NCHW",
                 )
-                gv = (lv,)
+                lv2: R.Tensor((1, 3, 5), dtype="float32") = R.squeeze(lv1, axis=[-2])
+                gv: R.Tuple(R.Tensor((1, 3, 5), dtype="float32")) = (lv2,)
                 R.output(gv)
             return gv
 
