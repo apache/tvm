@@ -32,12 +32,4 @@ If you are interested in deploying to mobile or embedded devices, you do not nee
 install the entire TVM stack on your device. Instead, you only need the runtime.
 
 If you would like to quickly try out TVM or run some demo and tutorials, you
-can :ref:`install from Docker <docker-images>`. You can also use TVM locally through ``pip``.
-
-.. code-block::
-
-    # Linux/MacOS CPU build only!
-    # See tlcpack.ai for other pre-built binaries including CUDA
-    pip install apache-tvm
-
-For more details on installation of pre-built binaries, visit `tlcpack.ai <https://tlcpack.ai>`_.
+can :ref:`install from Docker <docker-images>`. 
