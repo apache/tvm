@@ -32,4 +32,4 @@ If you are interested in deploying to mobile or embedded devices, you do not nee
 install the entire TVM stack on your device. Instead, you only need the runtime.
 
 If you would like to quickly try out TVM or run some demo and tutorials, you
-can :ref:`install from Docker <docker-images>`. 
+can :ref:`install from Docker <docker-images>`.
