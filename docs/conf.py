@@ -158,7 +158,7 @@ def save_rst_example(
     example_rst, example_file, time_elapsed, memory_used, gallery_conf, language, real_func
 ):
     """Monkey-patch save_rst_example to customize the tutorial header.
-    
+
     Note: Colab button has been temporarily disabled. The colab_url and button_svg
     are still generated but not used in the header template.
     """
