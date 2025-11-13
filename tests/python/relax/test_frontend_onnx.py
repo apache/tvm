@@ -789,6 +789,38 @@ def test_transpose():
     verify_unary("Transpose", [32, 32, 32], attrs={"perm": [1, 2, 0]})
 
 
+def test_transpose_scalar():
+    """Test Transpose with scalar inputs - should return scalar unchanged."""
+    # Test scalar with no perm attribute (default behavior)
+    scalar_node = helper.make_node("Transpose", ["x"], ["y"])
+    graph = helper.make_graph(
+        [scalar_node],
+        "transpose_scalar_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [])],
+    )
+    model = helper.make_model(graph, producer_name="transpose_scalar_test")
+    check_correctness(model)
+
+    # Test with scalar constant and transpose without perm
+    scalar_constant = helper.make_node(
+        "Constant",
+        [],
+        ["scalar"],
+        value=helper.make_tensor("value", TensorProto.FLOAT, [], [5.0]),
+    )
+
+    transpose_node = helper.make_node("Transpose", ["scalar"], ["y"])
+    graph = helper.make_graph(
+        [scalar_constant, transpose_node],
+        "transpose_scalar_constant_test",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [])],
+    )
+    model = helper.make_model(graph, producer_name="transpose_scalar_constant_test")
+    check_correctness(model)
+
+
 def test_unsqueeze():
     unsqueeze_node = helper.make_node("Unsqueeze", ["a", "axes"], ["b"])
 
