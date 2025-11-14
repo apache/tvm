@@ -862,6 +862,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "_log_softmax.default": self._log_softmax,
             "neg.default": self._unary_op(relax.op.negative),
             "pad.default": self._pad,
+            "constant_pad_nd.default": self._constant_pad_nd,
+            "copy.default": self._copy_,
             "pixel_shuffle.default": self._pixel_shuffle,
             "prelu.default": self._prelu,
             "reciprocal.default": self._reciprocal,

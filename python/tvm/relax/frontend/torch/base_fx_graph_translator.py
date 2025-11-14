@@ -1379,6 +1379,23 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return self.block_builder.emit(relax.op.nn.pad(x, pad_width, mode, value))
 
+    def _constant_pad_nd(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        pad = node.args[1]
+        value = node.args[2] if len(node.args) > 2 else node.kwargs.get("value", 0.0)
+        value = 0.0 if value is None else value
+
+        # Calculate symmetric padding width for each dimension
+        # and applying them in reverse order to match the input dimensions.
+        input_ndim = x.struct_info.ndim
+        pad_width = [0] * (input_ndim * 2)
+        pad_pairs = [pad[i : i + 2] for i in range(0, len(pad), 2)]
+        reversed_pairs = list(reversed(pad_pairs))
+        flattened = [v for pair in reversed_pairs for v in pair]
+        pad_width[-len(flattened) :] = flattened
+
+        return self.block_builder.emit(relax.op.nn.pad(x, pad_width, "constant", value))
+
     def _pixel_shuffle(self, node: fx.Node) -> relax.Var:
         data = self.env[node.args[0]]
         upscale_factor = node.args[1]
@@ -1665,8 +1682,37 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     def _index_tensor(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
+        data = args[0]
         indices = args[1]
-        return self.block_builder.emit(relax.op.index_tensor(args[0], indices))
+
+        # In PyTorch's aten.index.Tensor, None means "select all elements" for that dimension
+        non_none_indices = [(i, idx) for i, idx in enumerate(indices) if idx is not None]
+
+        # Special case: if there's only one non-None index, use take operation
+        if len(non_none_indices) == 1:
+            axis, index_tensor = non_none_indices[0]
+            return self.block_builder.emit(relax.op.take(data, index_tensor, axis=axis))
+
+        # General case: multiple non-None indices require advanced indexing
+        processed_indices = []
+        data_shape = self.shape_of(data)
+
+        for i, idx in enumerate(indices):
+            if idx is None:
+                dim_size = data_shape[i]
+                arange_idx = self.block_builder.emit(
+                    relax.op.arange(
+                        start=relax.PrimValue(0),
+                        end=dim_size,
+                        step=relax.PrimValue(1),
+                        dtype="int64"
+                    )
+                )
+                processed_indices.append(arange_idx)
+            else:
+                processed_indices.append(idx)
+
+        return self.block_builder.emit(relax.op.index_tensor(data, processed_indices))
 
     def _meshgrid(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
