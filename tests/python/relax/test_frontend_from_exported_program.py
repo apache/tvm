@@ -2715,13 +2715,25 @@ def test_pad():
             x: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.nn.pad(
-                    x,
-                    pad_width=[0, 0, 0, 0, 2, 2, 1, 1],
-                    pad_mode="reflect",
-                    pad_value=0.0,
+                lv: R.Tensor((14,), dtype="int64") = R.arange(
+                    R.prim_value(-2), R.prim_value(12), R.prim_value(1), dtype="int64"
                 )
-                gv: R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")) = (lv,)
+                lv1: R.Tensor((14,), dtype="int64") = R.abs(lv)
+                lv2: R.Tensor((14,), dtype="int64") = R.subtract(R.const(9, "int64"), lv1)
+                lv3: R.Tensor((14,), dtype="int64") = R.abs(lv2)
+                lv4: R.Tensor((14,), dtype="int64") = R.subtract(R.const(9, "int64"), lv3)
+                lv5: R.Tensor((1, 3, 14, 10), dtype="float32") = R.take(x, lv4, axis=2, mode="fast")
+                lv6: R.Tensor((12,), dtype="int64") = R.arange(
+                    R.prim_value(-1), R.prim_value(11), R.prim_value(1), dtype="int64"
+                )
+                lv7: R.Tensor((12,), dtype="int64") = R.abs(lv6)
+                lv8: R.Tensor((12,), dtype="int64") = R.subtract(R.const(9, "int64"), lv7)
+                lv9: R.Tensor((12,), dtype="int64") = R.abs(lv8)
+                lv10: R.Tensor((12,), dtype="int64") = R.subtract(R.const(9, "int64"), lv9)
+                lv11: R.Tensor((1, 3, 14, 12), dtype="float32") = R.take(
+                    lv5, lv10, axis=3, mode="fast"
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")) = (lv11,)
                 R.output(gv)
             return gv
 
@@ -2732,13 +2744,19 @@ def test_pad():
             x: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.nn.pad(
-                    x,
-                    pad_width=[0, 0, 0, 0, 2, 2, 1, 1],
-                    pad_mode="replicate",
-                    pad_value=0.0,
+                lv: R.Tensor((14,), dtype="int64") = R.arange(
+                    R.prim_value(-2), R.prim_value(12), R.prim_value(1), dtype="int64"
                 )
-                gv: R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")) = (lv,)
+                lv1: R.Tensor((14,), dtype="int64") = R.clip(lv, R.prim_value(0), R.prim_value(9))
+                lv2: R.Tensor((1, 3, 14, 10), dtype="float32") = R.take(x, lv1, axis=2, mode="fast")
+                lv3: R.Tensor((12,), dtype="int64") = R.arange(
+                    R.prim_value(-1), R.prim_value(11), R.prim_value(1), dtype="int64"
+                )
+                lv4: R.Tensor((12,), dtype="int64") = R.clip(lv3, R.prim_value(0), R.prim_value(9))
+                lv5: R.Tensor((1, 3, 14, 12), dtype="float32") = R.take(
+                    lv2, lv4, axis=3, mode="fast"
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")) = (lv5,)
                 R.output(gv)
             return gv
 
@@ -2749,21 +2767,160 @@ def test_pad():
             x: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.nn.pad(
-                    x,
-                    pad_width=[0, 0, 0, 0, 2, 2, 1, 1],
-                    pad_mode="circular",
-                    pad_value=0.0,
+                lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.zeros(
+                    R.shape([1, 3, 14, 12]), dtype="float32"
                 )
-                gv: R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")) = (lv,)
+                lv1: R.Tensor((1, 3, 14, 10), dtype="float32") = R.strided_slice(
+                    lv,
+                    (R.prim_value(3),),
+                    (R.prim_value(1),),
+                    (R.prim_value(11),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.strided_slice(
+                    x,
+                    (R.prim_value(3),),
+                    (R.prim_value(0),),
+                    (R.prim_value(10),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.strided_slice(
+                    lv1,
+                    (R.prim_value(2),),
+                    (R.prim_value(2),),
+                    (R.prim_value(12),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.strided_slice(
+                    lv2,
+                    (R.prim_value(2),),
+                    (R.prim_value(0),),
+                    (R.prim_value(10),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv5: R.Tensor((1, 3, 14, 10), dtype="float32") = R.strided_slice(
+                    lv,
+                    (R.prim_value(3),),
+                    (R.prim_value(1),),
+                    (R.prim_value(11),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv6: R.Tensor((1, 3, 14, 10), dtype="float32") = R.slice_scatter(
+                    lv5, lv4, R.prim_value(2), R.prim_value(12), R.prim_value(1), axis=2
+                )
+                lv7: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
+                    lv, lv6, R.prim_value(1), R.prim_value(11), R.prim_value(1), axis=3
+                )
+                lv8: R.Tensor((1, 3, 14, 1), dtype="float32") = R.strided_slice(
+                    lv7,
+                    (R.prim_value(3),),
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv9: R.Tensor((1, 3, 14, 1), dtype="float32") = R.strided_slice(
+                    lv7,
+                    (R.prim_value(3),),
+                    (R.prim_value(10),),
+                    (R.prim_value(11),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv10: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
+                    lv7, lv9, R.prim_value(0), R.prim_value(1), R.prim_value(1), axis=3
+                )
+                lv11: R.Tensor((1, 3, 14, 1), dtype="float32") = R.strided_slice(
+                    lv10,
+                    (R.prim_value(3),),
+                    (R.prim_value(11),),
+                    (R.prim_value(12),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv12: R.Tensor((1, 3, 14, 1), dtype="float32") = R.strided_slice(
+                    lv10,
+                    (R.prim_value(3),),
+                    (R.prim_value(1),),
+                    (R.prim_value(2),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv13: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
+                    lv10, lv12, R.prim_value(11), R.prim_value(12), R.prim_value(1), axis=3
+                )
+                lv14: R.Tensor((1, 3, 2, 12), dtype="float32") = R.strided_slice(
+                    lv13,
+                    (R.prim_value(2),),
+                    (R.prim_value(0),),
+                    (R.prim_value(2),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv15: R.Tensor((1, 3, 2, 12), dtype="float32") = R.strided_slice(
+                    lv13,
+                    (R.prim_value(2),),
+                    (R.prim_value(10),),
+                    (R.prim_value(12),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv16: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
+                    lv13, lv15, R.prim_value(0), R.prim_value(2), R.prim_value(1), axis=2
+                )
+                lv17: R.Tensor((1, 3, 2, 12), dtype="float32") = R.strided_slice(
+                    lv16,
+                    (R.prim_value(2),),
+                    (R.prim_value(12),),
+                    (R.prim_value(14),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv18: R.Tensor((1, 3, 2, 12), dtype="float32") = R.strided_slice(
+                    lv16,
+                    (R.prim_value(2),),
+                    (R.prim_value(2),),
+                    (R.prim_value(4),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv19: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
+                    lv16, lv18, R.prim_value(12), R.prim_value(14), R.prim_value(1), axis=2
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")) = (lv19,)
                 R.output(gv)
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(PadModel(pad=[1, 1, 2, 2]), example_args, {}, expected_constant)
-    verify_model(PadModel(pad=[1, 1, 2, 2], mode="reflect"), example_args, {}, expected_reflect)
-    verify_model(PadModel(pad=[1, 1, 2, 2], mode="replicate"), example_args, {}, expected_replicate)
-    verify_model(PadModel(pad=[1, 1, 2, 2], mode="circular"), example_args, {}, expected_circular)
+    verify_model(
+        PadModel(pad=[1, 1, 2, 2]), example_args, {}, expected_constant, run_ep_decomposition=True
+    )
+    verify_model(
+        PadModel(pad=[1, 1, 2, 2], mode="reflect"),
+        example_args,
+        {},
+        expected_reflect,
+        run_ep_decomposition=True,
+    )
+    verify_model(
+        PadModel(pad=[1, 1, 2, 2], mode="replicate"),
+        example_args,
+        {},
+        expected_replicate,
+        run_ep_decomposition=True,
+    )
+    verify_model(
+        PadModel(pad=[1, 1, 2, 2], mode="circular"),
+        example_args,
+        {},
+        expected_circular,
+        run_ep_decomposition=True,
+    )
 
 
 def test_pixel_shuffle():
@@ -5949,7 +6106,7 @@ def test_take():
         ) -> R.Tuple(R.Tensor((3,), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((5,), dtype="float32") = R.reshape(data, R.shape([5]))
-                lv1: R.Tensor((3,), dtype="float32") = R.index_tensor(lv, (indices,))
+                lv1: R.Tensor((3,), dtype="float32") = R.take(lv, indices, axis=0, mode="fast")
                 gv: R.Tuple(R.Tensor((3,), dtype="float32")) = (lv1,)
                 R.output(gv)
             return gv
