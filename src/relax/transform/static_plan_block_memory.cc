@@ -365,40 +365,52 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
 };
 
 /*!
- * \brief Set the upper bound of the TIR variables that appear in
+ * \brief Set the range constraints of the TIR variables that appear in
  * the input function signature in the analyzer.
  * \param func The function to be analyzed.
  * \param ana The analyzer which contains the TIR var upper bounds.
  * \param dom_map The domain map of the TIR variables.
  */
-void SetTIRVarUpperBound(Function func, arith::Analyzer* ana,
-                         ffi::Map<tir::Var, arith::IntSet>* dom_map) {
-  // Use the attribute-annotated TIR var upper bounds as the TIR var values for
+void SetTIRVarRangeConstraints(Function func, arith::Analyzer* ana,
+                               ffi::Map<tir::Var, arith::IntSet>* dom_map) {
+  // Use the attribute-annotated TIR var bounds as the TIR var values for
   // memory planning.
-  // NOTE: we only apply the annotated upper bounds to the TIR variables that
+  // NOTE: we only apply the annotated bounds to the TIR variables that
   // appear in the **function signature**.
   ffi::Map<ffi::String, IntImm> var_upper_bound_attr_raw =
       func->GetAttr<ffi::Map<ffi::String, IntImm>>("tir_var_upper_bound")
+          .value_or(ffi::Map<ffi::String, IntImm>());
+  ffi::Map<ffi::String, IntImm> var_lower_bound_attr_raw =
+      func->GetAttr<ffi::Map<ffi::String, IntImm>>("tir_var_lower_bound")
           .value_or(ffi::Map<ffi::String, IntImm>());
   ffi::Array<ffi::String> non_negative_var_attr_raw =
       func->GetAttr<ffi::Array<ffi::String>>("tir_non_negative_var")
           .value_or(ffi::Array<ffi::String>());
   std::unordered_map<ffi::String, IntImm> var_upper_bound_attr;
+  std::unordered_map<ffi::String, IntImm> var_lower_bound_attr;
   std::unordered_set<ffi::String> non_negative_var_attr;
   // We manually check the value type to ensure the values are all positive IntImm.
   for (auto [key, value] : var_upper_bound_attr_raw) {
     var_upper_bound_attr[key] = value;
+  }
+  for (auto [key, value] : var_lower_bound_attr_raw) {
+    var_lower_bound_attr[key] = value;
   }
   for (const ffi::String& var_name : non_negative_var_attr_raw) {
     non_negative_var_attr.insert(var_name);
   }
   ffi::Array<tir::Var> var_in_signature = TIRVarsInStructInfo(GetStructInfo(func));
   for (const tir::Var& tir_var : var_in_signature) {
-    auto it = var_upper_bound_attr.find(tir_var->name_hint);
-    if (it != var_upper_bound_attr.end()) {
-      tvm::Range range =
-          tvm::Range::FromMinExtent(tvm::IntImm(DataType::Int(64), 0),
-                                    tvm::IntImm(DataType::Int(64), (*it).second->value + 1));
+    auto it_upper = var_upper_bound_attr.find(tir_var->name_hint);
+    auto it_lower = var_lower_bound_attr.find(tir_var->name_hint);
+
+    if (it_upper != var_upper_bound_attr.end() || it_lower != var_lower_bound_attr.end()) {
+      int64_t lower = (it_lower != var_lower_bound_attr.end()) ? it_lower->second->value : 0;
+      int64_t upper = (it_upper != var_upper_bound_attr.end())
+                          ? it_upper->second->value
+                          : std::numeric_limits<int64_t>::max();
+      tvm::Range range = tvm::Range::FromMinExtent(
+          tvm::IntImm(DataType::Int(64), lower), tvm::IntImm(DataType::Int(64), upper - lower + 1));
       ana->Bind(tir_var, range);
       dom_map->Set(tir_var, arith::IntSet::FromRange(range));
     } else if (non_negative_var_attr.count(tir_var->name_hint)) {
@@ -485,8 +497,8 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
       : ctx_mod_(ctx_mod), analyzer_(analyzer) {}
 
   void VisitExpr_(const FunctionNode* func) final {
-    // Set the upper bound of TIR variables in the analyzer.
-    SetTIRVarUpperBound(ffi::GetRef<Function>(func), analyzer_, &dom_map_);
+    // Set the range constraints of TIR variables in the analyzer.
+    SetTIRVarRangeConstraints(ffi::GetRef<Function>(func), analyzer_, &dom_map_);
     // Recurse into the function to get its tokens.
     Tokens body_tokens = GetTokens(func->body);
     // Discard the tokens used by the function return value, as they are external referenced.
@@ -843,7 +855,7 @@ class StorageAllocationRewriter : public ExprMutator {
       plan_dynamic_output_ = static_cast<bool>(
           func_->GetAttr<IntImm>(plan_dyn_attr_).value_or(IntImm(DataType::Int(32), 0))->value);
       if (plan_dynamic_output_) {
-        SetTIRVarUpperBound(ffi::GetRef<Function>(func_), &ana_, &dom_map_);
+        SetTIRVarRangeConstraints(ffi::GetRef<Function>(func_), &ana_, &dom_map_);
       }
       token2storage_var_.clear();
       Function func = Downcast<Function>(this->VisitExpr_(func_));

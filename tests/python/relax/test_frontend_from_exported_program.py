@@ -6747,7 +6747,7 @@ def test_dynamic_shape_with_range_constraints():
             x1: R.Tensor(("s0", 4), dtype="float32"), x2: R.Tensor(("s0", 4), dtype="float32")
         ) -> R.Tuple(R.Tensor(("s0", 4), dtype="float32")):
             s0 = T.int64(is_size_var=True)
-            R.func_attr({"tir_var_upper_bound": {"s0": 64}})
+            R.func_attr({"tir_var_lower_bound": {"s0": 1}, "tir_var_upper_bound": {"s0": 64}})
             with R.dataflow():
                 lv: R.Tensor((s0, 4), dtype="float32") = R.add(x1, x2)
                 gv: R.Tuple(R.Tensor((s0, 4), dtype="float32")) = (lv,)
