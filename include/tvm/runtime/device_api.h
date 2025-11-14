@@ -74,6 +74,7 @@ typedef enum {
   // To help avoid accidental conflicts between `DLDeviceType`
   // and this enumeration, start numbering the new enumerators
   // a little higher than (currently) seems necessary.
+  kDLCPUSample = 20,  // CPU Sample device for testing
   TVMDeviceExtType_End = 36,  // sentinel value
 } TVMDeviceExtType;
 
@@ -344,6 +345,8 @@ inline const char* DLDeviceType2Str(int type) {
       return "webgpu";
     case kDLHexagon:
       return "hexagon";
+    case kDLCPUSample:
+      return "cpu_sample";
     default:
       LOG(FATAL) << "unknown type = " << type;
   }
