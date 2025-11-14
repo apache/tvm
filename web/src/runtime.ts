@@ -1421,6 +1421,8 @@ export class Instance implements Disposable {
           throw err;
         }
       }
+      fetchedBytes += shard.nbytes;
+      timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
       reportCallback(i + 1, /*loading=*/true);
     }
   }
