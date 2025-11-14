@@ -1421,6 +1421,10 @@ export class Instance implements Disposable {
           throw err;
         }
       }
+      if (i === 0) {
+        // Reset for the loading phase to avoid double counting with download phase.
+        fetchedBytes = 0;
+      }
       fetchedBytes += shard.nbytes;
       timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
       reportCallback(i + 1, /*loading=*/true);
