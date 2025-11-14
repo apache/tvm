@@ -1705,7 +1705,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                         start=relax.PrimValue(0),
                         end=dim_size,
                         step=relax.PrimValue(1),
-                        dtype="int64"
+                        dtype="int64",
                     )
                 )
                 processed_indices.append(arange_idx)
