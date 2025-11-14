@@ -6106,7 +6106,7 @@ def test_take():
         ) -> R.Tuple(R.Tensor((3,), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((5,), dtype="float32") = R.reshape(data, R.shape([5]))
-                lv1: R.Tensor((3,), dtype="float32") = R.index_tensor(lv, (indices,))
+                lv1: R.Tensor((3,), dtype="float32") = R.take(lv, indices, axis=0, mode="fast")
                 gv: R.Tuple(R.Tensor((3,), dtype="float32")) = (lv1,)
                 R.output(gv)
             return gv
