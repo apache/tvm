@@ -1181,10 +1181,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         if range_constraints:
             if func_attrs is None:
                 func_attrs = {}
-            tir_var_upper_bound = {
+            func_attrs["tir_var_lower_bound"] = {
+                var_name: lower for var_name, (lower, _) in range_constraints.items()
+            }
+            func_attrs["tir_var_upper_bound"] = {
                 var_name: upper for var_name, (_, upper) in range_constraints.items()
             }
-            func_attrs["tir_var_upper_bound"] = tir_var_upper_bound
 
         nodes: List[fx.Node] = exported_program.graph.nodes
 

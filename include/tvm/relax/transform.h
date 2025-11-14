@@ -125,18 +125,19 @@ TVM_DLL Pass RewriteDataflowReshape();
  * The pass will reuse allocated memory to its best effort, in order to
  * reduce the total amount of allocated memory size.
  *
- * The pass "supports" dynamic shape in the way of TIR variable upper bound
- * annotation. We can optionally annotate the attribute "tir_var_upper_bound"
- * to Relax functions. The attribute value is a dict from strings to integers,
- * denoting the name of TIR variables to the upper bound values of the TIR vars.
- * Note: The annotated upper bound attribute only applies to TIR vars in the
+ * The pass "supports" dynamic shape in the way of TIR variable bound
+ * annotations. We can optionally annotate the attributes "tir_var_upper_bound"
+ * and "tir_var_lower_bound" to Relax functions. The attribute values are dicts
+ * from strings to integers, denoting the name of TIR variables to the bound
+ * values of the TIR vars.
+ * Note: The annotated bound attributes only apply to TIR vars in the
  * function signature for clarity.
  *
  * For example, we can annotate a Relax function with
- *   `R.func_attr({"tir_var_upper_bound": {"n": 1024}})`.
- * It means the maximum value of variable that names "n" in the function
- * signature will have upper bound 1024. And we will use 1024 as its value
- * during memory planning.
+ *   `R.func_attr({"tir_var_lower_bound": {"n": 1}, "tir_var_upper_bound": {"n": 1024}})`.
+ * It means the variable that names "n" in the function signature will have
+ * range [1, 1024]. And we will use these bounds during memory planning.
+ * If lower bound is not specified, it defaults to 0.
  *
  * \return The pass.
  */
