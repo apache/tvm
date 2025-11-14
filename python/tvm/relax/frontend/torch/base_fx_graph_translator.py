@@ -1313,6 +1313,54 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         ceil_mode = args[5] if len(args) > 5 else False
         return self._max_pool3d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
 
+    def _max_pool1d_with_indices(self, node: fx.Node) -> relax.Var:
+        # max_pool1d_with_indices returns (output, indices)
+        # We only compute the output and create a placeholder for indices
+        args = self.retrieve_args(node)
+        x = args[0]
+        kernel_size = args[1]
+        stride = args[2] if len(args) > 2 else None
+        padding = args[3] if len(args) > 3 else 0
+        dilation = args[4] if len(args) > 4 else 1
+        ceil_mode = args[5] if len(args) > 5 else False
+
+        output = self._max_pool1d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+        # Create a placeholder for indices (empty tensor with same shape as output)
+        indices = relax.op.zeros_like(output)
+        return self.block_builder.emit(relax.Tuple([output, indices]))
+
+    def _max_pool2d_with_indices(self, node: fx.Node) -> relax.Var:
+        # max_pool2d_with_indices returns (output, indices)
+        # We only compute the output and create a placeholder for indices
+        args = self.retrieve_args(node)
+        x = args[0]
+        kernel_size = args[1]
+        stride = args[2] if len(args) > 2 else None
+        padding = args[3] if len(args) > 3 else 0
+        dilation = args[4] if len(args) > 4 else 1
+        ceil_mode = args[5] if len(args) > 5 else False
+
+        output = self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+        # Create a placeholder for indices (empty tensor with same shape as output)
+        indices = relax.op.zeros_like(output)
+        return self.block_builder.emit(relax.Tuple([output, indices]))
+
+    def _max_pool3d_with_indices(self, node: fx.Node) -> relax.Var:
+        # max_pool3d_with_indices returns (output, indices)
+        # We only compute the output and create a placeholder for indices
+        args = self.retrieve_args(node)
+        x = args[0]
+        kernel_size = args[1]
+        stride = args[2] if len(args) > 2 else None
+        padding = args[3] if len(args) > 3 else 0
+        dilation = args[4] if len(args) > 4 else 1
+        ceil_mode = args[5] if len(args) > 5 else False
+
+        output = self._max_pool3d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+        # Create a placeholder for indices (empty tensor with same shape as output)
+        indices = relax.op.zeros_like(output)
+        return self.block_builder.emit(relax.Tuple([output, indices]))
+
     def _pad(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         pad = node.args[1]
