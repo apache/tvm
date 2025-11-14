@@ -386,7 +386,7 @@ inline ffi::String GetCodegenName(const std::string& composite_name) {
 inline int GetDeviceIndex(const IRModule& mod, const VDevice& vdevice) {
   ffi::Array<GlobalInfo> vdevices = mod->global_infos["vdevice"];
   for (int i = 0; i < static_cast<int>(vdevices.size()); ++i) {
-    if (vdevices[i] == vdevice) {
+    if (vdevices[i].same_as(vdevice)) {
       return i;
     }
   }
