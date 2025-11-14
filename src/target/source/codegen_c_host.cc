@@ -32,6 +32,9 @@
 #include <utility>
 #include <vector>
 
+// For escaping strings embedded into generated C sources
+#include "../../support/str_escape.h"
+
 namespace tvm {
 namespace codegen {
 
@@ -50,6 +53,8 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_d
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
   decl_stream << "#include \"tvm/ffi/c_api.h\"\n";
   decl_stream << "#include <math.h>\n";
+  // snprintf for richer assert messages with actual values
+  decl_stream << "#include <stdio.h>\n";
   decl_stream << "#include <stdbool.h>\n";
   CodeGenCHost::InitGlobalContext();
   CodeGenC::Init(output_ssa);
@@ -323,9 +328,33 @@ void CodeGenCHost::VisitStmt_(const AssertStmtNode* op) {  // NOLINT(*)
     PrintIndent();
     stream << "if (!(" << cond << ")) {\n";
     int assert_if_scope = this->BeginScope();
-    PrintIndent();
-    stream << "TVMFFIErrorSetRaisedFromCStr(\"RuntimeError\", \""
-           << op->message.as<StringImmNode>()->value << "\", NULL);\n";
+    {
+      // Prepare the base error message
+      const auto* msg_node = op->message.as<StringImmNode>();
+      ICHECK(msg_node != nullptr) << "Assert message expected to be StringImm";
+      const std::string& raw_msg = msg_node->value;
+      const std::string esc_msg =
+          tvm::support::StrEscape(raw_msg.c_str(), raw_msg.length(), /*use_octal_escape=*/true,
+                                  /*escape_whitespace_special_chars=*/true);
+
+      // If the assertion is an equality check, append the actual LHS/RHS values
+      if (const auto* eq = op->condition.as<EQNode>()) {
+        std::string lhs = PrintExpr(eq->a);
+        std::string rhs = PrintExpr(eq->b);
+        PrintIndent();
+        stream << "char __tvm_assert_msg_buf[512];\n";
+        PrintIndent();
+        stream << "snprintf(__tvm_assert_msg_buf, 512, \"%s; got: %lld, expected: %lld\", \""
+               << esc_msg << "\", (long long)(" << lhs << "), (long long)(" << rhs
+               << "));\n";
+        PrintIndent();
+        stream << "TVMFFIErrorSetRaisedFromCStr(\"RuntimeError\", __tvm_assert_msg_buf);\n";
+      } else {
+        PrintIndent();
+        stream << "TVMFFIErrorSetRaisedFromCStr(\"RuntimeError\", \"" << esc_msg
+               << "\");\n";
+      }
+    }
     PrintIndent();
     stream << "return -1;\n";
     this->EndScope(assert_if_scope);
@@ -359,7 +388,8 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
 
 ffi::Module BuildCHost(IRModule mod, Target target) {
   bool output_ssa = false;
-  bool emit_asserts = false;
+  // Enable emission of runtime asserts in generated C host code
+  bool emit_asserts = true;
   bool emit_fwd_func_decl = true;
 
   std::unordered_set<std::string> devices;

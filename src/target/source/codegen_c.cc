@@ -362,11 +362,11 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
   } else {
     ICHECK_LT(kind, builtin::kTVMValueKindBound_);
     std::ostringstream os;
-    os << "(((TVMValue*)";
+    os << "(((TVMFFIAny*)";
     this->PrintExpr(buffer, os);
     os << ")[" << index << "].";
     if (t.is_handle()) {
-      os << "v_handle";
+      os << "v_ptr";
     } else if (t.is_float()) {
       os << "v_float64";
     } else if (t.is_int()) {
