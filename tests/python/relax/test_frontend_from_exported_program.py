@@ -1291,6 +1291,21 @@ def test_binary1(op, relax_op):
                 R.output(gv)
             return gv
 
+    @tvm.script.ir_module
+    class expected_binary1_inplace:
+        @R.function
+        def main(
+            lhs: R.Tensor((10, 10), dtype="float32"),
+            rhs: R.Tensor((10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = relax_op(lhs, rhs)
+                gv: R.Tuple(
+                    R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32")
+                ) = (lv, lv)
+                R.output(gv)
+            return gv
+
     class Binary2(Module):
         def __init__(self, op):
             super().__init__()
@@ -1311,8 +1326,30 @@ def test_binary1(op, relax_op):
                 R.output(gv)
             return gv
 
-    verify_model(Binary1(op), example_args1, {}, expected_binary1)
-    verify_model(Binary2(op), example_args2, {}, expected_binary2)
+    @tvm.script.ir_module
+    class expected_binary2_inplace:
+        @R.function
+        def main(
+            lhs: R.Tensor((10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = relax_op(lhs, R.const(1.0))
+                gv: R.Tuple(
+                    R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32")
+                ) = (lv, lv)
+                R.output(gv)
+            return gv
+
+    inplace_ops = [
+        torch.ops.aten.add_,
+        torch.ops.aten.bitwise_or_,
+        torch.ops.aten.mul_,
+    ]
+
+    expected1 = expected_binary1_inplace if op in inplace_ops else expected_binary1
+    expected2 = expected_binary2_inplace if op in inplace_ops else expected_binary2
+    verify_model(Binary1(op), example_args1, {}, expected1, run_ep_decomposition=True)
+    verify_model(Binary2(op), example_args2, {}, expected2, run_ep_decomposition=True)
 
 
 operator_binary_2 = [
@@ -1374,8 +1411,8 @@ def test_binary2(op, relax_op):
                 R.output(gv)
             return gv
 
-    verify_model(Binary1(op), example_args1, {}, expected_binary1)
-    verify_model(Binary2(op), example_args2, {}, expected_binary2)
+    verify_model(Binary1(op), example_args1, {}, expected_binary1, run_ep_decomposition=True)
+    verify_model(Binary2(op), example_args2, {}, expected_binary2, run_ep_decomposition=True)
 
 
 def test_binary3():
@@ -1403,7 +1440,7 @@ def test_binary3():
                 R.output(gv)
             return gv
 
-    verify_model(Max1(), example_args1, {}, expected_max1)
+    verify_model(Max1(), example_args1, {}, expected_max1, run_ep_decomposition=True)
 
     # Min
     class Min1(Module):
@@ -1423,7 +1460,7 @@ def test_binary3():
                 R.output(gv)
             return gv
 
-    verify_model(Min1(), example_args1, {}, expected_min1)
+    verify_model(Min1(), example_args1, {}, expected_min1, run_ep_decomposition=True)
 
     # RSub
     class RSub1(Module):
@@ -1458,8 +1495,8 @@ def test_binary3():
                 R.output(gv)
             return gv
 
-    verify_model(RSub1(), example_args1, {}, expected_rsub1)
-    verify_model(RSub2(), example_args2, {}, expected_rsub2)
+    verify_model(RSub1(), example_args1, {}, expected_rsub1, run_ep_decomposition=True)
+    verify_model(RSub2(), example_args2, {}, expected_rsub2, run_ep_decomposition=True)
 
 
 # IsIn
