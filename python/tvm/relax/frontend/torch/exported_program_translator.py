@@ -1105,14 +1105,49 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "_local_scalar_dense.default": self._item,
         }
 
+    def _parse_sympy_to_tir_expr(
+        self, symbol, torch_symbol_to_relax_var: Dict[str, tvm.tir.Var]
+    ) -> tvm.tir.PrimExpr:
+        import sympy
+
+        if isinstance(symbol, sympy.Symbol):
+            return None
+
+        # Handle addition
+        if isinstance(symbol, sympy.Add):
+            result = None
+            for arg in symbol.args:
+                if isinstance(arg, sympy.Integer):
+                    term = tvm.tir.IntImm("int64", int(arg))
+                elif isinstance(arg, sympy.Symbol):
+                    var_name = str(arg)
+                    term = torch_symbol_to_relax_var.setdefault(
+                        var_name, tvm.tir.SizeVar(var_name, "int64")
+                    )
+                else:
+                    # Recursively parse nested expressions
+                    term = self._parse_sympy_to_tir_expr(arg, torch_symbol_to_relax_var)
+
+                result = term if result is None else result + term
+
+            return result
+
+        return None
+
     def create_input_vars(
         self, exported_program: torch.export.ExportedProgram
-    ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var], Dict[str, Tuple[int, int]]]:
+    ) -> Tuple[
+        Dict[str, relax.Var],
+        Dict[str, relax.Var],
+        Dict[str, Tuple[int, int]],
+        Dict[str, tvm.tir.PrimExpr],
+    ]:
         """Create relax input vars."""
         parameters_buffers_constants = OrderedDict()
         user_inputs = OrderedDict()
         torch_symbol_to_relax_var: Dict[str, tvm.tir.Var] = {}
         range_constraints = {}
+        derived_var_exprs = {}
 
         if hasattr(exported_program, "range_constraints"):
             for symbol, value_range in exported_program.range_constraints.items():
@@ -1122,6 +1157,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                         lower = int(value_range.lower)
                         upper = int(value_range.upper)
                         range_constraints[symbol_name] = (lower, upper)
+
+                        derived_expr = self._parse_sympy_to_tir_expr(
+                            symbol, torch_symbol_to_relax_var
+                        )
+
+                        if derived_expr is not None:
+                            derived_var_exprs[symbol_name] = derived_expr
+
                     except (OverflowError, AttributeError, TypeError):
                         continue
 
@@ -1155,7 +1198,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             else:
                 parameters_buffers_constants[name_hint] = relax_var
 
-        return parameters_buffers_constants, user_inputs, range_constraints
+        return parameters_buffers_constants, user_inputs, range_constraints, derived_var_exprs
 
     def from_exported_program(
         self,
@@ -1172,6 +1215,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             parameter_buffer_constant_vars,
             user_input_vars,
             range_constraints,
+            derived_var_exprs,
         ) = self.create_input_vars(exported_program)
         inputs_vars = user_input_vars.copy()
         inputs_vars.update(parameter_buffer_constant_vars)
@@ -1179,16 +1223,17 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # Initialize the block builder with a function and a dataflow block.
         self.block_builder = relax.BlockBuilder()
         func_name = "main"
-        func_attrs = {"num_input": len(user_input_vars)} if keep_params_as_input else None
+        func_attrs = {"num_input": len(user_input_vars)} if keep_params_as_input else {}
         if range_constraints:
-            if func_attrs is None:
-                func_attrs = {}
             func_attrs["tir_var_lower_bound"] = {
                 var_name: lower for var_name, (lower, _) in range_constraints.items()
             }
             func_attrs["tir_var_upper_bound"] = {
                 var_name: upper for var_name, (_, upper) in range_constraints.items()
             }
+
+        if derived_var_exprs:
+            func_attrs["tir_var_expr"] = derived_var_exprs
 
         nodes: List[fx.Node] = exported_program.graph.nodes
 

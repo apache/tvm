@@ -139,6 +139,13 @@ TVM_DLL Pass RewriteDataflowReshape();
  * range [1, 1024]. And we will use these bounds during memory planning.
  * If lower bound is not specified, it defaults to 0.
  *
+ * The pass also supports derived range constraints through the "tir_var_expr" attribute,
+ * which maps symbolic variable names to their defining expressions. For example:
+ *   `R.func_attr({"tir_var_expr": {"s0 + 1": s0 + 1}, "tir_var_lower_bound": {"s0": 1, "s0 + 1":
+ * 2}, "tir_var_upper_bound": {"s0": 64, "s0 + 1": 65}})` This indicates that "s0 + 1" is a derived
+ * variable equal to "s0" plus 1, with range [2, 65]. Such derived constraints are automatically
+ * extracted from PyTorch's dynamic shape specifications.
+ *
  * \return The pass.
  */
 TVM_DLL Pass StaticPlanBlockMemory();
