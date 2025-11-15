@@ -1422,7 +1422,7 @@ export class Instance implements Disposable {
         }
       }
       if (i === 0) {
-        // Reset for the loading phase to avoid double counting with download phase. 
+        // Reset for the loading phase to avoid double counting with download phase.
         fetchedBytes = 0;
       }
       fetchedBytes += shard.nbytes;
