@@ -126,6 +126,47 @@ def test_bool_unary_ops(pytorch_op, relax_op):
     verify_model(UnaryOp(), example_args, {}, expected, run_ep_decomposition=True)
 
 
+def test_sqrt_integer_input():
+    """Test that sqrt operation works with integer tensors by auto-converting to float."""
+    example_args = (torch.tensor([[4, 9, 16, 25]], dtype=torch.int64),)
+
+    class SqrtIntModel(Module):
+        def forward(self, input):
+            return torch.sqrt(input)
+
+    @tvm.script.ir_module
+    class expected_int64:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 4), dtype="int64")
+        ) -> R.Tuple(R.Tensor((1, 4), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 4), dtype="float32") = R.astype(input_1, dtype="float32")
+                lv1: R.Tensor((1, 4), dtype="float32") = R.sqrt(lv)
+                gv: R.Tuple(R.Tensor((1, 4), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    verify_model(SqrtIntModel(), example_args, {}, expected_int64, run_ep_decomposition=True)
+
+    example_args_int32 = (torch.tensor([[1, 4, 9]], dtype=torch.int32),)
+
+    @tvm.script.ir_module
+    class expected_int32:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3), dtype="int32")
+        ) -> R.Tuple(R.Tensor((1, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3), dtype="float32") = R.astype(input_1, dtype="float32")
+                lv1: R.Tensor((1, 3), dtype="float32") = R.sqrt(lv)
+                gv: R.Tuple(R.Tensor((1, 3), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    verify_model(SqrtIntModel(), example_args_int32, {}, expected_int32, run_ep_decomposition=True)
+
+
 def test_extended_unary_ops():
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
 

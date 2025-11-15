@@ -2749,6 +2749,27 @@ def test_basic_unary_ops(pytorch_op, relax_op):
     verify_model(Unary(), input_info, {}, expected_unary)
 
 
+def test_sqrt_integer_input_fx():
+    input_info = [([1, 4], "int64")]
+
+    class SqrtIntModel(Module):
+        def forward(self, input):
+            return torch.sqrt(input)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(input_1: R.Tensor((1, 4), dtype="int64")) -> R.Tensor((1, 4), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 4), dtype="float32") = R.astype(input_1, dtype="float32")
+                lv1: R.Tensor((1, 4), dtype="float32") = R.sqrt(lv)
+                gv: R.Tensor((1, 4), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    verify_model(SqrtIntModel(), input_info, {}, expected)
+
+
 operator_bool_unary = [
     (torch.isnan, R.isnan),
     (torch.isinf, R.isinf),
