@@ -60,6 +60,11 @@ void IRBuilder::InitHeader() {
   }
 #endif
 
+  if (spirv_support_.supports_cooperative_matrix) {
+    capabilities_used_.insert(spv::CapabilityCooperativeMatrixNV);
+    extensions_used_.insert("SPV_NV_cooperative_matrix");
+  }
+
   // memory model
   ib_.Begin(spv::OpMemoryModel)
       .AddSeq(spv::AddressingModelLogical, spv::MemoryModelGLSL450)
@@ -71,9 +76,10 @@ void IRBuilder::InitPreDefs() {
   ext_glsl450_ = ExtInstImport("GLSL.std.450");
   t_int32_ = DeclareType(DataType::Int(32));
   t_uint32_ = DeclareType(DataType::UInt(32));
-  t_bool_ = DeclareType(DataType::UInt(1));
+  t_bool_ = DeclareType(DataType::Bool());
   t_fp32_ = DeclareType(DataType::Float(32));
   const_i32_zero_ = IntImm(t_int32_, 0);
+
   // declare void, and void functions
   t_void_.id = id_counter_++;
   ib_.Begin(spv::OpTypeVoid).Add(t_void_).Commit(&global_);
@@ -106,25 +112,32 @@ std::vector<uint32_t> IRBuilder::Finalize() {
   return data;
 }
 
-SType IRBuilder::GetSType(const DataType& dtype) {
+SType IRBuilder::GetSType(const DataType& dtype, uint32_t row, uint32_t col) {
   if (dtype == DataType::Int(32)) {
     return t_int32_;
-  } else if (dtype == DataType::UInt(1)) {
+  } else if (dtype == DataType::Bool()) {
     return t_bool_;
   } else if (dtype == DataType::Float(32)) {
     return t_fp32_;
   } else if (dtype == DataType::UInt(32)) {
     return t_uint32_;
   }
-  uint32_t type_key;
+  uint64_t type_key;
   type_key = static_cast<uint32_t>(dtype.code());
   type_key |= static_cast<uint32_t>(dtype.bits()) << 8U;
-  type_key |= static_cast<uint32_t>(dtype.lanes()) << 16U;
+  if (row * col == 0) {
+    ICHECK((row == 0) && (col == 0));
+    type_key |= static_cast<uint32_t>(dtype.lanes()) << 16U;
+  } else {
+    type_key |= static_cast<uint64_t>(row) << 32U;
+    type_key |= static_cast<uint64_t>(col) << 40U;
+  }
+
   auto it = pod_type_tbl_.find(type_key);
   if (it != pod_type_tbl_.end()) {
     return it->second;
   }
-  SType t = DeclareType(dtype);
+  SType t = DeclareType(dtype, row, col);
   pod_type_tbl_[type_key] = t;
   return t;
 }
@@ -221,7 +234,13 @@ Value IRBuilder::FloatImm(const SType& dtype, double value) {
     return GetConst_(dtype, &data);
   } else {
     ICHECK_EQ(dtype.type.bits(), 16);
-    return Cast(dtype, FloatImm(GetSType(DataType::Float(32)), value));
+    float fvalue = static_cast<float>(value);
+    uint32_t* ptr = reinterpret_cast<uint32_t*>(&fvalue);
+    uint64_t data = ptr[0];
+    if (data == 0)
+      return GetConst_(dtype, &data);
+    else
+      return Cast(dtype, FloatImm(GetSType(DataType::Float(32)), value));
   }
 }
 
@@ -448,7 +467,7 @@ Value IRBuilder::GetConst_(const SType& dtype, const uint64_t* pvalue) {
   }
   ICHECK_LE(dtype.type.bits(), 64);
   Value ret = NewValue(dtype, kConstant);
-  if (dtype.type == DataType::UInt(1)) {
+  if (dtype.type == DataType::Bool()) {
     // bool types.
     if (*pvalue) {
       ib_.Begin(spv::OpConstantTrue).AddSeq(dtype, ret);
@@ -475,15 +494,14 @@ Value IRBuilder::GetConst_(const SType& dtype, const uint64_t* pvalue) {
   return ret;
 }
 
-SType IRBuilder::DeclareType(const DataType& dtype) {
+SType IRBuilder::DeclareType(const DataType& dtype, uint32_t row, uint32_t col) {
   AddCapabilityFor(dtype);
 
   if (dtype.lanes() == 1) {
     SType t;
     t.id = id_counter_++;
     t.type = dtype;
-    if (dtype.bits() == 1) {
-      ICHECK(dtype.is_uint());
+    if (dtype.is_bool()) {
       ib_.Begin(spv::OpTypeBool).Add(t).Commit(&global_);
     } else if (dtype.is_int()) {
       ib_.Begin(spv::OpTypeInt).AddSeq(t, dtype.bits(), 1).Commit(&global_);
@@ -500,7 +518,18 @@ SType IRBuilder::DeclareType(const DataType& dtype) {
     t.id = id_counter_++;
     t.type = dtype;
     SType base_type = GetSType(dtype.element_of());
-    ib_.Begin(spv::OpTypeVector).AddSeq(t, base_type, dtype.lanes()).Commit(&global_);
+
+    if (row * col == 0) {
+      ICHECK((row == 0) && (col == 0));
+      ib_.Begin(spv::OpTypeVector).AddSeq(t, base_type, dtype.lanes()).Commit(&global_);
+    } else {
+      Value v_row = GetSpecConst(GetSType(DataType::UInt(32)), row);
+      Value v_col = GetSpecConst(GetSType(DataType::UInt(32)), col);
+      Value scope = UIntImm(GetSType(DataType::UInt(32)), spv::ScopeSubgroup);
+      ib_.Begin(spv::OpTypeCooperativeMatrixNV)
+          .AddSeq(t, base_type, scope, v_row, v_col)
+          .Commit(&global_);
+    }
     return t;
   }
 }
@@ -554,7 +583,7 @@ void IRBuilder::AddCapabilityFor(const DataType& dtype) {
   // future.  Requiring StorageBuffer8BitAccess in order to declare an
   // Int8 prevents use of an 8-bit loop iterator on a device that
   // supports Int8 but doesn't support 8-bit buffer access.
-  if (dtype.bits() == 8) {
+  if (dtype.bits() == 8 && !dtype.is_bool()) {
     ICHECK(spirv_support_.supports_storage_buffer_8bit_access)
         << "Vulkan target does not support StorageBuffer8BitAccess.  "
         << "If your device supports 8-bit buffer access, "
@@ -727,6 +756,30 @@ Value IRBuilder::Cast(const SType& dst_type, spirv::Value value) {
   }
 }
 
+Value IRBuilder::GetCompositeConst(const SType& ele_stype, const SType& composite_stype,
+                                   const double dval) {
+  auto key = std::make_pair(composite_stype.id, dval);
+  auto it = composite_const_tbl_.find(key);
+  if (it != composite_const_tbl_.end()) {
+    return it->second;
+  }
+  spirv::Value const_val = FloatImm(ele_stype, dval);
+  Value new_val = NewValue(composite_stype, kNormal);
+  ib_.Begin(spv::OpConstantComposite).AddSeq(composite_stype, new_val, const_val);
+  ib_.Commit(&global_);
+  composite_const_tbl_[key] = new_val;
+  return new_val;
+}
+
+Value IRBuilder::GetSpecConst(const SType& dtype, uint64_t value) {
+  ICHECK_LE(dtype.type.bits(), 32);
+  Value ret = NewValue(dtype, kSpecConst);
+  ib_.Begin(spv::OpSpecConstant).AddSeq(dtype, ret);
+  ib_.Add(static_cast<uint32_t>(value));
+  ib_.Commit(&global_);
+  return ret;
+}
+
 #define DEFINE_BUILDER_BINARY_USIGN_OP(_OpName, _Op)       \
   Value IRBuilder::_OpName(Value a, Value b) {             \
     ICHECK_EQ(a.stype.id, b.stype.id);                     \
@@ -768,19 +821,19 @@ Value IRBuilder::Mod(Value a, Value b) {
   }
 }
 
-#define DEFINE_BUILDER_CMP_OP(_OpName, _Op)                                                     \
-  Value IRBuilder::_OpName(Value a, Value b) {                                                  \
-    ICHECK_EQ(a.stype.id, b.stype.id);                                                          \
-    ICHECK_EQ(a.stype.type.lanes(), b.stype.type.lanes());                                      \
-    const auto& bool_type = this->GetSType(DataType::UInt(1).with_lanes(a.stype.type.lanes())); \
-    if (a.stype.type.is_int()) {                                                                \
-      return MakeValue(spv::OpS##_Op, bool_type, a, b);                                         \
-    } else if (a.stype.type.is_uint()) {                                                        \
-      return MakeValue(spv::OpU##_Op, bool_type, a, b);                                         \
-    } else {                                                                                    \
-      ICHECK(a.stype.type.is_float());                                                          \
-      return MakeValue(spv::OpFOrd##_Op, bool_type, a, b);                                      \
-    }                                                                                           \
+#define DEFINE_BUILDER_CMP_OP(_OpName, _Op)                                                    \
+  Value IRBuilder::_OpName(Value a, Value b) {                                                 \
+    ICHECK_EQ(a.stype.id, b.stype.id);                                                         \
+    ICHECK_EQ(a.stype.type.lanes(), b.stype.type.lanes());                                     \
+    const auto& bool_type = this->GetSType(DataType::Bool().with_lanes(a.stype.type.lanes())); \
+    if (a.stype.type.is_int()) {                                                               \
+      return MakeValue(spv::OpS##_Op, bool_type, a, b);                                        \
+    } else if (a.stype.type.is_uint()) {                                                       \
+      return MakeValue(spv::OpU##_Op, bool_type, a, b);                                        \
+    } else {                                                                                   \
+      ICHECK(a.stype.type.is_float());                                                         \
+      return MakeValue(spv::OpFOrd##_Op, bool_type, a, b);                                     \
+    }                                                                                          \
   }
 
 DEFINE_BUILDER_CMP_OP(LT, LessThan);
@@ -788,17 +841,17 @@ DEFINE_BUILDER_CMP_OP(LE, LessThanEqual);
 DEFINE_BUILDER_CMP_OP(GT, GreaterThan);
 DEFINE_BUILDER_CMP_OP(GE, GreaterThanEqual);
 
-#define DEFINE_BUILDER_CMP_UOP(_OpName, _Op)                                                    \
-  Value IRBuilder::_OpName(Value a, Value b) {                                                  \
-    ICHECK_EQ(a.stype.id, b.stype.id);                                                          \
-    ICHECK_EQ(a.stype.type.lanes(), b.stype.type.lanes());                                      \
-    const auto& bool_type = this->GetSType(DataType::UInt(1).with_lanes(a.stype.type.lanes())); \
-    if (a.stype.type.is_int() || a.stype.type.is_uint()) {                                      \
-      return MakeValue(spv::OpI##_Op, bool_type, a, b);                                         \
-    } else {                                                                                    \
-      ICHECK(a.stype.type.is_float());                                                          \
-      return MakeValue(spv::OpFOrd##_Op, bool_type, a, b);                                      \
-    }                                                                                           \
+#define DEFINE_BUILDER_CMP_UOP(_OpName, _Op)                                                   \
+  Value IRBuilder::_OpName(Value a, Value b) {                                                 \
+    ICHECK_EQ(a.stype.id, b.stype.id);                                                         \
+    ICHECK_EQ(a.stype.type.lanes(), b.stype.type.lanes());                                     \
+    const auto& bool_type = this->GetSType(DataType::Bool().with_lanes(a.stype.type.lanes())); \
+    if (a.stype.type.is_int() || a.stype.type.is_uint()) {                                     \
+      return MakeValue(spv::OpI##_Op, bool_type, a, b);                                        \
+    } else {                                                                                   \
+      ICHECK(a.stype.type.is_float());                                                         \
+      return MakeValue(spv::OpFOrd##_Op, bool_type, a, b);                                     \
+    }                                                                                          \
   }
 
 DEFINE_BUILDER_CMP_UOP(EQ, Equal);
@@ -806,7 +859,7 @@ DEFINE_BUILDER_CMP_UOP(NE, NotEqual);
 
 Value IRBuilder::Select(Value cond, Value a, Value b) {
   ICHECK_EQ(a.stype.id, b.stype.id);
-  ICHECK_EQ(cond.stype.type.element_of(), DataType::UInt(1));
+  ICHECK_EQ(cond.stype.type.element_of(), DataType::Bool());
   return MakeValue(spv::OpSelect, a.stype, cond, a, b);
 }
 
