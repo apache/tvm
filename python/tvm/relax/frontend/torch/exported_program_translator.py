@@ -64,6 +64,26 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         x = self.env[node.args[0]]
         return self.block_builder.emit(relax.op.divide(relax.const(1.0, x.struct_info.dtype), x))
 
+    def _sqrt(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dtype = x.struct_info.dtype
+
+        # Check if input is integer type and convert to float32 if needed
+        if dtype in ("int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"):
+            x = self.block_builder.emit(relax.op.astype(x, "float32"))
+
+        return self.block_builder.emit(relax.op.sqrt(x))
+
+    def _rsqrt(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dtype = x.struct_info.dtype
+
+        # Check if input is integer type and convert to float32 if needed
+        if dtype in ("int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"):
+            x = self.block_builder.emit(relax.op.astype(x, "float32"))
+
+        return self.block_builder.emit(relax.op.rsqrt(x))
+
     ########## Neural Network ##########
 
     def _batch_norm(self, node: fx.Node, training: bool) -> relax.Var:
@@ -872,7 +892,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "relu6.default": self._unary_op(relax.op.nn.relu6),
             "relu6_.default": self._unary_op(relax.op.nn.relu6),
             "round.default": self._round,
-            "rsqrt.default": self._unary_op(relax.op.rsqrt),
+            "rsqrt.default": self._rsqrt,
             "scalar_tensor.default": self._scalar_tensor,
             "rsub.Tensor": self._rsub,
             "rsub.Scalar": self._rsub,
@@ -888,7 +908,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "softplus.default": self._softplus,
             "softshrink.default": self._softshrink,
             "softsign.default": self._softsign,
-            "sqrt.default": self._unary_op(relax.op.sqrt),
+            "sqrt.default": self._sqrt,
             "square.default": self._unary_op(relax.op.square),
             "tan.default": self._unary_op(relax.op.tan),
             "tanh.default": self._unary_op(relax.op.tanh),
