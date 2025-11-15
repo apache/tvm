@@ -302,7 +302,7 @@ struct ReadWriteAtImpl {
     }
     Stmt stmt = BufferStore(copy_to, /*value=*/BufferLoad(copy_from, indices), /*indices=*/indices);
     for (int i = n - 1; i >= 0; --i) {
-      stmt = For(loop_vars[i], Integer(0), domain[i]->extent, ForKind::kSerial, stmt);
+      stmt = For::ForSimple(loop_vars[i], Integer(0), domain[i]->extent, ForKind::kSerial, stmt);
     }
     return BlockRealize(
         /*values=*/iter_values,

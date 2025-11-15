@@ -123,7 +123,7 @@ void BlockInitFrameNode::ExitWithScope() {
 
 void ForFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  AddToParent(this->f_make_for_loop(vars, doms, AsStmt(stmts)));
+  AddToParent(this->f_make_for_loop(vars, doms, steps, AsStmt(stmts)));
 }
 
 void AssertFrameNode::ExitWithScope() {

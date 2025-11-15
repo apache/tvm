@@ -255,7 +255,7 @@ static std::pair<Stmt, BlockRealize> CreateConstBlock(const BlockRealizeNode* re
   for (size_t i = 0; i < new_loop_vars.size(); ++i) {
     For loop = loops[i];
     nest_stmt_root =
-        For(new_loop_vars[i], loop->min, loop->extent, ForKind::kSerial, nest_stmt_root);
+        For::ForSimple(new_loop_vars[i], loop->min, loop->extent, ForKind::kSerial, nest_stmt_root);
   }
 
   return {nest_stmt_root, new_realize};
@@ -343,7 +343,7 @@ static std::pair<Stmt, BlockRealize> CreateInBoundBlock(const BlockRealizeNode* 
     PrimExpr min = it == new_loop_ranges.end() ? loop->min : (*it).second->min;
     PrimExpr extent = it == new_loop_ranges.end() ? loop->extent : (*it).second->extent;
     nest_stmt_root = For(loop->loop_var, min, extent, loop->kind, nest_stmt_root,
-                         loop->thread_binding, loop->annotations, loop->span);
+                         loop->thread_binding, loop->annotations, loop->step, loop->span);
     if (loop.same_as(highest_pos_inclusive)) {
       break;
     }

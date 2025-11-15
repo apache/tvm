@@ -878,7 +878,9 @@ class CrossThreadReductionTransformer : public StmtMutator {
           /*body=*/body,                                      //
           /*thread_binding=*/
           IterVar(NullValue<Range>(), Var("", loop_vars[i]->dtype), IterVarType::kThreadIndex,
-                  "threadIdx." + dim_index));
+                  "threadIdx." + dim_index),
+          /*annotations=*/{},
+          /*step=*/std::nullopt);
     }
     return body;
   }

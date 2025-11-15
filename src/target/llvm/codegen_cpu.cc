@@ -1152,14 +1152,15 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
 
 void CodeGenCPU::VisitStmt_(const ForNode* op) {
   EmitDebugLocation(op);
-  ICHECK(is_zero(op->min));
   if (op->kind == ForKind::kSerial || op->kind == ForKind::kUnrolled) {
     CodeGenLLVM::VisitStmt_(op);
   } else if (op->kind == ForKind::kParallel) {
+    ICHECK(is_zero(op->min)) << "Parallel launch require canonical loop with zero start index";
+    ICHECK(op->HasTrivialStep()) << "Parallel launch require canonical loop with trivial loop step";
     if (parallel_env_.penv == nullptr) {
-      CreateParallelLaunch(For(op->loop_var, op->min, op->extent, op->kind, op->body,
-                               op->thread_binding, op->annotations),
-                           0, std::string("loop_parallel_") + op->loop_var->name_hint.c_str());
+      auto copy_node = For(ffi::make_object<ForNode>(*op));
+      CreateParallelLaunch(copy_node, 0,
+                           std::string("loop_parallel_") + op->loop_var->name_hint.c_str());
     } else {
       // already in parallel env.
       ICHECK(parallel_env_.task_id.defined());

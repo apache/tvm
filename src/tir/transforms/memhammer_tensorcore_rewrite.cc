@@ -63,15 +63,16 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
         /*3:*/ 16,                          //
         /*4:*/ 16,                          //
     };
-    body = For(new_loop_vars[3], 0, factor[3], ForKind::kSerial, std::move(body));
-    body = For(new_loop_vars[2], 0, factor[2], ForKind::kSerial, std::move(body));
-    body = For(new_loop_vars[1], 0, factor[1], ForKind::kSerial, std::move(body));
-    body = For(new_loop_vars[0], 0, factor[0], ForKind::kSerial, std::move(body));
+    body = For::ForSimple(new_loop_vars[3], 0, factor[3], ForKind::kSerial, std::move(body));
+    body = For::ForSimple(new_loop_vars[2], 0, factor[2], ForKind::kSerial, std::move(body));
+    body = For::ForSimple(new_loop_vars[1], 0, factor[1], ForKind::kSerial, std::move(body));
+    body = For::ForSimple(new_loop_vars[0], 0, factor[0], ForKind::kSerial, std::move(body));
   }
   For compute_location = Downcast<For>(body);
   for (int i = n - 3; i >= 0; i--) {
-    body = For(loops[i]->loop_var, loops[i]->min, loops[i]->extent, loops[i]->kind, std::move(body),
-               loops[i]->thread_binding, loops[i]->annotations);
+    auto new_loop = ffi::GetRef<For>(loops[i]);
+    new_loop.CopyOnWrite()->body = std::move(body);
+    body = new_loop;
   }
   return {body, compute_location};
 }
@@ -187,8 +188,9 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
           },
           /*annotations=*/{}));
   for (int i = n - 3; i >= 0; i--) {
-    wmma_body = For(loops[i]->loop_var, loops[i]->min, loops[i]->extent, loops[i]->kind,
-                    std::move(wmma_body), loops[i]->thread_binding, loops[i]->annotations);
+    auto new_loop = ffi::GetRef<For>(loops[i]);
+    new_loop.CopyOnWrite()->body = std::move(wmma_body);
+    wmma_body = new_loop;
   }
   return wmma_body;
 }
@@ -290,8 +292,9 @@ Stmt RewriteWmmaStore(Stmt stmt) {
             },
             /*annotations=*/{}));
   for (int i = n - 3; i >= 0; i--) {
-    wmma_body = For(loops[i]->loop_var, loops[i]->min, loops[i]->extent, loops[i]->kind,
-                    std::move(wmma_body), loops[i]->thread_binding, loops[i]->annotations);
+    auto new_loop = ffi::GetRef<For>(loops[i]);
+    new_loop.CopyOnWrite()->body = std::move(wmma_body);
+    wmma_body = new_loop;
   }
   return wmma_body;
 }
@@ -388,15 +391,16 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
         /*3:*/ 8,                          //
         /*4:*/ 8,                          //
     };
-    body = For(new_loop_vars[3], 0, factor[3], ForKind::kSerial, std::move(body));
-    body = For(new_loop_vars[2], 0, factor[2], ForKind::kSerial, std::move(body));
-    body = For(new_loop_vars[1], 0, factor[1], ForKind::kSerial, std::move(body));
-    body = For(new_loop_vars[0], 0, factor[0], ForKind::kSerial, std::move(body));
+    body = For::ForSimple(new_loop_vars[3], 0, factor[3], ForKind::kSerial, std::move(body));
+    body = For::ForSimple(new_loop_vars[2], 0, factor[2], ForKind::kSerial, std::move(body));
+    body = For::ForSimple(new_loop_vars[1], 0, factor[1], ForKind::kSerial, std::move(body));
+    body = For::ForSimple(new_loop_vars[0], 0, factor[0], ForKind::kSerial, std::move(body));
   }
   For compute_location = Downcast<For>(body);
   for (int i = n - 3; i >= 0; i--) {
-    body = For(loops[i]->loop_var, loops[i]->min, loops[i]->extent, loops[i]->kind, std::move(body),
-               loops[i]->thread_binding, loops[i]->annotations);
+    auto new_loop = ffi::GetRef<For>(loops[i]);
+    new_loop.CopyOnWrite()->body = std::move(body);
+    body = new_loop;
   }
   return {body, compute_location};
 }
@@ -484,21 +488,21 @@ Stmt RewriteMmaStore(Stmt stmt) {
             /*reads=*/{BufferRegion(src_buffer, read_region)},
             /*writes=*/{BufferRegion(tgt_buffer, write_region)},
             /*name_hint=*/"mma_store",
-            AttrStmt(/*node=*/IterVar(
-                         /*dom=*/Range::FromMinExtent(0, 32),
-                         /*var=*/tx,
-                         /*iter_type=*/IterVarType::kThreadIndex,
-                         /*thread_tag=*/"threadIdx.x"),
-                     /*attr_key=*/"thread_extent",
-                     /*value=*/Integer(32),
-                     /*body=*/
-                     For(vec, 0, 2, ForKind::kVectorized,
-                         /*body=*/
-                         BufferStore(new_tgt_buffer,
-                                     BufferLoad(new_src_buffer,
-                                                {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}),
-                                     {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}),
-                         /*annotations=*/{})),
+            AttrStmt(
+                /*node=*/IterVar(
+                    /*dom=*/Range::FromMinExtent(0, 32),
+                    /*var=*/tx,
+                    /*iter_type=*/IterVarType::kThreadIndex,
+                    /*thread_tag=*/"threadIdx.x"),
+                /*attr_key=*/"thread_extent",
+                /*value=*/Integer(32),
+                /*body=*/
+                For::ForSimple(vec, 0, 2, ForKind::kVectorized,
+                               /*body=*/
+                               BufferStore(new_tgt_buffer,
+                                           BufferLoad(new_src_buffer,
+                                                      {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}),
+                                           {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}))),
             /*init=*/std::nullopt,
             /*alloc_buffers=*/{},
             /*match_buffers=*/
@@ -510,8 +514,9 @@ Stmt RewriteMmaStore(Stmt stmt) {
 
   // Step 3.4. wrap outer loops
   for (int i = n - 3; i >= 0; i--) {
-    mma_body = For(loops[i]->loop_var, loops[i]->min, loops[i]->extent, loops[i]->kind,
-                   std::move(mma_body), loops[i]->thread_binding, loops[i]->annotations);
+    auto new_loop = ffi::GetRef<For>(loops[i]);
+    new_loop.CopyOnWrite()->body = std::move(mma_body);
+    mma_body = new_loop;
   }
   return mma_body;
 }

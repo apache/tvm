@@ -268,7 +268,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   std::unordered_map<Var, Var> loop_var_map;
   Stmt body = BlockRealize(init_realize);
   for (int i : chosen_loops) {
-    const ForNode* old_loop = TVM_SREF_TO_FOR(loops[i]);
+    For old_loop = ffi::GetRef<For>(TVM_SREF_TO_FOR(loops[i]));
     // Create a new equivalent to the chosen loop
     Var old_loop_var = old_loop->loop_var;
     Var new_loop_var = old_loop_var.copy_with_suffix("_init");
@@ -280,12 +280,11 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
       thread_binding.CopyOnWrite()->var = new_var;
       opt_thread_binding = thread_binding;
     }
-    body = For(/*loop_var=*/new_loop_var,
-               /*min=*/old_loop->min,
-               /*extent=*/old_loop->extent,
-               /*kind=*/old_loop->kind,
-               /*body=*/body,
-               /*thread_binding=*/opt_thread_binding);
+    auto new_loop = old_loop.CopyOnWrite();
+    new_loop->loop_var = new_loop_var;
+    new_loop->thread_binding = opt_thread_binding;
+    new_loop->body = body;
+    body = ffi::GetRef<For>(new_loop);
   }
   body = Substitute(body, loop_var_map);
   // Step 6. Mutate IR

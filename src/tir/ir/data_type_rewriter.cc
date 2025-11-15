@@ -41,8 +41,13 @@ Stmt DataTypeLegalizer::VisitStmt_(const ForNode* op) {
   ICHECK(op != nullptr) << "Expected type to be ForNode, but get " << s->GetTypeKey();
   PrimExpr e = VisitExpr(op->loop_var);
   Var var = Downcast<Var>(e);
-  return For(var, cast(var.dtype(), op->min), cast(var.dtype(), op->extent), op->kind, op->body,
-             op->thread_binding, op->annotations);
+  auto n = CopyOnWrite(op);
+  n->min = cast(var.dtype(), op->min);
+  n->extent = cast(var.dtype(), op->extent);
+  if (op->step.has_value()) {
+    n->step = cast(var.dtype(), *op->step);
+  }
+  return For(n);
 }
 
 Stmt DataTypeLegalizer::VisitStmt_(const BlockRealizeNode* op) {

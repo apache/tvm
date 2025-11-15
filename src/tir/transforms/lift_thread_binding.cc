@@ -133,7 +133,7 @@ class ThreadBindingLifter : public StmtExprMutator {
                    ForKind::kThreadBinding, std::move(body),
                    IterVar(Range(nullptr), Var(iter_var->thread_tag, iter_var->var->dtype),
                            kThreadIndex, iter_var->thread_tag),
-                   annotation);
+                   annotation, std::nullopt);
       }
     }
     if (is_kernel_root) {

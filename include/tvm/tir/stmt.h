@@ -717,7 +717,7 @@ enum class ForKind : int {
  *
  * \code
  *
- *  for (loop_var = min; loop_var < min + extent; ++loop_var) {
+ *  for (loop_var = min; loop_var < min + extent; loop_var += step) {
  *    // body
  *  }
  * \endcode
@@ -748,6 +748,10 @@ class ForNode : public StmtNode {
    *  and can be ignored in most passes.
    */
   ffi::Map<ffi::String, ffi::Any> annotations;
+  /*!
+   * \brief The loop step. It is one if not specified.
+   */
+  ffi::Optional<PrimExpr> step;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -758,8 +762,13 @@ class ForNode : public StmtNode {
         .def_ro("kind", &ForNode::kind)
         .def_ro("body", &ForNode::body)
         .def_ro("thread_binding", &ForNode::thread_binding)
-        .def_ro("annotations", &ForNode::annotations);
+        .def_ro("annotations", &ForNode::annotations)
+        .def_ro("step", &ForNode::step);
   }
+
+  /*! \brief Check it is a loop without nontrivial loop step. */
+  bool HasTrivialStep() const;
+
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.For", ForNode, StmtNode);
 };
 
@@ -770,9 +779,11 @@ class ForNode : public StmtNode {
 class For : public Stmt {
  public:
   TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
-              ffi::Optional<IterVar> thread_binding = std::nullopt,
-              ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
-              Span span = Span());
+              ffi::Optional<IterVar> thread_binding, ffi::Map<ffi::String, ffi::Any> annotations,
+              ffi::Optional<PrimExpr> step, Span span = Span());
+
+  TVM_DLL static For ForSimple(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind,
+                               Stmt body);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(For, Stmt, ForNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ForNode);

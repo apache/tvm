@@ -46,6 +46,9 @@ void StmtVisitor::VisitStmt_(const AttrStmtNode* op) {
 void StmtVisitor::VisitStmt_(const ForNode* op) {
   this->VisitExpr(op->min);
   this->VisitExpr(op->extent);
+  if (op->step.has_value()) {
+    this->VisitExpr(*op->step);
+  }
   this->VisitStmt(op->body);
 }
 
@@ -260,13 +263,19 @@ Stmt StmtMutator::VisitStmt_(const LetStmtNode* op) {
 Stmt StmtMutator::VisitStmt_(const ForNode* op) {
   PrimExpr min = this->VisitExpr(op->min);
   PrimExpr extent = this->VisitExpr(op->extent);
+  ffi::Optional<PrimExpr> step{std::nullopt};
+  if (op->step.has_value()) {
+    step = this->VisitExpr(*op->step);
+  }
   Stmt body = this->VisitStmt(op->body);
-  if (min.same_as(op->min) && extent.same_as(op->extent) && body.same_as(op->body)) {
+  if (min.same_as(op->min) && extent.same_as(op->extent) && body.same_as(op->body) &&
+      step.same_as(op->step)) {
     return ffi::GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->min = std::move(min);
     n->extent = std::move(extent);
+    n->step = std::move(step);
     n->body = std::move(body);
     return Stmt(n);
   }

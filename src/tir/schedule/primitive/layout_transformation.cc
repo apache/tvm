@@ -495,7 +495,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       size_t i = (inverse->initial_indices.size() - 1) - rev_i;
       Var loop_var = inverse->initial_indices[i];
       PrimExpr extent = new_buffer->shape[i];
-      stmt = For(loop_var, 0, extent, ForKind::kSerial, stmt);
+      stmt = For::ForSimple(loop_var, 0, extent, ForKind::kSerial, stmt);
     }
     return ProloguePlan{stmt};
   }
@@ -528,7 +528,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
         size_t i = (inverse->initial_indices.size() - 1) - rev_i;
         Var loop_var = inverse->initial_indices[i];
         PrimExpr extent = new_buffer->shape[i];
-        stmt = For(loop_var, 0, extent, ForKind::kSerial, stmt);
+        stmt = For::ForSimple(loop_var, 0, extent, ForKind::kSerial, stmt);
       }
 
       return stmt;
@@ -587,7 +587,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       size_t i = (inverse->initial_indices.size() - 1) - rev_i;
       Var loop_var = inverse->initial_indices[i];
       PrimExpr extent = new_buffer->shape[i];
-      stmt = For(loop_var, 0, extent, ForKind::kSerial, stmt);
+      stmt = For::ForSimple(loop_var, 0, extent, ForKind::kSerial, stmt);
     }
 
     const auto& info = write_info_.back();
@@ -1461,8 +1461,8 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   // Generate outer loops
   Stmt body = ffi::GetRef<Stmt>(new_block_realize);
   for (int i = static_cast<int>(new_loop_vars.size()) - 1; i >= 0; --i) {
-    body = For(Downcast<Var>(new_loop_vars[i]), 0, new_block_iter_range[i], ForKind::kSerial,
-               std::move(body));
+    body = For::ForSimple(Downcast<Var>(new_loop_vars[i]), 0, new_block_iter_range[i],
+                          ForKind::kSerial, std::move(body));
   }
 
   // Step 6: Do the actual replacement
