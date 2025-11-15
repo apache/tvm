@@ -43,9 +43,8 @@ repos:
         - id: check-merge-conflict
         - id: check-yaml
         - id: end-of-file-fixer
-          stages: [pre-push]
         - id: trailing-whitespace
-          stages: [pre-push]
+
     - repo: local
       hooks:
         -   id: run-black
