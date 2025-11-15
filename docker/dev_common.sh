@@ -27,11 +27,7 @@ INVOCATION_PWD="$(pwd)"
 
 GIT_TOPLEVEL=$(cd $(dirname ${BASH_SOURCE[0]}) && git rev-parse --show-toplevel)
 
-if docker info 2>/dev/null | grep -q 'Context: \+rootless'; then
-    DOCKER_IS_ROOTLESS=1
-else
-    DOCKER_IS_ROOTLESS=0
-fi
+DOCKER_IS_ROOTLESS=$(docker info 2> /dev/null | grep 'Context: \+rootless' || true)
 
 function lookup_image_spec() {
     img_spec=$(python3 "${GIT_TOPLEVEL}/ci/jenkins/data.py" "$1")
