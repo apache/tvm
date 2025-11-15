@@ -66,7 +66,7 @@ web/** @tqchen @jroesch
 docker/** @areusch @leandron @jroesch
 
 # Conda
-conda/** @tqchen @junrushao1994 @comaniac
+tests/conda/** @tqchen @junrushao1994 @comaniac
 
 # CMake
 cmake/** @jroesch @tqchen @areusch @junrushao1994 @comaniac

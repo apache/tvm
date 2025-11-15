@@ -6,29 +6,29 @@ runs:
       CACHE_NUMBER: 2
     with:
       path: ~/conda_pkgs_dir
-      key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('**/conda/build-environment.yaml') }}
+      key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('tests/conda/build-environment.yaml') }}
   - uses: conda-incubator/setup-miniconda@v3
     continue-on-error: true
     id: conda1
     with:
       activate-environment: tvm-build
       channel-priority: strict
-      environment-file: conda/build-environment.yaml
+      environment-file: tests/conda/build-environment.yaml
       auto-activate-base: false
       miniforge-version: latest
       python-version: 3.9
-      condarc-file: conda/condarc
+      condarc-file: tests/conda/condarc
   - uses: conda-incubator/setup-miniconda@v3
     if: steps.conda1.outcome == 'failure'
     with:
       activate-environment: tvm-build
       channel-priority: strict
-      environment-file: conda/build-environment.yaml
+      environment-file: tests/conda/build-environment.yaml
       auto-activate-base: false
       miniforge-version: latest
       use-only-tar-bz2: true
       python-version: 3.9
-      condarc-file: conda/condarc
+      condarc-file: tests/conda/condarc
   - name: Conda info
     shell: pwsh
     run: |

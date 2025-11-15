@@ -23,7 +23,6 @@ List of affected files:
 - tvm-root/python/tvm/libinfo.py
 - tvm-root/pyproject.toml
 - tvm-root/include/tvm/runtime/base.h
-- tvm-root/conda/recipe/meta.yaml
 - tvm-root/web/package.json
 """
 import os
@@ -189,13 +188,6 @@ def sync_version(pub_ver, local_ver, dry_run):
     update(
         os.path.join(PROJ_ROOT, "include", "tvm", "runtime", "base.h"),
         r'(?<=TVM_VERSION ")[.0-9a-z\+]+',
-        pub_ver,
-        dry_run,
-    )
-    # conda
-    update(
-        os.path.join(PROJ_ROOT, "conda", "recipe", "meta.yaml"),
-        r"(?<=version = ')[.0-9a-z\+]+",
         pub_ver,
         dry_run,
     )
