@@ -735,8 +735,11 @@ class ConstIntBoundAnalyzer::Impl
    * \return Bound that represent everything dtype can represent.
    */
   static Entry Everything(DataType dtype) {
-    if (!dtype.is_int() && !dtype.is_uint()) {
+    if (!dtype.is_int() && !dtype.is_uint() && !dtype.is_bool()) {
       return MakeBound(kNegInf, kPosInf);
+    }
+    if (dtype.is_bool()) {
+      return MakeBound(0, 1);
     }
     Entry ret;
     int64_t vbits = dtype.bits() - static_cast<int>(dtype.is_int());

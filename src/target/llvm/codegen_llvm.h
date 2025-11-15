@@ -536,6 +536,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Type* t_void_{nullptr};
   llvm::PointerType* t_void_p_{nullptr};
   llvm::Type* t_int_{nullptr};
+  llvm::Type* t_int1_{nullptr};
   llvm::Type* t_char_{nullptr};
   llvm::Type* t_int8_{nullptr};
   llvm::Type* t_int16_{nullptr};
