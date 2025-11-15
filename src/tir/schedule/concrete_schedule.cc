@@ -832,6 +832,15 @@ void ConcreteScheduleNode::ReverseComputeInline(const BlockRV& block_rv) {
   this->state_->DebugVerify();
 }
 
+void ConcreteScheduleNode::FuseReductionEpilogue(const BlockRV& reduction_block_rv,
+                                                 const BlockRV& epilogue_block_rv) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::FuseReductionEpilogue(state_, this->GetSRef(reduction_block_rv),
+                             this->GetSRef(epilogue_block_rv));
+  TVM_TIR_SCHEDULE_END("fuse-reduction-epilogue", this->error_render_level_);
+  this->state_->DebugVerify();
+}
+
 /******** Schedule: Block Annotation ********/
 
 void ConcreteScheduleNode::StorageAlign(const BlockRV& block_rv, int buffer_index, int axis,
