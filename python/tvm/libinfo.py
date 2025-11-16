@@ -232,9 +232,12 @@ def find_include_path(name=None, search_path=None, optional=False):
         dmlc_include_path = []
     else:
         tvm_include_path = [os.path.join(p, "include") for p in header_path]
-        tvm_ffi_include_path = [
-            os.path.join(p, "3rdparty", "tvm-ffi", "include") for p in header_path
-        ]
+
+        # Augment with system-installed tvm_ffi includes if available
+        from tvm_ffi import libinfo as _tvm_ffi_libinfo  # type: ignore
+        tvm_ffi_include_path = []
+        tvm_ffi_include_path.append(_tvm_ffi_libinfo.find_include_path())
+
         dlpack_include_path = [
             os.path.join(p, "3rdparty", "tvm-ffi", "3rdparty", "dlpack", "include")
             for p in header_path
