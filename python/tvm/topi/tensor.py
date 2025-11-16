@@ -17,6 +17,8 @@
 # pylint: disable=invalid-name,consider-using-enumerate,unused-argument,len-as-condition
 """Elementwise operators"""
 
+import math as _math
+
 from typing import Optional
 
 from tvm import te
@@ -57,6 +59,15 @@ def full(shape, dtype, fill_value):
     y : tvm.te.Tensor
         The result.
     """
+
+    # Validate that inf/-inf/nan values are only used with float dtypes
+    if isinstance(fill_value, (int, float)) and (_math.isinf(fill_value) or _math.isnan(fill_value)):
+        if not ("float" in dtype or "bfloat16" in dtype):
+            raise ValueError(
+                f"Cannot create tensor with fill_value={fill_value} and dtype={dtype}. "
+                f"Infinite and NaN values require a floating-point dtype."
+            )
+
     return cpp.full(shape, dtype, fill_value)
 
 
