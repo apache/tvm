@@ -1848,6 +1848,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         args = self.retrieve_args(node)
         x = args[0]
         dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
+
+        # Skip identity reshape
+        current_shape = self.shape_of(x)
+        if list(current_shape) == list(dims):
+            return x
+
         return self.block_builder.emit(relax.op.reshape(x, dims))
 
     def _reshape_as(self, node: fx.Node) -> relax.Var:
