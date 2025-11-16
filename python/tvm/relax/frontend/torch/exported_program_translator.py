@@ -113,6 +113,31 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         training = False
         return self._batch_norm(node, training)
 
+    def _batch_norm_legit_no_stats(self, node: fx.Node) -> relax.Var:
+        import numpy as np
+
+        x = self.env[node.args[0]]
+        channel = int(self.shape_of(x)[1])
+        dtype = x.struct_info.dtype
+        weight = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
+        bias = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
+        eps = node.args[5] if len(node.args) > 5 else node.kwargs.get("eps", 1e-05)
+
+        # Determine axes for instance norm (all spatial dimensions after channel)
+        dim = len(self.shape_of(x))
+        axes = list(range(2, dim))
+
+        return self.block_builder.emit(
+            relax.op.nn.instance_norm(
+                x,
+                weight,
+                bias,
+                channel_axis=1,
+                axes=axes,
+                epsilon=eps,
+            )
+        )
+
     def _cross_entropy_default(self, node: fx.Node) -> relax.Expr:
         preds = self.env[node.args[0]]
         targets = self.env[node.args[1]]
@@ -127,6 +152,28 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         gamma = self.env[node.args[2]] if len(node.args) > 2 else None
         beta = self.env[node.args[3]] if len(node.args) > 3 else None
         eps = node.args[4] if len(node.args) > 4 else 1e-05
+
+        dim = len(self.shape_of(x))
+        return self.block_builder.emit(
+            relax.op.nn.group_norm(
+                x,
+                gamma,
+                beta,
+                num_groups=num_groups,
+                channel_axis=1,
+                axes=list(range(2, dim)),
+                epsilon=eps,
+            )
+        )
+
+    def _native_group_norm(self, node: fx.Node) -> relax.Var:
+        # native_group_norm signature: (input, weight, bias, N, C, HxW, group, eps)
+        x = self.env[node.args[0]]
+        gamma = self.env.get(node.args[1], None) if len(node.args) > 1 else None
+        beta = self.env.get(node.args[2], None) if len(node.args) > 2 else None
+        # args[3] = N (batch size), args[4] = C (channels), args[5] = HxW (spatial size)
+        num_groups = node.args[6] if len(node.args) > 6 else 1
+        eps = node.args[7] if len(node.args) > 7 else 1e-05
 
         dim = len(self.shape_of(x))
         return self.block_builder.emit(
@@ -963,6 +1010,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "_adaptive_avg_pool3d.default": self._adaptive_avg_pool3d,
             "_native_batch_norm_legit_functional.default": self._batch_norm_legit_functional,
             "_native_batch_norm_legit_no_training.default": self._batch_norm_legit_no_training,
+            "_native_batch_norm_legit.no_stats": self._batch_norm_legit_no_stats,
             "batch_norm.default": self._batch_norm_legit_no_training,
             "adaptive_avg_pool1d.default": self._adaptive_avg_pool1d,
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
@@ -988,6 +1036,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             ),
             "group_norm.default": self._group_norm,
             "instance_norm.default": self._instance_norm,
+            "native_group_norm.default": self._native_group_norm,
             "layer_norm.default": self._layer_norm,
             "linear.default": self._linear,
             "lstm.input": self._lstm,
@@ -1004,6 +1053,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "upsample_bicubic2d.vec": self._upsample_bicubic2d,
             # statistical
             "any.dim": self._any,
+            "any.dims": self._any,
             "mean.dim": self._mean,
             "prod.default": self._prod,
             "std.correction": self._std,

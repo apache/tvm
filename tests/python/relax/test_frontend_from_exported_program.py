@@ -1514,12 +1514,10 @@ def test_isin():
             x: R.Tensor((10, 10), dtype="float32"), test_elements: R.Tensor((8,), dtype="float32")
         ) -> R.Tuple(R.Tensor((10, 10), dtype="bool")):
             with R.dataflow():
-                lv: R.Tensor((10, 10, 1), dtype="float32") = R.expand_dims(x, axis=[-1])
-                lv1: R.Tensor((8,), dtype="float32") = R.reshape(test_elements, R.shape([8]))
-                lv2: R.Tensor((10, 10, 8), dtype="bool") = R.equal(lv, lv1)
-                lv3: R.Tensor((10, 10), dtype="bool") = R.sum(lv2, axis=[-1], keepdims=False)
-                lv4: R.Tensor((10, 10), dtype="bool") = R.greater(lv3, R.const(0.0, "float32"))
-                gv: R.Tuple(R.Tensor((10, 10), dtype="bool")) = (lv4,)
+                lv: R.Tensor((10, 10, 1), dtype="float32") = R.reshape(x, R.shape([10, 10, 1]))
+                lv1: R.Tensor((10, 10, 8), dtype="bool") = R.equal(lv, test_elements)
+                lv2: R.Tensor((10, 10), dtype="bool") = R.max(lv1, axis=[-1], keepdims=False)
+                gv: R.Tuple(R.Tensor((10, 10), dtype="bool")) = (lv2,)
                 R.output(gv)
             return gv
 
@@ -1527,7 +1525,7 @@ def test_isin():
         torch.randn(10, 10, dtype=torch.float32),
         torch.randn(8, dtype=torch.float32),
     )
-    verify_model(IsInModel(), example_args, {}, expected)
+    verify_model(IsInModel(), example_args, {}, expected, run_ep_decomposition=True)
 
 
 def test_div_mode():
@@ -3155,7 +3153,7 @@ def test_groupnorm():
         "w1": model.gn.weight.detach().numpy(),
         "w2": model.gn.bias.detach().numpy(),
     }
-    verify_model(model, example_args, binding, expected1)
+    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
 
 
 def test_instancenorm2d():
@@ -3200,7 +3198,7 @@ def test_instancenorm2d():
         "w1": torch.ones(3).detach().numpy(),
         "w2": torch.zeros(3).detach().numpy(),
     }
-    verify_model(model, example_args, binding, expected1)
+    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
 
 
 def test_layernorm():
@@ -5556,7 +5554,9 @@ def test_unwrap_unit_return_tuple():
 
     example_args = (torch.randn(256, 256, dtype=torch.float32),)
     exported_program = export(Identity(), args=example_args)
-    mod = from_exported_program(exported_program, unwrap_unit_return_tuple=True)
+    mod = from_exported_program(
+        exported_program, unwrap_unit_return_tuple=True, run_ep_decomposition=True
+    )
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
@@ -5586,7 +5586,9 @@ def test_no_bind_return_tuple():
         torch.randn(256, 256, dtype=torch.float32),
     )
     exported_program = export(Identity(), args=example_args)
-    mod = from_exported_program(exported_program, no_bind_return_tuple=True)
+    mod = from_exported_program(
+        exported_program, no_bind_return_tuple=True, run_ep_decomposition=True
+    )
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
