@@ -1693,20 +1693,19 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             axis, index_tensor = non_none_indices[0]
             return self.block_builder.emit(relax.op.take(data, index_tensor, axis=axis))
 
-        # General case: multiple non-None indices require advanced indexing
+        # General case: replace None with arange, reshaped for broadcasting
+        max_ndim = max((idx.struct_info.ndim for _, idx in non_none_indices), default=1)
         processed_indices = []
         data_shape = self.shape_of(data)
 
         for i, idx in enumerate(indices):
             if idx is None:
-                dim_size = data_shape[i]
                 arange_idx = self.block_builder.emit(
-                    relax.op.arange(
-                        start=relax.PrimValue(0),
-                        end=dim_size,
-                        step=relax.PrimValue(1),
-                        dtype="int64",
-                    )
+                    relax.op.arange(relax.PrimValue(0), data_shape[i], relax.PrimValue(1), "int64")
+                )
+                # Reshape to [dim_size, 1, 1, ...] for broadcasting
+                arange_idx = self.block_builder.emit(
+                    relax.op.reshape(arange_idx, [data_shape[i]] + [1] * (max_ndim - 1))
                 )
                 processed_indices.append(arange_idx)
             else:
