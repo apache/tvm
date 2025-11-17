@@ -611,7 +611,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     }
     for (size_t j = cur.loop_vars.size(); j > 0; --j) {
       const auto& [loop_var, dom] = cur.loop_vars[j - 1];
-      body = For::ForSimple(loop_var, dom->min, dom->extent, ForKind::kSerial, body);
+      body = For(loop_var, dom->min, dom->extent, ForKind::kSerial, body);
     }
   }
   return body;

@@ -864,7 +864,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   Stmt Scalarize(Stmt stmt) {
     Var idx(var_->name_hint + ".s", var_->dtype);
     stmt = Substitute(stmt, {{var_, idx}});
-    return For::ForSimple(idx, IntImm(var_->dtype, 0), var_lanes_, ForKind::kSerial, stmt);
+    return For(idx, IntImm(var_->dtype, 0), var_lanes_, ForKind::kSerial, stmt);
   }
 
  private:
@@ -998,7 +998,7 @@ class VectorizeSkipper : public StmtMutator {
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<ForNode>();
     if (op->kind == ForKind::kVectorized) {
-      return For::ForSimple(op->loop_var, op->min, op->extent, ForKind::kSerial, op->body);
+      return For(op->loop_var, op->min, op->extent, ForKind::kSerial, op->body);
     } else {
       return stmt;
     }

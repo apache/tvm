@@ -779,11 +779,9 @@ class ForNode : public StmtNode {
 class For : public Stmt {
  public:
   TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
-              ffi::Optional<IterVar> thread_binding, ffi::Map<ffi::String, ffi::Any> annotations,
-              ffi::Optional<PrimExpr> step, Span span = Span());
-
-  TVM_DLL static For ForSimple(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind,
-                               Stmt body);
+              ffi::Optional<IterVar> thread_binding = std::nullopt,
+              ffi::Map<ffi::String, ffi::Any> annotations = {},
+              ffi::Optional<PrimExpr> step = std::nullopt, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(For, Stmt, ForNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ForNode);

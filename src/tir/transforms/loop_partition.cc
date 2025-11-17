@@ -660,7 +660,7 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
     if (has_partition_hint_ && unroll_loop_with_partition_hint_no_interval_ &&
         analyzer_.CanProve(max - min > 0)) {
       auto new_body = VisitAndMutate(body);
-      return For::ForSimple(var, min, max - min + 1, ForKind::kUnrolled, new_body);
+      return For(var, min, max - min + 1, ForKind::kUnrolled, new_body);
     }
     return Stmt();
   }

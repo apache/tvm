@@ -188,10 +188,6 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   data_ = std::move(node);
 }
 
-For For::ForSimple(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body) {
-  return For(loop_var, min, extent, kind, body, std::nullopt, {}, std::nullopt);
-}
-
 bool ForNode::HasTrivialStep() const { return !step.has_value() || is_one(*step); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

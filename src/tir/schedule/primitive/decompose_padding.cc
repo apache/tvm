@@ -255,7 +255,7 @@ static std::pair<Stmt, BlockRealize> CreateConstBlock(const BlockRealizeNode* re
   for (size_t i = 0; i < new_loop_vars.size(); ++i) {
     For loop = loops[i];
     nest_stmt_root =
-        For::ForSimple(new_loop_vars[i], loop->min, loop->extent, ForKind::kSerial, nest_stmt_root);
+        For(new_loop_vars[i], loop->min, loop->extent, ForKind::kSerial, nest_stmt_root);
   }
 
   return {nest_stmt_root, new_realize};

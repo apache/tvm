@@ -214,11 +214,11 @@ Block MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStageI
                            /*block=*/block);
   // Create surrounding loops
   for (size_t i = loop_vars.size(); i >= 1; --i) {
-    body = For::ForSimple(/*loop_var=*/loop_vars[i - 1],
-                          /*min=*/info->loop_ranges[i - 1]->min,
-                          /*extent=*/info->loop_ranges[i - 1]->extent,
-                          /*kind=*/ForKind::kSerial,
-                          /*body=*/body);
+    body = For(/*loop_var=*/loop_vars[i - 1],
+               /*min=*/info->loop_ranges[i - 1]->min,
+               /*extent=*/info->loop_ranges[i - 1]->extent,
+               /*kind=*/ForKind::kSerial,
+               /*body=*/body);
   }
   info->cache_stage = std::move(body);
   return block;
@@ -314,11 +314,11 @@ Block MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
                            /*block=*/block);
   // Create surrounding loops
   for (size_t i = loop_vars.size(); i >= 1; --i) {
-    body = For::ForSimple(/*loop_var=*/loop_vars[i - 1],
-                          /*min=*/0,
-                          /*extent=*/cache_region->region[i - 1]->extent,
-                          /*kind=*/ForKind::kSerial,
-                          /*body=*/body);
+    body = For(/*loop_var=*/loop_vars[i - 1],
+               /*min=*/0,
+               /*extent=*/cache_region->region[i - 1]->extent,
+               /*kind=*/ForKind::kSerial,
+               /*body=*/body);
   }
   info->cache_stage = std::move(body);
   return block;
@@ -424,11 +424,11 @@ Block MakeReIndexStage(const Block& block, CacheStageInfo* info,
 
   // Create the chain of loops
   for (int i = static_cast<int>(new_block_iters.size()) - 1; i >= 0; --i) {
-    body = For::ForSimple(/*loop_var=*/loop_vars[i],
-                          /*min=*/new_block_iters[i]->dom->min,
-                          /*extent=*/new_block_iters[i]->dom->extent,
-                          /*kind=*/ForKind::kSerial,
-                          /*body=*/std::move(body));
+    body = For(/*loop_var=*/loop_vars[i],
+               /*min=*/new_block_iters[i]->dom->min,
+               /*extent=*/new_block_iters[i]->dom->extent,
+               /*kind=*/ForKind::kSerial,
+               /*body=*/std::move(body));
   }
   // Update cache info, which will be used in the later rewriting.
   info->cache_stage = std::move(body);

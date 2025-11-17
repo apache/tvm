@@ -448,8 +448,8 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       // insert a for loop
       Var idx(var_->name_hint + ".s", var_->dtype);
       stmt = Substitute(stmt, {{var_, idx}});
-      return For::ForSimple(idx, make_zero(idx.dtype()), make_const(idx.dtype(), num_threads_),
-                            ForKind::kSerial, stmt);
+      return For(idx, make_zero(idx.dtype()), make_const(idx.dtype(), num_threads_),
+                 ForKind::kSerial, stmt);
     }
   }
 

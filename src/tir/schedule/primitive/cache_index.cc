@@ -326,11 +326,11 @@ ffi::Array<Block> MakeIndexCacheStage(IndexInfo* info, const ffi::String& storag
                              /*block=*/block);
     // Create surrounding loops
     for (size_t i = loop_vars.size(); i >= 1; --i) {
-      body = For::ForSimple(/*loop_var=*/loop_vars[i - 1],
-                            /*min=*/0,
-                            /*extent=*/info->range_map.at(iter_vars[i - 1])->extent,
-                            /*kind=*/ForKind::kSerial,
-                            /*body=*/body);
+      body = For(/*loop_var=*/loop_vars[i - 1],
+                 /*min=*/0,
+                 /*extent=*/info->range_map.at(iter_vars[i - 1])->extent,
+                 /*kind=*/ForKind::kSerial,
+                 /*body=*/body);
     }
     bodies.push_back(body);
   }

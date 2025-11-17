@@ -203,8 +203,8 @@ struct BufferPadding {
     body = BlockRealize(ffi::Array<PrimExpr>{loop_vars.begin(), loop_vars.end()}, Bool(true),
                         new_block);
     for (int i = ndim - 1; i >= 0; --i) {
-      body = For::ForSimple(loop_vars[i], loop_doms[i]->min, loop_doms[i]->extent, ForKind::kSerial,
-                            std::move(body));
+      body = For(loop_vars[i], loop_doms[i]->min, loop_doms[i]->extent, ForKind::kSerial,
+                 std::move(body));
     }
     return body;
   }
