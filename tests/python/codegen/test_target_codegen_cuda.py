@@ -877,5 +877,37 @@ def test_thread_return():
     assert "return;" in cuda_code
 
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
+def test_cuda_loop_step():
+    @T.prim_func
+    def cuda_loop_step(
+        A: T.Buffer((1024,), "float32"),
+        B: T.Buffer((1024,), "float32"),
+        C: T.Buffer((1024,), "float32"),
+    ):
+        # Each thread computes a strided subset of the i loop: start = tx*3, step = 96 (3 * 32 threads)
+        for bx in T.thread_binding(1, "blockIdx.x"):
+            for tx in T.thread_binding(96, "threadIdx.x"):
+                for i in T.serial(tx, 4096, step=96):
+                    C[i] = A[i] + B[i]
+
+    target = tvm.target.Target({"kind": "cuda"})
+    with tvm.transform.PassContext(disabled_pass=["tir.CanonicalizeLoop"]):
+        lib = tvm.compile(cuda_loop_step, target=target)
+
+    cuda_src = lib.mod.imports[0].inspect_source()
+    assert "i += 96" in cuda_src
+    dev = tvm.cuda(0)
+    a_np = np.random.uniform(1, 100, (1024,)).astype("float32")
+    b_np = np.random.uniform(1, 100, (1024,)).astype("float32")
+    c_np = np.zeros((1024,), dtype="float32")
+    a_nd = tvm.runtime.tensor(a_np, dev)
+    b_nd = tvm.runtime.tensor(b_np, dev)
+    c_nd = tvm.runtime.tensor(c_np, dev)
+    lib["main"](a_nd, b_nd, c_nd)
+    tvm.testing.assert_allclose(c_nd.numpy(), a_np + b_np)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
