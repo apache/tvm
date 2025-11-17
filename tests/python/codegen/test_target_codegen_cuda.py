@@ -889,7 +889,7 @@ def test_cuda_loop_step():
         # Each thread computes a strided subset of the i loop: start = tx*3, step = 96 (3 * 32 threads)
         for bx in T.thread_binding(1, "blockIdx.x"):
             for tx in T.thread_binding(96, "threadIdx.x"):
-                for i in T.serial(tx, 4096, step=96):
+                for i in T.serial(tx, 1024, step=96):
                     C[i] = A[i] + B[i]
 
     target = tvm.target.Target({"kind": "cuda"})

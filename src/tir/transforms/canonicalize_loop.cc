@@ -57,7 +57,7 @@ class LoopCanonicalizer : public StmtExprMutator {
     auto n = CopyOnWrite(op);
     n->body = VisitStmt(op->body);
     n->min = make_zero(loop_var->dtype);
-    n->extent = analyzer.Simplify(ceildiv(op->extent - op->min + 1, step));
+    n->extent = analyzer.Simplify(ceildiv(op->extent, step));
     n->step = std::nullopt;
     new_iter_info_.erase(loop_var);
     return For(n);
