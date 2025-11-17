@@ -1120,6 +1120,7 @@ void CodeGenC::VisitStmt_(const AssertStmtNode* op) {
 }
 
 void CodeGenC::VisitStmt_(const ForNode* op) {
+  std::string min = PrintExpr(op->min);
   std::string extent = PrintExpr(op->extent);
   std::string step = op->step.has_value() ? PrintExpr(*op->step) : "";
   PrintIndent();
@@ -1127,7 +1128,7 @@ void CodeGenC::VisitStmt_(const ForNode* op) {
   ICHECK(is_zero(op->min));
   stream << "for (";
   PrintType(op->loop_var.dtype(), stream);
-  stream << ' ' << vid << " = 0; " << vid << " < " << extent << "; ";
+  stream << ' ' << vid << " = " << min << "; " << vid << " < " << extent << "; ";
   if (step.empty()) {
     stream << "++" << vid;
   } else {

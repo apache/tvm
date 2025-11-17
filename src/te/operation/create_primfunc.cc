@@ -725,7 +725,6 @@ void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info,
   } else if (const auto extern_op = op.as<te::ExternOp>()) {
     // Case 3. ExternOp (te.extern)
     root_stmts->push_back(GenerateStmtFromExternOp(extern_op.value(), info));
-  } else if (const auto scan_op = op.as<te::ScanOp>()) {
   } else {
     ICHECK(false) << "TypeError: Unsupported Operation: " << op->GetTypeKey() << ". "
                   << "Only te.placeholder and te.compute are allowed for now.";
