@@ -674,7 +674,8 @@ void CodeGenSPIRV::VisitStmt_(const BufferStoreNode* op) {
 void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
   spirv::Value init_value = MakeValue(op->min);
-  spirv::Value extent_value = MakeValue(op->extent);
+  PrimExpr end = is_zero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
+  spirv::Value end_value = MakeValue(end);
   spirv::PhiValue loop_var = builder_->MakePhi(init_value.stype, 2);
 
   // loop step
@@ -683,7 +684,7 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
     step = op->loop_var.dtype().is_int() ? builder_->IntImm(loop_var.stype, 1)
                                          : builder_->UIntImm(loop_var.stype, 1);
   } else {
-    step = MakeValue(tvm::cast(op->extent->dtype, *op->step));
+    step = MakeValue(tvm::cast(end->dtype, *op->step));
   }
 
   // Must get init label after making value(to make sure they are correct)
@@ -701,7 +702,7 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   // Loop head
   builder_->StartLabel(head_label);
   loop_var.SetIncoming(0, init_value, init_label);
-  spirv::Value loop_cond = builder_->LT(loop_var, extent_value);
+  spirv::Value loop_cond = builder_->LT(loop_var, end_value);
   uint32_t control =
       (op->kind == ForKind::kUnrolled ? spv::LoopControlUnrollMask : spv::LoopControlMaskNone);
   builder_->MakeInst(spv::OpLoopMerge, merge_label, continue_label, control);

@@ -2028,8 +2028,10 @@ void CodeGenLLVM::VisitStmt_(const ForNode* op) {
     ICHECK(op->kind == ForKind::kSerial);
   }
   PrimExpr step = op->step.value_or(make_const(op->extent->dtype, 1));
-  CreateSerialFor(MakeValue(op->min), MakeValue(op->extent), MakeValue(step), op->loop_var,
-                  op->body);
+  PrimExpr end = is_zero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
+  llvm::Value* begin_value = MakeValue(op->min);
+  llvm::Value* end_value = MakeValue(end);
+  CreateSerialFor(begin_value, end_value, MakeValue(step), op->loop_var, op->body);
 }
 
 void CodeGenLLVM::VisitStmt_(const WhileNode* op) {
