@@ -5237,6 +5237,27 @@ def test_empty():
     verify_model(Empty(), example_args, {}, Expected, run_ep_decomposition=True)
 
 
+def test_empty_without_dtype():
+    class EmptyWithoutDtype(Module):
+        def forward(self, input):
+            return torch.empty((5, 5))
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            input: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((5, 5), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((5, 5), dtype="float32") = R.zeros(R.shape([5, 5]), dtype="float32")
+                gv: R.Tuple(R.Tensor((5, 5), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(10, 10, dtype=torch.float32),)
+    verify_model(EmptyWithoutDtype(), example_args, {}, Expected, run_ep_decomposition=True)
+
+
 def test_fill():
     class Fill(Module):
         def forward(self, input: torch.Tensor):
