@@ -20,7 +20,7 @@
 """PyTorch ExportedProgram of Relax."""
 from collections import ChainMap, OrderedDict
 from functools import partial
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
 import tvm
@@ -1181,6 +1181,40 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "_local_scalar_dense.default": self._item,
         }
 
+    def _process_derived_symbol(
+        self, symbol, torch_symbol_to_relax_var: Dict[str, tvm.tir.Var]
+    ) -> Tuple[str, Optional[tvm.tir.PrimExpr]]:
+        """Process a sympy symbol to generate a descriptive name and TIR expression."""
+        import sympy
+
+        if isinstance(symbol, sympy.Symbol):
+            return str(symbol), None
+
+        if not isinstance(symbol, sympy.Add):
+            return str(symbol), None
+
+        tir_expr = None
+        for arg in symbol.args:
+            if isinstance(arg, sympy.Integer):
+                term = tvm.tir.IntImm("int64", int(arg))
+            elif isinstance(arg, sympy.Symbol):
+                term = torch_symbol_to_relax_var.setdefault(
+                    str(arg), tvm.tir.SizeVar(str(arg), "int64")
+                )
+            else:
+                _, term = self._process_derived_symbol(arg, torch_symbol_to_relax_var)
+
+            if term is None:
+                return str(symbol), None
+            tir_expr = term if tir_expr is None else tir_expr + term
+
+        if isinstance(tir_expr, tvm.tir.Add):
+            for const, var in [(tir_expr.a, tir_expr.b), (tir_expr.b, tir_expr.a)]:
+                if isinstance(const, tvm.tir.IntImm) and isinstance(var, tvm.tir.Var):
+                    return f"{var.name}___{const.value}", tir_expr
+
+        return str(symbol), tir_expr
+
     def create_input_vars(
         self, exported_program: torch.export.ExportedProgram
     ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var], Dict[str, Tuple[int, int]]]:
@@ -1192,12 +1226,16 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         if hasattr(exported_program, "range_constraints"):
             for symbol, value_range in exported_program.range_constraints.items():
-                symbol_name = str(symbol)
                 if hasattr(value_range, "lower") and hasattr(value_range, "upper"):
                     try:
                         lower = int(value_range.lower)
                         upper = int(value_range.upper)
+
+                        symbol_name, _ = self._process_derived_symbol(
+                            symbol, torch_symbol_to_relax_var
+                        )
                         range_constraints[symbol_name] = (lower, upper)
+
                     except (OverflowError, AttributeError, TypeError):
                         continue
 
@@ -1255,10 +1293,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # Initialize the block builder with a function and a dataflow block.
         self.block_builder = relax.BlockBuilder()
         func_name = "main"
-        func_attrs = {"num_input": len(user_input_vars)} if keep_params_as_input else None
+        func_attrs = {"num_input": len(user_input_vars)} if keep_params_as_input else {}
         if range_constraints:
-            if func_attrs is None:
-                func_attrs = {}
             func_attrs["tir_var_lower_bound"] = {
                 var_name: lower for var_name, (lower, _) in range_constraints.items()
             }

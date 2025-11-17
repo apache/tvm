@@ -7000,5 +7000,39 @@ def test_dynamic_shape_with_range_constraints():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_dynamic_shape_with_derived_range_constraints():
+    class ConcatModel(torch.nn.Module):
+        def forward(self, x, y):
+            return torch.cat([x, y], dim=0)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor(("s0", 4), dtype="float32"), y: R.Tensor(("s0___1", 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor(("s0 + s0___1", 4), dtype="float32")):
+            s0 = T.int64(is_size_var=True)
+            s0___1 = T.int64(is_size_var=True)
+            R.func_attr(
+                {
+                    "tir_var_lower_bound": {"s0": 1, "s0___1": 2},
+                    "tir_var_upper_bound": {"s0": 64, "s0___1": 65},
+                }
+            )
+            with R.dataflow():
+                lv: R.Tensor((s0 + s0___1, 4), dtype="float32") = R.concat((x, y), axis=0)
+                gv: R.Tuple(R.Tensor((s0 + s0___1, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    batch = torch.export.Dim("batch", min=1, max=64)
+    example_args = (torch.randn(8, 4), torch.randn(9, 4))
+    dynamic_shapes = {"x": {0: batch}, "y": {0: batch + 1}}
+    exported_program = export(ConcatModel(), args=example_args, dynamic_shapes=dynamic_shapes)
+
+    mod = from_exported_program(exported_program, run_ep_decomposition=True)
+    tvm.ir.assert_structural_equal(mod, Expected, map_free_vars=True)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
