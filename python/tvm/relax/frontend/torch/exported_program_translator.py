@@ -20,7 +20,7 @@
 """PyTorch ExportedProgram of Relax."""
 from collections import ChainMap, OrderedDict
 from functools import partial
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
 import tvm
@@ -63,6 +63,26 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     def _reciprocal(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         return self.block_builder.emit(relax.op.divide(relax.const(1.0, x.struct_info.dtype), x))
+
+    def _sqrt(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dtype = x.struct_info.dtype
+
+        # Check if input is integer type and convert to float32 if needed
+        if dtype in ("int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"):
+            x = self.block_builder.emit(relax.op.astype(x, "float32"))
+
+        return self.block_builder.emit(relax.op.sqrt(x))
+
+    def _rsqrt(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dtype = x.struct_info.dtype
+
+        # Check if input is integer type and convert to float32 if needed
+        if dtype in ("int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"):
+            x = self.block_builder.emit(relax.op.astype(x, "float32"))
+
+        return self.block_builder.emit(relax.op.rsqrt(x))
 
     ########## Neural Network ##########
 
@@ -113,6 +133,31 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         training = False
         return self._batch_norm(node, training)
 
+    def _batch_norm_legit_no_stats(self, node: fx.Node) -> relax.Var:
+        import numpy as np
+
+        x = self.env[node.args[0]]
+        channel = int(self.shape_of(x)[1])
+        dtype = x.struct_info.dtype
+        weight = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
+        bias = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
+        eps = node.args[5] if len(node.args) > 5 else node.kwargs.get("eps", 1e-05)
+
+        # Determine axes for instance norm (all spatial dimensions after channel)
+        dim = len(self.shape_of(x))
+        axes = list(range(2, dim))
+
+        return self.block_builder.emit(
+            relax.op.nn.instance_norm(
+                x,
+                weight,
+                bias,
+                channel_axis=1,
+                axes=axes,
+                epsilon=eps,
+            )
+        )
+
     def _cross_entropy_default(self, node: fx.Node) -> relax.Expr:
         preds = self.env[node.args[0]]
         targets = self.env[node.args[1]]
@@ -127,6 +172,28 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         gamma = self.env[node.args[2]] if len(node.args) > 2 else None
         beta = self.env[node.args[3]] if len(node.args) > 3 else None
         eps = node.args[4] if len(node.args) > 4 else 1e-05
+
+        dim = len(self.shape_of(x))
+        return self.block_builder.emit(
+            relax.op.nn.group_norm(
+                x,
+                gamma,
+                beta,
+                num_groups=num_groups,
+                channel_axis=1,
+                axes=list(range(2, dim)),
+                epsilon=eps,
+            )
+        )
+
+    def _native_group_norm(self, node: fx.Node) -> relax.Var:
+        # native_group_norm signature: (input, weight, bias, N, C, HxW, group, eps)
+        x = self.env[node.args[0]]
+        gamma = self.env.get(node.args[1], None) if len(node.args) > 1 else None
+        beta = self.env.get(node.args[2], None) if len(node.args) > 2 else None
+        # args[3] = N (batch size), args[4] = C (channels), args[5] = HxW (spatial size)
+        num_groups = node.args[6] if len(node.args) > 6 else 1
+        eps = node.args[7] if len(node.args) > 7 else 1e-05
 
         dim = len(self.shape_of(x))
         return self.block_builder.emit(
@@ -701,11 +768,23 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         return self.block_builder.emit(relax.op.take(x, index, dim))
 
     def _slice(self, node: fx.Node) -> relax.Var:
+        import sys
+
         x = self.env[node.args[0]]
-        axes = [node.args[1]]
-        begin = [node.args[2]]
-        end = [node.args[3]]
-        stride = [node.args[4] if len(node.args) > 4 else 1]
+        dim = node.args[1] if len(node.args) > 1 else 0
+        start = node.args[2] if len(node.args) > 2 else None
+        end_val = node.args[3] if len(node.args) > 3 else None
+        step = node.args[4] if len(node.args) > 4 else 1
+
+        if start is None:
+            start = 0
+        if end_val is None:
+            end_val = sys.maxsize
+
+        axes = [dim]
+        begin = [start]
+        end = [end_val]
+        stride = [step]
         return self.block_builder.emit(relax.op.strided_slice(x, axes, begin, end, stride))
 
     def _unflatten(self, node: fx.Node) -> relax.Var:
@@ -850,6 +929,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "_log_softmax.default": self._log_softmax,
             "neg.default": self._unary_op(relax.op.negative),
             "pad.default": self._pad,
+            "constant_pad_nd.default": self._constant_pad_nd,
+            "copy.default": self._copy_,
             "pixel_shuffle.default": self._pixel_shuffle,
             "prelu.default": self._prelu,
             "reciprocal.default": self._reciprocal,
@@ -858,7 +939,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "relu6.default": self._unary_op(relax.op.nn.relu6),
             "relu6_.default": self._unary_op(relax.op.nn.relu6),
             "round.default": self._round,
-            "rsqrt.default": self._unary_op(relax.op.rsqrt),
+            "rsqrt.default": self._rsqrt,
             "scalar_tensor.default": self._scalar_tensor,
             "rsub.Tensor": self._rsub,
             "rsub.Scalar": self._rsub,
@@ -874,7 +955,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "softplus.default": self._softplus,
             "softshrink.default": self._softshrink,
             "softsign.default": self._softsign,
-            "sqrt.default": self._unary_op(relax.op.sqrt),
+            "sqrt.default": self._sqrt,
             "square.default": self._unary_op(relax.op.square),
             "tan.default": self._unary_op(relax.op.tan),
             "tanh.default": self._unary_op(relax.op.tanh),
@@ -884,8 +965,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # binary
             "add.Tensor": self._binary_op(relax.op.add, operator.add),
             "add_.Tensor": self._binary_op(relax.op.add, operator.add),
+            "bitwise_and.Tensor": self._binary_op(relax.op.bitwise_and, operator.and_),
+            "bitwise_and.Scalar": self._binary_op(relax.op.bitwise_and, operator.and_),
             "bitwise_or_.Scalar": self._binary_op(relax.op.bitwise_or, operator.or_),
             "bitwise_or.Scalar": self._binary_op(relax.op.bitwise_or, operator.or_),
+            "bitwise_xor.Tensor": self._binary_op(relax.op.bitwise_xor, operator.xor),
+            "bitwise_xor.Scalar": self._binary_op(relax.op.bitwise_xor, operator.xor),
             "bitwise_or_.Tensor": self._binary_op(relax.op.bitwise_or, operator.or_),
             "bitwise_or.Tensor": self._binary_op(relax.op.bitwise_or, operator.or_),
             "div.Scalar": self._binary_op(relax.op.divide, operator.truediv),
@@ -915,9 +1000,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "min.other": self._binary_op(relax.op.minimum, min),
             "max.default": self._unary_op(relax.op.max),
             "min.default": self._unary_op(relax.op.min),
+            "maximum.default": self._binary_op(relax.op.maximum, torch.maximum),
+            "minimum.default": self._binary_op(relax.op.minimum, torch.minimum),
             "remainder.Tensor": self._binary_op(relax.op.floor_mod, operator.mod),
             "remainder.Scalar": self._binary_op(relax.op.floor_mod, operator.mod),
             "mul.Tensor": self._binary_op(relax.op.multiply, operator.mul),
+            "mul.Scalar": self._binary_op(relax.op.multiply, operator.mul),
             "mul_.Tensor": self._binary_op(relax.op.multiply, operator.mul),
             "ne.Tensor": self._binary_op(relax.op.not_equal, operator.ne),
             "ne.Scalar": self._binary_op(relax.op.not_equal, operator.ne),
@@ -937,8 +1025,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # linear algebra
             "linalg_vector_norm.default": self._norm,
             # neural network
+            "_adaptive_avg_pool1d.default": self._adaptive_avg_pool1d,
+            "_adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
+            "_adaptive_avg_pool3d.default": self._adaptive_avg_pool3d,
             "_native_batch_norm_legit_functional.default": self._batch_norm_legit_functional,
             "_native_batch_norm_legit_no_training.default": self._batch_norm_legit_no_training,
+            "_native_batch_norm_legit.no_stats": self._batch_norm_legit_no_stats,
             "batch_norm.default": self._batch_norm_legit_no_training,
             "adaptive_avg_pool1d.default": self._adaptive_avg_pool1d,
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
@@ -956,6 +1048,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "conv1d.default": self._conv1d,
             "conv2d.default": self._conv2d,
             "conv3d.default": self._conv3d,
+            "convolution.default": self._convolution,
             "cross_entropy_loss.default": self._cross_entropy_default,
             "einsum.default": self._einsum,
             "embedding.default": lambda node: self._embedding_impl(
@@ -963,19 +1056,24 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             ),
             "group_norm.default": self._group_norm,
             "instance_norm.default": self._instance_norm,
+            "native_group_norm.default": self._native_group_norm,
             "layer_norm.default": self._layer_norm,
             "linear.default": self._linear,
             "lstm.input": self._lstm,
             "gru.input": self._gru,
             "max_pool1d.default": self._max_pool1d,
             "max_pool2d.default": self._max_pool2d,
+            "max_pool2d_with_indices.default": self._max_pool2d_with_indices,
             "max_pool3d.default": self._max_pool3d,
+            "max_pool3d_with_indices.default": self._max_pool3d_with_indices,
             "scaled_dot_product_attention.default": self._scaled_dot_product_attention,
             "unbind.int": self._unbind,
             "upsample_bilinear2d.vec": self._upsample_bilinear2d,
             "upsample_nearest2d.vec": self._upsample_nearest2d,
             "upsample_bicubic2d.vec": self._upsample_bicubic2d,
             # statistical
+            "any.dim": self._any,
+            "any.dims": self._any,
             "mean.dim": self._mean,
             "prod.default": self._prod,
             "std.correction": self._std,
@@ -1083,13 +1181,63 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "_local_scalar_dense.default": self._item,
         }
 
+    def _process_derived_symbol(
+        self, symbol, torch_symbol_to_relax_var: Dict[str, tvm.tir.Var]
+    ) -> Tuple[str, Optional[tvm.tir.PrimExpr]]:
+        """Process a sympy symbol to generate a descriptive name and TIR expression."""
+        import sympy
+
+        if isinstance(symbol, sympy.Symbol):
+            return str(symbol), None
+
+        if not isinstance(symbol, sympy.Add):
+            return str(symbol), None
+
+        tir_expr = None
+        for arg in symbol.args:
+            if isinstance(arg, sympy.Integer):
+                term = tvm.tir.IntImm("int64", int(arg))
+            elif isinstance(arg, sympy.Symbol):
+                term = torch_symbol_to_relax_var.setdefault(
+                    str(arg), tvm.tir.SizeVar(str(arg), "int64")
+                )
+            else:
+                _, term = self._process_derived_symbol(arg, torch_symbol_to_relax_var)
+
+            if term is None:
+                return str(symbol), None
+            tir_expr = term if tir_expr is None else tir_expr + term
+
+        if isinstance(tir_expr, tvm.tir.Add):
+            for const, var in [(tir_expr.a, tir_expr.b), (tir_expr.b, tir_expr.a)]:
+                if isinstance(const, tvm.tir.IntImm) and isinstance(var, tvm.tir.Var):
+                    return f"{var.name}___{const.value}", tir_expr
+
+        return str(symbol), tir_expr
+
     def create_input_vars(
         self, exported_program: torch.export.ExportedProgram
-    ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var]]:
+    ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var], Dict[str, Tuple[int, int]]]:
         """Create relax input vars."""
         parameters_buffers_constants = OrderedDict()
         user_inputs = OrderedDict()
         torch_symbol_to_relax_var: Dict[str, tvm.tir.Var] = {}
+        range_constraints = {}
+
+        if hasattr(exported_program, "range_constraints"):
+            for symbol, value_range in exported_program.range_constraints.items():
+                if hasattr(value_range, "lower") and hasattr(value_range, "upper"):
+                    try:
+                        lower = int(value_range.lower)
+                        upper = int(value_range.upper)
+
+                        symbol_name, _ = self._process_derived_symbol(
+                            symbol, torch_symbol_to_relax_var
+                        )
+                        range_constraints[symbol_name] = (lower, upper)
+
+                    except (OverflowError, AttributeError, TypeError):
+                        continue
 
         for spec in exported_program.graph_signature.input_specs:
             name_hint = spec.arg.name
@@ -1107,7 +1255,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 torch_shape = exported_program.state_dict[spec.target].shape
                 torch_dtype = exported_program.state_dict[spec.target].dtype
 
-            # TODO(mshr-h): Support range constraints
             relax_shape = [
                 torch_symbol_to_relax_var.setdefault(str(s), tvm.tir.SizeVar(str(s), "int64"))
                 if isinstance(s, torch.SymInt)
@@ -1122,7 +1269,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             else:
                 parameters_buffers_constants[name_hint] = relax_var
 
-        return parameters_buffers_constants, user_inputs
+        return parameters_buffers_constants, user_inputs, range_constraints
 
     def from_exported_program(
         self,
@@ -1135,14 +1282,25 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         from torch import fx  # type: ignore
 
         # Create input variables.
-        parameter_buffer_constant_vars, user_input_vars = self.create_input_vars(exported_program)
+        (
+            parameter_buffer_constant_vars,
+            user_input_vars,
+            range_constraints,
+        ) = self.create_input_vars(exported_program)
         inputs_vars = user_input_vars.copy()
         inputs_vars.update(parameter_buffer_constant_vars)
 
         # Initialize the block builder with a function and a dataflow block.
         self.block_builder = relax.BlockBuilder()
         func_name = "main"
-        func_attrs = {"num_input": len(user_input_vars)} if keep_params_as_input else None
+        func_attrs = {"num_input": len(user_input_vars)} if keep_params_as_input else {}
+        if range_constraints:
+            func_attrs["tir_var_lower_bound"] = {
+                var_name: lower for var_name, (lower, _) in range_constraints.items()
+            }
+            func_attrs["tir_var_upper_bound"] = {
+                var_name: upper for var_name, (_, upper) in range_constraints.items()
+            }
 
         nodes: List[fx.Node] = exported_program.graph.nodes
 

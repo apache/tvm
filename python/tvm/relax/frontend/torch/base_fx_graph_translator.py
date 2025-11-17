@@ -1003,6 +1003,80 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             groups=groups,
         )
 
+    def _convolution(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        weight = args[1]
+        bias = args[2] if len(args) > 2 else None
+        stride = args[3] if len(args) > 3 else 1
+        padding = args[4] if len(args) > 4 else 0
+        dilation = args[5] if len(args) > 5 else 1
+        transposed = args[6] if len(args) > 6 else False
+        output_padding = args[7] if len(args) > 7 else 0
+        groups = args[8] if len(args) > 8 else 1
+
+        input_shape = self.shape_of(x)
+        ndim = len(input_shape)
+
+        if transposed:
+            if ndim == 3:  # 1D convolution (N, C, W)
+                return self._conv_transpose1d_impl(
+                    x,
+                    weight,
+                    bias=bias,
+                    strides=stride,
+                    padding=padding,
+                    dilation=dilation,
+                    groups=groups,
+                    output_padding=output_padding,
+                )
+            elif ndim == 4:  # 2D convolution (N, C, H, W)
+                return self._conv_transpose2d_impl(
+                    x,
+                    weight,
+                    bias=bias,
+                    strides=stride,
+                    padding=padding,
+                    dilation=dilation,
+                    groups=groups,
+                    output_padding=output_padding,
+                )
+            else:
+                raise ValueError(f"Unsupported transposed convolution dimensionality: {ndim}")
+        else:
+            if ndim == 3:  # 1D convolution (N, C, W)
+                return self._conv1d_impl(
+                    x,
+                    weight,
+                    bias=bias,
+                    strides=stride,
+                    padding=padding,
+                    dilation=dilation,
+                    groups=groups,
+                )
+            elif ndim == 4:  # 2D convolution (N, C, H, W)
+                return self._conv2d_impl(
+                    x,
+                    weight,
+                    bias=bias,
+                    strides=stride,
+                    padding=padding,
+                    dilation=dilation,
+                    groups=groups,
+                )
+            elif ndim == 5:  # 3D convolution (N, C, D, H, W)
+                return self._conv3d_impl(
+                    x,
+                    weight,
+                    bias=bias,
+                    strides=stride,
+                    padding=padding,
+                    dilation=dilation,
+                    groups=groups,
+                )
+            else:
+                raise ValueError(f"Unsupported convolution dimensionality: {ndim}")
+
     def _cross_entropy_loss(
         self,
         preds: relax.Expr,
@@ -1239,6 +1313,54 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         ceil_mode = args[5] if len(args) > 5 else False
         return self._max_pool3d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
 
+    def _max_pool1d_with_indices(self, node: fx.Node) -> relax.Var:
+        # max_pool1d_with_indices returns (output, indices)
+        # We only compute the output and create a placeholder for indices
+        args = self.retrieve_args(node)
+        x = args[0]
+        kernel_size = args[1]
+        stride = args[2] if len(args) > 2 else None
+        padding = args[3] if len(args) > 3 else 0
+        dilation = args[4] if len(args) > 4 else 1
+        ceil_mode = args[5] if len(args) > 5 else False
+
+        output = self._max_pool1d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+        # Create a placeholder for indices (empty tensor with same shape as output)
+        indices = relax.op.zeros_like(output)
+        return self.block_builder.emit(relax.Tuple([output, indices]))
+
+    def _max_pool2d_with_indices(self, node: fx.Node) -> relax.Var:
+        # max_pool2d_with_indices returns (output, indices)
+        # We only compute the output and create a placeholder for indices
+        args = self.retrieve_args(node)
+        x = args[0]
+        kernel_size = args[1]
+        stride = args[2] if len(args) > 2 else None
+        padding = args[3] if len(args) > 3 else 0
+        dilation = args[4] if len(args) > 4 else 1
+        ceil_mode = args[5] if len(args) > 5 else False
+
+        output = self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+        # Create a placeholder for indices (empty tensor with same shape as output)
+        indices = relax.op.zeros_like(output)
+        return self.block_builder.emit(relax.Tuple([output, indices]))
+
+    def _max_pool3d_with_indices(self, node: fx.Node) -> relax.Var:
+        # max_pool3d_with_indices returns (output, indices)
+        # We only compute the output and create a placeholder for indices
+        args = self.retrieve_args(node)
+        x = args[0]
+        kernel_size = args[1]
+        stride = args[2] if len(args) > 2 else None
+        padding = args[3] if len(args) > 3 else 0
+        dilation = args[4] if len(args) > 4 else 1
+        ceil_mode = args[5] if len(args) > 5 else False
+
+        output = self._max_pool3d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+        # Create a placeholder for indices (empty tensor with same shape as output)
+        indices = relax.op.zeros_like(output)
+        return self.block_builder.emit(relax.Tuple([output, indices]))
+
     def _pad(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         pad = node.args[1]
@@ -1256,6 +1378,23 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         pad_width[-len(flattened) :] = flattened
 
         return self.block_builder.emit(relax.op.nn.pad(x, pad_width, mode, value))
+
+    def _constant_pad_nd(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        pad = node.args[1]
+        value = node.args[2] if len(node.args) > 2 else node.kwargs.get("value", 0.0)
+        value = 0.0 if value is None else value
+
+        # Calculate symmetric padding width for each dimension
+        # and applying them in reverse order to match the input dimensions.
+        input_ndim = x.struct_info.ndim
+        pad_width = [0] * (input_ndim * 2)
+        pad_pairs = [pad[i : i + 2] for i in range(0, len(pad), 2)]
+        reversed_pairs = list(reversed(pad_pairs))
+        flattened = [v for pair in reversed_pairs for v in pair]
+        pad_width[-len(flattened) :] = flattened
+
+        return self.block_builder.emit(relax.op.nn.pad(x, pad_width, "constant", value))
 
     def _pixel_shuffle(self, node: fx.Node) -> relax.Var:
         data = self.env[node.args[0]]
@@ -1378,6 +1517,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
         keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
         return self.block_builder.emit(relax.op.variance(x, dim, keepdims=keepdim))
+
+    def _any(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+        keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+        # For boolean tensors, any is equivalent to max (checking if any element is True)
+        return self.block_builder.emit(relax.op.max(x, dim, keepdims=keepdim))
 
     ########## Search ##########
 
@@ -1535,8 +1682,37 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     def _index_tensor(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
+        data = args[0]
         indices = args[1]
-        return self.block_builder.emit(relax.op.index_tensor(args[0], indices))
+
+        # In PyTorch's aten.index.Tensor, None means "select all elements" for that dimension
+        non_none_indices = [(i, idx) for i, idx in enumerate(indices) if idx is not None]
+
+        # Special case: if there's only one non-None index, use take operation
+        if len(non_none_indices) == 1:
+            axis, index_tensor = non_none_indices[0]
+            return self.block_builder.emit(relax.op.take(data, index_tensor, axis=axis))
+
+        # General case: multiple non-None indices require advanced indexing
+        processed_indices = []
+        data_shape = self.shape_of(data)
+
+        for i, idx in enumerate(indices):
+            if idx is None:
+                dim_size = data_shape[i]
+                arange_idx = self.block_builder.emit(
+                    relax.op.arange(
+                        start=relax.PrimValue(0),
+                        end=dim_size,
+                        step=relax.PrimValue(1),
+                        dtype="int64",
+                    )
+                )
+                processed_indices.append(arange_idx)
+            else:
+                processed_indices.append(idx)
+
+        return self.block_builder.emit(relax.op.index_tensor(data, processed_indices))
 
     def _meshgrid(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
@@ -1672,6 +1848,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         args = self.retrieve_args(node)
         x = args[0]
         dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
+
+        # Skip identity reshape
+        current_shape = self.shape_of(x)
+        if list(current_shape) == list(dims):
+            return x
+
         return self.block_builder.emit(relax.op.reshape(x, dims))
 
     def _reshape_as(self, node: fx.Node) -> relax.Var:
@@ -1725,6 +1907,20 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         # Support both "dim" and "dims" parameters
         if dim is None:
             dim = node.kwargs.get("dims", None)
+
+        # If dims is a list, filter out axes where dimension is not 1
+        # This is needed because PyTorch decomposition may pass all axes
+        if isinstance(dim, (list, tuple)) and len(dim) > 0:
+            shape = self.shape_of(x)
+            # Filter to only include axes where the dimension is 1
+            valid_dims = []
+            for d in dim:
+                axis = d if d >= 0 else len(shape) + d
+                if axis < len(shape) and shape[axis] == 1:
+                    valid_dims.append(d)
+            # If no valid dims, use None to squeeze all size-1 dimensions
+            dim = valid_dims if valid_dims else None
+
         return self.block_builder.emit(relax.op.squeeze(x, dim))
 
     def _stack(self, node: fx.Node) -> relax.Var:
@@ -1889,8 +2085,16 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     def _full_like(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        fill_value = relax.const(node.args[1])
-        return self.block_builder.emit(relax.op.full_like(x, fill_value))
+        value = node.args[1]
+        fill_value = relax.const(value)
+
+        x_dtype = x.struct_info.dtype
+        fill_dtype = None
+        if isinstance(value, (int, float)) and (math.isinf(value) or math.isnan(value)):
+            if not ("float" in x_dtype or "bfloat16" in x_dtype):
+                fill_dtype = "float32"
+
+        return self.block_builder.emit(relax.op.full_like(x, fill_value, dtype=fill_dtype))
 
     def _index_select(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -1903,7 +2107,19 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         mask = self.env[node.args[1]]
         value = node.args[2]
         rx_value = relax.const(value)
-        values = self.block_builder.emit(relax.op.full_like(x, rx_value))
+
+        x_dtype = x.struct_info.dtype
+        fill_dtype = None
+        if isinstance(value, (int, float)) and (math.isinf(value) or math.isnan(value)):
+            if not ("float" in x_dtype or "bfloat16" in x_dtype):
+                fill_dtype = "float32"
+
+        values = self.block_builder.emit(relax.op.full_like(x, rx_value, dtype=fill_dtype))
+
+        # Cast x to match values dtype if necessary
+        if fill_dtype is not None:
+            x = self.block_builder.emit(relax.op.astype(x, fill_dtype))
+
         output = self.block_builder.emit(relax.op.where(mask, values, x))
         self.env[node.args[0]] = output
         return output
@@ -1934,8 +2150,21 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _masked_fill(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         mask = self.env[node.args[1]]
-        rx_value = relax.const(node.args[2])
-        values = self.block_builder.emit(relax.op.full_like(x, rx_value))
+        value = node.args[2]
+        rx_value = relax.const(value)
+
+        x_dtype = x.struct_info.dtype
+        fill_dtype = None
+        if isinstance(value, (int, float)) and (math.isinf(value) or math.isnan(value)):
+            if not ("float" in x_dtype or "bfloat16" in x_dtype):
+                fill_dtype = "float32"
+
+        values = self.block_builder.emit(relax.op.full_like(x, rx_value, dtype=fill_dtype))
+
+        # Cast x to match values dtype if necessary
+        if fill_dtype is not None:
+            x = self.block_builder.emit(relax.op.astype(x, fill_dtype))
+
         return self.block_builder.emit(relax.op.where(mask, values, x))
 
     def _new_ones(self, node: fx.Node) -> relax.Var:

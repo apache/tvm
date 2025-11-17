@@ -262,7 +262,7 @@ export class RPCServer {
     const asyncInitServer = async (): Promise<void> => {
       assert(args[1] instanceof Uint8Array);
       const inst = await runtime.instantiate(
-        args[1].buffer,
+        args[1].buffer as ArrayBuffer,
         this.getImports(),
         this.logger
       );

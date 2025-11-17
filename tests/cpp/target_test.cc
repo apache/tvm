@@ -57,13 +57,12 @@ TVM_REGISTER_TARGET_KIND("TestTargetParser", kDLCPU)
 TVM_REGISTER_TARGET_KIND("TestAttrsPreprocessor", kDLCPU)
     .add_attr_option<ffi::String>("mattr")
     .set_default_keys({"cpu"})
-    .set_attrs_preprocessor(TestAttrsPreProcessor);
+    .set_target_parser(TestAttrsPreProcessor);
 
 TVM_REGISTER_TARGET_KIND("TestClashingPreprocessor", kDLCPU)
     .add_attr_option<ffi::String>("mattr")
     .add_attr_option<ffi::String>("mcpu")
     .set_default_keys({"cpu"})
-    .set_attrs_preprocessor(TestAttrsPreProcessor)
     .set_target_parser(TestTargetParser);
 
 TEST(TargetKind, GetAttrMap) {
@@ -201,8 +200,10 @@ TEST(TargetCreation, TargetAttrsPreProcessor) {
   ASSERT_EQ(test_target->GetAttr<ffi::String>("mattr").value(), "woof");
 }
 
-TEST(TargetCreation, ClashingTargetProcessing) {
-  EXPECT_THROW(Target test("TestClashingPreprocessor -mcpu=woof -mattr=cake"), ffi::Error);
+TEST(TargetCreation, TargetParserProcessing) {
+  Target test_target("TestClashingPreprocessor -mcpu=woof -mattr=cake");
+  ASSERT_EQ(test_target->GetAttr<ffi::String>("mcpu").value(), "super_woof");
+  ASSERT_EQ(test_target->GetAttr<ffi::String>("mattr").value(), "cake");
 }
 
 TVM_REGISTER_TARGET_KIND("TestStringKind", kDLCPU)
