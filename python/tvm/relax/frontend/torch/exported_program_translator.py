@@ -1143,6 +1143,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "_assert_tensor_metadata.default": lambda node: self.env[
                 node.args[0]
             ],  # metadata assertion: no-op
+            "empty.default": self._empty,
             "empty.memory_format": self._empty,
             "empty_permuted.default": self._empty,  # Similar to empty with permuted layout
             "empty_like.default": self._empty_like,
