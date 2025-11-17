@@ -1126,7 +1126,6 @@ void CodeGenC::VisitStmt_(const ForNode* op) {
   std::string step_str = op->step.has_value() ? PrintExpr(*op->step) : "";
   PrintIndent();
   std::string vid = AllocVarID(op->loop_var.get());
-  ICHECK(is_zero(op->min));
   stream << "for (";
   PrintType(op->loop_var.dtype(), stream);
   stream << ' ' << vid << " = " << begin_str << "; " << vid << " < " << end_str << "; ";
