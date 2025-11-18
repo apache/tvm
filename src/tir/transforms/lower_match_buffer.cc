@@ -220,8 +220,15 @@ class MatchBufferLower : public StmtExprMutator {
   }
 
   void Bind(const PrimExpr& arg, PrimExpr value, const std::string& arg_name = "argument") {
-    CHECK_EQ(arg.dtype(), value.dtype())
-        << "The data type mismatched: " << arg->dtype << " vs. " << value->dtype;
+    if (arg.dtype() != value.dtype()) {
+      if (arg.dtype().is_int() && value.dtype().is_int() &&
+          arg.dtype().lanes() == value.dtype().lanes()) {
+        value = cast(arg.dtype(), value);
+      } else {
+        CHECK_EQ(arg.dtype(), value.dtype())
+            << "The data type mismatched: " << arg->dtype << " vs. " << value->dtype;
+      }
+    }
     // Handle recursive case
     value = Substitute(std::move(value), var_map_);
     if (arg->IsInstance<VarNode>()) {
