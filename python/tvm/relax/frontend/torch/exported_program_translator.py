@@ -1191,7 +1191,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         if isinstance(symbol, sympy.Symbol):
             return str(symbol), None
 
-        if not isinstance(symbol, sympy.Add):
+        if not isinstance(symbol, (sympy.Add, sympy.Mul)):
             return str(symbol), None
 
         tir_expr = None
@@ -1207,12 +1207,23 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
             if term is None:
                 return str(symbol), None
-            tir_expr = term if tir_expr is None else tir_expr + term
+
+            if tir_expr is None:
+                tir_expr = term
+            elif isinstance(symbol, sympy.Mul):
+                tir_expr = tir_expr * term
+            elif isinstance(symbol, sympy.Add):
+                tir_expr = tir_expr + term
 
         if isinstance(tir_expr, tvm.tir.Add):
             for const, var in [(tir_expr.a, tir_expr.b), (tir_expr.b, tir_expr.a)]:
                 if isinstance(const, tvm.tir.IntImm) and isinstance(var, tvm.tir.Var):
                     return f"{var.name}___{const.value}", tir_expr
+
+        if isinstance(tir_expr, tvm.tir.Mul):
+            for const, var in [(tir_expr.a, tir_expr.b), (tir_expr.b, tir_expr.a)]:
+                if isinstance(const, tvm.tir.IntImm) and isinstance(var, tvm.tir.Var):
+                    return f"{var.name}_{const.value}", tir_expr
 
         return str(symbol), tir_expr
 
@@ -1256,12 +1267,20 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 torch_shape = exported_program.state_dict[spec.target].shape
                 torch_dtype = exported_program.state_dict[spec.target].dtype
 
-            relax_shape = [
-                torch_symbol_to_relax_var.setdefault(str(s), tvm.tir.SizeVar(str(s), "int64"))
-                if isinstance(s, torch.SymInt)
-                else s
-                for s in torch_shape
-            ]
+            relax_shape = []
+            for s in torch_shape:
+                if isinstance(s, torch.SymInt):
+                    sympy_node = s.node.expr if hasattr(s.node, "expr") else s.node
+                    symbol_name, _ = self._process_derived_symbol(
+                        sympy_node, torch_symbol_to_relax_var
+                    )
+
+                    size_var = torch_symbol_to_relax_var.setdefault(
+                        symbol_name, tvm.tir.SizeVar(symbol_name, "int64")
+                    )
+                    relax_shape.append(size_var)
+                else:
+                    relax_shape.append(s)
             dtype = self._convert_data_type(torch_dtype)
 
             relax_var = relax.Var(name_hint, relax.TensorStructInfo(relax_shape, dtype))
