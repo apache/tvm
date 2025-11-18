@@ -6414,7 +6414,14 @@ def test_dynamic_shape():
     batch = torch.export.Dim("batch")
     dynamic_shapes = {"x1": {0: batch}, "x2": {0: batch}}
 
-    verify_model(DynamicModel(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes)
+    verify_model(
+        DynamicModel(),
+        example_args,
+        {},
+        Expected,
+        dynamic_shapes=dynamic_shapes,
+        run_ep_decomposition=True,
+    )
 
 
 def test_broadcast_to():
@@ -6898,7 +6905,7 @@ def test_tensor_none_tuple():
                 R.output(gv)
             return gv
 
-    verify_model(TensorNoneModel(), example_args, {}, Expected)
+    verify_model(TensorNoneModel(), example_args, {}, Expected, run_ep_decomposition=True)
 
 
 def test_gru():
