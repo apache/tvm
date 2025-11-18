@@ -1237,6 +1237,82 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
 }
 
 /*!
+ * \brief Check if a buffer is still referenced by other blocks in the scope
+ */
+static bool CheckBufferStillUsed(const Block& scope_root, const Buffer& buffer) {
+  class BufferUsageChecker : public StmtVisitor {
+   public:
+    explicit BufferUsageChecker(const Buffer& buffer) : buffer_(buffer) {}
+
+    bool CheckStmt(const Stmt& stmt) {
+      found_usage_ = false;
+      VisitStmt(stmt);
+      return found_usage_;
+    }
+
+   private:
+    void VisitStmt_(const BlockRealizeNode* op) final {
+      if (found_usage_) return;
+
+      if (!op || !op->block.defined()) {
+        StmtVisitor::VisitStmt_(op);
+        return;
+      }
+
+      const BlockNode* block = op->block.get();
+      if (!block) {
+        StmtVisitor::VisitStmt_(op);
+        return;
+      }
+
+      // Check reads
+      for (const BufferRegion& read : block->reads) {
+        if (read->buffer.same_as(buffer_)) {
+          found_usage_ = true;
+          return;
+        }
+      }
+
+      // Check writes
+      for (const BufferRegion& write : block->writes) {
+        if (write->buffer.same_as(buffer_)) {
+          found_usage_ = true;
+          return;
+        }
+      }
+
+      // Continue visiting nested blocks
+      StmtVisitor::VisitStmt_(op);
+    }
+
+    void VisitStmt_(const BlockNode* op) final {
+      if (found_usage_) return;
+      if (!op) return;
+
+      // Check alloc_buffers
+      for (const Buffer& buf : op->alloc_buffers) {
+        if (buf.same_as(buffer_)) {
+          found_usage_ = true;
+          return;
+        }
+      }
+
+      StmtVisitor::VisitStmt_(op);
+    }
+
+    const Buffer& buffer_;
+    bool found_usage_{false};
+  };
+
+  if (!scope_root->body.defined()) {
+    return false;
+  }
+
+  BufferUsageChecker checker(buffer);
+  return checker.CheckStmt(scope_root->body);
+}
+
+/*!
  * \brief Helper class to replace reduction and epilogue blocks with a single fused block
  */
 class SingleBlockFusionReplacer : public StmtMutator {
@@ -1247,15 +1323,20 @@ class SingleBlockFusionReplacer : public StmtMutator {
                                        std::move(old_epilogue_block), std::move(reduction_buffer));
     Block result = Downcast<Block>(replacer(std::move(old_scope_root)));
 
-    // Remove intermediate temp buffer
-    BlockNode* p = result.CopyOnWrite();
-    ffi::Array<Buffer> new_alloc_buffers;
-    for (const Buffer& buf : p->alloc_buffers) {
-      if (!buf.same_as(replacer.reduction_buffer_)) {
-        new_alloc_buffers.push_back(buf);
+    // Check if reduction_buffer is still referenced by other blocks
+    bool buffer_still_used = CheckBufferStillUsed(result, reduction_buffer);
+
+    // Remove intermediate temp buffer only if it's not used by other blocks
+    if (!buffer_still_used) {
+      BlockNode* p = result.CopyOnWrite();
+      ffi::Array<Buffer> new_alloc_buffers;
+      for (const Buffer& buf : p->alloc_buffers) {
+        if (!buf.same_as(reduction_buffer)) {
+          new_alloc_buffers.push_back(buf);
+        }
       }
+      p->alloc_buffers = new_alloc_buffers;
     }
-    p->alloc_buffers = new_alloc_buffers;
 
     return result;
   }
