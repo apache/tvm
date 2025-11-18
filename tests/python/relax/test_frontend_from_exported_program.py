@@ -4073,22 +4073,416 @@ def test_interpolate():
         def main(
             input: R.Tensor((1, 3, 112, 112), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 224, 224), dtype="float32")):
-            # block 0
             with R.dataflow():
-                lv: R.Tensor((1, 3, 224, 224), dtype="float32") = R.image.resize2d(
-                    input,
-                    R.shape([224, 224]),
-                    roi=[T.float32(0.0), T.float32(0.0), T.float32(0.0), T.float32(0.0)],
-                    layout="NCHW",
-                    method="cubic",
-                    coordinate_transformation_mode="half_pixel",
-                    rounding_method="round",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0.0,
-                    out_dtype="void",
+                lv: R.Tensor((224,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(224), R.prim_value(1), dtype="int64"
                 )
-                gv: R.Tuple(R.Tensor((1, 3, 224, 224), dtype="float32")) = (lv,)
+                lv1: R.Tensor((224,), dtype="float32") = R.astype(lv, dtype="float32")
+                lv2: R.Tensor((224,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(224), R.prim_value(1), dtype="int64"
+                )
+                lv3: R.Tensor((224,), dtype="float32") = R.astype(lv2, dtype="float32")
+                lv4: R.Tensor((224,), dtype="float32") = R.add(lv3, R.const(0.5, "float32"))
+                lv5: R.Tensor((224,), dtype="float32") = R.multiply(lv4, R.const(0.5, "float32"))
+                lv6: R.Tensor((224,), dtype="float32") = R.subtract(lv5, R.const(0.5, "float32"))
+                lv7: R.Tensor((224,), dtype="float32") = R.add(lv1, R.const(0.5, "float32"))
+                lv8: R.Tensor((224,), dtype="float32") = R.multiply(lv7, R.const(0.5, "float32"))
+                lv9: R.Tensor((224,), dtype="float32") = R.subtract(lv8, R.const(0.5, "float32"))
+                lv10: R.Tensor((224, 1), dtype="float32") = R.expand_dims(lv9, axis=[-1])
+                lv11: R.Tensor((224,), dtype="float32") = R.floor(lv6)
+                lv12: R.Tensor((224, 1), dtype="float32") = R.floor(lv10)
+                lv13: R.Tensor((224, 1), dtype="float32") = R.subtract(lv10, lv12)
+                lv14: R.Tensor((224, 1), dtype="float32") = R.clip(
+                    lv13, R.prim_value(T.float64(0.0)), R.prim_value(T.float64(1.0))
+                )
+                lv15: R.Tensor((224,), dtype="float32") = R.subtract(lv6, lv11)
+                lv16: R.Tensor((224,), dtype="float32") = R.clip(
+                    lv15, R.prim_value(T.float64(0.0)), R.prim_value(T.float64(1.0))
+                )
+                lv17: R.Tensor((224,), dtype="int64") = R.astype(lv11, dtype="int64")
+                lv18: R.Tensor((224, 1), dtype="int64") = R.astype(lv12, dtype="int64")
+                lv19: R.Tensor((224, 1), dtype="int64") = R.subtract(lv18, R.const(1, "int64"))
+                lv20: R.Tensor((224, 1), dtype="int64") = R.add(lv18, R.const(1, "int64"))
+                lv21: R.Tensor((224, 1), dtype="int64") = R.add(lv18, R.const(2, "int64"))
+                lv22: R.Tensor((224,), dtype="int64") = R.subtract(lv17, R.const(1, "int64"))
+                lv23: R.Tensor((224,), dtype="int64") = R.add(lv17, R.const(1, "int64"))
+                lv24: R.Tensor((224,), dtype="int64") = R.add(lv17, R.const(2, "int64"))
+                lv25: R.Tensor((224,), dtype="float32") = R.subtract(R.const(1.0, "float32"), lv16)
+                lv26: R.Tensor((448,), dtype="float32") = R.concat((lv16, lv25), axis=0)
+                lv27: R.Tensor((2, 224), dtype="float32") = R.reshape(lv26, R.shape([2, 224]))
+                lv28: R.Tensor((224,), dtype="float32") = R.add(lv16, R.const(1.0, "float32"))
+                lv29: R.Tensor((224,), dtype="float32") = R.subtract(R.const(2.0, "float32"), lv16)
+                lv30: R.Tensor((448,), dtype="float32") = R.concat((lv28, lv29), axis=0)
+                lv31: R.Tensor((2, 224), dtype="float32") = R.reshape(lv30, R.shape([2, 224]))
+                lv32: R.Tensor((2, 224), dtype="float32") = R.multiply(
+                    lv31, R.const(-0.75, "float32")
+                )
+                lv33: R.Tensor((2, 224), dtype="float32") = R.subtract(
+                    lv32, R.const(-3.75, "float32")
+                )
+                lv34: R.Tensor((2, 224), dtype="float32") = R.multiply(lv33, lv31)
+                lv35: R.Tensor((2, 224), dtype="float32") = R.add(lv34, R.const(-6.0, "float32"))
+                lv36: R.Tensor((2, 224), dtype="float32") = R.multiply(lv35, lv31)
+                lv37: R.Tensor((2, 224), dtype="float32") = R.subtract(
+                    lv36, R.const(-3.0, "float32")
+                )
+                lv38: R.Tensor((2, 224), dtype="float32") = R.multiply(
+                    lv27, R.const(1.25, "float32")
+                )
+                lv39: R.Tensor((2, 224), dtype="float32") = R.subtract(
+                    lv38, R.const(2.25, "float32")
+                )
+                lv40: R.Tensor((2, 224), dtype="float32") = R.multiply(lv39, lv27)
+                lv41: R.Tensor((2, 224), dtype="float32") = R.multiply(lv40, lv27)
+                lv42: R.Tensor((2, 224), dtype="float32") = R.add(lv41, R.const(1.0, "float32"))
+                lv43: R.Tensor((1, 224), dtype="float32") = R.strided_slice(
+                    lv37,
+                    (R.prim_value(0),),
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv44: R.Tensor((1, 224), dtype="float32") = R.strided_slice(
+                    lv37,
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(2),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv45: R.Tensor((224,), dtype="float32") = R.squeeze(lv43, axis=[0])
+                lv46: R.Tensor((224,), dtype="float32") = R.squeeze(lv44, axis=[0])
+                lv47: R.Tensor((1, 224), dtype="float32") = R.strided_slice(
+                    lv42,
+                    (R.prim_value(0),),
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv48: R.Tensor((1, 224), dtype="float32") = R.strided_slice(
+                    lv42,
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(2),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv49: R.Tensor((224,), dtype="float32") = R.squeeze(lv47, axis=[0])
+                lv50: R.Tensor((224,), dtype="float32") = R.squeeze(lv48, axis=[0])
+                lv51: R.Tensor((224, 1), dtype="float32") = R.subtract(
+                    R.const(1.0, "float32"), lv14
+                )
+                lv52: R.Tensor((448, 1), dtype="float32") = R.concat((lv14, lv51), axis=0)
+                lv53: R.Tensor((2, 224, 1), dtype="float32") = R.reshape(lv52, R.shape([2, 224, 1]))
+                lv54: R.Tensor((224, 1), dtype="float32") = R.add(lv14, R.const(1.0, "float32"))
+                lv55: R.Tensor((224, 1), dtype="float32") = R.subtract(
+                    R.const(2.0, "float32"), lv14
+                )
+                lv56: R.Tensor((448, 1), dtype="float32") = R.concat((lv54, lv55), axis=0)
+                lv57: R.Tensor((2, 224, 1), dtype="float32") = R.reshape(lv56, R.shape([2, 224, 1]))
+                lv58: R.Tensor((2, 224, 1), dtype="float32") = R.multiply(
+                    lv57, R.const(-0.75, "float32")
+                )
+                lv59: R.Tensor((2, 224, 1), dtype="float32") = R.subtract(
+                    lv58, R.const(-3.75, "float32")
+                )
+                lv60: R.Tensor((2, 224, 1), dtype="float32") = R.multiply(lv59, lv57)
+                lv61: R.Tensor((2, 224, 1), dtype="float32") = R.add(lv60, R.const(-6.0, "float32"))
+                lv62: R.Tensor((2, 224, 1), dtype="float32") = R.multiply(lv61, lv57)
+                lv63: R.Tensor((2, 224, 1), dtype="float32") = R.subtract(
+                    lv62, R.const(-3.0, "float32")
+                )
+                lv64: R.Tensor((2, 224, 1), dtype="float32") = R.multiply(
+                    lv53, R.const(1.25, "float32")
+                )
+                lv65: R.Tensor((2, 224, 1), dtype="float32") = R.subtract(
+                    lv64, R.const(2.25, "float32")
+                )
+                lv66: R.Tensor((2, 224, 1), dtype="float32") = R.multiply(lv65, lv53)
+                lv67: R.Tensor((2, 224, 1), dtype="float32") = R.multiply(lv66, lv53)
+                lv68: R.Tensor((2, 224, 1), dtype="float32") = R.add(lv67, R.const(1.0, "float32"))
+                lv69: R.Tensor((1, 224, 1), dtype="float32") = R.strided_slice(
+                    lv63,
+                    (R.prim_value(0),),
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv70: R.Tensor((1, 224, 1), dtype="float32") = R.strided_slice(
+                    lv63,
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(2),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv71: R.Tensor((224, 1), dtype="float32") = R.squeeze(lv69, axis=[0])
+                lv72: R.Tensor((224, 1), dtype="float32") = R.squeeze(lv70, axis=[0])
+                lv73: R.Tensor((1, 224, 1), dtype="float32") = R.strided_slice(
+                    lv68,
+                    (R.prim_value(0),),
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv74: R.Tensor((1, 224, 1), dtype="float32") = R.strided_slice(
+                    lv68,
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(2),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv75: R.Tensor((224, 1), dtype="float32") = R.squeeze(lv73, axis=[0])
+                lv76: R.Tensor((224, 1), dtype="float32") = R.squeeze(lv74, axis=[0])
+                lv77: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv19, R.prim_value(0), R.prim_value(111)
+                )
+                lv78: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv22, R.prim_value(0), R.prim_value(111)
+                )
+                lv79: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    input, lv78, axis=3, mode="fast"
+                )
+                lv80: R.Tensor((224,), dtype="int64") = R.squeeze(lv77, axis=None)
+                lv81: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv79, lv80, axis=2, mode="fast"
+                )
+                lv82: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv19, R.prim_value(0), R.prim_value(111)
+                )
+                lv83: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv17, R.prim_value(0), R.prim_value(111)
+                )
+                lv84: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    input, lv83, axis=3, mode="fast"
+                )
+                lv85: R.Tensor((224,), dtype="int64") = R.squeeze(lv82, axis=None)
+                lv86: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv84, lv85, axis=2, mode="fast"
+                )
+                lv87: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv19, R.prim_value(0), R.prim_value(111)
+                )
+                lv88: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv23, R.prim_value(0), R.prim_value(111)
+                )
+                lv89: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    input, lv88, axis=3, mode="fast"
+                )
+                lv90: R.Tensor((224,), dtype="int64") = R.squeeze(lv87, axis=None)
+                lv91: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv89, lv90, axis=2, mode="fast"
+                )
+                lv92: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv19, R.prim_value(0), R.prim_value(111)
+                )
+                lv93: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv24, R.prim_value(0), R.prim_value(111)
+                )
+                lv94: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    input, lv93, axis=3, mode="fast"
+                )
+                lv95: R.Tensor((224,), dtype="int64") = R.squeeze(lv92, axis=None)
+                lv96: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv94, lv95, axis=2, mode="fast"
+                )
+                lv97: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv81, lv45)
+                lv98: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv86, lv49)
+                lv99: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv97, lv98)
+                lv100: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv91, lv50)
+                lv101: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv99, lv100)
+                lv102: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv96, lv46)
+                lv103: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv101, lv102)
+                lv104: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv18, R.prim_value(0), R.prim_value(111)
+                )
+                lv105: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv22, R.prim_value(0), R.prim_value(111)
+                )
+                lv106: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    input, lv105, axis=3, mode="fast"
+                )
+                lv107: R.Tensor((224,), dtype="int64") = R.squeeze(lv104, axis=None)
+                lv108: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv106, lv107, axis=2, mode="fast"
+                )
+                lv109: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv18, R.prim_value(0), R.prim_value(111)
+                )
+                lv110: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv17, R.prim_value(0), R.prim_value(111)
+                )
+                lv111: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    input, lv110, axis=3, mode="fast"
+                )
+                lv112: R.Tensor((224,), dtype="int64") = R.squeeze(lv109, axis=None)
+                lv113: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv111, lv112, axis=2, mode="fast"
+                )
+                lv114: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv18, R.prim_value(0), R.prim_value(111)
+                )
+                lv115: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv23, R.prim_value(0), R.prim_value(111)
+                )
+                lv116: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    input, lv115, axis=3, mode="fast"
+                )
+                lv117: R.Tensor((224,), dtype="int64") = R.squeeze(lv114, axis=None)
+                lv118: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv116, lv117, axis=2, mode="fast"
+                )
+                lv119: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv18, R.prim_value(0), R.prim_value(111)
+                )
+                lv120: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv24, R.prim_value(0), R.prim_value(111)
+                )
+                lv121: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    input, lv120, axis=3, mode="fast"
+                )
+                lv122: R.Tensor((224,), dtype="int64") = R.squeeze(lv119, axis=None)
+                lv123: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv121, lv122, axis=2, mode="fast"
+                )
+                lv124: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv108, lv45)
+                lv125: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv113, lv49)
+                lv126: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv124, lv125)
+                lv127: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv118, lv50)
+                lv128: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv126, lv127)
+                lv129: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv123, lv46)
+                lv130: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv128, lv129)
+                lv131: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv20, R.prim_value(0), R.prim_value(111)
+                )
+                lv132: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv22, R.prim_value(0), R.prim_value(111)
+                )
+                lv133: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    input, lv132, axis=3, mode="fast"
+                )
+                lv134: R.Tensor((224,), dtype="int64") = R.squeeze(lv131, axis=None)
+                lv135: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv133, lv134, axis=2, mode="fast"
+                )
+                lv136: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv20, R.prim_value(0), R.prim_value(111)
+                )
+                lv137: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv17, R.prim_value(0), R.prim_value(111)
+                )
+                lv138: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    input, lv137, axis=3, mode="fast"
+                )
+                lv139: R.Tensor((224,), dtype="int64") = R.squeeze(lv136, axis=None)
+                lv140: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv138, lv139, axis=2, mode="fast"
+                )
+                lv141: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv20, R.prim_value(0), R.prim_value(111)
+                )
+                lv142: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv23, R.prim_value(0), R.prim_value(111)
+                )
+                lv143: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    input, lv142, axis=3, mode="fast"
+                )
+                lv144: R.Tensor((224,), dtype="int64") = R.squeeze(lv141, axis=None)
+                lv145: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv143, lv144, axis=2, mode="fast"
+                )
+                lv146: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv20, R.prim_value(0), R.prim_value(111)
+                )
+                lv147: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv24, R.prim_value(0), R.prim_value(111)
+                )
+                lv148: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    input, lv147, axis=3, mode="fast"
+                )
+                lv149: R.Tensor((224,), dtype="int64") = R.squeeze(lv146, axis=None)
+                lv150: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv148, lv149, axis=2, mode="fast"
+                )
+                lv151: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv135, lv45)
+                lv152: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv140, lv49)
+                lv153: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv151, lv152)
+                lv154: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv145, lv50)
+                lv155: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv153, lv154)
+                lv156: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv150, lv46)
+                lv157: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv155, lv156)
+                lv158: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv21, R.prim_value(0), R.prim_value(111)
+                )
+                lv159: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv22, R.prim_value(0), R.prim_value(111)
+                )
+                lv160: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    input, lv159, axis=3, mode="fast"
+                )
+                lv161: R.Tensor((224,), dtype="int64") = R.squeeze(lv158, axis=None)
+                lv162: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv160, lv161, axis=2, mode="fast"
+                )
+                lv163: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv21, R.prim_value(0), R.prim_value(111)
+                )
+                lv164: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv17, R.prim_value(0), R.prim_value(111)
+                )
+                lv165: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    input, lv164, axis=3, mode="fast"
+                )
+                lv166: R.Tensor((224,), dtype="int64") = R.squeeze(lv163, axis=None)
+                lv167: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv165, lv166, axis=2, mode="fast"
+                )
+                lv168: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv21, R.prim_value(0), R.prim_value(111)
+                )
+                lv169: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv23, R.prim_value(0), R.prim_value(111)
+                )
+                lv170: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    input, lv169, axis=3, mode="fast"
+                )
+                lv171: R.Tensor((224,), dtype="int64") = R.squeeze(lv168, axis=None)
+                lv172: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv170, lv171, axis=2, mode="fast"
+                )
+                lv173: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv21, R.prim_value(0), R.prim_value(111)
+                )
+                lv174: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv24, R.prim_value(0), R.prim_value(111)
+                )
+                lv175: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    input, lv174, axis=3, mode="fast"
+                )
+                lv176: R.Tensor((224,), dtype="int64") = R.squeeze(lv173, axis=None)
+                lv177: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv175, lv176, axis=2, mode="fast"
+                )
+                lv178: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv162, lv45)
+                lv179: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv167, lv49)
+                lv180: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv178, lv179)
+                lv181: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv172, lv50)
+                lv182: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv180, lv181)
+                lv183: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv177, lv46)
+                lv184: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv182, lv183)
+                lv185: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv103, lv71)
+                lv186: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv130, lv75)
+                lv187: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv185, lv186)
+                lv188: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv157, lv76)
+                lv189: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv187, lv188)
+                lv190: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv184, lv72)
+                lv191: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv189, lv190)
+                gv: R.Tuple(R.Tensor((1, 3, 224, 224), dtype="float32")) = (lv191,)
                 R.output(gv)
             return gv
 
@@ -4100,7 +4494,7 @@ def test_interpolate():
         InterpolateNearest(), example_args, {}, expected_nearest, run_ep_decomposition=True
     )
     verify_model(
-        InterpolateBicubic(), example_args, {}, expected_bicubic, run_ep_decomposition=False
+        InterpolateBicubic(), example_args, {}, expected_bicubic, run_ep_decomposition=True
     )
 
 

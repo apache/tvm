@@ -1693,6 +1693,29 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             axis, index_tensor = non_none_indices[0]
             return self.block_builder.emit(relax.op.take(data, index_tensor, axis=axis))
 
+        # Check if all indices can be squeezed to 1D for sequential take
+        def is_squeezable(idx):
+            if idx.struct_info.ndim == 1:
+                return True
+            if idx.struct_info.ndim == 2:
+                shape = idx.struct_info.shape
+                for d in shape:
+                    if isinstance(d, int) and d == 1:
+                        return True
+                    # Check for tir.IntImm
+                    if hasattr(d, "value") and d.value == 1:
+                        return True
+            return False
+
+        all_squeezable = all(is_squeezable(idx) for _, idx in non_none_indices)
+        if all_squeezable:
+            result = data
+            for axis, idx in reversed(non_none_indices):
+                if idx.struct_info.ndim > 1:
+                    idx = self.block_builder.emit(relax.op.squeeze(idx))
+                result = self.block_builder.emit(relax.op.take(result, idx, axis=axis))
+            return result
+
         # General case: replace None with arange, reshaped for broadcasting
         max_ndim = max((idx.struct_info.ndim for _, idx in non_none_indices), default=1)
         processed_indices = []
