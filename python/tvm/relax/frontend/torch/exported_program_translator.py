@@ -1403,7 +1403,7 @@ def from_exported_program(
     keep_params_as_input: bool = False,
     unwrap_unit_return_tuple: bool = False,
     no_bind_return_tuple: bool = False,
-    run_ep_decomposition: bool = False,
+    run_ep_decomposition: bool = True,
 ) -> tvm.IRModule:
     """Convert a PyTorch ExportedProgram to a Relax program
 
