@@ -1137,10 +1137,7 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
                                                         const BlockRealizeNode* reduction_realize) {
   ObjectPtr<BlockNode> new_block = ffi::make_object<BlockNode>(*reduction_block);
 
-  // 1. Keep all iter vars (data parallel + reduction)
-  new_block->iter_vars = reduction_block->iter_vars;
-
-  // 2. Map epilogue block vars to reduction block vars
+  // 1. Map epilogue block vars to reduction block vars
   std::vector<Var> reduction_data_vars;
   for (const IterVar& iter_var : reduction_block->iter_vars) {
     if (iter_var->iter_type == IterVarType::kDataPar) {
@@ -1163,12 +1160,12 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
     var_map[epilogue_data_vars[i]] = reduction_data_vars[i];
   }
 
-  // 3. Change init to epilogue value: D[vi, vj] = C[vi, vj]
+  // 2. Change init to epilogue value: D[vi, vj] = C[vi, vj]
   BufferStore new_init_store(epilogue_output_buffer_, Substitute(epilogue_addend_, var_map),
                              Substitute(epilogue_output_indices_, var_map));
   new_block->init = new_init_store;
 
-  // 4. Replace output buffer from temp to D in body
+  // 3. Replace output buffer from temp to D in body
   class BufferReplacer : public StmtExprMutator {
    public:
     BufferReplacer(Buffer old_buf, Buffer new_buf) : old_buffer_(old_buf), new_buffer_(new_buf) {}
@@ -1197,7 +1194,7 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
   BufferReplacer replacer(inlined_buffer_, epilogue_output_buffer_);
   new_block->body = replacer(reduction_block->body);
 
-  // 5. Update write regions
+  // 4. Update write regions
   ffi::Array<BufferRegion> new_writes;
   for (const BufferRegion& write : reduction_block->writes) {
     if (write->buffer.same_as(inlined_buffer_)) {
@@ -1209,7 +1206,7 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
   }
   new_block->writes = new_writes;
 
-  // 6. Update read regions (C first, then A, B)
+  // 5. Update read regions (C first, then A, B)
   ffi::Array<BufferRegion> new_reads;
   std::unordered_set<const BufferNode*> read_bufs;
 
