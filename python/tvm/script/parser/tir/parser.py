@@ -182,7 +182,7 @@ def range_sugar(
     if step is not None:
         try:
             step = int(step)
-            if step < 0:
+            if step <= 0:
                 raise ValueError(f"Only support positive step in range(), get {step}")
         except TypeError:  # pylint: disable=broad-except
             raise ValueError(f"Only support literal step in range(), get {step}")
