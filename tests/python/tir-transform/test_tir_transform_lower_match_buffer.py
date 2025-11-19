@@ -534,36 +534,29 @@ def test_fail_match_func_param():
 
 @T.prim_func
 def scalar_match_buffer_type_coercion(a: T.handle) -> None:
-    C = T.alloc_buffer((128, 128))
-    for i in range(128):
+    A = T.match_buffer(a, (8, 8))
+    for i, j in T.grid(8, 8):
         with T.block(""):
-            vi = T.axis.spatial(128, i)
+            vi = T.axis.spatial(8, i)
+            vj = T.axis.spatial(8, j)
             T.reads()
-            T.writes(C[vi, 0:128])
-            C0 = T.match_buffer(C[vi, 0:128], (128))
-            for j in range(128):
-                with T.block(""):
-                    vj = T.axis.spatial(128, j)
-                    T.reads()
-                    T.writes(C0[vj])
-                    C1 = T.match_buffer(C0[vj], ())
-                    C1[()] = T.float32(0)
+            T.writes(A[vi, vj])
+            # Create scalar match buffer from single element - this triggers type coercion
+            scalar_buf = T.match_buffer(A[vi, vj], (), offset_factor=1)
+            scalar_buf[()] = T.float32(1.0)
 
 
 @T.prim_func
 def transformed_scalar_match_buffer_type_coercion(a: T.handle) -> None:
-    C = T.alloc_buffer((128, 128))
-    for i in range(128):
+    A = T.match_buffer(a, (8, 8))
+    for i, j in T.grid(8, 8):
         with T.block(""):
-            vi = T.axis.spatial(128, i)
+            vi = T.axis.spatial(8, i)
+            vj = T.axis.spatial(8, j)
             T.reads()
-            T.writes(C[vi, 0:128])
-            for j in range(128):
-                with T.block(""):
-                    vj = T.axis.spatial(128, j)
-                    T.reads()
-                    T.writes(C[vi, vj])
-                    C[vi, vj] = T.float32(0)
+            T.writes(A[vi, vj])
+            # Scalar match_buffer eliminated, direct assignment
+            A[vi, vj] = T.float32(1.0)
 
 
 def test_scalar_match_buffer_type_coercion():
