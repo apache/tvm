@@ -816,7 +816,7 @@ inline PrimExpr make_zero(DataType t, Span span = Span());
  * \return The result expression.
  */
 inline PrimExpr const_true(int lanes = 1, Span span = Span()) {
-  return make_const(DataType::Bool(lanes), 1);
+  return make_const(DataType::UInt(1, lanes), 1);
 }
 /*!
  * \brief Make a constant false expression.
@@ -825,7 +825,7 @@ inline PrimExpr const_true(int lanes = 1, Span span = Span()) {
  * \return The result expression.
  */
 inline PrimExpr const_false(int lanes = 1, Span span = Span()) {
-  return make_const(DataType::Bool(lanes), 0);
+  return make_const(DataType::UInt(1, lanes), 0);
 }
 /*!
  * \brief Get x as constant int expression.
@@ -957,7 +957,7 @@ inline bool is_no_op(const tir::Stmt& stmt) {
 
 template <typename ValueType>
 inline PrimExpr MakeConstScalar(DataType t, ValueType value, Span span = Span()) {
-  if (t.is_int() || t.is_bool()) return IntImm(t, static_cast<int64_t>(value), span);
+  if (t.is_int()) return IntImm(t, static_cast<int64_t>(value), span);
   if (t.is_uint()) {
     // Use IntImm if it is a small integer
     uint64_t uval = static_cast<uint64_t>(value);

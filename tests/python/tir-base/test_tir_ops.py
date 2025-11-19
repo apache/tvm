@@ -69,8 +69,8 @@ def test_const_fold3():
     x = te.var("x")
     for val in [0, 1]:
         for func in [tvm.tir.all, tvm.tir.any]:
-            check_throws(lambda: func(tvm.tir.const(val, "bool"), x))
-            check_throws(lambda: func(x, tvm.tir.const(val, "bool")))
+            check_throws(lambda: func(tvm.tir.const(val, "uint1"), x))
+            check_throws(lambda: func(x, tvm.tir.const(val, "uint1")))
 
     # Test const folding when both arguments are const
     for tvm_func, py_func in [
@@ -80,13 +80,13 @@ def test_const_fold3():
         for v1 in [0, 1]:
             for v2 in [0, 1]:
                 tvm.ir.assert_structural_equal(
-                    tvm_func(tvm.tir.const(v1, "bool"), tvm.tir.const(v2, "bool")),
-                    tvm.tir.const(py_func(v1, v2), "bool"),
+                    tvm_func(tvm.tir.const(v1, "uint1"), tvm.tir.const(v2, "uint1")),
+                    tvm.tir.const(py_func(v1, v2), "uint1"),
                 )
 
-    x = te.var("x", "bool")
-    true = tvm.tir.const(1, "bool")
-    false = tvm.tir.const(0, "bool")
+    x = te.var("x", "uint1")
+    true = tvm.tir.const(1, "uint1")
+    false = tvm.tir.const(0, "uint1")
 
     assert tvm.tir.all(x, true).same_as(x)
     assert tvm.tir.all(true, x).same_as(x)

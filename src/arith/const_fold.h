@@ -349,8 +349,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<tir::Max>(PrimExpr a, PrimExpr b) {
 template <>
 inline ffi::Optional<PrimExpr> TryConstFold<tir::GT>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
-    if (pa && pb) return IntImm(DataType::Bool(), pa->value > pb->value);
-    if (fa && fb) return IntImm(DataType::Bool(), fa->value > fb->value);
+    if (pa && pb) return IntImm(DataType::UInt(1), pa->value > pb->value);
+    if (fa && fb) return IntImm(DataType::UInt(1), fa->value > fb->value);
   });
   return std::nullopt;
 }
@@ -358,8 +358,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<tir::GT>(PrimExpr a, PrimExpr b) {
 template <>
 inline ffi::Optional<PrimExpr> TryConstFold<tir::GE>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
-    if (pa && pb) return IntImm(DataType::Bool(), pa->value >= pb->value);
-    if (fa && fb) return IntImm(DataType::Bool(), fa->value >= fb->value);
+    if (pa && pb) return IntImm(DataType::UInt(1), pa->value >= pb->value);
+    if (fa && fb) return IntImm(DataType::UInt(1), fa->value >= fb->value);
   });
   return std::nullopt;
 }
@@ -367,8 +367,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<tir::GE>(PrimExpr a, PrimExpr b) {
 template <>
 inline ffi::Optional<PrimExpr> TryConstFold<tir::LT>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
-    if (pa && pb) return IntImm(DataType::Bool(), pa->value < pb->value);
-    if (fa && fb) return IntImm(DataType::Bool(), fa->value < fb->value);
+    if (pa && pb) return IntImm(DataType::UInt(1), pa->value < pb->value);
+    if (fa && fb) return IntImm(DataType::UInt(1), fa->value < fb->value);
   });
   return std::nullopt;
 }
@@ -376,8 +376,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<tir::LT>(PrimExpr a, PrimExpr b) {
 template <>
 inline ffi::Optional<PrimExpr> TryConstFold<tir::LE>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
-    if (pa && pb) return IntImm(DataType::Bool(), pa->value <= pb->value);
-    if (fa && fb) return IntImm(DataType::Bool(), fa->value <= fb->value);
+    if (pa && pb) return IntImm(DataType::UInt(1), pa->value <= pb->value);
+    if (fa && fb) return IntImm(DataType::UInt(1), fa->value <= fb->value);
   });
   return std::nullopt;
 }
@@ -385,8 +385,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<tir::LE>(PrimExpr a, PrimExpr b) {
 template <>
 inline ffi::Optional<PrimExpr> TryConstFold<tir::EQ>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
-    if (pa && pb) return IntImm(DataType::Bool(), pa->value == pb->value);
-    if (fa && fb) return IntImm(DataType::Bool(), fa->value == fb->value);
+    if (pa && pb) return IntImm(DataType::UInt(1), pa->value == pb->value);
+    if (fa && fb) return IntImm(DataType::UInt(1), fa->value == fb->value);
   });
   return std::nullopt;
 }
@@ -394,8 +394,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<tir::EQ>(PrimExpr a, PrimExpr b) {
 template <>
 inline ffi::Optional<PrimExpr> TryConstFold<tir::NE>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
-    if (pa && pb) return IntImm(DataType::Bool(), pa->value != pb->value);
-    if (fa && fb) return IntImm(DataType::Bool(), fa->value != fb->value);
+    if (pa && pb) return IntImm(DataType::UInt(1), pa->value != pb->value);
+    if (fa && fb) return IntImm(DataType::UInt(1), fa->value != fb->value);
   });
   return std::nullopt;
 }
@@ -426,7 +426,7 @@ template <>
 inline ffi::Optional<PrimExpr> TryConstFold<tir::Not>(PrimExpr a) {
   const IntImmNode* pa = a.as<IntImmNode>();
   if (pa) {
-    return IntImm(DataType::Bool(), !(pa->value));
+    return IntImm(DataType::UInt(1), !(pa->value));
   }
   return std::nullopt;
 }
