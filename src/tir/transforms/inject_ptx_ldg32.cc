@@ -41,7 +41,7 @@ class PTXRewriter : public StmtMutator {
       // addr[0] -> global_addr /  addr[1] -> local_addr
       addr_buffer = decl_buffer({IntImm(DataType::Int(32), 2)}, DataType::Int(32), "addr", "local");
       predicate_buffer =
-          decl_buffer({IntImm(DataType::Int(32), 1)}, DataType::Bool(1), "predicate", "local");
+          decl_buffer({IntImm(DataType::Int(32), 1)}, DataType::Bool(), "predicate", "local");
     }
     Stmt result = StmtMutator::VisitStmt_(allocate);
     if (!has_buffer_2) {
