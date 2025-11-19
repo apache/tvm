@@ -532,5 +532,43 @@ def test_fail_match_func_param():
     _check_fail(fail_match_func_param)
 
 
+@T.prim_func
+def scalar_match_buffer_type_coercion(a: T.handle) -> None:
+    C = T.alloc_buffer((128, 128))
+    for i in range(128):
+        with T.block(""):
+            vi = T.axis.spatial(128, i)
+            T.reads()
+            T.writes(C[vi, 0:128])
+            C0 = T.match_buffer(C[vi, 0:128], (128))
+            for j in range(128):
+                with T.block(""):
+                    vj = T.axis.spatial(128, j)
+                    T.reads()
+                    T.writes(C0[vj])
+                    C1 = T.match_buffer(C0[vj], ())
+                    C1[()] = T.float32(0)
+
+
+@T.prim_func
+def transformed_scalar_match_buffer_type_coercion(a: T.handle) -> None:
+    C = T.alloc_buffer((128, 128))
+    for i in range(128):
+        with T.block(""):
+            vi = T.axis.spatial(128, i)
+            T.reads()
+            T.writes(C[vi, 0:128])
+            for j in range(128):
+                with T.block(""):
+                    vj = T.axis.spatial(128, j)
+                    T.reads()
+                    T.writes(C[vi, vj])
+                    C[vi, vj] = T.float32(0)
+
+
+def test_scalar_match_buffer_type_coercion():
+    _check(scalar_match_buffer_type_coercion, transformed_scalar_match_buffer_type_coercion)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
