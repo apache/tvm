@@ -247,9 +247,7 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(
-        ClampMinOnly(), example_args, {}, expected_clamp_min_only
-    )
+    verify_model(ClampMinOnly(), example_args, {}, expected_clamp_min_only)
 
     class ClampTensors(Module):
         def forward(self, input):
@@ -277,9 +275,7 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(
-        ClampTensors(), example_args, {}, expected_clamp_tensors
-    )
+    verify_model(ClampTensors(), example_args, {}, expected_clamp_tensors)
 
     # dropout
 
@@ -492,15 +488,9 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(
-        Hardswish(), example_args, {}, expected_hardswish_for_1_2
-    )
-    verify_model(
-        Hardswish2(), example_args, {}, expected_hardswish_for_1_2
-    )
-    verify_model(
-        Hardswish3(), example_args, {}, expected_hardswish_for_3
-    )
+    verify_model(Hardswish(), example_args, {}, expected_hardswish_for_1_2)
+    verify_model(Hardswish2(), example_args, {}, expected_hardswish_for_1_2)
+    verify_model(Hardswish3(), example_args, {}, expected_hardswish_for_3)
 
     # isfinite
     class IsFinite(Module):
@@ -2973,9 +2963,7 @@ def test_pad():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(
-        PadModel(pad=[1, 1, 2, 2]), example_args, {}, expected_constant
-    )
+    verify_model(PadModel(pad=[1, 1, 2, 2]), example_args, {}, expected_constant)
     verify_model(
         PadModel(pad=[1, 1, 2, 2], mode="reflect"),
         example_args,
@@ -3037,12 +3025,8 @@ def test_pixel_shuffle():
             return gv
 
     example_args = (torch.randn(1, 8, 10, 15, dtype=torch.float32),)
-    verify_model(
-        PixelShuffle1(upscale_factor=2), example_args, {}, expected
-    )
-    verify_model(
-        PixelShuffle2(upscale_factor=2), example_args, {}, expected
-    )
+    verify_model(PixelShuffle1(upscale_factor=2), example_args, {}, expected)
+    verify_model(PixelShuffle2(upscale_factor=2), example_args, {}, expected)
 
 
 def test_einsum():
@@ -4536,15 +4520,9 @@ def test_interpolate():
             return gv
 
     example_args = (torch.randn(1, 3, 112, 112, dtype=torch.float32),)
-    verify_model(
-        InterpolateBilinear(), example_args, {}, expected_bilinear
-    )
-    verify_model(
-        InterpolateNearest(), example_args, {}, expected_nearest
-    )
-    verify_model(
-        InterpolateBicubic(), example_args, {}, expected_bicubic
-    )
+    verify_model(InterpolateBilinear(), example_args, {}, expected_bilinear)
+    verify_model(InterpolateNearest(), example_args, {}, expected_nearest)
+    verify_model(InterpolateBicubic(), example_args, {}, expected_bicubic)
 
 
 def test_mean():
@@ -5986,9 +5964,7 @@ def test_keep_params():
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
     model = Conv2D1()
     exported_program = torch.export.export(model, example_args)
-    mod = from_exported_program(
-        exported_program, keep_params_as_input=True
-    )
+    mod = from_exported_program(exported_program, keep_params_as_input=True)
     mod, params = detach_params(mod)
     tvm.ir.assert_structural_equal(mod, expected1)
     func = mod["main"]
@@ -6024,9 +6000,7 @@ def test_unwrap_unit_return_tuple():
 
     example_args = (torch.randn(256, 256, dtype=torch.float32),)
     exported_program = export(Identity(), args=example_args)
-    mod = from_exported_program(
-        exported_program, unwrap_unit_return_tuple=True
-    )
+    mod = from_exported_program(exported_program, unwrap_unit_return_tuple=True)
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
@@ -6056,9 +6030,7 @@ def test_no_bind_return_tuple():
         torch.randn(256, 256, dtype=torch.float32),
     )
     exported_program = export(Identity(), args=example_args)
-    mod = from_exported_program(
-        exported_program, no_bind_return_tuple=True
-    )
+    mod = from_exported_program(exported_program, no_bind_return_tuple=True)
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
@@ -7032,9 +7004,7 @@ def test_norm():
     example_args = (torch.randn(1, 3, 5, 3, dtype=torch.float32),)
 
     for (p, dim, keepdim), expected in norms:
-        verify_model(
-            Norm(p, dim=dim, keepdim=keepdim), example_args, {}, expected
-        )
+        verify_model(Norm(p, dim=dim, keepdim=keepdim), example_args, {}, expected)
 
 
 def test_eye():

@@ -208,6 +208,15 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             )
         )
 
+    def _native_layer_norm(self, node: fx.Node) -> relax.Var:
+        # native_layer_norm signature: (input, normalized_shape, weight, bias, eps)
+        x = self.env[node.args[0]]
+        normalized_shape = node.args[1]
+        gamma = self.env.get(node.args[2], None) if len(node.args) > 2 else None
+        beta = self.env.get(node.args[3], None) if len(node.args) > 3 else None
+        eps = node.args[4] if len(node.args) > 4 else 1e-05
+        return self._layer_norm_impl(x, gamma, beta, eps, normalized_shape)
+
     def _upsample_impl(
         self,
         x: relax.Expr,
@@ -1058,6 +1067,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "instance_norm.default": self._instance_norm,
             "native_group_norm.default": self._native_group_norm,
             "layer_norm.default": self._layer_norm,
+            "native_layer_norm.default": self._native_layer_norm,
             "linear.default": self._linear,
             "lstm.input": self._lstm,
             "gru.input": self._gru,
