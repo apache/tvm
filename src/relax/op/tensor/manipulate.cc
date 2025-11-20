@@ -1234,15 +1234,10 @@ StructInfo InferStructInfoSqueeze(const Call& call, const BlockBuilder& ctx) {
       // Todo(relax-team): revisit here for better check on if the axis being squeezed has length 1.
       // When `axis` is given, the dim lengths at the axes must be integer 1 when it is not symbolic
       const auto* int_len = shape_value.value()[axes[i]].as<IntImmNode>();
-      if (int_len != nullptr && int_len->value != 1) {
-        ctx->ReportFatal(Diagnostic::Error(call)
-                         << "Squeeze expects the input tensor shape values at the given axis "
-                            "positions to be all 1. However, the tensor shape at axis "
-                         << axes[i] << " is " << shape_value.value()[axes[i]]
-                         << " which is not 1. If it is symbolic, please use MatchCast to cast it "
-                            "to 1 before doing Squeeze.");
+      // If a dimension is not 1, silently skip it (no-op), matching PyTorch behavior.
+      if (int_len != nullptr && int_len->value == 1) {
+        axis_removal_mask[axes[i]] = true;
       }
-      axis_removal_mask[axes[i]] = true;
     }
   } else {
     // When `axis` is not defined, squeeze all unit-length dimensions.
