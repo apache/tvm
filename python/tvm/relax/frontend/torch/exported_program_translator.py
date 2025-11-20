@@ -1436,8 +1436,7 @@ def from_exported_program(
     run_ep_decomposition : bool
         A boolean flag indicating whether to run PyTorch's decomposition on the
         exported program before translation. When True, high-level operators will
-        be decomposed into their constituent parts. Defaults to False for backward
-        compatibility.
+        be decomposed into their constituent parts. Defaults to True.
 
     Returns
     -------
