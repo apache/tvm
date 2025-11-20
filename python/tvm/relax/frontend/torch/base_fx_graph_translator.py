@@ -2357,6 +2357,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         return self.block_builder.emit(relax.op.take(x, relax.const(0, "int64"), axis=0))
 
+    def _sym_size_int(self, node: fx.Node) -> relax.Expr:
+        x = self.env[node.args[0]]
+        shape = self.shape_of(x)
+        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
+        return self.block_builder.emit(relax.const(int(shape[dim]), "int32"))
+
     def _zeros_inplace(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         output = self.block_builder.emit(relax.op.zeros_like(x))

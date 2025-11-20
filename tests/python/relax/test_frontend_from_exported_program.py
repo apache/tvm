@@ -7508,5 +7508,36 @@ def test_dynamic_shape_with_multiplication_constraints():
     tvm.ir.assert_structural_equal(mod, Expected, map_free_vars=True)
 
 
+def test_sym_size_int():
+    class SymSizeInt(Module):
+        def __init__(self, dim):
+            super().__init__()
+            self.dim = dim
+
+        def forward(self, x):
+            # TODO(@mshr-h): `torch.ops.aten.sym_size.int(x, self.dim)` would be ideal, but currently
+            # the ep frontend is not able to handle it.
+            return torch.add(x[0], torch.ops.aten.sym_size.int(x, self.dim))
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3, 4), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 4), dtype="float32") = R.take(
+                    x, R.const(0, "int64"), axis=0, mode="fast"
+                )
+                lv1: R.Tensor((3, 4), dtype="float32") = R.add(lv, R.const(3.0, "float32"))
+                gv: R.Tuple(R.Tensor((3, 4), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 4),)
+    verify_model(SymSizeInt(dim=1), example_args, {}, Expected)
+    verify_model(SymSizeInt(dim=-2), example_args, {}, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

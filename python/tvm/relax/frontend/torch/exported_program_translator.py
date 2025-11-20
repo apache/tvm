@@ -1189,6 +1189,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # other
             "getitem": self._getitem,
             "item.default": self._item,
+            "sym_size.int": self._sym_size_int,
             "_local_scalar_dense.default": self._item,
         }
 

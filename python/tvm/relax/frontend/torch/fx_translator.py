@@ -730,12 +730,6 @@ class TorchFXImporter(BaseFXGraphImporter):
                 return self.shape_of(self.env[node.args[0]])
         return getattr(self.env[node.args[0]], node.args[1])
 
-    def _sym_size_int(self, node: fx.Node) -> relax.Expr:
-        x = self.env[node.args[0]]
-        shape = self.shape_of(x)
-        idx = node.args[1]
-        return self.block_builder.emit(relax.const(shape[idx].value, "int32"))
-
     def create_input_vars(self, input_info: List[Tuple[Tuple[int], str]]) -> List[relax.Var]:
         inputs = list()
         for idx, (shape, dtype) in enumerate(input_info):
