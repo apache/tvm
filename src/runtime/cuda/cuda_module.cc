@@ -178,6 +178,15 @@ class CUDAWrappedFunc {
     sptr_ = sptr;
     func_name_ = func_name;
     std::fill(fcache_.begin(), fcache_.end(), nullptr);
+    // Track whether this kernel uses dynamic shared memory and the last size set per device.
+    std::fill(dyn_smem_initialized_.begin(), dyn_smem_initialized_.end(), false);
+    use_dyn_shared_memory_ = false;
+    for (const auto& tag : launch_param_tags) {
+      if (tag == launch_param::kUseDynamicSharedMemoryTag) {
+        use_dyn_shared_memory_ = true;
+        break;
+      }
+    }
     launch_param_config_.Init(num_void_args, launch_param_tags);
   }
   // invoke the function with void arguments
@@ -188,13 +197,23 @@ class CUDAWrappedFunc {
 
     if (fcache_[device_id] == nullptr) {
       fcache_[device_id] = m_->GetFunc(device_id, func_name_);
-      // Assumption: dyn_shmem_size doesn't change across different invocations of
-      // fcache_[device_id]
-      CUresult result = cuFuncSetAttribute(
-          fcache_[device_id], CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, wl.dyn_shmem_size);
-      if (result != CUDA_SUCCESS) {
-        LOG(FATAL) << "Failed to set the allowed dynamic shared memory size to "
-                    << wl.dyn_shmem_size;
+    }
+
+    // If the kernel uses dynamic shared memory, we should ensure the attribute
+    // reflects the actual size needed for this launch. Some workloads vary the
+    // dynamic shared memory between invocations, in which case we cannot set it
+    // just once. Cache the last value per device to avoid redundant calls.
+    bool need_dyn_attr = use_dyn_shared_memory_ || (wl.dyn_shmem_size > 0);
+    if (need_dyn_attr) {
+      if (!dyn_smem_initialized_[device_id] || dyn_smem_last_[device_id] != wl.dyn_shmem_size) {
+        CUresult attr_set = cuFuncSetAttribute(
+            fcache_[device_id], CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, wl.dyn_shmem_size);
+        if (attr_set != CUDA_SUCCESS) {
+          LOG(FATAL) << "Failed to set the allowed dynamic shared memory size to "
+                     << wl.dyn_shmem_size;
+        }
+        dyn_smem_last_[device_id] = wl.dyn_shmem_size;
+        dyn_smem_initialized_[device_id] = true;
       }
     }
     CUstream strm = static_cast<CUstream>(TVMFFIEnvGetStream(kDLCUDA, device_id));
@@ -233,6 +252,11 @@ class CUDAWrappedFunc {
   mutable std::array<CUfunction, kMaxNumGPUs> fcache_;
   // launch parameters configuration
   LaunchParamConfig launch_param_config_;
+  // Whether this kernel uses dynamic shared memory
+  bool use_dyn_shared_memory_{false};
+  // Cached last dynamic shared memory size per device and whether it's initialized
+  mutable std::array<size_t, kMaxNumGPUs> dyn_smem_last_;
+  mutable std::array<bool, kMaxNumGPUs> dyn_smem_initialized_;
 };
 
 class CUDAPrepGlobalBarrier {
