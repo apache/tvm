@@ -110,7 +110,7 @@ void RandomFill(DLTensor* tensor) {
   } else {
     LOG(FATAL) << "ValueError: Unsupported dtype: " << tensor->dtype;
   }
-  TVMSynchronize(tensor->device.device_type, tensor->device.device_type, nullptr);
+  cuda_api->StreamSync(tensor->device, nullptr);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
