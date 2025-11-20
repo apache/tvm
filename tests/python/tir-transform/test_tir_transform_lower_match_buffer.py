@@ -532,5 +532,36 @@ def test_fail_match_func_param():
     _check_fail(fail_match_func_param)
 
 
+@T.prim_func
+def scalar_match_buffer_type_coercion(a: T.handle) -> None:
+    A = T.match_buffer(a, (8, 8))
+    for i, j in T.grid(8, 8):
+        with T.block(""):
+            vi = T.axis.spatial(8, i)
+            vj = T.axis.spatial(8, j)
+            T.reads()
+            T.writes(A[vi, vj])
+            # Create scalar match buffer from single element - this triggers type coercion
+            scalar_buf = T.match_buffer(A[vi, vj], (), offset_factor=1)
+            scalar_buf[()] = T.float32(1.0)
+
+
+@T.prim_func
+def transformed_scalar_match_buffer_type_coercion(a: T.handle) -> None:
+    A = T.match_buffer(a, (8, 8))
+    for i, j in T.grid(8, 8):
+        with T.block(""):
+            vi = T.axis.spatial(8, i)
+            vj = T.axis.spatial(8, j)
+            T.reads()
+            T.writes(A[vi, vj])
+            # Scalar match_buffer eliminated, direct assignment
+            A[vi, vj] = T.float32(1.0)
+
+
+def test_scalar_match_buffer_type_coercion():
+    _check(scalar_match_buffer_type_coercion, transformed_scalar_match_buffer_type_coercion)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
