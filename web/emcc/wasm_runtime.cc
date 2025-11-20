@@ -125,7 +125,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-void ArrayDecodeStorage(Tensor cpu_arr, TVMFFIByteArray* bytes, std::string format, std::string dtype) {
+void ArrayDecodeStorage(Tensor cpu_arr, TVMFFIByteArray* bytes, const std::string& format,
+                        const std::string& dtype) {
   ICHECK_NE(bytes, nullptr);
   const char* byte_data = bytes->data;
   const size_t byte_size = bytes->size;
