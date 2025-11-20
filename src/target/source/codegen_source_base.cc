@@ -109,11 +109,6 @@ void CodeGenSourceBase::PrintType(DataType type, std::ostream& os) {  // NOLINT(
     os << "void";
     return;
   }
-  // default c may be have bool type, can be handled in subclass
-  if (type.is_bool()) {
-    os << "int";
-    return;
-  }
   if (type.is_float()) {
     if (type.bits() == 32) {
       os << "float";

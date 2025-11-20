@@ -230,12 +230,6 @@ void CodeGenOpenCL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
       os << lanes;
       return;
     }
-  } else if (t.is_bool()) {
-    os << "uint";
-    if (!fail && ((lanes >= 2 && lanes <= 4) || lanes == 8 || lanes == 16)) {
-      os << lanes;
-      return;
-    }
   } else if (t.is_uint() || t.is_int()) {
     if (t.is_uint()) {
       os << 'u';

@@ -302,7 +302,7 @@ def test_isnan():
     z = te.var("z", "int32")
     assert str(tvm.tir.isnan(z)) == "T.bool(False)"
     k = te.var("k", "int8x2")
-    assert str(tvm.tir.isnan(k).dtype) == "boolx2"
+    assert str(tvm.tir.isnan(k).dtype) == "uint1x2"
 
 
 def test_equality():
