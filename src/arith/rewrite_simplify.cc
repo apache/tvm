@@ -504,7 +504,7 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
   // so simplify the constraint as well
   PrimExpr new_constraint = operator()(constraint);
   for (const PrimExpr& subconstraint : ExtractConstraints(new_constraint, false)) {
-    if (SideEffect(subconstraint) <= CallEffectKind::kPure) {
+    if (SideEffect(subconstraint) <= CallEffectKind::kReadState) {
       literal_constraints_.push_back(subconstraint);
       PrimExpr negation;
       if (subconstraint.dtype().is_bool()) {
