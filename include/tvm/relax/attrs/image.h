@@ -78,6 +78,28 @@ struct Resize2DAttrs : public AttrsNodeReflAdapter<Resize2DAttrs> {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Resize2DAttrs", Resize2DAttrs, BaseAttrsNode);
 };  // struct Resize2dAttrs
 
+/*! \brief Attributes used in image grid_sample operator */
+struct GridSampleAttrs : public AttrsNodeReflAdapter<GridSampleAttrs> {
+  ffi::String method;
+  ffi::String layout;
+  ffi::String padding_mode;
+  bool align_corners;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<GridSampleAttrs>()
+        .def_ro("method", &GridSampleAttrs::method,
+                "Interpolation method. Can be 'nearest', 'bilinear', or 'bicubic'.")
+        .def_ro("layout", &GridSampleAttrs::layout,
+                "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc.")
+        .def_ro("padding_mode", &GridSampleAttrs::padding_mode,
+                "Padding mode for outside grid values. Can be 'zeros', 'border', or 'reflection'.")
+        .def_ro("align_corners", &GridSampleAttrs::align_corners,
+                "If True, the corner pixels of the input and output tensors are aligned.");
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GridSampleAttrs", GridSampleAttrs, BaseAttrsNode);
+};  // struct GridSampleAttrs
+
 }  // namespace relax
 }  // namespace tvm
 

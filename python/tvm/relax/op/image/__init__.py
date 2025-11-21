@@ -15,4 +15,4 @@
 # specific language governing permissions and limitations
 # under the License.
 """Image operators."""
-from .image import resize2d
+from .image import grid_sample, resize2d

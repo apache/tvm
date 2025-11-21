@@ -148,5 +148,83 @@ TVM_REGISTER_OP("relax.image.resize2d")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.grid_sample */
+
+TVM_FFI_STATIC_INIT_BLOCK() { GridSampleAttrs::RegisterReflection(); }
+
+Expr grid_sample(Expr data, Expr grid, ffi::String method, ffi::String layout,
+                 ffi::String padding_mode, bool align_corners) {
+  ObjectPtr<GridSampleAttrs> attrs = ffi::make_object<GridSampleAttrs>();
+  attrs->method = std::move(method);
+  attrs->layout = std::move(layout);
+  attrs->padding_mode = std::move(padding_mode);
+  attrs->align_corners = align_corners;
+
+  static const Op& op = Op::Get("relax.image.grid_sample");
+  return Call(op, {std::move(data), std::move(grid)}, Attrs(attrs), {});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.image.grid_sample", grid_sample);
+}
+
+StructInfo InferStructInfoGridSample(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 2) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "GridSample expects two arguments, while the given number of arguments is "
+                     << call->args.size());
+  }
+
+  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* grid_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+
+  if (data_sinfo == nullptr) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "GridSample expects the input data to be a Tensor, while the given data is "
+                     << call->args[0]->GetTypeKey());
+  }
+  if (grid_sinfo == nullptr) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "GridSample expects the grid to be a Tensor, while the given grid is "
+                     << call->args[1]->GetTypeKey());
+  }
+
+  const auto* attrs = call->attrs.as<GridSampleAttrs>();
+  auto [data_layout, data2NCHW] = CheckTensorLayout(call, ctx, attrs->layout,
+                                                    /*tgt_layout=*/"NCHW",
+                                                    /*tensor_name=*/"data");
+
+  DataType out_dtype = data_sinfo->dtype;
+
+  // Output shape: [N, C, grid_H, grid_W]
+  // grid shape for NCHW layout input is [N, H_out, W_out, 2]
+  ffi::Optional<ShapeExpr> data_shape = CheckNdimPerLayoutAndGetShape(
+      call, ctx, ffi::GetRef<TensorStructInfo>(data_sinfo), data_layout);
+  const auto* grid_shape = grid_sinfo->shape.as<ShapeExprNode>();
+
+  if (!data_shape.defined() || grid_shape == nullptr) {
+    return TensorStructInfo(out_dtype, data_layout.ndim(), data_sinfo->vdevice);
+  }
+
+  ffi::Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
+  // grid is [N, H_out, W_out, 2], output is [N, C, H_out, W_out]
+  ffi::Array<PrimExpr> out_NCHW_shape(data_NCHW_shape);
+  out_NCHW_shape.Set(2, grid_shape->values[1]);  // H_out
+  out_NCHW_shape.Set(3, grid_shape->values[2]);  // W_out
+
+  ffi::Array<PrimExpr> out_shape = data2NCHW.BackwardShape(out_NCHW_shape);
+  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, data_sinfo->vdevice);
+}
+
+TVM_REGISTER_OP("relax.image.grid_sample")
+    .set_attrs_type<GridSampleAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("grid", "Tensor", "The grid tensor for sampling.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGridSample)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 }  // namespace relax
 }  // namespace tvm

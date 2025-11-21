@@ -848,6 +848,32 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         )
         return self.block_builder.emit(relax.op.zeros(size, dtype))
 
+    def _grid_sampler_2d(self, node: fx.Node) -> relax.Var:
+        """Convert torch.nn.functional.grid_sample to relax.op.image.grid_sample."""
+        args = self.retrieve_args(node)
+        data = args[0]
+        grid = args[1]
+        interp_mode = args[2] if len(args) > 2 else 0
+        pad_mode = args[3] if len(args) > 3 else 0
+        align_corners = args[4] if len(args) > 4 else False
+
+        interp_map = {0: "bilinear", 1: "nearest", 2: "bicubic"}
+        pad_map = {0: "zeros", 1: "border", 2: "reflection"}
+
+        method = interp_map.get(interp_mode, "bilinear")
+        padding_mode = pad_map.get(pad_mode, "zeros")
+
+        return self.block_builder.emit(
+            relax.op.image.grid_sample(
+                data,
+                grid,
+                method=method,
+                layout="NCHW",
+                padding_mode=padding_mode,
+                align_corners=align_corners,
+            )
+        )
+
     def _scalar_tensor(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         scalar_value = args[0]
@@ -1222,6 +1248,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "zero_.default": self._zeros_inplace,
             "zeros.default": self._zeros,
             "zeros_like.default": self._zeros_like,
+            "grid_sampler_2d.default": self._grid_sampler_2d,
             # datatype
             "to.dtype": self._to,
             "to.dtype_layout": self._to,
