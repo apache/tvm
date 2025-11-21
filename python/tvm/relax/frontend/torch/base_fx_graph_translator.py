@@ -2361,7 +2361,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         shape = self.shape_of(x)
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
-        return self.block_builder.emit(relax.const(int(shape[dim]), "int32"))
+
+        shape_dim = shape[dim]
+        if hasattr(shape_dim, "value"):
+            return self.block_builder.emit(relax.const(shape_dim.value, dtype="int32"))
+        return shape_dim
 
     def _zeros_inplace(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]

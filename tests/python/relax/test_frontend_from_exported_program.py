@@ -7520,7 +7520,7 @@ def test_sym_size_int():
             return torch.add(x[0], torch.ops.aten.sym_size.int(x, self.dim))
 
     @I.ir_module
-    class Expected:
+    class Expected1:
         @R.function
         def main(
             x: R.Tensor((1, 3, 4), dtype="float32")
@@ -7534,9 +7534,37 @@ def test_sym_size_int():
                 R.output(gv)
             return gv
 
-    example_args = (torch.randn(1, 3, 4),)
-    verify_model(SymSizeInt(dim=1), example_args, {}, Expected)
-    verify_model(SymSizeInt(dim=-2), example_args, {}, Expected)
+    example_args_1 = (torch.randn(1, 3, 4),)
+    verify_model(SymSizeInt(dim=1), example_args_1, {}, Expected1)
+    verify_model(SymSizeInt(dim=-2), example_args_1, {}, Expected1)
+
+    class SymSizeIntDynamic(Module):
+        def __init__(self, dim):
+            super().__init__()
+            self.dim = dim
+
+        def forward(self, x):
+            shape_dim = torch.ops.aten.sym_size.int(x, self.dim)
+            return x.reshape(shape_dim, -1)
+
+    @I.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            x: R.Tensor(("s0", 3, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor(("s0", 12), dtype="float32")):
+            s0 = T.int64(is_size_var=True)
+            with R.dataflow():
+                lv: R.Tensor((s0, 12), dtype="float32") = R.reshape(x, R.shape([s0, 12]))
+                gv: R.Tuple(R.Tensor((s0, 12), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args_2 = (torch.randn(2, 3, 4),)
+    dynamic_shapes = {"x": {0: torch.export.Dim("dim")}}
+    verify_model(
+        SymSizeIntDynamic(dim=0), example_args_2, {}, Expected2, dynamic_shapes=dynamic_shapes
+    )
 
 
 if __name__ == "__main__":
