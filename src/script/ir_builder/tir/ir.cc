@@ -778,7 +778,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def(Prefix TVM_TMP_STR(64), DType##64)
 
 #define TVM_FFI_REFL_DEF_GLOBAL_LANES(Prefix, Func) \
-  def(Prefix TVM_TMP_STR(x4), Func##x4)             \
+  def(Prefix TVM_TMP_STR(x2), Func##x2)             \
+      .def(Prefix TVM_TMP_STR(x4), Func##x4)        \
       .def(Prefix TVM_TMP_STR(x8), Func##x8)        \
       .def(Prefix TVM_TMP_STR(x16), Func##x16)      \
       .def(Prefix TVM_TMP_STR(x32), Func##x32)      \

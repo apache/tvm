@@ -1176,9 +1176,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     bool lhs_is_int = args[0].type_index() == ffi::TypeIndex::kTVMFFIInt;                      \
     bool rhs_is_int = args[1].type_index() == ffi::TypeIndex::kTVMFFIInt;                      \
     if (lhs_is_int) {                                                                          \
-      *ret = (Func(args[0].cast<int>(), args[1].cast<PrimExpr>(), args[2].cast<Span>()));      \
+      auto arg1 = args[1].cast<PrimExpr>();                                                    \
+      if(arg1.dtype().is_uint()) { \
+        *ret = Func(make_const(arg1.dtype(), args[0].cast<unsigned long long>()), arg1, args[2].cast<Span>()); \
+      } else { \
+        *ret = Func(make_const(arg1.dtype(), args[0].cast<long long>()), arg1, args[2].cast<Span>()); \
+      } \
     } else if (rhs_is_int) {                                                                   \
-      *ret = (Func(args[0].cast<PrimExpr>(), args[1].cast<int>(), args[2].cast<Span>()));      \
+      auto arg0 = args[0].cast<PrimExpr>(); \
+      if(arg0.dtype().is_uint()) { \
+        *ret = Func(arg0, make_const(arg0.dtype(), args[1].cast<unsigned long long>()), args[2].cast<Span>()); \
+      } else { \
+        *ret = Func(arg0, make_const(arg0.dtype(), args[1].cast<long long>()), args[2].cast<Span>()); \
+      } \
     } else {                                                                                   \
       *ret = (Func(args[0].cast<PrimExpr>(), args[1].cast<PrimExpr>(), args[2].cast<Span>())); \
     }                                                                                          \
