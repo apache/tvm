@@ -13,19 +13,7 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the License.
-"""DLight package provides efficient schedules out-of-box for deep learning workloads."""
-from . import gpu
-from . import adreno
-from . import cpu
-from .analysis import (
-    BlockInfo,
-    IterInfo,
-    normalize_prim_func,
-)
-from .base import (
-    ApplyDefaultSchedule,
-    ScheduleRule,
-    try_inline,
-    try_inline_contiguous_spatial,
-)
+"""FFI APIs for Adreno transform"""
+import tvm.ffi
+
+tvm.ffi.init_ffi_api("relax.backend.adreno.transform", __name__)

@@ -158,14 +158,19 @@ InferLayoutOutput InferLayoutBinaryEwise(
   ffi::Optional<ShapeExpr> shape1 = ffi::GetRef<ShapeExpr>(x1_sinfo->shape.as<ShapeExprNode>());
   ffi::Optional<ShapeExpr> shape2 = ffi::GetRef<ShapeExpr>(x2_sinfo->shape.as<ShapeExprNode>());
   // Lets handle sub indexing as long as primal dims are matching
-  if (layout1->layout.ndim_primal() == layout2->layout.ndim_primal()) {
-    if ((layout1->layout.ndim() >= layout2->layout.ndim()) && shape2.defined()) {
-      if (CanProveLayoutTransform(layout2->layout, layout1->layout, shape2.value()->values)) {
-        return InferLayoutOutput({layout1, layout1}, {layout1}, Attrs(call->attrs));
-      }
-    } else if (shape1.defined()) {
-      if (CanProveLayoutTransform(layout1->layout, layout2->layout, shape1.value()->values)) {
-        return InferLayoutOutput({layout2, layout2}, {layout2}, Attrs(call->attrs));
+  if ((layout1->layout.ndim() != layout1->layout.ndim_primal()) ||
+      (layout2->layout.ndim() != layout2->layout.ndim_primal())) {
+    if (layout1->layout.ndim_primal() == layout2->layout.ndim_primal()) {
+      if ((layout1->layout.ndim() >= layout2->layout.ndim()) && shape2.defined()) {
+        if (CanProveLayoutTransform(InitialLayout(shape2.value()->values.size()), layout1->layout,
+                                    shape2.value()->values)) {
+          return InferLayoutOutput({layout1, layout1}, {layout1}, Attrs(call->attrs));
+        }
+      } else if (shape1.defined()) {
+        if (CanProveLayoutTransform(InitialLayout(shape1.value()->values.size()), layout2->layout,
+                                    shape1.value()->values)) {
+          return InferLayoutOutput({layout2, layout2}, {layout2}, Attrs(call->attrs));
+        }
       }
     }
   }
