@@ -16,9 +16,11 @@
 # under the License.
 """IRBuilder for TIR"""
 
+import contextlib
 import functools
 import inspect
 import sys
+import threading
 from numbers import Integral
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -85,6 +87,35 @@ from . import _ffi_api, frame
 from .external_kernel import call_kernel
 
 # pylint: enable=unused-import
+
+
+_block_name_suffix = threading.local()
+
+
+def _get_block_name_suffix() -> str:
+    """Get the current block name suffix for macro expansion."""
+    return getattr(_block_name_suffix, "value", "")
+
+
+@contextlib.contextmanager
+def block_name_suffix_context(block_suffix: str):
+    """Context manager to set block name suffix during macro expansion.
+
+    Parameters
+    ----------
+    block_suffix : str
+        The suffix to append to block names (e.g., "_1", "_2").
+
+    Yields
+    ------
+    None
+    """
+    old_suffix = getattr(_block_name_suffix, "value", "")
+    _block_name_suffix.value = block_suffix
+    try:
+        yield
+    finally:
+        _block_name_suffix.value = old_suffix
 
 
 def buffer(
@@ -352,6 +383,9 @@ def block(name: str = "", no_realize: bool = False) -> frame.BlockFrame:
     res : frame.BlockFrame
         The BlockFrame.
     """
+    block_suffix = _get_block_name_suffix()
+    if block_suffix and name:
+        name = name + block_suffix
     return _ffi_api.Block(name, no_realize)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
@@ -2107,6 +2141,7 @@ __all__ = float_types + [
     "func_ret",
     "match_buffer",
     "block",
+    "block_name_suffix_context",
     "init",
     "where",
     "reads",

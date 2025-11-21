@@ -21,7 +21,7 @@ from typing import Callable, Optional, Union
 from tvm.ir.base import deprecated
 from tvm.tir import Buffer, PrimFunc
 
-from ...ir_builder.tir import buffer, ptr
+from ...ir_builder.tir import block_name_suffix_context, buffer, ptr
 from .._core import parse, scan_macro, utils
 from ..core.parser import Parser, ScriptMacro
 
@@ -90,11 +90,25 @@ setattr(prim_func, "dispatch_token", "tir")
 
 
 class TIRMacro(ScriptMacro):
-    """Specialization of the ScriptMacro class for TIR."""
+    """Specialization of the ScriptMacro class for TIR.
+
+    Attributes
+    ----------
+    call_count : int
+        Counter for the number of times this macro has been invoked.
+        Used to generate unique block name suffixes.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.call_count = 0
 
     def parse_macro(self, parser: Parser) -> None:
         macro_def = self.get_macro_def()
-        parser.visit_body(macro_def.body)
+        suffix = f"_{self.call_count}" if self.call_count > 0 else ""
+        self.call_count += 1
+        with block_name_suffix_context(suffix):
+            parser.visit_body(macro_def.body)
 
 
 def macro(*args, hygienic: bool = True) -> Callable:
