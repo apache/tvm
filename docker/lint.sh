@@ -55,10 +55,18 @@ function run_lint_step() {
             cmd=( tests/lint/cpplint.sh )
             ;;
         flake8)
-            cmd=( tests/lint/flake8.sh )
+            if [ $inplace_fix -eq 0 ]; then
+                cmd=( tests/lint/flake8.sh )
+            else
+                cmd=( tests/lint/flake8.sh --rev origin/main )
+            fi
             ;;
         pylint)
-            cmd=( tests/lint/pylint.sh )
+            if [ $inplace_fix -eq 0 ]; then
+                cmd=( tests/lint/pylint.sh )
+            else
+                cmd=( tests/lint/pylint.sh --rev origin/main )
+            fi
             ;;
         python_format)
             if [ $inplace_fix -eq 0 ]; then
