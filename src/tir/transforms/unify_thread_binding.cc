@@ -79,7 +79,8 @@ class ThreadBindingUnifier : public StmtExprMutator {
                  /*extent=*/IntImm(dtype, 1),      //
                  /*kind=*/ForKind::kSerial, stmt,  //
                  /*thread_binding=*/std::nullopt,  //
-                 /*annotation=*/std::move(annotations));
+                 /*annotation=*/std::move(annotations),
+                 /*step=*/std::nullopt);
     }
   }
 
@@ -155,7 +156,8 @@ class ThreadBindingUnifier : public StmtExprMutator {
       result = For(thread_binding->var, thread_binding->dom->min, thread_binding->dom->extent,
                    ForKind::kThreadBinding, result,
                    IterVar(NullValue<Range>(), Var(""), IterVarType::kThreadIndex,
-                           thread_binding->thread_tag));
+                           thread_binding->thread_tag),
+                   {}, std::nullopt);
       launch_threads_.pop_back();
     }
     return result;

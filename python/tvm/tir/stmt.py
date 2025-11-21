@@ -145,6 +145,10 @@ class For(Stmt):
         The thread this loop binds to. Only valid
         if kind is ThreadBinding
 
+    step : PrimExpr
+        The loop step. Default to none which
+        represent one.
+
     annotations: Optional[Mapping[str, Object]]
         Additional annotation hints.
 
@@ -159,6 +163,7 @@ class For(Stmt):
     body: Stmt
     thread_binding: Optional[IterVar]
     annotations: Mapping[str, Object]
+    step: Optional[PrimExpr]
     span: Optional[Span]
 
     def __init__(
@@ -170,6 +175,7 @@ class For(Stmt):
         body: Stmt,
         thread_binding: Optional[IterVar] = None,
         annotations: Optional[Mapping[str, Object]] = None,
+        step: Optional[PrimExpr] = None,
         span: Optional[Span] = None,
     ) -> None:
         self.__init_handle_by_constructor__(
@@ -181,6 +187,7 @@ class For(Stmt):
             body,
             thread_binding,
             annotations,
+            step,
             span,
         )
 
