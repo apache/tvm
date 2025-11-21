@@ -933,13 +933,19 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
 }
 
 void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
-  auto it = let_binding_.find(op->var);
-  if (it != let_binding_.end()) {
-    ICHECK(deep_equal_(it->second->value, op->value))
-        << "Let cannot bind the same var to two different values";
-  } else {
-    let_binding_[op->var] = op;
-  }
+  // auto it = let_binding_.find(op->var);
+  // if (it != let_binding_.end()) {
+  //   std::cerr << "CHECK: " << op->var << "(" << op->var.get() << "): " << op->var << " = " << op->value << " : " << std::hex << (unsigned long long)(it->second) << "\n";
+  //   std::cerr << "  var=" << op->var.get() << "\n";
+  //   std::cerr << "  val=" << op->value.get() << "\n";
+  //   ICHECK(deep_equal_(it->second->value, op->value))
+  //       << "Let cannot bind the same var to two different values: " << op->var << " " << op->value;
+  // } else {
+  //   std::cerr << "BIND: " << op->var << "(" << op->var.get() << "): " << op->var << " = " << op->value << " : " << std::hex << (unsigned long long)(op) << "\n";
+  //   std::cerr << "  var=" << op->var.get() << "\n";
+  //   std::cerr << "  val=" << op->value.get() << "\n";
+  //   let_binding_[op->var] = op;
+  // }
   std::string value = PrintExpr(op->value);
   if (print_ssa_form_) {
     ICHECK(!var_idmap_.count(op->var.get()));
