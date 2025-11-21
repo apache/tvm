@@ -148,7 +148,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
   }
   else {
     return StmtExprMutator::VisitStmt_(op);
-  }
+  } 
 }
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const AssertStmtNode* op) {

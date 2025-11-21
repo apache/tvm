@@ -615,6 +615,11 @@ class IntSetAnalyzer::Impl {
  public:
   explicit Impl(Analyzer* analyzer) : analyzer_(analyzer) {}
 
+  void CopyFrom(const Impl& other) {
+    this->dom_map_ = other.dom_map_;
+    this->dom_constraints_ = other.dom_constraints_;
+  }
+
   IntSet Eval(const PrimExpr& expr, const ffi::Map<Var, IntSet>& dom_map) const {
     return IntervalSetEvaluator(analyzer_, dom_map).Eval(expr);
   }
@@ -743,6 +748,11 @@ std::function<void()> IntSetAnalyzer::Impl::EnterConstraint(const PrimExpr& cons
     dom_constraints_.resize(old_size);
   };
   return frecover;
+}
+
+// Deep copy internal state from another analyzer
+void IntSetAnalyzer::CopyFrom(const IntSetAnalyzer& other) {
+  this->impl_->CopyFrom(*other.impl_);
 }
 
 // Quickly adapt to IntSet interface

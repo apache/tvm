@@ -103,6 +103,11 @@ class ConstIntBoundAnalyzer::Impl
     : public ExprFunctor<ConstIntBoundAnalyzer::Entry(const PrimExpr&)> {
  public:
   explicit Impl(Analyzer* parent) : parent_(parent) {}
+  void CopyFrom(const Impl& other) {
+    this->var_map_ = other.var_map_;
+    this->additional_info_ = other.additional_info_;
+    this->bound_ = nullptr;
+  }
   /*! \brief additional bound info about expr in bound */
   struct BoundInfo {
     /*! \brief The expr */
@@ -928,6 +933,11 @@ std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const PrimExpr& con
 ConstIntBoundAnalyzer::ConstIntBoundAnalyzer(Analyzer* parent) : impl_(new Impl(parent)) {}
 
 ConstIntBoundAnalyzer::~ConstIntBoundAnalyzer() { delete impl_; }
+
+// Deep copy internal state from another analyzer
+void ConstIntBoundAnalyzer::CopyFrom(const ConstIntBoundAnalyzer& other) {
+  this->impl_->CopyFrom(*other.impl_);
+}
 
 }  // namespace arith
 }  // namespace tvm

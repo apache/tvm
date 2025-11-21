@@ -118,6 +118,9 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
 
   std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
+  // Copy internal state from another Impl instance (used by Analyzer cloning)
+  void CopyFromImpl(const Impl& other);
+
   /*! \brief Enable an optional extension or extensions
    *
    * \param flags A bitwise OR of all optional extensions that should

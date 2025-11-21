@@ -1446,3 +1446,16 @@ CanonicalSimplifier::~CanonicalSimplifier() { delete impl_; }
 
 }  // namespace arith
 }  // namespace tvm
+
+// After class implementations have been defined above
+namespace tvm {
+namespace arith {
+
+// Deep copy internal state from another analyzer
+void CanonicalSimplifier::CopyFrom(const CanonicalSimplifier& other) {
+  // Impl derives from RewriteSimplifier::Impl, reuse its copying logic
+  this->impl_->CopyFromImpl(*other.impl_);
+}
+
+}  // namespace arith
+}  // namespace tvm

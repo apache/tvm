@@ -2427,6 +2427,22 @@ RewriteSimplifier::RewriteSimplifier(Analyzer* parent) : impl_(new Impl(parent))
 
 RewriteSimplifier::~RewriteSimplifier() { delete impl_; }
 
+// Impl state copy
+void RewriteSimplifier::Impl::CopyFromImpl(const RewriteSimplifier::Impl& other) {
+  this->var_map_ = other.var_map_;
+  this->literal_constraints_ = other.literal_constraints_;
+  this->enabled_extensions_ = other.enabled_extensions_;
+  this->maximum_rewrite_steps_ = other.maximum_rewrite_steps_;
+  this->stats_ = other.stats_;
+  this->recur_depth_ = 0;
+  this->recursively_visiting_boolean_ = false;
+}
+
+// Deep copy internal state from another analyzer
+void RewriteSimplifier::CopyFrom(const RewriteSimplifier& other) {
+  this->impl_->CopyFromImpl(*other.impl_);
+}
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<RewriteSimplifierStatsNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* ptr = node.as<RewriteSimplifierStatsNode>();

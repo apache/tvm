@@ -104,6 +104,8 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
  public:
   explicit Impl(Analyzer* parent) : parent_(parent) {}
 
+  void CopyFrom(const Impl& other) { var_map_ = other.var_map_; }
+
   void Update(const Var& var, const ModularSet& info, bool allow_override) {
     if (!allow_override) {
       auto it = var_map_.find(var);
@@ -398,6 +400,9 @@ std::function<void()> ModularSetAnalyzer::EnterConstraint(const PrimExpr& constr
 ModularSetAnalyzer::ModularSetAnalyzer(Analyzer* parent) : impl_(new Impl(parent)) {}
 
 ModularSetAnalyzer::~ModularSetAnalyzer() { delete impl_; }
+
+// Deep copy internal state from another analyzer
+void ModularSetAnalyzer::CopyFrom(const ModularSetAnalyzer& other) { this->impl_->CopyFrom(*other.impl_); }
 
 }  // namespace arith
 }  // namespace tvm

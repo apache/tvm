@@ -936,7 +936,7 @@ void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
   auto it = let_binding_.find(op->var);
   if (it != let_binding_.end()) {
     ICHECK(deep_equal_(it->second->value, op->value))
-        << "Let cannot bind the same var to two different values";
+        << "Let cannot bind the same var " << op->var;
   } else {
     let_binding_[op->var] = op;
   }

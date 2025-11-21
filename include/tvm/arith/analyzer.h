@@ -175,6 +175,8 @@ class ConstIntBoundAnalyzer {
   friend class ConstraintContext;
   explicit ConstIntBoundAnalyzer(Analyzer* parent);
   TVM_DLL ~ConstIntBoundAnalyzer();
+  // Deep-copy internal state from another instance (for Analyzer::Clone)
+  void CopyFrom(const ConstIntBoundAnalyzer& other);
   /*!
    * \brief Update the internal state to enter constraint.
    * \param constraint A constraint expression.
@@ -254,6 +256,8 @@ class ModularSetAnalyzer {
   friend class ConstraintContext;
   explicit ModularSetAnalyzer(Analyzer* parent);
   TVM_DLL ~ModularSetAnalyzer();
+  // Deep-copy internal state from another instance (for Analyzer::Clone)
+  void CopyFrom(const ModularSetAnalyzer& other);
   /*!
    * \brief Update the internal state to enter constraint.
    * \param constraint A constraint expression.
@@ -407,6 +411,8 @@ class RewriteSimplifier {
   friend class CanonicalSimplifier;
   explicit RewriteSimplifier(Analyzer* parent);
   TVM_DLL ~RewriteSimplifier();
+  // Deep-copy internal state from another instance (for Analyzer::Clone)
+  void CopyFrom(const RewriteSimplifier& other);
   class Impl;
   /*! \brief Internal impl */
   Impl* impl_;
@@ -438,6 +444,8 @@ class CanonicalSimplifier {
   friend class ConstraintContext;
   explicit CanonicalSimplifier(Analyzer* parent);
   TVM_DLL ~CanonicalSimplifier();
+  // Deep-copy internal state from another instance (for Analyzer::Clone)
+  void CopyFrom(const CanonicalSimplifier& other);
   class Impl;
   /*! \brief Internal impl */
   Impl* impl_;
@@ -523,6 +531,8 @@ class TransitiveComparisonAnalyzer {
   friend class ConstraintContext;
   TransitiveComparisonAnalyzer();
   TVM_DLL ~TransitiveComparisonAnalyzer();
+  // Deep-copy internal state from another instance (for Analyzer::Clone)
+  void CopyFrom(const TransitiveComparisonAnalyzer& other);
   class Impl;
   /*! \brief Internal impl */
   std::unique_ptr<Impl> impl_;
@@ -616,6 +626,8 @@ class IntSetAnalyzer {
   friend class Analyzer;
   explicit IntSetAnalyzer(Analyzer* parent);
   TVM_DLL ~IntSetAnalyzer();
+  // Deep-copy internal state from another instance (for Analyzer::Clone)
+  void CopyFrom(const IntSetAnalyzer& other);
   class Impl;
   /*! \brief Internal impl */
   Impl* impl_;
@@ -652,6 +664,11 @@ class TVM_DLL Analyzer {
   TransitiveComparisonAnalyzer transitive_comparisons;
   /*! \brief constructor */
   Analyzer();
+  /*!
+   * \brief Create a deep copy of this Analyzer, including all sub-analyzer states.
+   * \return A new Analyzer with copied internal state.
+   */
+  std::unique_ptr<Analyzer> Clone() const;
   /*!
    * \brief Mark the value as non-negative value globally in analyzer.
    *

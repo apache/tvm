@@ -108,22 +108,43 @@ class Analyzer:
 
     def __init__(self):
         _mod = _ffi_api.CreateAnalyzer()
-        self._const_int_bound = _mod("const_int_bound")
-        self._const_int_bound_update = _mod("const_int_bound_update")
-        self._const_int_bound_is_bound = _mod("const_int_bound_is_bound")
-        self._bind = _mod("bind")
-        self._modular_set = _mod("modular_set")
-        self._simplify = _mod("Simplify")
-        self._rewrite_simplify = _mod("rewrite_simplify")
-        self._get_rewrite_simplify_stats = _mod("get_rewrite_simplify_stats")
-        self._reset_rewrite_simplify_stats = _mod("reset_rewrite_simplify_stats")
-        self._canonical_simplify = _mod("canonical_simplify")
-        self._int_set = _mod("int_set")
-        self._enter_constraint_context = _mod("enter_constraint_context")
-        self._can_prove_equal = _mod("can_prove_equal")
-        self._can_prove = _mod("can_prove")
-        self._get_enabled_extensions = _mod("get_enabled_extensions")
-        self._set_enabled_extensions = _mod("set_enabled_extensions")
+        self._assign_functions(_mod)
+
+    def _assign_functions(self, mod_factory):
+        # Save factory for later use (e.g., clone)
+        self._factory = mod_factory
+        self._const_int_bound = mod_factory("const_int_bound")
+        self._const_int_bound_update = mod_factory("const_int_bound_update")
+        self._const_int_bound_is_bound = mod_factory("const_int_bound_is_bound")
+        self._bind = mod_factory("bind")
+        self._modular_set = mod_factory("modular_set")
+        self._simplify = mod_factory("Simplify")
+        self._rewrite_simplify = mod_factory("rewrite_simplify")
+        self._get_rewrite_simplify_stats = mod_factory("get_rewrite_simplify_stats")
+        self._reset_rewrite_simplify_stats = mod_factory("reset_rewrite_simplify_stats")
+        self._canonical_simplify = mod_factory("canonical_simplify")
+        self._int_set = mod_factory("int_set")
+        self._enter_constraint_context = mod_factory("enter_constraint_context")
+        self._can_prove_equal = mod_factory("can_prove_equal")
+        self._can_prove = mod_factory("can_prove")
+        self._get_enabled_extensions = mod_factory("get_enabled_extensions")
+        self._set_enabled_extensions = mod_factory("set_enabled_extensions")
+        # Clone factory returns another mod_factory when invoked
+        self._clone_factory = mod_factory("clone")
+
+    def clone(self) -> "Analyzer":
+        """Create a deep copy of this Analyzer, including internal state.
+
+        Returns
+        -------
+        Analyzer
+            A new Analyzer instance with the same analysis state.
+        """
+        # _clone_factory() returns a new factory bound to the cloned C++ Analyzer
+        new_factory = self._clone_factory()
+        obj = Analyzer.__new__(Analyzer)
+        Analyzer._assign_functions(obj, new_factory)
+        return obj
 
     def const_int_bound(self, expr: tir.PrimExpr) -> ConstIntBound:
         """Find constant integer bound for expr.
