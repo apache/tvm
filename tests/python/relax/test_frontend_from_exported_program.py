@@ -7539,5 +7539,39 @@ def test_sym_size_int():
     verify_model(SymSizeInt(dim=-2), example_args, {}, Expected)
 
 
+def test_grid_sample():
+    class GridSample(Module):
+        def forward(self, input, grid):
+            return torch.nn.functional.grid_sample(
+                input, grid, mode="bilinear", padding_mode="zeros", align_corners=True
+            )
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 4, 4), dtype="float32"),
+            grid: R.Tensor((1, 2, 2, 2), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 2, 2), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 2, 2), dtype="float32") = R.image.grid_sample(
+                    input_1,
+                    grid,
+                    method="bilinear",
+                    layout="NCHW",
+                    padding_mode="zeros",
+                    align_corners=True,
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 2, 2), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(1, 3, 4, 4, dtype=torch.float32),
+        torch.randn(1, 2, 2, 2, dtype=torch.float32),
+    )
+    verify_model(GridSample(), example_args, {}, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
