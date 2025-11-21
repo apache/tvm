@@ -879,6 +879,42 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             )
         )
 
+    def _exponential(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(relax.op.zeros_like(x))
+
+    def _max_dim(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1]
+        keepdim = node.args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+
+        topk_res = self.block_builder.emit(
+            relax.op.topk(x, k=1, axis=dim, largest=True, ret_type="both", dtype="int64")
+        )
+
+        values = topk_res[0]
+        indices = topk_res[1]
+
+        if not keepdim:
+            values = self.block_builder.emit(relax.op.squeeze(values, axis=[dim]))
+            indices = self.block_builder.emit(relax.op.squeeze(indices, axis=[dim]))
+
+        return self.block_builder.emit(relax.Tuple([values, indices]))
+
+    def _alias(self, node: fx.Node) -> relax.Var:
+        return self.env[node.args[0]]
+
+    def _scatter_value(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1]
+        index = self.env[node.args[2]]
+        value = node.args[3]
+
+        value_const = relax.const(value, x.struct_info.dtype)
+        src = self.block_builder.emit(relax.op.broadcast_to(value_const, self.shape_of(index)))
+
+        return self.block_builder.emit(relax.op.scatter_elements(x, index, src, axis=dim))
+
     ########## Others ##########
 
     def create_convert_map(
@@ -909,6 +945,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "elu.default": self._elu,
             "erf.default": self._unary_op(relax.op.erf),
             "exp.default": self._unary_op(relax.op.exp),
+            "exponential.default": self._exponential,
             "expm1.default": lambda node: self.block_builder.emit(
                 relax.op.subtract(
                     relax.op.exp(self.env[node.args[0]]),
@@ -950,6 +987,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "round.default": self._round,
             "rsqrt.default": self._rsqrt,
             "scalar_tensor.default": self._scalar_tensor,
+            "scatter.value": self._scatter_value,
             "rsub.Tensor": self._rsub,
             "rsub.Scalar": self._rsub,
             "selu.default": self._unary_op(relax.op.nn.selu),
@@ -1090,6 +1128,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "sum.default": self._sum,
             "sum.dim_IntList": self._sum,
             "var.correction": self._var,
+            "max.dim": self._max_dim,
             # search
             "argmax.default": self._argmax_argmin(relax.op.argmax),
             "argmin.default": self._argmax_argmin(relax.op.argmin),
@@ -1097,6 +1136,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "bucketize.Tensor": self._bucketize,
             # tensor manipulation
             "argsort.default": self._argsort,
+            "alias.default": self._alias,
             "broadcast_to.default": self._broadcast_to,
             "cat.default": self._cat,
             "chunk.default": self._chunk,
@@ -1343,7 +1383,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         ):
             output = None
             with self.block_builder.dataflow():
-
                 # Translate the model.
                 for node in nodes:
                     if node.op == "placeholder":
