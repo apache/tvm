@@ -7567,5 +7567,138 @@ def test_sym_size_int():
     )
 
 
+def test_exponential():
+    class Exponential(Module):
+        def forward(self, x):
+            return x.exponential_()
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((4, 8), dtype="float32")
+        ) -> R.Tuple(R.Tensor((4, 8), dtype="float32"), R.Tensor((4, 8), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((4, 8), dtype="float32") = R.zeros_like(x, dtype="void")
+                gv: R.Tuple(
+                    R.Tensor((4, 8), dtype="float32"), R.Tensor((4, 8), dtype="float32")
+                ) = (lv, lv)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(4, 8, dtype=torch.float32),)
+    verify_model(Exponential(), example_args, {}, Expected)
+
+
+def test_max_dim():
+    class MaxDim1(Module):
+        def forward(self, x):
+            return torch.max(x, dim=1)
+
+    class MaxDim2(Module):
+        def forward(self, x):
+            return torch.max(x, dim=1, keepdim=True)
+
+    @I.ir_module
+    class expected1:
+        @R.function
+        def main(
+            x: R.Tensor((4, 8, 16), dtype="float32")
+        ) -> R.Tuple(R.Tensor((4, 16), dtype="float32"), R.Tensor((4, 16), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((4, 1, 16), dtype="float32"), R.Tensor((4, 1, 16), dtype="int64")
+                ) = R.topk(x, k=1, axis=1, ret_type="both", largest=True, dtype="int64")
+                lv1: R.Tensor((4, 1, 16), dtype="float32") = lv[0]
+                lv2: R.Tensor((4, 16), dtype="float32") = R.squeeze(lv1, axis=[1])
+                lv3: R.Tensor((4, 1, 16), dtype="int64") = lv[1]
+                lv4: R.Tensor((4, 16), dtype="int64") = R.squeeze(lv3, axis=[1])
+                lv5: R.Tuple(
+                    R.Tensor((4, 16), dtype="float32"), R.Tensor((4, 16), dtype="int64")
+                ) = (lv2, lv4)
+                lv6: R.Tensor((4, 16), dtype="float32") = lv5[0]
+                lv7: R.Tensor((4, 16), dtype="int64") = lv5[1]
+                gv: R.Tuple(
+                    R.Tensor((4, 16), dtype="float32"), R.Tensor((4, 16), dtype="int64")
+                ) = (lv6, lv7)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class expected2:
+        @R.function
+        def main(
+            x: R.Tensor((4, 8, 16), dtype="float32")
+        ) -> R.Tuple(R.Tensor((4, 1, 16), dtype="float32"), R.Tensor((4, 1, 16), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((4, 1, 16), dtype="float32"), R.Tensor((4, 1, 16), dtype="int64")
+                ) = R.topk(x, k=1, axis=1, ret_type="both", largest=True, dtype="int64")
+                lv1: R.Tensor((4, 1, 16), dtype="float32") = lv[0]
+                lv2: R.Tensor((4, 1, 16), dtype="int64") = lv[1]
+                lv3: R.Tuple(
+                    R.Tensor((4, 1, 16), dtype="float32"), R.Tensor((4, 1, 16), dtype="int64")
+                ) = (lv1, lv2)
+                lv4: R.Tensor((4, 1, 16), dtype="float32") = lv3[0]
+                lv5: R.Tensor((4, 1, 16), dtype="int64") = lv3[1]
+                gv: R.Tuple(
+                    R.Tensor((4, 1, 16), dtype="float32"), R.Tensor((4, 1, 16), dtype="int64")
+                ) = (lv4, lv5)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(4, 8, 16, dtype=torch.float32),)
+    verify_model(MaxDim1(), example_args, {}, expected1)
+    verify_model(MaxDim2(), example_args, {}, expected2)
+
+
+def test_alias():
+    class Alias(Module):
+        def forward(self, x):
+            return torch.ops.aten.alias(x)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((4, 8), dtype="float32")
+        ) -> R.Tuple(R.Tensor((4, 8), dtype="float32")):
+            with R.dataflow():
+                gv: R.Tuple(R.Tensor((4, 8), dtype="float32")) = (x,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(4, 8, dtype=torch.float32),)
+    verify_model(Alias(), example_args, {}, Expected)
+
+
+def test_scatter_value():
+    class ScatterValue(Module):
+        def forward(self, x, index):
+            return x.scatter(1, index, 0.5)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((4, 8), dtype="float32"),
+            index: R.Tensor((4, 2), dtype="int64"),
+        ) -> R.Tuple(R.Tensor((4, 8), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((4, 2), dtype="float32") = R.broadcast_to(
+                    R.const(0.5, "float32"), R.shape([4, 2])
+                )
+                lv1: R.Tensor((4, 8), dtype="float32") = R.scatter_elements(x, index, lv, axis=1)
+                gv: R.Tuple(R.Tensor((4, 8), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(4, 8, dtype=torch.float32),
+        torch.randint(0, 8, (4, 2), dtype=torch.int64),
+    )
+    verify_model(ScatterValue(), example_args, {}, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
