@@ -1624,7 +1624,7 @@ def test_div_mode():
 
 
 def test_batchnorm2d():
-    class BatchNorm2d(Module):
+    class BatchNorm2d1(Module):
         def __init__(self):
             super().__init__()
             self.bn = torch.nn.BatchNorm2d(3)
@@ -1658,7 +1658,48 @@ def test_batchnorm2d():
                     epsilon=1e-05,
                     center=True,
                     scale=True,
-                    momentum=1e-05,
+                    momentum=0.1,
+                    training=False,
+                )
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = lv[0]
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    class BatchNorm2dCustom(Module):
+        def __init__(self):
+            super().__init__()
+            self.bn = torch.nn.BatchNorm2d(3, eps=0.001, momentum=0.01)
+
+        def forward(self, input):
+            return self.bn(input)
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            w1: R.Tensor((3,), dtype="float32"),
+            w2: R.Tensor((3,), dtype="float32"),
+            w3: R.Tensor((3,), dtype="float32"),
+            w4: R.Tensor((3,), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((1, 3, 10, 10), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                ) = R.nn.batch_norm(
+                    input_1,
+                    w1,
+                    w2,
+                    w3,
+                    w4,
+                    axis=1,
+                    epsilon=0.001,
+                    center=True,
+                    scale=True,
+                    momentum=0.01,
                     training=False,
                 )
                 lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = lv[0]
@@ -1668,14 +1709,23 @@ def test_batchnorm2d():
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
 
-    model = BatchNorm2d().eval()
-    binding = {
-        "w1": model.bn.weight.detach().numpy(),
-        "w2": model.bn.bias.detach().numpy(),
-        "w3": model.bn.running_mean.detach().numpy(),
-        "w4": model.bn.running_var.detach().numpy(),
+    model_1 = BatchNorm2d1().eval()
+    binding_1 = {
+        "w1": model_1.bn.weight.detach().numpy(),
+        "w2": model_1.bn.bias.detach().numpy(),
+        "w3": model_1.bn.running_mean.detach().numpy(),
+        "w4": model_1.bn.running_var.detach().numpy(),
     }
-    verify_model(model, example_args, binding, expected1)
+    verify_model(model_1, example_args, binding_1, expected1)
+
+    model_2 = BatchNorm2dCustom().eval()
+    binding_2 = {
+        "w1": model_2.bn.weight.detach().numpy(),
+        "w2": model_2.bn.bias.detach().numpy(),
+        "w3": model_2.bn.running_mean.detach().numpy(),
+        "w4": model_2.bn.running_var.detach().numpy(),
+    }
+    verify_model(model_2, example_args, binding_2, expected2)
 
 
 def test_adaptive_avgpool1d():
