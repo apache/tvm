@@ -401,5 +401,32 @@ def test_error_message_with_previous_definition_location():
     assert "was re-defined at" in error_msg
 
 
+def test_sequential_redefinition_with_location():
+    """Test case 2b: Sequential redefinition that includes location info
+
+    This tests the previously_defined_ path where it != end()
+    """
+
+    @T.prim_func(check_well_formed=False)
+    def func():
+        x = T.int32()
+
+        with T.LetStmt(1, var=x):
+            T.evaluate(x)
+
+        with T.LetStmt(2, var=x):  # This should trigger the error
+            T.evaluate(x)
+
+    with pytest.raises(ValueError) as exc_info:
+        tvm.tir.analysis.verify_well_formed(func, assert_mode=True)
+
+    error_msg = str(exc_info.value)
+
+    assert "TIR is ill-formed" in error_msg
+    assert "multiple definitions of variable" in error_msg
+    assert "It was first defined at" in error_msg
+    assert "later re-defined at" in error_msg
+
+
 if __name__ == "__main__":
     tvm.testing.main()
