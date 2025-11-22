@@ -372,5 +372,34 @@ def test_error_message_without_previous_definition_location():
     assert "multiple definitions of variable" in error_msg
 
 
+def test_error_message_with_previous_definition_location():
+    """Test case 2: Error message with 'It was first defined at'
+
+    This tests the scenario where it != end(), so the error message should contain
+    both 'TIR is ill-formed, due to multiple definitions of variable' and should also
+    contain 'It was first defined at' with the location information.
+    """
+
+    @T.prim_func(check_well_formed=False)
+    def func():
+        x = T.int32()
+
+        with T.LetStmt(42, var=x):
+            with T.LetStmt(99, var=x):  # This should trigger the error
+                T.evaluate(x)
+
+    with pytest.raises(ValueError) as exc_info:
+        tvm.tir.analysis.verify_well_formed(func, assert_mode=True)
+
+    error_msg = str(exc_info.value)
+
+    assert "TIR is ill-formed" in error_msg
+    assert "multiple nested definitions of variable" in error_msg
+
+    # should contains location information since it != end()
+    assert "It was first defined at" in error_msg
+    assert "was re-defined at" in error_msg
+
+
 if __name__ == "__main__":
     tvm.testing.main()
