@@ -1434,6 +1434,7 @@ def test_avgpool2d():
                     strides=[1, 1],
                     dilation=[1, 1],
                     padding=[0, 0, 0, 0],
+                    count_include_pad=True,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -1467,6 +1468,7 @@ def test_avgpool2d():
                     dilation=[1, 1],
                     padding=[2, 2, 2, 2],
                     ceil_mode=True,
+                    count_include_pad=True,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -1490,6 +1492,7 @@ def test_avgpool2d():
                     dilation=[1, 1],
                     padding=[0, 0, 0, 0],
                     ceil_mode=False,
+                    count_include_pad=True,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
