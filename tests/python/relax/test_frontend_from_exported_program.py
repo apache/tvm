@@ -2060,7 +2060,7 @@ def test_avg_pool2d():
             return torch.nn.functional.avg_pool2d(input, kernel_size=[2, 1], divisor_override=2)
 
     @tvm.script.ir_module
-    class expected3:
+    class expected4:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
@@ -2071,6 +2071,33 @@ def test_avg_pool2d():
                     dilation=[1, 1],
                     padding=[0, 0, 0, 0],
                     ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                gv = (lv,)
+                R.output(gv)
+            return gv
+
+    class AvgPool2d5(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool2d(
+                input, kernel_size=[2, 1], divisor_override=2, count_include_pad=False
+            )
+
+    @tvm.script.ir_module
+    class expected5:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool2d(
+                    input_1,
+                    pool_size=[2, 1],
+                    strides=[2, 1],
+                    dilation=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    ceil_mode=False,
+                    count_include_pad=False,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -2082,7 +2109,8 @@ def test_avg_pool2d():
     verify_model(AvgPool2d1(), example_args, {}, expected1)
     verify_model(AvgPool2d2(), example_args, {}, expected2)
     verify_model(AvgPool2d3(), example_args, {}, expected2)
-    verify_model(AvgPool2d4(), example_args, {}, expected3)
+    verify_model(AvgPool2d4(), example_args, {}, expected4)
+    verify_model(AvgPool2d5(), example_args, {}, expected5)
 
 
 def test_avg_pool3d():

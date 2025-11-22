@@ -653,6 +653,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         stride: Optional[Union[int, Tuple[int, int]]] = None,
         padding: Optional[int] = 0,
         ceil_mode: Optional[bool] = False,
+        count_include_pad: Optional[bool] = True,
     ) -> relax.Var:
         # Expand to 4D by adding batch dim if input is 3D
         x_ndim = x.struct_info.ndim
@@ -667,6 +668,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 strides=stride,
                 padding=padding,
                 ceil_mode=ceil_mode,
+                count_include_pad=count_include_pad,
                 layout="NCHW",
             )
         )
@@ -682,7 +684,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         stride = args[2] if len(args) > 2 else kwargs.get("stride", None)
         padding = args[3] if len(args) > 3 else kwargs.get("padding", 0)
         ceil_mode = args[4] if len(args) > 4 else kwargs.get("ceil_mode", False)
-        return self._avg_pool2d_impl(x, kernel_size, stride, padding, ceil_mode)
+        count_include_pad = args[5] if len(args) > 5 else kwargs.get("count_include_pad", True)
+        return self._avg_pool2d_impl(x, kernel_size, stride, padding, ceil_mode, count_include_pad)
 
     def _avg_pool3d_impl(
         self,
