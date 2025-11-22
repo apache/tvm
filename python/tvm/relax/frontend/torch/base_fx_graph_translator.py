@@ -1677,7 +1677,34 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             raise TypeError("'accumulate' must be a boolean value, got {}".format(type(accumulate)))
 
         if isinstance(indices, (list, tuple)):
-            indices = relax.Tuple(indices)
+            # In PyTorch index_put, None means "select all elements" for that dimension
+            non_none_indices = [(i, idx) for i, idx in enumerate(indices) if idx is not None]
+
+            if len(non_none_indices) < len(indices):
+                data_shape = self.shape_of(tensor)
+                processed_indices = []
+
+                max_ndim = max((idx.struct_info.ndim for _, idx in non_none_indices), default=1)
+
+                for i, idx in enumerate(indices):
+                    if idx is None:
+                        # Replace None with arange for full dimension indexing
+                        arange_idx = self.block_builder.emit(
+                            relax.op.arange(
+                                relax.PrimValue(0), data_shape[i], relax.PrimValue(1), "int64"
+                            )
+                        )
+                        # Reshape to [dim_size, 1, 1, ...] for broadcasting
+                        arange_idx = self.block_builder.emit(
+                            relax.op.reshape(arange_idx, [data_shape[i]] + [1] * (max_ndim - 1))
+                        )
+                        processed_indices.append(arange_idx)
+                    else:
+                        processed_indices.append(idx)
+
+                indices = relax.Tuple(processed_indices)
+            else:
+                indices = relax.Tuple(indices)
         return self.block_builder.emit(relax.op.index_put(tensor, indices, values, accumulate))
 
     def _index_tensor(self, node: fx.Node) -> relax.Var:

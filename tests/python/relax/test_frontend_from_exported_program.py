@@ -6576,12 +6576,131 @@ def test_index_put():
                 R.output(gv)
             return gv
 
+    # Test case 6: 2D input with multi-dimensional index (broadcasting)
+    # This tests the multi-dimensional index support with broadcasting
+    class IndexPutBroadcast1D(Module):
+        def forward(self, data, indices_1):
+            indices_0 = torch.arange(data.shape[0]).unsqueeze(1)
+            values = torch.ones(data.shape[0], len(indices_1), dtype=data.dtype)
+            return data.index_put_((indices_0, indices_1), values, accumulate=False)
+
+    example_args_broadcast1 = (
+        torch.randn(32, 64, dtype=torch.float32),
+        torch.randint(0, 64, (10,), dtype=torch.int64),
+    )
+
+    @I.ir_module
+    class ExpectedBroadcast1D:
+        @R.function
+        def main(
+            data: R.Tensor((32, 64), dtype="float32"),
+            indices_1: R.Tensor((10,), dtype="int64"),
+        ) -> R.Tuple(R.Tensor((32, 64), dtype="float32"), R.Tensor((32, 64), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((32,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(32), R.prim_value(1), dtype="int64"
+                )
+                lv1: R.Tensor((32, 1), dtype="int64") = R.expand_dims(lv, axis=[1])
+                lv2: R.Tensor((32, 10), dtype="float32") = R.full(
+                    R.shape([32, 10]), R.const(1.0, "float32"), dtype="float32"
+                )
+                lv3: R.Tensor((32, 64), dtype="float32") = R.index_put(
+                    data, R.tuple(lv1, indices_1), lv2, accumulate=False
+                )
+                gv: R.Tuple(
+                    R.Tensor((32, 64), dtype="float32"), R.Tensor((32, 64), dtype="float32")
+                ) = (lv3, lv3)
+                R.output(gv)
+            return gv
+
+    # Test case 7: 2D input with multi-dimensional index (second position)
+    class IndexPutBroadcast2D(Module):
+        def forward(self, data, indices_0):
+            indices_1 = torch.arange(data.shape[1]).unsqueeze(1)
+            values = torch.ones(len(indices_0), data.shape[1], dtype=data.dtype)
+            return data.index_put_((indices_0, indices_1), values, accumulate=False)
+
+    example_args_broadcast2 = (
+        torch.randn(32, 64, dtype=torch.float32),
+        torch.randint(0, 32, (10,), dtype=torch.int64),
+    )
+
+    @I.ir_module
+    class ExpectedBroadcast2D:
+        @R.function
+        def main(
+            data: R.Tensor((32, 64), dtype="float32"),
+            indices_0: R.Tensor((10,), dtype="int64"),
+        ) -> R.Tuple(R.Tensor((32, 64), dtype="float32"), R.Tensor((32, 64), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((64,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(64), R.prim_value(1), dtype="int64"
+                )
+                lv1: R.Tensor((64, 1), dtype="int64") = R.expand_dims(lv, axis=[1])
+                lv2: R.Tensor((10, 64), dtype="float32") = R.full(
+                    R.shape([10, 64]), R.const(1.0, "float32"), dtype="float32"
+                )
+                lv3: R.Tensor((32, 64), dtype="float32") = R.index_put(
+                    data, R.tuple(indices_0, lv1), lv2, accumulate=False
+                )
+                gv: R.Tuple(
+                    R.Tensor((32, 64), dtype="float32"), R.Tensor((32, 64), dtype="float32")
+                ) = (lv3, lv3)
+                R.output(gv)
+            return gv
+
+    # Test case 8: 3D input with mixed 1D and 2D indices
+    class IndexPutBroadcast3D(Module):
+        def forward(self, data, indices_1):
+            indices_0 = torch.arange(data.shape[0]).unsqueeze(1)
+            indices_2 = torch.arange(data.shape[2]).unsqueeze(1)
+            values = torch.ones(data.shape[0], len(indices_1), data.shape[2], dtype=data.dtype)
+            return data.index_put_((indices_0, indices_1, indices_2), values, accumulate=False)
+
+    example_args_broadcast3d = (
+        torch.randn(16, 32, 64, dtype=torch.float32),
+        torch.randint(0, 32, (10,), dtype=torch.int64),
+    )
+
+    @I.ir_module
+    class ExpectedBroadcast3D:
+        @R.function
+        def main(
+            data: R.Tensor((16, 32, 64), dtype="float32"),
+            indices_1: R.Tensor((10,), dtype="int64"),
+        ) -> R.Tuple(
+            R.Tensor((16, 32, 64), dtype="float32"), R.Tensor((16, 32, 64), dtype="float32")
+        ):
+            with R.dataflow():
+                lv: R.Tensor((16,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(16), R.prim_value(1), dtype="int64"
+                )
+                lv1: R.Tensor((16, 1), dtype="int64") = R.expand_dims(lv, axis=[1])
+                lv2: R.Tensor((64,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(64), R.prim_value(1), dtype="int64"
+                )
+                lv3: R.Tensor((64, 1), dtype="int64") = R.expand_dims(lv2, axis=[1])
+                lv4: R.Tensor((16, 10, 64), dtype="float32") = R.full(
+                    R.shape([16, 10, 64]), R.const(1.0, "float32"), dtype="float32"
+                )
+                lv5: R.Tensor((16, 32, 64), dtype="float32") = R.index_put(
+                    data, R.tuple(lv1, indices_1, lv3), lv4, accumulate=False
+                )
+                gv: R.Tuple(
+                    R.Tensor((16, 32, 64), dtype="float32"), R.Tensor((16, 32, 64), dtype="float32")
+                ) = (lv5, lv5)
+                R.output(gv)
+            return gv
+
     # Run verification for each case
     verify_model(IndexPut1D(), example_args_1d, {}, Expected1D)
     verify_model(IndexPut2D(), example_args_2d, {}, Expected2D)
     verify_model(IndexPut3D(), example_args_3d, {}, Expected3D)
     verify_model(IndexPut4D(), example_args_4d, {}, Expected4D)
     verify_model(IndexPut5D(), example_args_5d, {}, Expected5D)
+    verify_model(IndexPutBroadcast1D(), example_args_broadcast1, {}, ExpectedBroadcast1D)
+    verify_model(IndexPutBroadcast2D(), example_args_broadcast2, {}, ExpectedBroadcast2D)
+    verify_model(IndexPutBroadcast3D(), example_args_broadcast3d, {}, ExpectedBroadcast3D)
 
 
 def test_flip():
