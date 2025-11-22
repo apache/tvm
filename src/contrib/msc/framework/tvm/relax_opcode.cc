@@ -507,6 +507,7 @@ class RelaxPool2dCodeGen : public RelaxOpCode {
         .op_list_arg<int>("strides")
         .op_list_arg<int>("padding")
         .op_list_arg<int>("dilation")
+        .op_arg<bool>("count_include_pad")
         .op_arg<bool>("ceil_mode")
         .op_str_arg("layout")
         .op_str_arg("out_layout");
