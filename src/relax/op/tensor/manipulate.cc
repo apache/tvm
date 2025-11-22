@@ -2105,12 +2105,19 @@ StructInfo InferStructInfoIndexPut(const Call& call, const BlockBuilder& ctx) {
   }
 
   // Validate each index tensor
+  // Index tensors can be multi-dimensional for broadcasting
+  int max_index_ndim = -1;
   for (size_t i = 0; i < indices_tensors.size(); ++i) {
     const auto& tensor_sinfo = indices_tensors[i];
-    if (!tensor_sinfo->IsUnknownNdim() && tensor_sinfo->ndim != 1) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "IndexPut requires each index tensor to be 1D. "
-                       << "However, index tensor " << i << " has ndim=" << tensor_sinfo->ndim);
+    if (!tensor_sinfo->IsUnknownNdim()) {
+      if (tensor_sinfo->ndim < 1) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << "IndexPut requires each index tensor to have at least 1 dimension. "
+                         << "However, index tensor " << i << " has ndim=" << tensor_sinfo->ndim);
+      }
+      if (max_index_ndim < tensor_sinfo->ndim) {
+        max_index_ndim = tensor_sinfo->ndim;
+      }
     }
     if (tensor_sinfo->IsUnknownDtype()) {
       LOG(WARNING) << "Data type of index tensor " << i
@@ -2119,6 +2126,23 @@ StructInfo InferStructInfoIndexPut(const Call& call, const BlockBuilder& ctx) {
       ctx->ReportFatal(Diagnostic::Error(call)
                        << "IndexPut requires each index tensor to have integer dtype. "
                        << "However, index tensor " << i << " has dtype=" << tensor_sinfo->dtype);
+    }
+  }
+
+  // Validate that index tensor shapes are broadcastable
+  if (max_index_ndim > 1) {
+    for (size_t i = 0; i < indices_tensors.size(); ++i) {
+      const auto& tensor_sinfo = indices_tensors[i];
+      if (!tensor_sinfo->IsUnknownNdim() && tensor_sinfo->ndim > 1) {
+        // Check that multi-dimensional indices are broadcastable
+        const auto* shape = tensor_sinfo->shape.as<ShapeExprNode>();
+        if (shape) {
+          // Verify trailing dimensions can broadcast
+          // For now, we accept any multi-dimensional index and rely on runtime validation
+          LOG(INFO) << "IndexPut: index tensor " << i << " has ndim=" << tensor_sinfo->ndim
+                    << " for broadcasting";
+        }
+      }
     }
   }
 
