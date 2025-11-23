@@ -5633,6 +5633,44 @@ def test_view():
     verify_model(View(), example_args, {}, expected1)
 
 
+def test_as_strided():
+    class AsStrided(Module):
+        def forward(self, x):
+            return torch.ops.aten.as_strided.default(x, (3, 2, 2), (4, 2, 1))
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 2, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3, 2, 2), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 2, 2), dtype="float32") = R.reshape(x, (3, 2, 2))
+                gv: R.Tuple(R.Tensor((3, 2, 2), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    class AsStridedNonContiguous(Module):
+        def forward(self, x):
+            return torch.ops.aten.as_strided.default(x, (2, 2, 2), (6, 3, 1))
+
+    class AsStridedWithStorageOffset(Module):
+        def forward(self, x):
+            return torch.ops.aten.as_strided.default(x, (2, 2), (2, 1), 1)
+
+    example_args = (torch.randn(2, 2, 3, dtype=torch.float32),)
+    verify_model(AsStrided(), example_args, {}, Expected)
+
+    exported = export(AsStridedNonContiguous(), args=example_args)
+    with pytest.raises(AssertionError, match="non-contiguous stride"):
+        from_exported_program(exported)
+
+    example_args = (torch.randn(2, 2, dtype=torch.float32),)
+    exported = export(AsStridedWithStorageOffset(), args=example_args)
+    with pytest.raises(AssertionError, match="storage_offset"):
+        from_exported_program(exported)
+
+
 def test_arange():
     class Arange(Module):
         def forward(self, input):
