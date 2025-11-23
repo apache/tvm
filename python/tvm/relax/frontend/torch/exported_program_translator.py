@@ -954,6 +954,37 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         return self.block_builder.emit(relax.op.scatter_elements(x, index, src, axis=dim))
 
+    def _as_strided(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        size = args[1]
+        stride = args[2]
+        storage_offset = args[3] if len(args) > 3 else node.kwargs.get("storage_offset", 0)
+
+        assert storage_offset == 0, "as_strided with non-zero storage_offset is not supported yet"
+
+        # Only handle view-like cases where the provided strides align with a contiguous layout.
+        can_check = all(isinstance(dim, (int, tvm.tir.IntImm)) for dim in size) and all(
+            isinstance(st, (int, tvm.tir.IntImm)) for st in stride
+        )
+        if can_check:
+            expected_stride = []
+            running = 1
+            for dim in reversed(size):
+                dim_int = int(dim)
+                expected_stride.insert(0, running)
+                running *= dim_int
+
+            for dim, st, exp in zip(size, stride, expected_stride):
+                dim_int = int(dim)
+                if dim_int != 1 and int(st) != exp:
+                    raise AssertionError(
+                        f"as_strided with non-contiguous stride {stride} for"
+                        f"size {size} is not supported"
+                    )
+
+        return self.block_builder.emit(relax.op.reshape(x, size))
+
     ########## Others ##########
 
     def create_convert_map(
@@ -1219,6 +1250,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "view.default": self._reshape,
             "reshape.default": self._reshape,
             "reshape_as.default": self._reshape_as,
+            "as_strided.default": self._as_strided,
             # tensor creation
             "_to_copy.default": self._to_copy,
             "arange.default": self._arange,
