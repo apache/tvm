@@ -48,16 +48,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         tvm.runtime.Tensor
             The converted TVM tensor.
         """
-        # Check if tensor is sparse (non-strided layout)
-        # PyTorch sparse tensors have layout != torch.strided
-        is_sparse = tensor_value.layout != torch.strided
-        
-        # Detach the tensor first
-        tensor_detached = tensor_value.detach()
-        
-        # If sparse, convert to dense first
-        if is_sparse:
-            tensor_detached = tensor_detached.to_dense()
+        # PyTorch sparse tensors (layout != torch.strided) must be converted to dense.
+        if tensor_value.layout != torch.strided:
+            tensor_to_convert = tensor_value.to_dense()
+        else:
+            tensor_to_convert = tensor_value
+        tensor_detached = tensor_to_convert.detach()
         
         # Try DLPack conversion first (faster)
         try:
