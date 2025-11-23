@@ -34,6 +34,40 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     from torch import fx
 
+    @staticmethod
+    def _convert_pytorch_tensor_to_tvm(tensor_value: torch.Tensor) -> tvm.runtime.Tensor:
+        """Convert a PyTorch tensor to TVM tensor, handling sparse tensors.
+        
+        Parameters
+        ----------
+        tensor_value : torch.Tensor
+            The PyTorch tensor to convert.
+            
+        Returns
+        -------
+        tvm.runtime.Tensor
+            The converted TVM tensor.
+        """
+        # Check if tensor is sparse (non-strided layout)
+        # PyTorch sparse tensors have layout != torch.strided
+        is_sparse = tensor_value.layout != torch.strided
+        
+        # Detach the tensor first
+        tensor_detached = tensor_value.detach()
+        
+        # If sparse, convert to dense first
+        if is_sparse:
+            tensor_detached = tensor_detached.to_dense()
+        
+        # Try DLPack conversion first (faster)
+        try:
+            return tvm.runtime.from_dlpack(tensor_detached)
+        except (RuntimeError, BufferError):
+            # Fallback: convert to numpy and then to TVM tensor
+            # This handles cases where DLPack conversion fails
+            tensor_cpu = tensor_detached.cpu().contiguous()
+            return tvm.runtime.tensor(tensor_cpu.numpy())
+
     ########## Unary Ops ##########
 
     def _hardtanh(self, node: fx.Node) -> relax.Expr:
@@ -1470,18 +1504,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 if tensor_name == spec.target:
                     bind_name = spec.arg.name
                     break
-            try:
-                binding[bind_name] = tvm.runtime.from_dlpack(tensor_value.detach())
-            except RuntimeError:
-                tensor_cpu = tensor_value.detach().cpu().contiguous()
-                binding[bind_name] = tvm.runtime.tensor(tensor_cpu.numpy())
+            binding[bind_name] = self._convert_pytorch_tensor_to_tvm(tensor_value)
 
         mod = self.block_builder.get()
         mod = relax.transform.BindParams("main", binding)(mod)
 
         if keep_params_as_input:
             parameters = dict(exported_program.named_parameters())
-            params = [tvm.runtime.from_dlpack(p.detach()) for p in parameters.values()]
+            params = [self._convert_pytorch_tensor_to_tvm(p) for p in parameters.values()]
             mod["main"] = mod["main"].with_attr("params", params)
 
         return mod
