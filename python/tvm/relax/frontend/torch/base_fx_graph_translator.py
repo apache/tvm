@@ -1795,6 +1795,41 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         end = args[4] if len(args) > 4 else node.kwargs.get("end", self.shape_of(input_tensor)[dim])
         step = args[5] if len(args) > 5 else node.kwargs.get("step", 1)
 
+        # Normalize bounds to match PyTorch behavior (negative and open-ended slices).
+        input_shape = self.shape_of(input_tensor)
+        axis = dim if dim >= 0 else dim + len(input_shape)
+
+        def _normalize_bound(bound):
+            # PyTorch uses a large positive value (2^63-1) to mean "len".
+            max_index_val = 9223372036854775807
+
+            def _adjust(val):
+                if isinstance(val, (int, tir.IntImm)):
+                    int_val = int(val)
+                    if int_val >= max_index_val:
+                        return input_shape[axis]
+                    if int_val < 0:
+                        return input_shape[axis] + int_val
+                    if isinstance(input_shape[axis], (int, tir.IntImm)) and int_val > int(
+                        input_shape[axis]
+                    ):
+                        return input_shape[axis]
+                return val
+
+            if isinstance(bound, relax.PrimValue):
+                value = _adjust(bound.value)
+                return relax.PrimValue(value)
+
+            bound = _adjust(bound)
+            if not isinstance(bound, relax.PrimValue):
+                bound = relax.PrimValue(bound)
+            return bound
+
+        start = _normalize_bound(start)
+        end = _normalize_bound(end)
+        if not isinstance(step, relax.PrimValue):
+            step = relax.PrimValue(step)
+
         return self.block_builder.emit(
             relax.op.slice_scatter(input_tensor, src, start, end, step, axis=dim)
         )
