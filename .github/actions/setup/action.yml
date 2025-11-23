@@ -1,7 +1,7 @@
 runs:
  using: "composite"
  steps:
-  - uses: actions/cache@v3
+  - uses: actions/cache@v4
     env:
       CACHE_NUMBER: 2
     with:
