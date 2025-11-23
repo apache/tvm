@@ -34,7 +34,7 @@
 default_language_version:
     python: python3.9
 fail_fast: True
-default_stages: [pre-push]
+default_stages: [pre-push, pre-commit]
 repos:
     - repo: https://github.com/pre-commit/pre-commit-hooks
       rev: v6.0.0
@@ -49,9 +49,9 @@ repos:
       hooks:
         -   id: run-black
             name: Running Black...
-            entry: docker/lint.sh python_format
+            entry: docker/lint.sh python_format -i
             language: system
-            always_run: true
+            files: \.py$
             pass_filenames: false
         -   id: run-file-checks
             name: Checking File Types....
@@ -61,25 +61,25 @@ repos:
             pass_filenames: false
         -   id: run-headers-check
             name: Checking ASF License Headers ...
-            entry: docker/lint.sh asf
+            entry: docker/lint.sh asf -i
             language: system
             always_run: true
             pass_filenames: false
-        -   id: run-headers-check
+        -   id: run-cpplint
             name: Linting the C++ code ...
             entry: docker/lint.sh cpplint
             language: system
-            always_run: true
+            files: \.(c|cc|cpp|h|hpp)$
             pass_filenames: false
         -   id: run-clang-format
             name: Checking Clang format ...
-            entry: docker/lint.sh clang_format
+            entry: docker/lint.sh clang_format -i
             language: system
-            always_run: true
+            files: \.(c|cc|cpp|h|hpp)$
             pass_filenames: false
         -   id: run-mypy
             name: Type Checking with MyPY ...
             entry: docker/lint.sh mypy
             language: system
-            always_run: true
+            files: \.py$
             pass_filenames: false
