@@ -399,6 +399,23 @@ class VMShapeLowerMutator
       return ffi::GetRef<Expr>(op);
     }
 
+    // Check if all expressions are computed if not mark variables as ready and trigger computation
+    for (const PrimExpr& expr : op->values) {
+      if (!expr->IsInstance<IntImmNode>()) {
+        auto it = slot_map_.find(expr);
+        if (it != slot_map_.end() && !it->second->value_computed) {
+          // If it's a variable, mark it as ready for computation
+          if (expr.as<tir::VarNode>()) {
+            it->second->value_computed = true;
+            ready_vars_.push_back(it->second);
+          }
+        }
+      }
+    }
+
+    // Trigger computation for any expression that are now ready
+    this->EmitOutstandingPrimExprCompute();
+
     ffi::Array<Expr> args = {shape_heap_,
                              PrimValue::Int64(static_cast<int64_t>(op->values.size()))};
     for (PrimExpr expr : op->values) {
