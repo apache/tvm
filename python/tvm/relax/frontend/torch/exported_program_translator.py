@@ -37,12 +37,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     @staticmethod
     def _convert_pytorch_tensor_to_tvm(tensor_value: torch.Tensor) -> tvm.runtime.Tensor:
         """Convert a PyTorch tensor to TVM tensor, handling sparse tensors.
-        
+
         Parameters
         ----------
         tensor_value : torch.Tensor
             The PyTorch tensor to convert.
-            
+
         Returns
         -------
         tvm.runtime.Tensor
@@ -54,7 +54,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         else:
             tensor_to_convert = tensor_value
         tensor_detached = tensor_to_convert.detach()
-        
+
         # Try DLPack conversion first (faster)
         try:
             return tvm.runtime.from_dlpack(tensor_detached)
