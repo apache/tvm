@@ -2026,9 +2026,21 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.env[node.args[0]]
 
     def _copy_(self, node: fx.Node) -> relax.Var:
-        # Copies the source tensor's into the destination tensor
-        # In TVM, that means simply returning the source tensor
-        return self.env[node.args[1]]
+        dest = self.env[node.args[0]]
+        src = self.env[node.args[1]]
+
+        # Match PyTorch semantics: cast to destination dtype and broadcast to destination shape.
+        if src.struct_info.dtype != dest.struct_info.dtype:
+            src = self.block_builder.emit(relax.op.astype(src, dest.struct_info.dtype))
+
+        dest_shape = self.shape_of(dest)
+        src_shape = self.shape_of(src)
+        if dest_shape != src_shape:
+            src = self.block_builder.emit(relax.op.broadcast_to(src, dest_shape))
+
+        # copy_ writes into the destination tensor, so update env accordingly
+        self.env[node.args[0]] = src
+        return src
 
     def _to_copy(self, node: fx.Node) -> relax.Var:
         # Returns a copy of the input tensor

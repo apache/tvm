@@ -652,7 +652,17 @@ class TorchFXImporter(BaseFXGraphImporter):
     ########## Creation ##########
 
     def _inplace_copy(self, node: fx.Node) -> relax.Var:
+        dest = self.env[node.args[0]]
         src = self.env[node.args[1]]
+
+        if src.struct_info.dtype != dest.struct_info.dtype:
+            src = self.block_builder.emit(relax.op.astype(src, dest.struct_info.dtype))
+
+        dest_shape = self.shape_of(dest)
+        src_shape = self.shape_of(src)
+        if dest_shape != src_shape:
+            src = self.block_builder.emit(relax.op.broadcast_to(src, dest_shape))
+
         self.env[node.args[0]] = src
         return src
 

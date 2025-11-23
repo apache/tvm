@@ -5737,7 +5737,28 @@ def test_inplace_copy():
             inp_1: R.Tensor((1, 2, 3, 4), dtype="float32"),
         ) -> R.Tensor((1, 2, 3, 4), dtype="float32"):
             with R.dataflow():
-                gv: R.Tensor((1, 2, 3, 4), dtype="float32") = inp_1
+                lv: R.Tensor((1, 2, 3, 4), dtype="float32") = R.broadcast_to(
+                    inp_1, R.shape([1, 2, 3, 4])
+                )
+                gv: R.Tensor((1, 2, 3, 4), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    class CopyBroadcast(Module):
+        def forward(self, x, src):
+            x.copy_(src)
+            return x
+
+    @tvm.script.ir_module
+    class expected_copy:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32"), src: R.Tensor((), dtype="int64")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.astype(src, dtype="float32")
+                lv1: R.Tensor((2, 3), dtype="float32") = R.broadcast_to(lv, (2, 3))
+                gv: R.Tensor((2, 3), dtype="float32") = lv1
                 R.output(gv)
             return gv
 
@@ -5747,6 +5768,7 @@ def test_inplace_copy():
         {},
         Expected,
     )
+    verify_model(CopyBroadcast(), [((2, 3), "float32"), ((), "int64")], {}, expected_copy)
 
 
 def test_clone():
