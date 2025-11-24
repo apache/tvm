@@ -5482,8 +5482,24 @@ def test_squeeze():
             input: R.Tensor((3, 1, 4, 1), dtype="float32")
         ) -> R.Tuple(R.Tensor((3, 4), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((3, 4), dtype="float32") = R.squeeze(input, axis=[1, 3])
+                lv: R.Tensor((3, 4), dtype="float32") = R.squeeze(input, axis=[0, 1, 2, 3])
                 gv: R.Tuple(R.Tensor((3, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    class Squeeze3(Module):
+        def forward(self, input):
+            return input.squeeze(2)
+
+    @I.ir_module
+    class Expected3:
+        @R.function
+        def main(
+            inp_0: R.Tensor((3, 1, 4, 1), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3, 1, 4, 1), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 1, 4, 1), dtype="float32") = R.squeeze(inp_0, axis=[2])
+                gv: R.Tuple(R.Tensor((3, 1, 4, 1), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 
@@ -5491,6 +5507,7 @@ def test_squeeze():
 
     verify_model(Squeeze1(), example_args, {}, Expected1)
     verify_model(Squeeze2(), example_args, {}, Expected2)
+    verify_model(Squeeze3(), example_args, {}, Expected3)
 
 
 def test_stack():

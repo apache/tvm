@@ -2003,7 +2003,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             valid_dims = []
             for d in dim:
                 axis = d if d >= 0 else len(shape) + d
-                if axis < len(shape) and shape[axis] == 1:
+                if axis < len(shape):
                     valid_dims.append(d)
             # If no valid dims, use None to squeeze all size-1 dimensions
             dim = valid_dims if valid_dims else None
