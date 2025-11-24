@@ -1151,6 +1151,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "minimum.default": self._binary_op(relax.op.minimum, torch.minimum),
             "remainder.Tensor": self._binary_op(relax.op.floor_mod, operator.mod),
             "remainder.Scalar": self._binary_op(relax.op.floor_mod, operator.mod),
+            "mul": self._binary_op(relax.op.multiply, operator.mul),
             "mul.Tensor": self._binary_op(relax.op.multiply, operator.mul),
             "mul.Scalar": self._binary_op(relax.op.multiply, operator.mul),
             "mul_.Tensor": self._binary_op(relax.op.multiply, operator.mul),
