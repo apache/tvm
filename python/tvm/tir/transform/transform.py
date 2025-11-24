@@ -1171,3 +1171,14 @@ def LowerVtcmAlloc():
         The result pass
     """
     return _ffi_api.LowerVtcmAlloc()  # type: ignore
+
+
+def CanonicalizeLoop():
+    """Canonicalize the loop to start from zero and use trivial step
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.CanonicalizeLoop()  # type: ignore

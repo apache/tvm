@@ -1152,14 +1152,15 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
 
 void CodeGenCPU::VisitStmt_(const ForNode* op) {
   EmitDebugLocation(op);
-  ICHECK(is_zero(op->min));
   if (op->kind == ForKind::kSerial || op->kind == ForKind::kUnrolled) {
     CodeGenLLVM::VisitStmt_(op);
   } else if (op->kind == ForKind::kParallel) {
+    ICHECK(is_zero(op->min)) << "Parallel launch require canonical loop with zero start index";
+    ICHECK(op->HasTrivialStep()) << "Parallel launch require canonical loop with trivial loop step";
     if (parallel_env_.penv == nullptr) {
-      CreateParallelLaunch(For(op->loop_var, op->min, op->extent, op->kind, op->body,
-                               op->thread_binding, op->annotations),
-                           0, std::string("loop_parallel_") + op->loop_var->name_hint.c_str());
+      auto copy_node = For(ffi::make_object<ForNode>(*op));
+      CreateParallelLaunch(copy_node, 0,
+                           std::string("loop_parallel_") + op->loop_var->name_hint.c_str());
     } else {
       // already in parallel env.
       ICHECK(parallel_env_.task_id.defined());
@@ -1171,13 +1172,14 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
       ICHECK(!parallel_env_.in_parallel_loop)
           << "Nested parallel loop is not supported by threadpool, try fuse them instead";
       parallel_env_.in_parallel_loop = true;
+      PrimExpr end = is_zero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
       if (parallel_env_.stride_pattern) {
-        CreateSerialFor(MakeValue(task_id), MakeValue(op->extent), MakeValue(num_task),
-                        op->loop_var, op->body);
+        CreateSerialFor(MakeValue(task_id), MakeValue(end), MakeValue(num_task), op->loop_var,
+                        op->body);
       } else {
         PrimExpr step = (op->extent + num_task - make_const(t, 1)) / num_task;
         PrimExpr begin = min(task_id * step, op->extent);
-        PrimExpr end = min((task_id + make_const(t, 1)) * step, op->extent);
+        end = min((task_id + make_const(t, 1)) * step, end);
         CreateSerialFor(MakeValue(begin), MakeValue(end),
                         llvm::ConstantInt::getSigned(GetLLVMType(end), 1), op->loop_var, op->body);
       }

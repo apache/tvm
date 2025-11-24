@@ -251,13 +251,15 @@ class ForFrameNode : public TIRFrameNode {
    * \param loop_body The loop body
    * \return A stmt, the loop nest
    */
-  using FMakeForLoop =
-      ffi::TypedFunction<tvm::tir::Stmt(ffi::Array<tvm::tir::Var> loop_vars,
-                                        ffi::Array<Range> loop_extents, tvm::tir::Stmt loop_body)>;
+  using FMakeForLoop = ffi::TypedFunction<tvm::tir::Stmt(
+      ffi::Array<tvm::tir::Var> loop_vars, ffi::Array<Range> loop_extents,
+      ffi::Array<ffi::Optional<PrimExpr>> loop_steps, tvm::tir::Stmt loop_body)>;
   /*! \brief The loop variable. */
   ffi::Array<tvm::tir::Var> vars;
   /*! \brief The domains of iteration. */
   ffi::Array<Range> doms;
+  /*! \brief The optional steps of iteration. */
+  ffi::Array<ffi::Optional<PrimExpr>> steps;
   /*! \brief The for loop generating function. */
   FMakeForLoop f_make_for_loop;
 

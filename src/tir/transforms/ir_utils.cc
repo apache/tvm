@@ -362,9 +362,9 @@ class IRConvertSSA final : public StmtExprMutator {
     if (defined_.count(v.get())) {
       ScopedRedefine redefine(this, v);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      op = stmt.as<ForNode>();
-      return For(redefine.new_var, op->min, op->extent, op->kind, op->body, op->thread_binding,
-                 op->annotations);
+      auto n = ffi::make_object<ForNode>(*stmt.as<ForNode>());
+      n->loop_var = redefine.new_var;
+      return For(n);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);
