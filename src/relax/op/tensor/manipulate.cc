@@ -1235,7 +1235,7 @@ StructInfo InferStructInfoSqueeze(const Call& call, const BlockBuilder& ctx) {
       // When `axis` is given, the dim lengths at the axes must be integer 1 when it is not symbolic
       const auto* int_len = shape_value.value()[axes[i]].as<IntImmNode>();
       // If a dimension is not 1, silently skip it (no-op), matching PyTorch behavior.
-      if (int_len != nullptr && int_len->value == 1) {
+      if ((int_len != nullptr && int_len->value == 1) || int_len == nullptr) {
         axis_removal_mask[axes[i]] = true;
       }
     }
