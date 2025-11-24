@@ -362,19 +362,23 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, DataType
 
 #define TVM_TIR_IR_BUILDER_FOR_FRAME(Method, Kind)                                           \
   ForFrame Method(PrimExpr start, PrimExpr stop,                                             \
-                  ffi::Optional<ffi::Map<ffi::String, Any>> annotations) {                   \
+                  ffi::Optional<ffi::Map<ffi::String, Any>> annotations,                     \
+                  ffi::Optional<PrimExpr> step) {                                            \
     PrimExpr min = start;                                                                    \
     PrimExpr extent = arith::Analyzer().Simplify(stop - start);                              \
     ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();                            \
     int bits = std::max(min.dtype().bits(), extent.dtype().bits());                          \
     n->vars = {Var("v", DataType(min.dtype().code(), bits, 1))};                             \
     n->doms = {Range::FromMinExtent(min, extent)};                                           \
+    n->steps = {step};                                                                       \
     n->f_make_for_loop = [annotations](ffi::Array<Var> vars, ffi::Array<Range> doms,         \
+                                       ffi::Array<ffi::Optional<PrimExpr>> steps,            \
                                        tvm::tir::Stmt body) {                                \
       ICHECK_EQ(vars.size(), 1);                                                             \
       ICHECK_EQ(doms.size(), 1);                                                             \
+      ICHECK_EQ(steps.size(), 1);                                                            \
       return tvm::tir::For(vars[0], doms[0]->min, doms[0]->extent, Kind, body, std::nullopt, \
-                           annotations.value_or(ffi::Map<ffi::String, Any>()));              \
+                           annotations.value_or(ffi::Map<ffi::String, Any>()), steps[0]);    \
     };                                                                                       \
     return ForFrame(n);                                                                      \
   }
@@ -396,13 +400,16 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
   DataType dtype = DataType(min.dtype().code(), bits, 1);
   n->vars = {Var("v", dtype)};
   n->doms = {Range::FromMinExtent(min, extent)};
+  n->steps = {std::nullopt};
   n->f_make_for_loop = [annotations, thread, dtype](ffi::Array<Var> vars, ffi::Array<Range> doms,
+                                                    ffi::Array<ffi::Optional<PrimExpr>> steps,
                                                     Stmt body) -> For {
     ICHECK_EQ(vars.size(), 1);
     ICHECK_EQ(doms.size(), 1);
+    ICHECK(steps.size() == 1 && (!steps[0].has_value() || is_one(*steps[0])));
     IterVar iter_var(Range(nullptr), Var("iter", dtype), IterVarType::kThreadIndex, thread);
     return For(vars[0], doms[0]->min, doms[0]->extent, ForKind::kThreadBinding, body, iter_var,
-               annotations.value_or(ffi::Map<ffi::String, ffi::Any>()));
+               annotations.value_or(ffi::Map<ffi::String, ffi::Any>()), std::nullopt);
   };
   return ForFrame(n);
 }
@@ -412,19 +419,22 @@ ForFrame Grid(ffi::Array<PrimExpr> extents) {
   ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();
   n->vars.reserve(extents.size());
   n->doms.reserve(extents.size());
+  n->steps.resize(extents.size());
   for (const auto& extent : extents) {
     DataType dtype = extent.dtype();
     n->vars.push_back(Var("v", extent.dtype()));
     n->doms.push_back(Range(make_const(dtype, 0), extent));
   }
-  n->f_make_for_loop = [](ffi::Array<Var> vars, ffi::Array<Range> doms, Stmt body) -> Stmt {
+  n->f_make_for_loop = [](ffi::Array<Var> vars, ffi::Array<Range> doms,
+                          ffi::Array<ffi::Optional<PrimExpr>> steps, Stmt body) -> Stmt {
     ICHECK_EQ(vars.size(), doms.size());
+    ICHECK_EQ(vars.size(), steps.size());
     int n = vars.size();
     for (int i = n - 1; i >= 0; --i) {
       Range dom = doms[i];
       Var var = vars[i];
       body = For(var, dom->min, dom->extent, ForKind::kSerial, std::move(body),
-                 /*thread_binding=*/std::nullopt, /*annotations=*/{});
+                 /*thread_binding=*/std::nullopt, /*annotations=*/{}, /*step=*/steps[i]);
     }
     return body;
   };
