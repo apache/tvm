@@ -77,7 +77,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
   explicit DataTypeVisitor(int target_bits) : bits_(target_bits), target_bits_(target_bits) {}
 
   void VisitExpr(const PrimExpr& e) {
-    if (e.dtype().is_int()) {
+    if (e.dtype().is_int() || e.dtype().is_uint()) {
       int bits = max_bits_;
       if (bound_.find(e) == bound_.end()) {
         analyzer_.const_int_bound(e, &bound_);
