@@ -1383,6 +1383,67 @@ def test_binary1(op, relax_op):
     verify_model(Binary2(op), example_args2, {}, expected2)
 
 
+operator_binary_promote = [
+    (operator.add, R.add),
+    (operator.sub, R.subtract),
+    (operator.mul, R.multiply),
+    (operator.truediv, R.divide),
+    (operator.pow, R.power),
+    (operator.mod, R.floor_mod),
+]
+
+
+@pytest.mark.parametrize("op, relax_op", operator_binary_promote)
+def test_binary_dtype_promotion(op, relax_op):
+    """Ensure binary ops promote differing dtypes following PyTorch rules."""
+
+    class BinaryPromoteLHS(Module):
+        def forward(self, x):
+            arange_val = torch.arange(x.shape[1])  # int64 by default
+            return op(x, arange_val)
+
+    @tvm.script.ir_module
+    class expected_promote_lhs:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(3), R.prim_value(1), dtype="int64"
+                )
+                lv1: R.Tensor((3,), dtype="float32") = R.astype(lv, dtype="float32")
+                lv2: R.Tensor((2, 3), dtype="float32") = relax_op(x, lv1)
+                gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (lv2,)
+                R.output(gv)
+            return gv
+
+    class BinaryPromoteRHS(Module):
+        def forward(self, x):
+            arange_val = torch.arange(x.shape[1])  # int64 by default
+            return op(arange_val, x)
+
+    @tvm.script.ir_module
+    class expected_promote_rhs:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(3), R.prim_value(1), dtype="int64"
+                )
+                lv1: R.Tensor((3,), dtype="float32") = R.astype(lv, dtype="float32")
+                lv2: R.Tensor((2, 3), dtype="float32") = relax_op(lv1, x)
+                gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (lv2,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 3, dtype=torch.float32),)
+    verify_model(BinaryPromoteLHS(), example_args, {}, expected_promote_lhs)
+    verify_model(BinaryPromoteRHS(), example_args, {}, expected_promote_rhs)
+
+
 operator_binary_2 = [
     (operator.eq, R.equal),
     (operator.ne, R.not_equal),

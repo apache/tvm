@@ -89,6 +89,36 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         raise ValueError("Unsupported type: {}".format(type(tensor)))
 
     @staticmethod
+    def _promote_common_dtype(lhs_dtype: Optional[str], rhs_dtype: Optional[str]) -> Optional[str]:
+        """Return the promoted dtype following PyTorch rules, or None if unsupported."""
+        import torch  # type: ignore
+
+        if lhs_dtype is None or rhs_dtype is None or lhs_dtype == rhs_dtype:
+            return None
+
+        tvm_to_torch = {
+            "float64": torch.float64,
+            "float32": torch.float32,
+            "float16": torch.float16,
+            "bfloat16": torch.bfloat16,
+            "int64": torch.int64,
+            "int32": torch.int32,
+            "int16": torch.int16,
+            "int8": torch.int8,
+            "uint8": torch.uint8,
+            "bool": torch.bool,
+        }
+        torch_to_tvm = {v: k for k, v in tvm_to_torch.items()}
+
+        lhs_torch = tvm_to_torch.get(lhs_dtype)
+        rhs_torch = tvm_to_torch.get(rhs_dtype)
+        if lhs_torch is None or rhs_torch is None:
+            return None
+
+        promoted = torch.promote_types(lhs_torch, rhs_torch)
+        return torch_to_tvm.get(promoted, None)
+
+    @staticmethod
     def _is_no_bias(bias):
         """Check if bias represents 'no bias' condition.
 
@@ -408,6 +438,17 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         def convert(node: fx.Node) -> relax.Var:
             def promote_binary_op_args(lhs, rhs):
                 if isinstance(lhs, relax.Expr) and isinstance(rhs, relax.Expr):
+                    lhs_si = getattr(lhs, "struct_info", None)
+                    rhs_si = getattr(rhs, "struct_info", None)
+                    if isinstance(lhs_si, relax.TensorStructInfo) and isinstance(
+                        rhs_si, relax.TensorStructInfo
+                    ):
+                        target_dtype = self._promote_common_dtype(lhs_si.dtype, rhs_si.dtype)
+                        if target_dtype is not None:
+                            if lhs_si.dtype != target_dtype:
+                                lhs = self.block_builder.emit(relax.op.astype(lhs, target_dtype))
+                            if rhs_si.dtype != target_dtype:
+                                rhs = self.block_builder.emit(relax.op.astype(rhs, target_dtype))
                     return lhs, rhs
                 elif isinstance(lhs, relax.Expr):
                     assert isinstance(lhs.struct_info, relax.TensorStructInfo)
