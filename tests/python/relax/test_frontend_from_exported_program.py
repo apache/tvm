@@ -5328,7 +5328,7 @@ def test_squeeze():
             inp_0: R.Tensor((3, 1, 4, 1), dtype="float32")
         ) -> R.Tuple(R.Tensor((3, 4, 1), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((3, 4, 1), dtype="float32") = R.squeeze(inp_0, axis=[0, 1, 2, 3])
+                lv: R.Tensor((3, 4, 1), dtype="float32") = R.squeeze(inp_0, axis=[1])
                 gv: R.Tuple(R.Tensor((3, 4, 1), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
@@ -5344,7 +5344,7 @@ def test_squeeze():
             input: R.Tensor((3, 1, 4, 1), dtype="float32")
         ) -> R.Tuple(R.Tensor((3, 4), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((3, 4), dtype="float32") = R.squeeze(input, axis=[1, 3])
+                lv: R.Tensor((3, 4), dtype="float32") = R.squeeze(input, axis=[0, 1, 2, 3])
                 gv: R.Tuple(R.Tensor((3, 4), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
