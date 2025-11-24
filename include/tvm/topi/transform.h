@@ -429,7 +429,8 @@ inline Tensor squeeze(const Tensor& x, ffi::Optional<ffi::Array<Integer>> opt_ax
         val += static_cast<int>(x->shape.size());
       }
       // If a dimension is not 1, silently skip it (no-op).
-      if (IsConstInt(x->shape[val]) && GetConstInt(x->shape[val]) == 1) {
+      bool is_const = IsConstInt(x->shape[val]);
+      if ((is_const && GetConstInt(x->shape[val]) == 1) || !is_const) {
         axis_val.push_back(val);
       }
     }
