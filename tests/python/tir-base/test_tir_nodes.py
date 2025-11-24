@@ -134,6 +134,7 @@ def test_basic():
 def test_stmt():
     x = tvm.tir.Evaluate(0)
     tvm.tir.For(te.var("i"), 0, 1, tvm.tir.ForKind.SERIAL, x)
+    tvm.tir.For(te.var("i"), 0, 1, tvm.tir.ForKind.UNROLLED, x, step=2)
 
 
 def test_dir():

@@ -602,7 +602,7 @@ Stmt CommonSubexpressionEliminator::VisitStmt_(const ForNode* op) {
     // Otherwise return a for node built with the new `min_new`, `extent_new` and `body_new`
     // that have just been obtained
     return For(op->loop_var, min_new, extent_new, op->kind, body_new, op->thread_binding,
-               op->annotations, op->span);
+               op->annotations, op->step, op->span);
   }
 }
 

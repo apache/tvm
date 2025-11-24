@@ -510,7 +510,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<ForNode>();
       return For(op->loop_var, op->min, op->extent, op->kind, MakeAttach(svec, op->body),
-                 op->thread_binding, op->annotations);
+                 op->thread_binding, op->annotations, op->step);
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
