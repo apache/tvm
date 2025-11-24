@@ -6,7 +6,7 @@ runs:
       CACHE_NUMBER: 2
     with:
       path: ~/conda_pkgs_dir
-      key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('conda/build-environment.yaml') }}
+      key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('**/conda/build-environment.yaml') }}
   - uses: conda-incubator/setup-miniconda@v3
     continue-on-error: true
     id: conda1
