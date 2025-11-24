@@ -56,6 +56,7 @@ class VDeviceLookup {
     ICHECK(attrs);
     int32_t device_type = attrs->device_type;
     int32_t device_id = attrs->index;
+    ffi::String memory_scope = attrs->memory_scope;
 
     CHECK(opt_vdevices_.defined())
         << "ValueError: The target VDevice in the GlobalInfos was not found.";
@@ -66,7 +67,8 @@ class VDeviceLookup {
 
     for (auto vdevice : vdevices) {
       int dev_type = vdevice->target->GetTargetDeviceType();
-      if (dev_type == device_type && vdevice->vdevice_id == device_id) {
+      if (dev_type == device_type && vdevice->vdevice_id == device_id &&
+          memory_scope == vdevice->memory_scope) {
         return vdevice;
       }
     }

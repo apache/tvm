@@ -334,12 +334,55 @@ InferLayoutOutput InferLayoutConcat(
 
   const auto* attrs = call->attrs.as<ConcatAttrs>();
   ICHECK(attrs != nullptr) << "Invalid Call";
+
   NLayout nlayout = GetNLayout(var_layout_map, call->args[0]);
   ICHECK(nlayout.IsNested());
   ICHECK(nlayout.NestedArray()[0].IsLeaf());
 
   int n_tensor = nlayout.NestedArray().size();
   LayoutDecision layout = nlayout.NestedArray()[0].LeafValue();
+
+  // We may expect mix of sub indexed and regular layouts here
+  // Pick the first sub indexed layout and try to prove it for all tensors
+  // On any failre select first occuring regular layout for all
+  auto nlayout_array = nlayout.NestedArray();
+  for (auto n_layout : nlayout_array) {
+    ICHECK(n_layout.IsLeaf());
+    LayoutDecision in_layout = n_layout.LeafValue();
+    if (in_layout->layout.ndim() != in_layout->layout.ndim_primal()) {
+      const auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(call->args[0]);
+      ICHECK(tuple_sinfo != nullptr)
+          << " expects the input to be a Tuple of Tensors. However, the given input is "
+          << call->args[0]->struct_info_->GetTypeKey();
+      for (size_t i = 0; i < tuple_sinfo->fields.size(); ++i) {
+        StructInfo field_sinfo = tuple_sinfo->fields[i];
+        const auto* field_tensor_sinfo = field_sinfo.as<TensorStructInfoNode>();
+        ICHECK(field_tensor_sinfo != nullptr)
+            << call->op
+            << " expects the input to be a Tuple of Tensors. However, the given input is "
+            << call->args[0]->struct_info_;
+        auto t_sinfo = ffi::GetRef<TensorStructInfo>(field_tensor_sinfo);
+        ffi::Optional<ShapeExpr> t_shape =
+            ffi::GetRef<ShapeExpr>(t_sinfo->shape.as<ShapeExprNode>());
+        LayoutDecision curr_layout = nlayout_array[i].LeafValue();
+        if (!CanProveLayoutTransform(curr_layout->layout, in_layout->layout,
+                                     t_shape.value()->values)) {
+          // Some tensor unhappy with sub indexed layout, lets pick first regular layout
+          for (auto pick_layout : nlayout_array) {
+            if (pick_layout.LeafValue()->layout.ndim() ==
+                pick_layout.LeafValue()->layout.ndim_primal()) {
+              in_layout = pick_layout.LeafValue();
+              break;
+            }
+          }
+          break;
+        }
+      }
+      layout = in_layout;
+      break;
+    }
+  }
+
   ffi::Array<NLayout> input_layouts, output_layouts;
   for (int i = 0; i < n_tensor; ++i) {
     input_layouts.push_back(layout);

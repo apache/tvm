@@ -319,6 +319,8 @@ InferLayoutOutput InferLayoutConv2d(
   ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout, weight_layout, output_layout;
+  data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
   ObjectPtr<Conv2DAttrs> new_attrs = ffi::make_object<Conv2DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
@@ -366,14 +368,16 @@ InferLayoutOutput InferLayoutConv2d(
         new_attrs->kernel_layout = (*it).second[1];
         new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
         return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
+      } else {
+        data_layout = LayoutDecision(InitialLayout(4));
+        weight_layout = LayoutDecision(InitialLayout(4));
       }
     }
   }
 
   // We don't have a desired layout for conv2d or desired layouts not compatible.
   // We can just propagate the layout from the input.
-  data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
+
   output_layout = data_layout;
   new_attrs->data_layout =
       TransposeLike(attrs->data_layout, InitialLayout(4), data_layout->layout).name();

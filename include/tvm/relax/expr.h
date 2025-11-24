@@ -156,9 +156,13 @@ class CallNode : public ExprNode {
 
   /*!
    * \brief The structure info arguments of a CallNode.
-   * sinfo_args is designed to be non-empty only for intrinsic op (e.g.,
+   * sinfo_args is by default designed to be non-empty only for intrinsic op (e.g.,
    * call_tir, call_builtin_with_ctx, etc.) and calls to ExternFuncs, with the main
    * usage of structure info inference.
+   *
+   * Regular ops also at times may have sinfo_args defined to specialize partial
+   * or complete structure info. Like VDevice customization with mixed input memory_scopes.
+   * The customized pass can set this info and operator specific inference will respect it.
    */
   ffi::Array<StructInfo> sinfo_args;
 
