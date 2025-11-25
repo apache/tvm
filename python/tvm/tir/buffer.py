@@ -195,6 +195,8 @@ class Buffer(Object, Scriptable):
             indices = [indices]
         has_slice = any(isinstance(i, slice) for i in indices)
         has_step = any(isinstance(i, slice) and i.step is not None for i in indices)
+        if has_step:
+            raise RuntimeError("Buffer slicing with step is not supported.")
         analyzer = Analyzer()
         if has_slice and not has_step:
             region = []
