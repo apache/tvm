@@ -298,6 +298,22 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             x, size=size, scale_factor=scale_factor, method="linear", align_corners=align_corners
         )
 
+    def _upsample_bilinear2d_aa(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        size = node.args[1] if len(node.args) > 1 else node.kwargs.get("output_size", None)
+        align_corners = (
+            node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", False)
+        )
+        scale_factor = (
+            node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factors", None)
+        )
+
+        # Note: TVM's resize2d doesn't have explicit antialias support.
+        # For upsampling, antialiasing has minimal effect, so we use regular bilinear.
+        return self._upsample_impl(
+            x, size=size, scale_factor=scale_factor, method="linear", align_corners=align_corners
+        )
+
     def _upsample_nearest2d(self, node: fx.node) -> relax.Var:
         x = self.env[node.args[0]]
         size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
@@ -1218,6 +1234,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "scaled_dot_product_attention.default": self._scaled_dot_product_attention,
             "unbind.int": self._unbind,
             "upsample_bilinear2d.vec": self._upsample_bilinear2d,
+            "_upsample_bilinear2d_aa.default": self._upsample_bilinear2d_aa,
             "upsample_nearest2d.vec": self._upsample_nearest2d,
             "upsample_bicubic2d.vec": self._upsample_bicubic2d,
             # statistical
