@@ -1406,6 +1406,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         user_inputs = OrderedDict()
         torch_symbol_to_relax_var: Dict[str, tvm.tir.Var] = {}
         range_constraints = {}
+        extra_buffers={
+            "position_ids": {"shape":(1,128), "dtype":torch.int64},
+            "token_type_ids": {"shape":(1,128), "dtype":torch.int64},
+        }
+        
 
         if hasattr(exported_program, "range_constraints"):
             import math
@@ -1439,10 +1444,21 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                         torch_dtype = node.meta["tensor_meta"].dtype
                         break
             else:
+                #Buffers
+                info=None
+                if spec.target in merged_state:
+                    info=merged_state[spec.target]
+                elif spec.target.split(".")[-1] in merged_state:
+                    info = merged_state[spec.target.split(".")[-1]]
+                if info is None:
+                    raise KeyError(f"Missing target in state_dict or extra buffers: {spec.target}")    
+                
+                # Handle both original and extra buffer
+                if hasattr(info,"shape") and hasattr(info,"dtype"):
+                    torch_shape=info.shape
+                    torch_dtype=info.dtype    
+                
                 # PARAMETER or BUFFER
-                torch_shape = exported_program.state_dict[spec.target].shape
-                torch_dtype = exported_program.state_dict[spec.target].dtype
-
             relax_shape = []
             for s in torch_shape:
                 if isinstance(s, torch.SymInt):
