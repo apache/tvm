@@ -16,23 +16,28 @@
 # under the License.
 # pylint: disable=invalid-name
 """Utility to invoke nvcc compiler in the system"""
+
 from __future__ import absolute_import as _abs
 
+import glob
 import os
+import platform
 import subprocess
 import warnings
 from typing import Tuple
 
-import tvm_ffi
 import tvm
+import tvm_ffi
 from tvm.target import Target
 
 from ..base import py_str
 from . import utils
 
 
-def compile_cuda(code, target_format=None, arch=None, options=None, path_target=None):
-    """Compile cuda code with NVCC from env.
+def compile_cuda(
+    code, target_format=None, arch=None, options=None, path_target=None, compiler="nvcc"
+):
+    """Compile cuda code with NVCC or NVRTC.
 
     Parameters
     ----------
@@ -40,41 +45,75 @@ def compile_cuda(code, target_format=None, arch=None, options=None, path_target=
         The cuda code.
 
     target_format : str
-        The target format of nvcc compiler.
+        The target format: "ptx", "cubin", or "fatbin" (nvcc only).
+        Default is "ptx" for nvcc, "cubin" for nvrtc.
 
     arch : str
-        The cuda architecture.
+        The cuda architecture (e.g., "sm_75", "sm_80").
+        If None, auto-detected from target or device.
 
     options : str or list of str
-        The additional options.
+        Additional compilation options.
 
     path_target : str, optional
-        Output file.
+        Output file path (nvcc only, ignored for nvrtc).
 
-    Return
-    ------
+    compiler : str, optional
+        Compiler backend: "nvcc" or "nvrtc".
+        - "nvcc" (default): Use nvcc subprocess, supports fatbin
+        - "nvrtc": Use NVRTC for faster JIT compilation (single-arch only)
+        Default: "nvcc"
+
+    Returns
+    -------
     cubin : bytearray
-        The bytearray of the cubin
+        The bytearray of the compiled binary (ptx/cubin/fatbin).
+
+    Notes
+    -----
+    - NVRTC is significantly faster for JIT compilation but only supports
+      single-architecture compilation (cubin or ptx, no fatbin).
+    - nvcc supports multi-architecture fatbin but is slower.
+    - NVRTC requires cuda-python: pip install cuda-python
+    """
+    if compiler == "nvcc":
+        return _compile_cuda_nvcc(code, target_format, arch, options, path_target)
+    elif compiler == "nvrtc":
+        return _compile_cuda_nvrtc(code, target_format, arch, options)
+    else:
+        raise ValueError(f"compiler must be 'nvcc' or 'nvrtc', got: {compiler}")
+
+
+def _compile_cuda_nvcc(code, target_format=None, arch=None, options=None, path_target=None):
+    """Compile CUDA code using nvcc subprocess.
+
+    Parameters
+    ----------
+    code : str
+        The CUDA source code.
+    target_format : str, optional
+        Output format: "ptx", "cubin", or "fatbin". Default: "ptx"
+    arch : str, optional
+        Target architecture. Auto-detected if None.
+    options : str or list of str, optional
+        Additional nvcc options.
+    path_target : str, optional
+        Output file path.
+
+    Returns
+    -------
+    bytearray
+        Compiled binary data.
     """
     # Check for NVSHMEM dependency
     nvshmem_include_path, nvshmem_lib_path = None, None
     use_nvshmem = "#include <nvshmem.h>" in code or "#include <nvshmemx.h>" in code
     if use_nvshmem:
-        # NOTE: we cannot check whether nvshmem is used based on whether
-        # the global function "runtime.nvshmem.cumodule_init" is defined.
-        # The reason is because that if the input code does not use any NVSHMEM functions
-        # while the global function is defined, using cubin to compile the
-        # code may cause a compilation error.
         target_format = "cubin"
         nvshmem_include_path, nvshmem_lib_path = find_nvshmem_paths()
 
+    # Auto-detect architecture
     if arch is None:
-        # If None, then it will use `tvm.target.Target.current().arch`.
-        # Target arch could be a str like "sm_xx", or a list, such as
-        # [
-        #   "-gencode", "arch=compute_52,code=sm_52",
-        #   "-gencode", "arch=compute_70,code=sm_70"
-        # ]
         compute_version = "".join(
             get_target_compute_version(Target.current(allow_none=True)).split(".")
         )
@@ -107,7 +146,8 @@ def compile_cuda(code, target_format=None, arch=None, options=None, path_target=
     file_target = path_target if path_target else temp_target
     if use_nvshmem:
         file_prefix = file_target.split(".")[0]
-        file_target = f"{file_prefix}.o"  # in the first stage, compile to object file
+        file_target = f"{file_prefix}.o"
+
     cmd = ["nvcc"]
     cmd += [f"--{target_format}", "-O3"]
     if kernels_output_dir is not None:
@@ -133,16 +173,7 @@ def compile_cuda(code, target_format=None, arch=None, options=None, path_target=
         cmd += ["-rdc=true"]
         cmd += ["-I", nvshmem_include_path]
 
-    # NOTE: ccbin option can be used to tell nvcc where to find the c++ compiler
-    # just in case it is not in the path. On Windows it is not in the path by default.
-    # However, we cannot use TVM_CXX_COMPILER_PATH because the runtime env.
-    # Because it is hard to do runtime compiler detection, we require nvcc is configured
-    # correctly by default.
-    # if cxx_compiler_path != "":
-    #    cmd += ["-ccbin", cxx_compiler_path]
-
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
     (out, _) = proc.communicate()
 
     if proc.returncode != 0:
@@ -151,14 +182,11 @@ def compile_cuda(code, target_format=None, arch=None, options=None, path_target=
         msg += py_str(out)
         raise RuntimeError(msg)
 
-    # start second stage of compilation
+    # Second stage for NVSHMEM
     if use_nvshmem:
         cmd = ["nvlink"]
         cmd += [f"-arch=sm_{compute_version}"]
-        cmd += [
-            "-L",
-            nvshmem_lib_path,
-        ]
+        cmd += ["-L", nvshmem_lib_path]
         cmd += ["-L", os.path.join(find_cuda_path(), "lib64")]
         cmd += ["-l", "nvshmem_device"]
         cmd += ["-l", "cudadevrt"]
@@ -166,7 +194,6 @@ def compile_cuda(code, target_format=None, arch=None, options=None, path_target=
         cmd += [file_target]
 
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
         (out, _) = proc.communicate()
 
         if proc.returncode != 0:
@@ -182,6 +209,118 @@ def compile_cuda(code, target_format=None, arch=None, options=None, path_target=
         if not data:
             raise RuntimeError("Compilation error: empty result is generated")
         return data
+
+
+def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
+    """Compile CUDA code using NVRTC (NVIDIA Runtime Compilation).
+
+    Parameters
+    ----------
+    code : str
+        The CUDA source code.
+    target_format : str, optional
+        Output format: "cubin" or "ptx". Default: "cubin"
+    arch : str, optional
+        Target architecture (e.g., "sm_80"). Auto-detected if None.
+    options : str or list of str, optional
+        Additional NVRTC options.
+
+    Returns
+    -------
+    bytearray
+        Compiled binary data.
+    """
+    try:
+        from cuda.bindings import nvrtc  # pylint: disable=import-outside-toplevel
+    except ImportError as e:
+        raise RuntimeError(
+            "cuda-python is not available. Install with: pip install cuda-python\n"
+            "See: https://nvidia.github.io/cuda-python/"
+        ) from e
+
+    # Default target format
+    if target_format is None:
+        target_format = "cubin"
+
+    # Validate target_format (NVRTC doesn't support fatbin)
+    if target_format == "fatbin":
+        raise ValueError(
+            "NVRTC does not support fatbin generation. "
+            "Use target_format='cubin' or 'ptx' with NVRTC, "
+            "or set compiler='nvcc' for fatbin compilation."
+        )
+    if target_format not in ["cubin", "ptx"]:
+        raise ValueError(f"target_format must be 'cubin' or 'ptx', got: {target_format}")
+
+    # Auto-detect architecture
+    if arch is None:
+        compute_version = get_target_compute_version(Target.current(allow_none=True))
+        arch = f"sm_{''.join(compute_version.split('.'))}"
+
+    # Create NVRTC program
+    # Use "tvm_kernels.cu" for consistency with nvcc path (used in error messages)
+    result, prog = nvrtc.nvrtcCreateProgram(str.encode(code), b"tvm_kernels.cu", 0, None, None)
+    if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
+        raise RuntimeError(f"Failed to create NVRTC program: {nvrtc.nvrtcGetErrorString(result)}")
+
+    # Prepare compilation options
+    compile_opts = [
+        f"--gpu-architecture={arch}".encode(),
+        b"-default-device",
+    ]
+
+    # Add user-provided options
+    if options:
+        if isinstance(options, str):
+            compile_opts.append(options.encode())
+        elif isinstance(options, list):
+            compile_opts.extend([opt.encode() if isinstance(opt, str) else opt for opt in options])
+        else:
+            nvrtc.nvrtcDestroyProgram(prog)
+            raise ValueError("options must be str or list of str")
+
+    # Compile the program
+    result = nvrtc.nvrtcCompileProgram(prog, len(compile_opts), compile_opts)
+
+    # Get compilation log
+    result_log, log_size = nvrtc.nvrtcGetProgramLogSize(prog)
+    log_message = ""
+    if result_log == nvrtc.nvrtcResult.NVRTC_SUCCESS and log_size > 0:
+        log_buf = b" " * log_size
+        nvrtc.nvrtcGetProgramLog(prog, log_buf)
+        log_message = log_buf.decode("utf-8")
+
+    # Check compilation result
+    if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
+        error_msg = f"NVRTC compilation failed: {nvrtc.nvrtcGetErrorString(result)}"
+        if log_message:
+            error_msg += f"\n\nCompilation log:\n{log_message}"
+        error_msg += f"\n\nSource code:\n{code}"
+        nvrtc.nvrtcDestroyProgram(prog)
+        raise RuntimeError(error_msg)
+
+    # Get compiled binary
+    try:
+        if target_format == "cubin":
+            result, binary_size = nvrtc.nvrtcGetCUBINSize(prog)
+            if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
+                raise RuntimeError(f"Failed to get CUBIN size: {nvrtc.nvrtcGetErrorString(result)}")
+            binary_buf = b" " * binary_size
+            result = nvrtc.nvrtcGetCUBIN(prog, binary_buf)
+            if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
+                raise RuntimeError(f"Failed to get CUBIN: {nvrtc.nvrtcGetErrorString(result)}")
+        else:  # ptx
+            result, binary_size = nvrtc.nvrtcGetPTXSize(prog)
+            if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
+                raise RuntimeError(f"Failed to get PTX size: {nvrtc.nvrtcGetErrorString(result)}")
+            binary_buf = b" " * binary_size
+            result = nvrtc.nvrtcGetPTX(prog, binary_buf)
+            if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
+                raise RuntimeError(f"Failed to get PTX: {nvrtc.nvrtcGetErrorString(result)}")
+    finally:
+        nvrtc.nvrtcDestroyProgram(prog)
+
+    return bytearray(binary_buf)
 
 
 def find_cuda_path():
@@ -241,7 +380,7 @@ def get_cuda_version(cuda_path=None):
     (out, _) = proc.communicate()
     out = py_str(out)
     if proc.returncode == 0:
-        release_line = [l for l in out.split("\n") if "release" in l][0]
+        release_line = [line for line in out.split("\n") if "release" in line][0]
         release_fields = [s.strip() for s in release_line.split(",")]
         version_str = [f[1:] for f in release_fields if f.startswith("V")][0]
         return tuple(int(field) for field in version_str.split("."))
@@ -280,16 +419,37 @@ def find_nvshmem_paths() -> Tuple[str, str]:
             unique_candidates.append(path)
 
     for root in unique_candidates:
-        include_path = os.path.join(root, "include")
+        # Check both standard include path and versioned subdirectories (e.g., nvshmem_12)
+        include_paths_to_check = [os.path.join(root, "include")]
+
+        # Add versioned subdirectories like include/nvshmem_*
+        versioned_includes = glob.glob(os.path.join(root, "include", "nvshmem_*"))
+        include_paths_to_check.extend(versioned_includes)
+
+        # Check standard and architecture-specific lib directories
         lib_paths_to_check = [
             os.path.join(root, "lib64"),
             os.path.join(root, "lib"),
         ]
 
-        if os.path.isfile(os.path.join(include_path, "nvshmem.h")):
-            for lib_path in lib_paths_to_check:
-                if os.path.isfile(os.path.join(lib_path, "libnvshmem.a")):
-                    return include_path, lib_path
+        # Add architecture-specific lib paths (e.g., lib/x86_64-linux-gnu)
+        machine = platform.machine()
+        system = platform.system().lower()
+        lib_paths_to_check.extend(
+            [
+                os.path.join(root, "lib", f"{machine}-{system}-gnu"),
+                os.path.join(root, "lib64", f"{machine}-{system}-gnu"),
+            ]
+        )
+
+        for include_path in include_paths_to_check:
+            if os.path.isfile(os.path.join(include_path, "nvshmem.h")):
+                for lib_path in lib_paths_to_check:
+                    # Check for both static (.a) and shared (.so) libraries
+                    if os.path.isfile(os.path.join(lib_path, "libnvshmem.a")) or os.path.isfile(
+                        os.path.join(lib_path, "libnvshmem.so")
+                    ):
+                        return include_path, lib_path
 
     error_message = [
         "Error: Could not find NVSHMEM installation.",
@@ -315,9 +475,53 @@ def find_nvshmem_paths() -> Tuple[str, str]:
 
 @tvm_ffi.register_global_func
 def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
-    """use nvcc to generate fatbin code for better optimization"""
-    ptx = compile_cuda(code, target_format="fatbin")
-    return ptx
+    """
+    Compile CUDA code using the configured backend (nvcc or nvrtc).
+
+    This callback is invoked by TVM's C++ backend during CUDA module compilation.
+    The compilation backend can be selected via environment variables.
+
+    Environment Variables
+    ---------------------
+    TVM_CUDA_COMPILER : str
+        Compiler backend: "nvcc" (default) or "nvrtc"
+        - "nvcc": Use nvcc subprocess, supports fatbin
+        - "nvrtc": Use NVRTC, faster JIT but single-arch only
+
+    TVM_CUDA_TARGET_FORMAT : str
+        Output format:
+        - For nvcc: "fatbin" (default), "cubin", or "ptx"
+        - For nvrtc: "cubin" (default) or "ptx"
+
+    Parameters
+    ----------
+    code : str
+        CUDA source code to compile
+    target : Target
+        TVM target object
+
+    Returns
+    -------
+    bytes
+        Compiled binary (fatbin/cubin/ptx)
+    """
+    compiler = os.environ.get("TVM_CUDA_COMPILER", "nvcc")
+    target_format = os.environ.get("TVM_CUDA_TARGET_FORMAT", None)
+
+    # Set default format based on compiler
+    if target_format is None:
+        target_format = "fatbin" if compiler == "nvcc" else "cubin"
+
+    # Validate format for nvrtc
+    if compiler == "nvrtc" and target_format == "fatbin":
+        raise ValueError(
+            "NVRTC does not support fatbin generation. "
+            "Use target_format='cubin' or 'ptx' with NVRTC, "
+            "or set TVM_CUDA_COMPILER='nvcc' to use fatbin.\n"
+            "To use NVRTC: export TVM_CUDA_TARGET_FORMAT=cubin"
+        )
+
+    return compile_cuda(code, target_format=target_format, compiler=compiler)
 
 
 @tvm_ffi.register_global_func("tvm_callback_libdevice_path")
