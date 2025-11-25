@@ -39,7 +39,7 @@ echo set\(USE_OPENCL ON\) >> config.cmake
 fi
 echo set\(USE_RPC ON\) >> config.cmake
 echo set\(USE_CPP_RPC ON\) >> config.cmake
-echo set\(USE_CPP_RTVM ON\) >> config.cmake
+#echo set\(USE_CPP_RTVM ON\) >> config.cmake
 echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake
 echo set\(USE_KALLOC_ALIGNMENT 32\) >> config.cmake
 
@@ -51,8 +51,7 @@ echo set\(USE_OPENCL_GTEST ON\) >> config.cmake
 
 echo set\(USE_OPENCL_EXTN_QCOM ON\) >> config.cmake
 
-cmake -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
-      -DANDROID_ABI=arm64-v8a \
+cmake -DANDROID_ABI=arm64-v8a \
       -DANDROID_PLATFORM=android-28 \
       -DCMAKE_SYSTEM_VERSION=1 \
       -DCMAKE_FIND_ROOT_PATH="${ADRENO_OPENCL}" \
@@ -62,4 +61,4 @@ cmake -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.
       -DCMAKE_C_COMPILER="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang" \
       -DMACHINE_NAME="aarch64-linux-gnu" ..
 
-make -j$(nproc) tvm_rpc rtvm opencl-cpptest
+make -j$(nproc) tvm_rpc opencl-cpptest

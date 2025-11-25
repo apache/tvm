@@ -1434,6 +1434,7 @@ def test_avgpool2d():
                     strides=[1, 1],
                     dilation=[1, 1],
                     padding=[0, 0, 0, 0],
+                    count_include_pad=True,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -1467,6 +1468,7 @@ def test_avgpool2d():
                     dilation=[1, 1],
                     padding=[2, 2, 2, 2],
                     ceil_mode=True,
+                    count_include_pad=True,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -1490,6 +1492,7 @@ def test_avgpool2d():
                     dilation=[1, 1],
                     padding=[0, 0, 0, 0],
                     ceil_mode=False,
+                    count_include_pad=True,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -5139,11 +5142,34 @@ def test_slice_scatter():
                 R.output(gv)
             return gv
 
+    class SliceScatterNegative(Module):
+        def forward(self, input, src):
+            return torch.slice_scatter(input, src, dim=1, start=0, end=-2, step=1)
+
+    @tvm.script.ir_module
+    class expected_slice_scatter:
+        @R.function
+        def main(
+            a: R.Tensor((2, 5), dtype="float32"), b: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tensor((2, 5), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((2, 5), dtype="float32") = R.slice_scatter(
+                    a, b, R.prim_value(0), R.prim_value(3), R.prim_value(1), axis=1
+                )
+                gv: R.Tensor((2, 5), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
     verify_model(
         SliceScatter1(), [((8, 8, 10, 10), "float32"), ((8, 3, 10, 10), "float32")], {}, expected1
     )
-
     verify_model(SliceScatter2(), [((8, 16), "float32"), ((6, 16), "float32")], {}, expected2)
+    verify_model(
+        SliceScatterNegative(),
+        [((2, 5), "float32"), ((2, 3), "float32")],
+        {},
+        expected_slice_scatter,
+    )
 
 
 def test_masked_scatter():
@@ -5734,7 +5760,28 @@ def test_inplace_copy():
             inp_1: R.Tensor((1, 2, 3, 4), dtype="float32"),
         ) -> R.Tensor((1, 2, 3, 4), dtype="float32"):
             with R.dataflow():
-                gv: R.Tensor((1, 2, 3, 4), dtype="float32") = inp_1
+                lv: R.Tensor((1, 2, 3, 4), dtype="float32") = R.broadcast_to(
+                    inp_1, R.shape([1, 2, 3, 4])
+                )
+                gv: R.Tensor((1, 2, 3, 4), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    class CopyBroadcast(Module):
+        def forward(self, x, src):
+            x.copy_(src)
+            return x
+
+    @tvm.script.ir_module
+    class expected_copy:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32"), src: R.Tensor((), dtype="int64")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.astype(src, dtype="float32")
+                lv1: R.Tensor((2, 3), dtype="float32") = R.broadcast_to(lv, (2, 3))
+                gv: R.Tensor((2, 3), dtype="float32") = lv1
                 R.output(gv)
             return gv
 
@@ -5744,6 +5791,7 @@ def test_inplace_copy():
         {},
         Expected,
     )
+    verify_model(CopyBroadcast(), [((2, 3), "float32"), ((), "int64")], {}, expected_copy)
 
 
 def test_clone():

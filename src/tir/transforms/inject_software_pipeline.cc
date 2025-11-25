@@ -943,7 +943,7 @@ class PipelineRewriter : public StmtExprMutator {
     if (!is_unit_loop) {
       new_loop = For(Downcast<Var>(new_loop_var), pipeline_loop_->min, extent,
                      unroll_loop ? ForKind::kUnrolled : pipeline_loop_->kind, std::move(new_loop),
-                     std::nullopt, preserved_annotations_);
+                     std::nullopt, preserved_annotations_, std::nullopt);
     }
 
     // Update producer heads in the global async states.

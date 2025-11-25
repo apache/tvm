@@ -104,13 +104,15 @@ struct ToVDeviceAttrs : public AttrsNodeReflAdapter<ToVDeviceAttrs> {
 struct HintOnDeviceAttrs : public AttrsNodeReflAdapter<HintOnDeviceAttrs> {
   int32_t device_type;
   int32_t index;
+  MemoryScope memory_scope;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<HintOnDeviceAttrs>()
         .def_ro("device_type", &HintOnDeviceAttrs::device_type,
                 "The device type where the data is supposed to be executed.")
-        .def_ro("index", &HintOnDeviceAttrs::index, "The device id.");
+        .def_ro("index", &HintOnDeviceAttrs::index, "The device id.")
+        .def_ro("memory_scope", &HintOnDeviceAttrs::memory_scope, "The device memory scope.");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.HintOnDeviceAttrs", HintOnDeviceAttrs,
                                     BaseAttrsNode);

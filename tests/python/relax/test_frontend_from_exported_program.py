@@ -1383,6 +1383,67 @@ def test_binary1(op, relax_op):
     verify_model(Binary2(op), example_args2, {}, expected2)
 
 
+operator_binary_promote = [
+    (operator.add, R.add),
+    (operator.sub, R.subtract),
+    (operator.mul, R.multiply),
+    (operator.truediv, R.divide),
+    (operator.pow, R.power),
+    (operator.mod, R.floor_mod),
+]
+
+
+@pytest.mark.parametrize("op, relax_op", operator_binary_promote)
+def test_binary_dtype_promotion(op, relax_op):
+    """Ensure binary ops promote differing dtypes following PyTorch rules."""
+
+    class BinaryPromoteLHS(Module):
+        def forward(self, x):
+            arange_val = torch.arange(x.shape[1])  # int64 by default
+            return op(x, arange_val)
+
+    @tvm.script.ir_module
+    class expected_promote_lhs:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(3), R.prim_value(1), dtype="int64"
+                )
+                lv1: R.Tensor((3,), dtype="float32") = R.astype(lv, dtype="float32")
+                lv2: R.Tensor((2, 3), dtype="float32") = relax_op(x, lv1)
+                gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (lv2,)
+                R.output(gv)
+            return gv
+
+    class BinaryPromoteRHS(Module):
+        def forward(self, x):
+            arange_val = torch.arange(x.shape[1])  # int64 by default
+            return op(arange_val, x)
+
+    @tvm.script.ir_module
+    class expected_promote_rhs:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(3), R.prim_value(1), dtype="int64"
+                )
+                lv1: R.Tensor((3,), dtype="float32") = R.astype(lv, dtype="float32")
+                lv2: R.Tensor((2, 3), dtype="float32") = relax_op(lv1, x)
+                gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (lv2,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 3, dtype=torch.float32),)
+    verify_model(BinaryPromoteLHS(), example_args, {}, expected_promote_lhs)
+    verify_model(BinaryPromoteRHS(), example_args, {}, expected_promote_rhs)
+
+
 operator_binary_2 = [
     (operator.eq, R.equal),
     (operator.ne, R.not_equal),
@@ -1910,7 +1971,7 @@ def test_avg_pool1d():
                     dilation=[1, 1],
                     padding=[0, 0, 0, 0],
                     ceil_mode=False,
-                    count_include_pad=False,
+                    count_include_pad=True,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -1948,7 +2009,7 @@ def test_avg_pool1d():
                     dilation=[1, 1],
                     padding=[0, 1, 0, 1],
                     ceil_mode=True,
-                    count_include_pad=False,
+                    count_include_pad=True,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -1976,7 +2037,7 @@ def test_avg_pool1d():
                     dilation=[1, 1],
                     padding=[0, 0, 0, 0],
                     ceil_mode=False,
-                    count_include_pad=False,
+                    count_include_pad=True,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -2015,6 +2076,7 @@ def test_avg_pool2d():
                     strides=[1, 1],
                     dilation=[1, 1],
                     padding=[0, 0, 0, 0],
+                    count_include_pad=True,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -2048,6 +2110,7 @@ def test_avg_pool2d():
                     dilation=[1, 1],
                     padding=[2, 2, 2, 2],
                     ceil_mode=True,
+                    count_include_pad=True,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -2060,7 +2123,7 @@ def test_avg_pool2d():
             return torch.nn.functional.avg_pool2d(input, kernel_size=[2, 1], divisor_override=2)
 
     @tvm.script.ir_module
-    class expected3:
+    class expected4:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
@@ -2071,6 +2134,33 @@ def test_avg_pool2d():
                     dilation=[1, 1],
                     padding=[0, 0, 0, 0],
                     ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                gv = (lv,)
+                R.output(gv)
+            return gv
+
+    class AvgPool2d5(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool2d(
+                input, kernel_size=[2, 1], divisor_override=2, count_include_pad=False
+            )
+
+    @tvm.script.ir_module
+    class expected5:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool2d(
+                    input_1,
+                    pool_size=[2, 1],
+                    strides=[2, 1],
+                    dilation=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    ceil_mode=False,
+                    count_include_pad=False,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -2082,7 +2172,8 @@ def test_avg_pool2d():
     verify_model(AvgPool2d1(), example_args, {}, expected1)
     verify_model(AvgPool2d2(), example_args, {}, expected2)
     verify_model(AvgPool2d3(), example_args, {}, expected2)
-    verify_model(AvgPool2d4(), example_args, {}, expected3)
+    verify_model(AvgPool2d4(), example_args, {}, expected4)
+    verify_model(AvgPool2d5(), example_args, {}, expected5)
 
 
 def test_avg_pool3d():
@@ -2886,6 +2977,7 @@ def test_pad():
                 lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.zeros(
                     R.shape([1, 3, 14, 12]), dtype="float32"
                 )
+
                 lv1: R.Tensor((1, 3, 14, 10), dtype="float32") = R.strided_slice(
                     lv,
                     (R.prim_value(3),),
@@ -2894,6 +2986,7 @@ def test_pad():
                     (R.prim_value(1),),
                     assume_inbound=False,
                 )
+
                 lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.strided_slice(
                     x,
                     (R.prim_value(3),),
@@ -2902,6 +2995,7 @@ def test_pad():
                     (R.prim_value(1),),
                     assume_inbound=False,
                 )
+
                 lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.strided_slice(
                     lv1,
                     (R.prim_value(2),),
@@ -2910,6 +3004,7 @@ def test_pad():
                     (R.prim_value(1),),
                     assume_inbound=False,
                 )
+
                 lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.strided_slice(
                     lv2,
                     (R.prim_value(2),),
@@ -2918,7 +3013,12 @@ def test_pad():
                     (R.prim_value(1),),
                     assume_inbound=False,
                 )
-                lv5: R.Tensor((1, 3, 14, 10), dtype="float32") = R.strided_slice(
+
+                lv5: R.Tensor((1, 3, 10, 10), dtype="float32") = R.broadcast_to(
+                    lv4, R.shape([1, 3, 10, 10])
+                )
+
+                lv6: R.Tensor((1, 3, 14, 10), dtype="float32") = R.strided_slice(
                     lv,
                     (R.prim_value(3),),
                     (R.prim_value(1),),
@@ -2926,89 +3026,117 @@ def test_pad():
                     (R.prim_value(1),),
                     assume_inbound=False,
                 )
-                lv6: R.Tensor((1, 3, 14, 10), dtype="float32") = R.slice_scatter(
-                    lv5, lv4, R.prim_value(2), R.prim_value(12), R.prim_value(1), axis=2
+
+                lv7: R.Tensor((1, 3, 14, 10), dtype="float32") = R.slice_scatter(
+                    lv6, lv5, R.prim_value(2), R.prim_value(12), R.prim_value(1), axis=2
                 )
-                lv7: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
-                    lv, lv6, R.prim_value(1), R.prim_value(11), R.prim_value(1), axis=3
+
+                lv8: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
+                    lv, lv7, R.prim_value(1), R.prim_value(11), R.prim_value(1), axis=3
                 )
-                lv8: R.Tensor((1, 3, 14, 1), dtype="float32") = R.strided_slice(
-                    lv7,
-                    (R.prim_value(3),),
-                    (R.prim_value(0),),
-                    (R.prim_value(1),),
-                    (R.prim_value(1),),
-                    assume_inbound=False,
-                )
+
                 lv9: R.Tensor((1, 3, 14, 1), dtype="float32") = R.strided_slice(
-                    lv7,
+                    lv8,
                     (R.prim_value(3),),
-                    (R.prim_value(10),),
-                    (R.prim_value(11),),
-                    (R.prim_value(1),),
-                    assume_inbound=False,
-                )
-                lv10: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
-                    lv7, lv9, R.prim_value(0), R.prim_value(1), R.prim_value(1), axis=3
-                )
-                lv11: R.Tensor((1, 3, 14, 1), dtype="float32") = R.strided_slice(
-                    lv10,
-                    (R.prim_value(3),),
-                    (R.prim_value(11),),
-                    (R.prim_value(12),),
-                    (R.prim_value(1),),
-                    assume_inbound=False,
-                )
-                lv12: R.Tensor((1, 3, 14, 1), dtype="float32") = R.strided_slice(
-                    lv10,
-                    (R.prim_value(3),),
-                    (R.prim_value(1),),
-                    (R.prim_value(2),),
-                    (R.prim_value(1),),
-                    assume_inbound=False,
-                )
-                lv13: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
-                    lv10, lv12, R.prim_value(11), R.prim_value(12), R.prim_value(1), axis=3
-                )
-                lv14: R.Tensor((1, 3, 2, 12), dtype="float32") = R.strided_slice(
-                    lv13,
-                    (R.prim_value(2),),
                     (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+
+                lv10: R.Tensor((1, 3, 14, 1), dtype="float32") = R.strided_slice(
+                    lv8,
+                    (R.prim_value(3),),
+                    (R.prim_value(10),),
+                    (R.prim_value(11),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+
+                lv11: R.Tensor((1, 3, 14, 1), dtype="float32") = R.broadcast_to(
+                    lv10, R.shape([1, 3, 14, 1])
+                )
+
+                lv12: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
+                    lv8, lv11, R.prim_value(0), R.prim_value(1), R.prim_value(1), axis=3
+                )
+
+                lv13: R.Tensor((1, 3, 14, 1), dtype="float32") = R.strided_slice(
+                    lv12,
+                    (R.prim_value(3),),
+                    (R.prim_value(11),),
+                    (R.prim_value(12),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+
+                lv14: R.Tensor((1, 3, 14, 1), dtype="float32") = R.strided_slice(
+                    lv12,
+                    (R.prim_value(3),),
+                    (R.prim_value(1),),
                     (R.prim_value(2),),
                     (R.prim_value(1),),
                     assume_inbound=False,
                 )
-                lv15: R.Tensor((1, 3, 2, 12), dtype="float32") = R.strided_slice(
-                    lv13,
-                    (R.prim_value(2),),
-                    (R.prim_value(10),),
-                    (R.prim_value(12),),
-                    (R.prim_value(1),),
-                    assume_inbound=False,
+
+                lv15: R.Tensor((1, 3, 14, 1), dtype="float32") = R.broadcast_to(
+                    lv14, R.shape([1, 3, 14, 1])
                 )
                 lv16: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
-                    lv13, lv15, R.prim_value(0), R.prim_value(2), R.prim_value(1), axis=2
+                    lv12, lv15, R.prim_value(11), R.prim_value(12), R.prim_value(1), axis=3
                 )
+
                 lv17: R.Tensor((1, 3, 2, 12), dtype="float32") = R.strided_slice(
                     lv16,
+                    (R.prim_value(2),),
+                    (R.prim_value(0),),
+                    (R.prim_value(2),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+
+                lv18: R.Tensor((1, 3, 2, 12), dtype="float32") = R.strided_slice(
+                    lv16,
+                    (R.prim_value(2),),
+                    (R.prim_value(10),),
+                    (R.prim_value(12),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+
+                lv19: R.Tensor((1, 3, 2, 12), dtype="float32") = R.broadcast_to(
+                    lv18, R.shape([1, 3, 2, 12])
+                )
+
+                lv20: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
+                    lv16, lv19, R.prim_value(0), R.prim_value(2), R.prim_value(1), axis=2
+                )
+                lv21: R.Tensor((1, 3, 2, 12), dtype="float32") = R.strided_slice(
+                    lv20,
                     (R.prim_value(2),),
                     (R.prim_value(12),),
                     (R.prim_value(14),),
                     (R.prim_value(1),),
                     assume_inbound=False,
                 )
-                lv18: R.Tensor((1, 3, 2, 12), dtype="float32") = R.strided_slice(
-                    lv16,
+
+                lv22: R.Tensor((1, 3, 2, 12), dtype="float32") = R.strided_slice(
+                    lv20,
                     (R.prim_value(2),),
                     (R.prim_value(2),),
                     (R.prim_value(4),),
                     (R.prim_value(1),),
                     assume_inbound=False,
                 )
-                lv19: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
-                    lv16, lv18, R.prim_value(12), R.prim_value(14), R.prim_value(1), axis=2
+
+                lv23: R.Tensor((1, 3, 2, 12), dtype="float32") = R.broadcast_to(
+                    lv22, R.shape([1, 3, 2, 12])
                 )
-                gv: R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")) = (lv19,)
+
+                lv24: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
+                    lv20, lv23, R.prim_value(12), R.prim_value(14), R.prim_value(1), axis=2
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")) = (lv24,)
                 R.output(gv)
             return gv
 
@@ -5216,11 +5344,32 @@ def test_slice_scatter():
                 R.output(gv)
             return gv
 
+    class SliceScatterNegative(Module):
+        def forward(self, input, src):
+            return torch.slice_scatter(input, src, dim=1, start=0, end=-2, step=1)
+
+    @tvm.script.ir_module
+    class expected_slice_scatter:
+        @R.function
+        def main(
+            a: R.Tensor((2, 5), dtype="float32"), b: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((2, 5), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 5), dtype="float32") = R.slice_scatter(
+                    a, b, R.prim_value(0), R.prim_value(3), R.prim_value(1), axis=1
+                )
+                gv: R.Tuple(R.Tensor((2, 5), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
     example_args = (torch.randn(8, 8, 10, 10, dtype=torch.float32), torch.randn(8, 3, 10, 10))
     verify_model(SliceScatter1(), example_args, {}, expected1)
 
     example_args = (torch.randn(8, 16, dtype=torch.float32), torch.randn(6, 16))
     verify_model(SliceScatter2(), example_args, {}, expected2)
+
+    example_args = (torch.randn(2, 5, dtype=torch.float32), torch.randn(2, 3, dtype=torch.float32))
+    verify_model(SliceScatterNegative(), example_args, {}, expected_slice_scatter)
 
 
 def test_split():
@@ -5394,8 +5543,24 @@ def test_squeeze():
             input: R.Tensor((3, 1, 4, 1), dtype="float32")
         ) -> R.Tuple(R.Tensor((3, 4), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((3, 4), dtype="float32") = R.squeeze(input, axis=[1, 3])
+                lv: R.Tensor((3, 4), dtype="float32") = R.squeeze(input, axis=[0, 1, 2, 3])
                 gv: R.Tuple(R.Tensor((3, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    class Squeeze3(Module):
+        def forward(self, input):
+            return input.squeeze(2)
+
+    @I.ir_module
+    class Expected3:
+        @R.function
+        def main(
+            inp_0: R.Tensor((3, 1, 4, 1), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3, 1, 4, 1), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 1, 4, 1), dtype="float32") = R.squeeze(inp_0, axis=[2])
+                gv: R.Tuple(R.Tensor((3, 1, 4, 1), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 
@@ -5403,6 +5568,7 @@ def test_squeeze():
 
     verify_model(Squeeze1(), example_args, {}, Expected1)
     verify_model(Squeeze2(), example_args, {}, Expected2)
+    verify_model(Squeeze3(), example_args, {}, Expected3)
 
 
 def test_stack():
@@ -5601,6 +5767,44 @@ def test_view():
 
     example_args = (torch.randn(1, 2, 3, 4, dtype=torch.float32),)
     verify_model(View(), example_args, {}, expected1)
+
+
+def test_as_strided():
+    class AsStrided(Module):
+        def forward(self, x):
+            return torch.ops.aten.as_strided.default(x, (3, 2, 2), (4, 2, 1))
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 2, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3, 2, 2), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 2, 2), dtype="float32") = R.reshape(x, (3, 2, 2))
+                gv: R.Tuple(R.Tensor((3, 2, 2), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    class AsStridedNonContiguous(Module):
+        def forward(self, x):
+            return torch.ops.aten.as_strided.default(x, (2, 2, 2), (6, 3, 1))
+
+    class AsStridedWithStorageOffset(Module):
+        def forward(self, x):
+            return torch.ops.aten.as_strided.default(x, (2, 2), (2, 1), 1)
+
+    example_args = (torch.randn(2, 2, 3, dtype=torch.float32),)
+    verify_model(AsStrided(), example_args, {}, Expected)
+
+    exported = export(AsStridedNonContiguous(), args=example_args)
+    with pytest.raises(AssertionError, match="non-contiguous stride"):
+        from_exported_program(exported)
+
+    example_args = (torch.randn(2, 2, dtype=torch.float32),)
+    exported = export(AsStridedWithStorageOffset(), args=example_args)
+    with pytest.raises(AssertionError, match="storage_offset"):
+        from_exported_program(exported)
 
 
 def test_arange():
@@ -5875,6 +6079,34 @@ def test_new_zeros():
 
     example_args = (torch.randn(1, 128, 128, dtype=torch.float32),)
     verify_model(NewZeros(), example_args, {}, expected1)
+
+
+def test_copy():
+    class CopyBroadcast(Module):
+        def forward(self, x, src):
+            x.copy_(src)
+            return x
+
+    @tvm.script.ir_module
+    class expected_copy:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32"), src: R.Tensor((), dtype="int64")
+        ) -> R.Tuple(R.Tensor((2, 3), dtype="float32"), R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.astype(src, dtype="float32")
+                lv1: R.Tensor((2, 3), dtype="float32") = R.broadcast_to(lv, (2, 3))
+                gv: R.Tuple(
+                    R.Tensor((2, 3), dtype="float32"), R.Tensor((2, 3), dtype="float32")
+                ) = (
+                    lv1,
+                    lv1,
+                )
+                R.output(gv)
+            return gv
+
+    example_args = (torch.zeros(2, 3, dtype=torch.float32), torch.tensor(1, dtype=torch.int64))
+    verify_model(CopyBroadcast(), example_args, {}, expected_copy)
 
 
 def test_to_copy():

@@ -608,6 +608,13 @@ class ScheduleNode : public runtime::Object {
    * \param block The block to be inlined to its producer
    */
   virtual void ReverseComputeInline(const BlockRV& block) = 0;
+  /*!
+   * \brief Fuse an epilogue block into a reduction block
+   * \param reduction_block The reduction block (e.g., matmul)
+   * \param epilogue_block The epilogue block to be fused (e.g., bias add)
+   */
+  virtual void FuseReductionEpilogue(const BlockRV& reduction_block,
+                                     const BlockRV& epilogue_block) = 0;
   /******** Schedule: Reduction ********/
   /*!
    * \brief Decompose a reduction block into two separate blocks.

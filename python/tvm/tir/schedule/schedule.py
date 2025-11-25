@@ -2345,6 +2345,33 @@ class Schedule(Object):
         # pylint: disable-next=no-member
         _ffi_api.ScheduleReverseComputeInline(self, block)  # type: ignore
 
+    @type_checked
+    def fuse_reduction_epilogue(
+        self,
+        reduction_block: Union[BlockRV, str],
+        epilogue_block: Union[BlockRV, str],
+    ) -> None:
+        """Fuse an epilogue block into a reduction block.
+
+        It requires:
+        1) The reduction block is a complete reduction block
+        2) The epilogue block only reads from the reduction block's output
+        3) The epilogue performs a simple addition: output = reduction_result + bias
+
+        Parameters
+        ----------
+        reduction_block : Union[BlockRV, str]
+            The reduction block (e.g., matmul)
+        epilogue_block : Union[BlockRV, str]
+            The epilogue block to be fused (e.g., bias add)
+        """
+        reduction_block = self._normalize_block_arg(reduction_block)
+        epilogue_block = self._normalize_block_arg(epilogue_block)
+        # pylint: disable-next=no-member
+        _ffi_api.ScheduleFuseReductionEpilogue(
+            self, reduction_block, epilogue_block
+        )  # type: ignore
+
     ########## Schedule: Reduction ##########
 
     @type_checked

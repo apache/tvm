@@ -330,8 +330,8 @@ class DistributedBufferCompactor : StmtExprMutator {
       if (shard > 1) {
         arith::Analyzer analyzer;
         ICHECK(analyzer.CanProve(floormod(new_loop->extent, shard) == 0));
-        return For(new_loop->loop_var, new_loop->min, floordiv(new_loop->extent, shard),
-                   new_loop->kind, new_loop->body, new_loop->thread_binding, new_loop->annotations);
+        new_loop.CopyOnWrite()->extent = floordiv(new_loop->extent, shard);
+        return new_loop;
       }
     }
     return new_loop;

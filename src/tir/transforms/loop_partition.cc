@@ -760,14 +760,18 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
 inline Stmt LoopPartitioner::MakeFor(const Object* node, PrimExpr extent, Stmt body) {
   const ForNode* for_node = static_cast<const ForNode*>(node);
   ICHECK(for_node);
+
   if (analyzer_.CanProve(extent == make_const(DataType::Int(32), 1)) &&
       !no_unroll_loop_with_extent_one_ && for_node->annotations.empty()) {
     // If the loop extent is 1, do not create the loop anymore
     return Substitute(body, {{Var{for_node->loop_var}, make_const(DataType::Int(32), 0)}});
   } else {
     ICHECK(for_node->kind != ForKind::kThreadBinding);
-    return For(for_node->loop_var, IntImm(for_node->min.dtype(), 0), extent, for_node->kind, body,
-               for_node->thread_binding, for_node->annotations);
+    auto new_loop = ffi::make_object<ForNode>(*for_node);
+    new_loop->min = IntImm(for_node->min.dtype(), 0);
+    new_loop->extent = extent;
+    new_loop->body = body;
+    return For(new_loop);
   }
 }
 

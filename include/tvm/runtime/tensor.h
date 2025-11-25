@@ -178,6 +178,16 @@ class Tensor : public tvm::ffi::Tensor {
    */
   TVM_DLL static void CopyToBytes(const DLTensor* from, void* to, size_t nbytes,
                                   TVMStreamHandle stream = nullptr);
+
+  /*!
+   * \brief Function to copy data from one array to a byte buffer.
+   * \param from The source array.
+   * \param to The target byte buffer.
+   * \param nbytes The size of the data buffer.
+   * \param stream The stream used in copy.
+   */
+  TVM_DLL static void CopyFromBytes(const DLTensor* to, void* from, size_t nbytes,
+                                    TVMStreamHandle stream = nullptr);
 };
 
 /*!

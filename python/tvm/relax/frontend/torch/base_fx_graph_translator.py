@@ -89,6 +89,36 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         raise ValueError("Unsupported type: {}".format(type(tensor)))
 
     @staticmethod
+    def _promote_common_dtype(lhs_dtype: Optional[str], rhs_dtype: Optional[str]) -> Optional[str]:
+        """Return the promoted dtype following PyTorch rules, or None if unsupported."""
+        import torch  # type: ignore
+
+        if lhs_dtype is None or rhs_dtype is None or lhs_dtype == rhs_dtype:
+            return None
+
+        tvm_to_torch = {
+            "float64": torch.float64,
+            "float32": torch.float32,
+            "float16": torch.float16,
+            "bfloat16": torch.bfloat16,
+            "int64": torch.int64,
+            "int32": torch.int32,
+            "int16": torch.int16,
+            "int8": torch.int8,
+            "uint8": torch.uint8,
+            "bool": torch.bool,
+        }
+        torch_to_tvm = {v: k for k, v in tvm_to_torch.items()}
+
+        lhs_torch = tvm_to_torch.get(lhs_dtype)
+        rhs_torch = tvm_to_torch.get(rhs_dtype)
+        if lhs_torch is None or rhs_torch is None:
+            return None
+
+        promoted = torch.promote_types(lhs_torch, rhs_torch)
+        return torch_to_tvm.get(promoted, None)
+
+    @staticmethod
     def _is_no_bias(bias):
         """Check if bias represents 'no bias' condition.
 
@@ -408,6 +438,17 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         def convert(node: fx.Node) -> relax.Var:
             def promote_binary_op_args(lhs, rhs):
                 if isinstance(lhs, relax.Expr) and isinstance(rhs, relax.Expr):
+                    lhs_si = getattr(lhs, "struct_info", None)
+                    rhs_si = getattr(rhs, "struct_info", None)
+                    if isinstance(lhs_si, relax.TensorStructInfo) and isinstance(
+                        rhs_si, relax.TensorStructInfo
+                    ):
+                        target_dtype = self._promote_common_dtype(lhs_si.dtype, rhs_si.dtype)
+                        if target_dtype is not None:
+                            if lhs_si.dtype != target_dtype:
+                                lhs = self.block_builder.emit(relax.op.astype(lhs, target_dtype))
+                            if rhs_si.dtype != target_dtype:
+                                rhs = self.block_builder.emit(relax.op.astype(rhs, target_dtype))
                     return lhs, rhs
                 elif isinstance(lhs, relax.Expr):
                     assert isinstance(lhs.struct_info, relax.TensorStructInfo)
@@ -653,6 +694,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         stride: Optional[Union[int, Tuple[int, int]]] = None,
         padding: Optional[int] = 0,
         ceil_mode: Optional[bool] = False,
+        count_include_pad: Optional[bool] = True,
     ) -> relax.Var:
         # Expand to 4D by adding batch dim if input is 3D
         x_ndim = x.struct_info.ndim
@@ -667,6 +709,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 strides=stride,
                 padding=padding,
                 ceil_mode=ceil_mode,
+                count_include_pad=count_include_pad,
                 layout="NCHW",
             )
         )
@@ -682,7 +725,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         stride = args[2] if len(args) > 2 else kwargs.get("stride", None)
         padding = args[3] if len(args) > 3 else kwargs.get("padding", 0)
         ceil_mode = args[4] if len(args) > 4 else kwargs.get("ceil_mode", False)
-        return self._avg_pool2d_impl(x, kernel_size, stride, padding, ceil_mode)
+        count_include_pad = args[5] if len(args) > 5 else kwargs.get("count_include_pad", True)
+        return self._avg_pool2d_impl(x, kernel_size, stride, padding, ceil_mode, count_include_pad)
 
     def _avg_pool3d_impl(
         self,
@@ -1792,6 +1836,41 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         end = args[4] if len(args) > 4 else node.kwargs.get("end", self.shape_of(input_tensor)[dim])
         step = args[5] if len(args) > 5 else node.kwargs.get("step", 1)
 
+        # Normalize bounds to match PyTorch behavior (negative and open-ended slices).
+        input_shape = self.shape_of(input_tensor)
+        axis = dim if dim >= 0 else dim + len(input_shape)
+
+        def _normalize_bound(bound):
+            # PyTorch uses a large positive value (2^63-1) to mean "len".
+            max_index_val = 9223372036854775807
+
+            def _adjust(val):
+                if isinstance(val, (int, tir.IntImm)):
+                    int_val = int(val)
+                    if int_val >= max_index_val:
+                        return input_shape[axis]
+                    if int_val < 0:
+                        return input_shape[axis] + int_val
+                    if isinstance(input_shape[axis], (int, tir.IntImm)) and int_val > int(
+                        input_shape[axis]
+                    ):
+                        return input_shape[axis]
+                return val
+
+            if isinstance(bound, relax.PrimValue):
+                value = _adjust(bound.value)
+                return relax.PrimValue(value)
+
+            bound = _adjust(bound)
+            if not isinstance(bound, relax.PrimValue):
+                bound = relax.PrimValue(bound)
+            return bound
+
+        start = _normalize_bound(start)
+        end = _normalize_bound(end)
+        if not isinstance(step, relax.PrimValue):
+            step = relax.PrimValue(step)
+
         return self.block_builder.emit(
             relax.op.slice_scatter(input_tensor, src, start, end, step, axis=dim)
         )
@@ -1965,7 +2044,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             valid_dims = []
             for d in dim:
                 axis = d if d >= 0 else len(shape) + d
-                if axis < len(shape) and shape[axis] == 1:
+                if axis < len(shape):
                     valid_dims.append(d)
             # If no valid dims, use None to squeeze all size-1 dimensions
             dim = valid_dims if valid_dims else None
@@ -2023,9 +2102,21 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.env[node.args[0]]
 
     def _copy_(self, node: fx.Node) -> relax.Var:
-        # Copies the source tensor's into the destination tensor
-        # In TVM, that means simply returning the source tensor
-        return self.env[node.args[1]]
+        dest = self.env[node.args[0]]
+        src = self.env[node.args[1]]
+
+        # Match PyTorch semantics: cast to destination dtype and broadcast to destination shape.
+        if src.struct_info.dtype != dest.struct_info.dtype:
+            src = self.block_builder.emit(relax.op.astype(src, dest.struct_info.dtype))
+
+        dest_shape = self.shape_of(dest)
+        src_shape = self.shape_of(src)
+        if dest_shape != src_shape:
+            src = self.block_builder.emit(relax.op.broadcast_to(src, dest_shape))
+
+        # copy_ writes into the destination tensor, so update env accordingly
+        self.env[node.args[0]] = src
+        return src
 
     def _to_copy(self, node: fx.Node) -> relax.Var:
         # Returns a copy of the input tensor
