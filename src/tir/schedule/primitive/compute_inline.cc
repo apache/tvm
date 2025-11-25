@@ -1010,7 +1010,7 @@ class ReductionEpilogueFuser : public BaseInliner {
   }
 
   // Override CheckOpaqueAccess to allow multiple buffer reads
-  void CheckOpaqueAccess(const VarNode* buffer_var) override {
+  void CheckOpaqueAccess(const VarNode* buffer_var) {
     // For epilogue fusion, we allow multiple buffer reads (temp + bias)
     // So we don't check for opaque access
     // BaseInliner::CheckOpaqueAccess(buffer_var);  // Don't call base class

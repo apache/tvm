@@ -85,6 +85,7 @@ def matmul_bias_relu_expected(
     D: T.Buffer((16, 16), "float32"),
 ) -> None:
     """Expected function after fusion (Bias + ReLU)."""
+    temp = T.alloc_buffer((16, 16), dtype="float32")
     for i, j, k in T.grid(16, 16, 16):
         with T.block("matmul"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
@@ -179,22 +180,49 @@ def matmul_bias_relu_multiple_epilogue_before(
             E[vi, vj] = temp[vi, vj] + C[vi, vj]
 
 
+@T.prim_func
+def matmul_bias_relu_multiple_epilogue_expected(
+    A: T.Buffer((16, 16), "float32"),
+    B: T.Buffer((16, 16), "float32"),
+    C: T.Buffer((16, 16), "float32"),
+    D: T.Buffer((16, 16), "float32"),
+    E: T.Buffer((16, 16), "float32"),
+) -> None:
+    """Expected function after fusion (Bias + ReLU) with multiple epilogue blocks."""
+    temp = T.alloc_buffer((16, 16), dtype="float32")
+    for i, j, k in T.grid(16, 16, 16):
+        with T.block("matmul"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            T.reads(C[vi, vj], A[vi, vk], B[vj, vk])
+            T.writes(D[vi, vj])
+            with T.init():
+                D[vi, vj] = T.max(C[vi, vj], T.float32(0))
+            D[vi, vj] = T.max(D[vi, vj] + A[vi, vk] * B[vj, vk], T.float32(0))
+    for i, j in T.grid(16, 16):
+        with T.block("bias"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(temp[vi, vj], C[vi, vj])
+            T.writes(E[vi, vj])
+            E[vi, vj] = temp[vi, vj] + C[vi, vj]
+
+
 def test_matmul_bias_relu_multiple_epilogue():
     """Test fusion with multiple epilogue blocks - one with ReLU, one without.
     
     Following the same pattern as test_fuse_reduction_epilogue_multiple_epilogue,
     this test verifies that fusion works correctly when there are multiple
-    epilogue blocks. Note: Currently this test fails because temp buffer is
-    removed after fusion, leaving the second epilogue block with an undefined
-    temp reference. This matches the behavior of the bias-only multiple epilogue test.
+    epilogue blocks. The temp buffer is kept because the second epilogue block
+    still needs it.
     """
     sch = tir.Schedule(matmul_bias_relu_multiple_epilogue_before, debug_mask="all")
-    
-    # Fusion should fail because temp buffer is removed, leaving the second
-    # epilogue block with an undefined temp reference
-    # This matches the behavior of test_fuse_reduction_epilogue_multiple_epilogue
-    with pytest.raises(ValueError, match="Invalid use of undefined variable"):
-        sch.fuse_reduction_epilogue("matmul", "bias_relu")
+    sch.fuse_reduction_epilogue("matmul", "bias_relu")
+    assert_structural_equal_ignore_global_symbol(
+        sch.mod["main"], matmul_bias_relu_multiple_epilogue_expected
+    )
+    verify_trace_roundtrip(sch=sch, mod=matmul_bias_relu_multiple_epilogue_before)
+
+    mod = tvm.compile(sch.mod["main"], target="llvm")
+    assert mod is not None
 
 
 if __name__ == "__main__":
