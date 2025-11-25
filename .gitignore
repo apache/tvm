@@ -277,3 +277,6 @@ tvm-site/
 
 # Less command history file
 .lesshst
+
+# Local ffi directory (build artifacts)
+ffi/

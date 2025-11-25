@@ -34,7 +34,7 @@
 default_language_version:
     python: python3.9
 fail_fast: True
-default_stages: [commit, manual]
+default_stages: [pre-push]
 repos:
     - repo: https://github.com/pre-commit/pre-commit-hooks
       rev: v6.0.0
