@@ -208,7 +208,7 @@ def matmul_bias_relu_multiple_epilogue_expected(
 
 def test_matmul_bias_relu_multiple_epilogue():
     """Test fusion with multiple epilogue blocks - one with ReLU, one without.
-    
+
     Following the same pattern as test_fuse_reduction_epilogue_multiple_epilogue,
     this test verifies that fusion works correctly when there are multiple
     epilogue blocks. The temp buffer is kept because the second epilogue block
@@ -227,4 +227,3 @@ def test_matmul_bias_relu_multiple_epilogue():
 
 if __name__ == "__main__":
     tvm.testing.main()
-

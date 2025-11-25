@@ -1127,7 +1127,6 @@ bool ReductionEpilogueFuser::AnalyzeEpiloguePattern(const PrimExpr& value) {
     } else if (const auto* float_imm = max_node->b.as<FloatImmNode>()) {
       is_zero_const = (float_imm->value == 0.0);
     }
-    
     if (is_zero_const) {
       // Check if first operand is AddNode
       if (const auto* add = max_node->a.as<AddNode>()) {
@@ -1232,7 +1231,10 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
   class BufferReplacer : public StmtExprMutator {
    public:
     BufferReplacer(Buffer old_buf, Buffer new_buf, EpilogueType epilogue_type, DataType dtype)
-        : old_buffer_(old_buf), new_buffer_(new_buf), epilogue_type_(epilogue_type), dtype_(dtype) {}
+        : old_buffer_(old_buf),
+          new_buffer_(new_buf),
+          epilogue_type_(epilogue_type),
+          dtype_(dtype) {}
 
     Stmt VisitStmt_(const BufferStoreNode* op) final {
       BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
