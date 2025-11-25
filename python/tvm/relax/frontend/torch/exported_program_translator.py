@@ -1383,7 +1383,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def create_input_vars(
         self, exported_program: torch.export.ExportedProgram
-    ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var], Dict[str, Tuple[int, int]]]:
+    ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var], Dict[str, Tuple[int, Optional[int]]]]:
         """Create relax input vars."""
         parameters_buffers_constants = OrderedDict()
         user_inputs = OrderedDict()
@@ -1391,11 +1391,16 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         range_constraints = {}
 
         if hasattr(exported_program, "range_constraints"):
+            import math
+
             for symbol, value_range in exported_program.range_constraints.items():
                 if hasattr(value_range, "lower") and hasattr(value_range, "upper"):
                     try:
+                        # PyTorch uses int_oo (IntInfinity) for unbounded constraints
                         lower = int(value_range.lower)
-                        upper = int(value_range.upper)
+                        upper = (
+                            None if math.isinf(float(value_range.upper)) else int(value_range.upper)
+                        )
 
                         symbol_name, _ = self._process_derived_symbol(
                             symbol, torch_symbol_to_relax_var
@@ -1472,9 +1477,15 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             func_attrs["tir_var_lower_bound"] = {
                 var_name: lower for var_name, (lower, _) in range_constraints.items()
             }
-            func_attrs["tir_var_upper_bound"] = {
-                var_name: upper for var_name, (_, upper) in range_constraints.items()
+
+            upper_bounds = {
+                var_name: upper
+                for var_name, (_, upper) in range_constraints.items()
+                if upper is not None
             }
+
+            if upper_bounds:
+                func_attrs["tir_var_upper_bound"] = upper_bounds
 
         nodes: List[fx.Node] = exported_program.graph.nodes
 
