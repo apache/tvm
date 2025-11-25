@@ -35,7 +35,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     from torch import fx
 
     @staticmethod
-    def _convert_pytorch_tensor_to_tvm(tensor_value: torch.Tensor) -> tvm.runtime.Tensor:
+    def _convert_pytorch_tensor_to_tvm(
+        tensor_value: torch.Tensor
+    ) -> tvm.runtime.Tensor:
         """Convert a PyTorch tensor to TVM tensor, handling sparse tensors.
 
         Parameters
@@ -76,13 +78,17 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     def _log2(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         return self.block_builder.emit(
-            relax.op.divide(relax.op.log(x), relax.const(0.6931471805599453, x.struct_info.dtype))
+            relax.op.divide(
+                relax.op.log(x), relax.const(0.6931471805599453, x.struct_info.dtype)
+            )
         )
 
     def _log10(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         return self.block_builder.emit(
-            relax.op.divide(relax.op.log(x), relax.const(2.302585092994046, x.struct_info.dtype))
+            relax.op.divide(
+                relax.op.log(x), relax.const(2.302585092994046, x.struct_info.dtype)
+            )
         )
 
     def _log1p(self, node: fx.Node) -> relax.Var:
@@ -92,14 +98,25 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def _reciprocal(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        return self.block_builder.emit(relax.op.divide(relax.const(1.0, x.struct_info.dtype), x))
+        return self.block_builder.emit(
+            relax.op.divide(relax.const(1.0, x.struct_info.dtype), x)
+        )
 
     def _sqrt(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         dtype = x.struct_info.dtype
 
         # Check if input is integer type and convert to float32 if needed
-        if dtype in ("int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"):
+        if dtype in (
+            "int8",
+            "int16",
+            "int32",
+            "int64",
+            "uint8",
+            "uint16",
+            "uint32",
+            "uint64",
+        ):
             x = self.block_builder.emit(relax.op.astype(x, "float32"))
 
         return self.block_builder.emit(relax.op.sqrt(x))
@@ -109,7 +126,16 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         dtype = x.struct_info.dtype
 
         # Check if input is integer type and convert to float32 if needed
-        if dtype in ("int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"):
+        if dtype in (
+            "int8",
+            "int16",
+            "int32",
+            "int64",
+            "uint8",
+            "uint16",
+            "uint32",
+            "uint64",
+        ):
             x = self.block_builder.emit(relax.op.astype(x, "float32"))
 
         return self.block_builder.emit(relax.op.rsqrt(x))
@@ -124,26 +150,38 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         dtype = x.struct_info.dtype
         weight = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
         bias = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
-        running_mean = self.env.get(node.args[3], relax.const(np.zeros(channel), dtype=dtype))
-        running_var = self.env.get(node.args[4], relax.const(np.ones(channel), dtype=dtype))
+        running_mean = self.env.get(
+            node.args[3], relax.const(np.zeros(channel), dtype=dtype)
+        )
+        running_var = self.env.get(
+            node.args[4], relax.const(np.ones(channel), dtype=dtype)
+        )
 
         # After torch.export decomposition, batch_norm shows up as
         # _native_batch_norm_legit_* with signature (x, weight, bias, mean, var, momentum, eps).
         target_name = getattr(node.target, "__name__", "")
         if target_name.startswith("_native_batch_norm_legit_no_training"):
-            momentum = node.args[5] if len(node.args) > 5 else node.kwargs.get("momentum", 0.1)
+            momentum = (
+                node.args[5] if len(node.args) > 5 else node.kwargs.get("momentum", 0.1)
+            )
             eps = node.args[6] if len(node.args) > 6 else node.kwargs.get("eps", 1e-05)
             training = False
         elif target_name.startswith("_native_batch_norm_legit_functional"):
-            momentum = node.args[5] if len(node.args) > 5 else node.kwargs.get("momentum", 0.1)
+            momentum = (
+                node.args[5] if len(node.args) > 5 else node.kwargs.get("momentum", 0.1)
+            )
             eps = node.args[6] if len(node.args) > 6 else node.kwargs.get("eps", 1e-05)
             training = True
         else:
             ignore_running_stats = (
-                node.args[5] if len(node.args) > 5 else node.kwargs.get("track_running_stats", True)
+                node.args[5]
+                if len(node.args) > 5
+                else node.kwargs.get("track_running_stats", True)
             )
             track_running_stats = not ignore_running_stats
-            momentum = node.args[6] if len(node.args) > 6 else node.kwargs.get("momentum", 0.1)
+            momentum = (
+                node.args[6] if len(node.args) > 6 else node.kwargs.get("momentum", 0.1)
+            )
             eps = node.args[7] if len(node.args) > 7 else node.kwargs.get("eps", 1e-05)
 
             if track_running_stats:
@@ -192,12 +230,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         return self.block_builder.emit(
             relax.op.nn.instance_norm(
-                x,
-                weight,
-                bias,
-                channel_axis=1,
-                axes=axes,
-                epsilon=eps,
+                x, weight, bias, channel_axis=1, axes=axes, epsilon=eps
             )
         )
 
@@ -261,12 +294,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         return self._layer_norm_impl(x, gamma, beta, eps, normalized_shape)
 
     def _upsample_impl(
-        self,
-        x: relax.Expr,
-        size,
-        scale_factor,
-        method: str,
-        align_corners: bool,
+        self, x: relax.Expr, size, scale_factor, method: str, align_corners: bool
     ) -> relax.Var:
         coord_trans = "align_corners" if align_corners else "half_pixel"
 
@@ -276,14 +304,21 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             if isinstance(scale_factor, (tuple, list)):
                 assert len(scale_factor) == len(shape) - 2
                 size = tuple(
-                    int(shape[i].value * scale_factor[i - 2]) for i in range(2, len(shape))
+                    int(shape[i].value * scale_factor[i - 2])
+                    for i in range(2, len(shape))
                 )
             else:
-                size = tuple(int(shape[i].value * scale_factor) for i in range(2, len(shape)))
+                size = tuple(
+                    int(shape[i].value * scale_factor) for i in range(2, len(shape))
+                )
 
         return self.block_builder.emit(
             relax.op.image.resize2d(
-                x, size, layout="NCHW", method=method, coordinate_transformation_mode=coord_trans
+                x,
+                size,
+                layout="NCHW",
+                method=method,
+                coordinate_transformation_mode=coord_trans,
             )
         )
 
@@ -291,11 +326,19 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         x = self.env[node.args[0]]
         size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
         align_corners = (
-            node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", True)
+            node.args[2]
+            if len(node.args) > 2
+            else node.kwargs.get("align_corners", True)
         )
-        scale_factor = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", 1)
+        scale_factor = (
+            node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", 1)
+        )
         return self._upsample_impl(
-            x, size=size, scale_factor=scale_factor, method="linear", align_corners=align_corners
+            x,
+            size=size,
+            scale_factor=scale_factor,
+            method="linear",
+            align_corners=align_corners,
         )
 
     def _upsample_nearest2d(self, node: fx.node) -> relax.Var:
@@ -305,7 +348,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         if size:
             scale_factor = None  # Can only define size or scale_factor, not both
             align_corners = (
-                node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", None)
+                node.args[2]
+                if len(node.args) > 2
+                else node.kwargs.get("align_corners", None)
             )
 
         else:
@@ -313,10 +358,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # [scale_factor,scale_factor] instead of just an int for
             # scale_factor. Using first element for now
             scale_factor = (
-                node.args[2][0] if len(node.args) > 2 else node.kwargs.get("scale_factor", 1)
+                node.args[2][0]
+                if len(node.args) > 2
+                else node.kwargs.get("scale_factor", 1)
             )
             align_corners = (
-                node.args[3] if len(node.args) > 3 else node.kwargs.get("align_corners", None)
+                node.args[3]
+                if len(node.args) > 3
+                else node.kwargs.get("align_corners", None)
             )
 
         return self._upsample_impl(
@@ -331,12 +380,18 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         x = self.env[node.args[0]]
         size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
         align_corners = (
-            node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", None)
+            node.args[2]
+            if len(node.args) > 2
+            else node.kwargs.get("align_corners", None)
         )
         if size is not None:
             scale_factor = None
         else:
-            scale_arg = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", 1)
+            scale_arg = (
+                node.args[3]
+                if len(node.args) > 3
+                else node.kwargs.get("scale_factor", 1)
+            )
             if isinstance(scale_arg, (list, tuple)):
                 scale_factor = scale_arg[0]
             else:
@@ -389,7 +444,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # Extract hidden size from weight dimensions
             # weight_ih has shape (4 * hidden_size, input_size)
             weight_ih_shape = self.shape_of(weight_ih)
-            hidden_size = weight_ih_shape[0] // 4  # 4 gates: input, forget, cell, output
+            hidden_size = (
+                weight_ih_shape[0] // 4
+            )  # 4 gates: input, forget, cell, output
         else:
             # Fallback to a default hidden size
             hidden_size = 16
@@ -443,24 +500,36 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             )
         else:
             input_reshaped = input_tensor
-        weight_ih_t = self.block_builder.emit(relax.op.permute_dims(weight_ih, axes=[1, 0]))
-        weight_hh_t = self.block_builder.emit(relax.op.permute_dims(weight_hh, axes=[1, 0]))
+        weight_ih_t = self.block_builder.emit(
+            relax.op.permute_dims(weight_ih, axes=[1, 0])
+        )
+        weight_hh_t = self.block_builder.emit(
+            relax.op.permute_dims(weight_hh, axes=[1, 0])
+        )
         outputs = []
         for t in range(seq_len):
             # Get input at time t: (batch_size, input_size)
             x_t = self.block_builder.emit(
-                relax.op.take(input_reshaped, relax.const(t, "int64"), axis=0, mode="clip")
+                relax.op.take(
+                    input_reshaped, relax.const(t, "int64"), axis=0, mode="clip"
+                )
             )
             # Compute gates: W_ih * x_t + W_hh * h_{t-1} + bias
             # Input-to-hidden: (batch_size, input_size) @ (4*hidden_size, input_size).T
-            ih_gates = self.block_builder.emit(relax.op.linear_algebra.matmul(x_t, weight_ih_t))
+            ih_gates = self.block_builder.emit(
+                relax.op.linear_algebra.matmul(x_t, weight_ih_t)
+            )
 
             # Hidden-to-hidden: (batch_size, hidden_size) @ (4*hidden_size, hidden_size).T
-            hh_gates = self.block_builder.emit(relax.op.linear_algebra.matmul(h_prev, weight_hh_t))
+            hh_gates = self.block_builder.emit(
+                relax.op.linear_algebra.matmul(h_prev, weight_hh_t)
+            )
             # Add biases if present
             if bias_ih is not None and bias_hh is not None:
                 gates = self.block_builder.emit(
-                    relax.op.add(relax.op.add(relax.op.add(ih_gates, bias_ih), hh_gates), bias_hh)
+                    relax.op.add(
+                        relax.op.add(relax.op.add(ih_gates, bias_ih), hh_gates), bias_hh
+                    )
                 )
             elif bias_ih is not None:
                 gates = self.block_builder.emit(
@@ -478,13 +547,19 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 relax.op.strided_slice(gates, axes=[1], begin=[0], end=[gate_size])
             )
             f_gate = self.block_builder.emit(
-                relax.op.strided_slice(gates, axes=[1], begin=[gate_size], end=[2 * gate_size])
+                relax.op.strided_slice(
+                    gates, axes=[1], begin=[gate_size], end=[2 * gate_size]
+                )
             )
             g_gate = self.block_builder.emit(
-                relax.op.strided_slice(gates, axes=[1], begin=[2 * gate_size], end=[3 * gate_size])
+                relax.op.strided_slice(
+                    gates, axes=[1], begin=[2 * gate_size], end=[3 * gate_size]
+                )
             )
             o_gate = self.block_builder.emit(
-                relax.op.strided_slice(gates, axes=[1], begin=[3 * gate_size], end=[4 * gate_size])
+                relax.op.strided_slice(
+                    gates, axes=[1], begin=[3 * gate_size], end=[4 * gate_size]
+                )
             )
             # Apply activations
             i_t = self.block_builder.emit(relax.op.sigmoid(i_gate))
@@ -493,7 +568,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             o_t = self.block_builder.emit(relax.op.sigmoid(o_gate))
             # Update cell state: c_t = f_t * c_{t-1} + i_t * g_t
             c_t = self.block_builder.emit(
-                relax.op.add(relax.op.multiply(f_t, c_prev), relax.op.multiply(i_t, g_t))
+                relax.op.add(
+                    relax.op.multiply(f_t, c_prev), relax.op.multiply(i_t, g_t)
+                )
             )
             # Update hidden state: h_t = o_t * tanh(c_t)
             h_t = self.block_builder.emit(relax.op.multiply(o_t, relax.op.tanh(c_t)))
@@ -507,7 +584,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # Reshape back to batch_first if needed
         if batch_first:
             # (seq_len, batch_size, hidden_size) -> (batch_size, seq_len, hidden_size)
-            output = self.block_builder.emit(relax.op.permute_dims(output, axes=[1, 0, 2]))
+            output = self.block_builder.emit(
+                relax.op.permute_dims(output, axes=[1, 0, 2])
+            )
         return output
 
     def _gru(self, node: fx.Node) -> relax.Var:
@@ -594,7 +673,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         for t in range(seq_len):
             # Get input at time t: (batch_size, input_size)
             x_t = self.block_builder.emit(
-                relax.op.take(input_reshaped, relax.const(t, "int64"), axis=0, mode="clip")
+                relax.op.take(
+                    input_reshaped, relax.const(t, "int64"), axis=0, mode="clip"
+                )
             )
 
             # Process through each layer
@@ -622,13 +703,18 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                     weight_ih = self.block_builder.emit(
                         relax.op.zeros(
                             relax.ShapeExpr(
-                                (3 * hidden_size, input_size if layer == 0 else hidden_size)
+                                (
+                                    3 * hidden_size,
+                                    input_size if layer == 0 else hidden_size,
+                                )
                             ),
                             dtype,
                         )
                     )
                     weight_hh = self.block_builder.emit(
-                        relax.op.zeros(relax.ShapeExpr((3 * hidden_size, hidden_size)), dtype)
+                        relax.op.zeros(
+                            relax.ShapeExpr((3 * hidden_size, hidden_size)), dtype
+                        )
                     )
                     bias_ih = None
                     bias_hh = None
@@ -641,10 +727,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
                 # Reset gate weights
                 weight_ih_r = self.block_builder.emit(
-                    relax.op.strided_slice(weight_ih, axes=[0], begin=[0], end=[gate_size])
+                    relax.op.strided_slice(
+                        weight_ih, axes=[0], begin=[0], end=[gate_size]
+                    )
                 )
                 weight_hh_r = self.block_builder.emit(
-                    relax.op.strided_slice(weight_hh, axes=[0], begin=[0], end=[gate_size])
+                    relax.op.strided_slice(
+                        weight_hh, axes=[0], begin=[0], end=[gate_size]
+                    )
                 )
 
                 # Update gate weights
@@ -700,20 +790,27 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 )
                 if bias_ih is not None and bias_hh is not None:
                     bias_ih_r = self.block_builder.emit(
-                        relax.op.strided_slice(bias_ih, axes=[0], begin=[0], end=[gate_size])
+                        relax.op.strided_slice(
+                            bias_ih, axes=[0], begin=[0], end=[gate_size]
+                        )
                     )
                     bias_hh_r = self.block_builder.emit(
-                        relax.op.strided_slice(bias_hh, axes=[0], begin=[0], end=[gate_size])
+                        relax.op.strided_slice(
+                            bias_hh, axes=[0], begin=[0], end=[gate_size]
+                        )
                     )
                     r_t = self.block_builder.emit(
                         relax.op.sigmoid(
                             relax.op.add(
-                                relax.op.add(relax.op.add(r_ih, bias_ih_r), r_hh), bias_hh_r
+                                relax.op.add(relax.op.add(r_ih, bias_ih_r), r_hh),
+                                bias_hh_r,
                             )
                         )
                     )
                 else:
-                    r_t = self.block_builder.emit(relax.op.sigmoid(relax.op.add(r_ih, r_hh)))
+                    r_t = self.block_builder.emit(
+                        relax.op.sigmoid(relax.op.add(r_ih, r_hh))
+                    )
 
                 # Compute update gate: z_t = sigmoid(W_iz * x_t + b_iz + W_hz * h_{t-1} + b_hz)
                 z_ih = self.block_builder.emit(
@@ -736,12 +833,15 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                     z_t = self.block_builder.emit(
                         relax.op.sigmoid(
                             relax.op.add(
-                                relax.op.add(relax.op.add(z_ih, bias_ih_z), z_hh), bias_hh_z
+                                relax.op.add(relax.op.add(z_ih, bias_ih_z), z_hh),
+                                bias_hh_z,
                             )
                         )
                     )
                 else:
-                    z_t = self.block_builder.emit(relax.op.sigmoid(relax.op.add(z_ih, z_hh)))
+                    z_t = self.block_builder.emit(
+                        relax.op.sigmoid(relax.op.add(z_ih, z_hh))
+                    )
 
                 # Compute new gate: n_t = tanh(W_in * x_t + b_in + r_t * (W_hn * h_{t-1} + b_hn))
                 n_ih = self.block_builder.emit(
@@ -753,12 +853,18 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 if bias_ih is not None and bias_hh is not None:
                     bias_ih_n = self.block_builder.emit(
                         relax.op.strided_slice(
-                            bias_ih, axes=[0], begin=[2 * gate_size], end=[3 * gate_size]
+                            bias_ih,
+                            axes=[0],
+                            begin=[2 * gate_size],
+                            end=[3 * gate_size],
                         )
                     )
                     bias_hh_n = self.block_builder.emit(
                         relax.op.strided_slice(
-                            bias_hh, axes=[0], begin=[2 * gate_size], end=[3 * gate_size]
+                            bias_hh,
+                            axes=[0],
+                            begin=[2 * gate_size],
+                            end=[3 * gate_size],
                         )
                     )
                     n_t = self.block_builder.emit(
@@ -780,7 +886,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 )
                 h_t = self.block_builder.emit(
                     relax.op.add(
-                        relax.op.multiply(one_minus_z, n_t), relax.op.multiply(z_t, h_prev)
+                        relax.op.multiply(one_minus_z, n_t),
+                        relax.op.multiply(z_t, h_prev),
                     )
                 )
 
@@ -800,7 +907,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # Reshape back to batch_first if needed
         if batch_first:
             # (seq_len, batch_size, hidden_size) -> (batch_size, seq_len, hidden_size)
-            output = self.block_builder.emit(relax.op.permute_dims(output, axes=[1, 0, 2]))
+            output = self.block_builder.emit(
+                relax.op.permute_dims(output, axes=[1, 0, 2])
+            )
 
         return output
 
@@ -811,7 +920,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         dim = node.args[1]
         start = node.args[2]
         length = node.args[3]
-        return self.block_builder.emit(relax.op.strided_slice(x, [dim], [start], [length]))
+        return self.block_builder.emit(
+            relax.op.strided_slice(x, [dim], [start], [length])
+        )
 
     def _select(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -837,7 +948,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         begin = [start]
         end = [end_val]
         stride = [step]
-        return self.block_builder.emit(relax.op.strided_slice(x, axes, begin, end, stride))
+        return self.block_builder.emit(
+            relax.op.strided_slice(x, axes, begin, end, stride)
+        )
 
     def _unflatten(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
@@ -856,18 +969,26 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def _one_hot(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        num_classes = node.args[1] if len(node.args) > 1 else node.kwargs.get("num_classes")
+        num_classes = (
+            node.args[1] if len(node.args) > 1 else node.kwargs.get("num_classes")
+        )
         if num_classes is None:
             raise ValueError("num_classes not found in node.args or node.kwargs")
 
-        on_value = node.args[2] if len(node.args) > 2 else node.kwargs.get("on_value", 1)
-        off_value = node.args[3] if len(node.args) > 3 else node.kwargs.get("off_value", 0)
+        on_value = (
+            node.args[2] if len(node.args) > 2 else node.kwargs.get("on_value", 1)
+        )
+        off_value = (
+            node.args[3] if len(node.args) > 3 else node.kwargs.get("off_value", 0)
+        )
         axis = node.args[4] if len(node.args) > 4 else node.kwargs.get("axis", -1)
 
         on_value = relax.PrimValue(on_value)
         off_value = relax.PrimValue(off_value)
 
-        return self.block_builder.emit(relax.op.one_hot(x, on_value, off_value, num_classes, axis))
+        return self.block_builder.emit(
+            relax.op.one_hot(x, on_value, off_value, num_classes, axis)
+        )
 
     def _hamming_window(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
@@ -885,7 +1006,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def _zeros(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
-        size = relax.ShapeExpr(args[0] if isinstance(args[0], (list, tuple)) else (args[0],))
+        size = relax.ShapeExpr(
+            args[0] if isinstance(args[0], (list, tuple)) else (args[0],)
+        )
         dtype = self._convert_data_type(
             node.kwargs.get("dtype", torch.get_default_dtype()), self.env
         )
@@ -955,10 +1078,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     def _max_dim(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         dim = node.args[1]
-        keepdim = node.args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+        keepdim = (
+            node.args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+        )
 
         topk_res = self.block_builder.emit(
-            relax.op.topk(x, k=1, axis=dim, largest=True, ret_type="both", dtype="int64")
+            relax.op.topk(
+                x, k=1, axis=dim, largest=True, ret_type="both", dtype="int64"
+            )
         )
 
         values = topk_res[0]
@@ -980,18 +1107,26 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         value = node.args[3]
 
         value_const = relax.const(value, x.struct_info.dtype)
-        src = self.block_builder.emit(relax.op.broadcast_to(value_const, self.shape_of(index)))
+        src = self.block_builder.emit(
+            relax.op.broadcast_to(value_const, self.shape_of(index))
+        )
 
-        return self.block_builder.emit(relax.op.scatter_elements(x, index, src, axis=dim))
+        return self.block_builder.emit(
+            relax.op.scatter_elements(x, index, src, axis=dim)
+        )
 
     def _as_strided(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
         size = args[1]
         stride = args[2]
-        storage_offset = args[3] if len(args) > 3 else node.kwargs.get("storage_offset", 0)
+        storage_offset = (
+            args[3] if len(args) > 3 else node.kwargs.get("storage_offset", 0)
+        )
 
-        assert storage_offset == 0, "as_strided with non-zero storage_offset is not supported yet"
+        assert (
+            storage_offset == 0
+        ), "as_strided with non-zero storage_offset is not supported yet"
 
         # Only handle view-like cases where the provided strides align with a contiguous layout.
         can_check = all(isinstance(dim, (int, tvm.tir.IntImm)) for dim in size) and all(
@@ -1017,9 +1152,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     ########## Others ##########
 
-    def create_convert_map(
-        self,
-    ) -> Dict[str, Callable[[fx.Node], relax.Var]]:
+    def create_convert_map(self,) -> Dict[str, Callable[[fx.Node], relax.Var]]:
         import operator
 
         return {
@@ -1125,7 +1258,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "div.Tensor_mode": self._div,
             "eq.Scalar": self._binary_op(relax.op.equal, operator.eq),
             "eq.Tensor": self._binary_op(relax.op.equal, operator.eq),
-            "floor_divide.default": self._binary_op(relax.op.floor_divide, operator.floordiv),
+            "floor_divide.default": self._binary_op(
+                relax.op.floor_divide, operator.floordiv
+            ),
             "fmod.Scalar": self._fmod,
             "fmod.Tensor": self._fmod,
             "logaddexp.default": self._binary_op(relax.op.log_add_exp, torch.logaddexp),
@@ -1138,10 +1273,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "lt.Scalar": self._binary_op(relax.op.less, operator.lt),
             "lt.Tensor": self._binary_op(relax.op.less, operator.lt),
             "matmul.default": self._binary_op(
-                partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul
+                partial(relax.op.linear_algebra.matmul, out_dtype="float32"),
+                operator.matmul,
             ),
             "mm.default": self._binary_op(
-                partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul
+                partial(relax.op.linear_algebra.matmul, out_dtype="float32"),
+                operator.matmul,
             ),
             "max.other": self._binary_op(relax.op.maximum, max),
             "min.other": self._binary_op(relax.op.minimum, min),
@@ -1189,7 +1326,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "avg_pool3d.default": self._avg_pool3d,
             "baddbmm.default": self._baddbmm,
             "bmm.default": self._binary_op(
-                partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul
+                partial(relax.op.linear_algebra.matmul, out_dtype="float32"),
+                operator.matmul,
             ),
             "conv_transpose1d.default": self._conv_transpose1d,
             "conv_transpose2d.input": self._conv_transpose2d,
@@ -1291,7 +1429,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "detach_.default": self._detach,
             "contiguous.default": lambda node: self.env[node.args[0]],  # no-op
             "clone.default": lambda node: self.env[node.args[0]],
-            "bernoulli.p": lambda node: self.env[node.args[0]],  # Dropout: just return input
+            "bernoulli.p": lambda node: self.env[
+                node.args[0]
+            ],  # Dropout: just return input
             "_assert_tensor_metadata.default": lambda node: self.env[
                 node.args[0]
             ],  # metadata assertion: no-op
@@ -1411,7 +1551,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 torch_shape = exported_program.tensor_constants[spec.target].shape
                 torch_dtype = exported_program.tensor_constants[spec.target].dtype
             elif spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
-                for node in exported_program.graph.find_nodes(op="placeholder", target=spec.target):
+                for node in exported_program.graph.find_nodes(
+                    op="placeholder", target=spec.target
+                ):
                     if node.name == name_hint and "tensor_meta" in node.meta:
                         torch_shape = node.meta["tensor_meta"].shape
                         torch_dtype = node.meta["tensor_meta"].dtype
@@ -1489,7 +1631,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 # Translate the model.
                 for node in nodes:
                     if node.op == "placeholder":
-                        if "grapharg" in node.meta and node.meta["grapharg"].fake_tensor is None:
+                        if (
+                            "grapharg" in node.meta
+                            and node.meta["grapharg"].fake_tensor is None
+                        ):
                             # Ignore sym input
                             continue
 
@@ -1509,7 +1654,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                             output = self.block_builder.emit_output(args[0])
                         break
                     elif node.op == "get_attr":
-                        self.env[node] = getattr(exported_program.graph_module, node.target)
+                        self.env[node] = getattr(
+                            exported_program.graph_module, node.target
+                        )
                     elif node.op == "call_function":
                         func_name = node.target.__name__
                         self.env[node] = self.convert_map[func_name](node)
@@ -1540,7 +1687,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         if keep_params_as_input:
             parameters = dict(exported_program.named_parameters())
-            params = [self._convert_pytorch_tensor_to_tvm(p) for p in parameters.values()]
+            params = [
+                self._convert_pytorch_tensor_to_tvm(p) for p in parameters.values()
+            ]
             mod["main"] = mod["main"].with_attr("params", params)
 
         return mod
