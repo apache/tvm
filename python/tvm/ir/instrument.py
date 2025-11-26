@@ -21,12 +21,11 @@ import inspect
 import re
 import shutil
 from pathlib import Path
+from typing import Union
 
 import tvm_ffi
 
 import tvm.runtime
-from tvm.ir.module import IRModule
-from tvm.ir.transform import PassInfo
 
 from . import _ffi_instrument_api
 
@@ -282,7 +281,7 @@ class PassPrintingInstrument:
 class PrintAfterAll:
     """Print the name of the pass, the IR, only after passes execute."""
 
-    def run_after_pass(self, mod: IRModule, info: PassInfo):
+    def run_after_pass(self, mod, info):
         print(f"After Running Pass: {info}")
         print(mod)
 
@@ -291,7 +290,7 @@ class PrintAfterAll:
 class PrintBeforeAll:
     """Print the name of the pass, the IR, only before passes execute."""
 
-    def run_before_pass(self, mod: IRModule, info: PassInfo):
+    def run_before_pass(self, mod, info):
         print(f"Before Running Pass: {info}")
         print(mod)
 
@@ -300,7 +299,7 @@ class PrintBeforeAll:
 class DumpIR:
     """Dump the IR after the pass runs."""
 
-    def __init__(self, dump_dir: Path | str, refresh: bool = False):
+    def __init__(self, dump_dir: Union[Path, str], refresh: bool = False):
         if isinstance(dump_dir, Path):
             self.dump_dir = dump_dir
         else:
@@ -330,10 +329,10 @@ class DumpIR:
         except OSError as e:
             print(f"WARNING: Failed to remove directory {self.dump_dir}: {e}")
 
-    def run_after_pass(self, mod: IRModule, info: PassInfo):
+    def run_after_pass(self, mod, info):
         self.dump_dir.mkdir(parents=True, exist_ok=True)
         try:
-            sanitized_pass_name = re.sub(r'[<>:"/\\|?*]', '_', info.name)
+            sanitized_pass_name = re.sub(r'[<>:"/\\|?*]', "_", info.name)
             with open(self.dump_dir / f"{self.counter:03d}_{sanitized_pass_name}.py", "w") as f:
                 f.write(mod.script())
         except Exception:  # pylint: disable=broad-exception-caught
