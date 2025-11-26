@@ -1098,7 +1098,7 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const BlockRealize& epilogue
 }
 
 bool ReductionEpilogueFuser::AnalyzeEpiloguePattern(const PrimExpr& value) {
-  // Pattern: temp[i,j] + C[i,j] or C[i,j] + temp[i,j]
+  // Pattern 1: temp[i,j] + C[i,j] or C[i,j] + temp[i,j] (Bias)
   if (const auto* add = value.as<AddNode>()) {
     const auto* load_a = add->a.as<BufferLoadNode>();
     const auto* load_b = add->b.as<BufferLoadNode>();
@@ -1115,39 +1115,63 @@ bool ReductionEpilogueFuser::AnalyzeEpiloguePattern(const PrimExpr& value) {
   }
 
   // Pattern 2: min(max(temp[i,j], lower), upper) or max(min(temp[i,j], upper), lower) (Clipping)
-  // Check for min(max(temp, lower), upper) pattern
-  if (const auto* min_node = value.as<MinNode>()) {
-    if (const auto* max_node = min_node->a.as<MaxNode>()) {
-      const auto* load = max_node->a.as<BufferLoadNode>();
-      if (load && load->buffer.same_as(inlined_buffer_)) {
-        // Pattern: min(max(temp, lower), upper)
-        clipping_lower_ = max_node->b;
-        clipping_upper_ = min_node->b;
-        epilogue_type_ = EpilogueType::Clipping;
+  // Handle all commutative variants of min/max at each level.
+
+  // Helper to check if an expression is a load from the reduction buffer, and
+  // return the other operand as `other` if so.
+  auto match_buffer_in_commutative_op = [this](const PrimExpr& a, const PrimExpr& b,
+                                               PrimExpr* other) -> bool {
+    if (const auto* load_a = a.as<BufferLoadNode>()) {
+      if (load_a->buffer.same_as(inlined_buffer_)) {
+        *other = b;
         return true;
       }
     }
-    // Check for min(temp, upper) where temp might be wrapped in max
-    if (const auto* max_node = min_node->b.as<MaxNode>()) {
-      const auto* load = max_node->a.as<BufferLoadNode>();
-      if (load && load->buffer.same_as(inlined_buffer_)) {
-        // Pattern: min(max(temp, lower), upper) - but check if min is outer
-        // This case is already handled above, but we check for max(min(temp, upper), lower)
-        clipping_lower_ = max_node->b;
-        clipping_upper_ = min_node->a;
+    if (const auto* load_b = b.as<BufferLoadNode>()) {
+      if (load_b->buffer.same_as(inlined_buffer_)) {
+        *other = a;
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Check for min(max(temp, lower), upper) and commutative variants
+  if (const auto* min_node = value.as<MinNode>()) {
+    const MaxNode* max_node = nullptr;
+    PrimExpr upper;
+    // Try both (a, b) as possible positions of the inner max
+    if ((max_node = min_node->a.as<MaxNode>())) {
+      upper = min_node->b;
+    } else if ((max_node = min_node->b.as<MaxNode>())) {
+      upper = min_node->a;
+    }
+    if (max_node != nullptr) {
+      PrimExpr lower;
+      if (match_buffer_in_commutative_op(max_node->a, max_node->b, &lower)) {
+        clipping_lower_ = lower;
+        clipping_upper_ = upper;
         epilogue_type_ = EpilogueType::Clipping;
         return true;
       }
     }
   }
-  // Check for max(min(temp[i,j], upper), lower) pattern
+
+  // Check for max(min(temp[i,j], upper), lower) and commutative variants
   if (const auto* max_node = value.as<MaxNode>()) {
-    if (const auto* min_node = max_node->a.as<MinNode>()) {
-      const auto* load = min_node->a.as<BufferLoadNode>();
-      if (load && load->buffer.same_as(inlined_buffer_)) {
-        // Pattern: max(min(temp, upper), lower)
-        clipping_lower_ = max_node->b;
-        clipping_upper_ = min_node->b;
+    const MinNode* min_node = nullptr;
+    PrimExpr lower;
+    // Try both (a, b) as possible positions of the inner min
+    if ((min_node = max_node->a.as<MinNode>())) {
+      lower = max_node->b;
+    } else if ((min_node = max_node->b.as<MinNode>())) {
+      lower = max_node->a;
+    }
+    if (min_node != nullptr) {
+      PrimExpr upper;
+      if (match_buffer_in_commutative_op(min_node->a, min_node->b, &upper)) {
+        clipping_lower_ = lower;
+        clipping_upper_ = upper;
         epilogue_type_ = EpilogueType::Clipping;
         return true;
       }
@@ -1156,17 +1180,30 @@ bool ReductionEpilogueFuser::AnalyzeEpiloguePattern(const PrimExpr& value) {
 
   // Pattern 3: max(temp[i,j] + C[i,j], 0) or max(C[i,j] + temp[i,j], 0) (BiasReLU)
   if (const auto* max_node = value.as<MaxNode>()) {
-    // Check if second operand is zero (ReLU: max(x, 0))
-    // Support both integer and float zero constants
+    // Check if either operand is zero (ReLU: max(x, 0) or max(0, x))
+    // Support both integer and float zero constants.
+    const PrimExpr* add_candidate = nullptr;
     bool is_zero_const = false;
-    if (tir::is_zero(max_node->b)) {
+    auto is_zero_expr = [](const PrimExpr& expr) -> bool {
+      if (tir::is_zero(expr)) {
+        return true;
+      }
+      if (const auto* float_imm = expr.as<FloatImmNode>()) {
+        return float_imm->value == 0.0;
+      }
+      return false;
+    };
+
+    if (is_zero_expr(max_node->a)) {
       is_zero_const = true;
-    } else if (const auto* float_imm = max_node->b.as<FloatImmNode>()) {
-      is_zero_const = (float_imm->value == 0.0);
+      add_candidate = &max_node->b;
+    } else if (is_zero_expr(max_node->b)) {
+      is_zero_const = true;
+      add_candidate = &max_node->a;
     }
-    if (is_zero_const) {
-      // Check if first operand is AddNode
-      if (const auto* add = max_node->a.as<AddNode>()) {
+
+    if (is_zero_const && add_candidate != nullptr) {
+      if (const auto* add = add_candidate->as<AddNode>()) {
         const auto* load_a = add->a.as<BufferLoadNode>();
         const auto* load_b = add->b.as<BufferLoadNode>();
 

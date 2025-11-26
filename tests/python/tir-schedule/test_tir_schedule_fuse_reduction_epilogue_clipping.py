@@ -30,7 +30,7 @@ from tvm.tir.schedule.testing import (
 
 
 @T.prim_func
-def matmul_clipping_before(
+def matmul_clipping_before_min_max_temp_lower_upper(
     A: T.Buffer((16, 16), "float32"),
     B: T.Buffer((16, 16), "float32"),
     D: T.Buffer((16, 16), "float32"),
@@ -49,16 +49,106 @@ def matmul_clipping_before(
             D[vi, vj] = T.min(T.max(temp[vi, vj], T.float32(0)), T.float32(10))
 
 
-def test_matmul_clipping():
-    """Test that clipping pattern is correctly fused into reduction block."""
-    sch = tir.Schedule(matmul_clipping_before, debug_mask="all")
+@T.prim_func
+def matmul_clipping_before_min_upper_max_temp_lower(
+    A: T.Buffer((16, 16), "float32"),
+    B: T.Buffer((16, 16), "float32"),
+    D: T.Buffer((16, 16), "float32"),
+) -> None:
+    """Clipping epilogue: T.min(upper, T.max(temp, lower))."""
+    temp = T.alloc_buffer((16, 16), dtype="float32")
+    for i, j, k in T.grid(16, 16, 16):
+        with T.block("matmul"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                temp[vi, vj] = T.float32(0)
+            temp[vi, vj] = temp[vi, vj] + A[vi, vk] * B[vk, vj]
+    for i, j in T.grid(16, 16):
+        with T.block("clip"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[vi, vj] = T.min(T.float32(10), T.max(temp[vi, vj], T.float32(0)))
+
+
+@T.prim_func
+def matmul_clipping_before_min_max_lower_temp_upper(
+    A: T.Buffer((16, 16), "float32"),
+    B: T.Buffer((16, 16), "float32"),
+    D: T.Buffer((16, 16), "float32"),
+) -> None:
+    """Clipping epilogue: T.min(T.max(lower, temp), upper)."""
+    temp = T.alloc_buffer((16, 16), dtype="float32")
+    for i, j, k in T.grid(16, 16, 16):
+        with T.block("matmul"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                temp[vi, vj] = T.float32(0)
+            temp[vi, vj] = temp[vi, vj] + A[vi, vk] * B[vk, vj]
+    for i, j in T.grid(16, 16):
+        with T.block("clip"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[vi, vj] = T.min(T.max(T.float32(0), temp[vi, vj]), T.float32(10))
+
+
+@T.prim_func
+def matmul_clipping_before_max_min_temp_upper_lower(
+    A: T.Buffer((16, 16), "float32"),
+    B: T.Buffer((16, 16), "float32"),
+    D: T.Buffer((16, 16), "float32"),
+) -> None:
+    """Clipping epilogue: T.max(T.min(temp, upper), lower)."""
+    temp = T.alloc_buffer((16, 16), dtype="float32")
+    for i, j, k in T.grid(16, 16, 16):
+        with T.block("matmul"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                temp[vi, vj] = T.float32(0)
+            temp[vi, vj] = temp[vi, vj] + A[vi, vk] * B[vk, vj]
+    for i, j in T.grid(16, 16):
+        with T.block("clip"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[vi, vj] = T.max(T.min(temp[vi, vj], T.float32(10)), T.float32(0))
+
+
+@T.prim_func
+def matmul_clipping_before_max_lower_min_temp_upper(
+    A: T.Buffer((16, 16), "float32"),
+    B: T.Buffer((16, 16), "float32"),
+    D: T.Buffer((16, 16), "float32"),
+) -> None:
+    """Clipping epilogue: T.max(lower, T.min(temp, upper))."""
+    temp = T.alloc_buffer((16, 16), dtype="float32")
+    for i, j, k in T.grid(16, 16, 16):
+        with T.block("matmul"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                temp[vi, vj] = T.float32(0)
+            temp[vi, vj] = temp[vi, vj] + A[vi, vk] * B[vk, vj]
+    for i, j in T.grid(16, 16):
+        with T.block("clip"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[vi, vj] = T.max(T.float32(0), T.min(temp[vi, vj], T.float32(10)))
+
+
+@pytest.mark.parametrize(
+    "before_func",
+    [
+        matmul_clipping_before_min_max_temp_lower_upper,
+        matmul_clipping_before_min_upper_max_temp_lower,
+        matmul_clipping_before_min_max_lower_temp_upper,
+        matmul_clipping_before_max_min_temp_upper_lower,
+        matmul_clipping_before_max_lower_min_temp_upper,
+    ],
+)
+def test_matmul_clipping(before_func):
+    """Test that clipping patterns are correctly fused into reduction block."""
+    sch = tir.Schedule(before_func, debug_mask="all")
     sch.fuse_reduction_epilogue("matmul", "clip")
     mod = sch.mod["main"]
     # The expected IR should have clipping in init, but due to parsing issues,
     # we verify the structure programmatically instead
     # Expected: init = T.min(T.max(T.float32(0.0), T.float32(0.0)), T.float32(10.0))
     # For now, just verify fusion succeeded and the body has clipping
-    verify_trace_roundtrip(sch=sch, mod=matmul_clipping_before)
+    verify_trace_roundtrip(sch=sch, mod=before_func)
 
 
 @T.prim_func
@@ -113,8 +203,8 @@ def test_matmul_clipping_correctness_unified():
         D_original_tvm,
     )
 
-    # TVM execution (fused)
-    sch = tir.Schedule(matmul_clipping_before)
+    # TVM execution (fused) using the canonical clipping pattern
+    sch = tir.Schedule(matmul_clipping_before_min_max_temp_lower_upper)
     sch.fuse_reduction_epilogue("matmul", "clip")
     mod_fused = tvm.compile(sch.mod["main"], target="llvm")
     D_fused_tvm = tvm.runtime.tensor(np.zeros((16, 16), dtype="float32"))
