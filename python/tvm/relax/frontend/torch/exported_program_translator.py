@@ -1449,9 +1449,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 if spec.target in merged_state:
                     info=merged_state[spec.target]
                 else: 
-                short = spec.target.split(".")[-1]
-                 if short in merged_state:
-                     info = merged_state[short]
+                    short = spec.target.split(".")[-1]
+                    if short in merged_state:
+                        info = merged_state[short]
                 
                 if info is None:
                     raise KeyError(f"Missing target in state_dict or extra buffers: {spec.target}")    
