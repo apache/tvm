@@ -7206,6 +7206,7 @@ def test_dynamic_shape():
             lhs: R.Tensor((B, 4), dtype="float32"),
             rhs: R.Tensor((B, 4), dtype="float32"),
         ) -> R.Tuple(R.Tensor((B, 4), dtype="float32")):
+            R.func_attr({"tir_var_lower_bound": {"s0": 0}})
             with R.dataflow():
                 lv: R.Tensor((B, 4), dtype="float32") = R.add(lhs, rhs)
                 gv: R.Tuple(R.Tensor((B, 4), dtype="float32")) = (lv,)
@@ -7909,6 +7910,34 @@ def test_dynamic_shape_with_multiplication_constraints():
     tvm.ir.assert_structural_equal(mod, Expected, map_free_vars=True)
 
 
+def test_dynamic_shape_with_unbounded_constraints():
+    class DynamicModel(torch.nn.Module):
+        def forward(self, x):
+            return torch.ops.aten.add.Tensor(x, x)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor(("s0", 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor(("s0", 4), dtype="float32")):
+            s0 = T.int64(is_size_var=True)
+            R.func_attr({"tir_var_lower_bound": {"s0": 2}})
+            with R.dataflow():
+                lv: R.Tensor((s0, 4), dtype="float32") = R.add(x, x)
+                gv: R.Tuple(R.Tensor((s0, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(8, 4),)
+    batch = torch.export.Dim("batch", min=2)
+    dynamic_shapes = {"x": {0: batch}}
+    exported_program = export(DynamicModel(), args=example_args, dynamic_shapes=dynamic_shapes)
+
+    mod = from_exported_program(exported_program)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_sym_size_int():
     class SymSizeInt(Module):
         def __init__(self, dim):
@@ -7955,6 +7984,7 @@ def test_sym_size_int():
             x: R.Tensor(("s0", 3, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor(("s0", 12), dtype="float32")):
             s0 = T.int64(is_size_var=True)
+            R.func_attr({"tir_var_lower_bound": {"s0": 0}})
             with R.dataflow():
                 lv: R.Tensor((s0, 12), dtype="float32") = R.reshape(x, R.shape([s0, 12]))
                 gv: R.Tuple(R.Tensor((s0, 12), dtype="float32")) = (lv,)
