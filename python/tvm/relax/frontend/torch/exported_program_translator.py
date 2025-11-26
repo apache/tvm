@@ -18,7 +18,7 @@
 # pylint: disable=invalid-name, inconsistent-return-statements, unidiomatic-typecheck
 # pylint: disable=import-outside-toplevel
 """PyTorch ExportedProgram of Relax."""
-from collections import ChainMap, OrderedDict,
+from collections import ChainMap, OrderedDict
 from functools import partial
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -1448,7 +1448,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 info=None
                 if spec.target in merged_state:
                     info=merged_state[spec.target]
-                else 
+                else: 
                 short = spec.target.split(".")[-1]
                  if short in merged_state:
                      info = merged_state[short]
