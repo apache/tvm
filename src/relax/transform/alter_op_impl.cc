@@ -194,7 +194,7 @@ class AlterOpImplMutator : public ExprMutator {
     // We want to avoid two layout_transform ops to share the same index map even if they are
     // identical. The scope of vars used in index map initial indices is local to the op. Not doing
     // so would confuse the structural equality check.
-    attrs->index_map = std::move(DeepCopyIndexMap(index_map));
+    attrs->index_map = DeepCopyIndexMap(index_map);
     attrs->axis_separators = std::move(axis_separators);
     attrs->input_axis_separators = std::move(input_axis_separators);
     return Call(layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});

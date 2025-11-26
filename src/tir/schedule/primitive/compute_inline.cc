@@ -992,11 +992,10 @@ class ReductionEpilogueFuser : public BaseInliner {
  public:
   explicit ReductionEpilogueFuser(const Buffer& reduction_buffer, const BlockNode* reduction_block,
                                   const BlockRealize& epilogue_block_realize,
-                                  const StmtSRef& scope_root_sref, const IRModule& mod)
+                                  const StmtSRef& scope_root_sref)
       : BaseInliner(reduction_buffer, epilogue_block_realize->block, scope_root_sref),
         reduction_block_(reduction_block),
-        epilogue_block_(epilogue_block_realize->block.get()),
-        mod_(mod) {}
+        epilogue_block_(epilogue_block_realize->block.get()) {}
 
   bool BodyPatternAllowFusion(const BlockRealize& epilogue_block_realize);
 
@@ -1031,7 +1030,6 @@ class ReductionEpilogueFuser : public BaseInliner {
 
   const BlockNode* reduction_block_;
   const BlockNode* epilogue_block_;
-  const IRModule& mod_;
   PrimExpr epilogue_addend_{nullptr};                      // C[vi, vj] in D = temp + C
   Buffer epilogue_output_buffer_{nullptr};                 // Output buffer D
   ffi::Array<PrimExpr> epilogue_output_indices_{nullptr};  // Indices of D[vi, vj]
@@ -1412,7 +1410,7 @@ void FuseReductionEpilogueImpl(ScheduleState self, const StmtSRef& reduction_blo
 
   // Step 4. Analyze the epilogue pattern
   ReductionEpilogueFuser fuser(reduction_buffer, _reduction_block, epilogue_block_realize,
-                               scope_root_sref, self->mod);
+                               scope_root_sref);
   if (!fuser.BodyPatternAllowFusion(epilogue_block_realize)) {
     throw BodyAnalysisError(true, self->mod, epilogue_block);
   }
