@@ -1294,8 +1294,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "mm.default": self._binary_op(
                 partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul
             ),
-            "_sparse_mm.default": self._sparse_mm,
-            "_sparse_addmm.default": self._sparse_addmm,
             "max.other": self._binary_op(relax.op.maximum, max),
             "min.other": self._binary_op(relax.op.minimum, min),
             "max.default": self._unary_op(relax.op.max),
