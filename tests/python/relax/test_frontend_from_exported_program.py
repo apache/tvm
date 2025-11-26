@@ -4142,7 +4142,9 @@ def test_unbind():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(data: R.Tensor((3, 3, 10, 10), dtype="float32")) -> R.Tuple(
+        def main(
+            data: R.Tensor((3, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(
             R.Tensor((3, 10, 10), dtype="float32"),
             R.Tensor((3, 10, 10), dtype="float32"),
             R.Tensor((3, 10, 10), dtype="float32"),
@@ -4191,7 +4193,9 @@ def test_unbind():
     @tvm.script.ir_module
     class expected2:
         @R.function
-        def main(data: R.Tensor((3, 3, 10, 10), dtype="float32")) -> R.Tuple(
+        def main(
+            data: R.Tensor((3, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(
             R.Tensor((3, 10, 10), dtype="float32"),
             R.Tensor((3, 10, 10), dtype="float32"),
             R.Tensor((3, 10, 10), dtype="float32"),
@@ -5433,7 +5437,9 @@ def test_split():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(input: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(
+        def main(
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
@@ -5463,7 +5469,9 @@ def test_split():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(data: R.Tensor((3, 3, 10, 10), dtype="float32")) -> R.Tuple(
+        def main(
+            data: R.Tensor((3, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(
             R.Tensor((3, 10, 10), dtype="float32"),
             R.Tensor((3, 10, 10), dtype="float32"),
             R.Tensor((3, 10, 10), dtype="float32"),
@@ -5512,7 +5520,9 @@ def test_split():
     @tvm.script.ir_module
     class expected2:
         @R.function
-        def main(data: R.Tensor((3, 3, 10, 10), dtype="float32")) -> R.Tuple(
+        def main(
+            data: R.Tensor((3, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(
             R.Tensor((3, 10, 10), dtype="float32"),
             R.Tensor((3, 10, 10), dtype="float32"),
             R.Tensor((3, 10, 10), dtype="float32"),
@@ -7223,9 +7233,9 @@ def test_topk():
             x: R.Tensor((5, 3), dtype="float32"),
         ) -> R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")):
             with R.dataflow():
-                lv: R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")) = (
-                    R.topk(x, k=2, axis=1, ret_type="both", largest=True, dtype="int64")
-                )
+                lv: R.Tuple(
+                    R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")
+                ) = R.topk(x, k=2, axis=1, ret_type="both", largest=True, dtype="int64")
                 lv1: R.Tensor((5, 2), dtype="float32") = lv[0]
                 lv2: R.Tensor((5, 2), dtype="int64") = lv[1]
                 gv: R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")) = (
