@@ -325,7 +325,10 @@ class DumpIR:
                 return
 
         # Safe to remove - only contains dumped files
-        shutil.rmtree(self.dump_dir, ignore_errors=True)
+        try:
+            shutil.rmtree(self.dump_dir)
+        except OSError as e:
+            print(f"WARNING: Failed to remove directory {self.dump_dir}: {e}")
 
     def run_after_pass(self, mod: IRModule, info: PassInfo):
         self.dump_dir.mkdir(parents=True, exist_ok=True)
