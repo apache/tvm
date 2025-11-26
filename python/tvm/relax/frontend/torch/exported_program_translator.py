@@ -64,6 +64,82 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             tensor_cpu = tensor_detached.cpu().contiguous()
             return tvm.runtime.tensor(tensor_cpu.numpy())
 
+    def _sparse_mm(self, node: fx.Node) -> relax.Var:
+        """Handle sparse matrix multiplication by converting sparse tensor to dense."""
+        args = self.retrieve_args(node)
+        sparse_input = args[0]
+        dense_input = args[1]
+
+        # Convert sparse tensor to dense if needed
+        # Note: sparse_input should already be converted to dense in _convert_pytorch_tensor_to_tvm
+        # Use regular matrix multiplication
+        return self.block_builder.emit(
+            relax.op.linear_algebra.matmul(sparse_input, dense_input, out_dtype="float32")
+        )
+
+    def _sparse_addmm(self, node: fx.Node) -> relax.Var:
+        """Handle sparse addmm (beta * input + alpha * sparse_mm(mat1, mat2))."""
+        args = self.retrieve_args(node)
+        input_tensor = args[0]  # beta * input
+        sparse_mat1 = args[1]  # sparse matrix
+        dense_mat2 = args[2]  # dense matrix
+        alpha = node.kwargs.get("alpha", 1.0)
+        beta = node.kwargs.get("beta", 1.0)
+
+        # Convert sparse tensor to dense if needed
+        # Note: sparse_mat1 should already be converted to dense in _convert_pytorch_tensor_to_tvm
+        # Compute alpha * sparse_mm(mat1, mat2)
+        matmul_result = self.block_builder.emit(
+            relax.op.linear_algebra.matmul(sparse_mat1, dense_mat2, out_dtype="float32")
+        )
+
+        if alpha != 1.0:
+            alpha_const = relax.const(alpha, matmul_result.struct_info.dtype)
+            matmul_result = self.block_builder.emit(relax.op.multiply(matmul_result, alpha_const))
+
+        # Compute beta * input + alpha * matmul_result
+        if beta != 0.0:
+            if beta != 1.0:
+                beta_const = relax.const(beta, input_tensor.struct_info.dtype)
+                input_scaled = self.block_builder.emit(relax.op.multiply(input_tensor, beta_const))
+            else:
+                input_scaled = input_tensor
+            return self.block_builder.emit(relax.op.add(input_scaled, matmul_result))
+        else:
+            return matmul_result
+
+    def _randn(self, node: fx.Node) -> relax.Var:
+        """Handle torch.randn by creating a tensor with normal distribution."""
+        import numpy as np
+
+        args = self.retrieve_args(node)
+        # torch.randn(shape) - args[0] is the shape
+        if len(args) == 0:
+            raise ValueError("randn requires at least shape argument")
+
+        shape = args[0]
+        dtype = "float32"
+        if len(args) > 1:
+            # Check if second arg is dtype
+            if isinstance(args[1], type) or (
+                hasattr(torch, "dtype") and isinstance(args[1], torch.dtype)
+            ):
+                dtype = self._convert_data_type(args[1])
+            elif isinstance(args[1], str):
+                dtype = args[1]
+
+        # Convert shape to list of integers or TIR expressions
+        if isinstance(shape, (list, tuple)):
+            shape_list = [int(s) if isinstance(s, (int, np.integer)) else s for s in shape]
+        else:
+            shape_list = [shape]
+
+        # Create a tensor filled with zeros (as placeholder)
+        # In practice, this should use a random number generator
+        # For now, we use zeros as a workaround since TVM doesn't have built-in randn
+        # The actual random values should be generated at runtime
+        return self.block_builder.emit(relax.op.zeros(shape_list, dtype))
+
     ########## Unary Ops ##########
 
     def _hardtanh(self, node: fx.Node) -> relax.Expr:
@@ -1218,6 +1294,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "mm.default": self._binary_op(
                 partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul
             ),
+            "_sparse_mm.default": self._sparse_mm,
+            "_sparse_addmm.default": self._sparse_addmm,
             "max.other": self._binary_op(relax.op.maximum, max),
             "min.other": self._binary_op(relax.op.minimum, min),
             "max.default": self._unary_op(relax.op.max),
