@@ -889,12 +889,6 @@ if(TVM_BUILD_PYTHON_MODULE)
   # Install web package
   install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/web/" DESTINATION "web/")
 
-  # Install essential configuration files
-  install(
-    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/configs/"
-    DESTINATION "configs/"
-  )
-
   # Install licenses (required for distribution)
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/licenses/"
