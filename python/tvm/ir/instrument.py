@@ -330,7 +330,8 @@ class DumpIR:
     def run_after_pass(self, mod: IRModule, info: PassInfo):
         self.dump_dir.mkdir(parents=True, exist_ok=True)
         try:
-            with open(self.dump_dir / f"{self.counter:03d}_{info.name}.py", "w") as f:
+            sanitized_pass_name = re.sub(r'[<>:"/\\|?*]', '_', info.name)
+            with open(self.dump_dir / f"{self.counter:03d}_{sanitized_pass_name}.py", "w") as f:
                 f.write(mod.script())
         except Exception:  # pylint: disable=broad-exception-caught
             print(f"WARNING: Failed to dump IR for pass {info.name}")
