@@ -1442,7 +1442,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                     if node.name == name_hint and "tensor_meta" in node.meta:
                         torch_shape = node.meta["tensor_meta"].shape
                         torch_dtype = node.meta["tensor_meta"].dtype
-        #fmt:off                break
+                        break
+            #fmt:off
             else:
                 # PARAMETER or BUFFER
                 info=merged_state.get(target.spec)
