@@ -988,6 +988,13 @@ void ReverseComputeInline(ScheduleState self, const StmtSRef& consumer_block_sre
  * \brief Helper to fuse epilogue block into reduction block
  * Analyzes epilogue pattern and transforms reduction init/update
  */
+// Epilogue type enumeration
+enum class EpilogueType {
+  Bias,      // temp + C
+  BiasReLU,  // max(temp + C, 0)
+  Clipping,  // min(max(temp, lower), upper)
+};
+
 class ReductionEpilogueFuser : public BaseInliner {
  public:
   explicit ReductionEpilogueFuser(const Buffer& reduction_buffer, const BlockNode* reduction_block,
@@ -1038,6 +1045,9 @@ class ReductionEpilogueFuser : public BaseInliner {
   BufferRegion epilogue_output_region_{nullptr};           // Write region of D
   Buffer epilogue_addend_buffer_{nullptr};                 // Addend buffer C
   BufferRegion epilogue_addend_region_{nullptr};           // Read region of C
+  EpilogueType epilogue_type_;                             // Type of epilogue operation
+  PrimExpr clipping_lower_{nullptr};                       // Lower bound for clipping
+  PrimExpr clipping_upper_{nullptr};                       // Upper bound for clipping
 };
 
 bool ReductionEpilogueFuser::BodyPatternAllowFusion(const BlockRealize& epilogue_block_realize) {
@@ -1060,19 +1070,27 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const BlockRealize& epilogue
     return false;
   }
 
-  // 4. Analyze epilogue pattern: D[i,j] = temp[i,j] + C[i,j]
+  // 4. Analyze epilogue pattern: D[i,j] = temp[i,j] + C[i,j] or D[i,j] = min(max(temp[i,j], lower), upper)
   if (!AnalyzeEpiloguePattern(inlined_store_->value)) {
-    // Failure: epilogue is not a simple addition pattern
+    // Failure: epilogue is not a supported pattern (Bias, BiasReLU, or Clipping)
     return false;
   }
 
-  // 5. Check if producer is a reduction block
+  // 5. For Clipping pattern, verify temp appears exactly once
+  if (epilogue_type_ == EpilogueType::Clipping) {
+    if (loads.size() != 1) {
+      // Failure: temp must appear exactly once in clipping pattern
+      return false;
+    }
+  }
+
+  // 6. Check if producer is a reduction block
   if (!IsReductionBlock(reduction_block_)) {
     // Failure: producer is not a reduction block
     return false;
   }
 
-  // 6. Extract epilogue information (output buffer, indices, regions, etc.)
+  // 7. Extract epilogue information (output buffer, indices, regions, etc.)
   ExtractEpilogueInfo();
 
   return true;
@@ -1090,7 +1108,77 @@ bool ReductionEpilogueFuser::AnalyzeEpiloguePattern(const PrimExpr& value) {
     // Ensure exactly one operand is from the reduction buffer
     if (a_is_target != b_is_target) {
       epilogue_addend_ = a_is_target ? add->b : add->a;
+      epilogue_type_ = EpilogueType::Bias;
       return true;
+    }
+  }
+
+  // Pattern 2: min(max(temp[i,j], lower), upper) or max(min(temp[i,j], upper), lower) (Clipping)
+  // Check for min(max(temp, lower), upper) pattern
+  if (const auto* min_node = value.as<MinNode>()) {
+    if (const auto* max_node = min_node->a.as<MaxNode>()) {
+      const auto* load = max_node->a.as<BufferLoadNode>();
+      if (load && load->buffer.same_as(inlined_buffer_)) {
+        // Pattern: min(max(temp, lower), upper)
+        clipping_lower_ = max_node->b;
+        clipping_upper_ = min_node->b;
+        epilogue_type_ = EpilogueType::Clipping;
+        return true;
+      }
+    }
+    // Check for min(temp, upper) where temp might be wrapped in max
+    if (const auto* max_node = min_node->b.as<MaxNode>()) {
+      const auto* load = max_node->a.as<BufferLoadNode>();
+      if (load && load->buffer.same_as(inlined_buffer_)) {
+        // Pattern: min(max(temp, lower), upper) - but check if min is outer
+        // This case is already handled above, but we check for max(min(temp, upper), lower)
+        clipping_lower_ = max_node->b;
+        clipping_upper_ = min_node->a;
+        epilogue_type_ = EpilogueType::Clipping;
+        return true;
+      }
+    }
+  }
+  // Check for max(min(temp[i,j], upper), lower) pattern
+  if (const auto* max_node = value.as<MaxNode>()) {
+    if (const auto* min_node = max_node->a.as<MinNode>()) {
+      const auto* load = min_node->a.as<BufferLoadNode>();
+      if (load && load->buffer.same_as(inlined_buffer_)) {
+        // Pattern: max(min(temp, upper), lower)
+        clipping_lower_ = max_node->b;
+        clipping_upper_ = min_node->b;
+        epilogue_type_ = EpilogueType::Clipping;
+        return true;
+      }
+    }
+  }
+
+  // Pattern 3: max(temp[i,j] + C[i,j], 0) or max(C[i,j] + temp[i,j], 0) (BiasReLU)
+  if (const auto* max_node = value.as<MaxNode>()) {
+    // Check if second operand is zero (ReLU: max(x, 0))
+    // Support both integer and float zero constants
+    bool is_zero_const = false;
+    if (tir::is_zero(max_node->b)) {
+      is_zero_const = true;
+    } else if (const auto* float_imm = max_node->b.as<FloatImmNode>()) {
+      is_zero_const = (float_imm->value == 0.0);
+    }
+    if (is_zero_const) {
+      // Check if first operand is AddNode
+      if (const auto* add = max_node->a.as<AddNode>()) {
+        const auto* load_a = add->a.as<BufferLoadNode>();
+        const auto* load_b = add->b.as<BufferLoadNode>();
+
+        bool a_is_target = load_a && load_a->buffer.same_as(inlined_buffer_);
+        bool b_is_target = load_b && load_b->buffer.same_as(inlined_buffer_);
+
+        // Ensure exactly one operand is from the reduction buffer
+        if (a_is_target != b_is_target) {
+          epilogue_addend_ = a_is_target ? add->b : add->a;
+          epilogue_type_ = EpilogueType::BiasReLU;
+          return true;
+        }
+      }
     }
   }
 
@@ -1160,20 +1248,54 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
     var_map[epilogue_data_vars[i]] = reduction_data_vars[i];
   }
 
-  // 2. Change init to epilogue value: D[vi, vj] = C[vi, vj]
-  BufferStore new_init_store(epilogue_output_buffer_, Substitute(epilogue_addend_, var_map),
-                             Substitute(epilogue_output_indices_, var_map));
+  // 2. Change init to epilogue value based on epilogue type
+  BufferStore new_init_store;
+  if (epilogue_type_ == EpilogueType::BiasReLU) {
+    // For ReLU, init should be max(C[vi, vj], 0) to match per-iteration ReLU semantics
+    PrimExpr init_value = Substitute(epilogue_addend_, var_map);
+    PrimExpr zero = tir::make_zero(init_value.dtype());
+    new_init_store = BufferStore(epilogue_output_buffer_, Max(init_value, zero),
+                                 Substitute(epilogue_output_indices_, var_map));
+  } else if (epilogue_type_ == EpilogueType::Clipping) {
+    // For Clipping, init should be min(max(init_value, lower), upper)
+    // Since init is typically 0, this becomes min(max(0, lower), upper)
+    PrimExpr init_value = tir::make_zero(epilogue_output_buffer_->dtype);
+    PrimExpr clipped_init = Min(Max(init_value, Substitute(clipping_lower_, var_map)),
+                                Substitute(clipping_upper_, var_map));
+    new_init_store = BufferStore(epilogue_output_buffer_, clipped_init,
+                                 Substitute(epilogue_output_indices_, var_map));
+  } else {
+    // Bias: D[vi, vj] = C[vi, vj]
+    new_init_store = BufferStore(epilogue_output_buffer_, Substitute(epilogue_addend_, var_map),
+                                 Substitute(epilogue_output_indices_, var_map));
+  }
   new_block->init = new_init_store;
 
   // 3. Replace output buffer from temp to D in body
   class BufferReplacer : public StmtExprMutator {
    public:
-    BufferReplacer(Buffer old_buf, Buffer new_buf) : old_buffer_(old_buf), new_buffer_(new_buf) {}
+    BufferReplacer(Buffer old_buf, Buffer new_buf, EpilogueType epilogue_type, DataType dtype,
+                   PrimExpr clipping_lower = PrimExpr(), PrimExpr clipping_upper = PrimExpr())
+        : old_buffer_(old_buf),
+          new_buffer_(new_buf),
+          epilogue_type_(epilogue_type),
+          dtype_(dtype),
+          clipping_lower_(clipping_lower),
+          clipping_upper_(clipping_upper) {}
 
     Stmt VisitStmt_(const BufferStoreNode* op) final {
       BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
       if (store->buffer.same_as(old_buffer_)) {
-        return BufferStore(new_buffer_, store->value, store->indices);
+        PrimExpr new_value = store->value;
+        // For ReLU, apply max per iteration to match per-iteration ReLU semantics
+        if (epilogue_type_ == EpilogueType::BiasReLU) {
+          PrimExpr zero = tir::make_zero(dtype_);
+          new_value = Max(new_value, zero);
+        } else if (epilogue_type_ == EpilogueType::Clipping) {
+          // For Clipping, apply min(max(value, lower), upper) per iteration
+          new_value = Min(Max(new_value, clipping_lower_), clipping_upper_);
+        }
+        return BufferStore(new_buffer_, new_value, store->indices);
       }
       return store;
     }
@@ -1189,9 +1311,21 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
    private:
     Buffer old_buffer_;
     Buffer new_buffer_;
+    EpilogueType epilogue_type_;
+    DataType dtype_;
+    PrimExpr clipping_lower_;
+    PrimExpr clipping_upper_;
   };
 
-  BufferReplacer replacer(inlined_buffer_, epilogue_output_buffer_);
+  DataType dtype = epilogue_output_buffer_->dtype;
+  PrimExpr clipping_lower_subst = epilogue_type_ == EpilogueType::Clipping
+                                      ? Substitute(clipping_lower_, var_map)
+                                      : PrimExpr();
+  PrimExpr clipping_upper_subst = epilogue_type_ == EpilogueType::Clipping
+                                      ? Substitute(clipping_upper_, var_map)
+                                      : PrimExpr();
+  BufferReplacer replacer(inlined_buffer_, epilogue_output_buffer_, epilogue_type_, dtype,
+                          clipping_lower_subst, clipping_upper_subst);
   new_block->body = replacer(reduction_block->body);
 
   // 4. Update write regions
@@ -1529,3 +1663,4 @@ TVM_REGISTER_INST_KIND_TRAITS(FuseReductionEpilogueTraits);
 
 }  // namespace tir
 }  // namespace tvm
+
