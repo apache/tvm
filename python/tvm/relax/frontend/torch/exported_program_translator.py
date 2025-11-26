@@ -18,7 +18,7 @@
 # pylint: disable=invalid-name, inconsistent-return-statements, unidiomatic-typecheck
 # pylint: disable=import-outside-toplevel
 """PyTorch ExportedProgram of Relax."""
-from collections import ChainMap, OrderedDict
+from collections import ChainMap, OrderedDict,
 from functools import partial
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -1399,17 +1399,17 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         return str(symbol), tir_expr
 
     def create_input_vars(
-        self, exported_program: torch.export.ExportedProgram
-    ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var], Dict[str, Tuple[int, Optional[int]]]]:
+        self, exported_program: torch.export.ExportedProgram,
+        extra_buffers: Dict[str, Dict[str, object]] = None,
+    ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var], Dict[str, Tuple[int, int]]]:
         """Create relax input vars."""
         parameters_buffers_constants = OrderedDict()
         user_inputs = OrderedDict()
         torch_symbol_to_relax_var: Dict[str, tvm.tir.Var] = {}
         range_constraints = {}
-        extra_buffers={
-            "position_ids": {"shape":(1,128), "dtype":torch.int64},
-            "token_type_ids": {"shape":(1,128), "dtype":torch.int64},
-        }
+        if extra_buffers is None:
+            extra_buffers={}
+        merged_state=ChainMap(exported_program.state_dict,extra_buffers)
         
 
         if hasattr(exported_program, "range_constraints"):
@@ -1448,17 +1448,25 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 info=None
                 if spec.target in merged_state:
                     info=merged_state[spec.target]
-                elif spec.target.split(".")[-1] in merged_state:
-                    info = merged_state[spec.target.split(".")[-1]]
+                else 
+                short = spec.target.split(".")[-1]
+                 if short in merged_state:
+                     info = merged_state[short]
+                
                 if info is None:
                     raise KeyError(f"Missing target in state_dict or extra buffers: {spec.target}")    
                 
                 # Handle both original and extra buffer
-                if hasattr(info,"shape") and hasattr(info,"dtype"):
-                    torch_shape=info.shape
-                    torch_dtype=info.dtype    
+                if isinstance(info, torch.Tensor):
+                    torch_shape = info.shape
+                    torch_dtype = info.dtype  
+                elif isinstance(info, dict):
+                    torch_shape = info["shape"]
+                    torch_dtype = info["dtype"]
+                else:
+                    raise TypeError(f"Unsupported type for buffer/parameter info: {type(info)}")      
                 
-                # PARAMETER or BUFFER
+            
             relax_shape = []
             for s in torch_shape:
                 if isinstance(s, torch.SymInt):
