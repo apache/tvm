@@ -30,9 +30,7 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include <unordered_map>
 #include <unordered_set>
-#include <vector>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "ir_utils.h"

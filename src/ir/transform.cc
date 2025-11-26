@@ -31,19 +31,13 @@
 #include <tvm/relax/expr.h>
 #include <tvm/runtime/device_api.h>
 
-#include <chrono>
-#include <iomanip>
 #include <stack>
-#include <unordered_set>
-
-#include "../runtime/regex.h"
 
 namespace tvm {
 namespace transform {
 
 using tvm::ReprPrinter;
 using tvm::ffi::Any;
-using tvm::ffi::PackedArgs;
 
 TVM_REGISTER_PASS_CONFIG_OPTION("testing.immutable_module", Bool);
 
@@ -60,17 +54,17 @@ struct PassContextThreadLocalEntry {
 };
 
 /*! \brief Thread local store to hold the pass context. */
-typedef dmlc::ThreadLocalStore<PassContextThreadLocalEntry> RelayPassContextThreadLocalStore;
+typedef dmlc::ThreadLocalStore<PassContextThreadLocalEntry> PassContextThreadLocalStore;
 
 void PassContext::EnterWithScope() {
   InstrumentEnterPassContext();
 
-  PassContextThreadLocalEntry* entry = RelayPassContextThreadLocalStore::Get();
+  PassContextThreadLocalEntry* entry = PassContextThreadLocalStore::Get();
   entry->context_stack.push(*this);
 }
 
 void PassContext::ExitWithScope() {
-  PassContextThreadLocalEntry* entry = RelayPassContextThreadLocalStore::Get();
+  PassContextThreadLocalEntry* entry = PassContextThreadLocalStore::Get();
   ICHECK(!entry->context_stack.empty());
   ICHECK(entry->context_stack.top().same_as(*this));
   entry->context_stack.pop();
@@ -79,7 +73,7 @@ void PassContext::ExitWithScope() {
 }
 
 PassContext PassContext::Current() {
-  PassContextThreadLocalEntry* entry = RelayPassContextThreadLocalStore::Get();
+  PassContextThreadLocalEntry* entry = PassContextThreadLocalStore::Get();
   if (!entry->context_stack.empty()) {
     return entry->context_stack.top();
   } else {
