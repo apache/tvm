@@ -6208,11 +6208,22 @@ def test_norm():
 @pytest.mark.parametrize(
     "torch_dtype, relax_dtype",
     [
-        (torch.float32, "float32"),
+        # Float types
         (torch.float16, "float16"),
+        (torch.float32, "float32"),
+        (torch.float64, "float64"),
         (torch.bfloat16, "bfloat16"),
-        (torch.int64, "int64"),
+        # Signed integer types
+        (torch.int8, "int8"),
+        (torch.int16, "int16"),
         (torch.int32, "int32"),
+        (torch.int64, "int64"),
+        # Unsigned integer types
+        (torch.uint8, "uint8"),
+        (torch.uint16, "uint16"),
+        (torch.uint32, "uint32"),
+        (torch.uint64, "uint64"),
+        # Boolean
         (torch.bool, "bool"),
     ],
 )
