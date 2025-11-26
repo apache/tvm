@@ -1070,7 +1070,8 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const BlockRealize& epilogue
     return false;
   }
 
-  // 4. Analyze epilogue pattern: D[i,j] = temp[i,j] + C[i,j] or D[i,j] = min(max(temp[i,j], lower), upper)
+  // 4. Analyze epilogue pattern: D[i,j] = temp[i,j] + C[i,j] or
+  //    D[i,j] = min(max(temp[i,j], lower), upper)
   if (!AnalyzeEpiloguePattern(inlined_store_->value)) {
     // Failure: epilogue is not a supported pattern (Bias, BiasReLU, or Clipping)
     return false;
@@ -1318,12 +1319,10 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
   };
 
   DataType dtype = epilogue_output_buffer_->dtype;
-  PrimExpr clipping_lower_subst = epilogue_type_ == EpilogueType::Clipping
-                                      ? Substitute(clipping_lower_, var_map)
-                                      : PrimExpr();
-  PrimExpr clipping_upper_subst = epilogue_type_ == EpilogueType::Clipping
-                                      ? Substitute(clipping_upper_, var_map)
-                                      : PrimExpr();
+  PrimExpr clipping_lower_subst =
+      epilogue_type_ == EpilogueType::Clipping ? Substitute(clipping_lower_, var_map) : PrimExpr();
+  PrimExpr clipping_upper_subst =
+      epilogue_type_ == EpilogueType::Clipping ? Substitute(clipping_upper_, var_map) : PrimExpr();
   BufferReplacer replacer(inlined_buffer_, epilogue_output_buffer_, epilogue_type_, dtype,
                           clipping_lower_subst, clipping_upper_subst);
   new_block->body = replacer(reduction_block->body);

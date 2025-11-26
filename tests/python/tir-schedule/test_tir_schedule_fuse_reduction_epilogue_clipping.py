@@ -77,7 +77,9 @@ def matmul_clipping_before_per_iteration(
         with T.block("matmul"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             # Per-iteration clipping
-            temp[vi, vj] = T.min(T.max(temp[vi, vj] + A[vi, vk] * B[vk, vj], T.float32(0)), T.float32(10))
+            temp[vi, vj] = T.min(
+                T.max(temp[vi, vj] + A[vi, vk] * B[vk, vj], T.float32(0)), T.float32(10)
+            )
     for i, j in T.grid(16, 16):
         with T.block("copy"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -156,8 +158,6 @@ def matmul_clipping_multiple_epilogue_before(
             E[vi, vj] = T.min(T.max(temp[vi, vj], T.float32(0)), T.float32(10))
 
 
-
-
 def test_matmul_clipping_multiple_epilogue():
     """Test fusion with multiple clipping epilogue blocks.
 
@@ -170,7 +170,7 @@ def test_matmul_clipping_multiple_epilogue():
     sch = tir.Schedule(matmul_clipping_multiple_epilogue_before, debug_mask="all")
     sch.fuse_reduction_epilogue("matmul", "clip")
     mod = sch.mod["main"]
-    
+
     # Verify that the first epilogue was fused (D is written in matmul block)
     # Verify that temp buffer still exists (for clip2 block)
     # Verify that clip2 block still reads from temp
@@ -185,4 +185,3 @@ if __name__ == "__main__":
     test_matmul_clipping_correctness_unified()
     test_matmul_clipping_multiple_epilogue()
     print("All tests passed!")
-
