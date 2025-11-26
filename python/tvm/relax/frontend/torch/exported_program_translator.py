@@ -1442,7 +1442,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                     if node.name == name_hint and "tensor_meta" in node.meta:
                         torch_shape = node.meta["tensor_meta"].shape
                         torch_dtype = node.meta["tensor_meta"].dtype
-                        break
+        #fmt:off                break
             else:
                 # PARAMETER or BUFFER
                 info=merged_state.get(target.spec)
@@ -1459,7 +1459,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                     torch_dtype=info["dtype"]
                 else:
                     raise KeyError (f"Unsupported type for buffer/parametre info:{type(info)}")    
-                
+        #fmt:on        
                 
 
             relax_shape = []
