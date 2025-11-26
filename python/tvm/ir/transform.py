@@ -348,7 +348,7 @@ def module_pass(pass_func=None, opt_level=None, name=None, required=None, tracea
     return create_module_pass
 
 
-def PrintIR(header="", show_meta_data=False):
+def PrintIR(header=""):
     """A special trace pass that prints the header and IR.
 
     Parameters
@@ -356,14 +356,11 @@ def PrintIR(header="", show_meta_data=False):
     header : str
         The header to be displayed along with the dump.
 
-    show_meta_data : bool
-        A boolean flag to indicate if meta data should be printed.
-
     Returns
     --------
     The pass
     """
-    return _ffi_transform_api.PrintIR(header, show_meta_data)
+    return _ffi_transform_api.PrintIR(header)
 
 
 def ApplyPassToFunction(
