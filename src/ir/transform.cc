@@ -642,8 +642,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            });
 }
 
-Pass PrintIR(ffi::String header, bool show_meta_data) {
-  auto pass_func = [header, show_meta_data](IRModule mod, const PassContext& ctx) {
+Pass PrintIR(ffi::String header) {
+  auto pass_func = [header](IRModule mod, const PassContext& ctx) {
     LOG(INFO) << "PrintIR(" << header << "):\n" << mod;
     return mod;
   };

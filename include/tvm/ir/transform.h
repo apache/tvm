@@ -557,10 +557,9 @@ TVM_DLL Pass ApplyPassToFunction(Pass pass, ffi::String func_name_regex,
 /*!
  * \brief A special trace pass that prints the header and IR to LOG(INFO).
  * \param header The header to be attached to the output.
- * \param show_meta_data Whether should we show meta data.
  * \return The pass.
  */
-TVM_DLL Pass PrintIR(ffi::String header = "", bool show_meta_data = false);
+TVM_DLL Pass PrintIR(ffi::String header = "");
 
 }  // namespace transform
 }  // namespace tvm
