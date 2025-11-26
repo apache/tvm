@@ -1454,7 +1454,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 if isinstance(info.torch.Tensor):
                     torch_shape=info.shape
                     torch_dtype=info.dtype
-                elseif isinstace(info, dict):
+                elif isinstace(info, dict):
                     torch_shape=info["shape"]
                     torch_dtype=info["dtype"]
                 else:
