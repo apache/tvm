@@ -1400,19 +1400,17 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def create_input_vars(
         self, exported_program: torch.export.ExportedProgram,
-        extra_buffers: Dict[str, Dict[str, object]] = None,
+        extra_buffers:Dict[str, Dict[str, object]] = None
     ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var], Dict[str, Tuple[int, Optional[int]]]]:
         """Create relax input vars."""
         parameters_buffers_constants = OrderedDict()
         user_inputs = OrderedDict()
         torch_symbol_to_relax_var: Dict[str, tvm.tir.Var] = {}
         range_constraints = {}
-        # If no extra_buffers provided, initialize empty
         if extra_buffers is None:
-            extra_buffers = {}
-
-    # Merge state_dict and extra_buffers
-        merged_state = ChainMap(exported_program.state_dict, extra_buffers)
+            extra_buffers={}
+            
+        merged_state=ChainMap(exported_program.state_dict,extra_buffers)    
 
         if hasattr(exported_program, "range_constraints"):
             import math
@@ -1446,25 +1444,22 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                         torch_dtype = node.meta["tensor_meta"].dtype
                         break
             else:
-                info = merged_state.get(spec.target)
-                if info is None:
-                    short_name = spec.target.split(".")[-1]
-                    info = merged_state.get(short_name)
-                if info is None:
-                    raise KeyError(f"Missing target in state_dict or extra buffers: {spec.target}")    
-                
-                if isinstance(info, torch.Tensor):
-                    torch_shape = info.shape
-                    torch_dtype = info.dtype
-                elif isinstance(info, dict):
-                    torch_shape = info["shape"]
-                    torch_dtype = info["dtype"]
-                else:
-                    raise TypeError(f"Unsupported type for buffer/parameter info: {type(info)}")
-                
                 # PARAMETER or BUFFER
-        
-
+                info=merged_state.get(target.spec)
+                if info is None:
+                    short_name=spec.target.split(".")[-1]
+                    info=merged_state.get(short_name)
+                if info is None:
+                    raise KeyError(f"Missing target in state dictionay or extra buffers:{spec.target}")    
+                if isinstance(info.torch.Tensor):
+                    torch_shape=info.shape
+                    torch_dtype=info.dtype
+                elseif isinstace(info, dict):
+                    torch_shape=info["shape"]
+                    torch_dtype=info["dtype"]
+                else:
+                    raise KeyError (f"Unsupported type for buffer/parametre info:{type(info)}")    
+                
                 
 
             relax_shape = []
