@@ -42,7 +42,7 @@ def matmul_clipping_before(
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 temp[vi, vj] = T.float32(0)
-            temp[vi, vj] = temp[vi, vj] + A[vi, vk] * B[vj, vk]
+            temp[vi, vj] = temp[vi, vj] + A[vi, vk] * B[vk, vj]
     for i, j in T.grid(16, 16):
         with T.block("clip"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -60,11 +60,11 @@ def matmul_clipping_expected(
     for i, j, k in T.grid(16, 16, 16):
         with T.block("matmul"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            T.reads(A[vi, vk], B[vj, vk])
+            T.reads(A[vi, vk], B[vk, vj])
             T.writes(D[vi, vj])
             with T.init():
                 D[vi, vj] = T.min(T.max(T.float32(0.0), T.float32(0.0)), T.float32(10.0))
-            D[vi, vj] = T.min(T.max(D[vi, vj] + A[vi, vk] * B[vj, vk], T.float32(0.0)), T.float32(10.0))
+            D[vi, vj] = T.min(T.max(D[vi, vj] + A[vi, vk] * B[vk, vj], T.float32(0.0)), T.float32(10.0))
 
 
 def test_matmul_clipping():
@@ -95,7 +95,7 @@ def matmul_clipping_before_per_iteration(
         with T.block("matmul"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             # Per-iteration clipping
-            temp[vi, vj] = T.min(T.max(temp[vi, vj] + A[vi, vk] * B[vj, vk], T.float32(0)), T.float32(10))
+            temp[vi, vj] = T.min(T.max(temp[vi, vj] + A[vi, vk] * B[vk, vj], T.float32(0)), T.float32(10))
     for i, j in T.grid(16, 16):
         with T.block("copy"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -109,19 +109,16 @@ def test_matmul_clipping_correctness_unified():
 
     # NumPy reference for per-iteration clipping
     # Simulate per-iteration clipping behavior
-    # TIR: temp[vi, vj] = temp[vi, vj] + A[vi, vk] * B[vj, vk]
-    # This means: for each (i, j), accumulate A[i, k] * B[j, k] over k
-    # Note: This is NOT standard matrix multiplication (which would be A[i, k] * B[k, j])
-    # Instead, it's: D[i, j] = sum_k(A[i, k] * B[j, k])
+    # TIR: temp[vi, vj] = temp[vi, vj] + A[vi, vk] * B[vk, vj]
+    # Standard matmul: D[i, j] = sum_k(A[i, k] * B[k, j])
     D_ref = np.clip(np.zeros((16, 16), dtype="float32"), 0, 10)  # init with clipping
     for k in range(16):
-        # For each (i, j), add A[i, k] * B[j, k]
-        # This is: D_ref[i, j] += A[i, k] * B[j, k] for all i, j
-        # NumPy: A_np[:, k] is shape (16,), B_np[:, k] is shape (16,)
-        # We need outer product: A_np[:, k] (column) * B_np[:, k] (row) = (16, 1) @ (1, 16) = (16, 16)
-        # But actually: A_np[i, k] * B_np[j, k] for all i, j
-        # This is: np.outer(A_np[:, k], B_np[:, k])
-        D_ref = np.clip(D_ref + np.outer(A_np[:, k], B_np[:, k]), 0, 10)
+        # For each (i, j), add A[i, k] * B[k, j]
+        # This is: D_ref[i, j] += A[i, k] * B[k, j] for all i, j
+        # NumPy: A_np[:, k] is shape (16,), B_np[k, :] is shape (16,)
+        # Outer product: A_np[:, k:k+1] @ B_np[k:k+1, :] = (16, 1) @ (1, 16) = (16, 16)
+        # Or simply: np.outer(A_np[:, k], B_np[k, :])
+        D_ref = np.clip(D_ref + np.outer(A_np[:, k], B_np[k, :]), 0, 10)
 
     # TVM execution (original with per-iteration clipping)
     mod_original = tvm.compile(matmul_clipping_before_per_iteration, target="llvm")
