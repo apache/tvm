@@ -49,24 +49,6 @@ def matmul_clipping_before(
             D[vi, vj] = T.min(T.max(temp[vi, vj], T.float32(0)), T.float32(10))
 
 
-@T.prim_func
-def matmul_clipping_expected(
-    A: T.Buffer((16, 16), "float32"),
-    B: T.Buffer((16, 16), "float32"),
-    D: T.Buffer((16, 16), "float32"),
-) -> None:
-    """Expected function after fusion (Clipping)."""
-    temp = T.alloc_buffer((16, 16), dtype="float32")
-    for i, j, k in T.grid(16, 16, 16):
-        with T.block("matmul"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            T.reads(A[vi, vk], B[vk, vj])
-            T.writes(D[vi, vj])
-            with T.init():
-                D[vi, vj] = T.min(T.max(T.float32(0.0), T.float32(0.0)), T.float32(10.0))
-            D[vi, vj] = T.min(T.max(D[vi, vj] + A[vi, vk] * B[vk, vj], T.float32(0.0)), T.float32(10.0))
-
-
 def test_matmul_clipping():
     """Test that clipping pattern is correctly fused into reduction block."""
     sch = tir.Schedule(matmul_clipping_before, debug_mask="all")
