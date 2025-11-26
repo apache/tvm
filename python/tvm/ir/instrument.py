@@ -306,7 +306,7 @@ class DumpIR:
         else:
             self.dump_dir = Path(dump_dir)
         self.counter = 0
-        if refresh and self.dump_dir.exists():
+        if refresh and self.dump_dir.is_dir():
             self._safe_remove_dump_dir()
 
     def _safe_remove_dump_dir(self):
