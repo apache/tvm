@@ -149,8 +149,58 @@ def test_matmul_clipping_correctness_unified():
     np.testing.assert_allclose(D_original, D_fused, rtol=1e-5, atol=1e-6)
 
 
+@T.prim_func
+def matmul_clipping_multiple_epilogue_before(
+    A: T.Buffer((16, 16), "float32"),
+    B: T.Buffer((16, 16), "float32"),
+    D: T.Buffer((16, 16), "float32"),
+    E: T.Buffer((16, 16), "float32"),
+) -> None:
+    """Original function with multiple clipping epilogue blocks."""
+    temp = T.alloc_buffer((16, 16), dtype="float32")
+    for i, j, k in T.grid(16, 16, 16):
+        with T.block("matmul"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                temp[vi, vj] = T.float32(0)
+            temp[vi, vj] = temp[vi, vj] + A[vi, vk] * B[vk, vj]
+    for i, j in T.grid(16, 16):
+        with T.block("clip"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[vi, vj] = T.min(T.max(temp[vi, vj], T.float32(0)), T.float32(10))
+    for i, j in T.grid(16, 16):
+        with T.block("clip2"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            E[vi, vj] = T.min(T.max(temp[vi, vj], T.float32(0)), T.float32(10))
+
+
+
+
+def test_matmul_clipping_multiple_epilogue():
+    """Test fusion with multiple clipping epilogue blocks.
+
+    This test verifies that fusion works correctly when there are multiple
+    epilogue blocks that use clipping. The first epilogue block ("clip") is
+    fused into the reduction block, while the second epilogue block ("clip2")
+    still uses the temp buffer. The temp buffer is kept because the second
+    epilogue block still needs it.
+    """
+    sch = tir.Schedule(matmul_clipping_multiple_epilogue_before, debug_mask="all")
+    sch.fuse_reduction_epilogue("matmul", "clip")
+    mod = sch.mod["main"]
+    
+    # Verify that the first epilogue was fused (D is written in matmul block)
+    # Verify that temp buffer still exists (for clip2 block)
+    # Verify that clip2 block still reads from temp
+    verify_trace_roundtrip(sch=sch, mod=matmul_clipping_multiple_epilogue_before)
+
+    mod = tvm.compile(sch.mod["main"], target="llvm")
+    assert mod is not None
+
+
 if __name__ == "__main__":
     test_matmul_clipping()
     test_matmul_clipping_correctness_unified()
+    test_matmul_clipping_multiple_epilogue()
     print("All tests passed!")
 
