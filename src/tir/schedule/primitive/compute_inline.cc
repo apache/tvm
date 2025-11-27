@@ -1090,12 +1090,13 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const BlockRealize& epilogue
     return false;
   }
 
-  // 5. For Clipping pattern, verify temp appears exactly once
-  if (epilogue_type_ == EpilogueType::Clipping) {
-    if (loads.size() != 1) {
-      // Failure: temp must appear exactly once in clipping pattern
-      return false;
-    }
+  // 5. Verify temp appears exactly once in the epilogue pattern
+  // This ensures correctness for all supported patterns (Bias, BiasReLU, Clipping)
+  // The reduction result buffer must be used exactly once in the epilogue expression
+  if (loads.size() != 1) {
+    // Failure: The reduction result (temp) must be used exactly once in the
+    // epilogue expression for fusion.
+    return false;
   }
 
   // 6. Check if producer is a reduction block
@@ -1227,6 +1228,13 @@ bool ReductionEpilogueFuser::AnalyzeEpiloguePattern(const PrimExpr& value) {
         // Ensure exactly one operand is from the reduction buffer
         if (a_is_target != b_is_target) {
           epilogue_addend_ = a_is_target ? add->b : add->a;
+          epilogue_type_ = EpilogueType::BiasReLU;
+          return true;
+        }
+      } else if (const auto* load = add_candidate->as<BufferLoadNode>()) {
+        // Handle bias-free ReLU: max(temp, 0) or max(0, temp)
+        if (load->buffer.same_as(inlined_buffer_)) {
+          epilogue_addend_ = tir::make_zero(load->dtype);
           epilogue_type_ = EpilogueType::BiasReLU;
           return true;
         }
