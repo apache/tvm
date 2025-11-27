@@ -16,10 +16,15 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Common pass instrumentation across IR variants."""
-import inspect
 import functools
+import inspect
+import re
+import shutil
+from pathlib import Path
+from typing import Union
 
 import tvm_ffi
+
 import tvm.runtime
 
 from . import _ffi_instrument_api
@@ -288,3 +293,49 @@ class PrintBeforeAll:
     def run_before_pass(self, mod, info):
         print(f"Before Running Pass: {info}")
         print(mod)
+
+
+@pass_instrument
+class DumpIR:
+    """Dump the IR after the pass runs."""
+
+    def __init__(self, dump_dir: Union[Path, str], refresh: bool = False):
+        if isinstance(dump_dir, Path):
+            self.dump_dir = dump_dir
+        else:
+            self.dump_dir = Path(dump_dir)
+        self.counter = 0
+        if refresh and self.dump_dir.is_dir():
+            self._safe_remove_dump_dir()
+
+    def _safe_remove_dump_dir(self):
+        """Remove dump directory only if it contains only dumped IR files."""
+        # Pattern for dumped files: {counter:03d}_{pass_name}.py
+        dump_pattern = re.compile(r"^\d{3}_.*\.py$")
+
+        # Check all files in the directory
+        for item in self.dump_dir.iterdir():
+            # If there's a subdirectory or a file that doesn't match the pattern, abort
+            if item.is_dir() or not dump_pattern.match(item.name):
+                print(
+                    f"WARNING: Skipping removal of {self.dump_dir} as it contains "
+                    f"non-dumped files or directories. Please clean it manually."
+                )
+                return
+
+        # Safe to remove - only contains dumped files
+        try:
+            shutil.rmtree(self.dump_dir)
+        except OSError as e:
+            print(f"WARNING: Failed to remove directory {self.dump_dir}: {e}")
+
+    def run_after_pass(self, mod, info):
+        self.dump_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            sanitized_pass_name = re.sub(r'[<>:"/\\|?*]', "_", info.name)
+            with open(self.dump_dir / f"{self.counter:03d}_{sanitized_pass_name}.py", "w") as f:
+                f.write(mod.script())
+        except Exception:  # pylint: disable=broad-exception-caught
+            print(f"WARNING: Failed to dump IR for pass {info.name}")
+        finally:
+            self.counter += 1
