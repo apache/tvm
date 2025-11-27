@@ -269,4 +269,3 @@ def test_matmul_clipping_commutative_variants(pattern_func):
 
 if __name__ == "__main__":
     tvm.testing.main()
-
