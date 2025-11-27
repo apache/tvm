@@ -773,6 +773,12 @@ TVM_DLL Pass DefaultGPUSchedule();
  */
 TVM_DLL Pass UseAssumeToReduceBranches();
 
+/*!
+ * \brief Inject Texture Allocation intrensic.
+ * \return The pass.
+ */
+TVM_DLL Pass InjectTextureAlloc();
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

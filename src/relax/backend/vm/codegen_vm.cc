@@ -29,12 +29,14 @@
 #include <tvm/target/target.h>
 #include <tvm/tir/function.h>
 
+#include <climits>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "../../../runtime/const_loader_module.h"
 #include "../../../target/source/codegen_source_base.h"
+#include "../../transform/utils.h"
 
 namespace tvm {
 namespace relax {
@@ -214,6 +216,14 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   Instruction::Arg VisitExpr_(const ConstantNode* op) final {
+    if (auto tsinfo = op->struct_info_.as<TensorStructInfoNode>()) {
+      if (tsinfo->vdevice.defined()) {
+        VDevice vdev = tsinfo->vdevice.value();
+        runtime::Tensor param = op->data;
+        param.SetScope(vdev->memory_scope);
+      }
+    }
+
     return builder_->ConvertConstant(op->data);
   }
 
@@ -333,11 +343,19 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   void EmitAllocTensor(const Call& call_node, RegName dst_reg) {
-    ICHECK_EQ(call_node->args.size(), 4);
+    ICHECK_EQ(call_node->args.size(), 5);
     std::vector<Instruction::Arg> args;
-    args.reserve(4);
-    for (Expr arg : call_node->args) {
-      args.push_back(this->VisitExpr(arg));
+    for (int i = 0; i < 4; ++i) {
+      args.push_back(this->VisitExpr(call_node->args[i]));
+    }
+    int64_t vdevice_index = -1;
+    if (auto* prim_value_node = call_node->args[4].as<PrimValueNode>()) {
+      vdevice_index = prim_value_node->value.as<IntImmNode>()->value;
+    }
+    auto vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
+
+    if (vdevice.defined()) {
+      args.push_back(this->VisitExpr(StringImm(vdevice.value()->memory_scope)));
     }
     builder_->EmitCall("vm.builtin.alloc_tensor", args, dst_reg);
   }

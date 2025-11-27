@@ -88,7 +88,7 @@ Tensor ConvertTensorToDevice(Tensor src, const DLDevice& dev, Allocator* alloc) 
   if (src->device.device_type == dev.device_type && src->device.device_id == dev.device_id) {
     return src;
   } else {
-    auto res = alloc->Empty(src.Shape(), src->dtype, dev);
+    auto res = alloc->Empty(src.Shape(), src->dtype, dev, src.GetScope());
     res.CopyFrom(src);
     return res;
   }

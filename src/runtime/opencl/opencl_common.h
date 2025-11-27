@@ -187,6 +187,8 @@ inline const char* CLGetErrorString(cl_int error) {
 
 inline cl_channel_type DTypeToOpenCLChannelType(DLDataType data_type) {
   DataType dtype(data_type);
+  dtype = dtype.with_lanes(1);
+
   if (dtype == DataType::Float(32)) {
     return CL_FLOAT;
   } else if (dtype == DataType::Float(16)) {
@@ -343,7 +345,6 @@ class OpenCLWorkspace : public DeviceAPI {
   void* AllocDataSpaceView(Device dev, void* data, ffi::Shape shape, DLDataType dtype,
                            ffi::Optional<ffi::String> mem_scope = std::nullopt);
   void FreeDataSpaceView(Device dev, void* ptr);
-
   cl_device_id GetCLDeviceID(int device_id);
   // override device API
   void SetDevice(Device dev) final;
@@ -351,7 +352,7 @@ class OpenCLWorkspace : public DeviceAPI {
   void* AllocDataSpace(Device dev, size_t size, size_t alignment, DLDataType type_hint) final;
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                        ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
-  void* AllocDataSpace(Device dev, size_t width, size_t height, DLDataType type_hint,
+  void* AllocDataSpace(Device dev, size_t width, size_t height, size_t depth, DLDataType type_hint,
                        ffi::Optional<ffi::String> mem_scope = std::nullopt);
   void* GetNativePtr(const tvm::runtime::Tensor& narr);
   void SetNativePtr(const tvm::runtime::Tensor& narr, void* host_ptr, size_t buf_size);
@@ -365,8 +366,8 @@ class OpenCLWorkspace : public DeviceAPI {
 
   // cl_mem alloc utils
   void* AllocCLBuffer(Device dev, size_t size, size_t alignment, DLDataType type_hint);
-  void* AllocCLImage(Device dev, void* back_buffer, size_t width, size_t height, size_t row_pitch,
-                     DLDataType type_hint, ffi::Optional<ffi::String> mem_scope);
+  void* AllocCLImage(Device dev, void* back_buffer, size_t width, size_t height, size_t depth,
+                     size_t row_pitch, DLDataType type_hint, ffi::Optional<ffi::String> mem_scope);
 
   /*!
    * \brief Get the thread local ThreadEntry
@@ -450,6 +451,11 @@ struct BufferDescriptor {
   MemoryLayout layout{MemoryLayout::kBuffer1D};
   Buffer mbuf{nullptr};  // MemoryManager ref.
   bool is_compat_view{false};
+#ifdef PROFILE_SHADER_DUMP
+  size_t mem_size;
+  size_t width, height, depth;
+  DLDataType dtype;
+#endif  // PROFILE_SHADER_DUMP
 };
 }  // namespace cl
 

@@ -73,9 +73,13 @@
 #include <tvm/relax/transform.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include <climits>
 #include <map>
 #include <set>
 #include <vector>
+
+#include "../../runtime/texture.h"
+#include "utils.h"
 
 namespace tvm {
 namespace relax {
@@ -105,6 +109,8 @@ class StorageTokenNode : public Object {
   DataType dtype;
   /*! \brief The memory scope of the token. */
   std::string storage_scope;
+  /*! \brief The VDevice information. */
+  ffi::Optional<VDevice> vdevice;
   /*! \brief The storage id, reserved for debug and demo use. */
   int storage_id{-1};
 
@@ -129,23 +135,51 @@ class StorageTokenNode : public Object {
  */
 class StorageToken : public ObjectRef {
  public:
-  explicit StorageToken(ffi::Array<PrimExpr> shape, DataType dtype, std::string storage_scope) {
+  explicit StorageToken(ffi::Array<PrimExpr> shape, DataType dtype, std::string storage_scope,
+                        ffi::Optional<VDevice> vdevice = std::nullopt) {
     // Compute the tensor size from the shape.
     int64_t const_coeff = dtype.bytes() * dtype.lanes();
     PrimExpr size = tir::make_const(DataType::Int(64), 1);
-    for (const PrimExpr& dim_len : shape) {
-      if (const IntImmNode* const_dim_len = dim_len.as<IntImmNode>()) {
-        const_coeff *= const_dim_len->value;
-      } else {
-        size *= dim_len;
+    bool size_computed = false;
+
+    if (vdevice.defined()) {
+      VDevice vdev = vdevice.value();
+      std::string dev_kind = vdev->target->kind->name;
+
+      if (vdev->memory_scope != "global") {
+        auto device_size_handler =
+            tvm::ffi::Function::GetGlobal(std::string("DeviceGetMemSize." + dev_kind));
+        if (device_size_handler.has_value()) {
+          size *= (*device_size_handler)(shape, dtype, vdevice.value()).cast<PrimExpr>();
+          size_computed = true;
+        }
+        auto device_scope_handler =
+            tvm::ffi::Function::GetGlobal(std::string("DeviceScopeCompatibility." + dev_kind));
+        if (device_scope_handler.has_value()) {
+          ffi::String dev_scope =
+              (*device_scope_handler)(vdevice.value()->target, vdevice.value()->memory_scope)
+                  .cast<ffi::String>();
+          storage_scope = dev_scope;
+        }
       }
     }
+    if (!size_computed) {
+      for (const PrimExpr& dim_len : shape) {
+        if (const IntImmNode* const_dim_len = dim_len.as<IntImmNode>()) {
+          const_coeff *= const_dim_len->value;
+        } else {
+          size *= dim_len;
+        }
+      }
+    }
+
     size = tir::make_const(DataType::Int(64), const_coeff) * size;
 
     ObjectPtr<StorageTokenNode> n = ffi::make_object<StorageTokenNode>();
     n->bytes = size;
     n->dtype = dtype;
     n->storage_scope = std::move(storage_scope);
+    n->vdevice = std::move(vdevice);
     data_ = std::move(n);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StorageToken, ObjectRef, StorageTokenNode);
@@ -159,9 +193,9 @@ using Tokens = NestedMsg<StorageToken>;
  * \note We can generalize this implementation to multi-dimensional memory
  * following the same flow in the future.
  */
-class TokenAllocator1D {
+class TokenAllocatorMixed {
  public:
-  explicit TokenAllocator1D(arith::Analyzer* analyzer) : analyzer_(analyzer) {}
+  explicit TokenAllocatorMixed(arith::Analyzer* analyzer) : analyzer_(analyzer) {}
 
   /*!
    * \brief Request a storage token from the available token pool for a
@@ -606,7 +640,14 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
 
     // Create and set token.
     StringImm storage_scope = Downcast<StringImm>(call->args[3]);
-    StorageToken token(upper_bounded_shape, sinfo->dtype, storage_scope->value);
+
+    int64_t vdevice_index = -1;
+    if (auto* prim_value_node = call->args[2].as<PrimValueNode>()) {
+      vdevice_index = prim_value_node->value.as<IntImmNode>()->value;
+    }
+    ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
+
+    StorageToken token(upper_bounded_shape, sinfo->dtype, storage_scope->value, vdevice);
 
     Tokens tokens(token);
     SetTokens(call, tokens);
@@ -823,7 +864,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
   /*! \brief Number of allocated storages. */
   int n_storage_{0};
   /*! \brief The 1D memory allocator. */
-  TokenAllocator1D allocator_;
+  TokenAllocatorMixed allocator_;
   /*! \brief The mapping from each token to the tensors that are currently using it. */
   std::unordered_map<const StorageTokenNode*, std::vector<Var>> token2cur_tensor_;
 };
@@ -905,7 +946,8 @@ class StorageAllocationRewriter : public ExprMutator {
       // And always create a `memory.alloc_tensor` for the old `builtin.alloc_tensor`.
       PrimValue offset = PrimValue::Int64(0);
       DataType dtype = sinfo->dtype;
-      return Call(mem_alloc_tensor, {storage_var, offset, sinfo->shape.value(), DataTypeImm(dtype)},
+      return Call(mem_alloc_tensor,
+                  {storage_var, offset, sinfo->shape.value(), DataTypeImm(dtype), call->args[2]},
                   Attrs());
     } else if (plan_dynamic_output_ && call->op == alloc_tensor_op) {
       // Case 2. For a `alloc_tensor` that is not planned for memory reuse,
@@ -936,7 +978,8 @@ class StorageAllocationRewriter : public ExprMutator {
         return Call(mem_alloc_tensor, {storage,  //
                                        /*offset=*/PrimValue::Int64(0),
                                        /*shape=*/ffi::GetRef<ShapeExpr>(shape),  //
-                                       /*dtype=*/DataTypeImm(sinfo->dtype)});
+                                       /*dtype=*/DataTypeImm(sinfo->dtype),
+                                       /*vdevice_index=*/call->args[2]});
       }
     }
 
@@ -988,6 +1031,30 @@ Pass StaticPlanBlockMemory() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.StaticPlanBlockMemory", StaticPlanBlockMemory);
+}
+
+PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DataType dtype,
+                                         VDevice vdevice) {
+  int image_row_align = vdevice->target->GetAttr<Integer>("image_base_address_alignment")
+                            .value_or(Integer(64))
+                            ->value;
+
+  // TODO(Siva) Assuming no any dimensions for now.
+  struct Shape {
+    const ffi::Array<PrimExpr>& shape;
+    int64_t operator[](size_t i) const { return *tir::as_const_int(shape[i]); }
+    int size() { return this->shape.size(); }
+  };
+  auto shape = Shape{pshape};
+
+  size_t size = runtime::GetTextureMemorySize<Shape>(shape, dtype.bytes() * 8, dtype.lanes(),
+                                                     vdevice->memory_scope, image_row_align);
+  return tir::make_const(DataType::Int(64), size);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("DeviceGetMemSize.opencl", GetTextureMemorySizeFromVDevice);
 }
 
 }  // namespace transform

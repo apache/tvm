@@ -211,7 +211,15 @@ inline StructInfo InferStructInfoUnary(const Call& call, const BlockBuilder& ctx
   }
   auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*input_sinfo.get());
   output_sinfo->dtype = f_compute_out_dtype(input_sinfo);
-  return TensorStructInfo(output_sinfo);
+  if (call->sinfo_args.size() > 0) {
+    auto defined_sinfo = call->sinfo_args[0].as<TensorStructInfoNode>();
+    auto shape = output_sinfo->GetShape();
+    ICHECK(shape.defined());
+    return TensorStructInfo(ShapeExpr(shape.value()), output_sinfo->dtype,
+                            defined_sinfo->vdevice.value());
+  } else {
+    return TensorStructInfo(output_sinfo);
+  }
 }
 
 /*!
@@ -568,7 +576,8 @@ inline ffi::Optional<ShapeExpr> CheckNdimPerLayoutAndGetShape(const Call& call,
 
 Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm dtype,
                         StringImm storage_scope = StringImm("global"));
-Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype);
+Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype,
+                       PrimValue runtime_device_index);
 
 Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_index,
                      StringImm storage_scope = StringImm("global"));

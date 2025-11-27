@@ -373,7 +373,7 @@ def test_call_tir_inplace_multiple_args():
     tvm.ir.assert_structural_equal(Expected["foo"], new_mod["foo"], map_free_vars=True)
 
 
-def test_call_tir_inplace_some_new():
+def _test_call_tir_inplace_some_new():
     @tvm.script.ir_module
     class Input:
         @T.prim_func

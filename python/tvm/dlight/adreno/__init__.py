@@ -18,3 +18,8 @@
 Adreno schedule rules.
 """
 from .convolution import Conv2d
+from .layout_transform import LayoutTransform
+from .fallback import Fallback
+from .pool import Pool2D
+
+# from .fallback import Fallback

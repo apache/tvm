@@ -34,9 +34,12 @@
 #include <tvm/tir/stmt.h>
 
 #include <cctype>
+#include <climits>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "../../transform/utils.h"
 
 namespace tvm {
 namespace relax {
@@ -401,12 +404,21 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
   }
 
   void EmitAllocTensor(const Call& call_node, int64_t dst_reg) {
-    ICHECK_EQ(call_node->args.size(), 4);
+    ICHECK_EQ(call_node->args.size(), 5);
     ffi::Array<PrimExpr> args;
-    args.reserve(4);
-    for (Expr arg : call_node->args) {
-      args.push_back(this->VisitExpr(arg).value());
+    for (int i = 0; i < 4; ++i) {
+      args.push_back(this->VisitExpr(call_node->args[i]).value());
     }
+    int64_t vdevice_index = -1;
+    if (auto* prim_value_node = call_node->args[4].as<PrimValueNode>()) {
+      vdevice_index = prim_value_node->value.as<IntImmNode>()->value;
+    }
+    auto vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
+
+    if (vdevice.defined()) {
+      args.push_back(tir::StringImm(vdevice.value()->memory_scope));
+    }
+
     this->EmitCallPacked("vm.builtin.alloc_tensor", args, dst_reg);
   }
 

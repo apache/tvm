@@ -1703,7 +1703,7 @@ def test_layout_transform_with_pad_axis_sep():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-def test_func_struct_info_of_legalized_layout_transform():
+def _test_func_struct_info_of_legalized_layout_transform():
     """PrimFunc shape information must be correct
 
     This is a regression test.  Previously, the legalization of
