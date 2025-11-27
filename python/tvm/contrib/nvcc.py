@@ -479,49 +479,34 @@ def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
     Compile CUDA code using the configured backend (nvcc or nvrtc).
 
     This callback is invoked by TVM's C++ backend during CUDA module compilation.
-    The compilation backend can be selected via environment variables.
+    By default, uses nvcc to generate fatbin (original behavior).
 
     Environment Variables
     ---------------------
     TVM_CUDA_COMPILER : str
         Compiler backend: "nvcc" (default) or "nvrtc"
-        - "nvcc": Use nvcc subprocess, supports fatbin
-        - "nvrtc": Use NVRTC, faster JIT but single-arch only
-
-    TVM_CUDA_TARGET_FORMAT : str
-        Output format:
-        - For nvcc: "fatbin" (default), "cubin", or "ptx"
-        - For nvrtc: "cubin" (default) or "ptx"
+        - "nvcc": Use nvcc subprocess, generates fatbin
+        - "nvrtc": Use NVRTC via cuda-python for faster JIT, generates cubin
 
     Parameters
     ----------
     code : str
         CUDA source code to compile
     target : Target
-        TVM target object
+        TVM target object (unused, kept for API compatibility)
 
     Returns
     -------
     bytes
-        Compiled binary (fatbin/cubin/ptx)
+        Compiled binary (fatbin for nvcc, cubin for nvrtc)
     """
     compiler = os.environ.get("TVM_CUDA_COMPILER", "nvcc")
-    target_format = os.environ.get("TVM_CUDA_TARGET_FORMAT", None)
 
-    # Set default format based on compiler
-    if target_format is None:
-        target_format = "fatbin" if compiler == "nvcc" else "cubin"
+    if compiler == "nvrtc":
+        return compile_cuda(code, target_format="cubin", compiler="nvrtc")
 
-    # Validate format for nvrtc
-    if compiler == "nvrtc" and target_format == "fatbin":
-        raise ValueError(
-            "NVRTC does not support fatbin generation. "
-            "Use target_format='cubin' or 'ptx' with NVRTC, "
-            "or set TVM_CUDA_COMPILER='nvcc' to use fatbin.\n"
-            "To use NVRTC: export TVM_CUDA_TARGET_FORMAT=cubin"
-        )
-
-    return compile_cuda(code, target_format=target_format, compiler=compiler)
+    # Default: use nvcc with fatbin (original behavior)
+    return compile_cuda(code, target_format="fatbin", compiler="nvcc")
 
 
 @tvm_ffi.register_global_func("tvm_callback_libdevice_path")
