@@ -7692,10 +7692,13 @@ def test_sparse_mm():
             dense_input: R.Tensor((100, 50), dtype="float32"),
         ) -> R.Tuple(R.Tensor((3, 50), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((3, 50), dtype="float32") = R.matmul(
+                lv: R.Tensor((3, 50), dtype="float32") = R.full(
+                    R.shape([3, 50]), R.const(0.0, "float32"), dtype="float32"
+                )
+                lv1: R.Tensor((3, 50), dtype="float32") = R.matmul(
                     sparse_input, dense_input, out_dtype="float32"
                 )
-                gv: R.Tuple(R.Tensor((3, 50), dtype="float32")) = (lv,)
+                gv: R.Tuple(R.Tensor((3, 50), dtype="float32")) = (lv1,)
                 R.output(gv)
             return gv
 
