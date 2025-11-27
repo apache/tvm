@@ -116,7 +116,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     ########## Neural Network ##########
 
-    def _batch_norm(self, node: fx.Node, training: bool) -> relax.Var:
+    def _batch_norm(self, node: fx.Node, training: bool, return_tuple: bool = False) -> relax.Var:
         import numpy as np
 
         x = self.env[node.args[0]]
@@ -149,7 +149,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             if track_running_stats:
                 training = True
 
-        return self.block_builder.emit(
+        bn_result = self.block_builder.emit(
             relax.op.nn.batch_norm(
                 data=x,
                 gamma=weight,
@@ -160,21 +160,33 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 epsilon=eps,
                 momentum=momentum,
                 training=training,
-            )[0]
+            )
         )
+
+        if return_tuple:
+            return bn_result
+        else:
+            # Return only the output tensor (for backward compatibility)
+            return self.block_builder.emit(bn_result[0])
 
     def _batch_norm_legit_functional(self, node: fx.Node) -> relax.Var:
         # This method is called for batch_norm in training mode
-        # TODO does not have correctness!
-        # TODO we need to store the running mean and variance returned by the
-        # previous call to batch_norm and pass it again
-        training = True
-        return self._batch_norm(node, training)
+        bn_tuple = self._batch_norm(node, training=True, return_tuple=True)
+
+        x = self.env[node.args[0]]
+        channel = int(self.shape_of(x)[1])
+        dtype = x.struct_info.dtype
+
+        output = self.block_builder.emit(bn_tuple[0])
+        new_running_mean = self.block_builder.emit(bn_tuple[1])
+        reserve = self.block_builder.emit(relax.op.zeros(relax.ShapeExpr([channel]), dtype))
+
+        return self.block_builder.emit(
+            relax.Tuple([output, new_running_mean, reserve, reserve, reserve])
+        )
 
     def _batch_norm_legit_no_training(self, node: fx.Node) -> relax.Var:
-        # This method is called for batch_norm in eval mode
-        training = False
-        return self._batch_norm(node, training)
+        return self._batch_norm(node, training=False, return_tuple=False)
 
     def _batch_norm_legit_no_stats(self, node: fx.Node) -> relax.Var:
         import numpy as np
