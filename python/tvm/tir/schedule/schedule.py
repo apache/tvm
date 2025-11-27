@@ -2360,7 +2360,7 @@ class Schedule(Object):
            - Bias: ``output = reduction_result + bias``
            - BiasReLU: ``output = max(reduction_result + bias, 0)``
            - Clipping: ``output = min(max(reduction_result, lower), upper)``
-           or their commutative variants
+             or their commutative variants
 
         .. warning::
 
