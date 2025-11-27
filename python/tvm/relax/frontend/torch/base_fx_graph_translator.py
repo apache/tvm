@@ -54,16 +54,34 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             input_type = env[input_type]
 
         input_type = input_type.lower() if isinstance(input_type, str) else input_type
-        if input_type in ["float", "float32", "torch.float32", torch.float32]:
-            return "float32"
-        elif input_type in ["float16", "torch.float16", torch.float16]:
+        # Float types
+        if input_type in ["float16", "torch.float16", torch.float16]:
             return "float16"
+        elif input_type in ["float", "float32", "torch.float32", torch.float32]:
+            return "float32"
+        elif input_type in ["float64", "double", "torch.float64", torch.float64]:
+            return "float64"
         elif input_type in ["bfloat16", "torch.bfloat16", torch.bfloat16]:
             return "bfloat16"
-        elif input_type in ["int64", "torch.int64", torch.int64]:
-            return "int64"
+        # Signed integer types
+        elif input_type in ["int8", "torch.int8", torch.int8]:
+            return "int8"
+        elif input_type in ["int16", "torch.int16", torch.int16]:
+            return "int16"
         elif input_type in ["int32", "torch.int32", torch.int32]:
             return "int32"
+        elif input_type in ["int64", "torch.int64", torch.int64]:
+            return "int64"
+        # Unsigned integer types
+        elif input_type in ["uint8", "torch.uint8", torch.uint8]:
+            return "uint8"
+        elif input_type in ["uint16", "torch.uint16", torch.uint16]:
+            return "uint16"
+        elif input_type in ["uint32", "torch.uint32", torch.uint32]:
+            return "uint32"
+        elif input_type in ["uint64", "torch.uint64", torch.uint64]:
+            return "uint64"
+        # Boolean
         elif input_type in ["bool", "torch.bool", torch.bool]:
             return "bool"
         else:
