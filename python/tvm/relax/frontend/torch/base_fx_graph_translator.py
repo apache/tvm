@@ -54,16 +54,34 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             input_type = env[input_type]
 
         input_type = input_type.lower() if isinstance(input_type, str) else input_type
-        if input_type in ["float", "float32", "torch.float32", torch.float32]:
-            return "float32"
-        elif input_type in ["float16", "torch.float16", torch.float16]:
+        # Float types
+        if input_type in ["float16", "torch.float16", torch.float16]:
             return "float16"
+        elif input_type in ["float", "float32", "torch.float32", torch.float32]:
+            return "float32"
+        elif input_type in ["float64", "double", "torch.float64", torch.float64]:
+            return "float64"
         elif input_type in ["bfloat16", "torch.bfloat16", torch.bfloat16]:
             return "bfloat16"
-        elif input_type in ["int64", "torch.int64", torch.int64]:
-            return "int64"
+        # Signed integer types
+        elif input_type in ["int8", "torch.int8", torch.int8]:
+            return "int8"
+        elif input_type in ["int16", "torch.int16", torch.int16]:
+            return "int16"
         elif input_type in ["int32", "torch.int32", torch.int32]:
             return "int32"
+        elif input_type in ["int64", "torch.int64", torch.int64]:
+            return "int64"
+        # Unsigned integer types
+        elif input_type in ["uint8", "torch.uint8", torch.uint8]:
+            return "uint8"
+        elif input_type in ["uint16", "torch.uint16", torch.uint16]:
+            return "uint16"
+        elif input_type in ["uint32", "torch.uint32", torch.uint32]:
+            return "uint32"
+        elif input_type in ["uint64", "torch.uint64", torch.uint64]:
+            return "uint64"
+        # Boolean
         elif input_type in ["bool", "torch.bool", torch.bool]:
             return "bool"
         else:
@@ -364,10 +382,19 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(relax.op.nn.prelu(x, alpha, axis))
 
     def _round(self, node: fx.Node) -> relax.Expr:
-        if node.kwargs.get("decimals", 0) != 0:
-            raise ValueError("specifying decimals for round is not supported yet")
         arg = self.env[node.args[0]]
-        return self.block_builder.emit(relax.op.round(arg))
+        decimals = node.kwargs.get("decimals", 0)
+
+        if decimals == 0:
+            return self.block_builder.emit(relax.op.round(arg))
+
+        # For decimals != 0, use: round(x * 10^decimals) / 10^decimals
+        dtype = arg.struct_info.dtype
+        scale = relax.const(10**decimals, dtype)
+        scaled = relax.op.multiply(arg, scale)
+        rounded = relax.op.round(scaled)
+        result = relax.op.divide(rounded, scale)
+        return self.block_builder.emit(result)
 
     def _softmax(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]

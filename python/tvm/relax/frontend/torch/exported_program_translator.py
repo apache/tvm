@@ -116,7 +116,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     ########## Neural Network ##########
 
-    def _batch_norm(self, node: fx.Node, training: bool) -> relax.Var:
+    def _batch_norm(self, node: fx.Node, training: bool, return_tuple: bool = False) -> relax.Var:
         import numpy as np
 
         x = self.env[node.args[0]]
@@ -149,7 +149,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             if track_running_stats:
                 training = True
 
-        return self.block_builder.emit(
+        bn_result = self.block_builder.emit(
             relax.op.nn.batch_norm(
                 data=x,
                 gamma=weight,
@@ -160,21 +160,33 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 epsilon=eps,
                 momentum=momentum,
                 training=training,
-            )[0]
+            )
         )
+
+        if return_tuple:
+            return bn_result
+        else:
+            # Return only the output tensor (for backward compatibility)
+            return self.block_builder.emit(bn_result[0])
 
     def _batch_norm_legit_functional(self, node: fx.Node) -> relax.Var:
         # This method is called for batch_norm in training mode
-        # TODO does not have correctness!
-        # TODO we need to store the running mean and variance returned by the
-        # previous call to batch_norm and pass it again
-        training = True
-        return self._batch_norm(node, training)
+        bn_tuple = self._batch_norm(node, training=True, return_tuple=True)
+
+        x = self.env[node.args[0]]
+        channel = int(self.shape_of(x)[1])
+        dtype = x.struct_info.dtype
+
+        output = self.block_builder.emit(bn_tuple[0])
+        new_running_mean = self.block_builder.emit(bn_tuple[1])
+        reserve = self.block_builder.emit(relax.op.zeros(relax.ShapeExpr([channel]), dtype))
+
+        return self.block_builder.emit(
+            relax.Tuple([output, new_running_mean, reserve, reserve, reserve])
+        )
 
     def _batch_norm_legit_no_training(self, node: fx.Node) -> relax.Var:
-        # This method is called for batch_norm in eval mode
-        training = False
-        return self._batch_norm(node, training)
+        return self._batch_norm(node, training=False, return_tuple=False)
 
     def _batch_norm_legit_no_stats(self, node: fx.Node) -> relax.Var:
         import numpy as np
@@ -294,6 +306,22 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", True)
         )
         scale_factor = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", 1)
+        return self._upsample_impl(
+            x, size=size, scale_factor=scale_factor, method="linear", align_corners=align_corners
+        )
+
+    def _upsample_bilinear2d_aa(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        size = node.args[1] if len(node.args) > 1 else node.kwargs.get("output_size", None)
+        align_corners = (
+            node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", False)
+        )
+        scale_factor = (
+            node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factors", None)
+        )
+
+        # Note: TVM's resize2d doesn't have explicit antialias support.
+        # For upsampling, antialiasing has minimal effect, so we use regular bilinear.
         return self._upsample_impl(
             x, size=size, scale_factor=scale_factor, method="linear", align_corners=align_corners
         )
@@ -962,6 +990,49 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         )
         return self.block_builder.emit(relax.op.zeros(size, dtype))
 
+    def _sparse_mm(self, node: fx.Node) -> relax.Var:
+        """Handle sparse matrix multiplication by converting sparse tensor to dense."""
+        args = self.retrieve_args(node)
+        sparse_input = args[0]
+        dense_input = args[1]
+        # Convert sparse tensor to dense if needed
+        # Note: sparse_input should already be converted to dense in _convert_pytorch_tensor_to_tvm
+        # Use regular matrix multiplication
+        return self.block_builder.emit(
+            relax.op.linear_algebra.matmul(sparse_input, dense_input, out_dtype="float32")
+        )
+
+    def _sparse_addmm(self, node: fx.Node) -> relax.Var:
+        """Handle sparse addmm (beta * input + alpha * sparse_mm(mat1, mat2))."""
+        args = self.retrieve_args(node)
+        input_tensor = args[0]  # beta * input
+        sparse_mat1 = args[1]  # sparse matrix
+        dense_mat2 = args[2]  # dense matrix
+        alpha = node.kwargs.get("alpha", 1.0)
+        beta = node.kwargs.get("beta", 1.0)
+
+        # Convert sparse tensor to dense if needed
+        # Note: sparse_mat1 should already be converted to dense in _convert_pytorch_tensor_to_tvm
+        # Compute alpha * sparse_mm(mat1, mat2)
+        matmul_result = self.block_builder.emit(
+            relax.op.linear_algebra.matmul(sparse_mat1, dense_mat2, out_dtype="float32")
+        )
+
+        if alpha != 1.0:
+            alpha_const = relax.const(alpha, matmul_result.struct_info.dtype)
+            matmul_result = self.block_builder.emit(relax.op.multiply(matmul_result, alpha_const))
+
+        # Compute beta * input + alpha * matmul_result
+        if beta != 0.0:
+            if beta != 1.0:
+                beta_const = relax.const(beta, input_tensor.struct_info.dtype)
+                input_scaled = self.block_builder.emit(relax.op.multiply(input_tensor, beta_const))
+            else:
+                input_scaled = input_tensor
+            return self.block_builder.emit(relax.op.add(input_scaled, matmul_result))
+        else:
+            return matmul_result
+
     def _grid_sampler_2d(self, node: fx.Node) -> relax.Var:
         """Convert torch.nn.functional.grid_sample to relax.op.image.grid_sample."""
         args = self.retrieve_args(node)
@@ -1255,6 +1326,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
             "adaptive_avg_pool3d.default": self._adaptive_avg_pool3d,
             "addmm.default": self._addmm,
+            "_sparse_mm.default": self._sparse_mm,
+            "_sparse_addmm.default": self._sparse_addmm,
             "avg_pool1d.default": self._avg_pool1d,
             "avg_pool2d.default": self._avg_pool2d,
             "avg_pool3d.default": self._avg_pool3d,
@@ -1289,6 +1362,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "scaled_dot_product_attention.default": self._scaled_dot_product_attention,
             "unbind.int": self._unbind,
             "upsample_bilinear2d.vec": self._upsample_bilinear2d,
+            "_upsample_bilinear2d_aa.default": self._upsample_bilinear2d_aa,
             "upsample_nearest2d.vec": self._upsample_nearest2d,
             "upsample_bicubic2d.vec": self._upsample_bicubic2d,
             # statistical
@@ -1454,7 +1528,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def create_input_vars(
         self, exported_program: torch.export.ExportedProgram
-    ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var], Dict[str, Tuple[int, int]]]:
+    ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var], Dict[str, Tuple[int, Optional[int]]]]:
         """Create relax input vars."""
         parameters_buffers_constants = OrderedDict()
         user_inputs = OrderedDict()
@@ -1462,11 +1536,16 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         range_constraints = {}
 
         if hasattr(exported_program, "range_constraints"):
+            import math
+
             for symbol, value_range in exported_program.range_constraints.items():
                 if hasattr(value_range, "lower") and hasattr(value_range, "upper"):
                     try:
+                        # PyTorch uses int_oo (IntInfinity) for unbounded constraints
                         lower = int(value_range.lower)
-                        upper = int(value_range.upper)
+                        upper = (
+                            None if math.isinf(float(value_range.upper)) else int(value_range.upper)
+                        )
 
                         symbol_name, _ = self._process_derived_symbol(
                             symbol, torch_symbol_to_relax_var
@@ -1543,9 +1622,15 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             func_attrs["tir_var_lower_bound"] = {
                 var_name: lower for var_name, (lower, _) in range_constraints.items()
             }
-            func_attrs["tir_var_upper_bound"] = {
-                var_name: upper for var_name, (_, upper) in range_constraints.items()
+
+            upper_bounds = {
+                var_name: upper
+                for var_name, (_, upper) in range_constraints.items()
+                if upper is not None
             }
+
+            if upper_bounds:
+                func_attrs["tir_var_upper_bound"] = upper_bounds
 
         nodes: List[fx.Node] = exported_program.graph.nodes
 

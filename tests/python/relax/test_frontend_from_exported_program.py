@@ -32,14 +32,29 @@ from tvm.relax.frontend.torch import from_exported_program
 
 
 def verify_model(
-    torch_model, example_args, binding, expected, dynamic_shapes=None, run_ep_decomposition=True
+    torch_model,
+    example_args,
+    binding,
+    expected,
+    dynamic_shapes=None,
+    run_ep_decomposition=True,
+    keep_params_as_input=False,
+    unwrap_unit_return_tuple=False,
+    no_bind_return_tuple=False,
+    map_free_vars=False,
 ):
     exported_program = export(torch_model, args=example_args, dynamic_shapes=dynamic_shapes)
-    mod = from_exported_program(exported_program, run_ep_decomposition=run_ep_decomposition)
+    mod = from_exported_program(
+        exported_program,
+        run_ep_decomposition=run_ep_decomposition,
+        keep_params_as_input=keep_params_as_input,
+        unwrap_unit_return_tuple=unwrap_unit_return_tuple,
+        no_bind_return_tuple=no_bind_return_tuple,
+    )
 
     binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
-    tvm.ir.assert_structural_equal(mod, expected)
+    tvm.ir.assert_structural_equal(mod, expected, map_free_vars=map_free_vars)
 
 
 def verify_model_numerically(torch_model, example_args, rtol=1e-7, atol=1e-7):
@@ -1819,6 +1834,82 @@ def test_batchnorm2d():
     }
     verify_model(model_2, example_args, binding_2, expected2)
 
+    class BatchNorm2dTraining(Module):
+        def __init__(self):
+            super().__init__()
+            self.bn = torch.nn.BatchNorm2d(3, track_running_stats=True)
+
+        def forward(self, input):
+            return self.bn(input)
+
+    @tvm.script.ir_module
+    class expected3:
+        @R.function
+        def main(
+            input_1: R.Tensor((2, 3, 4, 4), dtype="float32"),
+            w1: R.Tensor((3,), dtype="float32"),
+            w2: R.Tensor((3,), dtype="float32"),
+            w3: R.Tensor((3,), dtype="float32"),
+            w4: R.Tensor((3,), dtype="float32"),
+        ) -> R.Tuple(
+            R.Tensor((3,), dtype="float32"),
+            R.Tensor((3,), dtype="float32"),
+            R.Tensor((), dtype="int64"),
+            R.Tensor((2, 3, 4, 4), dtype="float32"),
+        ):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="int64") = R.add(R.const(0, "int64"), R.const(1, "int64"))
+                lv1: R.Tuple(
+                    R.Tensor((2, 3, 4, 4), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                ) = R.nn.batch_norm(
+                    input_1,
+                    w1,
+                    w2,
+                    w3,
+                    w4,
+                    axis=1,
+                    epsilon=0.1,
+                    center=True,
+                    scale=True,
+                    momentum=1.0,
+                    training=True,
+                )
+                lv2: R.Tensor((2, 3, 4, 4), dtype="float32") = lv1[0]
+                lv3: R.Tensor((3,), dtype="float32") = lv1[1]
+                lv4: R.Tensor((3,), dtype="float32") = R.zeros(R.shape([3]), dtype="float32")
+                lv5: R.Tuple(
+                    R.Tensor((2, 3, 4, 4), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                ) = (lv2, lv3, lv4, lv4, lv4)
+                lv6: R.Tensor((2, 3, 4, 4), dtype="float32") = lv5[0]
+                lv7: R.Tensor((3,), dtype="float32") = lv5[3]
+                lv8: R.Tensor((3,), dtype="float32") = lv5[4]
+                gv: R.Tuple(
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((), dtype="int64"),
+                    R.Tensor((2, 3, 4, 4), dtype="float32"),
+                ) = (lv7, lv8, lv, lv6)
+                R.output(gv)
+            return gv
+
+    example_args_train = (torch.randn(2, 3, 4, 4, dtype=torch.float32),)
+
+    model_3 = BatchNorm2dTraining()
+    model_3.train()  # Set to training mode
+    binding_3 = {
+        "w1": model_3.bn.weight.detach().numpy(),
+        "w2": model_3.bn.bias.detach().numpy(),
+        "w3": model_3.bn.running_mean.detach().numpy(),
+        "w4": model_3.bn.running_var.detach().numpy(),
+    }
+    verify_model(model_3, example_args_train, binding_3, expected3)
+
 
 def test_adaptive_avgpool1d():
     class AdaptiveAvgPool1d0(torch.nn.Module):
@@ -1976,6 +2067,63 @@ def test_addmm():
 
     verify_model(Addmm1(), example_args, {}, expected1)
     verify_model(Addmm2(), example_args, {}, expected2)
+
+
+def test_sparse_addmm():
+    class SparseAddmm1(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x1, x2, x3):
+            return torch.sparse.addmm(x1, x2, x3)
+
+    class SparseAddmm2(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x1, x2, x3):
+            return torch.sparse.addmm(x1, x2, x3, beta=0.8, alpha=0.5)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            x1: R.Tensor((10, 10), dtype="float32"),
+            x2: R.Tensor((10, 10), dtype="float32"),
+            x3: R.Tensor((10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.matmul(x2, x3, out_dtype="float32")
+                lv1: R.Tensor((10, 10), dtype="float32") = R.add(x1, lv)
+                gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            x1: R.Tensor((10, 10), dtype="float32"),
+            x2: R.Tensor((10, 10), dtype="float32"),
+            x3: R.Tensor((10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.matmul(x2, x3, out_dtype="float32")
+                lv1: R.Tensor((10, 10), dtype="float32") = R.multiply(lv, R.const(0.5, "float32"))
+                lv2: R.Tensor((10, 10), dtype="float32") = R.multiply(x1, R.const(0.8, "float32"))
+                lv3: R.Tensor((10, 10), dtype="float32") = R.add(lv2, lv1)
+                gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv3,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(10, 10, dtype=torch.float32),
+        torch.randn(10, 10, dtype=torch.float32),
+        torch.randn(10, 10, dtype=torch.float32),
+    )
+
+    verify_model(SparseAddmm1(), example_args, {}, expected1)
+    verify_model(SparseAddmm2(), example_args, {}, expected2)
 
 
 def test_avg_pool1d():
@@ -4734,6 +4882,43 @@ def test_interpolate():
     verify_model(InterpolateBicubic(), example_args, {}, expected_bicubic)
 
 
+def test_interpolate_antialiased():
+    """Test bilinear interpolation with antialiasing enabled."""
+
+    class InterpolateBilinearAA(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(
+                input, size=(64, 64), mode="bilinear", align_corners=False, antialias=True
+            )
+
+    @tvm.script.ir_module
+    class expected_bilinear_aa:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 32, 32), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 64, 64), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 64, 64), dtype="float32") = R.image.resize2d(
+                    input,
+                    R.shape([64, 64]),
+                    roi=[T.float32(0.0), T.float32(0.0), T.float32(0.0), T.float32(0.0)],
+                    layout="NCHW",
+                    method="linear",
+                    coordinate_transformation_mode="half_pixel",
+                    rounding_method="round",
+                    cubic_alpha=-0.75,
+                    cubic_exclude=0,
+                    extrapolation_value=0.0,
+                    out_dtype="void",
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 64, 64), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 32, 32, dtype=torch.float32),)
+    verify_model(InterpolateBilinearAA(), example_args, {}, expected_bilinear_aa)
+
+
 def test_mean():
     class Mean(Module):
         def forward(self, input):
@@ -6276,6 +6461,7 @@ def test_keep_params():
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
     model = Conv2D1()
+
     exported_program = torch.export.export(model, example_args)
     mod = from_exported_program(exported_program, keep_params_as_input=True)
     mod, params = detach_params(mod)
@@ -6312,9 +6498,7 @@ def test_unwrap_unit_return_tuple():
             return gv
 
     example_args = (torch.randn(256, 256, dtype=torch.float32),)
-    exported_program = export(Identity(), args=example_args)
-    mod = from_exported_program(exported_program, unwrap_unit_return_tuple=True)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    verify_model(Identity(), example_args, {}, Expected, unwrap_unit_return_tuple=True)
 
 
 def test_no_bind_return_tuple():
@@ -6342,9 +6526,7 @@ def test_no_bind_return_tuple():
         torch.randn(256, 256, dtype=torch.float32),
         torch.randn(256, 256, dtype=torch.float32),
     )
-    exported_program = export(Identity(), args=example_args)
-    mod = from_exported_program(exported_program, no_bind_return_tuple=True)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    verify_model(Identity(), example_args, {}, Expected, no_bind_return_tuple=True)
 
 
 def test_empty_like():
@@ -7237,6 +7419,7 @@ def test_dynamic_shape():
             lhs: R.Tensor((B, 4), dtype="float32"),
             rhs: R.Tensor((B, 4), dtype="float32"),
         ) -> R.Tuple(R.Tensor((B, 4), dtype="float32")):
+            R.func_attr({"tir_var_lower_bound": {"s0": 0}})
             with R.dataflow():
                 lv: R.Tensor((B, 4), dtype="float32") = R.add(lhs, rhs)
                 gv: R.Tuple(R.Tensor((B, 4), dtype="float32")) = (lv,)
@@ -7646,6 +7829,39 @@ def test_mm():
     verify_model(MatrixMultiply(), example_args, {}, Expected)
 
 
+def test_sparse_mm():
+    class SparseMatrixMultiply(Module):
+        def forward(self, sparse_input, dense_input):
+            return torch.sparse.mm(sparse_input, dense_input)
+
+    indices = torch.tensor([[0, 1, 2], [2, 0, 1]])
+    values = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)
+    sparse_input = torch.sparse_coo_tensor(indices, values, size=(3, 100))
+    dense_input = torch.randn(100, 50, dtype=torch.float32)
+
+    example_args = (sparse_input, dense_input)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            sparse_input: R.Tensor((3, 100), dtype="float32"),
+            dense_input: R.Tensor((100, 50), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((3, 50), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 50), dtype="float32") = R.full(
+                    R.shape([3, 50]), R.const(0.0, "float32"), dtype="float32"
+                )
+                lv1: R.Tensor((3, 50), dtype="float32") = R.matmul(
+                    sparse_input, dense_input, out_dtype="float32"
+                )
+                gv: R.Tuple(R.Tensor((3, 50), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    verify_model(SparseMatrixMultiply(), example_args, {}, Expected)
+
+
 @tvm.testing.requires_llvm
 def test_lstm():
     class LSTM(nn.Module):
@@ -7799,10 +8015,15 @@ def test_dynamic_shape_with_range_constraints():
     example_args = (torch.randn(8, 4), torch.randn(8, 4))
     batch = torch.export.Dim("batch", min=1, max=64)
     dynamic_shapes = {"x1": {0: batch}, "x2": {0: batch}}
-    exported_program = export(DynamicModel(), args=example_args, dynamic_shapes=dynamic_shapes)
 
-    mod = from_exported_program(exported_program)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    verify_model(
+        DynamicModel(),
+        example_args,
+        {},
+        Expected,
+        dynamic_shapes=dynamic_shapes,
+        map_free_vars=True,
+    )
 
 
 def test_dynamic_shape_with_addition_constraints():
@@ -7833,10 +8054,10 @@ def test_dynamic_shape_with_addition_constraints():
     batch = torch.export.Dim("batch", min=1, max=64)
     example_args = (torch.randn(8, 4), torch.randn(9, 4))
     dynamic_shapes = {"x": {0: batch}, "y": {0: batch + 1}}
-    exported_program = export(ConcatModel(), args=example_args, dynamic_shapes=dynamic_shapes)
 
-    mod = from_exported_program(exported_program)
-    tvm.ir.assert_structural_equal(mod, Expected, map_free_vars=True)
+    verify_model(
+        ConcatModel(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes, map_free_vars=True
+    )
 
 
 def test_dynamic_shape_with_subtraction_constraints():
@@ -7867,10 +8088,10 @@ def test_dynamic_shape_with_subtraction_constraints():
     batch = torch.export.Dim("batch", min=1, max=64)
     example_args = (torch.randn(8, 4), torch.randn(7, 4))
     dynamic_shapes = {"x": {0: batch}, "y": {0: batch - 1}}
-    exported_program = export(ConcatModel(), args=example_args, dynamic_shapes=dynamic_shapes)
 
-    mod = from_exported_program(exported_program)
-    tvm.ir.assert_structural_equal(mod, Expected, map_free_vars=True)
+    verify_model(
+        ConcatModel(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes, map_free_vars=True
+    )
 
 
 def test_dynamic_shape_with_multiplication_constraints():
@@ -7901,10 +8122,43 @@ def test_dynamic_shape_with_multiplication_constraints():
     batch = torch.export.Dim("batch", min=1, max=64)
     example_args = (torch.randn(8, 4), torch.randn(16, 4))
     dynamic_shapes = {"x": {0: batch}, "y": {0: batch * 2}}
-    exported_program = export(ConcatModel(), args=example_args, dynamic_shapes=dynamic_shapes)
 
-    mod = from_exported_program(exported_program)
-    tvm.ir.assert_structural_equal(mod, Expected, map_free_vars=True)
+    verify_model(
+        ConcatModel(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes, map_free_vars=True
+    )
+
+
+def test_dynamic_shape_with_unbounded_constraints():
+    class DynamicModel(torch.nn.Module):
+        def forward(self, x):
+            return torch.ops.aten.add.Tensor(x, x)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor(("s0", 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor(("s0", 4), dtype="float32")):
+            s0 = T.int64(is_size_var=True)
+            R.func_attr({"tir_var_lower_bound": {"s0": 2}})
+            with R.dataflow():
+                lv: R.Tensor((s0, 4), dtype="float32") = R.add(x, x)
+                gv: R.Tuple(R.Tensor((s0, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(8, 4),)
+    batch = torch.export.Dim("batch", min=2)
+    dynamic_shapes = {"x": {0: batch}}
+
+    verify_model(
+        DynamicModel(),
+        example_args,
+        {},
+        Expected,
+        dynamic_shapes=dynamic_shapes,
+        map_free_vars=True,
+    )
 
 
 def test_sym_size_int():
@@ -7953,6 +8207,7 @@ def test_sym_size_int():
             x: R.Tensor(("s0", 3, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor(("s0", 12), dtype="float32")):
             s0 = T.int64(is_size_var=True)
+            R.func_attr({"tir_var_lower_bound": {"s0": 0}})
             with R.dataflow():
                 lv: R.Tensor((s0, 12), dtype="float32") = R.reshape(x, R.shape([s0, 12]))
                 gv: R.Tuple(R.Tensor((s0, 12), dtype="float32")) = (lv,)

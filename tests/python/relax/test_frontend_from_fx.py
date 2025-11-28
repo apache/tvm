@@ -6208,11 +6208,22 @@ def test_norm():
 @pytest.mark.parametrize(
     "torch_dtype, relax_dtype",
     [
-        (torch.float32, "float32"),
+        # Float types
         (torch.float16, "float16"),
+        (torch.float32, "float32"),
+        (torch.float64, "float64"),
         (torch.bfloat16, "bfloat16"),
-        (torch.int64, "int64"),
+        # Signed integer types
+        (torch.int8, "int8"),
+        (torch.int16, "int16"),
         (torch.int32, "int32"),
+        (torch.int64, "int64"),
+        # Unsigned integer types
+        (torch.uint8, "uint8"),
+        (torch.uint16, "uint16"),
+        (torch.uint32, "uint32"),
+        (torch.uint64, "uint64"),
+        # Boolean
         (torch.bool, "bool"),
     ],
 )
@@ -6271,6 +6282,81 @@ def test_linspace():
         mod["main"].body.blocks[0].bindings[0].value.data.numpy(),
         np.linspace(0, 1, num=9, dtype="float32"),
     )
+
+
+def test_round():
+    input_info = [([3, 4], "float32")]
+
+    class Round(Module):
+        def __init__(self, decimals=0):
+            super().__init__()
+            self.decimals = decimals
+
+        def forward(self, x):
+            if self.decimals == 0:
+                return torch.round(x)
+            else:
+                return torch.round(x, decimals=self.decimals)
+
+    @tvm.script.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((3, 4), dtype="float32"),
+        ) -> R.Tensor((3, 4), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((3, 4), dtype="float32") = R.round(inp_0)
+                gv: R.Tensor((3, 4), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((3, 4), dtype="float32"),
+        ) -> R.Tensor((3, 4), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((3, 4), dtype="float32") = R.multiply(inp_0, R.const(100.0, "float32"))
+                lv1: R.Tensor((3, 4), dtype="float32") = R.round(lv)
+                lv2: R.Tensor((3, 4), dtype="float32") = R.divide(lv1, R.const(100.0, "float32"))
+                gv: R.Tensor((3, 4), dtype="float32") = lv2
+                R.output(gv)
+            return gv
+
+    rounds = [
+        (0, Expected1),
+        (2, Expected2),
+    ]
+
+    for decimals, expected in rounds:
+        verify_model(Round(decimals), input_info, {}, expected)
+
+    # Test numerical accuracy with decimals
+    test_data = torch.tensor(
+        [
+            [1.2345, 2.3456, 3.4567, 4.5678],
+            [5.6789, 6.7890, 7.8901, 8.9012],
+            [9.1234, 10.2345, 11.3456, 12.4567],
+        ]
+    )
+
+    for decimals in [0, 1, 2, 3]:
+        torch_model = Round(decimals)
+        graph_model = fx.symbolic_trace(torch_model)
+        with torch.no_grad():
+            mod = from_fx(graph_model, input_info)
+
+        target = tvm.target.Target("llvm")
+        ex = relax.build(mod, target)
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+
+        torch_result = torch_model(test_data).numpy()
+        tvm_input = tvm.runtime.tensor(test_data.numpy())
+        tvm_result = vm["main"](tvm_input).numpy()
+
+        # Use relaxed tolerance due to floating-point precision in decimal operations
+        tvm.testing.assert_allclose(tvm_result, torch_result, rtol=1e-3, atol=1e-3)
 
 
 if __name__ == "__main__":

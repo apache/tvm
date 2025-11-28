@@ -2411,7 +2411,7 @@ class Schedule(Object):
         .. code-block:: python
 
             @T.prim_func
-            def before_decompose(a: ty.handle, c: ty.handle) -> None:
+            def before_decompose(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
                 A = tir.match_buffer(a, [128, 128])
                 B = tir.match_buffer(b, [128, 128])
                 C = tir.match_buffer(c, [128, 128])
@@ -2436,7 +2436,7 @@ class Schedule(Object):
         .. code-block:: python
 
             @T.prim_func
-            def after_decompose(a: ty.handle, c: ty.handle) -> None:
+            def after_decompose(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
                 A = tir.match_buffer(a, [128, 128])
                 B = tir.match_buffer(b, [128, 128])
                 C = tir.match_buffer(c, [128, 128])
