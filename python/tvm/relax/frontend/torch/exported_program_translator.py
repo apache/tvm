@@ -934,38 +934,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         else:
             return matmul_result
 
-    def _randn(self, node: fx.Node) -> relax.Var:
-        """Handle torch.randn by creating a tensor with normal distribution."""
-        import numpy as np
-
-        args = self.retrieve_args(node)
-        # torch.randn(shape) - args[0] is the shape
-        if len(args) == 0:
-            raise ValueError("randn requires at least shape argument")
-
-        shape = args[0]
-        dtype = "float32"
-        if len(args) > 1:
-            # Check if second arg is dtype
-            if isinstance(args[1], type) or (
-                hasattr(torch, "dtype") and isinstance(args[1], torch.dtype)
-            ):
-                dtype = self._convert_data_type(args[1])
-            elif isinstance(args[1], str):
-                dtype = args[1]
-
-        # Convert shape to list of integers or TIR expressions
-        if isinstance(shape, (list, tuple)):
-            shape_list = [int(s) if isinstance(s, (int, np.integer)) else s for s in shape]
-        else:
-            shape_list = [shape]
-
-        # Create a tensor filled with zeros (as placeholder)
-        # In practice, this should use a random number generator
-        # For now, we use zeros as a workaround since TVM doesn't have built-in randn
-        # The actual random values should be generated at runtime
-        return self.block_builder.emit(relax.op.zeros(shape_list, dtype))
-
     def _grid_sampler_2d(self, node: fx.Node) -> relax.Var:
         """Convert torch.nn.functional.grid_sample to relax.op.image.grid_sample."""
         args = self.retrieve_args(node)
@@ -1401,7 +1369,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "zero_.default": self._zeros_inplace,
             "zeros.default": self._zeros,
             "zeros_like.default": self._zeros_like,
-            "randn.default": self._randn,
             "grid_sampler_2d.default": self._grid_sampler_2d,
             # datatype
             "to.dtype": self._to,

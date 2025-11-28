@@ -32,14 +32,29 @@ from tvm.relax.frontend.torch import from_exported_program
 
 
 def verify_model(
-    torch_model, example_args, binding, expected, dynamic_shapes=None, run_ep_decomposition=True
+    torch_model,
+    example_args,
+    binding,
+    expected,
+    dynamic_shapes=None,
+    run_ep_decomposition=True,
+    keep_params_as_input=False,
+    unwrap_unit_return_tuple=False,
+    no_bind_return_tuple=False,
+    map_free_vars=False,
 ):
     exported_program = export(torch_model, args=example_args, dynamic_shapes=dynamic_shapes)
-    mod = from_exported_program(exported_program, run_ep_decomposition=run_ep_decomposition)
+    mod = from_exported_program(
+        exported_program,
+        run_ep_decomposition=run_ep_decomposition,
+        keep_params_as_input=keep_params_as_input,
+        unwrap_unit_return_tuple=unwrap_unit_return_tuple,
+        no_bind_return_tuple=no_bind_return_tuple,
+    )
 
     binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
-    tvm.ir.assert_structural_equal(mod, expected)
+    tvm.ir.assert_structural_equal(mod, expected, map_free_vars=map_free_vars)
 
 
 operator_basic_unary = [
@@ -86,7 +101,7 @@ def test_basic_unary_ops(pytorch_op, relax_op):
     class expected:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = relax_op(input_1)
@@ -115,7 +130,7 @@ def test_bool_unary_ops(pytorch_op, relax_op):
     class expected:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="bool")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="bool") = relax_op(input_1)
@@ -138,7 +153,7 @@ def test_sqrt_integer_input():
     class expected_int64:
         @R.function
         def main(
-            input_1: R.Tensor((1, 4), dtype="int64"),
+            input_1: R.Tensor((1, 4), dtype="int64")
         ) -> R.Tuple(R.Tensor((1, 4), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 4), dtype="float32") = R.astype(input_1, dtype="float32")
@@ -155,7 +170,7 @@ def test_sqrt_integer_input():
     class expected_int32:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3), dtype="int32"),
+            input_1: R.Tensor((1, 3), dtype="int32")
         ) -> R.Tuple(R.Tensor((1, 3), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3), dtype="float32") = R.astype(input_1, dtype="float32")
@@ -188,7 +203,7 @@ def test_extended_unary_ops():
     class expected_celu:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.exp(input_1)
@@ -299,7 +314,7 @@ def test_extended_unary_ops():
     class expected_dropout_for_1_2:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -311,7 +326,7 @@ def test_extended_unary_ops():
     class expected_dropout_for_3:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(
             R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")
         ):
@@ -352,7 +367,7 @@ def test_extended_unary_ops():
     class expected_elu:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.greater(
@@ -396,7 +411,7 @@ def test_extended_unary_ops():
     class expected_hardsigmoid:
         @R.function
         def main(
-            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(
@@ -439,7 +454,7 @@ def test_extended_unary_ops():
     class expected_hardswish_for_1_2:
         @R.function
         def main(
-            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(
@@ -463,7 +478,7 @@ def test_extended_unary_ops():
     class expected_hardswish_for_3:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(
             R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")
         ):
@@ -501,7 +516,7 @@ def test_extended_unary_ops():
     class expected_isfinite:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="bool")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.abs(input)
@@ -525,7 +540,7 @@ def test_extended_unary_ops():
     class Expected_log2:
         @R.function
         def main(
-            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.log(inp_0)
@@ -590,7 +605,7 @@ def test_extended_unary_ops():
     class expected_reciprocal:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
@@ -611,7 +626,7 @@ def test_extended_unary_ops():
     class expected_max:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((), dtype="float32") = R.max(input, axis=None, keepdims=False)
@@ -630,7 +645,7 @@ def test_extended_unary_ops():
     class expected_min:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((), dtype="float32") = R.min(input, axis=None, keepdims=False)
@@ -661,7 +676,7 @@ def test_extended_unary_ops():
     class expected_relu6_1:
         @R.function
         def main(
-            x: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(
@@ -675,7 +690,7 @@ def test_extended_unary_ops():
     class expected_relu6_2:
         @R.function
         def main(
-            x: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu6(x)
@@ -687,7 +702,7 @@ def test_extended_unary_ops():
     class expected_relu6_3:
         @R.function
         def main(
-            x: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(
             R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")
         ):
@@ -715,7 +730,7 @@ def test_extended_unary_ops():
     class expected_selu:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.greater(
@@ -750,7 +765,7 @@ def test_extended_unary_ops():
     class expected_silu:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.sigmoid(input)
@@ -770,7 +785,7 @@ def test_extended_unary_ops():
     class expected_silu_:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(
             R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")
         ):
@@ -798,7 +813,7 @@ def test_extended_unary_ops():
     class expected_square:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.power(
@@ -819,7 +834,7 @@ def test_extended_unary_ops():
     class expected_relu_:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(input)
@@ -851,7 +866,7 @@ def test_hardtanh():
     class expected_for_1_2:
         @R.function
         def main(
-            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(
@@ -865,7 +880,7 @@ def test_hardtanh():
     class expected_hardtanh_for_3:
         @R.function
         def main(
-            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(
             R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")
         ):
@@ -908,7 +923,7 @@ def test_softplus():
     class expected:
         @R.function
         def main(
-            x: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
@@ -959,7 +974,7 @@ def test_leakyrelu():
     class expected_for_1_2:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -972,7 +987,7 @@ def test_leakyrelu():
     class expected_for_3:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(
             R.Tensor((1, 3, 10, 10), dtype="float32"), R.Tensor((1, 3, 10, 10), dtype="float32")
         ):
@@ -1054,7 +1069,7 @@ def test_logsoftmax():
     class expected1:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -1089,7 +1104,7 @@ def test_prelu():
     class expected:
         @R.function
         def main(
-            x: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 1, 1, 1), dtype="float32") = R.reshape(
@@ -1124,7 +1139,7 @@ def test_softmax():
     class expected1:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -1155,7 +1170,7 @@ def test_softsign():
     class expected_softsign:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 abs_val = R.abs(input)
@@ -1221,7 +1236,7 @@ def test_tril_triu():
     class expected_tril:
         @R.function
         def main(
-            input: R.Tensor((10, 10), dtype="float32"),
+            input: R.Tensor((10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -1251,7 +1266,7 @@ def test_tril_triu():
     class expected_triu:
         @R.function
         def main(
-            input: R.Tensor((10, 10), dtype="float32"),
+            input: R.Tensor((10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -1406,7 +1421,7 @@ def test_binary_dtype_promotion(op, relax_op):
     class expected_promote_lhs:
         @R.function
         def main(
-            x: R.Tensor((2, 3), dtype="float32"),
+            x: R.Tensor((2, 3), dtype="float32")
         ) -> R.Tuple(R.Tensor((2, 3), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((3,), dtype="int64") = R.arange(
@@ -1427,7 +1442,7 @@ def test_binary_dtype_promotion(op, relax_op):
     class expected_promote_rhs:
         @R.function
         def main(
-            x: R.Tensor((2, 3), dtype="float32"),
+            x: R.Tensor((2, 3), dtype="float32")
         ) -> R.Tuple(R.Tensor((2, 3), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((3,), dtype="int64") = R.arange(
@@ -1579,7 +1594,7 @@ def test_binary3():
     class expected_rsub2:
         @R.function
         def main(
-            x: R.Tensor((10, 10), dtype="float32"),
+            x: R.Tensor((10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((10, 10), dtype="float32") = R.subtract(R.const(5.0, "float32"), x)
@@ -1788,6 +1803,82 @@ def test_batchnorm2d():
     }
     verify_model(model_2, example_args, binding_2, expected2)
 
+    class BatchNorm2dTraining(Module):
+        def __init__(self):
+            super().__init__()
+            self.bn = torch.nn.BatchNorm2d(3, track_running_stats=True)
+
+        def forward(self, input):
+            return self.bn(input)
+
+    @tvm.script.ir_module
+    class expected3:
+        @R.function
+        def main(
+            input_1: R.Tensor((2, 3, 4, 4), dtype="float32"),
+            w1: R.Tensor((3,), dtype="float32"),
+            w2: R.Tensor((3,), dtype="float32"),
+            w3: R.Tensor((3,), dtype="float32"),
+            w4: R.Tensor((3,), dtype="float32"),
+        ) -> R.Tuple(
+            R.Tensor((3,), dtype="float32"),
+            R.Tensor((3,), dtype="float32"),
+            R.Tensor((), dtype="int64"),
+            R.Tensor((2, 3, 4, 4), dtype="float32"),
+        ):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="int64") = R.add(R.const(0, "int64"), R.const(1, "int64"))
+                lv1: R.Tuple(
+                    R.Tensor((2, 3, 4, 4), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                ) = R.nn.batch_norm(
+                    input_1,
+                    w1,
+                    w2,
+                    w3,
+                    w4,
+                    axis=1,
+                    epsilon=0.1,
+                    center=True,
+                    scale=True,
+                    momentum=1.0,
+                    training=True,
+                )
+                lv2: R.Tensor((2, 3, 4, 4), dtype="float32") = lv1[0]
+                lv3: R.Tensor((3,), dtype="float32") = lv1[1]
+                lv4: R.Tensor((3,), dtype="float32") = R.zeros(R.shape([3]), dtype="float32")
+                lv5: R.Tuple(
+                    R.Tensor((2, 3, 4, 4), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                ) = (lv2, lv3, lv4, lv4, lv4)
+                lv6: R.Tensor((2, 3, 4, 4), dtype="float32") = lv5[0]
+                lv7: R.Tensor((3,), dtype="float32") = lv5[3]
+                lv8: R.Tensor((3,), dtype="float32") = lv5[4]
+                gv: R.Tuple(
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((), dtype="int64"),
+                    R.Tensor((2, 3, 4, 4), dtype="float32"),
+                ) = (lv7, lv8, lv, lv6)
+                R.output(gv)
+            return gv
+
+    example_args_train = (torch.randn(2, 3, 4, 4, dtype=torch.float32),)
+
+    model_3 = BatchNorm2dTraining()
+    model_3.train()  # Set to training mode
+    binding_3 = {
+        "w1": model_3.bn.weight.detach().numpy(),
+        "w2": model_3.bn.bias.detach().numpy(),
+        "w3": model_3.bn.running_mean.detach().numpy(),
+        "w4": model_3.bn.running_var.detach().numpy(),
+    }
+    verify_model(model_3, example_args_train, binding_3, expected3)
+
 
 def test_adaptive_avgpool1d():
     class AdaptiveAvgPool1d0(torch.nn.Module):
@@ -1806,7 +1897,7 @@ def test_adaptive_avgpool1d():
     class expected1:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10), dtype="float32"),
+            input_1: R.Tensor((1, 3, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 5), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 1, 10), dtype="float32") = R.expand_dims(input_1, axis=[-2])
@@ -1840,7 +1931,7 @@ def test_adaptive_avgpool2d():
     class expected1:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -1873,7 +1964,7 @@ def test_adaptive_avgpool3d():
     class expected1:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32"),
+            input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 4, 4, 4), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 4, 4, 4), dtype="float32") = R.nn.adaptive_avg_pool3d(
@@ -2017,7 +2108,7 @@ def test_avg_pool1d():
     class expected1:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10), dtype="float32"),
+            input: R.Tensor((1, 3, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 1, 10), dtype="float32") = R.expand_dims(input, axis=[-2])
@@ -2055,7 +2146,7 @@ def test_avg_pool1d():
     class expected2:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10), dtype="float32"),
+            input: R.Tensor((1, 3, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 6), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 1, 10), dtype="float32") = R.expand_dims(input, axis=[-2])
@@ -2083,7 +2174,7 @@ def test_avg_pool1d():
     class expected3:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10), dtype="float32"),
+            input: R.Tensor((1, 3, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 5), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 1, 10), dtype="float32") = R.expand_dims(input, axis=[-2])
@@ -2123,7 +2214,7 @@ def test_avg_pool2d():
     class expected1:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -2246,7 +2337,7 @@ def test_avg_pool3d():
     class expected1:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32"),
+            input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 8, 8, 8), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 8, 8, 8), dtype="float32") = R.nn.avg_pool3d(
@@ -2959,7 +3050,7 @@ def test_pad():
     class expected_constant:
         @R.function
         def main(
-            x: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.nn.pad(
@@ -2976,7 +3067,7 @@ def test_pad():
     class expected_reflect:
         @R.function
         def main(
-            x: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((14,), dtype="int64") = R.arange(
@@ -3005,7 +3096,7 @@ def test_pad():
     class expected_replicate:
         @R.function
         def main(
-            x: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((14,), dtype="int64") = R.arange(
@@ -3028,7 +3119,7 @@ def test_pad():
     class expected_circular:
         @R.function
         def main(
-            x: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.zeros(
@@ -3243,7 +3334,7 @@ def test_pixel_shuffle():
     class expected:
         @R.function
         def main(
-            x: R.Tensor((1, 8, 10, 15), dtype="float32"),
+            x: R.Tensor((1, 8, 10, 15), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 2, 20, 30), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 2, 2, 2, 10, 15), dtype="float32") = R.reshape(
@@ -3283,7 +3374,7 @@ def test_einsum():
     class Expected1:
         @R.function
         def main(
-            inp_0: R.Tensor((4, 4), dtype="float32"),
+            inp_0: R.Tensor((4, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor((), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((), dtype="float32") = R.einsum((inp_0,), subscripts="ii")
@@ -3612,7 +3703,7 @@ def test_maxpool1d():
     class expected1:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 8), dtype="float32"),
+            input_1: R.Tensor((1, 3, 8), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 4), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 1, 8), dtype="float32") = R.expand_dims(input_1, axis=[-2])
@@ -3640,7 +3731,7 @@ def test_maxpool1d():
     class expected2:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 8), dtype="float32"),
+            input_1: R.Tensor((1, 3, 8), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 4), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 1, 8), dtype="float32") = R.expand_dims(input_1, axis=[-2])
@@ -3668,7 +3759,7 @@ def test_maxpool1d():
     class expected3:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10), dtype="float32"),
+            input_1: R.Tensor((1, 3, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 4), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 1, 10), dtype="float32") = R.expand_dims(input_1, axis=[-2])
@@ -3723,7 +3814,7 @@ def test_maxpool2d():
     class expected1:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -3758,7 +3849,7 @@ def test_maxpool2d():
     class expected2:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 4, 4), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -3792,7 +3883,7 @@ def test_maxpool2d():
     class expected3:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 6, 6), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -3841,7 +3932,7 @@ def test_maxpool3d():
     class expected1:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 4, 4, 4), dtype="float32"),
+            input_1: R.Tensor((1, 3, 4, 4, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 4, 4, 4), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 4, 4, 4), dtype="float32") = R.nn.max_pool3d(
@@ -3875,7 +3966,7 @@ def test_maxpool3d():
     class expected2:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32"),
+            input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 3, 3, 3), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 3, 3, 3), dtype="float32") = R.nn.max_pool3d(
@@ -3909,7 +4000,7 @@ def test_maxpool3d():
     class expected3:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10, 10), dtype="float32"),
+            input_1: R.Tensor((1, 3, 10, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 5, 5, 5), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 5, 5, 5), dtype="float32") = R.nn.max_pool3d(
@@ -4241,7 +4332,7 @@ def test_unbind():
     class expected3:
         @R.function
         def main(
-            data: R.Tensor((3, 1, 3), dtype="float32"),
+            data: R.Tensor((3, 1, 3), dtype="float32")
         ) -> R.Tuple(R.Tensor((3, 3), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((3, 1, 3), dtype="float32") = R.strided_slice(
@@ -4273,7 +4364,7 @@ def test_interpolate():
     class expected_bilinear:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 112, 112), dtype="float32"),
+            input: R.Tensor((1, 3, 112, 112), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 224, 224), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -4302,7 +4393,7 @@ def test_interpolate():
     class expected_nearest:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 112, 112), dtype="float32"),
+            input: R.Tensor((1, 3, 112, 112), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 224, 224), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -4331,7 +4422,7 @@ def test_interpolate():
     class expected_bicubic:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 112, 112), dtype="float32"),
+            input: R.Tensor((1, 3, 112, 112), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 224, 224), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 112, 112), dtype="float32") = R.astype(input, dtype="float32")
@@ -4760,6 +4851,43 @@ def test_interpolate():
     verify_model(InterpolateBicubic(), example_args, {}, expected_bicubic)
 
 
+def test_interpolate_antialiased():
+    """Test bilinear interpolation with antialiasing enabled."""
+
+    class InterpolateBilinearAA(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(
+                input, size=(64, 64), mode="bilinear", align_corners=False, antialias=True
+            )
+
+    @tvm.script.ir_module
+    class expected_bilinear_aa:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 32, 32), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 64, 64), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 64, 64), dtype="float32") = R.image.resize2d(
+                    input,
+                    R.shape([64, 64]),
+                    roi=[T.float32(0.0), T.float32(0.0), T.float32(0.0), T.float32(0.0)],
+                    layout="NCHW",
+                    method="linear",
+                    coordinate_transformation_mode="half_pixel",
+                    rounding_method="round",
+                    cubic_alpha=-0.75,
+                    cubic_exclude=0,
+                    extrapolation_value=0.0,
+                    out_dtype="void",
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 64, 64), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 32, 32, dtype=torch.float32),)
+    verify_model(InterpolateBilinearAA(), example_args, {}, expected_bilinear_aa)
+
+
 def test_mean():
     class Mean(Module):
         def forward(self, input):
@@ -4773,7 +4901,7 @@ def test_mean():
     class Expected1:
         @R.function
         def main(
-            inp_0: R.Tensor((256, 256), dtype="float32"),
+            inp_0: R.Tensor((256, 256), dtype="float32")
         ) -> R.Tuple(R.Tensor((256,), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((256,), dtype="float32") = R.mean(inp_0, axis=[-1], keepdims=False)
@@ -4785,7 +4913,7 @@ def test_mean():
     class Expected2:
         @R.function
         def main(
-            inp_0: R.Tensor((256, 256), dtype="float32"),
+            inp_0: R.Tensor((256, 256), dtype="float32")
         ) -> R.Tuple(R.Tensor((256, 1), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((256, 1), dtype="float32") = R.mean(inp_0, axis=[-1], keepdims=True)
@@ -4807,7 +4935,7 @@ def test_sum():
     class expected1:
         @R.function
         def main(
-            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32"),
+            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 4), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -4841,7 +4969,7 @@ def test_argmax_argmin():
     class expected_argmax1:
         @R.function
         def main(
-            inp_0: R.Tensor((256, 256), dtype="float32"),
+            inp_0: R.Tensor((256, 256), dtype="float32")
         ) -> R.Tuple(R.Tensor((256,), dtype="int64")):
             with R.dataflow():
                 lv: R.Tensor((256,), dtype="int64") = R.argmax(inp_0, axis=-1, keepdims=False)
@@ -4853,7 +4981,7 @@ def test_argmax_argmin():
     class expected_argmax2:
         @R.function
         def main(
-            inp_0: R.Tensor((256, 256), dtype="float32"),
+            inp_0: R.Tensor((256, 256), dtype="float32")
         ) -> R.Tuple(R.Tensor((256, 1), dtype="int64")):
             with R.dataflow():
                 lv: R.Tensor((256, 1), dtype="int64") = R.argmax(inp_0, axis=-1, keepdims=True)
@@ -4882,7 +5010,7 @@ def test_argmax_argmin():
     class expected_argmin1:
         @R.function
         def main(
-            inp_0: R.Tensor((256, 256), dtype="float32"),
+            inp_0: R.Tensor((256, 256), dtype="float32")
         ) -> R.Tuple(R.Tensor((), dtype="int64")):
             with R.dataflow():
                 lv: R.Tensor((), dtype="int64") = R.argmin(inp_0, axis=None, keepdims=False)
@@ -4894,7 +5022,7 @@ def test_argmax_argmin():
     class expected_argmin2:
         @R.function
         def main(
-            inp_0: R.Tensor((256, 256), dtype="float32"),
+            inp_0: R.Tensor((256, 256), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 1), dtype="int64")):
             with R.dataflow():
                 lv: R.Tensor((1, 1), dtype="int64") = R.argmin(inp_0, axis=None, keepdims=True)
@@ -4965,7 +5093,7 @@ def test_cumsum():
     class expected1:
         @R.function
         def main(
-            input_1: R.Tensor((1, 2, 3, 4), dtype="float32"),
+            input_1: R.Tensor((1, 2, 3, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 2, 3, 4), dtype="int32")):
             # block 0
             with R.dataflow():
@@ -4991,7 +5119,7 @@ def test_expand():
     class expected1:
         @R.function
         def main(
-            x: R.Tensor((1, 2, 3, 4), dtype="float32"),
+            x: R.Tensor((1, 2, 3, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor((4, 2, 3, 4), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -5018,7 +5146,7 @@ def test_flatten():
     class expected1:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 100), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -5095,7 +5223,7 @@ def test_permute():
     class expected1:
         @R.function
         def main(
-            x: R.Tensor((1, 2, 3, 4), dtype="float32"),
+            x: R.Tensor((1, 2, 3, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 4, 3, 2), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -5133,7 +5261,7 @@ def test_repeat():
     class expected2:
         @R.function
         def main(
-            x: R.Tensor((1, 3), dtype="float32"),
+            x: R.Tensor((1, 3), dtype="float32")
         ) -> R.Tuple(R.Tensor((4, 6), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -5161,7 +5289,7 @@ def test_reshape():
     class expected1:
         @R.function
         def main(
-            x: R.Tensor((1, 2, 3, 4), dtype="float32"),
+            x: R.Tensor((1, 2, 3, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor((2, 12), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -5289,7 +5417,7 @@ def test_select_slice():
     class expected1:
         @R.function
         def main(
-            x: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 10, 3), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -5330,7 +5458,7 @@ def test_select_slice():
     class expected2:
         @R.function
         def main(
-            x: R.Tensor((8, 16), dtype="float32"),
+            x: R.Tensor((8, 16), dtype="float32")
         ) -> R.Tuple(R.Tensor((8, 1, 1, 16, 1), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((8, 16), dtype="float32") = R.strided_slice(
@@ -5581,7 +5709,7 @@ def test_squeeze():
     class Expected1:
         @R.function
         def main(
-            inp_0: R.Tensor((3, 1, 4, 1), dtype="float32"),
+            inp_0: R.Tensor((3, 1, 4, 1), dtype="float32")
         ) -> R.Tuple(R.Tensor((3, 4, 1), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((3, 4, 1), dtype="float32") = R.squeeze(inp_0, axis=[1])
@@ -5597,7 +5725,7 @@ def test_squeeze():
     class Expected2:
         @R.function
         def main(
-            input: R.Tensor((3, 1, 4, 1), dtype="float32"),
+            input: R.Tensor((3, 1, 4, 1), dtype="float32")
         ) -> R.Tuple(R.Tensor((3, 4), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((3, 4), dtype="float32") = R.squeeze(input, axis=[0, 1, 2, 3])
@@ -5613,7 +5741,7 @@ def test_squeeze():
     class Expected3:
         @R.function
         def main(
-            inp_0: R.Tensor((3, 1, 4, 1), dtype="float32"),
+            inp_0: R.Tensor((3, 1, 4, 1), dtype="float32")
         ) -> R.Tuple(R.Tensor((3, 1, 4, 1), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((3, 1, 4, 1), dtype="float32") = R.squeeze(inp_0, axis=[2])
@@ -5713,7 +5841,7 @@ def test_tile():
     class expected1:
         @R.function
         def main(
-            x: R.Tensor((1, 3), dtype="float32"),
+            x: R.Tensor((1, 3), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 6), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -5726,7 +5854,7 @@ def test_tile():
     class expected2:
         @R.function
         def main(
-            x: R.Tensor((1, 3), dtype="float32"),
+            x: R.Tensor((1, 3), dtype="float32")
         ) -> R.Tuple(R.Tensor((4, 6), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -5750,7 +5878,7 @@ def test_transpose():
     class expected1:
         @R.function
         def main(
-            x: R.Tensor((1, 2, 3, 4), dtype="float32"),
+            x: R.Tensor((1, 2, 3, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 4, 3, 2), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -5772,7 +5900,7 @@ def test_unsqueeze():
     class expected1:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 1, 3, 10, 10), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -5789,7 +5917,7 @@ def test_unsqueeze():
     class expected2:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10, 1), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -5813,7 +5941,7 @@ def test_view():
     class expected1:
         @R.function
         def main(
-            x: R.Tensor((1, 2, 3, 4), dtype="float32"),
+            x: R.Tensor((1, 2, 3, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor((2, 12), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -5835,7 +5963,7 @@ def test_as_strided():
     class Expected:
         @R.function
         def main(
-            x: R.Tensor((2, 2, 3), dtype="float32"),
+            x: R.Tensor((2, 2, 3), dtype="float32")
         ) -> R.Tuple(R.Tensor((3, 2, 2), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((3, 2, 2), dtype="float32") = R.reshape(x, (3, 2, 2))
@@ -5873,7 +6001,7 @@ def test_arange():
     class Expected:
         @R.function
         def main(
-            input: R.Tensor((10, 10), dtype="float32"),
+            input: R.Tensor((10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((20,), dtype="int32")):
             with R.dataflow():
                 lv: R.Tensor((20,), dtype="int32") = R.arange(0, 20, 1, dtype="int32")
@@ -5894,7 +6022,7 @@ def test_hamming_window():
     class Expected:
         @R.function
         def main(
-            input: R.Tensor((10, 10), dtype="float32"),
+            input: R.Tensor((10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((20,), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((20,), dtype="float32") = R.hamming_window(
@@ -5941,7 +6069,7 @@ def test_clone():
     class Expected:
         @R.function
         def main(
-            input: R.Tensor((10, 10), dtype="float32"),
+            input: R.Tensor((10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
             with R.dataflow():
                 gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (input,)
@@ -5961,7 +6089,7 @@ def test_empty():
     class Expected:
         @R.function
         def main(
-            input: R.Tensor((10, 10), dtype="float32"),
+            input: R.Tensor((10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((10, 10), dtype="float32") = R.zeros(
@@ -5984,7 +6112,7 @@ def test_empty_without_dtype():
     class Expected:
         @R.function
         def main(
-            input: R.Tensor((10, 10), dtype="float32"),
+            input: R.Tensor((10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((5, 5), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((5, 5), dtype="float32") = R.zeros(R.shape([5, 5]), dtype="float32")
@@ -6005,7 +6133,7 @@ def test_fill():
     class Expected:
         @R.function
         def main(
-            input: R.Tensor((10, 10), dtype="float32"),
+            input: R.Tensor((10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((10, 10), dtype="float32") = R.full_like(
@@ -6029,7 +6157,7 @@ def test_fill_inplace():
     class Expected:
         @R.function
         def main(
-            input: R.Tensor((2, 3), dtype="float32"),
+            input: R.Tensor((2, 3), dtype="float32")
         ) -> R.Tuple(R.Tensor((2, 3), dtype="float32"), R.Tensor((2, 3), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((2, 3), dtype="float32") = R.full_like(
@@ -6100,7 +6228,7 @@ def test_new_ones():
     class expected1:
         @R.function
         def main(
-            x: R.Tensor((1, 2, 3), dtype="float32"),
+            x: R.Tensor((1, 2, 3), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 2, 3), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -6124,7 +6252,7 @@ def test_new_zeros():
     class expected1:
         @R.function
         def main(
-            x: R.Tensor((1, 128, 128), dtype="float32"),
+            x: R.Tensor((1, 128, 128), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 128, 128), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 128, 128), dtype="float32") = R.full(
@@ -6176,7 +6304,7 @@ def test_to_copy():
     class expected_float:
         @R.function
         def main(
-            x: R.Tensor((1, 2, 3, 4), dtype="float32"),
+            x: R.Tensor((1, 2, 3, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -6194,7 +6322,7 @@ def test_to_copy():
     class expected_half:
         @R.function
         def main(
-            x: R.Tensor((1, 2, 3, 4), dtype="float32"),
+            x: R.Tensor((1, 2, 3, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float16")):
             # block 0
             with R.dataflow():
@@ -6212,7 +6340,7 @@ def test_to_copy():
     class expected_type:
         @R.function
         def main(
-            x: R.Tensor((1, 2, 3, 4), dtype="float32"),
+            x: R.Tensor((1, 2, 3, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -6229,7 +6357,7 @@ def test_to_copy():
     class expected_to1:
         @R.function
         def main(
-            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32"),
+            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float16")):
             with R.dataflow():
                 lv: R.Tensor((1, 2, 3, 4), dtype="float16") = R.astype(inp_0, dtype="float16")
@@ -6245,7 +6373,7 @@ def test_to_copy():
     class expected_to2:
         @R.function
         def main(
-            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32"),
+            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 2, 3, 4), dtype="float32") = R.astype(inp_0, dtype="float32")
@@ -6302,6 +6430,7 @@ def test_keep_params():
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
     model = Conv2D1()
+
     exported_program = torch.export.export(model, example_args)
     mod = from_exported_program(exported_program, keep_params_as_input=True)
     mod, params = detach_params(mod)
@@ -6330,7 +6459,7 @@ def test_unwrap_unit_return_tuple():
     class Expected:
         @R.function
         def main(
-            inp_0: R.Tensor((256, 256), dtype="float32"),
+            inp_0: R.Tensor((256, 256), dtype="float32")
         ) -> R.Tensor((256, 256), dtype="float32"):
             with R.dataflow():
                 gv: R.Tensor((256, 256), dtype="float32") = inp_0
@@ -6338,9 +6467,7 @@ def test_unwrap_unit_return_tuple():
             return gv
 
     example_args = (torch.randn(256, 256, dtype=torch.float32),)
-    exported_program = export(Identity(), args=example_args)
-    mod = from_exported_program(exported_program, unwrap_unit_return_tuple=True)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    verify_model(Identity(), example_args, {}, Expected, unwrap_unit_return_tuple=True)
 
 
 def test_no_bind_return_tuple():
@@ -6368,9 +6495,7 @@ def test_no_bind_return_tuple():
         torch.randn(256, 256, dtype=torch.float32),
         torch.randn(256, 256, dtype=torch.float32),
     )
-    exported_program = export(Identity(), args=example_args)
-    mod = from_exported_program(exported_program, no_bind_return_tuple=True)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    verify_model(Identity(), example_args, {}, Expected, no_bind_return_tuple=True)
 
 
 def test_empty_like():
@@ -6431,7 +6556,7 @@ def test_ones_like():
     class Expected:
         @R.function
         def main(
-            input: R.Tensor((128, 128), dtype="float32"),
+            input: R.Tensor((128, 128), dtype="float32")
         ) -> R.Tuple(R.Tensor((128, 128), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((128, 128), dtype="float32") = R.full_like(
@@ -6455,7 +6580,7 @@ def test_zero_inplace():
     class Expected:
         @R.function
         def main(
-            input: R.Tensor((128, 128), dtype="float32"),
+            input: R.Tensor((128, 128), dtype="float32")
         ) -> R.Tuple(R.Tensor((128, 128), dtype="float32"), R.Tensor((128, 128), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((128, 128), dtype="float32") = R.full_like(
@@ -6484,7 +6609,7 @@ def test_zeros():
     class Expected:
         @R.function
         def main(
-            input: R.Tensor((128, 128), dtype="float32"),
+            input: R.Tensor((128, 128), dtype="float32")
         ) -> R.Tuple(R.Tensor((5, 2), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((5, 2), dtype="float32") = R.full(
@@ -6508,7 +6633,7 @@ def test_zeros_like():
     class Expected:
         @R.function
         def main(
-            input: R.Tensor((128, 128), dtype="float32"),
+            input: R.Tensor((128, 128), dtype="float32")
         ) -> R.Tuple(R.Tensor((128, 128), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((128, 128), dtype="float32") = R.full_like(
@@ -7230,7 +7355,7 @@ def test_topk():
     class Expected:
         @R.function
         def main(
-            x: R.Tensor((5, 3), dtype="float32"),
+            x: R.Tensor((5, 3), dtype="float32")
         ) -> R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")):
             with R.dataflow():
                 lv: R.Tuple(
@@ -7263,6 +7388,7 @@ def test_dynamic_shape():
             lhs: R.Tensor((B, 4), dtype="float32"),
             rhs: R.Tensor((B, 4), dtype="float32"),
         ) -> R.Tuple(R.Tensor((B, 4), dtype="float32")):
+            R.func_attr({"tir_var_lower_bound": {"s0": 0}})
             with R.dataflow():
                 lv: R.Tensor((B, 4), dtype="float32") = R.add(lhs, rhs)
                 gv: R.Tuple(R.Tensor((B, 4), dtype="float32")) = (lv,)
@@ -7292,7 +7418,7 @@ def test_broadcast_to():
     class Expected:
         @R.function
         def main(
-            x: R.Tensor((5, 1), dtype="float32"),
+            x: R.Tensor((5, 1), dtype="float32")
         ) -> R.Tuple(R.Tensor((5, 3), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((5, 3), dtype="float32") = R.broadcast_to(x, R.shape([5, 3]))
@@ -7314,7 +7440,7 @@ def test_narrow():
     class Expected:
         @R.function
         def main(
-            x: R.Tensor((5, 3), dtype="float32"),
+            x: R.Tensor((5, 3), dtype="float32")
         ) -> R.Tuple(R.Tensor((5, 2), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((5, 2), dtype="float32") = R.strided_slice(
@@ -7474,7 +7600,7 @@ def test_eye():
     class Expected1:
         @R.function
         def main(
-            input: R.Tensor((3, 5), dtype="float32"),
+            input: R.Tensor((3, 5), dtype="float32")
         ) -> R.Tuple(R.Tensor((3, 5), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((3,), dtype="int64") = R.arange(
@@ -7502,7 +7628,7 @@ def test_eye():
     class Expected2:
         @R.function
         def main(
-            input: R.Tensor((5,), dtype="float32"),
+            input: R.Tensor((5,), dtype="float32")
         ) -> R.Tuple(R.Tensor((5, 5), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((5,), dtype="int64") = R.arange(
@@ -7586,7 +7712,7 @@ def test_linspace():
     class Expected:
         @R.function
         def main(
-            input: R.Tensor((9, 9), dtype="float32"),
+            input: R.Tensor((9, 9), dtype="float32")
         ) -> R.Tuple(R.Tensor((9,), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((9,), dtype="int64") = R.arange(
@@ -7787,7 +7913,7 @@ def test_tensor_none_tuple():
     class Expected:
         @R.function
         def main(
-            x: R.Tensor((3,), dtype="float32"),
+            x: R.Tensor((3,), dtype="float32")
         ) -> R.Tuple(R.Tensor((3,), dtype="float32"), R.Object):
             with R.dataflow():
                 lv: R.Tensor((3,), dtype="float32") = R.add(x, R.const(1.0, "float32"))
@@ -7891,10 +8017,15 @@ def test_dynamic_shape_with_range_constraints():
     example_args = (torch.randn(8, 4), torch.randn(8, 4))
     batch = torch.export.Dim("batch", min=1, max=64)
     dynamic_shapes = {"x1": {0: batch}, "x2": {0: batch}}
-    exported_program = export(DynamicModel(), args=example_args, dynamic_shapes=dynamic_shapes)
 
-    mod = from_exported_program(exported_program)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    verify_model(
+        DynamicModel(),
+        example_args,
+        {},
+        Expected,
+        dynamic_shapes=dynamic_shapes,
+        map_free_vars=True,
+    )
 
 
 def test_dynamic_shape_with_addition_constraints():
@@ -7925,10 +8056,10 @@ def test_dynamic_shape_with_addition_constraints():
     batch = torch.export.Dim("batch", min=1, max=64)
     example_args = (torch.randn(8, 4), torch.randn(9, 4))
     dynamic_shapes = {"x": {0: batch}, "y": {0: batch + 1}}
-    exported_program = export(ConcatModel(), args=example_args, dynamic_shapes=dynamic_shapes)
 
-    mod = from_exported_program(exported_program)
-    tvm.ir.assert_structural_equal(mod, Expected, map_free_vars=True)
+    verify_model(
+        ConcatModel(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes, map_free_vars=True
+    )
 
 
 def test_dynamic_shape_with_subtraction_constraints():
@@ -7959,10 +8090,10 @@ def test_dynamic_shape_with_subtraction_constraints():
     batch = torch.export.Dim("batch", min=1, max=64)
     example_args = (torch.randn(8, 4), torch.randn(7, 4))
     dynamic_shapes = {"x": {0: batch}, "y": {0: batch - 1}}
-    exported_program = export(ConcatModel(), args=example_args, dynamic_shapes=dynamic_shapes)
 
-    mod = from_exported_program(exported_program)
-    tvm.ir.assert_structural_equal(mod, Expected, map_free_vars=True)
+    verify_model(
+        ConcatModel(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes, map_free_vars=True
+    )
 
 
 def test_dynamic_shape_with_multiplication_constraints():
@@ -7993,10 +8124,43 @@ def test_dynamic_shape_with_multiplication_constraints():
     batch = torch.export.Dim("batch", min=1, max=64)
     example_args = (torch.randn(8, 4), torch.randn(16, 4))
     dynamic_shapes = {"x": {0: batch}, "y": {0: batch * 2}}
-    exported_program = export(ConcatModel(), args=example_args, dynamic_shapes=dynamic_shapes)
 
-    mod = from_exported_program(exported_program)
-    tvm.ir.assert_structural_equal(mod, Expected, map_free_vars=True)
+    verify_model(
+        ConcatModel(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes, map_free_vars=True
+    )
+
+
+def test_dynamic_shape_with_unbounded_constraints():
+    class DynamicModel(torch.nn.Module):
+        def forward(self, x):
+            return torch.ops.aten.add.Tensor(x, x)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor(("s0", 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor(("s0", 4), dtype="float32")):
+            s0 = T.int64(is_size_var=True)
+            R.func_attr({"tir_var_lower_bound": {"s0": 2}})
+            with R.dataflow():
+                lv: R.Tensor((s0, 4), dtype="float32") = R.add(x, x)
+                gv: R.Tuple(R.Tensor((s0, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(8, 4),)
+    batch = torch.export.Dim("batch", min=2)
+    dynamic_shapes = {"x": {0: batch}}
+
+    verify_model(
+        DynamicModel(),
+        example_args,
+        {},
+        Expected,
+        dynamic_shapes=dynamic_shapes,
+        map_free_vars=True,
+    )
 
 
 def test_sym_size_int():
@@ -8014,7 +8178,7 @@ def test_sym_size_int():
     class Expected1:
         @R.function
         def main(
-            x: R.Tensor((1, 3, 4), dtype="float32"),
+            x: R.Tensor((1, 3, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor((3, 4), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((3, 4), dtype="float32") = R.take(
@@ -8042,9 +8206,10 @@ def test_sym_size_int():
     class Expected2:
         @R.function
         def main(
-            x: R.Tensor(("s0", 3, 4), dtype="float32"),
+            x: R.Tensor(("s0", 3, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor(("s0", 12), dtype="float32")):
             s0 = T.int64(is_size_var=True)
+            R.func_attr({"tir_var_lower_bound": {"s0": 0}})
             with R.dataflow():
                 lv: R.Tensor((s0, 12), dtype="float32") = R.reshape(x, R.shape([s0, 12]))
                 gv: R.Tuple(R.Tensor((s0, 12), dtype="float32")) = (lv,)
@@ -8067,7 +8232,7 @@ def test_exponential():
     class Expected:
         @R.function
         def main(
-            x: R.Tensor((4, 8), dtype="float32"),
+            x: R.Tensor((4, 8), dtype="float32")
         ) -> R.Tuple(R.Tensor((4, 8), dtype="float32"), R.Tensor((4, 8), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((4, 8), dtype="float32") = R.zeros_like(x, dtype="void")
@@ -8094,7 +8259,7 @@ def test_max_dim():
     class expected1:
         @R.function
         def main(
-            x: R.Tensor((4, 8, 16), dtype="float32"),
+            x: R.Tensor((4, 8, 16), dtype="float32")
         ) -> R.Tuple(R.Tensor((4, 16), dtype="float32"), R.Tensor((4, 16), dtype="int64")):
             with R.dataflow():
                 lv: R.Tuple(
@@ -8119,7 +8284,7 @@ def test_max_dim():
     class expected2:
         @R.function
         def main(
-            x: R.Tensor((4, 8, 16), dtype="float32"),
+            x: R.Tensor((4, 8, 16), dtype="float32")
         ) -> R.Tuple(R.Tensor((4, 1, 16), dtype="float32"), R.Tensor((4, 1, 16), dtype="int64")):
             with R.dataflow():
                 lv: R.Tuple(
@@ -8152,7 +8317,7 @@ def test_alias():
     class Expected:
         @R.function
         def main(
-            x: R.Tensor((4, 8), dtype="float32"),
+            x: R.Tensor((4, 8), dtype="float32")
         ) -> R.Tuple(R.Tensor((4, 8), dtype="float32")):
             with R.dataflow():
                 gv: R.Tuple(R.Tensor((4, 8), dtype="float32")) = (x,)
@@ -8223,39 +8388,6 @@ def test_grid_sample():
         torch.randn(1, 2, 2, 2, dtype=torch.float32),
     )
     verify_model(GridSample(), example_args, {}, expected)
-
-
-def test_randn():
-    class RandnModel(Module):
-        def forward(self):
-            return torch.randn(3, 4)
-
-    class RandnWithDtype(Module):
-        def forward(self):
-            return torch.randn(2, 3, dtype=torch.float32)
-
-    @tvm.script.ir_module
-    class expected1:
-        @R.function
-        def main() -> R.Tuple(R.Tensor((3, 4), dtype="float32")):
-            with R.dataflow():
-                lv: R.Tensor((3, 4), dtype="float32") = R.zeros(R.shape([3, 4]), dtype="float32")
-                gv: R.Tuple(R.Tensor((3, 4), dtype="float32")) = (lv,)
-                R.output(gv)
-            return gv
-
-    @tvm.script.ir_module
-    class expected2:
-        @R.function
-        def main() -> R.Tuple(R.Tensor((2, 3), dtype="float32")):
-            with R.dataflow():
-                lv: R.Tensor((2, 3), dtype="float32") = R.zeros(R.shape([2, 3]), dtype="float32")
-                gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (lv,)
-                R.output(gv)
-            return gv
-
-    verify_model(RandnModel(), (), {}, expected1)
-    verify_model(RandnWithDtype(), (), {}, expected2)
 
 
 if __name__ == "__main__":
