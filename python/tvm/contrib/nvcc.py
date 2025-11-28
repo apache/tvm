@@ -275,9 +275,18 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
         compute_version = get_target_compute_version(Target.current(allow_none=True))
         arch = f"sm_{''.join(compute_version.split('.'))}"
 
+    # Strip host-only headers for NVRTC. NVRTC compiles device code and does not
+    # require the CUDA driver header or host C++ headers.
+    headers_to_strip = {"#include <cuda.h>"}
+    code_filtered = "\n".join(
+        line for line in code.splitlines() if line.strip() not in headers_to_strip
+    )
+
     # Create NVRTC program
     # Use "tvm_kernels.cu" for consistency with nvcc path
-    result, prog = nvrtc.nvrtcCreateProgram(str.encode(code), b"tvm_kernels.cu", 0, None, None)
+    result, prog = nvrtc.nvrtcCreateProgram(
+        str.encode(code_filtered), b"tvm_kernels.cu", 0, None, None
+    )
     if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
         raise RuntimeError(f"Failed to create NVRTC program: {nvrtc.nvrtcGetErrorString(result)}")
 
@@ -321,7 +330,7 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
             nvrtc.nvrtcDestroyProgram(prog)
             raise RuntimeError(f"Failed to get CUBIN size: {nvrtc.nvrtcGetErrorString(result)}")
         binary_buf = bytearray(binary_size)
-        result = nvrtc.nvrtcGetCUBIN(prog, binary_buf)
+        (result,) = nvrtc.nvrtcGetCUBIN(prog, binary_buf)
         if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
             nvrtc.nvrtcDestroyProgram(prog)
             raise RuntimeError(f"Failed to get CUBIN: {nvrtc.nvrtcGetErrorString(result)}")
@@ -331,7 +340,7 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
             nvrtc.nvrtcDestroyProgram(prog)
             raise RuntimeError(f"Failed to get PTX size: {nvrtc.nvrtcGetErrorString(result)}")
         binary_buf = bytearray(binary_size)
-        result = nvrtc.nvrtcGetPTX(prog, binary_buf)
+        (result,) = nvrtc.nvrtcGetPTX(prog, binary_buf)
         if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
             nvrtc.nvrtcDestroyProgram(prog)
             raise RuntimeError(f"Failed to get PTX: {nvrtc.nvrtcGetErrorString(result)}")
