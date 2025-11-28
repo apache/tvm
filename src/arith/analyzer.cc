@@ -38,7 +38,8 @@ Analyzer::Analyzer()
       modular_set(this),
       rewrite_simplify(this),
       canonical_simplify(this),
-      int_set(this) {}
+      int_set(this),
+      z3_prover(this) {}
 
 std::unique_ptr<Analyzer> Analyzer::Clone() const {
   auto cloned = std::make_unique<Analyzer>();
@@ -49,6 +50,7 @@ std::unique_ptr<Analyzer> Analyzer::Clone() const {
   cloned->canonical_simplify.CopyFrom(this->canonical_simplify);
   cloned->int_set.CopyFrom(this->int_set);
   cloned->transitive_comparisons.CopyFrom(this->transitive_comparisons);
+  cloned->z3_prover.CopyFrom(this->z3_prover);
   return cloned;
 }
 
@@ -63,6 +65,7 @@ void Analyzer::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
   this->canonical_simplify.Update(var, new_expr, allow_override);
   this->int_set.Update(var, this->int_set(new_expr), allow_override);
   this->transitive_comparisons.Bind(var, expr, allow_override);
+  this->z3_prover.Bind(var, expr, allow_override);
 }
 
 void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
@@ -73,6 +76,7 @@ void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
     this->const_int_bound.Bind(var, range, allow_override);
     this->int_set.Bind(var, range, allow_override);
     this->transitive_comparisons.Bind(var, range, allow_override);
+    this->z3_prover.Bind(var, range, allow_override);
   }
   // skip modular_set
   // skip rewrite simplify
@@ -139,9 +143,10 @@ void ConstraintContext::EnterWithScope() {
   // entering the scope.
   recovery_functions_.push_back(analyzer_->const_int_bound.EnterConstraint(constraint_));
   recovery_functions_.push_back(analyzer_->modular_set.EnterConstraint(constraint_));
-  recovery_functions_.push_back(analyzer_->rewrite_simplify.EnterConstraint(constraint_));
+  recovery_functions_.push_back(analyzer_->rewrite_simplify.EnterConstraint(constraint_, is_assume_));
   recovery_functions_.push_back(analyzer_->int_set.EnterConstraint(constraint_));
   recovery_functions_.push_back(analyzer_->transitive_comparisons.EnterConstraint(constraint_));
+  recovery_functions_.push_back(analyzer_->z3_prover.EnterConstraint(constraint_));
 }
 
 void ConstraintContext::ExitWithScope() {
@@ -247,18 +252,25 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
   // VLA, we can make some assumptions about the value of vscale and iterate over a
   // space of pre-defined values to attempt to prove the expression.
   Target curr_target = Target::Current();
+  bool can_prove = false;
   if (ContainsVscaleCall(simplified)) {
     if (TargetHasVLA(curr_target)) {
       auto kVScaleValues = GetVScaleValues(curr_target);
-      return CanProveVscaleExpressionFromKnownValues(this, simplified, kVScaleValues);
+      can_prove |= CanProveVscaleExpressionFromKnownValues(this, simplified, kVScaleValues);
     }
-    LOG(WARNING)
-        << "The expression contains scalable values. An attempt to prove by substituting "
-           "with known values of vscale was not performed. This proof currently only supports "
-           "VLA targets, but the target was "
-        << curr_target;
+    // LOG(WARNING)
+    //     << "The expression contains scalable values. An attempt to prove by substituting "
+    //        "with known values of vscale was not performed. This proof currently only supports "
+    //        "VLA targets, but the target was "
+    //     << curr_target;
   }
-  return false;
+  // if(!can_prove) {
+  //   can_prove |=  z3_prover.CanProve(expr);
+  //   if(can_prove) {
+  //     LOG(INFO) << "This can be proved by z3: " << z3_prover.GetSMTLIB2(expr);
+  //   }
+  // }
+  return can_prove;
 }
 
 PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
@@ -373,6 +385,11 @@ static FnFactory BuildAnalyzerFactory(std::shared_ptr<tvm::arith::Analyzer> self
         int64_t flags = args[0].cast<int64_t>();
         self->rewrite_simplify.SetEnabledExtensions(
             static_cast<RewriteSimplifier::Extension>(flags));
+      });
+    } else if (name == "get_smtlib2") {
+      return Function([self](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
+        auto expr = args[0].cast<ffi::Optional<PrimExpr>>();
+        *ret = self->z3_prover.GetSMTLIB2(expr);
       });
     }
     return Function();

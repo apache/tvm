@@ -33,6 +33,7 @@
 #include <memory>
 #include <unordered_map>
 #include <vector>
+#include "tvm/ffi/object.h"
 
 namespace tvm {
 /*! \brief namespace of arithmetic analysis. */
@@ -298,7 +299,7 @@ class RewriteSimplifier {
    *
    * \return an exit function that must be called to cleanup the constraint can be nullptr.
    */
-  TVM_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint);
+  TVM_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume=false);
 
   /*! \brief Flags to enable more computationally-intensive simplifications
    *
@@ -563,8 +564,8 @@ class ConstraintContext {
    * \param analyzer The analyzer.
    * \param constraint The constraint to be applied.
    */
-  ConstraintContext(Analyzer* analyzer, PrimExpr constraint)
-      : analyzer_(analyzer), constraint_(constraint) {}
+  ConstraintContext(Analyzer* analyzer, PrimExpr constraint, bool is_assume=false)
+      : analyzer_(analyzer), constraint_(constraint), is_assume_(is_assume) {}
   // enter the scope.
   void EnterWithScope();
   // exit the scope.
@@ -575,6 +576,7 @@ class ConstraintContext {
   PrimExpr constraint_;
   /*! \brief function to be called in recovery */
   std::vector<std::function<void()>> recovery_functions_;
+  bool is_assume_;
 };
 
 /*!
@@ -633,6 +635,24 @@ class IntSetAnalyzer {
   Impl* impl_;
 };
 
+class Z3Prover {
+ public:
+  TVM_DLL void Bind(const Var& var, const Range& new_range, bool allow_override = false);
+  TVM_DLL void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
+  TVM_DLL bool CanProve(const PrimExpr & expr);
+  std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume=false);
+  ffi::String GetSMTLIB2(const ffi::Optional<PrimExpr> expr);
+  void SetTimeoutMs(unsigned timeout_ms);
+  void SetMaxStep(unsigned max_step);
+ private:
+  friend class Analyzer;
+  explicit Z3Prover(Analyzer* parent);
+  TVM_DLL ~Z3Prover();
+  void CopyFrom(const Z3Prover & other);
+  class Impl;
+  Impl* impl_;
+};
+
 /*!
  * \brief Analyzer that contains bunch of sub-analyzers.
  *
@@ -662,6 +682,8 @@ class TVM_DLL Analyzer {
   IntSetAnalyzer int_set;
   /*! \brief sub-analyzer transitive comparisons */
   TransitiveComparisonAnalyzer transitive_comparisons;
+  /*! \brief analyzer using z3 */
+  Z3Prover z3_prover;
   /*! \brief constructor */
   Analyzer();
   /*!

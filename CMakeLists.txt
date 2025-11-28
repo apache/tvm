@@ -483,6 +483,24 @@ include(cmake/modules/Git.cmake)
 include(cmake/modules/LibInfo.cmake)
 include(cmake/modules/contrib/Mrvl.cmake)
 
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+find_path(
+  Z3_INCLUDE_DIR
+  NO_DEFAULT_PATH
+  NAMES z3++.h
+  PATHS ${Python3_SITELIB}/z3/include
+)
+find_path(
+  Z3_LIBRARIES
+  NO_DEFAULT_PATH
+  NAMES libz3.so
+  PATHS ${Python3_SITELIB}/z3/lib
+)
+add_library(z3_header INTERFACE)
+target_include_directories(z3_header INTERFACE ${Z3_INCLUDE_DIR})
+add_library(z3_shared INTERFACE)
+target_link_libraries(z3_shared INTERFACE ${Z3_LIBRARIES})
+
 set(LIBINFO_FILE ${CMAKE_CURRENT_LIST_DIR}/src/support/libinfo.cc)
 add_lib_info(${LIBINFO_FILE})
 list(REMOVE_ITEM COMPILER_SRCS ${LIBINFO_FILE})
@@ -490,7 +508,7 @@ list(REMOVE_ITEM COMPILER_SRCS ${LIBINFO_FILE})
 add_library(tvm_objs OBJECT ${COMPILER_SRCS})
 add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
 add_library(tvm_libinfo_objs OBJECT ${LIBINFO_FILE})
-target_link_libraries(tvm_objs PUBLIC tvm_ffi_header)
+target_link_libraries(tvm_objs PUBLIC tvm_ffi_header z3_header)
 target_link_libraries(tvm_runtime_objs PUBLIC tvm_ffi_header)
 target_link_libraries(tvm_libinfo_objs PUBLIC tvm_ffi_header)
 
@@ -502,7 +520,7 @@ if(NOT BUILD_DUMMY_LIBTVM)
     $<TARGET_OBJECTS:tvm_libinfo_objs>
     ${TVM_RUNTIME_EXT_OBJS}
   )
-  target_link_libraries(tvm PUBLIC tvm_ffi_shared)
+  target_link_libraries(tvm PUBLIC tvm_ffi_shared z3)
 else()
   # dummy version of libtvm that can be used by downstream to specify dependencies
   # the real runner still need a full version of libtvm

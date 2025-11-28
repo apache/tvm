@@ -16,7 +16,7 @@
 # under the License.
 
 [build-system]
-requires = ["scikit-build-core>=0.10.0"]
+requires = ["scikit-build-core>=0.10.0", "z3-solver>=4.13.0"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -55,7 +55,7 @@ dependencies = [
     "psutil",
     "scipy",
     "tornado",
-    "typing_extensions",
+    "typing_extensions"
 ]
 
 # Optional dependencies for different features
@@ -110,6 +110,7 @@ all = [
     "tflite",
     "paddlepaddle",
     "xgboost",
+    "z3-solver>=4.13.0"
 ]
 
 [project.urls]

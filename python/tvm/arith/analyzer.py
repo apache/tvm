@@ -127,10 +127,14 @@ class Analyzer:
         self._enter_constraint_context = mod_factory("enter_constraint_context")
         self._can_prove_equal = mod_factory("can_prove_equal")
         self._can_prove = mod_factory("can_prove")
+        self._get_smtlib2 = mod_factory("get_smtlib2")
         self._get_enabled_extensions = mod_factory("get_enabled_extensions")
         self._set_enabled_extensions = mod_factory("set_enabled_extensions")
         # Clone factory returns another mod_factory when invoked
         self._clone_factory = mod_factory("clone")
+
+    def get_smtlib2(self, expr: tir.PrimExpr|None = None) -> str:
+        return self._get_smtlib2(expr)
 
     def clone(self) -> "Analyzer":
         """Create a deep copy of this Analyzer, including internal state.
