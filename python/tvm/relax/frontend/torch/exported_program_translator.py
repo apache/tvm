@@ -919,6 +919,49 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         )
         return self.block_builder.emit(relax.op.zeros(size, dtype))
 
+    def _sparse_mm(self, node: fx.Node) -> relax.Var:
+        """Handle sparse matrix multiplication by converting sparse tensor to dense."""
+        args = self.retrieve_args(node)
+        sparse_input = args[0]
+        dense_input = args[1]
+        # Convert sparse tensor to dense if needed
+        # Note: sparse_input should already be converted to dense in _convert_pytorch_tensor_to_tvm
+        # Use regular matrix multiplication
+        return self.block_builder.emit(
+            relax.op.linear_algebra.matmul(sparse_input, dense_input, out_dtype="float32")
+        )
+
+    def _sparse_addmm(self, node: fx.Node) -> relax.Var:
+        """Handle sparse addmm (beta * input + alpha * sparse_mm(mat1, mat2))."""
+        args = self.retrieve_args(node)
+        input_tensor = args[0]  # beta * input
+        sparse_mat1 = args[1]  # sparse matrix
+        dense_mat2 = args[2]  # dense matrix
+        alpha = node.kwargs.get("alpha", 1.0)
+        beta = node.kwargs.get("beta", 1.0)
+
+        # Convert sparse tensor to dense if needed
+        # Note: sparse_mat1 should already be converted to dense in _convert_pytorch_tensor_to_tvm
+        # Compute alpha * sparse_mm(mat1, mat2)
+        matmul_result = self.block_builder.emit(
+            relax.op.linear_algebra.matmul(sparse_mat1, dense_mat2, out_dtype="float32")
+        )
+
+        if alpha != 1.0:
+            alpha_const = relax.const(alpha, matmul_result.struct_info.dtype)
+            matmul_result = self.block_builder.emit(relax.op.multiply(matmul_result, alpha_const))
+
+        # Compute beta * input + alpha * matmul_result
+        if beta != 0.0:
+            if beta != 1.0:
+                beta_const = relax.const(beta, input_tensor.struct_info.dtype)
+                input_scaled = self.block_builder.emit(relax.op.multiply(input_tensor, beta_const))
+            else:
+                input_scaled = input_tensor
+            return self.block_builder.emit(relax.op.add(input_scaled, matmul_result))
+        else:
+            return matmul_result
+
     def _grid_sampler_2d(self, node: fx.Node) -> relax.Var:
         """Convert torch.nn.functional.grid_sample to relax.op.image.grid_sample."""
         args = self.retrieve_args(node)
@@ -1212,6 +1255,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
             "adaptive_avg_pool3d.default": self._adaptive_avg_pool3d,
             "addmm.default": self._addmm,
+            "_sparse_mm.default": self._sparse_mm,
+            "_sparse_addmm.default": self._sparse_addmm,
             "avg_pool1d.default": self._avg_pool1d,
             "avg_pool2d.default": self._avg_pool2d,
             "avg_pool3d.default": self._avg_pool3d,

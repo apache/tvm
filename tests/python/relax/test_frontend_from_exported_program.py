@@ -2038,6 +2038,63 @@ def test_addmm():
     verify_model(Addmm2(), example_args, {}, expected2)
 
 
+def test_sparse_addmm():
+    class SparseAddmm1(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x1, x2, x3):
+            return torch.sparse.addmm(x1, x2, x3)
+
+    class SparseAddmm2(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x1, x2, x3):
+            return torch.sparse.addmm(x1, x2, x3, beta=0.8, alpha=0.5)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            x1: R.Tensor((10, 10), dtype="float32"),
+            x2: R.Tensor((10, 10), dtype="float32"),
+            x3: R.Tensor((10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.matmul(x2, x3, out_dtype="float32")
+                lv1: R.Tensor((10, 10), dtype="float32") = R.add(x1, lv)
+                gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            x1: R.Tensor((10, 10), dtype="float32"),
+            x2: R.Tensor((10, 10), dtype="float32"),
+            x3: R.Tensor((10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.matmul(x2, x3, out_dtype="float32")
+                lv1: R.Tensor((10, 10), dtype="float32") = R.multiply(lv, R.const(0.5, "float32"))
+                lv2: R.Tensor((10, 10), dtype="float32") = R.multiply(x1, R.const(0.8, "float32"))
+                lv3: R.Tensor((10, 10), dtype="float32") = R.add(lv2, lv1)
+                gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv3,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(10, 10, dtype=torch.float32),
+        torch.randn(10, 10, dtype=torch.float32),
+        torch.randn(10, 10, dtype=torch.float32),
+    )
+
+    verify_model(SparseAddmm1(), example_args, {}, expected1)
+    verify_model(SparseAddmm2(), example_args, {}, expected2)
+
+
 def test_avg_pool1d():
     class AvgPool1d1(Module):
         def __init__(self):
@@ -7739,6 +7796,39 @@ def test_mm():
             return gv
 
     verify_model(MatrixMultiply(), example_args, {}, Expected)
+
+
+def test_sparse_mm():
+    class SparseMatrixMultiply(Module):
+        def forward(self, sparse_input, dense_input):
+            return torch.sparse.mm(sparse_input, dense_input)
+
+    indices = torch.tensor([[0, 1, 2], [2, 0, 1]])
+    values = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)
+    sparse_input = torch.sparse_coo_tensor(indices, values, size=(3, 100))
+    dense_input = torch.randn(100, 50, dtype=torch.float32)
+
+    example_args = (sparse_input, dense_input)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            sparse_input: R.Tensor((3, 100), dtype="float32"),
+            dense_input: R.Tensor((100, 50), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((3, 50), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 50), dtype="float32") = R.full(
+                    R.shape([3, 50]), R.const(0.0, "float32"), dtype="float32"
+                )
+                lv1: R.Tensor((3, 50), dtype="float32") = R.matmul(
+                    sparse_input, dense_input, out_dtype="float32"
+                )
+                gv: R.Tuple(R.Tensor((3, 50), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    verify_model(SparseMatrixMultiply(), example_args, {}, Expected)
 
 
 def test_lstm():
