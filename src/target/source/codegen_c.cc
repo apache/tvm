@@ -1228,6 +1228,21 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
         // cast int to enum
         cast = "(DLDeviceType)";
       }
+      // Special-case: Assigning a string literal to the Any union's v_ptr
+      // triggers const correctness issues when compiling as C++.
+      // If the destination is the Any union value (kTVMFFIAnyUnionValue),
+      // the store dtype is a handle (thus maps to v_ptr), and the source value
+      // is a StringImm, cast the string literal to (void*) to avoid
+      // discarding const qualifier errors under C++.
+      if (kind == builtin::kTVMFFIAnyUnionValue && store_dtype.is_handle()) {
+        if (const auto* str_imm = call->args[3].as<StringImmNode>()) {
+          (void)str_imm;  // silence unused warning
+          // prepend cast if not already added
+          if (cast.empty()) {
+            cast = "(void*)";
+          }
+        }
+      }
       this->PrintIndent();
       this->stream << ref << " = " << cast << value << ";\n";
       return;
