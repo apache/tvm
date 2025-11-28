@@ -496,7 +496,7 @@ def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
     Compile CUDA code using the configured backend (nvcc or nvrtc).
 
     This callback is invoked by TVM's C++ backend during CUDA module compilation.
-    By default, uses nvcc to generate fatbin (original behavior).
+    By default, uses nvcc to generate fatbin.
 
     Environment Variables
     ---------------------
@@ -510,7 +510,7 @@ def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
     code : str
         CUDA source code to compile
     target : Target
-        TVM target object (unused, kept for API compatibility)
+        TVM target architecture
 
     Returns
     -------
@@ -522,7 +522,7 @@ def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
     if compiler == "nvrtc":
         return compile_cuda(code, target_format="cubin", compiler="nvrtc")
 
-    # Default: use nvcc with fatbin (original behavior)
+    # Default
     return compile_cuda(code, target_format="fatbin", compiler="nvcc")
 
 
