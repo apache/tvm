@@ -22,7 +22,7 @@ from typing import List
 from tvm.target import Target
 from tvm import tir
 
-from ..base.analysis import BlockInfo
+from ..analysis import BlockInfo
 
 
 def get_texture_storage(block_info: BlockInfo):

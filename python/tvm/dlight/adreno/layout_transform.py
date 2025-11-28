@@ -22,7 +22,7 @@ from typing import List, Union
 
 from tvm import tir
 from tvm.target import Target
-from ..base import analysis
+from .. import analysis
 
 from .base import AdrenoScheduleRule
 
@@ -61,7 +61,7 @@ class LayoutTransform(AdrenoScheduleRule):
         block_info = analysis.get_block_info(sch, blk)
         if not (
             (self.use_op_name and block_info.name == "te_layout_transform")
-            or (not self.use_op_name and block_info.is_layout_transform())
+            or (not self.use_op_name and block_info.is_layout_transform(sch))
         ):
             return None
 

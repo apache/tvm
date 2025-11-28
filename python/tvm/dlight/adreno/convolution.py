@@ -22,7 +22,7 @@ from tvm import tir
 from tvm.target import Target
 
 from .utils import schedule_inline_blocks, schedule_storage_annotate, schedule_default
-from ..base import analysis
+from .. import analysis
 from .base import AdrenoScheduleRule
 
 

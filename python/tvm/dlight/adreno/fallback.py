@@ -21,7 +21,7 @@ from typing import List, Union
 
 from tvm import tir
 from tvm.target import Target
-from ..base import analysis
+from .. import analysis
 from .base import AdrenoScheduleRule
 from .utils import get_texture_storage
 
@@ -45,7 +45,7 @@ class Fallback(AdrenoScheduleRule):
         remaining_blocks = []
         for blk in blocks:
             block_info = analysis.get_block_info(sch, blk)
-            if block_info.is_injective() and not block_info.is_data_pad():
+            if block_info.is_injective() and not block_info.is_data_pad(sch):
                 if len(block_info.consumers) == 1:
                     try:
                         sch.compute_inline(blk)
@@ -139,7 +139,7 @@ class Fallback(AdrenoScheduleRule):
             blk
             for blk in blocks
             if analysis.get_block_info(sch, blk).is_reduction()
-            or analysis.get_block_info(sch, blk).is_data_pad()
+            or analysis.get_block_info(sch, blk).is_data_pad(sch)
         ]
         remaining_blocks = [blk for blk in blocks if blk not in schedule_blocks]
 

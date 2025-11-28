@@ -23,8 +23,6 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
 
-#include <climits>
-
 #include "../transform/utils.h"
 #include "op_common.h"
 

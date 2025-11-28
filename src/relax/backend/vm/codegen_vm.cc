@@ -29,7 +29,6 @@
 #include <tvm/target/target.h>
 #include <tvm/tir/function.h>
 
-#include <climits>
 #include <string>
 #include <unordered_map>
 #include <vector>

@@ -16,9 +16,10 @@
 # under the License.
 
 # pylint: disable=missing-function-docstring, missing-class-docstring
+# pylint: disable=unused-argument, unused-variable
 """Analysis on TIR blocks, loops and functions."""
 from collections import namedtuple
-from typing import List, Optional, Set, Union, Dict, Tuple
+from typing import List, Optional, Set, Union, Tuple
 from typing_extensions import Literal
 from tvm_ffi import get_global_func
 
@@ -174,7 +175,6 @@ class BlockInfo:
     read_bufs: List[BufferInfo]
     write_bufs: List[BufferInfo]
 
-
     def __init__(
         self,
         name: str,
@@ -238,7 +238,7 @@ class BlockInfo:
             all(k == "S" for k in self.dom_kind())
             and len(write_bufs) == 1
             and len(read_bufs) == 1
-            and not self.is_elementwise()
+            and not self.is_elementwise(sch)
             and not get_global_func("tir.schedule.HasIfThenElse")(sch.get(self.block_rv))
         )
 
@@ -252,7 +252,7 @@ class BlockInfo:
             all(k == "S" for k in self.dom_kind())
             and len(write_bufs) == 1
             and len(read_bufs) == 1
-            and not self.is_elementwise()
+            and not self.is_elementwise(sch)
             and len(self.write_bufs[0].buf_region.region)
             == len(self.read_bufs[0].buf_region.region)
             and get_global_func("tir.schedule.HasIfThenElse")(sch.get(self.block_rv))

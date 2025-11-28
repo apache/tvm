@@ -250,9 +250,7 @@ void VMExecutable::SaveConstantSection(dmlc::Stream* strm) const {
   for (const auto& it : this->constants) {
     if (auto opt_nd = it.as<runtime::Tensor>()) {
       strm->Write<int32_t>(ffi::TypeIndex::kTVMFFITensor);
-      // runtime::SaveDLTensor(strm, opt_nd.value().operator->());
-      // runtime::Tensor param = opt_nd.value().operator->();
-      opt_nd.value().Save(strm);
+      runtime::SaveDLTensor(strm, opt_nd.value().operator->());
     } else if (auto opt_shape = it.as<ffi::Shape>()) {
       ffi::Shape shape = opt_shape.value();
       strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIShape);

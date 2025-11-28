@@ -34,7 +34,6 @@
 #include <tvm/tir/stmt.h>
 
 #include <cctype>
-#include <climits>
 #include <string>
 #include <unordered_map>
 #include <vector>
