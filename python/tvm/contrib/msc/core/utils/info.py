@@ -21,6 +21,7 @@ from packaging.version import parse
 import numpy as np
 
 import tvm
+import tvm.testing
 from tvm.contrib.msc.core import _ffi_api
 from .namespace import MSCFramework
 
@@ -365,7 +366,7 @@ def compare_arrays(
             )
             continue
         if gol.dtype.name in ("int32", "int64"):
-            passed = np.abs(gol - data), max() == 0
+            passed = np.abs(gol - data).max() == 0
             _add_report(name, gol, data, passed)
             continue
         try:
