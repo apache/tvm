@@ -259,12 +259,16 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
     # Validate target_format (NVRTC doesn't support fatbin)
     if target_format == "fatbin":
         raise ValueError(
-            "NVRTC does not support fatbin generation. "
+            "NVRTC does not support fatbin generation yet. "
             "Use target_format='cubin' or 'ptx' with NVRTC, "
             "or set compiler='nvcc' for fatbin compilation."
         )
     if target_format not in ["cubin", "ptx"]:
         raise ValueError(f"target_format must be 'cubin' or 'ptx', got: {target_format}")
+
+    # Validate options
+    if options is not None and not isinstance(options, (str, list)):
+        raise ValueError("options must be str or list of str")
 
     # Auto-detect architecture
     if arch is None:
@@ -272,7 +276,7 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
         arch = f"sm_{''.join(compute_version.split('.'))}"
 
     # Create NVRTC program
-    # Use "tvm_kernels.cu" for consistency with nvcc path (used in error messages)
+    # Use "tvm_kernels.cu" for consistency with nvcc path
     result, prog = nvrtc.nvrtcCreateProgram(str.encode(code), b"tvm_kernels.cu", 0, None, None)
     if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
         raise RuntimeError(f"Failed to create NVRTC program: {nvrtc.nvrtcGetErrorString(result)}")
@@ -287,52 +291,51 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
     if options:
         if isinstance(options, str):
             compile_opts.append(options.encode())
-        elif isinstance(options, list):
-            compile_opts.extend([opt.encode() if isinstance(opt, str) else opt for opt in options])
         else:
-            nvrtc.nvrtcDestroyProgram(prog)
-            raise ValueError("options must be str or list of str")
+            compile_opts.extend([opt.encode() if isinstance(opt, str) else opt for opt in options])
 
-    # Compile the program
-    result = nvrtc.nvrtcCompileProgram(prog, len(compile_opts), compile_opts)
-
-    # Get compilation log
-    result_log, log_size = nvrtc.nvrtcGetProgramLogSize(prog)
-    log_message = ""
-    if result_log == nvrtc.nvrtcResult.NVRTC_SUCCESS and log_size > 0:
-        log_buf = b" " * log_size
-        nvrtc.nvrtcGetProgramLog(prog, log_buf)
-        log_message = log_buf.decode("utf-8")
-
-    # Check compilation result
+    # Compile
+    (result,) = nvrtc.nvrtcCompileProgram(prog, len(compile_opts), compile_opts)
     if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
-        error_msg = f"NVRTC compilation failed: {nvrtc.nvrtcGetErrorString(result)}"
-        if log_message:
-            error_msg += f"\n\nCompilation log:\n{log_message}"
-        error_msg += f"\n\nSource code:\n{code}"
+        # Get compilation log
+        result_log, log_size = nvrtc.nvrtcGetProgramLogSize(prog)
+        if result_log == nvrtc.nvrtcResult.NVRTC_SUCCESS and log_size > 0:
+            log_buf = b" " * log_size
+            (result_log,) = nvrtc.nvrtcGetProgramLog(prog, log_buf)
+            if result_log == nvrtc.nvrtcResult.NVRTC_SUCCESS:
+                error_msg = f"NVRTC compilation failed:\n{log_buf.decode('utf-8')}"
+            else:
+                error_msg = f"NVRTC compilation failed (couldn't get log): {result}"
+        else:
+            error_msg = f"NVRTC compilation failed: {result}"
+
         nvrtc.nvrtcDestroyProgram(prog)
         raise RuntimeError(error_msg)
 
     # Get compiled binary
-    try:
-        if target_format == "cubin":
-            result, binary_size = nvrtc.nvrtcGetCUBINSize(prog)
-            if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
-                raise RuntimeError(f"Failed to get CUBIN size: {nvrtc.nvrtcGetErrorString(result)}")
-            binary_buf = b" " * binary_size
-            result = nvrtc.nvrtcGetCUBIN(prog, binary_buf)
-            if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
-                raise RuntimeError(f"Failed to get CUBIN: {nvrtc.nvrtcGetErrorString(result)}")
-        else:  # ptx
-            result, binary_size = nvrtc.nvrtcGetPTXSize(prog)
-            if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
-                raise RuntimeError(f"Failed to get PTX size: {nvrtc.nvrtcGetErrorString(result)}")
-            binary_buf = b" " * binary_size
-            result = nvrtc.nvrtcGetPTX(prog, binary_buf)
-            if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
-                raise RuntimeError(f"Failed to get PTX: {nvrtc.nvrtcGetErrorString(result)}")
-    finally:
-        nvrtc.nvrtcDestroyProgram(prog)
+    if target_format == "cubin":
+        result, binary_size = nvrtc.nvrtcGetCUBINSize(prog)
+        if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
+            nvrtc.nvrtcDestroyProgram(prog)
+            raise RuntimeError(f"Failed to get CUBIN size: {nvrtc.nvrtcGetErrorString(result)}")
+        binary_buf = b" " * binary_size
+        result = nvrtc.nvrtcGetCUBIN(prog, binary_buf)
+        if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
+            nvrtc.nvrtcDestroyProgram(prog)
+            raise RuntimeError(f"Failed to get CUBIN: {nvrtc.nvrtcGetErrorString(result)}")
+    else:  # ptx
+        result, binary_size = nvrtc.nvrtcGetPTXSize(prog)
+        if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
+            nvrtc.nvrtcDestroyProgram(prog)
+            raise RuntimeError(f"Failed to get PTX size: {nvrtc.nvrtcGetErrorString(result)}")
+        binary_buf = b" " * binary_size
+        result = nvrtc.nvrtcGetPTX(prog, binary_buf)
+        if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
+            nvrtc.nvrtcDestroyProgram(prog)
+            raise RuntimeError(f"Failed to get PTX: {nvrtc.nvrtcGetErrorString(result)}")
+
+    # Clean up
+    nvrtc.nvrtcDestroyProgram(prog)
 
     return bytearray(binary_buf)
 
