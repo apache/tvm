@@ -464,16 +464,40 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         dtype = input_tensor.struct_info.dtype
         params_per_direction = 4 if has_biases else 2
 
-        weight_ih_fwd = params[0] if params else None
-        weight_hh_fwd = params[1] if params and len(params) > 1 else None
-        bias_ih_fwd = params[2] if params and has_biases and len(params) > 2 else None
-        bias_hh_fwd = params[3] if params and has_biases and len(params) > 3 else None
+        # Extract or create forward direction weights
+        if params and len(params) >= 2:
+            weight_ih_fwd = params[0]
+            weight_hh_fwd = params[1]
+            bias_ih_fwd = params[2] if has_biases and len(params) > 2 else None
+            bias_hh_fwd = params[3] if has_biases and len(params) > 3 else None
+        else:
+            # Fallback: create zero weights
+            weight_ih_fwd = self.block_builder.emit(
+                relax.op.zeros(relax.ShapeExpr((4 * hidden_size, input_size)), dtype)
+            )
+            weight_hh_fwd = self.block_builder.emit(
+                relax.op.zeros(relax.ShapeExpr((4 * hidden_size, hidden_size)), dtype)
+            )
+            bias_ih_fwd = None
+            bias_hh_fwd = None
 
-        if bidirectional and params and len(params) >= params_per_direction * 2:
-            weight_ih_bwd = params[params_per_direction]
-            weight_hh_bwd = params[params_per_direction + 1]
-            bias_ih_bwd = params[params_per_direction + 2] if has_biases else None
-            bias_hh_bwd = params[params_per_direction + 3] if has_biases else None
+        # Extract or create backward direction weights if bidirectional
+        if bidirectional:
+            if params and len(params) >= params_per_direction * 2:
+                weight_ih_bwd = params[params_per_direction]
+                weight_hh_bwd = params[params_per_direction + 1]
+                bias_ih_bwd = params[params_per_direction + 2] if has_biases else None
+                bias_hh_bwd = params[params_per_direction + 3] if has_biases else None
+            else:
+                # Fallback: create zero weights
+                weight_ih_bwd = self.block_builder.emit(
+                    relax.op.zeros(relax.ShapeExpr((4 * hidden_size, input_size)), dtype)
+                )
+                weight_hh_bwd = self.block_builder.emit(
+                    relax.op.zeros(relax.ShapeExpr((4 * hidden_size, hidden_size)), dtype)
+                )
+                bias_ih_bwd = None
+                bias_hh_bwd = None
         else:
             weight_ih_bwd = None
             weight_hh_bwd = None

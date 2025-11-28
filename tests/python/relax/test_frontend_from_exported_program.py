@@ -42,7 +42,7 @@ def verify_model(
     tvm.ir.assert_structural_equal(mod, expected)
 
 
-def verify_model_numerically(torch_model, example_args, rtol=1e-4, atol=1e-5):
+def verify_model_numerically(torch_model, example_args, rtol=1e-7, atol=1e-7):
     """Verify model by comparing numerical outputs between PyTorch and TVM."""
     with torch.no_grad():
         pytorch_output = torch_model(*example_args)
@@ -70,7 +70,7 @@ def verify_model_numerically(torch_model, example_args, rtol=1e-4, atol=1e-5):
     assert (
         pytorch_output_np.shape == tvm_output_np.shape
     ), f"Shape mismatch: PyTorch {pytorch_output_np.shape} vs TVM {tvm_output_np.shape}"
-    np.testing.assert_allclose(pytorch_output_np, tvm_output_np, rtol=rtol, atol=atol)
+    tvm.testing.assert_allclose(pytorch_output_np, tvm_output_np, rtol=rtol, atol=atol)
 
 
 operator_basic_unary = [
@@ -7646,6 +7646,7 @@ def test_mm():
     verify_model(MatrixMultiply(), example_args, {}, Expected)
 
 
+@tvm.testing.requires_llvm
 def test_lstm():
     class LSTM(nn.Module):
         def __init__(self, input_size, hidden_size, batch_first, bidirectional):
