@@ -87,6 +87,6 @@ class Pool2D(AdrenoScheduleRule):
                         sch.reverse_compute_inline(blk)
                     else:
                         sch.compute_inline(blk)
-                except:  # pylint: disable=bare-except
+                except Exception:  # pylint: disable=broad-except-bare
                     pass
         return sch
