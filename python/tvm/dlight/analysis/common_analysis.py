@@ -17,8 +17,8 @@
 
 # pylint: disable=missing-function-docstring, missing-class-docstring
 """Analysis on TIR blocks, loops and functions."""
-from typing import List, Optional, Set, Union
-
+from collections import namedtuple
+from typing import List, Optional, Set, Union, Dict, Tuple
 from typing_extensions import Literal
 from tvm_ffi import get_global_func
 
@@ -26,6 +26,7 @@ from tvm import ir, tir
 from tvm.target.target import Target
 from tvm.tir import Schedule
 from tvm.tir.schedule import BlockRV
+from tvm.runtime import DataType
 
 
 class IterInfo:
@@ -61,6 +62,108 @@ class IterInfo:
         return str(self)
 
 
+get_blockrealize = get_global_func("tir.schedule.GetBlockRealize")
+
+
+# TODO: Shift Vlen Calculation here...
+class BufferInfo:
+    "Information about Buffer. Provides useful analysis"
+    buf_region: tir.BufferRegion
+    shape: Tuple[int]
+    assoc_lps: List[Union[tir.schedule.LoopRV, None]]
+    assoc_lps_info: List[Union[tir.For, None]]
+
+    # BufferIndex Types
+    Index = namedtuple("Index", ["sub"])  # c
+    RemIndex = namedtuple("RemIndex", ["sub", "div"])  # c%len
+    DivIndex = namedtuple("DivIndex", ["sub", "div"])  # c//len
+    MergeIndex = namedtuple("MulIndex", ["dom", "mul", "sub"])  # co*len + cb
+    BufIndex = List[Union[Index, RemIndex, DivIndex, MergeIndex, None]]
+
+    def __init__(
+        self,
+        sch: tir.Schedule,
+        block_rv: tir.schedule.BlockRV,
+        buf_region: tir.BufferRegion,
+        lps: Union[List[tir.schedule.LoopRV], None],
+    ):
+        block = sch.get(block_rv)
+        if lps is None:
+            lps = sch.get_loops(block_rv)
+        loops = [sch.get(lp) for lp in lps]
+        iter_vars = [Var.var for Var in block.iter_vars]
+        iter_values = get_blockrealize(sch, block_rv).iter_values
+        lpvar_lp = dict([loop.loop_var, lp] for loop, lp in zip(loops, lps))
+        var_lp = dict(zip(iter_vars, [lpvar_lp.get(val, None) for val in iter_values]))
+
+        def extract_index_types(buf: tir.BufferRegion) -> BufIndex:
+            buf_index = []
+            for expr in buf.region:
+                expr = expr.min
+                dim = None
+                if isinstance(expr, tir.expr.Add) and isinstance(expr.b, tir.expr.Var):
+                    var_add = expr.b
+                    if (
+                        isinstance(expr, tir.expr.Mul)
+                        and isinstance(expr.a, tir.expr.Var)
+                        and isinstance(expr.b, tir.expr.IntImm)
+                    ):
+                        mul = expr.b
+                        var_mul = expr.a
+                        dim = MergeIndex(var_mul, mul, var_add)
+                elif (
+                    isinstance(expr, tir.expr.FloorMod)
+                    and isinstance(expr.a, tir.expr.Var)
+                    and isinstance(expr.b, tir.expr.IntImm)
+                ):
+                    dim = RemIndex(expr.a, expr.b)
+                elif (
+                    isinstance(expr, tir.expr.FloorDiv)
+                    and isinstance(expr.a, tir.expr.Var)
+                    and isinstance(expr.b, tir.expr.IntImm)
+                ):
+                    dim = DivIndex(expr.a, expr.b)
+                elif isinstance(expr, tir.expr.Var):
+                    dim = Index(expr)
+                buf_index.append(dim)
+            return buf_index
+
+        indexes = extract_index_types(buf_region)
+        assoc_lps = [
+            (
+                var_lp.get(getattr(idx, "sub"), None)
+                if not isinstance(idx, DivIndex) and not idx is None
+                else None
+            )
+            for idx in indexes
+        ]
+
+        self.buf_region = buf_region
+        self.assoc_lps = assoc_lps
+        self.assoc_lps_info = [(sch.get(lp) if lp is not None else None) for lp in assoc_lps]
+        self.shape = buf_region.buffer.shape
+
+    def get_scope(self) -> str:
+        return self.buf_region.buffer.scope()
+
+    def get_vecsize(self, buf_index: int = 0, vbits: int = 128):
+        if self.assoc_lps_info[-1] is None:
+            return None
+
+        vlp_extent = int(self.assoc_lps_info[-1].extent) & ~(
+            int(self.assoc_lps_info[-1].extent) - 1
+        )
+        vbuf_extent = int(self.shape[-1]) & ~(int(self.shape[-1]) - 1)
+
+        return min(vlp_extent, vbuf_extent, vbits // DataType(self.buf_region.buffer.dtype).bits)
+
+    def __str__(self) -> str:
+        return f"BufferInfo({self.buf_region})"
+
+    def __repr__(self) -> str:
+        return str(self)
+
+
 class BlockInfo:
     """Information about a TIR block."""
 
@@ -68,6 +171,9 @@ class BlockInfo:
     iters: List[IterInfo]
     block_rv: tir.schedule.BlockRV
     _reduction_block: bool
+    read_bufs: List[BufferInfo]
+    write_bufs: List[BufferInfo]
+
 
     def __init__(
         self,
@@ -114,10 +220,51 @@ class BlockInfo:
                 return False
         return True
 
+    def get_loops(self) -> List[tir.schedule.LoopRV]:
+        return [iter_info.loop_rv for iter_info in self.iters]
+
     def is_reduction(self) -> bool:
         """Whether the block is a reduction workload."""
         # TODO(@junrushao): distinguish GEMV and reduction
         return self._reduction_block
+
+    def is_layout_transform(self, sch: tir.Schedule) -> bool:
+        """Whether the Block can be considered having a Layout Transform Pattern"""
+        block_stmt = sch.get(self.block_rv)
+        lps = sch.get_loops(block_rv)
+        read_bufs = [BufferInfo(sch, self.block_rv, buf, lps) for buf in block_stmt.reads]
+        write_bufs = [BufferInfo(sch, self.block_rv, buf, lps) for buf in block_stmt.writes]
+        return (
+            all(k == "S" for k in self.dom_kind())
+            and len(write_bufs) == 1
+            and len(read_bufs) == 1
+            and not self.is_elementwise()
+            and not get_global_func("tir.schedule.HasIfThenElse")(sch.get(self.block_rv))
+        )
+
+    def is_data_pad(self, sch: tir.Schedule) -> bool:
+        """Whether the Block can be considered having a data pad pattern"""
+        block_stmt = sch.get(self.block_rv)
+        lps = sch.get_loops(block_rv)
+        read_bufs = [BufferInfo(sch, self.block_rv, buf, lps) for buf in block_stmt.reads]
+        write_bufs = [BufferInfo(sch, self.block_rv, buf, lps) for buf in block_stmt.writes]
+        return (
+            all(k == "S" for k in self.dom_kind())
+            and len(write_bufs) == 1
+            and len(read_bufs) == 1
+            and not self.is_elementwise()
+            and len(self.write_bufs[0].buf_region.region)
+            == len(self.read_bufs[0].buf_region.region)
+            and get_global_func("tir.schedule.HasIfThenElse")(sch.get(self.block_rv))
+        )
+
+    def is_convolution(self) -> bool:
+        """Whether a Block can be considered having Convolution Pattern"""
+        raise NotImplementedError
+
+    def is_pool(self) -> bool:
+        """Whether a Block can be considered having Pooling Pattern"""
+        raise NotImplementedError
 
     def is_gemv(self) -> bool:
         """Whether the block is a GEMV workload."""

@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Global Info."""
-
 import tvm
 import tvm_ffi
 from tvm.runtime.object import Object
