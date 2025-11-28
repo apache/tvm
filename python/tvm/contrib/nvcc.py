@@ -282,6 +282,16 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
         line for line in code.splitlines() if line.strip() not in headers_to_strip
     )
 
+    # NVRTC compiles device code and does not include the host-side cuda.h.
+    # CUtensorMap is a host-side structure, to reference and use it in device code,
+    # we must forward-declare it for NVRTC.
+    if "CUtensorMap" in code_filtered:
+        code_filtered = (
+            "struct __align__(128) CUtensorMap {\n"
+            "  unsigned long long opaque[16];\n"
+            "};\n\n" + code_filtered
+        )
+
     # Create NVRTC program
     # Use "tvm_kernels.cu" for consistency with nvcc path
     result, prog = nvrtc.nvrtcCreateProgram(
