@@ -201,13 +201,13 @@ def test_cuda_make_int8():
         fun(a)
         np.testing.assert_equal(a.numpy(), np_a)
 
-    check_cuda(64, np.int8(0xAB), 4)
+    check_cuda(64, np.uint8(0xAB).view(np.int8), 4)
     check_cuda(64, 0, 4)
     check_cuda(64, -3, 4)
-    check_cuda(64, np.int8(0xAB), 3)
+    check_cuda(64, np.uint8(0xAB).view(np.int8), 3)
     check_cuda(64, 0, 3)
     check_cuda(64, -3, 3)
-    check_cuda(64, np.int8(0xAB), 2)
+    check_cuda(64, np.uint8(0xAB).view(np.int8), 2)
     check_cuda(64, 0, 2)
     check_cuda(64, -3, 2)
 
