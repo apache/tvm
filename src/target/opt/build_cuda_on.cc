@@ -40,9 +40,9 @@ namespace tvm {
 namespace codegen {
 
 // Note: CUDA include path finding and NVRTC compilation are now handled
-// in Python (tvm.contrib.nvrtc) for better maintainability and to leverage
-// cuda-python bindings. The C++ NVRTC code has been removed as part of the
-// Python-first compilation strategy.
+// in Python for better maintainability and to leverage cuda-python bindings.
+// The C++ NVRTC code has been removed as part of the Python-first
+// compilation strategy.
 
 ffi::Module BuildCUDA(IRModule mod, Target target) {
   bool output_ssa = false;
@@ -71,10 +71,11 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
 
   std::string code = cg.Finish();
 
-  // Apply optional post-processing callback
   if (auto f = ffi::Function::GetGlobal("tvm_callback_cuda_postproc")) {
     code = (*f)(code, target).cast<std::string>();
   }
+  std::string fmt = "ptx";
+  std::string compiled;
 
   // Always use Python compilation callback (nvcc or nvrtc)
   // The C++ NVRTC fallback has been removed in favor of Python-first approach
@@ -91,24 +92,13 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
   (*f_enter)(target);
 
   // Compile CUDA code via Python callback
-  std::string compiled = (*f_compile)(code, target).cast<std::string>();
-
+  compiled = (*f_compile)(code, target).cast<std::string>();
+  // Dirty matching to check PTX vs cubin.
+  // TODO(tqchen) more reliable checks
+  if (compiled[0] != '/') fmt = "cubin";
   // Exit target scope
   auto f_exit = ffi::Function::GetGlobal("target.TargetExitScope");
   (*f_exit)(target);
-
-  // Auto-detect format: PTX starts with '//' or '.version', CUBIN is binary
-  std::string fmt = "cubin";
-  if (!compiled.empty()) {
-    // PTX format detection
-    if (compiled[0] == '/' || compiled[0] == '.') {
-      fmt = "ptx";
-    }
-    // FATBIN format detection (starts with specific magic bytes)
-    // FATBIN magic: 0x00, 0x00, 0xBA, 0x00 or similar
-    // For simplicity, if it's not PTX, assume it's binary (cubin or fatbin)
-    // The CUDAModuleCreate will handle both correctly
-  }
 
   return CUDAModuleCreate(compiled, fmt, ExtractFuncInfo(mod), code);
 }
