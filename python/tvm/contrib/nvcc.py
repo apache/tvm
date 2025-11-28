@@ -282,9 +282,11 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
         raise RuntimeError(f"Failed to create NVRTC program: {nvrtc.nvrtcGetErrorString(result)}")
 
     # Prepare compilation options
+    cuda_path = find_cuda_path()
     compile_opts = [
         f"--gpu-architecture={arch}".encode(),
         b"-default-device",
+        f"-I{cuda_path}/include".encode(),
     ]
 
     # Add user-provided options
@@ -300,7 +302,7 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
         # Get compilation log
         result_log, log_size = nvrtc.nvrtcGetProgramLogSize(prog)
         if result_log == nvrtc.nvrtcResult.NVRTC_SUCCESS and log_size > 0:
-            log_buf = b" " * log_size
+            log_buf = bytearray(log_size)
             (result_log,) = nvrtc.nvrtcGetProgramLog(prog, log_buf)
             if result_log == nvrtc.nvrtcResult.NVRTC_SUCCESS:
                 error_msg = f"NVRTC compilation failed:\n{log_buf.decode('utf-8')}"
@@ -318,7 +320,7 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
         if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
             nvrtc.nvrtcDestroyProgram(prog)
             raise RuntimeError(f"Failed to get CUBIN size: {nvrtc.nvrtcGetErrorString(result)}")
-        binary_buf = b" " * binary_size
+        binary_buf = bytearray(binary_size)
         result = nvrtc.nvrtcGetCUBIN(prog, binary_buf)
         if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
             nvrtc.nvrtcDestroyProgram(prog)
@@ -328,7 +330,7 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
         if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
             nvrtc.nvrtcDestroyProgram(prog)
             raise RuntimeError(f"Failed to get PTX size: {nvrtc.nvrtcGetErrorString(result)}")
-        binary_buf = b" " * binary_size
+        binary_buf = bytearray(binary_size)
         result = nvrtc.nvrtcGetPTX(prog, binary_buf)
         if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
             nvrtc.nvrtcDestroyProgram(prog)
