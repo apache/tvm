@@ -197,9 +197,9 @@ def test_fuse_reduction_epilogue_numerical_correctness():
     D_original = D_original_tvm.numpy()
     D_fused = D_fused_tvm.numpy()
 
-    np.testing.assert_allclose(D_original, expected, rtol=1e-5)
-    np.testing.assert_allclose(D_fused, expected, rtol=1e-5)
-    np.testing.assert_allclose(D_fused, D_original, rtol=1e-5)
+    tvm.testing.assert_allclose(D_original, expected, rtol=1e-5)
+    tvm.testing.assert_allclose(D_fused, expected, rtol=1e-5)
+    tvm.testing.assert_allclose(D_fused, D_original, rtol=1e-5)
 
 
 def test_fuse_reduction_epilogue_multiple_epilogue():

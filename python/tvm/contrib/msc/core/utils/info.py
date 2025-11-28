@@ -369,7 +369,7 @@ def compare_arrays(
             _add_report(name, gol, data, passed)
             continue
         try:
-            np.testing.assert_allclose(gol, data, rtol=rtol, atol=atol, verbose=False)
+            tvm.testing.assert_allclose(gol, data, rtol=rtol, atol=atol, verbose=False)
             _add_report(name, gol, data, True)
         except:  # pylint: disable=bare-except
             _add_report(name, gol, data, False)

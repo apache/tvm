@@ -7957,7 +7957,7 @@ def test_gru():
     assert (
         pytorch_output.shape == tvm_output_np.shape
     ), f"Shape mismatch: PyTorch {pytorch_output.shape} vs TVM {tvm_output_np.shape}"
-    np.testing.assert_allclose(pytorch_output.numpy(), tvm_output_np, rtol=1e-4, atol=1e-5)
+    tvm.testing.assert_allclose(pytorch_output.numpy(), tvm_output_np, rtol=1e-4, atol=1e-5)
 
     class SeqFirstGRU(nn.Module):
         def __init__(self):
@@ -7990,7 +7990,7 @@ def test_gru():
     else:
         tvm_output2_np = tvm_output2[0].numpy()
     assert pytorch_output2.shape == tvm_output2_np.shape
-    np.testing.assert_allclose(pytorch_output2.numpy(), tvm_output2_np, rtol=1e-4, atol=1e-5)
+    tvm.testing.assert_allclose(pytorch_output2.numpy(), tvm_output2_np, rtol=1e-4, atol=1e-5)
 
 
 def test_dynamic_shape_with_range_constraints():
