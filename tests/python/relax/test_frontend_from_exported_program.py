@@ -57,6 +57,37 @@ def verify_model(
     tvm.ir.assert_structural_equal(mod, expected, map_free_vars=map_free_vars)
 
 
+def verify_model_numerically(torch_model, example_args, rtol=1e-7, atol=1e-7):
+    """Verify model by comparing numerical outputs between PyTorch and TVM."""
+    with torch.no_grad():
+        pytorch_output = torch_model(*example_args)
+
+    exported_program = export(torch_model, args=example_args)
+    mod = from_exported_program(exported_program)
+    target = tvm.target.Target("llvm")
+    ex = relax.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    tvm_args = [tvm.runtime.tensor(arg.numpy()) for arg in example_args]
+    tvm_output = vm["main"](*tvm_args)
+
+    if hasattr(tvm_output, "numpy"):
+        tvm_output_np = tvm_output.numpy()
+    else:
+        tvm_output_np = tvm_output[0].numpy()
+
+    pytorch_output_np = (
+        pytorch_output.numpy()
+        if isinstance(pytorch_output, torch.Tensor)
+        else pytorch_output[0].numpy()
+    )
+
+    assert (
+        pytorch_output_np.shape == tvm_output_np.shape
+    ), f"Shape mismatch: PyTorch {pytorch_output_np.shape} vs TVM {tvm_output_np.shape}"
+    tvm.testing.assert_allclose(pytorch_output_np, tvm_output_np, rtol=rtol, atol=atol)
+
+
 operator_basic_unary = [
     (torch.abs, R.abs),
     (torch.acos, R.acos),
@@ -7831,75 +7862,42 @@ def test_sparse_mm():
     verify_model(SparseMatrixMultiply(), example_args, {}, Expected)
 
 
+@tvm.testing.requires_llvm
 def test_lstm():
-    class BasicLSTM(nn.Module):
-        def __init__(self):
+    class LSTM(nn.Module):
+        def __init__(self, input_size, hidden_size, batch_first, bidirectional):
             super().__init__()
             self.lstm = nn.LSTM(
-                input_size=4,
-                hidden_size=8,
+                input_size=input_size,
+                hidden_size=hidden_size,
                 num_layers=1,
-                batch_first=True,
-                bidirectional=False,
+                batch_first=batch_first,
+                bidirectional=bidirectional,
             )
 
         def forward(self, x):
             y, _ = self.lstm(x)
             return y
 
+    # Unidirectional LSTM with batch_first=True
     torch.manual_seed(42)
     x = torch.randn(2, 3, 4, dtype=torch.float32)
-    model = BasicLSTM()
-    with torch.no_grad():
-        pytorch_output = model(x)
-    exported_program = export(model, args=(x,))
-    mod = from_exported_program(exported_program)
-    target = tvm.target.Target("llvm")
-    ex = relax.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    x_tvm = tvm.runtime.tensor(x.numpy())
-    tvm_output = vm["main"](x_tvm)
-    if hasattr(tvm_output, "numpy"):
-        tvm_output_np = tvm_output.numpy()
-    else:
-        tvm_output_np = tvm_output[0].numpy()
-    assert (
-        pytorch_output.shape == tvm_output_np.shape
-    ), f"Shape mismatch: PyTorch {pytorch_output.shape} vs TVM {tvm_output_np.shape}"
-    np.testing.assert_allclose(pytorch_output.numpy(), tvm_output_np, rtol=1e-4, atol=1e-5)
+    verify_model_numerically(LSTM(4, 8, batch_first=True, bidirectional=False), (x,))
 
-    class SeqFirstLSTM(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.lstm = nn.LSTM(
-                input_size=3,
-                hidden_size=6,
-                num_layers=1,
-                batch_first=False,
-                bidirectional=False,
-            )
-
-        def forward(self, x):
-            y, _ = self.lstm(x)
-            return y
-
+    # Unidirectional LSTM with batch_first=False
     torch.manual_seed(43)
     x2 = torch.randn(4, 2, 3, dtype=torch.float32)
-    model2 = SeqFirstLSTM()
-    with torch.no_grad():
-        pytorch_output2 = model2(x2)
-    exported_program2 = export(model2, args=(x2,))
-    mod2 = from_exported_program(exported_program2)
-    ex2 = relax.build(mod2, target)
-    vm2 = relax.VirtualMachine(ex2, tvm.cpu())
-    x2_tvm = tvm.runtime.tensor(x2.numpy())
-    tvm_output2 = vm2["main"](x2_tvm)
-    if hasattr(tvm_output2, "numpy"):
-        tvm_output2_np = tvm_output2.numpy()
-    else:
-        tvm_output2_np = tvm_output2[0].numpy()
-    assert pytorch_output2.shape == tvm_output2_np.shape
-    np.testing.assert_allclose(pytorch_output2.numpy(), tvm_output2_np, rtol=1e-4, atol=1e-5)
+    verify_model_numerically(LSTM(3, 6, batch_first=False, bidirectional=False), (x2,))
+
+    # Bidirectional LSTM with batch_first=True
+    torch.manual_seed(44)
+    x3 = torch.randn(2, 3, 4, dtype=torch.float32)
+    verify_model_numerically(LSTM(4, 8, batch_first=True, bidirectional=True), (x3,))
+
+    # Bidirectional LSTM with batch_first=False
+    torch.manual_seed(45)
+    x4 = torch.randn(4, 2, 3, dtype=torch.float32)
+    verify_model_numerically(LSTM(3, 6, batch_first=False, bidirectional=True), (x4,))
 
 
 def test_tensor_none_tuple():
