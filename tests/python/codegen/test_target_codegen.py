@@ -120,7 +120,7 @@ def test_codegen_loop_step(target):
 
     # Check that the loop executes at positions 3, 99, 195, 291, 387, 483, 579, 675, 771, 867, 963
     for i in range(3, 1024, 96):
-        np.testing.assert_allclose(c_result[i], a_np[i] + b_np[i], rtol=1e-5)
+        tvm.testing.assert_allclose(c_result[i], a_np[i] + b_np[i], rtol=1e-5)
 
     # Assert non-touched positions remain zero
     for i in range(0, 3):
