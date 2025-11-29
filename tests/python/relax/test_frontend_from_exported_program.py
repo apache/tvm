@@ -4294,6 +4294,45 @@ def test_scaled_dot_product_attention():
         run_ep_decomposition=True,
     )
 
+    # Test 2D input (seq_len, head_dim) - bug fix for #18441
+    class Attention2D(Module):
+        def forward(self, x):
+            return torch.nn.functional.scaled_dot_product_attention(x, x, x, is_causal=False)
+
+    @I.ir_module
+    class Expected2D:
+        @R.function
+        def main(
+            x: R.Tensor((8, 32), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((8, 32), dtype="float32")):
+            with R.dataflow():
+                # Expand to add batch dimension for query, key, value separately
+                # (8, 32) -> (1, 8, 32)
+                lv: R.Tensor((1, 8, 32), dtype="float32") = R.expand_dims(x, axis=[0])
+                lv1: R.Tensor((1, 8, 32), dtype="float32") = R.expand_dims(x, axis=[0])
+                lv2: R.Tensor((1, 8, 32), dtype="float32") = R.expand_dims(x, axis=[0])
+                # Expand to add num_heads dimension: (1, 8, 32) -> (1, 1, 8, 32)
+                lv3: R.Tensor((1, 1, 8, 32), dtype="float32") = R.expand_dims(lv, axis=[1])
+                lv4: R.Tensor((1, 1, 8, 32), dtype="float32") = R.expand_dims(lv1, axis=[1])
+                lv5: R.Tensor((1, 1, 8, 32), dtype="float32") = R.expand_dims(lv2, axis=[1])
+                # Attention operation: (1, 1, 8, 32) -> (1, 1, 8, 32)
+                lv6: R.Tensor((1, 1, 8, 32), dtype="float32") = R.nn.attention(
+                    lv3, lv4, lv5, scale=None, causal_mask=None, window_size=None
+                )
+                # Squeeze batch and num_heads dimensions: (1, 1, 8, 32) -> (8, 32)
+                lv7: R.Tensor((8, 32), dtype="float32") = R.squeeze(lv6, axis=[0, 1])
+                gv: R.Tuple(R.Tensor((8, 32), dtype="float32")) = (lv7,)
+                R.output(gv)
+            return gv
+
+    verify_model(
+        Attention2D(),
+        (torch.randn(8, 32, dtype=torch.float32),),
+        {},
+        Expected2D,
+        run_ep_decomposition=False,
+    )
+
 
 def test_unbind():
     class Unbind1(Module):
