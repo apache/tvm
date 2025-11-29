@@ -1634,12 +1634,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
         keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
 
-        # max doesn't support boolean tensors directly, so we compute it in int8 and cast back
-        if x.struct_info.dtype == "bool":
-            x = relax.op.astype(x, "int8")
-            ret = relax.op.max(x, dim, keepdims=keepdim)
-            return self.block_builder.emit(relax.op.astype(ret, "bool"))
-
         # For boolean tensors, any is equivalent to max (checking if any element is True)
         return self.block_builder.emit(relax.op.max(x, dim, keepdims=keepdim))
 
