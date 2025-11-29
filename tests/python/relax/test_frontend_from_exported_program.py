@@ -62,7 +62,9 @@ def verify_model_numerically(torch_model, example_args, rtol=1e-7, atol=1e-7):
     with torch.no_grad():
         pytorch_output = torch_model(*example_args)
 
-    exported_program = export(torch_model, args=example_args)
+    # Use strict=False to handle ops like scaled_dot_product_attention that may have
+    # internal non-exportable operations
+    exported_program = export(torch_model, args=example_args, strict=False)
     mod = from_exported_program(exported_program)
     target = tvm.target.Target("llvm")
     ex = relax.build(mod, target)
@@ -4253,6 +4255,20 @@ def test_scaled_dot_product_attention():
         {},
         Expected2,
         run_ep_decomposition=True,
+    )
+
+    # Test 2D input (seq_len, head_dim) - bug fix for #18441
+    class Attention2D(Module):
+        def forward(self, x):
+            return torch.nn.functional.scaled_dot_product_attention(x, x, x, is_causal=False)
+
+    # For 2D input, we just verify that conversion succeeds without error
+    # The expected IR is complex due to reshape operations, so we use verify_model_numerically
+    verify_model_numerically(
+        Attention2D(),
+        (torch.randn(8, 32, dtype=torch.float32),),
+        rtol=1e-5,
+        atol=1e-5,
     )
 
 
