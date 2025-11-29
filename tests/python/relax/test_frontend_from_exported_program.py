@@ -62,9 +62,7 @@ def verify_model_numerically(torch_model, example_args, rtol=1e-7, atol=1e-7):
     with torch.no_grad():
         pytorch_output = torch_model(*example_args)
 
-    # Use strict=False to handle ops like scaled_dot_product_attention that may have
-    # internal non-exportable operations
-    exported_program = export(torch_model, args=example_args, strict=False)
+    exported_program = export(torch_model, args=example_args)
     mod = from_exported_program(exported_program)
     target = tvm.target.Target("llvm")
     ex = relax.build(mod, target)
@@ -4289,6 +4287,7 @@ def test_scaled_dot_product_attention():
         (torch.randn(8, 32, dtype=torch.float32),),
         {},
         Expected2D,
+        run_ep_decomposition=False,
     )
 
 
