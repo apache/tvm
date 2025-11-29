@@ -4262,13 +4262,33 @@ def test_scaled_dot_product_attention():
         def forward(self, x):
             return torch.nn.functional.scaled_dot_product_attention(x, x, x, is_causal=False)
 
-    # For 2D input, we just verify that conversion succeeds without error
-    # The expected IR is complex due to reshape operations, so we use verify_model_numerically
-    verify_model_numerically(
+    @I.ir_module
+    class Expected2D:
+        @R.function
+        def main(
+            x: R.Tensor((8, 32), dtype="float32"),
+        ) -> R.Tensor((8, 32), dtype="float32"):
+            with R.dataflow():
+                # Expand to add batch dimension: (8, 32) -> (1, 8, 32)
+                lv: R.Tensor((1, 8, 32), dtype="float32") = R.expand_dims(x, axis=0)
+                # Expand to add num_heads dimension: (1, 8, 32) -> (1, 1, 8, 32)
+                lv1: R.Tensor((1, 1, 8, 32), dtype="float32") = R.expand_dims(lv, axis=1)
+                lv2: R.Tensor((1, 1, 8, 32), dtype="float32") = R.expand_dims(lv, axis=1)
+                lv3: R.Tensor((1, 1, 8, 32), dtype="float32") = R.expand_dims(lv, axis=1)
+                # Attention operation: (1, 1, 8, 32) -> (1, 1, 8, 32)
+                lv4: R.Tensor((1, 1, 8, 32), dtype="float32") = R.nn.attention(
+                    lv1, lv2, lv3, scale=None, causal_mask=None
+                )
+                # Squeeze batch and num_heads dimensions: (1, 1, 8, 32) -> (8, 32)
+                gv: R.Tensor((8, 32), dtype="float32") = R.squeeze(lv4, axis=[0, 1])
+                R.output(gv)
+            return gv
+
+    verify_model(
         Attention2D(),
         (torch.randn(8, 32, dtype=torch.float32),),
-        rtol=1e-5,
-        atol=1e-5,
+        {},
+        Expected2D,
     )
 
 
