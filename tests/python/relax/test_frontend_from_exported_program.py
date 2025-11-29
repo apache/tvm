@@ -1429,6 +1429,45 @@ def test_binary1(op, relax_op):
     verify_model(Binary2(op), example_args2, {}, expected2)
 
 
+operator_binary_scalar = [
+    (torch.ops.aten.add.Scalar, R.add),
+    (torch.ops.aten.bitwise_and.Scalar, R.bitwise_and),
+    (torch.ops.aten.bitwise_or.Scalar, R.bitwise_or),
+    (torch.ops.aten.bitwise_xor.Scalar, R.bitwise_xor),
+    (torch.ops.aten.div.Scalar, R.divide),
+    (torch.ops.aten.sub.Scalar, R.subtract),
+    (torch.ops.aten.mul.Scalar, R.multiply),
+    (torch.ops.aten.remainder.Scalar, R.floor_mod),
+]
+
+
+@pytest.mark.parametrize("op, relax_op", operator_binary_scalar)
+def test_binary_scalar(op, relax_op):
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+
+    class BinaryScalar(Module):
+        def __init__(self, op):
+            super().__init__()
+            self.op = op
+
+        def forward(self, lhs):
+            return self.op(lhs, 1.0)
+
+    @tvm.script.ir_module
+    class expected_binary_scalar:
+        @R.function
+        def main(
+            lhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = relax_op(lhs, R.const(1.0))
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(BinaryScalar(op), example_args, {}, expected_binary_scalar)
+
+
 operator_binary_promote = [
     (operator.add, R.add),
     (operator.sub, R.subtract),
@@ -4158,6 +4197,45 @@ def test_scaled_dot_product_attention():
         run_ep_decomposition=False,
     )
 
+    # Test 2D input (seq_len, head_dim) - bug fix for #18441
+    class Attention2D(Module):
+        def forward(self, x):
+            return torch.nn.functional.scaled_dot_product_attention(x, x, x, is_causal=False)
+
+    @I.ir_module
+    class Expected2D:
+        @R.function
+        def main(
+            x: R.Tensor((8, 32), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((8, 32), dtype="float32")):
+            with R.dataflow():
+                # Expand to add batch dimension for query, key, value separately
+                # (8, 32) -> (1, 8, 32)
+                lv: R.Tensor((1, 8, 32), dtype="float32") = R.expand_dims(x, axis=[0])
+                lv1: R.Tensor((1, 8, 32), dtype="float32") = R.expand_dims(x, axis=[0])
+                lv2: R.Tensor((1, 8, 32), dtype="float32") = R.expand_dims(x, axis=[0])
+                # Expand to add num_heads dimension: (1, 8, 32) -> (1, 1, 8, 32)
+                lv3: R.Tensor((1, 1, 8, 32), dtype="float32") = R.expand_dims(lv, axis=[1])
+                lv4: R.Tensor((1, 1, 8, 32), dtype="float32") = R.expand_dims(lv1, axis=[1])
+                lv5: R.Tensor((1, 1, 8, 32), dtype="float32") = R.expand_dims(lv2, axis=[1])
+                # Attention operation: (1, 1, 8, 32) -> (1, 1, 8, 32)
+                lv6: R.Tensor((1, 1, 8, 32), dtype="float32") = R.nn.attention(
+                    lv3, lv4, lv5, scale=None, causal_mask=None, window_size=None
+                )
+                # Squeeze batch and num_heads dimensions: (1, 1, 8, 32) -> (8, 32)
+                lv7: R.Tensor((8, 32), dtype="float32") = R.squeeze(lv6, axis=[0, 1])
+                gv: R.Tuple(R.Tensor((8, 32), dtype="float32")) = (lv7,)
+                R.output(gv)
+            return gv
+
+    verify_model(
+        Attention2D(),
+        (torch.randn(8, 32, dtype=torch.float32),),
+        {},
+        Expected2D,
+        run_ep_decomposition=False,
+    )
+
 
 def test_unbind():
     class Unbind1(Module):
@@ -6430,6 +6508,21 @@ def test_no_bind_return_tuple():
         torch.randn(256, 256, dtype=torch.float32),
     )
     verify_model(Identity(), example_args, {}, Expected, no_bind_return_tuple=True)
+
+
+def test_register_buffer():
+    class ModelWithBuffer(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.register_buffer("my_buffer", torch.randn(3, 4), persistent=False)
+
+        def forward(self, x):
+            return x + self.my_buffer
+
+    example_args = (torch.randn(2, 3, 4),)
+    ep = export(ModelWithBuffer(), args=example_args)
+    # Just verify that import works.
+    from_exported_program(ep)
 
 
 def test_empty_like():
