@@ -58,7 +58,7 @@ def compile_cuda(
 
     compiler : str, optional
         Compiler backend: "nvcc" or "nvrtc".
-        This can be set by the TVM_CUDA_COMPILER environment variable.
+        This can be set by the TVM_CUDA_COMPILE_MODE environment variable.
 
     Returns
     -------
@@ -521,7 +521,7 @@ def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
 
     Environment Variables
     ---------------------
-    TVM_CUDA_COMPILER : str
+    TVM_CUDA_COMPILE_MODE : str
         Compiler backend: "nvcc" (default) or "nvrtc"
         - "nvcc": Use nvcc subprocess, generates fatbin
         - "nvrtc": Use NVRTC via cuda-python for faster JIT, generates cubin
@@ -538,13 +538,14 @@ def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
     bytes
         Compiled binary (fatbin for nvcc, cubin for nvrtc)
     """
-    compiler = os.environ.get("TVM_CUDA_COMPILER", "nvcc")
+    compiler = os.environ.get("TVM_CUDA_COMPILE_MODE", "nvcc").lower()
 
     if compiler == "nvrtc":
         return compile_cuda(code, target_format="cubin", compiler="nvrtc")
+    if compiler == "nvcc":
+        return compile_cuda(code, target_format="fatbin", compiler="nvcc")
 
-    # Default
-    return compile_cuda(code, target_format="fatbin", compiler="nvcc")
+    raise ValueError(f"Invalid TVM_CUDA_COMPILE_MODE: {compiler}. Expected 'nvcc' or 'nvrtc'.")
 
 
 @tvm_ffi.register_global_func("tvm_callback_libdevice_path")
