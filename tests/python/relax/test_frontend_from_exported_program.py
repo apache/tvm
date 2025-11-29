@@ -6568,6 +6568,21 @@ def test_no_bind_return_tuple():
     verify_model(Identity(), example_args, {}, Expected, no_bind_return_tuple=True)
 
 
+def test_register_buffer():
+    class ModelWithBuffer(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.register_buffer("my_buffer", torch.randn(3, 4), persistent=False)
+
+        def forward(self, x):
+            return x + self.my_buffer
+
+    example_args = (torch.randn(2, 3, 4),)
+    ep = export(ModelWithBuffer(), args=example_args)
+    # Just verify that import works.
+    from_exported_program(ep)
+
+
 def test_empty_like():
     class EmptyLike(Module):
         def forward(self, data):

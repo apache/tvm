@@ -1557,6 +1557,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                     except (OverflowError, AttributeError, TypeError):
                         continue
 
+        named_buffers = OrderedDict(exported_program.named_buffers())
         for spec in exported_program.graph_signature.input_specs:
             name_hint = spec.arg.name
             if spec.kind is torch.export.graph_signature.InputKind.CONSTANT_TENSOR:
@@ -1568,10 +1569,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                         torch_shape = node.meta["tensor_meta"].shape
                         torch_dtype = node.meta["tensor_meta"].dtype
                         break
-            else:
-                # PARAMETER or BUFFER
+            elif spec.kind is torch.export.graph_signature.InputKind.BUFFER:
+                torch_shape = named_buffers[spec.target].shape
+                torch_dtype = named_buffers[spec.target].dtype
+            elif spec.kind is torch.export.graph_signature.InputKind.PARAMETER:
                 torch_shape = exported_program.state_dict[spec.target].shape
                 torch_dtype = exported_program.state_dict[spec.target].dtype
+            else:
+                raise ValueError(f"Unsupported input kind: {spec.kind}")
 
             relax_shape = []
             for s in torch_shape:
