@@ -106,7 +106,6 @@ def verify(mod, expected):
         mod = tvm.relax.transform.SpecializePrimFuncBasedOnCallSite()(mod)
         mod = tvm.relax.transform.Normalize()(mod)
 
-    print(mod)
     ValidateScope(expected).visit(mod)
 
 

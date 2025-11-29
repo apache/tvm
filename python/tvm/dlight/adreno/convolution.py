@@ -68,7 +68,7 @@ class Conv2d(AdrenoScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: Union[tir.PrimFunc],
+        func: Union[tir.PrimFunc, tir.Schedule],
         target: Target,
         _: bool,
     ) -> Optional[tir.Schedule]:

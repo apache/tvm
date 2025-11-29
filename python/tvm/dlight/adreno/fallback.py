@@ -72,20 +72,6 @@ class Fallback(AdrenoScheduleRule):
         return remaining_blocks
 
     @staticmethod
-    def schedule_annotate_storage(sch: tir.Schedule, func=get_texture_storage):
-        """Annotates intermediate buffers to textures whenever it's possible to do so"""
-        return
-        # pylint: disable=unreachable
-        root_blk = analysis.get_root_block(sch)
-        blocks = sch.get_child_blocks(root_blk)
-
-        for blk in blocks:
-            block_info = analysis.get_block_info(sch, blk)
-            scope = func(block_info)
-            if scope is not None and len(sch.get_consumers(blk)) > 0:
-                sch.set_scope(blk, 0, scope)
-
-    @staticmethod
     def schedule_default(sch: tir.Schedule, blk: tir.schedule.BlockRV):
         block_info = analysis.get_block_info(sch, blk)
 
@@ -149,7 +135,6 @@ class Fallback(AdrenoScheduleRule):
         # TODO: Analyze unscheduled blocks to schedule instead of relying on remaining
         for blk in remaining_blocks:
             Fallback.schedule_default(sch, blk)
-        Fallback.schedule_annotate_storage(sch, schedule_blocks + remaining_blocks)
 
     def apply(  # pylint: disable=too-many-locals
         self,

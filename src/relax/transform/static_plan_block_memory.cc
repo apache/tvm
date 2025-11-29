@@ -1038,10 +1038,12 @@ PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DataType d
                             .value_or(Integer(64))
                             ->value;
 
-  // TODO(Siva) Assuming no any dimensions for now.
   struct Shape {
     const ffi::Array<PrimExpr>& shape;
-    int64_t operator[](size_t i) const { return *tir::as_const_int(shape[i]); }
+    int64_t operator[](size_t i) const {
+      ICHECK(tir::as_const_int(shape[i])) << "Dymamic shapes not suported over texture now";
+      return *tir::as_const_int(shape[i]);
+    }
     int size() { return this->shape.size(); }
   };
   auto shape = Shape{pshape};

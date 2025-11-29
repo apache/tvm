@@ -215,6 +215,7 @@ inline StructInfo InferStructInfoUnary(const Call& call, const BlockBuilder& ctx
     auto defined_sinfo = call->sinfo_args[0].as<TensorStructInfoNode>();
     auto shape = output_sinfo->GetShape();
     ICHECK(shape.defined());
+    ICHECK(defined_sinfo->vdevice.has_value());
     return TensorStructInfo(ShapeExpr(shape.value()), output_sinfo->dtype,
                             defined_sinfo->vdevice.value());
   } else {

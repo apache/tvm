@@ -894,7 +894,7 @@ def LowerOpaqueBlock():
 
 
 def InjectTextureAlloc():
-    """Inject Texture Allocation Intrensic to make sure appropriate lowering
+    """Inject Texture Allocation Intrinsic to make sure appropriate lowering
     via alloc_nd/alloc_free calls
     Returns
     -------

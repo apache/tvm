@@ -196,7 +196,7 @@ class Tensor : public tvm::ffi::Tensor {
  protected:
   /*!
    * \brief The memory scope
-   * represents the underlaying scope information of device
+   * represents the underlying scope information of device
    */
   ffi::String scope = "global";
 };
