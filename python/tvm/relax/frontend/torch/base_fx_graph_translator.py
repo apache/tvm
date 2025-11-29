@@ -1502,6 +1502,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             def transpose_and_reshape_back(tensor):
                 # Squeeze batch and num_heads dimensions
                 return self.block_builder.emit(relax.op.squeeze(tensor, axis=[0, 1]))
+
         elif query_ndim == 4:
             # 4D input: (batch, seq_len, num_heads, head_dim) -> (batch, num_heads, seq_len, head_dim)
             transpose_S_H = lambda tensor: relax.op.permute_dims(tensor, [0, 2, 1, 3])
@@ -1512,6 +1513,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             # For 4D, transpose back after attention
             def transpose_and_reshape_back(tensor):
                 return transpose_S_H(tensor)
+
         else:
             raise ValueError(
                 f"scaled_dot_product_attention expects 2D or 4D inputs, but got {query_ndim}D input"
