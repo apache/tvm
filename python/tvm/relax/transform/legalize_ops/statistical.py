@@ -18,6 +18,7 @@
 """Default legalization function for statistical operators."""
 from typing import List
 from tvm import topi, tir, te
+from tvm import relax
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
 from .common import TEFunc, LegalizeFunc, register_legalize
@@ -25,7 +26,16 @@ from .common import TEFunc, LegalizeFunc, register_legalize
 
 def _statistical(te_func: TEFunc) -> LegalizeFunc:
     def statistical_call_te(bb: BlockBuilder, call: Call) -> Expr:
-        return bb.call_te(te_func, call.args[0], call.attrs.axis, call.attrs.keepdims)
+        arg = call.args[0]
+        # Handle bool type by converting to int32 first
+        # since topi.max/min don't support bool directly
+        if arg.struct_info.dtype == "bool":
+            # Convert bool to int32 for statistical operations
+            arg_int = bb.emit(relax.op.astype(arg, "int32"))
+            result_int = bb.call_te(te_func, arg_int, call.attrs.axis, call.attrs.keepdims)
+            # Convert back to bool
+            return bb.emit(relax.op.astype(result_int, "bool"))
+        return bb.call_te(te_func, arg, call.attrs.axis, call.attrs.keepdims)
 
     return statistical_call_te
 

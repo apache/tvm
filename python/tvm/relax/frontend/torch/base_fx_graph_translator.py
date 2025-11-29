@@ -1507,13 +1507,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             # 4D input: (batch, seq_len, num_heads, head_dim)
             # -> (batch, num_heads, seq_len, head_dim)
             transpose_S_H = lambda tensor: relax.op.permute_dims(tensor, [0, 2, 1, 3])
-            query = transpose_S_H(query_tensor)
-            key = transpose_S_H(key_tensor)
-            value = transpose_S_H(value_tensor)
+            query = self.block_builder.emit(transpose_S_H(query_tensor))
+            key = self.block_builder.emit(transpose_S_H(key_tensor))
+            value = self.block_builder.emit(transpose_S_H(value_tensor))
 
             # For 4D, transpose back after attention
             def transpose_and_reshape_back(tensor):
-                return transpose_S_H(tensor)
+                return self.block_builder.emit(transpose_S_H(tensor))
 
         else:
             raise ValueError(
