@@ -1429,6 +1429,45 @@ def test_binary1(op, relax_op):
     verify_model(Binary2(op), example_args2, {}, expected2)
 
 
+operator_binary_scalar = [
+    (torch.ops.aten.add.Scalar, R.add),
+    (torch.ops.aten.bitwise_and.Scalar, R.bitwise_and),
+    (torch.ops.aten.bitwise_or.Scalar, R.bitwise_or),
+    (torch.ops.aten.bitwise_xor.Scalar, R.bitwise_xor),
+    (torch.ops.aten.div.Scalar, R.divide),
+    (torch.ops.aten.sub.Scalar, R.subtract),
+    (torch.ops.aten.mul.Scalar, R.multiply),
+    (torch.ops.aten.remainder.Scalar, R.floor_mod),
+]
+
+
+@pytest.mark.parametrize("op, relax_op", operator_binary_scalar)
+def test_binary_scalar(op, relax_op):
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+
+    class BinaryScalar(Module):
+        def __init__(self, op):
+            super().__init__()
+            self.op = op
+
+        def forward(self, lhs):
+            return self.op(lhs, 1.0)
+
+    @tvm.script.ir_module
+    class expected_binary_scalar:
+        @R.function
+        def main(
+            lhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = relax_op(lhs, R.const(1.0))
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(BinaryScalar(op), example_args, {}, expected_binary_scalar)
+
+
 operator_binary_promote = [
     (operator.add, R.add),
     (operator.sub, R.subtract),
