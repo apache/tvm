@@ -128,7 +128,7 @@ def test_unary_intrin():
             assert b2.numpy().dtype == np.float32
             # Verify correctness against NumPy exp
             expected = np.exp(out_np.astype(np.float32))
-            np.testing.assert_allclose(b2.numpy(), expected, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(b2.numpy(), expected, rtol=1e-5, atol=1e-5)
 
     for func in test_funcs:
         atol = rtol = 1e-3 if func[0].__name__ in ["asin", "acos", "atan"] else 1e-5
