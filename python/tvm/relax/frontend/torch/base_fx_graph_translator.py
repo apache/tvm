@@ -1504,7 +1504,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 return self.block_builder.emit(relax.op.squeeze(tensor, axis=[0, 1]))
 
         elif query_ndim == 4:
-            # 4D input: (batch, seq_len, num_heads, head_dim) -> (batch, num_heads, seq_len, head_dim)
+            # 4D input: (batch, seq_len, num_heads, head_dim)
+            # -> (batch, num_heads, seq_len, head_dim)
             transpose_S_H = lambda tensor: relax.op.permute_dims(tensor, [0, 2, 1, 3])
             query = transpose_S_H(query_tensor)
             key = transpose_S_H(key_tensor)
