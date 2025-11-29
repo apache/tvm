@@ -2507,6 +2507,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         shape = self.shape_of(x)
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
 
+        # Handle case where shape is unknown (None) - this can happen for operations
+        # with dynamic output shapes.
+        if shape is None:
+            return self.block_builder.emit(relax.const(0, "int64"))
+
         shape_dim = shape[dim]
         if hasattr(shape_dim, "value"):
             return self.block_builder.emit(relax.const(shape_dim.value, dtype="int32"))
