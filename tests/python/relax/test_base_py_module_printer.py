@@ -800,7 +800,7 @@ def test_call_py_func_with_base_py_module():
         expected_np = expected
 
     # Use numpy for comparison since we have numpy arrays
-    np.testing.assert_allclose(final_result_np, expected_np, rtol=1e-5, atol=1e-5)
+    tvm.testing.assert_allclose(final_result_np, expected_np, rtol=1e-5, atol=1e-5)
 
 
 if __name__ == "__main__":

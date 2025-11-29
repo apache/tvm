@@ -517,7 +517,7 @@ def test_mlp(session_kind, ccl):  # pylint: disable=too-many-locals
         sess.sync_worker_0()
         Y_result = Y_result.numpy()
     # pylint: enable=invalid-name
-    np.testing.assert_allclose(Y_result, Y_expected, rtol=1e-4, atol=1e-4)
+    tvm.testing.assert_allclose(Y_result, Y_expected, rtol=1e-4, atol=1e-4)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
@@ -666,7 +666,7 @@ def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-ma
         sess.sync_worker_0()
         Y_result = Y_result.numpy()
     # pylint: enable=invalid-name
-    np.testing.assert_allclose(Y_result, Y_expected, rtol=1e-3, atol=1e-3)
+    tvm.testing.assert_allclose(Y_result, Y_expected, rtol=1e-3, atol=1e-3)
 
 
 if __name__ == "__main__":

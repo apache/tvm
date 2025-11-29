@@ -74,7 +74,7 @@ def test_unaligned_vectorize():
     b_nd = tvm.runtime.empty((6,), "float32", dev)
     f = tvm.compile(IRModule, target=target)
     f(a_nd, b_nd)
-    np.testing.assert_allclose(b_nd.numpy(), a.reshape(6), atol=1e-5, rtol=1e-5)
+    tvm.testing.assert_allclose(b_nd.numpy(), a.reshape(6), atol=1e-5, rtol=1e-5)
 
 
 @tvm.testing.requires_gpu
@@ -146,7 +146,7 @@ def test_select_vectorize():
     f = tvm.compile(IRModule, target=target)
     f(a_nd, b_nd)
     a.reshape(3, 2)[:, 1] = 0
-    np.testing.assert_allclose(b_nd.numpy(), a, atol=1e-5, rtol=1e-5)
+    tvm.testing.assert_allclose(b_nd.numpy(), a, atol=1e-5, rtol=1e-5)
 
 
 @tvm.testing.requires_gpu
@@ -166,7 +166,7 @@ def test_vectorized_uint8():
     b_nd = tvm.runtime.empty((16,), "float32", dev)
     f = tvm.compile(func, target="metal")
     f(a_nd, b_nd)
-    np.testing.assert_allclose(b_nd.numpy(), a.astype("float32"), atol=1e-5, rtol=1e-5)
+    tvm.testing.assert_allclose(b_nd.numpy(), a.astype("float32"), atol=1e-5, rtol=1e-5)
 
 
 @tvm.testing.requires_metal(support_required="compile-only")

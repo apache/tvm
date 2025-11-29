@@ -85,10 +85,10 @@ def test_kv_transfer_without_disco():
             offset_in_page = position % page_size
             original_k = k_np[i]
             transferred_k = pages_np[layer_id, page_id, 0, :, offset_in_page, :]
-            np.testing.assert_allclose(original_k, transferred_k)
+            tvm.testing.assert_allclose(original_k, transferred_k)
             original_v = v_np[i]
             transferred_v = pages_np[layer_id, page_id, 1, :, offset_in_page, :]
-            np.testing.assert_allclose(original_v, transferred_v)
+            tvm.testing.assert_allclose(original_v, transferred_v)
     finalize_func = tvm.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
     finalize_func()
     comm.Barrier()
@@ -154,7 +154,7 @@ def test_kv_transfer_page_to_page_without_disco():
             rank_0_offset_in_page = rank_0_position % page_size
             rank_0_entry = pages_np[layer_id, rank_0_page_id, :, :, rank_0_offset_in_page, :]
             transferred_entry = new_pages_np[layer_id, page_id, :, :, offset_in_page, :]
-            np.testing.assert_allclose(rank_0_entry, transferred_entry)
+            tvm.testing.assert_allclose(rank_0_entry, transferred_entry)
     finalize_func = tvm.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
     finalize_func()
     comm.Barrier()
@@ -223,20 +223,20 @@ def test_kv_transfer_with_disco():
             offset_in_page = position % page_size
             original_k = k_np_0[i]
             transferred_k = pages_np[layer_id, page_id, 0, :, offset_in_page, :]
-            np.testing.assert_allclose(original_k, transferred_k)
+            tvm.testing.assert_allclose(original_k, transferred_k)
             original_v = v_np_0[i]
             transferred_v = pages_np[layer_id, page_id, 1, :, offset_in_page, :]
-            np.testing.assert_allclose(original_v, transferred_v)
+            tvm.testing.assert_allclose(original_v, transferred_v)
         pages_np = pages.debug_get_from_remote(1).numpy()
         for i, position in enumerate(position_map_array):
             page_id = position // page_size
             offset_in_page = position % page_size
             original_k = k_np_1[i]
             transferred_k = pages_np[layer_id, page_id, 0, :, offset_in_page, :]
-            np.testing.assert_allclose(original_k, transferred_k)
+            tvm.testing.assert_allclose(original_k, transferred_k)
             original_v = v_np_1[i]
             transferred_v = pages_np[layer_id, page_id, 1, :, offset_in_page, :]
-            np.testing.assert_allclose(original_v, transferred_v)
+            tvm.testing.assert_allclose(original_v, transferred_v)
     finalize_dfunc = sess.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
     finalize_dfunc()
     for i in range(2):

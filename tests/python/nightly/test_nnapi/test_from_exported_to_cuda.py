@@ -57,11 +57,11 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
         for i in range(len(pytorch_out)):
             actual = gpu_out[i].numpy()
             desired = pytorch_out[i].detach().numpy()
-            np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
     else:
         actual = gpu_out[0].numpy()
         desired = pytorch_out.detach().numpy()
-        np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.parametrize_targets("cuda")

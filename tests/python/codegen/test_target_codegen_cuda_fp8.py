@@ -1005,7 +1005,7 @@ def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
     c_tvm = tvm.runtime.empty((128,), dtype=dtype, device=device)
     f(a_tvm, b_tvm, c_tvm)
     c_tvm = c_tvm.numpy()
-    np.testing.assert_allclose(
+    tvm.testing.assert_allclose(
         c_tvm.astype(np.float32), c_np.astype(np.float32), atol=5e-1, rtol=1e-2
     )
 
