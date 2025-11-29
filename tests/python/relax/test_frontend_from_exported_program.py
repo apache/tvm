@@ -7214,6 +7214,29 @@ def test_take():
     verify_model(Take(), example_args, {}, Expected)
 
 
+def test_any():
+    class AnyAten(torch.nn.Module):
+        def forward(self, x):
+            return torch.ops.aten.any(x, dim=1)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="bool"),
+        ) -> R.Tuple(R.Tensor((2,), dtype="bool")):
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="int8") = relax.op.astype(x, dtype="int8")
+                lv2: R.Tensor((2,), dtype="int8") = relax.op.max(lv, axis=1, keepdims=False)
+                lv3: R.Tensor((2,), dtype="bool") = relax.op.astype(lv2, dtype="bool")
+                gv: R.Tuple(R.Tensor((2,), dtype="bool")) = (lv3,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.tensor([[0, 0, 0], [0, 1, 0]], dtype=torch.bool),)
+    verify_model(AnyAten(), example_args, {}, Expected)
+
+
 def test_std():
     class Std(Module):
         def forward(self, x):
