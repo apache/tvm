@@ -20,11 +20,31 @@ import numpy as np
 import pytest
 
 import tvm
+import tvm.contrib.nvcc
 import tvm.testing
 from tvm import te, topi
 from tvm.contrib.nvcc import have_bf16, have_fp16, have_int8
 from tvm.script import ir as I
 from tvm.script import tir as T
+
+
+@pytest.fixture(autouse=True, params=["nvcc", "nvrtc"])
+def setup_cuda_compile_mode(request):
+    mode = request.param
+    orig_func = tvm.contrib.nvcc.tvm_callback_cuda_compile
+
+    def compile_mode_wrapper(code, target):
+        if mode == "nvcc":
+            return tvm.contrib.nvcc.compile_cuda(code, target_format="fatbin", compiler="nvcc")
+        elif mode == "nvrtc":
+            return tvm.contrib.nvcc.compile_cuda(code, target_format="cubin", compiler="nvrtc")
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
+
+    tvm.register_global_func("tvm_callback_cuda_compile", compile_mode_wrapper, override=True)
+    # yield back to the original function so that each test runs twice
+    yield
+    tvm.register_global_func("tvm_callback_cuda_compile", orig_func, override=True)
 
 
 @tvm.testing.requires_gpu
