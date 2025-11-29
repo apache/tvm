@@ -1654,8 +1654,10 @@ def test_isin():
             with R.dataflow():
                 lv: R.Tensor((10, 10, 1), dtype="float32") = R.reshape(x, R.shape([10, 10, 1]))
                 lv1: R.Tensor((10, 10, 8), dtype="bool") = R.equal(lv, test_elements)
-                lv2: R.Tensor((10, 10), dtype="bool") = R.max(lv1, axis=[-1], keepdims=False)
-                gv: R.Tuple(R.Tensor((10, 10), dtype="bool")) = (lv2,)
+                lv2: R.Tensor((10, 10, 8), dtype="int8") = R.astype(lv1, dtype="int8")
+                lv3: R.Tensor((10, 10), dtype="int8") = R.max(lv2, axis=[-1], keepdims=False)
+                lv4: R.Tensor((10, 10), dtype="bool") = R.astype(lv3, dtype="bool")
+                gv: R.Tuple(R.Tensor((10, 10), dtype="bool")) = (lv4,)
                 R.output(gv)
             return gv
 
