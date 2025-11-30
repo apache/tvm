@@ -305,8 +305,36 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
     compile_opts = [
         f"--gpu-architecture={arch}".encode(),
         b"-default-device",
-        f"-I{cuda_path}/include".encode(),
     ]
+
+    # Add CUDA include paths. NVRTC needs explicit include paths for CUDA headers.
+    # Standard installations: cuda_path/include
+    # Conda/architecture-specific installations: cuda_path/targets/<arch>/include
+    include_paths = []
+
+    # Check standard include directory
+    standard_include = os.path.join(cuda_path, "include")
+    if os.path.isdir(standard_include):
+        include_paths.append(standard_include)
+
+    # Check architecture-specific include directory
+    arch_include = os.path.join(
+        cuda_path, "targets", f"{platform.machine()}-{platform.system().lower()}", "include"
+    )
+    if os.path.isdir(arch_include):
+        include_paths.append(arch_include)
+
+    # Verify we can find essential CUDA headers
+    if not any(os.path.isfile(os.path.join(p, "cuda_runtime.h")) for p in include_paths):
+        raise RuntimeError(
+            f"Cannot find CUDA headers in {cuda_path}. "
+            f"Searched in: {include_paths}. "
+            "Please ensure CUDA is properly installed."
+        )
+
+    # Add all valid include paths
+    for include_path in include_paths:
+        compile_opts.append(f"-I{include_path}".encode())
 
     # Add user-provided options
     if options:
