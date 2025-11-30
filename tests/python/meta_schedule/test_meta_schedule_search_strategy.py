@@ -311,14 +311,6 @@ def test_search_strategy_abstract_class_instantiation():
     from tvm.meta_schedule import SearchStrategy
     from tvm.target import Target
     from tvm.meta_schedule import TuneContext
-    from tvm.script import ir as I, relax as R
-
-    # A minimal Relax IRModule (identity)
-    @I.ir_module
-    class M:
-        @R.function
-        def main(x: R.Tensor((1,), "float32")) -> R.Tensor((1,), "float32"):
-            return x
 
     # Test that direct instantiation raises TypeError
     # This prevents segfault when SearchStrategy() is called directly
@@ -326,12 +318,14 @@ def test_search_strategy_abstract_class_instantiation():
         SearchStrategy()
 
     # Test that TuneContext with SearchStrategy() raises TypeError
-    # The error should occur when trying to create SearchStrategy() instance
+    # The error should occur when trying to create SearchStrategy() instance in the function call
+    # Since SearchStrategy() fails in __new__, it will fail before TuneContext.__init__ is called
     with pytest.raises(TypeError, match="Cannot instantiate abstract class SearchStrategy"):
+        # This will fail when evaluating SearchStrategy() as an argument
         TuneContext(
-            mod=M,
+            mod=Matmul,  # Use the existing Matmul module from the test file
             target=Target("llvm"),
-            search_strategy=SearchStrategy(),  # This should fail before reaching TuneContext
+            search_strategy=SearchStrategy(),  # This should fail in __new__ before reaching TuneContext
         )
 
     # Test that SearchStrategy.create() works correctly
