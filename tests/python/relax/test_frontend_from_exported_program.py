@@ -8011,6 +8011,92 @@ def test_gru():
     assert pytorch_output2.shape == tvm_output2_np.shape
     tvm.testing.assert_allclose(pytorch_output2.numpy(), tvm_output2_np, rtol=1e-4, atol=1e-5)
 
+    # Test bidirectional GRU with batch_first=True
+    class BidirectionalGRU(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.gru = nn.GRU(
+                input_size=4,
+                hidden_size=5,
+                num_layers=1,
+                batch_first=True,
+                bidirectional=True,
+            )
+
+        def forward(self, x):
+            y, _ = self.gru(x)
+            return y
+
+    torch.manual_seed(44)
+    x3 = torch.randn(2, 3, 4, dtype=torch.float32)
+    model3 = BidirectionalGRU()
+    with torch.no_grad():
+        pytorch_output3 = model3(x3)
+
+    # Verify output shape is correct (hidden_size * 2 due to bidirectional)
+    assert pytorch_output3.shape == (
+        2,
+        3,
+        10,
+    ), f"Expected shape (2, 3, 10), got {pytorch_output3.shape}"
+
+    exported_program3 = export(model3, args=(x3,))
+    mod3 = from_exported_program(exported_program3)
+    ex3 = relax.build(mod3, target)
+    vm3 = relax.VirtualMachine(ex3, tvm.cpu())
+    x3_tvm = tvm.runtime.tensor(x3.numpy())
+    tvm_output3 = vm3["main"](x3_tvm)
+    if hasattr(tvm_output3, "numpy"):
+        tvm_output3_np = tvm_output3.numpy()
+    else:
+        tvm_output3_np = tvm_output3[0].numpy()
+    assert (
+        pytorch_output3.shape == tvm_output3_np.shape
+    ), f"Shape mismatch: PyTorch {pytorch_output3.shape} vs TVM {tvm_output3_np.shape}"
+    tvm.testing.assert_allclose(pytorch_output3.numpy(), tvm_output3_np, rtol=1e-4, atol=1e-5)
+
+    # Test bidirectional GRU with batch_first=False
+    class SeqFirstBidirectionalGRU(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.gru = nn.GRU(
+                input_size=3,
+                hidden_size=4,
+                num_layers=1,
+                batch_first=False,
+                bidirectional=True,
+            )
+
+        def forward(self, x):
+            y, _ = self.gru(x)
+            return y
+
+    torch.manual_seed(45)
+    x4 = torch.randn(4, 2, 3, dtype=torch.float32)  # (seq_len, batch, input_size)
+    model4 = SeqFirstBidirectionalGRU()
+    with torch.no_grad():
+        pytorch_output4 = model4(x4)
+
+    # Verify output shape (seq_len, batch, hidden_size * 2)
+    assert pytorch_output4.shape == (
+        4,
+        2,
+        8,
+    ), f"Expected shape (4, 2, 8), got {pytorch_output4.shape}"
+
+    exported_program4 = export(model4, args=(x4,))
+    mod4 = from_exported_program(exported_program4)
+    ex4 = relax.build(mod4, target)
+    vm4 = relax.VirtualMachine(ex4, tvm.cpu())
+    x4_tvm = tvm.runtime.tensor(x4.numpy())
+    tvm_output4 = vm4["main"](x4_tvm)
+    if hasattr(tvm_output4, "numpy"):
+        tvm_output4_np = tvm_output4.numpy()
+    else:
+        tvm_output4_np = tvm_output4[0].numpy()
+    assert pytorch_output4.shape == tvm_output4_np.shape
+    tvm.testing.assert_allclose(pytorch_output4.numpy(), tvm_output4_np, rtol=1e-4, atol=1e-5)
+
 
 def test_dynamic_shape_with_range_constraints():
     class DynamicModel(torch.nn.Module):
