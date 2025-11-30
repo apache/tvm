@@ -21,4 +21,3 @@ set -u
 set -o pipefail
 
 pip3 install cuda-python
-
