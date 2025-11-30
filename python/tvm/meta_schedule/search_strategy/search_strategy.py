@@ -89,7 +89,7 @@ class SearchStrategy(Object):
 
     def __new__(cls, *args, **kwargs):
         """Prevent direct instantiation of abstract SearchStrategy class.
-        
+
         SearchStrategy is an abstract class and cannot be directly instantiated.
         Use SearchStrategy.create() or a concrete subclass instead.
         """
@@ -101,9 +101,6 @@ class SearchStrategy(Object):
                 "or use a concrete subclass instead."
             )
         return super().__new__(cls)
-=======
-        return super().__new__(cls)
->>>>>>> 2dba6e03d (Use __new__ instead of __init__ for abstract class prevention)
 
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the search strategy with tuning context.
