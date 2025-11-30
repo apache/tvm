@@ -87,24 +87,23 @@ class SearchStrategy(Object):
         ],
     ]
 
-    def __init__(self, *args, **kwargs):
+    def __new__(cls, *args, **kwargs):
         """Prevent direct instantiation of abstract SearchStrategy class.
         
         SearchStrategy is an abstract class and cannot be directly instantiated.
         Use SearchStrategy.create() or a concrete subclass instead.
         """
-        # Check if this is a direct instantiation of SearchStrategy (not a subclass)
-        # Subclasses will have a different type
-        if type(self) is SearchStrategy:
+        if cls is SearchStrategy:
             raise TypeError(
                 "Cannot instantiate abstract class SearchStrategy. "
                 "Use SearchStrategy.create() with a valid strategy type "
                 "(e.g., 'evolutionary', 'replay-trace', 'replay-func') "
                 "or use a concrete subclass instead."
             )
-        
-        # Allow parent class initialization to proceed for proper subclasses
-        super().__init__(*args, **kwargs)
+        return super().__new__(cls)
+=======
+        return super().__new__(cls)
+>>>>>>> 2dba6e03d (Use __new__ instead of __init__ for abstract class prevention)
 
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the search strategy with tuning context.
