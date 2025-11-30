@@ -31,6 +31,12 @@ from tvm.script import tir as T
 @pytest.fixture(autouse=True, params=["nvcc", "nvrtc"])
 def setup_cuda_compile_mode(request):
     mode = request.param
+    if mode == "nvrtc":
+        try:
+            from cuda.bindings import nvrtc
+        except ImportError:
+            pytest.skip("cuda-python not available, skipping nvrtc tests")
+
     orig_func = tvm.contrib.nvcc.tvm_callback_cuda_compile
 
     def compile_mode_wrapper(code, target):
