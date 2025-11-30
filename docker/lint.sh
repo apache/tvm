@@ -98,7 +98,11 @@ function run_lint_step() {
     shift
 
     if [ $validate_only -eq 0 ]; then
-        run_docker -it "ci_lint" "${cmd[@]}"
+        if [ -t 0 ]; then
+            run_docker -it "ci_lint" "${cmd[@]}"
+        else
+            run_docker "ci_lint" "${cmd[@]}"
+        fi
     fi
 }
 
