@@ -1153,6 +1153,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         return self.block_builder.emit(relax.op.reshape(x, size))
 
+    ########## Symbolic Shape Constraints ##########
+
+    def _symbolic_comparison(self, _: fx.Node) -> relax.Expr:
+        return self.block_builder.emit(relax.const(True, dtype="bool"))
+
     ########## Others ##########
 
     def create_convert_map(
@@ -1457,6 +1462,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "linspace.default": self._linspace,
             "masked_fill.Scalar": self._masked_fill,
             "masked_fill_.Scalar": self._inplace_masked_fill,
+            "masked_select.default": self._masked_select,
             "new_ones.default": self._new_ones,
             "new_zeros.default": self._new_zeros,
             "one_hot.default": self._one_hot,
@@ -1477,6 +1483,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "item.default": self._item,
             "sym_size.int": self._sym_size_int,
             "_local_scalar_dense.default": self._item,
+            # symbolic shape constraints (no-ops for compilation)
+            "sym_constrain_range_for_size.default": lambda node: self.env[node.args[0]],
+            "_assert_scalar.default": lambda node: self.env[node.args[0]],
+            "ge": self._symbolic_comparison,
+            "le": self._symbolic_comparison,
         }
 
     def _process_derived_symbol(
