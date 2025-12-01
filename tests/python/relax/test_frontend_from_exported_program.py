@@ -7133,6 +7133,54 @@ def test_index_put():
                 R.output(gv)
             return gv
 
+    # Test case 9: batched indexing with slice (e.g., M[:, rows, cols] = x)
+    class IndexPutBatchedWithNone(Module):
+        def forward(self, x):
+            B = x.size(0)
+            M = torch.zeros(B, 11, 11)
+            rows = torch.arange(10)
+            cols = rows + 1
+            M[:, rows, cols] = x  # Batched index assignment
+            return M
+
+    example_args_batched_none = (torch.randn(2, 10, dtype=torch.float32),)
+
+    @I.ir_module
+    class ExpectedBatchedWithNone:
+        @R.function
+        def main(
+            x: R.Tensor((2, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((2, 11, 11), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 11, 11), dtype="float32") = R.full(
+                    R.shape([2, 11, 11]), R.const(0.0, "float32"), dtype="float32"
+                )
+                lv1: R.Tensor((10,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(10), R.prim_value(1), dtype="int64"
+                )
+                lv2: R.Tensor((10,), dtype="int64") = R.add(lv1, R.const(1, "int64"))
+                lv3: R.Tensor((2, 11, 11), dtype="float32") = R.strided_slice(
+                    lv,
+                    (R.prim_value(0),),
+                    (R.prim_value(0),),
+                    (R.prim_value(9223372036854775807),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv4: R.Tensor((2,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(2), R.prim_value(1), dtype="int64"
+                )
+                lv5: R.Tensor((2, 1), dtype="int64") = R.reshape(lv4, R.shape([2, 1]))
+                lv6: R.Tensor((2, 11, 11), dtype="float32") = R.index_put(
+                    lv3, (lv5, lv1, lv2), x, accumulate=False
+                )
+                lv7: R.Tensor((2, 11, 11), dtype="float32") = R.slice_scatter(
+                    lv, lv6, R.prim_value(0), R.prim_value(2), R.prim_value(1), axis=0
+                )
+                gv: R.Tuple(R.Tensor((2, 11, 11), dtype="float32")) = (lv7,)
+                R.output(gv)
+            return gv
+
     # Run verification for each case
     verify_model(IndexPut1D(), example_args_1d, {}, Expected1D)
     verify_model(IndexPut2D(), example_args_2d, {}, Expected2D)
@@ -7142,6 +7190,7 @@ def test_index_put():
     verify_model(IndexPutBroadcast1D(), example_args_broadcast1, {}, ExpectedBroadcast1D)
     verify_model(IndexPutBroadcast2D(), example_args_broadcast2, {}, ExpectedBroadcast2D)
     verify_model(IndexPutBroadcast3D(), example_args_broadcast3d, {}, ExpectedBroadcast3D)
+    verify_model(IndexPutBatchedWithNone(), example_args_batched_none, {}, ExpectedBatchedWithNone)
 
 
 def test_flip():
