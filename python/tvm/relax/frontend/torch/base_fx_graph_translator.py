@@ -1812,8 +1812,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                             )
                         )
                         # Reshape to [dim_size, 1, 1, ...] for broadcasting
+                        # Add an extra dimension so it broadcasts with other indices
                         arange_idx = self.block_builder.emit(
-                            relax.op.reshape(arange_idx, [data_shape[i]] + [1] * (max_ndim - 1))
+                            relax.op.reshape(arange_idx, [data_shape[i]] + [1] * max_ndim)
                         )
                         processed_indices.append(arange_idx)
                     else:
