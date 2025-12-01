@@ -532,7 +532,10 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
   }
 
   IntervalSet VisitExpr_(const BroadcastNode* op) final {
-    ICHECK(eval_vec_);
+    if (!eval_vec_) {
+      DLOG(WARNING) << "cannot evaluate set on expression " << ffi::GetRef<PrimExpr>(op);
+      return IntervalSet::Everything();
+    }
     return VisitExpr(op->value);
   }
 
