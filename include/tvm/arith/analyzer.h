@@ -642,6 +642,7 @@ class Z3Prover {
   TVM_DLL bool CanProve(const PrimExpr & expr);
   std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume=false);
   ffi::String GetSMTLIB2(const ffi::Optional<PrimExpr> expr);
+  ffi::String GetStats();
   void SetTimeoutMs(unsigned timeout_ms);
   void SetMaxStep(unsigned max_step);
  private:

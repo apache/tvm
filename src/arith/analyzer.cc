@@ -252,11 +252,12 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
   // VLA, we can make some assumptions about the value of vscale and iterate over a
   // space of pre-defined values to attempt to prove the expression.
   Target curr_target = Target::Current();
-  bool can_prove = false;
   if (ContainsVscaleCall(simplified)) {
     if (TargetHasVLA(curr_target)) {
       auto kVScaleValues = GetVScaleValues(curr_target);
-      can_prove |= CanProveVscaleExpressionFromKnownValues(this, simplified, kVScaleValues);
+      if(CanProveVscaleExpressionFromKnownValues(this, simplified, kVScaleValues)) {
+        return true;
+      }
     }
     // LOG(WARNING)
     //     << "The expression contains scalable values. An attempt to prove by substituting "
@@ -264,13 +265,10 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
     //        "VLA targets, but the target was "
     //     << curr_target;
   }
-  // if(!can_prove) {
-  //   can_prove |=  z3_prover.CanProve(expr);
-  //   if(can_prove) {
-  //     LOG(INFO) << "This can be proved by z3: " << z3_prover.GetSMTLIB2(expr);
-  //   }
-  // }
-  return can_prove;
+  if(z3_prover.CanProve(simplified)) {
+    return true;
+  }
+  return false;
 }
 
 PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
