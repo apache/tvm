@@ -119,11 +119,23 @@ void NVSHMEMXCumoduleInit(void* cuModule) {
     // The reason is because that the input cuModule might not use any NVSHMEM functions,
     // in which case the nvshmemx_cumodule_init will fail.
 
-    // Check if the module has NVSHMEM symbol to avoid "gpgpu named symbol not found" error.
+    // A set of guards to check if the module has NVSHMEM symbol to avoid the
+    // "gpgpu named symbol not found" error.
     CUdeviceptr d_ptr;
     size_t d_size;
-    if (cuModuleGetGlobal(&d_ptr, &d_size, mod, "nvshmem_i_device_state_d") == CUDA_SUCCESS) {
-      nvshmemx_cumodule_init(mod);
+    const char* kNvshmemDeviceSymbols[] = {
+        "nvshmemi_device_state_d",
+        "nvshmem_i_device_state_d",
+        "nvshmemi_device_team_state_d",
+        "nvshmemi_device_heap_base_d",
+        "nvshmemi_device_heap_size_d",
+        "nvshmemi_device_heap_d",
+    };
+    for (const char* sym : kNvshmemDeviceSymbols) {
+      if (cuModuleGetGlobal(&d_ptr, &d_size, mod, sym) == CUDA_SUCCESS) {
+        nvshmemx_cumodule_init(mod);
+        return;
+      }
     }
   }
 }
