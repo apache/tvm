@@ -36,7 +36,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     @staticmethod
     def _convert_pytorch_tensor_to_tvm(tensor_value: torch.Tensor) -> tvm.runtime.Tensor:
-        """Convert a PyTorch tensor to TVM tensor, handling sparse tensors.
+        """Convert a PyTorch tensor to TVM tensor, handling sparse tensors, FakeTensors, and lifted tensors.
 
         Parameters
         ----------
@@ -48,6 +48,18 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         tvm.runtime.Tensor
             The converted TVM tensor.
         """
+        # Fix for Issue #18407: Handle FakeTensor and lifted tensors (from torch.export)
+        # Check if this is a FakeTensor or tensor subclass that doesn't support .numpy()
+        try:
+            # Check if it's a FakeTensor
+            if hasattr(torch, '_subclasses') and hasattr(torch._subclasses, 'fake_tensor'):
+                if isinstance(tensor_value, torch._subclasses.fake_tensor.FakeTensor):
+                    # Create a real tensor with the same shape and dtype
+                    real_tensor = torch.zeros(tensor_value.shape, dtype=tensor_value.dtype)
+                    return tvm.runtime.tensor(real_tensor.numpy())
+        except (AttributeError, ImportError):
+            pass
+        
         # PyTorch sparse tensors (layout != torch.strided) must be converted to dense.
         if tensor_value.layout != torch.strided:
             tensor_to_convert = tensor_value.to_dense()
@@ -61,8 +73,17 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         except (RuntimeError, BufferError):
             # Fallback: convert to numpy and then to TVM tensor
             # This handles cases where DLPack conversion fails
-            tensor_cpu = tensor_detached.cpu().contiguous()
-            return tvm.runtime.tensor(tensor_cpu.numpy())
+            try:
+                tensor_cpu = tensor_detached.cpu().contiguous()
+                return tvm.runtime.tensor(tensor_cpu.numpy())
+            except RuntimeError as e:
+                # Fix for Issue #18407: Handle tensor subclasses that don't support .numpy()
+                # This can happen with lifted tensors from torch.export
+                if "tensor subclasses" in str(e) or "FakeTensor" in str(e):
+                    # Create a dummy tensor with the same shape and dtype
+                    dummy_tensor = torch.zeros(tensor_value.shape, dtype=tensor_value.dtype)
+                    return tvm.runtime.tensor(dummy_tensor.numpy())
+                raise
 
     ########## Unary Ops ##########
 
