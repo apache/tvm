@@ -113,12 +113,14 @@ if not IS_IN_CI:
 # We skip this step in the CI environment.
 
 if not IS_IN_CI:
+    with target:
+        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
     ex = tvm.compile(mod, target="cuda")
     dev = tvm.device("cuda", 0)
     vm = relax.VirtualMachine(ex, dev)
     # Need to allocate data and params on GPU device
     gpu_data = tvm.runtime.tensor(np.random.rand(1, 3, 224, 224).astype("float32"), dev)
     gpu_params = [tvm.runtime.tensor(p, dev) for p in params["main"]]
-    gpu_out = vm["main"](gpu_data, *gpu_params).numpy()
+    gpu_out = vm["main"](gpu_data, *gpu_params)[0].numpy()
 
     print(gpu_out.shape)
