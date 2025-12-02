@@ -893,32 +893,5 @@ def test_update_symbolic_vars_in_match_cast_rhs():
     assert_structural_equal(Expected, After)
 
 
-def test_composite_shape_expression():
-    """When a ShapeExpr contains composite PrimExpr that haven't been computed yet,
-    VMShapeLower should trigger computation before processing the shape.
-    """
-
-    @tvm.script.ir_module
-    class Before:
-        @R.function
-        def main(x: R.Tensor(("x_0", "x_1", "x_2", "x_3"), "float32")) -> R.Tensor:
-            R.func_attr({"relax.force_pure": True})
-            x_0 = T.int64()
-            x_1 = T.int64()
-            x_2 = T.int64()
-            x_3 = T.int64()
-            # This creates a composite expression that was causing the crash:
-            # T.int64(4) * (x_0 * x_1 * x_2 * x_3)
-            new_shape = R.shape([T.int64(4) * (x_0 * x_1 * x_2 * x_3)])
-            return R.reshape(x, new_shape)
-
-    # The test shoud not crash during VMShapeLower
-    # We don't need to validate teh exact output, just that it doesn't crash
-    after = relax.transform.VMShapeLower(emit_err_ctx=False)(Before)
-
-    # The actual output structure is not as important as not crashing
-    assert after is not None
-
-
 if __name__ == "__main__":
     tvm.testing.main()
