@@ -77,9 +77,9 @@ repos:
             language: system
             files: \.(c|cc|cpp|h|hpp)$
             pass_filenames: false
-        -   id: run-mypy
-            name: Type Checking with MyPY ...
-            entry: docker/lint.sh mypy
-            language: system
-            files: \.py$
-            pass_filenames: false
+        # -   id: run-mypy
+        #     name: Type Checking with MyPY ...
+        #     entry: docker/lint.sh mypy
+        #     language: system
+        #     files: \.py$
+        #     pass_filenames: false

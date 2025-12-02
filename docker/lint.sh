@@ -52,7 +52,11 @@ function run_lint_step() {
             fi
             ;;
         cpplint)
-            cmd=( tests/lint/cpplint.sh )
+            if [ $inplace_fix -eq 0 ]; then
+                cmd=( tests/lint/cpplint.sh )
+            else
+                cmd=( tests/lint/cpplint.sh --rev origin/main )
+            fi
             ;;
         flake8)
             if [ $inplace_fix -eq 0 ]; then
