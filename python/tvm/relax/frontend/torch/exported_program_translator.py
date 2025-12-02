@@ -36,7 +36,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     @staticmethod
     def _convert_pytorch_tensor_to_tvm(tensor_value: torch.Tensor) -> tvm.runtime.Tensor:
-        """Convert a PyTorch tensor to TVM tensor, handling sparse tensors, FakeTensors, and lifted tensors.
+        """Convert a PyTorch tensor to TVM tensor, handling sparse tensors.
 
         Parameters
         ----------
@@ -47,19 +47,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         -------
         tvm.runtime.Tensor
             The converted TVM tensor.
+
+        Raises
+        ------
+        RuntimeError
+            If the tensor is a FakeTensor or other tensor subclass that cannot be converted.
         """
-        # Fix for Issue #18407: Handle FakeTensor and lifted tensors (from torch.export)
-        # Check if this is a FakeTensor or tensor subclass that doesn't support .numpy()
-        try:
-            # Check if it's a FakeTensor
-            if hasattr(torch, '_subclasses') and hasattr(torch._subclasses, 'fake_tensor'):
-                if isinstance(tensor_value, torch._subclasses.fake_tensor.FakeTensor):
-                    # Create a real tensor with the same shape and dtype
-                    real_tensor = torch.zeros(tensor_value.shape, dtype=tensor_value.dtype)
-                    return tvm.runtime.tensor(real_tensor.numpy())
-        except (AttributeError, ImportError):
-            pass
-        
         # PyTorch sparse tensors (layout != torch.strided) must be converted to dense.
         if tensor_value.layout != torch.strided:
             tensor_to_convert = tensor_value.to_dense()
@@ -73,17 +66,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         except (RuntimeError, BufferError):
             # Fallback: convert to numpy and then to TVM tensor
             # This handles cases where DLPack conversion fails
-            try:
-                tensor_cpu = tensor_detached.cpu().contiguous()
-                return tvm.runtime.tensor(tensor_cpu.numpy())
-            except RuntimeError as e:
-                # Fix for Issue #18407: Handle tensor subclasses that don't support .numpy()
-                # This can happen with lifted tensors from torch.export
-                if "tensor subclasses" in str(e) or "FakeTensor" in str(e):
-                    # Create a dummy tensor with the same shape and dtype
-                    dummy_tensor = torch.zeros(tensor_value.shape, dtype=tensor_value.dtype)
-                    return tvm.runtime.tensor(dummy_tensor.numpy())
-                raise
+            tensor_cpu = tensor_detached.cpu().contiguous()
+            return tvm.runtime.tensor(tensor_cpu.numpy())
 
     ########## Unary Ops ##########
 
@@ -1709,11 +1693,27 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         binding = {}
         for tensor_name, tensor_value in to_bind_parameters.items():
             # find relax var name from graph signature
+            bind_name = None
             for spec in exported_program.graph_signature.input_specs:
                 if tensor_name == spec.target:
                     bind_name = spec.arg.name
                     break
-            binding[bind_name] = self._convert_pytorch_tensor_to_tvm(tensor_value)
+            if bind_name is None:
+                # Skip tensors that don't have corresponding input specs
+                # (e.g., lifted_tensor from torch.export)
+                continue
+            try:
+                binding[bind_name] = self._convert_pytorch_tensor_to_tvm(tensor_value)
+            except RuntimeError as e:
+                # Skip FakeTensor/lifted tensors that cannot be converted
+                # These are typically intermediate tensors that torch.export couldn't properly lift
+                import warnings
+
+                warnings.warn(
+                    f"Skipping parameter '{tensor_name}' (bind_name: '{bind_name}'): "
+                    f"Cannot convert tensor to TVM format: {e}"
+                )
+                continue
 
         mod = self.block_builder.get()
         mod = relax.transform.BindParams("main", binding)(mod)
