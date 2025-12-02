@@ -30,6 +30,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 
 namespace tvm {
@@ -134,13 +135,74 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     return output;
   }
 
+  Expr VisitExpr_(const ShapeExprNode* op) override {
+    // For each dimension, check if it is a composite expression that symbolization
+    ffi::Array<PrimExpr> new_values;
+    bool changed = false;
+
+    for (const auto& dim : op->values) {
+      PrimExpr new_dim = VisitPrimExpr(dim);
+
+      // Check if this is a composite expression (not a constant or simple variable)
+      if (IsCompositePrimExpr(new_dim)) {
+        // Introduce a new symbolic variable for this composite expression
+        tir::Var symbolic_var = CreateSymbolicVar(new_dim);
+        new_values.push_back(symbolic_var);
+        changed = true;
+      } else {
+        new_values.push_back(new_dim);
+        if (!new_dim.same_as(dim)) {
+          changed = true;
+        }
+      }
+    }
+
+    if (!changed) {
+      return ffi::GetRef<Expr>(op);
+    }
+
+    return ShapeExpr(new_values);
+  }
+
  private:
   struct KnownValue {
     PrimExpr expr;
     MatchCast source;
   };
 
+  bool IsCompositePrimExpr(const PrimExpr& expr) {
+    // Constants and simple variables are not composite
+    if (expr->IsInstance<tir::IntImmNode>() || expr->IsInstance<tir::FloatImmNode>() ||
+        expr->IsInstance<tir::VarNode>()) {
+      return false;
+    }
+
+    // Check if the expression contains variables
+    auto vars = tir::UndefinedVars(expr);
+
+    // If it has variables, it's composite (e.g., x * y, x + 1, etc.)
+    return vars.size() >= 1;
+  }
+
+  tir::Var CreateSymbolicVar(const PrimExpr& expr) {
+    tir::Var symbolic_var("composite_" + std::to_string(composite_counter_++), expr->dtype);
+
+    // Create PrimValue for the composite expression
+    PrimValue prim_val(expr);
+    PrimStructInfo prim_sinfo(symbolic_var);
+    Var relax_var("comp_val_" + std::to_string(composite_counter_ - 1), prim_sinfo);
+
+    // Emit MatchCast to define the symbolic variable
+    auto match_cast = MatchCast(relax_var, prim_val, prim_sinfo);
+    builder_->EmitNormalized(match_cast);
+
+    known_values_[symbolic_var] = KnownValue{expr, match_cast};
+
+    return symbolic_var;
+  }
+
   std::unordered_map<tir::Var, KnownValue> known_values_;
+  int composite_counter_ = 0;
 };
 
 struct CanonicalizationPlan {
