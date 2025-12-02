@@ -16,13 +16,15 @@
 # under the License.
 """Basic tests for a Disco nvshmem support"""
 # pylint: disable=missing-docstring
-import tempfile
-
 import numpy as np
 import pytest
+
+import shutil
 import subprocess
-import threading
 import sys
+import tempfile
+import threading
+import multiprocessing
 from multiprocessing import Process
 from typing import Any, Callable, List
 
@@ -160,7 +162,8 @@ def test_nvshmem_compile():
                     T.writes(B[v1, v0])
                     B[v1, v0] = A[v0, v1]
 
-    with tempfile.TemporaryDirectory() as tmpdir:
+    tmpdir = tempfile.mkdtemp()
+    try:
         path = tmpdir + "/test.so"
         A_np = np.arange(8 * 16).astype("float32").reshape([8, 16])
         B_np = np.zeros((16, 8), dtype="float32")
@@ -180,9 +183,12 @@ def test_nvshmem_compile():
         # finish the execution
         sess._sync_all()
 
-    finalize_dfunc = sess.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
-    finalize_dfunc()
-    sess.sync_worker_0()
+        finalize_dfunc = sess.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
+        finalize_dfunc()
+        sess.sync_worker_0()
+    finally:
+        sess.shutdown()
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 if __name__ == "__main__":
@@ -190,14 +196,24 @@ if __name__ == "__main__":
     # or `nvshmem_init_thread` in the same program results in undefined behavior.
     # So we always create a new process to run the test. Then no repeated nvshmem
     # init happens in the same process, since the worker0 may share the same process.
+
+    # Use 'spawn' start method to avoid inheriting CUDA state from parent process
+    # 'fork' (default on Linux) can cause issues with CUDA contexts in child processes
+    multiprocessing.set_start_method("spawn", force=True)
+
     for session_kind in [create_socket_session, di.ProcessSession]:
         for num_workers in [2, 4]:
             for test_func in [test_nvshmem_init_finalize, test_nvshmem_empty]:
                 p = Process(target=test_func, args=[session_kind, num_workers])
                 p.start()
                 p.join()
+                # Ensure the process finished successfully
+                assert p.exitcode == 0, (
+                    f"Test {test_func.__name__} failed with exit code {p.exitcode}"
+                )
 
     # testing compilation flow
     p = Process(target=test_nvshmem_compile)
     p.start()
     p.join()
+    assert p.exitcode == 0, f"Test test_nvshmem_compile failed with exit code {p.exitcode}"

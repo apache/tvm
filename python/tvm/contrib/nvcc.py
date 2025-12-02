@@ -149,7 +149,7 @@ def _compile_cuda_nvcc(code, target_format=None, arch=None, options=None, path_t
 
     file_target = path_target if path_target else temp_target
     if use_nvshmem:
-        file_prefix = file_target.split(".")[0]
+        file_prefix = os.path.splitext(file_target)[0]
         file_target = f"{file_prefix}.o"  # in the first stage, compile to object file
 
     cmd = ["nvcc"]
