@@ -96,6 +96,7 @@ public:
   }
 
   Impl() {
+    scope_stack_.push_back({});
     solver = CreateSolver(*ctx);
     // default timeout 5ms
     // Z3's implementation of timeout, when setting timeout T ms, it will stop at T - 1 ms
@@ -121,8 +122,25 @@ public:
     return e;
   }
 
+  struct Scope {
+    enum Kind {
+      BindValue,
+      BindRange,
+      Constraint,
+    } kind;
+    Var var;
+    PrimExpr value;
+    PrimExpr min;
+    PrimExpr extent;
+    PrimExpr constraint;
+  };
+
+  std::vector<std::vector<Scope>> scope_stack_;
+
   /// @brief Enter a constraint scope
   std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume=false) {
+    scope_stack_.push_back({});
+    scope_stack_.back().push_back(Scope{Scope::Constraint, Var(), PrimExpr(), PrimExpr(), PrimExpr(), constraint});
     solver.push();
     is_assume = true;
     auto e = VisitBool(constraint);
@@ -135,6 +153,7 @@ public:
       for (const auto& expr : assume_overrides_) {
         memo_.erase(expr);
       }
+      scope_stack_.pop_back();
     };
   }
 
@@ -204,6 +223,7 @@ public:
   void Bind(const Var & var, const PrimExpr & value, bool allow_override = false) {
     if (!IsValidDType(var->dtype)) return;
     // ICHECK(!allow_override) << "Z3Prover does not support override binding.";
+    scope_stack_.back().push_back(Scope{Scope::BindValue, var, value});
     if(SideEffect(value) <= CallEffectKind::kPure) {
       memo_.emplace(var, VisitInt(value));
     } else {
@@ -214,6 +234,7 @@ public:
   /// @brief Bind a variable to a range
   void Bind(const Var & var, const Range & range, bool allow_override = false) {
     if (!IsValidDType(var->dtype)) return;
+    scope_stack_.back().push_back(Scope{Scope::BindRange, var, PrimExpr(), range->min, range->extent});
     // ICHECK(!allow_override) << "Z3Prover does not support override binding.";
     auto name = ns.GetNewName(var);
     auto var_expr = VisitExpr(var);
@@ -239,6 +260,7 @@ public:
     }
     SetTimeoutMs(other_.timeout_ms);
     SetMaxStep(other_.max_step);
+    scope_stack_ = other_.scope_stack_;
   }
 
   /// @brief Set timeout in milliseconds
@@ -257,14 +279,36 @@ public:
   ffi::String GetSMTLIB2() {
     std::stringstream ss;
     ss << "(set-option :timeout " << timeout_ms << ")\n";
+    AddScopeMsg(ss);
     ss <<  solver.to_smt2();
     return ss.str();
+  }
+
+  void AddScopeMsg(std::ostream & ss) {
+    for(const auto &scope: scope_stack_) {
+      ss << "; Entering Scope\n";
+      for(const auto & s: scope) {
+        switch(s.kind) {
+        case Scope::Constraint:
+          ss << "; constraint: " << s.constraint << "\n";
+          break;
+        case Scope::BindValue:
+          ss << "; bind value: " << s.var << " = " << s.value << "\n";
+          break;
+        case Scope::BindRange:
+          ss << "; bind range: " << s.var << " in [" << s.min << ", " << s.min + s.extent << ")\n";
+          break;
+        }
+      }
+    }
   }
 
   /// @brief Get the SMTLIB2 representation of the current solver state with additional expr trying to prove
   ffi::String GetSMTLIB2(const PrimExpr & expr) {
     std::stringstream ss;
     ss << "(set-option :timeout " << timeout_ms << ")\n";
+    AddScopeMsg(ss);
+    ss << "; Trying to prove: " << expr << "\n";
     solver.push();
     solver.add(!VisitBool(expr));
     ss << solver.to_smt2();

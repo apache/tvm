@@ -128,6 +128,7 @@ class Analyzer:
         self._can_prove_equal = mod_factory("can_prove_equal")
         self._can_prove = mod_factory("can_prove")
         self._get_smtlib2 = mod_factory("get_smtlib2")
+        self._set_z3_timeout_ms = mod_factory("set_z3_timeout_ms")
         self._get_enabled_extensions = mod_factory("get_enabled_extensions")
         self._set_enabled_extensions = mod_factory("set_enabled_extensions")
         # Clone factory returns another mod_factory when invoked
@@ -135,6 +136,16 @@ class Analyzer:
 
     def get_smtlib2(self, expr: tir.PrimExpr|None = None) -> str:
         return self._get_smtlib2(expr)
+
+    def set_z3_timeout_ms(self, timeout_ms: int) -> None:
+        """Set z3 timeout in milliseconds.
+
+        Parameters
+        ----------
+        timeout_ms : int
+            The timeout in milliseconds.
+        """
+        self._set_z3_timeout_ms(timeout_ms)
 
     def clone(self) -> "Analyzer":
         """Create a deep copy of this Analyzer, including internal state.

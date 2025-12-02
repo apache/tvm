@@ -265,7 +265,17 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
     //        "VLA targets, but the target was "
     //     << curr_target;
   }
-  if(z3_prover.CanProve(simplified)) {
+  if(strength >= ProofStrength::kSymbolicBound && z3_prover.CanProve(simplified)) {
+    // The following debug logging is very useful when diagnosing issues with the Z3 prover.
+    // auto msg = z3_prover.GetSMTLIB2(simplified);
+    // std::stringstream ss;
+    // ss << msg;
+    // std::stringstream out;
+    // std::string tmp;
+    // while(std::getline(ss, tmp)) {
+    //   out << "    " << tmp << "\n";
+    // }
+    // LOG(INFO) << "Proved by Z3: " << simplified << "\n" << out.str();
     return true;
   }
   return false;
@@ -388,6 +398,20 @@ static FnFactory BuildAnalyzerFactory(std::shared_ptr<tvm::arith::Analyzer> self
       return Function([self](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
         auto expr = args[0].cast<ffi::Optional<PrimExpr>>();
         *ret = self->z3_prover.GetSMTLIB2(expr);
+      });
+    } else if (name == "get_z3_stats") {
+      return Function([self](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
+        *ret = self->z3_prover.GetStats();
+      });
+    } else if (name == "set_z3_timeout_ms") {
+      return Function([self](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
+        unsigned timeout_ms = args[0].cast<unsigned>();
+        self->z3_prover.SetTimeoutMs(timeout_ms);
+      });
+    } else if (name == "set_z3_max_step") {
+      return Function([self](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
+        unsigned max_step = args[0].cast<unsigned>();
+        self->z3_prover.SetMaxStep(max_step);
       });
     }
     return Function();
