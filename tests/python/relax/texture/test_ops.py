@@ -132,7 +132,7 @@ def build_run(mod, inputs, is_adreno):
         device_arr = [dev]
 
     vm = relax.VirtualMachine(rexec, device_arr)
-    inputs = [tvm.nd.array(inp, dev) for inp in inputs]
+    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs]
     vm.set_input("main", *inputs)
     vm.invoke_stateful("main")
     tvm_output = vm.get_outputs("main")

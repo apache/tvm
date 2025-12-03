@@ -123,6 +123,15 @@ class ExecBuilderNode : public Object {
     return ConvertConstant_(rv);
   }
   /*!
+   * \brief update memory scopes.
+   *
+   * This function builds the memory scopes for constants.
+   *
+   * \param Index of the constant
+   * \param The memory scope.
+   */
+  void SaveMemoryScope(vm::Instruction::Arg idx, ffi::String scope);
+  /*!
    * \brief Raw access to underlying executable build in progress.
    */
   vm::VMExecutable* exec() const;

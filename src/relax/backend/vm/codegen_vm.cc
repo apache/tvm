@@ -215,15 +215,15 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   Instruction::Arg VisitExpr_(const ConstantNode* op) final {
+    auto arg = builder_->ConvertConstant(op->data);
+
     if (auto tsinfo = op->struct_info_.as<TensorStructInfoNode>()) {
       if (tsinfo->vdevice.defined()) {
         VDevice vdev = tsinfo->vdevice.value();
-        runtime::Tensor param = op->data;
-        param.SetScope(vdev->memory_scope);
+        builder_->SaveMemoryScope(arg, vdev->memory_scope);
       }
     }
-
-    return builder_->ConvertConstant(op->data);
+    return arg;
   }
 
   Instruction::Arg VisitExpr_(const ShapeExprNode* op) final {

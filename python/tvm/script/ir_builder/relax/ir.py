@@ -619,6 +619,30 @@ def emit_var_binding(value: VarBinding) -> Var:
     return _ffi_api.EmitVarBinding(value)  # type: ignore
 
 
+def emit_with_sinfo(
+    op: str,
+    args: Expr,
+    sinfo_args: Optional[Union[StructInfo, List[StructInfo]]] = None,
+) -> Call:
+    """Create a relax Call with sinfo_args.
+    Parameters
+    ----------
+    op: Expr
+        The relax op for which sinfo_args to be appended
+    args : Expr
+        The arguments.
+    sinfo_args: Optional[Union[StructInfo, List[StructInfo]]]
+        The list of structure info arguments.
+
+    Returns
+    -------
+    call: Call
+        The created Relax Call
+    """
+    builtin_call = tvm.ir.Op.get(op)
+    return Call(builtin_call, args, attrs=None, sinfo_args=sinfo_args)
+
+
 ############################### SeqExpr ###############################
 
 
@@ -822,6 +846,7 @@ __all__ = [
     "emit_te",
     "emit_var_binding",
     "emit_match_cast",
+    "emit_with_sinfo",
     "equal",
     "ewise_fma",
     "exp",

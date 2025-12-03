@@ -65,7 +65,7 @@ class LayoutTransform(AdrenoScheduleRule):
         ):
             return None
 
-        read_buf, write_buf = (block_info.read_bufs[0], block_info.write_bufs[0])
+        read_buf, write_buf = (block_info.read_bufs(sch)[0], block_info.write_bufs(sch)[0])
         lps = block_info.get_loops()
         lpv_read, lpv_write = (
             read_buf.assoc_lps[-1],

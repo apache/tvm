@@ -64,6 +64,12 @@ class IterInfo:
 
 
 get_blockrealize = get_global_func("tir.schedule.GetBlockRealize")
+# BufferIndex Types
+Index = namedtuple("Index", ["sub"])  # c
+RemIndex = namedtuple("RemIndex", ["sub", "div"])  # c%len
+DivIndex = namedtuple("DivIndex", ["sub", "div"])  # c//len
+MergeIndex = namedtuple("MulIndex", ["dom", "mul", "sub"])  # co*len + cb
+BufIndex = List[Union[Index, RemIndex, DivIndex, MergeIndex, None]]
 
 
 # TODO: Shift Vlen Calculation here...
@@ -73,13 +79,6 @@ class BufferInfo:
     shape: Tuple[int]
     assoc_lps: List[Union[tir.schedule.LoopRV, None]]
     assoc_lps_info: List[Union[tir.For, None]]
-
-    # BufferIndex Types
-    Index = namedtuple("Index", ["sub"])  # c
-    RemIndex = namedtuple("RemIndex", ["sub", "div"])  # c%len
-    DivIndex = namedtuple("DivIndex", ["sub", "div"])  # c//len
-    MergeIndex = namedtuple("MulIndex", ["dom", "mul", "sub"])  # co*len + cb
-    BufIndex = List[Union[Index, RemIndex, DivIndex, MergeIndex, None]]
 
     def __init__(
         self,
@@ -172,8 +171,6 @@ class BlockInfo:
     iters: List[IterInfo]
     block_rv: tir.schedule.BlockRV
     _reduction_block: bool
-    read_bufs: List[BufferInfo]
-    write_bufs: List[BufferInfo]
 
     def __init__(
         self,
@@ -191,6 +188,16 @@ class BlockInfo:
     def dom(self) -> List[Union[int, tir.PrimExpr]]:
         """The iteration domain of the block."""
         return [i.dom for i in self.iters]
+
+    def read_bufs(self, sch: tir.Schedule) -> List[BufferInfo]:
+        block_stmt = sch.get(self.block_rv)
+        lps = sch.get_loops(self.block_rv)
+        return [BufferInfo(sch, self.block_rv, buf, lps) for buf in block_stmt.reads]
+
+    def write_bufs(self, sch: tir.Schedule) -> List[BufferInfo]:
+        block_stmt = sch.get(self.block_rv)
+        lps = sch.get_loops(self.block_rv)
+        return [BufferInfo(sch, self.block_rv, buf, lps) for buf in block_stmt.writes]
 
     def dom_kind(self) -> str:
         """The iteration domain kind of the block, for example, SSSS, SSSR."""
@@ -216,7 +223,7 @@ class BlockInfo:
         if len(r_region) != len(w_region):
             return False
         for var, r_dom, w_dom in zip(block.iter_vars, r_region, w_region):
-            if not _check_unit_var_range(var, r_dom) or not _check_unit_var_range(var, w_dom):
+            if not _check_unit_var_range(r_dom, var) or not _check_unit_var_range(w_dom, var):
                 return False
         return True
 
@@ -230,31 +237,23 @@ class BlockInfo:
 
     def is_layout_transform(self, sch: tir.Schedule) -> bool:
         """Whether the Block can be considered having a Layout Transform Pattern"""
-        block_stmt = sch.get(self.block_rv)
-        lps = sch.get_loops(block_rv)
-        read_bufs = [BufferInfo(sch, self.block_rv, buf, lps) for buf in block_stmt.reads]
-        write_bufs = [BufferInfo(sch, self.block_rv, buf, lps) for buf in block_stmt.writes]
         return (
             all(k == "S" for k in self.dom_kind())
-            and len(write_bufs) == 1
-            and len(read_bufs) == 1
+            and len(self.write_bufs(sch)) == 1
+            and len(self.read_bufs(sch)) == 1
             and not self.is_elementwise(sch)
             and not get_global_func("tir.schedule.HasIfThenElse")(sch.get(self.block_rv))
         )
 
     def is_data_pad(self, sch: tir.Schedule) -> bool:
         """Whether the Block can be considered having a data pad pattern"""
-        block_stmt = sch.get(self.block_rv)
-        lps = sch.get_loops(block_rv)
-        read_bufs = [BufferInfo(sch, self.block_rv, buf, lps) for buf in block_stmt.reads]
-        write_bufs = [BufferInfo(sch, self.block_rv, buf, lps) for buf in block_stmt.writes]
         return (
             all(k == "S" for k in self.dom_kind())
-            and len(write_bufs) == 1
-            and len(read_bufs) == 1
+            and len(self.write_bufs(sch)) == 1
+            and len(self.read_bufs(sch)) == 1
             and not self.is_elementwise(sch)
-            and len(self.write_bufs[0].buf_region.region)
-            == len(self.read_bufs[0].buf_region.region)
+            and len(self.write_bufs(sch)[0].buf_region.region)
+            == len(self.read_bufs(sch)[0].buf_region.region)
             and get_global_func("tir.schedule.HasIfThenElse")(sch.get(self.block_rv))
         )
 

@@ -49,6 +49,7 @@ echo set\(MACHINE_NAME aarch64-linux-gnu\) >> config.cmake
 echo set\(USE_OPENCL_GTEST ON\) >> config.cmake
 
 echo set\(USE_OPENCL_EXTN_QCOM ON\) >> config.cmake
+echo set\(PROFILE_SHADER_DUMP ON\) >> config.cmake
 
 cmake -DANDROID_ABI=arm64-v8a \
       -DCMAKE_SYSTEM_NAME=Android \

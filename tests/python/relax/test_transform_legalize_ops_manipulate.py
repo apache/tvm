@@ -1703,7 +1703,7 @@ def test_layout_transform_with_pad_axis_sep():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-def _test_func_struct_info_of_legalized_layout_transform():
+def test_func_struct_info_of_legalized_layout_transform():
     """PrimFunc shape information must be correct
 
     This is a regression test.  Previously, the legalization of
@@ -1745,8 +1745,10 @@ def _test_func_struct_info_of_legalized_layout_transform():
         ):
             R.func_attr({"relax.force_pure": True})
             cls = Expected
-            alloc: R.Tensor((4, 4), dtype="float32") = R.builtin.alloc_tensor(
-                R.shape([4, 4]), R.dtype("float32"), R.prim_value(0), R.str("global")
+            alloc: R.Tensor((4, 4), dtype="float32") = R.emit_with_sinfo(
+                "relax.builtin.alloc_tensor",
+                (R.shape([4, 4]), R.dtype("float32"), R.prim_value(0), R.str("global")),
+                (R.Tensor((4, 4), dtype="float32"),),
             )
             cls.te_layout_transform(x, alloc)
             lv = alloc

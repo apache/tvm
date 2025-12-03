@@ -137,10 +137,10 @@ def build_and_run(
 
     params_dev = []
     for k, v in params_np.items():
-        params_dev.append(tvm.nd.array(v, dev))
+        params_dev.append(tvm.runtime.tensor(v, dev))
 
     f = vm["main"]
-    inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]
+    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
 
     vm.set_input("main", *inputs)
 

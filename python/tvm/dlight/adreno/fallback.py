@@ -26,6 +26,22 @@ from .base import AdrenoScheduleRule
 from .utils import get_texture_storage
 
 
+def _assert_gpu_target(target: Target):
+    if "gpu" not in target.keys:
+        raise ValueError(f"Expect a GPU target, but got {target}")
+
+
+def get_max_threads_per_block(target: Target) -> int:
+    _assert_gpu_target(target)
+    max_threads_per_block = None
+    for name in ["max_threads_per_block", "max_num_threads"]:
+        if max_threads_per_block is None:
+            max_threads_per_block = target.attrs.get(name, None)
+    if max_threads_per_block is None:
+        max_threads_per_block = 64
+    return int(max_threads_per_block)
+
+
 # pylint: disable=invalid-name,missing-function-docstring,unused-variable,unused-import
 class Fallback(AdrenoScheduleRule):
     """Texture Based Fallback Schedule(s) for Adreno"""
@@ -46,12 +62,12 @@ class Fallback(AdrenoScheduleRule):
         for blk in blocks:
             block_info = analysis.get_block_info(sch, blk)
             if block_info.is_injective() and not block_info.is_data_pad(sch):
-                if len(block_info.consumers) == 1:
+                if len(sch.get_consumers(blk)) == 1:
                     try:
                         sch.compute_inline(blk)
                     except Exception:  # pylint: disable=broad-exception-caught
                         remaining_blocks.append(blk)
-                elif len(block_info.producers) == 1:
+                elif len(sch.get_producers(blk)) == 1:
                     inlined_once = False
                     try:
                         # Would cause an issue inlining to producer with multiple consumers
@@ -76,7 +92,7 @@ class Fallback(AdrenoScheduleRule):
         block_info = analysis.get_block_info(sch, blk)
 
         s_loops, r_loops, o_loops = [], [], []
-        v_loop = block_info.write_bufs[0].assoc_lps[-1]
+        v_loop = block_info.write_bufs(sch)[0].assoc_lps[-1]
 
         for iter_info in block_info.iters:
             if sch.get(iter_info.loop_rv) == sch.get(v_loop):
@@ -84,7 +100,7 @@ class Fallback(AdrenoScheduleRule):
             {"S": s_loops, "R": r_loops, "O": o_loops}.get(iter_info.kind).append(iter_info.loop_rv)
 
         iter_vars = analysis.collect_block_iter_vars_used_in_access_region(
-            block_info.block_stmt, block_info.write_bufs[0].buf_region.region
+            sch.get(blk), block_info.write_bufs(sch)[0].buf_region.region
         )
         o_outer = [lp for lp in o_loops if sch.get(lp).var in iter_vars]
         o_inner = [lp for lp in o_loops if sch.get(lp).var not in iter_vars]
@@ -100,7 +116,7 @@ class Fallback(AdrenoScheduleRule):
         tgt = Target.current(allow_none=True)
 
         b = sch.fuse(*s_loops)
-        tx_extent = analysis.get_max_threads_per_block(tgt) if tgt is not None else 256
+        tx_extent = get_max_threads_per_block(tgt) if tgt is not None else 256
         bx, tx = sch.split(b, [None, tx_extent])
         sch.bind(bx, "blockIdx.x")
         sch.bind(tx, "threadIdx.x")
@@ -155,7 +171,7 @@ class Fallback(AdrenoScheduleRule):
             return None
 
         block_infos = [analysis.get_block_info(sch, block) for block in blocks]
-        if not any("texture" in block.write_bufs[0].get_scope() for block in block_infos):
+        if not any("texture" in block.write_bufs(sch)[0].get_scope() for block in block_infos):
             return None
 
         Fallback.schedule_fallback(sch)
