@@ -129,6 +129,8 @@ class Analyzer:
         self._can_prove = mod_factory("can_prove")
         self._get_smtlib2 = mod_factory("get_smtlib2")
         self._set_z3_timeout_ms = mod_factory("set_z3_timeout_ms")
+        self._set_z3_max_step = mod_factory("set_z3_max_step")
+        self._get_z3_stats = mod_factory("get_z3_stats")
         self._get_enabled_extensions = mod_factory("get_enabled_extensions")
         self._set_enabled_extensions = mod_factory("set_enabled_extensions")
         # Clone factory returns another mod_factory when invoked
@@ -146,6 +148,26 @@ class Analyzer:
             The timeout in milliseconds.
         """
         self._set_z3_timeout_ms(timeout_ms)
+
+    def set_z3_max_step(self, max_step: int) -> None:
+        """Set z3 max step.
+
+        Parameters
+        ----------
+        max_step : int
+            The maximum number of steps.
+        """
+        self._set_z3_max_step(max_step)
+    
+    def get_z3_stats(self) -> str:
+        """Get z3 statistics.
+
+        Returns
+        -------
+        stats : str
+            The z3 statistics.
+        """
+        return self._get_z3_stats()
 
     def clone(self) -> "Analyzer":
         """Create a deep copy of this Analyzer, including internal state.
