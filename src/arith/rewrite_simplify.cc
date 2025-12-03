@@ -814,6 +814,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
       return make_const(op->dtype, truncdiv(c1val, c2val));
     }
 
+    // x % c1 // c2 => 0 if 0 < c1 < c2 && x >= 0
+    TVM_TRY_REWRITE_IF(truncdiv(truncmod(x, c1), c2), ZeroWithTypeLike(x),
+                       c1.Eval()->value > 0 && c2.Eval()->value > c1.Eval()->value &&
+                           CanProveGreaterEqual(x.Eval(), 0));
+
     // while it is always true for trunc div
     // restrict to common case(positive div)
     TVM_TRY_REWRITE_IF(truncdiv(truncdiv(x, c1), c2), truncdiv(x, c1 * c2),

@@ -242,6 +242,8 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
       if (iset.HasLowerBound()) {
         ConstIntBound relaxed_lower_bound = this->const_int_bound(this->Simplify(iset.min()));
         if (relaxed_lower_bound->min_value >= lower_bound) return true;
+        ConstIntBound relaxed_upper_bound = this->const_int_bound(this->Simplify(iset.max()));
+        if (relaxed_upper_bound->max_value < lower_bound) return false;
       }
     }
   }
@@ -265,8 +267,7 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
     //        "VLA targets, but the target was "
     //     << curr_target;
   }
-  if(strength >= ProofStrength::kSymbolicBound && z3_prover.CanProve(simplified)) {
-    // The following debug logging is very useful when diagnosing issues with the Z3 prover.
+  if(z3_prover.CanProve(simplified)) {
     // auto msg = z3_prover.GetSMTLIB2(simplified);
     // std::stringstream ss;
     // ss << msg;
@@ -278,6 +279,19 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
     // LOG(INFO) << "Proved by Z3: " << simplified << "\n" << out.str();
     return true;
   }
+  // if(strength >= ProofStrength::kSymbolicBound && z3_prover.CanProve(simplified)) {
+  //   // The following debug logging is very useful when diagnosing issues with the Z3 prover.
+  //   auto msg = z3_prover.GetSMTLIB2(simplified);
+  //   std::stringstream ss;
+  //   ss << msg;
+  //   std::stringstream out;
+  //   std::string tmp;
+  //   while(std::getline(ss, tmp)) {
+  //     out << "    " << tmp << "\n";
+  //   }
+  //   LOG(INFO) << "Proved by Z3: " << simplified << "\n" << out.str();
+  //   return true;
+  // }
   return false;
 }
 

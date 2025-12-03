@@ -65,6 +65,7 @@ public:
   using Base = ExprFunctor<z3::expr(const PrimExpr &)>;
   using Self = Z3Prover::Impl;
 
+  Analyzer* analyzer;
   /// @brief Z3 context, a shared ptr, because tilelang want to copy the Analyzer
   std::shared_ptr<z3::context> ctx { new z3::context() };
 
@@ -95,7 +96,7 @@ public:
     return solver;
   }
 
-  Impl() {
+  Impl(Analyzer * parent): analyzer(parent) {
     scope_stack_.push_back({});
     solver = CreateSolver(*ctx);
     // default timeout 5ms
@@ -111,13 +112,13 @@ public:
     z3::expr e = ctx->int_const(name.c_str());
     /// TVM max_val can't handle uint64 max correctly, so we special case it here
     if(dtype.is_uint() && dtype.bits() == 64) {
-      solver.add(e >= ctx->int_val(0));
+      solver.add(ctx->int_val(0) <= e);
       solver.add(e <= ctx->int_val((uint64_t)UINT64_MAX));
     } else {
-      auto max_val = Downcast<IntImm>(max_value(dtype))->value;
       auto min_val = Downcast<IntImm>(min_value(dtype))->value;
+      auto max_val = Downcast<IntImm>(max_value(dtype))->value;
+      solver.add(ctx->int_val(min_val) <= e);
       solver.add(e <= ctx->int_val(max_val));
-      solver.add(e >= ctx->int_val(min_val));
     }
     return e;
   }
@@ -135,6 +136,8 @@ public:
     PrimExpr constraint;
   };
 
+  /// @brief scope_stack memorizes existing constraint and bindings
+  ///        to generate SMTLIB2 representation with comments
   std::vector<std::vector<Scope>> scope_stack_;
 
   /// @brief Enter a constraint scope
@@ -142,9 +145,9 @@ public:
     scope_stack_.push_back({});
     scope_stack_.back().push_back(Scope{Scope::Constraint, Var(), PrimExpr(), PrimExpr(), PrimExpr(), constraint});
     solver.push();
-    is_assume = true;
+    this->is_assume = is_assume;
     auto e = VisitBool(constraint);
-    is_assume = false;
+    this->is_assume = false;
     solver.add(e);
     auto overrides = std::move(assume_overrides_);
     assume_overrides_.clear();
@@ -222,35 +225,56 @@ public:
   /// @brief Bind a variable to a value or a range
   void Bind(const Var & var, const PrimExpr & value, bool allow_override = false) {
     if (!IsValidDType(var->dtype)) return;
-    // ICHECK(!allow_override) << "Z3Prover does not support override binding.";
-    scope_stack_.back().push_back(Scope{Scope::BindValue, var, value});
-    if(SideEffect(value) <= CallEffectKind::kPure) {
-      memo_.emplace(var, VisitInt(value));
-    } else {
-      solver.add(VisitBool(var == value));
-    }
+    scope_stack_.back().push_back(Scope{
+      Scope::BindValue,
+      var,
+      value
+    });
+    // we add the binding whenever the value is pure, 
+    // because non-pure parts are handling by creating free variables in VisitExpr
+    memo_.emplace(var, VisitInt(value));
   }
 
   /// @brief Bind a variable to a range
   void Bind(const Var & var, const Range & range, bool allow_override = false) {
     if (!IsValidDType(var->dtype)) return;
-    scope_stack_.back().push_back(Scope{Scope::BindRange, var, PrimExpr(), range->min, range->extent});
-    // ICHECK(!allow_override) << "Z3Prover does not support override binding.";
-    auto name = ns.GetNewName(var);
-    auto var_expr = VisitExpr(var);
-    // auto var_expr = ctx->int_const(name.c_str());
-    auto min_expr = VisitInt(range->min);
-    auto extent_expr = VisitInt(range->extent);
-    solver.add(var_expr >= min_expr);
-    solver.add(var_expr < (min_expr + extent_expr));
+    scope_stack_.back().push_back(Scope{
+      Scope::BindRange,
+      var,
+      PrimExpr(),
+      range->min,
+      range->extent
+    });
+    // 1. Create a placeholder for the var, and save it in the memo
+    //    if the var is overrided later, we can just update the memo, and the old placeholder will be ignored
+    auto var_expr = Create(var.as<PrimExprNode>());
+    memo_.emplace(var, var_expr);
+    // 2. Add constraint on the placeholder
+    //    when min_expr >= max_expr, the range is empty, which is under undefined behavior
+    //    instead of adding an unsat constraint, we just skip the range constraint to leave it a free var
+    if(tir::is_const_int(range->min) && tir::is_const_int(range->min + range->extent)) {
+      int64_t min_value = *tir::as_const_int(range->min);
+      int64_t max_value = *tir::as_const_int(range->min + range->extent);
+      if(min_value < max_value) {
+        solver.add(ctx->int_val(min_value) <= var_expr);
+        solver.add(var_expr < ctx->int_val(max_value));
+      }
+    } else {
+      auto min_expr = VisitInt(range->min);
+      auto max_expr = VisitInt(analyzer->Simplify(range->min + range->extent));
+      solver.add(min_expr >= max_expr || (min_expr <= var_expr && var_expr < max_expr));
+    }
   }
 
   void CopyFrom(const Self & other_) {
-    // 1. must copy solver first, because the old solver holds the context, if we drop the old context, the solver will be invalid
+    // 1. create a new solver
+    //    because this->solver depends on this->ctx
+    //    we need to deconstruct the old solver, and create a new one depending on other_.ctx
     solver = CreateSolver(*other_.ctx);
-    // 2. then copy context
+    // 2. copy the context
+    //    the context is a shared_ptr, we can just copy the pointer
     ctx = other_.ctx;
-    // copy other objects
+    // 3. copy other objects
     ns = other_.ns;
     for(auto & item: other_.memo_) {
       memo_.emplace(item.first, item.second);
@@ -258,8 +282,11 @@ public:
     for(auto a: other_.solver.assertions()) {
       solver.add(a);
     }
+    // 4. copy timeout options
+    //    but other solver options are not copied
     SetTimeoutMs(other_.timeout_ms);
     SetMaxStep(other_.max_step);
+    // 5. copy the scope stack, which containing comments for SMTLIB2 generation
     scope_stack_ = other_.scope_stack_;
   }
 
@@ -279,12 +306,12 @@ public:
   ffi::String GetSMTLIB2() {
     std::stringstream ss;
     ss << "(set-option :timeout " << timeout_ms << ")\n";
-    AddScopeMsg(ss);
+    AddScopeDebugMsg(ss);
     ss <<  solver.to_smt2();
     return ss.str();
   }
 
-  void AddScopeMsg(std::ostream & ss) {
+  void AddScopeDebugMsg(std::ostream & ss) {
     for(const auto &scope: scope_stack_) {
       ss << "; Entering Scope\n";
       for(const auto & s: scope) {
@@ -307,7 +334,7 @@ public:
   ffi::String GetSMTLIB2(const PrimExpr & expr) {
     std::stringstream ss;
     ss << "(set-option :timeout " << timeout_ms << ")\n";
-    AddScopeMsg(ss);
+    AddScopeDebugMsg(ss);
     ss << "; Trying to prove: " << expr << "\n";
     solver.push();
     solver.add(!VisitBool(expr));
@@ -333,13 +360,19 @@ private:
       return memo_.at(e);
     }
     auto res =  Base::VisitExpr(e);
-    if(is_assume || SideEffect(e) <= CallEffectKind::kPure) {
+    // if the expression is an assume, we need to memorize it whenever it is pure or not
+    bool pure = SideEffect(e) <= CallEffectKind::kPure;
+    if(is_assume || pure) {
       memo_.emplace(e, res);
-      assume_overrides_.emplace_back(e);
+      // if we memorized it during an assume, we need to record it for later cleanup
+      if(is_assume && !pure) {
+        assume_overrides_.emplace_back(e);
+      }
     }
     return res;
   }
 
+  /// @brief Check if the expression is a free node having no constraints
   bool IsFreeNode(const PrimExpr & e) {
     if(memo_.count(e)) {
       return false;
@@ -350,6 +383,7 @@ private:
       || e->IsInstance<ReduceNode>()
       || (e->IsInstance<CastNode>() && !IsValidDType(Downcast<Cast>(e)->value->dtype));
   }
+
   /// @brief Check if the dtype is valid for z3 integer operations
   static bool IsValidDType(const DataType & dtype) {
     return (dtype.is_int() || dtype.is_uint()) && dtype.lanes() == 1;
@@ -386,13 +420,7 @@ private:
 
   z3::expr VisitExpr_(const LetNode *op) override { 
     if (IsValidDType(op->var->dtype)) {
-      // if the expression is pure, we just bind it to the var
-      if(SideEffect(op->value) <= CallEffectKind::kPure) {
-        memo_.emplace(op->var, VisitInt(op->value));
-      } else {
-        // if the expression is not pure, we create a new z3 variable and add equality constraint
-        solver.add(VisitBool(op->var == op->value));
-      }
+      memo_.emplace(op->var, VisitInt(op->value));
     }
     return VisitExpr(op->body);
   }
@@ -405,26 +433,11 @@ private:
       return Create(op);
     }
   }
-  z3::expr VisitExpr_(const CallNode *op) override {
-    // We don't know what the call does, so we create a new free z3 variable
-    return Create(op);
-  }
-  z3::expr VisitExpr_(const VarNode *op) override {
-    // We create a new free z3 variable for the variable node, it should be memorized in parent VisitExpr call
-    return Create(op);
-  }
-  z3::expr VisitExpr_(const BufferLoadNode *op) override {
-    // The buffer load may have side effects, we create a new free z3 variable
-    return Create(op);
-  }
-  z3::expr VisitExpr_(const ProducerLoadNode *op) override {
-    // The producer load may have side effects, we create a new free z3 variable
-    return Create(op);
-  }
-  z3::expr VisitExpr_(const ReduceNode *op) override {
-    // The reduce node may have side effects, we create a new free z3 variable
-    return Create(op);
-  }
+  z3::expr VisitExpr_(const CallNode *op) override { return Create(op); }
+  z3::expr VisitExpr_(const VarNode *op) override { return Create(op); }
+  z3::expr VisitExpr_(const BufferLoadNode *op) override { return Create(op); }
+  z3::expr VisitExpr_(const ProducerLoadNode *op) override { return Create(op); }
+  z3::expr VisitExpr_(const ReduceNode *op) override { return Create(op); }
   z3::expr VisitExpr_(const MinNode *op) override {
     auto a = VisitInt(op->a);
     auto b = VisitInt(op->b);
@@ -490,7 +503,7 @@ void Z3Prover::CopyFrom(const Z3Prover & other) {
 ffi::String Z3Prover::GetStats() {
   return impl_->GetStats();
 }
-Z3Prover::Z3Prover(Analyzer* parent): impl_(new Impl) {}
+Z3Prover::Z3Prover(Analyzer* parent): impl_(new Impl{parent}) {}
 TVM_DLL Z3Prover::~Z3Prover() {
   delete impl_;
 }
