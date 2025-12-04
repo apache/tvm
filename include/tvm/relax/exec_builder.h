@@ -127,8 +127,8 @@ class ExecBuilderNode : public Object {
    *
    * This function builds the memory scopes for constants.
    *
-   * \param Index of the constant
-   * \param The memory scope.
+   * \param idx Index of the constant
+   * \param scope The memory scope.
    */
   void SaveMemoryScope(vm::Instruction::Arg idx, ffi::String scope);
   /*!
