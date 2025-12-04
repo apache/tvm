@@ -23,6 +23,9 @@ def _posit_registered():
                 (32, 32): "FloatToPosit32es2",
                 (32, 16): "FloatToPosit16es2",
                 (32, 8): "FloatToPosit8es2",
+                # (64, 32): "FloatToPosit32es2",
+                # (64, 16): "FloatToPosit16es2",
+                # (64, 8): "FloatToPosit8es2",
             }
         ),
         "Cast",
@@ -36,6 +39,9 @@ def _posit_registered():
                 (32, 32): "Posit32es2ToFloat",
                 (16, 32): "Posit16es2ToFloat",
                 (8, 32): "Posit8es2ToFloat",
+                # (32, 64): "Posit32es2ToFloat",
+                # (16, 64): "Posit16es2ToFloat",
+                # (8, 64): "Posit8es2ToFloat",
             }
         ),
         "Cast",
@@ -43,6 +49,89 @@ def _posit_registered():
         "posites2",
         "float",
     )
+
+    # posites2 -> uint: includes ToBool and identity casts
+    register_op(
+        create_lower_func(
+            {
+                (32, 1): "Posit32es2ToBool",
+                (16, 1): "Posit16es2ToBool",
+                (8, 1):  "Posit8es2ToBool",
+                (32, 8): "Posit32es2ToBool",
+                (16, 8): "Posit16es2ToBool",
+                (8, 8):  "Posit8es2ToBool",
+                (32, 32): "Posit32es2ToUint32",  # posit32 -> uint32: identity (same bits)
+                (16, 16): "Posit16es2ToUint16",  # posit16 -> uint16: identity
+                (8, 8): "Posit8es2ToUint8",      # posit8 -> uint8: identity (already handled above but explicit here)
+            }
+        ),
+        "Cast",
+        "llvm",
+        "posites2", 
+        "uint",
+    )
+
+    # uint -> posites2: includes bool conversion and identity casts
+    register_op(
+        create_lower_func(
+            {
+                (1, 32): "BoolToPosit32es2",
+                (1, 16): "BoolToPosit16es2",
+                (1, 8):  "BoolToPosit8es2",
+                (32, 32): "Uint32ToPosit32es2",  # uint32 -> posit32: identity (same bits)
+                (16, 16): "Uint16ToPosit16es2",  # uint16 -> posit16: identity
+                (8, 8): "Uint8ToPosit8es2",      # uint8 -> posit8: identity
+            }
+        ),
+        "Cast",
+        "llvm",
+        "uint", 
+        "posites2",
+    )
+    
+    register_op(
+        create_lower_func(
+            {
+                (64, 32): "IntToPosit32es2",
+                (64, 16): "IntToPosit16es2",
+                # (64, 8): "IntToPosit8es2",
+                # (32, 32): "IntToPosit32es2",
+                # (32, 16): "IntToPosit16es2",
+                # (32, 8): "IntToPosit8es2",
+                (16, 16): "IntToPosit16es2",
+                # (16, 8): "IntToPosit8es2",
+                (8, 8): "IntToPosit8es2",
+            }
+        ),
+        "Cast",
+        "llvm",
+        "int",
+        "posites2",
+    )
+
+    register_op(
+        create_lower_func(
+            {
+                # (32, 64): "Posit32es2ToInt",
+                (32, 32): "Posit32es2ToInt",
+                # (32, 16): "Posit32es2ToInt",
+                # (32, 8): "Posit32es2ToInt",
+                # (16, 64): "Posit16es2ToInt",
+                # (16, 32): "Posit16es2ToInt",
+                (16, 16): "Posit16es2ToInt",
+                # (16, 8): "Posit16es2ToInt",
+                # (8, 64): "Posit8es2ToInt",
+                # (8, 32): "Posit8es2ToInt",
+                # (8, 16): "Posit8es2ToInt",
+                (8, 8): "Posit8es2ToInt",
+            }
+        ),
+        "Cast",
+        "llvm",
+        "posites2",
+        "int",
+    )
+    
     register_op(
         create_lower_func({32: "Posit32es2Add", 16: "Posit16es2Add", 8: "Posit8es2Add"}),
         "Add",
@@ -82,11 +171,24 @@ def _posit_registered():
         "posites2",
     )
     register_op(
+        create_lower_func({32: "Posit32es2Min", 16: "Posit16es2Min", 8: "Posit8es2Min"}),
+        "Min",
+        "llvm",
+        "posites2",
+    )
+    register_op(
         create_lower_func({32: "Posit32es2Sqrt", 16: "Posit16es2Sqrt", 8: "Posit8es2Sqrt"}),
         "Call",
         "llvm",
         "posites2",
         intrinsic_name="tir.sqrt",
+    )
+    register_op(
+        create_lower_func({32: "Posit32es2Pow", 16: "Posit16es2Pow", 8: "Posit8es2Pow"}),
+        "Call",
+        "llvm",
+        "posites2",
+        intrinsic_name="tir.pow",
     )
     register_op(lower_ite, "Call", "llvm", "posites2", intrinsic_name="tir.if_then_else")
     register_op(
@@ -121,6 +223,41 @@ def _posit_registered():
         "llvm",
         "posites2",
         intrinsic_name="tir.tanh",
+    )
+    register_op(
+        create_lower_func({32: "Posit32es2Cos", 16: "Posit16es2Cos", 8: "Posit8es2Cos"}),
+        "Call",
+        "llvm",
+        "posites2",
+        intrinsic_name="tir.cos",
+    )
+    register_op(
+        create_lower_func({32: "Posit32es2Sin", 16: "Posit16es2Sin", 8: "Posit8es2Sin"}),
+        "Call",
+        "llvm",
+        "posites2",
+        intrinsic_name="tir.sin",
+    )
+    register_op(
+        create_lower_func({32: "Posit32es2Tan", 16: "Posit16es2Tan", 8: "Posit8es2Tan"}),
+        "Call",
+        "llvm",
+        "posites2",
+        intrinsic_name="tir.tan",
+    )
+    register_op(
+        create_lower_func({32: "Posit32es2Erf", 16: "Posit16es2Erf", 8: "Posit8es2Erf"}),
+        "Call",
+        "llvm",
+        "posites2",
+        intrinsic_name="tir.erf",
+    )
+    register_op(
+        create_lower_func({32: "Posit32es2Softmax", 16: "Posit16es2Softmax", 8: "Posit8es2Softmax"}),
+        "Call",
+        "llvm",
+        "posites2",
+        intrinsic_name="tir.softmax",
     )
 
     register_min_func(

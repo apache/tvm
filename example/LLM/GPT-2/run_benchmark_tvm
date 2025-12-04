@@ -1,0 +1,22 @@
+# !/bin/bash
+source /home/wang/venv/mlc-llm/.venv/bin/activate
+nohup python test_comparison.py \
+  --tag "float32vsmixedprecision" \
+  --model1 ./model/GPT2_fp32.so \
+  --model2 ./model/GPT2_mixed.so \
+  --dtype1 float32 \
+  --dtype2 float32 \
+  --num-threads 16 \
+  --iter 16 > ./log/test_float32vsmixedprecision.log &
+
+# nohup python test.py \
+#   --tag            "test" \
+#   --decoder          ./model/GPT2_fp16.so \
+#   --num-threads     16 \
+#   --iter             32 > test_float16.log &
+
+  # nohup python test_model.py \
+  # --tag            "test_model" \
+  # --decoder          ./GPT2_posit16es2.so \
+  # --num-threads     16 \
+  # --iter             32 > test_posit16_generation.log &

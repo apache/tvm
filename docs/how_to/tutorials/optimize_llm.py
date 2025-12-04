@@ -91,7 +91,7 @@ class LlamaConfig:
     head_dim: int = 64  # hidden_size // num_attention_heads
 
 
-dev = tvm.device("cuda", 0)
+dev = tvm.device("cpu", 0)
 target = tvm.target.Target.from_device(dev)
 
 
@@ -446,8 +446,8 @@ with target:
 
 IS_IN_CI = os.getenv("CI", "") == "true"
 
-HF_WEIGHT_PATH = None
-# HF_WEIGHT_PATH = Path("/path/to/TinyLlama-1.1B-Chat-v1.0/")
+# HF_WEIGHT_PATH = None
+HF_WEIGHT_PATH = Path("/home/wang/venv/mlc-llm/tvm/docs/how_to/tutorials/TinyLlama-1.1B-Chat-v1.0/")
 
 if not IS_IN_CI:
     import numpy as np
@@ -517,7 +517,7 @@ if not IS_IN_CI:
 
     tokenizer = AutoTokenizer.from_pretrained(HF_WEIGHT_PATH)
     messages = [
-        {"role": "user", "content": "What's your name?"},
+        {"role": "user", "content": "Who are you?"},
     ]
     prompt = tokenizer.apply_chat_template(messages)
     input_len = len(prompt)

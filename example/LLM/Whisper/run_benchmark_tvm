@@ -1,0 +1,20 @@
+#!/bin/bash
+source /home/wang/venv/mlc-llm/.venv/bin/activate
+nohup python test.py \
+  --tag            "fp32" \
+  --encoder          ./model/encoder_fp32.so \
+  --decoder          ./model/decoder_fp32.so \
+  --decoder-with-past ./model/decoder_with_past_fp32.so \
+  --data-path       ./data.npy \
+  --num-threads     16 \
+  --warmup-iter      1 \
+  --iter             16 > ./log/fp32.log  2>&1 &
+# nohup python -u test.py \
+#   --tag            "test_posit32es2" \
+#   --encoder          ./model/encoder_posit32es2.so \
+#   --decoder          ./model/decoder_posit32es2.so \
+#   --decoder-with-past ./model/decoder_with_past_posit32es2.so \
+#   --data-path       ./data.npy \
+#   --num-threads     16 \
+#   --warmup-iter      1 \
+#   --iter             5 2>&1 | tee ./log/posit32es2.log &

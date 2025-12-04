@@ -1,0 +1,3 @@
+Tag,Encode,Prefill,Decode,Total_generation,Token_generation
+test_fp16,76.591898,5.365526,0.168434,4.047405,0.168642
+fp32,2.376955,0.271901,0.020659,0.500256,0.020844

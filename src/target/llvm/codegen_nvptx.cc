@@ -189,11 +189,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
     } else if (sync == "shared" || sync == "shared.dyn") {
 #if TVM_LLVM_VERSION >= 200
       llvm::Function* f = llvm::cast<llvm::Function>(llvm::Intrinsic::getOrInsertDeclaration(
-#if TVM_LLVM_VERSION >= 210
-          module_.get(), llvm::Intrinsic::nvvm_barrier_cta_sync_aligned_all, {}));
-#else
           module_.get(), llvm::Intrinsic::nvvm_barrier0, {}));
-#endif
 #else
       llvm::Function* f =
           llvm::Intrinsic::getDeclaration(module_.get(), llvm::Intrinsic::nvvm_barrier0);

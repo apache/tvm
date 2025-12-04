@@ -305,6 +305,11 @@ def create_lower_func(extern_func_map):
             key = (src_bits, t.bits)
 
         if key not in extern_func_map:
+            # Debug: print available keys and source dtype
+            print(f"DEBUG: Requested key: {key}")
+            print(f"DEBUG: Source dtype: {op.value.dtype if isinstance(op, _Cast) else 'N/A'}")
+            print(f"DEBUG: Target dtype: {op.dtype}")
+            print(f"DEBUG: Available keys in extern_func_map: {list(extern_func_map.keys())}")
             raise RuntimeError(f"missing key {key} in extern_func_map for {op}")
 
         if isinstance(op, _Cast):

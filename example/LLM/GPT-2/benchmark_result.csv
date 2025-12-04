@@ -1,0 +1,4 @@
+Tag,Model1_Type,Model2_Type,Model1_Prefill_Time,Model2_Prefill_Time,Model1_Avg_Decode_Time,Model2_Avg_Decode_Time,Model1_Total_Decode_Time,Model2_Total_Decode_Time,Model1_Total_Generation_Time,Model2_Total_Generation_Time,Model1_Avg_Time_Per_Token,Model2_Avg_Time_Per_Token,Avg_Logits_MAE,Max_Logits_MAE,Token_Match_Rate,Tokens_Generated
+float32vsposit32es2withoutSIMD,float32,custom[posites2]32,0.337085,253.956112,0.073084,64.831403,1.096264,972.471039,1.433349,1226.42715,0.089584,76.651697,5e-05,7.7e-05,100.0,16
+test_model,0.713098,24.829817,0.775932
+float32vsmixedprecision,float32,float32,0.156599,0.801039,0.082973,0.158342,1.244591,2.37513,1.401189,3.176168,0.087574,0.198511,0.058655,0.352941,100.0,16

@@ -1,0 +1,28 @@
+# !/bin/bash
+source /home/wang/venv/mlc-llm/.venv/bin/activate
+
+# nohup python test_comparison.py \
+#   --tag "fp32vsposit32es2" \
+#   --model1 ./model/Qwen_fp32.so \
+#   --model2 ./model/Qwen_posit32es2.so \
+#   --dtype1 float32 \
+#   --dtype2 custom[posites2]32 \
+#   --num-threads 16 \
+#   --iter 16 > ./log/fp32vsposit32es2.log &
+
+
+nohup python test_comparison.py \
+  --tag "fp32vsfp16" \
+  --model1 ./model/Qwen_fp32.so \
+  --model2 ./model/Qwen_fp16.so \
+  --dtype1 float32 \
+  --dtype2 float32 \
+  --num-threads 16 \
+  --iter 16 > ./log/fp32vsfp16.log &
+
+
+# nohup python test.py \
+#   --tag            "fp16" \
+#   --decoder          ./model/Qwen_fp16.so \
+#   --num-threads     16 \
+#   --iter             32 > ./log/Qwen_fp16.log &

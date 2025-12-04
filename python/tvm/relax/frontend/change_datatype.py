@@ -3,7 +3,7 @@ import tvm
 from tvm import relax
 from tvm.relax.expr_functor import mutator, PyExprMutator
 from tvm.relax.expr import Constant, Var, DataflowVar, Function, VarBinding, DataflowBlock, Call
-from tvm.relax.struct_info import TensorStructInfo
+from tvm.relax.struct_info import TensorStructInfo, TupleStructInfo, StructInfo
 from tvm import tir
 from tvm.relax.expr import Tuple
 
@@ -13,6 +13,17 @@ class ChangeDatatype(PyExprMutator):
         super().__init__()
         self.src = src
         self.dst = dst
+
+    def _convert_struct_info(self, struct_info: StructInfo) -> StructInfo:
+        if isinstance(struct_info, TensorStructInfo):
+            if struct_info.dtype == self.src:
+                return TensorStructInfo(struct_info.shape, self.dst)
+            return struct_info
+        elif isinstance(struct_info, TupleStructInfo):
+            new_fields = [self._convert_struct_info(field) for field in struct_info.fields]
+            return TupleStructInfo(new_fields)
+        else:
+            return struct_info
 
     def visit_constant_(self, const: Constant) -> relax.Expr:
         if const.data.dtype == self.src:
@@ -41,14 +52,14 @@ class ChangeDatatype(PyExprMutator):
         remapped = self.get_var_remap(var.vid)
         return remapped if remapped is not None else var
 
+    def visit_tuple_(self, tuple_expr: Tuple) -> Tuple:
+        new_fields = [self.visit_expr(field) for field in tuple_expr.fields]
+        return Tuple(new_fields)
+
     def visit_function_(self, fn: Function) -> Function:
         new_params = [self.visit_var_def(p) for p in fn.params]
         new_body = self.visit_expr(fn.body)
-        ret_si = fn.ret_struct_info
-        if isinstance(ret_si, TensorStructInfo) and ret_si.dtype == self.src:
-            new_ret = TensorStructInfo(ret_si.shape, self.dst)
-        else:
-            new_ret = ret_si
+        new_ret = self._convert_struct_info(fn.ret_struct_info)
         return Function(new_params, new_body, ret_struct_info=new_ret, attrs=fn.attrs)
 
     def visit_call_(self, call: Call) -> Call:
@@ -75,7 +86,7 @@ class ChangeDatatype(PyExprMutator):
         #     result = relax.op.nn.softmax(*posit_args, **attrs)
         #     return relax.op.astype(result, self.dst)
             
-        if call.op.name in "relax.sqrt":
+        if call.op.name == "relax.sqrt":
             out = relax.Call(call.op, new_args, call.attrs)
             return relax.op.astype(out, self.dst)
 
@@ -94,3 +105,4 @@ class ChangeDatatype(PyExprMutator):
             return relax.op.matmul(*new_args, **attrs)
         
         return Call(call.op, new_args, call.attrs, call.span)
+

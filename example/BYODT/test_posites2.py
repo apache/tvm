@@ -15,6 +15,8 @@ import time
 from tvm import relax, tir, IRModule
 from sch_handed import add_parallel_directives_to_all_functions
 from register import _posit_registered
+from tvm.relax.transform import ToMixedPrecision
+
 
 _posit_registered()
     
@@ -125,6 +127,8 @@ def main():
     # dst_dtype = "float16"
 
     mod, params = export_resnet18()
+    # mod = ToMixedPrecision(out_dtype="float16")(mod)
+    print(mod)
     mod, params = ChangeDatatypeInRelaxAndParams(mod, params, src_dtype=src_dtype, dst_dtype=dst_dtype)  # Change data type to posit
     # mod, params = ChangeDatatypeInRelaxAndParams(mod, params, src_dtype="float32", dst_dtype="float16")  # Change data type to posit
     print(mod)
