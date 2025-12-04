@@ -4,9 +4,10 @@ from tvm.script import tir as T
 from tvm.tir.schedule import Schedule
 import tvm.tir.tensor_intrin  # pylint: disable=unused-import
 import tvm.testing
-import torch
 
 import pytest
+
+torch = pytest.importorskip("torch")
 
 M, N, K = 4096, 4096, 4096
 np.random.seed(0)
@@ -46,6 +47,7 @@ class Gemm_F16F16F32:
                 C[vi, vj] = C[vi, vj] + T.cast(A[vi, vk], "float32") * T.cast(B[vk, vj], "float32")
 
 
+@pytest.mark.skip("Integration test")
 @tvm.testing.requires_cuda
 def test_run_target(mod=None, tgt_str=None, in_dtype="float16", out_dtype="float16"):
     if mod is None:
@@ -66,9 +68,9 @@ def test_run_target(mod=None, tgt_str=None, in_dtype="float16", out_dtype="float
     f = lib["main"]
     f(a, b, c)
 
-    c_th = torch.matmul(
-        torch.tensor(a_np).to(tgt_str), torch.tensor(b_np).to(tgt_str)
-    ).to(torch.float32 if out_dtype == "float32" else torch.float16)
+    c_th = torch.matmul(torch.tensor(a_np).to(tgt_str), torch.tensor(b_np).to(tgt_str)).to(
+        torch.float32 if out_dtype == "float32" else torch.float16
+    )
     c_f = torch.tensor(c.numpy()).to(tgt_str)
     torch.allclose(c_th, c_f, rtol=0.05, atol=0.05)
 
