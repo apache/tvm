@@ -23,7 +23,6 @@ from tvm import tir
 from tvm.target import Target
 from .. import analysis
 from .base import AdrenoScheduleRule
-from .utils import get_texture_storage
 
 
 def _assert_gpu_target(target: Target):
