@@ -45,6 +45,17 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     ########## Utilities ##########
 
+    def update_convert_map(self, custom_convert_map: Dict[str, Callable]):
+        """Update self.convert_map with custom convert map
+
+        Parameters
+        ----------
+        custom_convert_map : Dict[str, Callable]
+            A custom op conversion map in the same format as self.convert_map
+        """
+
+        self.convert_map.update(custom_convert_map)
+
     @staticmethod
     def _convert_data_type(input_type: Union[str, torch.dtype], env: Optional[Dict] = None):
         """converts the PyTorch scalar type input_type to a TVM dtype."""

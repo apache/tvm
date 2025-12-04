@@ -1020,17 +1020,6 @@ class TorchFXImporter(BaseFXGraphImporter):
             "item": self._item,
         }
 
-    def update_convert_map(self, custom_convert_map: dict):
-        """Update self.convert_map with custom convert map
-
-        Parameters
-        ----------
-        custom_convert_map : Dictionary of str to Relax op
-            A custom op conversion map in the same format as self.convert_map
-        """
-
-        self.convert_map.update(custom_convert_map)
-
     def from_fx(
         self,
         model,
