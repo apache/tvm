@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-export TVM_TEST_TARGETS="llvm;cuda"
+export TVM_TEST_TARGETS="llvm;cuda;opencl"
 export PYTEST_ADDOPTS="-m gpu $PYTEST_ADDOPTS"
 export TVM_RELAY_TEST_TARGETS="cuda"
 export TVM_INTEGRATION_TESTSUITE_NAME=python-integration-gpu
