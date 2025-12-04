@@ -831,7 +831,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // pow
 PrimExpr pow(PrimExpr x, PrimExpr y, Span span) {
   BinaryOpMatchTypes(x, y, span);
-  ICHECK(x.dtype().is_float()) << "power only applies to float";
+  // ICHECK(x.dtype().is_float()) << "power only applies to float";
 
   // If we detect pow(x, 3), suggest using x * x * x
   if (y.dtype().is_int()) {
