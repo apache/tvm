@@ -34,10 +34,6 @@ class Conv2d(AdrenoScheduleRule):
         # TODO: Loop Pattern mayn't be reliable, need to perform better analysis.
         n, oc, oh, ow, ob, ic, kh, kw = sch.get_loops(blk)
 
-        # bz, vz, tz = sch.split(oc, sch.sample_perfect_tile(oc, 3, 32))
-        # by, vy, ty = sch.split(oh, sch.sample_perfect_tile(oh, 3, 32))
-        # bx, vx, tx = sch.split(ow, sch.sample_perfect_tile(ow, 3, 32))
-
         bz, vz, tz = sch.split(oc, [None, 8, 1], preserve_unit_iters=True)
         by, vy, ty = sch.split(oh, [None, 1, 16], preserve_unit_iters=True)
         bx, vx, tx = sch.split(ow, [None, 1, 16], preserve_unit_iters=True)
@@ -97,7 +93,6 @@ class Conv2d(AdrenoScheduleRule):
         if len(reduction_blocks) != 1 or not is_convolution(reduction_blocks[0]):
             return None
 
-        # sch.set_scope(blocks[0], 0, "global.texture")
         conv_blk = reduction_blocks[0]
         Conv2d.schedule_conv2d(sch, conv_blk)
         remaining_blocks = schedule_inline_blocks(sch, remaining_blocks)

@@ -72,7 +72,6 @@ MergeIndex = namedtuple("MulIndex", ["dom", "mul", "sub"])  # co*len + cb
 BufIndex = List[Union[Index, RemIndex, DivIndex, MergeIndex, None]]
 
 
-# TODO: Shift Vlen Calculation here...
 class BufferInfo:
     "Information about Buffer. Provides useful analysis"
     buf_region: tir.BufferRegion
