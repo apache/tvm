@@ -26,6 +26,7 @@ from tvm import relax
 from tvm.script import relax as R
 from tvm.script import ir as I
 from tvm.script import tir as T
+from adreno_utils import verify
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
 from tvm.relax.frontend.onnx import from_onnx
@@ -34,174 +35,6 @@ from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 import pytest
 import json
 import copy
-
-from tvm import dlight as dl
-from tvm.contrib import utils, ndk
-
-from tvm import topi
-
-
-def build_and_run(
-    mod, inputs_np, target, rpc=None, params_np={}, load_path="vm_library.so", is_adreno=False
-):
-    skip_ops = [
-        "relax.nn.conv2d",
-        "relax.nn.max_pool2d",
-        "relax.nn.adaptive_avg_pool2d",
-        # "relax.nn.layer_norm",
-    ]
-
-    tgt = tvm.target.Target(target, host="llvm -mtriple=aarch64-linux-gnu")
-
-    with tgt:
-        mod = tvm.tir.transform.BindTarget(tvm.target.Target.current(allow_none=False))(mod)
-        mod = tvm.relax.transform.FoldBatchnormToConv2D()(mod)
-        mod = tvm.relax.transform.FoldConstant()(mod)
-        mod = tvm.relax.transform.DecomposeOpsForInference()(mod)
-        mod = tvm.relax.transform.FoldConstant()(mod)
-        mod = tvm.relax.transform.DeadCodeElimination()(mod)
-        desired_layouts = {"relax.nn.conv2d": ["NCHW4c", "OIHW4o", "NCHW4c"]}
-        if is_adreno:
-            mod = tvm.relax.transform.ConvertLayout(desired_layouts)(mod)
-            mod = tvm.relax.transform.Normalize()(mod)
-            mod = tvm.relax.transform.FoldConstant()(mod)
-            mod = tvm.relax.transform.LegalizeOps(skip_ops=skip_ops)(mod)
-            mod = tvm.relax.transform.AnnotateTIROpPattern()(mod)
-            mod = tvm.relax.backend.adreno.transform.AnnotateCustomMemoryScope(tgt)(mod)
-        mod = tvm.relax.transform.LegalizeOps()(mod)
-        if is_adreno:
-            mod = tvm.relax.transform.LegalizeOps(
-                {"relax.nn.conv2d": legalize_adreno.conv2d_NCHWc_OIHWo},
-            )(mod)
-        mod = tvm.relax.transform.AnnotateTIROpPattern()(mod)
-        mod = tvm.relax.transform.FoldConstant()(mod)
-        mod = tvm.relax.transform.FuseOps()(mod)
-        mod = tvm.relax.transform.FuseTIR()(mod)
-        mod = tvm.relax.transform.DeadCodeElimination()(mod)
-        if is_adreno:
-            mod = tvm.relax.backend.adreno.transform.FoldVDeviceScopeChange()(mod)
-            mod = tvm.relax.transform.DeadCodeElimination()(mod)
-            mod = tvm.relax.transform.SpecializePrimFuncBasedOnCallSite()(mod)
-        mod = tvm.relax.transform.Normalize()(mod)
-
-        if is_adreno:
-            mod = dl.ApplyDefaultSchedule(
-                dl.adreno.Conv2d(),
-                dl.adreno.LayoutTransform(),
-                dl.adreno.Pool2D(),
-                dl.adreno.Fallback(),
-            )(mod)
-
-        mod = dl.ApplyDefaultSchedule(
-            dl.gpu.Reduction(),
-            dl.gpu.GeneralReduction(),
-            dl.gpu.Fallback(),
-        )(mod)
-
-        mod = tvm.relax.transform.ToNonDataflow()(mod)
-        mod = tvm.relax.transform.RemovePurityChecking()(mod)
-        mod = tvm.relax.transform.CallTIRRewrite()(mod)
-        mod = tvm.relax.transform.Normalize()(mod)
-        mod = tvm.relax.transform.StaticPlanBlockMemory()(mod)
-        mod = tvm.relax.transform.LowerAllocTensor()(mod)
-        mod = tvm.relax.transform.KillAfterLastUse()(mod)
-        mod = tvm.relax.transform.VMBuiltinLower()(mod)
-        mod = tvm.relax.transform.VMShapeLower()(mod)
-        mod = tvm.relax.transform.AttachGlobalSymbol()(mod)
-
-    if rpc:
-        ex = relax.build(mod, tgt)
-        # if is_adreno:
-        #  for smod in ex.mod.imported_modules:
-        #    print("Mod:", smod.type_key)
-        #    for imp_mod in smod.imported_modules:
-        #        print("Imp Mod:", imp_mod.type_key)
-        #        print(imp_mod.get_source())
-        temp = utils.tempdir()
-        path = temp.relpath(load_path)
-        path = "./" + load_path
-        ex.export_library(path, fcompile=ndk.create_shared, options=["-shared", "-fPIC", "-lm"])
-        rpc.upload(path)
-        rexec = rpc.load_module(load_path)
-        dev = rpc.cl(0)
-        if "vdevice" in mod.global_infos:
-            device_arr = [dev for ii in range(len(mod.global_infos["vdevice"]))]
-        else:
-            device_arr = [dev]
-
-        vm = relax.VirtualMachine(rexec, device_arr)
-    else:
-        ex = relax.build(mod, target)
-        dev = tvm.device(target, 0)
-        vm = relax.VirtualMachine(ex, dev)
-
-    params_dev = []
-    for k, v in params_np.items():
-        params_dev.append(tvm.runtime.tensor(v, dev))
-
-    f = vm["main"]
-    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
-
-    vm.set_input("main", *inputs)
-
-    vm.invoke_stateful("main")
-
-    tvm_output = vm.get_outputs("main")
-    return tvm_output.numpy()
-
-
-import os
-from tvm import rpc as _rpc
-
-
-def get_rpc():
-    rpc_target = os.getenv("RPC_TARGET", None)
-    if rpc_target:
-        connection_type = "tracker"
-        host = os.getenv("TVM_TRACKER_HOST", "localhost")
-        port = int(os.getenv("TVM_TRACKER_PORT", 9090))
-        target = "opencl"
-        target_host = "llvm -mtriple=aarch64-linux-gnu"
-        device_key = os.getenv("RPC_DEVICE_KEY", "android")
-        cross_compile = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
-        tracker = _rpc.connect_tracker(host, port)
-        return tracker.request(device_key, priority=1, session_timeout=1000)
-    else:
-        return None
-
-
-def verify(mod):
-    inputs = []
-    for arg in mod["main"].params:
-        shape = tuple(shape_val.value for shape_val in arg.struct_info.shape.values)
-        inputs.append(np.random.uniform(0, 1, size=shape).astype(arg.struct_info.dtype))
-
-    rpc = get_rpc()
-    mod1 = copy.deepcopy(mod)
-    ret1 = build_and_run(
-        mod,
-        inputs,
-        "opencl -device=adreno",
-        rpc=rpc,
-        params_np={},
-        load_path="vm_library_opencl-texture.so",
-        is_adreno=True,
-    )
-    ret2 = build_and_run(
-        mod1,
-        inputs,
-        "opencl",
-        rpc=rpc,
-        params_np={},
-        load_path="vm_library_opencl.so",
-        is_adreno=False,
-    )
-
-    if isinstance(ret1, tuple):
-        for val1, val2 in zip(ret1, ret2):
-            tvm.testing.assert_allclose(val1, ret2, rtol=1e-5, atol=1e-5)
-    else:
-        tvm.testing.assert_allclose(ret1, ret2, rtol=1e-5, atol=1e-5)
 
 
 @pytest.mark.parametrize("dtype", ["float32"])
@@ -226,7 +59,8 @@ def _test_network(url, shape_dict, dtype):
 
 
 @tvm.testing.requires_opencl
-def test_network_resnet():
+@tvm.testing.parametrize_targets("opencl")
+def test_network_resnet(target):
     @I.ir_module
     class Resnet:
         @R.function
@@ -985,7 +819,7 @@ def test_network_resnet():
                 R.output(gv)
             return gv
 
-    verify(Resnet)
+    verify(Resnet, target)
 
 
 if __name__ == "__main__":
