@@ -95,13 +95,38 @@ if not IS_IN_CI:
 # leverage MetaSchedule to tune the model and store the tuning logs to the database. We also
 # apply the database to the model to get the best performance.
 #
+# The ResNet18 model will be divided into 20 independent tuning tasks during compilation.
+# To ensure each task receives adequate tuning resources in one iteration while providing
+# early feedback:
+#
+# - To quickly observe tuning progress, each task is allocated a maximum of 4 trials per
+#   iteration (controlled by ``MAX_TRIALS_PER_TASK=4``). Setting ``TOTAL_TRIALS`` to at least
+#   ``80 (20 tasks * 4 trials)`` ensures every task receives one full iteration of tuning.
+# - If ``MAX_TRIALS_PER_TASK == None``, the system defaults to ``min(max_trials_per_iter=64,
+#   TOTAL_TRIALS)`` trials per task per iteration. This may lead to undersubscribed tuning when
+#   ``TOTAL_TRIALS`` is insufficient (e.g., ``64 < TOTAL_TRIALS < 20 * 64``), potentially skipping
+#   some tasks entirely, leaving critical operators unoptimized or missing thread binding for
+#   untuned tasks. Explicitly setting both parameters avoids this issue and provides deterministic
+#   resource allocation across all tasks.
+#
+# Note: These parameter settings are optimized for quick tutorial demonstration. For production
+# deployments requiring higher performance, we recommend adjusting both MAX_TRIALS_PER_TASK
+# and TOTAL_TRIALS to larger values. This allows more extensive search space exploration
+# and typically yields better performance outcomes.
 
-TOTAL_TRIALS = 8000  # Change to 20000 for better performance if needed
+TOTAL_TRIALS = 80  # Change to 20000 for better performance if needed
+MAX_TRIALS_PER_TASK = 4  # Change to more trials per task for better performance if needed
 target = tvm.target.Target("nvidia/geforce-rtx-3090-ti")  # Change to your target device
 work_dir = "tuning_logs"
 
 if not IS_IN_CI:
-    mod = relax.get_pipeline("static_shape_tuning", target=target, total_trials=TOTAL_TRIALS)(mod)
+    mod = relax.get_pipeline(
+        "static_shape_tuning",
+        target=target,
+        work_dir=work_dir,
+        total_trials=TOTAL_TRIALS,
+        max_trials_per_task=MAX_TRIALS_PER_TASK,
+    )(mod)
 
     # Only show the main function
     mod["main"].show()
