@@ -193,7 +193,7 @@ def static_shape_tuning_pipeline(
                             max_trials_global=total_trials,
                             max_trials_per_task=max_trials_per_task,
                         )
-                        if total_trials > 0 and max_trials_per_task > 0
+                        if total_trials > 0
                         else tvm.transform.Sequential([])
                     ),
                     transform.MetaScheduleApplyDatabase(work_dir),
