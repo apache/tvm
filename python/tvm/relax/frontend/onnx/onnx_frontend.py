@@ -336,19 +336,35 @@ class BinaryBase(OnnxOpConverter):
         """Base implementation for binary operations."""
         if cls.numpy_op is None or cls.relax_op is None:
             raise ValueError("Numpy and Relax operators must be defined for BinaryBase.")
-        if all([not isinstance(inp, (relax.expr.Call, relax.Var)) for inp in inputs]):
+        if all([isinstance(inp, relax.Constant) for inp in inputs]):
+            output = cls.numpy_op(  # pylint: disable=not-callable
+                inputs[0].data.numpy(), inputs[1].data.numpy()
+            )
+            return relax.const(output, inputs[0].struct_info.dtype)
+        if any([isinstance(inp, relax.PrimValue) for inp in inputs]):
             x = _to_numpy(inputs[0])
             y = _to_numpy(inputs[1])
-            output = cls.numpy_op(x, y)  # pylint: disable=not-callable
-            if x.dtype == y.dtype:
-                # no numpy precision widening
-                output = output.astype(x.dtype)
-            if all([isinstance(inp, relax.Constant) for inp in inputs]):
-                return relax.const(output, output.dtype)  # pylint: disable=not-callable
-            if any([isinstance(inp, relax.PrimValue) for inp in inputs]):
-                return relax.PrimValue(output.item())  # pylint: disable=not-callable
+            return relax.PrimValue(cls.numpy_op(x, y))  # pylint: disable=not-callable
 
         return cls.relax_op(inputs[0], inputs[1])  # pylint: disable=not-callable
+    # @classmethod
+    # def base_impl(cls, bb, inputs, attr, params):
+    #     """Base implementation for binary operations."""
+    #     if cls.numpy_op is None or cls.relax_op is None:
+    #         raise ValueError("Numpy and Relax operators must be defined for BinaryBase.")
+    #     if all([not isinstance(inp, (relax.expr.Call, relax.Var)) for inp in inputs]):
+    #         x = _to_numpy(inputs[0])
+    #         y = _to_numpy(inputs[1])
+    #         output = cls.numpy_op(x, y)  # pylint: disable=not-callable
+    #         if x.dtype == y.dtype:
+    #             # no numpy precision widening
+    #             output = output.astype(x.dtype)
+    #         if all([isinstance(inp, relax.Constant) for inp in inputs]):
+    #             return relax.const(output, output.dtype)  # pylint: disable=not-callable
+    #         if any([isinstance(inp, relax.PrimValue) for inp in inputs]):
+    #             return relax.PrimValue(output.item())  # pylint: disable=not-callable
+
+    #     return cls.relax_op(inputs[0], inputs[1])  # pylint: disable=not-callable
 
 
 class Add(BinaryBase):
