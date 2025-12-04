@@ -64,7 +64,7 @@ class Gemm_F16F16F32:
                 C[vi, vj] = C[vi, vj] + T.cast(A[vi, vk], "float32") * T.cast(B[vk, vj], "float32")
 
 
-@pytest.mark.skip("Integration test")
+@tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_run_target(mod=None, tgt_str=None, in_dtype="float16", out_dtype="float16"):
     if mod is None:
@@ -92,7 +92,7 @@ def test_run_target(mod=None, tgt_str=None, in_dtype="float16", out_dtype="float
     torch.allclose(c_th, c_f, rtol=0.05, atol=0.05)
 
 
-@pytest.mark.skip("Integration test")
+@tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_f16f16f16_mma_gemm():
     # fmt: off
@@ -211,7 +211,7 @@ def test_f16f16f16_mma_gemm():
     test_run_target(mod)
 
 
-@pytest.mark.skip("Integration test")
+@tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_f16f16f32_mma_gemm():
     mod = Gemm_F16F16F32
