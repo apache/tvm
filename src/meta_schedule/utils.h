@@ -334,17 +334,19 @@ struct ThreadedTraceApply {
 
     for (int i = 0; i < n_; ++i) {
       Item& item = items_[i];
+      bool success = true;
       try {
         if (!item.postproc->Apply(sch)) {
-          item.fail_counter++;
-          return std::nullopt;
+          success = false;
         }
       } catch (const tir::ScheduleError& e) {
         DLOG(WARNING) << "Postproc #" << i << " failed with ScheduleError: " << e.what();
-        item.fail_counter++;
-        return std::nullopt;
+        success = false;
       } catch (const std::exception& e) {
         DLOG(WARNING) << "Postproc #" << i << " failed with exception: " << e.what();
+        success = false;
+      }
+      if (!success) {
         item.fail_counter++;
         return std::nullopt;
       }
