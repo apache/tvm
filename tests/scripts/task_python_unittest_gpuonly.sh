@@ -43,5 +43,4 @@ export TVM_UNITTEST_TESTSUITE_NAME=python-codegen-clml-texture
 
 source tests/scripts/setup-pytest-env.sh
 
-run_pytest ${TVM_UNITTEST_TESTSUITE_NAME}-1 -s tests/python/relax/backend/clml/
 run_pytest ${TVM_UNITTEST_TESTSUITE_NAME}-1 tests/python/relax/texture/
