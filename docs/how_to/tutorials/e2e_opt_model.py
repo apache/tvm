@@ -99,9 +99,11 @@ if not IS_IN_CI:
 # To ensure each task receives adequate tuning resources in one iteration while providing
 # early feedback:
 #
-# - To quickly observe tuning progress, each task is allocated a maximum of 4 trials per
-#   iteration (controlled by ``MAX_TRIALS_PER_TASK=4``). Setting ``TOTAL_TRIALS`` to at least
-#   ``80 (20 tasks * 4 trials)`` ensures every task receives one full iteration of tuning.
+# - To quickly observe tuning progress, each task is allocated a maximum of 16 trials per
+#   iteration (controlled by ``MAX_TRIALS_PER_TASK=16``). We should set ``TOTAL_TRIALS``
+#   to at least ``320 (20 tasks * 16 trials)`` ensures every task receives one full iteration
+#   of tuning. We set it to 512 in our configuration to allow for several more iterations,
+#   aiming to explore a wider parameter space and potentially achieve better performance.
 # - If ``MAX_TRIALS_PER_TASK == None``, the system defaults to ``min(max_trials_per_iter=64,
 #   TOTAL_TRIALS)`` trials per task per iteration. This may lead to undersubscribed tuning when
 #   ``TOTAL_TRIALS`` is insufficient (e.g., ``64 < TOTAL_TRIALS < 20 * 64``), potentially skipping
@@ -114,8 +116,8 @@ if not IS_IN_CI:
 # and TOTAL_TRIALS to larger values. This allows more extensive search space exploration
 # and typically yields better performance outcomes.
 
-TOTAL_TRIALS = 80  # Change to 20000 for better performance if needed
-MAX_TRIALS_PER_TASK = 4  # Change to more trials per task for better performance if needed
+TOTAL_TRIALS = 512  # Change to 20000 for better performance if needed
+MAX_TRIALS_PER_TASK = 16  # Change to more trials per task for better performance if needed
 target = tvm.target.Target("nvidia/geforce-rtx-3090-ti")  # Change to your target device
 work_dir = "tuning_logs"
 
