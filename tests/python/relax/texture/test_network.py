@@ -37,27 +37,6 @@ import json
 import copy
 
 
-@pytest.mark.parametrize("dtype", ["float32"])
-@pytest.mark.parametrize(
-    "url, shape_dict",
-    [
-        # ("mobilenetv2-12.onnx", {"input": [1, 3, 224, 224]}),
-        # ("densenet-12.onnx", {"data_0": [1, 3, 224, 224]}),
-        # ("inception-v2-9.onnx", {"data_0": [1, 3, 224, 224]}),
-        ("resnet18-v2-7.onnx", {"data": [1, 3, 224, 224]}),
-        # ("resnet50-v2-7.onnx", {"data": [1, 3, 224, 224]}),
-    ],
-)
-@tvm.testing.requires_opencl
-def _test_network(url, shape_dict, dtype):
-    print("Network evaluating .. " + url + " " + dtype)
-    model = onnx.load("./" + url)
-    mod = from_onnx(model, shape_dict)
-    mod1 = from_onnx(model, shape_dict)
-
-    verify(mod)
-
-
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl")
 def test_network_resnet(target):

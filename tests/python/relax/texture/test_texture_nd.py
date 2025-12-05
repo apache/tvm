@@ -31,21 +31,26 @@ from tvm.script import ir as I, tir as T
 from tvm.target import Target
 from tvm.contrib import ndk
 from tvm import tir, DataType
+from tvm.rpc import connect_tracker
 
+def get_rpc():
+    """
+    Establish an RPC connection to the remote device.
 
-class RemoteConnection:
-    def __init__(self):
-        self.RPC_TRACKER_HOST = os.getenv("TVM_TRACKER_HOST", "localhost")
-        self.RPC_TRACKER_PORT = int(os.getenv("TVM_TRACKER_PORT", 7979))
-        self.RPC_KEY = os.getenv("RPC_DEVICE_KEY", "android")
-        self.tracker = tvm.rpc.connect_tracker(self.RPC_TRACKER_HOST, self.RPC_TRACKER_PORT)
-
-    def __enter__(self):
-        self.remote = self.tracker.request(self.RPC_KEY, priority=0, session_timeout=600)
-        return self.remote
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.remote.get_function("CloseRPCConnection")()
+    Returns
+    -------
+    tvm.rpc.RPCSession or None
+        The RPC session object if RPC_TARGET is set; otherwise, None.
+    """
+    rpc_target = os.getenv("RPC_TARGET", None)
+    if rpc_target:
+        host = os.getenv("TVM_TRACKER_HOST", "localhost")
+        port = int(os.getenv("TVM_TRACKER_PORT", 9090))
+        device_key = os.getenv("RPC_DEVICE_KEY", "android")
+        tracker = connect_tracker(host, port)
+        return tracker.request(device_key, priority=1, session_timeout=1000)
+    else:
+        return None
 
 
 def preprocess_pipeline(mod: IRModule) -> IRModule:
@@ -96,14 +101,15 @@ def postprocess_pipeline(mod: IRModule) -> IRModule:
 
 
 @tvm.testing.requires_rpc
-@tvm.testing.requires_opencl
+@tvm.testing.requires_adreno_opencl
 @pytest.mark.parametrize(
-    "target", [Target("opencl -device=adreno", "llvm -mtriple=aarch64-linux-android")]
+    "backend", ["opencl"]
 )
 @pytest.mark.parametrize("dtype", ["int8", "float16", "int16", "float32", "int32"])
 @pytest.mark.parametrize("channel_size", [64, 128])
 @pytest.mark.parametrize("read_width", [1, 2, 4, 8, 16])
-def test_texture_copy(target, dtype, channel_size, read_width):
+def test_texture_copy(backend, dtype, channel_size, read_width):
+    remote = get_rpc()
     M, N, K = (256, 1024, 128)
     lanes = channel_size // DataType(dtype).bits
     if read_width > lanes:
@@ -139,6 +145,12 @@ def test_texture_copy(target, dtype, channel_size, read_width):
         schedule_default(B_blk, read_width)
 
     mod = TextureCopy
+
+    if remote is None:
+        target = Target(backend + " -device=adreno")
+    else:
+        target = Target(backend + " -device=adreno", "llvm -mtriple=aarch64-linux-android")
+
     with target:
         mod = preprocess_pipeline(mod)
         sch = tir.Schedule(mod)
@@ -148,20 +160,43 @@ def test_texture_copy(target, dtype, channel_size, read_width):
     ex = relax.build(mod, target)
     load_path = "vm_library.so"
     inputs = [np.random.randint(0, 128, (M, N)).astype(dtype), np.zeros((M, N), dtype)]
-    with RemoteConnection() as remote:
-        with tempfile.TemporaryDirectory() as temp_dir:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        if remote is not None:
             path = temp_dir + "/" + load_path
             ex.export_library(path, fcompile=ndk.create_shared, options=["-shared", "-fPIC", "-lm"])
-
             remote.upload(path)
             rexec = remote.load_module(load_path)
             dev = remote.cl()
+            if "vdevice" in mod.global_infos:
+                device_arr = [dev for ii in range(len(mod.global_infos["vdevice"]))]
+            else:
+                device_arr = [dev]
+            vm = relax.VirtualMachine(rexec, device_arr)
+        else:
+            # local execution
+            if "opencl" in backend:
+                dev = tvm.opencl(0)
+            elif "vulkan" in backend:
+                dev = tvm.vulkan(0)
+            else:
+                raise RuntimeError("Unsupported backend")
 
-            vm = relax.VirtualMachine(rexec, [dev, dev, dev])
-            inps = [tvm.runtime.tensor(inp, dev) for inp in inputs]
-            vm["main"](*inps)
+            if "vdevice" in mod.global_infos:
+                device_arr = [dev for ii in range(len(mod.global_infos["vdevice"]))]
+            else:
+                device_arr = [dev]
+            vm = relax.VirtualMachine(ex, device_arr)
 
-            np.testing.assert_equal(inps[-1].numpy(), inps[0].numpy())
+        inps = [tvm.runtime.tensor(inp, dev) for inp in inputs]
+        vm["main"](*inps)
+
+        out1 = inps[-1].numpy()
+        out2 = inps[0].numpy()
+
+        if remote:
+            remote.get_function("CloseRPCConnection")()
+
+        np.testing.assert_equal(out1, out2)
 
 
 if __name__ == "__main__":

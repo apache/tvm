@@ -109,18 +109,30 @@ def run_cpu(mod, inputs, save_lib=False):
 
 
 def build_run(mod, inputs, backend, is_adreno=False):
-
+    remote = get_rpc()
     target = get_target(backend, is_adreno)
-    tgt = tvm.target.Target(target, host="llvm -mtriple=aarch64-linux-gnu")
+    if remote is None:
+      tgt = tvm.target.Target(target, host="llvm")
+    else:
+      tgt = tvm.target.Target(target, host="llvm -mtriple=aarch64-linux-gnu")
     relax_pipeline = relax.pipeline.get_default_pipeline(tgt)
     tir_pipeline = tvm.tir.get_default_tir_pipeline(tgt)
     mod = relax_pipeline(mod)
     ex = tvm.compile(mod, tgt, tir_pipeline=tir_pipeline)
 
-    remote = get_rpc()
     if remote is None:
         # local execution
-        dev = tvm.device(target, 0)
+        if "opencl" in backend:
+            dev = tvm.opencl(0)
+        elif "vulkan" in backend:
+            dev = tvm.vulkan(0)
+        else:
+            raise RuntimeError("Unsupported backend")
+
+        if "vdevice" in mod.global_infos:
+            device_arr = [dev for ii in range(len(mod.global_infos["vdevice"]))]
+        else:
+            device_arr = [dev]
         vm = relax.VirtualMachine(ex, device_arr)
     else:
         # remote execution
@@ -158,7 +170,8 @@ def build_run(mod, inputs, backend, is_adreno=False):
     else:
         tvm_output = tvm_output.numpy()
 
-    remote.get_function("CloseRPCConnection")()
+    if remote:
+        remote.get_function("CloseRPCConnection")()
     return tvm_output
 
 
