@@ -31,7 +31,6 @@ class Conv2d(AdrenoScheduleRule):
 
     @staticmethod
     def schedule_conv2d(sch: tir.Schedule, blk: tir.schedule.BlockRV):
-        # TODO: Loop Pattern mayn't be reliable, need to perform better analysis.
         n, oc, oh, ow, ob, ic, kh, kw = sch.get_loops(blk)
 
         bz, vz, tz = sch.split(oc, [None, 8, 1], preserve_unit_iters=True)

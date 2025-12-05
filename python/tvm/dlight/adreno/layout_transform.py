@@ -86,7 +86,6 @@ class LayoutTransform(AdrenoScheduleRule):
             [lpv_read, lpv_write] if sch.get(lpv_read) != sch.get(lpv_write) else (lpv_read,)
         )
         sch.reorder(*block_loops, *vec_loops)
-        # TODO: Additional Pragmas and stuff
         if local_cache:
             if sch.get(lpv_read) != sch.get(lpv_write):
                 blp_read, vlp_read = sch.split(
