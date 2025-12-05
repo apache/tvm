@@ -33,11 +33,12 @@ class TorchFXImporter(BaseFXGraphImporter):
     import torch  # type: ignore
     from torch import fx
 
-    def __init__(self) -> None:
+    def __init__(self, default_image_layout: str = "NCHW") -> None:
         import torch  # type: ignore
 
         super().__init__()
         self.named_modules: Dict[str, torch.Module] = None
+        self.default_image_layout = default_image_layout
 
     ########## Utilities ##########
 
@@ -480,7 +481,6 @@ class TorchFXImporter(BaseFXGraphImporter):
         # torch.nn.functional.interpolate(
         #   input, size=None, scale_factor=None, mode='nearest', align_corners=None,
         #   recompute_scale_factor=None, antialias=False)
-        # (TODO) this is a temporary implementation for interpolate that only considers NCHW layout
         data = self.env[node.args[0]]
         size = (
             node.args[1]
@@ -523,13 +523,26 @@ class TorchFXImporter(BaseFXGraphImporter):
         if size is None:
             shape = self.shape_of(data)
             assert isinstance(shape, relax.ShapeExpr)
+            # Determine spatial dimension indices based on layout
+            # NCHW: spatial dims are [2, 3, ...] (skip batch and channel)
+            # NHWC: spatial dims are [1, 2, ...] (skip batch, before channel)
+            if self.default_image_layout == "NHWC":
+                spatial_start = 1
+                spatial_end = len(shape) - 1
+            else:  # NCHW or other layouts
+                spatial_start = 2
+                spatial_end = len(shape)
+
             if isinstance(scale_factor, tuple):
-                assert len(scale_factor) == len(shape) - 2
+                assert len(scale_factor) == spatial_end - spatial_start
                 size = tuple(
-                    int(shape[i].value * scale_factor[i - 2]) for i in range(2, len(shape))
+                    int(shape[i].value * scale_factor[i - spatial_start])
+                    for i in range(spatial_start, spatial_end)
                 )
             else:
-                size = tuple(int(shape[i].value * scale_factor) for i in range(2, len(shape)))
+                size = tuple(
+                    int(shape[i].value * scale_factor) for i in range(spatial_start, spatial_end)
+                )
 
         if method.startswith("nearest"):
             method = "nearest_neighbor"
@@ -545,7 +558,11 @@ class TorchFXImporter(BaseFXGraphImporter):
 
         return self.block_builder.emit(
             relax.op.image.resize2d(
-                data, size, layout="NCHW", method=method, coordinate_transformation_mode=coord_trans
+                data,
+                size,
+                layout=self.default_image_layout,
+                method=method,
+                coordinate_transformation_mode=coord_trans,
             )
         )
 
@@ -1150,6 +1167,7 @@ def from_fx(
     unwrap_unit_return_tuple: bool = False,
     no_bind_return_tuple: bool = False,
     custom_convert_map: dict = None,
+    default_image_layout: str = "NCHW",
 ) -> tvm.IRModule:
     """Convert a PyTorch FX GraphModule to a Relax program
 
@@ -1174,6 +1192,10 @@ def from_fx(
 
     custom_convert_map : Dictionary of str to Relax op
         A custom op conversion map in the same format as TorchFXImporter.convert_map
+
+    default_image_layout : str
+        The default layout for image operations (e.g., "NCHW" or "NHWC").
+        Default is "NCHW" which is the standard PyTorch layout.
 
     Returns
     -------
@@ -1242,7 +1264,7 @@ def from_fx(
     to print out the tabular representation of the PyTorch module, and then
     check the placeholder rows in the beginning of the tabular.
     """
-    return TorchFXImporter().from_fx(
+    return TorchFXImporter(default_image_layout=default_image_layout).from_fx(
         model,
         input_info,
         keep_params_as_input,

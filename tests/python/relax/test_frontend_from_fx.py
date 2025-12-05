@@ -3670,6 +3670,121 @@ def test_interpolate():
     verify_model(Interpolate4(), input_info, {}, expected4)
 
 
+def test_interpolate_nhwc_layout():
+    # First verify backward compatibility - default should still be NCHW
+    input_info_nchw = [([1, 3, 10, 10], "float32")]
+
+    class InterpolateDefault(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(input, (5, 5))
+
+    @tvm.script.ir_module
+    class expected_default_nchw:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 5, 5), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 5, 5), dtype="float32") = R.image.resize2d(
+                    input_1,
+                    (5, 5),
+                    roi=[0.000000, 0.000000, 0.000000, 0.000000],
+                    layout="NCHW",
+                    method="nearest_neighbor",
+                    coordinate_transformation_mode="asymmetric",
+                    rounding_method="round",
+                    cubic_alpha=-0.75,
+                    cubic_exclude=0,
+                    extrapolation_value=0,
+                    out_dtype="",
+                )
+                gv: R.Tensor((1, 3, 5, 5), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    # Verify default behavior (no default_image_layout parameter) uses NCHW
+    graph_model_default = fx.symbolic_trace(InterpolateDefault())
+    with torch.no_grad():
+        mod_default = from_fx(graph_model_default, input_info_nchw)
+    tvm.ir.assert_structural_equal(mod_default, expected_default_nchw)
+
+    # Now test NHWC layout
+    input_info = [([1, 10, 10, 3], "float32")]
+
+    class InterpolateNHWC(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(input, (5, 5))
+
+    @tvm.script.ir_module
+    class expected_nhwc:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 10, 10, 3), dtype="float32")
+        ) -> R.Tensor((1, 5, 5, 3), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 5, 5, 3), dtype="float32") = R.image.resize2d(
+                    input_1,
+                    (5, 5),
+                    roi=[0.000000, 0.000000, 0.000000, 0.000000],
+                    layout="NHWC",
+                    method="nearest_neighbor",
+                    coordinate_transformation_mode="asymmetric",
+                    rounding_method="round",
+                    cubic_alpha=-0.75,
+                    cubic_exclude=0,
+                    extrapolation_value=0,
+                    out_dtype="",
+                )
+                gv: R.Tensor((1, 5, 5, 3), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    # Test with NHWC layout
+    graph_model = fx.symbolic_trace(InterpolateNHWC())
+    with torch.no_grad():
+        mod = from_fx(graph_model, input_info, default_image_layout="NHWC")
+    tvm.ir.assert_structural_equal(mod, expected_nhwc)
+
+    # Test with bilinear interpolation and NHWC layout
+    class InterpolateNHWC2(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(
+                input, size=None, scale_factor=2.0, mode="bilinear", align_corners=False
+            )
+
+    @tvm.script.ir_module
+    class expected_nhwc2:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 10, 10, 3), dtype="float32")
+        ) -> R.Tensor((1, 20, 20, 3), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 20, 20, 3), dtype="float32") = R.image.resize2d(
+                    input_1,
+                    (20, 20),
+                    roi=[0.000000, 0.000000, 0.000000, 0.000000],
+                    layout="NHWC",
+                    method="linear",
+                    coordinate_transformation_mode="half_pixel",
+                    rounding_method="round",
+                    cubic_alpha=-0.75,
+                    cubic_exclude=0,
+                    extrapolation_value=0,
+                    out_dtype="",
+                )
+                gv: R.Tensor((1, 20, 20, 3), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    graph_model2 = fx.symbolic_trace(InterpolateNHWC2())
+    with torch.no_grad():
+        mod2 = from_fx(graph_model2, input_info, default_image_layout="NHWC")
+    tvm.ir.assert_structural_equal(mod2, expected_nhwc2)
+
+
 def test_addmm():
     input_info = [
         ([10, 10], "float32"),
