@@ -104,16 +104,14 @@ if not IS_IN_CI:
 #   to at least ``320 (20 tasks * 16 trials)`` ensures every task receives one full iteration
 #   of tuning. We set it to 512 in our configuration to allow for several more iterations,
 #   aiming to explore a wider parameter space and potentially achieve better performance.
-# - If ``MAX_TRIALS_PER_TASK == None``, the system defaults to ``min(max_trials_per_iter=64,
-#   TOTAL_TRIALS)`` trials per task per iteration. This may lead to undersubscribed tuning when
-#   ``TOTAL_TRIALS`` is insufficient (e.g., ``64 < TOTAL_TRIALS < 20 * 64``), potentially skipping
-#   some tasks entirely, leaving critical operators unoptimized or missing thread binding for
-#   untuned tasks. Explicitly setting both parameters avoids this issue and provides deterministic
-#   resource allocation across all tasks.
+# - If ``MAX_TRIALS_PER_TASK == None``, the system defaults to ``TOTAL_TRIALS`` trials per
+#   task per iteration. An insufficient ``TOTAL_TRIALS`` setting may lead to undersubscribed
+#   tuning, potentially skipping some tasks entirely. Explicitly setting both parameters
+#   avoids this issue and provides deterministic resource allocation across all tasks.
 #
 # Note: These parameter settings are optimized for quick tutorial demonstration. For production
-# deployments requiring higher performance, we recommend adjusting both MAX_TRIALS_PER_TASK
-# and TOTAL_TRIALS to larger values. This allows more extensive search space exploration
+# deployments requiring higher performance, we recommend adjusting both ``MAX_TRIALS_PER_TASK``
+# and ``TOTAL_TRIALS`` to larger values. This allows more extensive search space exploration
 # and typically yields better performance outcomes.
 
 TOTAL_TRIALS = 512  # Change to 20000 for better performance if needed

@@ -131,8 +131,10 @@ def static_shape_tuning_pipeline(
 
     max_trials_per_task : Optional[int]
         The maximum number of trials to run per task.
-        If not specified, MetaSchedule will use a default value of 64
-        trials per task during the tuning process.
+        If not specified, it defaults to the value of `total_trials`, and this
+        may lead to undersubscribed tuning, potentially skipping some tasks
+        entirely. Explicitly setting both parameters avoids this issue and
+        provides deterministic resource allocation across all tasks.
         For optimal tuning, set `total_trials` to at least
         `max_trials_per_task * number_of_tuning_tasks` to ensure
         each task receives adequate tuning resources in one iteration.
