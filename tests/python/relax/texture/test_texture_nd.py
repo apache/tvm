@@ -33,6 +33,7 @@ from tvm.contrib import ndk
 from tvm import tir, DataType
 from tvm.rpc import connect_tracker
 
+
 def get_rpc():
     """
     Establish an RPC connection to the remote device.
@@ -102,9 +103,7 @@ def postprocess_pipeline(mod: IRModule) -> IRModule:
 
 @tvm.testing.requires_rpc
 @tvm.testing.requires_adreno_opencl
-@pytest.mark.parametrize(
-    "backend", ["opencl"]
-)
+@pytest.mark.parametrize("backend", ["opencl"])
 @pytest.mark.parametrize("dtype", ["int8", "float16", "int16", "float32", "int32"])
 @pytest.mark.parametrize("channel_size", [64, 128])
 @pytest.mark.parametrize("read_width", [1, 2, 4, 8, 16])

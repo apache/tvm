@@ -926,7 +926,7 @@ requires_adreno_opencl = Feature(
     target_kind_enabled="opencl",
     target_kind_hardware=None,
     parent_features="gpu",
-    run_time_check=lambda: os.getenv('RPC_TARGET') is not None,
+    run_time_check=lambda: os.getenv("RPC_TARGET") is not None,
 )
 
 # Mark a test as requiring the OpenCL runtime
