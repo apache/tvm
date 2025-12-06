@@ -40,6 +40,7 @@ template <typename T>
 struct Texture2DShape {
   T width;
   T height;
+  T depth;
   T channel;
 };
 
@@ -60,11 +61,7 @@ inline size_t DefaultTextureLayoutSeparator(size_t shape_rank,
   } else if (convention == "global.texture-weight") {
     separator = 1;
   } else if (convention == "global.texture-nhwc") {
-    if (shape_rank == 3) {
-      separator = 1;
-    } else {
-      separator = 2;
-    }
+    separator = 2;
   } else {
     LOG(FATAL) << "Encountered unknown texture lowering convention: " << convention;
   }
@@ -81,9 +78,11 @@ template <typename T, typename S>
 Texture2DShape<T> ApplyTexture2DFlattening(const S& shape, size_t rank, size_t axis) {
   ICHECK(axis < rank)
       << "Number of axes to flatten into rows must be less than shape rank for 2d flattening";
-  Texture2DShape<T> texture{1, 1, shape[rank - 1]};
+  Texture2DShape<T> texture{1, 1, 1, shape[rank - 1]};
   for (size_t i = 0; i < rank - 1; i++) {
-    if (i < axis) {
+    if (i < (axis - 1)) {
+      texture.depth *= shape[i];
+    } else if (i < axis) {
       texture.height *= shape[i];
     } else {
       texture.width *= shape[i];
@@ -114,7 +113,23 @@ size_t GetTextureMemorySize(T shape, int bits, int lanes, std::string mem_scope,
   auto pack_size = shape[shape.size() - 1];
   auto pixel_size = (bits * lanes + 7) / 8;
   size_t row_pitch = ALIGN_UP(tshape.width * pixel_size * pack_size, image_row_align);
-  return row_pitch * tshape.height;
+  return row_pitch * tshape.height * tshape.depth;
+}
+
+/*!
+ * \brief Returns the standard channel datatype for any given type.
+ * \param channel_size The Number of bits in a Channel
+ * \return DataType to be used in the codegen.
+ */
+inline DataType GetChannelType(size_t channel_size) {
+  DataType channel_type;
+
+  if (channel_size == 128)
+    return DataType::Float(32, 4);
+  else if (channel_size == 64)
+    return DataType::Float(16, 4);
+
+  LOG(FATAL) << "Unsupported Channel Size: " << channel_size;
 }
 
 }  // namespace runtime

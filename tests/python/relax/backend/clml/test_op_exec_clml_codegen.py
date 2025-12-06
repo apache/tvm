@@ -20,6 +20,7 @@ import numpy as np
 import tvm
 import tvm.testing
 import json
+import os
 
 from tvm import relax, rpc
 from tvm.script import relax as R
@@ -73,7 +74,6 @@ def test_conv2d_offload(
     has_pad,
     is_depthwise,
     dtype,
-    rpc,
 ):
     low, high = 0, 1
     data_shape = (1, *shape)
@@ -117,7 +117,7 @@ def test_conv2d_offload(
         has_pad=has_pad,
         is_depthwise=is_depthwise,
     )
-    run_compare(mod, inputs, params_np, rpc)
+    run_compare(mod, inputs, params_np)
 
 
 @tvm.testing.requires_openclml
@@ -131,7 +131,7 @@ def test_conv2d_offload(
         [(1, 256, 1, 1), 1, 3e-4],
     ],
 )
-def test_batchnorm(dtype, trials, rpc):
+def test_batchnorm(dtype, trials):
     low, high = 0, 1
     if clml.clml_sdk_version() < 3:
         print("Skip due to unsupported CLML version:", clml.clml_sdk_version())
@@ -159,7 +159,7 @@ def test_batchnorm(dtype, trials, rpc):
     inputs = [data]
     params_np = {"gamma": gamma, "beta": beta, "moving_mean": mean, "moving_var": variance}
     mod = get_batchnorm_mod(input_shape, channels, axis, epsilon, dtype)
-    run_compare(mod, inputs, params_np, rpc)
+    run_compare(mod, inputs, params_np)
 
 
 @tvm.testing.requires_openclml
@@ -182,9 +182,9 @@ def test_batchnorm(dtype, trials, rpc):
     ],
 )
 @tvm.testing.requires_openclml
-def test_binary_ops(a_shape, b_shape, op, rpc, dtype):
+def test_binary_ops(a_shape, b_shape, op, dtype):
     (mod, inputs) = get_binary_op_mod(a_shape, b_shape, op, dtype)
-    run_compare(mod, inputs, {}, rpc)
+    run_compare(mod, inputs, {})
 
 
 @tvm.testing.requires_openclml
@@ -204,9 +204,9 @@ def test_binary_ops(a_shape, b_shape, op, rpc, dtype):
     ],
 )
 @tvm.testing.requires_openclml
-def test_unary_ops(a_shape, op, rpc, dtype):
+def test_unary_ops(a_shape, op, dtype):
     (mod, inputs) = get_unary_op_mod(a_shape, op, dtype)
-    run_compare(mod, inputs, {}, rpc)
+    run_compare(mod, inputs, {})
 
 
 @tvm.testing.requires_openclml
@@ -223,14 +223,14 @@ def test_unary_ops(a_shape, op, rpc, dtype):
         [(1, 32, 256, 256), (2, 2), (2, 2), (1, 1), (1, 0, 1, 0), True],
     ],
 )
-def test_max_pool(dtype, trials, rpc):
+def test_max_pool(dtype, trials):
     low, high = -1, 1
     (input_shape, pool_size, stride, dilation, padding, has_pad) = trials
     data = np.random.uniform(low, high, size=input_shape).astype(dtype)
     inputs = [data]
     mod = get_relax_maxpool_mod(input_shape, dtype, pool_size, stride, dilation, padding, has_pad)
     params_np = {}
-    run_compare(mod, inputs, params_np, rpc)
+    run_compare(mod, inputs, params_np)
 
 
 @tvm.testing.requires_openclml
@@ -247,14 +247,14 @@ def test_max_pool(dtype, trials, rpc):
         [(1, 32, 256, 256), (2, 2), (2, 2), (1, 1), (1, 0, 1, 0), True],
     ],
 )
-def test_avg_pool(dtype, trials, rpc):
+def test_avg_pool(dtype, trials):
     low, high = -1, 1
     (input_shape, pool_size, stride, dilation, padding, has_pad) = trials
     data = np.random.uniform(low, high, size=input_shape).astype(dtype)
     inputs = [data]
     mod = get_relax_avgpool_mod(input_shape, dtype, pool_size, stride, dilation, padding, has_pad)
     params_np = {}
-    run_compare(mod, inputs, params_np, rpc)
+    run_compare(mod, inputs, params_np)
 
 
 @tvm.testing.requires_openclml
@@ -267,14 +267,14 @@ def test_avg_pool(dtype, trials, rpc):
         [(1, 64, 3, 3), (1, 32, 3, -1)],
     ],
 )
-def test_reshape(dtype, trials, rpc):
+def test_reshape(dtype, trials):
     low, high = -1, 1
     (input_shape, output_shape) = trials
     data = np.random.uniform(low, high, size=input_shape).astype(dtype)
     inputs = [data]
     mod = get_relax_reshape_mod(input_shape, output_shape, dtype)
     params_np = {}
-    run_compare(mod, inputs, params_np, rpc)
+    run_compare(mod, inputs, params_np)
 
 
 @tvm.testing.requires_openclml
@@ -288,7 +288,7 @@ def test_reshape(dtype, trials, rpc):
         [(1, 32, 256, 256), False],
     ],
 )
-def test_global_avg_pool(dtype, trials, rpc):
+def test_global_avg_pool(dtype, trials):
     """Test function for global average pooling."""
     low, high = -1, 1
     (input_shape, keep_dims) = trials
@@ -296,7 +296,7 @@ def test_global_avg_pool(dtype, trials, rpc):
     inputs = [data]
     mod = get_relax_global_avgpool_mod(input_shape, keep_dims, dtype)
     params_np = {}
-    run_compare(mod, inputs, params_np, rpc)
+    run_compare(mod, inputs, params_np)
 
 
 @tvm.testing.requires_openclml
@@ -310,7 +310,7 @@ def test_global_avg_pool(dtype, trials, rpc):
         [(1, 32, 256, 256), False],
     ],
 )
-def test_global_max_pool(dtype, trials, rpc):
+def test_global_max_pool(dtype, trials):
     """Test function for global average pooling."""
     low, high = -1, 1
     (input_shape, keep_dims) = trials
@@ -322,7 +322,7 @@ def test_global_max_pool(dtype, trials, rpc):
     inputs = [data]
     mod = get_relax_global_maxpool_mod(input_shape, keep_dims, dtype)
     params_np = {}
-    run_compare(mod, inputs, params_np, rpc)
+    run_compare(mod, inputs, params_np)
 
 
 if __name__ == "__main__":

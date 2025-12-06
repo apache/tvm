@@ -92,7 +92,13 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   Expr MakeMemAllocTensor(const Call& call) {
     PrimValue offset = Downcast<PrimValue>(call->args[1]);
     DataTypeImm dtype = Downcast<DataTypeImm>(call->args[3]);
-    return Call(vm_alloc_tensor_op_, {call->args[0], offset, call->args[2], dtype}, Attrs());
+
+    ffi::Array<Expr> call_args = {call->args[0], offset, call->args[2], dtype};
+    if (5 == call->args.size()) {
+      call_args.push_back(call->args[4]);
+    }
+
+    return Call(vm_alloc_tensor_op_, call_args, Attrs());
   }
 
   Expr MakeMemKillObject(const Call& call) {
@@ -168,8 +174,10 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     VDevice vdev = attrs->dst_vdevice;
     int dev_type = vdev->target->GetTargetDeviceType();
     int dev_id = vdev->vdevice_id;
+    StringImm storage_scope = StringImm(vdev->memory_scope);
     args.push_back(PrimValue::Int64(dev_type));
     args.push_back(PrimValue::Int64(dev_id));
+    args.push_back(storage_scope);
     return Call(builtin_to_device_, args, call_node->attrs, {GetStructInfo(call_node)});
   }
 

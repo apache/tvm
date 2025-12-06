@@ -39,7 +39,6 @@ echo set\(USE_OPENCL ON\) >> config.cmake
 fi
 echo set\(USE_RPC ON\) >> config.cmake
 echo set\(USE_CPP_RPC ON\) >> config.cmake
-#echo set\(USE_CPP_RTVM ON\) >> config.cmake
 echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake
 echo set\(USE_KALLOC_ALIGNMENT 32\) >> config.cmake
 
@@ -50,8 +49,12 @@ echo set\(MACHINE_NAME aarch64-linux-gnu\) >> config.cmake
 echo set\(USE_OPENCL_GTEST ON\) >> config.cmake
 
 echo set\(USE_OPENCL_EXTN_QCOM ON\) >> config.cmake
+echo set\(PROFILE_SHADER_DUMP ON\) >> config.cmake
 
 cmake -DANDROID_ABI=arm64-v8a \
+      -DCMAKE_SYSTEM_NAME=Android \
+      -DCMAKE_ANDROID_ARCH_ABI="arm64-v8a" \
+      -DCMAKE_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/" \
       -DANDROID_PLATFORM=android-28 \
       -DCMAKE_SYSTEM_VERSION=1 \
       -DCMAKE_FIND_ROOT_PATH="${ADRENO_OPENCL}" \
