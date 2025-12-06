@@ -42,6 +42,7 @@ def verify_model(
     unwrap_unit_return_tuple=False,
     no_bind_return_tuple=False,
     map_free_vars=False,
+    custom_convert_map=None,
 ):
     exported_program = export(torch_model, args=example_args, dynamic_shapes=dynamic_shapes)
     mod = from_exported_program(
@@ -50,6 +51,7 @@ def verify_model(
         keep_params_as_input=keep_params_as_input,
         unwrap_unit_return_tuple=unwrap_unit_return_tuple,
         no_bind_return_tuple=no_bind_return_tuple,
+        custom_convert_map=custom_convert_map,
     )
 
     binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
@@ -6523,6 +6525,40 @@ def test_register_buffer():
     ep = export(ModelWithBuffer(), args=example_args)
     # Just verify that import works.
     from_exported_program(ep)
+
+
+def test_custom_op():
+    class AddOp(Module):
+        def forward(self, x, y):
+            return torch.ops.aten.add.Tensor(x, y)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((5,), dtype="float32"),
+            y: R.Tensor((5,), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((5,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((5,), dtype="float32") = R.subtract(x, y)
+                gv: R.Tuple(R.Tensor((5,), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    from tvm.relax.frontend.torch.exported_program_translator import (
+        ExportedProgramImporter,
+    )
+
+    def custom_add_converter(node: torch.fx.Node, self: ExportedProgramImporter) -> relax.Var:
+        x = self.env[node.args[0]]
+        y = self.env[node.args[1]]
+
+        return self.block_builder.emit(R.subtract(x, y))
+
+    example_args = (torch.randn(5, dtype=torch.float32), torch.randn(5, dtype=torch.float32))
+    verify_model(
+        AddOp(), example_args, {}, Expected, custom_convert_map={"add.Tensor": custom_add_converter}
+    )
 
 
 def test_empty_like():
