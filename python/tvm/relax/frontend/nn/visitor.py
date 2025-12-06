@@ -79,6 +79,24 @@ class Mutator:
         """
         return self.visit(name, node)
 
+    def visit_moduledict(self, name: str, node: nn.ModuleDict) -> Any:
+        """The base visiting method for mutation of nn.ModuleDict nodes.
+
+        Parameters
+        ----------
+        name : str
+            The name of the current node in parent's attribute.
+
+        node : nn.ModuleDict
+            The current node of nn.ModuleDict to mutate.
+
+        Returns
+        ------
+        ret_node: Any
+            The new node to replace current node.
+        """
+        return self.visit(name, node)
+
     def visit_modulelist(self, name: str, node: nn.ModuleList) -> Any:
         """The base visiting method for mutation of nn.ModuleList nodes.
 
@@ -88,7 +106,7 @@ class Mutator:
             The name of the current node in parent's attribute.
 
         node : nn.ModuleList
-            The current node of nn.MoModuleListdule to mutate.
+            The current node of nn.ModuleList to mutate.
 
         Returns
         ------
@@ -124,7 +142,9 @@ class Mutator:
 
         if isinstance(node, nn.ModuleList):
             for i in range(len(node)):
-                if isinstance(node[i], nn.ModuleList):
+                if isinstance(node[i], nn.ModuleDict):
+                    node[i] = self.visit_moduledict(f"{name}.{i}", node[i])
+                elif isinstance(node[i], nn.ModuleList):
                     node[i] = self.visit_modulelist(f"{name}.{i}", node[i])
                 elif isinstance(node[i], nn.Module):
                     node[i] = self.visit_module(f"{name}.{i}", node[i])
@@ -132,9 +152,23 @@ class Mutator:
                     node[i] = self.visit_effect(f"{name}.{i}", node[i])
                 elif isinstance(node[i], nn.Parameter):
                     node[i] = self.visit_param(f"{name}.{i}", node[i])
+        elif isinstance(node, nn.ModuleDict):
+            for k, v in node.items():
+                if isinstance(v, nn.ModuleDict):
+                    node[k] = self.visit_moduledict(_get_child_name(name, k), v)
+                elif isinstance(v, nn.ModuleList):
+                    node[k] = self.visit_modulelist(_get_child_name(name, k), v)
+                elif isinstance(v, nn.Module):
+                    node[k] = self.visit_module(_get_child_name(name, k), v)
+                elif isinstance(v, nn.Effect):
+                    node[k] = self.visit_effect(_get_child_name(name, k), v)
+                elif isinstance(v, nn.Parameter):
+                    node[k] = self.visit_param(_get_child_name(name, k), v)
         else:
             for key, value in node.__dict__.items():
-                if isinstance(value, nn.ModuleList):
+                if isinstance(value, nn.ModuleDict):
+                    setattr(node, key, self.visit_moduledict(_get_child_name(name, key), value))
+                elif isinstance(value, nn.ModuleList):
                     setattr(node, key, self.visit_modulelist(_get_child_name(name, key), value))
                 elif isinstance(value, nn.Module):
                     setattr(node, key, self.visit_module(_get_child_name(name, key), value))

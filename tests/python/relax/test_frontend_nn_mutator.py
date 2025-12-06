@@ -65,6 +65,37 @@ def test_mutator_naming_basic():
     mutator.visit("mod3", mod3)
 
 
+def test_mutator_naming_moduledict():
+    class Module(nn.Module):
+        def __init__(self, dtype) -> None:
+            super().__init__()
+            self.param = nn.Parameter((32, 128), dtype)
+
+    class Mutator(nn.Mutator):
+        def visit_param(self, name: str, node: nn.Parameter) -> Any:
+            if node.dtype == "float64":
+                assert name == "mod_dict.k0.0.param"
+                return node
+            elif node.dtype == "float32":
+                assert name == "mod_dict.k0.1.param"
+                return node
+            elif node.dtype == "float16":
+                assert name == "mod_dict.k1.0.param"
+                return node
+            elif node.dtype == "float8":
+                assert name == "mod_dict.k1.1.param"
+                return node
+
+    mod_dict = nn.ModuleDict(
+        {
+            "k0": nn.ModuleList([Module("float64"), Module("float32")]),
+            "k1": nn.ModuleList([Module("float16"), Module("float8")]),
+        }
+    )
+    mutator = Mutator()
+    mutator.visit("mod_dict", mod_dict)
+
+
 def test_mutator_naming_modulelist():
     class Module(nn.Module):
         def __init__(self, dtype) -> None:
@@ -124,6 +155,37 @@ def test_mutator_module():
     assert isinstance(module.mod, SubModule2)
 
 
+def test_mutator_moduledict():
+    class Module1(nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+
+    class Module2(nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+
+    class Module3(nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+
+    class Mutator(nn.Mutator):
+        def visit_module(self, name: str, node: nn.Module) -> Any:
+            if isinstance(node, Module3):
+                return Module1()
+            else:
+                return node
+
+    mutator = Mutator()
+    module_dict = nn.ModuleDict({"k0": Module1(), "k1": Module2(), "k2": Module3()})
+    assert isinstance(module_dict["k0"], Module1)
+    assert isinstance(module_dict["k1"], Module2)
+    assert isinstance(module_dict["k2"], Module3)
+    module_dict = mutator.visit("", module_dict)
+    assert isinstance(module_dict["k0"], Module1)
+    assert isinstance(module_dict["k1"], Module2)
+    assert isinstance(module_dict["k2"], Module1)
+
+
 def test_mutator_modulelist():
     class Module1(nn.Module):
         def __init__(self) -> None:
@@ -150,7 +212,6 @@ def test_mutator_modulelist():
     assert isinstance(module_list[1], Module2)
     assert isinstance(module_list[2], Module3)
     module_list = mutator.visit("", module_list)
-    print(module_list[2])
     assert isinstance(module_list[0], Module1)
     assert isinstance(module_list[1], Module2)
     assert isinstance(module_list[2], Module1)
