@@ -16,13 +16,15 @@
 # under the License.
 """Basic tests for a Disco nvshmem support"""
 # pylint: disable=missing-docstring
-import tempfile
-
 import numpy as np
 import pytest
+
+import shutil
 import subprocess
-import threading
 import sys
+import tempfile
+import threading
+import multiprocessing
 from multiprocessing import Process
 from typing import Any, Callable, List
 
@@ -160,7 +162,8 @@ def test_nvshmem_compile():
                     T.writes(B[v1, v0])
                     B[v1, v0] = A[v0, v1]
 
-    with tempfile.TemporaryDirectory() as tmpdir:
+    tmpdir = tempfile.mkdtemp()
+    try:
         path = tmpdir + "/test.so"
         A_np = np.arange(8 * 16).astype("float32").reshape([8, 16])
         B_np = np.zeros((16, 8), dtype="float32")
@@ -180,9 +183,101 @@ def test_nvshmem_compile():
         # finish the execution
         sess._sync_all()
 
-    finalize_dfunc = sess.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
-    finalize_dfunc()
-    sess.sync_worker_0()
+        finalize_dfunc = sess.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
+        finalize_dfunc()
+        sess.sync_worker_0()
+    finally:
+        sess.shutdown()
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def test_nvshmem_compile_nvshmem_module(
+    session_kind: di.Session, num_workers: int, compile_mode: str
+):
+    import tvm.contrib.nvcc
+
+    if tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid", True) is None:
+        return
+
+    # Check NVSHMEM availability
+    try:
+        nvshmem_include_path, nvshmem_lib_path = tvm.contrib.nvcc.find_nvshmem_paths()
+    except RuntimeError:
+        print("NVSHMEM not found, skipping compile test")
+        return
+
+    if compile_mode == "nvrtc":
+        try:
+            from cuda.bindings import nvrtc
+        except ImportError:
+            print("cuda-python not installed, skipping nvrtc test")
+            return
+
+    # Hook the compile callback to inject headers and set compiler
+    current_callback = tvm.get_global_func("tvm_callback_cuda_compile")
+
+    def compile_callback(code, target):
+        # Inject headers
+        code = "#include <nvshmem.h>\n#include <nvshmemx.h>\n" + code
+
+        if compile_mode == "nvcc":
+            return tvm.contrib.nvcc.compile_cuda(code, target_format="fatbin", compiler="nvcc")
+        elif compile_mode == "nvrtc":
+            options = ["-I" + nvshmem_include_path]
+            return tvm.contrib.nvcc.compile_cuda(
+                code, target_format="cubin", options=options, compiler="nvrtc"
+            )
+        else:
+            raise ValueError(f"Unknown mode {compile_mode}")
+
+    tvm.register_global_func("tvm_callback_cuda_compile", compile_callback, override=True)
+
+    try:
+        sess = session_kind(num_workers=num_workers)
+        f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+        uid = f_init_nvshmem_uid()
+        init_dfunc = sess.get_global_func("runtime.disco.nvshmem.init_nvshmem")
+        init_dfunc(uid, num_workers, 0)
+        sess.sync_worker_0()
+
+        @T.prim_func
+        def main(out: T.Buffer((1,), "int32")):
+            for bx in T.thread_binding(1, thread="blockIdx.x"):
+                for tx in T.thread_binding(1, thread="threadIdx.x"):
+                    out[0] = T.call_extern("int32", "nvshmem_my_pe")
+
+        tmpdir = tempfile.mkdtemp()
+        path = tmpdir + "/test.so"
+
+        target = tvm.target.Target("cuda")
+        mod = tvm.compile(main, target=target)
+        mod.export_library(path)
+
+        mod_remote = sess.load_vm_module(path)
+        a_array = sess.empty((1,), "int32")
+
+        mod_remote["main"](a_array)
+        sess.sync_worker_0()
+
+        for i in range(num_workers):
+            res = a_array.debug_get_from_remote(i).numpy()
+            assert res[0] == i, f"Worker {i} result {res[0]} != {i}"
+
+        # sync all workers to make sure the temporary files are cleaned up after all workers
+        # finish the execution
+        sess._sync_all()
+
+        finalize_dfunc = sess.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
+        finalize_dfunc()
+        sess.sync_worker_0()
+
+    except Exception as e:
+        print(f"Test failed with {compile_mode}: {e}")
+        raise e
+    finally:
+        tvm.register_global_func("tvm_callback_cuda_compile", current_callback, override=True)
+        sess.shutdown()
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 if __name__ == "__main__":
@@ -190,14 +285,33 @@ if __name__ == "__main__":
     # or `nvshmem_init_thread` in the same program results in undefined behavior.
     # So we always create a new process to run the test. Then no repeated nvshmem
     # init happens in the same process, since the worker0 may share the same process.
+
+    # Use 'spawn' start method to avoid inheriting CUDA state from parent process
+    # 'fork' (default on Linux) can cause issues with CUDA contexts in child processes
+    multiprocessing.set_start_method("spawn", force=True)
+
     for session_kind in [create_socket_session, di.ProcessSession]:
         for num_workers in [2, 4]:
             for test_func in [test_nvshmem_init_finalize, test_nvshmem_empty]:
                 p = Process(target=test_func, args=[session_kind, num_workers])
                 p.start()
                 p.join()
+                # Ensure the process finished successfully
+                assert p.exitcode == 0, (
+                    f"Test {test_func.__name__} failed with exit code {p.exitcode}"
+                )
 
     # testing compilation flow
     p = Process(target=test_nvshmem_compile)
     p.start()
     p.join()
+    assert p.exitcode == 0, f"Test test_nvshmem_compile failed with exit code {p.exitcode}"
+
+    # testing compilation flow for nvshmem module
+    for compile_mode in ["nvcc", "nvrtc"]:
+        p = Process(
+            target=test_nvshmem_compile_nvshmem_module, args=[di.ProcessSession, 4, compile_mode]
+        )
+        p.start()
+        p.join()
+        assert p.exitcode == 0, f"Test test_nvshmem_compile_integration failed with {compile_mode}"

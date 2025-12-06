@@ -17,6 +17,7 @@
 """External kernel integration fro TIR"""
 import json
 import logging
+import os
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
@@ -134,8 +135,13 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
 
         with tempfile.TemporaryDirectory() as temp_dir:
             ptx_path = f"{temp_dir}/{kernel_name}.ptx"
+            compiler = os.environ.get("TVM_CUDA_COMPILE_MODE", "nvcc")
             nvcc.compile_cuda(
-                source_code, target_format="ptx", options=compile_options, path_target=ptx_path
+                source_code,
+                target_format="ptx",
+                options=compile_options,
+                path_target=ptx_path,
+                compiler=compiler,
             )
             with open(ptx_path, "r") as f:
                 ptx = f.read()
