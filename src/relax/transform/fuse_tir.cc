@@ -357,17 +357,43 @@ class BlockNameDeduplicator : public tir::StmtMutator {
   }
 
   ffi::String GetUniqueName(const ffi::String& prefix) {
-    ffi::String unique_prefix = prefix;
-    auto it = name_count_.find(prefix);
-    while (name_count_.count(unique_prefix)) {
-      unique_prefix = prefix + "_" + std::to_string(++it->second);
+    std::string str_prefix = std::string(prefix);
+
+    // Find where the trailing digits start
+    size_t base_len = str_prefix.length();
+    while (base_len > 0 && std::isdigit(str_prefix[base_len - 1])) {
+      --base_len;
     }
-    name_count_[unique_prefix] = 0;
-    return unique_prefix;
+
+    std::string base_name;
+    int start_num = 0;
+
+    if (base_len < str_prefix.length()) {
+      base_name = str_prefix.substr(0, base_len);
+      start_num = std::stoi(str_prefix.substr(base_len));
+    } else {
+      base_name = str_prefix;
+    }
+
+    // Check if the original name is available
+    ffi::String candidate = prefix;
+    if (!name_count_.count(candidate)) {
+      name_count_[candidate] = 0;
+      return candidate;
+    }
+
+    // Generate unique name by incrementing the numeric suffix
+    int counter = (start_num > 0) ? start_num + 1 : 1;
+    while (true) {
+      candidate = ffi::String(base_name + std::to_string(counter));
+      if (!name_count_.count(candidate)) {
+        name_count_[candidate] = 0;
+        return candidate;
+      }
+      ++counter;
+    }
   }
 
-  // TODO(relax-team): It should detects the number suffix and do renaming properly
-  // e.g. GetUniqueName("name1") should return "name2" instead of "name10".
   /*! \brief The count map to make block name unique. */
   std::unordered_map<ffi::String, int> name_count_;
 };
