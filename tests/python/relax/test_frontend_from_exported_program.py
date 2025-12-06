@@ -6231,6 +6231,43 @@ def test_masked_fill_inplace():
     verify_model(Masked_Fill_Inplace(), example_args, {}, Expected)
 
 
+def test_masked_select():
+    class MaskedSelect(Module):
+        def forward(self, data: torch.Tensor, mask: torch.Tensor):
+            return torch.masked_select(data, mask)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            data: R.Tensor((2, 3), dtype="float32"), mask: R.Tensor((2, 3), dtype="bool")
+        ) -> R.Tuple(R.Tensor(dtype="float32", ndim=1)):
+            R.func_attr(
+                {
+                    "tir_var_lower_bound": {"u0": 0, "u1": 0},
+                    "tir_var_upper_bound": {"u0": 6, "u1": 6},
+                }
+            )
+            with R.dataflow():
+                lv: R.Tensor((6,), dtype="float32") = R.reshape(data, R.shape([6]))
+                lv1: R.Tensor((6,), dtype="bool") = R.reshape(mask, R.shape([6]))
+                lv2: R.Tensor(dtype="int64", ndim=2) = R.nonzero(lv1)
+                lv3: R.Tensor(dtype="int64", ndim=1) = R.squeeze(lv2, axis=[0])
+                lv4: R.Tensor(dtype="float32", ndim=1) = R.take(lv, lv3, axis=0, mode="fast")
+                lv5: R.Tensor((), dtype="int64") = R.const(0, "int64")
+                lv6: R.Tensor((), dtype="bool") = R.const(True, "bool")
+                lv7: R.Tensor((), dtype="bool") = R.const(True, "bool")
+                gv: R.Tuple(R.Tensor(dtype="float32", ndim=1)) = (lv4,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(2, 3, dtype=torch.float32),
+        torch.tensor([[True, False, True], [False, True, False]]),
+    )
+    verify_model(MaskedSelect(), example_args, {}, Expected)
+
+
 def test_new_ones():
     class NewOnes(Module):
         def forward(self, x):

@@ -23,6 +23,7 @@ from functools import reduce
 import math
 from typing import Callable, Dict, Optional, Tuple, Union, List
 
+import tvm
 from tvm import relax, tir
 
 
@@ -2384,6 +2385,26 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             x = self.block_builder.emit(relax.op.astype(x, fill_dtype))
 
         return self.block_builder.emit(relax.op.where(mask, values, x))
+
+    def _masked_select(self, node: fx.Node) -> relax.Var:
+        data = self.env[node.args[0]]
+        mask = self.env[node.args[1]]
+
+        data_shape = self.shape_of(data)
+        mask_shape = self.shape_of(mask)
+        shapes_equal = tvm.ir.structural_equal(data_shape, mask_shape)
+
+        if not shapes_equal:
+            mask = self.block_builder.emit(relax.op.broadcast_to(mask, data_shape))
+
+        data_flat = self.block_builder.emit(relax.op.reshape(data, [-1]))
+        mask_flat = self.block_builder.emit(relax.op.reshape(mask, [-1]))
+        indices = self.block_builder.emit(relax.op.nonzero(mask_flat))
+        indices_1d = self.block_builder.emit(relax.op.squeeze(indices, axis=[0]))
+
+        result = self.block_builder.emit(relax.op.take(data_flat, indices_1d, axis=0))
+
+        return result
 
     def _new_ones(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
