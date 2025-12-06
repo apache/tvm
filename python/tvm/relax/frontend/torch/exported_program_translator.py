@@ -47,6 +47,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         -------
         tvm.runtime.Tensor
             The converted TVM tensor.
+
+        Raises
+        ------
+        RuntimeError
+            If the tensor is a FakeTensor or other tensor subclass that cannot be converted.
         """
         # PyTorch sparse tensors (layout != torch.strided) must be converted to dense.
         if tensor_value.layout != torch.strided:
@@ -1688,11 +1693,27 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         binding = {}
         for tensor_name, tensor_value in to_bind_parameters.items():
             # find relax var name from graph signature
+            bind_name = None
             for spec in exported_program.graph_signature.input_specs:
                 if tensor_name == spec.target:
                     bind_name = spec.arg.name
                     break
-            binding[bind_name] = self._convert_pytorch_tensor_to_tvm(tensor_value)
+            if bind_name is None:
+                # Skip tensors that don't have corresponding input specs
+                # (e.g., lifted_tensor from torch.export)
+                continue
+            try:
+                binding[bind_name] = self._convert_pytorch_tensor_to_tvm(tensor_value)
+            except RuntimeError as e:
+                # Skip FakeTensor/lifted tensors that cannot be converted
+                # These are typically intermediate tensors that torch.export couldn't properly lift
+                import warnings
+
+                warnings.warn(
+                    f"Skipping parameter '{tensor_name}' (bind_name: '{bind_name}'): "
+                    f"Cannot convert tensor to TVM format: {e}"
+                )
+                continue
 
         mod = self.block_builder.get()
         mod = relax.transform.BindParams("main", binding)(mod)
