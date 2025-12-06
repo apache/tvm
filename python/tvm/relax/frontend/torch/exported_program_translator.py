@@ -337,11 +337,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             )
 
         else:
-            # TODO figure out why pytorch export passes a list such as
-            # [scale_factor,scale_factor] instead of just an int for
-            # scale_factor. Using first element for now
+            # PyTorch export passes scale_factor as either a scalar or a list/tuple
+            # (e.g., [2.0, 3.0] for different H and W scaling).
+            # Pass it as-is to _upsample_impl which handles both cases correctly.
             scale_factor = (
-                node.args[2][0] if len(node.args) > 2 else node.kwargs.get("scale_factor", 1)
+                node.args[2] if len(node.args) > 2 else node.kwargs.get("scale_factor", 1)
             )
             align_corners = (
                 node.args[3] if len(node.args) > 3 else node.kwargs.get("align_corners", None)
@@ -364,11 +364,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         if size is not None:
             scale_factor = None
         else:
-            scale_arg = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", 1)
-            if isinstance(scale_arg, (list, tuple)):
-                scale_factor = scale_arg[0]
-            else:
-                scale_factor = scale_arg
+            # PyTorch export passes scale_factor as either a scalar or a list/tuple.
+            # Pass it as-is to _upsample_impl which handles both cases correctly.
+            scale_factor = (
+                node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", 1)
+            )
 
         return self._upsample_impl(
             x,
