@@ -715,5 +715,22 @@ def test_module_list():
     assert ["layers.0.0.weight", "layers.0.1.weight"] == sorted(list(named_params.keys()))
 
 
+def test_module_dict():
+    class Module(nn.Module):
+        def __init__(self):
+            self.layers = nn.ModuleDict(
+                {"linear0": nn.Linear(4, 4, bias=False), "linear1": nn.Linear(4, 4, bias=False)}
+            )
+
+        def forward(self, x: nn.Tensor):
+            x = self.layers["linear0"](x)
+            x = self.layers["linear1"](x)
+            return x
+
+    mod = Module()
+    named_params = dict(mod.named_parameters())
+    assert ["layers.linear0.weight", "layers.linear1.weight"] == sorted(list(named_params.keys()))
+
+
 if __name__ == "__main__":
     tvm.testing.main()

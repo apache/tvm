@@ -540,6 +540,56 @@ class Module(SubroutineMixin):
         raise ValueError(f"Unknown out_format: {out_format}")
 
 
+class ModuleDict(Module):
+    """Holds submodules in a dict."""
+
+    def __init__(self, modules: Optional[OrderedDict[str, Module]] = None):
+        if modules is None:
+            self.modules = OrderedDict()
+        else:
+            self.modules = OrderedDict(modules)
+
+    def __iter__(self):
+        return iter(self.modules.values())
+
+    def __getitem__(self, key: str) -> Module:
+        return self.modules[key]
+
+    def __setitem__(self, key: str, module: Module) -> None:
+        self.modules[key] = module
+
+    def __len__(self) -> int:
+        return len(self.modules)
+
+    def keys(self) -> Iterator[str]:
+        return self.modules.keys()
+
+    def values(self) -> Iterator[Module]:
+        return self.modules.values()
+
+    def items(self) -> Iterator[Tuple[str, Module]]:
+        return self.modules.items()
+
+    def get(self, key: str, default: Optional[Module] = None) -> Optional[Module]:
+        return self.modules.get(key, default)
+
+    def update(self, modules: Dict[str, Module]) -> None:
+        self.modules.update(modules)
+
+    def clear(self) -> None:
+        self.modules.clear()
+
+    def pop(self, key: str) -> Module:
+        return self.modules.pop(key)
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.modules
+
+    def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
+        for module in self.modules.values():
+            module.to(dtype=dtype)
+
+
 class ModuleList(Module):
     """Holds submodules in a list."""
 
@@ -611,6 +661,10 @@ def _attribute_finder(root: Module, prefix: str, condition_yield: Callable[[Any]
         for i, subitem in enumerate(root):
             yield from _attribute_finder(subitem, prefix + f"{i}.", condition_yield)
         return
+    elif isinstance(root, ModuleDict):
+        for name, subitem in root.items():
+            yield from _attribute_finder(subitem, prefix + f"{name}.", condition_yield)
+        return
     for name, item in root.__dict__.items():
         if condition_yield(item):
             yield prefix + name, item
@@ -620,6 +674,13 @@ def _attribute_finder(root: Module, prefix: str, condition_yield: Callable[[Any]
                 prefix + name + ".",
                 condition_yield,
             )
+        elif isinstance(item, ModuleDict):
+            for sub_name, sub_item in item.items():
+                yield from _attribute_finder(
+                    sub_item,
+                    prefix + name + f".{sub_name}.",
+                    condition_yield,
+                )
         elif isinstance(item, Module):
             yield from _attribute_finder(
                 item,
