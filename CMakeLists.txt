@@ -492,6 +492,8 @@ tvm_option(USE_Z3 "Build with Z3 SMT solver support (OFF/pypi/system)" OFF)
 if (USE_Z3)
   if (USE_Z3 STREQUAL "pypi")
     find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    # In python separate build, the z3 module is installed in a temporary directory
+    # so we need to find it.
     execute_process(
       COMMAND "${Python_EXECUTABLE}" -c "import z3; print(z3.__path__[0])"
       OUTPUT_VARIABLE Z3_PATH
@@ -587,6 +589,8 @@ if (USE_Z3)
   if (USE_Z3 STREQUAL "pypi")
     set(Z3_REL_RPATH "$ORIGIN/../z3/lib")
     set_property(TARGET tvm APPEND PROPERTY BUILD_RPATH ${Z3_REL_RPATH})
+    # add python sitelib to rpath to enable load the module in build directory
+    set_property(TARGET tvm APPEND PROPERTY BUILD_RPATH ${Python3_SITELIB}/z3/lib)
   elseif (Z3_LIBRARY_PATH)
     set_property(TARGET tvm APPEND PROPERTY BUILD_RPATH ${Z3_LIBRARY_PATH})
   endif()
