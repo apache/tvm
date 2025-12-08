@@ -73,6 +73,9 @@ importer-paddle = ["paddlepaddle"]
 autotvm = ["xgboost"]
 autoscheduler = ["xgboost"]
 
+# SMT support
+z3 = ["z3-solver>=4.13.0"]
+
 # Development and testing
 dev = [
     "black",
@@ -123,8 +126,6 @@ Repository = "https://github.com/apache/tvm"
 # Point to the root CMakeLists.txt
 cmake.source-dir = "."
 cmake.build-type = "Release"
-
-build.requires = ["z3-solver>=4.13.0"]
 
 # Configure the wheel to be Python version-agnostic
 wheel.py-api = "py3"
