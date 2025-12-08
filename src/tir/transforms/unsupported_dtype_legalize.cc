@@ -329,7 +329,7 @@ class ComputeLegalizer : public StmtExprMutator {
         // this happens when buffer get rewritten to f32
         // but values remain as fp8/bf16
         ICHECK(MatchDType(value->dtype));
-        value = cast(new_buf->dtype.with_lanes(value.dtype().lanes()), value);
+        value = DTypeConversion(value, new_buf->dtype.with_lanes(value.dtype().lanes()));
       }
       ICHECK(!op->predicate.defined()) << "Predicated buffer store is not currently supported in "
                                           "data type legalizer pass.";
