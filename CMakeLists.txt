@@ -493,7 +493,7 @@ if (USE_Z3)
   if (USE_Z3 STREQUAL "pypi")
     find_package(Python3 COMPONENTS Interpreter REQUIRED)
     execute_process(
-      COMMAND "${Python_EXECUTABLE}" -c 'import z3; print(z3.__path__[0])'
+      COMMAND "${Python_EXECUTABLE}" -c "import z3; print(z3.__path__[0])"
       OUTPUT_VARIABLE Z3_PATH
       OUTPUT_STRIP_TRAILING_WHITESPACE
     )
