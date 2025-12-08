@@ -492,9 +492,13 @@ tvm_option(USE_Z3 "Build with Z3 SMT solver support (OFF; pypi; system)" OFF)
 if (USE_Z3)
   if (USE_Z3 STREQUAL "pypi")
     find_package(Python3 COMPONENTS Interpreter REQUIRED)
-    find_path(Z3_INCLUDE_DIR NO_DEFAULT_PATH NAMES z3++.h PATHS ${Python3_SITELIB}/z3/include)
-    find_library(Z3_LIBRARY NO_DEFAULT_PATH NAMES z3 libz3 PATHS ${Python3_SITELIB}/z3/lib)
-    message("FIND Z3 in Python3 site-packages: ${Python3_SITELIB}/z3")
+    execute_process(
+      COMMAND "${Python_EXECUTABLE}" -c 'import z3; print(z3.__path__[0])'
+      OUTPUT_VARIABLE Z3_PATH
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    find_path(Z3_INCLUDE_DIR NO_DEFAULT_PATH NAMES z3++.h PATHS ${Z3_PATH}/include)
+    find_library(Z3_LIBRARY NO_DEFAULT_PATH NAMES z3 libz3 PATHS ${Z3_PATH}/lib)
   elseif (USE_Z3 STREQUAL "system")
     find_path(Z3_INCLUDE_DIR NAMES z3++.h)
     find_library(Z3_LIBRARY NAMES z3 libz3)
