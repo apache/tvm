@@ -499,6 +499,7 @@ if (USE_Z3)
       OUTPUT_VARIABLE Z3_PATH
       OUTPUT_STRIP_TRAILING_WHITESPACE
     )
+    message(STATUS "Found Z3_PATH=${Z3_PATH}")
     find_path(Z3_INCLUDE_DIR NO_DEFAULT_PATH NAMES z3++.h PATHS ${Z3_PATH}/include)
     find_library(Z3_LIBRARY NO_DEFAULT_PATH NAMES z3 libz3 PATHS ${Z3_PATH}/lib)
   elseif (USE_Z3 STREQUAL "system")
