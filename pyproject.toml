@@ -16,7 +16,7 @@
 # under the License.
 
 [build-system]
-requires = ["scikit-build-core>=0.10.0", "z3-solver>=4.13.0"]
+requires = ["scikit-build-core>=0.10.0"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -123,6 +123,8 @@ Repository = "https://github.com/apache/tvm"
 # Point to the root CMakeLists.txt
 cmake.source-dir = "."
 cmake.build-type = "Release"
+
+build.requires = ["z3-solver>=4.13.0"]
 
 # Configure the wheel to be Python version-agnostic
 wheel.py-api = "py3"

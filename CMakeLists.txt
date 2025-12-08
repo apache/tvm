@@ -483,23 +483,28 @@ include(cmake/modules/Git.cmake)
 include(cmake/modules/LibInfo.cmake)
 include(cmake/modules/contrib/Mrvl.cmake)
 
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
-find_path(
-  Z3_INCLUDE_DIR
-  NO_DEFAULT_PATH
-  NAMES z3++.h
-  PATHS ${Python3_SITELIB}/z3/include
-)
-find_path(
-  Z3_LIBRARIES
-  NO_DEFAULT_PATH
-  NAMES libz3.so
-  PATHS ${Python3_SITELIB}/z3/lib
-)
-add_library(z3_header INTERFACE)
-target_include_directories(z3_header INTERFACE ${Z3_INCLUDE_DIR})
-add_library(z3_shared INTERFACE)
-target_link_libraries(z3_shared INTERFACE ${Z3_LIBRARIES})
+tvm_option(USE_Z3 "Build with Z3 SMT solver support (OFF; pypi; system)" OFF)
+
+if (USE_Z3)
+  if (USE_Z3 STREQUAL "pypi") 
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    find_path(Z3_INCLUDE_DIR NO_DEFAULT_PATH NAMES z3++.h PATHS ${Python3_SITELIB}/z3/include)
+    find_path(Z3_LIBRARY_PATH NO_DEFAULT_PATH NAMES libz3.so PATHS ${Python3_SITELIB}/z3/lib)
+  endif()
+  if (USE_Z3 STREQUAL "system")
+    find_path(Z3_INCLUDE_DIR NAMES z3++.h)
+    find_path(Z3_LIBRARY_PATH NAMES libz3.so)
+  endif()
+  add_library(z3_header INTERFACE)
+  target_include_directories(z3_header INTERFACE ${Z3_INCLUDE_DIR})
+  add_library(z3_shared INTERFACE)
+  target_link_libraries(z3_shared INTERFACE ${Z3_LIBRARY_PATH}/libz3.so)
+  message(STATUS "Found Z3_INCLUDE_DIR=${Z3_INCLUDE_DIR}")
+  message(STATUS "Found Z3_LIBRARY_PATH=${Z3_LIBRARY_PATH}")
+  list(APPEND COMPILER_SRCS src/target/z3/z3_prover_on.cc)
+else (USE_Z3)
+  list(APPEND COMPILER_SRCS src/target/z3/z3_prover_off.cc)
+endif (USE_Z3)
 
 set(LIBINFO_FILE ${CMAKE_CURRENT_LIST_DIR}/src/support/libinfo.cc)
 add_lib_info(${LIBINFO_FILE})
@@ -508,7 +513,7 @@ list(REMOVE_ITEM COMPILER_SRCS ${LIBINFO_FILE})
 add_library(tvm_objs OBJECT ${COMPILER_SRCS})
 add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
 add_library(tvm_libinfo_objs OBJECT ${LIBINFO_FILE})
-target_link_libraries(tvm_objs PUBLIC tvm_ffi_header z3_header)
+target_link_libraries(tvm_objs PUBLIC tvm_ffi_header)
 target_link_libraries(tvm_runtime_objs PUBLIC tvm_ffi_header)
 target_link_libraries(tvm_libinfo_objs PUBLIC tvm_ffi_header)
 
@@ -520,7 +525,7 @@ if(NOT BUILD_DUMMY_LIBTVM)
     $<TARGET_OBJECTS:tvm_libinfo_objs>
     ${TVM_RUNTIME_EXT_OBJS}
   )
-  target_link_libraries(tvm PUBLIC tvm_ffi_shared z3)
+  target_link_libraries(tvm PUBLIC tvm_ffi_shared)
 else()
   # dummy version of libtvm that can be used by downstream to specify dependencies
   # the real runner still need a full version of libtvm
@@ -556,6 +561,14 @@ else()
   )
   set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
   target_link_libraries(tvm_runtime PUBLIC tvm_ffi_shared)
+endif()
+
+
+if (USE_Z3) 
+  if(BUILD_STATIC_RUNTIME)
+    message(FATAL_ERROR "Static runtime build does not support Z3")
+  endif()
+  target_link_libraries(tvm PUBLIC z3_shared)
 endif()
 
 

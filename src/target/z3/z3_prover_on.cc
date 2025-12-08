@@ -145,6 +145,7 @@ public:
     scope_stack_.push_back({});
     scope_stack_.back().push_back(Scope{Scope::Constraint, Var(), PrimExpr(), PrimExpr(), PrimExpr(), constraint});
     solver.push();
+    // is_assume affects the memoization behavior
     this->is_assume = is_assume;
     auto e = VisitBool(constraint);
     this->is_assume = false;
@@ -222,6 +223,7 @@ public:
     return result == z3::unsat;
   }
 
+  /// @brief Binded 
   /// @brief Bind a variable to a value or a range
   void Bind(const Var & var, const PrimExpr & value, bool allow_override = false) {
     if (!IsValidDType(var->dtype)) return;
