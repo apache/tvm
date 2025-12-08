@@ -495,7 +495,7 @@ if (USE_Z3)
     # In python separate build, the z3 module is installed in a temporary directory
     # so we need to find it.
     execute_process(
-      COMMAND "${Python_EXECUTABLE}" -c "import z3; print(z3.__path__[0])"
+      COMMAND "${Python3_EXECUTABLE}" -c "import z3; print(z3.__path__[0])"
       OUTPUT_VARIABLE Z3_PATH
       OUTPUT_STRIP_TRAILING_WHITESPACE
     )
