@@ -487,7 +487,7 @@ include(cmake/modules/contrib/Mrvl.cmake)
 if(NOT DEFINED USE_Z3 AND DEFINED ENV{USE_Z3})
   set(USE_Z3 "$ENV{USE_Z3}")
 endif()
-tvm_option(USE_Z3 "Build with Z3 SMT solver support (OFF; pypi; system)" OFF)
+tvm_option(USE_Z3 "Build with Z3 SMT solver support (OFF/pypi/system)" OFF)
 
 if (USE_Z3)
   if (USE_Z3 STREQUAL "pypi")
