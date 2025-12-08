@@ -251,7 +251,8 @@ class FlashInferPagedPrefillFunc : public PagedPrefillFunc {
                      qo_indptr->as_tensor(), page_indptr->as_tensor(), kv_len_arr, total_qo_len,
                      batch_size, num_qo_heads, num_kv_heads, page_size,
                      /*enable_cuda_graph=*/false, qk_head_dim, v_head_dim, causal,
-                     /*window_left=*/-1, /*fixed_split_size=*/-1, /*disable_split_kv=*/false)
+                     /*window_left=*/-1, /*fixed_split_size=*/-1, /*disable_split_kv=*/false,
+                     /*num_colocated_ctas=*/0)
               .cast<ffi::Array<int64_t>>();
     } else if (attn_kind == AttnKind::kMLA) {
       plan_info_vec =
@@ -375,7 +376,8 @@ class FlashInferRaggedPrefillFunc : public RaggedPrefillFunc {
                    qo_indptr->as_tensor(), kv_indptr->as_tensor(), kv_len_arr, total_qo_len,
                    batch_size, num_qo_heads, num_kv_heads, /*page_size=*/1,
                    /*enable_cuda_graph=*/false, qk_head_dim, v_head_dim, causal,
-                   /*window_left=*/-1, /*fixed_split_size=*/-1, /*disable_split_kv=*/false)
+                   /*window_left=*/-1, /*fixed_split_size=*/-1, /*disable_split_kv=*/false,
+                   /*num_colocated_ctas=*/0)
             .cast<ffi::Array<int64_t>>();
     DeviceAPI::Get(device)->SetStream(device, original_stream);
   }
