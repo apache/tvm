@@ -123,5 +123,5 @@ def autopad(
             topi.nn.mirror_pad, data, pad[:, 0].tolist(), pad[:, 1].tolist(), "REFLECT"
         )
     else:
-        # TODO(gigiblender) Support edge mode.
-        raise NotImplementedError("Pad mode {} not implemented".format(pad_type))
+        # edge mode - replicate border values
+        return bb.emit_te(topi.nn.replicate_pad, data, pad[:, 0].tolist(), pad[:, 1].tolist())
