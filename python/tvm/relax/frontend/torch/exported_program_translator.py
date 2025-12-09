@@ -23,6 +23,7 @@ from functools import partial
 from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
+from torch import fx
 import tvm
 from tvm import relax
 
@@ -31,8 +32,6 @@ from .base_fx_graph_translator import BaseFXGraphImporter
 
 class ExportedProgramImporter(BaseFXGraphImporter):
     """An importer from ExportedProgram to Relax."""
-
-    from torch import fx
 
     @staticmethod
     def _convert_pytorch_tensor_to_tvm(tensor_value: torch.Tensor) -> tvm.runtime.Tensor:
@@ -1615,9 +1614,18 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         keep_params_as_input: bool,
         unwrap_unit_return_tuple: bool,
         no_bind_return_tuple: bool,
+        custom_convert_map: Optional[
+            Dict[str, Callable[[fx.Node, BaseFXGraphImporter], relax.Var]]
+        ],
     ) -> tvm.IRModule:
         """Convert a PyTorch ExportedProgram to a Relax program."""
-        from torch import fx  # type: ignore
+
+        # Update the conversion map with custom ops if provided.
+        if custom_convert_map:
+            custom_ops = set(custom_convert_map.keys())
+            self.update_convert_map(custom_convert_map)
+        else:
+            custom_ops = set()
 
         # Create input variables.
         (
@@ -1682,7 +1690,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                         self.env[node] = getattr(exported_program.graph_module, node.target)
                     elif node.op == "call_function":
                         func_name = node.target.__name__
-                        self.env[node] = self.convert_map[func_name](node)
+                        if func_name in custom_ops:
+                            self.env[node] = self.convert_map[func_name](node, self)
+                        else:
+                            self.env[node] = self.convert_map[func_name](node)
                     else:
                         raise ValueError(f"Unsupported op {node.op}")
             assert output is not None
@@ -1722,6 +1733,9 @@ def from_exported_program(
     keep_params_as_input: bool = False,
     unwrap_unit_return_tuple: bool = False,
     no_bind_return_tuple: bool = False,
+    custom_convert_map: Optional[
+        Dict[str, Callable[[fx.Node, BaseFXGraphImporter], relax.Var]]
+    ] = None,
     run_ep_decomposition: bool = True,
 ) -> tvm.IRModule:
     """Convert a PyTorch ExportedProgram to a Relax program
@@ -1741,6 +1755,9 @@ def from_exported_program(
     no_bind_return_tuple : bool
         A boolean flag indicating whether to bind the return tuple as a relax var.
         If the flag is true and the return value is a tuple, it will not bind it to a var.
+
+    custom_convert_map : Dict[str, Callable[[fx.Node, BaseFXGraphImporter], relax.Var]]
+        A custom op conversion map in the same format as ExportedProgramImporter.convert_map above
 
     run_ep_decomposition : bool
         A boolean flag indicating whether to run PyTorch's decomposition on the
@@ -1795,4 +1812,5 @@ def from_exported_program(
         keep_params_as_input,
         unwrap_unit_return_tuple,
         no_bind_return_tuple,
+        custom_convert_map,
     )
