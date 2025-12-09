@@ -366,11 +366,18 @@ class BlockNameDeduplicator : public tir::StmtMutator {
     }
 
     std::string base_name;
-    int start_num = 0;
+    int64_t start_num = 0;
+    bool has_suffix = base_len < str_prefix.length();
 
-    if (base_len < str_prefix.length()) {
+    if (has_suffix) {
       base_name = str_prefix.substr(0, base_len);
-      start_num = std::stoi(str_prefix.substr(base_len));
+      try {
+        start_num = std::stoll(str_prefix.substr(base_len));
+      } catch (const std::out_of_range&) {
+        // Fallback: if the number is too large, treat the whole string as a base name.
+        has_suffix = false;
+        base_name = str_prefix;
+      }
     } else {
       base_name = str_prefix;
     }
@@ -383,7 +390,7 @@ class BlockNameDeduplicator : public tir::StmtMutator {
     }
 
     // Generate unique name by incrementing the numeric suffix
-    int counter = (start_num > 0) ? start_num + 1 : 1;
+    int64_t counter = has_suffix ? start_num + 1 : 1;
     while (true) {
       candidate = ffi::String(base_name + std::to_string(counter));
       if (!name_count_.count(candidate)) {
@@ -391,6 +398,8 @@ class BlockNameDeduplicator : public tir::StmtMutator {
         return candidate;
       }
       ++counter;
+      ICHECK_GT(counter, 0) << "Counter overflow when generating unique block name for prefix: "
+                            << prefix;
     }
   }
 
