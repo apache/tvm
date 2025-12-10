@@ -1371,6 +1371,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "any.dim": self._any,
             "any.dims": self._any,
             "mean.dim": self._mean,
+            "mean.default": self._mean,           
             "prod.default": self._prod,
             "std.correction": self._std,
             "sum.default": self._sum,

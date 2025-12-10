@@ -4910,6 +4910,10 @@ def test_mean():
     class MeanKeepDim(Module):
         def forward(self, input: torch.Tensor):
             return input.mean(-1, keepdim=True)
+        
+    class MeanWithoutDim(Module):
+        def forward(self, input: torch.Tensor):
+            return input.mean()
 
     @I.ir_module
     class Expected1:
@@ -4934,10 +4938,23 @@ def test_mean():
                 gv: R.Tuple(R.Tensor((256, 1), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
+          
+    @I.ir_module
+    class Expected3:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tuple(R.Tensor((), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.mean(inp_0, axis=None, keepdims=False)
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
 
     example_args = (torch.randn(256, 256, dtype=torch.float32),)
     verify_model(Mean(), example_args, {}, Expected1)
     verify_model(MeanKeepDim(), example_args, {}, Expected2)
+    verify_model(MeanWithoutDim(), example_args, {}, Expected3)
 
 
 def test_sum():
