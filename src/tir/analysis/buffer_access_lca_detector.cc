@@ -70,6 +70,29 @@ class LCADetector : public StmtExprVisitor {
     return buffer_lca;
   }
 
+  static ffi::Map<Var, ffi::Optional<Stmt>> DetectVar(const PrimFunc& func) {
+    LCADetector detector;
+    for (const auto& kv : func->buffer_map) {
+      const Buffer& buffer = kv.second;
+      detector.buffer_var_map_.emplace(buffer->data.get(), buffer.get());
+    }
+
+    ScopeInfo root(nullptr, nullptr, 0);
+    detector.ancestor_scopes_.push_back(&root);
+
+    detector(func->body);
+
+    // Prepare the return
+    ffi::Map<Var, ffi::Optional<Stmt>> var_lca;
+    for (const auto& kv : detector.buffer_var_lca_) {
+      const Var& var = ffi::GetRef<Var>(kv.first);
+      const ffi::Optional<Stmt> stmt =
+          kv.second ? ffi::GetRef<ffi::Optional<Stmt>>(kv.second->stmt) : std::nullopt;
+      var_lca.Set(var, stmt);
+    }
+    return var_lca;
+  }
+
  private:
   /*!
    * \brief The AST node information for querying LCA.
@@ -271,6 +294,7 @@ class LCADetector : public StmtExprVisitor {
   void VisitExpr_(const VarNode* op) final { VisitBufferVar(op); }
 
   void VisitBufferVar(const VarNode* op) {
+    UpdateVarLCA(op, ancestor_scopes_.back());
     auto it = buffer_var_map_.find(op);
     if (it != buffer_var_map_.end()) {
       UpdateBufferLCA(it->second, ancestor_scopes_.back());
@@ -279,11 +303,18 @@ class LCADetector : public StmtExprVisitor {
 
   void UpdateBufferLCA(const BufferNode* buffer, const ScopeInfo* scope) {
     buffer_var_map_.emplace(buffer->data.get(), buffer);
+    // Also record LCA for the underlying data var to capture BufferLoad/Store cases.
+    UpdateVarLCA(buffer->data.get(), scope);
     if (match_buffers_.find(buffer) == match_buffers_.end()) {
       // Ingore buffer created by block match_buffer
       const ScopeInfo*& lca = buffer_lca_[buffer];
       lca = LowestCommonAncestor(lca, scope);
     }
+  }
+
+  void UpdateVarLCA(const VarNode* var, const ScopeInfo* scope) {
+    const ScopeInfo*& lca = buffer_var_lca_[var];
+    lca = LowestCommonAncestor(lca, scope);
   }
 
   void UpdateWithBlockidx() {
@@ -333,6 +364,8 @@ class LCADetector : public StmtExprVisitor {
   std::unordered_map<const BufferNode*, const ScopeInfo*> buffer_lca_ = {};
   /*! \brief The map from Buffer data to the Buffer. */
   std::unordered_map<const VarNode*, const BufferNode*> buffer_var_map_ = {};
+  /*! \brief The map from Buffer data var to its LCA ForNode/BlockNode. */
+  std::unordered_map<const VarNode*, const ScopeInfo*> buffer_var_lca_ = {};
   /*! \brief The match buffers inside blocks. */
   std::unordered_set<const BufferNode*> match_buffers_ = {};
   /*! \brief The ForNodes/BlockNodes which contain immediate `blockIdx` launch. */
@@ -347,9 +380,14 @@ ffi::Map<Buffer, ffi::Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func
   return LCADetector::Detect(func);
 }
 
+ffi::Map<Var, ffi::Optional<Stmt>> DetectBufferVarAccessLCA(const PrimFunc& func) {
+  return LCADetector::DetectVar(func);
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.analysis.detect_buffer_access_lca", DetectBufferAccessLCA);
+  refl::GlobalDef().def("tir.analysis.detect_buffer_var_access_lca", DetectBufferVarAccessLCA);
 }
 }  // namespace tir
 }  // namespace tvm
