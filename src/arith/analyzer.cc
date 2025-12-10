@@ -25,6 +25,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/builtin.h>
 
 #include "./scalable_expression.h"
 #include "const_fold.h"
@@ -207,7 +208,103 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
   }
   PrimExpr simplified = Simplify(expr);
   const int64_t* as_int = tir::as_const_int(simplified);
-  if (as_int && *as_int) return true;
+  if (as_int && *as_int) { return true; }
+
+  // Structured boolean reasoning for Or/And (and their bitwise counterparts on bool)
+  // Evaluate children with the same proof strength.
+  if (const auto* not_node = simplified.as<tir::NotNode>()) {
+    PrimExpr a = not_node->a;
+    // Try direct complements on common comparators
+    if (const auto* p = a.as<tir::LTNode>()) {
+      return CanProve(tir::GE(p->a, p->b), strength);
+    }
+    if (const auto* p = a.as<tir::LENode>()) {
+      return CanProve(tir::GT(p->a, p->b), strength);
+    }
+    if (const auto* p = a.as<tir::GTNode>()) {
+      return CanProve(tir::LE(p->a, p->b), strength);
+    }
+    if (const auto* p = a.as<tir::GENode>()) {
+      return CanProve(tir::LT(p->a, p->b), strength);
+    }
+    if (const auto* p = a.as<tir::EQNode>()) {
+      return CanProve(tir::NE(p->a, p->b), strength);
+    }
+    if (const auto* p = a.as<tir::NENode>()) {
+      return CanProve(tir::EQ(p->a, p->b), strength);
+    }
+    // De Morgan on canonical boolean nodes
+    if (const auto* or_node = a.as<tir::OrNode>()) {
+      PrimExpr lhs = tir::Not(or_node->a);
+      PrimExpr rhs = tir::Not(or_node->b);
+      return CanProve(tir::And(lhs, rhs), strength);
+    }
+    if (const auto* and_node = a.as<tir::AndNode>()) {
+      PrimExpr lhs = tir::Not(and_node->a);
+      PrimExpr rhs = tir::Not(and_node->b);
+      return CanProve(tir::Or(lhs, rhs), strength);
+    }
+    // De Morgan on bitwise boolean calls
+    if (const auto* c = a.as<tir::CallNode>()) {
+      using namespace tir;
+      if (c->op.same_as(builtin::bitwise_or()) && c->args.size() == 2 && a.dtype().is_bool()) {
+        PrimExpr lhs = tir::Not(c->args[0]);
+        PrimExpr rhs = tir::Not(c->args[1]);
+        return CanProve(tir::And(lhs, rhs), strength);
+      }
+      if (c->op.same_as(builtin::bitwise_and()) && c->args.size() == 2 && a.dtype().is_bool()) {
+        PrimExpr lhs = tir::Not(c->args[0]);
+        PrimExpr rhs = tir::Not(c->args[1]);
+        return CanProve(tir::Or(lhs, rhs), strength);
+      }
+    }
+    if (const auto* inner_not = a.as<tir::NotNode>()) {
+      // Double negation
+      return CanProve(inner_not->a, strength);
+    }
+    // Fallback: if `a` simplifies to constant false, then Not(a) is true
+    PrimExpr a_simpl = Simplify(a);
+    const int64_t* a_const = tir::as_const_int(a_simpl);
+    if (a_const && *a_const == 0) { return true; }
+    // Otherwise, cannot conclude true
+  }
+  if (const auto* or_node = simplified.as<tir::OrNode>()) {
+    if (CanProve(or_node->a, strength)) {
+      return true;
+    }
+    if (CanProve(or_node->b, strength)) {
+      return true;
+    }
+  }
+  if (const auto* and_node = simplified.as<tir::AndNode>()) {
+    bool lhs = CanProve(and_node->a, strength);
+    bool rhs = CanProve(and_node->b, strength);
+    if (lhs && rhs) {
+      return true;
+    }
+  }
+  if (const auto* call = simplified.as<tir::CallNode>()) {
+    using namespace tir;
+    if (call->op.same_as(builtin::bitwise_or()) && call->args.size() == 2 &&
+        simplified.dtype().is_bool()) {
+      if (CanProve(call->args[0], strength) || CanProve(call->args[1], strength)) {
+        return true;
+      }
+    }
+    if (call->op.same_as(builtin::bitwise_and()) && call->args.size() == 2 &&
+        simplified.dtype().is_bool()) {
+      bool lhs = CanProve(call->args[0], strength);
+      bool rhs = CanProve(call->args[1], strength);
+      if (lhs && rhs) {
+        return true;
+      }
+    }
+    if (call->op.same_as(builtin::bitwise_not()) && call->args.size() == 1 &&
+        simplified.dtype().is_bool()) {
+      // Treat as logical not and reuse Not handling by constructing tir::Not
+      return CanProve(tir::Not(call->args[0]), strength);
+    }
+  }
   if (strength >= ProofStrength::kSymbolicBound) {
     // NOTE: we intentionally only pattern match common bound predicate i < bound
     // and put this implementation at the top-level.
@@ -233,10 +330,14 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
       lower_bound = 0;
     }
     if (pos_diff) {
-      IntSet iset = this->int_set(this->Simplify(pos_diff.value()));
+      PrimExpr simplified_diff = this->Simplify(pos_diff.value());
+      IntSet iset = this->int_set(simplified_diff);
       if (iset.HasLowerBound()) {
-        ConstIntBound relaxed_lower_bound = this->const_int_bound(this->Simplify(iset.min()));
-        if (relaxed_lower_bound->min_value >= lower_bound) return true;
+        PrimExpr iset_min_simpl = this->Simplify(iset.min());
+        ConstIntBound relaxed_lower_bound = this->const_int_bound(iset_min_simpl);
+        if (relaxed_lower_bound->min_value >= lower_bound) {
+          return true;
+        }
       }
     }
   }
