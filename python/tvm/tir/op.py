@@ -2116,6 +2116,8 @@ def exp(x):
         The result.
     """
     x = tir.convert(x)
+    if "int" in x.dtype:
+        x = tir.Cast("float32", x)
     return call_intrin(x.dtype, "tir.exp", x)
 
 

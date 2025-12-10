@@ -227,7 +227,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("tir.schedule.ScheduleComputeAt", &ScheduleNode::ComputeAt)
       .def_method("tir.schedule.ScheduleReverseComputeAt", &ScheduleNode::ReverseComputeAt)
       .def_method("tir.schedule.ScheduleComputeInline", &ScheduleNode::ComputeInline)
-      .def_method("tir.schedule.ScheduleReverseComputeInline", &ScheduleNode::ReverseComputeInline);
+      .def_method("tir.schedule.ScheduleReverseComputeInline", &ScheduleNode::ReverseComputeInline)
+      .def_method("tir.schedule.ScheduleFuseReductionEpilogue",
+                  &ScheduleNode::FuseReductionEpilogue);
 }
 /******** (FFI) Reduction ********/
 TVM_FFI_STATIC_INIT_BLOCK() {

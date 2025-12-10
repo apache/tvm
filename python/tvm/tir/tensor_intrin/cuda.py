@@ -1465,7 +1465,7 @@ def get_index_C(elem_offset, stride):
     stride_b = stride // 8
     bi = i // 8
     bj = j // 8
-    return (bi // 2) * 2 * stride_b + bi % 2 + bj * 2
+    return ((bi // 2) * 2 * stride_b + bi % 2 + bj * 2) * 2
 
 
 def get_mma_init_intrin(

@@ -32,3 +32,6 @@ from . import search
 from . import statistical
 from . import unary
 from . import vision
+
+# Device specific legalizations
+from . import adreno

@@ -104,7 +104,7 @@ skip_if_wheel_test = pytest.mark.skipif(
 )
 
 
-def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
+def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7, verbose=True):
     """Version of np.testing.assert_allclose with `atol` and `rtol` fields set
     in reasonable defaults.
 
@@ -115,7 +115,7 @@ def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
     actual = np.asanyarray(actual)
     desired = np.asanyarray(desired)
     np.testing.assert_allclose(actual.shape, desired.shape)
-    np.testing.assert_allclose(actual, desired, rtol=rtol, atol=atol, verbose=True)
+    np.testing.assert_allclose(actual, desired, rtol=rtol, atol=atol, verbose=verbose)
 
 
 def check_numerical_grads(

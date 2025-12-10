@@ -1,6 +1,6 @@
 # Licensed to the Apache Software Foundation (ASF) under one
-# or more contrir_builderutor license agreements.  See the NOTICE file
-# distrir_builderuted with this work for additional information
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
@@ -9,7 +9,7 @@
 #   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing,
-# software distrir_builderuted under the License is distrir_builderuted on an
+# software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
@@ -29,7 +29,8 @@ def index_put(data, indices, values, accumulate=False):
         The source array to be modified.
 
     indices : Tuple[tvm.te.Tensor]
-        Tuple of 1D index tensors (one for each dimension) specifying positions.
+        Tuple of index tensors (can be multi-dimensional) specifying positions.
+        Index tensors are broadcast together following NumPy broadcasting rules.
 
     values : tvm.te.Tensor
         The values to place at the specified indices.
@@ -60,11 +61,28 @@ def index_put(data, indices, values, accumulate=False):
     for dim in shape:
         full_range *= dim
 
-    # Check all indices have same length
-    index_len = len(indices[0])
-    for idx in indices[1:]:
-        if not utils.equal_const_int(len(idx), index_len):
-            raise ValueError("All index tensors must have same length")
+    index_shapes = [idx.shape for idx in indices]
+    broadcast_ndim = max(len(s) for s in index_shapes)
+    broadcast_shape = []
+
+    for i in range(broadcast_ndim):
+        max_dim = 1
+        for idx_shape in index_shapes:
+            # Right-align shapes
+            dim_idx = len(idx_shape) - broadcast_ndim + i
+            if dim_idx >= 0:
+                dim_size = idx_shape[dim_idx]
+                if not utils.equal_const_int(dim_size, 1):
+                    if utils.equal_const_int(max_dim, 1):
+                        max_dim = dim_size
+                    elif not utils.equal_const_int(dim_size, max_dim):
+                        raise ValueError(f"Cannot broadcast index shapes: {index_shapes}")
+        broadcast_shape.append(max_dim)
+
+    # Compute total number of elements after broadcasting
+    index_len = 1
+    for dim in broadcast_shape:
+        index_len *= dim
 
     def gen_ir(data_ptr, index_ptrs, values_ptr, out_ptr, reduce_func):
         ir_builder = tir.ir_builder.create()
@@ -78,12 +96,38 @@ def index_put(data, indices, values, accumulate=False):
             out[i] = data[i]
 
         with ir_builder.for_range(0, index_len, "k", kind="parallel") as k:
-            # Calculate multi-dimensional index
+            # Decompose k into multi-dimensional broadcast index
+            k_temp = k
+            broadcast_indices = []
+            for i in range(broadcast_ndim - 1, -1, -1):
+                broadcast_indices.insert(0, k_temp % broadcast_shape[i])
+                k_temp = k_temp // broadcast_shape[i]
+
             flat_index = 0
             stride = 1
             for dim in range(len(shape) - 1, -1, -1):
-                # Get index and shift to positive if needed
-                idx_val = indices[dim][k]
+                # Get the index for this dimension using broadcasting
+                idx_shape = index_shapes[dim]
+                idx_ndim = len(idx_shape)
+
+                # Compute the linear index into this index tensor
+                idx_offset = 0
+                idx_stride = 1
+                for i in range(broadcast_ndim - 1, -1, -1):
+                    # Right-align the index shape with broadcast shape
+                    dim_idx = idx_ndim - broadcast_ndim + i
+                    if dim_idx >= 0:
+                        dim_size = idx_shape[dim_idx]
+                        # Use broadcasting: if size is 1, use index 0
+                        # otherwise use broadcast_indices[i]
+                        if utils.equal_const_int(dim_size, 1):
+                            idx_in_dim = 0
+                        else:
+                            idx_in_dim = broadcast_indices[i]
+                        idx_offset += idx_in_dim * idx_stride
+                        idx_stride *= dim_size
+
+                idx_val = indices[dim][idx_offset]
                 shifted_idx = idx_val + (idx_val < 0) * shape[dim]
                 flat_index += shifted_idx * stride
                 stride *= shape[dim]

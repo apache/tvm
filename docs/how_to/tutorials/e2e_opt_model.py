@@ -95,13 +95,38 @@ if not IS_IN_CI:
 # leverage MetaSchedule to tune the model and store the tuning logs to the database. We also
 # apply the database to the model to get the best performance.
 #
+# The ResNet18 model will be divided into 20 independent tuning tasks during compilation.
+# To ensure each task receives adequate tuning resources in one iteration while providing
+# early feedback:
+#
+# - To quickly observe tuning progress, each task is allocated a maximum of 16 trials per
+#   iteration (controlled by ``MAX_TRIALS_PER_TASK=16``). We should set ``TOTAL_TRIALS``
+#   to at least ``320 (20 tasks * 16 trials)`` ensures every task receives one full iteration
+#   of tuning. We set it to 512 in our configuration to allow for several more iterations,
+#   aiming to explore a wider parameter space and potentially achieve better performance.
+# - If ``MAX_TRIALS_PER_TASK == None``, the system defaults to ``TOTAL_TRIALS`` trials per
+#   task per iteration. An insufficient ``TOTAL_TRIALS`` setting may lead to undersubscribed
+#   tuning, potentially skipping some tasks entirely. Explicitly setting both parameters
+#   avoids this issue and provides deterministic resource allocation across all tasks.
+#
+# Note: These parameter settings are optimized for quick tutorial demonstration. For production
+# deployments requiring higher performance, we recommend adjusting both ``MAX_TRIALS_PER_TASK``
+# and ``TOTAL_TRIALS`` to larger values. This allows more extensive search space exploration
+# and typically yields better performance outcomes.
 
-TOTAL_TRIALS = 8000  # Change to 20000 for better performance if needed
+TOTAL_TRIALS = 512  # Change to 20000 for better performance if needed
+MAX_TRIALS_PER_TASK = 16  # Change to more trials per task for better performance if needed
 target = tvm.target.Target("nvidia/geforce-rtx-3090-ti")  # Change to your target device
 work_dir = "tuning_logs"
 
 if not IS_IN_CI:
-    mod = relax.get_pipeline("static_shape_tuning", target=target, total_trials=TOTAL_TRIALS)(mod)
+    mod = relax.get_pipeline(
+        "static_shape_tuning",
+        target=target,
+        work_dir=work_dir,
+        total_trials=TOTAL_TRIALS,
+        max_trials_per_task=MAX_TRIALS_PER_TASK,
+    )(mod)
 
     # Only show the main function
     mod["main"].show()
@@ -113,12 +138,14 @@ if not IS_IN_CI:
 # We skip this step in the CI environment.
 
 if not IS_IN_CI:
-    ex = tvm.compile(mod, target="cuda")
+    with target:
+        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+    ex = tvm.compile(mod, target=target)
     dev = tvm.device("cuda", 0)
     vm = relax.VirtualMachine(ex, dev)
     # Need to allocate data and params on GPU device
     gpu_data = tvm.runtime.tensor(np.random.rand(1, 3, 224, 224).astype("float32"), dev)
     gpu_params = [tvm.runtime.tensor(p, dev) for p in params["main"]]
-    gpu_out = vm["main"](gpu_data, *gpu_params).numpy()
+    gpu_out = vm["main"](gpu_data, *gpu_params)[0].numpy()
 
     print(gpu_out.shape)

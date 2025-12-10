@@ -1347,6 +1347,18 @@ def test_invalid_tir_var_upper_bound():
         relax.transform.StaticPlanBlockMemory()(Module)
 
 
+def test_invalid_tir_var_lower_bound():
+    @tvm.script.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((2, "n"), dtype="float32")):
+            R.func_attr({"tir_var_lower_bound": {"n": [4]}, "relax.force_pure": True})
+            return x
+
+    with pytest.raises((TVMError, TypeError)):
+        relax.transform.StaticPlanBlockMemory()(Module)
+
+
 def test_add():
     @I.ir_module
     class Module:

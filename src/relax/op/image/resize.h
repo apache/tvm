@@ -38,6 +38,10 @@ Expr resize2d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout
               ffi::String rounding_method, double cubic_alpha, int cubic_exclude,
               double extrapolation_value, ffi::Optional<DataType> out_dtype);
 
+/*! \brief Image grid_sample operator. */
+Expr grid_sample(Expr data, Expr grid, ffi::String method, ffi::String layout,
+                 ffi::String padding_mode, bool align_corners);
+
 }  // namespace relax
 }  // namespace tvm
 

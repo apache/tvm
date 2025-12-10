@@ -88,13 +88,13 @@ def test_base_py_module_relax_symbolic_end_to_end():
     out = bpm.main_relax(a, b)
     assert isinstance(out, np.ndarray) or hasattr(out, "numpy")
     out_np = out if isinstance(out, np.ndarray) else out.numpy()
-    np.testing.assert_allclose(out_np, a + b, rtol=1e-6, atol=1e-6)
+    tvm.testing.assert_allclose(out_np, a + b, rtol=1e-6, atol=1e-6)
 
     a7 = np.random.randn(7).astype("float32")
     b7 = np.random.randn(7).astype("float32")
     out2 = bpm.main_relax(a7, b7)
     out2_np = out2 if isinstance(out2, np.ndarray) else out2.numpy()
-    np.testing.assert_allclose(out2_np, a7 + b7, rtol=1e-6, atol=1e-6)
+    tvm.testing.assert_allclose(out2_np, a7 + b7, rtol=1e-6, atol=1e-6)
 
 
 def test_base_py_module_tir_symbolic_end_to_end():
@@ -108,7 +108,7 @@ def test_base_py_module_tir_symbolic_end_to_end():
 
     out = bpm.call_tir("add_tir", [a, b], out_sinfo)
     out_np = out if isinstance(out, np.ndarray) else out.numpy()
-    np.testing.assert_allclose(out_np, a + b, rtol=1e-6, atol=1e-6)
+    tvm.testing.assert_allclose(out_np, a + b, rtol=1e-6, atol=1e-6)
 
 
 def test_infer_concrete_shape_multiple_symbolic_dims():
@@ -225,14 +225,14 @@ def test_base_py_module_multiple_symbolic_dims():
     out = bpm.matmul_relax(a, b)
     out_np = out if isinstance(out, np.ndarray) else out.numpy()
     expected = np.matmul(a, b)
-    np.testing.assert_allclose(out_np, expected, rtol=1e-6, atol=1e-6)
+    tvm.testing.assert_allclose(out_np, expected, rtol=1e-6, atol=1e-6)
 
     # Test TIR function with multiple symbolic dims
     # Use concrete shapes for TIR function to avoid constraint issues
     out_sinfo = relax.TensorStructInfo((2, 4), "float32")
     out_tir = bpm.call_tir("matmul_tir", [a, b], out_sinfo)
     out_tir_np = out_tir if isinstance(out_tir, np.ndarray) else out_tir.numpy()
-    np.testing.assert_allclose(out_tir_np, expected, rtol=1e-6, atol=1e-6)
+    tvm.testing.assert_allclose(out_tir_np, expected, rtol=1e-6, atol=1e-6)
 
 
 def test_base_py_module_call_dps_packed_symbolic():
@@ -258,7 +258,7 @@ def test_base_py_module_call_dps_packed_symbolic():
 
         out = bpm.call_dps_packed("test_add_packed", [a, b], out_sinfo)
         out_np = out if isinstance(out, np.ndarray) else out.numpy()
-        np.testing.assert_allclose(out_np, a + b, rtol=1e-6, atol=1e-6)
+        tvm.testing.assert_allclose(out_np, a + b, rtol=1e-6, atol=1e-6)
 
     except AttributeError as e:
         pytest.skip(f"call_dps_packed test requires register_global_func: {e}")
@@ -287,7 +287,7 @@ def test_base_py_module_call_dps_packed_multiple_args():
         out = bpm.call_dps_packed("test_matmul_packed", [a, b], out_sinfo)
         out_np = out if isinstance(out, np.ndarray) else out.numpy()
         expected = np.matmul(a, b)
-        np.testing.assert_allclose(out_np, expected, rtol=1e-6, atol=1e-6)
+        tvm.testing.assert_allclose(out_np, expected, rtol=1e-6, atol=1e-6)
 
     except AttributeError as e:
         pytest.skip(f"call_dps_packed test requires register_global_func: {e}")
@@ -320,7 +320,7 @@ def test_base_py_module_call_dps_packed_scalar_args():
         out = bpm.call_dps_packed("test_add_scalar_packed", [x, scalar], out_sinfo)
         out_np = out if isinstance(out, np.ndarray) else out.numpy()
         expected = x + scalar
-        np.testing.assert_allclose(out_np, expected, rtol=1e-6, atol=1e-6)
+        tvm.testing.assert_allclose(out_np, expected, rtol=1e-6, atol=1e-6)
 
     except AttributeError as e:
         pytest.skip(f"call_dps_packed test requires register_global_func: {e}")
@@ -360,7 +360,7 @@ def test_base_py_module_relax_with_pytorch_tensors():
     out = bpm.main_relax(a_torch, b_torch)
     out_np = out if isinstance(out, np.ndarray) else out.numpy()
     expected = a_torch.numpy() + b_torch.numpy()
-    np.testing.assert_allclose(out_np, expected, rtol=1e-6, atol=1e-6)
+    tvm.testing.assert_allclose(out_np, expected, rtol=1e-6, atol=1e-6)
 
 
 if __name__ == "__main__":

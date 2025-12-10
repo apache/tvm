@@ -570,10 +570,10 @@ class ConstIntBoundAnalyzer::Impl
     if (info.size() == 0) return nullptr;
     size_t old_size = additional_info_.size();
     additional_info_.insert(additional_info_.end(), info.begin(), info.end());
-    size_t new_size = old_size + info.size();
-    auto frecover = [old_size, new_size, this]() {
-      ICHECK_EQ(additional_info_.size(), new_size);
-      additional_info_.resize(old_size);
+    auto frecover = [old_size, this]() {
+      if (additional_info_.size() > old_size) {
+        additional_info_.resize(old_size);
+      }
     };
     return frecover;
   }
@@ -803,8 +803,11 @@ class ConstIntBoundAnalyzer::Impl
    * \return Bound that represent everything dtype can represent.
    */
   static Entry Everything(DataType dtype) {
-    if (!dtype.is_int() && !dtype.is_uint()) {
+    if (!dtype.is_int() && !dtype.is_uint() && !dtype.is_bool()) {
       return MakeBound(kNegInf, kPosInf);
+    }
+    if (dtype.is_bool()) {
+      return MakeBound(0, 1);
     }
     Entry ret;
     int64_t vbits = dtype.bits() - static_cast<int>(dtype.is_int());

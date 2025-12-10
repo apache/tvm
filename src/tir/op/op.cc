@@ -214,6 +214,12 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
   } else if (ltype.is_float4() && !rtype.is_float4()) {
     // Cast int->float4 for rhs when lhs is a float4
     rhs = cast(ltype, rhs);
+  } else if (ltype.is_bool() && (rtype.is_int() || rtype.is_uint())) {
+    // Cast bool to int for lhs when rhs is a int or uint
+    lhs = cast(rtype, lhs);
+  } else if ((ltype.is_int() || ltype.is_uint()) && rtype.is_bool()) {
+    // Cast bool to int for rhs when lhs is a int or uint
+    rhs = cast(ltype, rhs);
   } else if ((ltype.is_int() && rtype.is_int()) || (ltype.is_uint() && rtype.is_uint())) {
     // Promote int to higher bits e.g. int8 + int16 --> int16 + int16
     if (ltype.bits() < rtype.bits()) {
@@ -621,7 +627,7 @@ PrimExpr max(PrimExpr a, PrimExpr b, Span span) {
 
 // if_then_else
 PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value, Span span) {
-  ICHECK(cond.dtype() == DataType::Bool(1))
+  ICHECK(cond.dtype() == DataType::Bool())
       << "if_then_else only accept the condition to be boolean type.";
   BinaryOpMatchTypes(true_value, false_value, span);
   if (const IntImmNode* op = cond.as<IntImmNode>()) {
@@ -698,10 +704,10 @@ void type_check_boolean_args(const PrimExpr& lhs, const PrimExpr& rhs, const cha
                                 << rhs << " of type " << rhs.dtype();
 }
 
-void type_check_integer_args(const PrimExpr& arg, const char* op) {
-  ICHECK(arg.dtype().is_int() || arg.dtype().is_uint())
-      << "Expected integer argument for " << op << ", but received " << arg << " of type "
-      << arg.dtype();
+void type_check_int_or_bool_args(const PrimExpr& arg, const char* op) {
+  ICHECK(arg.dtype().is_int() || arg.dtype().is_uint() || arg.dtype().is_bool())
+      << "Expected integer or boolean argument for " << op << ", but received " << arg
+      << " of type " << arg.dtype();
 }
 
 void type_check_integer_args(const PrimExpr& lhs, const PrimExpr& rhs, const char* op) {
@@ -709,6 +715,15 @@ void type_check_integer_args(const PrimExpr& lhs, const PrimExpr& rhs, const cha
       << "Expected integer argument as LHS of " << op << ", but received " << lhs << " of type "
       << lhs.dtype();
   ICHECK(rhs.dtype().is_int() || rhs.dtype().is_uint())
+      << "Expected integer argument as RHS of " << op << ", but received " << rhs << " of type "
+      << rhs.dtype();
+}
+
+void type_check_int_or_bool_args(const PrimExpr& lhs, const PrimExpr& rhs, const char* op) {
+  ICHECK(lhs.dtype().is_int() || lhs.dtype().is_uint() || lhs.dtype().is_bool())
+      << "Expected integer argument as LHS of " << op << ", but received " << lhs << " of type "
+      << lhs.dtype();
+  ICHECK(rhs.dtype().is_int() || rhs.dtype().is_uint() || rhs.dtype().is_bool())
       << "Expected integer argument as RHS of " << op << ", but received " << rhs << " of type "
       << rhs.dtype();
 }
@@ -781,7 +796,7 @@ PrimExpr left_shift(PrimExpr a, PrimExpr b, Span span) {
 // bitwise and
 PrimExpr operator&(PrimExpr a, PrimExpr b) { return bitwise_and(a, b); }
 PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Span span) {
-  type_check_integer_args(a, b, "& operator (bitwise AND)");
+  type_check_int_or_bool_args(a, b, "& operator (bitwise AND)");
   BinaryOpMatchTypes(a, b, span);
   TVM_INDEX_CONST_PROPAGATION({
     const DataType& rtype = a.dtype();
@@ -793,7 +808,7 @@ PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Span span) {
 // bitwise_or
 PrimExpr operator|(PrimExpr a, PrimExpr b) { return bitwise_or(a, b); }
 PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Span span) {
-  type_check_integer_args(a, b, "| operator (bitwise OR)");
+  type_check_int_or_bool_args(a, b, "| operator (bitwise OR)");
   BinaryOpMatchTypes(a, b, span);
   TVM_INDEX_CONST_PROPAGATION({
     const DataType& rtype = a.dtype();
@@ -805,7 +820,7 @@ PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Span span) {
 // bitwise_xor
 PrimExpr operator^(PrimExpr a, PrimExpr b) { return bitwise_xor(a, b); }
 PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Span span) {
-  type_check_integer_args(a, b, "^ operator (bitwise XOR)");
+  type_check_int_or_bool_args(a, b, "^ operator (bitwise XOR)");
   BinaryOpMatchTypes(a, b, span);
   TVM_INDEX_CONST_PROPAGATION({
     const DataType& rtype = a.dtype();
@@ -818,7 +833,7 @@ PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Span span) {
 PrimExpr operator~(PrimExpr a) { return bitwise_neg(a); }
 
 PrimExpr bitwise_neg(PrimExpr a, Span span) {
-  type_check_integer_args(a, "~ operator (bitwise NOT)");
+  type_check_int_or_bool_args(a, "~ operator (bitwise NOT)");
   return tir::Call(a.dtype(), tir::builtin::bitwise_not(), {a}, span);
 }
 
@@ -935,7 +950,7 @@ PrimExpr sum(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
   PrimExpr result = tir::Add(x, y, span);
   PrimExpr identity_element = make_zero(source.dtype(), span);
   tir::CommReducer combiner = tir::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init, span);
+  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(), true), 0, init, span);
 }
 
 PrimExpr all(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
@@ -944,7 +959,7 @@ PrimExpr all(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
   PrimExpr result = tir::And(x, y, span);
   PrimExpr identity_element = make_const(source.dtype(), true, span);
   tir::CommReducer combiner = tir::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init, span);
+  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(), true), 0, init, span);
 }
 
 PrimExpr any(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
@@ -953,7 +968,7 @@ PrimExpr any(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
   PrimExpr result = tir::Or(x, y, span);
   PrimExpr identity_element = make_const(source.dtype(), false, span);
   tir::CommReducer combiner = tir::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init, span);
+  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(), true), 0, init, span);
 }
 
 PrimExpr max(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
@@ -961,7 +976,7 @@ PrimExpr max(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
   PrimExpr result = tir::Max(x, y, span);
   PrimExpr identity_element = min_value(source.dtype(), span);
   tir::CommReducer combiner = tir::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init, span);
+  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(), true), 0, init, span);
 }
 
 PrimExpr min(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
@@ -969,7 +984,7 @@ PrimExpr min(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
   PrimExpr result = tir::Min(x, y, span);
   PrimExpr identity_element = max_value(source.dtype(), span);
   tir::CommReducer combiner = tir::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init, span);
+  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(), true), 0, init, span);
 }
 
 PrimExpr prod(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
@@ -977,7 +992,7 @@ PrimExpr prod(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> in
   PrimExpr result = tir::Mul(x, y, span);
   PrimExpr identity_element = make_const(source.dtype(), 1, span);
   tir::CommReducer combiner = tir::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init, span);
+  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(), true), 0, init, span);
 }
 
 // fmod
@@ -992,7 +1007,7 @@ TVM_TIR_REGISTER_PURE_UNARY_OP("fmod");
 
 // floor
 PrimExpr floor(PrimExpr x, Span span) {
-  if (x.dtype().is_int() || x.dtype().is_uint()) {
+  if (x.dtype().is_int() || x.dtype().is_uint() || x.dtype().is_bool()) {
     return x;
   }
   using tir::FloatImmNode;
@@ -1006,7 +1021,7 @@ TVM_TIR_REGISTER_PURE_UNARY_OP("floor").set_attr<TVectorizable>("TVectorizable",
 
 // ceil
 PrimExpr ceil(PrimExpr x, Span span) {
-  if (x.dtype().is_int() || x.dtype().is_uint()) {
+  if (x.dtype().is_int() || x.dtype().is_uint() || x.dtype().is_bool()) {
     return x;
   }
   using tir::FloatImmNode;
@@ -1020,7 +1035,7 @@ TVM_TIR_REGISTER_PURE_UNARY_OP("ceil").set_attr<TVectorizable>("TVectorizable", 
 
 // round
 PrimExpr round(PrimExpr x, Span span) {
-  if (x.dtype().is_int() || x.dtype().is_uint()) {
+  if (x.dtype().is_int() || x.dtype().is_uint() || x.dtype().is_bool()) {
     return x;
   }
   using tir::FloatImmNode;
@@ -1034,7 +1049,7 @@ TVM_TIR_REGISTER_PURE_UNARY_OP("round").set_attr<TVectorizable>("TVectorizable",
 
 // nearbyint
 PrimExpr nearbyint(PrimExpr x, Span span) {
-  if (x.dtype().is_int() || x.dtype().is_uint()) {
+  if (x.dtype().is_int() || x.dtype().is_uint() || x.dtype().is_bool()) {
     return x;
   }
   using tir::FloatImmNode;
@@ -1048,7 +1063,7 @@ TVM_TIR_REGISTER_PURE_UNARY_OP("nearbyint");
 
 // trunc
 PrimExpr trunc(PrimExpr x, Span span) {
-  if (x.dtype().is_int() || x.dtype().is_uint()) {
+  if (x.dtype().is_int() || x.dtype().is_uint() || x.dtype().is_bool()) {
     return x;
   }
   using tir::FloatImmNode;

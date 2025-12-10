@@ -83,6 +83,7 @@ from .transform import (
     UpdateVDevice,
     VMBuiltinLower,
     VMShapeLower,
+    SpecializePrimFuncBasedOnCallSite,
     dataflowblock_pass,
     function_pass,
 )

@@ -202,7 +202,7 @@ class IRBuilder(object):
             value = op.max(1, value)
         self.emit(lambda x: _stmt.AttrStmt(node, attr_key, value, x))
 
-    def for_range(self, begin, end, name="i", dtype=None, kind="serial"):
+    def for_range(self, begin, end, name="i", dtype=None, kind="serial", step=None):
         """Create a for iteration scope.
 
         Parameters
@@ -222,6 +222,10 @@ class IRBuilder(object):
 
         kind : str, optional
             The special tag on the for loop.
+
+        step : PrimExpr
+            The loop step. Default to none which
+            represent one.
 
         Returns
         -------
@@ -275,7 +279,7 @@ class IRBuilder(object):
                 kind_id = _stmt.ForKind.UNROLLED
             else:
                 raise ValueError("Unknown kind")
-            self.emit(_stmt.For(loop_var, begin, extent, kind_id, self._pop_seq()))
+            self.emit(_stmt.For(loop_var, begin, extent, kind_id, self._pop_seq(), step=step))
 
         return WithScope(loop_var, _exit_cb)
 
@@ -448,7 +452,7 @@ class IRBuilder(object):
         )
 
         buffer_var = buffer.data
-        self.emit(lambda x: _stmt.Allocate(buffer_var, dtype, shape, const(1, dtype="uint1"), x))
+        self.emit(lambda x: _stmt.Allocate(buffer_var, dtype, shape, const(1, dtype="bool"), x))
         return BufferVar(self, buffer, dtype)
 
     def pointer(self, content_type, name="ptr", scope=""):

@@ -1141,13 +1141,21 @@ void CodeGenC::VisitStmt_(const AssertStmtNode* op) {
 }
 
 void CodeGenC::VisitStmt_(const ForNode* op) {
-  std::string extent = PrintExpr(op->extent);
+  std::string begin_str = PrintExpr(op->min);
+  PrimExpr end = is_zero(op->min) ? op->extent : arith::Analyzer().Simplify(op->min + op->extent);
+  std::string end_str = PrintExpr(end);
+  std::string step_str = op->step.has_value() ? PrintExpr(*op->step) : "";
   PrintIndent();
   std::string vid = AllocVarID(op->loop_var.get());
-  ICHECK(is_zero(op->min));
   stream << "for (";
   PrintType(op->loop_var.dtype(), stream);
-  stream << ' ' << vid << " = 0; " << vid << " < " << extent << "; ++" << vid << ") {\n";
+  stream << ' ' << vid << " = " << begin_str << "; " << vid << " < " << end_str << "; ";
+  if (step_str.empty()) {
+    stream << "++" << vid;
+  } else {
+    stream << vid << " += " << step_str;
+  }
+  stream << ") {\n";
   int for_scope = BeginScope();
   PrintStmt(op->body);
   this->EndScope(for_scope);
