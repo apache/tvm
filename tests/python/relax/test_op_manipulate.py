@@ -3417,6 +3417,20 @@ def test_scatter_elements_infer_struct_info():
         relax.op.scatter_elements(d2, i3, u0, 0, "updates"),
         relax.TensorStructInfo(dtype="float32", ndim=-1),
     )
+    # Test with unknown dtype for data
+    d_unknown = relax.Var("data", R.Tensor((4, 4)))
+    _check_inference(
+        bb,
+        relax.op.scatter_elements(d_unknown, i0, u0, 0, "updates"),
+        relax.TensorStructInfo((4, 4), dtype=""),
+    )
+    # Test with unknown dtype for updates
+    u_unknown = relax.Var("updates", R.Tensor((2, 2)))
+    _check_inference(
+        bb,
+        relax.op.scatter_elements(d0, i0, u_unknown, 0, "updates"),
+        relax.TensorStructInfo((4, 4), dtype="float32"),
+    )
 
 
 def test_scatter_elements_infer_struct_info_symbolic_shape():
