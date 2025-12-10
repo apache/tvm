@@ -197,8 +197,8 @@ def yarn_find_correction_range(
     max_position_embeddings: int,
 ):
     """Find the correction range based on the number of rotations"""
-    low = yarn_find_correction_dim(low_rot, d, theta, max_position_embeddings))
-    high = yarn_find_correction_dim(high_rot, d, theta, max_position_embeddings))
+    low = yarn_find_correction_dim(low_rot, d, theta, max_position_embeddings)
+    high = yarn_find_correction_dim(high_rot, d, theta, max_position_embeddings)
     return tir.max(low, 0), tir.min(high, d - 1)
 
 
