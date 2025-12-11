@@ -472,7 +472,7 @@ void OpenCLWorkspace::SetNativePtr(const tvm::runtime::Tensor& narr, void* host_
 }
 
 void OpenCLWorkspace::SetPerfHint(Device dev, cl_uint perf_hint) {
-#if defined(USER_OPENCL_EXTN_QCOM) && defined(CL_CONTEXT_PERF_HINT_QCOM)
+#if defined(USE_OPENCL_EXTN_QCOM) && defined(CL_CONTEXT_PERF_HINT_QCOM)
   cl_device_id device_id = GetCLDeviceID(dev.device_id);
   auto platform = device_info[device_id].platform_id;
   OPENCL_CALL(clSetPerfHintQCOM(this->contexts[platform], perf_hint));
