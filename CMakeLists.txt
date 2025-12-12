@@ -581,7 +581,9 @@ else()
 endif()
 
 if(USE_Z3)
+  target_include_directories(tvm_objs PRIVATE ${Z3_INCLUDE_DIR})
   target_include_directories(tvm_runtime_objs PRIVATE ${Z3_INCLUDE_DIR})
+  target_include_directories(tvm_libinfo_objs PRIVATE ${Z3_INCLUDE_DIR})
   target_link_libraries(tvm PRIVATE z3::libz3)
 endif()
 
