@@ -4972,7 +4972,6 @@ def test_sum():
         def main(
             inp_0: R.Tensor((1, 2, 3, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 1, 1, 4), dtype="float32")):
-            # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 1, 1, 4), dtype="float32") = R.sum(inp_0, axis=[2, 1], keepdims=True)
                 gv: R.Tuple(R.Tensor((1, 1, 1, 4), dtype="float32")) = (lv,)
@@ -4985,7 +4984,6 @@ def test_sum():
         def main(
             inp_0: R.Tensor((1, 2, 3, 4), dtype="float32")
         ) -> R.Tuple(R.Tensor((), dtype="float32")):
-            # block 0
             with R.dataflow():
                 lv: R.Tensor((), dtype="float32") = R.sum(inp_0, axis=None, keepdims=False)
                 gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv,)
