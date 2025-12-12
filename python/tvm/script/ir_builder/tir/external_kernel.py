@@ -58,9 +58,7 @@ class BaseKernel:  # pylint: disable=too-few-public-methods
         )
         return tvm_metadata
 
-    def _create_cuda_module(
-        self, ptx, kernel_arg_types, launch_param_tags, kernel_name
-    ):
+    def _create_cuda_module(self, ptx, kernel_arg_types, launch_param_tags, kernel_name):
         """
         Create a CUDA module from PTX and metadata.
 
@@ -120,15 +118,11 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
             "['threadIdx.x', 'threadIdx.y', 'threadIdx.z']"
         )
         assert isinstance(grid[0], (list, tuple)) and isinstance(grid[1], (list, tuple))
-        launch_param_tags = ["blockIdx.x", "blockIdx.y", "blockIdx.z"][
-            : len(grid[0])
-        ] + [
+        launch_param_tags = ["blockIdx.x", "blockIdx.y", "blockIdx.z"][: len(grid[0])] + [
             "threadIdx.x",
             "threadIdx.y",
             "threadIdx.z",
-        ][
-            : len(grid[1])
-        ]
+        ][: len(grid[1])]
         runtime_args = [arg if hasattr(arg, "dtype") else const(arg) for arg in args]
         kernel_arg_types = [arg.dtype for arg in runtime_args]
         runtime_args = runtime_args + list(grid[0]) + list(grid[1])
