@@ -483,42 +483,45 @@ include(cmake/modules/Git.cmake)
 include(cmake/modules/LibInfo.cmake)
 include(cmake/modules/contrib/Mrvl.cmake)
 
-# Allow USE_Z3 to be provided via environment when invoking cmake through build systems
-if(NOT DEFINED USE_Z3 AND DEFINED ENV{USE_Z3})
-  set(USE_Z3 "$ENV{USE_Z3}")
-endif()
-tvm_option(USE_Z3 "Build with Z3 SMT solver support (OFF/pypi/system)" OFF)
+tvm_option(USE_Z3 "Build with Z3 SMT solver support" OFF)
 
+# include(FetchContent)
+include(ExternalProject)
 if (USE_Z3)
-  if (USE_Z3 STREQUAL "pypi")
-    find_package(Python3 COMPONENTS Interpreter REQUIRED)
-    # In python separate build, the z3 module is installed in a temporary directory
-    # so we need to find it.
-    execute_process(
-      COMMAND "${Python3_EXECUTABLE}" -c "import z3; print(z3.__path__[0])"
-      OUTPUT_VARIABLE Z3_PATH
-      OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-    message(STATUS "Found Z3_PATH=${Z3_PATH}")
-    find_path(Z3_INCLUDE_DIR NO_DEFAULT_PATH NAMES z3++.h PATHS ${Z3_PATH}/include)
-    find_library(Z3_LIBRARY NO_DEFAULT_PATH NAMES z3 libz3 PATHS ${Z3_PATH}/lib)
-  elseif (USE_Z3 STREQUAL "system")
-    find_path(Z3_INCLUDE_DIR NAMES z3++.h)
-    find_library(Z3_LIBRARY NAMES z3 libz3)
-  else()
-    message(FATAL_ERROR "Unsupported USE_Z3=${USE_Z3}. Valid values are OFF, pypi, or system.")
-  endif()
-  if (NOT Z3_INCLUDE_DIR OR NOT Z3_LIBRARY)
-    message(FATAL_ERROR "USE_Z3=${USE_Z3} requested but Z3 headers or library were not found. "
-      "Set Z3_INCLUDE_DIR / Z3_LIBRARY or install z3-solver.")
-  endif()
-  get_filename_component(Z3_LIBRARY_PATH ${Z3_LIBRARY} DIRECTORY)
-  add_library(z3_header INTERFACE)
-  target_include_directories(z3_header INTERFACE ${Z3_INCLUDE_DIR})
-  add_library(z3_shared INTERFACE)
-  target_link_libraries(z3_shared INTERFACE ${Z3_LIBRARY})
-  message(STATUS "Found Z3_INCLUDE_DIR=${Z3_INCLUDE_DIR}")
-  message(STATUS "Found Z3_LIBRARY_PATH=${Z3_LIBRARY_PATH}")
+  set(Z3_PREFIX   "${CMAKE_BINARY_DIR}/_deps/z3")
+  set(Z3_INSTALL  "${Z3_PREFIX}/install")
+  set(Z3_LIBDIR   "${Z3_INSTALL}/${CMAKE_INSTALL_LIBDIR}")
+  set(Z3_INCLUDED "${Z3_INSTALL}/${CMAKE_INSTALL_INCLUDEDIR}")
+  ExternalProject_Add(z3_ext
+    PREFIX     "${Z3_PREFIX}"
+    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/z3"
+
+    CMAKE_ARGS
+      -DCMAKE_BUILD_TYPE=MinSizeRel
+      -DCMAKE_INSTALL_PREFIX=${Z3_INSTALL}
+      -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+      -DZ3_BUILD_LIBZ3_SHARED=OFF
+      -DZ3_BUILD_TEST_EXECUTABLES=OFF
+      -DZ3_BUILD_PYTHON_BINDINGS=OFF
+      -DZ3_INCLUDE_GIT_HASH=OFF
+
+    BUILD_BYPRODUCTS
+      "${Z3_LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}z3${CMAKE_STATIC_LIBRARY_SUFFIX}"
+  )
+  add_library(z3::libz3_header INTERFACE IMPORTED GLOBAL)
+  target_include_directories(z3::libz3_header INTERFACE "${Z3_INCLUDED}")
+  add_dependencies(z3::libz3_header z3_ext)
+  message("${Z3_INCLUDED}")
+
+  add_library(z3::libz3 STATIC IMPORTED GLOBAL)
+  set_target_properties(z3::libz3 PROPERTIES
+    IMPORTED_LOCATION
+      "${Z3_LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}z3${CMAKE_STATIC_LIBRARY_SUFFIX}"
+    INTERFACE_INCLUDE_DIRECTORIES
+      "${Z3_INCLUDED}"
+  )
+  add_dependencies(z3::libz3 z3_ext)
+
   list(APPEND COMPILER_SRCS src/target/z3/z3_prover_on.cc)
 else (USE_Z3)
   list(APPEND COMPILER_SRCS src/target/z3/z3_prover_off.cc)
@@ -581,23 +584,10 @@ else()
   target_link_libraries(tvm_runtime PUBLIC tvm_ffi_shared)
 endif()
 
-
-if (USE_Z3) 
-  if(BUILD_STATIC_RUNTIME)
-    message(FATAL_ERROR "Static runtime build does not support Z3")
-  endif()
-  target_link_libraries(tvm_objs PUBLIC z3_header)
-  target_link_libraries(tvm PUBLIC z3_shared)
-  if (USE_Z3 STREQUAL "pypi")
-    set(Z3_REL_RPATH "$ORIGIN/../z3/lib")
-    set_property(TARGET tvm APPEND PROPERTY BUILD_RPATH ${Z3_REL_RPATH})
-    # add python sitelib to rpath to enable load the module in build directory
-    set_property(TARGET tvm APPEND PROPERTY BUILD_RPATH ${Python3_SITELIB}/z3/lib)
-  elseif (Z3_LIBRARY_PATH)
-    set_property(TARGET tvm APPEND PROPERTY BUILD_RPATH ${Z3_LIBRARY_PATH})
-  endif()
+if(USE_Z3)
+  target_include_directories(tvm_objs PRIVATE z3::libz3_header)
+  target_link_libraries(tvm PRIVATE z3::libz3)
 endif()
-
 
 target_include_directories(tvm_runtime PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
@@ -889,16 +879,10 @@ if(TVM_BUILD_PYTHON_MODULE)
     # macOS uses @loader_path
     set_target_properties(tvm PROPERTIES INSTALL_RPATH "@loader_path")
     set_target_properties(tvm_runtime PROPERTIES INSTALL_RPATH "@loader_path")
-    if (USE_Z3 STREQUAL "pypi")
-      set_property(TARGET tvm APPEND PROPERTY INSTALL_RPATH "@loader_path/../z3/lib:@loader_path/../../z3/lib")
-    endif()
   elseif(LINUX)
     # Linux uses $ORIGIN
     set_target_properties(tvm PROPERTIES INSTALL_RPATH "\$ORIGIN")
     set_target_properties(tvm_runtime PROPERTIES INSTALL_RPATH "\$ORIGIN")
-    if (USE_Z3 STREQUAL "pypi")
-      set_property(TARGET tvm APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/../z3/lib:\$ORIGIN/../../z3/lib")
-    endif()
   endif()
 
   # Install compiled shared libraries
