@@ -124,12 +124,9 @@ void NVSHMEMXCumoduleInit(void* cuModule) {
     CUdeviceptr d_ptr;
     size_t d_size;
     const char* kNvshmemDeviceSymbols[] = {
-        "nvshmemi_device_state_d",
-        "nvshmem_i_device_state_d",
-        "nvshmemi_device_team_state_d",
-        "nvshmemi_device_heap_base_d",
-        "nvshmemi_device_heap_size_d",
-        "nvshmemi_device_heap_d",
+        "nvshmemi_device_state_d",      "nvshmem_i_device_state_d",
+        "nvshmemi_device_team_state_d", "nvshmemi_device_heap_base_d",
+        "nvshmemi_device_heap_size_d",  "nvshmemi_device_heap_d",
     };
     for (const char* sym : kNvshmemDeviceSymbols) {
       if (cuModuleGetGlobal(&d_ptr, &d_size, mod, sym) == CUDA_SUCCESS) {
