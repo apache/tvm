@@ -185,7 +185,7 @@ TVM_REGISTER_OP("tir.asin")
       PrimExpr term11 = term9 * x2 * make_const(x.dtype(), 3969) / make_const(x.dtype(), 28160);
       PrimExpr series = term1 + term3 + term5 + term7 + term9 + term11;
 
-      PrimExpr lib_result = intrin::DispatchPureExtern<intrin::FloatSuffix>(e);
+      PrimExpr lib_result = ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
 
       PrimExpr lower = make_const(x.dtype(), -1.0);
       PrimExpr upper = make_const(x.dtype(), 1.0);
@@ -211,7 +211,7 @@ TVM_REGISTER_OP("tir.acos")
       PrimExpr asin_x = asin(x);
       PrimExpr formula_result = half_pi - asin_x;
 
-      PrimExpr lib_result = intrin::DispatchPureExtern<intrin::FloatSuffix>(e);
+      PrimExpr lib_result = ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
 
       PrimExpr lower = make_const(x.dtype(), -1.0);
       PrimExpr upper = make_const(x.dtype(), 1.0);
