@@ -208,9 +208,9 @@ if __name__ == "__main__":
                 p.start()
                 p.join()
                 # Ensure the process finished successfully
-                assert p.exitcode == 0, (
-                    f"Test {test_func.__name__} failed with exit code {p.exitcode}"
-                )
+                assert (
+                    p.exitcode == 0
+                ), f"Test {test_func.__name__} failed with exit code {p.exitcode}"
 
     # testing compilation flow
     p = Process(target=test_nvshmem_compile)

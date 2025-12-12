@@ -74,7 +74,9 @@ def compile_cuda(
     # is not yet implemented
     use_nvshmem = "#include <nvshmem.h>" in code or "#include <nvshmemx.h>" in code
     if compiler == "nvcc" or use_nvshmem:
-        return _compile_cuda_nvcc(code, target_format, arch, options, path_target, use_nvshmem)
+        return _compile_cuda_nvcc(
+            code, target_format, arch, options, path_target, use_nvshmem
+        )
     elif compiler == "nvrtc":
         return _compile_cuda_nvrtc(code, target_format, arch, options)
     else:
@@ -82,7 +84,12 @@ def compile_cuda(
 
 
 def _compile_cuda_nvcc(
-    code, target_format=None, arch=None, options=None, path_target=None, use_nvshmem=False
+    code,
+    target_format=None,
+    arch=None,
+    options=None,
+    path_target=None,
+    use_nvshmem=False,
 ):
     """Compile CUDA code using nvcc.
 
@@ -269,7 +276,9 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
             "or set compiler='nvcc' for fatbin compilation."
         )
     if target_format not in ["cubin", "ptx"]:
-        raise ValueError(f"target_format must be 'cubin' or 'ptx', got: {target_format}")
+        raise ValueError(
+            f"target_format must be 'cubin' or 'ptx', got: {target_format}"
+        )
 
     # Validate options
     if options is not None and not isinstance(options, (str, list)):
@@ -303,7 +312,9 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
         str.encode(code_filtered), b"tvm_kernels.cu", 0, None, None
     )
     if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
-        raise RuntimeError(f"Failed to create NVRTC program: {nvrtc.nvrtcGetErrorString(result)}")
+        raise RuntimeError(
+            f"Failed to create NVRTC program: {nvrtc.nvrtcGetErrorString(result)}"
+        )
 
     # Prepare compilation options
     cuda_path = find_cuda_path()
@@ -324,13 +335,18 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
 
     # Check architecture-specific include directory
     arch_include = os.path.join(
-        cuda_path, "targets", f"{platform.machine()}-{platform.system().lower()}", "include"
+        cuda_path,
+        "targets",
+        f"{platform.machine()}-{platform.system().lower()}",
+        "include",
     )
     if os.path.isdir(arch_include):
         include_paths.append(arch_include)
 
     # Verify we can find essential CUDA headers
-    if not any(os.path.isfile(os.path.join(p, "cuda_runtime.h")) for p in include_paths):
+    if not any(
+        os.path.isfile(os.path.join(p, "cuda_runtime.h")) for p in include_paths
+    ):
         raise RuntimeError(
             f"Cannot find CUDA headers in {cuda_path}. "
             f"Searched in: {include_paths}. "
@@ -346,7 +362,9 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
         if isinstance(options, str):
             compile_opts.append(options.encode())
         else:
-            compile_opts.extend([opt.encode() if isinstance(opt, str) else opt for opt in options])
+            compile_opts.extend(
+                [opt.encode() if isinstance(opt, str) else opt for opt in options]
+            )
 
     # Compile
     (result,) = nvrtc.nvrtcCompileProgram(prog, len(compile_opts), compile_opts)
@@ -371,22 +389,30 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
         result, binary_size = nvrtc.nvrtcGetCUBINSize(prog)
         if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
             nvrtc.nvrtcDestroyProgram(prog)
-            raise RuntimeError(f"Failed to get CUBIN size: {nvrtc.nvrtcGetErrorString(result)}")
+            raise RuntimeError(
+                f"Failed to get CUBIN size: {nvrtc.nvrtcGetErrorString(result)}"
+            )
         binary_buf = bytearray(binary_size)
         (result,) = nvrtc.nvrtcGetCUBIN(prog, binary_buf)
         if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
             nvrtc.nvrtcDestroyProgram(prog)
-            raise RuntimeError(f"Failed to get CUBIN: {nvrtc.nvrtcGetErrorString(result)}")
+            raise RuntimeError(
+                f"Failed to get CUBIN: {nvrtc.nvrtcGetErrorString(result)}"
+            )
     else:  # ptx
         result, binary_size = nvrtc.nvrtcGetPTXSize(prog)
         if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
             nvrtc.nvrtcDestroyProgram(prog)
-            raise RuntimeError(f"Failed to get PTX size: {nvrtc.nvrtcGetErrorString(result)}")
+            raise RuntimeError(
+                f"Failed to get PTX size: {nvrtc.nvrtcGetErrorString(result)}"
+            )
         binary_buf = bytearray(binary_size)
         (result,) = nvrtc.nvrtcGetPTX(prog, binary_buf)
         if result != nvrtc.nvrtcResult.NVRTC_SUCCESS:
             nvrtc.nvrtcDestroyProgram(prog)
-            raise RuntimeError(f"Failed to get PTX: {nvrtc.nvrtcGetErrorString(result)}")
+            raise RuntimeError(
+                f"Failed to get PTX: {nvrtc.nvrtcGetErrorString(result)}"
+            )
 
     # Clean up
     nvrtc.nvrtcDestroyProgram(prog)
@@ -517,9 +543,9 @@ def find_nvshmem_paths() -> Tuple[str, str]:
             if os.path.isfile(os.path.join(include_path, "nvshmem.h")):
                 for lib_path in lib_paths_to_check:
                     # Check for both static (.a) and shared (.so) libraries
-                    if os.path.isfile(os.path.join(lib_path, "libnvshmem.a")) or os.path.isfile(
-                        os.path.join(lib_path, "libnvshmem.so")
-                    ):
+                    if os.path.isfile(
+                        os.path.join(lib_path, "libnvshmem.a")
+                    ) or os.path.isfile(os.path.join(lib_path, "libnvshmem.so")):
                         return include_path, lib_path
 
     error_message = [
@@ -578,7 +604,9 @@ def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
     if compiler == "nvcc":
         return compile_cuda(code, target_format="fatbin", compiler="nvcc")
 
-    raise ValueError(f"Invalid TVM_CUDA_COMPILE_MODE: {compiler}. Expected 'nvcc' or 'nvrtc'.")
+    raise ValueError(
+        f"Invalid TVM_CUDA_COMPILE_MODE: {compiler}. Expected 'nvcc' or 'nvrtc'."
+    )
 
 
 @tvm_ffi.register_global_func("tvm_callback_libdevice_path")
