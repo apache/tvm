@@ -498,13 +498,13 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
   return ret;
 }
 
-std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& constraint) {
+std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& constraint, bool is_assume) {
   size_t old_literal_size = literal_constraints_.size();
   // we will compare the already simplified result with the constraint,
   // so simplify the constraint as well
   PrimExpr new_constraint = operator()(constraint);
   for (const PrimExpr& subconstraint : ExtractConstraints(new_constraint, false)) {
-    if (SideEffect(subconstraint) <= CallEffectKind::kReadState) {
+    if (is_assume || SideEffect(subconstraint) <= CallEffectKind::kPure) {
       literal_constraints_.push_back(subconstraint);
       PrimExpr negation;
       if (subconstraint.dtype().is_bool()) {
@@ -813,6 +813,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
       int64_t c2val = c2.Eval()->value;
       return make_const(op->dtype, truncdiv(c1val, c2val));
     }
+
+    // x % c1 // c2 => 0 if 0 < c1 < c2 && x >= 0
+    TVM_TRY_REWRITE_IF(truncdiv(truncmod(x, c1), c2), ZeroWithTypeLike(x),
+                       c1.Eval()->value > 0 && c2.Eval()->value > c1.Eval()->value &&
+                           CanProveGreaterEqual(x.Eval(), 0));
 
     // while it is always true for trunc div
     // restrict to common case(positive div)
@@ -2404,8 +2409,8 @@ void RewriteSimplifier::Update(const Var& var, const PrimExpr& info, bool allow_
   impl_->Update(var, info, allow_override);
 }
 
-std::function<void()> RewriteSimplifier::EnterConstraint(const PrimExpr& constraint) {
-  return impl_->EnterConstraint(constraint);
+std::function<void()> RewriteSimplifier::EnterConstraint(const PrimExpr& constraint, bool is_assume) {
+  return impl_->EnterConstraint(constraint, is_assume);
 }
 
 void RewriteSimplifier::SetEnabledExtensions(Extension flags) {

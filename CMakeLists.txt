@@ -484,6 +484,50 @@ include(cmake/modules/Git.cmake)
 include(cmake/modules/LibInfo.cmake)
 include(cmake/modules/contrib/Mrvl.cmake)
 
+tvm_option(USE_Z3 "Build with Z3 SMT solver support" OFF)
+
+# include(FetchContent)
+include(ExternalProject)
+if (USE_Z3)
+  set(Z3_PREFIX   "${CMAKE_BINARY_DIR}/_deps/z3")
+  set(Z3_INSTALL  "${Z3_PREFIX}/install")
+  set(Z3_LIBDIR   "${Z3_INSTALL}/${CMAKE_INSTALL_LIBDIR}")
+  set(Z3_INCLUDED "${Z3_INSTALL}/${CMAKE_INSTALL_INCLUDEDIR}")
+  ExternalProject_Add(z3_ext
+    PREFIX     "${Z3_PREFIX}"
+    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/z3"
+
+    CMAKE_ARGS
+      -DCMAKE_BUILD_TYPE=MinSizeRel
+      -DCMAKE_INSTALL_PREFIX=${Z3_INSTALL}
+      -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+      -DZ3_BUILD_LIBZ3_SHARED=OFF
+      -DZ3_BUILD_TEST_EXECUTABLES=OFF
+      -DZ3_BUILD_PYTHON_BINDINGS=OFF
+      -DZ3_INCLUDE_GIT_HASH=OFF
+
+    BUILD_BYPRODUCTS
+      "${Z3_LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}z3${CMAKE_STATIC_LIBRARY_SUFFIX}"
+  )
+  add_library(z3::libz3_header INTERFACE IMPORTED GLOBAL)
+  target_include_directories(z3::libz3_header INTERFACE "${Z3_INCLUDED}")
+  add_dependencies(z3::libz3_header z3_ext)
+  message("${Z3_INCLUDED}")
+
+  add_library(z3::libz3 STATIC IMPORTED GLOBAL)
+  set_target_properties(z3::libz3 PROPERTIES
+    IMPORTED_LOCATION
+      "${Z3_LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}z3${CMAKE_STATIC_LIBRARY_SUFFIX}"
+    INTERFACE_INCLUDE_DIRECTORIES
+      "${Z3_INCLUDED}"
+  )
+  add_dependencies(z3::libz3 z3_ext)
+
+  list(APPEND COMPILER_SRCS src/target/z3/z3_prover_on.cc)
+else (USE_Z3)
+  list(APPEND COMPILER_SRCS src/target/z3/z3_prover_off.cc)
+endif (USE_Z3)
+
 set(LIBINFO_FILE ${CMAKE_CURRENT_LIST_DIR}/src/support/libinfo.cc)
 add_lib_info(${LIBINFO_FILE})
 list(REMOVE_ITEM COMPILER_SRCS ${LIBINFO_FILE})
@@ -541,6 +585,10 @@ else()
   target_link_libraries(tvm_runtime PUBLIC tvm_ffi_shared)
 endif()
 
+if(USE_Z3)
+  target_include_directories(tvm_objs PRIVATE z3::libz3_header)
+  target_link_libraries(tvm PRIVATE z3::libz3)
+endif()
 
 target_include_directories(tvm_runtime PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")

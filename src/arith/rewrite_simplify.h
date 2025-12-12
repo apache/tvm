@@ -116,7 +116,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   PrimExpr VisitExpr_(const CastNode* op) override;
   PrimExpr VisitExpr_(const LetNode* op) override;
 
-  std::function<void()> EnterConstraint(const PrimExpr& constraint);
+  std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume=false);
 
   // Copy internal state from another Impl instance (used by Analyzer cloning)
   void CopyFromImpl(const Impl& other);

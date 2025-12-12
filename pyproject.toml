@@ -55,7 +55,7 @@ dependencies = [
     "psutil",
     "scipy",
     "tornado",
-    "typing_extensions",
+    "typing_extensions"
 ]
 
 # Optional dependencies for different features
@@ -72,6 +72,9 @@ importer-paddle = ["paddlepaddle"]
 # AutoTVM and autoscheduler
 autotvm = ["xgboost"]
 autoscheduler = ["xgboost"]
+
+# SMT support
+z3 = ["z3-solver>=4.13.0"]
 
 # Development and testing
 dev = [
@@ -110,6 +113,7 @@ all = [
     "tflite",
     "paddlepaddle",
     "xgboost",
+    "z3-solver>=4.13.0"
 ]
 
 [project.urls]
