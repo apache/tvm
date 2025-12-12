@@ -24,8 +24,8 @@ from typing import Any, Dict, List, Tuple, Union
 
 from tvm import __version__ as tvm_version
 from tvm import tir
-from tvm.runtime import Module, load_module, const
 from tvm.contrib import nvcc
+from tvm.runtime import Module, const, load_module
 
 
 class BaseKernel:  # pylint: disable=too-few-public-methods

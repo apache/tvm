@@ -26,8 +26,9 @@ import subprocess
 import warnings
 from typing import Tuple
 
-import tvm
 import tvm_ffi
+
+import tvm
 from tvm.target import Target
 
 from ..base import py_str
