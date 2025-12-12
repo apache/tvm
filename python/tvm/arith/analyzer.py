@@ -136,7 +136,7 @@ class Analyzer:
         # Clone factory returns another mod_factory when invoked
         self._clone_factory = mod_factory("clone")
 
-    def get_smtlib2(self, expr: tir.PrimExpr|None = None) -> str:
+    def get_smtlib2(self, expr: tir.PrimExpr = None) -> str:
         return self._get_smtlib2(expr)
 
     def set_z3_timeout_ms(self, timeout_ms: int) -> None:

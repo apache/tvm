@@ -111,14 +111,15 @@ public:
     std::string name = ns.GetNewName(ref);
     z3::expr e = ctx->int_const(name.c_str());
     /// TVM max_val can't handle uint64 max correctly, so we special case it here
-    if(dtype.is_uint() && dtype.bits() == 64) {
-      solver.add(ctx->int_val(0) <= e);
-      solver.add(e <= ctx->int_val((uint64_t)UINT64_MAX));
+    if(dtype.is_bool()) {
+      solver.add(ctx->int_val(0) <= e && e <= ctx->int_val(1));
+    }
+    else if(dtype.is_uint() && dtype.bits() == 64) {
+      solver.add(ctx->int_val(0) <= e && e <= ctx->int_val((uint64_t)UINT64_MAX));
     } else {
       auto min_val = Downcast<IntImm>(min_value(dtype))->value;
       auto max_val = Downcast<IntImm>(max_value(dtype))->value;
-      solver.add(ctx->int_val(min_val) <= e);
-      solver.add(e <= ctx->int_val(max_val));
+      solver.add(ctx->int_val(min_val) <= e && e <= ctx->int_val(max_val));
     }
     return e;
   }
