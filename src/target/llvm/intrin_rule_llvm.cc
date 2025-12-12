@@ -167,9 +167,18 @@ TVM_REGISTER_OP("tir.sinh")
 TVM_REGISTER_OP("tir.asin")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       using tir::make_const;
+      using namespace intrin;
       const tir::CallNode* call = e.as<tir::CallNode>();
       ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
+      
+      // Use system library function for values near boundaries where Taylor series
+      // has poor precision. Threshold chosen to keep error < 1% for Taylor series.
+      PrimExpr threshold = make_const(x.dtype(), 0.9);
+      PrimExpr abs_x = tir::abs(x);
+      PrimExpr use_lib = abs_x >= threshold;
+      
+      // Taylor series for values away from boundaries
       PrimExpr x2 = x * x;
       PrimExpr term1 = x;
       PrimExpr term3 = term1 * x2 / make_const(x.dtype(), 6);
@@ -178,25 +187,45 @@ TVM_REGISTER_OP("tir.asin")
       PrimExpr term9 = term7 * x2 * make_const(x.dtype(), 1225) / make_const(x.dtype(), 3456);
       PrimExpr term11 = term9 * x2 * make_const(x.dtype(), 3969) / make_const(x.dtype(), 28160);
       PrimExpr series = term1 + term3 + term5 + term7 + term9 + term11;
+      
+      // System library function for boundary values
+      PrimExpr lib_result = DispatchPureExtern<FloatSuffix>(e);
+      
       /* --- domain limit check --- */
       PrimExpr lower = make_const(x.dtype(), -1.0);
       PrimExpr upper = make_const(x.dtype(), 1.0);
-      PrimExpr out_range = tir::Or(x<lower, x> upper);
+      PrimExpr out_range = tir::Or(x < lower, x > upper);
       // Use a quiet NaN constant
       PrimExpr nan_const = make_const(x.dtype(), std::numeric_limits<double>::quiet_NaN());
-      // select: if out of [-1,1] → NaN, else → series
-      return tir::Select(out_range, nan_const, series);
+      
+      // select: if out of [-1,1] → NaN, else if |x| >= threshold → lib, else → series
+      return tir::Select(out_range, nan_const,
+                        tir::Select(use_lib, lib_result, series));
     });
 
 TVM_REGISTER_OP("tir.acos")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       using tir::make_const;
+      using namespace intrin;
       const tir::CallNode* call = e.as<tir::CallNode>();
       ICHECK(call != nullptr) << "Invalid call node in acos legalization";
       const PrimExpr& x = call->args[0];
+      
+      // Use system library function for values near boundaries where ASIN Taylor series
+      // has poor precision, which would cause ACOS errors.
+      PrimExpr threshold = make_const(x.dtype(), 0.9);
+      PrimExpr abs_x = tir::abs(x);
+      PrimExpr use_lib = abs_x >= threshold;
+      
+      // For values away from boundaries, use π/2 - asin(x)
       PrimExpr half_pi = make_const(x.dtype(), M_PI / 2);
       PrimExpr asin_x = asin(x);
-      return half_pi - asin_x;
+      PrimExpr formula_result = half_pi - asin_x;
+      
+      // System library function for boundary values
+      PrimExpr lib_result = DispatchPureExtern<FloatSuffix>(e);
+      
+      return tir::Select(use_lib, lib_result, formula_result);
     });
 
 TVM_REGISTER_OP("tir.atan")
