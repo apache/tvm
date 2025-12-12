@@ -512,7 +512,11 @@ if (USE_Z3)
       "${Z3_LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}z3${CMAKE_STATIC_LIBRARY_SUFFIX}"
   )
   add_library(z3::libz3_header INTERFACE IMPORTED)
-  target_include_directories(z3::libz3_header INTERFACE "${Z3_INCLUDED}")
+  target_include_directories(z3::libz3_header
+    INTERFACE
+    3rdparty/z3/src/api
+    3rdparty/z3/src/api/c++
+  )
   add_dependencies(z3::libz3_header z3_ext)
 
   add_library(z3::libz3 STATIC IMPORTED)
