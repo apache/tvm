@@ -512,13 +512,7 @@ if (USE_Z3)
     BUILD_BYPRODUCTS
       "${Z3_LIBRARY}"
   )
-  add_library(z3::libz3_header INTERFACE IMPORTED)
-  target_include_directories(z3::libz3_header
-    INTERFACE
-    "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/z3/src/api"
-    "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/z3/src/api/c++"
-  )
-  add_dependencies(z3::libz3_header z3_ext)
+  set(Z3_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/z3/src/api;${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/z3/src/api/c++")
 
   add_library(z3::libz3 STATIC IMPORTED)
   set_target_properties(z3::libz3 PROPERTIES IMPORTED_LOCATION "${Z3_LIBRARY}")
@@ -587,7 +581,7 @@ else()
 endif()
 
 if(USE_Z3)
-  target_include_directories(tvm_objs PRIVATE z3::libz3_header)
+  target_include_directories(tvm_runtime_objs PRIVATE ${Z3_INCLUDE_DIR})
   target_link_libraries(tvm PRIVATE z3::libz3)
 endif()
 

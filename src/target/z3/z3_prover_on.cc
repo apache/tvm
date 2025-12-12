@@ -1,7 +1,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
-#include <z3++.h>
+#include "z3++.h"
 
 #include <sstream>
 #include <string>
