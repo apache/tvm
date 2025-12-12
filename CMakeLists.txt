@@ -492,10 +492,11 @@ if (USE_Z3)
   set(Z3_PREFIX   "${CMAKE_BINARY_DIR}/_deps/z3")
   set(Z3_INSTALL  "${Z3_PREFIX}/install")
   set(Z3_LIBDIR   "${Z3_INSTALL}/${CMAKE_INSTALL_LIBDIR}")
-  set(Z3_INCLUDED "${Z3_INSTALL}/${CMAKE_INSTALL_INCLUDEDIR}")
+  set(Z3_LIBRARY  "${Z3_LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}z3${CMAKE_STATIC_LIBRARY_SUFFIX}")
   ExternalProject_Add(z3_ext
     PREFIX     "${Z3_PREFIX}"
-    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/z3"
+    SOURCE_DIR 
+      "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/z3"
 
     CMAKE_ARGS
       -DCMAKE_BUILD_TYPE=MinSizeRel
@@ -509,23 +510,18 @@ if (USE_Z3)
       -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
 
     BUILD_BYPRODUCTS
-      "${Z3_LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}z3${CMAKE_STATIC_LIBRARY_SUFFIX}"
+      "${Z3_LIBRARY}"
   )
   add_library(z3::libz3_header INTERFACE IMPORTED)
   target_include_directories(z3::libz3_header
     INTERFACE
-    3rdparty/z3/src/api
-    3rdparty/z3/src/api/c++
+    "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/z3/src/api"
+    "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/z3/src/api/c++"
   )
   add_dependencies(z3::libz3_header z3_ext)
 
   add_library(z3::libz3 STATIC IMPORTED)
-  set_target_properties(z3::libz3 PROPERTIES
-    IMPORTED_LOCATION
-      "${Z3_LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}z3${CMAKE_STATIC_LIBRARY_SUFFIX}"
-    INTERFACE_INCLUDE_DIRECTORIES
-      "${Z3_INCLUDED}"
-  )
+  set_target_properties(z3::libz3 PROPERTIES IMPORTED_LOCATION "${Z3_LIBRARY}")
   add_dependencies(z3::libz3 z3_ext)
 
   list(APPEND COMPILER_SRCS src/target/z3/z3_prover_on.cc)
