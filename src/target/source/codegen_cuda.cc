@@ -199,7 +199,8 @@ std::string CodeGenCUDA::Finish() {
   if (enable_fp16_) {
     decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 530)\n";
     decl_stream << "#include <cuda_fp16.h>\n";
-    decl_stream << "__device__ half max" << "(half a, half b)\n"
+    decl_stream << "__device__ half max"
+                << "(half a, half b)\n"
                 << "{\n  return __hgt(__half(a), __half(b)) ? a : b;\n}\n";
     decl_stream << "__device__ half min(half a, half b)\n"
                 << "{\n  return __hlt(__half(a), __half(b)) ? a : b;\n}\n";
@@ -213,7 +214,8 @@ std::string CodeGenCUDA::Finish() {
   if (enable_bf16_) {
     decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)\n";
     decl_stream << "#include <cuda_bf16.h>\n";
-    decl_stream << "__device__ nv_bfloat16 max" << "(nv_bfloat16 a, nv_bfloat16 b)\n"
+    decl_stream << "__device__ nv_bfloat16 max"
+                << "(nv_bfloat16 a, nv_bfloat16 b)\n"
                 << "{\n  return __hgt(a, b) ? a : b;\n}\n";
     decl_stream << "__device__ nv_bfloat16 min(nv_bfloat16 a, nv_bfloat16 b)\n"
                 << "{\n  return __hlt(a, b) ? a : b;\n}\n";
@@ -696,7 +698,8 @@ void CodeGenCUDA::PrintVecElemStore(const std::string& vec, DataType t, int i,
   ICHECK(i >= 0 && i < (t.bits() == 8 ? 16 : (t.bits() == 16 || t.bits() == 32) ? 8 : 4));
   if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
     if (t.lanes() == 2 || t.lanes() == 3) {
-      stream << vec << '.' << access[i % t.lanes()] << "=" << "(" << value << ");\n";
+      stream << vec << '.' << access[i % t.lanes()] << "="
+             << "(" << value << ");\n";
     } else {
       std::string ac = t.lanes() == 4 ? vec : (vec + "." + access[i / 4]);
       std::string type_name = t.is_int() ? "signed char" : "unsigned char";
@@ -1253,7 +1256,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->stream << "\" @!p mov.b32 %0, 0;\\n\"\n";
     this->stream << "\" @p ld.global.nc.f32 %0, [%1];}\\n\"\n";
     // stream << "\" @p ld.global.nc.L2::128B.f32 %0, [%1];}\\n\"\n" ;
-    stream << ": \"=f\"(" << reg << "[" << local_addr << "]" << ")\n";
+    stream << ": \"=f\"(" << reg << "[" << local_addr << "]"
+           << ")\n";
     stream << ": \"l\"((void*)(" << global_buffer << "+" << global_addr << ")), \"r\"((int)"
            << guard << ")\n";
     stream << ");\n";
@@ -1441,7 +1445,8 @@ void CodeGenCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
   PrintVecConstructor(op->dtype, os);
   os << "(";
   for (int i = 0; i < lanes; i++) {
-    os << "(" << PrintExpr(op->base) << ")" << "+(" << PrintExpr(op->stride) << "*" << i << ")";
+    os << "(" << PrintExpr(op->base) << ")"
+       << "+(" << PrintExpr(op->stride) << "*" << i << ")";
     if (i != lanes - 1) os << ", ";
   }
   os << ")";
