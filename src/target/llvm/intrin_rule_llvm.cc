@@ -173,7 +173,7 @@ TVM_REGISTER_OP("tir.asin")
       const PrimExpr& x = call->args[0];
 
       PrimExpr threshold = make_const(x.dtype(), 0.9);
-      PrimExpr abs_x = tir::abs(x);
+      PrimExpr abs_x = tvm::abs(x);
       PrimExpr use_lib = abs_x >= threshold;
 
       PrimExpr x2 = x * x;
@@ -185,7 +185,7 @@ TVM_REGISTER_OP("tir.asin")
       PrimExpr term11 = term9 * x2 * make_const(x.dtype(), 3969) / make_const(x.dtype(), 28160);
       PrimExpr series = term1 + term3 + term5 + term7 + term9 + term11;
 
-      PrimExpr lib_result = DispatchPureExtern<FloatSuffix>(e);
+      PrimExpr lib_result = intrin::DispatchPureExtern<intrin::FloatSuffix>(e);
 
       PrimExpr lower = make_const(x.dtype(), -1.0);
       PrimExpr upper = make_const(x.dtype(), 1.0);
@@ -204,14 +204,14 @@ TVM_REGISTER_OP("tir.acos")
       const PrimExpr& x = call->args[0];
 
       PrimExpr threshold = make_const(x.dtype(), 0.9);
-      PrimExpr abs_x = tir::abs(x);
+      PrimExpr abs_x = tvm::abs(x);
       PrimExpr use_lib = abs_x >= threshold;
 
       PrimExpr half_pi = make_const(x.dtype(), M_PI / 2);
       PrimExpr asin_x = asin(x);
       PrimExpr formula_result = half_pi - asin_x;
 
-      PrimExpr lib_result = DispatchPureExtern<FloatSuffix>(e);
+      PrimExpr lib_result = intrin::DispatchPureExtern<intrin::FloatSuffix>(e);
 
       PrimExpr lower = make_const(x.dtype(), -1.0);
       PrimExpr upper = make_const(x.dtype(), 1.0);
