@@ -70,15 +70,20 @@ def compile_cuda(
     - NVRTC is a "runtime" compilation library and can be faster for JIT compilation.
     - NVRTC requires cuda-python: pip install cuda-python
     """
-    if compiler == "nvcc":
-        return _compile_cuda_nvcc(code, target_format, arch, options, path_target)
+    # TODO: if need NVSHMEM for compilation, fall back to NVCC because support for NVRTC
+    # is not yet implemented
+    use_nvshmem = "#include <nvshmem.h>" in code or "#include <nvshmemx.h>" in code
+    if compiler == "nvcc" or use_nvshmem:
+        return _compile_cuda_nvcc(code, target_format, arch, options, path_target, use_nvshmem)
     elif compiler == "nvrtc":
         return _compile_cuda_nvrtc(code, target_format, arch, options)
     else:
         raise ValueError(f"cuda compiler must be 'nvcc' or 'nvrtc', got: {compiler}")
 
 
-def _compile_cuda_nvcc(code, target_format=None, arch=None, options=None, path_target=None):
+def _compile_cuda_nvcc(
+    code, target_format=None, arch=None, options=None, path_target=None, use_nvshmem=False
+):
     """Compile CUDA code using nvcc.
 
     Parameters
@@ -101,7 +106,6 @@ def _compile_cuda_nvcc(code, target_format=None, arch=None, options=None, path_t
     """
     # Check for NVSHMEM dependency
     nvshmem_include_path, nvshmem_lib_path = None, None
-    use_nvshmem = "#include <nvshmem.h>" in code or "#include <nvshmemx.h>" in code
     if use_nvshmem:
         # NOTE: we cannot check whether nvshmem is used based on whether
         # the global function "runtime.nvshmem.cumodule_init" is defined.
