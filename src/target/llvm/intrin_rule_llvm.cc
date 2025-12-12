@@ -189,11 +189,10 @@ TVM_REGISTER_OP("tir.asin")
 
       PrimExpr lower = make_const(x.dtype(), -1.0);
       PrimExpr upper = make_const(x.dtype(), 1.0);
-      PrimExpr out_range = tir::Or(x < lower, x > upper);
+      PrimExpr out_range = tir::Or(x<lower, x> upper);
       PrimExpr nan_const = make_const(x.dtype(), std::numeric_limits<double>::quiet_NaN());
 
-      return tir::Select(out_range, nan_const,
-                         tir::Select(use_lib, lib_result, series));
+      return tir::Select(out_range, nan_const, tir::Select(use_lib, lib_result, series));
     });
 
 TVM_REGISTER_OP("tir.acos")
@@ -216,11 +215,10 @@ TVM_REGISTER_OP("tir.acos")
 
       PrimExpr lower = make_const(x.dtype(), -1.0);
       PrimExpr upper = make_const(x.dtype(), 1.0);
-      PrimExpr out_range = tir::Or(x < lower, x > upper);
+      PrimExpr out_range = tir::Or(x<lower, x> upper);
       PrimExpr nan_const = make_const(x.dtype(), std::numeric_limits<double>::quiet_NaN());
 
-      return tir::Select(out_range, nan_const,
-                         tir::Select(use_lib, lib_result, formula_result));
+      return tir::Select(out_range, nan_const, tir::Select(use_lib, lib_result, formula_result));
     });
 
 TVM_REGISTER_OP("tir.atan")
