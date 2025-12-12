@@ -4944,6 +4944,14 @@ def test_sum():
     class Sum(Module):
         def forward(self, x):
             return torch.sum(x, (2, 1))
+        
+    class SumKeepDim(Module):
+        def forward(self, x):
+            return torch.sum(x, (2, 1), keepdim=True)
+    
+    class SumWithoutDim(Module):
+        def forward(self, x):
+            return torch.sum(x)
 
     @tvm.script.ir_module
     class expected1:
@@ -4958,8 +4966,36 @@ def test_sum():
                 R.output(gv)
             return gv
 
+    @tvm.script.ir_module    
+    class expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 1, 1, 4), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 1, 1, 4), dtype="float32") = R.sum(inp_0, axis=[2, 1], keepdims=True)
+                gv: R.Tuple(R.Tensor((1, 1, 1, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected3:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.sum(inp_0, axis=None, keepdims=False)
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
     example_args = (torch.randn(1, 2, 3, 4, dtype=torch.float32),)
     verify_model(Sum(), example_args, {}, expected1)
+    verify_model(SumKeepDim(), example_args, {}, expected2)
+    verify_model(SumWithoutDim(), example_args, {}, expected3)
 
 
 def test_argmax_argmin():
