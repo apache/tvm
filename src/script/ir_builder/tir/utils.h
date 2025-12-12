@@ -76,6 +76,24 @@ inline PrimFuncFrame FindPrimFuncFrame(const ffi::String& method) {
 }
 
 /*!
+ * \brief Find a PrimFuncFrame anywhere in the current builder stack (not necessarily the top).
+ *        This relaxed variant enables certain APIs (e.g., T.match_buffer on a PrimFunc param)
+ *        to be invoked after non-top-level frames (let/if/for) have been introduced, while
+ *        still being inside a PrimFunc scope.
+ * \param method The method name to be printed when throwing exception.
+ * \return The PrimFuncFrame found in the builder stack.
+ */
+inline PrimFuncFrame FindPrimFuncFrameRelaxed(const ffi::String& method) {
+  if (ffi::Optional<PrimFuncFrame> frame = IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
+    return frame.value();
+  } else {
+    LOG(FATAL) << "ValueError: " << method << " must be called under a T.prim_func(), "
+               << "but it occurred outside of any T.prim_func() frame";
+  }
+  throw;
+}
+
+/*!
  * \brief Check whether the top frame in IRBuilder frame stack is BlockFrame.
  * \param method The method name to be printed when throwing exception.
  * \return The top frame of BlockFrame.

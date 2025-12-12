@@ -133,7 +133,7 @@ Buffer MatchBuffer(ObjectRef param, ffi::Array<PrimExpr> shape, DataType dtype,
   Buffer buffer = BufferDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
                              offset_factor, buffer_type_str, axis_separators);
   if (const auto* var = param.as<tvm::tir::VarNode>()) {
-    PrimFuncFrame frame = FindPrimFuncFrame("T.match_buffer");
+    PrimFuncFrame frame = FindPrimFuncFrameRelaxed("T.match_buffer");
     Var v = ffi::GetRef<Var>(var);
     for (auto const& arg : frame->args) {
       if (arg.same_as(v)) {
