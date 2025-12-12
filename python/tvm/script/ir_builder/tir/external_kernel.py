@@ -107,9 +107,9 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
         **kwargs: Dict[str, Any],
     ) -> Tuple[str, Module, List[Any]]:
         """Compile the kernel to a device module."""
-        from tvm.relax.frontend.nn import (
+        from tvm.relax.frontend.nn import (  # pylint: disable=import-outside-toplevel
             SourceModule,
-        )  # pylint: disable=import-outside-toplevel
+        )
 
         kernel_name = kwargs["kernel_name"]
         assert len(grid) == 2, (
@@ -182,10 +182,10 @@ def call_kernel(
     kwargs : Dict[str, Any]
         Additional keyword arguments to pass to the kernel or compilation.
     """
-    from ..ir import (
+    from ..ir import (  # pylint: disable=import-outside-toplevel
         module_get_attr,
         module_set_attr,
-    )  # pylint: disable=import-outside-toplevel
+    )
     from .ir import call_packed  # pylint: disable=import-outside-toplevel
 
     kernel_type = f"{type(kernel).__module__}.{type(kernel).__qualname__}"

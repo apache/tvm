@@ -257,7 +257,8 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
         from cuda.bindings import nvrtc  # pylint: disable=import-outside-toplevel
     except ImportError as e:
         raise RuntimeError(
-            "Failed to compile CUDA with NVRTC because the `cuda-python` package is not available.\n"
+            "Failed to compile CUDA with NVRTC because the `cuda-python` package "
+            "is not available.\n"
             "Please install it with: pip install cuda-python\n"
             "See: https://nvidia.github.io/cuda-python/"
         ) from e
