@@ -486,9 +486,9 @@ include(cmake/modules/contrib/Mrvl.cmake)
 
 tvm_option(USE_Z3 "Build with Z3 SMT solver support" OFF)
 
-# include(FetchContent)
-include(ExternalProject)
 if (USE_Z3)
+  include(ExternalProject)
+  include(GNUInstallDirs)
   set(Z3_PREFIX   "${CMAKE_BINARY_DIR}/_deps/z3")
   set(Z3_INSTALL  "${Z3_PREFIX}/install")
   set(Z3_LIBDIR   "${Z3_INSTALL}/${CMAKE_INSTALL_LIBDIR}")
@@ -505,16 +505,17 @@ if (USE_Z3)
       -DZ3_BUILD_TEST_EXECUTABLES=OFF
       -DZ3_BUILD_PYTHON_BINDINGS=OFF
       -DZ3_INCLUDE_GIT_HASH=OFF
+      -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
+      -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
 
     BUILD_BYPRODUCTS
       "${Z3_LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}z3${CMAKE_STATIC_LIBRARY_SUFFIX}"
   )
-  add_library(z3::libz3_header INTERFACE IMPORTED GLOBAL)
+  add_library(z3::libz3_header INTERFACE IMPORTED)
   target_include_directories(z3::libz3_header INTERFACE "${Z3_INCLUDED}")
   add_dependencies(z3::libz3_header z3_ext)
-  message("${Z3_INCLUDED}")
 
-  add_library(z3::libz3 STATIC IMPORTED GLOBAL)
+  add_library(z3::libz3 STATIC IMPORTED)
   set_target_properties(z3::libz3 PROPERTIES
     IMPORTED_LOCATION
       "${Z3_LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}z3${CMAKE_STATIC_LIBRARY_SUFFIX}"
