@@ -530,13 +530,13 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                 s, h, d = T.axis.remap("SSS", iters)
                 if h < num_q_heads:
                     q[s, h, d] = T.if_then_else(
-                        apply_rope > 0 and d < rotary_dim,
+                        tir.all(apply_rope > 0, d < rotary_dim),
                         _rope(qkv, s, h, d, position_map[s]),
                         qkv[s, h, d],
                     )
                 elif h < num_q_heads + num_kv_heads:
                     k[s, h - num_q_heads, d] = T.if_then_else(
-                        apply_rope > 0 and d < rotary_dim,
+                        tir.all(apply_rope > 0, d < rotary_dim),
                         _rope(qkv, s, h, d, position_map[s]),
                         qkv[s, h, d],
                     )
@@ -750,13 +750,13 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
                 s, h, d = T.axis.remap("SSS", iters)
                 if h < num_q_heads:
                     q[s, h, d] = T.if_then_else(
-                        apply_rope > 0 and d < rotary_dim,
+                        tir.all(apply_rope > 0, d < rotary_dim),
                         _rope(qkv, s, h, d, position_map[s]),
                         qkv[s, h, d],
                     )
                 elif h < num_q_heads + num_kv_heads:
                     k[s, h - num_q_heads, d] = T.if_then_else(
-                        apply_rope > 0 and d < rotary_dim,
+                        tir.all(apply_rope > 0, d < rotary_dim),
                         _rope(qkv, s, h, d, position_map[s]),
                         qkv[s, h, d],
                     )
