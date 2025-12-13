@@ -390,7 +390,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("vm.builtin.alloc_storage", VMAllocStorage)
-      .def_method("vm.builtin.alloc_tensor", &StorageObj::AllocTensor);
+      .def_packed("vm.builtin.alloc_tensor", [](ffi::PackedArgs args, ffi::Any* rv) {
+        Storage sobj = args[0].cast<Storage>();
+        int64_t offset = args[1].cast<int64_t>();
+        ffi::Shape shape = args[2].cast<ffi::Shape>();
+        DataType dtype = args[3].cast<DataType>();
+        if (args.size() == 5) {
+          ffi::String scope = args[4].cast<ffi::String>();
+          *rv = sobj->AllocTensorScoped(offset, shape, dtype, scope);
+        } else {
+          *rv = sobj->AllocTensor(offset, shape, dtype);
+        }
+      });
 }
 
 //-------------------------------------------------
@@ -516,9 +527,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           "vm.builtin.reshape",
           [](Tensor data, ffi::Shape new_shape) { return data.CreateView(new_shape, data->dtype); })
       .def("vm.builtin.null_value", []() -> std::nullptr_t { return nullptr; })
-      .def("vm.builtin.to_device", [](Tensor data, int dev_type, int dev_id) {
+      .def_packed("vm.builtin.to_device", [](ffi::PackedArgs args, ffi::Any* rv) {
+        Tensor data = args[0].cast<Tensor>();
+        int dev_type = args[1].cast<int>();
+        int dev_id = args[2].cast<int>();
         Device dst_device = {(DLDeviceType)dev_type, dev_id};
-        return data.CopyTo(dst_device);
+        ffi::String mem_scope = "global";
+        if (args.size() == 4) {
+          mem_scope = args[3].cast<ffi::String>();
+        }
+        *rv = data.CopyTo(dst_device, mem_scope);
       });
 }
 

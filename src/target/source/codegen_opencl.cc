@@ -240,11 +240,6 @@ void CodeGenOpenCL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     if (t.is_uint()) {
       os << 'u';
     }
-    if (t.bits() == 8 && t.lanes() == 4) {
-      // directly 4 8 bit int in integer.
-      os << "int";
-      return;
-    }
     switch (t.bits()) {
       case 8:
         os << "char";
@@ -279,7 +274,7 @@ void CodeGenOpenCL::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*
     return PrintType(ptr->dtype, os);
   } else if (auto* ptr = type.as<PointerTypeNode>()) {
     if (runtime::IsTextureStorage(std::string(ptr->storage_scope))) {
-      os << "image2d_t";
+      os << "image2d_array_t";
     } else {
       PrintType(ptr->element_type, os);
       os << '*';
@@ -428,47 +423,85 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     ICHECK(ptr_type != nullptr) << "Texture Var's must be of PointerType";
     ICHECK(runtime::IsTextureStorage(std::string(ptr_type->storage_scope)))
         << "builtin::texture2d_store() only supports storing to texture buffers";
+    const int channel_size = Downcast<IntImm>(op->args[4])->value;
+    ICHECK(channel_size == 64 || channel_size == 128)
+        << "Unsupported Channel Size: " << channel_size;
+    DataType channel_type = runtime::GetChannelType(channel_size);
+
     DataType buffer_type = ptr_type->element_type.as<PrimTypeNode>()->dtype;
-    if (buffer_type.is_float16()) {
+    std::stringstream ss;
+    this->PrintExpr(op->args[5], ss);
+    std::string value;
+    value = this->SSAGetID(ss.str(), buffer_type.with_lanes(channel_size / buffer_type.bits()));
+    if (channel_size == 64) {
       os << "write_imageh(";
-    } else if (buffer_type.is_float()) {
+    } else if (channel_size == 128) {
       os << "write_imagef(";
     } else {
-      LOG(FATAL) << "Unsupported type: " << buffer_type
-                 << ", currently only float and half are supported for image2d OpenCL codegen.";
+      LOG(FATAL) << "Unsupported Channel Size: " << channel_size;
     }
     this->PrintExpr(op->args[0], os);
     os << ", ";
-    os << "(int2)(";
+    os << "(int4)(";
     this->PrintExpr(op->args[1], os);
     os << ", ";
     this->PrintExpr(op->args[2], os);
-    os << "), ";
+    os << ", ";
     this->PrintExpr(op->args[3], os);
+    os << ", ";
+    this->PrintExpr(make_const(DataType::Int(32), 0), os);
+    os << "), ";
+    os << "as_";
+    this->PrintType(channel_type, os);
+    os << "(" << value << ")";
     os << ")";
   } else if (op->op.same_as(builtin::texture2d_load())) {
     enable_compliant_texture_reads_ = true;
     std::stringstream ss;
-    if (op->dtype.is_float16()) {
+    const int channel_size = Downcast<IntImm>(op->args[4])->value;
+    const int data_lanes = channel_size / op->dtype.bits();
+    ICHECK(channel_size == 64 || channel_size == 128)
+        << "Unsupported Channel Size: " << channel_size;
+    ss << "as_";
+    this->PrintType(op->dtype.with_lanes(data_lanes), ss);
+    ss << "(";
+    if (channel_size == 64) {
       ss << "READ_IMAGEH(";
-    } else if (op->dtype.is_float()) {
+    } else if (channel_size == 128) {
       ss << "READ_IMAGEF(";
     } else {
-      LOG(FATAL) << "Unsupported type: " << op->dtype
-                 << ", currently only float and half are supported for image2d OpenCL codegen.";
+      LOG(FATAL) << "Unsupported Channel Size: " << channel_size;
     }
     this->PrintExpr(op->args[0], ss);
     ss << ", ";
     ss << "image_sampler, ";
-    ss << "((int2)(";
+    ss << "((int4)(";
     this->PrintExpr(op->args[1], ss);
     ss << ", ";
     this->PrintExpr(op->args[2], ss);
-    ss << ")))";
+    ss << ", ";
+    this->PrintExpr(op->args[3], ss);
+    ss << ", ";
+    this->PrintExpr(make_const(DataType::Int(32), 0), ss);
+    ss << "))))";
 
-    std::string rhs = SSAGetID(ss.str(), op->dtype.with_lanes(4));
-    if (op->args.back().as<RampNode>()) {
-      os << rhs;
+    std::string rhs = SSAGetID(ss.str(), op->dtype.with_lanes(data_lanes));
+    if (auto ramp = op->args.back().as<RampNode>()) {
+      if (ramp->base.as<IntImmNode>() && *tir::as_const_int(ramp->base) == 0 &&
+          *tir::as_const_int(ramp->lanes) == data_lanes && *tir::as_const_int(ramp->stride) == 1) {
+        os << rhs;
+      } else if (*tir::as_const_int(ramp->stride) == 1) {
+        os << "(*(";
+        this->PrintType(op->dtype.with_lanes(*tir::as_const_int(ramp->lanes)), os);
+        os << "*)";
+        os << "((";
+        this->PrintType(op->dtype.with_lanes(1), os);
+        os << "*)&" << rhs << " + ";
+        this->PrintExpr(ramp->base, os);
+        os << "))";
+      } else {
+        LOG(FATAL) << "Unsupported Texture Load Args";
+      }
     } else {
       os << "((";
       this->PrintType(op->dtype.with_lanes(1), os);

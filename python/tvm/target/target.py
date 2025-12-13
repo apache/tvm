@@ -838,7 +838,7 @@ def stm32(series="unknown", options=None):
     return Target(" ".join(["c"] + opts))
 
 
-def adreno(model="unknown", options=None, clml=False):
+def adreno(model="unknown", options=None, cfg=None, backend="opencl"):
     """Returns a Qualcomm GPU target.
     Parameters
     ----------
@@ -846,13 +846,22 @@ def adreno(model="unknown", options=None, clml=False):
         The model of this device
     options : str or list of str
         Additional options
+    cfg : str
+        Additional hints for target pipeline behavior
+    backend : str
+            Backend API, can be "opencl" or "vulkan"
     """
-    if clml:
-        opts = ["-device=adreno", "--keys=adreno,opencl,gpu,clml", "-model=%s" % model]
-    else:
-        opts = ["-device=adreno", "--keys=adreno,opencl,gpu", "-model=%s" % model]
+
+    if backend not in ["opencl", "vulkan"]:
+        raise ValueError(f"Unsupported API: {backend}. Must be 'opencl' or 'vulkan'.")
+
+    keys = f"adreno,{backend},gpu"
+    if cfg:
+        keys += f",{cfg}"
+
+    opts = ["-device=adreno", f"--keys={keys}", f"-model={model}"]
     opts = _merge_opts(opts, options)
-    return Target(" ".join(["opencl"] + opts))
+    return Target(" ".join([backend] + opts))
 
 
 def create(target):

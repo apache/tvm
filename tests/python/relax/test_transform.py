@@ -441,8 +441,16 @@ def test_call_tir_inplace_some_new():
             R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32"), R.Tensor((2, 3), dtype="int32")
         ):
             R.func_attr({"relax.force_pure": True})
-            gv0 = R.builtin.alloc_tensor(R.shape([2, 3]), "int32", R.prim_value(0))
-            gv1 = R.builtin.alloc_tensor(R.shape([2, 3]), "int32", R.prim_value(0))
+            gv0: R.Tensor((2, 3), dtype="int32") = R.emit_with_sinfo(
+                "relax.builtin.alloc_tensor",
+                (R.shape([2, 3]), R.dtype("int32"), R.prim_value(0), R.str("global")),
+                (R.Tensor((2, 3), dtype="int32"),),
+            )
+            gv1: R.Tensor((2, 3), dtype="int32") = R.emit_with_sinfo(
+                "relax.builtin.alloc_tensor",
+                (R.shape([2, 3]), R.dtype("int32"), R.prim_value(0), R.str("global")),
+                (R.Tensor((2, 3), dtype="int32"),),
+            )
             _ = Expected.copy(x, y, z, gv0, gv1)
             gv2 = (x, gv0, gv1)
             return gv2

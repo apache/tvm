@@ -38,6 +38,7 @@ namespace vm {
 
 /*! \brief The magic number for the serialized VM bytecode file  */
 constexpr uint64_t kTVMVMBytecodeMagic = 0xD225DE2F4214151D;
+constexpr uint64_t kTVMVMBytecodeMagicV2 = 0xD225DE2F4214151E;
 
 #define STREAM_CHECK(val, section)                                          \
   ICHECK(val) << "Invalid VM file format in the " << section << " section." \
@@ -143,22 +144,24 @@ Instruction VMExecutable::GetInstruction(Index i) const {
 }
 
 void SaveHeader(dmlc::Stream* strm) {
-  uint64_t header = kTVMVMBytecodeMagic;
+  uint64_t header = kTVMVMBytecodeMagicV2;
   strm->Write(header);
   std::string version = VM_VERSION;
   strm->Write(version);
 }
 
-void LoadHeader(dmlc::Stream* strm) {
+uint64_t LoadHeader(dmlc::Stream* strm) {
   // Check header.
   uint64_t header;
   STREAM_CHECK(strm->Read(&header), "header");
-  STREAM_CHECK(header == kTVMVMBytecodeMagic, "header");
+  STREAM_CHECK((header == kTVMVMBytecodeMagic) || (header == kTVMVMBytecodeMagicV2), "header");
 
   // Check version.
   std::string version;
   STREAM_CHECK(strm->Read(&version), "version");
   STREAM_CHECK(version == VM_VERSION, "version");
+
+  return header;
 }
 
 ffi::Bytes VMExecutable::SaveToBytes() const {
@@ -171,6 +174,9 @@ ffi::Bytes VMExecutable::SaveToBytes() const {
 
   // Global section.
   SaveGlobalSection(&strm);
+
+  // Memory Scopes
+  SaveMemoryScopeSection(&strm);
 
   // Constant section.
   SaveConstantSection(&strm);
@@ -192,10 +198,15 @@ ffi::Module VMExecutable::LoadFromBytes(const ffi::Bytes& bytes) {
   ObjectPtr<VMExecutable> exec = ffi::make_object<VMExecutable>();
 
   // Load header.
-  LoadHeader(&strm);
+  uint64_t header_magic = LoadHeader(&strm);
 
   // Global section.
   exec->LoadGlobalSection(&strm);
+
+  if (kTVMVMBytecodeMagicV2 == header_magic) {
+    // Memory Scopes
+    exec->LoadMemoryScopeSection(&strm);
+  }
 
   // Constant section.
   exec->LoadConstantSection(&strm);
@@ -245,6 +256,15 @@ bool VMFuncInfo::Load(dmlc::Stream* strm) {
 
 void VMExecutable::SaveGlobalSection(dmlc::Stream* strm) const { strm->Write(func_table); }
 
+void VMExecutable::SaveMemoryScopeSection(dmlc::Stream* strm) const {
+  strm->Write(static_cast<uint64_t>(this->memory_scopes.size()));
+  for (auto it = this->memory_scopes.begin(); it != this->memory_scopes.end(); it++) {
+    LOG(WARNING) << "Scope Saving:" << it->second;
+    strm->Write(it->first);
+    strm->Write(it->second);
+  }
+}
+
 void VMExecutable::SaveConstantSection(dmlc::Stream* strm) const {
   strm->Write(static_cast<uint64_t>(this->constants.size()));
   for (const auto& it : this->constants) {
@@ -290,6 +310,23 @@ void VMExecutable::LoadGlobalSection(dmlc::Stream* strm) {
   // setup func map
   for (size_t i = 0; i < func_table.size(); ++i) {
     this->func_map[func_table[i].name] = i;
+  }
+}
+
+void VMExecutable::LoadMemoryScopeSection(dmlc::Stream* strm) {
+  uint64_t sz;
+  // Load the number of memory scope entries.
+  STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "memory scopes");
+
+  size_t size = static_cast<size_t>(sz);
+  // Load each of the scopes.
+  for (size_t i = 0; i < size; i++) {
+    Index const_idx;
+    std::string scope;
+    STREAM_CHECK(strm->Read(&const_idx), "memory scopes");
+    STREAM_CHECK(strm->Read(&scope), "memory scopes");
+    LOG(WARNING) << "Scope Loaded:" << scope;
+    this->memory_scopes[const_idx] = scope;
   }
 }
 

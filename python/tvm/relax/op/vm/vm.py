@@ -62,7 +62,11 @@ def alloc_storage(
 
 @args_converter.auto
 def alloc_tensor(
-    storage: Expr, offset: Union[int, Expr], shape: Expr, dtype: Union[str, Expr]
+    storage: Expr,
+    offset: Union[int, Expr],
+    shape: Expr,
+    dtype: Union[str, Expr],
+    runtime_device_ind: Union[int, Expr] = PrimValue(0),
 ) -> Call:
     """Construct a Call to allocate a tensor on a certain storage starting from the given offset.
 
@@ -80,6 +84,10 @@ def alloc_tensor(
     dtype : Union[str, Expr]
         The datatype of the tensor to be allocated.
 
+    runtime_device_ind: Union[int, Expr]
+        The device index indicating on which device the tensor is to be
+        allocated at runtime. Index -1 is reserved for the host device.
+
     Returns
     -------
     result : Call
@@ -89,7 +97,7 @@ def alloc_tensor(
         offset = PrimValue(offset)
     if isinstance(dtype, str):
         dtype = DataTypeImm(dtype)
-    return _ffi_api.alloc_tensor(storage, offset, shape, dtype)  # type: ignore
+    return _ffi_api.alloc_tensor(storage, offset, shape, dtype, runtime_device_ind)  # type: ignore
 
 
 def kill_object(obj: Expr) -> Call:

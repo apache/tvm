@@ -132,8 +132,9 @@ class SpecializeTIRCallArgs : ExprMutator {
         if (sinfo->vdevice.defined()) {
           scope = sinfo->vdevice.value()->memory_scope;
         }
-        const Buffer& buffer =
-            tir::decl_buffer(GetShapeFromTensorStructInfo(sinfo), sinfo->dtype, "ret_val", scope);
+
+        const Buffer& buffer = tir::decl_buffer(GetShapeFromTensorStructInfo(sinfo), sinfo->dtype,
+                                                "ret_val_" + std::to_string(index), scope);
         param_map.Set(pfunc->params[args.size() + index], buffer);
         index++;
       }

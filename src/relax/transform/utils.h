@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "../../support/array.h"
@@ -383,6 +384,19 @@ inline ffi::String GetCodegenName(const std::string& composite_name) {
   return composite_name.substr(0, delim_pos);
 }
 
+inline int GetDeviceIndexByScope(const IRModule& mod, const ffi::String& scope) {
+  if (mod->global_infos.find("vdevice") == mod->global_infos.end()) {
+    return 0;
+  }
+  ffi::Array<GlobalInfo> vdevices = mod->global_infos["vdevice"];
+  for (int i = 0; i < static_cast<int>(vdevices.size()); ++i) {
+    if (scope == vdevices[i].as<VDevice>().value()->memory_scope) {
+      return i;
+    }
+  }
+  return 0;
+}
+
 inline int GetDeviceIndex(const IRModule& mod, const VDevice& vdevice) {
   ffi::Array<GlobalInfo> vdevices = mod->global_infos["vdevice"];
   for (int i = 0; i < static_cast<int>(vdevices.size()); ++i) {
@@ -392,6 +406,17 @@ inline int GetDeviceIndex(const IRModule& mod, const VDevice& vdevice) {
   }
   LOG(FATAL) << "The vdevice is not in the ir_module.";
   return -1;
+}
+
+inline ffi::Optional<VDevice> GetGlobalVDevice(const IRModule& mod, const int index) {
+  ffi::Optional<VDevice> ret;
+  if (mod->global_infos.find("vdevice") != mod->global_infos.end()) {
+    ffi::Array<GlobalInfo> vdevices = mod->global_infos["vdevice"];
+    if (index < static_cast<int>(vdevices.size())) {
+      ret = vdevices[index].as<VDevice>();
+    }
+  }
+  return ret;
 }
 
 /* \brief Eliminate common subexpressions
