@@ -20,11 +20,37 @@ import numpy as np
 import pytest
 
 import tvm
+import tvm.contrib.nvcc
 import tvm.testing
 from tvm import te, topi
 from tvm.contrib.nvcc import have_bf16, have_fp16, have_int8
 from tvm.script import ir as I
 from tvm.script import tir as T
+
+
+@pytest.fixture(autouse=True, params=["nvcc", "nvrtc"])
+def setup_cuda_compile_mode(request):
+    mode = request.param
+    if mode == "nvrtc":
+        try:
+            from cuda.bindings import nvrtc
+        except ImportError:
+            pytest.skip("cuda-python not available, skipping nvrtc tests")
+
+    orig_func = tvm.contrib.nvcc.tvm_callback_cuda_compile
+
+    def compile_mode_wrapper(code, target):
+        if mode == "nvcc":
+            return tvm.contrib.nvcc.compile_cuda(code, target_format="fatbin", compiler="nvcc")
+        elif mode == "nvrtc":
+            return tvm.contrib.nvcc.compile_cuda(code, target_format="cubin", compiler="nvrtc")
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
+
+    tvm.register_global_func("tvm_callback_cuda_compile", compile_mode_wrapper, override=True)
+    # yield back to the original function so that each test runs twice
+    yield
+    tvm.register_global_func("tvm_callback_cuda_compile", orig_func, override=True)
 
 
 @tvm.testing.requires_gpu
@@ -201,13 +227,13 @@ def test_cuda_make_int8():
         fun(a)
         np.testing.assert_equal(a.numpy(), np_a)
 
-    check_cuda(64, np.int8(0xAB), 4)
+    check_cuda(64, np.uint8(0xAB).view(np.int8), 4)
     check_cuda(64, 0, 4)
     check_cuda(64, -3, 4)
-    check_cuda(64, np.int8(0xAB), 3)
+    check_cuda(64, np.uint8(0xAB).view(np.int8), 3)
     check_cuda(64, 0, 3)
     check_cuda(64, -3, 3)
-    check_cuda(64, np.int8(0xAB), 2)
+    check_cuda(64, np.uint8(0xAB).view(np.int8), 2)
     check_cuda(64, 0, 2)
     check_cuda(64, -3, 2)
 

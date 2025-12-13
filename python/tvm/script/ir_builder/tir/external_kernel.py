@@ -17,14 +17,15 @@
 """External kernel integration fro TIR"""
 import json
 import logging
+import os
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
 
 from tvm import __version__ as tvm_version
 from tvm import tir
-from tvm.runtime import Module, load_module, const
 from tvm.contrib import nvcc
+from tvm.runtime import Module, const, load_module
 
 
 class BaseKernel:  # pylint: disable=too-few-public-methods
@@ -100,10 +101,15 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
         self.source_code = source_code
 
     def compile_to_device_module(  # pylint: disable=arguments-differ
-        self, grid: List[List[Union[int, tir.PrimExpr]]], *args: List[Any], **kwargs: Dict[str, Any]
+        self,
+        grid: List[List[Union[int, tir.PrimExpr]]],
+        *args: List[Any],
+        **kwargs: Dict[str, Any],
     ) -> Tuple[str, Module, List[Any]]:
         """Compile the kernel to a device module."""
-        from tvm.relax.frontend.nn import SourceModule  # pylint: disable=import-outside-toplevel
+        from tvm.relax.frontend.nn import (  # pylint: disable=import-outside-toplevel
+            SourceModule,
+        )
 
         kernel_name = kwargs["kernel_name"]
         assert len(grid) == 2, (
@@ -134,8 +140,13 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
 
         with tempfile.TemporaryDirectory() as temp_dir:
             ptx_path = f"{temp_dir}/{kernel_name}.ptx"
+            compiler = os.environ.get("TVM_CUDA_COMPILE_MODE", "nvcc")
             nvcc.compile_cuda(
-                source_code, target_format="ptx", options=compile_options, path_target=ptx_path
+                source_code,
+                target_format="ptx",
+                options=compile_options,
+                path_target=ptx_path,
+                compiler=compiler,
             )
             with open(ptx_path, "r") as f:
                 ptx = f.read()
@@ -171,7 +182,10 @@ def call_kernel(
     kwargs : Dict[str, Any]
         Additional keyword arguments to pass to the kernel or compilation.
     """
-    from ..ir import module_get_attr, module_set_attr  # pylint: disable=import-outside-toplevel
+    from ..ir import (  # pylint: disable=import-outside-toplevel
+        module_get_attr,
+        module_set_attr,
+    )
     from .ir import call_packed  # pylint: disable=import-outside-toplevel
 
     kernel_type = f"{type(kernel).__module__}.{type(kernel).__qualname__}"
