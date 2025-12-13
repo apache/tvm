@@ -1628,10 +1628,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     def _sum(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
-        keepdim = node.kwargs["keepdim"] if "keepdim" in node.kwargs else False
-        if len(args) == 1:
-            return self.block_builder.emit(relax.op.sum(args[0], keepdims=keepdim))
-        return self.block_builder.emit(relax.op.sum(args[0], args[1]))
+        x = args[0]
+        dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+        if isinstance(dim, (list, tuple)) and len(dim) == 0:
+            dim = None
+        keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+        return self.block_builder.emit(relax.op.sum(x, dim, keepdims=keepdim))
 
     def _var(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)

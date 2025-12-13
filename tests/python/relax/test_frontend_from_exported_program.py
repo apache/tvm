@@ -4945,6 +4945,14 @@ def test_sum():
         def forward(self, x):
             return torch.sum(x, (2, 1))
 
+    class SumKeepDim(Module):
+        def forward(self, x):
+            return torch.sum(x, (2, 1), keepdim=True)
+
+    class SumWithoutDim(Module):
+        def forward(self, x):
+            return torch.sum(x)
+
     @tvm.script.ir_module
     class expected1:
         @R.function
@@ -4958,8 +4966,36 @@ def test_sum():
                 R.output(gv)
             return gv
 
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 1, 1, 4), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 1, 1, 4), dtype="float32") = R.sum(
+                    inp_0, axis=[2, 1], keepdims=True
+                )
+                gv: R.Tuple(R.Tensor((1, 1, 1, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected3:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.sum(inp_0, axis=None, keepdims=False)
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
     example_args = (torch.randn(1, 2, 3, 4, dtype=torch.float32),)
     verify_model(Sum(), example_args, {}, expected1)
+    verify_model(SumKeepDim(), example_args, {}, expected2)
+    verify_model(SumWithoutDim(), example_args, {}, expected3)
 
 
 def test_argmax_argmin():
@@ -7840,7 +7876,7 @@ def test_cross_entropy():
     @tvm.script.ir_module
     class Expected1:
         @R.function
-        def main(x: R.Tensor((4, 3), dtype="float32")) -> R.Tuple(R.Tensor((4,), dtype="float32")):
+        def main(x: R.Tensor((4, 3), dtype="float32")) -> R.Tuple(R.Tensor((), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((4, 3), dtype="float32") = R.astype(x, dtype="float32")
                 lv1: R.Tensor((4, 3), dtype="float32") = R.nn.log_softmax(lv, axis=1)
@@ -7863,11 +7899,11 @@ def test_cross_entropy():
                 lv12: R.Tensor((4,), dtype="bool") = R.not_equal(
                     R.const([0, 1, 2, 1], dtype="int64"), R.const(-100, "int64")
                 )
-                lv13: R.Tensor((4,), dtype="bool") = R.sum(lv12, axis=[], keepdims=False)
-                lv14: R.Tensor((4,), dtype="float32") = R.astype(lv13, dtype="float32")
-                lv15: R.Tensor((4,), dtype="float32") = R.sum(lv11, axis=[], keepdims=False)
-                lv16: R.Tensor((4,), dtype="float32") = R.divide(lv15, lv14)
-                gv: R.Tuple(R.Tensor((4,), dtype="float32")) = (lv16,)
+                lv13: R.Tensor((), dtype="bool") = R.sum(lv12, axis=None, keepdims=False)
+                lv14: R.Tensor((), dtype="float32") = R.astype(lv13, dtype="float32")
+                lv15: R.Tensor((), dtype="float32") = R.sum(lv11, axis=None, keepdims=False)
+                lv16: R.Tensor((), dtype="float32") = R.divide(lv15, lv14)
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv16,)
                 R.output(gv)
             return gv
 
