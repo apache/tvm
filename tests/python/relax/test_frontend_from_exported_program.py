@@ -4944,11 +4944,11 @@ def test_sum():
     class Sum(Module):
         def forward(self, x):
             return torch.sum(x, (2, 1))
-        
+
     class SumKeepDim(Module):
         def forward(self, x):
             return torch.sum(x, (2, 1), keepdim=True)
-    
+
     class SumWithoutDim(Module):
         def forward(self, x):
             return torch.sum(x)
@@ -4966,7 +4966,7 @@ def test_sum():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module    
+    @tvm.script.ir_module
     class expected2:
         @R.function
         def main(
