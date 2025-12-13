@@ -7874,7 +7874,7 @@ def test_cross_entropy():
     @tvm.script.ir_module
     class Expected1:
         @R.function
-        def main(x: R.Tensor((4, 3), dtype="float32")) -> R.Tuple(R.Tensor((4,), dtype="float32")):
+        def main(x: R.Tensor((4, 3), dtype="float32")) -> R.Tuple(R.Tensor((), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((4, 3), dtype="float32") = R.astype(x, dtype="float32")
                 lv1: R.Tensor((4, 3), dtype="float32") = R.nn.log_softmax(lv, axis=1)
@@ -7897,11 +7897,11 @@ def test_cross_entropy():
                 lv12: R.Tensor((4,), dtype="bool") = R.not_equal(
                     R.const([0, 1, 2, 1], dtype="int64"), R.const(-100, "int64")
                 )
-                lv13: R.Tensor((4,), dtype="bool") = R.sum(lv12, axis=[], keepdims=False)
-                lv14: R.Tensor((4,), dtype="float32") = R.astype(lv13, dtype="float32")
-                lv15: R.Tensor((4,), dtype="float32") = R.sum(lv11, axis=[], keepdims=False)
-                lv16: R.Tensor((4,), dtype="float32") = R.divide(lv15, lv14)
-                gv: R.Tuple(R.Tensor((4,), dtype="float32")) = (lv16,)
+                lv13: R.Tensor((), dtype="bool") = R.sum(lv12, axis=None, keepdims=False)
+                lv14: R.Tensor((), dtype="float32") = R.astype(lv13, dtype="float32")
+                lv15: R.Tensor((), dtype="float32") = R.sum(lv11, axis=None, keepdims=False)
+                lv16: R.Tensor((), dtype="float32") = R.divide(lv15, lv14)
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv16,)
                 R.output(gv)
             return gv
 
