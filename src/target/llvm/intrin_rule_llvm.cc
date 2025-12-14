@@ -172,7 +172,7 @@ TVM_REGISTER_OP("tir.asin")
       ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
 
-      PrimExpr threshold = make_const(x.dtype(), 0.9);
+      PrimExpr threshold = make_const(x.dtype(), 0.5);
       PrimExpr abs_x = tvm::abs(x);
       PrimExpr use_lib = abs_x >= threshold;
 
@@ -204,7 +204,7 @@ TVM_REGISTER_OP("tir.acos")
       ICHECK(call != nullptr) << "Invalid call node in acos legalization";
       const PrimExpr& x = call->args[0];
 
-      PrimExpr threshold = make_const(x.dtype(), 0.9);
+      PrimExpr threshold = make_const(x.dtype(), 0.5);
       PrimExpr abs_x = tvm::abs(x);
       PrimExpr use_lib = abs_x >= threshold;
 
