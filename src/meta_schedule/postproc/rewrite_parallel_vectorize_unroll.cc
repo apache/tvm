@@ -448,7 +448,7 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
           }
         } catch (const tir::ScheduleError& e) {
           DLOG(WARNING) << "Failed to apply parallelization/vectorization: " << e.what();
-          continue;
+          return false;
         }
       }
     }
