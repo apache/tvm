@@ -183,8 +183,30 @@ class IRConvertSSA final : public StmtExprMutator {
           value = VisitExpr(ffi::GetRef<PrimExpr>(expr));
         } else if (auto* stmt = value.as<StmtNode>()) {
           value = VisitStmt(ffi::GetRef<Stmt>(stmt));
+        } else if (auto opt_arr = value.try_cast<ffi::Array<ObjectRef>>()) {
+          // Handle container types like Array[...] that may contain Vars/Buffers/Exprs/Stmts
+          auto arr = opt_arr.value();
+          bool arr_changed = false;
+          std::vector<ObjectRef> rewritten;
+          rewritten.reserve(arr.size());
+          for (const ObjectRef& elem : arr) {
+            ObjectRef new_elem = elem;
+            if (auto* e = elem.as<PrimExprNode>()) {
+              new_elem = VisitExpr(ffi::GetRef<PrimExpr>(e));
+            } else if (auto* s = elem.as<StmtNode>()) {
+              new_elem = VisitStmt(ffi::GetRef<Stmt>(s));
+            } else if (auto* v = elem.as<VarNode>()) {
+              new_elem = GetRemappedVar(ffi::GetRef<Var>(v));
+            } else if (auto* b = elem.as<BufferNode>()) {
+              new_elem = GetRemappedBuffer(ffi::GetRef<Buffer>(b));
+            }
+            arr_changed = arr_changed || !new_elem.same_as(elem);
+            rewritten.push_back(new_elem);
+          }
+          if (arr_changed) {
+            value = ffi::Array<ObjectRef>(rewritten);
+          }
         }
-
         made_change = made_change || !value.same_as(old_value);
         dict.Set(key, value);
       }
@@ -195,9 +217,7 @@ class IRConvertSSA final : public StmtExprMutator {
         return func->attrs;
       }
     }();
-
     auto body = VisitStmt(func->body);
-
     // If anything changed, update the returned function
     if (!params.same_as(func->params) || !buffer_map.same_as(func->buffer_map) ||
         !attrs.same_as(func->attrs) || !body.same_as(func->body)) {
@@ -213,6 +233,7 @@ class IRConvertSSA final : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final { return GetRemappedVar(ffi::GetRef<Var>(op)); }
+
   PrimExpr VisitExpr_(const LetNode* op) final {
     const Var& v = op->var;
     if (defined_.count(v.get())) {
