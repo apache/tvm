@@ -33,6 +33,7 @@
 #include <memory>
 #include <unordered_map>
 #include <vector>
+#include "tvm/ffi/object.h"
 
 namespace tvm {
 /*! \brief namespace of arithmetic analysis. */
@@ -298,7 +299,7 @@ class RewriteSimplifier {
    *
    * \return an exit function that must be called to cleanup the constraint can be nullptr.
    */
-  TVM_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint);
+  TVM_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume=false);
 
   /*! \brief Flags to enable more computationally-intensive simplifications
    *
@@ -563,8 +564,8 @@ class ConstraintContext {
    * \param analyzer The analyzer.
    * \param constraint The constraint to be applied.
    */
-  ConstraintContext(Analyzer* analyzer, PrimExpr constraint)
-      : analyzer_(analyzer), constraint_(constraint) {}
+  ConstraintContext(Analyzer* analyzer, PrimExpr constraint, bool is_assume=false)
+      : analyzer_(analyzer), constraint_(constraint), is_assume_(is_assume) {}
   // enter the scope.
   void EnterWithScope();
   // exit the scope.
@@ -575,6 +576,7 @@ class ConstraintContext {
   PrimExpr constraint_;
   /*! \brief function to be called in recovery */
   std::vector<std::function<void()>> recovery_functions_;
+  bool is_assume_;
 };
 
 /*!
@@ -633,6 +635,78 @@ class IntSetAnalyzer {
   Impl* impl_;
 };
 
+class Z3Prover {
+ public:
+  /*!
+   * \brief Update binding of var to a new expression.
+   *
+   * \param var The variable of interest.
+   * \param new_range The range of allowed values for this var.
+   * \param allow_override whether we allow override of existing information.
+   */
+  TVM_DLL void Bind(const Var& var, const Range& new_range, bool allow_override = false);
+
+  /*!
+    * \brief Update binding of var to a new expression.
+    *
+    * \param var The variable of interest.
+    * \param expr The bound expression
+    * \param allow_override whether we allow override of existing information.
+    */
+  TVM_DLL void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
+
+  /*!
+   * \brief Whether can we prove expr is always true.
+   *
+   * \param expr The expression.
+   * \return Whether we can prove it.
+   *
+   * \note Analyzer will call into sub-analyzers to get the result.
+   */
+  TVM_DLL bool CanProve(const PrimExpr & expr);
+
+  /*!
+   * \brief Update the internal state to enter constraint.
+   * \param constraint A constraint expression.
+   *
+   * \return an exit function that must be called to cleanup the constraint can be nullptr.
+   */
+  std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume=false);
+
+  /*!
+   * \brief Get the SMTLIB2 representation of the current context
+   * \param expr The optional expression to check
+   * \return The SMTLIB2 string
+   */
+  ffi::String GetSMTLIB2(const ffi::Optional<PrimExpr> expr);
+
+  /*!
+   * \brief Get statistics about Z3 prover
+   * \return The statistics string
+   */
+  ffi::String GetStats();
+
+  /*!
+   * \brief Set timeout in milliseconds for Z3 prover
+   * \param timeout_ms The timeout in milliseconds
+   */
+  void SetTimeoutMs(unsigned timeout_ms);
+
+  /*!
+   * \brief Set max step for Z3 prover
+   * \param max_step The max step
+   */
+  void SetMaxStep(unsigned max_step);
+
+ private:
+  friend class Analyzer;
+  explicit Z3Prover(Analyzer* parent);
+  TVM_DLL ~Z3Prover();
+  void CopyFrom(const Z3Prover & other);
+  class Impl;
+  Impl* impl_;
+};
+
 /*!
  * \brief Analyzer that contains bunch of sub-analyzers.
  *
@@ -662,6 +736,8 @@ class TVM_DLL Analyzer {
   IntSetAnalyzer int_set;
   /*! \brief sub-analyzer transitive comparisons */
   TransitiveComparisonAnalyzer transitive_comparisons;
+  /*! \brief analyzer using z3 */
+  Z3Prover z3_prover;
   /*! \brief constructor */
   Analyzer();
   /*!

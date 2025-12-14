@@ -39,7 +39,8 @@ Analyzer::Analyzer()
       modular_set(this),
       rewrite_simplify(this),
       canonical_simplify(this),
-      int_set(this) {}
+      int_set(this),
+      z3_prover(this) {}
 
 std::unique_ptr<Analyzer> Analyzer::Clone() const {
   auto cloned = std::make_unique<Analyzer>();
@@ -50,6 +51,7 @@ std::unique_ptr<Analyzer> Analyzer::Clone() const {
   cloned->canonical_simplify.CopyFrom(this->canonical_simplify);
   cloned->int_set.CopyFrom(this->int_set);
   cloned->transitive_comparisons.CopyFrom(this->transitive_comparisons);
+  cloned->z3_prover.CopyFrom(this->z3_prover);
   return cloned;
 }
 
@@ -64,6 +66,7 @@ void Analyzer::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
   this->canonical_simplify.Update(var, new_expr, allow_override);
   this->int_set.Update(var, this->int_set(new_expr), allow_override);
   this->transitive_comparisons.Bind(var, expr, allow_override);
+  this->z3_prover.Bind(var, expr, allow_override);
 }
 
 void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
@@ -74,6 +77,7 @@ void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
     this->const_int_bound.Bind(var, range, allow_override);
     this->int_set.Bind(var, range, allow_override);
     this->transitive_comparisons.Bind(var, range, allow_override);
+    this->z3_prover.Bind(var, range, allow_override);
   }
   // skip modular_set
   // skip rewrite simplify
@@ -140,9 +144,10 @@ void ConstraintContext::EnterWithScope() {
   // entering the scope.
   recovery_functions_.push_back(analyzer_->const_int_bound.EnterConstraint(constraint_));
   recovery_functions_.push_back(analyzer_->modular_set.EnterConstraint(constraint_));
-  recovery_functions_.push_back(analyzer_->rewrite_simplify.EnterConstraint(constraint_));
+  recovery_functions_.push_back(analyzer_->rewrite_simplify.EnterConstraint(constraint_, is_assume_));
   recovery_functions_.push_back(analyzer_->int_set.EnterConstraint(constraint_));
   recovery_functions_.push_back(analyzer_->transitive_comparisons.EnterConstraint(constraint_));
+  recovery_functions_.push_back(analyzer_->z3_prover.EnterConstraint(constraint_));
 }
 
 void ConstraintContext::ExitWithScope() {
@@ -333,11 +338,10 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
       PrimExpr simplified_diff = this->Simplify(pos_diff.value());
       IntSet iset = this->int_set(simplified_diff);
       if (iset.HasLowerBound()) {
-        PrimExpr iset_min_simpl = this->Simplify(iset.min());
-        ConstIntBound relaxed_lower_bound = this->const_int_bound(iset_min_simpl);
-        if (relaxed_lower_bound->min_value >= lower_bound) {
-          return true;
-        }
+        ConstIntBound relaxed_lower_bound = this->const_int_bound(this->Simplify(iset.min()));
+        if (relaxed_lower_bound->min_value >= lower_bound) return true;
+        ConstIntBound relaxed_upper_bound = this->const_int_bound(this->Simplify(iset.max()));
+        if (relaxed_upper_bound->max_value < lower_bound) return false;
       }
     }
   }
@@ -351,14 +355,41 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
   if (ContainsVscaleCall(simplified)) {
     if (TargetHasVLA(curr_target)) {
       auto kVScaleValues = GetVScaleValues(curr_target);
-      return CanProveVscaleExpressionFromKnownValues(this, simplified, kVScaleValues);
+      if(CanProveVscaleExpressionFromKnownValues(this, simplified, kVScaleValues)) {
+        return true;
+      }
     }
-    LOG(WARNING)
-        << "The expression contains scalable values. An attempt to prove by substituting "
-           "with known values of vscale was not performed. This proof currently only supports "
-           "VLA targets, but the target was "
-        << curr_target;
+    // LOG(WARNING)
+    //     << "The expression contains scalable values. An attempt to prove by substituting "
+    //        "with known values of vscale was not performed. This proof currently only supports "
+    //        "VLA targets, but the target was "
+    //     << curr_target;
   }
+  if(z3_prover.CanProve(simplified)) {
+    // auto msg = z3_prover.GetSMTLIB2(simplified);
+    // std::stringstream ss;
+    // ss << msg;
+    // std::stringstream out;
+    // std::string tmp;
+    // while(std::getline(ss, tmp)) {
+    //   out << "    " << tmp << "\n";
+    // }
+    // LOG(INFO) << "Proved by Z3: " << simplified << "\n" << out.str();
+    return true;
+  }
+  // if(strength >= ProofStrength::kSymbolicBound && z3_prover.CanProve(simplified)) {
+  //   // The following debug logging is very useful when diagnosing issues with the Z3 prover.
+  //   auto msg = z3_prover.GetSMTLIB2(simplified);
+  //   std::stringstream ss;
+  //   ss << msg;
+  //   std::stringstream out;
+  //   std::string tmp;
+  //   while(std::getline(ss, tmp)) {
+  //     out << "    " << tmp << "\n";
+  //   }
+  //   LOG(INFO) << "Proved by Z3: " << simplified << "\n" << out.str();
+  //   return true;
+  // }
   return false;
 }
 
@@ -474,6 +505,25 @@ static FnFactory BuildAnalyzerFactory(std::shared_ptr<tvm::arith::Analyzer> self
         int64_t flags = args[0].cast<int64_t>();
         self->rewrite_simplify.SetEnabledExtensions(
             static_cast<RewriteSimplifier::Extension>(flags));
+      });
+    } else if (name == "get_smtlib2") {
+      return Function([self](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
+        auto expr = args[0].cast<ffi::Optional<PrimExpr>>();
+        *ret = self->z3_prover.GetSMTLIB2(expr);
+      });
+    } else if (name == "get_z3_stats") {
+      return Function([self](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
+        *ret = self->z3_prover.GetStats();
+      });
+    } else if (name == "set_z3_timeout_ms") {
+      return Function([self](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
+        unsigned timeout_ms = args[0].cast<unsigned>();
+        self->z3_prover.SetTimeoutMs(timeout_ms);
+      });
+    } else if (name == "set_z3_max_step") {
+      return Function([self](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
+        unsigned max_step = args[0].cast<unsigned>();
+        self->z3_prover.SetMaxStep(max_step);
       });
     }
     return Function();
