@@ -566,9 +566,6 @@ if(USE_Z3)
     )
   else()
     find_program(PATCHELF_EXECUTABLE patchelf REQUIRED)
-    if(NOT PATCHELF_EXECUTABLE_FOUND)
-      message(FATAL_ERROR "patchelf is required to patch libz3 reference on Linux")
-    endif()
     execute_process(
       COMMAND ${PATCHELF_EXECUTABLE} --print-soname ${Z3_LIBRARY}
       OUTPUT_VARIABLE Z3_SONAME
