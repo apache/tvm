@@ -561,18 +561,27 @@ if(USE_Z3)
     # so it won't be searched in rpath. We patch it to `@rpath/libz3.dylib` here.
     # `POST_BUILD` command needs to be in same cmake file where the target's created.
     add_custom_command(TARGET tvm POST_BUILD
-        COMMAND install_name_tool -change "libz3.dylib" "@rpath/libz3.dylib" $<TARGET_FILE:tvm>
-        COMMENT "Patching libz3 reference to use @rpath"
+      COMMAND install_name_tool -change "libz3.dylib" "@rpath/libz3.dylib" $<TARGET_FILE:tvm>
+      COMMENT "Patching libz3 reference to use @rpath"
     )
   else()
-    # TODO: patchelf on linux
-    find_program(PATCHELF_EXECUTABLE patchelf)
-    if ($PATCHELF_EXECUTABLE_FOUND)
-      add_custom_command(TARGET tvm POST_BUILD
-          COMMAND ${PATCHELF_EXECUTABLE} --print-needed $<TARGET_FILE:tvm>
-          COMMENT "Patching libz3 reference to use @rpath"
-      )
+    find_program(PATCHELF_EXECUTABLE patchelf REQUIRED)
+    if(NOT PATCHELF_EXECUTABLE_FOUND)
+      message(FATAL_ERROR "patchelf is required to patch libz3 reference on Linux")
     endif()
+    execute_process(
+      COMMAND ${PATCHELF_EXECUTABLE} --print-soname ${Z3_LIBRARY}
+      OUTPUT_VARIABLE Z3_SONAME
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      RESULT_VARIABLE Z3_SONAME_RESULT
+    )
+    if(NOT Z3_SONAME_RESULT EQUAL "0")
+      message(FATAL_ERROR "Failed to get Z3 soname using patchelf")
+    endif()
+    add_custom_command(TARGET tvm POST_BUILD
+      COMMAND ${PATCHELF_EXECUTABLE} --replace-needed ${Z3_SONAME} libz3.so $<TARGET_FILE:tvm>
+      COMMENT "Patching libz3 reference to use soname ${Z3_SONAME}"
+    )
   endif()
 endif()
 
