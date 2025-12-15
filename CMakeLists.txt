@@ -555,6 +555,25 @@ if(USE_Z3)
   target_include_directories(tvm_runtime_objs PRIVATE ${Z3_CXX_INCLUDE_DIRS})
   target_include_directories(tvm_libinfo_objs PRIVATE ${Z3_CXX_INCLUDE_DIRS})
   target_link_libraries(tvm PRIVATE z3::libz3)
+
+  if (APPLE)
+    # `libz3.dylib` from z3-solver on pypi have a "wrong" name `libz3.dylib`,
+    # so it won't be searched in rpath. We patch it to `@rpath/libz3.dylib` here.
+    # `POST_BUILD` command needs to be in same cmake file where the target's created.
+    add_custom_command(TARGET tvm POST_BUILD
+        COMMAND install_name_tool -change "libz3.dylib" "@rpath/libz3.dylib" $<TARGET_FILE:tvm>
+        COMMENT "Patching libz3 reference to use @rpath"
+    )
+  else()
+    # TODO: patchelf on linux
+    find_program(PATCHELF_EXECUTABLE patchelf)
+    if ($PATCHELF_EXECUTABLE_FOUND)
+      add_custom_command(TARGET tvm POST_BUILD
+          COMMAND ${PATCHELF_EXECUTABLE} --print-needed $<TARGET_FILE:tvm>
+          COMMENT "Patching libz3 reference to use @rpath"
+      )
+    endif()
+  endif()
 endif()
 
 target_include_directories(tvm_runtime PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
