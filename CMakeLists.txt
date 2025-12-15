@@ -575,6 +575,7 @@ if(USE_Z3)
     if(NOT Z3_SONAME_RESULT EQUAL "0")
       message(FATAL_ERROR "Failed to get Z3 soname using patchelf")
     endif()
+    message("-- Z3 SONAME: ${Z3_SONAME}")
     add_custom_command(TARGET tvm POST_BUILD
       COMMAND ${PATCHELF_EXECUTABLE} --replace-needed ${Z3_SONAME} libz3.so $<TARGET_FILE:tvm>
       COMMENT "Patching libz3 reference to use soname ${Z3_SONAME}"
