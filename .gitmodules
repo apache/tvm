@@ -25,6 +25,3 @@
 [submodule "3rdparty/tvm-ffi"]
 	path = 3rdparty/tvm-ffi
 	url = https://github.com/apache/tvm-ffi
-[submodule "3rdparty/z3"]
-	path = 3rdparty/z3
-	url = https://github.com/Z3Prover/z3.git

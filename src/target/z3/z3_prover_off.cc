@@ -1,7 +1,6 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
-#include <z3++.h>
 
 #include "tvm/ffi/string.h"
 #include "tvm/ir/expr.h"

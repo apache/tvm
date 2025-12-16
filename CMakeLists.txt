@@ -487,41 +487,11 @@ include(cmake/modules/contrib/Mrvl.cmake)
 tvm_option(USE_Z3 "Build with Z3 SMT solver support" OFF)
 
 if (USE_Z3)
-  include(ExternalProject)
-  include(GNUInstallDirs)
-  set(Z3_PREFIX   "${CMAKE_BINARY_DIR}/_deps/z3")
-  set(Z3_INSTALL  "${Z3_PREFIX}/install")
-  set(Z3_LIBDIR   "${Z3_INSTALL}/${CMAKE_INSTALL_LIBDIR}")
-  set(Z3_LIBRARY  "${Z3_LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}z3${CMAKE_STATIC_LIBRARY_SUFFIX}")
-  ExternalProject_Add(z3_ext
-    PREFIX     "${Z3_PREFIX}"
-    SOURCE_DIR 
-      "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/z3"
-
-    CMAKE_ARGS
-      -DCMAKE_BUILD_TYPE=MinSizeRel
-      -DCMAKE_INSTALL_PREFIX=${Z3_INSTALL}
-      -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-      -DZ3_BUILD_LIBZ3_SHARED=OFF
-      -DZ3_BUILD_TEST_EXECUTABLES=OFF
-      -DZ3_BUILD_PYTHON_BINDINGS=OFF
-      -DZ3_INCLUDE_GIT_HASH=OFF
-      -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
-      -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
-
-    BUILD_BYPRODUCTS
-      "${Z3_LIBRARY}"
-  )
-  set(Z3_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/z3/src/api;${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/z3/src/api/c++")
-
-  add_library(z3::libz3 STATIC IMPORTED)
-  set_target_properties(z3::libz3 PROPERTIES IMPORTED_LOCATION "${Z3_LIBRARY}")
-  add_dependencies(z3::libz3 z3_ext)
-
+  find_package(Z3 REQUIRED)
   list(APPEND COMPILER_SRCS src/target/z3/z3_prover_on.cc)
-else (USE_Z3)
+else()
   list(APPEND COMPILER_SRCS src/target/z3/z3_prover_off.cc)
-endif (USE_Z3)
+endif()
 
 set(LIBINFO_FILE ${CMAKE_CURRENT_LIST_DIR}/src/support/libinfo.cc)
 add_lib_info(${LIBINFO_FILE})
@@ -581,10 +551,36 @@ else()
 endif()
 
 if(USE_Z3)
-  target_include_directories(tvm_objs PRIVATE ${Z3_INCLUDE_DIR})
-  target_include_directories(tvm_runtime_objs PRIVATE ${Z3_INCLUDE_DIR})
-  target_include_directories(tvm_libinfo_objs PRIVATE ${Z3_INCLUDE_DIR})
+  target_include_directories(tvm_objs PRIVATE ${Z3_CXX_INCLUDE_DIRS})
+  target_include_directories(tvm_runtime_objs PRIVATE ${Z3_CXX_INCLUDE_DIRS})
+  target_include_directories(tvm_libinfo_objs PRIVATE ${Z3_CXX_INCLUDE_DIRS})
   target_link_libraries(tvm PRIVATE z3::libz3)
+
+  if (APPLE)
+    # `libz3.dylib` from z3-solver on pypi have a "wrong" name `libz3.dylib`,
+    # so it won't be searched in rpath. We patch it to `@rpath/libz3.dylib` here.
+    # `POST_BUILD` command needs to be in same cmake file where the target's created.
+    add_custom_command(TARGET tvm POST_BUILD
+      COMMAND install_name_tool -change "libz3.dylib" "@rpath/libz3.dylib" $<TARGET_FILE:tvm>
+      COMMENT "Patching libz3 reference to use @rpath"
+    )
+  else()
+    find_program(PATCHELF_EXECUTABLE patchelf REQUIRED)
+    execute_process(
+      COMMAND ${PATCHELF_EXECUTABLE} --print-soname ${Z3_LIBRARY}
+      OUTPUT_VARIABLE Z3_SONAME
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      RESULT_VARIABLE Z3_SONAME_RESULT
+    )
+    if(NOT Z3_SONAME_RESULT EQUAL "0")
+      message(FATAL_ERROR "Failed to get Z3 soname using patchelf")
+    endif()
+    message("-- Z3 SONAME: ${Z3_SONAME}")
+    add_custom_command(TARGET tvm POST_BUILD
+      COMMAND ${PATCHELF_EXECUTABLE} --replace-needed ${Z3_SONAME} libz3.so $<TARGET_FILE:tvm>
+      COMMENT "Patching libz3 reference to use soname ${Z3_SONAME}"
+    )
+  endif()
 endif()
 
 target_include_directories(tvm_runtime PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")

@@ -109,19 +109,21 @@ public:
     auto ref = ffi::GetRef<PrimExpr>(op);
     auto dtype = op->dtype;
     std::string name = ns.GetNewName(ref);
-    z3::expr e = ctx->int_const(name.c_str());
     /// TVM max_val can't handle uint64 max correctly, so we special case it here
     if(dtype.is_bool()) {
-      solver.add(ctx->int_val(0) <= e && e <= ctx->int_val(1));
+      return ctx->bool_const(name.c_str());
     }
-    else if(dtype.is_uint() && dtype.bits() == 64) {
-      solver.add(ctx->int_val(0) <= e && e <= ctx->int_val((uint64_t)UINT64_MAX));
-    } else {
-      auto min_val = Downcast<IntImm>(min_value(dtype))->value;
-      auto max_val = Downcast<IntImm>(max_value(dtype))->value;
-      solver.add(ctx->int_val(min_val) <= e && e <= ctx->int_val(max_val));
+    else {
+      z3::expr e = ctx->int_const(name.c_str());
+      if(dtype.is_uint() && dtype.bits() == 64) {
+        solver.add(ctx->int_val(0) <= e && e <= ctx->int_val((uint64_t)UINT64_MAX));
+      } else {
+        auto min_val = Downcast<IntImm>(min_value(dtype))->value;
+        auto max_val = Downcast<IntImm>(max_value(dtype))->value;
+        solver.add(ctx->int_val(min_val) <= e && e <= ctx->int_val(max_val));
+      }
+      return e;
     }
-    return e;
   }
 
   struct Scope {
@@ -389,7 +391,7 @@ private:
 
   /// @brief Check if the dtype is valid for z3 integer operations
   static bool IsValidDType(const DataType & dtype) {
-    return (dtype.is_int() || dtype.is_uint()) && dtype.lanes() == 1;
+    return (dtype.is_int() || dtype.is_uint() || dtype.is_bool()) && dtype.lanes() == 1;
   }
 
   /// @brief Visit the expression and convert it into z3 integer expression
