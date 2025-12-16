@@ -59,9 +59,11 @@ void CodeGenAArch64::SetTargetAttributes(llvm::Function* func) {
   // Add vscale_range() function attribute when appropriate.
   if (llvm_target_->TargetHasCPUFeature("sve") || llvm_target_->TargetHasCPUFeature("sme")) {
     auto kVScaleValues = arith::GetVScaleValues(Target::Current());
-    unsigned int max_val = *std::max_element(kVScaleValues.begin(), kVScaleValues.end());
-    func->addFnAttr(
-        llvm::Attribute::getWithVScaleRangeArgs(*llvm_target_->GetContext(), 1, max_val));
+    if (!kVScaleValues.empty()) {
+      unsigned int max_val = *std::max_element(kVScaleValues.begin(), kVScaleValues.end());
+      func->addFnAttr(
+          llvm::Attribute::getWithVScaleRangeArgs(*llvm_target_->GetContext(), 1, max_val));
+    }
   }
 #endif
   CodeGenCPU::SetTargetAttributes(func);
