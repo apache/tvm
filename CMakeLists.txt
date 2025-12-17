@@ -565,21 +565,25 @@ if(USE_Z3)
       COMMENT "Patching libz3 reference to use @rpath"
     )
   else()
-    find_program(PATCHELF_EXECUTABLE patchelf REQUIRED)
-    execute_process(
-      COMMAND ${PATCHELF_EXECUTABLE} --print-soname ${Z3_LIBRARY}
-      OUTPUT_VARIABLE Z3_SONAME
-      OUTPUT_STRIP_TRAILING_WHITESPACE
-      RESULT_VARIABLE Z3_SONAME_RESULT
-    )
-    if(NOT Z3_SONAME_RESULT EQUAL "0")
-      message(FATAL_ERROR "Failed to get Z3 soname using patchelf")
+    find_program(PATCHELF_EXECUTABLE patchelf)
+    if (PATCHELF_EXECUTABLE)
+      execute_process(
+        COMMAND ${PATCHELF_EXECUTABLE} --print-soname ${Z3_LIBRARY}
+        OUTPUT_VARIABLE Z3_SONAME
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE Z3_SONAME_RESULT
+      )
+      if(NOT Z3_SONAME_RESULT EQUAL "0")
+        message(FATAL_ERROR "Failed to get Z3 soname using patchelf")
+      endif()
+      message("-- Z3 SONAME: ${Z3_SONAME}")
+      add_custom_command(TARGET tvm POST_BUILD
+        COMMAND ${PATCHELF_EXECUTABLE} --replace-needed ${Z3_SONAME} libz3.so $<TARGET_FILE:tvm>
+        COMMENT "Patching libz3 reference to use soname ${Z3_SONAME}"
+      )
+    else()
+      message("patchelf not found, skip.")
     endif()
-    message("-- Z3 SONAME: ${Z3_SONAME}")
-    add_custom_command(TARGET tvm POST_BUILD
-      COMMAND ${PATCHELF_EXECUTABLE} --replace-needed ${Z3_SONAME} libz3.so $<TARGET_FILE:tvm>
-      COMMENT "Patching libz3 reference to use soname ${Z3_SONAME}"
-    )
   endif()
 endif()
 
