@@ -25,6 +25,7 @@
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
+#include "tvm/arith/analyzer.h"
 
 namespace tvm {
 namespace arith {
@@ -64,6 +65,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const ForNode* op) {
   Range dom = Range::FromMinExtent(op->min, op->extent);
   analyzer_->Bind(op->loop_var, dom);
   iter_vars_.Set(op->loop_var, dom);
+  With<ConstraintContext> ctx(analyzer_, op->extent > 0);
   return StmtExprMutator::VisitStmt_(op);
 }
 
