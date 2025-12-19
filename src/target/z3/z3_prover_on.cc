@@ -67,7 +67,9 @@ public:
 
   Analyzer* analyzer;
   /// @brief Z3 context, a shared ptr, because tilelang want to copy the Analyzer
-  std::shared_ptr<z3::context> ctx { new z3::context() };
+  // We use a static Z3 context so all analyzers can share a common context,
+  // because Z3 initialization is slow on some CPUs (e.g., AMD EPYC 7502 32-Core).
+  inline static std::shared_ptr<z3::context> ctx { new z3::context() };
 
   /// @brief Z3 solver instance
   z3::solver solver {*ctx};
