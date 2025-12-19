@@ -42,7 +42,7 @@ def _load_lib():
     if sys.platform.startswith("win32"):
         for path in libinfo.get_dll_directories():
             os.add_dll_directory(path)
-    lib = ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL)
+    lib = ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL | os.RTLD_LAZY)
     return lib, os.path.basename(lib_path[0])
 
 
