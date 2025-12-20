@@ -2001,9 +2001,8 @@ InferLayoutOutput InferLayoutTile(
   new_attrs->repeats = new_repeats;
 
   // Layout is preserved (same as input)
-  LayoutDecision output_layout = (out_ndim == ndim)
-      ? existing_layout
-      : FollowDecision(existing_layout, out_ndim);
+  LayoutDecision output_layout =
+      (out_ndim == ndim) ? existing_layout : FollowDecision(existing_layout, out_ndim);
 
   return InferLayoutOutput({existing_layout}, {output_layout}, Attrs(new_attrs));
 }
