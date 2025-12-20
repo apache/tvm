@@ -1955,90 +1955,45 @@ InferLayoutOutput InferLayoutTile(
   Layout initial_layout = InitialLayout(ndim);
   Layout existing_layout_obj = existing_layout->layout;
 
-  // Transform repeats array according to layout change
-  // The repeats array corresponds to axes in the initial layout order (ABCD...).
-  // We need to reorder it to match the existing layout.
-  // The key insight: for each position in existing_layout, find which position in initial_layout
-  // it corresponds to, and use the repeat value from that position.
+  // Transform repeats array according to layout change.
+  // The repeats array semantics:
+  // - If len(repeats) < ndim: repeats are right-aligned, padded with 1s at the beginning.
+  //   e.g., ndim=4, repeats=[2, 1] means [1, 1, 2, 1]
+  // - If len(repeats) > ndim: first (len(repeats) - ndim) elements are new dimensions,
+  //   remaining elements correspond to input dimensions.
+  //   e.g., ndim=4, repeats=[2, 1, 2, 1, 1] means new dims [2, 1] + input dims [2, 1, 1]
   ffi::Array<Integer> new_repeats;
   
   if (out_ndim == ndim) {
-    // Same dimension: reorder repeats according to layout transformation
-    // Use TransposeStrLike approach similar to repeat operator:
-    // Build a string representation where each position j has the repeat value,
-    // then transpose it from initial_layout to existing_layout.
-    // This correctly handles the axis name mapping.
-    
-    // Build a string representation of repeats for TransposeStrLike
-    // We encode repeat values as characters (0-9 for values 0-9, and use direct mapping for larger values)
-    std::string repeats_str;
-    for (int j = 0; j < ndim; ++j) {
-      if (j < l) {
-        int repeat_val = attrs->repeats[j]->value;
-        if (repeat_val >= 0 && repeat_val <= 9) {
-          repeats_str.push_back('0' + repeat_val);
-        } else {
-          // For values > 9, we'll handle them separately after TransposeStrLike
-          repeats_str.push_back('X');
-        }
-      } else {
-        repeats_str.push_back('1');  // Default repeat of 1
-      }
-    }
-    
-    // Transpose the repeats string from initial layout to existing layout
-    // Note: TransposeStrLike(input, src, dst) maps from src to dst
-    // For tile, we need to map repeats from initial_layout to existing_layout
-    // So we use TransposeStrLike(repeats_str, initial_layout, existing_layout_obj)
-    // This is the same approach as repeat operator uses for axis mapping
-    ffi::String transposed_repeats_str =
-        TransposeStrLike(repeats_str, initial_layout, existing_layout_obj);
-    
-    // Convert back to Integer array, handling placeholders for values > 9
+    // Same dimension: reorder repeats according to layout transformation.
+    // If len(repeats) < ndim, it's padded with 1s at the beginning.
     for (int i = 0; i < ndim; ++i) {
-      char c = transposed_repeats_str.at(i);
-      if (c >= '0' && c <= '9') {
-        new_repeats.push_back(Integer(c - '0'));
+      const tir::LayoutAxis& axis = existing_layout_obj[i];
+      int pos_in_initial = initial_layout.IndexOf(axis);
+      ICHECK_NE(pos_in_initial, -1) << "Axis not found in initial layout";
+      // If len(repeats) < ndim, repeats are right-aligned.
+      // pos_in_initial >= (ndim - l) means it's within the repeats array range.
+      if (pos_in_initial >= ndim - l) {
+        new_repeats.push_back(attrs->repeats[pos_in_initial - (ndim - l)]);
       } else {
-        // For placeholder or out-of-range, find the original value via direct mapping
-        // This handles values > 9 or when l < ndim
-        const tir::LayoutAxis& axis = existing_layout_obj[i];
-        int pos_in_initial = initial_layout.IndexOf(axis);
-        if (pos_in_initial >= 0 && pos_in_initial < l) {
-          new_repeats.push_back(attrs->repeats[pos_in_initial]);
-        } else {
-          new_repeats.push_back(Integer(1));
-        }
+        new_repeats.push_back(Integer(1));
       }
     }
   } else {
-    // Different dimension: handle dimension expansion
-    int l_delta = out_ndim - l;
-    int ndim_delta = out_ndim - ndim;
-    
-    // Build new repeats array for output dimensions
-    for (int i = 0; i < out_ndim; ++i) {
-      if (i < l_delta) {
-        // New dimensions from repeats (at front, before input dimensions)
-        new_repeats.push_back(attrs->repeats[i]);
-      } else if (i < ndim_delta) {
-        // New dimensions from input expansion (at front)
-        new_repeats.push_back(Integer(1));
-      } else {
-        // Existing dimensions: map from initial to existing layout
-        int orig_axis = i - ndim_delta;
-        // Get the axis at position orig_axis in existing layout
-        const tir::LayoutAxis& axis = existing_layout_obj[orig_axis];
-        // Find its position in initial layout
-        int axis_in_initial = initial_layout.IndexOf(axis);
-        // The repeat index in original repeats array
-        int repeat_idx = axis_in_initial + l_delta;
-        if (axis_in_initial >= 0 && repeat_idx < l) {
-          new_repeats.push_back(attrs->repeats[repeat_idx]);
-        } else {
-          new_repeats.push_back(Integer(1));
-        }
-      }
+    // Different dimension: handle dimension expansion.
+    // This case only happens when l > ndim.
+    ICHECK_GT(l, ndim);
+    int num_new_dims = l - ndim;
+    // Repeats for new dimensions are not affected by layout change.
+    for (int i = 0; i < num_new_dims; ++i) {
+      new_repeats.push_back(attrs->repeats[i]);
+    }
+    // Repeats for existing dimensions need to be permuted.
+    for (int i = 0; i < ndim; ++i) {
+      const tir::LayoutAxis& axis = existing_layout_obj[i];
+      int pos_in_initial = initial_layout.IndexOf(axis);
+      ICHECK_NE(pos_in_initial, -1) << "Axis not found in initial layout";
+      new_repeats.push_back(attrs->repeats[pos_in_initial + num_new_dims]);
     }
   }
 
