@@ -1929,12 +1929,136 @@ StructInfo InferStructInfoTile(const Call& call, const BlockBuilder& ctx) {
   return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
 }
 
-// TODO(relax-team): implement FRelaxInferLayout for tile
+InferLayoutOutput InferLayoutTile(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+
+  const auto* attrs = call->attrs.as<TileAttrs>();
+  ICHECK(attrs != nullptr) << "Invalid Call";
+  const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+  ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support static ndim for now";
+
+  LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  int ndim = tensor_sinfo->ndim;
+  int l = attrs->repeats.size();
+  int out_ndim = std::max(l, ndim);
+
+  // Can't handle sub indexed layouts.
+  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+    existing_layout = LayoutDecision(InitialLayout(ndim));
+  }
+
+  // Tile operation repeats data along each axis.
+  // When layout changes, we need to transform the repeats array to match the new layout.
+  Layout initial_layout = InitialLayout(ndim);
+  Layout existing_layout_obj = existing_layout->layout;
+
+  // Transform repeats array according to layout change
+  // The repeats array corresponds to axes in the initial layout order (ABCD...).
+  // We need to reorder it to match the existing layout.
+  // The key insight: for each position in existing_layout, find which position in initial_layout
+  // it corresponds to, and use the repeat value from that position.
+  ffi::Array<Integer> new_repeats;
+  
+  if (out_ndim == ndim) {
+    // Same dimension: reorder repeats according to layout transformation
+    // Use TransposeStrLike approach similar to repeat operator:
+    // Build a string representation where each position j has the repeat value,
+    // then transpose it from initial_layout to existing_layout.
+    // This correctly handles the axis name mapping.
+    
+    // Build a string representation of repeats for TransposeStrLike
+    // We encode repeat values as characters (0-9 for values 0-9, and use direct mapping for larger values)
+    std::string repeats_str;
+    for (int j = 0; j < ndim; ++j) {
+      if (j < l) {
+        int repeat_val = attrs->repeats[j]->value;
+        if (repeat_val >= 0 && repeat_val <= 9) {
+          repeats_str.push_back('0' + repeat_val);
+        } else {
+          // For values > 9, we'll handle them separately after TransposeStrLike
+          repeats_str.push_back('X');
+        }
+      } else {
+        repeats_str.push_back('1');  // Default repeat of 1
+      }
+    }
+    
+    // Transpose the repeats string from initial layout to existing layout
+    // Note: TransposeStrLike(input, src, dst) maps from src to dst
+    // For tile, we need to map repeats from initial_layout to existing_layout
+    // So we use TransposeStrLike(repeats_str, initial_layout, existing_layout_obj)
+    // This is the same approach as repeat operator uses for axis mapping
+    ffi::String transposed_repeats_str =
+        TransposeStrLike(repeats_str, initial_layout, existing_layout_obj);
+    
+    // Convert back to Integer array, handling placeholders for values > 9
+    for (int i = 0; i < ndim; ++i) {
+      char c = transposed_repeats_str.at(i);
+      if (c >= '0' && c <= '9') {
+        new_repeats.push_back(Integer(c - '0'));
+      } else {
+        // For placeholder or out-of-range, find the original value via direct mapping
+        // This handles values > 9 or when l < ndim
+        const tir::LayoutAxis& axis = existing_layout_obj[i];
+        int pos_in_initial = initial_layout.IndexOf(axis);
+        if (pos_in_initial >= 0 && pos_in_initial < l) {
+          new_repeats.push_back(attrs->repeats[pos_in_initial]);
+        } else {
+          new_repeats.push_back(Integer(1));
+        }
+      }
+    }
+  } else {
+    // Different dimension: handle dimension expansion
+    int l_delta = out_ndim - l;
+    int ndim_delta = out_ndim - ndim;
+    
+    // Build new repeats array for output dimensions
+    for (int i = 0; i < out_ndim; ++i) {
+      if (i < l_delta) {
+        // New dimensions from repeats (at front, before input dimensions)
+        new_repeats.push_back(attrs->repeats[i]);
+      } else if (i < ndim_delta) {
+        // New dimensions from input expansion (at front)
+        new_repeats.push_back(Integer(1));
+      } else {
+        // Existing dimensions: map from initial to existing layout
+        int orig_axis = i - ndim_delta;
+        // Get the axis at position orig_axis in existing layout
+        const tir::LayoutAxis& axis = existing_layout_obj[orig_axis];
+        // Find its position in initial layout
+        int axis_in_initial = initial_layout.IndexOf(axis);
+        // The repeat index in original repeats array
+        int repeat_idx = axis_in_initial + l_delta;
+        if (axis_in_initial >= 0 && repeat_idx < l) {
+          new_repeats.push_back(attrs->repeats[repeat_idx]);
+        } else {
+          new_repeats.push_back(Integer(1));
+        }
+      }
+    }
+  }
+
+  ObjectPtr<TileAttrs> new_attrs = ffi::make_object<TileAttrs>(*attrs);
+  new_attrs->repeats = new_repeats;
+
+  // Layout is preserved (same as input)
+  LayoutDecision output_layout = (out_ndim == ndim) 
+      ? existing_layout 
+      : FollowDecision(existing_layout, out_ndim);
+
+  return InferLayoutOutput({existing_layout}, {output_layout}, Attrs(new_attrs));
+}
+
 TVM_REGISTER_OP("relax.tile")
     .set_attrs_type<TileAttrs>()
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTile)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutTile)
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.flip */
