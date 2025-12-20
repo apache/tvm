@@ -1963,7 +1963,7 @@ InferLayoutOutput InferLayoutTile(
   //   remaining elements correspond to input dimensions.
   //   e.g., ndim=4, repeats=[2, 1, 2, 1, 1] means new dims [2, 1] + input dims [2, 1, 1]
   ffi::Array<Integer> new_repeats;
-  
+
   if (out_ndim == ndim) {
     // Same dimension: reorder repeats according to layout transformation.
     // If len(repeats) < ndim, it's padded with 1s at the beginning.
@@ -2001,8 +2001,8 @@ InferLayoutOutput InferLayoutTile(
   new_attrs->repeats = new_repeats;
 
   // Layout is preserved (same as input)
-  LayoutDecision output_layout = (out_ndim == ndim) 
-      ? existing_layout 
+  LayoutDecision output_layout = (out_ndim == ndim)
+      ? existing_layout
       : FollowDecision(existing_layout, out_ndim);
 
   return InferLayoutOutput({existing_layout}, {output_layout}, Attrs(new_attrs));

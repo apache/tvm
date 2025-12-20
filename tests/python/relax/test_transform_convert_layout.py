@@ -5123,6 +5123,7 @@ def test_conv2d_tile():
 
 def test_conv2d_tile_repeats_shorter():
     """Test tile with len(repeats) < ndim (repeats are right-aligned, padded with 1s at beginning)."""
+
     @I.ir_module
     class Input:
         @R.function
@@ -5171,7 +5172,7 @@ def test_conv2d_tile_repeats_shorter():
 
 def test_conv2d_tile_repeats_longer():
     """Test tile with len(repeats) > ndim (new dimensions at front).
-    
+
     Note: This test case is complex because dimension expansion with layout conversion
     requires careful handling. The implementation correctly handles this case,
     but constructing the expected output is complex. We verify the basic case works.
@@ -5185,6 +5186,7 @@ def test_conv2d_tile_repeats_longer():
 
 def test_conv2d_tile_repeats_large_value():
     """Test tile with repeat value > 9 to ensure large values are handled correctly."""
+
     @I.ir_module
     class Input:
         @R.function
