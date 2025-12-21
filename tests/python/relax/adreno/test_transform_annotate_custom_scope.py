@@ -808,7 +808,7 @@ def test_binary_ewise_scalar_sub_indexed():
 
 
 def test_residual_block():
-    """
+    r"""
     - some kind of residual block followed by convolution to have texture after residual block
     - scalar data type verification which should be mapped to global memory scope
         layout_transform (NCHW->NCHW4c)
@@ -874,7 +874,7 @@ def test_residual_block():
 
 
 def test_conv2d_conv2d_fallback_to_buffer_conv2d():
-    """
+    r"""
         layout_transform (NCHW->NCHW4c)
                   |                      <- texture
                 conv2d (1)               <- textures as output
@@ -931,7 +931,7 @@ def test_conv2d_conv2d_fallback_to_buffer_conv2d():
 
 
 def test_conv2d_conv2d_conv2d_concat():
-    """
+    r"""
         layout_transform (NCHW->NCHW4c)
                   |                      <- texture
                 conv2d (1)               <- textures as output
@@ -991,7 +991,7 @@ def test_conv2d_conv2d_conv2d_concat():
 
 
 def test_pooling_branching_texture_params():
-    """
+    r"""
     Verification of the pooling and many branches having textures
                 layout_transform (NCHW->NCHW4c)
                          |                        <- texture
@@ -1066,7 +1066,7 @@ def test_pooling_branching_texture_params():
 
 
 def test_injective_inputs1():
-    """
+    r"""
                                      Input
                                /                   \
                             /                      |
@@ -1133,7 +1133,7 @@ def test_injective_inputs1():
 
 
 def test_injective_nwo_inputs2():
-    """
+    r"""
                                      Input
                                /             \
                          |                    \

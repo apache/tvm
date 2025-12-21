@@ -4585,7 +4585,7 @@ def test_binary_ewise_scalar_sub_indexed():
 
 
 def test_conv2d_conv2d_conv2d_concat():
-    """
+    r"""
         layout_transform (NCHW->NCHW4c)
                   |                      <- texture
                 conv2d (1)               <- textures as output
@@ -4713,7 +4713,7 @@ def test_conv2d_conv2d_conv2d_concat():
 
 
 def test_conv2d_conv2d_callback_to_buffer_conv2d_concat():
-    """
+    r"""
         layout_transform (NCHW->NCHW4c)
                   |                      <- texture
                 conv2d (1)               <- textures as output
@@ -4841,7 +4841,7 @@ def test_conv2d_conv2d_callback_to_buffer_conv2d_concat():
 
 
 def test_pooling_branching_texture_params():
-    """
+    r"""
     Verification of the pooling and many branches having textures
                 layout_transform (NCHW->NCHW4c)
                          |                        <- texture
