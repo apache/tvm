@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 #include "constraint_extract.h"
@@ -426,6 +427,11 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
   IntervalSet VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
 
+    // Detect cyclic dependency: if we're already visiting this var, return conservative estimate
+    if (visiting_vars_.count(op)) {
+      return IntervalSet::SinglePoint(var);
+    }
+
     ffi::Array<IntSet> values;
     if (dom_constraints_) {
       for (const auto& constraint : *dom_constraints_) {
@@ -456,9 +462,13 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
     if (res->min_value.same_as(var) && res->max_value.same_as(var)) {
       return res;
     }
+    // Mark this var as being visited to detect cycles
+    visiting_vars_.insert(op);
     // recursively evaluate mapped result
     // in case the domain contains variables to be relaxed.
-    return Eval(res);
+    IntervalSet result = Eval(res);
+    visiting_vars_.erase(op);
+    return result;
   }
 
   IntervalSet VisitExpr_(const AddNode* op) final { return VisitBinaryExpr_<Add>(op); }
@@ -609,6 +619,8 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
   const ffi::Map<Var, IntSet>& dom_map_;
   const std::vector<std::pair<Var, IntSet>>* dom_constraints_;
   bool eval_vec_{false};
+  // track variables being visited to detect cyclic dependencies
+  std::unordered_set<const VarNode*> visiting_vars_;
 };
 
 class IntSetAnalyzer::Impl {
