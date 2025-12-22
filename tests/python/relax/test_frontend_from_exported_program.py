@@ -4910,7 +4910,7 @@ def test_mean():
     class MeanKeepDim(Module):
         def forward(self, input: torch.Tensor):
             return input.mean(-1, keepdim=True)
-        
+
     class MeanWithoutDim(Module):
         def forward(self, input: torch.Tensor):
             return input.mean()
@@ -4938,7 +4938,7 @@ def test_mean():
                 gv: R.Tuple(R.Tensor((256, 1), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
-          
+
     @I.ir_module
     class Expected3:
         @R.function
