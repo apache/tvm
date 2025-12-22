@@ -122,7 +122,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * \sa MatchShapeCode
  */
 void MatchShape(ffi::PackedArgs args, ffi::Any* rv) {
-  // input shape the first argument can take in tensor, DLTensor* or shape.
+  // input shape the first argument can take in tensor, DLTensor* or shape. 
   ffi::Shape input_shape;
   if (auto opt_tensor = args[0].as<Tensor>()) {
     input_shape = opt_tensor.value().Shape();
