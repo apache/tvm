@@ -51,6 +51,8 @@ void FunctionInfo::Save(dmlc::JSONWriter* writer) const {
     iarg_extra_tags[i] = static_cast<int>(arg_extra_tags[i]);
   }
   writer->WriteObjectKeyValue("arg_extra_tags", iarg_extra_tags);
+  writer->WriteObjectKeyValue("has_programmatic_dependent_launch",
+                              has_programmatic_dependent_launch);
   writer->EndObject();
 }
 
@@ -64,6 +66,9 @@ void FunctionInfo::Load(dmlc::JSONReader* reader) {
                               &launch_param_tags);  // for backward compatibility
   std::vector<int> iarg_extra_tags;
   helper.DeclareOptionalField("arg_extra_tags", &iarg_extra_tags);
+  helper.DeclareOptionalField("has_programmatic_dependent_launch",
+                              &has_programmatic_dependent_launch);
+
   arg_extra_tags.resize(iarg_extra_tags.size());
   for (size_t i = 0; i < arg_extra_tags.size(); ++i) {
     arg_extra_tags[i] = static_cast<ArgExtraTags>(iarg_extra_tags[i]);
@@ -80,6 +85,7 @@ void FunctionInfo::Save(dmlc::Stream* writer) const {
   writer->Write(arg_types);
   writer->Write(launch_param_tags);
   writer->Write(arg_extra_tags);
+  writer->Write(has_programmatic_dependent_launch);
 }
 
 bool FunctionInfo::Load(dmlc::Stream* reader) {
@@ -87,6 +93,7 @@ bool FunctionInfo::Load(dmlc::Stream* reader) {
   if (!reader->Read(&arg_types)) return false;
   if (!reader->Read(&launch_param_tags)) return false;
   if (!reader->Read(&arg_extra_tags)) return false;
+  if (!reader->Read(&has_programmatic_dependent_launch)) return false;
   return true;
 }
 
