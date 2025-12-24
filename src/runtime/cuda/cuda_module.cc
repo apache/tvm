@@ -220,6 +220,10 @@ class CUDAWrappedFunc {
       config.sharedMemBytes = wl.dyn_shmem_size;
 
       result = cuLaunchKernelEx(&config, fcache_[device_id], void_args, nullptr);
+    } else if (launch_param_config_.use_cooperative_launch()) {
+      result = cuLaunchCooperativeKernel(fcache_[device_id], wl.grid_dim(0), wl.grid_dim(1),
+                                         wl.grid_dim(2), wl.block_dim(0), wl.block_dim(1),
+                                         wl.block_dim(2), wl.dyn_shmem_size, strm, void_args);
     } else {
       result = cuLaunchKernel(fcache_[device_id], wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2),
                               wl.block_dim(0), wl.block_dim(1), wl.block_dim(2), wl.dyn_shmem_size,

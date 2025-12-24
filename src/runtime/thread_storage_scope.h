@@ -249,6 +249,8 @@ class LaunchParamConfig {
         use_dyn_shared_memory_ = true;
       } else if (tag == launch_param::kUseProgramaticDependentLaunch) {
         use_programmatic_dependent_launch_ = true;
+      } else if (tag == launch_param::kUseCooperativeLaunch) {
+        use_cooperative_launch_ = true;
       } else {
         ThreadScope ts = ThreadScope::Create(tag);
         arg_index_map_.push_back(ts.rank * 3 + ts.dim_index);
@@ -285,6 +287,8 @@ class LaunchParamConfig {
 
   bool use_programtic_dependent_launch() const { return use_programmatic_dependent_launch_; }
 
+  bool use_cooperative_launch() const { return use_cooperative_launch_; }
+
  private:
   /*! \brief base axis */
   size_t base_;
@@ -296,6 +300,8 @@ class LaunchParamConfig {
   bool use_dyn_shared_memory_{false};
   /*! \brief Whether or not use programmatic dependent launch. */
   bool use_programmatic_dependent_launch_{false};
+  /*! \brief Whether or not use cooperative launch. */
+  bool use_cooperative_launch_{false};
 };
 
 }  // namespace runtime
