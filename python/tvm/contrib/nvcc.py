@@ -351,6 +351,18 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
     for include_path in include_paths:
         compile_opts.append(f"-I{include_path}".encode())
 
+    compile_opts.extend(
+        [
+            b"-U__CUDA_NO_HALF_OPERATORS__",
+            b"-U__CUDA_NO_HALF_CONVERSIONS__",
+            b"-U__CUDA_NO_BFLOAT16_OPERATORS__",
+            b"-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
+            b"-U__CUDA_NO_BFLOAT162_OPERATORS__",
+            b"-U__CUDA_NO_BFLOAT162_CONVERSIONS__",
+            b"--use_fast_math",
+        ]
+    )
+
     # Add user-provided options
     if options:
         if isinstance(options, str):
