@@ -134,9 +134,6 @@ def batch_norm(
 
     if training:
         assert 0 <= momentum <= 1, "the valid momentum range is [0, 1]."
-        data_var = (
-            topi.sum((data - data_mean_rs) * (data - data_mean_rs), axis=reduce_axes) / shape_prod
-        )
         return [
             out,
             (1 - momentum) * moving_mean + momentum * data_mean,

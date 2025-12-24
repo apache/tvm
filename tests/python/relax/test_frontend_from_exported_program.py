@@ -1913,10 +1913,10 @@ def test_batchnorm2d():
                     w3,
                     w4,
                     axis=1,
-                    epsilon=0.1,
+                    epsilon=1e-5,
                     center=True,
                     scale=True,
-                    momentum=1.0,
+                    momentum=0.1,
                     training=True,
                 )
                 lv2: R.Tensor((2, 3, 4, 4), dtype="float32") = lv1[0]

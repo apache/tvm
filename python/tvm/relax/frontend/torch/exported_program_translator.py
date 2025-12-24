@@ -121,6 +121,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         x = self.env[node.args[0]]
         channel = int(self.shape_of(x)[1])
         dtype = x.struct_info.dtype
+        scale = True if node.args[1] is not None else False
+        center = True if node.args[2] is not None else False
         weight = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
         bias = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
         running_mean = self.env.get(node.args[3], relax.const(np.zeros(channel), dtype=dtype))
@@ -134,10 +136,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             eps = node.args[6] if len(node.args) > 6 else node.kwargs.get("eps", 1e-05)
             training = False
         elif target_name.startswith("_native_batch_norm_legit_functional"):
-            momentum = node.args[5] if len(node.args) > 5 else node.kwargs.get("momentum", 0.1)
-            eps = node.args[6] if len(node.args) > 6 else node.kwargs.get("eps", 1e-05)
-            training = True
-        else:
             ignore_running_stats = (
                 node.args[5] if len(node.args) > 5 else node.kwargs.get("track_running_stats", True)
             )
@@ -147,6 +145,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
             if track_running_stats:
                 training = True
+        else:
+            momentum = node.args[5] if len(node.args) > 5 else node.kwargs.get("momentum", 0.1)
+            eps = node.args[6] if len(node.args) > 6 else node.kwargs.get("eps", 1e-05)
+            training = True
 
         bn_result = self.block_builder.emit(
             relax.op.nn.batch_norm(
@@ -157,6 +159,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 moving_var=running_var,
                 axis=1,  # Always over channel
                 epsilon=eps,
+                scale=scale,
+                center=center,
                 momentum=momentum,
                 training=training,
             )
