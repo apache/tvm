@@ -3607,7 +3607,7 @@ def test_instancenorm2d():
                     w1,
                     w2,
                     channel_axis=1,
-                    axes=[2, 3],
+                    axes=[0, 2, 3],
                     epsilon=1e-05,
                     center=True,
                     scale=True,
