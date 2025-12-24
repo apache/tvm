@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Post Order Apply Space Generator."""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from tvm_ffi import register_object
 
 from .. import _ffi_api
@@ -41,6 +43,11 @@ class PostOrderApply(SpaceGenerator):
         be generated or False if that block should be skipped. If no function is provided
         all blocks will have schedules generated.
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.PostOrderApply
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

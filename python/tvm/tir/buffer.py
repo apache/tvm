@@ -15,6 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 """Abstraction for array data structures."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import IntImm, PrimExpr, Span
+    from tir import Var
+    from tvm_ffi import dtype
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from numbers import Integral
 
 import tvm_ffi
@@ -39,6 +52,22 @@ class Buffer(Object, Scriptable):
     --------
     decl_buffer : Declare a buffer
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.Buffer
+    # fmt: off
+    data: Var
+    dtype: dtype
+    shape: Sequence[PrimExpr]
+    strides: Sequence[PrimExpr]
+    axis_separators: Sequence[IntImm]
+    elem_offset: PrimExpr
+    name: str
+    data_alignment: int
+    offset_factor: int
+    buffer_type: int
+    span: Span
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     READ = 1
     WRITE = 2
@@ -352,4 +381,8 @@ def decl_buffer(
 
 @tvm_ffi.register_object("tir.DataProducer")
 class DataProducer(Object):
+    # tvm-ffi-stubgen(begin): object/tir.DataProducer
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
     pass

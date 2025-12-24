@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """The default database that uses a JSON File to store tuning records"""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 import os.path as osp
 from typing import Optional
 
@@ -45,6 +47,13 @@ class JSONDatabase(Database):
                             blocks or in case no anchor block is found.
                             For the definition of the anchor block, see tir/analysis/analysis.py.
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.JSONDatabase
+    # fmt: off
+    path_workload: str
+    path_tuning_record: str
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     path_workload: str
     path_tuning_record: str

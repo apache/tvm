@@ -15,6 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """Data layout."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import PrimExpr
+    from tir import IterVar
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import Union
 
 import tvm_ffi
@@ -36,6 +48,13 @@ class Layout(Object):
     --------
     layout : Declare a layout
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.Layout
+    # fmt: off
+    name: str
+    axes: Sequence[IterVar]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __len__(self):
         return _ffi_api.LayoutNdim(self)  # type: ignore
@@ -101,6 +120,17 @@ class BijectiveLayout(Object):
     --------
     bijective_layout : Declare a layout
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.BijectiveLayout
+    # fmt: off
+    src_layout: Layout
+    dst_layout: Layout
+    index_forward_rule: Sequence[PrimExpr]
+    index_backward_rule: Sequence[PrimExpr]
+    shape_forward_rule: Sequence[PrimExpr]
+    shape_backward_rule: Sequence[PrimExpr]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def forward_index(self, index):
         """Given the indices of the src-layout, infer the dst index.

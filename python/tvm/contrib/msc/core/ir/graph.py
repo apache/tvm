@@ -16,6 +16,8 @@
 # under the License.
 """tvm.contrib.msc.core.ir.graph"""
 
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from typing import Dict, Tuple, List, Optional, Union, Iterable, Any
 import numpy as np
 import tvm_ffi
@@ -45,6 +47,9 @@ class MSCTensor(Object):
     prims: list<str>
         The prims of the tensor.
     """
+
+    # tvm-ffi-stubgen(begin): object/msc.core.MSCTensor
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,
@@ -199,6 +204,9 @@ class MSCTensor(Object):
 class BaseJoint(Object):
     """Base class of all MSC Nodes."""
 
+    # tvm-ffi-stubgen(begin): object/msc.core.BaseJoint
+    # tvm-ffi-stubgen(end)
+
 
 @tvm_ffi.register_object("msc.core.MSCJoint")
 class MSCJoint(BaseJoint):
@@ -223,6 +231,9 @@ class MSCJoint(BaseJoint):
     weights: dict<string, MSCTensor>
         The weights of the node.
     """
+
+    # tvm-ffi-stubgen(begin): object/msc.core.MSCJoint
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,
@@ -443,6 +454,9 @@ class MSCPrim(BaseJoint):
         The parents of the prim.
     """
 
+    # tvm-ffi-stubgen(begin): object/msc.core.MSCPrim
+    # tvm-ffi-stubgen(end)
+
     def __init__(
         self, index: int, name: str, optype: str, attrs: Dict[str, str], parents: List[BaseJoint]
     ):
@@ -476,6 +490,9 @@ class WeightJoint(BaseJoint):
     friends: list<WeightJoint>
         The friends of the node.
     """
+
+    # tvm-ffi-stubgen(begin): object/msc.core.WeightJoint
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,
@@ -567,6 +584,9 @@ class WeightJoint(BaseJoint):
 class BaseGraph(Object):
     """Base class of all MSC Graphs."""
 
+    # tvm-ffi-stubgen(begin): object/msc.core.BaseGraph
+    # tvm-ffi-stubgen(end)
+
 
 @tvm_ffi.register_object("msc.core.MSCGraph")
 class MSCGraph(BaseGraph):
@@ -583,6 +603,9 @@ class MSCGraph(BaseGraph):
     output_names: list<str>
         The output names of the graph.
     """
+
+    # tvm-ffi-stubgen(begin): object/msc.core.MSCGraph
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,
@@ -968,6 +991,9 @@ class WeightGraph(BaseGraph):
     nodes: list<WeightJoint>
         The nodes of the graph.
     """
+
+    # tvm-ffi-stubgen(begin): object/msc.core.WeightGraph
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

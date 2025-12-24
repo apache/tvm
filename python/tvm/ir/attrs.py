@@ -15,6 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM Attribute module, which is mainly used for defining attributes of operators."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from typing import Any
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 import tvm_ffi
 
 from tvm.runtime import Object
@@ -29,6 +40,11 @@ class Attrs(Object):
     Used by function registered in python side, such as compute, schedule and alter_layout.
     Attrs is passed as the first argument to these functions.
     """
+
+    # tvm-ffi-stubgen(begin): object/ir.Attrs
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def get_int_tuple(self, key):
         """Get a python int tuple of a key
@@ -76,6 +92,12 @@ class Attrs(Object):
 @tvm_ffi.register_object("ir.DictAttrs")
 class DictAttrs(Attrs):
     """Dictionary attributes."""
+
+    # tvm-ffi-stubgen(begin): object/ir.DictAttrs
+    # fmt: off
+    __dict__: Mapping[str, Any]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def _dict(self):
         """Get internal dict"""

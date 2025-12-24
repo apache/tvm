@@ -15,6 +15,26 @@
 # specific language governing permissions and limitations
 # under the License.
 """Constructor APIs"""
-import tvm_ffi
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from tvm_ffi import init_ffi_api as _FFI_INIT_FUNC
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import FloatImm, RelaxExpr
+    from tvm_ffi import dtype
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 
-tvm_ffi.init_ffi_api("relax.op.image", __name__)
+
+# tvm-ffi-stubgen(begin): global/relax.op.image
+# fmt: off
+_FFI_INIT_FUNC("relax.op.image", __name__)
+if TYPE_CHECKING:
+    def grid_sample(_0: RelaxExpr, _1: RelaxExpr, _2: str, _3: str, _4: str, _5: bool, /) -> RelaxExpr: ...
+    def resize2d(_0: RelaxExpr, _1: RelaxExpr, _2: Sequence[FloatImm], _3: str, _4: str, _5: str, _6: str, _7: float, _8: int, _9: float, _10: dtype | None, /) -> RelaxExpr: ...
+# fmt: on
+# tvm-ffi-stubgen(end)

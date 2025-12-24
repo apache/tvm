@@ -17,6 +17,8 @@
 # pylint: disable=no-else-return, invalid-name, unused-argument, import-outside-toplevel
 """Developer API of constructing Relax AST."""
 
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 import tvm
@@ -149,6 +151,11 @@ class BlockBuilder(Object):
             builder.emit_func_output(output, params=params)
         mod = bb.get()
     """
+
+    # tvm-ffi-stubgen(begin): object/relax.BlockBuilder
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     _stack = []
 

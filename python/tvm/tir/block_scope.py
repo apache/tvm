@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Definition of two pillar data structure for TensorIR scheduling: StmtSRef, BlockScope."""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from enum import IntEnum
 from typing import List, Optional, Union
 
@@ -39,6 +41,12 @@ class StmtSRef(Object):
     - Sref tree: The parent-children-relationship of srefs that forms a tree,
     uniquely determined by the TensorIR AST.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.StmtSRef
+    # fmt: off
+    seq_index: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     seq_index: int
 
@@ -102,6 +110,14 @@ class Dependency(Object):
         The dependency kind
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.Dependency
+    # fmt: off
+    src: StmtSRef
+    dst: StmtSRef
+    kind: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     src: StmtSRef
     dst: StmtSRef
     kind: DepKind
@@ -123,6 +139,11 @@ class BlockScope(Object):
 
     - Child block: The scope leaf blocks under the scope root or a specific internal sref
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.BlockScope
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def get_deps_by_src(self, block: StmtSRef) -> List[Dependency]:
         """Get all dependencies whose `src` is the target`block`.

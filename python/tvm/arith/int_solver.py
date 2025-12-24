@@ -15,6 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """integer constraints data structures and solvers"""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from ir import PrimExpr, Range
+    from tir import Var
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 import tvm_ffi
 from tvm.runtime import Object
 from . import _ffi_api
@@ -39,6 +51,15 @@ class IntGroupBounds(Object):
     upper : List[tvm.ir.PrimExpr]
         the upper bounds (include)
     """
+
+    # tvm-ffi-stubgen(begin): object/arith.IntGroupBounds
+    # fmt: off
+    coef: PrimExpr
+    lower: Sequence[PrimExpr]
+    equal: Sequence[PrimExpr]
+    upper: Sequence[PrimExpr]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, coef, lower, equal, upper):
         self.__init_handle_by_constructor__(_ffi_api.IntGroupBounds, coef, lower, equal, upper)
@@ -81,6 +102,14 @@ class IntConstraints(Object):
         The relations between the variables (either equations or inequalities)
     """
 
+    # tvm-ffi-stubgen(begin): object/arith.IntConstraints
+    # fmt: off
+    variables: Sequence[Var]
+    ranges: Mapping[Var, Range]
+    relations: Sequence[PrimExpr]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, variables, ranges, relations):
         self.__init_handle_by_constructor__(_ffi_api.IntConstraints, variables, ranges, relations)
 
@@ -112,6 +141,15 @@ class IntConstraintsTransform(Object):
         mapping from variables in the dst to the variables in the src,
         e.g., {m -> a, n -> -b}
     """
+
+    # tvm-ffi-stubgen(begin): object/arith.IntConstraintsTransform
+    # fmt: off
+    src: IntConstraints
+    dst: IntConstraints
+    src_to_dst: Mapping[Var, PrimExpr]
+    dst_to_src: Mapping[Var, PrimExpr]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, src, dst, src_to_dst, dst_to_src):
         self.__init_handle_by_constructor__(

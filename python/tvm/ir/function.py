@@ -16,6 +16,16 @@
 # under the License.
 # pylint: disable=invalid-name
 """Function definitions."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ir import DictAttrs
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import Union, Dict
 
 from enum import IntEnum
@@ -39,6 +49,12 @@ class CallingConv(IntEnum):
 @tvm_ffi.register_object("ir.BaseFunc")
 class BaseFunc(RelaxExpr):
     """Base class of all functions."""
+
+    # tvm-ffi-stubgen(begin): object/ir.BaseFunc
+    # fmt: off
+    attrs: DictAttrs
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     @property
     def attrs(self):

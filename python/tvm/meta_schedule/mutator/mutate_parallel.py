@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Mutator that mutates the parallel extent"""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from tvm_ffi.registry import register_object
 
 from .. import _ffi_api
@@ -24,6 +26,12 @@ from .mutator import Mutator
 @register_object("meta_schedule.MutateParallel")
 class MutateParallel(Mutator):
     """Mutator that mutates the parallel extent"""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.MutateParallel
+    # fmt: off
+    max_jobs_per_core: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, max_jobs_per_core: int) -> None:
         """Mutator that mutates the parallel extent"""

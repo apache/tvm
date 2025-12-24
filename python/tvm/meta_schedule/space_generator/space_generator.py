@@ -18,6 +18,18 @@
 Meta Schedule design space generators that generates design
 space for generation of measure candidates.
 """
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from ir import FloatImm
+    from meta_schedule import Mutator, Postproc, ScheduleRule
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
 
 # isort: off
@@ -41,6 +53,14 @@ if TYPE_CHECKING:
 @register_object("meta_schedule.SpaceGenerator")
 class SpaceGenerator(Object):
     """The abstract design space generator interface."""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.SpaceGenerator
+    # fmt: off
+    sch_rules: Sequence[ScheduleRule] | None
+    postprocs: Sequence[Postproc] | None
+    mutator_probs: Mapping[Mutator, FloatImm] | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     ScheduleFnType = Union[
         Callable[[Schedule], None],  # No output
@@ -192,6 +212,11 @@ class _PySpaceGenerator(SpaceGenerator):
 
     See also: PySpaceGenerator
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.PySpaceGenerator
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

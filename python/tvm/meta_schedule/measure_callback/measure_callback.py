@@ -16,6 +16,8 @@
 # under the License.
 """Meta Schedule MeasureCallback."""
 
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from typing import TYPE_CHECKING, Callable, List, Union
 
 # isort: off
@@ -39,6 +41,11 @@ if TYPE_CHECKING:
 @register_object("meta_schedule.MeasureCallback")
 class MeasureCallback(Object):
     """Rules to apply after measure results is available."""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.MeasureCallback
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     CallbackListType = Union[List["MeasureCallback"], "MeasureCallback", Literal["default"]]
 
@@ -90,6 +97,11 @@ class _PyMeasureCallback(MeasureCallback):
 
     See also: PyMeasureCallback
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.PyMeasureCallback
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, f_apply: Callable, f_as_string: Callable = None):
         """Constructor."""

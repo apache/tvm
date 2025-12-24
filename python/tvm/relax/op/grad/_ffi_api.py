@@ -15,6 +15,30 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI APIs for tvm.relax.op.grad"""
-import tvm_ffi
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from tvm_ffi import init_ffi_api as _FFI_INIT_FUNC
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import IntImm, RelaxExpr
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 
-tvm_ffi.init_ffi_api("relax.op.grad", __name__)
+
+# tvm-ffi-stubgen(begin): global/relax.op.grad
+# fmt: off
+_FFI_INIT_FUNC("relax.op.grad", __name__)
+if TYPE_CHECKING:
+    def avg_pool2d_backward(_0: RelaxExpr, _1: RelaxExpr, _2: Sequence[IntImm], _3: Sequence[IntImm], _4: Sequence[IntImm], _5: Sequence[IntImm], _6: bool, _7: bool, _8: str, _9: str | None, /) -> RelaxExpr: ...
+    def end_checkpoint(_0: RelaxExpr, /) -> RelaxExpr: ...
+    def max_pool2d_backward(_0: RelaxExpr, _1: RelaxExpr, _2: Sequence[IntImm], _3: Sequence[IntImm], _4: Sequence[IntImm], _5: Sequence[IntImm], _6: bool, _7: bool, _8: str, _9: str | None, /) -> RelaxExpr: ...
+    def nll_loss_backward(_0: RelaxExpr, _1: RelaxExpr, _2: RelaxExpr, _3: RelaxExpr | None, _4: str, _5: int, /) -> RelaxExpr: ...
+    def no_grad(_0: RelaxExpr, /) -> RelaxExpr: ...
+    def start_checkpoint(_0: RelaxExpr, /) -> RelaxExpr: ...
+    def take_backward(_0: RelaxExpr, _1: RelaxExpr, _2: RelaxExpr, _3: int | None, /) -> RelaxExpr: ...
+# fmt: on
+# tvm-ffi-stubgen(end)

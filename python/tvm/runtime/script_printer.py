@@ -15,6 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configuration of TVMScript printer"""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from tvm_ffi import Object, dtype
+    from tvm_ffi.reflection import AccessPath
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 import os
 from typing import Dict, List, Optional, Sequence
 
@@ -28,6 +40,31 @@ from . import _ffi_node_api
 @register_object("script.PrinterConfig")
 class PrinterConfig(Object):
     """Configuration of TVMScript printer"""
+
+    # tvm-ffi-stubgen(begin): object/script.PrinterConfig
+    # fmt: off
+    binding_names: Sequence[str]
+    show_meta: bool
+    ir_prefix: str
+    tir_prefix: str
+    relax_prefix: str
+    module_alias: str
+    buffer_dtype: dtype
+    int_dtype: dtype
+    float_dtype: dtype
+    verbose_expr: bool
+    indent_spaces: int
+    print_line_numbers: bool
+    num_context_lines: int
+    syntax_sugar: bool
+    show_object_address: bool
+    show_all_struct_info: bool
+    path_to_underline: Sequence[AccessPath]
+    path_to_annotate: Mapping[AccessPath, str]
+    obj_to_underline: Sequence[Object]
+    obj_to_annotate: Mapping[Object, str]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     binding_names: Sequence[str]
     show_meta: bool

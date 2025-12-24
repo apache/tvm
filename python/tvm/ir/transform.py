@@ -16,6 +16,18 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Common pass infrastructure across IR variants."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from instrument import PassInstrument
+    from typing import Any
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 import inspect
 import functools
 
@@ -43,6 +55,15 @@ class PassInfo(tvm.runtime.Object):
     required : List[str]
         The list of passes that are required by a certain pass.
     """
+
+    # tvm-ffi-stubgen(begin): object/transform.PassInfo
+    # fmt: off
+    opt_level: int
+    name: str
+    required: Sequence[str]
+    traceable: bool
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, opt_level, name, required=None, traceable=False):
         self.__init_handle_by_constructor__(
@@ -72,6 +93,17 @@ class PassContext(tvm.runtime.Object):
     config : Optional[Dict[str, Object]]
         Additional configurations for specific passes.
     """
+
+    # tvm-ffi-stubgen(begin): object/transform.PassContext
+    # fmt: off
+    opt_level: int
+    required_pass: Sequence[str]
+    disabled_pass: Sequence[str]
+    instruments: Sequence[PassInstrument]
+    config: Mapping[str, Any]
+    diag_ctx: DiagnosticContext | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,
@@ -145,6 +177,11 @@ class Pass(tvm.runtime.Object):
     conveniently interact with the base class.
     """
 
+    # tvm-ffi-stubgen(begin): object/transform.Pass
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     @property
     def info(self):
         """Get the pass meta."""
@@ -177,6 +214,12 @@ class ModulePass(Pass):
     The same rule applies to FunctionPass as well.
     """
 
+    # tvm-ffi-stubgen(begin): object/transform.ModulePass
+    # fmt: off
+    pass_info: PassInfo
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
 
 @tvm_ffi.register_object("transform.Sequential")
 class Sequential(Pass):
@@ -204,6 +247,13 @@ class Sequential(Pass):
     required : Optional[List[str]]
         The list of passes that the sequential pass is dependent on.
     """
+
+    # tvm-ffi-stubgen(begin): object/transform.Sequential
+    # fmt: off
+    pass_info: PassInfo
+    passes: Sequence[Pass]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, passes=None, opt_level=0, name="sequential", required=None, traceable=False):
         passes = passes if passes else []

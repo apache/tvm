@@ -15,6 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """TIR specific function pass support."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from transform import PassInfo
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 import inspect
 import functools
 from typing import Callable, List, Optional, Union
@@ -30,6 +40,12 @@ class PrimFuncPass(Pass):
     """A pass that works on each :py:func:`tvm.tir.PrimFunc` in a module. A function
     pass class should be created through py:func:`tvm.tir.transform.function_pass`.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.PrimFuncPass
+    # fmt: off
+    pass_info: PassInfo
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):

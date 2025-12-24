@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """A callback that adds the measurement results into the database"""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from tvm_ffi import register_object
 
 from .. import _ffi_api
@@ -23,6 +25,10 @@ from .measure_callback import MeasureCallback
 
 @register_object("meta_schedule.AddToDatabase")
 class AddToDatabase(MeasureCallback):
+    # tvm-ffi-stubgen(begin): object/meta_schedule.AddToDatabase
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
     def __init__(self) -> None:
         """A callback that adds the measurement results into the database"""
         self.__init_handle_by_constructor__(

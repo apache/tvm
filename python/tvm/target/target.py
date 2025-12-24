@@ -34,6 +34,14 @@ from . import _ffi_api
 class TargetKind(Object):
     """Kind of a compilation target"""
 
+    # tvm-ffi-stubgen(begin): object/target.TargetKind
+    # fmt: off
+    name: str
+    default_device_type: int
+    default_keys: Sequence[str]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     @property
     def options(self):
         """Returns the dict of available option names and types"""
@@ -67,6 +75,17 @@ class Target(Object):
     - :py:func:`tvm.target.mali` create Mali target
     - :py:func:`tvm.target.intel_graphics` create Intel Graphics target
     """
+
+    # tvm-ffi-stubgen(begin): object/target.Target
+    # fmt: off
+    kind: TargetKind
+    tag: str
+    keys: Sequence[str]
+    attrs: Mapping[str, Any]
+    features: Mapping[str, Any]
+    host: Object | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, target, host=None):
         """Construct a TVM target object from

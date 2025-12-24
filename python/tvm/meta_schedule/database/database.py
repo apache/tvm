@@ -15,6 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 """TuningRecord database"""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import FloatImm, IRModule
+    from meta_schedule import ArgInfo
+    from target import Target
+    from tir import Trace
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import Any, Callable, List, Optional, Union
 
 # isort: off
@@ -42,6 +56,12 @@ class Workload(Object):
     mod : IRModule
         The workload's IRModule
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.Workload
+    # fmt: off
+    mod: IRModule
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     mod: IRModule
 
@@ -96,6 +116,16 @@ class TuningRecord(Object):
     args_info : Optional[List[ArgInfo]]
         The argument information of the tuning record.
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.TuningRecord
+    # fmt: off
+    trace: Trace
+    workload: Workload
+    run_secs: Sequence[FloatImm] | None
+    target: Target | None
+    args_info: Sequence[ArgInfo] | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     trace: Trace
     workload: Workload
@@ -163,6 +193,11 @@ class TuningRecord(Object):
 @register_object("meta_schedule.Database")
 class Database(Object):
     """The abstract database interface."""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.Database
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     DatabaseType = Union["Database", Literal["json", "memory"]]
 
@@ -435,6 +470,11 @@ class _PyDatabase(Database):
 
     See also: PyDatabase
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.PyDatabase
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

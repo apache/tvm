@@ -16,6 +16,16 @@
 # under the License.
 # pylint: disable=invalid-name, unused-import
 """The type nodes of the Relax language."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from tvm_ffi import dtype
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 import tvm_ffi
 from tvm.ir import Type, TupleType, FuncType, Span
 
@@ -32,6 +42,12 @@ class ShapeType(Type):
         The size of the shape.
     """
 
+    # tvm-ffi-stubgen(begin): object/relax.ShapeType
+    # fmt: off
+    ndim: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     # TODO(relax-team): consider make ndim mandatory
     def __init__(self, ndim: int = -1, span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.ShapeType, ndim, span)  # type: ignore
@@ -41,6 +57,11 @@ class ShapeType(Type):
 class ObjectType(Type):
     """A type that corresponds to tvm::runtime::Object, is base of all possible object
     values in TVM."""
+
+    # tvm-ffi-stubgen(begin): object/relax.ObjectType
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.ObjectType, span)  # type: ignore
@@ -61,6 +82,13 @@ class TensorType(Type):
         The content data type.
     """
 
+    # tvm-ffi-stubgen(begin): object/relax.DynTensorType
+    # fmt: off
+    ndim: int
+    dtype: dtype
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, ndim=-1, dtype="float32", span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.TensorType, ndim, dtype, span)  # type: ignore
 
@@ -68,6 +96,11 @@ class TensorType(Type):
 @tvm_ffi.register_object("relax.PackedFuncType")
 class PackedFuncType(Type):
     """The type of ExternFunc in Relax."""
+
+    # tvm-ffi-stubgen(begin): object/relax.PackedFuncType
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.PackedFuncType, span)  # type: ignore

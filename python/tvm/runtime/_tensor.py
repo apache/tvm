@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, unused-import, redefined-outer-name
 """Runtime Tensor API"""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 import ctypes
 import warnings
 from typing import Optional
@@ -71,6 +73,11 @@ class Tensor(tvm_ffi.core.Tensor):
     Instead, this is a minimal data structure to demonstrate
     how can we use TVM in existing project which might have their own array containers.
     """
+
+    # tvm-ffi-stubgen(begin): object/ffi.Tensor
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __setitem__(self, in_slice, value):
         """Set ndarray value"""
