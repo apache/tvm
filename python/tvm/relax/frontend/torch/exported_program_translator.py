@@ -199,7 +199,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         # Determine axes for instance norm (all spatial dimensions after channel)
         dim = len(self.shape_of(x))
-        axes = list(range(2, dim))
+        axes = [0] + list(range(2, dim))
 
         return self.block_builder.emit(
             relax.op.nn.instance_norm(
