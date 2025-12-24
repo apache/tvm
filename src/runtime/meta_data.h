@@ -45,8 +45,12 @@ inline ffi::String get_name_mangled(const ffi::String& module_name, const ffi::S
 }
 
 namespace launch_param {
+
 /*! \brief A tag to specify whether or not dynamic shared memory is used */
 constexpr const char* kUseDynamicSharedMemoryTag = "tir.use_dyn_shared_memory";
+/*! \brief A tag to specify whether or not use programatic dependent launch */
+constexpr const char* kUseProgramaticDependentLaunch = "tir.use_programtic_dependent_launch";
+
 }  // namespace launch_param
 
 /*! \brief function information needed by device */
@@ -57,8 +61,6 @@ struct FunctionInfo {
 
   enum class ArgExtraTags : int { kNone = 0, kTensorMap = 1 };
   std::vector<ArgExtraTags> arg_extra_tags;
-
-  bool has_programmatic_dependent_launch;
 
   void Save(dmlc::JSONWriter* writer) const;
   void Load(dmlc::JSONReader* reader);

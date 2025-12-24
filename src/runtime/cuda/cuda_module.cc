@@ -173,12 +173,10 @@ class CUDAWrappedFunc {
  public:
   // initialize the CUDA function.
   void Init(CUDAModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
-            size_t num_void_args, const std::vector<std::string>& launch_param_tags,
-            bool has_programmatic_dependent_launch) {
+            size_t num_void_args, const std::vector<std::string>& launch_param_tags) {
     m_ = m;
     sptr_ = sptr;
     func_name_ = func_name;
-    has_programmatic_dependent_launch_ = has_programmatic_dependent_launch;
     std::fill(fcache_.begin(), fcache_.end(), nullptr);
     launch_param_config_.Init(num_void_args, launch_param_tags);
   }
@@ -202,12 +200,11 @@ class CUDAWrappedFunc {
       }
     }
     CUstream strm = static_cast<CUstream>(TVMFFIEnvGetStream(kDLCUDA, device_id));
-
     CUresult result;
 
-    if (has_programmatic_dependent_launch_) {
-      CUlaunchConfig config;
-      CUlaunchAttribute attribute[1];
+    if (launch_param_config_.use_programtic_dependent_launch()) {
+      CUlaunchConfig config{};
+      CUlaunchAttribute attribute[1]{};
       attribute[0].id = CU_LAUNCH_ATTRIBUTE_PROGRAMMATIC_STREAM_SERIALIZATION;
       attribute[0].value.programmaticStreamSerializationAllowed = 1;
 
@@ -260,8 +257,6 @@ class CUDAWrappedFunc {
   mutable std::array<CUfunction, kMaxNumGPUs> fcache_;
   // launch parameters configuration
   LaunchParamConfig launch_param_config_;
-  // have pdl setting
-  bool has_programmatic_dependent_launch_;
 };
 
 class CUDAPrepGlobalBarrier {
@@ -299,8 +294,7 @@ ffi::Optional<ffi::Function> CUDAModuleNode::GetFunction(const ffi::String& name
   if (it == fmap_.end()) return ffi::Function();
   const FunctionInfo& info = it->second;
   CUDAWrappedFunc f;
-  f.Init(this, sptr_to_self, name, info.arg_types.size(), info.launch_param_tags,
-         info.has_programmatic_dependent_launch);
+  f.Init(this, sptr_to_self, name, info.arg_types.size(), info.launch_param_tags);
   return PackFuncVoidAddr(f, info.arg_types, info.arg_extra_tags);
 }
 
