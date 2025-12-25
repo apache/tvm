@@ -121,8 +121,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         x = self.env[node.args[0]]
         channel = int(self.shape_of(x)[1])
         dtype = x.struct_info.dtype
-        scale = True if node.args[1] is not None else False
-        center = True if node.args[2] is not None else False
+        scale = node.args[1] is not None
+        center = node.args[2] is not None
         weight = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
         bias = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
         running_mean = self.env.get(node.args[3], relax.const(np.zeros(channel), dtype=dtype))
