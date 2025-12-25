@@ -425,25 +425,30 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
         tir::ParsedAnnotation parsed = parsed_root;
         tir::AdjustParallelVectorize(sch, block_rv, loop_rvs, &parsed);
         const int loops_num = loop_rvs.size();
-        if (parsed.num_parallel_loops == loops_num && parsed.num_vectorize_loops == loops_num) {
-          // Fuse, split, vectorize and parallelize
-          tir::RewriteFuseSplitParallelVectorize(sch, &loop_rvs, parsed.max_vectorize_extent);
-        } else {
-          // Parallel
-          if (parsed.num_parallel_loops > 0) {
-            tir::RewriteParallel(sch, parsed.num_parallel_loops, &loop_rvs);
+        try {
+          if (parsed.num_parallel_loops == loops_num && parsed.num_vectorize_loops == loops_num) {
+            // Fuse, split, vectorize and parallelize
+            tir::RewriteFuseSplitParallelVectorize(sch, &loop_rvs, parsed.max_vectorize_extent);
+          } else {
+            // Parallel
+            if (parsed.num_parallel_loops > 0) {
+              tir::RewriteParallel(sch, parsed.num_parallel_loops, &loop_rvs);
+            }
+            // Vectorize
+            if (parsed.num_vectorize_loops > 0) {
+              tir::RewriteVectorize(sch, parsed.num_vectorize_loops, &loop_rvs);
+            }
           }
-          // Vectorize
-          if (parsed.num_vectorize_loops > 0) {
-            tir::RewriteVectorize(sch, parsed.num_vectorize_loops, &loop_rvs);
+          // AutoUnroll
+          if (parsed.unroll_explicit != -1 || parsed.unroll_implicit != -1) {
+            ICHECK(parsed.unroll_explicit == -1 || parsed.unroll_implicit == -1);
+            int unroll_explicit = parsed.unroll_explicit != -1;
+            int max_step = parsed.unroll_explicit + parsed.unroll_implicit + 1;
+            tir::RewriteUnroll(sch, unroll_explicit, max_step, block_rv, loop_rvs[0]);
           }
-        }
-        // AutoUnroll
-        if (parsed.unroll_explicit != -1 || parsed.unroll_implicit != -1) {
-          ICHECK(parsed.unroll_explicit == -1 || parsed.unroll_implicit == -1);
-          int unroll_explicit = parsed.unroll_explicit != -1;
-          int max_step = parsed.unroll_explicit + parsed.unroll_implicit + 1;
-          tir::RewriteUnroll(sch, unroll_explicit, max_step, block_rv, loop_rvs[0]);
+        } catch (const tir::ScheduleError& e) {
+          DLOG(WARNING) << "Failed to apply parallelization/vectorization: " << e.what();
+          return false;
         }
       }
     }
