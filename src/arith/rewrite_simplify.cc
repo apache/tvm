@@ -1164,7 +1164,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVar<IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
   PVar<PrimExpr> lanes;
 
@@ -1218,6 +1218,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
                        c1.Eval()->value > 0 && c2.Eval()->value > 0 &&
                            c2.Eval()->value % c1.Eval()->value == 0 &&
                            CanProveEqual(floordiv(y.Eval(), c1.Eval()), 0));
+
+    TVM_TRY_REWRITE_IF(floormod(x * c1 + y * c2 + z, c3), floormod(x * floordiv(c1, c2) + y, floordiv(c3, c2)) * c2 + z,
+                       c2.Eval()->value > 0 && c3.Eval()->value > 0 &&
+                           c3.Eval()->value % c2.Eval()->value == 0 &&
+                           c1.Eval()->value % c2.Eval()->value == 0 &&
+                           CanProveEqual(floordiv(z.Eval(), c2.Eval()), 0));
 
     TVM_TRY_REWRITE_IF(floormod(x * c1 + y, c2), floormod(x * floormod(c1, c2) + y, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
