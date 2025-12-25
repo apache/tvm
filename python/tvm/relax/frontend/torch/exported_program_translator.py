@@ -201,7 +201,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         bias = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
         eps = node.args[5] if len(node.args) > 5 else node.kwargs.get("eps", 1e-05)
 
-        # Determine axes for instance norm (all spatial dimensions after channel)
+        # Shared by InstanceNorm (view as [1, N*C, H, W]) and eval-mode BatchNorm without running stats
+        # Determine axes for instance norm (all spatial dimensions after channel and batch dim)
         dim = len(self.shape_of(x))
         axes = [0] + list(range(2, dim))
 
