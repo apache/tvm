@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .mutator import Mutator
 
 
-@register_object("meta_schedule.MutateTileSize")
+@register_object("tvm.meta_schedule.MutateTileSize")
 class MutateTileSize(Mutator):
     """Mutator that mutates the decision of instruction Sample-Perfect-Tile"""
 

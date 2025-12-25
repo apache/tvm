@@ -1025,7 +1025,7 @@ Pass VectorizeLoop(bool enable_vectorize) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.VectorizeLoop", VectorizeLoop);
+  refl::GlobalDef().def("tvm.tir.transform.VectorizeLoop", VectorizeLoop);
 }
 
 }  // namespace transform

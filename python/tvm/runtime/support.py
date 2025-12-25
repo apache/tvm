@@ -90,7 +90,7 @@ def derived_object(cls: type[T]) -> type[T]:
     -------
     .. code-block:: python
 
-        @register_object("meta_schedule.PyRunner")
+        @register_object("tvm.meta_schedule.PyRunner")
         class _PyRunner(meta_schedule.Runner):
             def __init__(self, f_run: Callable = None):
                 self.__init_handle_by_constructor__(_ffi_api.RunnerPyRunner, f_run)

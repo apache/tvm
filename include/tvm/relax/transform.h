@@ -409,7 +409,7 @@ class FusionPatternNode : public Object {
         .def_ro("check", &FusionPatternNode::check)
         .def_ro("attrs_getter", &FusionPatternNode::attrs_getter);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.transform.FusionPattern", FusionPatternNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.transform.FusionPattern", FusionPatternNode, Object);
 };
 
 class FusionPattern : public ObjectRef {
@@ -467,8 +467,8 @@ class PatternCheckContextNode : public Object {
         .def_ro("var_usages", &PatternCheckContextNode::var_usages)
         .def_ro("value_to_bound_var", &PatternCheckContextNode::value_to_bound_var);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.transform.PatternCheckContext", PatternCheckContextNode,
-                                    Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.transform.PatternCheckContext",
+                                    PatternCheckContextNode, Object);
 };
 
 class PatternCheckContext : public ObjectRef {

@@ -595,7 +595,7 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("target.build.hexagon", BuildHexagon)
+      .def("tvm.target.build.hexagon", BuildHexagon)
       .def_packed("tvm.codegen.llvm.target_hexagon",
                   [](const ffi::PackedArgs& targs, ffi::Any* rv) {
                     *rv = static_cast<void*>(new CodeGenHexagon());

@@ -59,16 +59,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("meta_schedule.BuilderInput",
+      .def("tvm.meta_schedule.BuilderInput",
            [](IRModule mod, Target target,
               ffi::Optional<ffi::Map<ffi::String, runtime::Tensor>> params) -> BuilderInput {
              return BuilderInput(mod, target, params);
            })
-      .def("meta_schedule.BuilderResult",
+      .def("tvm.meta_schedule.BuilderResult",
            [](ffi::Optional<ffi::String> artifact_path, ffi::Optional<ffi::String> error_msg)
                -> BuilderResult { return BuilderResult(artifact_path, error_msg); })
-      .def_method("meta_schedule.BuilderBuild", &BuilderNode::Build)
-      .def("meta_schedule.BuilderPyBuilder", Builder::PyBuilder);
+      .def_method("tvm.meta_schedule.BuilderBuild", &BuilderNode::Build)
+      .def("tvm.meta_schedule.BuilderPyBuilder", Builder::PyBuilder);
 }
 
 }  // namespace meta_schedule

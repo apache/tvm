@@ -26,7 +26,7 @@ from . import Binding, DataflowBlock, Expr, Function, Var
 from . import _ffi_api
 
 
-@tvm_ffi.register_object("relax.DataflowBlockRewrite")
+@tvm_ffi.register_object("tvm.relax.DataflowBlockRewrite")
 class DataflowBlockRewrite(Object):
     """
     A binding/statement-level dataflow block rewriter.

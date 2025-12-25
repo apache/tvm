@@ -130,7 +130,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
     if (buffer_map_.count(store->buffer)) {
       auto* n = store.CopyOnWrite();
       if (store->buffer.scope() == "m16n8k8.matrixC") {
-        const auto index_map_func = tvm::ffi::Function::GetGlobal("tir.index_map_m16n8k8.matrixC");
+        const auto index_map_func =
+            tvm::ffi::Function::GetGlobal("tvm.tir.index_map_m16n8k8.matrixC");
         ICHECK(index_map_func.has_value());
         auto index_map = IndexMap::FromFunc(2, *index_map_func);
         auto new_indices = index_map->MapIndices(store->indices, &analyzer);
@@ -149,7 +150,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
     if (buffer_map_.count(load->buffer)) {
       auto* n = load.CopyOnWrite();
       if (load->buffer.scope() == "m16n8k8.matrixC") {
-        const auto index_map_func = tvm::ffi::Function::GetGlobal("tir.index_map_m16n8k8.matrixC");
+        const auto index_map_func =
+            tvm::ffi::Function::GetGlobal("tvm.tir.index_map_m16n8k8.matrixC");
         ICHECK(index_map_func.has_value());
         auto index_map = IndexMap::FromFunc(2, *index_map_func);
         auto new_indices = index_map->MapIndices(load->indices, &analyzer);
@@ -189,7 +191,7 @@ Pass TransformMmaBufferLayout() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.TransformMmaBufferLayout", TransformMmaBufferLayout);
+  refl::GlobalDef().def("tvm.tir.transform.TransformMmaBufferLayout", TransformMmaBufferLayout);
 }
 }  // namespace transform
 

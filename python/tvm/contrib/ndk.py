@@ -157,7 +157,7 @@ def get_global_symbol_section_map(path, *, nm=None) -> Dict[str, str]:
     return _cc.get_global_symbol_section_map(path, nm=nm)
 
 
-@register_global_func("meta_schedule.builder.export_ndk")
+@register_global_func("tvm.meta_schedule.builder.export_ndk")
 def _ndk_export(mod):
     tmp_dir = tempfile.mkdtemp()
     binary_name = "tmp_binary.so"

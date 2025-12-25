@@ -100,7 +100,7 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
     CloneRules(this, n.get());
     return SpaceGenerator(n);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PostOrderApply", PostOrderApplyNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.PostOrderApply", PostOrderApplyNode,
                                     SpaceGeneratorNode);
 };
 
@@ -120,7 +120,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { PostOrderApplyNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.SpaceGeneratorPostOrderApply",
+  refl::GlobalDef().def("tvm.meta_schedule.SpaceGeneratorPostOrderApply",
                         SpaceGenerator::PostOrderApply);
 }
 

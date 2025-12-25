@@ -17,4 +17,4 @@
 """FFI APIs for tvm.relax.distributed"""
 import tvm_ffi
 
-tvm_ffi.init_ffi_api("relax.distributed", __name__)
+tvm_ffi.init_ffi_api("tvm.relax.distributed", __name__)

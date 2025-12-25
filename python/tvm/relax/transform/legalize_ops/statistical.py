@@ -41,7 +41,7 @@ def _compute_shape_prod(x: te.Tensor, axis: List[tir.IntImm]) -> tir.PrimExpr:
 def _te_mean(x: te.Tensor, axis: List[tir.IntImm], keepdims: bool) -> te.Tensor:
     shape_prod = _compute_shape_prod(x, axis)
     res_sum = topi.sum(x, axis, keepdims)
-    return topi.divide(res_sum, shape_prod)
+    return tvm.topi.divide(res_sum, shape_prod)
 
 
 def _te_variance(x: te.Tensor, axis: List[tir.IntImm], keepdims: bool) -> te.Tensor:

@@ -56,7 +56,7 @@ enum SignType { kPositive, kNegative, kZero, kUnknown };
  */
 class IntSetNode : public Object {
  public:
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.IntSet", IntSetNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.ir.IntSet", IntSetNode, Object);
 };
 
 /*!

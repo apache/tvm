@@ -24,7 +24,7 @@ from .. import _ffi_api
 from .database import Database
 
 
-@register_object("meta_schedule.ScheduleFnDatabase")
+@register_object("tvm.meta_schedule.ScheduleFnDatabase")
 class ScheduleFnDatabase(Database):
     """A database for injecting handcrafted schedule functions.
 

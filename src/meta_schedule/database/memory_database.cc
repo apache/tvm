@@ -37,7 +37,7 @@ class MemoryDatabaseNode : public DatabaseNode {
         .def_ro("records", &MemoryDatabaseNode::records)
         .def_ro("workloads", &MemoryDatabaseNode::workloads);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MemoryDatabase", MemoryDatabaseNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.MemoryDatabase", MemoryDatabaseNode,
                                     DatabaseNode);
 
  public:
@@ -101,7 +101,7 @@ Database Database::MemoryDatabase(ffi::String mod_eq_name) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.DatabaseMemoryDatabase", Database::MemoryDatabase);
+  refl::GlobalDef().def("tvm.meta_schedule.DatabaseMemoryDatabase", Database::MemoryDatabase);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { MemoryDatabaseNode::RegisterReflection(); }

@@ -318,14 +318,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("msc.core.RegisterPlugin",
+      .def("tvm.msc.core.RegisterPlugin",
            [](const ffi::String& name, const ffi::String& json_str) {
              PluginRegistry::Global()->Register(name, json_str);
            })
-      .def("msc.core.ListPluginNames",
+      .def("tvm.msc.core.ListPluginNames",
            []() -> ffi::Array<ffi::String> { return ListPluginNames(); })
-      .def("msc.core.GetPlugin", [](const ffi::String& name) -> Plugin { return GetPlugin(name); })
-      .def("msc.core.IsPlugin",
+      .def("tvm.msc.core.GetPlugin",
+           [](const ffi::String& name) -> Plugin { return GetPlugin(name); })
+      .def("tvm.msc.core.IsPlugin",
            [](const ffi::String& name) -> Bool { return Bool(IsPlugin(name)); });
 }
 

@@ -104,7 +104,7 @@ class OpNode : public RelaxExprNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUniqueInstance;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Op", OpNode, RelaxExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.Op", OpNode, RelaxExprNode);
 
  private:
   /*! \return the internal attr registry index. */

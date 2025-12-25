@@ -62,7 +62,7 @@ DeviceMesh::DeviceMesh(ffi::Shape shape, Range device_range) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "relax.distributed.DeviceMesh",
+      "tvm.relax.distributed.DeviceMesh",
       [](ffi::Shape shape, ffi::Array<Integer> device_ids, ffi::Optional<Range> device_range) {
         if (device_range.defined())
           return DeviceMesh(shape, device_range.value());

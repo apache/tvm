@@ -323,7 +323,7 @@ Pass NarrowDataType(int target_bits) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.NarrowDataType", NarrowDataType);
+  refl::GlobalDef().def("tvm.tir.transform.NarrowDataType", NarrowDataType);
 }
 
 }  // namespace transform

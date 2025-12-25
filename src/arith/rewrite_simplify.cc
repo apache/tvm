@@ -2281,7 +2281,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
       // the operator overload will eagerly constant fold.
       return op->args[0] << op->args[1];
     }
-  } else if (op->op.same_as(Op::Get("tir.ceil"))) {
+  } else if (op->op.same_as(Op::Get("tvm.tir.ceil"))) {
     PrimExpr ceil_arg = op->args[0];
     if (auto arg_int = op->args[0].as<IntImmNode>()) {
       return cast(op->dtype, IntImm(arg_int->dtype, arg_int->value));

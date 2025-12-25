@@ -102,7 +102,7 @@ tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > CalculateAlloca
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tir.analysis.calculate_allocated_bytes",
+      "tvm.tir.analysis.calculate_allocated_bytes",
       [](ObjectRef obj) -> tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > {
         if (auto func = obj.as<PrimFunc>()) {
           return CalculateAllocatedBytes(func.value());
@@ -164,7 +164,7 @@ ffi::Array<tvm::transform::Pass> GetVTCMCompactionPasses() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.analysis.get_vtcm_compaction_passes",
+  refl::GlobalDef().def("tvm.tir.analysis.get_vtcm_compaction_passes",
                         []() { return GetVTCMCompactionPasses(); });
 }
 
@@ -202,7 +202,7 @@ Pass VerifyVTCMLimit(ffi::Optional<Target> default_target) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.VerifyVTCMLimit", VerifyVTCMLimit);
+  refl::GlobalDef().def("tvm.tir.transform.VerifyVTCMLimit", VerifyVTCMLimit);
 }
 
 }  // namespace transform

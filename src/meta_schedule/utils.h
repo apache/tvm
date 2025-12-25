@@ -125,7 +125,7 @@ class PyLogMessage {
  */
 inline bool using_ipython() {
   bool flag = false;
-  const auto f_using_ipython = tvm::ffi::Function::GetGlobal("meta_schedule.using_ipython");
+  const auto f_using_ipython = tvm::ffi::Function::GetGlobal("tvm.meta_schedule.using_ipython");
   if (f_using_ipython) {
     flag = (*f_using_ipython)().cast<bool>();
   }
@@ -138,7 +138,7 @@ inline bool using_ipython() {
  */
 inline void print_interactive_table(const ffi::String& data) {
   const auto f_print_interactive_table =
-      tvm::ffi::Function::GetGlobal("meta_schedule.print_interactive_table");
+      tvm::ffi::Function::GetGlobal("tvm.meta_schedule.print_interactive_table");
   ICHECK(f_print_interactive_table.has_value())
       << "Cannot find print_interactive_table function in registry.";
   (*f_print_interactive_table)(data);
@@ -379,7 +379,7 @@ struct ThreadedTraceApply {
 inline int GetTargetNumCores(const Target& target) {
   int num_cores = target->GetAttr<Integer>("num-cores").value_or(-1).IntValue();
   if (num_cores == -1) {
-    static const auto f_cpu_count = tvm::ffi::Function::GetGlobal("meta_schedule.cpu_count");
+    static const auto f_cpu_count = tvm::ffi::Function::GetGlobal("tvm.meta_schedule.cpu_count");
     ICHECK(f_cpu_count.has_value())
         << "ValueError: Cannot find the packed function \"meta_schedule._cpu_count\"";
     num_cores = (*f_cpu_count)(false).cast<int>();
@@ -543,7 +543,7 @@ inline ScheduleRule GetDefaultAutoInline(const std::string& target_name) {
     LOG(FATAL) << "ValueError: Unsupported target: " << target_name;
   }
   for (const ScheduleRule& rule : rules) {
-    if (rule->GetTypeKey() == "meta_schedule.AutoInline") {
+    if (rule->GetTypeKey() == "tvm.meta_schedule.AutoInline") {
       return rule;
     }
   }

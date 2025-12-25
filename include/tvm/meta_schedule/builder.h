@@ -50,7 +50,7 @@ class BuilderInputNode : public runtime::Object {
         .def_ro("target", &BuilderInputNode::target)
         .def_ro("params", &BuilderInputNode::params);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.BuilderInput", BuilderInputNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.BuilderInput", BuilderInputNode,
                                     runtime::Object);
 };
 
@@ -86,7 +86,7 @@ class BuilderResultNode : public runtime::Object {
         .def_ro("artifact_path", &BuilderResultNode::artifact_path)
         .def_ro("error_msg", &BuilderResultNode::error_msg);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.BuilderResult", BuilderResultNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.BuilderResult", BuilderResultNode,
                                     runtime::Object);
 };
 
@@ -126,7 +126,7 @@ class BuilderNode : public runtime::Object {
   using FBuild = ffi::TypedFunction<ffi::Array<BuilderResult>(const ffi::Array<BuilderInput>&)>;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.Builder", BuilderNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.meta_schedule.Builder", BuilderNode, runtime::Object);
 };
 
 /*!
@@ -166,7 +166,7 @@ class PyBuilderNode : public BuilderNode {
     ICHECK(f_build != nullptr) << "PyBuilder's Build method not implemented!";
     return f_build(build_inputs);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyBuilder", PyBuilderNode, BuilderNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.PyBuilder", PyBuilderNode, BuilderNode);
 };
 
 }  // namespace meta_schedule

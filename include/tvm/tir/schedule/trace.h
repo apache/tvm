@@ -70,7 +70,7 @@ class TraceNode : public runtime::Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Trace", TraceNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Trace", TraceNode, runtime::Object);
 
  public:
   /*!

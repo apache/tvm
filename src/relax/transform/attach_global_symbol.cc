@@ -83,7 +83,7 @@ Pass AttachGlobalSymbol() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.AttachGlobalSymbol", AttachGlobalSymbol);
+  refl::GlobalDef().def("tvm.relax.transform.AttachGlobalSymbol", AttachGlobalSymbol);
 }
 }  // namespace transform
 }  // namespace relax

@@ -56,7 +56,8 @@ class MutateUnrollNode : public MutatorNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MutateUnrollNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MutateUnroll", MutateUnrollNode, MutatorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.MutateUnroll", MutateUnrollNode,
+                                    MutatorNode);
 
  public:
   struct Candidate;
@@ -146,7 +147,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { MutateUnrollNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.MutatorMutateUnroll", Mutator::MutateUnroll);
+  refl::GlobalDef().def("tvm.meta_schedule.MutatorMutateUnroll", Mutator::MutateUnroll);
 }
 
 }  // namespace meta_schedule

@@ -130,7 +130,7 @@ class SearchStrategyNode : public runtime::Object {
   virtual SearchStrategy Clone() const = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.SearchStrategy", SearchStrategyNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.meta_schedule.SearchStrategy", SearchStrategyNode, Object);
 };
 
 /*!
@@ -263,7 +263,7 @@ class PySearchStrategyNode : public SearchStrategyNode {
   void NotifyRunnerResults(const ffi::Array<MeasureCandidate>& measure_candidates,
                            const ffi::Array<RunnerResult>& results);
   SearchStrategy Clone() const final;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PySearchStrategy", PySearchStrategyNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.PySearchStrategy", PySearchStrategyNode,
                                     SearchStrategyNode);
 };
 

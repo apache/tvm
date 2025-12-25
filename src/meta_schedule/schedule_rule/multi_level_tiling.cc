@@ -409,7 +409,7 @@ ScheduleRule ScheduleRule::MultiLevelTiling(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.ScheduleRuleMultiLevelTiling",
+  refl::GlobalDef().def("tvm.meta_schedule.ScheduleRuleMultiLevelTiling",
                         ScheduleRule::MultiLevelTiling);
 }
 

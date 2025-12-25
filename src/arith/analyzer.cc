@@ -272,7 +272,7 @@ PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("arith.CreateAnalyzer", [](ffi::PackedArgs args, ffi::Any* ret) {
+  refl::GlobalDef().def_packed("tvm.arith.CreateAnalyzer", [](ffi::PackedArgs args, ffi::Any* ret) {
     using ffi::Function;
     using ffi::TypedFunction;
     auto self = std::make_shared<Analyzer>();

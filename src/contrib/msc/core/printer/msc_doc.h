@@ -59,7 +59,8 @@ class DeclareDocNode : public ExprDocNode {
         .def_ro("init_args", &DeclareDocNode::init_args)
         .def_ro("use_constructor", &DeclareDocNode::use_constructor);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.script.printer.DeclareDoc", DeclareDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.msc.script.printer.DeclareDoc", DeclareDocNode,
+                                    ExprDocNode);
 };
 
 /*!
@@ -99,7 +100,7 @@ class StrictListDocNode : public ExprDocNode {
         .def_ro("list", &StrictListDocNode::list)
         .def_ro("allow_empty", &StrictListDocNode::allow_empty);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.script.printer.StrictListDoc", StrictListDocNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.msc.script.printer.StrictListDoc", StrictListDocNode,
                                     ExprDocNode);
 };
 
@@ -133,7 +134,8 @@ class PointerDocNode : public ExprDocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PointerDocNode>().def_ro("name", &PointerDocNode::name);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.script.printer.PointerDoc", PointerDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.msc.script.printer.PointerDoc", PointerDocNode,
+                                    ExprDocNode);
 };
 
 /*!
@@ -172,7 +174,7 @@ class StructDocNode : public StmtDocNode {
         .def_ro("decorators", &StructDocNode::decorators)
         .def_ro("body", &StructDocNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.script.printer.StructDoc", StructDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.msc.script.printer.StructDoc", StructDocNode, StmtDocNode);
 };
 
 /*!
@@ -219,7 +221,7 @@ class ConstructorDocNode : public StmtDocNode {
         .def_ro("args", &ConstructorDocNode::args)
         .def_ro("body", &ConstructorDocNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.script.printer.ConstructorDoc", ConstructorDocNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.msc.script.printer.ConstructorDoc", ConstructorDocNode,
                                     StmtDocNode);
 };
 
@@ -261,7 +263,7 @@ class SwitchDocNode : public StmtDocNode {
         .def_ro("branchs", &SwitchDocNode::branchs)
         .def_ro("default_branch", &SwitchDocNode::default_branch);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.script.printer.SwitchDoc", SwitchDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.msc.script.printer.SwitchDoc", SwitchDocNode, StmtDocNode);
 };
 
 /*!
@@ -312,7 +314,7 @@ class LambdaDocNode : public StmtDocNode {
         .def_ro("refs", &LambdaDocNode::refs)
         .def_ro("body", &LambdaDocNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.script.printer.LambdaDoc", LambdaDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.msc.script.printer.LambdaDoc", LambdaDocNode, StmtDocNode);
 };
 
 /*!

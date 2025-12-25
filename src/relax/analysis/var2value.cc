@@ -61,7 +61,7 @@ ffi::Map<Var, Expr> AnalyzeVar2Value(const IRModule& m) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.analysis.get_var2val",
+  refl::GlobalDef().def("tvm.relax.analysis.get_var2val",
                         [](const Function& f) { return AnalyzeVar2Value(f); });
 }
 
@@ -91,7 +91,7 @@ ffi::Map<ffi::String, ffi::Array<Binding>> NameToBinding(const Function& fn) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.analysis.name_to_binding", NameToBinding);
+  refl::GlobalDef().def("tvm.relax.analysis.name_to_binding", NameToBinding);
 }
 
 }  // namespace relax

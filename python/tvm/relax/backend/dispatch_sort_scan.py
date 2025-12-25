@@ -167,7 +167,7 @@ class SortScanDispatcher(BackendDispatcher):
                 out_dtype = out_dtype or in_dtype
                 cumsum_2d_shape = relax.ShapeExpr([dim, shape[-1]])
                 reshape = relax.call_pure_packed(
-                    "vm.builtin.reshape",
+                    "tvm.vm.builtin.reshape",
                     call.args[0],
                     cumsum_2d_shape,
                     sinfo_args=relax.TensorStructInfo(cumsum_2d_shape, out_dtype),
@@ -182,7 +182,7 @@ class SortScanDispatcher(BackendDispatcher):
                     out_sinfo=relax.TensorStructInfo(cumsum_2d_shape, out_dtype),
                 )
                 return relax.call_pure_packed(
-                    "vm.builtin.reshape",
+                    "tvm.vm.builtin.reshape",
                     cumsum,
                     shape,
                     sinfo_args=call.struct_info,

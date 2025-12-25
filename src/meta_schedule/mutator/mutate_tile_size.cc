@@ -60,7 +60,7 @@ class MutateTileSizeNode : public MutatorNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MutateTileSizeNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MutateTileSize", MutateTileSizeNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.MutateTileSize", MutateTileSizeNode,
                                     MutatorNode);
 
  public:
@@ -276,7 +276,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { MutateTileSizeNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.MutatorMutateTileSize", Mutator::MutateTileSize);
+  refl::GlobalDef().def("tvm.meta_schedule.MutatorMutateTileSize", Mutator::MutateTileSize);
 }
 
 }  // namespace meta_schedule

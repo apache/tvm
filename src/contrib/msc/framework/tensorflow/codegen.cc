@@ -154,7 +154,7 @@ const ffi::Array<Doc> TensorflowCodeGen::GetOpCodes(const MSCJoint& node) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("msc.framework.tensorflow.GetTensorflowSources",
+  refl::GlobalDef().def("tvm.msc.framework.tensorflow.GetTensorflowSources",
                         [](const MSCGraph& graph, const ffi::String& codegen_config,
                            const ffi::String& print_config) -> ffi::Map<ffi::String, ffi::String> {
                           TensorflowCodeGen codegen = TensorflowCodeGen(graph, codegen_config);

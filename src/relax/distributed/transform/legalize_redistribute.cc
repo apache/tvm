@@ -118,7 +118,8 @@ Pass LegalizeRedistribute() {
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.distributed.transform.LegalizeRedistribute", LegalizeRedistribute);
+  refl::GlobalDef().def("tvm.relax.distributed.transform.LegalizeRedistribute",
+                        LegalizeRedistribute);
 }
 }  // namespace transform
 

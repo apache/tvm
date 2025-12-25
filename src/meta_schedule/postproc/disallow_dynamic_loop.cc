@@ -80,8 +80,8 @@ class DisallowDynamicLoopNode : public PostprocNode {
     refl::ObjectDef<DisallowDynamicLoopNode>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.DisallowDynamicLoop", DisallowDynamicLoopNode,
-                                    PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.DisallowDynamicLoop",
+                                    DisallowDynamicLoopNode, PostprocNode);
 };
 
 Postproc Postproc::DisallowDynamicLoop() {
@@ -92,7 +92,8 @@ Postproc Postproc::DisallowDynamicLoop() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   DisallowDynamicLoopNode::RegisterReflection();
-  refl::GlobalDef().def("meta_schedule.PostprocDisallowDynamicLoop", Postproc::DisallowDynamicLoop);
+  refl::GlobalDef().def("tvm.meta_schedule.PostprocDisallowDynamicLoop",
+                        Postproc::DisallowDynamicLoop);
 }
 
 }  // namespace meta_schedule

@@ -35,47 +35,47 @@ using namespace tvm::runtime;
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_packed("topi.sum",
+      .def_packed("tvm.topi.sum",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = topi::sum(args[0].cast<te::Tensor>(), ArrayOrInt(args[1]),
                                     args[2].cast<bool>());
                   })
-      .def_packed("topi.min",
+      .def_packed("tvm.topi.min",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = topi::min(args[0].cast<te::Tensor>(), ArrayOrInt(args[1]),
                                     args[2].cast<bool>());
                   })
-      .def_packed("topi.max",
+      .def_packed("tvm.topi.max",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = topi::max(args[0].cast<te::Tensor>(), ArrayOrInt(args[1]),
                                     args[2].cast<bool>());
                   })
-      .def_packed("topi.argmin",
+      .def_packed("tvm.topi.argmin",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = topi::argmin(args[0].cast<te::Tensor>(), ArrayOrInt(args[1]),
                                        args[2].cast<bool>(), false, args[3].cast<bool>());
                   })
-      .def_packed("topi.argmax",
+      .def_packed("tvm.topi.argmax",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = topi::argmax(args[0].cast<te::Tensor>(), ArrayOrInt(args[1]),
                                        args[2].cast<bool>(), false, args[3].cast<bool>());
                   })
-      .def_packed("topi.prod",
+      .def_packed("tvm.topi.prod",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = topi::prod(args[0].cast<te::Tensor>(), ArrayOrInt(args[1]),
                                      args[2].cast<bool>());
                   })
-      .def_packed("topi.all",
+      .def_packed("tvm.topi.all",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = topi::all(args[0].cast<te::Tensor>(), ArrayOrInt(args[1]),
                                     args[2].cast<bool>());
                   })
-      .def_packed("topi.any",
+      .def_packed("tvm.topi.any",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = topi::any(args[0].cast<te::Tensor>(), ArrayOrInt(args[1]),
                                     args[2].cast<bool>());
                   })
-      .def_packed("topi.collapse_sum", [](ffi::PackedArgs args, ffi::Any* rv) {
+      .def_packed("tvm.topi.collapse_sum", [](ffi::PackedArgs args, ffi::Any* rv) {
         *rv = topi::collapse_sum(args[0].cast<te::Tensor>(), args[1].cast<ffi::Array<Integer>>());
       });
 }

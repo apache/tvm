@@ -102,12 +102,12 @@ class RelaxAttentionCodeGen : public RelaxOpCode {
   void CodeGenBuild() final {
     for (size_t i = 0; i < 3; i++) {
       const ffi::String& axes_key = i == 0 ? "axes" : "axes_" + std::to_string(i);
-      stack_.op_call("relax.op.permute_dims", IdxInput(i))
+      stack_.op_call("tvm.relax.op.permute_dims", IdxInput(i))
           .op_input_arg(i)
           .op_list_arg<int>(axes_key, "axes");
     }
     stack_.op_call().op_inputs_arg(false).op_arg<float>("scale").op_str_arg("causal_mask");
-    stack_.op_call("relax.op.permute_dims").op_output_arg().op_list_arg<int>("axes_3", "axes");
+    stack_.op_call("tvm.relax.op.permute_dims").op_output_arg().op_list_arg<int>("axes_3", "axes");
   }
 };
 
@@ -150,7 +150,7 @@ class RelaxBatchMatmulCodeGen : public RelaxOpCode {
       }
       axes.push_back(node()->InputAt(0)->Ndim() - 1);
       axes.push_back(node()->InputAt(0)->Ndim() - 2);
-      stack_.op_call("relax.op.permute_dims", IdxInput(0))
+      stack_.op_call("tvm.relax.op.permute_dims", IdxInput(0))
           .op_input_arg()
           .call_arg(DocUtils::ToList(axes));
       BuilderEmit(IdxInput(0));
@@ -162,7 +162,7 @@ class RelaxBatchMatmulCodeGen : public RelaxOpCode {
       }
       axes.push_back(node()->InputAt(1)->Ndim() - 1);
       axes.push_back(node()->InputAt(1)->Ndim() - 2);
-      stack_.op_call("relax.op.permute_dims", IdxInput(1))
+      stack_.op_call("tvm.relax.op.permute_dims", IdxInput(1))
           .op_input_arg(1)
           .call_arg(DocUtils::ToList(axes));
       BuilderEmit(IdxInput(1));
@@ -175,7 +175,7 @@ class RelaxBatchMatmulCodeGen : public RelaxOpCode {
         }
         axes.push_back(node()->InputAt(idx)->Ndim() - 1);
         axes.push_back(node()->InputAt(idx)->Ndim() - 2);
-        stack_.op_call("relax.op.permute_dims", IdxInput(idx))
+        stack_.op_call("tvm.relax.op.permute_dims", IdxInput(idx))
             .op_input_arg(idx)
             .call_arg(DocUtils::ToList(axes));
         BuilderEmit(IdxInput(idx));
@@ -218,7 +218,7 @@ class RelaxBiasAddCodeGen : public RelaxOpCode {
         expand_shape.push_back(Integer(1));
       }
     }
-    stack_.op_call("relax.op.reshape", IdxInput(1))
+    stack_.op_call("tvm.relax.op.reshape", IdxInput(1))
         .op_input_arg(1)
         .call_arg(DocUtils::ToList(expand_shape), "shape");
     BuilderEmit(IdxInput(1));
@@ -295,7 +295,7 @@ class RelaxConvCodeGen : public RelaxOpCode {
         }
       }
       BuilderEmit(IdxNode());
-      stack_.func_call("relax.op.reshape", "expand_bias")
+      stack_.func_call("tvm.relax.op.reshape", "expand_bias")
           .op_weight_arg("bias")
           .call_arg(DocUtils::ToList(expand_shape), "shape");
       BuilderEmit("expand_bias");
@@ -367,13 +367,13 @@ class RelaxEmbeddingCodeGen : public RelaxOpCode {
   void CodeGenBuild() final {
     const auto& input = node()->InputAt(0);
     if (input->DTypeName() != "int32") {
-      stack_.op_call("relax.op.astype", IdxInput())
+      stack_.op_call("tvm.relax.op.astype", IdxInput())
           .op_input_arg()
           .call_arg(DocUtils::ToStr("int32"));
       BuilderEmit(IdxInput());
     }
     if (input->Ndim() > 1) {
-      stack_.op_call("relax.op.reshape", IdxInput())
+      stack_.op_call("tvm.relax.op.reshape", IdxInput())
           .op_input_arg()
           .call_arg(DocUtils::ToList(std::vector<int>{-1}), "shape");
       BuilderEmit(IdxInput());
@@ -381,7 +381,7 @@ class RelaxEmbeddingCodeGen : public RelaxOpCode {
     stack_.op_call().op_weight_arg("weight").op_input_arg().op_arg<int>("axis");
     if (input->Ndim() > 1) {
       BuilderEmit(IdxNode());
-      stack_.op_call("relax.op.reshape")
+      stack_.op_call("tvm.relax.op.reshape")
           .op_output_arg()
           .call_arg(DocUtils::ToList(node()->OutputAt(0)->shape));
     }
@@ -588,7 +588,7 @@ class RelaxScatterNDCodeGen : public RelaxOpCode {
       for (size_t i = 0; i < ndim - 1; i++) {
         axes.push_back(i);
       }
-      stack_.func_call("relax.op.permute_dims", IdxInput(1))
+      stack_.func_call("tvm.relax.op.permute_dims", IdxInput(1))
           .call_arg(IdxInput(1))
           .call_arg(DocUtils::ToList(axes));
       BuilderEmit(IdxInput(1), "permute_" + std::to_string(node()->index));
@@ -610,7 +610,7 @@ class RelaxResize2dCodeGen : public RelaxOpCode {
     }
     stack_.op_call()
         .op_input_arg()
-        .func_call("relax.ShapeExpr")
+        .func_call("tvm.relax.ShapeExpr")
         .op_list_arg<int>("size", "values")
         .pop_nest()
         .call_arg(DocUtils::ToList(roi_list))
@@ -663,7 +663,7 @@ class RelaxStackCodeGen : public RelaxOpCode {
     stack_.op_call().op_inputs_arg().op_arg<int>("axis");
     BuilderEmit(IdxNode(), "cat_" + std::to_string(node()->index));
     const auto& out_shape = GetPrims(node()->OutputAt(0));
-    stack_.func_call("relax.op.reshape", IdxNode())
+    stack_.func_call("tvm.relax.op.reshape", IdxNode())
         .call_arg(IdxNode())
         .call_arg(DocUtils::ToList(out_shape), "shape");
   }
@@ -700,7 +700,7 @@ class RelaxTriCodeGen : public RelaxOpCode {
   void CodeGenBuild() final {
     if (node()->optype == "trilu") {
       const ffi::String& func_name =
-          node()->GetTypeAttr<bool>("upper") ? "relax.op.triu" : "relax.op.tril";
+          node()->GetTypeAttr<bool>("upper") ? "tvm.relax.op.triu" : "tvm.relax.op.tril";
       stack_.op_call(func_name).op_input_arg().op_arg<int>("k");
     } else {
       stack_.op_call().op_input_arg().op_arg<int>("k");
@@ -777,7 +777,7 @@ GetRelaxOpCodes() {
   map->emplace("subtract", std::make_shared<RelaxSimpleCodeGen>("relax.op.subtract"));
   map->emplace("tan", std::make_shared<RelaxSimpleCodeGen>("relax.op.tan"));
   map->emplace("tanh", std::make_shared<RelaxSimpleCodeGen>("relax.op.tanh"));
-  map->emplace("where", std::make_shared<RelaxSimpleCodeGen>("relax.op.where"));
+  map->emplace("where", std::make_shared<RelaxSimpleCodeGen>("tvm.relax.op.where"));
 
   // reduce axis ops
   map->emplace("argmax", std::make_shared<RelaxReduceAxisCodeGen>("relax.op.argmax", false));
@@ -790,80 +790,89 @@ GetRelaxOpCodes() {
   map->emplace("std", std::make_shared<RelaxReduceAxisCodeGen>("relax.op.std", true));
 
   // axis && axes ops
-  map->emplace("nn.log_softmax", std::make_shared<RelaxAxisCodeGen>("relax.op.nn.log_softmax"));
-  map->emplace("nn.softmax", std::make_shared<RelaxAxisCodeGen>("relax.op.nn.softmax"));
-  map->emplace("expand_dims", std::make_shared<RelaxAxesCodeGen>("relax.op.expand_dims"));
-  map->emplace("squeeze", std::make_shared<RelaxAxesCodeGen>("relax.op.squeeze"));
+  map->emplace("nn.log_softmax", std::make_shared<RelaxAxisCodeGen>("tvm.relax.op.nn.log_softmax"));
+  map->emplace("nn.softmax", std::make_shared<RelaxAxisCodeGen>("tvm.relax.op.nn.softmax"));
+  map->emplace("expand_dims", std::make_shared<RelaxAxesCodeGen>("tvm.relax.op.expand_dims"));
+  map->emplace("squeeze", std::make_shared<RelaxAxesCodeGen>("tvm.relax.op.squeeze"));
 
   // math ops
-  map->emplace("astype", std::make_shared<RelaxAstypeCodeGen>("relax.op.astype"));
-  map->emplace("broadcast_to", std::make_shared<RelaxBroadcastToCodeGen>("relax.op.broadcast_to"));
-  map->emplace("cast", std::make_shared<RelaxAstypeCodeGen>("relax.op.astype"));
-  map->emplace("clip", std::make_shared<RelaxClipCodeGen>("relax.op.clip"));
-  map->emplace("concat", std::make_shared<RelaxConcatCodeGen>("relax.op.concat"));
-  map->emplace("concatenate", std::make_shared<RelaxConcatCodeGen>("relax.op.concat"));
-  map->emplace("cumsum", std::make_shared<RelaxCumsumCodeGen>("relax.op.cumsum"));
-  map->emplace("einsum", std::make_shared<RelaxEinsumCodeGen>("relax.op.einsum"));
+  map->emplace("astype", std::make_shared<RelaxAstypeCodeGen>("tvm.relax.op.astype"));
+  map->emplace("broadcast_to",
+               std::make_shared<RelaxBroadcastToCodeGen>("tvm.relax.op.broadcast_to"));
+  map->emplace("cast", std::make_shared<RelaxAstypeCodeGen>("tvm.relax.op.astype"));
+  map->emplace("clip", std::make_shared<RelaxClipCodeGen>("tvm.relax.op.clip"));
+  map->emplace("concat", std::make_shared<RelaxConcatCodeGen>("tvm.relax.op.concat"));
+  map->emplace("concatenate", std::make_shared<RelaxConcatCodeGen>("tvm.relax.op.concat"));
+  map->emplace("cumsum", std::make_shared<RelaxCumsumCodeGen>("tvm.relax.op.cumsum"));
+  map->emplace("einsum", std::make_shared<RelaxEinsumCodeGen>("tvm.relax.op.einsum"));
   map->emplace("matmul", std::make_shared<RelaxMatmulCodeGen>("relax.op.linear_algebra.matmul"));
-  map->emplace("permute_dims", std::make_shared<RelaxPermuteDimsCodeGen>("relax.op.permute_dims"));
-  map->emplace("repeat", std::make_shared<RelaxRepeatCodeGen>("relax.op.repeat"));
-  map->emplace("reshape", std::make_shared<RelaxReshapeCodeGen>("relax.op.reshape"));
+  map->emplace("permute_dims",
+               std::make_shared<RelaxPermuteDimsCodeGen>("tvm.relax.op.permute_dims"));
+  map->emplace("repeat", std::make_shared<RelaxRepeatCodeGen>("tvm.relax.op.repeat"));
+  map->emplace("reshape", std::make_shared<RelaxReshapeCodeGen>("tvm.relax.op.reshape"));
   map->emplace("scatter_elements",
-               std::make_shared<RelaxScatterElementsCodeGen>("relax.op.scatter_elements"));
-  map->emplace("scatter_nd", std::make_shared<RelaxScatterNDCodeGen>("relax.op.scatter_nd"));
-  map->emplace("split", std::make_shared<RelaxSplitCodeGen>("relax.op.split"));
-  map->emplace("stack", std::make_shared<RelaxStackCodeGen>("relax.op.concat"));
+               std::make_shared<RelaxScatterElementsCodeGen>("tvm.relax.op.scatter_elements"));
+  map->emplace("scatter_nd", std::make_shared<RelaxScatterNDCodeGen>("tvm.relax.op.scatter_nd"));
+  map->emplace("split", std::make_shared<RelaxSplitCodeGen>("tvm.relax.op.split"));
+  map->emplace("stack", std::make_shared<RelaxStackCodeGen>("tvm.relax.op.concat"));
   map->emplace("strided_slice",
-               std::make_shared<RelaxStridedSliceCodeGen>("relax.op.strided_slice"));
-  map->emplace("take", std::make_shared<RelaxTakeCodeGen>("relax.op.take"));
-  map->emplace("tile", std::make_shared<RelaxTileCodeGen>("relax.op.tile"));
-  map->emplace("transpose", std::make_shared<RelaxPermuteDimsCodeGen>("relax.op.permute_dims"));
+               std::make_shared<RelaxStridedSliceCodeGen>("tvm.relax.op.strided_slice"));
+  map->emplace("take", std::make_shared<RelaxTakeCodeGen>("tvm.relax.op.take"));
+  map->emplace("tile", std::make_shared<RelaxTileCodeGen>("tvm.relax.op.tile"));
+  map->emplace("transpose", std::make_shared<RelaxPermuteDimsCodeGen>("tvm.relax.op.permute_dims"));
 
   // create ops
-  map->emplace("constant", std::make_shared<RelaxConstantCodeGen>("relax.Var"));
-  map->emplace("full", std::make_shared<RelaxFullCodeGen>("relax.op.full"));
-  map->emplace("ones", std::make_shared<RelaxCreateCodeGen>("relax.op.ones"));
-  map->emplace("ones_like", std::make_shared<RelaxCreateLikeCodeGen>("relax.op.ones_like"));
-  map->emplace("tril", std::make_shared<RelaxTriCodeGen>("relax.op.tril"));
-  map->emplace("triu", std::make_shared<RelaxTriCodeGen>("relax.op.triu"));
+  map->emplace("constant", std::make_shared<RelaxConstantCodeGen>("tvm.relax.Var"));
+  map->emplace("full", std::make_shared<RelaxFullCodeGen>("tvm.relax.op.full"));
+  map->emplace("ones", std::make_shared<RelaxCreateCodeGen>("tvm.relax.op.ones"));
+  map->emplace("ones_like", std::make_shared<RelaxCreateLikeCodeGen>("tvm.relax.op.ones_like"));
+  map->emplace("tril", std::make_shared<RelaxTriCodeGen>("tvm.relax.op.tril"));
+  map->emplace("triu", std::make_shared<RelaxTriCodeGen>("tvm.relax.op.triu"));
   map->emplace("trilu", std::make_shared<RelaxTriCodeGen>(""));
-  map->emplace("zeros", std::make_shared<RelaxCreateCodeGen>("relax.op.zeros"));
-  map->emplace("zeros_like", std::make_shared<RelaxCreateLikeCodeGen>("relax.op.zeros_like"));
+  map->emplace("zeros", std::make_shared<RelaxCreateCodeGen>("tvm.relax.op.zeros"));
+  map->emplace("zeros_like", std::make_shared<RelaxCreateLikeCodeGen>("tvm.relax.op.zeros_like"));
 
   // nn ops
   map->emplace("nn.adaptive_avg_pool2d",
-               std::make_shared<RelaxAdaptivePool2dCodeGen>("relax.op.nn.adaptive_avg_pool2d"));
-  map->emplace("nn.avg_pool2d", std::make_shared<RelaxPool2dCodeGen>("relax.op.nn.avg_pool2d"));
+               std::make_shared<RelaxAdaptivePool2dCodeGen>("tvm.relax.op.nn.adaptive_avg_pool2d"));
+  map->emplace("nn.avg_pool2d", std::make_shared<RelaxPool2dCodeGen>("tvm.relax.op.nn.avg_pool2d"));
   map->emplace("nn.batch_matmul",
                std::make_shared<RelaxBatchMatmulCodeGen>("relax.op.linear_algebra.matmul"));
-  map->emplace("nn.batch_norm", std::make_shared<RelaxBatchNormCodeGen>("relax.op.nn.batch_norm"));
+  map->emplace("nn.batch_norm",
+               std::make_shared<RelaxBatchNormCodeGen>("tvm.relax.op.nn.batch_norm"));
   map->emplace("nn.bias_add", std::make_shared<RelaxBiasAddCodeGen>("relax.op.add"));
-  map->emplace("nn.conv1d", std::make_shared<RelaxConvCodeGen>("relax.op.nn.conv1d", false));
-  map->emplace("nn.conv2d", std::make_shared<RelaxConvCodeGen>("relax.op.nn.conv2d", false));
+  map->emplace("nn.conv1d", std::make_shared<RelaxConvCodeGen>("tvm.relax.op.nn.conv1d", false));
+  map->emplace("nn.conv2d", std::make_shared<RelaxConvCodeGen>("tvm.relax.op.nn.conv2d", false));
   map->emplace("nn.dense", std::make_shared<RelaxLinearCodeGen>("relax.op.linear_algebra.linear"));
   map->emplace("nn.gelu", std::make_shared<RelaxSimpleCodeGen>("relax.op.nn.gelu"));
-  map->emplace("nn.group_norm", std::make_shared<RelaxGroupNormCodeGen>("relax.op.nn.group_norm"));
-  map->emplace("nn.layer_norm", std::make_shared<RelaxLayerNormCodeGen>("relax.op.nn.layer_norm"));
-  map->emplace("nn.max_pool2d", std::make_shared<RelaxPool2dCodeGen>("relax.op.nn.max_pool2d"));
-  map->emplace("nn.nll_loss", std::make_shared<RelaxNllLossCodeGen>("relax.op.nn.nll_loss"));
-  map->emplace("nn.pad", std::make_shared<RelaxPadCodeGen>("relax.op.nn.pad"));
+  map->emplace("nn.group_norm",
+               std::make_shared<RelaxGroupNormCodeGen>("tvm.relax.op.nn.group_norm"));
+  map->emplace("nn.layer_norm",
+               std::make_shared<RelaxLayerNormCodeGen>("tvm.relax.op.nn.layer_norm"));
+  map->emplace("nn.max_pool2d", std::make_shared<RelaxPool2dCodeGen>("tvm.relax.op.nn.max_pool2d"));
+  map->emplace("nn.nll_loss", std::make_shared<RelaxNllLossCodeGen>("tvm.relax.op.nn.nll_loss"));
+  map->emplace("nn.pad", std::make_shared<RelaxPadCodeGen>("tvm.relax.op.nn.pad"));
   map->emplace("nn.relu", std::make_shared<RelaxSimpleCodeGen>("relax.op.nn.relu"));
   map->emplace("nn.silu", std::make_shared<RelaxSimpleCodeGen>("relax.op.nn.silu"));
 
   // image ops
-  map->emplace("image.resize2d", std::make_shared<RelaxResize2dCodeGen>("relax.op.image.resize2d"));
+  map->emplace("image.resize2d",
+               std::make_shared<RelaxResize2dCodeGen>("tvm.relax.op.image.resize2d"));
 
   // special op
-  map->emplace("get_item", std::make_shared<RelaxGetItemCodeGen>("relax.TupleGetItem"));
-  map->emplace("shape", std::make_shared<RelaxShapeCodeGen>("relax.ShapeExpr"));
-  map->emplace("tuple", std::make_shared<RelaxTupleCodeGen>("relax.Tuple"));
+  map->emplace("get_item", std::make_shared<RelaxGetItemCodeGen>("tvm.relax.TupleGetItem"));
+  map->emplace("shape", std::make_shared<RelaxShapeCodeGen>("tvm.relax.ShapeExpr"));
+  map->emplace("tuple", std::make_shared<RelaxTupleCodeGen>("tvm.relax.Tuple"));
   map->emplace("plugin", std::make_shared<RelaxPluginOpCodeGen>("Plugin"));
 
   // msc ops
-  map->emplace("msc.attention", std::make_shared<RelaxAttentionCodeGen>("relax.op.nn.attention"));
-  map->emplace("msc.conv1d_bias", std::make_shared<RelaxConvCodeGen>("relax.op.nn.conv1d", true));
-  map->emplace("msc.conv2d_bias", std::make_shared<RelaxConvCodeGen>("relax.op.nn.conv2d", true));
-  map->emplace("msc.embedding", std::make_shared<RelaxEmbeddingCodeGen>("relax.op.take"));
+  map->emplace("msc.attention",
+               std::make_shared<RelaxAttentionCodeGen>("tvm.relax.op.nn.attention"));
+  map->emplace("msc.conv1d_bias",
+               std::make_shared<RelaxConvCodeGen>("tvm.relax.op.nn.conv1d", true));
+  map->emplace("msc.conv2d_bias",
+               std::make_shared<RelaxConvCodeGen>("tvm.relax.op.nn.conv2d", true));
+  map->emplace("msc.embedding", std::make_shared<RelaxEmbeddingCodeGen>("tvm.relax.op.take"));
   map->emplace("msc.gelu", std::make_shared<RelaxSimpleCodeGen>("relax.op.nn.gelu"));
   map->emplace("msc.linear",
                std::make_shared<RelaxLinearCodeGen>("relax.op.linear_algebra.linear"));

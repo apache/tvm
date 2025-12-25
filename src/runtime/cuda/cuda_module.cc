@@ -115,7 +115,7 @@ class CUDAModuleNode : public ffi::ModuleObj {
     // must recheck under the lock scope
     if (module_[device_id] == nullptr) {
       CUDA_DRIVER_CALL(cuModuleLoadData(&(module_[device_id]), data_.c_str()));
-      static auto nvshmem_init_hook = ffi::Function::GetGlobal("runtime.nvshmem.cumodule_init");
+      static auto nvshmem_init_hook = ffi::Function::GetGlobal("tvm.runtime.nvshmem.cumodule_init");
       if (nvshmem_init_hook.has_value()) {
         (*nvshmem_init_hook)(static_cast<void*>(module_[device_id]));
       }
@@ -135,7 +135,7 @@ class CUDAModuleNode : public ffi::ModuleObj {
     // must recheck under the lock scope
     if (module_[device_id] == nullptr) {
       CUDA_DRIVER_CALL(cuModuleLoadData(&(module_[device_id]), data_.c_str()));
-      static auto nvshmem_init_hook = ffi::Function::GetGlobal("runtime.nvshmem.cumodule_init");
+      static auto nvshmem_init_hook = ffi::Function::GetGlobal("tvm.runtime.nvshmem.cumodule_init");
       if (nvshmem_init_hook.has_value()) {
         (*nvshmem_init_hook)(static_cast<void*>(module_[device_id]));
       }

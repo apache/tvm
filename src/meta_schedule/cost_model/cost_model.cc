@@ -74,10 +74,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("meta_schedule.CostModelLoad", &CostModelNode::Load)
-      .def_method("meta_schedule.CostModelSave", &CostModelNode::Save)
-      .def_method("meta_schedule.CostModelUpdate", &CostModelNode::Update)
-      .def("meta_schedule.CostModelPredict",
+      .def_method("tvm.meta_schedule.CostModelLoad", &CostModelNode::Load)
+      .def_method("tvm.meta_schedule.CostModelSave", &CostModelNode::Save)
+      .def_method("tvm.meta_schedule.CostModelUpdate", &CostModelNode::Update)
+      .def("tvm.meta_schedule.CostModelPredict",
            [](CostModel model,                          //
               const TuneContext& context,               //
               ffi::Array<MeasureCandidate> candidates,  //
@@ -85,7 +85,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              std::vector<double> result = model->Predict(context, candidates);
              std::copy(result.begin(), result.end(), static_cast<double*>(p_addr));
            })
-      .def("meta_schedule.CostModelPyCostModel", CostModel::PyCostModel);
+      .def("tvm.meta_schedule.CostModelPyCostModel", CostModel::PyCostModel);
 }
 
 }  // namespace meta_schedule

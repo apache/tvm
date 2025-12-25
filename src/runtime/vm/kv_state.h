@@ -106,7 +106,7 @@ class KVStateObj : public Object {
   virtual void EndForward() = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.vm.KVState", KVStateObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.vm.KVState", KVStateObj, Object);
 };
 
 class KVState : public ObjectRef {
@@ -295,7 +295,7 @@ class AttentionKVCacheObj : public KVStateObj {
   virtual void DebugSetKV(int64_t seq_id, int64_t start_pos, Tensor k_data, Tensor v_data) = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.vm.AttentionKVCache", AttentionKVCacheObj, KVStateObj);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.vm.AttentionKVCache", AttentionKVCacheObj, KVStateObj);
 };
 
 class AttentionKVCache : public KVState {
@@ -338,7 +338,7 @@ class RNNStateObj : public KVStateObj {
   virtual Tensor DebugGet(int64_t layer_id, int64_t state_id, int64_t seq_id) = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.vm.RNNState", RNNStateObj, KVStateObj);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.vm.RNNState", RNNStateObj, KVStateObj);
 };
 
 class RNNState : public KVState {

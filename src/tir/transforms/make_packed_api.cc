@@ -453,7 +453,7 @@ Pass MakePackedAPI() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.MakePackedAPI", []() { return MakePackedAPI(); });
+  refl::GlobalDef().def("tvm.tir.transform.MakePackedAPI", []() { return MakePackedAPI(); });
 }
 }  // namespace transform
 }  // namespace tir

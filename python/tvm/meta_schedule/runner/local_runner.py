@@ -392,7 +392,7 @@ def default_cleanup() -> None:
     pass  # pylint: disable=unnecessary-pass
 
 
-@tvm.register_global_func("meta_schedule.runner.get_local_runner")
+@tvm.register_global_func("tvm.meta_schedule.runner.get_local_runner")
 def get_local_builder() -> LocalRunner:
     """Get the local Runner.
 

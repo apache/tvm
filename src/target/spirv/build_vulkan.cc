@@ -39,7 +39,7 @@ ffi::Module BuildSPIRV(IRModule mod, Target target) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("target.build.vulkan",
+  refl::GlobalDef().def("tvm.target.build.vulkan",
                         [](IRModule mod, Target target) { return BuildSPIRV(mod, target); });
 }
 

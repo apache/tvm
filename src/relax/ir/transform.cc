@@ -81,7 +81,7 @@ class FunctionPassNode : public tvm::transform::PassNode {
    * \brief Get the pass information/meta data.
    */
   PassInfo Info() const override { return pass_info; }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.FunctionPass", FunctionPassNode, PassNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.FunctionPass", FunctionPassNode, PassNode);
 
  private:
 };
@@ -167,7 +167,7 @@ Pass CreateFunctionPass(std::function<Function(Function, IRModule, PassContext)>
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "relax.transform.MakeFunctionPass",
+      "tvm.relax.transform.MakeFunctionPass",
       [](ffi::TypedFunction<Function(ffi::RValueRef<Function>, IRModule, PassContext)> pass_func,
          PassInfo pass_info) {
         auto wrapped_pass_func = [pass_func](Function func, IRModule mod, PassContext ctx) {
@@ -217,7 +217,7 @@ class DataflowBlockPassNode : public tvm::transform::PassNode {
   IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
 
   PassInfo Info() const override { return pass_info; }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DataflowBlockPass", DataflowBlockPassNode, PassNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.DataflowBlockPass", DataflowBlockPassNode, PassNode);
 };
 
 /*! \brief Helper to apply the passed function to dataflow blocks.*/
@@ -389,7 +389,7 @@ Pass CreateDataflowBlockPass(
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "relax.transform.MakeDataflowBlockPass",
+      "tvm.relax.transform.MakeDataflowBlockPass",
       [](ffi::TypedFunction<DataflowBlock(ffi::RValueRef<DataflowBlock>, IRModule, PassContext)>
              pass_func,
          PassInfo pass_info) {

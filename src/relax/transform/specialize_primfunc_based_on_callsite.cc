@@ -166,7 +166,7 @@ Pass SpecializePrimFuncBasedOnCallSite() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.SpecializePrimFuncBasedOnCallSite",
+  refl::GlobalDef().def("tvm.relax.transform.SpecializePrimFuncBasedOnCallSite",
                         SpecializePrimFuncBasedOnCallSite);
 }
 }  // namespace transform

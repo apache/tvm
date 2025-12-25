@@ -244,8 +244,8 @@ ffi::Module WebGPUModuleLoadFromBytes(const ffi::Bytes& bytes) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("ffi.Module.load_from_bytes.webgpu", WebGPUModuleLoadFromBytes)
-      .def_packed("device_api.webgpu", [](ffi::PackedArgs args, ffi::Any* rv) {
+      .def("tvm.ffi.Module.load_from_bytes.webgpu", WebGPUModuleLoadFromBytes)
+      .def_packed("tvm.device_api.webgpu", [](ffi::PackedArgs args, ffi::Any* rv) {
         DeviceAPI* ptr = WebGPUDeviceAPI::Global();
         *rv = static_cast<void*>(ptr);
       });

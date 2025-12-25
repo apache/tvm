@@ -25,7 +25,7 @@ from tvm.tir import Block, For
 from . import _ffi_api
 
 
-@register_object("tir.StmtSRef")
+@register_object("tvm.tir.StmtSRef")
 class StmtSRef(Object):
     """An object that refers to schedulable elements in the TensorIR, aka "sref".
 
@@ -86,7 +86,7 @@ class DepKind(IntEnum):
     OPAQUE = 3
 
 
-@register_object("tir.Dependency")
+@register_object("tvm.tir.Dependency")
 class Dependency(Object):
     """A tuple (src, dst, kind) representing certain types of dependency.
     For example, (A, B, kRAW) means block B depends on block A, and the dependency kind is
@@ -107,7 +107,7 @@ class Dependency(Object):
     kind: DepKind
 
 
-@register_object("tir.BlockScope")
+@register_object("tvm.tir.BlockScope")
 class BlockScope(Object):
     """An object corresponds to each block sref in the sref tree, which
     tracks the producer-consumer dependency between blocks.

@@ -59,7 +59,7 @@ struct RemoveNoOpConfigNode : public AttrsNodeReflAdapter<RemoveNoOpConfigNode> 
                 "For use in debug and testing purposes.",
                 refl::DefaultValue(0));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.RemoveNoOpConfig", RemoveNoOpConfigNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.transform.RemoveNoOpConfig", RemoveNoOpConfigNode,
                                     BaseAttrsNode);
 };
 
@@ -334,7 +334,7 @@ Pass RemoveNoOp() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.RemoveNoOp", RemoveNoOp);
+  refl::GlobalDef().def("tvm.tir.transform.RemoveNoOp", RemoveNoOp);
 }
 
 }  // namespace transform

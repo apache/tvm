@@ -29,7 +29,7 @@ class RemoveBuildArtifactNode : public MeasureCallbackNode {
              const ffi::Array<MeasureCandidate>& measure_candidates,
              const ffi::Array<BuilderResult>& builder_results,
              const ffi::Array<RunnerResult>& runner_results) final {
-    static auto f_rm = tvm::ffi::Function::GetGlobalRequired("meta_schedule.remove_build_dir");
+    static auto f_rm = tvm::ffi::Function::GetGlobalRequired("tvm.meta_schedule.remove_build_dir");
     auto _ = Profiler::TimedScope("MeasureCallback/RemoveBuildArtifact");
     for (const BuilderResult& build_result : builder_results) {
       if (ffi::Optional<ffi::String> path = build_result->artifact_path) {
@@ -43,8 +43,8 @@ class RemoveBuildArtifactNode : public MeasureCallbackNode {
     refl::ObjectDef<RemoveBuildArtifactNode>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RemoveBuildArtifact", RemoveBuildArtifactNode,
-                                    MeasureCallbackNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.RemoveBuildArtifact",
+                                    RemoveBuildArtifactNode, MeasureCallbackNode);
 };
 
 MeasureCallback MeasureCallback::RemoveBuildArtifact() {
@@ -55,7 +55,7 @@ MeasureCallback MeasureCallback::RemoveBuildArtifact() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   RemoveBuildArtifactNode::RegisterReflection();
-  refl::GlobalDef().def("meta_schedule.MeasureCallbackRemoveBuildArtifact",
+  refl::GlobalDef().def("tvm.meta_schedule.MeasureCallbackRemoveBuildArtifact",
                         MeasureCallback::RemoveBuildArtifact);
 }
 

@@ -33,7 +33,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.DummyGlobalInfo", []() {
+  refl::GlobalDef().def("tvm.ir.DummyGlobalInfo", []() {
     auto n = DummyGlobalInfo(ffi::make_object<DummyGlobalInfoNode>());
     return n;
   });
@@ -49,7 +49,7 @@ VDevice::VDevice(Target tgt, int dev_id, MemoryScope mem_scope) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.VDevice", [](Target tgt, int dev_id, MemoryScope mem_scope) {
+  refl::GlobalDef().def("tvm.ir.VDevice", [](Target tgt, int dev_id, MemoryScope mem_scope) {
     return VDevice(tgt, dev_id, mem_scope);
   });
 }

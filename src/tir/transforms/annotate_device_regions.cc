@@ -77,7 +77,7 @@ Pass AnnotateDeviceRegions() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.AnnotateDeviceRegions", AnnotateDeviceRegions);
+  refl::GlobalDef().def("tvm.tir.transform.AnnotateDeviceRegions", AnnotateDeviceRegions);
 }
 
 }  // namespace transform

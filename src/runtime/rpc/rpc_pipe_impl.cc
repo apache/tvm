@@ -115,7 +115,7 @@ ffi::Module CreatePipeClient(std::vector<std::string> cmd) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("rpc.CreatePipeClient", [](ffi::PackedArgs args, ffi::Any* rv) {
+  refl::GlobalDef().def_packed("tvm.rpc.CreatePipeClient", [](ffi::PackedArgs args, ffi::Any* rv) {
     std::vector<std::string> cmd;
     for (int i = 0; i < args.size(); ++i) {
       cmd.push_back(args[i].cast<std::string>());

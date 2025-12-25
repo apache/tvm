@@ -47,7 +47,7 @@ Pass DecorateDeviceScope() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.DecorateDeviceScope", DecorateDeviceScope);
+  refl::GlobalDef().def("tvm.tir.transform.DecorateDeviceScope", DecorateDeviceScope);
 }
 
 }  // namespace transform

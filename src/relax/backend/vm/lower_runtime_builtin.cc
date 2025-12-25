@@ -231,14 +231,14 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   const Op& vm_kill_object_op_ = Op::Get("relax.vm.kill_object");
   // Function to compute allocated shape.
   const ExternFunc builtin_compute_alloc_shape_{"vm.builtin.compute_alloc_shape"};
-  const ExternFunc builtin_call_tir_dyn_{"vm.builtin.call_tir_dyn"};
-  const ExternFunc builtin_reshape_{"vm.builtin.reshape"};
-  const ExternFunc builtin_shape_of_{"vm.builtin.shape_of"};
-  const ExternFunc builtin_tensor_to_shape_{"vm.builtin.tensor_to_shape"};
-  const ExternFunc builtin_call_py_func_{"vm.builtin.call_py_func"};
-  const ExternFunc builtin_to_device_{"vm.builtin.to_device"};
-  const ExternFunc builtin_make_closure_{"vm.builtin.make_closure"};
-  const ExternFunc builtin_invoke_closure_{"vm.builtin.invoke_closure"};
+  const ExternFunc builtin_call_tir_dyn_{"tvm.vm.builtin.call_tir_dyn"};
+  const ExternFunc builtin_reshape_{"tvm.vm.builtin.reshape"};
+  const ExternFunc builtin_shape_of_{"tvm.vm.builtin.shape_of"};
+  const ExternFunc builtin_tensor_to_shape_{"tvm.vm.builtin.tensor_to_shape"};
+  const ExternFunc builtin_call_py_func_{"tvm.vm.builtin.call_py_func"};
+  const ExternFunc builtin_to_device_{"tvm.vm.builtin.to_device"};
+  const ExternFunc builtin_make_closure_{"tvm.vm.builtin.make_closure"};
+  const ExternFunc builtin_invoke_closure_{"tvm.vm.builtin.invoke_closure"};
 };
 
 Expr LowerRuntimeBuiltin(const Expr& e) { return LowerRuntimeBuiltinMutator().VisitExpr(e); }
@@ -254,7 +254,7 @@ Pass LowerRuntimeBuiltin() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.LowerRuntimeBuiltin", LowerRuntimeBuiltin);
+  refl::GlobalDef().def("tvm.relax.transform.LowerRuntimeBuiltin", LowerRuntimeBuiltin);
 }
 
 }  // namespace transform

@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .mutator import Mutator
 
 
-@register_object("meta_schedule.MutateParallel")
+@register_object("tvm.meta_schedule.MutateParallel")
 class MutateParallel(Mutator):
     """Mutator that mutates the parallel extent"""
 

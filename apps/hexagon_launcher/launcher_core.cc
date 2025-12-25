@@ -148,12 +148,13 @@ const tvm::ffi::Function get_module_func(tvm::runtime::Module module, const std:
 }
 
 void reset_device_api() {
-  const tvm::ffi::Function api = get_runtime_func("device_api.hexagon");
-  tvm::ffi::Function::SetGlobal("device_api.cpu", api, true);
+  const tvm::ffi::Function api = get_runtime_func("tvm.device_api.hexagon");
+  tvm::ffi::Function::SetGlobal("tvm.device_api.cpu", api, true);
 }
 
 tvm::runtime::Module load_module(const std::string& file_name) {
-  static const tvm::ffi::Function loader = get_runtime_func("ffi.Module.load_from_file.hexagon");
+  static const tvm::ffi::Function loader =
+      get_runtime_func("tvm.ffi.Module.load_from_file.hexagon");
   tvm::ffi::Any rv = loader(file_name);
   if (rv.type_code() == kTVMModuleHandle) {
     ICHECK_EQ(rv.type_code(), kTVMModuleHandle)

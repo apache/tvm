@@ -22,7 +22,7 @@ from .. import _ffi_api
 from .postproc import Postproc
 
 
-@register_object("meta_schedule.RewriteUnboundBlock")
+@register_object("tvm.meta_schedule.RewriteUnboundBlock")
 class RewriteUnboundBlock(Postproc):
     """A postprocessor that adds thread binding to unbound blocks"""
 

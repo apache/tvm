@@ -44,7 +44,7 @@ class GlobalInfoNode : public Object {
  public:
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.GlobalInfo", GlobalInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.ir.GlobalInfo", GlobalInfoNode, Object);
 };
 
 /*!
@@ -77,7 +77,7 @@ class VDeviceNode : public GlobalInfoNode {
         .def_ro("memory_scope", &VDeviceNode::memory_scope);
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.VDevice", VDeviceNode, GlobalInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.VDevice", VDeviceNode, GlobalInfoNode);
 };
 
 /*!
@@ -100,7 +100,7 @@ class DummyGlobalInfoNode : public GlobalInfoNode {
     refl::ObjectDef<DummyGlobalInfoNode>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.DummyGlobalInfo", DummyGlobalInfoNode, GlobalInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.DummyGlobalInfo", DummyGlobalInfoNode, GlobalInfoNode);
 };
 
 /*!

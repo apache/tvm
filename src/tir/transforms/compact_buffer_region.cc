@@ -759,7 +759,7 @@ Pass CompactBufferAllocation(bool is_strict) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.CompactBufferAllocation", CompactBufferAllocation);
+  refl::GlobalDef().def("tvm.tir.transform.CompactBufferAllocation", CompactBufferAllocation);
 }
 }  // namespace transform
 

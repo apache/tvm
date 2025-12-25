@@ -19,4 +19,4 @@
 import tvm_ffi
 
 
-tvm_ffi.init_ffi_api("ir.analysis", __name__)
+tvm_ffi.init_ffi_api("tvm.ir.analysis", __name__)

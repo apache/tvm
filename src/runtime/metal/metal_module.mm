@@ -292,7 +292,7 @@ ffi::Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.module.create_metal_module",
+  refl::GlobalDef().def("tvm.runtime.module.create_metal_module",
                         [](ffi::Map<ffi::String, ffi::String> smap, std::string fmap_json,
                            std::string fmt, std::string source) {
                           std::istringstream stream(fmap_json);

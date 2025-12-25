@@ -177,7 +177,7 @@ class StorageObj : public Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("vm.Storage", StorageObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.vm.Storage", StorageObj, Object);
 };
 
 /*! \brief reference to storage. */

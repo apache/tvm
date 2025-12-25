@@ -78,7 +78,7 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ApplyCustomRuleNode>().def_ro("target_", &ApplyCustomRuleNode::target_);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.ApplyCustomRule", ApplyCustomRuleNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.ApplyCustomRule", ApplyCustomRuleNode,
                                     ScheduleRuleNode);
 };
 
@@ -95,7 +95,8 @@ TVM_FFI_STATIC_INIT_BLOCK() { ApplyCustomRuleNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.ScheduleRuleApplyCustomRule", ScheduleRule::ApplyCustomRule);
+  refl::GlobalDef().def("tvm.meta_schedule.ScheduleRuleApplyCustomRule",
+                        ScheduleRule::ApplyCustomRule);
 }
 
 }  // namespace meta_schedule

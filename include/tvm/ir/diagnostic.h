@@ -75,7 +75,7 @@ class DiagnosticNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("Diagnostic", DiagnosticNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.Diagnostic", DiagnosticNode, Object);
 };
 
 class Diagnostic : public ObjectRef {
@@ -166,7 +166,7 @@ class DiagnosticRendererNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DiagnosticRendererNode>().def_ro("renderer", &DiagnosticRendererNode::renderer);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("DiagnosticRenderer", DiagnosticRendererNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.DiagnosticRenderer", DiagnosticRendererNode, Object);
 };
 
 class DiagnosticRenderer : public ObjectRef {
@@ -205,7 +205,7 @@ class DiagnosticContextNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("DiagnosticContext", DiagnosticContextNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.DiagnosticContext", DiagnosticContextNode, Object);
 };
 
 class DiagnosticContext : public ObjectRef {

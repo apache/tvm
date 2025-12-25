@@ -245,7 +245,7 @@ class Module(tvm.relax.frontend.nn.SubroutineMixin):
             def forward(self, input: relax.Expr) -> relax.Var:
                 y = emit_te(topi.matmul, input, self.weight)
                 if self.bias is not None:
-                    y = emit_te(topi.add, y, self.bias)
+                    y = emit_te(tvm.topi.add, y, self.bias)
                 return y
     """
 
@@ -354,5 +354,5 @@ class Linear(Module):
     def forward(self, input: relax.Expr) -> relax.Var:
         y = emit_te(topi.matmul, input, self.weight)
         if self.bias is not None:
-            y = emit_te(topi.add, y, self.bias)
+            y = emit_te(tvm.topi.add, y, self.bias)
         return y

@@ -920,7 +920,7 @@ Pass TransformTensorRT(const ffi::String& config) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.TransformTensorRT", TransformTensorRT);
+  refl::GlobalDef().def("tvm.relax.transform.TransformTensorRT", TransformTensorRT);
 }
 
 }  // namespace transform

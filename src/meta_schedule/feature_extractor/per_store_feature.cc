@@ -1423,7 +1423,7 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
     support::parallel_for_dynamic(0, candidates.size(), tune_context->num_threads, f);
     return results;
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PerStoreFeature", PerStoreFeatureNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.PerStoreFeature", PerStoreFeatureNode,
                                     FeatureExtractorNode);
 };
 
@@ -1450,7 +1450,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { PerStoreFeatureNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.FeatureExtractorPerStoreFeature",
+  refl::GlobalDef().def("tvm.meta_schedule.FeatureExtractorPerStoreFeature",
                         FeatureExtractor::PerStoreFeature);
 }
 

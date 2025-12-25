@@ -114,8 +114,8 @@ class RewriteUnboundBlockNode : public PostprocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RewriteUnboundBlockNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RewriteUnboundBlock", RewriteUnboundBlockNode,
-                                    PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.RewriteUnboundBlock",
+                                    RewriteUnboundBlockNode, PostprocNode);
 };
 
 bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch) {
@@ -149,7 +149,8 @@ TVM_FFI_STATIC_INIT_BLOCK() { RewriteUnboundBlockNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.PostprocRewriteUnboundBlock", Postproc::RewriteUnboundBlock);
+  refl::GlobalDef().def("tvm.meta_schedule.PostprocRewriteUnboundBlock",
+                        Postproc::RewriteUnboundBlock);
 }
 
 }  // namespace meta_schedule

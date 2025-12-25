@@ -96,7 +96,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const LetStmtNode* op) {
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
   PrimExpr condition = this->VisitExpr(op->condition);
   PrimExpr real_condition = condition;
-  static auto op_likely = Op::Get("tir.likely");
+  static auto op_likely = Op::Get("tvm.tir.likely");
 
   if (auto call = condition.as<CallNode>()) {
     if (call->op.same_as(op_likely)) {

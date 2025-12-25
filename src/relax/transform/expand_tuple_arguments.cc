@@ -181,7 +181,7 @@ Pass ExpandTupleArguments() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.ExpandTupleArguments", ExpandTupleArguments);
+  refl::GlobalDef().def("tvm.relax.transform.ExpandTupleArguments", ExpandTupleArguments);
 }
 
 }  // namespace transform

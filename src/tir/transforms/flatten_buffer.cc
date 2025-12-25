@@ -283,7 +283,7 @@ Pass FlattenBuffer() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.FlattenBuffer", FlattenBuffer);
+  refl::GlobalDef().def("tvm.tir.transform.FlattenBuffer", FlattenBuffer);
 }
 }  // namespace transform
 

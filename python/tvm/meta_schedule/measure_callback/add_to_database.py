@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .measure_callback import MeasureCallback
 
 
-@register_object("meta_schedule.AddToDatabase")
+@register_object("tvm.meta_schedule.AddToDatabase")
 class AddToDatabase(MeasureCallback):
     def __init__(self) -> None:
         """A callback that adds the measurement results into the database"""

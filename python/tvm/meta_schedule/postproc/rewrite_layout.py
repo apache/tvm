@@ -22,7 +22,7 @@ from .. import _ffi_api
 from .postproc import Postproc
 
 
-@register_object("meta_schedule.RewriteLayout")
+@register_object("tvm.meta_schedule.RewriteLayout")
 class RewriteLayout(Postproc):
     """A postprocessor that rewrites the layout of input tensor"""
 

@@ -461,7 +461,7 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
     refl::ObjectDef<RewriteParallelVectorizeUnrollNode>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RewriteParallelVectorizeUnroll",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.RewriteParallelVectorizeUnroll",
                                     RewriteParallelVectorizeUnrollNode, PostprocNode);
 };
 
@@ -474,7 +474,7 @@ Postproc Postproc::RewriteParallelVectorizeUnroll() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   RewriteParallelVectorizeUnrollNode::RegisterReflection();
-  refl::GlobalDef().def("meta_schedule.PostprocRewriteParallelVectorizeUnroll",
+  refl::GlobalDef().def("tvm.meta_schedule.PostprocRewriteParallelVectorizeUnroll",
                         Postproc::RewriteParallelVectorizeUnroll);
 }
 

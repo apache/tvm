@@ -46,7 +46,7 @@ def ldmatrix_32x8_to_shared_16x16_layout(thread_id, local_id):
     return row, col
 
 
-@register_global_func("tir.index_map.shared_16x16_to_ldmatrix_32x8_layout")
+@register_global_func("tvm.tir.index_map.shared_16x16_to_ldmatrix_32x8_layout")
 def index_map_shared_16x16_to_ldmatrix_32x8_layout(ind):
     i, j = ind[0], ind[1]
     thread_id, local_id = shared_16x16_to_ldmatrix_32x8_layout(i, j)
@@ -1746,7 +1746,7 @@ TensorIntrin.register(
 )
 
 
-@register_global_func("tir.index_map_m16n8k8.matrixC")
+@register_global_func("tvm.tir.index_map_m16n8k8.matrixC")
 def index_map_m16n8k8_matrixC(ind):
     i, j = ind[0], ind[1]
     return convert([(i // 8) // 2, j // 8, (i // 8) % 2, (j % 8) % 2])

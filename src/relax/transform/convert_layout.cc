@@ -355,7 +355,7 @@ Pass ConvertLayout(ffi::Map<ffi::String, ffi::Array<ffi::String>> desired_layout
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.ConvertLayout", ConvertLayout);
+  refl::GlobalDef().def("tvm.relax.transform.ConvertLayout", ConvertLayout);
 }
 
 }  // namespace transform

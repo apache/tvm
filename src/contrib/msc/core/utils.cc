@@ -535,22 +535,22 @@ const DataType ExprUtils::GetDataType(const Expr& expr) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("msc.core.SpanGetAttr", SpanUtils::GetAttr)
-      .def("msc.core.SpanGetAttrs", SpanUtils::GetAttrs)
-      .def("msc.core.SpanCreateWithAttr",
+      .def("tvm.msc.core.SpanGetAttr", SpanUtils::GetAttr)
+      .def("tvm.msc.core.SpanGetAttrs", SpanUtils::GetAttrs)
+      .def("tvm.msc.core.SpanCreateWithAttr",
            [](const ffi::String& key, const ffi::String& value) -> Span {
              return SpanUtils::CreateWithAttr(key, value);
            })
-      .def("msc.core.SpanSetAttr",
+      .def("tvm.msc.core.SpanSetAttr",
            [](const Span& span, const ffi::String& key, const ffi::String& value) -> Span {
              return SpanUtils::SetAttr(span, key, value);
            })
-      .def("msc.core.CompareVersion",
+      .def("tvm.msc.core.CompareVersion",
            [](const ffi::Array<Integer>& given_version,
               const ffi::Array<Integer>& target_version) -> Integer {
              return Integer(CommonUtils::CompareVersion(given_version, target_version));
            })
-      .def("msc.core.ToAttrKey",
+      .def("tvm.msc.core.ToAttrKey",
            [](const ffi::String& key) -> ffi::String { return CommonUtils::ToAttrKey(key); });
 }
 

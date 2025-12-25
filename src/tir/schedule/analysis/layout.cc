@@ -243,7 +243,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<P
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tir.schedule.SuggestIndexMap",
+      "tvm.tir.schedule.SuggestIndexMap",
       [](Buffer buffer, ffi::Array<PrimExpr> indices, ffi::Array<For> loops, PrimExpr predicate) {
         arith::Analyzer analyzer;
         return SuggestIndexMap(buffer, indices, loops, predicate, &analyzer);

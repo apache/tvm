@@ -37,8 +37,8 @@ class MutateThreadBindingNode : public MutatorNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MutateThreadBindingNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MutateThreadBinding", MutateThreadBindingNode,
-                                    MutatorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.MutateThreadBinding",
+                                    MutateThreadBindingNode, MutatorNode);
 
  public:
   // Inherit from `MutatorNode`
@@ -175,7 +175,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { MutateThreadBindingNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.MutateThreadBinding", Mutator::MutateThreadBinding);
+  refl::GlobalDef().def("tvm.meta_schedule.MutateThreadBinding", Mutator::MutateThreadBinding);
 }
 
 }  // namespace meta_schedule

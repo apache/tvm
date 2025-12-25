@@ -223,7 +223,7 @@ class BaseFuncNode : public RelaxExprNode {
   }
 
   static constexpr const uint32_t _type_child_slots = 2;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.BaseFunc", BaseFuncNode, RelaxExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.ir.BaseFunc", BaseFuncNode, RelaxExprNode);
 };
 
 /*!

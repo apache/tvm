@@ -27,12 +27,12 @@ from tvm.tir import FloatImm, IntImm
 from . import _ffi_api
 
 
-@register_object("script.printer.Doc")
+@register_object("tvm.script.printer.Doc")
 class Doc(Object):
     """Base class of all Docs"""
 
 
-@register_object("script.printer.ExprDoc")
+@register_object("tvm.script.printer.ExprDoc")
 class ExprDoc(Doc):
     """Base class of all expression Docs"""
 
@@ -102,12 +102,12 @@ class ExprDoc(Doc):
         raise RuntimeError(f"{self.__class__} cannot be used as iterable.")
 
 
-@register_object("script.printer.StmtDoc")
+@register_object("tvm.script.printer.StmtDoc")
 class StmtDoc(Doc):
     """Base class of statement doc"""
 
 
-@register_object("script.printer.StmtBlockDoc")
+@register_object("tvm.script.printer.StmtBlockDoc")
 class StmtBlockDoc(Doc):
     """The container doc that holds a list of StmtDoc.
 
@@ -121,7 +121,7 @@ class StmtBlockDoc(Doc):
         self.__init_handle_by_constructor__(_ffi_api.StmtBlockDoc, stmts)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("script.printer.LiteralDoc")
+@register_object("tvm.script.printer.LiteralDoc")
 class LiteralDoc(ExprDoc):
     """Doc that represents literal value"""
 
@@ -162,7 +162,7 @@ class LiteralDoc(ExprDoc):
             raise TypeError(f"Unsupported type {type(value)} for LiteralDoc")
 
 
-@register_object("script.printer.IdDoc")
+@register_object("tvm.script.printer.IdDoc")
 class IdDoc(ExprDoc):
     """Doc that represents identifier"""
 
@@ -172,7 +172,7 @@ class IdDoc(ExprDoc):
         self.__init_handle_by_constructor__(_ffi_api.IdDoc, name)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("script.printer.AttrAccessDoc")
+@register_object("tvm.script.printer.AttrAccessDoc")
 class AttrAccessDoc(ExprDoc):
     """Doc that represents attribute access on an expression"""
 
@@ -183,7 +183,7 @@ class AttrAccessDoc(ExprDoc):
         self.__init_handle_by_constructor__(_ffi_api.AttrAccessDoc, value, name)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("script.printer.IndexDoc")
+@register_object("tvm.script.printer.IndexDoc")
 class IndexDoc(ExprDoc):
     """Doc that represents index access on an expression"""
 
@@ -194,7 +194,7 @@ class IndexDoc(ExprDoc):
         self.__init_handle_by_constructor__(_ffi_api.IndexDoc, value, indices)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("script.printer.CallDoc")
+@register_object("tvm.script.printer.CallDoc")
 class CallDoc(ExprDoc):
     """Doc that represents function call"""
 
@@ -262,7 +262,7 @@ class OperationKind(IntEnum):
     # pylint: enable=invalid-name
 
 
-@register_object("script.printer.OperationDoc")
+@register_object("tvm.script.printer.OperationDoc")
 class OperationDoc(ExprDoc):
     """
     Doc that represents operation
@@ -278,7 +278,7 @@ class OperationDoc(ExprDoc):
         self.__init_handle_by_constructor__(_ffi_api.OperationDoc, kind, operands)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("script.printer.LambdaDoc")
+@register_object("tvm.script.printer.LambdaDoc")
 class LambdaDoc(ExprDoc):
     """Doc that represents lambda function"""
 
@@ -289,7 +289,7 @@ class LambdaDoc(ExprDoc):
         self.__init_handle_by_constructor__(_ffi_api.LambdaDoc, args, body)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("script.printer.TupleDoc")
+@register_object("tvm.script.printer.TupleDoc")
 class TupleDoc(ExprDoc):
     """Doc that represents tuple literal"""
 
@@ -299,7 +299,7 @@ class TupleDoc(ExprDoc):
         self.__init_handle_by_constructor__(_ffi_api.TupleDoc, elements)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("script.printer.ListDoc")
+@register_object("tvm.script.printer.ListDoc")
 class ListDoc(ExprDoc):
     """Doc that represents list literal"""
 
@@ -309,7 +309,7 @@ class ListDoc(ExprDoc):
         self.__init_handle_by_constructor__(_ffi_api.ListDoc, elements)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("script.printer.DictDoc")
+@register_object("tvm.script.printer.DictDoc")
 class DictDoc(ExprDoc):
     """Doc that represents dict literal"""
 
@@ -322,7 +322,7 @@ class DictDoc(ExprDoc):
         self.__init_handle_by_constructor__(_ffi_api.DictDoc, keys, values)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("script.printer.SliceDoc")
+@register_object("tvm.script.printer.SliceDoc")
 class SliceDoc(ExprDoc):
     """
     Doc that represents slice in Index expression
@@ -343,7 +343,7 @@ class SliceDoc(ExprDoc):
         self.__init_handle_by_constructor__(_ffi_api.SliceDoc, start, stop, step)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("script.printer.AssignDoc")
+@register_object("tvm.script.printer.AssignDoc")
 class AssignDoc(StmtDoc):
     """Doc that represents assign statement."""
 
@@ -360,7 +360,7 @@ class AssignDoc(StmtDoc):
         )
 
 
-@register_object("script.printer.IfDoc")
+@register_object("tvm.script.printer.IfDoc")
 class IfDoc(StmtDoc):
     """Doc that represent if-then-else statement."""
 
@@ -377,7 +377,7 @@ class IfDoc(StmtDoc):
         )
 
 
-@register_object("script.printer.WhileDoc")
+@register_object("tvm.script.printer.WhileDoc")
 class WhileDoc(StmtDoc):
     """Doc that represents while statement."""
 
@@ -388,7 +388,7 @@ class WhileDoc(StmtDoc):
         self.__init_handle_by_constructor__(_ffi_api.WhileDoc, predicate, body)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("script.printer.ForDoc")
+@register_object("tvm.script.printer.ForDoc")
 class ForDoc(StmtDoc):
     """Doc that represents for statement."""
 
@@ -400,7 +400,7 @@ class ForDoc(StmtDoc):
         self.__init_handle_by_constructor__(_ffi_api.ForDoc, lhs, rhs, body)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("script.printer.ScopeDoc")
+@register_object("tvm.script.printer.ScopeDoc")
 class ScopeDoc(StmtDoc):
     """
     Doc that represents special scopes.
@@ -419,7 +419,7 @@ class ScopeDoc(StmtDoc):
         self.__init_handle_by_constructor__(_ffi_api.ScopeDoc, lhs, rhs, body)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("script.printer.ExprStmtDoc")
+@register_object("tvm.script.printer.ExprStmtDoc")
 class ExprStmtDoc(StmtDoc):
     """Doc that represents an expression as statement."""
 
@@ -429,7 +429,7 @@ class ExprStmtDoc(StmtDoc):
         self.__init_handle_by_constructor__(_ffi_api.ExprStmtDoc, expr)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("script.printer.AssertDoc")
+@register_object("tvm.script.printer.AssertDoc")
 class AssertDoc(StmtDoc):
     """Doc that represents assert statement."""
 
@@ -440,7 +440,7 @@ class AssertDoc(StmtDoc):
         self.__init_handle_by_constructor__(_ffi_api.AssertDoc, test, msg)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("script.printer.ReturnDoc")
+@register_object("tvm.script.printer.ReturnDoc")
 class ReturnDoc(StmtDoc):
     """Doc that represents return statement."""
 
@@ -450,7 +450,7 @@ class ReturnDoc(StmtDoc):
         self.__init_handle_by_constructor__(_ffi_api.ReturnDoc, value)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("script.printer.FunctionDoc")
+@register_object("tvm.script.printer.FunctionDoc")
 class FunctionDoc(StmtDoc):
     """Doc that represents function definition."""
 
@@ -478,7 +478,7 @@ class FunctionDoc(StmtDoc):
         )
 
 
-@register_object("script.printer.ClassDoc")
+@register_object("tvm.script.printer.ClassDoc")
 class ClassDoc(StmtDoc):
     """Doc that represents class definition."""
 
@@ -495,7 +495,7 @@ class ClassDoc(StmtDoc):
         )
 
 
-@register_object("script.printer.CommentDoc")
+@register_object("tvm.script.printer.CommentDoc")
 class CommentDoc(StmtDoc):
     """Doc that represents comment."""
 
@@ -505,7 +505,7 @@ class CommentDoc(StmtDoc):
         )
 
 
-@register_object("script.printer.DocStringDoc")
+@register_object("tvm.script.printer.DocStringDoc")
 class DocStringDoc(StmtDoc):
     """Doc that represents docstring."""
 

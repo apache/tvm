@@ -179,7 +179,7 @@ Pass LowerAsyncDMA() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.LowerAsyncDMA", LowerAsyncDMA);
+  refl::GlobalDef().def("tvm.tir.transform.LowerAsyncDMA", LowerAsyncDMA);
 }
 }  // namespace transform
 

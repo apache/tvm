@@ -56,7 +56,7 @@ class VMFuncScope(object):
         self.exit_callback()
 
 
-@tvm_ffi.register_object("relax.ExecBuilder")
+@tvm_ffi.register_object("tvm.relax.ExecBuilder")
 class ExecBuilder(tvm_ffi.core.Object):
     """A builder to emit instructions and build executable for the virtual machine."""
 

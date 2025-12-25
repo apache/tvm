@@ -43,7 +43,7 @@ class IRFrameNode : public FrameNode {
     namespace refl = tvm::ffi::reflection;
     // global infos is not exposed
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.IRFrame", IRFrameNode, FrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.IRFrame", IRFrameNode, FrameNode);
 };
 
 class IRFrame : public Frame {

@@ -34,7 +34,7 @@ from .buffer import Buffer
 from .expr import PrimExpr, Var
 
 
-@tvm_ffi.register_object("tir.PrimFunc")
+@tvm_ffi.register_object("tvm.tir.PrimFunc")
 class PrimFunc(BaseFunc, Scriptable):
     """A function declaration expression.
 
@@ -82,7 +82,7 @@ class PrimFunc(BaseFunc, Scriptable):
                 raise TypeError("params can only contain Var or Buffer")
 
         if attrs is None:
-            attrs = tvm.ir.make_node("ir.DictAttrs")
+            attrs = tvm.ir.make_node("tvm.ir.DictAttrs")
 
         self.__init_handle_by_constructor__(
             _ffi_api.PrimFunc,
@@ -175,7 +175,7 @@ class PrimFunc(BaseFunc, Scriptable):
         return _ffi_api.Specialize(self, param_map)  # type: ignore
 
 
-@tvm_ffi.register_object("tir.TensorIntrin")
+@tvm_ffi.register_object("tvm.tir.TensorIntrin")
 class TensorIntrin(Object):
     """A tensor intrinsic.
 
@@ -231,7 +231,7 @@ class TensorIntrin(Object):
         return _ffi_api.TensorIntrinGet(name, allow_missing)  # pylint: type: ignore
 
 
-@tvm_ffi.register_object("tir.IndexMap")
+@tvm_ffi.register_object("tvm.tir.IndexMap")
 class IndexMap(Object):
     """A mapping from multi-dimensional indices to another set of multi-dimensional indices
 

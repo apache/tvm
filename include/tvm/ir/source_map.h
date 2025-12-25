@@ -54,7 +54,7 @@ class SourceNameNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.SourceName", SourceNameNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.SourceName", SourceNameNode, Object);
 };
 
 /*!
@@ -105,7 +105,7 @@ class SpanNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.Span", SpanNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.ir.Span", SpanNode, Object);
 };
 
 class Span : public ObjectRef {
@@ -130,7 +130,7 @@ class SequentialSpanNode : public SpanNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SequentialSpanNode>().def_ro("spans", &SequentialSpanNode::spans);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.SequentialSpan", SequentialSpanNode, SpanNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.SequentialSpan", SequentialSpanNode, SpanNode);
 };
 
 /*!
@@ -170,7 +170,7 @@ class SourceNode : public Object {
         .def_ro("source_name", &SourceNode::source_name)
         .def_ro("source", &SourceNode::source);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Source", SourceNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.Source", SourceNode, Object);
 };
 
 class Source : public ObjectRef {
@@ -199,7 +199,7 @@ class SourceMapObj : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.SourceMap", SourceMapObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.SourceMap", SourceMapObj, Object);
 };
 
 class SourceMap : public ObjectRef {

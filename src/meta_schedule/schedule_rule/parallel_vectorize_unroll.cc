@@ -118,7 +118,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
         .def_ro("unroll_max_steps", &ParallelizeVectorizeUnrollNode::unroll_max_steps)
         .def_ro("unroll_explicit", &ParallelizeVectorizeUnrollNode::unroll_explicit);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.ParallelizeVectorizeUnroll",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.ParallelizeVectorizeUnroll",
                                     ParallelizeVectorizeUnrollNode, ScheduleRuleNode);
 };
 
@@ -139,7 +139,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { ParallelizeVectorizeUnrollNode::RegisterReflection
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.ScheduleRuleParallelizeVectorizeUnroll",
+  refl::GlobalDef().def("tvm.meta_schedule.ScheduleRuleParallelizeVectorizeUnroll",
                         ScheduleRule::ParallelizeVectorizeUnroll);
 }
 

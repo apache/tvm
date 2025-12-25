@@ -318,7 +318,7 @@ Pass InjectRollingBuffer() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.InjectRollingBuffer", InjectRollingBuffer);
+  refl::GlobalDef().def("tvm.tir.transform.InjectRollingBuffer", InjectRollingBuffer);
 }
 
 }  // namespace transform

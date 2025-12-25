@@ -754,7 +754,7 @@ class TensorizeInfoNode : public Object {
         .def_ro("desc_loop_indexer", &TensorizeInfoNode::desc_loop_indexer)
         .def_ro("block_iter_paddings", &TensorizeInfoNode::block_iter_paddings);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.schedule.TensorizeInfo", TensorizeInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.schedule.TensorizeInfo", TensorizeInfoNode, Object);
 };
 
 class TensorizeInfo : public ObjectRef {
@@ -804,7 +804,7 @@ class AutoTensorizeMappingInfoNode : public Object {
         .def_ro("lhs_iters", &AutoTensorizeMappingInfoNode::lhs_iters)
         .def_ro("rhs_iters", &AutoTensorizeMappingInfoNode::rhs_iters);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.schedule.AutoTensorizeMappingInfo",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.schedule.AutoTensorizeMappingInfo",
                                     AutoTensorizeMappingInfoNode, Object);
 };
 

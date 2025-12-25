@@ -59,7 +59,7 @@ class StringImmNode : public PrimExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.StringImm", StringImmNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.StringImm", StringImmNode, PrimExprNode);
 };
 
 /*!
@@ -86,7 +86,7 @@ class CastNode : public PrimExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<CastNode>().def_ro("value", &CastNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Cast", CastNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Cast", CastNode, PrimExprNode);
 };
 
 /*!
@@ -125,7 +125,7 @@ class BinaryOpNode : public PrimExprNode {
 /*! \brief a + b */
 class AddNode : public BinaryOpNode<AddNode> {
  public:
-  static constexpr const char* _type_key = "tir.Add";
+  static constexpr const char* _type_key = "tvm.tir.Add";
 };
 
 /*!
@@ -142,7 +142,7 @@ class Add : public PrimExpr {
 /*! \brief a - b */
 class SubNode : public BinaryOpNode<SubNode> {
  public:
-  static constexpr const char* _type_key = "tir.Sub";
+  static constexpr const char* _type_key = "tvm.tir.Sub";
 };
 
 /*!
@@ -160,7 +160,7 @@ class Sub : public PrimExpr {
 /*! \brief a * b */
 class MulNode : public BinaryOpNode<MulNode> {
  public:
-  static constexpr const char* _type_key = "tir.Mul";
+  static constexpr const char* _type_key = "tvm.tir.Mul";
 };
 
 /*!
@@ -180,7 +180,7 @@ class Mul : public PrimExpr {
  */
 class DivNode : public BinaryOpNode<DivNode> {
  public:
-  static constexpr const char* _type_key = "tir.Div";
+  static constexpr const char* _type_key = "tvm.tir.Div";
 };
 
 /*!
@@ -200,7 +200,7 @@ class Div : public PrimExpr {
  */
 class ModNode : public BinaryOpNode<ModNode> {
  public:
-  static constexpr const char* _type_key = "tir.Mod";
+  static constexpr const char* _type_key = "tvm.tir.Mod";
 };
 
 /*!
@@ -217,7 +217,7 @@ class Mod : public PrimExpr {
 /*! \brief Floor division, floor(a/b) */
 class FloorDivNode : public BinaryOpNode<FloorDivNode> {
  public:
-  static constexpr const char* _type_key = "tir.FloorDiv";
+  static constexpr const char* _type_key = "tvm.tir.FloorDiv";
 };
 
 /*!
@@ -234,7 +234,7 @@ class FloorDiv : public PrimExpr {
 /*! \brief The remainder of the floordiv */
 class FloorModNode : public BinaryOpNode<FloorModNode> {
  public:
-  static constexpr const char* _type_key = "tir.FloorMod";
+  static constexpr const char* _type_key = "tvm.tir.FloorMod";
 };
 
 /*!
@@ -251,7 +251,7 @@ class FloorMod : public PrimExpr {
 /*! \brief min(a, b) */
 class MinNode : public BinaryOpNode<MinNode> {
  public:
-  static constexpr const char* _type_key = "tir.Min";
+  static constexpr const char* _type_key = "tvm.tir.Min";
 };
 
 /*!
@@ -268,7 +268,7 @@ class Min : public PrimExpr {
 /*! \brief max(a, b) */
 class MaxNode : public BinaryOpNode<MaxNode> {
  public:
-  static constexpr const char* _type_key = "tir.Max";
+  static constexpr const char* _type_key = "tvm.tir.Max";
 };
 
 /*!
@@ -307,7 +307,7 @@ class CmpOpNode : public PrimExprNode {
 /*! \brief a == b */
 class EQNode : public CmpOpNode<EQNode> {
  public:
-  static constexpr const char* _type_key = "tir.EQ";
+  static constexpr const char* _type_key = "tvm.tir.EQ";
 };
 
 /*!
@@ -324,7 +324,7 @@ class EQ : public PrimExpr {
 /*! \brief a != b */
 class NENode : public CmpOpNode<NENode> {
  public:
-  static constexpr const char* _type_key = "tir.NE";
+  static constexpr const char* _type_key = "tvm.tir.NE";
 };
 
 /*!
@@ -341,7 +341,7 @@ class NE : public PrimExpr {
 /*! \brief a < b */
 class LTNode : public CmpOpNode<LTNode> {
  public:
-  static constexpr const char* _type_key = "tir.LT";
+  static constexpr const char* _type_key = "tvm.tir.LT";
 };
 
 /*!
@@ -358,7 +358,7 @@ class LT : public PrimExpr {
 /*! \brief a <= b */
 struct LENode : public CmpOpNode<LENode> {
  public:
-  static constexpr const char* _type_key = "tir.LE";
+  static constexpr const char* _type_key = "tvm.tir.LE";
 };
 
 /*!
@@ -375,7 +375,7 @@ class LE : public PrimExpr {
 /*! \brief a > b */
 class GTNode : public CmpOpNode<GTNode> {
  public:
-  static constexpr const char* _type_key = "tir.GT";
+  static constexpr const char* _type_key = "tvm.tir.GT";
 };
 
 /*!
@@ -392,7 +392,7 @@ class GT : public PrimExpr {
 /*! \brief a >= b */
 class GENode : public CmpOpNode<GENode> {
  public:
-  static constexpr const char* _type_key = "tir.GE";
+  static constexpr const char* _type_key = "tvm.tir.GE";
 };
 
 /*!
@@ -418,7 +418,7 @@ class AndNode : public PrimExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AndNode>().def_ro("a", &AndNode::a).def_ro("b", &AndNode::b);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.And", AndNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.And", AndNode, PrimExprNode);
 };
 
 /*!
@@ -444,7 +444,7 @@ class OrNode : public PrimExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<OrNode>().def_ro("a", &OrNode::a).def_ro("b", &OrNode::b);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Or", OrNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Or", OrNode, PrimExprNode);
 };
 
 /*!
@@ -468,7 +468,7 @@ class NotNode : public PrimExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<NotNode>().def_ro("a", &NotNode::a);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Not", NotNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Not", NotNode, PrimExprNode);
 };
 
 /*!
@@ -505,7 +505,7 @@ class SelectNode : public PrimExprNode {
         .def_ro("true_value", &SelectNode::true_value)
         .def_ro("false_value", &SelectNode::false_value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Select", SelectNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Select", SelectNode, PrimExprNode);
 };
 
 /*!
@@ -546,7 +546,7 @@ class BufferLoadNode : public PrimExprNode {
         .def_ro("indices", &BufferLoadNode::indices)
         .def_ro("predicate", &BufferLoadNode::predicate);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BufferLoad", BufferLoadNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.BufferLoad", BufferLoadNode, PrimExprNode);
 
  private:
   /*! \brief Set the dtype based on the buffer/indices
@@ -599,7 +599,7 @@ class ProducerLoadNode : public PrimExprNode {
         .def_ro("producer", &ProducerLoadNode::producer)
         .def_ro("indices", &ProducerLoadNode::indices);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.ProducerLoad", ProducerLoadNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.ProducerLoad", ProducerLoadNode, PrimExprNode);
 };
 
 /*!
@@ -640,7 +640,7 @@ class RampNode : public PrimExprNode {
         .def_ro("stride", &RampNode::stride)
         .def_ro("lanes", &RampNode::lanes);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Ramp", RampNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Ramp", RampNode, PrimExprNode);
 };
 
 /*!
@@ -668,7 +668,7 @@ class BroadcastNode : public PrimExprNode {
         .def_ro("value", &BroadcastNode::value)
         .def_ro("lanes", &BroadcastNode::lanes);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Broadcast", BroadcastNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Broadcast", BroadcastNode, PrimExprNode);
 };
 
 /*!
@@ -701,7 +701,7 @@ class LetNode : public PrimExprNode {
         .def_ro("value", &LetNode::value)
         .def_ro("body", &LetNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Let", LetNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Let", LetNode, PrimExprNode);
 };
 
 /*!
@@ -735,7 +735,7 @@ class CallNode : public PrimExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<CallNode>().def_ro("op", &CallNode::op).def_ro("args", &CallNode::args);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Call", CallNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Call", CallNode, PrimExprNode);
 };
 
 /*!
@@ -767,7 +767,7 @@ class ShuffleNode : public PrimExprNode {
         .def_ro("vectors", &ShuffleNode::vectors)
         .def_ro("indices", &ShuffleNode::indices);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Shuffle", ShuffleNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Shuffle", ShuffleNode, PrimExprNode);
 };
 
 /*!
@@ -822,7 +822,7 @@ class CommReducerNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.CommReducer", CommReducerNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.CommReducer", CommReducerNode, Object);
 };
 
 /*!
@@ -866,7 +866,7 @@ class ReduceNode : public PrimExprNode {
         .def_ro("condition", &ReduceNode::condition)
         .def_ro("value_index", &ReduceNode::value_index);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Reduce", ReduceNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Reduce", ReduceNode, PrimExprNode);
 };
 
 /*!

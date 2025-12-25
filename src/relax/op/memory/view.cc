@@ -45,7 +45,7 @@ Expr view(Expr x, ffi::Optional<Expr> shape, ffi::Optional<Expr> dtype,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.memory.view", view);
+  refl::GlobalDef().def("tvm.relax.op.memory.view", view);
 }
 
 StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
@@ -348,7 +348,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
   infer_sinfo_env_func = EnvFunc::Get("tvm.relax.struct_info.infer_view_sinfo");
   auto runtime_view_sinfo = FuncStructInfo::OpaqueFunc(infer_sinfo_env_func, true);
 
-  ExternFunc runtime_view_func("runtime.TVMTensorCreateView", runtime_view_sinfo);
+  ExternFunc runtime_view_func("tvm.runtime.TVMTensorCreateView", runtime_view_sinfo);
 
   return Call(runtime_view_func, {data, shape, dtype, relative_byte_offset});
 }
@@ -372,7 +372,7 @@ Expr ensure_zero_offset(const Expr& x) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.memory.ensure_zero_offset", ensure_zero_offset);
+  refl::GlobalDef().def("tvm.relax.op.memory.ensure_zero_offset", ensure_zero_offset);
 }
 
 StructInfo InferStructInfoEnsureZeroOffset(const Call& call, const BlockBuilder& ctx) {
@@ -385,7 +385,7 @@ StructInfo InferStructInfoEnsureZeroOffset(const Call& call, const BlockBuilder&
 }
 
 Expr LowerBuiltinEnsureZeroOffset(const BlockBuilder& bb, const Call& call) {
-  const ExternFunc builtin_ensure_zero_offset_{"vm.builtin.ensure_zero_offset"};
+  const ExternFunc builtin_ensure_zero_offset_{"tvm.vm.builtin.ensure_zero_offset"};
   return Call(builtin_ensure_zero_offset_, call->args, Attrs(), {GetStructInfo(call)});
 }
 

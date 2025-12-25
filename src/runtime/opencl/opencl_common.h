@@ -592,7 +592,8 @@ class OpenCLTimerNode : public TimerNode {
 
   static size_t count_timer_execs;
   static std::vector<size_t> event_start_idxs;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.opencl.OpenCLTimerNode", OpenCLTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.runtime.opencl.OpenCLTimerNode", OpenCLTimerNode,
+                                    TimerNode);
 
  private:
   int64_t duration;

@@ -33,7 +33,7 @@ using namespace tvm::runtime;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("topi.vision.reorg", [](ffi::PackedArgs args, ffi::Any* rv) {
+  refl::GlobalDef().def_packed("tvm.topi.vision.reorg", [](ffi::PackedArgs args, ffi::Any* rv) {
     *rv = vision::reorg(args[0].cast<te::Tensor>(), args[1].cast<int>());
   });
 }

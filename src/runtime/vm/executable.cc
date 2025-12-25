@@ -554,7 +554,7 @@ ffi::String VMExecutable::AsPython() const {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.ExecutableLoadFromFile", VMExecutable::LoadFromFile);
+  refl::GlobalDef().def("tvm.relax.ExecutableLoadFromFile", VMExecutable::LoadFromFile);
 }
 
 }  // namespace vm

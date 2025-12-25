@@ -17,4 +17,4 @@
 """FFI APIs for tvm.script.ir_builder.relax"""
 import tvm_ffi
 
-tvm_ffi.init_ffi_api("script.ir_builder.relax", __name__)  # pylint: disable=protected-access
+tvm_ffi.init_ffi_api("tvm.script.ir_builder.relax", __name__)  # pylint: disable=protected-access

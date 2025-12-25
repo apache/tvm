@@ -52,7 +52,7 @@ class FeatureExtractorNode : public runtime::Object {
    */
   virtual ffi::Array<tvm::runtime::Tensor> ExtractFrom(
       const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates) = 0;
-  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.FeatureExtractor", FeatureExtractorNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.meta_schedule.FeatureExtractor", FeatureExtractorNode, Object);
 };
 
 /*! \brief The feature extractor with customized methods on the python-side. */
@@ -86,7 +86,7 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
 
   ffi::Array<tvm::runtime::Tensor> ExtractFrom(
       const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates) final;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyFeatureExtractor", PyFeatureExtractorNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.PyFeatureExtractor", PyFeatureExtractorNode,
                                     FeatureExtractorNode);
 };
 

@@ -55,8 +55,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("meta_schedule.FeatureExtractorExtractFrom", &FeatureExtractorNode::ExtractFrom)
-      .def("meta_schedule.FeatureExtractorPyFeatureExtractor",
+      .def_method("tvm.meta_schedule.FeatureExtractorExtractFrom",
+                  &FeatureExtractorNode::ExtractFrom)
+      .def("tvm.meta_schedule.FeatureExtractorPyFeatureExtractor",
            FeatureExtractor::PyFeatureExtractor);
 }
 

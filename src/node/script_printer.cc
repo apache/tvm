@@ -148,9 +148,9 @@ ffi::Array<ffi::String> PrinterConfigNode::GetBuiltinKeywords() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("node.PrinterConfig",
+      .def("tvm.node.PrinterConfig",
            [](ffi::Map<ffi::String, Any> config_dict) { return PrinterConfig(config_dict); })
-      .def("node.TVMScriptPrinterScript", TVMScriptPrinter::Script);
+      .def("tvm.node.TVMScriptPrinterScript", TVMScriptPrinter::Script);
 }
 
 }  // namespace tvm

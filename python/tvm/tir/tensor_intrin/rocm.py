@@ -363,8 +363,8 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
 
             C[tx, 0:local_size_out] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id(mfma_intrin),
-                T.call_intrin("int32", "tir.reinterpret", A[tx, 0:local_size]),
-                T.call_intrin("int32", "tir.reinterpret", A[tx, 0:local_size]),
+                T.call_intrin("int32", "tvm.tir.reinterpret", A[tx, 0:local_size]),
+                T.call_intrin("int32", "tvm.tir.reinterpret", A[tx, 0:local_size]),
                 C[tx, 0:local_size_out],
                 T.int32(0),
                 T.int32(0),

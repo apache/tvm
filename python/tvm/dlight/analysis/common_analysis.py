@@ -132,7 +132,7 @@ class BlockInfo:
         return str(self)
 
 
-_normalize_prim_func = get_global_func("tir.schedule.NormalizePrimFunc")
+_normalize_prim_func = get_global_func("tvm.tir.schedule.NormalizePrimFunc")
 
 
 def normalize_prim_func(sch: tir.Schedule) -> Optional[List[BlockInfo]]:

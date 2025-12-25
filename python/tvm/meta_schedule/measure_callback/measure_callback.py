@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from ..task_scheduler import TaskScheduler
 
 
-@register_object("meta_schedule.MeasureCallback")
+@register_object("tvm.meta_schedule.MeasureCallback")
 class MeasureCallback(Object):
     """Rules to apply after measure results is available."""
 
@@ -82,7 +82,7 @@ class MeasureCallback(Object):
         raise ValueError(f"Unknown kind of MeasureCallback list: {kind}")
 
 
-@register_object("meta_schedule.PyMeasureCallback")
+@register_object("tvm.meta_schedule.PyMeasureCallback")
 class _PyMeasureCallback(MeasureCallback):
     """
     A TVM object measure callback to support customization on the python side.

@@ -116,7 +116,7 @@ class PresburgerSetNode : public IntSetNode {
     return std::all_of(disjuncts.begin(), disjuncts.end(),
                        std::mem_fn(&IntegerRelation::isIntegerEmpty));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.PresburgerSet", PresburgerSetNode, IntSetNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.arith.PresburgerSet", PresburgerSetNode, IntSetNode);
 
  private:
   ffi::Array<Var> vars;
@@ -156,7 +156,7 @@ class PresburgerSetNode : public IntSetNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PresburgerSetNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.PresburgerSet", PresburgerSetNode, IntSetNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.arith.PresburgerSet", PresburgerSetNode, IntSetNode);
 };
 
 class PresburgerSet : public IntSet {

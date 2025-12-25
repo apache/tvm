@@ -780,7 +780,7 @@ Pass LowerAutoCopy() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.LowerAutoCopy", LowerAutoCopy);
+  refl::GlobalDef().def("tvm.tir.transform.LowerAutoCopy", LowerAutoCopy);
 }
 
 }  // namespace transform

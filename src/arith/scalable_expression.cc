@@ -96,7 +96,7 @@ bool TargetHasVLA(ffi::Optional<Target> target) {
     has_vla = Downcast<Target>(target)->GetFeature<Bool>("has_sve").value_or(Bool(false));
     // riscv{32,64}
     static auto target_has_feature_fn =
-        tvm::ffi::Function::GetGlobalRequired("target.target_has_feature");
+        tvm::ffi::Function::GetGlobalRequired("tvm.target.target_has_feature");
     has_vla |= target_has_feature_fn("v", target).cast<bool>();
   }
   return has_vla;
@@ -110,7 +110,7 @@ const std::vector<unsigned int> GetVScaleValues(ffi::Optional<Target> target) {
   }
   if (target.defined()) {
     static auto llvm_get_vector_width_fn =
-        tvm::ffi::Function::GetGlobalRequired("target.llvm_get_vector_width");
+        tvm::ffi::Function::GetGlobalRequired("tvm.target.llvm_get_vector_width");
     vector_width = llvm_get_vector_width_fn(target).cast<int>();
   }
   // scale list with powers of two

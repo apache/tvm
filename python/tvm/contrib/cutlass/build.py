@@ -39,7 +39,7 @@ logger = logging.getLogger("cutlass")
 
 def has_cutlass():
     """Returns true if the CUTLASS custom codegen is available"""
-    return tvm.get_global_func("relax.ext.cutlass", True) is not None
+    return tvm.get_global_func("tvm.relax.ext.cutlass", True) is not None
 
 
 def _get_cutlass_path():
@@ -396,7 +396,7 @@ def _extract_relax_function_signature(f):
 
 
 def _extract_arg_idx(pattern_name, f):
-    extract_func = tvm.get_global_func("relax.contrib.extract_arg_idx")
+    extract_func = tvm.get_global_func("tvm.relax.contrib.extract_arg_idx")
     arg_indices = extract_func(pattern_name, f)
     return {k: int(v) for k, v in arg_indices.items()}
 
@@ -821,7 +821,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         return span
 
 
-@register_global_func("contrib.cutlass.tune_relax_function")
+@register_global_func("tvm.contrib.cutlass.tune_relax_function")
 def profile_relax_function(functions, options):
     """Tune and annotate CUTLASS composite functions with shape, dtype and generated templates."""
     tmp_dir = options.get("tmp_dir", "./tmp")
@@ -840,7 +840,7 @@ def profile_relax_function(functions, options):
     return annotated_functions
 
 
-@register_global_func("contrib.cutlass.compile")
+@register_global_func("tvm.contrib.cutlass.compile")
 def compile_cutlass_module(c_source_module, options):
     """Compile all CUTLASS kernels in the given C-source module.
 

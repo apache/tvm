@@ -36,7 +36,7 @@ class ScheduleError(TVMError):
     """Error that happens during TensorIR scheduling."""
 
 
-@_register_object("tir.LoopRV")
+@_register_object("tvm.tir.LoopRV")
 class LoopRV(Object):
     """A random variable that refers to a loop"""
 
@@ -47,7 +47,7 @@ class LoopRV(Object):
         )
 
 
-@_register_object("tir.BlockRV")
+@_register_object("tvm.tir.BlockRV")
 class BlockRV(Object):
     """A random variable that refers to a block"""
 
@@ -107,7 +107,7 @@ def _get_block_default_dtype(block: Block) -> str:
     return "int64"
 
 
-@_register_object("tir.Schedule")
+@_register_object("tvm.tir.Schedule")
 class Schedule(Object):
     """The user-facing schedule class
 

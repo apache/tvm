@@ -48,7 +48,7 @@ int __QAIC_HEADER(launcher_rpc_open)(const char* uri, remote_handle64* handle) {
   *handle = 0;  // Just use any value.
   reset_device_api();
   static const tvm::ffi::Function acq_res =
-      get_runtime_func("device_api.hexagon.acquire_resources");
+      get_runtime_func("tvm.device_api.hexagon.acquire_resources");
   acq_res();
   return AEE_SUCCESS;
 }
@@ -56,7 +56,7 @@ int __QAIC_HEADER(launcher_rpc_open)(const char* uri, remote_handle64* handle) {
 int __QAIC_HEADER(launcher_rpc_close)(remote_handle64 handle) {
   // Comment to stop clang-format from single-lining this function.
   static const tvm::ffi::Function rel_res =
-      get_runtime_func("device_api.hexagon.release_resources");
+      get_runtime_func("tvm.device_api.hexagon.release_resources");
   rel_res();
   return AEE_SUCCESS;
 }

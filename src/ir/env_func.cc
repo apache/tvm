@@ -53,21 +53,21 @@ EnvFunc EnvFunc::Get(const ffi::String& name) { return EnvFunc(CreateEnvNode(nam
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("ir.EnvFuncGet", EnvFunc::Get)
-      .def_packed("ir.EnvFuncCall",
+      .def("tvm.ir.EnvFuncGet", EnvFunc::Get)
+      .def_packed("tvm.ir.EnvFuncCall",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     EnvFunc env = args[0].cast<EnvFunc>();
                     ICHECK_GE(args.size(), 1);
                     env->func.CallPacked(args.Slice(1), rv);
                   })
-      .def("ir.EnvFuncGetFunction", [](const EnvFunc& n) { return n->func; });
+      .def("tvm.ir.EnvFuncGetFunction", [](const EnvFunc& n) { return n->func; });
   // override EnvFuncNode to use name as the repr
   refl::TypeAttrDef<EnvFuncNode>()
-      .def("__data_to_json__",
+      .def("tvm.__data_to_json__",
            [](const EnvFuncNode* node) {
              // simply save as the string
              return node->name;
            })
-      .def("__data_from_json__", EnvFunc::Get);
+      .def("tvm.__data_from_json__", EnvFunc::Get);
 }
 }  // namespace tvm

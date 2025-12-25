@@ -168,7 +168,7 @@ Function FunctionInlineFunctions(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.FunctionInlineFunctions", FunctionInlineFunctions);
+  refl::GlobalDef().def("tvm.relax.FunctionInlineFunctions", FunctionInlineFunctions);
 }
 
 namespace transform {
@@ -226,7 +226,7 @@ Pass InlinePrivateFunctions() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.InlinePrivateFunctions", InlinePrivateFunctions);
+  refl::GlobalDef().def("tvm.relax.transform.InlinePrivateFunctions", InlinePrivateFunctions);
 }
 
 }  // namespace transform

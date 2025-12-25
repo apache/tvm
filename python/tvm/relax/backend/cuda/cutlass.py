@@ -243,7 +243,7 @@ def _check_decode_matmul(ctx):
     if (
         isinstance(packed_weight, Call)
         and isinstance(packed_weight.args[0], ExternFunc)
-        and packed_weight.args[0].global_symbol != "cutlass.ft_preprocess_weight"
+        and packed_weight.args[0].global_symbol != "tvm.cutlass.ft_preprocess_weight"
     ):
         return False
 

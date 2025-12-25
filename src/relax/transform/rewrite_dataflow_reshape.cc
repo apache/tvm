@@ -168,7 +168,7 @@ Pass RewriteDataflowReshape() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.RewriteDataflowReshape", RewriteDataflowReshape);
+  refl::GlobalDef().def("tvm.relax.transform.RewriteDataflowReshape", RewriteDataflowReshape);
 }
 
 }  // namespace transform

@@ -83,7 +83,7 @@ class BasePassInstrumentNode : public PassInstrumentNode {
    * \param info The pass information.
    */
   void RunAfterPass(const IRModule& mod, const transform::PassInfo& info) const final;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("instrument.PassInstrument", BasePassInstrumentNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.instrument.PassInstrument", BasePassInstrumentNode,
                                     PassInstrumentNode);
 };
 
@@ -179,7 +179,7 @@ void BasePassInstrumentNode::RunAfterPass(const IRModule& ir_module,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "instrument.PassInstrument",
+      "tvm.instrument.PassInstrument",
       [](ffi::String name, ffi::TypedFunction<void()> enter_pass_ctx,
          ffi::TypedFunction<void()> exit_pass_ctx,
          ffi::TypedFunction<bool(const IRModule&, const transform::PassInfo&)> should_run,
@@ -315,8 +315,8 @@ ffi::String RenderPassProfiles() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("instrument.RenderTimePassProfiles", RenderPassProfiles)
-      .def("instrument.MakePassTimingInstrument", []() {
+      .def("tvm.instrument.RenderTimePassProfiles", RenderPassProfiles)
+      .def("tvm.instrument.MakePassTimingInstrument", []() {
         auto run_before_pass = [](const IRModule&, const transform::PassInfo& pass_info) {
           PassProfile::EnterPass(pass_info->name);
           return true;

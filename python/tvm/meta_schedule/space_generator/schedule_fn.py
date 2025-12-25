@@ -27,7 +27,7 @@ from .space_generator import (
 )
 
 
-@register_object("meta_schedule.ScheduleFn")
+@register_object("tvm.meta_schedule.ScheduleFn")
 class ScheduleFn(SpaceGenerator):
     """Create a design space generator with customized schedule function.
     The schedule function can have the following signatures:

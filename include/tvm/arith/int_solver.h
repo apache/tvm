@@ -72,7 +72,7 @@ class IntGroupBoundsNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IntGroupBounds", IntGroupBoundsNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.arith.IntGroupBounds", IntGroupBoundsNode, Object);
 };
 
 /*!
@@ -150,7 +150,7 @@ class IntConstraintsNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IntConstraints", IntConstraintsNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.arith.IntConstraints", IntConstraintsNode, Object);
 };
 
 /*!
@@ -203,8 +203,8 @@ class IntConstraintsTransformNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IntConstraintsTransform", IntConstraintsTransformNode,
-                                    Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.arith.IntConstraintsTransform",
+                                    IntConstraintsTransformNode, Object);
 };
 
 /*!

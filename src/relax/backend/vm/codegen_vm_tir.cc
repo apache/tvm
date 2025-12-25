@@ -177,7 +177,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     tir::Stmt body = WithNewScope([&]() {
       ffi::Optional<PrimExpr> ret = ExprFunctor::VisitExpr(func->body);
       if (ret.defined()) {
-        this->EmitCallPacked("vm.builtin.copy", {ret.value()}, ret_reg);
+        this->EmitCallPacked("tvm.vm.builtin.copy", {ret.value()}, ret_reg);
       }
     });
 
@@ -211,7 +211,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
           // "del" operator.  These bindings may be removable by using
           // relax.transform.CanonicalizeBindings earlier in lowering.
           auto new_reg = NewRegister();
-          EmitCallPacked("vm.builtin.copy", {value.value()}, new_reg);
+          EmitCallPacked("tvm.vm.builtin.copy", {value.value()}, new_reg);
           value = RegListGet(new_reg);
         }
 
@@ -259,15 +259,15 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     PrimExpr cond_value = this->VisitExpr(op->cond).value();
 
     cond_value = tir::Call(DataType::Bool(), tir::builtin::tvm_call_packed(),
-                           {tir::StringImm("vm.builtin.read_if_cond"), cond_value});
+                           {tir::StringImm("tvm.vm.builtin.read_if_cond"), cond_value});
 
     tir::Stmt true_branch = WithNewScope([&]() {
       PrimExpr true_value = this->VisitExpr(op->true_branch).value();
-      this->EmitCallPacked("vm.builtin.copy", {true_value}, merge_register);
+      this->EmitCallPacked("tvm.vm.builtin.copy", {true_value}, merge_register);
     });
     tir::Stmt false_branch = WithNewScope([&]() {
       PrimExpr false_value = this->VisitExpr(op->false_branch).value();
-      this->EmitCallPacked("vm.builtin.copy", {false_value}, merge_register);
+      this->EmitCallPacked("tvm.vm.builtin.copy", {false_value}, merge_register);
     });
     this->EmitStmt(tir::IfThenElse(cond_value, true_branch, false_branch));
     return RegListGet(merge_register);
@@ -313,7 +313,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
       args.push_back(this->VisitExpr(arg).value());
     }
     int32_t dst_register = NewRegister();
-    this->EmitCallPacked("vm.builtin.make_tuple", args, dst_register);
+    this->EmitCallPacked("tvm.vm.builtin.make_tuple", args, dst_register);
     return RegListGet(dst_register);
   }
 
@@ -324,7 +324,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     args.push_back(ConstInt64(expr->index));
 
     int64_t dst_register = NewRegister();
-    this->EmitCallPacked("vm.builtin.tuple_getitem", args, dst_register);
+    this->EmitCallPacked("tvm.vm.builtin.tuple_getitem", args, dst_register);
     return RegListGet(dst_register);
   }
 
@@ -397,7 +397,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     for (Expr arg : call_node->args) {
       args.push_back(this->VisitExpr(arg).value());
     }
-    this->EmitCallPacked("vm.builtin.alloc_storage", args, dst_reg);
+    this->EmitCallPacked("tvm.vm.builtin.alloc_storage", args, dst_reg);
   }
 
   void EmitAllocTensor(const Call& call_node, int64_t dst_reg) {
@@ -407,7 +407,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     for (Expr arg : call_node->args) {
       args.push_back(this->VisitExpr(arg).value());
     }
-    this->EmitCallPacked("vm.builtin.alloc_tensor", args, dst_reg);
+    this->EmitCallPacked("tvm.vm.builtin.alloc_tensor", args, dst_reg);
   }
 
   int64_t EmitKillObject(const Call& call_node) {
@@ -425,7 +425,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     ICHECK(p_dst_reg->dtype == DataType::Int(32));
 
     int64_t dst_reg = p_dst_reg->value;
-    this->EmitCallPacked("vm.builtin.null_value", {}, dst_reg);
+    this->EmitCallPacked("tvm.vm.builtin.null_value", {}, dst_reg);
     return dst_reg;
   }
 
@@ -469,7 +469,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
       for (auto arg : args) {
         all_args.push_back(arg);
       }
-      this->EmitCallPacked("vm.builtin.invoke_closure", all_args, dst_reg);
+      this->EmitCallPacked("tvm.vm.builtin.invoke_closure", all_args, dst_reg);
     }
   }
 
@@ -534,7 +534,7 @@ IRModule VMTIRCodeGen(ExecBuilder exec_builder, IRModule mod) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.VMTIRCodeGen", VMTIRCodeGen);
+  refl::GlobalDef().def("tvm.relax.VMTIRCodeGen", VMTIRCodeGen);
 }
 
 }  // namespace codegen_vm

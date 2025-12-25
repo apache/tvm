@@ -83,9 +83,9 @@ void OpRegEntry::UpdateAttr(const ffi::String& key, ffi::Any value, int plevel) 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("ir.ListOpNames", []() { return OpRegistry::Global()->ListAllNames(); })
-      .def("ir.GetOp", [](ffi::String name) -> Op { return Op::Get(name); })
-      .def("ir.OpGetAttr",
+      .def("tvm.ir.ListOpNames", []() { return OpRegistry::Global()->ListAllNames(); })
+      .def("tvm.ir.GetOp", [](ffi::String name) -> Op { return Op::Get(name); })
+      .def("tvm.ir.OpGetAttr",
            [](Op op, ffi::String attr_name) -> ffi::Any {
              auto op_map = Op::GetAttrMap<ffi::Any>(attr_name);
              ffi::Any rv;
@@ -94,19 +94,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              }
              return rv;
            })
-      .def("ir.OpHasAttr",
+      .def("tvm.ir.OpHasAttr",
            [](Op op, ffi::String attr_name) -> bool { return Op::HasAttrMap(attr_name); })
-      .def("ir.OpSetAttr",
+      .def("tvm.ir.OpSetAttr",
            [](Op op, ffi::String attr_name, ffi::AnyView value, int plevel) {
              auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
              reg.set_attr(attr_name, value, plevel);
            })
-      .def("ir.OpResetAttr",
+      .def("tvm.ir.OpResetAttr",
            [](Op op, ffi::String attr_name) {
              auto& reg = OpRegistry::Global()->RegisterOrGet(op->name);
              reg.reset_attr(attr_name);
            })
-      .def("ir.RegisterOp",
+      .def("tvm.ir.RegisterOp",
            [](ffi::String op_name, ffi::String descr) {
              const OpRegEntry* reg = OpRegistry::Global()->Get(op_name);
              ICHECK(reg == nullptr)
@@ -114,27 +114,27 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              auto& op = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
              op.describe(descr);
            })
-      .def("ir.OpAddArgument",
+      .def("tvm.ir.OpAddArgument",
            [](Op op, ffi::String name, ffi::String type, ffi::String description) {
              auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
              reg.add_argument(name, type, description);
            })
-      .def("ir.OpSetSupportLevel",
+      .def("tvm.ir.OpSetSupportLevel",
            [](Op op, int level) {
              auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
              reg.set_support_level(level);
            })
-      .def("ir.OpSetNumInputs",
+      .def("tvm.ir.OpSetNumInputs",
            [](Op op, int n) {
              auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
              reg.set_num_inputs(n);
            })
-      .def("ir.OpSetAttrsTypeKey",
+      .def("tvm.ir.OpSetAttrsTypeKey",
            [](Op op, ffi::String key) {
              auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
              reg.set_attrs_type_key(key);
            })
-      .def("ir.RegisterOpAttr",
+      .def("tvm.ir.RegisterOpAttr",
            [](ffi::String op_name, ffi::String attr_key, ffi::AnyView value, int plevel) {
              auto& reg = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
              // enable resgiteration and override of certain properties
@@ -146,19 +146,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                reg.set_attr(attr_key, value, plevel);
              }
            })
-      .def("ir.RegisterOpLowerIntrinsic",
+      .def("tvm.ir.RegisterOpLowerIntrinsic",
            [](ffi::String name, ffi::Function f, ffi::String target, int plevel) {
              tvm::OpRegEntry::RegisterOrGet(name).set_attr<FLowerIntrinsic>(
                  target + ".FLowerIntrinsic", f, plevel);
            });
   // override OpNode to use name as the repr
   refl::TypeAttrDef<OpNode>()
-      .def("__data_to_json__",
+      .def("tvm.__data_to_json__",
            [](const OpNode* node) -> ffi::String {
              // simply save as the string
              return node->name;
            })
-      .def("__data_from_json__", [](const ffi::String& name) -> Op { return Op::Get(name); });
+      .def("tvm.__data_from_json__", [](const ffi::String& name) -> Op { return Op::Get(name); });
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

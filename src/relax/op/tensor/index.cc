@@ -55,7 +55,7 @@ Expr take(Expr x, Expr indices, ffi::Optional<int64_t> axis, ffi::String mode) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.take", take);
+  refl::GlobalDef().def("tvm.relax.op.take", take);
 }
 
 StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
@@ -181,7 +181,7 @@ Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, ffi::Optional<Expr> 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.strided_slice", strided_slice);
+  refl::GlobalDef().def("tvm.relax.op.strided_slice", strided_slice);
 }
 
 /* \brief Helper function to unpack a relax::Tuple
@@ -492,7 +492,7 @@ Expr dynamic_strided_slice(Expr x,      //
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.dynamic_strided_slice", dynamic_strided_slice);
+  refl::GlobalDef().def("tvm.relax.op.dynamic_strided_slice", dynamic_strided_slice);
 }
 
 StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& ctx) {

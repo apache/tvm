@@ -32,7 +32,7 @@ from ..tune_context import TuneContext
 from ..utils import _get_default_str
 
 
-@register_object("meta_schedule.FeatureExtractor")
+@register_object("tvm.meta_schedule.FeatureExtractor")
 class FeatureExtractor(Object):
     """Extractor for features from measure candidates for use in cost model."""
 
@@ -74,7 +74,7 @@ class FeatureExtractor(Object):
         raise ValueError(f"Unknown CostModel: {kind}")
 
 
-@register_object("meta_schedule.PyFeatureExtractor")
+@register_object("tvm.meta_schedule.PyFeatureExtractor")
 class _PyFeatureExtractor(FeatureExtractor):
     """
     A TVM object feature extractor to support customization on the python side.

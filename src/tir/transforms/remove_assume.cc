@@ -64,7 +64,7 @@ Pass RemoveAssume() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.RemoveAssume", RemoveAssume);
+  refl::GlobalDef().def("tvm.tir.transform.RemoveAssume", RemoveAssume);
 }
 
 }  // namespace transform

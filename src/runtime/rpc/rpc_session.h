@@ -316,7 +316,7 @@ class RPCObjectRefObj : public Object {
 
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimeRPCObjectRef;
   static const constexpr bool _type_final = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_STATIC("runtime.RPCObjectRef", RPCObjectRefObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_STATIC("tvm.runtime.RPCObjectRef", RPCObjectRefObj, Object);
 
  private:
   // The object handle

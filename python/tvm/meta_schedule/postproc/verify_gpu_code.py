@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .postproc import Postproc
 
 
-@register_object("meta_schedule.VerifyGPUCode")
+@register_object("tvm.meta_schedule.VerifyGPUCode")
 class VerifyGPUCode(Postproc):
     """A postprocessor that verifies if the GPU code is correct"""
 

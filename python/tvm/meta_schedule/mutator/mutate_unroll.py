@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .mutator import Mutator
 
 
-@register_object("meta_schedule.MutateUnroll")
+@register_object("tvm.meta_schedule.MutateUnroll")
 class MutateUnroll(Mutator):
     """Mutator that mutates auto unroll step"""
 

@@ -179,7 +179,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
     refl::ObjectDef<DisallowAsyncStridedMemCopyNode>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.DisallowAsyncStridedMemCopy",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.DisallowAsyncStridedMemCopy",
                                     DisallowAsyncStridedMemCopyNode, PostprocNode);
 
  private:
@@ -195,7 +195,7 @@ Postproc Postproc::DisallowAsyncStridedMemCopy() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   DisallowAsyncStridedMemCopyNode::RegisterReflection();
-  refl::GlobalDef().def("meta_schedule.PostprocDisallowAsyncStridedMemCopy",
+  refl::GlobalDef().def("tvm.meta_schedule.PostprocDisallowAsyncStridedMemCopy",
                         Postproc::DisallowAsyncStridedMemCopy);
 }
 

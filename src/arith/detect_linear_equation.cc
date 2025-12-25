@@ -294,8 +294,8 @@ ffi::Array<PrimExpr> DetectClipBound(const PrimExpr& e, const ffi::Array<Var>& v
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("arith.DetectLinearEquation", DetectLinearEquation)
-      .def("arith.DetectClipBound",
+      .def("tvm.arith.DetectLinearEquation", DetectLinearEquation)
+      .def("tvm.arith.DetectClipBound",
            [](const PrimExpr& e, const ffi::Array<Var>& vars) { return DetectClipBound(e, vars); });
 }
 }  // namespace arith
