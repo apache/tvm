@@ -110,6 +110,8 @@ def batch_norm(
 
     shape = [1] * len(data.shape)
     shape[axis] = data.shape[axis]
+    data_mean = None
+    data_var = None
 
     if training:
         reduce_axes = list(range(len(data.shape)))
