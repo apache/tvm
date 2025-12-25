@@ -13,22 +13,22 @@ runs:
     with:
       activate-environment: tvm-build
       channel-priority: strict
-      environment-file: conda/build-environment.yaml
+      environment-file: tests/conda/build-environment.yaml
       auto-activate-base: false
       miniforge-version: latest
       python-version: 3.9
-      condarc-file: conda/condarc
+      condarc-file: tests/conda/condarc
   - uses: conda-incubator/setup-miniconda@v3
     if: steps.conda1.outcome == 'failure'
     with:
       activate-environment: tvm-build
       channel-priority: strict
-      environment-file: conda/build-environment.yaml
+      environment-file: tests/conda/build-environment.yaml
       auto-activate-base: false
       miniforge-version: latest
       use-only-tar-bz2: true
       python-version: 3.9
-      condarc-file: conda/condarc
+      condarc-file: tests/conda/condarc
   - name: Conda info
     shell: pwsh
     run: |
