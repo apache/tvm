@@ -522,10 +522,10 @@ static FnFactory BuildAnalyzerFactory(std::shared_ptr<tvm::arith::Analyzer> self
         unsigned timeout_ms = args[0].cast<unsigned>();
         self->z3_prover.SetTimeoutMs(timeout_ms);
       });
-    } else if (name == "set_z3_max_step") {
+    } else if (name == "set_z3_rlimit") {
       return Function([self](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
         unsigned max_step = args[0].cast<unsigned>();
-        self->z3_prover.SetMaxStep(max_step);
+        self->z3_prover.SetRLimit(max_step);
       });
     }
     return Function();

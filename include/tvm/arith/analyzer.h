@@ -693,10 +693,10 @@ class Z3Prover {
   void SetTimeoutMs(unsigned timeout_ms);
 
   /*!
-   * \brief Set max step for Z3 prover
-   * \param max_step The max step
+   * \brief Set resource limitation for Z3 prover
+   * \param rlimit the resource limitation (like maxinum step or sth.)
    */
-  void SetMaxStep(unsigned max_step);
+  void SetRLimit(unsigned rlimit);
 
  private:
   friend class Analyzer;

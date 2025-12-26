@@ -89,13 +89,15 @@ public:
   unsigned timeout_ms {UINT_MAX};
 
   /// @brief Max steps
-  unsigned max_step {UINT_MAX};
+  unsigned rlimit {UINT_MAX};
 
   /// @brief Create a z3 solver with custom options
   static z3::solver CreateSolver(z3::context & ctx) {
     z3::solver solver(ctx);
     // here we disable model generation to speed up the solving process
     solver.set("model", false);
+    // ensure determinstic behavior
+    solver.set("random_seed", (unsigned)42);
     return solver;
   }
 
@@ -104,7 +106,9 @@ public:
     solver = CreateSolver(*ctx);
     // default timeout 5ms
     // Z3's implementation of timeout, when setting timeout T ms, it will stop at T - 1 ms
-    SetTimeoutMs(5);
+    // SetTimeoutMs(5);
+    // use rlimit, not timeout to ensure determinstic behavior
+    SetRLimit(1e4);
   }
 
   /// @brief Create a Free z3 expression from PrimExprNode
@@ -214,17 +218,9 @@ public:
   bool CanProve(const PrimExpr &expr) {
     if (CheckTrivilBadCases(expr)) return false;
     if (!IsValidDType(expr->dtype)) return false;
-    z3::check_result result = z3::unknown;
     z3::expr_vector constr(*ctx);
     constr.push_back(!VisitBool(expr));
-    try {
-      result = solver.check(constr);
-    } catch(std::exception & e) {
-      std::string reason = e.what();
-      if(reason != "max. steps exceeded") {
-        LOG(FATAL) << "Z3 encountered an error: " << e.what();
-      }
-    }
+    auto result = solver.check(constr);
     constr.pop_back();
     return result == z3::unsat;
   }
@@ -293,7 +289,7 @@ public:
     // 4. copy timeout options
     //    but other solver options are not copied
     SetTimeoutMs(other_.timeout_ms);
-    SetMaxStep(other_.max_step);
+    SetRLimit(other_.rlimit);
     // 5. copy the scope stack, which containing comments for SMTLIB2 generation
     scope_stack_ = other_.scope_stack_;
   }
@@ -305,9 +301,9 @@ public:
   }
 
   /// @brief Set max steps
-  void SetMaxStep(unsigned max_step) {
-    this->max_step = max_step;
-    solver.set("max_steps", max_step);
+  void SetRLimit(unsigned rlimit) {
+    this->rlimit = rlimit;
+    solver.set("rlimit", rlimit);
   }
 
   /// @brief Get the SMTLIB2 representation of the current solver state
@@ -504,8 +500,8 @@ ffi::String Z3Prover::GetSMTLIB2(const ffi::Optional<PrimExpr> expr) {
 void Z3Prover::SetTimeoutMs(unsigned timeout_ms) {
   impl_->SetTimeoutMs(timeout_ms);
 }
-void Z3Prover::SetMaxStep(unsigned max_step) {
-  impl_->SetMaxStep(max_step);
+void Z3Prover::SetRLimit(unsigned max_step) {
+  impl_->SetRLimit(max_step);
 }
 void Z3Prover::CopyFrom(const Z3Prover & other) {
   impl_->CopyFrom(*other.impl_);

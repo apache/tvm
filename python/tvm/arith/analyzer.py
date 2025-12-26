@@ -129,7 +129,7 @@ class Analyzer:
         self._can_prove = mod_factory("can_prove")
         self._get_smtlib2 = mod_factory("get_smtlib2")
         self._set_z3_timeout_ms = mod_factory("set_z3_timeout_ms")
-        self._set_z3_max_step = mod_factory("set_z3_max_step")
+        self._set_z3_rlimit = mod_factory("set_z3_rlimit")
         self._get_z3_stats = mod_factory("get_z3_stats")
         self._get_enabled_extensions = mod_factory("get_enabled_extensions")
         self._set_enabled_extensions = mod_factory("set_enabled_extensions")
@@ -149,7 +149,7 @@ class Analyzer:
         """
         self._set_z3_timeout_ms(timeout_ms)
 
-    def set_z3_max_step(self, max_step: int) -> None:
+    def set_z3_rlimit(self, max_step: int) -> None:
         """Set z3 max step.
 
         Parameters
@@ -157,7 +157,7 @@ class Analyzer:
         max_step : int
             The maximum number of steps.
         """
-        self._set_z3_max_step(max_step)
+        self._set_z3_rlimit(max_step)
     
     def get_z3_stats(self) -> str:
         """Get z3 statistics.
