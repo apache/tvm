@@ -62,10 +62,10 @@ bool IsCanonicalPrimExpr(const PrimExpr& expr) {
  * \brief Mutator to canonicalize ShapeExpr in struct info
  *
  * This pass handles ShapeExpr canonicalization by:
- * 1. Detecting compound PrimExpr in ShapeExpr dimensions
- * 2. Lifting them into separate ShapeExpr bindings
+ * 1. Detecting compound PrimExpr in variable struct_info
+ * 2. Emitting ShapeExpr bindings to compute expressions
  * 3. Using MatchCast to extract values into fresh symbolic tir::Var
- * 4. Replacing compound expressions with these canonical vars
+ * 4. Replacing compound expressions with these canonical vars in struct_info
  */
 class ShapeExprCanonicalizer : public ExprMutator {
  public:
@@ -73,116 +73,118 @@ class ShapeExprCanonicalizer : public ExprMutator {
 
   Expr VisitExpr_(const FunctionNode* func) override {
     // Reset state for each function
-    auto cached_compound_to_var = compound_expr_to_var_;
-    auto cached_counter = symbolic_var_counter_;
+    symbolic_var_counter_ = 0;
+    compound_expr_to_var_.clear();
+    emitted_bindings_.clear();
 
-    auto result = ExprMutator::VisitExpr_(func);
+    // Visit params to populate var_remap_
+    ffi::Array<Var> params;
+    bool all_params_unchanged = true;
+    for (Var param : func->params) {
+      Var new_param = this->VisitVarDef(param);
+      params.push_back(new_param);
+      if (!param.same_as(new_param)) {
+        var_remap_[param->vid] = new_param;
+        all_params_unchanged = false;
+      }
+    }
 
-    compound_expr_to_var_ = cached_compound_to_var;
-    symbolic_var_counter_ = cached_counter;
+    // Process the function body with proper scope setup
+    Expr new_body = this->VisitWithNewScope(func->body, params);
 
-    return result;
+    if (all_params_unchanged && new_body.same_as(func->body)) {
+      return ffi::GetRef<Function>(func);
+    }
+
+    return Function(params, new_body, func->ret_struct_info, func->is_pure, func->attrs,
+                    func->span);
   }
 
-  /*!
-   * \brief Override VisitVarDef to canonicalize struct_info
-   *
-   * This is where we intercept variable definitions and canonicalize any
-   * compound PrimExpr in their TensorStructInfo shapes.
-   */
-  Var VisitVarDef(const Var& var) override {
-    auto sinfo = GetStructInfo(var);
+  Expr VisitExpr_(const ShapeExprNode* op) override {
+    // Just cannonicalize ShapeExpr values by replacing compound expression with symbolic vars
+    // The bindings should have been emitted earlier by EmitBindingsForExpr
 
-    // Check if we need to canonicalize the struct_info
-    auto canonical_sinfo = CanonicalizeStructInfo(sinfo);
-
-    if (canonical_sinfo.same_as(sinfo)) {
-      // No changes needed
-      return ExprMutator::VisitVarDef(var);
+    // Mark a copy of values to avoid any reference issues
+    std::vector<PrimExpr> original_dims;
+    for (const PrimExpr& dim : op->values) {
+      original_dims.push_back(dim);
     }
 
-    // Create a new var with canonicalized strcut_info
-    if (var->IsInstance<DataflowVarNode>()) {
-      return DataflowVar(var->vid, canonical_sinfo, var->span);
-    }
-    return Var(var->vid, canonical_sinfo, var->span);
-  }
-
- private:
-  /*!
-   * \brief Canonicalize struct info by lifting compound shape expressions
-   */
-  StructInfo CanonicalizeStructInfo(const StructInfo& sinfo) {
-    if (auto tensor_sinfo = sinfo.as<TensorStructInfoNode>()) {
-      return CanonicalizeTensorStructInfo(ffi::GetRef<TensorStructInfo>(tensor_sinfo));
-    } else if (auto tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
-      return CanonicalizeTupleStructInfo(ffi::GetRef<TupleStructInfo>(tuple_sinfo));
-    }
-    return sinfo;
-  }
-
-  /*!
-   * \brief Canonicalize TensorStructInfo by handling compound shape expressions
-   */
-  TensorStructInfo CanonicalizeTensorStructInfo(const TensorStructInfo& sinfo) {
-    if (!sinfo->shape.defined()) {
-      return sinfo;
-    }
-
-    auto shape_expr = sinfo->shape.as<ShapeExprNode>();
-    if (!shape_expr) {
-      // Shape is Var, not a ShapeExpr - no canonicalization needed
-      return sinfo;
-    }
-
-    // Canonicalize each dimension
-    ffi::Array<PrimExpr> canonical_dims;
+    ffi::Array<PrimExpr> canonical_values;
     bool changed = false;
 
-    for (const PrimExpr& dim : shape_expr->values) {
-      PrimExpr canonical_dim = CanonicalizeDimension(dim);
-      canonical_dims.push_back(canonical_dim);
+    for (const PrimExpr& dim : original_dims) {
+      PrimExpr canonical_dim = GetCanonicalDimension(dim);
+      canonical_values.push_back(canonical_dim);
       changed |= !canonical_dim.same_as(dim);
     }
 
     if (!changed) {
-      return sinfo;
+      return ffi::GetRef<ShapeExpr>(op);
     }
 
-    // Create new TensorStructInfo with canonicalized shape
-    return TensorStructInfo(ShapeExpr(canonical_dims), sinfo->dtype, sinfo->vdevice, sinfo->span);
+    return ShapeExpr(canonical_values, op->span);
   }
 
   /*!
-   * \brief Canonicalize TupleStructInfo recursively
+   * \brief Scan an expression for ShapeExprs and emit bindings for compound expressions.
+   * This must  be called BEFORE visiting the expression to ensure bindings are emitted first.
    */
-  TupleStructInfo CanonicalizeTupleStructInfo(const TupleStructInfo& sinfo) {
-    ffi::Array<StructInfo> canonical_fields;
-    bool changed = false;
+  void EmitBindingsForExpr(const Expr& expr) {
+    // Use a simple visitor to find ShapeExpr nodes
+    class ShapeExprScanner : public ExprVisitor {
+     public:
+      explicit ShapeExprScanner(ShapeExprCanonicalizer* canonicalizer)
+          : canonicalizer_(canonicalizer) {}
 
-    for (const StructInfo& field : sinfo->fields) {
-      StructInfo canonical_field = CanonicalizeStructInfo(field);
-      canonical_fields.push_back(canonical_field);
-      changed |= !canonical_field.same_as(field);
-    }
+      void VisitExpr_(const ShapeExprNode* op) override {
+        // Make a copy of values to avoid reference issues during emission
+        std::vector<PrimExpr> dims;
+        for (const PrimExpr& dim : op->values) {
+          dims.push_back(dim);
+        }
+        for (const PrimExpr& dim : dims) {
+          if (!IsCanonicalPrimExpr(dim)) {
+            canonicalizer_->CanonicalizeDimension(dim);
+          }
+        }
+      }
 
-    if (!changed) {
-      return sinfo;
-    }
+     private:
+      ShapeExprCanonicalizer* canonicalizer_;
+    };
 
-    return TupleStructInfo(canonical_fields, sinfo->span);
+    ShapeExprScanner scanner(this);
+    scanner.VisitExpr(expr);
   }
 
+  void VisitBinding_(const VarBindingNode* binding) override {
+    // Emit canonicalization bindings before processing the binding.
+    // Scan the binding's value for ShapeExprs with compound expressions.
+    EmitBindingsForExpr(binding->value);
+
+    // Let the base class handle the rest
+    ExprMutator::VisitBinding_(binding);
+  }
+
+  void VisitBinding_(const MatchCastNode* binding) override {
+    // Scan the binding's value for ShapeExprs with compound expressions
+    EmitBindingsForExpr(binding->value);
+
+    // Delegate to base handling
+    ExprMutator::VisitBinding_(binding);
+  }
+
+  Var VisitVarDef(const Var& var) override {
+    // Don't canonicalize struct_info - just delegate to base
+    return ExprMutator::VisitVarDef(var);
+  }
+
+ private:
   /*!
-   * \brief Canonicalize a single shape dimension
-   *
-   * If the dimension is a compound PrimExpr:
-   * 1. Emit a ShapeExpr binding containing the compound expression
-   * 2. Create a fresh symbolic tir::Var
-   * 3. Emit a MatchCast to bind the computed value to the symbolic var
-   * 4. Return the symbolic var
+   * \brief Get the canonical form of a dimension (returns the symbolic var if already emitted)
    */
-  PrimExpr CanonicalizeDimension(const PrimExpr& dim) {
+  PrimExpr GetCanonicalDimension(const PrimExpr& dim) {
     // If already canonical, return as is
     if (IsCanonicalPrimExpr(dim)) {
       return dim;
@@ -193,23 +195,60 @@ class ShapeExprCanonicalizer : public ExprMutator {
       return it->second;
     }
 
-    // Create a fresh symbolic variable
+    // Create a fresh symbolic variable, but don't emit yet
     tir::Var symbolic_var = CreateFreshSymbolicVar(dim->dtype);
 
-    // Emit shape binding: shape_var = R.shape([compound_expr])
-    ShapeExpr shape_value({dim});
-    Var shape_var = builder_->Emit(shape_value);
-
-    // Emit MatchCast to extract the computed value into the symbolic variable
-    // match_cast_var: R.Shape([symbolic_var]) = shape_var
-    ShapeStructInfo match_sinfo(ffi::Array<PrimExpr>{symbolic_var});
-    Var match_cast_var("_", match_sinfo);
-    builder_->EmitNormalized(MatchCast(match_cast_var, shape_var, match_sinfo));
-
-    // Cache the mapping to avoid duplicate bindings
     compound_expr_to_var_[dim] = symbolic_var;
 
     return symbolic_var;
+  }
+
+  /*!
+   * \brief Emit bindings for a single compound dimension
+   *
+   * If the dimension is a compound PrimExpr:
+   * 1. Create a fresh symbolic tir::Var for the compound expression
+   * 2. Emit a MatchCast from a PrimValue to define the symbolic var
+   */
+  void CanonicalizeDimension(const PrimExpr& dim) {
+    // If already canonical, nothing to emit
+    if (IsCanonicalPrimExpr(dim)) {
+      return;
+    }
+
+    // Check if we've already emitted the bindings
+    if (emitted_bindings_.count(dim)) {
+      return;
+    }
+
+    // Mark as emitted BEFORE emitting to prevent infinite recursion
+    emitted_bindings_.insert(dim);
+
+    // Get or create the symbolic var for this compound expression
+    tir::Var symbolic_var;
+    auto it = compound_expr_to_var_.find(dim);
+    if (it != compound_expr_to_var_.end()) {
+      symbolic_var = it->second;
+    } else {
+      DataType dtype = dim->dtype;
+      symbolic_var = CreateFreshSymbolicVar(dtype);
+      compound_expr_to_var_[dim] = symbolic_var;
+    }
+
+    // Emit a PrimValue binding with the compound expression
+    // This will be processed by VMShapeLower to compute the value
+    PrimValue prim_value(dim);
+    PrimStructInfo prim_sinfo(dim->dtype);
+    std::string prim_var_name = "_prim" + std::to_string(symbolic_var_counter_ - 1);
+    Var prim_var(prim_var_name, prim_sinfo);
+    builder_->EmitNormalized(VarBinding(prim_var, prim_value));
+
+    // Emit MatchCast to extract the computed value into the symbolic variable
+    // The pattern uses the symbolic var which will be defined by this MatchCast
+    PrimStructInfo match_sinfo(symbolic_var);
+    std::string match_var_name = "_match" + std::to_string(symbolic_var_counter_ - 1);
+    Var match_cast_var(match_var_name, match_sinfo);
+    builder_->EmitNormalized(MatchCast(match_cast_var, prim_var, match_sinfo));
   }
 
   /*!
@@ -222,6 +261,9 @@ class ShapeExprCanonicalizer : public ExprMutator {
 
   // Cache to avoid creating duplicate bindings for the same compound expression
   std::unordered_map<PrimExpr, tir::Var, StructuralHash, StructuralEqual> compound_expr_to_var_;
+
+  // Track which compound expressions have had their bindings emitted
+  std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> emitted_bindings_;
 
   // Counter for generating unique symbolic variable names
   int symbolic_var_counter_ = 0;
