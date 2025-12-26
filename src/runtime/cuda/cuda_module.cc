@@ -217,9 +217,36 @@ class CUDAWrappedFunc {
       }
     }
     CUstream strm = static_cast<CUstream>(TVMFFIEnvGetStream(kDLCUDA, device_id));
-    CUresult result = cuLaunchKernel(fcache_[device_id], wl.grid_dim(0), wl.grid_dim(1),
-                                     wl.grid_dim(2), wl.block_dim(0), wl.block_dim(1),
-                                     wl.block_dim(2), wl.dyn_shmem_size, strm, void_args, nullptr);
+    CUresult result;
+
+    if (launch_param_config_.use_programtic_dependent_launch()) {
+      CUlaunchConfig config{};
+      CUlaunchAttribute attribute[1]{};
+      attribute[0].id = CU_LAUNCH_ATTRIBUTE_PROGRAMMATIC_STREAM_SERIALIZATION;
+      attribute[0].value.programmaticStreamSerializationAllowed = 1;
+
+      config.attrs = attribute;
+      config.numAttrs = 1;
+      config.hStream = strm;
+      config.gridDimX = wl.grid_dim(0);
+      config.gridDimY = wl.grid_dim(1);
+      config.gridDimZ = wl.grid_dim(2);
+      config.blockDimX = wl.block_dim(0);
+      config.blockDimY = wl.block_dim(1);
+      config.blockDimZ = wl.block_dim(2);
+      config.sharedMemBytes = wl.dyn_shmem_size;
+
+      result = cuLaunchKernelEx(&config, fcache_[device_id], void_args, nullptr);
+    } else if (launch_param_config_.use_cooperative_launch()) {
+      result = cuLaunchCooperativeKernel(fcache_[device_id], wl.grid_dim(0), wl.grid_dim(1),
+                                         wl.grid_dim(2), wl.block_dim(0), wl.block_dim(1),
+                                         wl.block_dim(2), wl.dyn_shmem_size, strm, void_args);
+    } else {
+      result = cuLaunchKernel(fcache_[device_id], wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2),
+                              wl.block_dim(0), wl.block_dim(1), wl.block_dim(2), wl.dyn_shmem_size,
+                              strm, void_args, nullptr);
+    }
+
     if (result != CUDA_SUCCESS && result != CUDA_ERROR_DEINITIALIZED) {
       const char* msg;
       cuGetErrorName(result, &msg);
@@ -257,6 +284,8 @@ class CUDAWrappedFunc {
   // Cached last dynamic shared memory size per device and whether it's initialized
   mutable std::array<size_t, kMaxNumGPUs> dyn_smem_last_;
   mutable std::array<bool, kMaxNumGPUs> dyn_smem_initialized_;
+  // have pdl setting
+  bool has_programmatic_dependent_launch_;
 };
 
 class CUDAPrepGlobalBarrier {
