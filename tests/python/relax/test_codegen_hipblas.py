@@ -25,6 +25,8 @@ from tvm.relax.backend.rocm.hipblas import partition_for_hipblas
 from tvm.relax.testing import get_relax_matmul_module
 from tvm.script import relax as R
 
+from test_codegen_blas_common import run_matmul_offload_test
+
 try:
     import ml_dtypes
 except ImportError:
@@ -37,37 +39,6 @@ def reset_seed():
 
 
 pytestmark = tvm.testing.requires_hipblas.marks()
-
-
-def build_and_run(mod, inputs_np, target, legalize=False):
-    dev = tvm.device(target, 0)
-    with tvm.transform.PassContext(config={"relax.transform.apply_legalize_ops": legalize}):
-        ex = tvm.compile(mod, target)
-    vm = relax.VirtualMachine(ex, dev)
-    f = vm["main"]
-    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
-    return f(*inputs).numpy()
-
-
-def get_result_with_relax_cublas_offload(mod, np_inputs):
-    mod = partition_for_hipblas(mod)
-    mod = relax.transform.RunCodegen()(mod)
-
-    return build_and_run(mod, np_inputs, "rocm")
-
-
-def _to_concrete_shape(symbolic_shape, var_table):
-    result = []
-    for dim in symbolic_shape:
-        if not isinstance(dim, tvm.tir.expr.Var):
-            result.append(dim)
-            continue
-
-        if dim not in var_table:
-            var_table[dim] = np.random.randint(10, 50)
-        result.append(var_table[dim])
-
-    return tuple(result)
 
 
 _vars = {
@@ -118,38 +89,17 @@ def test_matmul_offload(
     in_dtype,
     out_dtype,
 ):
-    with_bias, activation = _epilogue_table[epilogue]
-    var_table = {}
-    concrete_x_shape = _to_concrete_shape(x_shape, var_table)
-    concrete_y_shape = _to_concrete_shape(y_shape, var_table)
-    x = np.random.randn(*concrete_x_shape).astype(in_dtype)
-    y = np.random.randn(*concrete_y_shape).astype(in_dtype)
-
-    if transpose_y:
-        y = np.swapaxes(y, -2, -1)
-        y_shape = (*y_shape[:-2], y_shape[-1], y_shape[-2])
-
-    if with_bias:
-        bias = np.random.randn(concrete_y_shape[-1]).astype(out_dtype)
-        args = (x, y, bias)
-    else:
-        bias = None
-        args = (x, y)
-
-    mod = get_relax_matmul_module(
+    run_matmul_offload_test(
         x_shape,
         y_shape,
+        transpose_y,
+        epilogue,
         in_dtype,
         out_dtype,
-        bias_shape=bias.shape if with_bias else None,
-        transposed_y=transpose_y,
-        activation=activation,
+        _epilogue_table,
+        partition_for_hipblas,
+        "rocm",
     )
-
-    out = get_result_with_relax_cublas_offload(mod, args)
-    ref = build_and_run(mod, args, "llvm", legalize=True)
-
-    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
 def test_hipblas_partition_matmul_without_bias():
