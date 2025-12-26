@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """Default legalization function for index operators."""
 from tvm import topi, tir, te
-from ...op import call_pure_packed, tensor_to_shape
+from ...op import tensor_to_shape
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
 from ...struct_info import ShapeStructInfo, PrimStructInfo
