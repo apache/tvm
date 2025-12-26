@@ -404,7 +404,7 @@ def get_version(framework: str) -> List[int]:
             raw_version = tensorflow.__version__
         if framework == MSCFramework.TENSORRT:
             raw_version = ".".join(
-                [str(v) for v in tvm.get_global_func("relax.get_tensorrt_version")()]
+                [str(v) for v in tvm.get_global_func("tvm.relax.get_tensorrt_version")()]
             )
         else:
             raw_version = "1.0.0"

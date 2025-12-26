@@ -463,9 +463,9 @@ class DistributedIRBuilder : public ExprMutator {
     }
 
     if (const auto* extern_func = new_call->op.as<ExternFuncNode>()) {
-      if (extern_func->global_symbol == "vm.builtin.attention_kv_cache_append") {
+      if (extern_func->global_symbol == "tvm.vm.builtin.attention_kv_cache_append") {
         n->op = ExternFunc("vm.builtin.distributed.attention_kv_cache_append");
-      } else if (extern_func->global_symbol == "vm.builtin.attention_kv_cache_view") {
+      } else if (extern_func->global_symbol == "tvm.vm.builtin.attention_kv_cache_view") {
         n->op = ExternFunc("vm.builtin.distributed.attention_kv_cache_view");
       }
     }
@@ -619,7 +619,7 @@ Pass PropagateSharding() {
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.distributed.transform.PropagateSharding", PropagateSharding);
+  refl::GlobalDef().def("tvm.relax.distributed.transform.PropagateSharding", PropagateSharding);
 }
 }  // namespace transform
 

@@ -55,7 +55,7 @@ class TIRFrameNode : public FrameNode {
         .def_ro("tir", &TIRFrameNode::tir)
         .def_ro("allow_concise_scoping", &TIRFrameNode::allow_concise_scoping);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.TIRFrame", TIRFrameNode, FrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.TIRFrame", TIRFrameNode, FrameNode);
 };
 
 /*! \brief Managed reference to TIRFrameNode */

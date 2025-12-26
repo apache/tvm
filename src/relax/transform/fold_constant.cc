@@ -118,7 +118,7 @@ class ConstantFolder : public ExprMutator {
       // already scheduled to only work on GPU, we will need to skip this in the const folder for
       // now
       // TODO(Hongyi): further check and narrow the scope of foldable function
-      const auto pf = tvm::ffi::Function::GetGlobalRequired("tir.build");
+      const auto pf = tvm::ffi::Function::GetGlobalRequired("tvm.tir.build");
       func = WithAttr(func, tvm::attr::kGlobalSymbol, ffi::String("tir_function"));
       ffi::Module rt_module = pf(func, eval_cpu_target).cast<ffi::Module>();
       build_func = rt_module->GetFunction("tir_function");
@@ -297,7 +297,7 @@ class ConstantFolder : public ExprMutator {
           is_known &= (val.dtype() == DataType::Int(64));
         }
         if (is_known) {
-          const auto func = tvm::ffi::Function::GetGlobalRequired("relax.run.shape_to_tensor");
+          const auto func = tvm::ffi::Function::GetGlobalRequired("tvm.relax.run.shape_to_tensor");
           runtime::Tensor vals = func(arr).cast<runtime::Tensor>();
           return Constant(vals);
         }
@@ -332,7 +332,7 @@ Pass FoldConstant() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.FoldConstant", FoldConstant);
+  refl::GlobalDef().def("tvm.relax.transform.FoldConstant", FoldConstant);
 }
 
 }  // namespace transform

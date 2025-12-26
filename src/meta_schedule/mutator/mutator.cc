@@ -95,20 +95,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("meta_schedule.MutatorInitializeWithTuneContext",
+      .def_method("tvm.meta_schedule.MutatorInitializeWithTuneContext",
                   &MutatorNode::InitializeWithTuneContext)
-      .def("meta_schedule.MutatorApply",
+      .def("tvm.meta_schedule.MutatorApply",
            [](Mutator self, tir::Trace trace, TRandState seed) -> ffi::Optional<tir::Trace> {
              TRandState seed_ =
                  (seed != -1) ? seed : support::LinearCongruentialEngine::DeviceRandom();
              return self->Apply(trace, &seed_);
            })
-      .def_method("meta_schedule.MutatorClone", &MutatorNode::Clone)
-      .def("meta_schedule.MutatorPyMutator", Mutator::PyMutator)
-      .def("meta_schedule.MutatorDefaultLLVM", Mutator::DefaultLLVM)
-      .def("meta_schedule.MutatorDefaultCUDA", Mutator::DefaultCUDA)
-      .def("meta_schedule.MutatorDefaultCUDATensorCore", Mutator::DefaultCUDATensorCore)
-      .def("meta_schedule.MutatorDefaultHexagon", Mutator::DefaultHexagon);
+      .def_method("tvm.meta_schedule.MutatorClone", &MutatorNode::Clone)
+      .def("tvm.meta_schedule.MutatorPyMutator", Mutator::PyMutator)
+      .def("tvm.meta_schedule.MutatorDefaultLLVM", Mutator::DefaultLLVM)
+      .def("tvm.meta_schedule.MutatorDefaultCUDA", Mutator::DefaultCUDA)
+      .def("tvm.meta_schedule.MutatorDefaultCUDATensorCore", Mutator::DefaultCUDATensorCore)
+      .def("tvm.meta_schedule.MutatorDefaultHexagon", Mutator::DefaultHexagon);
 }
 
 }  // namespace meta_schedule

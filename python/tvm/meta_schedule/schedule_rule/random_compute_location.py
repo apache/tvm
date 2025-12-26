@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .schedule_rule import ScheduleRule
 
 
-@register_object("meta_schedule.RandomComputeLocation")
+@register_object("tvm.meta_schedule.RandomComputeLocation")
 class RandomComputeLocation(ScheduleRule):
     """A rule that randomly select a compute-at location for a free block"""
 

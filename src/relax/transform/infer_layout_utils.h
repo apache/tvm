@@ -69,7 +69,7 @@ class LayoutDecisionNode : public Object {
         .def_ro("is_unknown_dim", &LayoutDecisionNode::is_unknown_dim);
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.LayoutDecision", LayoutDecisionNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.transform.LayoutDecision", LayoutDecisionNode, Object);
 };
 
 class LayoutDecision : public ObjectRef {
@@ -117,7 +117,8 @@ class InferLayoutOutputNode : public Object {
         .def_ro("new_args", &InferLayoutOutputNode::new_args);
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InferLayoutOutput", InferLayoutOutputNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.transform.InferLayoutOutput", InferLayoutOutputNode,
+                              Object);
 };
 
 class InferLayoutOutput : public ObjectRef {

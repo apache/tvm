@@ -35,7 +35,7 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
     refl::ObjectDef<ScheduleFnDatabaseNode>().def_ro("schedule_fn",
                                                      &ScheduleFnDatabaseNode::schedule_fn);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.ScheduleFnDatabase", ScheduleFnDatabaseNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.ScheduleFnDatabase", ScheduleFnDatabaseNode,
                                     DatabaseNode);
 
  public:
@@ -104,7 +104,8 @@ Database Database::ScheduleFnDatabase(ffi::TypedFunction<bool(tir::Schedule)> sc
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.DatabaseScheduleFnDatabase", Database::ScheduleFnDatabase);
+  refl::GlobalDef().def("tvm.meta_schedule.DatabaseScheduleFnDatabase",
+                        Database::ScheduleFnDatabase);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { ScheduleFnDatabaseNode::RegisterReflection(); }

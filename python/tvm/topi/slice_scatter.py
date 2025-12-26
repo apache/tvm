@@ -43,14 +43,14 @@ def slice_scatter(input_tensor, src, start, end, step, axis):
     idx = topi.arange(start=0, stop=dim_size, step=1, dtype="int64")
 
     if start != 0:
-        mask = topi.logical_and(mask, topi.greater_equal(idx, start))
+        mask = tvm.topi.logical_and(mask, tvm.topi.greater_equal(idx, start))
 
     if end != dim_size:
-        mask = topi.logical_and(mask, topi.less(idx, end))
+        mask = tvm.topi.logical_and(mask, tvm.topi.less(idx, end))
 
     if step != 1:
-        step_mask = topi.equal(topi.floor_mod(idx - start, step), 0)
-        mask = topi.logical_and(mask, step_mask)
+        step_mask = tvm.topi.equal(tvm.topi.floor_mod(idx - start, step), 0)
+        mask = tvm.topi.logical_and(mask, step_mask)
 
     mask_shape_base = [1] * len(input_tensor.shape)
     mask_shape_base[axis] = dim_size
@@ -59,7 +59,7 @@ def slice_scatter(input_tensor, src, start, end, step, axis):
     mask_reshaped = topi.reshape(mask, mask_shape)
 
     idx_new_pre = idx - start + (step - 1)
-    idx_new_div = topi.floor_divide(idx_new_pre, step)
+    idx_new_div = tvm.topi.floor_divide(idx_new_pre, step)
     idx_new = topi.clip(idx_new_div, 0, dim_size - 1)
 
     temp = topi.take(src, idx_new, axis=axis)

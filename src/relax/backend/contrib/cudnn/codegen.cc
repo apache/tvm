@@ -143,7 +143,7 @@ ffi::Array<ffi::Module> cuDNNCompiler(ffi::Array<Function> functions,
     serializer.serialize(func);
     auto graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();
-    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.cuDNNJSONRuntimeCreate");
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("tvm.runtime.cuDNNJSONRuntimeCreate");
     auto func_name = GetExtSymbol(func);
     compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<ffi::Module>());
   }
@@ -153,7 +153,7 @@ ffi::Array<ffi::Module> cuDNNCompiler(ffi::Array<Function> functions,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.ext.cudnn", cuDNNCompiler);
+  refl::GlobalDef().def("tvm.relax.ext.cudnn", cuDNNCompiler);
 }
 
 }  // namespace contrib

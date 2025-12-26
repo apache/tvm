@@ -23,7 +23,7 @@ from tvm.runtime import Object as _Object
 from . import _ffi_api
 
 
-@_register_object("script.ir_builder.IRBuilderFrame")
+@_register_object("tvm.script.ir_builder.IRBuilderFrame")
 class IRBuilderFrame(_Object):
     """A stack frame of the IRBuilder used to keep track of the current scope.
     Furthermore, the information stored in each stack frame can be useful for context-dependent
@@ -82,7 +82,7 @@ class IRBuilderFrame(_Object):
         )
 
 
-@_register_object("script.ir_builder.IRBuilder")
+@_register_object("tvm.script.ir_builder.IRBuilder")
 class IRBuilder(_Object):
     """A dialect-agnostic IRBuilder that constructs any IR of TVM.
 

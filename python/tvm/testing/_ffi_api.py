@@ -21,4 +21,4 @@ import tvm_ffi
 import tvm_ffi.testing
 
 
-tvm_ffi.init_ffi_api("testing", __name__)
+tvm_ffi.init_ffi_api("tvm.testing", __name__)

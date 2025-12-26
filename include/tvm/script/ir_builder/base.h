@@ -74,7 +74,7 @@ class IRBuilderFrameNode : public runtime::Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.IRBuilderFrame", IRBuilderFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.script.ir_builder.IRBuilderFrame", IRBuilderFrameNode,
                               runtime::Object);
 
  public:
@@ -171,7 +171,8 @@ class IRBuilderNode : public runtime::Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.IRBuilder", IRBuilderNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.IRBuilder", IRBuilderNode,
+                                    runtime::Object);
 
  public:
   /*!

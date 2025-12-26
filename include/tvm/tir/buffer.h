@@ -144,7 +144,7 @@ class BufferNode : public Object {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Buffer", BufferNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Buffer", BufferNode, Object);
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 };
 
@@ -276,7 +276,7 @@ class DataProducerNode : public PrimExprConvertibleNode {
    * \return The data type.
    */
   virtual ffi::String GetNameHint() const = 0;
-  TVM_FFI_DECLARE_OBJECT_INFO("tir.DataProducer", DataProducerNode, PrimExprConvertibleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.tir.DataProducer", DataProducerNode, PrimExprConvertibleNode);
 };
 
 /*!

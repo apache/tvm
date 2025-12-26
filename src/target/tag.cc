@@ -37,8 +37,8 @@ TVM_FFI_STATIC_INIT_BLOCK() { TargetTagNode::RegisterReflection(); }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("target.TargetTagListTags", TargetTag::ListTags)
-      .def("target.TargetTagAddTag", TargetTag::AddTag);
+      .def("tvm.target.TargetTagListTags", TargetTag::ListTags)
+      .def("tvm.target.TargetTagAddTag", TargetTag::AddTag);
 }
 
 /**********  Registry-related code  **********/

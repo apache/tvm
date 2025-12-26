@@ -434,7 +434,7 @@ Pass LowerGlobalViewToLocalView() {
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.distributed.transform.LowerGlobalViewToLocalView",
+  refl::GlobalDef().def("tvm.relax.distributed.transform.LowerGlobalViewToLocalView",
                         LowerGlobalViewToLocalView);
 }
 }  // namespace transform

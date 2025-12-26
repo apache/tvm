@@ -842,7 +842,7 @@ void WeightsExtractor::VisitExpr_(const CallNode* op) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("msc.core.BuildFromRelax",
+      .def("tvm.msc.core.BuildFromRelax",
            [](const IRModule& module, const ffi::String& entry_name,
               const ffi::String& options) -> MSCGraph {
              auto builder = GraphBuilder(module, entry_name, options);
@@ -853,7 +853,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return builder.Build(func);
            })
       .def(
-          "msc.core.GetRelaxWeights",
+          "tvm.msc.core.GetRelaxWeights",
           [](const IRModule& module, const ffi::String& entry_name) -> ffi::Map<MSCTensor, Tensor> {
             const auto& func = Downcast<Function>(module->Lookup(entry_name));
             return WeightsExtractor(module).GetWeights(func);

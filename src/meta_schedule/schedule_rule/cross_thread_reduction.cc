@@ -282,8 +282,8 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
         .def_ro("warp_size", &CrossThreadReductionNode::warp_size)
         .def_ro("thread_extents", &CrossThreadReductionNode::thread_extents);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.CrossThreadReduction", CrossThreadReductionNode,
-                                    ScheduleRuleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.CrossThreadReduction",
+                                    CrossThreadReductionNode, ScheduleRuleNode);
 };
 
 ScheduleRule ScheduleRule::CrossThreadReduction(ffi::Array<Integer> thread_extents) {
@@ -299,7 +299,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { CrossThreadReductionNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.ScheduleRuleCrossThreadReduction",
+  refl::GlobalDef().def("tvm.meta_schedule.ScheduleRuleCrossThreadReduction",
                         ScheduleRule::CrossThreadReduction);
 }
 

@@ -141,7 +141,7 @@ class PassInstrumentNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PassInstrumentNode>().def_ro("name", &PassInstrumentNode::name);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("instrument.PassInstrument", PassInstrumentNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.instrument.PassInstrument", PassInstrumentNode, Object);
 };
 
 /*!

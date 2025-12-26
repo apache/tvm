@@ -103,7 +103,7 @@ ScanOp::ScanOp(std::string name, std::string tag,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "te.ScanOp",
+      "tvm.te.ScanOp",
       [](std::string name, std::string tag, ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs,
          IterVar axis, ffi::Array<Tensor> init, ffi::Array<Tensor> update,
          ffi::Array<Tensor> state_placeholder, ffi::Array<Tensor> inputs) {

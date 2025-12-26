@@ -39,7 +39,7 @@ Expr no_grad(Expr input) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.grad.no_grad", no_grad);
+  refl::GlobalDef().def("tvm.relax.op.grad.no_grad", no_grad);
 }
 
 StructInfo InferStructInfoNoGrad(const Call& call, const BlockBuilder& ctx) {
@@ -60,7 +60,7 @@ Expr start_checkpoint(Expr input) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.grad.start_checkpoint", start_checkpoint);
+  refl::GlobalDef().def("tvm.relax.op.grad.start_checkpoint", start_checkpoint);
 }
 
 StructInfo InferStructInfoStartCheckpoint(const Call& call, const BlockBuilder& ctx) {
@@ -85,7 +85,7 @@ Expr end_checkpoint(Expr input) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.grad.end_checkpoint", end_checkpoint);
+  refl::GlobalDef().def("tvm.relax.op.grad.end_checkpoint", end_checkpoint);
 }
 
 StructInfo InferStructInfoEndCheckpoint(const Call& call, const BlockBuilder& ctx) {
@@ -123,7 +123,7 @@ Expr nll_loss_backward(Expr output_grad, Expr predictions, Expr targets,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.grad.nll_loss_backward", nll_loss_backward);
+  refl::GlobalDef().def("tvm.relax.op.grad.nll_loss_backward", nll_loss_backward);
 }
 
 StructInfo InferStructInfoNLLLossBackward(const Call& call, const BlockBuilder& ctx) {
@@ -160,7 +160,7 @@ Expr max_pool2d_backward(Expr output_grad, Expr data, ffi::Array<IntImm> pool_si
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.grad.max_pool2d_backward", max_pool2d_backward);
+  refl::GlobalDef().def("tvm.relax.op.grad.max_pool2d_backward", max_pool2d_backward);
 }
 
 StructInfo InferStructInfoMaxPool2DBackward(const Call& call, const BlockBuilder& ctx) {
@@ -195,7 +195,7 @@ Expr avg_pool2d_backward(Expr output_grad, Expr data, ffi::Array<IntImm> pool_si
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.grad.avg_pool2d_backward", avg_pool2d_backward);
+  refl::GlobalDef().def("tvm.relax.op.grad.avg_pool2d_backward", avg_pool2d_backward);
 }
 
 StructInfo InferStructInfoAvgPool2DBackward(const Call& call, const BlockBuilder& ctx) {
@@ -222,7 +222,7 @@ Expr take_backward(Expr output_grad, Expr x, Expr indices, ffi::Optional<int64_t
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.grad.take_backward", take_backward);
+  refl::GlobalDef().def("tvm.relax.op.grad.take_backward", take_backward);
 }
 
 StructInfo InferStructInfoTakeBackward(const Call& call, const BlockBuilder& ctx) {

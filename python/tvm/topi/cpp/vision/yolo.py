@@ -17,4 +17,4 @@
 """FFI for Yolo TOPI ops and schedules"""
 import tvm_ffi
 
-tvm_ffi.init_ffi_api("topi.vision.yolo", "tvm.topi.cpp.vision.yolo")
+tvm_ffi.init_ffi_api("tvm.topi.vision.yolo", "tvm.topi.cpp.vision.yolo")

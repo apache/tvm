@@ -114,7 +114,7 @@ class SpaceGeneratorNode : public runtime::Object {
   virtual SpaceGenerator Clone() const = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.SpaceGenerator", SpaceGeneratorNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.meta_schedule.SpaceGenerator", SpaceGeneratorNode, Object);
 };
 
 /*!
@@ -234,7 +234,7 @@ class PySpaceGeneratorNode : public SpaceGeneratorNode {
   void InitializeWithTuneContext(const TuneContext& context) final;
   ffi::Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final;
   SpaceGenerator Clone() const final;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PySpaceGenerator", PySpaceGeneratorNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.PySpaceGenerator", PySpaceGeneratorNode,
                                     SpaceGeneratorNode);
 };
 

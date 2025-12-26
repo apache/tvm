@@ -207,7 +207,7 @@ class RPCModuleNode final : public ffi::ModuleObj {
                                  int min_repeat_ms, int limit_zero_time_iterations,
                                  int cooldown_interval_ms, int repeats_to_cooldown,
                                  int cache_flush_bytes, const std::string& f_preproc_name) {
-    InitRemoteFunc(&remote_get_time_evaluator_, "runtime.RPCTimeEvaluator");
+    InitRemoteFunc(&remote_get_time_evaluator_, "tvm.runtime.RPCTimeEvaluator");
     // Remove session mask because we pass dev by parts.
     ICHECK_EQ(GetRPCSessionIndex(dev), sess_->table_index())
         << "ValueError: Need to pass the matched remote device to RPCModule.GetTimeEvaluator";
@@ -396,7 +396,7 @@ inline void CPUCacheFlush(int begin_index, const ffi::PackedArgs& args) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.RPCTimeEvaluator",
+      .def("tvm.runtime.RPCTimeEvaluator",
            [](ffi::Optional<ffi::Module> opt_mod, std::string name, int device_type, int device_id,
               int number, int repeat, int min_repeat_ms, int limit_zero_time_iterations,
               int cooldown_interval_ms, int repeats_to_cooldown, int cache_flush_bytes,
@@ -441,7 +441,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                    cooldown_interval_ms, repeats_to_cooldown, cache_flush_bytes, f_preproc);
              }
            })
-      .def_packed("cache_flush_cpu_non_first_arg",
+      .def_packed("tvm.cache_flush_cpu_non_first_arg",
                   [](ffi::PackedArgs args, ffi::Any* rv) { CPUCacheFlush(1, args); });
 }
 
@@ -461,19 +461,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("rpc.LoadRemoteModule",
+      .def("tvm.rpc.LoadRemoteModule",
            [](ffi::Module sess, std::string name) {
              std::string tkey = sess->kind();
              ICHECK_EQ(tkey, "rpc");
              return static_cast<RPCModuleNode*>(sess.operator->())->LoadModule(name);
            })
-      .def("rpc.ImportRemoteModule",
+      .def("tvm.rpc.ImportRemoteModule",
            [](ffi::Module parent, ffi::Module child) {
              std::string tkey = parent->kind();
              ICHECK_EQ(tkey, "rpc");
              static_cast<RPCModuleNode*>(parent.operator->())->ImportModule(child);
            })
-      .def_packed("rpc.SessTableIndex",
+      .def_packed("tvm.rpc.SessTableIndex",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     ffi::Module m = args[0].cast<ffi::Module>();
                     std::string tkey = m->kind();

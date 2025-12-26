@@ -59,12 +59,12 @@ class SocketSessionObj : public BcastSessionObj {
                             const ffi::String& host, int port)
       : num_nodes_(num_nodes), num_workers_per_node_(num_workers_per_node) {
     const auto f_create_local_session =
-        tvm::ffi::Function::GetGlobal("runtime.disco.create_socket_session_local_workers");
+        tvm::ffi::Function::GetGlobal("tvm.runtime.disco.create_socket_session_local_workers");
     ICHECK(f_create_local_session.has_value())
         << "Cannot find function runtime.disco.create_socket_session_local_workers";
     local_session_ = ((*f_create_local_session)(num_workers_per_node)).cast<BcastSession>();
     DRef f_init_workers =
-        local_session_->GetGlobalFunc("runtime.disco.socket_session_init_workers");
+        local_session_->GetGlobalFunc("tvm.runtime.disco.socket_session_init_workers");
     local_session_->CallPacked(f_init_workers, num_nodes_, /*node_id=*/0, num_groups,
                                num_workers_per_node_);
 
@@ -196,7 +196,7 @@ class SocketSessionObj : public BcastSessionObj {
   }
 
   ~SocketSessionObj() { Shutdown(); }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.SocketSession", SocketSessionObj,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.runtime.disco.SocketSession", SocketSessionObj,
                                     BcastSessionObj);
   int num_nodes_;
   int num_workers_per_node_;
@@ -269,11 +269,11 @@ class RemoteSocketSession {
  private:
   void InitLocalSession() {
     const auto f_create_local_session =
-        tvm::ffi::Function::GetGlobal("runtime.disco.create_socket_session_local_workers");
+        tvm::ffi::Function::GetGlobal("tvm.runtime.disco.create_socket_session_local_workers");
     local_session_ = ((*f_create_local_session)(num_workers_per_node_)).cast<BcastSession>();
 
     DRef f_init_workers =
-        local_session_->GetGlobalFunc("runtime.disco.socket_session_init_workers");
+        local_session_->GetGlobalFunc("tvm.runtime.disco.socket_session_init_workers");
     local_session_->CallPacked(f_init_workers, num_nodes_, node_id_, num_groups_,
                                num_workers_per_node_);
   }
@@ -295,7 +295,7 @@ void RemoteSocketSessionEntryPoint(const ffi::String& server_host, int server_po
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.disco.RemoteSocketSession", RemoteSocketSessionEntryPoint);
+  refl::GlobalDef().def("tvm.runtime.disco.RemoteSocketSession", RemoteSocketSessionEntryPoint);
 }
 
 Session SocketSession(int num_nodes, int num_workers_per_node, int num_groups,
@@ -309,8 +309,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<SocketSessionObj>();
   refl::GlobalDef()
-      .def("runtime.disco.SocketSession", SocketSession)
-      .def("runtime.disco.socket_session_init_workers",
+      .def("tvm.runtime.disco.SocketSession", SocketSession)
+      .def("tvm.runtime.disco.socket_session_init_workers",
            [](int num_nodes, int node_id, int num_groups, int num_workers_per_node) {
              LOG(INFO) << "Initializing worker group with " << num_nodes << " nodes, "
                        << num_workers_per_node << " workers per node, and " << num_groups

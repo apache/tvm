@@ -88,7 +88,7 @@ class TuneContextNode : public runtime::Object {
   TuneContext Clone() const;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.TuneContext", TuneContextNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.TuneContext", TuneContextNode, Object);
 };
 
 /*!

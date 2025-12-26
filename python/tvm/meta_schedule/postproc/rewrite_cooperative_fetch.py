@@ -22,7 +22,7 @@ from .. import _ffi_api
 from .postproc import Postproc
 
 
-@register_object("meta_schedule.RewriteCooperativeFetch")
+@register_object("tvm.meta_schedule.RewriteCooperativeFetch")
 class RewriteCooperativeFetch(Postproc):
     """A postprocessor that rewrites the cooperative fetch annotation to actual vectorized
     cooperative fetching in loop bindings.

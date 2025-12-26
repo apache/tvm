@@ -295,32 +295,33 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("meta_schedule.Workload", [](IRModule mod) { return Workload(mod); })
-      .def_method("meta_schedule.WorkloadAsJSON", &WorkloadNode::AsJSON)
-      .def("meta_schedule.WorkloadFromJSON", &Workload::FromJSON)
-      .def("meta_schedule.TuningRecord",
+      .def("tvm.meta_schedule.Workload", [](IRModule mod) { return Workload(mod); })
+      .def_method("tvm.meta_schedule.WorkloadAsJSON", &WorkloadNode::AsJSON)
+      .def("tvm.meta_schedule.WorkloadFromJSON", &Workload::FromJSON)
+      .def("tvm.meta_schedule.TuningRecord",
            [](tir::Trace trace, Workload workload, ffi::Optional<ffi::Array<FloatImm>> run_secs,
               ffi::Optional<Target> target, ffi::Optional<ffi::Array<ArgInfo>> args_info) {
              return TuningRecord(trace, workload, run_secs, target, args_info);
            })
-      .def_method("meta_schedule.TuningRecordAsMeasureCandidate",
+      .def_method("tvm.meta_schedule.TuningRecordAsMeasureCandidate",
                   &TuningRecordNode::AsMeasureCandidate)
-      .def_method("meta_schedule.TuningRecordAsJSON", &TuningRecordNode::AsJSON)
-      .def("meta_schedule.TuningRecordFromJSON", TuningRecord::FromJSON)
-      .def_method("meta_schedule.DatabaseEnterWithScope", &Database::EnterWithScope)
-      .def_method("meta_schedule.DatabaseExitWithScope", &Database::ExitWithScope)
-      .def("meta_schedule.DatabaseCurrent", Database::Current)
-      .def_method("meta_schedule.DatabaseHasWorkload", &DatabaseNode::HasWorkload)
-      .def_method("meta_schedule.DatabaseCommitWorkload", &DatabaseNode::CommitWorkload)
-      .def_method("meta_schedule.DatabaseCommitTuningRecord", &DatabaseNode::CommitTuningRecord)
-      .def_method("meta_schedule.DatabaseGetTopK", &DatabaseNode::GetTopK)
-      .def_method("meta_schedule.DatabaseGetAllTuningRecords", &DatabaseNode::GetAllTuningRecords)
-      .def_method("meta_schedule.DatabaseSize", &DatabaseNode::Size)
-      .def_method("meta_schedule.DatabaseQueryTuningRecord", &DatabaseNode::QueryTuningRecord)
-      .def_method("meta_schedule.DatabaseQuerySchedule", &DatabaseNode::QuerySchedule)
-      .def_method("meta_schedule.DatabaseQueryIRModule", &DatabaseNode::QueryIRModule)
-      .def_method("meta_schedule.DatabaseDumpPruned", &DatabaseNode::DumpPruned)
-      .def("meta_schedule.DatabasePyDatabase", Database::PyDatabase);
+      .def_method("tvm.meta_schedule.TuningRecordAsJSON", &TuningRecordNode::AsJSON)
+      .def("tvm.meta_schedule.TuningRecordFromJSON", TuningRecord::FromJSON)
+      .def_method("tvm.meta_schedule.DatabaseEnterWithScope", &Database::EnterWithScope)
+      .def_method("tvm.meta_schedule.DatabaseExitWithScope", &Database::ExitWithScope)
+      .def("tvm.meta_schedule.DatabaseCurrent", Database::Current)
+      .def_method("tvm.meta_schedule.DatabaseHasWorkload", &DatabaseNode::HasWorkload)
+      .def_method("tvm.meta_schedule.DatabaseCommitWorkload", &DatabaseNode::CommitWorkload)
+      .def_method("tvm.meta_schedule.DatabaseCommitTuningRecord", &DatabaseNode::CommitTuningRecord)
+      .def_method("tvm.meta_schedule.DatabaseGetTopK", &DatabaseNode::GetTopK)
+      .def_method("tvm.meta_schedule.DatabaseGetAllTuningRecords",
+                  &DatabaseNode::GetAllTuningRecords)
+      .def_method("tvm.meta_schedule.DatabaseSize", &DatabaseNode::Size)
+      .def_method("tvm.meta_schedule.DatabaseQueryTuningRecord", &DatabaseNode::QueryTuningRecord)
+      .def_method("tvm.meta_schedule.DatabaseQuerySchedule", &DatabaseNode::QuerySchedule)
+      .def_method("tvm.meta_schedule.DatabaseQueryIRModule", &DatabaseNode::QueryIRModule)
+      .def_method("tvm.meta_schedule.DatabaseDumpPruned", &DatabaseNode::DumpPruned)
+      .def("tvm.meta_schedule.DatabasePyDatabase", Database::PyDatabase);
 }
 
 }  // namespace meta_schedule

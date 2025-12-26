@@ -56,7 +56,7 @@ class StmtNode : public Object {
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
   static constexpr const uint32_t _type_child_slots = 15;
-  TVM_FFI_DECLARE_OBJECT_INFO("tir.Stmt", StmtNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.tir.Stmt", StmtNode, Object);
 };
 
 /*! \brief Container of all statements */
@@ -84,7 +84,7 @@ class LetStmtNode : public StmtNode {
         .def_ro("value", &LetStmtNode::value)
         .def_ro("body", &LetStmtNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.LetStmt", LetStmtNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.LetStmt", LetStmtNode, StmtNode);
 };
 
 /*!
@@ -128,7 +128,7 @@ class AttrStmtNode : public StmtNode {
         .def_ro("value", &AttrStmtNode::value)
         .def_ro("body", &AttrStmtNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.AttrStmt", AttrStmtNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.AttrStmt", AttrStmtNode, StmtNode);
 };
 
 /*!
@@ -166,7 +166,7 @@ class AssertStmtNode : public StmtNode {
         .def_ro("message", &AssertStmtNode::message)
         .def_ro("body", &AssertStmtNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.AssertStmt", AssertStmtNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.AssertStmt", AssertStmtNode, StmtNode);
 };
 
 /*!
@@ -210,7 +210,7 @@ class BufferStoreNode : public StmtNode {
         .def_ro("indices", &BufferStoreNode::indices)
         .def_ro("predicate", &BufferStoreNode::predicate);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BufferStore", BufferStoreNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.BufferStore", BufferStoreNode, StmtNode);
 };
 
 /*!
@@ -262,7 +262,7 @@ class BufferRealizeNode : public StmtNode {
   BufferRealizeNode(Buffer buffer, ffi::Array<Range> bounds, PrimExpr condition, Stmt body,
                     Span span = Span())
       : StmtNode(span), buffer(buffer), bounds(bounds), condition(condition), body(body) {}
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BufferRealize", BufferRealizeNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.BufferRealize", BufferRealizeNode, StmtNode);
 };
 
 /*!
@@ -325,7 +325,7 @@ class AllocateNode : public StmtNode {
    * \return The result.
    */
   TVM_DLL static int64_t ConstantAllocationSize(const ffi::Array<PrimExpr>& extents);
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Allocate", AllocateNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Allocate", AllocateNode, StmtNode);
 };
 
 /*!
@@ -397,7 +397,7 @@ class AllocateConstNode : public StmtNode {
    * \return The result.
    */
   TVM_DLL static int64_t ConstantAllocationSize(const ffi::Array<PrimExpr>& extents);
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.AllocateConst", AllocateConstNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.AllocateConst", AllocateConstNode, StmtNode);
 };
 
 /*!
@@ -432,7 +432,7 @@ class DeclBufferNode : public StmtNode {
         .def_ro("buffer", &DeclBufferNode::buffer)
         .def_ro("body", &DeclBufferNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.DeclBuffer", DeclBufferNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.DeclBuffer", DeclBufferNode, StmtNode);
 };
 
 /*! \brief Managed reference to DeclBufferNode */
@@ -463,7 +463,7 @@ class SeqStmtNode : public StmtNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SeqStmtNode>().def_ro("seq", &SeqStmtNode::seq);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.SeqStmt", SeqStmtNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.SeqStmt", SeqStmtNode, StmtNode);
 };
 
 /*!
@@ -481,7 +481,7 @@ class EvaluateNode : public StmtNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<EvaluateNode>().def_ro("value", &EvaluateNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Evaluate", EvaluateNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Evaluate", EvaluateNode, StmtNode);
 };
 
 /*!
@@ -668,7 +668,7 @@ class IfThenElseNode : public StmtNode {
         .def_ro("then_case", &IfThenElseNode::then_case)
         .def_ro("else_case", &IfThenElseNode::else_case);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.IfThenElse", IfThenElseNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.IfThenElse", IfThenElseNode, StmtNode);
 };
 
 /*!
@@ -769,7 +769,7 @@ class ForNode : public StmtNode {
   /*! \brief Check it is a loop without nontrivial loop step. */
   bool HasTrivialStep() const;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.For", ForNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.For", ForNode, StmtNode);
 };
 
 /*!
@@ -810,7 +810,7 @@ class WhileNode : public StmtNode {
         .def_ro("condition", &WhileNode::condition)
         .def_ro("body", &WhileNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.While", WhileNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.While", WhileNode, StmtNode);
 };
 
 /*!
@@ -845,7 +845,8 @@ class BufferRegionNode : public PrimExprConvertibleNode {
   TVM_DLL PrimExpr ToPrimExpr() const final;
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BufferRegion", BufferRegionNode, PrimExprConvertibleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.BufferRegion", BufferRegionNode,
+                                    PrimExprConvertibleNode);
 };
 
 /*!
@@ -899,7 +900,7 @@ class MatchBufferRegionNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.MatchBufferRegion", MatchBufferRegionNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.MatchBufferRegion", MatchBufferRegionNode, Object);
 };
 
 /*!
@@ -975,7 +976,7 @@ class BlockNode : public StmtNode {
         .def_ro("init", &BlockNode::init)
         .def_ro("body", &BlockNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Block", BlockNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Block", BlockNode, StmtNode);
 };
 
 /*!
@@ -1019,7 +1020,7 @@ class BlockRealizeNode : public StmtNode {
         .def_ro("predicate", &BlockRealizeNode::predicate)
         .def_ro("block", &BlockRealizeNode::block);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BlockRealize", BlockRealizeNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.BlockRealize", BlockRealizeNode, StmtNode);
 };
 
 /*!

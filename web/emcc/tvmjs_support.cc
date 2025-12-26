@@ -116,7 +116,7 @@ class AsyncLocalSession : public LocalSession {
   AsyncLocalSession() {}
 
   PackedFuncHandle GetFunction(const std::string& name) final {
-    if (name == "runtime.RPCTimeEvaluator") {
+    if (name == "tvm.runtime.RPCTimeEvaluator") {
       return get_time_eval_placeholder_.get();
     } else if (auto fp = tvm::ffi::Function::GetGlobal(name)) {
       TVMFFIAny val = tvm::ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(tvm::ffi::Any(*fp));
@@ -305,7 +305,7 @@ class AsyncLocalSession : public LocalSession {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("wasm.LocalSession", []() {
+  refl::GlobalDef().def("tvm.wasm.LocalSession", []() {
     return CreateRPCSessionModule(std::make_shared<AsyncLocalSession>());
   });
 }

@@ -196,16 +196,16 @@ void SRefTreeCreator::VisitStmt_(const SeqStmtNode* seq_stmt) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.StmtSRefStmt",
+      .def("tvm.tir.StmtSRefStmt",
            [](StmtSRef sref) -> ffi::Optional<Stmt> {
              return ffi::GetRef<ffi::Optional<Stmt>>(sref->stmt);
            })
-      .def("tir.StmtSRefParent",
+      .def("tvm.tir.StmtSRefParent",
            [](StmtSRef sref) -> ffi::Optional<StmtSRef> {
              return ffi::GetRef<ffi::Optional<StmtSRef>>(sref->parent);
            })
-      .def("tir.StmtSRefRootMark", StmtSRef::RootMark)
-      .def("tir.StmtSRefInlineMark", StmtSRef::InlineMark)
+      .def("tvm.tir.StmtSRefRootMark", StmtSRef::RootMark)
+      .def("tvm.tir.StmtSRefInlineMark", StmtSRef::InlineMark)
       .def_method("tir.BlockScopeGetDepsBySrc", &BlockScopeNode::GetDepsBySrc)
       .def_method("tir.BlockScopeGetDepsByDst", &BlockScopeNode::GetDepsByDst);
 }

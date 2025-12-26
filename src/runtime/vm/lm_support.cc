@@ -261,7 +261,7 @@ class AttentionKVCacheLegacy : public ObjectRef {
 //-------------------------------------------------
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("vm.builtin.attention_kv_cache_create", AttentionKVCacheLegacy::Create);
+  refl::GlobalDef().def("tvm.vm.builtin.attention_kv_cache_create", AttentionKVCacheLegacy::Create);
 }
 
 AttentionKVCacheLegacy AttentionKVCacheUpdate(AttentionKVCacheLegacy cache, Tensor value) {
@@ -271,7 +271,7 @@ AttentionKVCacheLegacy AttentionKVCacheUpdate(AttentionKVCacheLegacy cache, Tens
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("vm.builtin.attention_kv_cache_update", AttentionKVCacheUpdate);
+  refl::GlobalDef().def("tvm.vm.builtin.attention_kv_cache_update", AttentionKVCacheUpdate);
 }
 
 AttentionKVCacheLegacy AttentionKVCacheAppend(AttentionKVCacheLegacy cache, Tensor value) {
@@ -281,7 +281,7 @@ AttentionKVCacheLegacy AttentionKVCacheAppend(AttentionKVCacheLegacy cache, Tens
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("vm.builtin.attention_kv_cache_append", AttentionKVCacheAppend);
+  refl::GlobalDef().def("tvm.vm.builtin.attention_kv_cache_append", AttentionKVCacheAppend);
 }
 
 AttentionKVCacheLegacy AttentionKVCacheWindowOverride(AttentionKVCacheLegacy cache, Tensor value,
@@ -292,7 +292,7 @@ AttentionKVCacheLegacy AttentionKVCacheWindowOverride(AttentionKVCacheLegacy cac
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("vm.builtin.attention_kv_cache_window_override",
+  refl::GlobalDef().def("tvm.vm.builtin.attention_kv_cache_window_override",
                         AttentionKVCacheWindowOverride);
 }
 
@@ -305,7 +305,7 @@ AttentionKVCacheLegacy AttentionKVCacheWindowOverrideWithSinks(AttentionKVCacheL
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("vm.builtin.attention_kv_cache_window_override_with_sinks",
+  refl::GlobalDef().def("tvm.vm.builtin.attention_kv_cache_window_override_with_sinks",
                         AttentionKVCacheWindowOverrideWithSinks);
 }
 
@@ -316,7 +316,7 @@ Tensor AttentionKVCacheView(AttentionKVCacheLegacy cache, ffi::Shape shape) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
-      "vm.builtin.attention_kv_cache_view", [](ffi::PackedArgs args, ffi::Any* rv) {
+      "tvm.vm.builtin.attention_kv_cache_view", [](ffi::PackedArgs args, ffi::Any* rv) {
         CHECK(args.size() == 1 || args.size() == 2)
             << "ValueError: `vm.builtin.attention_kv_cache_view` expects 1 or 2 arguments, but got "
             << args.size() << ".";
@@ -343,7 +343,7 @@ void AttentionKVCacheArrayPopN(ffi::Array<AttentionKVCacheLegacy> caches, int64_
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("vm.builtin.attention_kv_cache_array_popn", AttentionKVCacheArrayPopN);
+  refl::GlobalDef().def("tvm.vm.builtin.attention_kv_cache_array_popn", AttentionKVCacheArrayPopN);
 }
 
 void AttentionKVCacheArrayClear(ffi::Array<AttentionKVCacheLegacy> caches) {
@@ -354,7 +354,8 @@ void AttentionKVCacheArrayClear(ffi::Array<AttentionKVCacheLegacy> caches) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("vm.builtin.attention_kv_cache_array_clear", AttentionKVCacheArrayClear);
+  refl::GlobalDef().def("tvm.vm.builtin.attention_kv_cache_array_clear",
+                        AttentionKVCacheArrayClear);
 }
 
 // NOTE this is a built-in highly related to LM so we put it here.
@@ -421,7 +422,7 @@ int SampleTopPFromLogits(Tensor logits, double temperature, double top_p, double
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("vm.builtin.sample_top_p_from_logits", SampleTopPFromLogits);
+  refl::GlobalDef().def("tvm.vm.builtin.sample_top_p_from_logits", SampleTopPFromLogits);
 }
 
 int SampleTopPFromProb(Tensor prob, double top_p, double uniform_sample) {
@@ -519,7 +520,7 @@ int SampleTopPFromProb(Tensor prob, double top_p, double uniform_sample) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("vm.builtin.sample_top_p_from_prob", SampleTopPFromProb);
+  refl::GlobalDef().def("tvm.vm.builtin.sample_top_p_from_prob", SampleTopPFromProb);
 }
 
 Tensor MultinomialFromUniform(Tensor prob, Tensor uniform_sample) {
@@ -559,7 +560,7 @@ Tensor MultinomialFromUniform(Tensor prob, Tensor uniform_sample) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("vm.builtin.multinomial_from_uniform", MultinomialFromUniform);
+  refl::GlobalDef().def("tvm.vm.builtin.multinomial_from_uniform", MultinomialFromUniform);
 }
 
 // This is an inplace operation.
@@ -585,7 +586,7 @@ void ApplyRepetitionPenalty(Tensor logits, Tensor token_ids, double penalty) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("vm.builtin.apply_repetition_penalty", ApplyRepetitionPenalty);
+  refl::GlobalDef().def("tvm.vm.builtin.apply_repetition_penalty", ApplyRepetitionPenalty);
 }
 
 /*!
@@ -623,7 +624,7 @@ void ApplyPresenceAndFrequencyPenalty(Tensor logits, Tensor token_ids, Tensor to
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("vm.builtin.apply_presence_and_frequency_penalty",
+  refl::GlobalDef().def("tvm.vm.builtin.apply_presence_and_frequency_penalty",
                         ApplyPresenceAndFrequencyPenalty);
 }
 
@@ -651,7 +652,8 @@ void ApplySoftmaxWithTemperature(Tensor logits, double temperature) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("vm.builtin.apply_softmax_with_temperature", ApplySoftmaxWithTemperature);
+  refl::GlobalDef().def("tvm.vm.builtin.apply_softmax_with_temperature",
+                        ApplySoftmaxWithTemperature);
 }
 
 }  // namespace vm

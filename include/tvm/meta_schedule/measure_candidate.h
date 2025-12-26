@@ -43,7 +43,8 @@ class MeasureCandidateNode : public runtime::Object {
         .def_ro("sch", &MeasureCandidateNode::sch)
         .def_ro("args_info", &MeasureCandidateNode::args_info);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MeasureCandidate", MeasureCandidateNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.MeasureCandidate", MeasureCandidateNode,
+                                    Object);
 };
 
 /*!

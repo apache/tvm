@@ -125,7 +125,7 @@ void RPCServerLoop(ffi::Function fsend, ffi::Function frecv) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_packed("rpc.Connect",
+      .def_packed("tvm.rpc.Connect",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     auto url = args[0].cast<std::string>();
                     int port = args[1].cast<int>();
@@ -133,7 +133,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     bool enable_logging = args[3].cast<bool>();
                     *rv = RPCClientConnect(url, port, key, enable_logging, args.Slice(4));
                   })
-      .def_packed("rpc.ServerLoop", [](ffi::PackedArgs args, ffi::Any* rv) {
+      .def_packed("tvm.rpc.ServerLoop", [](ffi::PackedArgs args, ffi::Any* rv) {
         if (auto opt_int = args[0].as<int64_t>()) {
           RPCServerLoop(opt_int.value());
         } else {
@@ -169,7 +169,7 @@ class SimpleSockHandler : public dmlc::Stream {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("rpc.ReturnException", [](int sockfd, ffi::String msg) {
+  refl::GlobalDef().def("tvm.rpc.ReturnException", [](int sockfd, ffi::String msg) {
     auto handler = SimpleSockHandler(sockfd);
     RPCReference::ReturnException(msg.c_str(), &handler);
     return;

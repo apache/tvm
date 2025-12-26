@@ -343,7 +343,7 @@ Pass SplitLayoutRewritePreproc() {
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.SplitLayoutRewritePreproc", SplitLayoutRewritePreproc);
+  refl::GlobalDef().def("tvm.relax.transform.SplitLayoutRewritePreproc", SplitLayoutRewritePreproc);
 }
 }  // namespace transform
 }  // namespace tvm

@@ -25,7 +25,7 @@ from tvm.target import Target
 from . import _ffi_api
 
 
-@register_object("meta_schedule.ExtractedTask")
+@register_object("tvm.meta_schedule.ExtractedTask")
 class ExtractedTask(Object):
     """A tuning task extracted from the high-level IR
 

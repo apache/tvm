@@ -50,7 +50,7 @@ def Apply(ftransform):
     return _fpass.prim_func_pass(_transform, opt_level=0, name="Apply")  # type: ignore
 
 
-@_ffi.register_object("tir.transform.LoopPartitionConfig")
+@_ffi.register_object("tvm.tir.transform.LoopPartitionConfig")
 class LoopPartitionConfig(_ir.Attrs):
     """Config for loop partition pass"""
 
@@ -94,7 +94,7 @@ def InjectVirtualThread():
     return _ffi_api.InjectVirtualThread()  # type: ignore
 
 
-@_ffi.register_object("tir.transform.InjectDoubleBufferConfig")
+@_ffi.register_object("tvm.tir.transform.InjectDoubleBufferConfig")
 class InjectDoubleBufferConfig(_ir.Attrs):
     """Config for inject double buffer pass"""
 
@@ -161,7 +161,7 @@ def PointerValueTypeRewrite():
     return _ffi_api.PointerValueTypeRewrite()  # type: ignore
 
 
-@_ffi.register_object("tir.transform.UnrollLoopConfig")
+@_ffi.register_object("tvm.tir.transform.UnrollLoopConfig")
 class UnrollLoopConfig(_ir.Attrs):
     """Config for unroll loop pass"""
 
@@ -179,7 +179,7 @@ def UnrollLoop():
     return _ffi_api.UnrollLoop()  # type: ignore
 
 
-@_ffi.register_object("tir.transform.ReduceBranchingThroughOvercomputeConfig")
+@_ffi.register_object("tvm.tir.transform.ReduceBranchingThroughOvercomputeConfig")
 class ReduceBranchingThroughOvercomputeConfig(_ir.Attrs):
     """Config for reduce branching through overcompute pass"""
 
@@ -195,7 +195,7 @@ def ReduceBranchingThroughOvercompute():
     return _ffi_api.ReduceBranchingThroughOvercompute()  # type: ignore
 
 
-@_ffi.register_object("tir.transform.RemoveNoOpConfig")
+@_ffi.register_object("tvm.tir.transform.RemoveNoOpConfig")
 class RemoveNoOpConfig(_ir.Attrs):
     """Config for remove no op pass"""
 
@@ -304,7 +304,7 @@ def RewriteUnsafeSelect():
     return _ffi_api.RewriteUnsafeSelect()  # type: ignore
 
 
-@_ffi.register_object("tir.transform.SimplifyConfig")
+@_ffi.register_object("tvm.tir.transform.SimplifyConfig")
 class SimplifyConfig(_ir.Attrs):
     """Config for simplify pass"""
 
@@ -652,7 +652,7 @@ def VerifyVTCMLimit(limit=None):
     return _ffi_api.VerifyVTCMLimit(limit)  # type: ignore
 
 
-@_ffi.register_object("tir.transform.HoistIfThenElseConfig")
+@_ffi.register_object("tvm.tir.transform.HoistIfThenElseConfig")
 class HoistIfThenElseConfig(_ir.Attrs):
     """Config for hoist if then else pass"""
 
@@ -736,7 +736,7 @@ class HoistedLetBindings(enum.Flag):
     """ Enable all hoisting of let bindings """
 
 
-@_ffi.register_object("tir.transform.HoistExpressionConfig")
+@_ffi.register_object("tvm.tir.transform.HoistExpressionConfig")
 class HoistExpressionConfig(_ir.Attrs):
     """Config for hoist expression pass"""
 

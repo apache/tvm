@@ -44,7 +44,7 @@ struct CallTIRWithGradAttrs : public AttrsNodeReflAdapter<CallTIRWithGradAttrs> 
         .def_ro("te_grad_kwargs", &CallTIRWithGradAttrs::te_grad_kwargs,
                 "The keyword arguments passed to the te gradient function.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.CallTIRWithGradAttrs", CallTIRWithGradAttrs,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.CallTIRWithGradAttrs", CallTIRWithGradAttrs,
                                     BaseAttrsNode);
 };  // struct CallTIRAttrs
 
@@ -64,7 +64,7 @@ struct CallTIRInplaceAttrs : public AttrsNodeReflAdapter<CallTIRInplaceAttrs> {
     refl::ObjectDef<CallTIRInplaceAttrs>().def_ro("inplace_indices",
                                                   &CallTIRInplaceAttrs::inplace_indices);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.CallTIRInplaceAttrs", CallTIRInplaceAttrs,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.CallTIRInplaceAttrs", CallTIRInplaceAttrs,
                                     BaseAttrsNode);
 };  // struct CallTIRInplaceAttrs
 
@@ -84,8 +84,8 @@ struct CallInplacePackedAttrs : public AttrsNodeReflAdapter<CallInplacePackedAtt
     refl::ObjectDef<CallInplacePackedAttrs>().def_ro("inplace_indices",
                                                      &CallInplacePackedAttrs::inplace_indices);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.CallInplacePackedAttrs", CallInplacePackedAttrs,
-                                    BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.CallInplacePackedAttrs",
+                                    CallInplacePackedAttrs, BaseAttrsNode);
 };  // struct CallInplacePackedAttrs
 
 /*! \brief Attributes used in to_vdevice */
@@ -97,7 +97,8 @@ struct ToVDeviceAttrs : public AttrsNodeReflAdapter<ToVDeviceAttrs> {
     refl::ObjectDef<ToVDeviceAttrs>().def_ro("dst_vdevice", &ToVDeviceAttrs::dst_vdevice,
                                              "The destination device where the data is copied to.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ToVDeviceAttrs", ToVDeviceAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.ToVDeviceAttrs", ToVDeviceAttrs,
+                                    BaseAttrsNode);
 };  // struct ToVDeviceAttrs
 
 /*! \brief Attributes used in hint_on_device */
@@ -114,7 +115,7 @@ struct HintOnDeviceAttrs : public AttrsNodeReflAdapter<HintOnDeviceAttrs> {
         .def_ro("index", &HintOnDeviceAttrs::index, "The device id.")
         .def_ro("memory_scope", &HintOnDeviceAttrs::memory_scope, "The device memory scope.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.HintOnDeviceAttrs", HintOnDeviceAttrs,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.HintOnDeviceAttrs", HintOnDeviceAttrs,
                                     BaseAttrsNode);
 };  // struct HintOnDeviceAttrs
 

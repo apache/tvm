@@ -499,6 +499,6 @@ class VirtualMachine(object):
         return Report.from_json(report_json)
 
 
-@register_global_func("vm.builtin.debug_print")
+@register_global_func("tvm.vm.builtin.debug_print")
 def _print(lineo: str, array) -> None:
     print(f"{lineo}: shape = {array.shape}, dtype = {array.dtype}, data =\n{array}")

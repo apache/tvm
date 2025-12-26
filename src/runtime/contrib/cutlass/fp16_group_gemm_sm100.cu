@@ -49,7 +49,7 @@ void tvm_cutlass_group_gemm_sm100(Tensor x, Tensor weight, Tensor indptr, Tensor
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("cutlass.group_gemm", tvm_cutlass_group_gemm_sm100);
+  refl::GlobalDef().def("tvm.cutlass.group_gemm", tvm_cutlass_group_gemm_sm100);
 }
 
 }  // namespace runtime

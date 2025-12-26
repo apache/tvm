@@ -84,8 +84,8 @@ ffi::Array<Operation> PostDFSOrder(const ffi::Array<Operation>& roots, const Rea
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("schedule.CreateReadGraph", CreateReadGraph)
-      .def("schedule.PostDFSOrder", [](const ffi::Array<Operation>& roots, const ReadGraph& g) {
+      .def("tvm.schedule.CreateReadGraph", CreateReadGraph)
+      .def("tvm.schedule.PostDFSOrder", [](const ffi::Array<Operation>& roots, const ReadGraph& g) {
         return PostDFSOrder(roots, g);
       });
 }

@@ -22,7 +22,7 @@ from . import _ffi_api
 from .expr import RelaxExpr
 
 
-@tvm_ffi.register_object("ir.Op")
+@tvm_ffi.register_object("tvm.ir.Op")
 class Op(RelaxExpr):
     """Primitive operator in the IR."""
 

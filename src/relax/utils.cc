@@ -249,7 +249,7 @@ Function CopyWithNewVars(Function func) { return FunctionCopier().Copy(func); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.CopyWithNewVars", CopyWithNewVars);
+  refl::GlobalDef().def("tvm.relax.CopyWithNewVars", CopyWithNewVars);
 }
 
 }  // namespace relax

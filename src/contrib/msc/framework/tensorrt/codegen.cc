@@ -120,7 +120,7 @@ void TensorRTCodeGen::CodeGenClassDefine() {
   stack_.func_arg("logger", "TRTLogger&").func_start();
   // save codegen before build
   if (config()->use_tools) {
-    const auto pf = tvm::ffi::Function::GetGlobalRequired("msc_tool.codegen_step");
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("tvm.msc_tool.codegen_step");
     before_build_codes_ = pf(GetStepCtx(), "before_build", graph()->name, config()->tools_tag)
                               .cast<ffi::Array<ffi::String>>();
   }
@@ -206,7 +206,7 @@ void TensorRTCodeGen::CodeGenClassDefine() {
   }
   // save codegen after build
   if (config()->use_tools) {
-    const auto pf = tvm::ffi::Function::GetGlobalRequired("msc_tool.codegen_step");
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("tvm.msc_tool.codegen_step");
     after_build_codes_ = pf(GetStepCtx(), "after_build", graph()->name, config()->tools_tag)
                              .cast<ffi::Array<ffi::String>>();
   }
@@ -579,14 +579,14 @@ const ffi::Map<ffi::String, ffi::String> TensorRTCodeGen::GetStepCtx() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("msc.framework.tensorrt.GetTensorRTSources",
+      .def("tvm.msc.framework.tensorrt.GetTensorRTSources",
            [](const MSCGraph& graph, const ffi::String& codegen_config,
               const ffi::String& print_config) -> ffi::Map<ffi::String, ffi::String> {
              TensorRTCodeGen codegen = TensorRTCodeGen(graph, codegen_config);
              codegen.Init();
              return codegen.GetSources(print_config);
            })
-      .def("msc.framework.tensorrt.GetTensorRTRoot", []() -> ffi::String {
+      .def("tvm.msc.framework.tensorrt.GetTensorRTRoot", []() -> ffi::String {
 #ifdef TENSORRT_ROOT_DIR
         return TENSORRT_ROOT_DIR;
 #else
@@ -615,7 +615,8 @@ ffi::Array<ffi::Module> MSCTensorRTCompiler(ffi::Array<Function> functions,
     MSCJSONSerializer serializer(constant_names, options);
     serializer.serialize(func);
     std::string graph_json = serializer.GetJSON();
-    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.msc_tensorrt_runtime_create");
+    const auto pf =
+        tvm::ffi::Function::GetGlobalRequired("tvm.runtime.msc_tensorrt_runtime_create");
     VLOG(1) << "Creating msc_tensorrt ffi::Module for '" << func_name << "'";
     compiled_functions.push_back(
         pf(func_name, graph_json, serializer.GetConstantNames()).cast<ffi::Module>());
@@ -625,7 +626,7 @@ ffi::Array<ffi::Module> MSCTensorRTCompiler(ffi::Array<Function> functions,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.ext.msc_tensorrt", MSCTensorRTCompiler);
+  refl::GlobalDef().def("tvm.relax.ext.msc_tensorrt", MSCTensorRTCompiler);
 }
 
 }  // namespace msc

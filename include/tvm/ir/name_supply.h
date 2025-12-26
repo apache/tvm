@@ -92,7 +92,7 @@ class NameSupplyNode : public Object {
     refl::ObjectDef<NameSupplyNode>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.NameSupply", NameSupplyNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.NameSupply", NameSupplyNode, Object);
 
  private:
   /*! \brief Helper function to add the NameSupply prefix to the name. */

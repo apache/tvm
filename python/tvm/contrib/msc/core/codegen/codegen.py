@@ -209,7 +209,7 @@ def to_relax(
             passes, name="tvm.contrib.msc.core.codegen.to_relax_postproc"
         )(mod)
 
-    source_getter = tvm.get_global_func("msc.framework.tvm.GetRelaxSources")
+    source_getter = tvm.get_global_func("tvm.msc.framework.tvm.GetRelaxSources")
     codegen = CodeGen(graph, source_getter, codegen_config, print_config, build_folder)
     model_args = [_to_var(i) for i in graph.get_inputs()]
     if plugin:

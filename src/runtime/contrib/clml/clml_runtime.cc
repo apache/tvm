@@ -313,7 +313,7 @@ class CLMLRuntime : public JSONRuntimeBase {
       dump_tensors.Set(node_name, narr);
     }
 
-    const auto f = tvm::ffi::Function::GetGlobal("runtime.SaveParams");
+    const auto f = tvm::ffi::Function::GetGlobal("tvm.runtime.SaveParams");
     if (f.has_value()) {
       std::string dump_bytes = (*f)(dump_tensors).cast<ffi::String>();
       std::ostringstream oss;
@@ -480,7 +480,7 @@ class CLMLRuntime : public JSONRuntimeBase {
       LOG_CLML << "Execution by Rec Queue";
       if (cws->workspace->IsProfiling(cws->tentry->device)) {
         Timer t;
-        auto f = tvm::ffi::Function::GetGlobal(std::string("profiling.timer.opencl"));
+        auto f = tvm::ffi::Function::GetGlobal(std::string("tvm.profiling.timer.opencl"));
         t = f->operator()(cws->tentry->device).cast<Timer>();
         t->Start();
         queue = CLML_QUEUE;
@@ -501,7 +501,7 @@ class CLMLRuntime : public JSONRuntimeBase {
         LOG_CLML << "Run Layer:" << this->layer_.layer_names[i];
         if (cws->workspace->IsProfiling(cws->tentry->device)) {
           Timer t;
-          auto f = tvm::ffi::Function::GetGlobal(std::string("profiling.timer.opencl"));
+          auto f = tvm::ffi::Function::GetGlobal(std::string("tvm.profiling.timer.opencl"));
           t = f->operator()(cws->tentry->device).cast<Timer>();
           t->Start();
           queue = CLML_QUEUE;
@@ -1835,7 +1835,7 @@ ffi::Module CLMLRuntimeCreate(const ffi::String& symbol_name, const ffi::String&
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.clml_runtime_create", CLMLRuntimeCreate)
+      .def("tvm.runtime.clml_runtime_create", CLMLRuntimeCreate)
       .def("ffi.Module.load_from_bytes.clml", JSONRuntimeBase::LoadFromBytes<CLMLRuntime>);
 }
 }  //  namespace contrib

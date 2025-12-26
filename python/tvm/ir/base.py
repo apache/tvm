@@ -26,13 +26,13 @@ class Node(Object):
     """Base class of all IR Nodes."""
 
 
-@register_object("ir.SourceMap")
+@register_object("tvm.ir.SourceMap")
 class SourceMap(Object):
     def add(self, name, content):
-        return get_global_func("SourceMapAdd")(self, name, content)
+        return get_global_func("tvm.SourceMapAdd")(self, name, content)
 
 
-@register_object("ir.SourceName")
+@register_object("tvm.ir.SourceName")
 class SourceName(Object):
     """A identifier for a source location.
 
@@ -46,7 +46,7 @@ class SourceName(Object):
         self.__init_handle_by_constructor__(_ffi_api.SourceName, name)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("ir.Span")
+@register_object("tvm.ir.Span")
 class Span(Object):
     """Specifies a location in a source program.
 
@@ -68,7 +68,7 @@ class Span(Object):
         )
 
 
-@register_object("ir.SequentialSpan")
+@register_object("tvm.ir.SequentialSpan")
 class SequentialSpan(Object):
     """A sequence of source spans
 
@@ -85,7 +85,7 @@ class SequentialSpan(Object):
         self.__init_handle_by_constructor__(_ffi_api.SequentialSpan, spans)
 
 
-@register_object("ir.EnvFunc")
+@register_object("tvm.ir.EnvFunc")
 class EnvFunc(Object):
     """Environment function.
 

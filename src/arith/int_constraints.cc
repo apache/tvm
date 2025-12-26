@@ -204,19 +204,20 @@ Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) co
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("arith.IntGroupBounds",
+      .def("tvm.arith.IntGroupBounds",
            [](PrimExpr coef, ffi::Array<PrimExpr> lower, ffi::Array<PrimExpr> equal,
               ffi::Array<PrimExpr> upper) { return IntGroupBounds(coef, lower, equal, upper); })
-      .def("arith.IntGroupBounds_from_range", IntGroupBounds::FromRange)
-      .def_packed("arith.IntGroupBounds_FindBestRange", [](ffi::PackedArgs args, ffi::Any* ret) {
-        ICHECK(args.size() == 1 || args.size() == 2);
-        auto bounds = args[0].cast<IntGroupBounds>();
-        if (args.size() == 1) {
-          *ret = bounds.FindBestRange();
-        } else if (args.size() == 2) {
-          *ret = bounds.FindBestRange(args[1].cast<ffi::Map<Var, Range>>());
-        }
-      });
+      .def("tvm.arith.IntGroupBounds_from_range", IntGroupBounds::FromRange)
+      .def_packed("tvm.arith.IntGroupBounds_FindBestRange",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    ICHECK(args.size() == 1 || args.size() == 2);
+                    auto bounds = args[0].cast<IntGroupBounds>();
+                    if (args.size() == 1) {
+                      *ret = bounds.FindBestRange();
+                    } else if (args.size() == 2) {
+                      *ret = bounds.FindBestRange(args[1].cast<ffi::Map<Var, Range>>());
+                    }
+                  });
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -249,7 +250,7 @@ IntConstraints::IntConstraints(ffi::Array<Var> variables, ffi::Map<Var, Range> r
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "arith.IntConstraints",
+      "tvm.arith.IntConstraints",
       [](ffi::Array<Var> variables, ffi::Map<Var, Range> ranges, ffi::Array<PrimExpr> relations) {
         return IntConstraints(variables, ranges, relations);
       });
@@ -295,7 +296,7 @@ IntConstraintsTransform IntConstraintsTransform::operator+(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("arith.IntConstraintsTransform",
+  refl::GlobalDef().def("tvm.arith.IntConstraintsTransform",
                         [](IntConstraints src, IntConstraints dst,
                            ffi::Map<Var, PrimExpr> src_to_dst, ffi::Map<Var, PrimExpr> dst_to_src) {
                           return IntConstraintsTransform(src, dst, src_to_dst, dst_to_src);

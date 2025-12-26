@@ -203,7 +203,7 @@ Pass MakeUnpackedAPI() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.MakeUnpackedAPI", MakeUnpackedAPI);
+  refl::GlobalDef().def("tvm.tir.transform.MakeUnpackedAPI", MakeUnpackedAPI);
 }
 }  // namespace transform
 }  // namespace tir

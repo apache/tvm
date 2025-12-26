@@ -121,7 +121,7 @@ ffi::Map<Var, ffi::Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.analysis.udchain", DataflowBlockUseDef);
+  refl::GlobalDef().def("tvm.relax.analysis.udchain", DataflowBlockUseDef);
 }
 
 VarUsageInfo CollectVarUsage(const Expr& expr) { return UDChain::Collect(expr); }

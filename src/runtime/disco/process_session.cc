@@ -168,7 +168,8 @@ class ProcessSessionObj final : public BcastSessionObj {
   ffi::Function process_pool_;
   std::unique_ptr<DiscoWorkerThread> worker_0_;
   std::vector<std::unique_ptr<DiscoProcessChannel>> workers_;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.ProcessSession", ProcessSessionObj, SessionObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.runtime.disco.ProcessSession", ProcessSessionObj,
+                                    SessionObj);
 };
 
 Session Session::ProcessSession(int num_workers, int num_group, ffi::String process_pool_creator,
@@ -196,8 +197,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<ProcessSessionObj>();
   refl::GlobalDef()
-      .def("runtime.disco.SessionProcess", Session::ProcessSession)
-      .def("runtime.disco.WorkerProcess", WorkerProcess);
+      .def("tvm.runtime.disco.SessionProcess", Session::ProcessSession)
+      .def("tvm.runtime.disco.WorkerProcess", WorkerProcess);
 }
 
 }  // namespace runtime

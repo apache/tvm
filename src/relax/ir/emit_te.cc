@@ -75,7 +75,7 @@ te::Tensor TETensor(Expr value, ffi::Map<tir::Var, PrimExpr> tir_var_map, std::s
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.TETensor", TETensor);
+  refl::GlobalDef().def("tvm.relax.TETensor", TETensor);
 }
 
 }  // namespace relax

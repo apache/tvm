@@ -78,23 +78,24 @@ void init_tile_config(__tilecfg_u* dst, uint16_t cols, uint8_t rows) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("runtime.amx_tileconfig", [](ffi::PackedArgs args, ffi::Any* rv) {
-    int rows = args[0].cast<int>();
-    int cols = args[1].cast<int>();
-    LOG(INFO) << "rows: " << rows << ", cols:" << cols;
-    // -----------Config for AMX tile resgister----------------------
-    __tilecfg_u cfg;
-    init_tile_config(&cfg, cols, rows);
+  refl::GlobalDef().def_packed("tvm.runtime.amx_tileconfig",
+                               [](ffi::PackedArgs args, ffi::Any* rv) {
+                                 int rows = args[0].cast<int>();
+                                 int cols = args[1].cast<int>();
+                                 LOG(INFO) << "rows: " << rows << ", cols:" << cols;
+                                 // -----------Config for AMX tile resgister----------------------
+                                 __tilecfg_u cfg;
+                                 init_tile_config(&cfg, cols, rows);
 
-    *rv = 1;
-    return;
-  });
+                                 *rv = 1;
+                                 return;
+                               });
 }
 
 // register a global packed function in c++，to init the system for AMX config
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("runtime.amx_init", [](ffi::PackedArgs args, ffi::Any* rv) {
+  refl::GlobalDef().def_packed("tvm.runtime.amx_init", [](ffi::PackedArgs args, ffi::Any* rv) {
     // -----------Detect and request for AMX control----------------------
     uint64_t bitmask = 0;
     int64_t status = syscall(SYS_arch_prctl, ARCH_GET_XCOMP_PERM, &bitmask);

@@ -23,7 +23,7 @@ from .. import _ffi_api
 from .schedule_rule import ScheduleRule
 
 
-@register_object("meta_schedule.CrossThreadReduction")
+@register_object("tvm.meta_schedule.CrossThreadReduction")
 class CrossThreadReduction(ScheduleRule):
     """A schedule rule which applies cross-thread reduction to some reduction blocks
     correspondingly when needed

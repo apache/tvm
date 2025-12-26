@@ -166,8 +166,8 @@ ffi::Map<Buffer, ffi::Array<ObjectRef>> DomainTouchedAccessMap(const PrimFunc& f
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("arith.DomainTouched", DomainTouched)
-      .def("arith.DomainTouchedAccessMap", DomainTouchedAccessMap);
+      .def("tvm.arith.DomainTouched", DomainTouched)
+      .def("tvm.arith.DomainTouchedAccessMap", DomainTouchedAccessMap);
 }
 
 }  // namespace arith

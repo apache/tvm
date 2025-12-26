@@ -140,8 +140,8 @@ class IRModuleNode : public Object {
         .def_ro("global_infos", &IRModuleNode::global_infos);
     // register custom structural equal and hash.
     refl::TypeAttrDef<IRModuleNode>()
-        .def("__s_equal__", &IRModuleNode::SEqual)
-        .def("__s_hash__", &IRModuleNode::SHash);
+        .def("tvm.__s_equal__", &IRModuleNode::SEqual)
+        .def("tvm.__s_hash__", &IRModuleNode::SHash);
   }
 
   TVM_DLL bool SEqual(const IRModuleNode* other,
@@ -243,7 +243,7 @@ class IRModuleNode : public Object {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.IRModule", IRModuleNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.IRModule", IRModuleNode, Object);
 
  private:
   friend class IRModule;

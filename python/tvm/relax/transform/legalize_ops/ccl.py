@@ -40,7 +40,7 @@ def _allreduce(_bb: BlockBuilder, call: Call) -> Expr:
             f"Supported operations are {op_type_map.keys()}."
         )
     return call_dps_packed(
-        "runtime.disco.allreduce",
+        "tvm.runtime.disco.allreduce",
         [call.args[0], ShapeExpr([op_type_map[op_type_str]]), call.attrs.in_group],
         out_sinfo=call.args[0].struct_info,
     )
@@ -61,7 +61,7 @@ def _allgather(_bb: BlockBuilder, call: Call) -> Expr:
         else:
             output_shape.append(shape_value)
     return call_dps_packed(
-        "runtime.disco.allgather",
+        "tvm.runtime.disco.allgather",
         [call.args[0], call.attrs.in_group],
         out_sinfo=TensorStructInfo(
             shape=output_shape,
@@ -74,7 +74,7 @@ def _allgather(_bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.ccl.broadcast_from_worker0")
 def _broadcast_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
     return call_dps_packed(
-        "runtime.disco.broadcast_from_worker0",
+        "tvm.runtime.disco.broadcast_from_worker0",
         [call.args[0], False],
         out_sinfo=call.args[0].struct_info,
     )
@@ -115,7 +115,7 @@ def _scatter_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
     output_shape = transpose_var.struct_info.shape.struct_info.values
     output_shape = output_shape[1:]
     return call_dps_packed(
-        "runtime.disco.scatter_from_worker0",
+        "tvm.runtime.disco.scatter_from_worker0",
         [transpose_var, False],
         out_sinfo=TensorStructInfo(
             shape=output_shape,

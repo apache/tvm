@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from ..tune_context import TuneContext
 
 
-@register_object("meta_schedule.ScheduleRule")
+@register_object("tvm.meta_schedule.ScheduleRule")
 class ScheduleRule(Object):
     """Rules to modify a block in a schedule."""
 
@@ -112,7 +112,7 @@ class ScheduleRule(Object):
 create = ScheduleRule.create  # pylint: disable=invalid-name
 
 
-@register_object("meta_schedule.PyScheduleRule")
+@register_object("tvm.meta_schedule.PyScheduleRule")
 class _PyScheduleRule(ScheduleRule):
     """
     A TVM object schedule rule to support customization on the python side.

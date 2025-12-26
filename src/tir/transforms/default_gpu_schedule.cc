@@ -166,7 +166,7 @@ Pass DefaultGPUSchedule() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.DefaultGPUSchedule", DefaultGPUSchedule);
+  refl::GlobalDef().def("tvm.tir.transform.DefaultGPUSchedule", DefaultGPUSchedule);
 }
 
 }  // namespace transform

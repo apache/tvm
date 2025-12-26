@@ -932,7 +932,7 @@ ffi::Module DNNLJSONRuntimeCreate(ffi::String symbol_name, ffi::String graph_jso
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.DNNLJSONRuntimeCreate", DNNLJSONRuntimeCreate)
+      .def("tvm.runtime.DNNLJSONRuntimeCreate", DNNLJSONRuntimeCreate)
       .def("ffi.Module.load_from_bytes.dnnl_json", JSONRuntimeBase::LoadFromBytes<DNNLJSONRuntime>);
 }
 

@@ -114,7 +114,7 @@ class LayoutNode : public Object {
         .def_ro("name", &LayoutNode::name)
         .def_ro("axes", &LayoutNode::axes);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Layout", LayoutNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Layout", LayoutNode, Object);
 };
 
 /*!
@@ -321,7 +321,7 @@ class BijectiveLayoutNode : public Object {
         .def_ro("shape_forward_rule", &BijectiveLayoutNode::shape_forward_rule)
         .def_ro("shape_backward_rule", &BijectiveLayoutNode::shape_backward_rule);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BijectiveLayout", BijectiveLayoutNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.BijectiveLayout", BijectiveLayoutNode, Object);
 };
 
 /*!

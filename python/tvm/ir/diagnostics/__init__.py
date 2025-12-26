@@ -38,7 +38,7 @@ def get_renderer():
     return _ffi_api.GetRenderer()
 
 
-@tvm_ffi.register_global_func("diagnostics.override_renderer")
+@tvm_ffi.register_global_func("tvm.diagnostics.override_renderer")
 def override_renderer(render_func):
     """
     Sets a custom renderer for diagnostics.
@@ -54,7 +54,7 @@ def override_renderer(render_func):
         def _render_factory():
             return DiagnosticRenderer(render_func)
 
-        register_global_func("diagnostics.OverrideRenderer", _render_factory, override=True)
+        register_global_func("tvm.diagnostics.OverrideRenderer", _render_factory, override=True)
     else:
         _ffi_api.ClearRenderer()
 
@@ -69,7 +69,7 @@ class DiagnosticLevel(enum.IntEnum):
     HELP = 50
 
 
-@tvm_ffi.register_object("Diagnostic")
+@tvm_ffi.register_object("tvm.Diagnostic")
 class Diagnostic(Object):
     """A single diagnostic object from TVM."""
 
@@ -77,7 +77,7 @@ class Diagnostic(Object):
         self.__init_handle_by_constructor__(_ffi_api.Diagnostic, level, span, message)
 
 
-@tvm_ffi.register_object("DiagnosticRenderer")
+@tvm_ffi.register_object("tvm.DiagnosticRenderer")
 class DiagnosticRenderer(Object):
     """
     A diagnostic renderer, which given a diagnostic context produces a "rendered"
@@ -100,7 +100,7 @@ class DiagnosticRenderer(Object):
 
 
 # Register the diagnostic context.
-@tvm_ffi.register_object("DiagnosticContext")
+@tvm_ffi.register_object("tvm.DiagnosticContext")
 class DiagnosticContext(Object):
     """
     A diagnostic context which records active errors

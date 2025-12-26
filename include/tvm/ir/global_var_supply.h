@@ -85,7 +85,7 @@ class GlobalVarSupplyNode : public Object {
   NameSupply name_supply_;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.GlobalVarSupply", GlobalVarSupplyNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.GlobalVarSupply", GlobalVarSupplyNode, Object);
 
  private:
   std::unordered_map<std::string, GlobalVar> name_to_var_map_;

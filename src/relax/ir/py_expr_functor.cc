@@ -143,7 +143,7 @@ class PyExprVisitorNode : public Object, public ExprVisitor {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("expr_functor.PyExprVisitor", PyExprVisitorNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.expr_functor.PyExprVisitor", PyExprVisitorNode, Object);
 
  private:
   // initialize the vtable.
@@ -406,7 +406,7 @@ class PyExprMutatorNode : public Object, public ExprMutator {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("expr_functor.PyExprMutator", PyExprMutatorNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.expr_functor.PyExprMutator", PyExprMutatorNode, Object);
 
  private:
   // initialize the vtable.
@@ -556,20 +556,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<PyExprVisitorNode>();
   refl::GlobalDef()
-      .def("relax.MakePyExprVisitor", PyExprVisitor::MakePyExprVisitor)
-      .def("relax.PyExprVisitorVisitExpr",
+      .def("tvm.relax.MakePyExprVisitor", PyExprVisitor::MakePyExprVisitor)
+      .def("tvm.relax.PyExprVisitorVisitExpr",
            [](PyExprVisitor visitor, const Expr& expr) { visitor->VisitExpr(expr); })
-      .def("relax.PyExprVisitorVisitBinding",
+      .def("tvm.relax.PyExprVisitorVisitBinding",
            [](PyExprVisitor visitor, const Binding& binding) { visitor->VisitBinding(binding); })
-      .def("relax.PyExprVisitorVisitBindingBlock",
+      .def("tvm.relax.PyExprVisitorVisitBindingBlock",
            [](PyExprVisitor visitor, const BindingBlock& block) {
              visitor->VisitBindingBlock(block);
            })
-      .def("relax.PyExprVisitorVisitVarDef",
+      .def("tvm.relax.PyExprVisitorVisitVarDef",
            [](PyExprVisitor visitor, const Var& var) { visitor->VisitVarDef(var); })
-      .def("relax.ExprVisitorVisitExpr",
+      .def("tvm.relax.ExprVisitorVisitExpr",
            [](PyExprVisitor visitor, const Expr& expr) { visitor->ExprVisitor::VisitExpr(expr); })
-      .def("relax.ExprVisitorVisitBinding",
+      .def("tvm.relax.ExprVisitorVisitBinding",
            [](PyExprVisitor visitor, const Binding& binding) {
              if (const auto* ptr = binding.as<VarBindingNode>()) {
                visitor->ExprVisitor::VisitBinding_(ptr);
@@ -579,7 +579,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                LOG(FATAL) << "unreachable";
              }
            })
-      .def("relax.ExprVisitorVisitBindingBlock",
+      .def("tvm.relax.ExprVisitorVisitBindingBlock",
            [](PyExprVisitor visitor, const BindingBlock& block) {
              if (const auto* ptr = block.as<DataflowBlockNode>()) {
                visitor->ExprVisitor::VisitBindingBlock_(ptr);
@@ -589,7 +589,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
              }
            })
-      .def("relax.ExprVisitorVisitVarDef",
+      .def("tvm.relax.ExprVisitorVisitVarDef",
            [](PyExprVisitor visitor, const Var& var) {
              if (const auto* node = var.as<DataflowVarNode>()) {
                visitor->ExprVisitor::VisitVarDef_(node);
@@ -599,24 +599,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                LOG(FATAL) << "TypeError: Invalid type: " << var->GetTypeKey();
              }
            })
-      .def("relax.ExprVisitorVisitSpan",
+      .def("tvm.relax.ExprVisitorVisitSpan",
            [](PyExprVisitor visitor, const Span& span) { visitor->ExprVisitor::VisitSpan(span); })
-      .def("relax.MakePyExprMutator", PyExprMutator::MakePyExprMutator)
-      .def("relax.PyExprMutatorVisitExpr",
+      .def("tvm.relax.MakePyExprMutator", PyExprMutator::MakePyExprMutator)
+      .def("tvm.relax.PyExprMutatorVisitExpr",
            [](PyExprMutator mutator, const Expr& expr) { return mutator->VisitExpr(expr); })
-      .def("relax.PyExprMutatorVisitBinding",
+      .def("tvm.relax.PyExprMutatorVisitBinding",
            [](PyExprMutator mutator, const Binding& binding) { mutator->VisitBinding(binding); })
-      .def("relax.PyExprMutatorVisitBindingBlock",
+      .def("tvm.relax.PyExprMutatorVisitBindingBlock",
            [](PyExprMutator mutator, const BindingBlock& block) {
              return mutator->VisitBindingBlock(block);
            })
-      .def("relax.PyExprMutatorVisitVarDef",
+      .def("tvm.relax.PyExprMutatorVisitVarDef",
            [](PyExprMutator mutator, const Var& var) { return mutator->VisitVarDef(var); })
-      .def("relax.ExprMutatorVisitExpr",
+      .def("tvm.relax.ExprMutatorVisitExpr",
            [](PyExprMutator mutator, const Expr& expr) {
              return mutator->ExprMutator::VisitExpr(expr);
            })
-      .def("relax.ExprMutatorVisitBinding",
+      .def("tvm.relax.ExprMutatorVisitBinding",
            [](PyExprMutator mutator, const Binding& binding) {
              if (const auto* ptr = binding.as<VarBindingNode>()) {
                return mutator->ExprMutator::VisitBinding_(ptr);
@@ -626,7 +626,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                LOG(FATAL) << "unreachable";
              }
            })
-      .def("relax.ExprMutatorVisitBindingBlock",
+      .def("tvm.relax.ExprMutatorVisitBindingBlock",
            [](PyExprMutator mutator, const BindingBlock& block) {
              if (const auto* node = block.as<DataflowBlockNode>()) {
                return mutator->ExprMutator::VisitBindingBlock_(node);
@@ -636,7 +636,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
              }
            })
-      .def("relax.ExprMutatorVisitVarDef",
+      .def("tvm.relax.ExprMutatorVisitVarDef",
            [](PyExprMutator mutator, const Var& var) {
              if (const auto* node = var.as<DataflowVarNode>()) {
                return mutator->ExprMutator::VisitVarDef_(node);
@@ -647,19 +647,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              }
            })
       .def(
-          "relax.PyExprMutatorVisitExprPostOrder",
+          "tvm.relax.PyExprMutatorVisitExprPostOrder",
           [](PyExprMutator mutator, const Expr& expr) { return mutator->VisitExprPostOrder(expr); })
-      .def("relax.PyExprMutatorVisitWithNewScope",
+      .def("tvm.relax.PyExprMutatorVisitWithNewScope",
            [](PyExprMutator mutator, const Expr& expr) { return mutator->VisitWithNewScope(expr); })
-      .def("relax.PyExprMutatorLookupBinding",
+      .def("tvm.relax.PyExprMutatorLookupBinding",
            [](PyExprMutator mutator, const Var& var) { return mutator->LookupBinding(var); })
-      .def("relax.PyExprMutatorWithStructInfo",
+      .def("tvm.relax.PyExprMutatorWithStructInfo",
            [](PyExprMutator mutator, Var var, StructInfo sinfo) {
              return mutator->WithStructInfo(var, sinfo);
            })
-      .def("relax.PyExprMutatorSetVarRemap",
+      .def("tvm.relax.PyExprMutatorSetVarRemap",
            [](PyExprMutator mutator, Id id, Var var) { return mutator->var_remap_[id] = var; })
-      .def("relax.PyExprMutatorGetVarRemap",
+      .def("tvm.relax.PyExprMutatorGetVarRemap",
            [](PyExprMutator mutator, Id id) { return mutator->var_remap_[id]; });
 }
 

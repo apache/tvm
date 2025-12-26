@@ -149,7 +149,7 @@ class PrinterConfigNode : public ffi::Object {
   ffi::Array<ffi::String> GetBuiltinKeywords();
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.PrinterConfig", PrinterConfigNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.PrinterConfig", PrinterConfigNode, Object);
 };
 
 class PrinterConfig : public ObjectRef {

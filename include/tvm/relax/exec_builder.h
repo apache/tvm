@@ -143,7 +143,7 @@ class ExecBuilderNode : public Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ExecBuilder", ExecBuilderNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.ExecBuilder", ExecBuilderNode, Object);
 
  private:
   /*!

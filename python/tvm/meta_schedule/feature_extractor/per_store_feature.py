@@ -24,7 +24,7 @@ from .. import _ffi_api
 from .feature_extractor import FeatureExtractor
 
 
-@register_object("meta_schedule.PerStoreFeature")
+@register_object("tvm.meta_schedule.PerStoreFeature")
 class PerStoreFeature(FeatureExtractor):
     """PerStoreFeature extracts one feature vector per BufferStoreNode
 

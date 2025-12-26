@@ -116,7 +116,8 @@ struct DiscoDebugObject : public Object {
   inline uint64_t GetFFIAnyProtocolBytes() const {
     return sizeof(uint64_t) + this->SaveToStr().size();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.DiscoDebugObject", DiscoDebugObject, SessionObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.runtime.disco.DiscoDebugObject", DiscoDebugObject,
+                                    SessionObj);
 };
 
 template <class SubClassType>
@@ -230,7 +231,7 @@ inline std::string DiscoDebugObject::SaveToStr() const {
     return result;
   } else if (auto opt_obj = this->data.as<ObjectRef>()) {
     ObjectRef obj = opt_obj.value();
-    const auto f = tvm::ffi::Function::GetGlobal("node.SaveJSON");
+    const auto f = tvm::ffi::Function::GetGlobal("tvm.node.SaveJSON");
     CHECK(f.has_value()) << "ValueError: Cannot serialize object in non-debugging mode: "
                          << obj->GetTypeKey();
     std::string result = (*f)(obj).cast<std::string>();
@@ -247,7 +248,7 @@ inline ObjectPtr<DiscoDebugObject> DiscoDebugObject::LoadFromStr(std::string jso
   json_str.pop_back();
   ObjectPtr<DiscoDebugObject> result = ffi::make_object<DiscoDebugObject>();
   if (control_bit == '0') {
-    const auto f = tvm::ffi::Function::GetGlobal("node.LoadJSON");
+    const auto f = tvm::ffi::Function::GetGlobal("tvm.node.LoadJSON");
     CHECK(f.has_value()) << "ValueError: Cannot deserialize object in non-debugging mode";
     result->data = (*f)(json_str);
   } else if (control_bit == '1') {

@@ -253,7 +253,7 @@ Pass LowerCustomDatatypes() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.LowerCustomDatatypes", LowerCustomDatatypes);
+  refl::GlobalDef().def("tvm.tir.transform.LowerCustomDatatypes", LowerCustomDatatypes);
 }
 
 }  // namespace transform

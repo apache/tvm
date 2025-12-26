@@ -24,7 +24,7 @@ from .. import _ffi_api
 from .schedule_rule import ScheduleRule
 
 
-@register_object("meta_schedule.ParallelizeVectorizeUnroll")
+@register_object("tvm.meta_schedule.ParallelizeVectorizeUnroll")
 class ParallelizeVectorizeUnroll(ScheduleRule):
     """Rule that mark parallelize, vectorize and unroll to the root block. The mark will be applied
     to each block in a follow-up post processor

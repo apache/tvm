@@ -41,9 +41,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("diagnostics.Diagnostic", [](int level, Span span, ffi::String message) {
-    return Diagnostic(static_cast<DiagnosticLevel>(level), span, message);
-  });
+  refl::GlobalDef().def("tvm.diagnostics.Diagnostic",
+                        [](int level, Span span, ffi::String message) {
+                          return Diagnostic(static_cast<DiagnosticLevel>(level), span, message);
+                        });
 }
 
 Diagnostic::Diagnostic(DiagnosticLevel level, Span span, const std::string& message) {
@@ -117,7 +118,7 @@ TVM_DLL DiagnosticRenderer::DiagnosticRenderer(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("diagnostics.DiagnosticRenderer",
+  refl::GlobalDef().def("tvm.diagnostics.DiagnosticRenderer",
                         [](ffi::TypedFunction<void(DiagnosticContext ctx)> renderer) {
                           return DiagnosticRenderer(renderer);
                         });
@@ -148,7 +149,7 @@ void DiagnosticContext::Render() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "diagnostics.DiagnosticRendererRender",
+      "tvm.diagnostics.DiagnosticRendererRender",
       [](DiagnosticRenderer renderer, DiagnosticContext ctx) { renderer.Render(ctx); });
 }
 
@@ -162,7 +163,7 @@ DiagnosticContext::DiagnosticContext(const IRModule& module, const DiagnosticRen
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("diagnostics.DiagnosticContext",
+  refl::GlobalDef().def("tvm.diagnostics.DiagnosticContext",
                         [](const IRModule& module, const DiagnosticRenderer& renderer) {
                           return DiagnosticContext(module, renderer);
                         });
@@ -176,9 +177,9 @@ void DiagnosticContext::Emit(const Diagnostic& diagnostic) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("diagnostics.Emit",
+      .def("tvm.diagnostics.Emit",
            [](DiagnosticContext ctx, const Diagnostic& diagnostic) { return ctx.Emit(diagnostic); })
-      .def("diagnostics.DiagnosticContextRender",
+      .def("tvm.diagnostics.DiagnosticContextRender",
            [](DiagnosticContext context) { return context.Render(); });
 }
 
@@ -189,8 +190,8 @@ void DiagnosticContext::EmitFatal(const Diagnostic& diagnostic) {
 }
 
 /* Default Terminal Renderer. */
-static const char* DEFAULT_RENDERER = "diagnostics.DefaultRenderer";
-static const char* OVERRIDE_RENDERER = "diagnostics.OverrideRenderer";
+static const char* DEFAULT_RENDERER = "tvm.diagnostics.DefaultRenderer";
+static const char* OVERRIDE_RENDERER = "tvm.diagnostics.OverrideRenderer";
 
 DiagnosticRenderer GetRenderer() {
   auto override_pf = tvm::ffi::Function::GetGlobal(OVERRIDE_RENDERER);
@@ -214,7 +215,7 @@ DiagnosticContext DiagnosticContext::Default(const IRModule& module) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("diagnostics.Default",
+  refl::GlobalDef().def("tvm.diagnostics.Default",
                         [](const IRModule& module) { return DiagnosticContext::Default(module); });
 }
 
@@ -334,8 +335,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def(DEFAULT_RENDERER, []() { return TerminalRenderer(std::cerr); })
-      .def("diagnostics.GetRenderer", []() { return GetRenderer(); })
-      .def("diagnostics.ClearRenderer",
+      .def("tvm.diagnostics.GetRenderer", []() { return GetRenderer(); })
+      .def("tvm.diagnostics.ClearRenderer",
            []() { tvm::ffi::Function::RemoveGlobal(OVERRIDE_RENDERER); });
 }
 

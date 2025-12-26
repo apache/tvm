@@ -77,7 +77,7 @@ struct SimplifyConfigNode : public AttrsNodeReflAdapter<SimplifyConfigNode> {
                 "branch",
                 refl::DefaultValue(false));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.SimplifyConfig", SimplifyConfigNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.transform.SimplifyConfig", SimplifyConfigNode,
                                     BaseAttrsNode);
 
   RewriteSimplifier::Extension GetEnabledExtensions() const {
@@ -364,7 +364,7 @@ Pass Simplify() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.Simplify", Simplify);
+  refl::GlobalDef().def("tvm.tir.transform.Simplify", Simplify);
 }
 
 }  // namespace transform

@@ -336,13 +336,13 @@ def pack_imports(
     """
 
     path_bin = os.path.join(workspace_dir, "imports.bin")
-    pack_to_bin_f_name = "runtime.ModulePackImportsToTensor"
+    pack_to_bin_f_name = "tvm.runtime.ModulePackImportsToTensor"
     fpack_to_bin = tvm.get_global_func(pack_to_bin_f_name)
     assert fpack_to_bin, f"Expecting {pack_to_bin_f_name} in registry"
 
     fpack_to_bin(module).numpy().tofile(path_bin)
 
-    mblob_symbol = c_symbol_prefix + tvm.get_global_func("runtime.ModuleImportsBlobName")()
+    mblob_symbol = c_symbol_prefix + tvm.get_global_func("tvm.runtime.ModuleImportsBlobName")()
 
     binary_size = os.path.getsize(path_bin)
     hexagon_toolchain = os.environ.get("HEXAGON_TOOLCHAIN")

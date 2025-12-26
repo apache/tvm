@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .measure_callback import MeasureCallback
 
 
-@register_object("meta_schedule.UpdateCostModel")
+@register_object("tvm.meta_schedule.UpdateCostModel")
 class UpdateCostModel(MeasureCallback):
     def __init__(self) -> None:
         """A measure callback that updates the cost model"""

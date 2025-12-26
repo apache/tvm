@@ -48,7 +48,8 @@ class RunnerInputNode : public runtime::Object {
         .def_ro("device_type", &RunnerInputNode::device_type)
         .def_ro("args_info", &RunnerInputNode::args_info);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RunnerInput", RunnerInputNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.RunnerInput", RunnerInputNode,
+                                    runtime::Object);
 };
 
 /*!
@@ -82,7 +83,7 @@ class RunnerResultNode : public runtime::Object {
         .def_ro("run_secs", &RunnerResultNode::run_secs)
         .def_ro("error_msg", &RunnerResultNode::error_msg);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RunnerResult", RunnerResultNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.RunnerResult", RunnerResultNode,
                                     runtime::Object);
 };
 
@@ -148,7 +149,7 @@ class RunnerFutureNode : public runtime::Object {
     ICHECK(f_result != nullptr) << "PyRunnerFuture's Result method not implemented!";
     return f_result();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RunnerFuture", RunnerFutureNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.RunnerFuture", RunnerFutureNode,
                                     runtime::Object);
 };
 
@@ -197,7 +198,7 @@ class RunnerNode : public runtime::Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.Runner", RunnerNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.meta_schedule.Runner", RunnerNode, runtime::Object);
 };
 
 /*!
@@ -237,7 +238,7 @@ class PyRunnerNode : public RunnerNode {
     ICHECK(f_run != nullptr) << "PyRunner's Run method not implemented!";
     return f_run(runner_inputs);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyRunner", PyRunnerNode, RunnerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.PyRunner", PyRunnerNode, RunnerNode);
 };
 
 }  // namespace meta_schedule

@@ -76,7 +76,7 @@ Tensor DiscoEmptyTensor(ffi::Shape shape, DataType dtype, ffi::Optional<Device> 
 
 ffi::Function GetCCLFunc(const char* name) {
   std::string ccl = DiscoWorker::ThreadLocal()->ccl;
-  std::string pf_name = "runtime.disco." + ccl + "." + name;
+  std::string pf_name = "tvm.runtime.disco." + ccl + "." + name;
   const auto pf = tvm::ffi::Function::GetGlobal(pf_name);
   CHECK(pf.has_value()) << "ValueError: Cannot find the `" << name << "` function for `" << ccl
                         << "` via `" << pf_name << "`";
@@ -128,8 +128,8 @@ void SyncWorker() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.disco.load_vm_module", LoadVMModule)
-      .def("runtime.disco.empty",
+      .def("tvm.runtime.disco.load_vm_module", LoadVMModule)
+      .def("tvm.runtime.disco.empty",
            [](ffi::Shape shape, DataType dtype, ffi::Optional<Device> device, bool worker0_only,
               bool in_group) -> ffi::Optional<Tensor> {
              int worker_id = WorkerId();
@@ -143,26 +143,26 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                return DiscoEmptyTensor(shape, dtype, device);
              }
            })
-      .def("runtime.disco.allreduce",
+      .def("tvm.runtime.disco.allreduce",
            [](Tensor send, ffi::Shape reduce_kind, bool in_group, Tensor recv) {
              int kind = IntegerFromShape(reduce_kind);
              CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
              AllReduce(send, static_cast<ReduceKind>(kind), in_group, recv);
            })
-      .def("runtime.disco.allgather", AllGather)
-      .def("runtime.disco.broadcast_from_worker0", BroadcastFromWorker0)
-      .def("runtime.disco.scatter_from_worker0", ScatterFromWorker0)
-      .def("runtime.disco.gather_to_worker0", GatherToWorker0)
-      .def("runtime.disco.recv_from_worker0", RecvFromWorker0)
-      .def("runtime.disco.send_to_next_group", SendToNextGroup)
-      .def("runtime.disco.recv_from_prev_group", RecvFromPrevGroup)
-      .def("runtime.disco.send_to_worker", SendToWorker)
-      .def("runtime.disco.recv_from_worker", RecvFromWorker)
-      .def("runtime.disco.worker_id", []() -> ffi::Shape { return ffi::Shape({WorkerId()}); })
-      .def("runtime.disco.worker_rank", []() -> int64_t { return WorkerId(); })
-      .def("runtime.disco.device",
+      .def("tvm.runtime.disco.allgather", AllGather)
+      .def("tvm.runtime.disco.broadcast_from_worker0", BroadcastFromWorker0)
+      .def("tvm.runtime.disco.scatter_from_worker0", ScatterFromWorker0)
+      .def("tvm.runtime.disco.gather_to_worker0", GatherToWorker0)
+      .def("tvm.runtime.disco.recv_from_worker0", RecvFromWorker0)
+      .def("tvm.runtime.disco.send_to_next_group", SendToNextGroup)
+      .def("tvm.runtime.disco.recv_from_prev_group", RecvFromPrevGroup)
+      .def("tvm.runtime.disco.send_to_worker", SendToWorker)
+      .def("tvm.runtime.disco.recv_from_worker", RecvFromWorker)
+      .def("tvm.runtime.disco.worker_id", []() -> ffi::Shape { return ffi::Shape({WorkerId()}); })
+      .def("tvm.runtime.disco.worker_rank", []() -> int64_t { return WorkerId(); })
+      .def("tvm.runtime.disco.device",
            []() -> Device { return DiscoWorker::ThreadLocal()->default_device; })
-      .def("runtime.disco.bind_worker_to_cpu_core", [](ffi::Shape cpu_ids) {
+      .def("tvm.runtime.disco.bind_worker_to_cpu_core", [](ffi::Shape cpu_ids) {
         int worker_id = WorkerId();
         ICHECK_LT(worker_id, static_cast<int>(cpu_ids.size()));
         const auto f_set_thread_affinity = tvm::ffi::Function::GetGlobalRequired(

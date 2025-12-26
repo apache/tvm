@@ -191,30 +191,30 @@ class RuntimeContext implements Disposable {
     );
     this.moduleGetFunction = getGlobalFunc("ffi.ModuleGetFunction");
     this.moduleImport = getGlobalFunc("ffi.ModuleImportModule");
-    this.tensorEmpty = getGlobalFunc("runtime.TVMTensorAllocWithScope");
-    this.tensorCopyFromTo = getGlobalFunc("runtime.TVMTensorCopyFromTo");
-    this.tensorCopyFromJSBytes = getGlobalFunc("tvmjs.runtime.TensorCopyFromBytes");
-    this.tensorCopyToJSBytes = getGlobalFunc("tvmjs.runtime.TensorCopyToBytes");
+    this.tensorEmpty = getGlobalFunc("tvm.runtime.TVMTensorAllocWithScope");
+    this.tensorCopyFromTo = getGlobalFunc("tvm.runtime.TVMTensorCopyFromTo");
+    this.tensorCopyFromJSBytes = getGlobalFunc("tvm.tvmjs.runtime.TensorCopyFromBytes");
+    this.tensorCopyToJSBytes = getGlobalFunc("tvm.tvmjs.runtime.TensorCopyToBytes");
     this.arrayGetItem = getGlobalFunc("ffi.ArrayGetItem");
     this.arrayGetSize = getGlobalFunc("ffi.ArraySize");
     this.arrayMake = getGlobalFunc("ffi.Array");
-    this.arrayConcat = getGlobalFunc("tvmjs.runtime.ArrayConcat");
+    this.arrayConcat = getGlobalFunc("tvm.tvmjs.runtime.ArrayConcat");
     this.getSysLib = getGlobalFunc("ffi.SystemLib");
-    this.tensorCacheGet = getGlobalFunc("vm.builtin.tensor_cache.get");
-    this.tensorCacheRemove = getGlobalFunc("vm.builtin.tensor_cache.remove");
-    this.tensorCacheUpdate = getGlobalFunc("vm.builtin.tensor_cache.update");
-    this.tensorCacheClear = getGlobalFunc("vm.builtin.tensor_cache.clear");
-    this.arrayDecodeStorage = getGlobalFunc("tvmjs.array.decode_storage");
-    this.paramModuleFromCache = getGlobalFunc("vm.builtin.param_module_from_cache");
-    this.paramModuleFromCacheByName = getGlobalFunc("vm.builtin.param_module_from_cache_by_name");
+    this.tensorCacheGet = getGlobalFunc("tvm.vm.builtin.tensor_cache.get");
+    this.tensorCacheRemove = getGlobalFunc("tvm.vm.builtin.tensor_cache.remove");
+    this.tensorCacheUpdate = getGlobalFunc("tvm.vm.builtin.tensor_cache.update");
+    this.tensorCacheClear = getGlobalFunc("tvm.vm.builtin.tensor_cache.clear");
+    this.arrayDecodeStorage = getGlobalFunc("tvm.tvmjs.array.decode_storage");
+    this.paramModuleFromCache = getGlobalFunc("tvm.vm.builtin.param_module_from_cache");
+    this.paramModuleFromCacheByName = getGlobalFunc("tvm.vm.builtin.param_module_from_cache_by_name");
     this.makeShapeTuple = getGlobalFunc("ffi.Shape");
-    this.tensorCreateView = getGlobalFunc("runtime.TVMTensorCreateView");
-    this.sampleTopPFromLogits = getGlobalFunc("vm.builtin.sample_top_p_from_logits");
-    this.sampleTopPFromProb = getGlobalFunc("vm.builtin.sample_top_p_from_prob");
-    this.applyRepetitionPenalty = getGlobalFunc("vm.builtin.apply_repetition_penalty");
-    this.applyPresenceAndFrequencyPenalty = getGlobalFunc("vm.builtin.apply_presence_and_frequency_penalty");
-    this.applySoftmaxWithTemperature = getGlobalFunc("vm.builtin.apply_softmax_with_temperature");
-    this.concatEmbeddings = getGlobalFunc("tvmjs.runtime.ConcatEmbeddings");
+    this.tensorCreateView = getGlobalFunc("tvm.runtime.TVMTensorCreateView");
+    this.sampleTopPFromLogits = getGlobalFunc("tvm.vm.builtin.sample_top_p_from_logits");
+    this.sampleTopPFromProb = getGlobalFunc("tvm.vm.builtin.sample_top_p_from_prob");
+    this.applyRepetitionPenalty = getGlobalFunc("tvm.vm.builtin.apply_repetition_penalty");
+    this.applyPresenceAndFrequencyPenalty = getGlobalFunc("tvm.vm.builtin.apply_presence_and_frequency_penalty");
+    this.applySoftmaxWithTemperature = getGlobalFunc("tvm.vm.builtin.apply_softmax_with_temperature");
+    this.concatEmbeddings = getGlobalFunc("tvm.tvmjs.runtime.ConcatEmbeddings");
   }
 
   dispose(): void {
@@ -1142,7 +1142,7 @@ export class Instance implements Disposable {
    */
   isPackedFunc(func: unknown): boolean {
     // eslint-disable-next-line no-prototype-builtins
-    return typeof func === "function" && func.hasOwnProperty("_tvmPackedCell");
+    return typeof func === "tvm.function" && func.hasOwnProperty("_tvmPackedCell");
   }
 
   /**
@@ -2069,7 +2069,7 @@ export class Instance implements Disposable {
         stack.storeI32(argTypeIndexOffset, TypeIndex.kTVMFFIFloat);
         stack.storeF64(argValueOffset, val);
         // eslint-disable-next-line no-prototype-builtins
-      } else if (tp === "function" && val.hasOwnProperty("_tvmPackedCell")) {
+      } else if (tp === "tvm.function" && val.hasOwnProperty("_tvmPackedCell")) {
         stack.storePtr(argValueOffset, val._tvmPackedCell.getHandle());
         stack.storeI32(argTypeIndexOffset, TypeIndex.kTVMFFIFunction);
       } else if (val === null || val === undefined) {

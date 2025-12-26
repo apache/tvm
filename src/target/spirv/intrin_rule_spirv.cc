@@ -61,19 +61,19 @@ inline PrimExpr DispatchGLSLPureIntrin(const PrimExpr& e) {
 
 namespace intrin {
 using tir::FLowerIntrinsic;
-TVM_REGISTER_OP("tir.floor")
+TVM_REGISTER_OP("tvm.tir.floor")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Floor>);
 
-TVM_REGISTER_OP("tir.ceil")
+TVM_REGISTER_OP("tvm.tir.ceil")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Ceil>);
 
-TVM_REGISTER_OP("tir.round")
+TVM_REGISTER_OP("tvm.tir.round")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Round>);
 
-TVM_REGISTER_OP("tir.nearbyint")
+TVM_REGISTER_OP("tvm.tir.nearbyint")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Round>);
 
-TVM_REGISTER_OP("tir.trunc")
+TVM_REGISTER_OP("tvm.tir.trunc")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Trunc>);
 
 TVM_REGISTER_OP("tir.fabs")

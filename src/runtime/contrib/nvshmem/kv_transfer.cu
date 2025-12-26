@@ -333,6 +333,6 @@ int _KVTransferPageToPage(DLTensor* remote_pages, DLTensor* local_pages,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("nvshmem.KVTransfer", _KVTransfer)
-      .def("nvshmem.KVTransferPageToPage", _KVTransferPageToPage);
+      .def("tvm.nvshmem.KVTransfer", _KVTransfer)
+      .def("tvm.nvshmem.KVTransferPageToPage", _KVTransferPageToPage);
 }

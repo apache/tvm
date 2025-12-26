@@ -205,11 +205,11 @@ bool ContainsImpureCall(const Expr& expr, const ffi::Optional<Expr>& own_name) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("relax.analysis.free_vars", FreeVars)
-      .def("relax.analysis.bound_vars", BoundVars)
-      .def("relax.analysis.all_vars", AllVars)
-      .def("relax.analysis.all_global_vars", AllGlobalVars)
-      .def("relax.analysis.contains_impure_call", ContainsImpureCall);
+      .def("tvm.relax.analysis.free_vars", FreeVars)
+      .def("tvm.relax.analysis.bound_vars", BoundVars)
+      .def("tvm.relax.analysis.all_vars", AllVars)
+      .def("tvm.relax.analysis.all_global_vars", AllGlobalVars)
+      .def("tvm.relax.analysis.contains_impure_call", ContainsImpureCall);
 }
 
 }  // namespace relax

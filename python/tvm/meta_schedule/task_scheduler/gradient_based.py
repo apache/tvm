@@ -24,7 +24,7 @@ from .task_scheduler import TaskScheduler
 logger = get_logger(__name__)  # pylint: disable=invalid-name
 
 
-@register_object("meta_schedule.GradientBased")
+@register_object("tvm.meta_schedule.GradientBased")
 class GradientBased(TaskScheduler):
     """Gradient Based Task Scheduler"""
 

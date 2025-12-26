@@ -405,7 +405,7 @@ IntSet DeduceBound(PrimExpr v, PrimExpr e, const ffi::Map<Var, IntSet>& hint_map
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("arith.DeduceBound",
+  refl::GlobalDef().def("tvm.arith.DeduceBound",
                         [](PrimExpr v, PrimExpr cond, const ffi::Map<Var, IntSet> hint_map,
                            const ffi::Map<Var, IntSet> relax_map) {
                           return DeduceBound(v, cond, hint_map, relax_map);

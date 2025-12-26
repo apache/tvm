@@ -155,7 +155,7 @@ const ffi::Array<Doc> TorchCodeGen::GetOpCodes(const MSCJoint& node) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("msc.framework.torch.GetTorchSources",
+  refl::GlobalDef().def("tvm.msc.framework.torch.GetTorchSources",
                         [](const MSCGraph& graph, const ffi::String& codegen_config,
                            const ffi::String& print_config) -> ffi::Map<ffi::String, ffi::String> {
                           TorchCodeGen codegen = TorchCodeGen(graph, codegen_config);

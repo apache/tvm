@@ -64,7 +64,8 @@ class AddRFactorNode : public ScheduleRuleNode {
         .def_ro("max_jobs_per_core", &AddRFactorNode::max_jobs_per_core)
         .def_ro("max_innermost_factor", &AddRFactorNode::max_innermost_factor);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.AddRFactor", AddRFactorNode, ScheduleRuleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.AddRFactor", AddRFactorNode,
+                                    ScheduleRuleNode);
 };
 
 ScheduleRule ScheduleRule::AddRFactor(int max_jobs_per_core,
@@ -126,7 +127,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { AddRFactorNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.ScheduleRuleAddRFactor", ScheduleRule::AddRFactor);
+  refl::GlobalDef().def("tvm.meta_schedule.ScheduleRuleAddRFactor", ScheduleRule::AddRFactor);
 }
 
 }  // namespace meta_schedule

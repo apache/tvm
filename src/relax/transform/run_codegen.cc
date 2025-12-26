@@ -131,7 +131,8 @@ class CodeGenRunner : ExprMutator {
           extern_funcs_[gvar_node] = new_func;
           // Remove the global symbol and codegen attributes from the function so that it can be
           // removed the module.
-          const auto RemoveFuncAttrFunc = tvm::ffi::Function::GetGlobal("ir.BaseFuncWithoutAttr");
+          const auto RemoveFuncAttrFunc =
+              tvm::ffi::Function::GetGlobal("tvm.ir.BaseFuncWithoutAttr");
           ICHECK(RemoveFuncAttrFunc.has_value());
           func = (*RemoveFuncAttrFunc)(func, tvm::attr::kGlobalSymbol).cast<Function>();
           func = (*RemoveFuncAttrFunc)(func, attr::kCodegen).cast<Function>();
@@ -226,7 +227,7 @@ Pass RunCodegen(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.RunCodegen", RunCodegen);
+  refl::GlobalDef().def("tvm.relax.transform.RunCodegen", RunCodegen);
 }
 
 }  // namespace transform

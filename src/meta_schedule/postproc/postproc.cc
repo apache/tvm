@@ -127,15 +127,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("meta_schedule.PostprocInitializeWithTuneContext",
+      .def_method("tvm.meta_schedule.PostprocInitializeWithTuneContext",
                   &PostprocNode::InitializeWithTuneContext)
-      .def_method("meta_schedule.PostprocApply", &PostprocNode::Apply)
-      .def_method("meta_schedule.PostprocClone", &PostprocNode::Clone)
-      .def("meta_schedule.PostprocPyPostproc", Postproc::PyPostproc)
-      .def("meta_schedule.PostprocDefaultLLVM", Postproc::DefaultLLVM)
-      .def("meta_schedule.PostprocDefaultCUDA", Postproc::DefaultCUDA)
-      .def("meta_schedule.PostprocDefaultCUDATensorCore", Postproc::DefaultCUDATensorCore)
-      .def("meta_schedule.PostprocDefaultHexagon", Postproc::DefaultHexagon);
+      .def_method("tvm.meta_schedule.PostprocApply", &PostprocNode::Apply)
+      .def_method("tvm.meta_schedule.PostprocClone", &PostprocNode::Clone)
+      .def("tvm.meta_schedule.PostprocPyPostproc", Postproc::PyPostproc)
+      .def("tvm.meta_schedule.PostprocDefaultLLVM", Postproc::DefaultLLVM)
+      .def("tvm.meta_schedule.PostprocDefaultCUDA", Postproc::DefaultCUDA)
+      .def("tvm.meta_schedule.PostprocDefaultCUDATensorCore", Postproc::DefaultCUDATensorCore)
+      .def("tvm.meta_schedule.PostprocDefaultHexagon", Postproc::DefaultHexagon);
 }
 
 }  // namespace meta_schedule

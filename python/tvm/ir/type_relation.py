@@ -21,7 +21,7 @@ from .type import Type, TypeConstraint
 from . import _ffi_api
 
 
-@tvm_ffi.register_object("TypeCall")
+@tvm_ffi.register_object("tvm.TypeCall")
 class TypeCall(Type):
     """Type function application.
 
@@ -43,7 +43,7 @@ class TypeCall(Type):
         self.__init_handle_by_constructor__(_ffi_api.TypeCall, func, args)
 
 
-@tvm_ffi.register_object("TypeRelation")
+@tvm_ffi.register_object("tvm.TypeRelation")
 class TypeRelation(TypeConstraint):
     """User defined type relation, it is an input-output relation on types.
 

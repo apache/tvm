@@ -66,9 +66,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("meta_schedule.MeasureCallbackApply", &MeasureCallbackNode::Apply)
-      .def("meta_schedule.MeasureCallbackPyMeasureCallback", MeasureCallback::PyMeasureCallback)
-      .def("meta_schedule.MeasureCallbackDefault", MeasureCallback::Default);
+      .def_method("tvm.meta_schedule.MeasureCallbackApply", &MeasureCallbackNode::Apply)
+      .def("tvm.meta_schedule.MeasureCallbackPyMeasureCallback", MeasureCallback::PyMeasureCallback)
+      .def("tvm.meta_schedule.MeasureCallbackDefault", MeasureCallback::Default);
 }
 
 }  // namespace meta_schedule

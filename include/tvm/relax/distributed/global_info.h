@@ -52,7 +52,8 @@ class DeviceMeshNode : public GlobalInfoNode {
         .def_ro("device_ids", &DeviceMeshNode::device_ids)
         .def_ro("device_range", &DeviceMeshNode::device_range);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.distributed.DeviceMesh", DeviceMeshNode, GlobalInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.distributed.DeviceMesh", DeviceMeshNode,
+                                    GlobalInfoNode);
 };
 
 /*!

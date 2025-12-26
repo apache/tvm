@@ -433,22 +433,22 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.Layout", [](std::string name, DataType dtype) { return Layout(name, dtype); })
-      .def("tir.LayoutIndexOf",
+      .def("tvm.tir.Layout", [](std::string name, DataType dtype) { return Layout(name, dtype); })
+      .def("tvm.tir.LayoutIndexOf",
            [](Layout layout, std::string axis) -> int {
              return layout.IndexOf(LayoutAxis::Get(axis));
            })
-      .def("tir.LayoutFactorOf",
+      .def("tvm.tir.LayoutFactorOf",
            [](Layout layout, std::string axis) -> int {
              return layout.FactorOf(LayoutAxis::Get(axis));
            })
-      .def("tir.LayoutNdim", [](Layout layout) -> int { return layout.ndim(); })
-      .def("tir.LayoutGetItem",
+      .def("tvm.tir.LayoutNdim", [](Layout layout) -> int { return layout.ndim(); })
+      .def("tvm.tir.LayoutGetItem",
            [](Layout layout, int idx) -> std::string {
              const LayoutAxis& axis = layout[idx];
              return axis.name();
            })
-      .def("tir.BijectiveLayout",
+      .def("tvm.tir.BijectiveLayout",
            [](Layout src_layout, Layout dst_layout) -> BijectiveLayout {
              return BijectiveLayout(src_layout, dst_layout);
            })

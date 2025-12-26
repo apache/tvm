@@ -159,7 +159,7 @@ Pass ReorderTakeAfterMatmul() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.ReorderTakeAfterMatmul", ReorderTakeAfterMatmul);
+  refl::GlobalDef().def("tvm.relax.transform.ReorderTakeAfterMatmul", ReorderTakeAfterMatmul);
 }
 
 }  // namespace transform

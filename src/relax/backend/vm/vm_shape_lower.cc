@@ -793,17 +793,17 @@ class VMShapeLowerMutator
   const StructInfo object_sinfo_ = ObjectStructInfo();
   const StructInfo void_sinfo_ = TupleStructInfo(ffi::Array<StructInfo>({}));
   // check function
-  const ExternFunc builtin_alloc_shape_heap_{"vm.builtin.alloc_shape_heap"};
-  const ExternFunc builtin_match_shape_{"vm.builtin.match_shape"};
-  const ExternFunc builtin_make_shape_{"vm.builtin.make_shape"};
-  const ExternFunc builtin_check_shape_info_{"vm.builtin.check_shape_info"};
-  const ExternFunc builtin_match_prim_value_{"vm.builtin.match_prim_value"};
-  const ExternFunc builtin_make_prim_value_{"vm.builtin.make_prim_value"};
-  const ExternFunc builtin_check_prim_value_info_{"vm.builtin.check_prim_value_info"};
-  const ExternFunc builtin_check_tensor_info_{"vm.builtin.check_tensor_info"};
-  const ExternFunc builtin_check_tuple_info_{"vm.builtin.check_tuple_info"};
-  const ExternFunc builtin_check_func_info_{"vm.builtin.check_func_info"};
-  const ExternFunc builtin_tuple_getitem_{"vm.builtin.tuple_getitem"};
+  const ExternFunc builtin_alloc_shape_heap_{"tvm.vm.builtin.alloc_shape_heap"};
+  const ExternFunc builtin_match_shape_{"tvm.vm.builtin.match_shape"};
+  const ExternFunc builtin_make_shape_{"tvm.vm.builtin.make_shape"};
+  const ExternFunc builtin_check_shape_info_{"tvm.vm.builtin.check_shape_info"};
+  const ExternFunc builtin_match_prim_value_{"tvm.vm.builtin.match_prim_value"};
+  const ExternFunc builtin_make_prim_value_{"tvm.vm.builtin.make_prim_value"};
+  const ExternFunc builtin_check_prim_value_info_{"tvm.vm.builtin.check_prim_value_info"};
+  const ExternFunc builtin_check_tensor_info_{"tvm.vm.builtin.check_tensor_info"};
+  const ExternFunc builtin_check_tuple_info_{"tvm.vm.builtin.check_tuple_info"};
+  const ExternFunc builtin_check_func_info_{"tvm.vm.builtin.check_func_info"};
+  const ExternFunc builtin_tuple_getitem_{"tvm.vm.builtin.tuple_getitem"};
 };
 
 namespace transform {
@@ -817,7 +817,7 @@ Pass VMShapeLower(bool emit_err_ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.VMShapeLower",
+  refl::GlobalDef().def("tvm.relax.transform.VMShapeLower",
                         [](bool emit_err_ctx) { return VMShapeLower(emit_err_ctx); });
 }
 

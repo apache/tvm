@@ -326,7 +326,7 @@ bool VerifyGPUCode(const PrimFunc& func, ffi::Map<ffi::String, PrimExpr> constra
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.analysis.verify_gpu_code", VerifyGPUCode);
+  refl::GlobalDef().def("tvm.tir.analysis.verify_gpu_code", VerifyGPUCode);
 }
 
 namespace transform {
@@ -354,7 +354,7 @@ Pass VerifyGPUCode(ffi::Map<ffi::String, PrimExpr> constraints) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.VerifyGPUCode", VerifyGPUCode);
+  refl::GlobalDef().def("tvm.tir.transform.VerifyGPUCode", VerifyGPUCode);
 }
 
 }  // namespace transform

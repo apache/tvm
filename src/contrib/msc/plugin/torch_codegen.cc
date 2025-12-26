@@ -367,7 +367,7 @@ void TorchPluginCodeGen::CodeGenConvertDepends() {
 }
 
 const ffi::String TorchPluginCodeGen::CodeGenOpConvert(const Plugin& plugin) {
-  stack_.func_def(ConverterName(plugin), "relax.Var")
+  stack_.func_def(ConverterName(plugin), "tvm.relax.Var")
       .func_arg("node", "fx.node.Node")
       .func_arg("ctx", "TorchFXImporter")
       .func_start()
@@ -387,7 +387,7 @@ const ffi::String TorchPluginCodeGen::CodeGenOpConvert(const Plugin& plugin) {
   }
   stack_.assign("name",
                 DocUtils::ToIndex("args", 1 + plugin->inputs.size() + plugin->attrs.size()));
-  stack_.func_call("relax.Tuple", "args")
+  stack_.func_call("tvm.relax.Tuple", "args")
       .call_arg(DocUtils::ToList(args))
       .func_call("InferStructInfo" + plugin->name, "out_sinfo", "_plugin_api");
   for (const auto& t : plugin->inputs) {
@@ -412,7 +412,7 @@ const ffi::String TorchPluginCodeGen::CodeGenOpConvert(const Plugin& plugin) {
     ffi::Array<ffi::String> outputs;
     for (size_t i = 0; i < plugin->outputs.size(); i++) {
       const auto& tensor = plugin->outputs[i];
-      stack_.func_call("relax.TupleGetItem", tensor->name).call_arg("var").call_arg(i);
+      stack_.func_call("tvm.relax.TupleGetItem", tensor->name).call_arg("var").call_arg(i);
       outputs.push_back(tensor->name);
     }
     stack_.func_end(DocUtils::ToList(outputs));
@@ -498,7 +498,7 @@ void TorchPluginCodeGen::CodeGenCompute(const Plugin& plugin, const ffi::String&
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("msc.plugin.GetTorchPluginSources",
+  refl::GlobalDef().def("tvm.msc.plugin.GetTorchPluginSources",
                         [](const ffi::String& codegen_config, const ffi::String& print_config,
                            const ffi::String& codegen_type) -> ffi::Map<ffi::String, ffi::String> {
                           TorchPluginCodeGen codegen = TorchPluginCodeGen(codegen_config);

@@ -70,7 +70,7 @@ struct TensorRTCompilerConfigNode : public AttrsNodeReflAdapter<TensorRTCompiler
         .def_ro("use_uint8", &TensorRTCompilerConfigNode::use_uint8, "Use uint8",
                 refl::DefaultValue(false));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ext.attrs.TensorRTCompilerConfig",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.ext.attrs.TensorRTCompilerConfig",
                                     TensorRTCompilerConfigNode, BaseAttrsNode);
 };
 
@@ -236,7 +236,7 @@ ffi::Array<ffi::Module> TensorRTCompiler(ffi::Array<Function> functions,
     std::string graph_json = serializer.GetJSON();
     VLOG(1) << "TensorRT JSON:" << std::endl << graph_json;
     auto constant_names = serializer.GetConstantNames();
-    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.tensorrt_runtime_create");
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("tvm.runtime.tensorrt_runtime_create");
     std::string func_name = GetExtSymbol(func);
     VLOG(1) << "Creating tensorrt ffi::Module for '" << func_name << "'";
     compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<ffi::Module>());
@@ -246,7 +246,7 @@ ffi::Array<ffi::Module> TensorRTCompiler(ffi::Array<Function> functions,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.ext.tensorrt", TensorRTCompiler);
+  refl::GlobalDef().def("tvm.relax.ext.tensorrt", TensorRTCompiler);
 }
 
 /*!
@@ -277,8 +277,8 @@ ffi::Array<Integer> GetTensorRTVersion() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("relax.is_tensorrt_runtime_enabled", IsTensorRTRuntimeEnabled)
-      .def("relax.get_tensorrt_version", GetTensorRTVersion);
+      .def("tvm.relax.is_tensorrt_runtime_enabled", IsTensorRTRuntimeEnabled)
+      .def("tvm.relax.get_tensorrt_version", GetTensorRTVersion);
 }
 
 }  // namespace contrib

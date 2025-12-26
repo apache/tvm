@@ -643,7 +643,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
   }
 
   // The access region does not need to be collected here, as it will
-  // be generated with the later application of "script.Complete" in
+  // be generated with the later application of "tvm.script.Complete" in
   // GenerateAndCompletePrimFunc.  Waiting until later also handles
   // the case where there is only a single BlockNode, which then
   // becomes the root Block of the function, and should not have
@@ -747,7 +747,7 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<te::Tensor>& arg_list,
                                      /*ret_type=*/VoidType(),
                                      /*buffer_map=*/std::move(buffer_map)),
                             {{"global_symbol", ffi::String("main")}, {"tir.noalias", true}});
-  const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
+  const auto fcomplete = tvm::ffi::Function::GetGlobal("tvm.script.Complete");
   ICHECK(fcomplete.has_value());
   func = (*fcomplete)(std::move(func), info->root_alloc).cast<PrimFunc>();
   return func;
@@ -791,7 +791,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("te.CreatePrimFunc", [](ffi::PackedArgs args, ffi::Any* ret) {
+  refl::GlobalDef().def_packed("tvm.te.CreatePrimFunc", [](ffi::PackedArgs args, ffi::Any* ret) {
     ffi::Array<ObjectRef> arg_list = args[0].cast<ffi::Array<ObjectRef>>();
     std::optional<DataType> index_dtype_override{std::nullopt};
     // Add conversion to make std::optional compatible with FFI.
@@ -824,7 +824,7 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ObjectRef>& arg_tir_var_li
                                      /*ret_type=*/VoidType(),
                                      /*buffer_map=*/std::move(buffer_map)),
                             {{"global_symbol", ffi::String("main")}, {"tir.noalias", true}});
-  const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
+  const auto fcomplete = tvm::ffi::Function::GetGlobal("tvm.script.Complete");
   ICHECK(fcomplete.has_value());
   func = (*fcomplete)(std::move(func), info->root_alloc).cast<PrimFunc>();
   return func;

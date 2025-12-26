@@ -25,7 +25,7 @@ from tvm.runtime import Object
 from . import _ffi_node_api
 
 
-@register_object("script.PrinterConfig")
+@register_object("tvm.script.PrinterConfig")
 class PrinterConfig(Object):
     """Configuration of TVMScript printer"""
 
@@ -110,7 +110,7 @@ def _script(obj: Object, config: PrinterConfig) -> str:
 
 
 def _relax_script(obj: Object, config: PrinterConfig) -> str:
-    func = get_global_func("script.printer.ReprPrintRelax")
+    func = get_global_func("tvm.script.printer.ReprPrintRelax")
     return func(obj, config)
 
 

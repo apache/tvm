@@ -847,16 +847,16 @@ PrimExpr SubstituteWithDataTypeLegalization(
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.IRTransform", IRTransform)
-      .def("tir.PostOrderVisit",
+      .def("tvm.tir.IRTransform", IRTransform)
+      .def("tvm.tir.PostOrderVisit",
            [](ObjectRef node, ffi::Function f) {
              tir::PostOrderVisit(node, [f](const ObjectRef& n) { f(n); });
            })
-      .def("tir.PreOrderVisit",
+      .def("tvm.tir.PreOrderVisit",
            [](ObjectRef node, ffi::Function f) {
              tir::PreOrderVisit(node, [f](const ObjectRef& n) { return f(n).cast<bool>(); });
            })
-      .def("tir.Substitute", [](ObjectRef node, ffi::Map<Var, PrimExpr> vmap) -> ObjectRef {
+      .def("tvm.tir.Substitute", [](ObjectRef node, ffi::Map<Var, PrimExpr> vmap) -> ObjectRef {
         if (node->IsInstance<StmtNode>()) {
           return Substitute(Downcast<Stmt>(node), vmap);
         } else {

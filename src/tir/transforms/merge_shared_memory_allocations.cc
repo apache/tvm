@@ -698,7 +698,8 @@ Pass MergeSharedMemoryAllocations() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.MergeSharedMemoryAllocations", MergeSharedMemoryAllocations);
+  refl::GlobalDef().def("tvm.tir.transform.MergeSharedMemoryAllocations",
+                        MergeSharedMemoryAllocations);
 }
 
 }  // namespace transform

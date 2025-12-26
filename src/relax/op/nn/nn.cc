@@ -69,7 +69,7 @@ Expr leakyrelu(Expr data, double alpha) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.leakyrelu", leakyrelu);
+  refl::GlobalDef().def("tvm.relax.op.nn.leakyrelu", leakyrelu);
 }
 
 TVM_REGISTER_OP("relax.nn.leakyrelu")
@@ -92,7 +92,7 @@ Expr softplus(Expr data, double beta, double threshold) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.softplus", softplus);
+  refl::GlobalDef().def("tvm.relax.op.nn.softplus", softplus);
 }
 
 TVM_REGISTER_OP("relax.nn.softplus")
@@ -114,7 +114,7 @@ Expr prelu(Expr data, Expr alpha, int axis = 1) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.prelu", prelu);
+  refl::GlobalDef().def("tvm.relax.op.nn.prelu", prelu);
 }
 
 StructInfo InferStructInfoPRelu(const Call& call, const BlockBuilder& ctx) {
@@ -178,7 +178,7 @@ Expr softmax(Expr data, int axis) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.softmax", softmax);
+  refl::GlobalDef().def("tvm.relax.op.nn.softmax", softmax);
 }
 
 StructInfo InferStructInfoSoftmax(const Call& call, const BlockBuilder& ctx) {
@@ -239,7 +239,7 @@ Expr log_softmax(Expr data, int axis) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.log_softmax", log_softmax);
+  refl::GlobalDef().def("tvm.relax.op.nn.log_softmax", log_softmax);
 }
 
 TVM_REGISTER_OP("relax.nn.log_softmax")
@@ -262,7 +262,7 @@ Expr pad(Expr data, ffi::Array<Integer> pad_width, ffi::String pad_mode, double 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.pad", pad);
+  refl::GlobalDef().def("tvm.relax.op.nn.pad", pad);
 }
 
 StructInfo InferStructInfoPad(const Call& call, const BlockBuilder& ctx) {
@@ -307,7 +307,7 @@ Expr pixel_shuffle(Expr data, int upscale_factor) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.pixel_shuffle", pixel_shuffle);
+  refl::GlobalDef().def("tvm.relax.op.nn.pixel_shuffle", pixel_shuffle);
 }
 
 StructInfo InferStructInfoPixelShuffle(const Call& call, const BlockBuilder& ctx) {
@@ -459,7 +459,7 @@ Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.batch_norm", batch_norm);
+  refl::GlobalDef().def("tvm.relax.op.nn.batch_norm", batch_norm);
 }
 
 StructInfo InferStructInfoBatchNorm(const Call& call, const BlockBuilder& ctx) {
@@ -538,7 +538,7 @@ Expr layer_norm(Expr data, Expr gamma, Expr beta, ffi::Array<Integer> axes, doub
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.layer_norm", layer_norm);
+  refl::GlobalDef().def("tvm.relax.op.nn.layer_norm", layer_norm);
 }
 
 StructInfo InferStructInfoLayerNorm(const Call& call, const BlockBuilder& ctx) {
@@ -608,7 +608,7 @@ Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_ax
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.group_norm", group_norm);
+  refl::GlobalDef().def("tvm.relax.op.nn.group_norm", group_norm);
 }
 
 StructInfo InferStructInfoGroupNorm(const Call& call, const BlockBuilder& ctx) {
@@ -721,7 +721,7 @@ Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, ffi::Arra
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.instance_norm", instance_norm);
+  refl::GlobalDef().def("tvm.relax.op.nn.instance_norm", instance_norm);
 }
 
 StructInfo InferStructInfoInstanceNorm(const Call& call, const BlockBuilder& ctx) {
@@ -819,7 +819,7 @@ Expr rms_norm(Expr data, Expr weight, ffi::Array<Integer> axes, double epsilon) 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.rms_norm", rms_norm);
+  refl::GlobalDef().def("tvm.relax.op.nn.rms_norm", rms_norm);
 }
 
 StructInfo InferStructInfoRMSNorm(const Call& call, const BlockBuilder& ctx) {
@@ -879,7 +879,7 @@ Expr dropout(Expr data, double rate) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.dropout", dropout);
+  refl::GlobalDef().def("tvm.relax.op.nn.dropout", dropout);
 }
 
 StructInfo InferStructInfoDropout(const Call& call, const BlockBuilder& ctx) {
@@ -950,7 +950,7 @@ Expr cross_entropy_with_logits(Expr predictions, Expr labels) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.cross_entropy_with_logits", cross_entropy_with_logits);
+  refl::GlobalDef().def("tvm.relax.op.nn.cross_entropy_with_logits", cross_entropy_with_logits);
 }
 
 TVM_REGISTER_OP("relax.nn.cross_entropy_with_logits")
@@ -985,7 +985,7 @@ Expr nll_loss(Expr predictions, Expr targets, ffi::Optional<Expr> weights, ffi::
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.nll_loss", nll_loss);
+  refl::GlobalDef().def("tvm.relax.op.nn.nll_loss", nll_loss);
 }
 
 StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {

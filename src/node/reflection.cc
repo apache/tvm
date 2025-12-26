@@ -54,7 +54,7 @@ void MakeNode(const ffi::PackedArgs& args, ffi::Any* rv) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("node.MakeNode", MakeNode);
+  refl::GlobalDef().def_packed("tvm.node.MakeNode", MakeNode);
 }
 
 }  // namespace tvm

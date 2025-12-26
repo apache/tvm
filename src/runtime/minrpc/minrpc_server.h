@@ -68,7 +68,7 @@ class MinRPCServer {
     auto fsend = ffi::Function::FromTyped([this](TVMFFIByteArray* bytes) {
       return io_->PosixWrite(reinterpret_cast<const uint8_t*>(bytes->data), bytes->size);
     });
-    auto fcreate = tvm::ffi::Function::GetGlobalRequired("rpc.CreateEventDrivenServer");
+    auto fcreate = tvm::ffi::Function::GetGlobalRequired("tvm.rpc.CreateEventDrivenServer");
     ffi::Any value = fcreate(fsend, "MinRPCServer", "");
     fserver_handler_ = value.cast<FServerHandler>();
   }

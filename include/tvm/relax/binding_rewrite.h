@@ -74,7 +74,8 @@ class DataflowBlockRewriteNode : public Object {
         .def_ro("dfb", &DataflowBlockRewriteNode::dfb_)
         .def_ro("root_fn", &DataflowBlockRewriteNode::root_fn_);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DataflowBlockRewrite", DataflowBlockRewriteNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.DataflowBlockRewrite", DataflowBlockRewriteNode,
+                                    Object);
 
  protected:
   friend class DataflowBlockRewrite;

@@ -189,7 +189,7 @@ bool VerifyMemory(const PrimFunc& func) { return VerifyMemory_(func).size() == 0
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.analysis.verify_memory", VerifyMemory);
+  refl::GlobalDef().def("tvm.tir.analysis.verify_memory", VerifyMemory);
 }
 
 namespace transform {
@@ -217,7 +217,7 @@ Pass VerifyMemory() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.VerifyMemory", VerifyMemory);
+  refl::GlobalDef().def("tvm.tir.transform.VerifyMemory", VerifyMemory);
 }
 
 }  // namespace transform

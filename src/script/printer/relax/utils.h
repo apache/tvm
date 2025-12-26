@@ -50,7 +50,7 @@ class RelaxFrameNode : public FrameNode {
         .def_ro("is_func", &RelaxFrameNode::is_func)
         .def_ro("module_alias_printed", &RelaxFrameNode::module_alias_printed);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.RelaxFrame", RelaxFrameNode, FrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.RelaxFrame", RelaxFrameNode, FrameNode);
 };
 
 class RelaxFrame : public Frame {

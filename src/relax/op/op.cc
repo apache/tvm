@@ -130,7 +130,7 @@ Expr MakeCallPurePacked(const Expr& callee, ffi::Array<Expr> args, const Attrs& 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.call_pure_packed", MakeCallPurePacked);
+  refl::GlobalDef().def("tvm.relax.op.call_pure_packed", MakeCallPurePacked);
 }
 
 // call_inplace_packed
@@ -250,7 +250,7 @@ Expr MakeCallInplacePacked(Expr func, ffi::Array<Expr> args, ffi::Array<Integer>
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.call_inplace_packed", MakeCallInplacePacked);
+  refl::GlobalDef().def("tvm.relax.op.call_inplace_packed", MakeCallInplacePacked);
 }
 
 // call_tir
@@ -615,7 +615,7 @@ Expr MakeCallTIR(Expr func, Tuple args, ffi::Array<TensorStructInfo> out_sinfo_l
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.call_tir", MakeCallTIR);
+  refl::GlobalDef().def("tvm.relax.op.call_tir", MakeCallTIR);
 }
 
 // call_tir_with_grad
@@ -668,7 +668,7 @@ Expr MakeCallTIRWithGrad(Expr func, Tuple args, ffi::Array<TensorStructInfo> out
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.call_tir_with_grad", MakeCallTIRWithGrad);
+  refl::GlobalDef().def("tvm.relax.op.call_tir_with_grad", MakeCallTIRWithGrad);
 }
 
 // call_tir_inplace
@@ -811,7 +811,7 @@ Expr MakeCallTIRInplace(Expr func, Tuple args, ffi::Array<Integer> inplace_indic
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.call_tir_inplace", MakeCallTIRInplace);
+  refl::GlobalDef().def("tvm.relax.op.call_tir_inplace", MakeCallTIRInplace);
 }
 
 // call_dps_packed
@@ -855,7 +855,7 @@ Expr MakeCallDPSPacked(Expr func, Tuple args, ffi::Array<TensorStructInfo> out_s
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.call_dps_packed", MakeCallDPSPacked);
+  refl::GlobalDef().def("tvm.relax.op.call_dps_packed", MakeCallDPSPacked);
 }
 
 // call_py_func
@@ -919,7 +919,7 @@ Expr MakeCallPyFunc(StringImm func_name, Tuple args, ffi::Array<TensorStructInfo
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.call_py_func", MakeCallPyFunc);
+  refl::GlobalDef().def("tvm.relax.op.call_py_func", MakeCallPyFunc);
 }
 
 // call builtin
@@ -948,7 +948,7 @@ Expr MakeCallBuiltinWithCtx(Expr func, Tuple args, ffi::Array<StructInfo> sinfo_
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.call_builtin_with_ctx", MakeCallBuiltinWithCtx);
+  refl::GlobalDef().def("tvm.relax.op.call_builtin_with_ctx", MakeCallBuiltinWithCtx);
 }
 
 TVM_REGISTER_OP("relax.null_value")
@@ -963,7 +963,7 @@ Expr MakeCallNullValue() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.null_value", MakeCallNullValue);
+  refl::GlobalDef().def("tvm.relax.op.null_value", MakeCallNullValue);
 }
 
 // print
@@ -974,7 +974,7 @@ TVM_REGISTER_OP("relax.print")
                   "The first value is Python-style format string to use to print. The others "
                   "are values to print")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
-    .set_attr<FCallPacked>("FCallPacked", "relax.run.print")
+    .set_attr<FCallPacked>("FCallPacked", "tvm.relax.run.print")
     .set_attr<Bool>("FPurity", Bool(false));
 
 Expr MakePrint(ffi::Array<Expr> vals, StringImm format) {
@@ -989,7 +989,7 @@ Expr MakePrint(ffi::Array<Expr> vals, StringImm format) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.print", MakePrint);
+  refl::GlobalDef().def("tvm.relax.op.print", MakePrint);
 }
 
 // assert_op
@@ -1020,7 +1020,7 @@ TVM_REGISTER_OP("relax.assert_op")
                   "Python-style format string to use for displaying an error message, if the "
                   "assert fails. The others are used as format arguments if there is an error.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferAssertStructInfo)
-    .set_attr<FCallPacked>("FCallPacked", "relax.run.assert_op")
+    .set_attr<FCallPacked>("FCallPacked", "tvm.relax.run.assert_op")
     .set_attr<Bool>("FPurity", Bool(false));
 
 Expr MakeAssertOp(Expr condition, ffi::Array<Expr> vals, StringImm format) {
@@ -1035,7 +1035,7 @@ Expr MakeAssertOp(Expr condition, ffi::Array<Expr> vals, StringImm format) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.assert_op", MakeAssertOp);
+  refl::GlobalDef().def("tvm.relax.op.assert_op", MakeAssertOp);
 }
 
 // make_closure
@@ -1054,7 +1054,7 @@ Expr MakeClosure(Expr func, Tuple args) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.make_closure", MakeClosure);
+  refl::GlobalDef().def("tvm.relax.op.make_closure", MakeClosure);
 }
 
 // invoke_closure
@@ -1084,7 +1084,7 @@ Expr InvokeClosure(Expr closure, Tuple args, ffi::Array<StructInfo> sinfo_args) 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.invoke_closure", InvokeClosure);
+  refl::GlobalDef().def("tvm.relax.op.invoke_closure", InvokeClosure);
 }
 
 // invoke_pure_closure
@@ -1103,7 +1103,7 @@ Expr InvokePureClosure(Expr closure, Tuple args, ffi::Array<StructInfo> sinfo_ar
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.invoke_pure_closure", InvokePureClosure);
+  refl::GlobalDef().def("tvm.relax.op.invoke_pure_closure", InvokePureClosure);
 }
 
 // shape_of
@@ -1121,7 +1121,7 @@ Expr MakeShapeOf(Expr expr) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.shape_of", MakeShapeOf);
+  refl::GlobalDef().def("tvm.relax.op.shape_of", MakeShapeOf);
 }
 
 // tensor_to_shape
@@ -1158,7 +1158,7 @@ Expr MakeTensorToShape(Expr expr) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.tensor_to_shape", MakeTensorToShape);
+  refl::GlobalDef().def("tvm.relax.op.tensor_to_shape", MakeTensorToShape);
 }
 
 // shape_to_tensor
@@ -1175,7 +1175,7 @@ TVM_REGISTER_OP("relax.shape_to_tensor")
     .set_num_inputs(1)
     .add_argument("input", "Expr", "The input expression")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnShapeToTensorStructInfo)
-    .set_attr<FCallPacked>("FCallPacked", "relax.run.shape_to_tensor")
+    .set_attr<FCallPacked>("FCallPacked", "tvm.relax.run.shape_to_tensor")
     .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeShapeToTensor(Expr expr) {
@@ -1185,7 +1185,7 @@ Expr MakeShapeToTensor(Expr expr) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.shape_to_tensor", MakeShapeToTensor);
+  refl::GlobalDef().def("tvm.relax.op.shape_to_tensor", MakeShapeToTensor);
 }
 
 // alloc_tensor
@@ -1225,7 +1225,7 @@ Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_ind
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.builtin.alloc_tensor", MakeAllocTensor);
+  refl::GlobalDef().def("tvm.relax.op.builtin.alloc_tensor", MakeAllocTensor);
 }
 
 // memory planning alloc_storage
@@ -1253,7 +1253,7 @@ Expr MakeAllocStorage(Expr size, PrimValue virtual_device_index, StringImm stora
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.memory.alloc_storage", MakeAllocStorage);
+  refl::GlobalDef().def("tvm.relax.op.memory.alloc_storage", MakeAllocStorage);
 }
 
 // memory planning alloc_tensor
@@ -1287,7 +1287,7 @@ Expr MakeMemAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.memory.alloc_tensor", MakeMemAllocTensor);
+  refl::GlobalDef().def("tvm.relax.op.memory.alloc_tensor", MakeMemAllocTensor);
 }
 
 // memory planning kill_storage
@@ -1306,7 +1306,7 @@ Expr MakeMemKillStorage(Expr storage) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.memory.kill_storage", MakeMemKillStorage);
+  refl::GlobalDef().def("tvm.relax.op.memory.kill_storage", MakeMemKillStorage);
 }
 
 // memory planning kill_tensor
@@ -1325,7 +1325,7 @@ Expr MakeMemKillTensor(Expr tensor) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.memory.kill_tensor", MakeMemKillTensor);
+  refl::GlobalDef().def("tvm.relax.op.memory.kill_tensor", MakeMemKillTensor);
 }
 
 // vm alloc_storage
@@ -1352,7 +1352,7 @@ Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm d
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.vm.alloc_storage", MakeVMAllocStorage);
+  refl::GlobalDef().def("tvm.relax.op.vm.alloc_storage", MakeVMAllocStorage);
 }
 
 // vm alloc_tensor
@@ -1393,7 +1393,7 @@ Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm d
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.vm.alloc_tensor", MakeVMAllocTensor);
+  refl::GlobalDef().def("tvm.relax.op.vm.alloc_tensor", MakeVMAllocTensor);
 }
 
 // vm kill_object
@@ -1412,7 +1412,7 @@ Expr MakeVMKillObject(Expr obj) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.vm.kill_object", MakeVMKillObject);
+  refl::GlobalDef().def("tvm.relax.op.vm.kill_object", MakeVMKillObject);
 }
 
 // vm call_tir_dyn
@@ -1433,7 +1433,7 @@ Expr MakeCallTIRDyn(Expr func, Tuple args) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.vm.call_tir_dyn", MakeCallTIRDyn);
+  refl::GlobalDef().def("tvm.relax.op.vm.call_tir_dyn", MakeCallTIRDyn);
 }
 
 // builtin stop_lift_params
@@ -1454,7 +1454,7 @@ Expr MakeStopLiftParams(Expr x) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.builtin.stop_lift_params", MakeStopLiftParams);
+  refl::GlobalDef().def("tvm.relax.op.builtin.stop_lift_params", MakeStopLiftParams);
 }
 
 // to_vdevice
@@ -1487,7 +1487,7 @@ Expr MakeToVDevice(Expr data, VDevice dst_vdev) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.to_vdevice", MakeToVDevice);
+  refl::GlobalDef().def("tvm.relax.op.to_vdevice", MakeToVDevice);
 }
 
 // hint_on_device
@@ -1517,14 +1517,15 @@ Expr MakeHintOnDevice(Expr data, Device device, ffi::String memory_scope = "glob
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("relax.op.hint_on_device", [](ffi::PackedArgs args, ffi::Any* ret) {
-    if (args.size() == 3) {
-      *ret = MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>(),
-                              args[2].cast<ffi::String>());
-    } else {
-      *ret = MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>());
-    }
-  });
+  refl::GlobalDef().def_packed(
+      "tvm.relax.op.hint_on_device", [](ffi::PackedArgs args, ffi::Any* ret) {
+        if (args.size() == 3) {
+          *ret = MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>(),
+                                  args[2].cast<ffi::String>());
+        } else {
+          *ret = MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>());
+        }
+      });
 }
 
 }  // namespace relax

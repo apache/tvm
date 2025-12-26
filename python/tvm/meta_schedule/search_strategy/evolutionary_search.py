@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .search_strategy import SearchStrategy
 
 
-@register_object("meta_schedule.EvolutionarySearch")
+@register_object("tvm.meta_schedule.EvolutionarySearch")
 class EvolutionarySearch(SearchStrategy):
     """
     Replay Trace Search Strategy is a search strategy that always replays the trace by removing its

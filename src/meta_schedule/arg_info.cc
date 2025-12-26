@@ -165,13 +165,14 @@ TVM_FFI_STATIC_INIT_BLOCK() { TensorInfoNode::RegisterReflection(); }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("meta_schedule.ArgInfoAsJSON", &ArgInfoNode::AsJSON)
-      .def("meta_schedule.ArgInfoFromPrimFunc", ArgInfo::FromPrimFunc)
-      .def("meta_schedule.ArgInfoFromEntryFunc", ArgInfo::FromEntryFunc)
-      .def("meta_schedule.ArgInfoFromJSON", ArgInfo::FromJSON)
-      .def("meta_schedule.TensorInfo", [](runtime::DataType dtype, ffi::Shape shape) -> TensorInfo {
-        return TensorInfo(dtype, shape);
-      });
+      .def_method("tvm.meta_schedule.ArgInfoAsJSON", &ArgInfoNode::AsJSON)
+      .def("tvm.meta_schedule.ArgInfoFromPrimFunc", ArgInfo::FromPrimFunc)
+      .def("tvm.meta_schedule.ArgInfoFromEntryFunc", ArgInfo::FromEntryFunc)
+      .def("tvm.meta_schedule.ArgInfoFromJSON", ArgInfo::FromJSON)
+      .def("tvm.meta_schedule.TensorInfo",
+           [](runtime::DataType dtype, ffi::Shape shape) -> TensorInfo {
+             return TensorInfo(dtype, shape);
+           });
 }
 
 }  // namespace meta_schedule

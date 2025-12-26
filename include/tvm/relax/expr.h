@@ -62,7 +62,7 @@ class IdNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.Id", IdNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.Id", IdNode, Object);
 };
 
 class Id : public ObjectRef {
@@ -122,7 +122,7 @@ class StructInfoNode : public Object {
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
   static constexpr const uint32_t _type_child_slots = 7;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.StructInfo", StructInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.ir.StructInfo", StructInfoNode, Object);
 };
 
 /*!
@@ -174,7 +174,7 @@ class CallNode : public ExprNode {
         .def_ro("attrs", &CallNode::attrs)
         .def_ro("sinfo_args", &CallNode::sinfo_args);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Call", CallNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.expr.Call", CallNode, ExprNode);
 };
 
 class Call : public Expr {
@@ -216,7 +216,7 @@ class TupleNode : public ExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TupleNode>().def_ro("fields", &TupleNode::fields);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Tuple", TupleNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.expr.Tuple", TupleNode, ExprNode);
 };
 
 class Tuple : public Expr {
@@ -273,7 +273,7 @@ class TupleGetItemNode : public ExprNode {
         .def_ro("tuple_value", &TupleGetItemNode::tuple)
         .def_ro("index", &TupleGetItemNode::index);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.TupleGetItem", TupleGetItemNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.expr.TupleGetItem", TupleGetItemNode, ExprNode);
 };
 
 class TupleGetItem : public Expr {
@@ -307,7 +307,7 @@ TupleGetItem WithFields(TupleGetItem tuple_get_item,
 class LeafExprNode : public ExprNode {
  public:
   static constexpr const uint32_t _type_child_slots = 7;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.LeafExpr", LeafExprNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.expr.LeafExpr", LeafExprNode, ExprNode);
 };
 
 /*!
@@ -330,7 +330,7 @@ class ShapeExprNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ShapeExprNode>().def_ro("values", &ShapeExprNode::values);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.ShapeExpr", ShapeExprNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.expr.ShapeExpr", ShapeExprNode, LeafExprNode);
 };
 
 class ShapeExpr : public LeafExpr {
@@ -355,8 +355,8 @@ class VarNode : public LeafExprNode {
     refl::ObjectDef<VarNode>().def_ro("vid", &VarNode::vid);
     // customize structural equal and hash to include struct_info_
     refl::TypeAttrDef<VarNode>()
-        .def("__s_equal__", &VarNode::SEqual)
-        .def("__s_hash__", &VarNode::SHash);
+        .def("tvm.__s_equal__", &VarNode::SEqual)
+        .def("tvm.__s_hash__", &VarNode::SHash);
   }
 
   bool SEqual(const VarNode* other,
@@ -375,7 +375,7 @@ class VarNode : public LeafExprNode {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
   static constexpr const uint32_t _type_child_slots = 1;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.Var", VarNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.expr.Var", VarNode, LeafExprNode);
 };
 
 class Var : public LeafExpr {
@@ -402,7 +402,7 @@ class DataflowVarNode : public VarNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.DataflowVar", DataflowVarNode, VarNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.expr.DataflowVar", DataflowVarNode, VarNode);
 };
 
 class DataflowVar : public Var {
@@ -438,7 +438,7 @@ class ConstantNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ConstantNode>().def_ro("data", &ConstantNode::data);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Constant", ConstantNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.expr.Constant", ConstantNode, LeafExprNode);
 };
 
 class Constant : public LeafExpr {
@@ -472,7 +472,7 @@ class PrimValueNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimValueNode>().def_ro("value", &PrimValueNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.PrimValue", PrimValueNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.expr.PrimValue", PrimValueNode, LeafExprNode);
 };
 
 /*!
@@ -512,7 +512,7 @@ class StringImmNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.StringImm", StringImmNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.expr.StringImm", StringImmNode, LeafExprNode);
 };
 
 /*!
@@ -544,7 +544,7 @@ class DataTypeImmNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DataTypeImmNode>().def_ro("value", &DataTypeImmNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.DataTypeImm", DataTypeImmNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.expr.DataTypeImm", DataTypeImmNode, LeafExprNode);
 };
 
 /*!
@@ -580,7 +580,7 @@ class BindingNode : public Object {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.Binding", BindingNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.expr.Binding", BindingNode, Object);
 };
 
 class Binding : public ObjectRef {
@@ -616,7 +616,7 @@ class MatchCastNode : public BindingNode {
         .def_ro("value", &MatchCastNode::value)
         .def_ro("struct_info", &MatchCastNode::struct_info, refl::AttachFieldFlag::SEqHashDef());
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.MatchCast", MatchCastNode, BindingNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.expr.MatchCast", MatchCastNode, BindingNode);
 };
 
 /*!
@@ -641,15 +641,15 @@ class VarBindingNode : public BindingNode {
     refl::ObjectDef<VarBindingNode>().def_ro("value", &VarBindingNode::value);
     // customize the SEqual and SHash methods for better error messages
     refl::TypeAttrDef<VarBindingNode>()
-        .def("__s_equal__", &VarBindingNode::SEqual)
-        .def("__s_hash__", &VarBindingNode::SHash);
+        .def("tvm.__s_equal__", &VarBindingNode::SEqual)
+        .def("tvm.__s_hash__", &VarBindingNode::SHash);
   }
 
   bool SEqual(const VarBindingNode* other,
               ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const;
   uint64_t SHash(uint64_t init_hash,
                  ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.VarBinding", VarBindingNode, BindingNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.expr.VarBinding", VarBindingNode, BindingNode);
 };
 
 class VarBinding : public Binding {
@@ -673,7 +673,7 @@ class BindingBlockNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.BindingBlock", BindingBlockNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.expr.BindingBlock", BindingBlockNode, Object);
 };
 
 class BindingBlock : public ObjectRef {
@@ -690,7 +690,7 @@ class DataflowBlockNode : public BindingBlockNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DataflowBlockNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.DataflowBlock", DataflowBlockNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.expr.DataflowBlock", DataflowBlockNode,
                                     BindingBlockNode);
 };
 
@@ -716,7 +716,7 @@ class SeqExprNode : public ExprNode {
         .def_ro("blocks", &SeqExprNode::blocks)
         .def_ro("body", &SeqExprNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.SeqExpr", SeqExprNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.expr.SeqExpr", SeqExprNode, ExprNode);
 };
 
 class SeqExpr : public Expr {
@@ -768,7 +768,7 @@ class IfNode : public ExprNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.If", IfNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.expr.If", IfNode, ExprNode);
 };
 
 class If : public Expr {
@@ -828,7 +828,7 @@ class FunctionNode : public BaseFuncNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Function", FunctionNode, BaseFuncNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.expr.Function", FunctionNode, BaseFuncNode);
 };
 
 class Function : public BaseFunc {
@@ -911,7 +911,7 @@ class ExternFuncNode : public BaseFuncNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ExternFuncNode>().def_ro("global_symbol", &ExternFuncNode::global_symbol);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.ExternFunc", ExternFuncNode, BaseFuncNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.expr.ExternFunc", ExternFuncNode, BaseFuncNode);
 };
 
 class ExternFunc : public BaseFunc {

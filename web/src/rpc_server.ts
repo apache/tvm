@@ -300,7 +300,7 @@ export class RPCServer {
       if (this.asyncOnServerLoad !== undefined) {
         await this.asyncOnServerLoad(this.inst);
       }
-      const fcreate = this.inst.getGlobalFunc("rpc.CreateEventDrivenServer");
+      const fcreate = this.inst.getGlobalFunc("tvm.rpc.CreateEventDrivenServer");
       const messageHandler = fcreate(
         (cbytes: Uint8Array): runtime.Scalar => {
           assert(this.inst !== undefined);
@@ -356,7 +356,7 @@ export class RPCServer {
       // The RPC will look for "rpc.wasmSession"
       // and we will redirect it to the correct local session.
       // register the callback to redirect the session to local.
-      const flocal = this.inst.getGlobalFunc("wasm.LocalSession");
+      const flocal = this.inst.getGlobalFunc("tvm.wasm.LocalSession");
       const localSession = flocal();
       assert(localSession instanceof runtime.Module);
 

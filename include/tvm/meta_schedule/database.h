@@ -53,7 +53,7 @@ class WorkloadNode : public runtime::Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<WorkloadNode>().def_ro("mod", &WorkloadNode::mod);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.Workload", WorkloadNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.Workload", WorkloadNode, runtime::Object);
 
   /*!
    * \brief Export the workload to a JSON string.
@@ -133,7 +133,7 @@ class TuningRecordNode : public runtime::Object {
         .def_ro("target", &TuningRecordNode::target)
         .def_ro("args_info", &TuningRecordNode::args_info);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.TuningRecord", TuningRecordNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.TuningRecord", TuningRecordNode,
                                     runtime::Object);
 
   /*! \brief Construct the measure candidate given the initial IR module and trace
@@ -274,7 +274,7 @@ class DatabaseNode : public runtime::Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.Database", DatabaseNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.meta_schedule.Database", DatabaseNode, runtime::Object);
 
  private:
   /*! \brief The module equality testing and hashing method */
@@ -456,7 +456,7 @@ class PyDatabaseNode : public DatabaseNode {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyDatabase", PyDatabaseNode, DatabaseNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.PyDatabase", PyDatabaseNode, DatabaseNode);
 };
 
 /*!

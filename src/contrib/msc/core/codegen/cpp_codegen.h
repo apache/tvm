@@ -115,7 +115,7 @@ class CppCodeGen : public BaseCodeGen<ConfigType, HelperType> {
     this->stack_.comment(this->Comment(node));
     // process inputs and weights by tools
     if (use_tools) {
-      const auto pf = tvm::ffi::Function::GetGlobalRequired("msc_tool.codegen_tensor");
+      const auto pf = tvm::ffi::Function::GetGlobalRequired("tvm.msc_tool.codegen_tensor");
       for (size_t i = 0; i < node->inputs.size(); i++) {
         const auto& input = node->InputAt(i);
         ffi::Any lines = pf(GetTensorCtx(input), input->name, node->name,
@@ -137,7 +137,7 @@ class CppCodeGen : public BaseCodeGen<ConfigType, HelperType> {
     }
     // process graph outputs by tools
     if (use_tools) {
-      const auto pf = tvm::ffi::Function::GetGlobalRequired("msc_tool.codegen_tensor");
+      const auto pf = tvm::ffi::Function::GetGlobalRequired("tvm.msc_tool.codegen_tensor");
       for (size_t i = 0; i < node->outputs.size(); i++) {
         int index = static_cast<int>(i);
         if (graph_outputs_.count(node->OutputAt(index))) {

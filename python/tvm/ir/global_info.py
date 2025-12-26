@@ -21,7 +21,7 @@ from tvm.runtime.object import Object
 from . import _ffi_api
 
 
-@tvm_ffi.register_object("ir.GlobalInfo")
+@tvm_ffi.register_object("tvm.ir.GlobalInfo")
 class GlobalInfo(Object):
     """Base node for all global info that can appear in the IR"""
 
@@ -37,7 +37,7 @@ class GlobalInfo(Object):
         return super().__eq__(other)
 
 
-@tvm_ffi.register_object("ir.DummyGlobalInfo")
+@tvm_ffi.register_object("tvm.ir.DummyGlobalInfo")
 class DummyGlobalInfo(GlobalInfo):
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(
@@ -45,7 +45,7 @@ class DummyGlobalInfo(GlobalInfo):
         )
 
 
-@tvm_ffi.register_object("ir.VDevice")
+@tvm_ffi.register_object("tvm.ir.VDevice")
 class VDevice(GlobalInfo):
     def __init__(
         self,

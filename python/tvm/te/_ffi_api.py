@@ -18,4 +18,4 @@
 import tvm_ffi
 
 
-tvm_ffi.init_ffi_api("te", __name__)
+tvm_ffi.init_ffi_api("tvm.te", __name__)

@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .search_strategy import SearchStrategy
 
 
-@register_object("meta_schedule.ReplayFunc")
+@register_object("tvm.meta_schedule.ReplayFunc")
 class ReplayFunc(SearchStrategy):
     """
     Replay Func Search Strategy is a search strategy that generates measure candidates by

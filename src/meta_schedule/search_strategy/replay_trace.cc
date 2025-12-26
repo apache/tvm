@@ -81,7 +81,7 @@ class ReplayTraceNode : public SearchStrategyNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ReplayTraceNode>().def_ro("max_fail_count", &ReplayTraceNode::max_fail_count);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.ReplayTrace", ReplayTraceNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.ReplayTrace", ReplayTraceNode,
                                     SearchStrategyNode);
 
   void InitializeWithTuneContext(const TuneContext& ctx) final {
@@ -194,7 +194,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { ReplayTraceNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.SearchStrategyReplayTrace", SearchStrategy::ReplayTrace);
+  refl::GlobalDef().def("tvm.meta_schedule.SearchStrategyReplayTrace", SearchStrategy::ReplayTrace);
 }
 
 }  // namespace meta_schedule

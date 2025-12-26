@@ -117,7 +117,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RandomComputeLocationNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RandomComputeLocation",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.RandomComputeLocation",
                                     RandomComputeLocationNode, ScheduleRuleNode);
 };
 
@@ -129,7 +129,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { RandomComputeLocationNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.ScheduleRuleRandomComputeLocation",
+  refl::GlobalDef().def("tvm.meta_schedule.ScheduleRuleRandomComputeLocation",
                         ScheduleRule::RandomComputeLocation);
 }
 }  // namespace meta_schedule

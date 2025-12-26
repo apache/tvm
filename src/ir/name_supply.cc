@@ -95,10 +95,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   NameSupplyNode::RegisterReflection();
   refl::GlobalDef()
-      .def("ir.NameSupply", [](ffi::String prefix) { return NameSupply(prefix); })
-      .def_method("ir.NameSupply_FreshName", &NameSupplyNode::FreshName)
-      .def_method("ir.NameSupply_ReserveName", &NameSupplyNode::ReserveName)
-      .def_method("ir.NameSupply_ContainsName", &NameSupplyNode::ContainsName);
+      .def("tvm.ir.NameSupply", [](ffi::String prefix) { return NameSupply(prefix); })
+      .def_method("tvm.ir.NameSupply_FreshName", &NameSupplyNode::FreshName)
+      .def_method("tvm.ir.NameSupply_ReserveName", &NameSupplyNode::ReserveName)
+      .def_method("tvm.ir.NameSupply_ContainsName", &NameSupplyNode::ContainsName);
 }
 
 }  // namespace tvm

@@ -39,7 +39,7 @@ struct MultinomialFromUniformAttrs : public AttrsNodeReflAdapter<MultinomialFrom
         "dtype", &MultinomialFromUniformAttrs::dtype, "Data type of the output indices.",
         refl::DefaultValue(DataType::Int(64)));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.MultinomialFromUniformAttrs",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.MultinomialFromUniformAttrs",
                                     MultinomialFromUniformAttrs, BaseAttrsNode);
 };  // struct MultinomialFromUniformAttrs
 

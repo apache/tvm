@@ -35,11 +35,11 @@ struct SortableFunction {
       : priority(0), gv(obj.first), func(obj.second) {
     if (gv->name_hint == "main") {
       priority = 1000;
-    } else if (obj.second->GetTypeKey() == "tir.PrimFunc") {
+    } else if (obj.second->GetTypeKey() == "tvm.tir.PrimFunc") {
       priority = 1;
-    } else if (obj.second->GetTypeKey() == "relax.expr.ExternFunc") {
+    } else if (obj.second->GetTypeKey() == "tvm.relax.expr.ExternFunc") {
       priority = 2;
-    } else if (obj.second->GetTypeKey() == "relax.expr.Function") {
+    } else if (obj.second->GetTypeKey() == "tvm.relax.expr.Function") {
       priority = 3;
     } else {
       LOG(FATAL) << "TypeError: TVMScript cannot print functions of type: "

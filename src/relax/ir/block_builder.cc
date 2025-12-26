@@ -1057,40 +1057,40 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<BlockBuilderNode>();
   refl::GlobalDef()
-      .def("relax.BlockBuilderCreate",
+      .def("tvm.relax.BlockBuilderCreate",
            [](ffi::Optional<IRModule> mod) { return BlockBuilder::Create(mod); })
-      .def_method("relax.BlockBuilderBeginDataflowBlock", &BlockBuilderNode::BeginDataflowBlock)
-      .def_method("relax.BlockBuilderBeginBindingBlock", &BlockBuilderNode::BeginBindingBlock)
-      .def_method("relax.BlockBuilderEndBlock", &BlockBuilderNode::EndBlock)
-      .def_method("relax.BlockBuilderNormalize", &BlockBuilderNode::Normalize)
-      .def("relax.BlockBuilderEmit",
+      .def_method("tvm.relax.BlockBuilderBeginDataflowBlock", &BlockBuilderNode::BeginDataflowBlock)
+      .def_method("tvm.relax.BlockBuilderBeginBindingBlock", &BlockBuilderNode::BeginBindingBlock)
+      .def_method("tvm.relax.BlockBuilderEndBlock", &BlockBuilderNode::EndBlock)
+      .def_method("tvm.relax.BlockBuilderNormalize", &BlockBuilderNode::Normalize)
+      .def("tvm.relax.BlockBuilderEmit",
            [](BlockBuilder builder, Expr expr, ffi::String name_hint) {
              return builder->Emit(expr, name_hint);
            })
-      .def("relax.BlockBuilderEmitMatchCast",
+      .def("tvm.relax.BlockBuilderEmitMatchCast",
            [](BlockBuilder builder, Expr value, StructInfo struct_info, ffi::String name_hint) {
              return builder->EmitMatchCast(value, struct_info, name_hint);
            })
-      .def("relax.BlockBuilderEmitOutput",
+      .def("tvm.relax.BlockBuilderEmitOutput",
            [](BlockBuilder builder, const Expr& output, ffi::String name_hint) {
              return builder->EmitOutput(output, name_hint);
            })
-      .def("relax.BlockBuilderEmitNormalized",
+      .def("tvm.relax.BlockBuilderEmitNormalized",
            [](BlockBuilder builder, Binding binding) { return builder->EmitNormalized(binding); })
-      .def("relax.BlockBuilderGetUniqueName",
+      .def("tvm.relax.BlockBuilderGetUniqueName",
            [](BlockBuilder builder, ffi::String name_hint) {
              return builder->name_supply()->FreshName(name_hint, /*add_prefix*/ false,
                                                       /*add_underscore*/ false);
            })
-      .def_method("relax.BlockBuilderAddFunction", &BlockBuilderNode::AddFunction)
-      .def_method("relax.BlockBuilderUpdateFunction", &BlockBuilderNode::UpdateFunction)
-      .def_method("relax.BlockBuilderGetContextIRModule", &BlockBuilderNode::GetContextIRModule)
-      .def_method("relax.BlockBuilderFinalize", &BlockBuilderNode::Finalize)
-      .def_method("relax.BlockBuilderCurrentBlockIsDataFlow",
+      .def_method("tvm.relax.BlockBuilderAddFunction", &BlockBuilderNode::AddFunction)
+      .def_method("tvm.relax.BlockBuilderUpdateFunction", &BlockBuilderNode::UpdateFunction)
+      .def_method("tvm.relax.BlockBuilderGetContextIRModule", &BlockBuilderNode::GetContextIRModule)
+      .def_method("tvm.relax.BlockBuilderFinalize", &BlockBuilderNode::Finalize)
+      .def_method("tvm.relax.BlockBuilderCurrentBlockIsDataFlow",
                   &BlockBuilderNode::CurrentBlockIsDataFlow)
-      .def_method("relax.BlockBuilderLookupBinding", &BlockBuilderNode::LookupBinding)
-      .def_method("relax.BlockBuilderBeginScope", &BlockBuilderNode::BeginScope)
-      .def_method("relax.BlockBuilderEndScope", &BlockBuilderNode::EndScope);
+      .def_method("tvm.relax.BlockBuilderLookupBinding", &BlockBuilderNode::LookupBinding)
+      .def_method("tvm.relax.BlockBuilderBeginScope", &BlockBuilderNode::BeginScope)
+      .def_method("tvm.relax.BlockBuilderEndScope", &BlockBuilderNode::EndScope);
 }
 }  // namespace relax
 }  // namespace tvm

@@ -232,9 +232,9 @@ class DistIRSharder : public ExprMutator {
     } else if (const auto* extern_func = call->op.as<ExternFuncNode>()) {
       auto new_call_node = ffi::make_object<CallNode>(*call);
       if (extern_func->global_symbol == "vm.builtin.distributed.attention_kv_cache_append") {
-        new_call_node->op = ExternFunc("vm.builtin.attention_kv_cache_append");
+        new_call_node->op = ExternFunc("tvm.vm.builtin.attention_kv_cache_append");
       } else if (extern_func->global_symbol == "vm.builtin.distributed.attention_kv_cache_view") {
-        new_call_node->op = ExternFunc("vm.builtin.attention_kv_cache_view");
+        new_call_node->op = ExternFunc("tvm.vm.builtin.attention_kv_cache_view");
         auto orig_shape = Downcast<ShapeExpr>(call->args[1]);
         const auto* out_sinfo = GetStructInfoAs<DTensorStructInfoNode>(binding_var);
         ICHECK(out_sinfo);
@@ -266,7 +266,7 @@ Pass LowerDistIR() {
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.distributed.transform.LowerDistIR", LowerDistIR);
+  refl::GlobalDef().def("tvm.relax.distributed.transform.LowerDistIR", LowerDistIR);
 }
 }  // namespace transform
 

@@ -326,7 +326,7 @@ void TVMPluginCodeGen::CodeGenOpBuilder(const Plugin& plugin) {
     stack_.func_call("plugin_utils.to_expr", a->name).call_arg(a->name);
     args.push_back(a->name);
   }
-  stack_.func_call("relax.Tuple", "args")
+  stack_.func_call("tvm.relax.Tuple", "args")
       .call_arg(DocUtils::ToList(args))
       .func_call("InferStructInfo" + plugin->name, "out_sinfo", "self._ffi_api");
   for (const auto& t : plugin->inputs) {
@@ -398,7 +398,7 @@ void TVMPluginCodeGen::CodeGenCompute(const Plugin& plugin, const ffi::String& d
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("msc.plugin.GetTVMPluginSources",
+  refl::GlobalDef().def("tvm.msc.plugin.GetTVMPluginSources",
                         [](const ffi::String& codegen_config, const ffi::String& print_config,
                            const ffi::String& codegen_type) -> ffi::Map<ffi::String, ffi::String> {
                           TVMPluginCodeGen codegen = TVMPluginCodeGen(codegen_config);

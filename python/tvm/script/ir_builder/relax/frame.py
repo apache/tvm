@@ -20,36 +20,36 @@ from tvm_ffi import register_object as _register_object
 from ..base import IRBuilderFrame
 
 
-@_register_object("script.ir_builder.relax.RelaxFrame")
+@_register_object("tvm.script.ir_builder.relax.RelaxFrame")
 class RelaxFrame(IRBuilderFrame):
     """The base ir_builder frame for the relax dialect."""
 
 
-@_register_object("script.ir_builder.relax.SeqExprFrame")
+@_register_object("tvm.script.ir_builder.relax.SeqExprFrame")
 class SeqExprFrame(RelaxFrame):
     ...
 
 
-@_register_object("script.ir_builder.relax.FunctionFrame")
+@_register_object("tvm.script.ir_builder.relax.FunctionFrame")
 class FunctionFrame(SeqExprFrame):
     """The ir_builder frame for the relax function."""
 
 
-@_register_object("script.ir_builder.relax.BlockFrame")
+@_register_object("tvm.script.ir_builder.relax.BlockFrame")
 class BlockFrame(RelaxFrame):
     """The ir_builder frame for relax binding blocks."""
 
 
-@_register_object("script.ir_builder.relax.IfFrame")
+@_register_object("tvm.script.ir_builder.relax.IfFrame")
 class IfFrame(RelaxFrame):
     ...
 
 
-@_register_object("script.ir_builder.relax.ThenFrame")
+@_register_object("tvm.script.ir_builder.relax.ThenFrame")
 class ThenFrame(SeqExprFrame):
     ...
 
 
-@_register_object("script.ir_builder.relax.ElseFrame")
+@_register_object("tvm.script.ir_builder.relax.ElseFrame")
 class ElseFrame(SeqExprFrame):
     ...

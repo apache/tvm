@@ -488,7 +488,7 @@ class Server(object):
             # must import mypackage here
             import mypackage
 
-            tvm.register_global_func("function", mypackage.func)
+            tvm.register_global_func("tvm.function", mypackage.func)
 
         server = rpc.Server(host, server_init_callback=server_init_callback)
     """

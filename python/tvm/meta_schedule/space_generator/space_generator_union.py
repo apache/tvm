@@ -29,7 +29,7 @@ from .space_generator import (
 )
 
 
-@register_object("meta_schedule.SpaceGeneratorUnion")
+@register_object("tvm.meta_schedule.SpaceGeneratorUnion")
 class SpaceGeneratorUnion(SpaceGenerator):
     """Union of design space generators."""
 

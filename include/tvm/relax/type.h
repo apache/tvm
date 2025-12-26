@@ -48,7 +48,7 @@ class ShapeTypeNode : public TypeNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ShapeTypeNode>().def_ro("ndim", &ShapeTypeNode::ndim);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ShapeType", ShapeTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.ShapeType", ShapeTypeNode, TypeNode);
 };
 
 class ShapeType : public Type {
@@ -84,7 +84,7 @@ class TensorTypeNode : public TypeNode {
   inline bool IsUnknownNdim() const { return ndim == kUnknownNDim; }
 
   inline bool IsUnknownDtype() const { return dtype.is_void(); }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DynTensorType", TensorTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.DynTensorType", TensorTypeNode, TypeNode);
 };
 
 /*!
@@ -118,7 +118,7 @@ class ObjectTypeNode : public TypeNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ObjectTypeNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ObjectType", ObjectTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.ObjectType", ObjectTypeNode, TypeNode);
 };
 
 class ObjectType : public Type {
@@ -134,7 +134,7 @@ class PackedFuncTypeNode : public TypeNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PackedFuncTypeNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.PackedFuncType", PackedFuncTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.PackedFuncType", PackedFuncTypeNode, TypeNode);
 };
 
 class PackedFuncType : public Type {

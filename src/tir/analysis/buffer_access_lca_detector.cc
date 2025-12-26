@@ -349,7 +349,7 @@ ffi::Map<Buffer, ffi::Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.analysis.detect_buffer_access_lca", DetectBufferAccessLCA);
+  refl::GlobalDef().def("tvm.tir.analysis.detect_buffer_access_lca", DetectBufferAccessLCA);
 }
 }  // namespace tir
 }  // namespace tvm

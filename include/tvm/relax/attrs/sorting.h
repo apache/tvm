@@ -47,7 +47,7 @@ struct SortAttrs : public AttrsNodeReflAdapter<SortAttrs> {
                 "If it is not specified, it defaults to the ascending order.",
                 refl::DefaultValue(false));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SortAttrs", SortAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.SortAttrs", SortAttrs, BaseAttrsNode);
 };  // struct SortAttrs
 
 /*! \brief Attributes used in argsort operator */
@@ -70,7 +70,7 @@ struct ArgsortAttrs : public AttrsNodeReflAdapter<ArgsortAttrs> {
         .def_ro("dtype", &ArgsortAttrs::dtype, "DType of the output indices.",
                 refl::DefaultValue(NullValue<DataType>()));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ArgsortAttrs", ArgsortAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.ArgsortAttrs", ArgsortAttrs, BaseAttrsNode);
 };  // struct ArgsortAttrs
 
 /*! \brief Attributes used in topk operator */
@@ -100,7 +100,7 @@ struct TopKAttrs : public AttrsNodeReflAdapter<TopKAttrs> {
         .def_ro("dtype", &TopKAttrs::dtype, "Data type of the output indices.",
                 refl::DefaultValue(NullValue<DataType>()));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TopKAttrs", TopKAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.TopKAttrs", TopKAttrs, BaseAttrsNode);
 };  // struct TopKAttrs
 
 }  // namespace relax

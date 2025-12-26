@@ -111,15 +111,15 @@ void LogMessageImpl(const std::string& file, int lineno, int level, const std::s
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_packed("tvmjs.testing.call",
+      .def_packed("tvm.tvmjs.testing.call",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
                     (args[0].cast<ffi::Function>()).CallPacked(args.Slice(1), ret);
                   })
       .def_packed(
-          "tvmjs.testing.log_info_str",
+          "tvm.tvmjs.testing.log_info_str",
           [](ffi::PackedArgs args, ffi::Any* ret) { LOG(INFO) << args[0].cast<ffi::String>(); })
-      .def("tvmjs.testing.add_one", [](int x) { return x + 1; })
-      .def_packed("tvmjs.testing.wrap_callback", [](ffi::PackedArgs args, ffi::Any* ret) {
+      .def("tvm.tvmjs.testing.add_one", [](int x) { return x + 1; })
+      .def_packed("tvm.tvmjs.testing.wrap_callback", [](ffi::PackedArgs args, ffi::Any* ret) {
         ffi::Function pf = args[0].cast<ffi::Function>();
         *ret = ffi::TypedFunction<void()>([pf]() { pf(); });
       });
@@ -150,7 +150,7 @@ void ArrayDecodeStorage(Tensor cpu_arr, TVMFFIByteArray* bytes, const std::strin
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
-      "tvmjs.array.decode_storage", [](ffi::PackedArgs args, ffi::Any* ret) {
+      "tvm.tvmjs.array.decode_storage", [](ffi::PackedArgs args, ffi::Any* ret) {
         Tensor cpu_arr = args[0].cast<Tensor>();
         TVMFFIByteArray* bytes = args[1].cast<TVMFFIByteArray*>();
         std::string format = args[2].cast<ffi::String>().operator std::string();
@@ -162,7 +162,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // Concatenate n TVMArrays
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("tvmjs.runtime.ArrayConcat",
+  refl::GlobalDef().def_packed("tvm.tvmjs.runtime.ArrayConcat",
                                [](ffi::PackedArgs args, ffi::Any* ret) {
                                  std::vector<Any> data;
                                  for (int i = 0; i < args.size(); ++i) {
@@ -216,7 +216,7 @@ Tensor ConcatEmbeddings(const std::vector<Tensor>& embeddings) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_packed("tvmjs.runtime.ConcatEmbeddings",
+      .def_packed("tvm.tvmjs.runtime.ConcatEmbeddings",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
                     std::vector<Tensor> embeddings;
                     for (int i = 0; i < args.size(); ++i) {
@@ -225,9 +225,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     Tensor result = ConcatEmbeddings(std::move(embeddings));
                     *ret = result;
                   })
-      .def("tvmjs.runtime.TensorCopyFromBytes",
+      .def("tvm.tvmjs.runtime.TensorCopyFromBytes",
            [](Tensor nd, TVMFFIByteArray* bytes) { nd.CopyFromBytes(bytes->data, bytes->size); })
-      .def("tvmjs.runtime.TensorCopyToBytes", [](Tensor nd) -> ffi::Bytes {
+      .def("tvm.tvmjs.runtime.TensorCopyToBytes", [](Tensor nd) -> ffi::Bytes {
         size_t size = ffi::GetDataSize(*(nd.operator->()));
         std::string bytes;
         bytes.resize(size);

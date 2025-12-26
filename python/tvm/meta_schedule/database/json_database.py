@@ -24,7 +24,7 @@ from .. import _ffi_api
 from .database import Database
 
 
-@register_object("meta_schedule.JSONDatabase")
+@register_object("tvm.meta_schedule.JSONDatabase")
 class JSONDatabase(Database):
     """Database class backed by JSON.
 

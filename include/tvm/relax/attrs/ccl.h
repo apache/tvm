@@ -45,7 +45,8 @@ struct AllReduceAttrs : public tvm::AttrsNodeReflAdapter<AllReduceAttrs> {
                 "Whether the reduction operation performs in group or globally or in group as "
                 "default.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllReduceAttrs", AllReduceAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.AllReduceAttrs", AllReduceAttrs,
+                                    BaseAttrsNode);
 };  // struct AllReduceAttrs
 
 /*! \brief Attributes used in allgather operators */
@@ -63,7 +64,8 @@ struct AllGatherAttrs : public tvm::AttrsNodeReflAdapter<AllGatherAttrs> {
                 "Whether the allgather operation performs in group or globally or in group as "
                 "default.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllGatherAttrs", AllGatherAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.AllGatherAttrs", AllGatherAttrs,
+                                    BaseAttrsNode);
 };  // struct AllGatherAttrs
 
 /*! \brief Attributes used in scatter operators */
@@ -81,8 +83,8 @@ struct ScatterCollectiveAttrs : public tvm::AttrsNodeReflAdapter<ScatterCollecti
                 "The axis of the tensor to be scattered. The tensor will be chunked along "
                 "this axis.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScatterCollectiveAttrs", ScatterCollectiveAttrs,
-                                    BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.ScatterCollectiveAttrs",
+                                    ScatterCollectiveAttrs, BaseAttrsNode);
 };  // struct ScatterCollectiveAttrs
 
 }  // namespace relax

@@ -181,9 +181,9 @@ Pass MetaScheduleTuneTIR(ffi::String work_dir, Integer max_trials_global) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("relax.transform.MetaScheduleApplyDatabase", MetaScheduleApplyDatabase)
-      .def("relax.transform.MetaScheduleTuneIRMod", MetaScheduleTuneIRMod)
-      .def("relax.transform.MetaScheduleTuneTIR", MetaScheduleTuneTIR);
+      .def("tvm.relax.transform.MetaScheduleApplyDatabase", MetaScheduleApplyDatabase)
+      .def("tvm.relax.transform.MetaScheduleTuneIRMod", MetaScheduleTuneIRMod)
+      .def("tvm.relax.transform.MetaScheduleTuneTIR", MetaScheduleTuneTIR);
 }
 }  // namespace transform
 }  // namespace relax

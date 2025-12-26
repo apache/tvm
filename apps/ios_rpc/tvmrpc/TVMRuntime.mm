@@ -70,7 +70,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           NSBundle* bundle = [NSBundle mainBundle];
           base = [[bundle privateFrameworksPath] stringByAppendingPathComponent:@"tvm"];
 
-          if (tvm::ffi::Function::GetGlobal("ffi.Module.load_from_file.dylib_custom")) {
+          if (tvm::ffi::Function::GetGlobal("tvm.ffi.Module.load_from_file.dylib_custom")) {
             // Custom dso loader is present. Will use it.
             base = NSTemporaryDirectory();
             fmt = "dylib_custom";
@@ -114,7 +114,7 @@ class UnsignedDSOLoader final : public Library {
 // Add UnsignedDSOLoader plugin in global registry
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("ffi.Module.load_from_file.dylib_custom",
+  refl::GlobalDef().def_packed("tvm.ffi.Module.load_from_file.dylib_custom",
                                [](ffi::PackedArgs args, ffi::Any* rv) {
                                  auto n = ffi::make_object<UnsignedDSOLoader>();
                                  n->Init(args[0]);

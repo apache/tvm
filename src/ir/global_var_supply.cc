@@ -97,15 +97,16 @@ GlobalVar GlobalVarSupplyNode::FreshGlobal(ffi::String name, bool add_prefix) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("ir.GlobalVarSupply_NameSupply",
+      .def("tvm.ir.GlobalVarSupply_NameSupply",
            [](const NameSupply& name_supply) { return GlobalVarSupply(name_supply); })
-      .def("ir.GlobalVarSupply_IRModule",
+      .def("tvm.ir.GlobalVarSupply_IRModule",
            [](IRModule mod) { return GlobalVarSupply(std::move(mod)); })
-      .def("ir.GlobalVarSupply_IRModules",
+      .def("tvm.ir.GlobalVarSupply_IRModules",
            [](const ffi::Array<IRModule>& mods) { return GlobalVarSupply(mods); })
-      .def_method("ir.GlobalVarSupply_FreshGlobal", &GlobalVarSupplyNode::FreshGlobal)
-      .def_method("ir.GlobalVarSupply_UniqueGlobalFor", &GlobalVarSupplyNode::UniqueGlobalFor)
-      .def_method("ir.GlobalVarSupply_ReserveGlobalVar", &GlobalVarSupplyNode::ReserveGlobalVar);
+      .def_method("tvm.ir.GlobalVarSupply_FreshGlobal", &GlobalVarSupplyNode::FreshGlobal)
+      .def_method("tvm.ir.GlobalVarSupply_UniqueGlobalFor", &GlobalVarSupplyNode::UniqueGlobalFor)
+      .def_method("tvm.ir.GlobalVarSupply_ReserveGlobalVar",
+                  &GlobalVarSupplyNode::ReserveGlobalVar);
 }
 
 }  // namespace tvm

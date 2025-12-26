@@ -117,7 +117,7 @@ def _dynamic_strided_slice(bb: BlockBuilder, call: Call) -> Expr:
         # we need to apply DecomposeOpsForInference in that case
         # and it's unclear when in the build it should happen
         call_pure_packed(
-            "vm.builtin.tensor_to_shape", output_shape, sinfo_args=ShapeStructInfo(ndim=ndim)
+            "tvm.vm.builtin.tensor_to_shape", output_shape, sinfo_args=ShapeStructInfo(ndim=ndim)
         )
     )
     output_shape_vars = [tir.Var("s", "int64") for i in range(ndim)]

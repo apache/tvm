@@ -60,7 +60,7 @@ class UpdateCostModelNode : public MeasureCallbackNode {
     refl::ObjectDef<UpdateCostModelNode>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.UpdateCostModel", UpdateCostModelNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.UpdateCostModel", UpdateCostModelNode,
                                     MeasureCallbackNode);
 };
 
@@ -72,7 +72,7 @@ MeasureCallback MeasureCallback::UpdateCostModel() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   UpdateCostModelNode::RegisterReflection();
-  refl::GlobalDef().def("meta_schedule.MeasureCallbackUpdateCostModel",
+  refl::GlobalDef().def("tvm.meta_schedule.MeasureCallbackUpdateCostModel",
                         MeasureCallback::UpdateCostModel);
 }
 

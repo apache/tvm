@@ -254,14 +254,16 @@ static const char* kReductionBlockDefinition = R"(Definition of a reduction bloc
 
 static const char* kLocalCompleteBlockDefinition = R"(Definition of a local complete block:
 1) All block vars are data parallel
-2) Local Dominant: the block is the only writer of its output, dominating the reader of its output buffers under a given subtree
+2) Local Dominant: the block is the only writer of its output, dominating the reader of its output
+buffers under a given subtree
 3) No overlap between the buffers the block reads and writes)";
 
 static const char* kLocalReductionBlockDefinition = R"(Definition of a reduction block:
 1) The block has the `init` statement
 2) All the block bindings are quasi-affine expressions
 3) All block vars are either data parallel block vars or reduction block vars
-4) Local Dominant: the block is the only writer of its output, dominating the reader of its output buffers under a given subtree
+4) Local Dominant: the block is the only writer of its output, dominating the reader of its output
+buffers under a given subtree
 5) The reduction block vars are not used to index the output buffers)";
 
 bool IsCompleteBlock(const ScheduleState& self, const StmtSRef& block_sref,
@@ -337,10 +339,10 @@ bool IsReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "tir.schedule.IsReductionBlock", [](Schedule sch, BlockRV block_rv, BlockRV scope_block_rv) {
-        return IsReductionBlock(sch->state(), sch->GetSRef(block_rv), sch->GetSRef(scope_block_rv));
-      });
+  refl::GlobalDef().def("tvm.tir.schedule.IsReductionBlock", [](Schedule sch, BlockRV block_rv,
+                                                                BlockRV scope_block_rv) {
+    return IsReductionBlock(sch->state(), sch->GetSRef(block_rv), sch->GetSRef(scope_block_rv));
+  });
 }
 
 void CheckReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
@@ -879,7 +881,7 @@ BlockRealize GetBlockRealize(const ScheduleState& self, const StmtSRef& block_sr
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.schedule.GetBlockRealize", [](Schedule sch, BlockRV block_rv) {
+  refl::GlobalDef().def("tvm.tir.schedule.GetBlockRealize", [](Schedule sch, BlockRV block_rv) {
     return GetBlockRealize(sch->state(), sch->GetSRef(block_rv));
   });
 }
@@ -1502,7 +1504,7 @@ bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.schedule.IsTrivialBinding", [](Schedule sch, BlockRV block_rv) {
+  refl::GlobalDef().def("tvm.tir.schedule.IsTrivialBinding", [](Schedule sch, BlockRV block_rv) {
     return IsTrivialBinding(sch->state(), sch->GetSRef(block_rv));
   });
 }
@@ -1911,9 +1913,9 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& s
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.schedule.IsSpatialPrimFunc", IsSpatialPrimFunc)
-      .def("tir.schedule.GetTensorizeLoopMapping", [](Schedule sch, BlockRV block,
-                                                      PrimFunc desc_func, bool allow_padding) {
+      .def("tvm.tir.schedule.IsSpatialPrimFunc", IsSpatialPrimFunc)
+      .def("tvm.tir.schedule.GetTensorizeLoopMapping", [](Schedule sch, BlockRV block,
+                                                          PrimFunc desc_func, bool allow_padding) {
         return GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block), desc_func, allow_padding);
       });
 }
@@ -2144,18 +2146,18 @@ ffi::Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.schedule.GetAutoTensorizeMappingInfo",
+      .def("tvm.tir.schedule.GetAutoTensorizeMappingInfo",
            [](Schedule sch, BlockRV block, PrimFunc desc_func) {
              return GetAutoTensorizeMappingInfo(sch->state(), sch->GetSRef(block), desc_func);
            })
-      .def("tir.schedule.HasBlock", HasBlock)
-      .def("tir.schedule.IsOutputBlock",
+      .def("tvm.tir.schedule.HasBlock", HasBlock)
+      .def("tvm.tir.schedule.IsOutputBlock",
            [](Schedule sch, BlockRV block) {
              auto state = sch->state();
              auto block_sref = sch->GetSRef(block);
              return IsOutputBlock(state, block_sref, GetScopeRoot(state, block_sref, false));
            })
-      .def("tir.schedule.GetLoopIterType",
+      .def("tvm.tir.schedule.GetLoopIterType",
            [](Schedule sch, LoopRV loop) -> ffi::String {
              IterVarType kind = GetLoopIterType(sch->GetSRef(loop));
              if (kind == kDataPar) {
@@ -2166,7 +2168,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                return "O";
              }
            })
-      .def("tir.schedule.HasIfThenElse",
+      .def("tvm.tir.schedule.HasIfThenElse",
            [](const Stmt& stmt) -> bool { return HasIfThenElse(stmt); });
 }
 

@@ -50,7 +50,7 @@ Pass SkipAssert() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.SkipAssert", SkipAssert);
+  refl::GlobalDef().def("tvm.tir.transform.SkipAssert", SkipAssert);
 }
 
 }  // namespace transform

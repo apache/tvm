@@ -95,7 +95,7 @@ def is_clml_runtime_enabled():
     ret: bool
         True if present, False if not.
     """
-    check_enabled = tvm.get_global_func("relax.op.is_openclml_runtime_enabled", True)
+    check_enabled = tvm.get_global_func("tvm.relax.op.is_openclml_runtime_enabled", True)
     if check_enabled:
         return check_enabled()
     return False

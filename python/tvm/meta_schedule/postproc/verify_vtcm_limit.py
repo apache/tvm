@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .postproc import Postproc
 
 
-@register_object("meta_schedule.VerifyVTCMLimit")
+@register_object("tvm.meta_schedule.VerifyVTCMLimit")
 class VerifyVTCMLimit(Postproc):
     """Verifies that the VTCM usage of a given schedule is within the provided limit."""
 

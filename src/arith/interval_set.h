@@ -75,7 +75,7 @@ class IntervalSetNode : public IntSetNode {
   }
   /*! \return whether interval represent everything */
   bool IsEverything() const { return is_neg_inf(min_value) && is_pos_inf(max_value); }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IntervalSet", IntervalSetNode, IntSetNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.arith.IntervalSet", IntervalSetNode, IntSetNode);
 };
 
 /*!

@@ -77,7 +77,7 @@ def _parse_enable_checks(enable_checks: bool) -> bool:
     return enable_checks
 
 
-@register_object("tir.ScheduleState")
+@register_object("tvm.tir.ScheduleState")
 class ScheduleState(Object):
     """The state of scheduling, which exposes a `Replace` method as
     the primary resort for all the scheduling primitives to manipulate the TensorIR.

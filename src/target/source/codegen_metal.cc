@@ -438,7 +438,7 @@ ffi::Module BuildMetal(IRModule mod, Target target) {
 
   std::ostringstream source_maker;
   std::unordered_map<std::string, std::string> smap;
-  const auto fmetal_compile = tvm::ffi::Function::GetGlobal("tvm_callback_metal_compile");
+  const auto fmetal_compile = tvm::ffi::Function::GetGlobal("tvm.tvm_callback_metal_compile");
   std::string fmt = fmetal_compile ? "metallib" : "metal";
 
   for (auto kv : mod->functions) {
@@ -470,7 +470,7 @@ ffi::Module BuildMetal(IRModule mod, Target target) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("target.build.metal", BuildMetal);
+  refl::GlobalDef().def("tvm.target.build.metal", BuildMetal);
 }
 }  // namespace codegen
 }  // namespace tvm

@@ -142,7 +142,7 @@ const BlockNode* FindAnchorBlock(const IRModule& mod) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.analysis.find_anchor_block", [](const IRModule& mod) {
+  refl::GlobalDef().def("tvm.tir.analysis.find_anchor_block", [](const IRModule& mod) {
     auto ret = FindAnchorBlock(mod);
     if (ret) {
       return ffi::Optional<Block>(ffi::GetRef<Block>(ret));

@@ -37,7 +37,7 @@ class MutateComputeLocationNode : public MutatorNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MutateComputeLocationNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MutateComputeLocation",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.MutateComputeLocation",
                                     MutateComputeLocationNode, MutatorNode);
 
  public:
@@ -135,7 +135,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { MutateComputeLocationNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.MutatorMutateComputeLocation",
+  refl::GlobalDef().def("tvm.meta_schedule.MutatorMutateComputeLocation",
                         Mutator::MutateComputeLocation);
 }
 

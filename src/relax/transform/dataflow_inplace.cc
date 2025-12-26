@@ -531,7 +531,8 @@ class InplaceOpportunityNode : public Object {
         .def_ro("binding_idx", &InplaceOpportunityNode::binding_idx)
         .def_ro("arg_idxs", &InplaceOpportunityNode::arg_idxs);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InplaceOpportunity", InplaceOpportunityNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.transform.InplaceOpportunity", InplaceOpportunityNode,
+                              Object);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK() { InplaceOpportunityNode::RegisterReflection(); }
@@ -1022,10 +1023,10 @@ ffi::Array<ffi::Array<InplaceOpportunity>> DataflowInplaceAnalysis(const Dataflo
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("relax.testing.transform.DataflowLivenessAnalysis", DataflowLivenessAnalysis)
-      .def("relax.testing.transform.DataflowAliasAnalysis", DataflowAliasAnalysis)
-      .def("relax.testing.transform.DataflowInplaceAnalysis", DataflowInplaceAnalysis)
-      .def("relax.testing.transform.SingleInplaceCall",
+      .def("tvm.relax.testing.transform.DataflowLivenessAnalysis", DataflowLivenessAnalysis)
+      .def("tvm.relax.testing.transform.DataflowAliasAnalysis", DataflowAliasAnalysis)
+      .def("tvm.relax.testing.transform.DataflowInplaceAnalysis", DataflowInplaceAnalysis)
+      .def("tvm.relax.testing.transform.SingleInplaceCall",
            [](const IRModule& mod, const Call& call,
               const ffi::Array<Integer>& inplace_indices) -> ffi::Array<ObjectRef> {
              ModuleInplaceTransformer transformer(mod);
@@ -1037,7 +1038,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // actually exposed
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.DataflowUseInplaceCalls", DataflowUseInplaceCalls);
+  refl::GlobalDef().def("tvm.relax.transform.DataflowUseInplaceCalls", DataflowUseInplaceCalls);
 }
 
 }  // namespace transform

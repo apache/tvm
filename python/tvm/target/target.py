@@ -30,7 +30,7 @@ from tvm.ir.container import Map, Array
 from . import _ffi_api
 
 
-@tvm_ffi.register_object("target.TargetKind")
+@tvm_ffi.register_object("tvm.target.TargetKind")
 class TargetKind(Object):
     """Kind of a compilation target"""
 
@@ -53,7 +53,7 @@ class TargetFeatures:
         return _ffi_api.TargetGetFeature(self.target, name)
 
 
-@tvm_ffi.register_object("target.Target")
+@tvm_ffi.register_object("tvm.target.Target")
 class Target(Object):
     """Target device information, use through TVM API.
 

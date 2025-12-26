@@ -261,7 +261,7 @@ class ExprFunctor:
             raise TypeError("Invalid type: {0}".format(type(var)))
 
 
-@tvm_ffi.register_object("expr_functor.PyExprVisitor")
+@tvm_ffi.register_object("tvm.expr_functor.PyExprVisitor")
 class _PyExprVisitor(tvm_ffi.core.Object):
     """
     A TVM object to support customization of ExprVisitor on the python side.
@@ -781,7 +781,7 @@ class PyExprVisitor:
         return _ffi_api.ExprVisitorVisitSpan(self._outer(), span)  # type: ignore
 
 
-@tvm_ffi.register_object("expr_functor.PyExprMutator")
+@tvm_ffi.register_object("tvm.expr_functor.PyExprMutator")
 class _PyExprMutator(Object):
     """
     A TVM object to support customization of ExprMutator on the python side.

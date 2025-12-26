@@ -67,7 +67,7 @@ static ffi::Array<tir::LoopRV> ScheduleDataPack(tir::Schedule sch, tir::BlockRV 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("meta_schedule.cuda.conv2d_nhwc_winograd_data_pack",
+      .def("tvm.meta_schedule.cuda.conv2d_nhwc_winograd_data_pack",
            [](Schedule sch, BlockRV data_pack) -> ffi::Array<Schedule> {
              BlockRV input_tile = GetWinogradProducerAndInlineConst(sch, data_pack);
              BlockRV data_pad = GetWinogradProducerAndInlineConst(sch, input_tile);
@@ -91,7 +91,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              }
              return {sch};
            })
-      .def("meta_schedule.cuda.conv2d_nhwc_winograd_inverse",
+      .def("tvm.meta_schedule.cuda.conv2d_nhwc_winograd_inverse",
            [](Schedule sch, BlockRV inverse) -> ffi::Array<Schedule> {
              GetWinogradProducerAndInlineConst(sch, inverse);
              ScheduleDataPack(sch, inverse, /*tiled=*/{2, 3}, /*unrolled=*/{0, 1, 4, 5});
@@ -103,7 +103,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                              max_threadblocks, max_threads_per_block);
              return {sch};
            })
-      .def("meta_schedule.cuda.conv2d_nchw_winograd_data_pack",
+      .def("tvm.meta_schedule.cuda.conv2d_nchw_winograd_data_pack",
            [](Schedule sch, BlockRV data_pack) -> ffi::Array<Schedule> {
              int64_t max_threadblocks = 256;
              int64_t max_threads_per_block = 1024;
@@ -133,7 +133,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              }
              return {sch};
            })
-      .def("meta_schedule.cuda.conv2d_nchw_winograd_inverse",
+      .def("tvm.meta_schedule.cuda.conv2d_nchw_winograd_inverse",
            [](Schedule sch, BlockRV inverse) -> ffi::Array<Schedule> {
              GetWinogradProducerAndInlineConst(sch, inverse);
              // loops on top of the inverse block: [CO, P, tile_size, tile_size, alpha, alpha]

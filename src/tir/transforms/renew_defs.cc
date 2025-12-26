@@ -293,7 +293,7 @@ PrimFunc RenewDefs(const PrimFunc& func) { return RenewDefMutator::Transform(fun
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.RenewDefs", RenewDefs);
+  refl::GlobalDef().def("tvm.tir.RenewDefs", RenewDefs);
 }
 
 }  // namespace tir

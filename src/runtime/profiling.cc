@@ -55,7 +55,7 @@ class DefaultTimerNode : public TimerNode {
   virtual ~DefaultTimerNode() {}
 
   explicit DefaultTimerNode(Device dev) : device_(dev) {}
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.DefaultTimerNode", DefaultTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.runtime.DefaultTimerNode", DefaultTimerNode, TimerNode);
 
  private:
   std::chrono::high_resolution_clock::time_point start_;
@@ -71,7 +71,7 @@ class CPUTimerNode : public TimerNode {
   virtual void Stop() { duration_ = std::chrono::high_resolution_clock::now() - start_; }
   virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
   virtual ~CPUTimerNode() {}
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.CPUTimerNode", CPUTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.runtime.CPUTimerNode", CPUTimerNode, TimerNode);
 
  private:
   std::chrono::high_resolution_clock::time_point start_;
@@ -80,7 +80,7 @@ class CPUTimerNode : public TimerNode {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("profiling.timer.cpu",
+  refl::GlobalDef().def("tvm.profiling.timer.cpu",
                         [](Device dev) { return Timer(ffi::make_object<CPUTimerNode>()); });
 }
 
@@ -113,7 +113,7 @@ Timer Timer::Start(Device dev) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("profiling.start_timer", Timer::Start);
+  refl::GlobalDef().def("tvm.profiling.start_timer", Timer::Start);
 }
 
 namespace profiling {
@@ -789,10 +789,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   refl::GlobalDef()
       .def_method("runtime.profiling.AsTable", &ReportNode::AsTable)
-      .def("runtime.profiling.AsCSV", [](Report n) { return n->AsCSV(); })
-      .def("runtime.profiling.AsJSON", [](Report n) { return n->AsJSON(); })
-      .def("runtime.profiling.FromJSON", Report::FromJSON)
-      .def("runtime.profiling.DeviceWrapper", [](Device dev) { return DeviceWrapper(dev); });
+      .def("tvm.runtime.profiling.AsCSV", [](Report n) { return n->AsCSV(); })
+      .def("tvm.runtime.profiling.AsJSON", [](Report n) { return n->AsJSON(); })
+      .def("tvm.runtime.profiling.FromJSON", Report::FromJSON)
+      .def("tvm.runtime.profiling.DeviceWrapper", [](Device dev) { return DeviceWrapper(dev); });
 }
 
 ffi::Function ProfileFunction(ffi::Module mod, std::string func_name, int device_type,
@@ -846,7 +846,7 @@ ffi::Function ProfileFunction(ffi::Module mod, std::string func_name, int device
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "runtime.profiling.ProfileFunction",
+      "tvm.runtime.profiling.ProfileFunction",
       [](ffi::Module mod, ffi::String func_name, int device_type, int device_id, int warmup_iters,
          ffi::Array<MetricCollector> collectors) {
         if (mod->kind() == std::string("rpc")) {
@@ -928,19 +928,19 @@ ffi::Function WrapTimeEvaluator(ffi::Function pf, Device dev, int number, int re
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.profiling.Report",
+      .def("tvm.runtime.profiling.Report",
            [](ffi::Array<ffi::Map<ffi::String, ffi::Any>> calls,
               ffi::Map<ffi::String, ffi::Map<ffi::String, ffi::Any>> device_metrics,
               ffi::Map<ffi::String, ffi::Any> configuration) {
              return Report(calls, device_metrics, configuration);
            })
-      .def("runtime.profiling.Count",
+      .def("tvm.runtime.profiling.Count",
            [](int64_t count) { return ObjectRef(ffi::make_object<CountNode>(count)); })
-      .def("runtime.profiling.Percent",
+      .def("tvm.runtime.profiling.Percent",
            [](double percent) { return ObjectRef(ffi::make_object<PercentNode>(percent)); })
-      .def("runtime.profiling.Duration",
+      .def("tvm.runtime.profiling.Duration",
            [](double duration) { return ObjectRef(ffi::make_object<DurationNode>(duration)); })
-      .def("runtime.profiling.Ratio",
+      .def("tvm.runtime.profiling.Ratio",
            [](double ratio) { return ObjectRef(ffi::make_object<RatioNode>(ratio)); });
 }
 

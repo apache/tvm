@@ -27,39 +27,39 @@ from tvm.runtime import Tensor, ShapeTuple, String
 from tvm.runtime import tensor
 
 
-@register_global_func("tests.disco.add_one", override=True)
+@register_global_func("tvm.tests.disco.add_one", override=True)
 def _add_one(x: int) -> int:
     return x + 1
 
 
-@register_global_func("tests.disco.add_one_float", override=True)
+@register_global_func("tvm.tests.disco.add_one_float", override=True)
 def _add_one_float(x: float):
     return x + 0.5
 
 
-@register_global_func("tests.disco.add_one_tensor", override=True)
+@register_global_func("tvm.tests.disco.add_one_tensor", override=True)
 def _add_one_tensor(x: Tensor) -> Tensor:
     return tensor(x.numpy() + 1)
 
 
-@register_global_func("tests.disco.str", override=True)
+@register_global_func("tvm.tests.disco.str", override=True)
 def _str_func(x: str):
     return x + "_suffix"
 
 
-@register_global_func("tests.disco.str_obj", override=True)
+@register_global_func("tvm.tests.disco.str_obj", override=True)
 def _str_obj_func(x: str):
     assert isinstance(x, str)
     return String(x + "_suffix")
 
 
-@register_global_func("tests.disco.shape_tuple", override=True)
+@register_global_func("tvm.tests.disco.shape_tuple", override=True)
 def _shape_tuple_func(x: ShapeTuple):
     assert isinstance(x, ShapeTuple)
     return ShapeTuple(list(x) + [4, 5])
 
 
-@register_global_func("tests.disco.test_callback", override=True)
+@register_global_func("tvm.tests.disco.test_callback", override=True)
 def _make_callback(device: tvm.runtime.Device) -> Callable[[str, int], Tensor]:
     """For use in tests/python/disco/test_callback.py
 
@@ -114,7 +114,7 @@ def main():
         reader = int(sys.argv[4])
         writer = int(sys.argv[5])
 
-    worker_func = get_global_func("runtime.disco.WorkerProcess")
+    worker_func = get_global_func("tvm.runtime.disco.WorkerProcess")
     worker_func(worker_id, num_workers, num_groups, reader, writer)
 
 

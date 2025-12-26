@@ -155,11 +155,12 @@ ComputeOp::ComputeOp(std::string name, std::string tag, ffi::Map<ffi::String, ff
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("te.ComputeOp", [](std::string name, std::string tag,
-                                           ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs,
-                                           ffi::Array<IterVar> axis, ffi::Array<PrimExpr> body) {
-    return ComputeOp(name, tag, attrs.value_or({}), axis, body);
-  });
+  refl::GlobalDef().def(
+      "tvm.te.ComputeOp",
+      [](std::string name, std::string tag, ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs,
+         ffi::Array<IterVar> axis, ffi::Array<PrimExpr> body) {
+        return ComputeOp(name, tag, attrs.value_or({}), axis, body);
+      });
 }
 
 // The schedule related logics

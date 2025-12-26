@@ -328,7 +328,7 @@ Pass SetRelaxExprName(const ffi::String& entry_name, const ffi::String& target,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.SetRelaxExprName", SetRelaxExprName);
+  refl::GlobalDef().def("tvm.relax.transform.SetRelaxExprName", SetRelaxExprName);
 }
 
 }  // namespace transform

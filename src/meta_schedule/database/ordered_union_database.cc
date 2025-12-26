@@ -32,8 +32,8 @@ class OrderedUnionDatabaseNode : public DatabaseNode {
     refl::ObjectDef<OrderedUnionDatabaseNode>().def_ro("databases",
                                                        &OrderedUnionDatabaseNode::databases);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.OrderedUnionDatabase", OrderedUnionDatabaseNode,
-                                    DatabaseNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.OrderedUnionDatabase",
+                                    OrderedUnionDatabaseNode, DatabaseNode);
 
  public:
   ffi::Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
@@ -85,7 +85,7 @@ Database Database::OrderedUnionDatabase(ffi::Array<Database> databases) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.DatabaseOrderedUnionDatabase",
+  refl::GlobalDef().def("tvm.meta_schedule.DatabaseOrderedUnionDatabase",
                         Database::OrderedUnionDatabase);
 }
 

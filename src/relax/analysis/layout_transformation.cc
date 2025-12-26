@@ -617,7 +617,7 @@ ffi::Map<tir::Block, ffi::Map<ObjectRef, tir::IndexMap>> SuggestLayoutTransforms
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.analysis.suggest_layout_transforms",
+  refl::GlobalDef().def("tvm.relax.analysis.suggest_layout_transforms",
                         [](PrimFunc fn, ffi::Array<tir::IndexMap> write_buffer_transformations) {
                           return SuggestLayoutTransforms(fn, write_buffer_transformations);
                         });

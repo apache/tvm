@@ -37,4 +37,4 @@ def LoadJSON(json_str):
 
 
 # Exports functions registered in node namespace.
-tvm_ffi.init_ffi_api("node", __name__)
+tvm_ffi.init_ffi_api("tvm.node", __name__)

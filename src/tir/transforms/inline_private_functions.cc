@@ -296,7 +296,7 @@ Pass InlinePrivateFunctions() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.InlinePrivateFunctions", InlinePrivateFunctions);
+  refl::GlobalDef().def("tvm.tir.transform.InlinePrivateFunctions", InlinePrivateFunctions);
 }
 
 }  // namespace transform

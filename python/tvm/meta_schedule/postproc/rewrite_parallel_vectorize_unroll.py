@@ -22,7 +22,7 @@ from .. import _ffi_api
 from .postproc import Postproc
 
 
-@register_object("meta_schedule.RewriteParallelVectorizeUnroll")
+@register_object("tvm.meta_schedule.RewriteParallelVectorizeUnroll")
 class RewriteParallelVectorizeUnroll(Postproc):
     """A postprocessor that applies parallelization, vectorization and auto unrolling
     according to the annotation of each block"""

@@ -23,7 +23,7 @@ from .. import _ffi_api
 from .schedule_rule import ScheduleRule
 
 
-@register_object("meta_schedule.AutoBind")
+@register_object("tvm.meta_schedule.AutoBind")
 class AutoBind(ScheduleRule):
     """Auto bind loops around the block to BlockIdx and ThreadIdx
 

@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .database import Database
 
 
-@register_object("meta_schedule.UnionDatabase")
+@register_object("tvm.meta_schedule.UnionDatabase")
 class UnionDatabase(Database):
     """A database composed of multiple databases, allowing users to guide IR rewriting using
     combined knowledge of those databases. To each query, it returns the best record among all the

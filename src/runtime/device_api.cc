@@ -82,7 +82,7 @@ class DeviceAPIManager {
     }
   }
   DeviceAPI* GetAPI(const std::string name, bool allow_missing) {
-    std::string factory = "device_api." + name;
+    std::string factory = "tvm.device_api." + name;
     const auto f = tvm::ffi::Function::GetGlobal(factory);
     if (!f.has_value()) {
       ICHECK(allow_missing) << "Device API " << name << " is not enabled.";
@@ -178,23 +178,23 @@ void DeviceAPI::SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStrea
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.Device_StreamCreate",
+      .def("tvm.runtime.Device_StreamCreate",
            [](DLDevice dev) {
              return reinterpret_cast<int64_t>(DeviceAPIManager::Get(dev)->CreateStream(dev));
            })
-      .def("runtime.Device_StreamFree",
+      .def("tvm.runtime.Device_StreamFree",
            [](DLDevice dev, int64_t stream) {
              DeviceAPIManager::Get(dev)->FreeStream(dev, reinterpret_cast<TVMStreamHandle>(stream));
            })
-      .def("runtime.Device_SetStream",
+      .def("tvm.runtime.Device_SetStream",
            [](DLDevice dev, int64_t stream) {
              DeviceAPIManager::Get(dev)->SetStream(dev, reinterpret_cast<TVMStreamHandle>(stream));
            })
-      .def("runtime.Device_StreamSync",
+      .def("tvm.runtime.Device_StreamSync",
            [](DLDevice dev, int64_t stream) {
              DeviceAPIManager::Get(dev)->StreamSync(dev, reinterpret_cast<TVMStreamHandle>(stream));
            })
-      .def("runtime.Device_StreamSyncFromTo", [](DLDevice dev, int64_t src, int64_t dst) {
+      .def("tvm.runtime.Device_StreamSyncFromTo", [](DLDevice dev, int64_t src, int64_t dst) {
         DeviceAPIManager::Get(dev)->SyncStreamFromTo(dev, reinterpret_cast<TVMStreamHandle>(src),
                                                      reinterpret_cast<TVMStreamHandle>(dst));
       });
@@ -211,7 +211,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     dev.device_id = args[1].cast<int>();
                     DeviceAPIManager::Get(dev)->SetDevice(dev);
                   })
-      .def_packed("runtime.GetDeviceAttr",
+      .def_packed("tvm.runtime.GetDeviceAttr",
                   [](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
                     DLDevice dev;
                     dev.device_type = static_cast<DLDeviceType>(args[0].cast<int>());
@@ -229,7 +229,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                       DeviceAPIManager::Get(dev)->GetAttr(dev, kind, ret);
                     }
                   })
-      .def("runtime.TVMSetStream", [](int device_type, int device_id, void* stream) {
+      .def("tvm.runtime.TVMSetStream", [](int device_type, int device_id, void* stream) {
         Device dev;
         dev.device_type = static_cast<DLDeviceType>(device_type);
         dev.device_id = device_id;

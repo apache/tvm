@@ -30,7 +30,7 @@ import tvm.runtime
 from . import _ffi_instrument_api
 
 
-@tvm_ffi.register_object("instrument.PassInstrument")
+@tvm_ffi.register_object("tvm.instrument.PassInstrument")
 class PassInstrument(tvm.runtime.Object):
     """A pass instrument implementation.
 
@@ -230,7 +230,7 @@ def pass_instrument(pi_cls=None):
     return create_pass_instrument
 
 
-@tvm_ffi.register_object("instrument.PassInstrument")
+@tvm_ffi.register_object("tvm.instrument.PassInstrument")
 class PassTimingInstrument(tvm.runtime.Object):
     """A wrapper to create a passes time instrument that implemented in C++"""
 

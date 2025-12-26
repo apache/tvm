@@ -34,7 +34,7 @@ from ..object import Object
 from . import _ffi_api, process_pool  # pylint: disable=unused-import
 
 
-@register_object("runtime.disco.DRef")
+@register_object("tvm.runtime.disco.DRef")
 class DRef(Object):
     """An object that exists on all workers. The controller process assigns a unique "register id"
     to each object, and the worker process uses this id to refer to the object residing on itself.
@@ -98,7 +98,7 @@ class DModule(DRef):
         return DPackedFunc(func(self, name, False), self.session)
 
 
-@register_object("runtime.disco.Session")
+@register_object("tvm.runtime.disco.Session")
 class Session(Object):
     """A Disco interactive session. It allows users to interact with the Disco command queue with
     various PackedFunc calling convention."""
@@ -150,7 +150,7 @@ class Session(Object):
             The created Tensor.
 
         """
-        func = self._get_cached_method("runtime.disco.empty")
+        func = self._get_cached_method("tvm.runtime.disco.empty")
         return func(ShapeTuple(shape), dtype, device, worker0_only, in_group)
 
     def shutdown(self):
@@ -190,7 +190,9 @@ class Session(Object):
             `import` statement.
         """
         if not hasattr(self, "_import_python_module"):
-            self._import_python_module = self.get_global_func("runtime.disco._import_python_module")
+            self._import_python_module = self.get_global_func(
+                "tvm.runtime.disco._import_python_module"
+            )
 
         self._import_python_module(module_name)
 
@@ -306,7 +308,7 @@ class Session(Object):
         module : DModule
             The loaded VM module.
         """
-        func = self._get_cached_method("runtime.disco.load_vm_module")
+        func = self._get_cached_method("tvm.runtime.disco.load_vm_module")
         return DModule(func(path, device), self)
 
     def init_ccl(self, ccl: str, *device_ids):
@@ -382,7 +384,7 @@ class Session(Object):
         in_group: bool
             Whether the broadcast operation performs globally or in group as default.
         """
-        func = self._get_cached_method("runtime.disco.broadcast_from_worker0")
+        func = self._get_cached_method("tvm.runtime.disco.broadcast_from_worker0")
         func(src, in_group, dst)
 
     def scatter(
@@ -448,7 +450,7 @@ class Session(Object):
         in_group: bool
             Whether the scatter operation performs globally or in group as default.
         """
-        func = self._get_cached_method("runtime.disco.scatter_from_worker0")
+        func = self._get_cached_method("tvm.runtime.disco.scatter_from_worker0")
         func(from_array, in_group, to_array)
 
     def gather_to_worker0(self, from_array: DRef, to_array: DRef, in_group: bool = True) -> None:
@@ -465,7 +467,7 @@ class Session(Object):
         in_group: bool
             Whether the gather operation performs globally or in group as default.
         """
-        func = self._get_cached_method("runtime.disco.gather_to_worker0")
+        func = self._get_cached_method("tvm.runtime.disco.gather_to_worker0")
         func(from_array, in_group, to_array)
 
     def allreduce(
@@ -496,7 +498,7 @@ class Session(Object):
         if op not in REDUCE_OPS:
             raise ValueError(f"Unsupported reduce op: {op}. Available ops are: {REDUCE_OPS.keys()}")
         op = ShapeTuple([REDUCE_OPS[op]])
-        func = self._get_cached_method("runtime.disco.allreduce")
+        func = self._get_cached_method("tvm.runtime.disco.allreduce")
         func(src, op, in_group, dst)
 
     def allgather(
@@ -518,17 +520,17 @@ class Session(Object):
         in_group : bool
             Whether the reduce operation performs globally or in group as default.
         """
-        func = self._get_cached_method("runtime.disco.allgather")
+        func = self._get_cached_method("tvm.runtime.disco.allgather")
         func(src, in_group, dst)
 
     def _clear_ipc_memory_pool(self):
         # Clear the IPC memory allocator when the allocator exists.
-        name = "runtime.disco.cuda_ipc.cuda_ipc_memory_allocator_clear"
+        name = "tvm.runtime.disco.cuda_ipc.cuda_ipc_memory_allocator_clear"
         if get_global_func(name, allow_missing=True) is not None:
             self.call_packed(self.get_global_func(name))
 
 
-@register_object("runtime.disco.ThreadedSession")
+@register_object("tvm.runtime.disco.ThreadedSession")
 class ThreadedSession(Session):
     """A Disco session backed by multi-threading."""
 
@@ -541,7 +543,7 @@ class ThreadedSession(Session):
         )
 
 
-@register_object("runtime.disco.ProcessSession")
+@register_object("tvm.runtime.disco.ProcessSession")
 class ProcessSession(Session):
     """A Disco session backed by pipe-based multi-processing."""
 
@@ -555,7 +557,7 @@ class ProcessSession(Session):
             _ffi_api.SessionProcess,  # type: ignore # pylint: disable=no-member
             num_workers,
             num_groups,
-            "runtime.disco.create_process_pool",
+            "tvm.runtime.disco.create_process_pool",
             entrypoint,
         )
         self._configure_structlog()
@@ -579,17 +581,17 @@ class ProcessSession(Session):
         full_config = (structlog.get_config(), stdlib_formatter, stdlib_level)
 
         config = pickle.dumps(full_config)
-        func = self.get_global_func("runtime.disco._configure_structlog")
+        func = self.get_global_func("tvm.runtime.disco._configure_structlog")
         func(config, os.getpid())
 
 
-@register_global_func("runtime.disco.create_socket_session_local_workers")
+@register_global_func("tvm.runtime.disco.create_socket_session_local_workers")
 def _create_socket_session_local_workers(num_workers) -> Session:
     """Create the local session for each distributed node over socket session."""
     return ProcessSession(num_workers)
 
 
-@register_object("runtime.disco.SocketSession")
+@register_object("tvm.runtime.disco.SocketSession")
 class SocketSession(Session):
     """A Disco session backed by socket-based multi-node communication."""
 
@@ -611,7 +613,7 @@ class SocketSession(Session):
         )
 
 
-@register_global_func("runtime.disco._configure_structlog")
+@register_global_func("tvm.runtime.disco._configure_structlog")
 def _configure_structlog(pickled_config: bytes, parent_pid: int) -> None:
     """Configure structlog for all disco workers
 
@@ -646,7 +648,7 @@ def _configure_structlog(pickled_config: bytes, parent_pid: int) -> None:
     structlog.configure(**structlog_config)
 
 
-@register_global_func("runtime.disco._import_python_module")
+@register_global_func("tvm.runtime.disco._import_python_module")
 def _import_python_module(module_name: str) -> None:
     __import__(module_name)
 

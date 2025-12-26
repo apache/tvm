@@ -107,7 +107,7 @@ Pass ExpandMatmulOfSum() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.ExpandMatmulOfSum", ExpandMatmulOfSum);
+  refl::GlobalDef().def("tvm.relax.transform.ExpandMatmulOfSum", ExpandMatmulOfSum);
 }
 
 }  // namespace transform

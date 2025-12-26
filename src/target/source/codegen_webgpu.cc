@@ -794,7 +794,7 @@ ffi::Module BuildWebGPU(IRModule mod, Target target) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("target.build.webgpu",
+  refl::GlobalDef().def("tvm.target.build.webgpu",
                         [](IRModule mod, Target target) { return BuildWebGPU(mod, target); });
 }
 

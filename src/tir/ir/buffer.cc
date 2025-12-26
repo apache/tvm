@@ -647,7 +647,7 @@ tir::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, DataType dtype
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_packed("tir.Buffer",
+      .def_packed("tvm.tir.Buffer",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
                     ICHECK_EQ(args.size(), 11);
                     auto buffer_type = args[8].cast<ffi::String>();

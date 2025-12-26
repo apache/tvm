@@ -34,7 +34,7 @@ from ..tune_context import TuneContext
 from ..utils import _get_default_str
 
 
-@register_object("meta_schedule.CostModel")
+@register_object("tvm.meta_schedule.CostModel")
 class CostModel(Object):
     """Cost model."""
 
@@ -150,7 +150,7 @@ class CostModel(Object):
 create = CostModel.create  # pylint: disable=invalid-name
 
 
-@register_object("meta_schedule.PyCostModel")
+@register_object("tvm.meta_schedule.PyCostModel")
 class _PyCostModel(CostModel):
     """
     A TVM object cost model to support customization on the python side.

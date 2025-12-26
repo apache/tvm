@@ -81,7 +81,7 @@ struct HoistExpressionConfigNode : public AttrsNodeReflAdapter<HoistExpressionCo
   bool FlagSet(HoistedLetBindings flag) const {
     return static_cast<int>(flag) & hoisted_let_bindings;
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.HoistExpressionConfig",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.transform.HoistExpressionConfig",
                                     HoistExpressionConfigNode, Object);
 };
 
@@ -110,7 +110,7 @@ struct HoistIfThenElseConfigNode : public AttrsNodeReflAdapter<HoistIfThenElseCo
         "support_block_scope_hoisting", &HoistIfThenElseConfigNode::support_block_scope_hoisting,
         "Hoist if cond with block scope variables", refl::DefaultValue(false));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.HoistIfThenElseConfig",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.transform.HoistIfThenElseConfig",
                                     HoistIfThenElseConfigNode, Object);
 };
 
@@ -562,7 +562,7 @@ Pass HoistExpression() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.HoistExpression", HoistExpression);
+  refl::GlobalDef().def("tvm.tir.transform.HoistExpression", HoistExpression);
 }
 
 Pass HoistIfThenElse() {
@@ -600,7 +600,7 @@ Pass HoistIfThenElse() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.HoistIfThenElse", HoistIfThenElse);
+  refl::GlobalDef().def("tvm.tir.transform.HoistIfThenElse", HoistIfThenElse);
 }
 
 Pass HoistIfThenElseBasic() {
@@ -623,7 +623,7 @@ Pass HoistIfThenElseBasic() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.HoistIfThenElseBasic", HoistIfThenElseBasic);
+  refl::GlobalDef().def("tvm.tir.transform.HoistIfThenElseBasic", HoistIfThenElseBasic);
 }
 
 }  // namespace transform

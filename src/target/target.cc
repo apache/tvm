@@ -1002,15 +1002,15 @@ std::unordered_map<ffi::String, ffi::Any> TargetInternal::QueryDevice(int device
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_packed("target.Target", TargetInternal::ConstructorDispatcher)
-      .def("target.TargetEnterScope", TargetInternal::EnterScope)
-      .def("target.TargetExitScope", TargetInternal::ExitScope)
-      .def("target.TargetCurrent", Target::Current)
-      .def("target.TargetExport", TargetInternal::Export)
-      .def("target.WithHost", TargetInternal::WithHost)
-      .def("target.TargetGetDeviceType",
+      .def_packed("tvm.target.Target", TargetInternal::ConstructorDispatcher)
+      .def("tvm.target.TargetEnterScope", TargetInternal::EnterScope)
+      .def("tvm.target.TargetExitScope", TargetInternal::ExitScope)
+      .def("tvm.target.TargetCurrent", Target::Current)
+      .def("tvm.target.TargetExport", TargetInternal::Export)
+      .def("tvm.target.WithHost", TargetInternal::WithHost)
+      .def("tvm.target.TargetGetDeviceType",
            [](const Target& target) { return target->GetTargetDeviceType(); })
-      .def("target.TargetGetFeature",
+      .def("tvm.target.TargetGetFeature",
            [](const Target& target, const ffi::String& feature_key) -> Any {
              if (auto opt_any = target->GetFeature<Any>(feature_key)) {
                return opt_any.value();

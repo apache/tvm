@@ -82,8 +82,8 @@ transform::Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.transform.AnnotateEntryFunc", AnnotateEntryFunc)
-      .def("tir.transform.Filter", Filter);
+      .def("tvm.tir.transform.AnnotateEntryFunc", AnnotateEntryFunc)
+      .def("tvm.tir.transform.Filter", Filter);
 }
 
 }  // namespace transform

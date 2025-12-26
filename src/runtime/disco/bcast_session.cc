@@ -68,7 +68,7 @@ void BcastSessionObj::Shutdown() {
 }
 
 void BcastSessionObj::InitCCL(ffi::String ccl, ffi::Shape device_ids) {
-  const auto pf = tvm::ffi::Function::GetGlobal("runtime.disco." + ccl + ".init_ccl");
+  const auto pf = tvm::ffi::Function::GetGlobal("tvm.runtime.disco." + ccl + ".init_ccl");
   CHECK(pf.has_value()) << "ValueError: Cannot initialize CCL `" << ccl
                         << "`, because cannot find function: runtime.disco." << ccl << ".init_ccl";
   (*pf)(ffi::GetRef<Session>(this), device_ids);

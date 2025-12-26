@@ -594,7 +594,7 @@ Pass CanonicalizeBindings() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.CanonicalizeBindings", CanonicalizeBindings);
+  refl::GlobalDef().def("tvm.relax.transform.CanonicalizeBindings", CanonicalizeBindings);
 }
 
 }  // namespace transform

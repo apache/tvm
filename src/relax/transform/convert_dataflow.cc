@@ -162,7 +162,7 @@ Pass ConvertToDataflow(int min_size) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.ConvertToDataflow", ConvertToDataflow);
+  refl::GlobalDef().def("tvm.relax.transform.ConvertToDataflow", ConvertToDataflow);
 }
 
 }  // namespace transform

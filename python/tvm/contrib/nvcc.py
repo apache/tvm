@@ -61,7 +61,7 @@ def compile_cuda(code, target_format=None, arch=None, options=None, path_target=
     use_nvshmem = "#include <nvshmem.h>" in code or "#include <nvshmemx.h>" in code
     if use_nvshmem:
         # NOTE: we cannot check whether nvshmem is used based on whether
-        # the global function "runtime.nvshmem.cumodule_init" is defined.
+        # the global function "tvm.runtime.nvshmem.cumodule_init" is defined.
         # The reason is because that if the input code does not use any NVSHMEM functions
         # while the global function is defined, using cubin to compile the
         # code may cause a compilation error.
@@ -89,7 +89,7 @@ def compile_cuda(code, target_format=None, arch=None, options=None, path_target=
     temp_code = temp.relpath(f"{file_name}.cu")
     temp_target = temp.relpath(f"{file_name}.{target_format}")
 
-    pass_context = tvm_ffi.get_global_func("transform.GetCurrentPassContext")()
+    pass_context = tvm_ffi.get_global_func("tvm.transform.GetCurrentPassContext")()
     kernels_output_dir = (
         pass_context.config["cuda.kernels_output_dir"]
         if "cuda.kernels_output_dir" in pass_context.config
@@ -313,14 +313,14 @@ def find_nvshmem_paths() -> Tuple[str, str]:
     raise RuntimeError("\n".join(error_message))
 
 
-@tvm_ffi.register_global_func
+@tvm_ffi.register_global_func("tvm.tvm_callback_cuda_compile")
 def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
     """use nvcc to generate fatbin code for better optimization"""
     ptx = compile_cuda(code, target_format="fatbin")
     return ptx
 
 
-@tvm_ffi.register_global_func("tvm_callback_libdevice_path")
+@tvm_ffi.register_global_func("tvm.tvm_callback_libdevice_path")
 def find_libdevice_path(arch):
     """Utility function to find libdevice
 

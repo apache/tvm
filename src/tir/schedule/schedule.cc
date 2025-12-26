@@ -51,14 +51,14 @@ StmtSRef ScheduleNode::GetSRef(const StmtNode* stmt) const {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("tir.schedule.ScheduleGetMod", &ScheduleNode::mod)
-      .def_method("tir.schedule.ScheduleGetState", &ScheduleNode::state)
-      .def_method("tir.schedule.ScheduleGetTrace", &ScheduleNode::trace)
-      .def_method("tir.schedule.ScheduleGetFuncWorkingOn", &ScheduleNode::func_working_on)
-      .def_method("tir.schedule.ScheduleCopy", &ScheduleNode::Copy)
-      .def_method("tir.schedule.ScheduleSeed", &ScheduleNode::Seed)
-      .def_method("tir.schedule.ScheduleForkSeed", &ScheduleNode::ForkSeed)
-      .def_method("tir.schedule.ScheduleWorkOn", &ScheduleNode::WorkOn);
+      .def_method("tvm.tir.schedule.ScheduleGetMod", &ScheduleNode::mod)
+      .def_method("tvm.tir.schedule.ScheduleGetState", &ScheduleNode::state)
+      .def_method("tvm.tir.schedule.ScheduleGetTrace", &ScheduleNode::trace)
+      .def_method("tvm.tir.schedule.ScheduleGetFuncWorkingOn", &ScheduleNode::func_working_on)
+      .def_method("tvm.tir.schedule.ScheduleCopy", &ScheduleNode::Copy)
+      .def_method("tvm.tir.schedule.ScheduleSeed", &ScheduleNode::Seed)
+      .def_method("tvm.tir.schedule.ScheduleForkSeed", &ScheduleNode::ForkSeed)
+      .def_method("tvm.tir.schedule.ScheduleWorkOn", &ScheduleNode::WorkOn);
 }
 
 /**************** (FFI) Constructor ****************/
@@ -66,16 +66,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.schedule.BlockRV", []() { return BlockRV(); })
-      .def("tir.schedule.LoopRV", []() { return LoopRV(); })
-      .def("tir.schedule.ConcreteSchedule",
+      .def("tvm.tir.schedule.BlockRV", []() { return BlockRV(); })
+      .def("tvm.tir.schedule.LoopRV", []() { return LoopRV(); })
+      .def("tvm.tir.schedule.ConcreteSchedule",
            [](IRModule mod, support::LinearCongruentialEngine::TRandState seed, int debug_mask,
               int error_render_level, bool enable_check) -> Schedule {
              return Schedule::Concrete(mod, debug_mask, seed,
                                        static_cast<ScheduleErrorRenderLevel>(error_render_level),
                                        enable_check);
            })
-      .def("tir.schedule.TracedSchedule",
+      .def("tvm.tir.schedule.TracedSchedule",
            [](IRModule mod, support::LinearCongruentialEngine::TRandState seed, int debug_mask,
               int error_render_level, bool enable_check) -> Schedule {
              return Schedule::Traced(mod, seed, debug_mask,
@@ -89,7 +89,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.schedule.ScheduleGet",
+      .def("tvm.tir.schedule.ScheduleGet",
            [](Schedule self, ObjectRef obj) -> ObjectRef {
              if (auto loop_rv = obj.as<LoopRV>()) {
                return self->Get(loop_rv.value());
@@ -104,7 +104,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         << obj->GetTypeKey() << ". Its value is: " << obj;
              throw;
            })
-      .def("tir.schedule.ScheduleGetSRef",
+      .def("tvm.tir.schedule.ScheduleGetSRef",
            [](Schedule self, ObjectRef obj) -> ffi::Optional<ObjectRef> {
              if (auto loop_rv = obj.as<LoopRV>()) {
                return self->GetSRef(loop_rv.value());
@@ -118,7 +118,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              LOG(FATAL) << "TypeError: Invalid type: " << obj->GetTypeKey();
              throw;
            })
-      .def("tir.schedule.ScheduleRemoveRV", [](Schedule self, ObjectRef obj) -> void {
+      .def("tvm.tir.schedule.ScheduleRemoveRV", [](Schedule self, ObjectRef obj) -> void {
         if (auto loop_rv = obj.as<LoopRV>()) {
           return self->RemoveRV(loop_rv.value());
         }
@@ -137,20 +137,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("tir.schedule.ScheduleSampleCategorical", &ScheduleNode::SampleCategorical)
-      .def_method("tir.schedule.ScheduleSamplePerfectTile", &ScheduleNode::SamplePerfectTile)
-      .def_method("tir.schedule.ScheduleSamplePartitionedTile",
+      .def_method("tvm.tir.schedule.ScheduleSampleCategorical", &ScheduleNode::SampleCategorical)
+      .def_method("tvm.tir.schedule.ScheduleSamplePerfectTile", &ScheduleNode::SamplePerfectTile)
+      .def_method("tvm.tir.schedule.ScheduleSamplePartitionedTile",
                   &ScheduleNode::SamplePartitionedTile)
-      .def_method("tir.schedule.ScheduleSampleComputeLocation",
+      .def_method("tvm.tir.schedule.ScheduleSampleComputeLocation",
                   &ScheduleNode::SampleComputeLocation);
 }
 /******** (FFI) Get blocks & loops ********/
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("tir.schedule.ScheduleGetBlock", &ScheduleNode::GetBlock)
-      .def_method("tir.schedule.ScheduleGetLoops", &ScheduleNode::GetLoops)
-      .def("tir.schedule.ScheduleGetChildBlocks",
+      .def_method("tvm.tir.schedule.ScheduleGetBlock", &ScheduleNode::GetBlock)
+      .def_method("tvm.tir.schedule.ScheduleGetLoops", &ScheduleNode::GetLoops)
+      .def("tvm.tir.schedule.ScheduleGetChildBlocks",
            [](Schedule self, ObjectRef rv) {
              if (auto block_rv = rv.as<BlockRV>()) {
                return self->GetChildBlocks(block_rv.value());
@@ -162,21 +162,22 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         << rv->GetTypeKey() << ". Its value is: " << rv;
              throw;
            })
-      .def_method("tir.schedule.ScheduleGetProducers", &ScheduleNode::GetProducers)
-      .def_method("tir.schedule.ScheduleGetConsumers", &ScheduleNode::GetConsumers)
-      .def_method("tir.schedule.ScheduleGetOutputBlocks", &ScheduleNode::GetOutputBlocks);
+      .def_method("tvm.tir.schedule.ScheduleGetProducers", &ScheduleNode::GetProducers)
+      .def_method("tvm.tir.schedule.ScheduleGetConsumers", &ScheduleNode::GetConsumers)
+      .def_method("tvm.tir.schedule.ScheduleGetOutputBlocks", &ScheduleNode::GetOutputBlocks);
 }
 /******** (FFI) Transform loops ********/
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("tir.schedule.ScheduleMerge", &ScheduleNode::Merge)
-      .def_method("tir.schedule.ScheduleFuse", &ScheduleNode::Fuse)
-      .def_method("tir.schedule.ScheduleSplit", &ScheduleNode::Split)
-      .def_method("tir.schedule.ScheduleLoopPartition", &ScheduleNode::LoopPartition)
-      .def_method("tir.schedule.ScheduleReorder", &ScheduleNode::Reorder)
-      .def_method("tir.schedule.ScheduleReorderBlockIterVar", &ScheduleNode::ReorderBlockIterVar)
-      .def("tir.schedule.ScheduleAddUnitLoop", [](Schedule self, ObjectRef rv) -> LoopRV {
+      .def_method("tvm.tir.schedule.ScheduleMerge", &ScheduleNode::Merge)
+      .def_method("tvm.tir.schedule.ScheduleFuse", &ScheduleNode::Fuse)
+      .def_method("tvm.tir.schedule.ScheduleSplit", &ScheduleNode::Split)
+      .def_method("tvm.tir.schedule.ScheduleLoopPartition", &ScheduleNode::LoopPartition)
+      .def_method("tvm.tir.schedule.ScheduleReorder", &ScheduleNode::Reorder)
+      .def_method("tvm.tir.schedule.ScheduleReorderBlockIterVar",
+                  &ScheduleNode::ReorderBlockIterVar)
+      .def("tvm.tir.schedule.ScheduleAddUnitLoop", [](Schedule self, ObjectRef rv) -> LoopRV {
         if (auto loop_rv = rv.as<LoopRV>()) {
           return self->AddUnitLoop(loop_rv.value());
         } else if (auto block_rv = rv.as<BlockRV>()) {
@@ -192,22 +193,22 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("tir.schedule.ScheduleParallel", &ScheduleNode::Parallel)
-      .def_method("tir.schedule.ScheduleVectorize", &ScheduleNode::Vectorize)
-      .def_method("tir.schedule.ScheduleBind", &ScheduleNode::Bind)
-      .def_method("tir.schedule.ScheduleUnroll", &ScheduleNode::Unroll);
+      .def_method("tvm.tir.schedule.ScheduleParallel", &ScheduleNode::Parallel)
+      .def_method("tvm.tir.schedule.ScheduleVectorize", &ScheduleNode::Vectorize)
+      .def_method("tvm.tir.schedule.ScheduleBind", &ScheduleNode::Bind)
+      .def_method("tvm.tir.schedule.ScheduleUnroll", &ScheduleNode::Unroll);
 }
 /******** (FFI) Insert cache stages ********/
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("tir.schedule.ScheduleCacheRead", &ScheduleNode::CacheRead)
-      .def_method("tir.schedule.ScheduleCacheWrite", &ScheduleNode::CacheWrite)
-      .def_method("tir.schedule.ScheduleReindexCacheRead", &ScheduleNode::ReindexCacheRead)
-      .def_method("tir.schedule.ScheduleReindexCacheWrite", &ScheduleNode::ReindexCacheWrite)
-      .def_method("tir.schedule.ScheduleCacheInplace", &ScheduleNode::CacheInplace)
-      .def_method("tir.schedule.ScheduleCacheIndex", &ScheduleNode::CacheIndex)
-      .def("tir.schedule.ScheduleReIndex",
+      .def_method("tvm.tir.schedule.ScheduleCacheRead", &ScheduleNode::CacheRead)
+      .def_method("tvm.tir.schedule.ScheduleCacheWrite", &ScheduleNode::CacheWrite)
+      .def_method("tvm.tir.schedule.ScheduleReindexCacheRead", &ScheduleNode::ReindexCacheRead)
+      .def_method("tvm.tir.schedule.ScheduleReindexCacheWrite", &ScheduleNode::ReindexCacheWrite)
+      .def_method("tvm.tir.schedule.ScheduleCacheInplace", &ScheduleNode::CacheInplace)
+      .def_method("tvm.tir.schedule.ScheduleCacheIndex", &ScheduleNode::CacheIndex)
+      .def("tvm.tir.schedule.ScheduleReIndex",
            [](Schedule self, const BlockRV& block_rv, int buffer_index, int buffer_index_type) {
              return self->ReIndex(block_rv, buffer_index,
                                   static_cast<BufferIndexType>(buffer_index_type));
@@ -217,40 +218,41 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("tir.schedule.ScheduleReadAt", &ScheduleNode::ReadAt)
-      .def_method("tir.schedule.ScheduleWriteAt", &ScheduleNode::WriteAt);
+      .def_method("tvm.tir.schedule.ScheduleReadAt", &ScheduleNode::ReadAt)
+      .def_method("tvm.tir.schedule.ScheduleWriteAt", &ScheduleNode::WriteAt);
 }
 /******** (FFI) Compute location ********/
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("tir.schedule.ScheduleComputeAt", &ScheduleNode::ComputeAt)
-      .def_method("tir.schedule.ScheduleReverseComputeAt", &ScheduleNode::ReverseComputeAt)
-      .def_method("tir.schedule.ScheduleComputeInline", &ScheduleNode::ComputeInline)
-      .def_method("tir.schedule.ScheduleReverseComputeInline", &ScheduleNode::ReverseComputeInline)
-      .def_method("tir.schedule.ScheduleFuseReductionEpilogue",
+      .def_method("tvm.tir.schedule.ScheduleComputeAt", &ScheduleNode::ComputeAt)
+      .def_method("tvm.tir.schedule.ScheduleReverseComputeAt", &ScheduleNode::ReverseComputeAt)
+      .def_method("tvm.tir.schedule.ScheduleComputeInline", &ScheduleNode::ComputeInline)
+      .def_method("tvm.tir.schedule.ScheduleReverseComputeInline",
+                  &ScheduleNode::ReverseComputeInline)
+      .def_method("tvm.tir.schedule.ScheduleFuseReductionEpilogue",
                   &ScheduleNode::FuseReductionEpilogue);
 }
 /******** (FFI) Reduction ********/
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("tir.schedule.ScheduleDecomposeReduction", &ScheduleNode::DecomposeReduction)
-      .def_method("tir.schedule.ScheduleRFactor", &ScheduleNode::RFactor);
+      .def_method("tvm.tir.schedule.ScheduleDecomposeReduction", &ScheduleNode::DecomposeReduction)
+      .def_method("tvm.tir.schedule.ScheduleRFactor", &ScheduleNode::RFactor);
 }
 /******** (FFI) Block annotation ********/
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("tir.schedule.ScheduleStorageAlign", &ScheduleNode::StorageAlign)
-      .def_method("tir.schedule.ScheduleSetScope", &ScheduleNode::SetScope)
-      .def_method("tir.schedule.ScheduleUnsafeSetDType", &ScheduleNode::UnsafeSetDType);
+      .def_method("tvm.tir.schedule.ScheduleStorageAlign", &ScheduleNode::StorageAlign)
+      .def_method("tvm.tir.schedule.ScheduleSetScope", &ScheduleNode::SetScope)
+      .def_method("tvm.tir.schedule.ScheduleUnsafeSetDType", &ScheduleNode::UnsafeSetDType);
 }
 /******** (FFI) Blockize & Tensorize ********/
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.schedule.ScheduleBlockize",
+      .def("tvm.tir.schedule.ScheduleBlockize",
            [](Schedule self, ObjectRef target, bool preserve_unit_iters) {
              if (auto loop_rv = target.as<LoopRV>()) {
                return self->Blockize(loop_rv.value(), preserve_unit_iters);
@@ -259,7 +261,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              }
              LOG(FATAL) << "Unsupported target type: " << target->GetTypeKey();
            })
-      .def("tir.schedule.ScheduleTensorize",
+      .def("tvm.tir.schedule.ScheduleTensorize",
            [](Schedule self, ObjectRef rv, ffi::String intrin, bool preserve_unit_iters) {
              if (auto block_rv = rv.as<BlockRV>()) {
                self->Tensorize(block_rv.value(), intrin, preserve_unit_iters);
@@ -276,7 +278,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.schedule.ScheduleAnnotate",
+      .def("tvm.tir.schedule.ScheduleAnnotate",
            [](Schedule self, ObjectRef rv, const ffi::String& ann_key, const Any& ann_val) {
              if (auto block_rv = rv.as<BlockRV>()) {
                return self->Annotate(block_rv.value(), ann_key, ann_val);
@@ -288,8 +290,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         << rv->GetTypeKey() << ". Its value is: " << rv;
              throw;
            })
-      .def("tir.schedule.ScheduleUnannotate", [](Schedule self, ObjectRef rv,
-                                                 const ffi::String& ann_key) {
+      .def("tvm.tir.schedule.ScheduleUnannotate", [](Schedule self, ObjectRef rv,
+                                                     const ffi::String& ann_key) {
         if (auto block_rv = rv.as<BlockRV>()) {
           return self->Unannotate(block_rv.value(), ann_key);
         }
@@ -306,7 +308,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.schedule.ScheduleTransformLayout",
+      .def("tvm.tir.schedule.ScheduleTransformLayout",
            [](Schedule self, const BlockRV& block_rv, int buffer_index, int buffer_index_type,
               const IndexMap& index_map, const ffi::Optional<IndexMap>& pad_value,
               bool assume_injective_transform) {
@@ -314,8 +316,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                           static_cast<BufferIndexType>(buffer_index_type),
                                           index_map, pad_value, assume_injective_transform);
            })
-      .def_method("tir.schedule.ScheduleTransformBlockLayout", &ScheduleNode::TransformBlockLayout)
-      .def("tir.schedule.ScheduleSetAxisSeparator",
+      .def_method("tvm.tir.schedule.ScheduleTransformBlockLayout",
+                  &ScheduleNode::TransformBlockLayout)
+      .def("tvm.tir.schedule.ScheduleSetAxisSeparator",
            [](Schedule self, const BlockRV& block_rv, int buffer_index, int buffer_index_type,
               const ffi::Array<IntImm>& axis_separators) {
              return self->SetAxisSeparator(block_rv, buffer_index,
@@ -328,26 +331,27 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("tir.schedule.ScheduleDecomposePadding", &ScheduleNode::DecomposePadding)
-      .def_method("tir.schedule.SchedulePadEinsum", &ScheduleNode::PadEinsum);
+      .def_method("tvm.tir.schedule.ScheduleDecomposePadding", &ScheduleNode::DecomposePadding)
+      .def_method("tvm.tir.schedule.SchedulePadEinsum", &ScheduleNode::PadEinsum);
 }
 /******** (FFI) Buffer transformation ********/
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_method("tir.schedule.ScheduleRollingBuffer", &ScheduleNode::RollingBuffer);
+  refl::GlobalDef().def_method("tvm.tir.schedule.ScheduleRollingBuffer",
+                               &ScheduleNode::RollingBuffer);
 }
 /******** (FFI) Misc ********/
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("tir.schedule.ScheduleEnterPostproc", &ScheduleNode::EnterPostproc)
-      .def_method("tir.schedule.ScheduleUnsafeHideBufferAccess",
+      .def_method("tvm.tir.schedule.ScheduleEnterPostproc", &ScheduleNode::EnterPostproc)
+      .def_method("tvm.tir.schedule.ScheduleUnsafeHideBufferAccess",
                   &ScheduleNode::UnsafeHideBufferAccess);
 }
 /******** (FFI) Annotate buffer access ********/
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.schedule.ScheduleAnnotateBufferAccess",
+  refl::GlobalDef().def("tvm.tir.schedule.ScheduleAnnotateBufferAccess",
                         [](Schedule self, const BlockRV& block_rv, int buffer_index,
                            int buffer_index_type, const IndexMap& index_map) {
                           return self->AnnotateBufferAccess(

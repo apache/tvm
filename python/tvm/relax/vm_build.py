@@ -50,7 +50,7 @@ class VMExecutable(Executable):
 
 
 def _vmcodegen(
-    builder: "relax.ExecBuilder",
+    builder: "tvm.relax.ExecBuilder",
     mod: tvm.IRModule,
     exec_mode: str = "bytecode",
 ) -> tvm.IRModule:
@@ -104,7 +104,7 @@ def _is_device_module(mod: tvm.runtime.Module) -> bool:
 
 
 def _vmlink(
-    builder: "relax.ExecBuilder",
+    builder: "tvm.relax.ExecBuilder",
     target: Optional[Union[str, tvm.target.Target]],
     tir_mod: Optional[tvm.IRModule] = None,
     tir_pipeline: Optional[Union[str, tvm.transform.Pass]] = "default",

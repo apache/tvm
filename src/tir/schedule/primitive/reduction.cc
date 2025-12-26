@@ -1353,7 +1353,7 @@ TVM_REGISTER_INST_KIND_TRAITS(DecomposeReductionTraits);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tir.schedule.RegisterReducer",
+      "tvm.tir.schedule.RegisterReducer",
       [](int n_buffers, ffi::Function combiner_getter, ffi::Function identity_getter) {
         ReducerRegistry::RegisterReducer(n_buffers, std::move(combiner_getter),
                                          std::move(identity_getter));

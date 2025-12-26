@@ -186,7 +186,7 @@ Pass LiftThreadBinding() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.LiftThreadBinding", LiftThreadBinding);
+  refl::GlobalDef().def("tvm.tir.transform.LiftThreadBinding", LiftThreadBinding);
 }
 }  // namespace transform
 

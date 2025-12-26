@@ -44,7 +44,7 @@ struct ArgmaxArgminAttrs : public AttrsNodeReflAdapter<ArgmaxArgminAttrs> {
                 "with size "
                 "one.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ArgmaxArgminAttrs", ArgmaxArgminAttrs,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.ArgmaxArgminAttrs", ArgmaxArgminAttrs,
                                     BaseAttrsNode);
 };  // struct ArgmaxArgminAttrs
 
@@ -61,7 +61,8 @@ struct BucketizeAttrs : public tvm::AttrsNodeReflAdapter<BucketizeAttrs> {
         .def_ro("right", &BucketizeAttrs::right,
                 "Determines the behavior for values in boundaries");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.BucketizeAttrs", BucketizeAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.BucketizeAttrs", BucketizeAttrs,
+                                    BaseAttrsNode);
 };  // struct BucketizeAttrs
 
 }  // namespace relax

@@ -33,7 +33,7 @@ class PlacementSpecKind(enum.IntEnum):
     kReplica = 1
 
 
-@tvm_ffi.register_object("relax.distributed.PlacementSpec")
+@tvm_ffi.register_object("tvm.relax.distributed.PlacementSpec")
 class PlacementSpec(Object):
     """Describes how data is distributed in one dimension of the device mesh
 
@@ -80,7 +80,7 @@ class PlacementSpec(Object):
         return _ffi_api.Replica()
 
 
-@tvm_ffi.register_object("relax.distributed.Placement")
+@tvm_ffi.register_object("tvm.relax.distributed.Placement")
 class Placement(Object):
     """Describes how data is distributed in each dimension of the device mesh
 
@@ -110,7 +110,7 @@ class Placement(Object):
         return _ffi_api.PlacementFromText(text)
 
 
-@tvm_ffi.register_object("relax.DTensorStructInfo")
+@tvm_ffi.register_object("tvm.relax.DTensorStructInfo")
 class DTensorStructInfo(StructInfo):
     """StructInfo of a Distributed Tensor value.
 

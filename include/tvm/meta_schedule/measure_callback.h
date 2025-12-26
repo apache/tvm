@@ -62,7 +62,7 @@ class MeasureCallbackNode : public runtime::Object {
                      const ffi::Array<RunnerResult>& runner_results) = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.MeasureCallback", MeasureCallbackNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.meta_schedule.MeasureCallback", MeasureCallbackNode, Object);
 };
 
 /*! \brief The measure callback with customized methods on the python-side. */
@@ -105,7 +105,7 @@ class PyMeasureCallbackNode : public MeasureCallbackNode {
              const ffi::Array<MeasureCandidate>& measure_candidates,  //
              const ffi::Array<BuilderResult>& builds,                 //
              const ffi::Array<RunnerResult>& results);
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyMeasureCallback", PyMeasureCallbackNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.PyMeasureCallback", PyMeasureCallbackNode,
                                     MeasureCallbackNode);
 };
 

@@ -1011,17 +1011,17 @@ class Clip(OnnxOpConverter):
         min = float(attr.get("min", -_np.inf))
         max = float(attr.get("max", _np.inf))
         results = inputs[0]
-        results = bb.emit_te(topi.maximum, results, min)
-        results = bb.emit_te(topi.minimum, results, max)
+        results = bb.emit_te(tvm.topi.maximum, results, min)
+        results = bb.emit_te(tvm.topi.minimum, results, max)
         return results
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         results = inputs[0]
         if inputs[1] is not None:
-            results = bb.emit_te(topi.maximum, results, inputs[1])
+            results = bb.emit_te(tvm.topi.maximum, results, inputs[1])
         if inputs[2] is not None:
-            results = bb.emit_te(topi.minimum, results, inputs[2])
+            results = bb.emit_te(tvm.topi.minimum, results, inputs[2])
         return results
 
 
@@ -2032,7 +2032,7 @@ class Expand(OnnxOpConverter):
         shape_ndim = [dim.value for dim in shape.struct_info.shape.values][0]
         shape_dataflow_var = bb.emit(
             relax.Call(
-                relax.ExternFunc("vm.builtin.tensor_to_shape"),
+                relax.ExternFunc("tvm.vm.builtin.tensor_to_shape"),
                 [shape],
                 sinfo_args=[relax.ShapeStructInfo(ndim=shape_ndim)],
             )

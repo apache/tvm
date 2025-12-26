@@ -46,7 +46,9 @@ def register_df_node(type_key=None):
         The type key of the node
     """
     if not isinstance(type_key, str):
-        return tvm_ffi.register_object("relax.dpl." + type_key.__name__)(type_key)
+        return tvm_ffi.register_object("tvm.relax.dpl." + type_key.__name__)(type_key)
+    if not type_key.startswith("tvm."):
+        type_key = "tvm." + type_key
     return tvm_ffi.register_object(type_key)
 
 
@@ -120,7 +122,7 @@ class DFPattern(Node):
         result: AttrPattern
             The resulting AttrPattern
         """
-        attrs = make_node("ir.DictAttrs", **attrs)
+        attrs = make_node("tvm.ir.DictAttrs", **attrs)
         return AttrPattern(self, attrs)
 
     def has_struct_info(self, struct_info: "StructInfo") -> "StructInfoPattern":

@@ -26,7 +26,7 @@ from . import _ffi_api
 from .utils import _json_de_tvm
 
 
-@register_object("meta_schedule.ArgInfo")
+@register_object("tvm.meta_schedule.ArgInfo")
 class ArgInfo(Object):
     """Argument information"""
 
@@ -85,7 +85,7 @@ class ArgInfo(Object):
         return _ffi_api.ArgInfoFromEntryFunc(mod, remove_preproc)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("meta_schedule.TensorInfo")
+@register_object("tvm.meta_schedule.TensorInfo")
 class TensorInfo(ArgInfo):
     """Tensor argument information
 

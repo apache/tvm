@@ -40,12 +40,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TargetKindNode::RegisterReflection();
   refl::TypeAttrDef<TargetKindNode>()
-      .def("__data_to_json__",
+      .def("tvm.__data_to_json__",
            [](const TargetKindNode* node) {
              // simply save as the string
              return node->name;
            })
-      .def("__data_from_json__", [](const ffi::String& name) {
+      .def("tvm.__data_from_json__", [](const ffi::String& name) {
         auto kind = TargetKind::Get(name);
         ICHECK(kind.has_value()) << "Cannot find target kind \'" << name << '\'';
         return kind.value();
@@ -225,7 +225,8 @@ TargetJSON UpdateROCmAttrs(TargetJSON target) {
     ICHECK(!arch.empty()) << "ValueError: ROCm target gets an invalid GFX version: -mcpu=" << mcpu;
   } else {
     ffi::Any val;
-    if (const auto f_get_rocm_arch = tvm::ffi::Function::GetGlobal("tvm_callback_rocm_get_arch")) {
+    if (const auto f_get_rocm_arch =
+            tvm::ffi::Function::GetGlobal("tvm.tvm_callback_rocm_get_arch")) {
       arch = (*f_get_rocm_arch)().cast<std::string>();
     }
     target.Set("mcpu", ffi::String(arch));
@@ -449,7 +450,7 @@ TVM_REGISTER_TARGET_KIND("test", kDLCPU)  // line break
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("target.TargetKindGetAttr",
+      .def("tvm.target.TargetKindGetAttr",
            [](TargetKind kind, ffi::String attr_name) -> ffi::Any {
              auto target_attr_map = TargetKind::GetAttrMap<ffi::Any>(attr_name);
              ffi::Any rv;
@@ -458,9 +459,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              }
              return rv;
            })
-      .def("target.ListTargetKinds", TargetKindRegEntry::ListTargetKinds)
-      .def("target.ListTargetKindOptions", TargetKindRegEntry::ListTargetKindOptions)
-      .def("target.ListTargetKindOptionsFromName", [](ffi::String target_kind_name) {
+      .def("tvm.target.ListTargetKinds", TargetKindRegEntry::ListTargetKinds)
+      .def("tvm.target.ListTargetKindOptions", TargetKindRegEntry::ListTargetKindOptions)
+      .def("tvm.target.ListTargetKindOptionsFromName", [](ffi::String target_kind_name) {
         TargetKind kind = TargetKind::Get(target_kind_name).value();
         return TargetKindRegEntry::ListTargetKindOptions(kind);
       });

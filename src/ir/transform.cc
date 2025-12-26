@@ -362,7 +362,7 @@ class ModulePassNode : public PassNode {
    * \brief Get the pass information/meta data.
    */
   PassInfo Info() const override { return pass_info; }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.ModulePass", ModulePassNode, PassNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.transform.ModulePass", ModulePassNode, PassNode);
 };
 
 class ModulePass : public Pass {
@@ -495,10 +495,10 @@ Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pass_func, 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("transform.PassInfo",
+      .def("tvm.transform.PassInfo",
            [](int opt_level, ffi::String name, tvm::ffi::Array<ffi::String> required,
               bool traceable) { return PassInfo(opt_level, name, required, traceable); })
-      .def_packed("transform.Info", [](ffi::PackedArgs args, ffi::Any* ret) {
+      .def_packed("tvm.transform.Info", [](ffi::PackedArgs args, ffi::Any* ret) {
         Pass pass = args[0].cast<Pass>();
         *ret = pass->Info();
       });
@@ -532,7 +532,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("transform.MakeModulePass",
+      .def("tvm.transform.MakeModulePass",
            [](ffi::TypedFunction<IRModule(ffi::RValueRef<IRModule>, PassContext)> pass_func,
               PassInfo pass_info) {
              auto wrapped_pass_func = [pass_func](IRModule mod, PassContext ctx) {
@@ -540,7 +540,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              };
              return ModulePass(wrapped_pass_func, pass_info);
            })
-      .def("transform.RunPass",
+      .def("tvm.transform.RunPass",
            [](Pass pass, ffi::RValueRef<IRModule> mod) { return pass(*std::move(mod)); });
 }
 
@@ -554,7 +554,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("transform.Sequential", [](ffi::PackedArgs args, ffi::Any* ret) {
+  refl::GlobalDef().def_packed("tvm.transform.Sequential", [](ffi::PackedArgs args, ffi::Any* ret) {
     auto passes = args[0].cast<tvm::ffi::Array<Pass>>();
     int opt_level = args[1].cast<int>();
     std::string name = args[2].cast<std::string>();
@@ -582,7 +582,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "transform.PassContext",
+      "tvm.transform.PassContext",
       [](int opt_level, ffi::Array<ffi::String> required, ffi::Array<ffi::String> disabled,
          ffi::Array<instrument::PassInstrument> instruments,
          ffi::Optional<ffi::Map<ffi::String, ffi::Any>> config) {
@@ -625,10 +625,10 @@ class PassContext::Internal {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("transform.GetCurrentPassContext", PassContext::Current)
-      .def("transform.EnterPassContext", PassContext::Internal::EnterScope)
-      .def("transform.ExitPassContext", PassContext::Internal::ExitScope)
-      .def("transform.OverrideInstruments",
+      .def("tvm.transform.GetCurrentPassContext", PassContext::Current)
+      .def("tvm.transform.EnterPassContext", PassContext::Internal::EnterScope)
+      .def("tvm.transform.ExitPassContext", PassContext::Internal::ExitScope)
+      .def("tvm.transform.OverrideInstruments",
            [](PassContext pass_ctx, ffi::Array<instrument::PassInstrument> instruments) {
              pass_ctx.InstrumentExitPassContext();
              pass_ctx->instruments = instruments;
@@ -647,8 +647,8 @@ Pass PrintIR(ffi::String header) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("transform.PrintIR", PrintIR)
-      .def("transform.ListConfigs", PassContext::ListConfigs);
+      .def("tvm.transform.PrintIR", PrintIR)
+      .def("tvm.transform.ListConfigs", PassContext::ListConfigs);
 }
 
 }  // namespace transform

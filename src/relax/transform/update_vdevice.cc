@@ -109,7 +109,7 @@ Pass UpdateVDevice(VDevice new_vdevice, int64_t index) {
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.UpdateVDevice", UpdateVDevice);
+  refl::GlobalDef().def("tvm.relax.transform.UpdateVDevice", UpdateVDevice);
 }
 
 }  // namespace transform

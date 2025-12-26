@@ -339,7 +339,7 @@ Pass RemoveUnusedOutputs() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.RemoveUnusedOutputs", RemoveUnusedOutputs);
+  refl::GlobalDef().def("tvm.relax.transform.RemoveUnusedOutputs", RemoveUnusedOutputs);
 }
 
 }  // namespace transform

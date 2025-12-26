@@ -192,7 +192,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = TFLiteRuntimeCreate(args[0].cast<std::string>(), args[1].cast<Device>());
                   })
-      .def("target.runtime.tflite", TFLiteRuntimeCreate);
+      .def("tvm.target.runtime.tflite", TFLiteRuntimeCreate);
 }
 }  // namespace runtime
 }  // namespace tvm

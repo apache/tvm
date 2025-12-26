@@ -44,7 +44,8 @@ class TIRFrameNode : public IRBuilderFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TIRFrameNode>().def_ro("stmts", &TIRFrameNode::stmts);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.tir.TIRFrame", TIRFrameNode, IRBuilderFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.script.ir_builder.tir.TIRFrame", TIRFrameNode,
+                              IRBuilderFrameNode);
 };
 
 /*!
@@ -97,7 +98,7 @@ class PrimFuncFrameNode : public TIRFrameNode {
         .def_ro("env_threads", &PrimFuncFrameNode::env_threads)
         .def_ro("root_alloc_buffers", &PrimFuncFrameNode::root_alloc_buffers);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.PrimFuncFrame", PrimFuncFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.tir.PrimFuncFrame", PrimFuncFrameNode,
                                     TIRFrameNode);
 
  public:
@@ -170,7 +171,7 @@ class BlockFrameNode : public TIRFrameNode {
         .def_ro("predicate", &BlockFrameNode::predicate)
         .def_ro("no_realize", &BlockFrameNode::no_realize);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.BlockFrame", BlockFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.tir.BlockFrame", BlockFrameNode,
                                     TIRFrameNode);
 
  public:
@@ -207,7 +208,7 @@ class BlockInitFrameNode : public TIRFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BlockInitFrameNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.BlockInitFrame", BlockInitFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.tir.BlockInitFrame", BlockInitFrameNode,
                                     TIRFrameNode);
 
  public:
@@ -270,7 +271,8 @@ class ForFrameNode : public TIRFrameNode {
         .def_ro("doms", &ForFrameNode::doms);
     // `f_make_for_loop` is not registered as it's not visited.
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.ForFrame", ForFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.tir.ForFrame", ForFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -313,7 +315,7 @@ class AssertFrameNode : public TIRFrameNode {
         .def_ro("condition", &AssertFrameNode::condition)
         .def_ro("message", &AssertFrameNode::message);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AssertFrame", AssertFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.tir.AssertFrame", AssertFrameNode,
                                     TIRFrameNode);
 
  public:
@@ -356,7 +358,8 @@ class LetFrameNode : public TIRFrameNode {
         .def_ro("var", &LetFrameNode::var)
         .def_ro("value", &LetFrameNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.LetFrame", LetFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.tir.LetFrame", LetFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -400,7 +403,7 @@ class LaunchThreadFrameNode : public TIRFrameNode {
         .def_ro("attr_key", &LaunchThreadFrameNode::attr_key)
         .def_ro("iter_var", &LaunchThreadFrameNode::iter_var);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.LaunchThreadFrame",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.tir.LaunchThreadFrame",
                                     LaunchThreadFrameNode, TIRFrameNode);
 
  public:
@@ -446,7 +449,7 @@ class RealizeFrameNode : public TIRFrameNode {
         .def_ro("storage_scope", &RealizeFrameNode::storage_scope)
         .def_ro("condition", &RealizeFrameNode::condition);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.RealizeFrame", RealizeFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.tir.RealizeFrame", RealizeFrameNode,
                                     TIRFrameNode);
 
  public:
@@ -501,7 +504,7 @@ class AllocateFrameNode : public TIRFrameNode {
         .def_ro("annotations", &AllocateFrameNode::annotations)
         .def_ro("buffer_var", &AllocateFrameNode::buffer_var);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AllocateFrame", AllocateFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.tir.AllocateFrame", AllocateFrameNode,
                                     TIRFrameNode);
 
  public:
@@ -553,7 +556,7 @@ class AllocateConstFrameNode : public TIRFrameNode {
         .def_ro("buffer_var", &AllocateConstFrameNode::buffer_var)
         .def_ro("annotations", &AllocateConstFrameNode::annotations);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AllocateConstFrame",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.tir.AllocateConstFrame",
                                     AllocateConstFrameNode, TIRFrameNode);
 
  public:
@@ -600,7 +603,8 @@ class AttrFrameNode : public TIRFrameNode {
         .def_ro("attr_key", &AttrFrameNode::attr_key)
         .def_ro("value", &AttrFrameNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AttrFrame", AttrFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.tir.AttrFrame", AttrFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -638,7 +642,7 @@ class WhileFrameNode : public TIRFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<WhileFrameNode>().def_ro("condition", &WhileFrameNode::condition);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.WhileFrame", WhileFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.tir.WhileFrame", WhileFrameNode,
                                     TIRFrameNode);
 
  public:
@@ -684,7 +688,7 @@ class IfFrameNode : public TIRFrameNode {
         .def_ro("then_stmts", &IfFrameNode::then_stmts)
         .def_ro("else_stmts", &IfFrameNode::else_stmts);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.IfFrame", IfFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.tir.IfFrame", IfFrameNode, TIRFrameNode);
 
  public:
   /*!
@@ -718,7 +722,8 @@ class ThenFrameNode : public TIRFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ThenFrameNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.ThenFrame", ThenFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.tir.ThenFrame", ThenFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -757,7 +762,8 @@ class ElseFrameNode : public TIRFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ElseFrameNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.ElseFrame", ElseFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.tir.ElseFrame", ElseFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -799,8 +805,8 @@ class DeclBufferFrameNode : public TIRFrameNode {
         .def_ro("buffer", &DeclBufferFrameNode::buffer)
         .def_ro("allocated", &DeclBufferFrameNode::allocated);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.DeclBufferFrame", DeclBufferFrameNode,
-                                    TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.tir.DeclBufferFrame",
+                                    DeclBufferFrameNode, TIRFrameNode);
 
  public:
   void ExitWithScope() final;

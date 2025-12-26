@@ -50,7 +50,7 @@ Expr unique(Expr x, PrimValue sorted, PrimValue return_index, PrimValue return_i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.unique", unique);
+  refl::GlobalDef().def("tvm.relax.op.unique", unique);
 }
 
 StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
@@ -140,7 +140,7 @@ TVM_REGISTER_OP("relax.unique")
                   "flattened input "
                   "are returned.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoUnique)
-    .set_attr<FCallPacked>("FCallPacked", "relax.run.unique")
+    .set_attr<FCallPacked>("FCallPacked", "tvm.relax.run.unique")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nonzero */
@@ -151,7 +151,7 @@ Expr nonzero(Expr x) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nonzero", nonzero);
+  refl::GlobalDef().def("tvm.relax.op.nonzero", nonzero);
 }
 
 StructInfo InferStructInfoNonzero(const Call& call, const BlockBuilder& ctx) {
@@ -163,7 +163,7 @@ TVM_REGISTER_OP("relax.nonzero")
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The input tensor")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNonzero)
-    .set_attr<FCallPacked>("FCallPacked", "relax.run.nonzero")
+    .set_attr<FCallPacked>("FCallPacked", "tvm.relax.run.nonzero")
     .set_attr<Bool>("FPurity", Bool(true));
 
 }  // namespace relax

@@ -239,12 +239,12 @@ using namespace tvm::runtime;
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.TVMTensorAllocWithScope", Tensor::Empty)
-      .def_method("runtime.TVMTensorCreateView", &Tensor::CreateView)
-      .def("runtime.TVMTensorCopyFromBytes",
+      .def("tvm.runtime.TVMTensorAllocWithScope", Tensor::Empty)
+      .def_method("tvm.runtime.TVMTensorCreateView", &Tensor::CreateView)
+      .def("tvm.runtime.TVMTensorCopyFromBytes",
            [](DLTensor* arr, void* data, size_t nbytes) { TensorCopyFromBytes(arr, data, nbytes); })
-      .def("runtime.TVMTensorCopyToBytes",
+      .def("tvm.runtime.TVMTensorCopyToBytes",
            [](DLTensor* arr, void* data, size_t nbytes) { Tensor::CopyToBytes(arr, data, nbytes); })
-      .def("runtime.TVMTensorCopyFromTo",
+      .def("tvm.runtime.TVMTensorCopyFromTo",
            [](DLTensor* from, DLTensor* to) { Tensor::CopyFromTo(from, to); });
 }

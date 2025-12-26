@@ -63,7 +63,7 @@ Expr conv1d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntIm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.conv1d", conv1d);
+  refl::GlobalDef().def("tvm.relax.op.nn.conv1d", conv1d);
 }
 
 StructInfo InferStructInfoConv1d(const Call& call, const BlockBuilder& ctx) {
@@ -230,7 +230,7 @@ Expr conv2d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntIm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.conv2d", conv2d);
+  refl::GlobalDef().def("tvm.relax.op.nn.conv2d", conv2d);
 }
 
 StructInfo InferStructInfoConv2d(const Call& call, const BlockBuilder& ctx) {
@@ -439,7 +439,7 @@ Expr conv3d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntIm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.conv3d", conv3d);
+  refl::GlobalDef().def("tvm.relax.op.nn.conv3d", conv3d);
 }
 
 StructInfo InferStructInfoConv3d(const Call& call, const BlockBuilder& ctx) {
@@ -622,7 +622,7 @@ Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<IntImm> strides,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.conv1d_transpose", conv1d_transpose);
+  refl::GlobalDef().def("tvm.relax.op.nn.conv1d_transpose", conv1d_transpose);
 }
 
 StructInfo InferStructInfoConv1dTranspose(const Call& call, const BlockBuilder& ctx) {
@@ -763,7 +763,7 @@ Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<IntImm> strides,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.conv2d_transpose", conv2d_transpose);
+  refl::GlobalDef().def("tvm.relax.op.nn.conv2d_transpose", conv2d_transpose);
 }
 
 StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& ctx) {

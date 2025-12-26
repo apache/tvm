@@ -199,7 +199,7 @@ IRModule BindParam(IRModule m, ffi::String func_name, ffi::Map<Any, ObjectRef> b
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.FunctionBindParams", FunctionBindParams);
+  refl::GlobalDef().def("tvm.relax.FunctionBindParams", FunctionBindParams);
 }
 
 namespace transform {
@@ -213,7 +213,7 @@ Pass BindParams(ffi::String func_name, ffi::Map<Any, ObjectRef> params) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.BindParams", BindParams);
+  refl::GlobalDef().def("tvm.relax.transform.BindParams", BindParams);
 }
 
 }  // namespace transform

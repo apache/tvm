@@ -89,7 +89,8 @@ class JSONDatabaseNode : public DatabaseNode {
         .def_ro("path_workload", &JSONDatabaseNode::path_workload)
         .def_ro("path_tuning_record", &JSONDatabaseNode::path_tuning_record);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.JSONDatabase", JSONDatabaseNode, DatabaseNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.JSONDatabase", JSONDatabaseNode,
+                                    DatabaseNode);
 
  public:
   bool HasWorkload(const IRModule& mod) {
@@ -217,7 +218,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { JSONDatabaseNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.DatabaseJSONDatabase", Database::JSONDatabase);
+  refl::GlobalDef().def("tvm.meta_schedule.DatabaseJSONDatabase", Database::JSONDatabase);
 }
 
 }  // namespace meta_schedule

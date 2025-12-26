@@ -77,7 +77,7 @@ ExternOp::ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi:
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "te.ExternOp",
+      "tvm.te.ExternOp",
       [](std::string name, std::string tag, ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs,
          ffi::Array<Tensor> inputs, ffi::Array<Buffer> input_placeholders,
          ffi::Array<Buffer> output_placeholders, Stmt body) {

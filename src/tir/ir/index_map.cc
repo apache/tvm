@@ -426,29 +426,29 @@ IndexMap Substitute(const IndexMap& index_map,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.IndexMap",
+      .def("tvm.tir.IndexMap",
            [](ffi::Array<Var> initial_indices, ffi::Array<PrimExpr> final_indices,
               ffi::Optional<IndexMap> inverse_index_map) {
              return IndexMap(initial_indices, final_indices, inverse_index_map);
            })
-      .def("tir.IndexMapMapIndices",
+      .def("tvm.tir.IndexMapMapIndices",
            [](IndexMap map, ffi::Array<PrimExpr> indices) {
              arith::Analyzer analyzer;
              return map->MapIndices(indices, &analyzer);
            })
-      .def("tir.IndexMapMapShape",
+      .def("tvm.tir.IndexMapMapShape",
            [](IndexMap map, ffi::Array<PrimExpr> shape) {
              arith::Analyzer analyzer;
              return map->MapShape(shape, &analyzer);
            })
-      .def("tir.IndexMapInverse",
+      .def("tvm.tir.IndexMapInverse",
            [](IndexMap map, ffi::Array<Range> initial_ranges) {
              arith::Analyzer analyzer;
              return map.Inverse(initial_ranges, &analyzer);
            })
-      .def("tir.IndexMapMapTensor",
+      .def("tvm.tir.IndexMapMapTensor",
            [](IndexMap map, runtime::Tensor arr) { return map->MapTensor(arr); })
-      .def("tir.IndexMapNonSurjectiveInverse",
+      .def("tvm.tir.IndexMapNonSurjectiveInverse",
            [](IndexMap forward, ffi::Array<Range> initial_ranges) {
              arith::Analyzer analyzer;
              auto result = forward.NonSurjectiveInverse(initial_ranges, &analyzer);

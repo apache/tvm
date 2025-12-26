@@ -67,7 +67,7 @@ namespace arith {
 class IterMapExprNode : public PrimExprNode {
  public:
   static constexpr const uint32_t _type_child_slots = 2;
-  TVM_FFI_DECLARE_OBJECT_INFO("arith.IterMapExpr", IterMapExprNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.arith.IterMapExpr", IterMapExprNode, PrimExprNode);
 };
 
 /*!
@@ -105,7 +105,7 @@ class IterMarkNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IterMark", IterMarkNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.arith.IterMark", IterMarkNode, Object);
 };
 
 /*!
@@ -151,7 +151,7 @@ class IterSplitExprNode : public IterMapExprNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IterSplitExpr", IterSplitExprNode, IterMapExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.arith.IterSplitExpr", IterSplitExprNode, IterMapExprNode);
 };
 
 /*!
@@ -205,7 +205,7 @@ class IterSumExprNode : public IterMapExprNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IterSumExpr", IterSumExprNode, IterMapExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.arith.IterSumExpr", IterSumExprNode, IterMapExprNode);
 };
 
 /*!
@@ -264,7 +264,7 @@ class IterMapResultNode : public Object {
         .def_ro("errors", &IterMapResultNode::errors)
         .def_ro("padding_predicate", &IterMapResultNode::padding_predicate);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IterMapResult", IterMapResultNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.arith.IterMapResult", IterMapResultNode, Object);
 };
 
 /*!

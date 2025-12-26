@@ -28,7 +28,7 @@ from ..expr import Expr, Function, Var
 from . import _ffi as ffi
 
 
-@register_object("relax.dpl.PatternMatchingRewriter")
+@register_object("tvm.relax.dpl.PatternMatchingRewriter")
 class PatternMatchingRewriter(Object):
     """A pattern-matching rewriter for Relax"""
 
@@ -171,7 +171,7 @@ class PatternMatchingRewriter(Object):
         return OrRewriter(self, other)
 
 
-@register_object("relax.dpl.ExprPatternRewriter")
+@register_object("tvm.relax.dpl.ExprPatternRewriter")
 class ExprPatternRewriter(PatternMatchingRewriter):
     def __init__(self, pattern, func):
         self.__init_handle_by_constructor__(
@@ -181,7 +181,7 @@ class ExprPatternRewriter(PatternMatchingRewriter):
         )  # type: ignore
 
 
-@register_object("relax.dpl.OrRewriter")
+@register_object("tvm.relax.dpl.OrRewriter")
 class OrRewriter(PatternMatchingRewriter):
     def __init__(self, lhs, rhs):
         self.__init_handle_by_constructor__(
@@ -191,7 +191,7 @@ class OrRewriter(PatternMatchingRewriter):
         )  # type: ignore
 
 
-@register_object("relax.dpl.TupleRewriter")
+@register_object("tvm.relax.dpl.TupleRewriter")
 class TupleRewriter(PatternMatchingRewriter):
     def __init__(self, patterns, func):
         self.__init_handle_by_constructor__(

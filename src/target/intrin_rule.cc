@@ -55,7 +55,7 @@ TVM_REGISTER_OP("tir.tanh")
 TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
                                                      DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.trunc")
+TVM_REGISTER_OP("tvm.tir.trunc")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.atan")
@@ -106,16 +106,16 @@ TVM_REGISTER_OP("tir.ldexp")
 TVM_REGISTER_OP("tir.sqrt")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.floor")
+TVM_REGISTER_OP("tvm.tir.floor")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.ceil")
+TVM_REGISTER_OP("tvm.tir.ceil")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.round")
+TVM_REGISTER_OP("tvm.tir.round")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.nearbyint")
+TVM_REGISTER_OP("tvm.tir.nearbyint")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
@@ -177,14 +177,14 @@ TVM_REGISTER_OP("tir.sigmoid")
       return one / (one + exp(-call->args[0]));
     });
 
-TVM_REGISTER_OP("tir.isfinite")
+TVM_REGISTER_OP("tvm.tir.isfinite")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       ICHECK(call != nullptr);
       return isfinite(call->args[0]);
     });
 
-TVM_REGISTER_OP("tir.isinf")
+TVM_REGISTER_OP("tvm.tir.isinf")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       ICHECK(call != nullptr);

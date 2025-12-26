@@ -17,4 +17,4 @@
 """FFI for generic TOPI ops and schedules"""
 import tvm_ffi
 
-tvm_ffi.init_ffi_api("topi.generic", "tvm.topi.cpp.generic")
+tvm_ffi.init_ffi_api("tvm.topi.generic", "tvm.topi.cpp.generic")

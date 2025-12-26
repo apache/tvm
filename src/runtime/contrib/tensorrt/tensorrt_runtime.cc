@@ -528,7 +528,7 @@ ffi::Module TensorRTRuntimeCreate(const ffi::String& symbol_name, const ffi::Str
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.tensorrt_runtime_create", TensorRTRuntimeCreate)
+      .def("tvm.runtime.tensorrt_runtime_create", TensorRTRuntimeCreate)
       .def("ffi.Module.load_from_bytes.tensorrt", JSONRuntimeBase::LoadFromBytes<TensorRTRuntime>);
 }
 

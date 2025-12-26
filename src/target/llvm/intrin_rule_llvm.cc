@@ -69,15 +69,15 @@ TVM_REGISTER_OP("tir.sqrt")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::sqrt, 1>);
 
-TVM_REGISTER_OP("tir.floor")
+TVM_REGISTER_OP("tvm.tir.floor")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::floor, 1>);
 
-TVM_REGISTER_OP("tir.ceil")
+TVM_REGISTER_OP("tvm.tir.ceil")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::ceil, 1>);
 
-TVM_REGISTER_OP("tir.trunc")
+TVM_REGISTER_OP("tvm.tir.trunc")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::trunc, 1>);
 
@@ -85,11 +85,11 @@ TVM_REGISTER_OP("tir.fabs")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::fabs, 1>);
 
-TVM_REGISTER_OP("tir.round")
+TVM_REGISTER_OP("tvm.tir.round")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::round, 1>);
 
-TVM_REGISTER_OP("tir.nearbyint")
+TVM_REGISTER_OP("tvm.tir.nearbyint")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
 

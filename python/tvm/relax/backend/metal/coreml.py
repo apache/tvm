@@ -320,7 +320,7 @@ class CodegenCoreML(PyExprVisitor):
         self.model_inputs_ = []
         self.buf_idx_ = 0
 
-        getter = tvm.get_global_func("relax.analysis.get_var2val")
+        getter = tvm.get_global_func("tvm.relax.analysis.get_var2val")
         assert getter, "Cannot find `relax.analysis.get_var2val` function."
 
         self.var2val = getter(function)
@@ -463,7 +463,7 @@ class CodegenCoreML(PyExprVisitor):
         compile_coreml(model, self.model_name, out_dir)
 
 
-@tvm_ffi.register_global_func("relax.ext.coreml")
+@tvm_ffi.register_global_func("tvm.relax.ext.coreml")
 def coreml_compiler(funcs, options, constant_names):
     """
     Create a CoreML runtime from a Relax module.

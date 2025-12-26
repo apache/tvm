@@ -424,7 +424,7 @@ Pass MergeCompositeFunctions() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.MergeCompositeFunctions", MergeCompositeFunctions);
+  refl::GlobalDef().def("tvm.relax.transform.MergeCompositeFunctions", MergeCompositeFunctions);
 }
 
 }  // namespace transform

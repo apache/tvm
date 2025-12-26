@@ -355,12 +355,12 @@ MetalThreadEntry* MetalThreadEntry::ThreadLocal() { return MetalThreadStore::Get
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_packed("device_api.metal",
+      .def_packed("tvm.device_api.metal",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     DeviceAPI* ptr = MetalWorkspace::Global();
                     *rv = static_cast<void*>(ptr);
                   })
-      .def("metal.ResetGlobalState",
+      .def("tvm.metal.ResetGlobalState",
            []() { MetalWorkspace::Global()->ReinitializeDefaultStreams(); });
 }
 
@@ -380,7 +380,7 @@ class MetalTimerNode : public TimerNode {
     [mtl_dev_ sampleTimestamps:&stop_cpu_time_ gpuTimestamp:&stop_gpu_time_];
   }
   virtual int64_t SyncAndGetElapsedNanos() { return stop_gpu_time_ - start_gpu_time_; }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.metal.MetalTimerNode", MetalTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.runtime.metal.MetalTimerNode", MetalTimerNode, TimerNode);
 
  private:
   Device dev_;
@@ -394,7 +394,7 @@ class MetalTimerNode : public TimerNode {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("profiling.timer.metal",
+  refl::GlobalDef().def("tvm.profiling.timer.metal",
                         [](Device dev) { return Timer(ffi::make_object<MetalTimerNode>(dev)); });
 }
 

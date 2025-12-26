@@ -33,7 +33,7 @@ from ..arg_info import ArgInfo
 from ..utils import _json_de_tvm
 
 
-@register_object("meta_schedule.Workload")
+@register_object("tvm.meta_schedule.Workload")
 class Workload(Object):
     """A workload, i.e. an IRModule and its structural hash.
 
@@ -79,7 +79,7 @@ class Workload(Object):
         return _ffi_api.WorkloadFromJSON(json_obj)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("meta_schedule.TuningRecord")
+@register_object("tvm.meta_schedule.TuningRecord")
 class TuningRecord(Object):
     """The class of tuning records.
 
@@ -160,7 +160,7 @@ class TuningRecord(Object):
         return _ffi_api.TuningRecordFromJSON(json_obj, workload)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("meta_schedule.Database")
+@register_object("tvm.meta_schedule.Database")
 class Database(Object):
     """The abstract database interface."""
 
@@ -427,7 +427,7 @@ class Database(Object):
 create = Database.create  # pylint: disable=invalid-name
 
 
-@register_object("meta_schedule.PyDatabase")
+@register_object("tvm.meta_schedule.PyDatabase")
 class _PyDatabase(Database):
     """
     A TVM object database to support customization on the python side.

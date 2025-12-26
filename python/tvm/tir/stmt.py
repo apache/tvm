@@ -42,7 +42,7 @@ class Stmt(Object, Scriptable):
     """Base class of all the statements."""
 
 
-@tvm_ffi.register_object("tir.LetStmt")
+@tvm_ffi.register_object("tvm.tir.LetStmt")
 class LetStmt(Stmt):
     """LetStmt node.
 
@@ -72,7 +72,7 @@ class LetStmt(Stmt):
         )
 
 
-@tvm_ffi.register_object("tir.AssertStmt")
+@tvm_ffi.register_object("tvm.tir.AssertStmt")
 class AssertStmt(Stmt):
     """AssertStmt node.
 
@@ -120,7 +120,7 @@ class ForKind(IntEnum):
     THREAD_BINDING = 4  # pylint: disable=invalid-name
 
 
-@tvm_ffi.register_object("tir.For")
+@tvm_ffi.register_object("tvm.tir.For")
 class For(Stmt):
     """For node.
 
@@ -192,7 +192,7 @@ class For(Stmt):
         )
 
 
-@tvm_ffi.register_object("tir.While")
+@tvm_ffi.register_object("tvm.tir.While")
 class While(Stmt):
     """While node.
 
@@ -216,7 +216,7 @@ class While(Stmt):
         self.__init_handle_by_constructor__(_ffi_api.While, condition, body, span)  # type: ignore
 
 
-@tvm_ffi.register_object("tir.BufferStore")
+@tvm_ffi.register_object("tvm.tir.BufferStore")
 class BufferStore(Stmt):
     """Buffer store node.
 
@@ -259,7 +259,7 @@ class BufferStore(Stmt):
         )
 
 
-@tvm_ffi.register_object("tir.BufferRealize")
+@tvm_ffi.register_object("tvm.tir.BufferRealize")
 class BufferRealize(Stmt):
     """Buffer realize node.
 
@@ -300,7 +300,7 @@ class BufferRealize(Stmt):
         )
 
 
-@tvm_ffi.register_object("tir.Allocate")
+@tvm_ffi.register_object("tvm.tir.Allocate")
 class Allocate(Stmt):
     """Allocate node.
 
@@ -360,7 +360,7 @@ class Allocate(Stmt):
         )
 
 
-@tvm_ffi.register_object("tir.AllocateConst")
+@tvm_ffi.register_object("tvm.tir.AllocateConst")
 class AllocateConst(Stmt):
     """Allocate constant node.
 
@@ -422,7 +422,7 @@ class AllocateConst(Stmt):
         )
 
 
-@tvm_ffi.register_object("tir.DeclBuffer")
+@tvm_ffi.register_object("tvm.tir.DeclBuffer")
 class DeclBuffer(Stmt):
     """DeclBuffer node.
 
@@ -446,7 +446,7 @@ class DeclBuffer(Stmt):
         self.__init_handle_by_constructor__(_ffi_api.DeclBuffer, buffer, body, span)
 
 
-@tvm_ffi.register_object("tir.AttrStmt")
+@tvm_ffi.register_object("tvm.tir.AttrStmt")
 class AttrStmt(Stmt):
     """AttrStmt node.
 
@@ -482,7 +482,7 @@ class AttrStmt(Stmt):
         )
 
 
-@tvm_ffi.register_object("tir.SeqStmt")
+@tvm_ffi.register_object("tvm.tir.SeqStmt")
 class SeqStmt(Stmt):
     """Sequence of statements.
 
@@ -508,7 +508,7 @@ class SeqStmt(Stmt):
         return len(self.seq)
 
 
-@tvm_ffi.register_object("tir.IfThenElse")
+@tvm_ffi.register_object("tvm.tir.IfThenElse")
 class IfThenElse(Stmt):
     """IfThenElse node.
 
@@ -543,7 +543,7 @@ class IfThenElse(Stmt):
         )
 
 
-@tvm_ffi.register_object("tir.Evaluate")
+@tvm_ffi.register_object("tvm.tir.Evaluate")
 class Evaluate(Stmt):
     """Evaluate node.
 
@@ -563,7 +563,7 @@ class Evaluate(Stmt):
         self.__init_handle_by_constructor__(_ffi_api.Evaluate, value, span)  # type: ignore
 
 
-@tvm_ffi.register_object("tir.BufferRegion")
+@tvm_ffi.register_object("tvm.tir.BufferRegion")
 class BufferRegion(Object, Scriptable):
     """BufferRegion node.
 
@@ -583,7 +583,7 @@ class BufferRegion(Object, Scriptable):
         self.__init_handle_by_constructor__(_ffi_api.BufferRegion, buffer, region)  # type: ignore
 
 
-@tvm_ffi.register_object("tir.MatchBufferRegion")
+@tvm_ffi.register_object("tvm.tir.MatchBufferRegion")
 class MatchBufferRegion(Object, Scriptable):
     """MatchBufferRegion node.
 
@@ -605,7 +605,7 @@ class MatchBufferRegion(Object, Scriptable):
         )
 
 
-@tvm_ffi.register_object("tir.Block")
+@tvm_ffi.register_object("tvm.tir.Block")
 class Block(Stmt):
     """Block node.
 
@@ -687,7 +687,7 @@ class Block(Stmt):
         )  # type: ignore
 
 
-@tvm_ffi.register_object("tir.BlockRealize")
+@tvm_ffi.register_object("tvm.tir.BlockRealize")
 class BlockRealize(Stmt):
     """BlockRealize node.
 

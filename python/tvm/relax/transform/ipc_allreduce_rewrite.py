@@ -45,7 +45,7 @@ class IPCAllReduceRewrite:
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """IRModule-level transformation"""
         fcustom_allreduce = tvm.get_global_func(
-            "runtime.disco.cuda_ipc.custom_allreduce", allow_missing=True
+            "tvm.runtime.disco.cuda_ipc.custom_allreduce", allow_missing=True
         )
         if fcustom_allreduce is None:
             # Customized allreduce is not available.
@@ -91,7 +91,7 @@ class _Visitor(PyExprVisitor):  # pylint: disable=abstract-method
     def visit_call_(self, call: relax.Call) -> None:  # pylint: disable=arguments-renamed
         if (
             not isinstance(call.op, relax.ExternFunc)
-            or call.op.global_symbol != "runtime.disco.allreduce"
+            or call.op.global_symbol != "tvm.runtime.disco.allreduce"
             or call.args[1].values[0] != 0
         ):
             # Return if the call is not a summation all-reduce.
@@ -115,7 +115,7 @@ class _Visitor(PyExprVisitor):  # pylint: disable=abstract-method
         )
 
         self.binding_replacement_map[call] = relax.Call(
-            relax.ExternFunc("runtime.disco.cuda_ipc.custom_allreduce"),
+            relax.ExternFunc("tvm.runtime.disco.cuda_ipc.custom_allreduce"),
             # The "cuda_ipc.custom_allreduce" implementation does not
             # yet support num_groups>1, and therefore does not use the
             # `in_group` argument.

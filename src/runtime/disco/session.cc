@@ -35,21 +35,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::ObjectDef<DRefObj>();
   refl::ObjectDef<SessionObj>();
   refl::GlobalDef()
-      .def("runtime.disco.SessionThreaded", Session::ThreadedSession)
-      .def_method("runtime.disco.DRefDebugGetFromRemote", &DRefObj::DebugGetFromRemote)
-      .def_method("runtime.disco.DRefDebugCopyFrom", &DRefObj::DebugCopyFrom)
-      .def_method("runtime.disco.SessionGetNumWorkers", &SessionObj::GetNumWorkers)
-      .def_method("runtime.disco.SessionGetGlobalFunc", &SessionObj::GetGlobalFunc)
-      .def_method("runtime.disco.SessionCopyFromWorker0", &SessionObj::CopyFromWorker0)
-      .def_method("runtime.disco.SessionCopyToWorker0", &SessionObj::CopyToWorker0)
-      .def_method("runtime.disco.SessionSyncWorker", &SessionObj::SyncWorker)
-      .def_method("runtime.disco.SessionInitCCL", &SessionObj::InitCCL)
-      .def_packed("runtime.disco.SessionCallPacked",
+      .def("tvm.runtime.disco.SessionThreaded", Session::ThreadedSession)
+      .def_method("tvm.runtime.disco.DRefDebugGetFromRemote", &DRefObj::DebugGetFromRemote)
+      .def_method("tvm.runtime.disco.DRefDebugCopyFrom", &DRefObj::DebugCopyFrom)
+      .def_method("tvm.runtime.disco.SessionGetNumWorkers", &SessionObj::GetNumWorkers)
+      .def_method("tvm.runtime.disco.SessionGetGlobalFunc", &SessionObj::GetGlobalFunc)
+      .def_method("tvm.runtime.disco.SessionCopyFromWorker0", &SessionObj::CopyFromWorker0)
+      .def_method("tvm.runtime.disco.SessionCopyToWorker0", &SessionObj::CopyToWorker0)
+      .def_method("tvm.runtime.disco.SessionSyncWorker", &SessionObj::SyncWorker)
+      .def_method("tvm.runtime.disco.SessionInitCCL", &SessionObj::InitCCL)
+      .def_packed("tvm.runtime.disco.SessionCallPacked",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     Session self = args[0].cast<Session>();
                     *rv = SessionObj::FFI::CallWithPacked(self, args.Slice(1));
                   })
-      .def_method("runtime.disco.SessionShutdown", &SessionObj::Shutdown);
+      .def_method("tvm.runtime.disco.SessionShutdown", &SessionObj::Shutdown);
 }
 
 }  // namespace runtime

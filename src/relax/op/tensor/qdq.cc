@@ -48,7 +48,7 @@ Expr quantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_dty
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.quantize", quantize);
+  refl::GlobalDef().def("tvm.relax.op.quantize", quantize);
 }
 
 StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
@@ -134,7 +134,7 @@ Expr dequantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_d
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.dequantize", dequantize);
+  refl::GlobalDef().def("tvm.relax.op.dequantize", dequantize);
 }
 
 StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) {

@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .mutator import Mutator
 
 
-@register_object("meta_schedule.MutateComputeLocation")
+@register_object("tvm.meta_schedule.MutateComputeLocation")
 class MutateComputeLocation(Mutator):
     """A mutator that mutates the compute-at location decision of SampleComputeLocation"""
 

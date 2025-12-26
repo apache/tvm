@@ -23,7 +23,7 @@ from .. import _ffi_api
 from .schedule_rule import ScheduleRule
 
 
-@register_object("meta_schedule.AddRFactor")
+@register_object("tvm.meta_schedule.AddRFactor")
 class AddRFactor(ScheduleRule):
     """Rules for add-rfactor to some blocks if needed.
 

@@ -52,7 +52,7 @@ class MatchResultNode : public Object {
         .def_ro("symbol_values", &MatchResultNode::symbol_values)
         .def_ro("matched_buffers", &MatchResultNode::matched_buffers);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.MatchResult", MatchResultNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.MatchResult", MatchResultNode, Object);
 };
 
 /*!

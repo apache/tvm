@@ -69,9 +69,10 @@ void tvm_cutlass_fp8_groupwise_scaled_bmm_sm90(Tensor a, Tensor b, Tensor scales
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("cutlass.groupwise_scaled_gemm_e4m3fn_e4m3fn",
+      .def("tvm.cutlass.groupwise_scaled_gemm_e4m3fn_e4m3fn",
            tvm_cutlass_fp8_groupwise_scaled_gemm_sm90)
-      .def("cutlass.groupwise_scaled_bmm_e4m3fn_e4m3fn", tvm_cutlass_fp8_groupwise_scaled_bmm_sm90);
+      .def("tvm.cutlass.groupwise_scaled_bmm_e4m3fn_e4m3fn",
+           tvm_cutlass_fp8_groupwise_scaled_bmm_sm90);
 }
 
 }  // namespace runtime

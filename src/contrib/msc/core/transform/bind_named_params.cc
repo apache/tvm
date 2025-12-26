@@ -161,7 +161,7 @@ Pass BindNamedParams(ffi::String func_name, ffi::Map<ObjectRef, ObjectRef> param
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.BindNamedParams", BindNamedParams);
+  refl::GlobalDef().def("tvm.relax.transform.BindNamedParams", BindNamedParams);
 }
 
 }  // namespace transform

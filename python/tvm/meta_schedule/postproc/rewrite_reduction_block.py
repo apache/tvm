@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .postproc import Postproc
 
 
-@register_object("meta_schedule.RewriteReductionBlock")
+@register_object("tvm.meta_schedule.RewriteReductionBlock")
 class RewriteReductionBlock(Postproc):
     """A postprocessor that rewrites reduction block by moving the init block out."""
 

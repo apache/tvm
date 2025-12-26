@@ -83,7 +83,8 @@ class ScheduleFnNode : public SpaceGeneratorNode {
     return SpaceGenerator(n);
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.ScheduleFn", ScheduleFnNode, SpaceGeneratorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.ScheduleFn", ScheduleFnNode,
+                                    SpaceGeneratorNode);
 };
 
 SpaceGenerator SpaceGenerator::ScheduleFn(
@@ -101,7 +102,7 @@ SpaceGenerator SpaceGenerator::ScheduleFn(
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   ScheduleFnNode::RegisterReflection();
-  refl::GlobalDef().def("meta_schedule.SpaceGeneratorScheduleFn", SpaceGenerator::ScheduleFn);
+  refl::GlobalDef().def("tvm.meta_schedule.SpaceGeneratorScheduleFn", SpaceGenerator::ScheduleFn);
 }
 
 }  // namespace meta_schedule

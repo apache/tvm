@@ -55,7 +55,7 @@ class BasePyModule:
     def __del__(self):
         """Clean up registered Python functions on module destruction."""
         try:
-            clear_func = tvm.get_global_func("vm.builtin.clear_py_func_registry")
+            clear_func = tvm.get_global_func("tvm.vm.builtin.clear_py_func_registry")
             clear_func()
         except (ValueError, AttributeError):
             pass
@@ -199,7 +199,7 @@ class BasePyModule:
             return
 
         try:
-            register_py_func = tvm.get_global_func("vm.builtin.register_py_func")
+            register_py_func = tvm.get_global_func("tvm.vm.builtin.register_py_func")
         except ValueError:
             return
 

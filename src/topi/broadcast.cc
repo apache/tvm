@@ -50,36 +50,36 @@ using namespace tvm::runtime;
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_packed("topi.broadcast_to",
+      .def_packed("tvm.topi.broadcast_to",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = broadcast_to(args[0].cast<te::Tensor>(),
                                        args[1].cast<ffi::Array<PrimExpr>>());
                   })
-      .TOPI_DEF_BCAST_OP("topi.add", topi::add)
-      .TOPI_DEF_BCAST_OP("topi.subtract", topi::subtract)
-      .TOPI_DEF_BCAST_OP("topi.multiply", topi::multiply)
-      .TOPI_DEF_BCAST_OP("topi.divide", topi::divide)
-      .TOPI_DEF_BCAST_OP("topi.floor_divide", topi::floor_divide)
-      .TOPI_DEF_BCAST_OP("topi.log_add_exp", topi::log_add_exp)
-      .TOPI_DEF_BCAST_OP("topi.mod", topi::mod)
-      .TOPI_DEF_BCAST_OP("topi.floor_mod", topi::floor_mod)
-      .TOPI_DEF_BCAST_OP("topi.maximum", topi::maximum)
-      .TOPI_DEF_BCAST_OP("topi.minimum", topi::minimum)
-      .TOPI_DEF_BCAST_OP("topi.power", topi::power)
-      .TOPI_DEF_BCAST_OP("topi.left_shift", topi::left_shift)
-      .TOPI_DEF_BCAST_OP("topi.logical_and", topi::logical_and)
-      .TOPI_DEF_BCAST_OP("topi.logical_or", topi::logical_or)
-      .TOPI_DEF_BCAST_OP("topi.logical_xor", topi::logical_xor)
-      .TOPI_DEF_BCAST_OP("topi.bitwise_and", topi::bitwise_and)
-      .TOPI_DEF_BCAST_OP("topi.bitwise_or", topi::bitwise_or)
-      .TOPI_DEF_BCAST_OP("topi.bitwise_xor", topi::bitwise_xor)
-      .TOPI_DEF_BCAST_OP("topi.right_shift", topi::right_shift)
-      .TOPI_DEF_BCAST_OP("topi.greater", topi::greater)
-      .TOPI_DEF_BCAST_OP("topi.less", topi::less)
-      .TOPI_DEF_BCAST_OP("topi.equal", topi::equal)
-      .TOPI_DEF_BCAST_OP("topi.not_equal", topi::not_equal)
-      .TOPI_DEF_BCAST_OP("topi.greater_equal", topi::greater_equal)
-      .TOPI_DEF_BCAST_OP("topi.less_equal", topi::less_equal);
+      .TOPI_DEF_BCAST_OP("tvm.topi.add", topi::add)
+      .TOPI_DEF_BCAST_OP("tvm.topi.subtract", topi::subtract)
+      .TOPI_DEF_BCAST_OP("tvm.topi.multiply", topi::multiply)
+      .TOPI_DEF_BCAST_OP("tvm.topi.divide", topi::divide)
+      .TOPI_DEF_BCAST_OP("tvm.topi.floor_divide", topi::floor_divide)
+      .TOPI_DEF_BCAST_OP("tvm.topi.log_add_exp", topi::log_add_exp)
+      .TOPI_DEF_BCAST_OP("tvm.topi.mod", topi::mod)
+      .TOPI_DEF_BCAST_OP("tvm.topi.floor_mod", topi::floor_mod)
+      .TOPI_DEF_BCAST_OP("tvm.topi.maximum", topi::maximum)
+      .TOPI_DEF_BCAST_OP("tvm.topi.minimum", topi::minimum)
+      .TOPI_DEF_BCAST_OP("tvm.topi.power", topi::power)
+      .TOPI_DEF_BCAST_OP("tvm.topi.left_shift", topi::left_shift)
+      .TOPI_DEF_BCAST_OP("tvm.topi.logical_and", topi::logical_and)
+      .TOPI_DEF_BCAST_OP("tvm.topi.logical_or", topi::logical_or)
+      .TOPI_DEF_BCAST_OP("tvm.topi.logical_xor", topi::logical_xor)
+      .TOPI_DEF_BCAST_OP("tvm.topi.bitwise_and", topi::bitwise_and)
+      .TOPI_DEF_BCAST_OP("tvm.topi.bitwise_or", topi::bitwise_or)
+      .TOPI_DEF_BCAST_OP("tvm.topi.bitwise_xor", topi::bitwise_xor)
+      .TOPI_DEF_BCAST_OP("tvm.topi.right_shift", topi::right_shift)
+      .TOPI_DEF_BCAST_OP("tvm.topi.greater", topi::greater)
+      .TOPI_DEF_BCAST_OP("tvm.topi.less", topi::less)
+      .TOPI_DEF_BCAST_OP("tvm.topi.equal", topi::equal)
+      .TOPI_DEF_BCAST_OP("tvm.topi.not_equal", topi::not_equal)
+      .TOPI_DEF_BCAST_OP("tvm.topi.greater_equal", topi::greater_equal)
+      .TOPI_DEF_BCAST_OP("tvm.topi.less_equal", topi::less_equal);
 }
 
 }  // namespace topi

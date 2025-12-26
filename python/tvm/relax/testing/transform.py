@@ -29,7 +29,7 @@ from tvm.runtime.object import Object
 
 def ApplyEmptyCppMutator() -> tvm.ir.transform.Pass:
     """Create empty cpp mutator"""
-    packed_func = tvm.get_global_func("relax.testing.transform.ApplyEmptyCppMutator")
+    packed_func = tvm.get_global_func("tvm.relax.testing.transform.ApplyEmptyCppMutator")
     return packed_func()
 
 
@@ -40,7 +40,7 @@ def dataflow_liveness_analysis(block: DataflowBlock) -> Dict[Var, Tuple[int, int
     if "PYTEST_CURRENT_TEST" not in os.environ:
         logging.warning("The function dataflow_liveness_analysis is exposed for testing only.")
 
-    live_ranges = tvm.get_global_func("relax.testing.transform.DataflowLivenessAnalysis")(
+    live_ranges = tvm.get_global_func("tvm.relax.testing.transform.DataflowLivenessAnalysis")(
         block
     )  # type: ignore
     ret = {}
@@ -58,7 +58,9 @@ def dataflow_alias_analysis(
     if "PYTEST_CURRENT_TEST" not in os.environ:
         logging.warning("The function dataflow_alias_analysis is exposed for testing only.")
 
-    alias_sets, tuple_map = tvm.get_global_func("relax.testing.transform.DataflowAliasAnalysis")(
+    alias_sets, tuple_map = tvm.get_global_func(
+        "tvm.relax.testing.transform.DataflowAliasAnalysis"
+    )(
         block,
         inputs,
     )  # type: ignore
@@ -71,7 +73,7 @@ def dataflow_alias_analysis(
     return res_alias_sets, res_tuple_map  # type: ignore
 
 
-@tvm_ffi.register_object("relax.transform.InplaceOpportunity")
+@tvm_ffi.register_object("tvm.relax.transform.InplaceOpportunity")
 class InplaceOpportunity(Object):
     """
     Represents an opportunity to make a binding in-place. Exposed only for testing;
@@ -98,7 +100,7 @@ def dataflow_inplace_analysis(
     """
     if "PYTEST_CURRENT_TEST" not in os.environ:
         logging.warning("The function dataflow_inplace_analysis is exposed for testing only.")
-    index_lists = tvm.get_global_func("relax.testing.transform.DataflowInplaceAnalysis")(
+    index_lists = tvm.get_global_func("tvm.relax.testing.transform.DataflowInplaceAnalysis")(
         block, inputs, mod
     )  # type: ignore
 
@@ -117,7 +119,7 @@ def dataflow_single_inplace_call(
     if "PYTEST_CURRENT_TEST" not in os.environ:
         logging.warning("The function dataflow_single_inplace_call is exposed for testing only.")
 
-    ret = tvm.get_global_func("relax.testing.transform.SingleInplaceCall")(
+    ret = tvm.get_global_func("tvm.relax.testing.transform.SingleInplaceCall")(
         mod,
         call,
         inplace_indices,

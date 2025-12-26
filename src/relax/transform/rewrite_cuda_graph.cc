@@ -773,9 +773,10 @@ class CUDAGraphRewriter : public ExprMutator {
 
   void LaunchSubgraph(const VarBindingNode* op, const LiftedFunctionRewritePlan* plan) {
     static const auto& call_builtin_with_ctx_op = Op::Get("relax.call_builtin_with_ctx");
-    static const auto& builtin_run_or_capture = ExternFunc("vm.builtin.cuda_graph.run_or_capture");
+    static const auto& builtin_run_or_capture =
+        ExternFunc("tvm.vm.builtin.cuda_graph.run_or_capture");
     static const auto& builtin_get_cached_alloc =
-        ExternFunc("vm.builtin.cuda_graph.get_cached_alloc");
+        ExternFunc("tvm.vm.builtin.cuda_graph.get_cached_alloc");
 
     Expr launch_subgraph;
     if (plan->is_alloc) {
@@ -902,7 +903,7 @@ Pass RewriteCUDAGraph() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.RewriteCUDAGraph", RewriteCUDAGraph);
+  refl::GlobalDef().def("tvm.relax.transform.RewriteCUDAGraph", RewriteCUDAGraph);
 }
 
 }  // namespace transform

@@ -125,7 +125,7 @@ Pass ConvertBlocksToOpaque() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.ConvertBlocksToOpaque", ConvertBlocksToOpaque);
+  refl::GlobalDef().def("tvm.tir.transform.ConvertBlocksToOpaque", ConvertBlocksToOpaque);
 }
 }  // namespace transform
 

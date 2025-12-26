@@ -73,7 +73,7 @@ class StmtSRefNode : public Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.StmtSRef", StmtSRefNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.StmtSRef", StmtSRefNode, Object);
 
   /*! \brief Reset the object inplace to the invalid state */
   void Reset() {
@@ -223,7 +223,7 @@ class DependencyNode : public Object {
         .def_ro("dst", &DependencyNode::dst)
         .def_ro("kind", &DependencyNode::kind);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Dependency", DependencyNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Dependency", DependencyNode, Object);
 };
 
 /*!
@@ -267,7 +267,7 @@ class BlockScopeNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BlockScopeNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BlockScope", BlockScopeNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.BlockScope", BlockScopeNode, Object);
 
  public:
   /******** Dependency ********/

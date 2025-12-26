@@ -63,7 +63,7 @@ class ExtractedTaskNode : public runtime::Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.ExtractedTask", ExtractedTaskNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.ExtractedTask", ExtractedTaskNode,
                                     runtime::Object);
 };
 

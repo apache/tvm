@@ -61,8 +61,8 @@ Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr s
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("relax.op.nn.attention", attention)
-      .def("relax.op.nn.attention_var_len", attention_var_len);
+      .def("tvm.relax.op.nn.attention", attention)
+      .def("tvm.relax.op.nn.attention_var_len", attention_var_len);
 }
 
 StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {

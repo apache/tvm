@@ -270,8 +270,8 @@ class TensorCache {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("vm.builtin.tensor_cache.get", TensorCache::Get)
-      .def_packed("vm.builtin.tensor_cache.update",
+      .def("tvm.vm.builtin.tensor_cache.get", TensorCache::Get)
+      .def_packed("tvm.vm.builtin.tensor_cache.update",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     CHECK(args.size() == 2 || args.size() == 3);
                     ffi::String name = args[0].cast<ffi::String>();
@@ -295,9 +295,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
                     TensorCache::Update(name, arr, is_override);
                   })
-      .def("vm.builtin.tensor_cache.remove", TensorCache::Remove)
-      .def("vm.builtin.tensor_cache.clear", TensorCache::Clear)
-      .def("vm.builtin.tensor_cache.load", TensorCache::Load);
+      .def("tvm.vm.builtin.tensor_cache.remove", TensorCache::Remove)
+      .def("tvm.vm.builtin.tensor_cache.clear", TensorCache::Clear)
+      .def("tvm.vm.builtin.tensor_cache.load", TensorCache::Load);
 }
 
 // This param module node can be useful to get param dict in RPC mode
@@ -362,11 +362,11 @@ class ParamModuleNode : public ffi::ModuleObj {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("vm.builtin.param_module_from_cache", ParamModuleNode::Create)
-      .def("vm.builtin.param_module_from_cache_by_name", ParamModuleNode::CreateByName)
-      .def("vm.builtin.param_array_from_cache", ParamModuleNode::GetParams)
-      .def("vm.builtin.param_array_from_cache_by_name", ParamModuleNode::GetParamByName)
-      .def_packed("vm.builtin.param_array_from_cache_by_name_unpacked",
+      .def("tvm.vm.builtin.param_module_from_cache", ParamModuleNode::Create)
+      .def("tvm.vm.builtin.param_module_from_cache_by_name", ParamModuleNode::CreateByName)
+      .def("tvm.vm.builtin.param_array_from_cache", ParamModuleNode::GetParams)
+      .def("tvm.vm.builtin.param_array_from_cache_by_name", ParamModuleNode::GetParamByName)
+      .def_packed("tvm.vm.builtin.param_array_from_cache_by_name_unpacked",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     ffi::Array<ffi::String> names;
                     names.reserve(args.size());

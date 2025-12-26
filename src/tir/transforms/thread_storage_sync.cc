@@ -474,7 +474,7 @@ Pass ThreadSync(ffi::String storage_scope) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.ThreadSync", ThreadSync);
+  refl::GlobalDef().def("tvm.tir.transform.ThreadSync", ThreadSync);
 }
 
 }  // namespace transform

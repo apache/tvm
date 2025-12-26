@@ -459,7 +459,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
-      "arith.SolveLinearEquations", [](ffi::PackedArgs args, ffi::Any* ret) {
+      "tvm.arith.SolveLinearEquations", [](ffi::PackedArgs args, ffi::Any* ret) {
         if (args.size() == 1) {
           *ret = SolveLinearEquations(args[0].cast<IntConstraints>());
         } else if (args.size() == 3) {

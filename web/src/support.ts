@@ -26,8 +26,8 @@
  */
 export function isPromise(value: any): boolean {
   return value !== undefined && (
-    typeof value == "object" || typeof value == "function"
-  ) && typeof value.then == "function";
+    typeof value == "object" || typeof value == "tvm.function"
+  ) && typeof value.then == "tvm.function";
 }
 /**
  * Convert string to Uint8array.

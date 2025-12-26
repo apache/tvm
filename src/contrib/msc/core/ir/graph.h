@@ -388,7 +388,7 @@ class MSCTensorNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.MSCTensor", MSCTensorNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.msc.core.MSCTensor", MSCTensorNode, Object);
 };
 
 /*!
@@ -489,7 +489,7 @@ class BaseJointNode : public Object {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const uint32_t _type_child_slots = 2;
-  TVM_FFI_DECLARE_OBJECT_INFO("msc.core.BaseJoint", BaseJointNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.msc.core.BaseJoint", BaseJointNode, Object);
 };
 
 /*!
@@ -557,7 +557,7 @@ class MSCJointNode : public BaseJointNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.MSCJoint", MSCJointNode, BaseJointNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.msc.core.MSCJoint", MSCJointNode, BaseJointNode);
 };
 
 /*!
@@ -626,7 +626,7 @@ class MSCPrimNode : public BaseJointNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MSCPrimNode>().def_ro("optype", &MSCPrimNode::optype);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.MSCPrim", MSCPrimNode, BaseJointNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.msc.core.MSCPrim", MSCPrimNode, BaseJointNode);
 };
 
 /*!
@@ -693,7 +693,7 @@ class WeightJointNode : public BaseJointNode {
         .def_ro("weight", &WeightJointNode::weight)
         .def_ro("friends", &WeightJointNode::friends);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.WeightJoint", WeightJointNode, BaseJointNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.msc.core.WeightJoint", WeightJointNode, BaseJointNode);
 };
 
 /*!
@@ -760,7 +760,7 @@ class BaseGraphNode : public Object {
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
   static constexpr const uint32_t _type_child_slots = 2;
-  TVM_FFI_DECLARE_OBJECT_INFO("msc.core.BaseGraph", BaseGraphNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.msc.core.BaseGraph", BaseGraphNode, Object);
 };
 
 /*!
@@ -848,7 +848,7 @@ class MSCGraphNode : public BaseGraphNode {
         .def_ro("output_names", &MSCGraphNode::output_names)
         .def_ro("weight_holders", &MSCGraphNode::weight_holders);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.MSCGraph", MSCGraphNode, BaseGraphNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.msc.core.MSCGraph", MSCGraphNode, BaseGraphNode);
 };
 
 /*!
@@ -909,7 +909,7 @@ class WeightGraphNode : public BaseGraphNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<WeightGraphNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.WeightGraph", WeightGraphNode, BaseGraphNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.msc.core.WeightGraph", WeightGraphNode, BaseGraphNode);
 };
 
 /*!

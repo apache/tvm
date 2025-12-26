@@ -96,7 +96,7 @@ class TensorCoreStateNode : public StateNode {
     refl::ObjectDef<TensorCoreStateNode>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.TensorCoreState", TensorCoreStateNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.TensorCoreState", TensorCoreStateNode,
                                     StateNode);
 };
 
@@ -203,7 +203,7 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
     refl::ObjectDef<MultiLevelTilingTensorCoreNode>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MultiLevelTilingTensorCore",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.MultiLevelTilingTensorCore",
                                     MultiLevelTilingTensorCoreNode, MultiLevelTilingNode);
 
  private:
@@ -941,7 +941,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   MultiLevelTilingTensorCoreNode::RegisterReflection();
   TensorCoreStateNode::RegisterReflection();
-  refl::GlobalDef().def("meta_schedule.ScheduleRuleMultiLevelTilingTensorCore",
+  refl::GlobalDef().def("tvm.meta_schedule.ScheduleRuleMultiLevelTilingTensorCore",
                         ScheduleRule::MultiLevelTilingTensorCore);
 }
 

@@ -48,7 +48,7 @@ struct OpenCLMLCompilerConfigNode : public AttrsNodeReflAdapter<OpenCLMLCompiler
         "clml_version", &OpenCLMLCompilerConfigNode::clml_version,
         "OpenCLML version as (major, minor, patch).", refl::DefaultValue(Integer(3)));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ext.attrs.OpenCLMLCompilerConfig",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.ext.attrs.OpenCLMLCompilerConfig",
                                     OpenCLMLCompilerConfigNode, BaseAttrsNode);
 };
 
@@ -321,7 +321,7 @@ ffi::Array<ffi::Module> OpenCLMLCompiler(ffi::Array<Function> functions,
     serializer.serialize(func);
     std::string graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();
-    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.clml_runtime_create");
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("tvm.runtime.clml_runtime_create");
     std::string func_name = GetExtSymbol(func);
     VLOG(1) << "Creating clml ffi::Module for '" << func_name << "'";
     compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<ffi::Module>());
@@ -331,7 +331,7 @@ ffi::Array<ffi::Module> OpenCLMLCompiler(ffi::Array<Function> functions,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.ext.openclml", OpenCLMLCompiler);
+  refl::GlobalDef().def("tvm.relax.ext.openclml", OpenCLMLCompiler);
 }
 
 /*!
@@ -361,8 +361,8 @@ Integer GetOpenCLMLVersion() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("relax.is_openclml_runtime_enabled", IsOpenCLMLRuntimeEnabled)
-      .def("relax.get_openclml_version", GetOpenCLMLVersion);
+      .def("tvm.relax.is_openclml_runtime_enabled", IsOpenCLMLRuntimeEnabled)
+      .def("tvm.relax.get_openclml_version", GetOpenCLMLVersion);
 }
 
 }  // namespace contrib

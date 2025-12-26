@@ -16,4 +16,4 @@
 """FFI APIs for tvm.relax.op.memory"""
 import tvm_ffi
 
-tvm_ffi.init_ffi_api("relax.op.memory", __name__)
+tvm_ffi.init_ffi_api("tvm.relax.op.memory", __name__)

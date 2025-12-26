@@ -446,7 +446,7 @@ def call_packed(
         attrs_type_key = kwargs["attrs_type_key"]
         kwargs.pop("attrs_type_key")
     else:
-        attrs_type_key = "ir.DictAttrs"
+        attrs_type_key = "tvm.ir.DictAttrs"
         is_default = True
     attrs = None
     if kwargs or not is_default:

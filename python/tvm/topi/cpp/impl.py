@@ -17,4 +17,4 @@
 """Load Lib for C++ TOPI ops and schedules"""
 import tvm_ffi
 
-tvm_ffi.init_ffi_api("topi", "tvm.topi.cpp")
+tvm_ffi.init_ffi_api("tvm.topi", "tvm.topi.cpp")

@@ -90,7 +90,7 @@ class TypeNode : public Object {
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
   static constexpr const uint32_t _type_child_slots = 14;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.Type", TypeNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.ir.Type", TypeNode, Object);
 };
 
 /*!
@@ -121,7 +121,7 @@ class PrimTypeNode : public TypeNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimTypeNode>().def_ro("dtype", &PrimTypeNode::dtype);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.PrimType", PrimTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.PrimType", PrimTypeNode, TypeNode);
 };
 
 /*
@@ -167,7 +167,7 @@ class PointerTypeNode : public TypeNode {
         .def_ro("element_type", &PointerTypeNode::element_type)
         .def_ro("storage_scope", &PointerTypeNode::storage_scope);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.PointerType", PointerTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.PointerType", PointerTypeNode, TypeNode);
 };
 
 /*
@@ -203,7 +203,7 @@ class TupleTypeNode : public TypeNode {
         .def_ro("fields", &TupleTypeNode::fields)
         .def_ro("span", &TupleTypeNode::span);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TupleType", TupleTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.TupleType", TupleTypeNode, TypeNode);
 };
 
 /*!
@@ -264,7 +264,7 @@ class FuncTypeNode : public TypeNode {
         .def_ro("ret_type", &FuncTypeNode::ret_type)
         .def_ro("span", &FuncTypeNode::span);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.FuncType", FuncTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.FuncType", FuncTypeNode, TypeNode);
 };
 
 /*!
@@ -295,7 +295,7 @@ class TensorMapTypeNode : public TypeNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TensorMapTypeNode>().def_ro("span", &TensorMapTypeNode::span);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TensorMapType", TensorMapTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.TensorMapType", TensorMapTypeNode, TypeNode);
 };
 
 /*!

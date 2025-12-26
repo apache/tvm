@@ -126,7 +126,7 @@ Pass InjectPTXLDG32(bool enable_inject_ptx_intrin) {
 // Python binding for it
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.InjectPTXLDG32", InjectPTXLDG32);
+  refl::GlobalDef().def("tvm.tir.transform.InjectPTXLDG32", InjectPTXLDG32);
 }
 
 }  // namespace transform

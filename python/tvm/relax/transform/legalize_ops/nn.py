@@ -538,8 +538,8 @@ def _nn_selu(bb: BlockBuilder, call: Call) -> Expr:
 
         # Compute SELU
         # SELU(x) = scale∗(max(0,x)+min(0,α∗(exp(x)−1)))
-        positive_part = topi.maximum(x, tir.const(0, dtype))
-        negative_part = topi.minimum(
+        positive_part = tvm.topi.maximum(x, tir.const(0, dtype))
+        negative_part = tvm.topi.minimum(
             tir.const(0, dtype), alpha * (topi.exp(x) - tir.const(1, dtype))
         )
         return scale * (positive_part + negative_part)
@@ -550,7 +550,7 @@ def _nn_selu(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.nn.silu")
 def _nn_silu(bb: BlockBuilder, call: Call) -> Expr:
     def te_silu(x: te.Tensor):
-        return topi.multiply(x, topi.sigmoid(x))
+        return tvm.topi.multiply(x, topi.sigmoid(x))
 
     return bb.call_te(te_silu, call.args[0], primfunc_name_hint="silu")
 
@@ -682,12 +682,12 @@ def _te_attention(
     v = topi.reshape(v, [batch_size * num_head, seq_len_kv, head_dim_v])
     p = topi.nn.batch_matmul(q, k)
     if scale is not None:
-        p = topi.multiply(p, scale)
+        p = tvm.topi.multiply(p, scale)
     else:
-        p = topi.divide(p, tir.sqrt(tir.Cast(p.dtype, head_dim)))
+        p = tvm.topi.divide(p, tir.sqrt(tir.Cast(p.dtype, head_dim)))
     if bias is not None:
         p = topi.reshape(p, [batch_size, num_head, seq_len, seq_len_kv])
-        p = topi.add(p, bias)
+        p = tvm.topi.add(p, bias)
         p = topi.reshape(p, [batch_size * num_head, seq_len, seq_len_kv])
     if causal_mask is None:
         s = topi.nn.softmax(p)
@@ -703,7 +703,7 @@ def _te_attention(
             topi.exp(p_masked - topi.max(p_masked, axis=-1, keepdims=True)), k=offset, upper=False
         )
         p_masked_sum = topi.sum(p_masked_exp, axis=-1, keepdims=True)
-        s = topi.divide(p_masked_exp, p_masked_sum)
+        s = tvm.topi.divide(p_masked_exp, p_masked_sum)
     o = topi.nn.batch_matmul(s, v, transpose_b=False)
     o = topi.reshape(o, [batch_size, num_head, seq_len, head_dim_v])
     return topi.transpose(o, [0, 2, 1, 3])

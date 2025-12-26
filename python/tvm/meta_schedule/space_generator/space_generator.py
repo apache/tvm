@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from ..tune_context import TuneContext
 
 
-@register_object("meta_schedule.SpaceGenerator")
+@register_object("tvm.meta_schedule.SpaceGenerator")
 class SpaceGenerator(Object):
     """The abstract design space generator interface."""
 
@@ -184,7 +184,7 @@ def _normalize_rules(
     return sch_rules, postprocs, mutator_probs  # type: ignore
 
 
-@register_object("meta_schedule.PySpaceGenerator")
+@register_object("tvm.meta_schedule.PySpaceGenerator")
 class _PySpaceGenerator(SpaceGenerator):
     """
     A TVM object space generator to support customization on the python side.

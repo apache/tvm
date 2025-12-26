@@ -124,7 +124,7 @@ def codegen_build(mod: IRModule, target: Target) -> tvm.runtime.Module:
     """Build a runtime module from an IRModule and a Target."""
     if tvm.ir.transform.PassContext.current().config.get("tir.disable_assert", False):
         mod = tvm.tir.transform.SkipAssert()(mod)
-    build_f_name = "target.build." + target.kind.name
+    build_f_name = "tvm.target.build." + target.kind.name
     bf = tvm.get_global_func(build_f_name)
     if bf is None:
         raise ValueError(f"{build_f_name} is not enabled")
@@ -239,4 +239,4 @@ def build(
     return tir_to_runtime(host_mod, device_mod_dict, target_host)
 
 
-tvm.register_global_func("tir.build", build)
+tvm.register_global_func("tvm.tir.build", build)

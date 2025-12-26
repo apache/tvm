@@ -164,7 +164,7 @@ PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<Buffer>& root_allocates)
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.Complete", ScriptComplete);
+  refl::GlobalDef().def("tvm.script.Complete", ScriptComplete);
 }
 
 }  // namespace tir

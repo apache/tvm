@@ -566,7 +566,7 @@ ffi::Module BNNSJSONRuntimeCreate(ffi::String symbol_name, ffi::String graph_jso
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.BNNSJSONRuntimeCreate", BNNSJSONRuntimeCreate)
+      .def("tvm.runtime.BNNSJSONRuntimeCreate", BNNSJSONRuntimeCreate)
       .def("ffi.Module.load_from_bytes.bnns_json", JSONRuntimeBase::LoadFromBytes<BNNSJSONRuntime>);
 }
 

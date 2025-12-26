@@ -1307,7 +1307,7 @@ Pass FuseTIR() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.FuseTIR", FuseTIR);
+  refl::GlobalDef().def("tvm.relax.transform.FuseTIR", FuseTIR);
 }
 
 }  // namespace transform

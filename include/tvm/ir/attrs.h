@@ -84,7 +84,7 @@ class AttrFieldInfoNode : public Object {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.AttrFieldInfo", AttrFieldInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.AttrFieldInfo", AttrFieldInfoNode, Object);
 };
 
 /*! \brief AttrFieldInfo */
@@ -121,7 +121,7 @@ class BaseAttrsNode : public Object {
                                         bool allow_unknown = false) = 0;
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.Attrs", BaseAttrsNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.ir.Attrs", BaseAttrsNode, Object);
 };
 
 /*!
@@ -152,7 +152,7 @@ class DictAttrsNode : public BaseAttrsNode {
   void InitByPackedArgs(const ffi::PackedArgs& args, bool allow_unknown) final;
 
   // type info
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.DictAttrs", DictAttrsNode, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.DictAttrs", DictAttrsNode, BaseAttrsNode);
 };
 
 /*!

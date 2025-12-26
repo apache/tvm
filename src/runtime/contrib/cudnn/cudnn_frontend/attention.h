@@ -46,7 +46,7 @@ class CuDNNSDPARunnerNode : public tvm::runtime::Object {
 
   ~CuDNNSDPARunnerNode() {}
 
-  static constexpr const char* _type_key = "contrib.cudnn.SDPARunner";
+  static constexpr const char* _type_key = "tvm.contrib.cudnn.SDPARunner";
 
   void Init(int64_t batch, int64_t seq_len, int64_t num_heads, int64_t num_kv_heads,
             int64_t head_size, int64_t head_size_v, double scale, const DLDataType& data_type,

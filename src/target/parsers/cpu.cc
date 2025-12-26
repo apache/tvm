@@ -30,7 +30,7 @@ namespace cpu {
 
 ffi::Optional<ffi::String> DetectSystemTriple() {
 #ifdef TVM_LLVM_VERSION
-  auto pf = tvm::ffi::Function::GetGlobal("target.llvm_get_system_triple");
+  auto pf = tvm::ffi::Function::GetGlobal("tvm.target.llvm_get_system_triple");
   ICHECK(pf.has_value()) << "The target llvm_get_system_triple was not found, "
                             "please compile with USE_LLVM = ON";
   return (*pf)().cast<ffi::String>();

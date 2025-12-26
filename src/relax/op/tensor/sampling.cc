@@ -47,7 +47,7 @@ Expr multinomial_from_uniform(Expr prob, Expr uniform_sample, Expr sample_indice
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.multinomial_from_uniform", multinomial_from_uniform);
+  refl::GlobalDef().def("tvm.relax.op.multinomial_from_uniform", multinomial_from_uniform);
 }
 
 StructInfo InferStructInfoMultinomialFromUniform(const Call& call, const BlockBuilder& ctx) {

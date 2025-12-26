@@ -78,7 +78,7 @@ bool EndsWithPattern(const std::string& str, const std::string& pattern) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.contrib.extract_arg_idx", ExtractArgIdx);
+  refl::GlobalDef().def("tvm.relax.contrib.extract_arg_idx", ExtractArgIdx);
 }
 
 }  // namespace backend

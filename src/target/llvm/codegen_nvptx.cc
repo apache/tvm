@@ -334,7 +334,7 @@ ffi::Module BuildNVPTX(IRModule mod, Target target) {
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
 
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
-  const auto flibdevice_path = tvm::ffi::Function::GetGlobal("tvm_callback_libdevice_path");
+  const auto flibdevice_path = tvm::ffi::Function::GetGlobal("tvm.tvm_callback_libdevice_path");
   if (flibdevice_path.has_value()) {
     std::string path = (*flibdevice_path)(compute_ver).cast<std::string>();
     if (path.length() != 0) {
@@ -380,7 +380,7 @@ ffi::Module BuildNVPTX(IRModule mod, Target target) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("target.build.nvptx", BuildNVPTX)
+      .def("tvm.target.build.nvptx", BuildNVPTX)
       .def_packed("tvm.codegen.llvm.target_nvptx", [](const ffi::PackedArgs& targs, ffi::Any* rv) {
         *rv = static_cast<void*>(new CodeGenNVPTX());
       });

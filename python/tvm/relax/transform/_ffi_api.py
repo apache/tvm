@@ -16,4 +16,4 @@
 """FFI APIs for tvm.transform"""
 import tvm_ffi
 
-tvm_ffi.init_ffi_api("relax.transform", __name__)
+tvm_ffi.init_ffi_api("tvm.relax.transform", __name__)

@@ -22,7 +22,7 @@ from . import _ffi_api
 from .. import Object, Device
 
 
-@_ffi.register_object("runtime.profiling.Report")
+@_ffi.register_object("tvm.runtime.profiling.Report")
 class Report(Object):
     """A container for information gathered during a profiling run.
 
@@ -172,7 +172,7 @@ class Report(Object):
         return _ffi_api.FromJSON(s)
 
 
-@_ffi.register_object("runtime.profiling.Count")
+@_ffi.register_object("tvm.runtime.profiling.Count")
 class Count(Object):
     """A integer count of something"""
 
@@ -180,7 +180,7 @@ class Count(Object):
         self.__init_handle_by_constructor__(_ffi_api.Count, count)
 
 
-@_ffi.register_object("runtime.profiling.Duration")
+@_ffi.register_object("tvm.runtime.profiling.Duration")
 class Duration(Object):
     """A duration of something"""
 
@@ -188,7 +188,7 @@ class Duration(Object):
         self.__init_handle_by_constructor__(_ffi_api.Duration, duration)
 
 
-@_ffi.register_object("runtime.profiling.Percent")
+@_ffi.register_object("tvm.runtime.profiling.Percent")
 class Percent(Object):
     """A Percent of something"""
 
@@ -196,7 +196,7 @@ class Percent(Object):
         self.__init_handle_by_constructor__(_ffi_api.Percent, percent)
 
 
-@_ffi.register_object("runtime.profiling.Ratio")
+@_ffi.register_object("tvm.runtime.profiling.Ratio")
 class Ratio(Object):
     """A Ratio of two things"""
 
@@ -204,12 +204,12 @@ class Ratio(Object):
         self.__init_handle_by_constructor__(_ffi_api.Ratio, ratio)
 
 
-@_ffi.register_object("runtime.profiling.MetricCollector")
+@_ffi.register_object("tvm.runtime.profiling.MetricCollector")
 class MetricCollector(Object):
     """Interface for user defined profiling metric collection."""
 
 
-@_ffi.register_object("runtime.profiling.DeviceWrapper")
+@_ffi.register_object("tvm.runtime.profiling.DeviceWrapper")
 class DeviceWrapper(Object):
     """Wraps a tvm.runtime.Device"""
 
@@ -271,9 +271,12 @@ def profile_function(mod, dev, collectors, func_name=None, warmup_iters=10):
 
 
 # We only enable this class when TVM is build with PAPI support
-if _ffi.get_global_func("runtime.profiling.PAPIMetricCollector", allow_missing=True) is not None:
+if (
+    _ffi.get_global_func("tvm.runtime.profiling.PAPIMetricCollector", allow_missing=True)
+    is not None
+):
 
-    @_ffi.register_object("runtime.profiling.PAPIMetricCollector")
+    @_ffi.register_object("tvm.runtime.profiling.PAPIMetricCollector")
     class PAPIMetricCollector(MetricCollector):
         """Collects performance counter information using the Performance
         Application Programming Interface (PAPI).

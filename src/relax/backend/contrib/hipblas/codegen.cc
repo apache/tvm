@@ -97,7 +97,7 @@ ffi::Array<ffi::Module> HipblasCompiler(ffi::Array<Function> functions,
     serializer.serialize(func);
     auto graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();
-    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.HipblasJSONRuntimeCreate");
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("tvm.runtime.HipblasJSONRuntimeCreate");
     auto func_name = GetExtSymbol(func);
     compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<ffi::Module>());
   }
@@ -107,7 +107,7 @@ ffi::Array<ffi::Module> HipblasCompiler(ffi::Array<Function> functions,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.ext.hipblas", HipblasCompiler);
+  refl::GlobalDef().def("tvm.relax.ext.hipblas", HipblasCompiler);
 }
 
 }  // namespace contrib

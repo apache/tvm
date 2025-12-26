@@ -251,7 +251,7 @@ class CUDAGraphExtension : public VMExtension {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_packed("vm.builtin.cuda_graph.run_or_capture",
+      .def_packed("tvm.vm.builtin.cuda_graph.run_or_capture",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     ICHECK(args.size() == 5 || args.size() == 4);
                     VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
@@ -266,14 +266,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     *rv = extension->RunOrCapture(vm, capture_func, func_args, entry_index,
                                                   shape_expr);
                   })
-      .def_packed("vm.builtin.cuda_graph.get_cached_alloc", [](ffi::PackedArgs args, ffi::Any* rv) {
-        ICHECK_EQ(args.size(), 3);
-        VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
-        auto extension = vm->GetOrCreateExtension<CUDAGraphExtension>();
-        auto alloc_func = args[1].cast<ObjectRef>();
-        int64_t entry_index = args[2].cast<int64_t>();
-        *rv = extension->GetCachedAllocation(vm, alloc_func, entry_index);
-      });
+      .def_packed("tvm.vm.builtin.cuda_graph.get_cached_alloc",
+                  [](ffi::PackedArgs args, ffi::Any* rv) {
+                    ICHECK_EQ(args.size(), 3);
+                    VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
+                    auto extension = vm->GetOrCreateExtension<CUDAGraphExtension>();
+                    auto alloc_func = args[1].cast<ObjectRef>();
+                    int64_t entry_index = args[2].cast<int64_t>();
+                    *rv = extension->GetCachedAllocation(vm, alloc_func, entry_index);
+                  });
 }
 
 }  // namespace vm

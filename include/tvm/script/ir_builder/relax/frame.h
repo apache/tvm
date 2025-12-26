@@ -40,7 +40,7 @@ class RelaxFrameNode : public IRBuilderFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RelaxFrameNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.relax.RelaxFrame", RelaxFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.script.ir_builder.relax.RelaxFrame", RelaxFrameNode,
                               IRBuilderFrameNode);
 };
 
@@ -72,7 +72,7 @@ class SeqExprFrameNode : public RelaxFrameNode {
         .def_ro("binding_blocks", &SeqExprFrameNode::binding_blocks)
         .def_ro("output", &SeqExprFrameNode::output);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.relax.SeqExprFrame", SeqExprFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.script.ir_builder.relax.SeqExprFrame", SeqExprFrameNode,
                               RelaxFrameNode);
 
  public:
@@ -130,7 +130,7 @@ class FunctionFrameNode : public SeqExprFrameNode {
         .def_ro("output", &FunctionFrameNode::output);
     // `block_builder` is not registered as it's not visited.
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.relax.FunctionFrame", FunctionFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.relax.FunctionFrame", FunctionFrameNode,
                                     SeqExprFrameNode);
 
  public:
@@ -173,7 +173,7 @@ class BlockFrameNode : public RelaxFrameNode {
         .def_ro("output_vars", &BlockFrameNode::output_vars);
     // `block_ended` is not registered as it's not visited.
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.relax.BlockFrame", BlockFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.relax.BlockFrame", BlockFrameNode,
                                     RelaxFrameNode);
 
  public:
@@ -216,7 +216,8 @@ class IfFrameNode : public RelaxFrameNode {
         .def_ro("var", &IfFrameNode::var)
         .def_ro("var_name", &IfFrameNode::var_name);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.relax.IfFrame", IfFrameNode, RelaxFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.relax.IfFrame", IfFrameNode,
+                                    RelaxFrameNode);
 
  public:
   /*!
@@ -255,7 +256,7 @@ class ThenFrameNode : public SeqExprFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ThenFrameNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.relax.ThenFrame", ThenFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.relax.ThenFrame", ThenFrameNode,
                                     SeqExprFrameNode);
 
  public:
@@ -295,7 +296,7 @@ class ElseFrameNode : public SeqExprFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ElseFrameNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.relax.ElseFrame", ElseFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.relax.ElseFrame", ElseFrameNode,
                                     SeqExprFrameNode);
 
  public:

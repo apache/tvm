@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from ..tune_context import TuneContext
 
 
-@register_object("meta_schedule.Postproc")
+@register_object("tvm.meta_schedule.Postproc")
 class Postproc(Object):
     """Rules to apply a postprocessor to a schedule."""
 
@@ -105,7 +105,7 @@ class Postproc(Object):
 create = Postproc.create  # pylint: disable=invalid-name
 
 
-@register_object("meta_schedule.PyPostproc")
+@register_object("tvm.meta_schedule.PyPostproc")
 class _PyPostproc(Postproc):
     """
     A TVM object post processor to support customization on the python side.

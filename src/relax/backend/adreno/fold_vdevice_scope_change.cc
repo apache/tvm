@@ -183,7 +183,7 @@ Pass FoldVDeviceScopeChange() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.backend.adreno.transform.FoldVDeviceScopeChange",
+  refl::GlobalDef().def("tvm.relax.backend.adreno.transform.FoldVDeviceScopeChange",
                         FoldVDeviceScopeChange);
 }
 }  // namespace transform

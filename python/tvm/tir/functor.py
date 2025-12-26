@@ -143,7 +143,7 @@ Example
 """
 
 
-@tvm_ffi.register_object("tir.PyStmtExprVisitor")
+@tvm_ffi.register_object("tvm.tir.PyStmtExprVisitor")
 class _PyStmtExprVisitor(tvm_ffi.core.Object):
     """
     An internal wrapper to interface between C++ and Python StmtExprVisitor.
@@ -977,7 +977,7 @@ class PyStmtExprVisitor:
         _ffi_api.PyStmtExprVisitorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
 
-@tvm_ffi.register_object("tir.PyStmtExprMutator")
+@tvm_ffi.register_object("tvm.tir.PyStmtExprMutator")
 class _PyStmtExprMutator(tvm_ffi.core.Object):
     """
     A TVM object to support customization of StmtExprMutator on the python side.

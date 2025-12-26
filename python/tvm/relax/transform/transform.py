@@ -36,14 +36,14 @@ from .legalize_ops.common import LegalizeFunc
 from ..expr import Var
 
 
-@tvm_ffi.register_object("relax.FunctionPass")
+@tvm_ffi.register_object("tvm.relax.FunctionPass")
 class FunctionPass(tvm.ir.transform.Pass):
     """A pass that works on each tvm.relax.Function in a module. A function
     pass class should be created through `function_pass`.
     """
 
 
-@tvm_ffi.register_object("relax.DataflowBlockPass")
+@tvm_ffi.register_object("tvm.relax.DataflowBlockPass")
 class DataflowBlockPass(tvm.ir.transform.Pass):
     """A pass that works on each tvm.relax.DataflowBlock in a module."""
 
@@ -820,7 +820,7 @@ def FuseTIR() -> tvm.ir.transform.Pass:
     return _ffi_api.FuseTIR()  # type: ignore
 
 
-@tvm_ffi.register_object("relax.transform.PatternCheckContext")
+@tvm_ffi.register_object("tvm.relax.transform.PatternCheckContext")
 class PatternCheckContext(Object):
     """
     The input of check function `FusionPattern.check`.
@@ -854,7 +854,7 @@ class PatternCheckContext(Object):
     value_to_bound_var: Mapping[Expr, Var]
 
 
-@tvm_ffi.register_object("relax.transform.FusionPattern")
+@tvm_ffi.register_object("tvm.relax.transform.FusionPattern")
 class FusionPattern(Object):
     """
     The pattern used by `FuseOpsByPattern`. It's mainly DFPattern but with other
@@ -1123,7 +1123,7 @@ def LegalizeOps(
         # Define the customized legalization function for "relax.add"
         def customize_legalize_add(bb: relax.BlockBuilder, call: relax.Call) -> relax.Expr:
             from tvm import topi
-            return bb.call_te(topi.add, call.args[1], call.args[0])
+            return bb.call_te(tvm.topi.add, call.args[1], call.args[0])
 
         # Apply the pass with the customized function to the module.
         mod = LegalizeOps({"relax.add": customize_legalize_add})(Module)

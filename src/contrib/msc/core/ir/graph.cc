@@ -1450,13 +1450,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("msc.core.MSCTensor",
+      .def("tvm.msc.core.MSCTensor",
            [](const ffi::String& name, const DataType& dtype, const ffi::String& layout,
               const ffi::Array<Integer>& shape, const ffi::String& alias,
               const ffi::Array<ffi::String>& prims) -> MSCTensor {
              return MSCTensor(name, dtype, layout, shape, alias, prims);
            })
-      .def("msc.core.MSCTensorToJson",
+      .def("tvm.msc.core.MSCTensorToJson",
            [](const MSCTensor& tensor) -> ffi::String {
              const auto& tensor_json = tensor->ToJson();
              std::ostringstream os;
@@ -1464,9 +1464,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              tensor_json.Save(&writer);
              return os.str();
            })
-      .def("msc.core.MSCTensorFromJson",
+      .def("tvm.msc.core.MSCTensorFromJson",
            [](const ffi::String& tensor_json) -> MSCTensor { return MSCTensor(tensor_json); })
-      .def("msc.core.MSCJoint",
+      .def("tvm.msc.core.MSCJoint",
            [](Integer index, const ffi::String& name, const ffi::String& shared_ref,
               const ffi::String& optype, const ffi::Map<ffi::String, ffi::String>& attrs,
               const ffi::Array<ffi::String>& scope, const ffi::Array<MSCJoint>& parents,
@@ -1479,7 +1479,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return MSCJoint(index->value, name, shared_ref, optype, attrs, scope, inputs, outputs,
                              weights);
            })
-      .def("msc.core.MSCPrim",
+      .def("tvm.msc.core.MSCPrim",
            [](Integer index, const ffi::String& name, const ffi::String& optype,
               const ffi::Map<ffi::String, ffi::String>& attrs,
               const ffi::Array<MSCPrim>& parents) -> MSCPrim {
@@ -1489,7 +1489,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              }
              return MSCPrim(index->value, name, optype, b_parents, attrs);
            })
-      .def("msc.core.WeightJoint",
+      .def("tvm.msc.core.WeightJoint",
            [](Integer index, const ffi::String& name, const ffi::String& shared_ref,
               const ffi::String& weight_type, const MSCTensor& weight,
               const ffi::Array<BaseJoint> parents, const ffi::Map<ffi::String, ffi::String>& attrs,
@@ -1504,18 +1504,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return WeightJoint(index->value, name, shared_ref, weight_type, weight, b_parents,
                                 attrs, b_friends);
            })
-      .def("msc.core.WeightJointSetAttr",
+      .def("tvm.msc.core.WeightJointSetAttr",
            [](const WeightJoint& node, const ffi::String& key, const ffi::String& value) {
              node->attrs.Set(key, value);
            })
-      .def("msc.core.MSCGraph",
+      .def("tvm.msc.core.MSCGraph",
            [](const ffi::String& name, const ffi::Array<MSCJoint>& nodes,
               const ffi::Array<ffi::String>& input_names,
               const ffi::Array<ffi::String>& output_names,
               const ffi::Array<MSCPrim>& prims) -> MSCGraph {
              return MSCGraph(name, nodes, input_names, output_names, prims);
            })
-      .def("msc.core.WeightGraph",
+      .def("tvm.msc.core.WeightGraph",
            [](const MSCGraph& graph,
               const ffi::Map<ffi::String, ffi::Array<ffi::String>>& main_wtypes,
               const ffi::Map<ffi::String, ffi::String>& relation_wtypes) -> WeightGraph {
@@ -1527,48 +1527,48 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("msc.core.MSCGraphHasNode",
+      .def("tvm.msc.core.MSCGraphHasNode",
            [](const MSCGraph& graph, const ffi::String& name) -> Bool {
              return Bool(graph->HasNode(name));
            })
-      .def("msc.core.MSCGraphFindNode",
+      .def("tvm.msc.core.MSCGraphFindNode",
            [](const MSCGraph& graph, const ffi::String& name) -> MSCJoint {
              return graph->FindNode(name);
            })
-      .def("msc.core.MSCGraphFindPrim",
+      .def("tvm.msc.core.MSCGraphFindPrim",
            [](const MSCGraph& graph, const ffi::String& name) -> MSCPrim {
              return graph->FindPrim(name);
            })
-      .def("msc.core.MSCGraphHasTensor",
+      .def("tvm.msc.core.MSCGraphHasTensor",
            [](const MSCGraph& graph, const ffi::String& name) -> Bool {
              return Bool(graph->HasTensor(name));
            })
-      .def("msc.core.MSCGraphFindTensor",
+      .def("tvm.msc.core.MSCGraphFindTensor",
            [](const MSCGraph& graph, const ffi::String& name) -> MSCTensor {
              return graph->FindTensor(name);
            })
-      .def("msc.core.MSCGraphSetTensorAlias",
+      .def("tvm.msc.core.MSCGraphSetTensorAlias",
            [](const MSCGraph& graph, const MSCTensor& tensor, const ffi::String& alias) {
              tensor->alias = alias;
              graph->tensor_alias.Set(alias, tensor->name);
            })
-      .def("msc.core.MSCGraphFindProducer",
+      .def("tvm.msc.core.MSCGraphFindProducer",
            [](const MSCGraph& graph, const ffi::String& name) -> MSCJoint {
              return graph->FindProducer(name);
            })
-      .def("msc.core.MSCGraphFindConsumers",
+      .def("tvm.msc.core.MSCGraphFindConsumers",
            [](const MSCGraph& graph, const ffi::String& name) -> ffi::Array<MSCJoint> {
              return graph->FindConsumers(name);
            })
-      .def("msc.core.MSCGraphInputAt",
+      .def("tvm.msc.core.MSCGraphInputAt",
            [](const MSCGraph& graph, int index) -> MSCTensor { return graph->InputAt(index); })
-      .def("msc.core.MSCGraphOutputAt",
+      .def("tvm.msc.core.MSCGraphOutputAt",
            [](const MSCGraph& graph, int index) -> MSCTensor { return graph->OutputAt(index); })
-      .def("msc.core.MSCGraphGetInputs",
+      .def("tvm.msc.core.MSCGraphGetInputs",
            [](const MSCGraph& graph) -> ffi::Array<MSCTensor> { return graph->GetInputs(); })
-      .def("msc.core.MSCGraphGetOutputs",
+      .def("tvm.msc.core.MSCGraphGetOutputs",
            [](const MSCGraph& graph) -> ffi::Array<MSCTensor> { return graph->GetOutputs(); })
-      .def("msc.core.MSCGraphToJson",
+      .def("tvm.msc.core.MSCGraphToJson",
            [](const MSCGraph& graph) -> ffi::String {
              const auto& graph_json = graph->ToJson();
              std::ostringstream os;
@@ -1576,9 +1576,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              graph_json.Save(&writer);
              return os.str();
            })
-      .def("msc.core.MSCGraphFromJson",
+      .def("tvm.msc.core.MSCGraphFromJson",
            [](const ffi::String& graph_json) -> MSCGraph { return MSCGraph(graph_json); })
-      .def("msc.core.MSCGraphToPrototxt",
+      .def("tvm.msc.core.MSCGraphToPrototxt",
            [](const MSCGraph& graph) -> ffi::String { return graph->ToPrototxt(); });
 }
 
@@ -1586,15 +1586,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("msc.core.WeightGraphHasNode",
+      .def("tvm.msc.core.WeightGraphHasNode",
            [](const WeightGraph& graph, const ffi::String& name) -> Bool {
              return Bool(graph->HasNode(name));
            })
-      .def("msc.core.WeightGraphFindNode",
+      .def("tvm.msc.core.WeightGraphFindNode",
            [](const WeightGraph& graph, const ffi::String& name) -> WeightJoint {
              return graph->FindNode(name);
            })
-      .def("msc.core.WeightGraphToJson",
+      .def("tvm.msc.core.WeightGraphToJson",
            [](const WeightGraph& graph) -> ffi::String {
              const auto& graph_json = graph->ToJson();
              std::ostringstream os;
@@ -1602,48 +1602,48 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              graph_json.Save(&writer);
              return os.str();
            })
-      .def("msc.core.WeightGraphFromJson",
+      .def("tvm.msc.core.WeightGraphFromJson",
            [](const ffi::String& graph_json) -> WeightGraph { return WeightGraph(graph_json); })
-      .def("msc.core.WeightGraphToPrototxt",
+      .def("tvm.msc.core.WeightGraphToPrototxt",
            [](const WeightGraph& graph) -> ffi::String { return graph->ToPrototxt(); })
-      .def("msc.core.MSCJointInputAt",
+      .def("tvm.msc.core.MSCJointInputAt",
            [](const MSCJoint& node, int index) -> MSCTensor { return node->InputAt(index); })
-      .def("msc.core.MSCJointOutputAt",
+      .def("tvm.msc.core.MSCJointOutputAt",
            [](const MSCJoint& node, int index) -> MSCTensor { return node->OutputAt(index); })
-      .def("msc.core.MSCJointWeightAt",
+      .def("tvm.msc.core.MSCJointWeightAt",
            [](const MSCJoint& node, const ffi::String& wtype) -> MSCTensor {
              return node->WeightAt(wtype);
            })
-      .def("msc.core.MSCJointGetInputs",
+      .def("tvm.msc.core.MSCJointGetInputs",
            [](const MSCJoint& node) -> ffi::Array<MSCTensor> { return node->GetInputs(); })
-      .def("msc.core.MSCJointGetOutputs",
+      .def("tvm.msc.core.MSCJointGetOutputs",
            [](const MSCJoint& node) -> ffi::Array<MSCTensor> { return node->GetOutputs(); })
-      .def("msc.core.MSCJointGetWeights",
+      .def("tvm.msc.core.MSCJointGetWeights",
            [](const MSCJoint& node) -> ffi::Map<ffi::String, MSCTensor> { return node->weights; })
-      .def("msc.core.MSCJointHasAttr",
+      .def("tvm.msc.core.MSCJointHasAttr",
            [](const MSCJoint& node, const ffi::String& key) -> Bool {
              return Bool(node->HasAttr(key));
            })
-      .def("msc.core.MSCJointGetAttrs",
+      .def("tvm.msc.core.MSCJointGetAttrs",
            [](const MSCJoint& node) -> ffi::Map<ffi::String, ffi::String> { return node->attrs; })
-      .def("msc.core.WeightJointHasAttr",
+      .def("tvm.msc.core.WeightJointHasAttr",
            [](const WeightJoint& node, const ffi::String& key) -> Bool {
              return Bool(node->HasAttr(key));
            })
       .def(
-          "msc.core.WeightJointGetAttrs",
+          "tvm.msc.core.WeightJointGetAttrs",
           [](const WeightJoint& node) -> ffi::Map<ffi::String, ffi::String> { return node->attrs; })
-      .def("msc.core.MSCTensorDTypeName",
+      .def("tvm.msc.core.MSCTensorDTypeName",
            [](const MSCTensor& tensor) -> ffi::String { return tensor->DTypeName(); })
-      .def("msc.core.MSCTensorDimAt",
+      .def("tvm.msc.core.MSCTensorDimAt",
            [](const MSCTensor& tensor, const ffi::String& axis) -> Integer {
              return tensor->DimAt(axis);
            })
-      .def("msc.core.MSCTensorGetSize",
+      .def("tvm.msc.core.MSCTensorGetSize",
            [](const MSCTensor& tensor) -> Integer { return tensor->GetSize(); })
-      .def("msc.core.MSCTensorSetAlias",
+      .def("tvm.msc.core.MSCTensorSetAlias",
            [](const MSCTensor& tensor, const ffi::String& alias) { tensor->alias = alias; })
-      .def("msc.core.PruneWeights",
+      .def("tvm.msc.core.PruneWeights",
            [](const MSCGraph& graph, const ffi::Map<ffi::String, MSCTensor>& pruned_tensors)
                -> MSCGraph { return PruneWeights(graph, pruned_tensors); });
 }

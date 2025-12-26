@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .mutator import Mutator
 
 
-@register_object("meta_schedule.MutateThreadBinding")
+@register_object("tvm.meta_schedule.MutateThreadBinding")
 class MutateThreadBinding(Mutator):
     """Mutator that mutates the binding extent"""
 

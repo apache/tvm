@@ -2275,7 +2275,7 @@ def debug_func(
 
     io.effect = BlockBuilder.current().emit(
         rx.call_pure_packed(
-            "vm.builtin.invoke_debug_func",
+            "tvm.vm.builtin.invoke_debug_func",
             io.effect,
             rx.StringImm(name),
             rx.StringImm(_line_info),
@@ -2290,7 +2290,7 @@ def print_(tensor: Tensor):
     """Debug printing a Tensor during runtime."""
     filename, line_number = inspect.getframeinfo(inspect.currentframe().f_back)[:2]
     line_info = f"{filename}:{line_number}"
-    debug_func("vm.builtin.debug_print", tensor, _line_info=line_info)
+    debug_func("tvm.vm.builtin.debug_print", tensor, _line_info=line_info)
 
 
 def less(a: Tensor, b: Tensor, name: str = "less") -> Tensor:
@@ -2641,7 +2641,7 @@ def multinomial_from_uniform(
 
     Notes
     -----
-    For better cpu performance, use 'vm.builtin.multinomial_from_uniform'.
+    For better cpu performance, use 'tvm.vm.builtin.multinomial_from_uniform'.
     For accurate results, ensure probabilities are between 0 and 1 and sum to 1.
 
     Parameters

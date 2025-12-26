@@ -44,7 +44,7 @@ ShapeType::ShapeType(int ndim, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.ShapeType",
+  refl::GlobalDef().def("tvm.relax.ShapeType",
                         [](int ndim, Span span) { return ShapeType(ndim, span); });
 }
 
@@ -56,7 +56,7 @@ ObjectType::ObjectType(Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.ObjectType", [](Span span) { return ObjectType(span); });
+  refl::GlobalDef().def("tvm.relax.ObjectType", [](Span span) { return ObjectType(span); });
 }
 
 TensorType::TensorType(int ndim, DataType dtype, Span span) {
@@ -77,7 +77,7 @@ TensorType TensorType::CreateUnknownNDim(DataType dtype, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.TensorType", [](int ndim, DataType dtype, Span span) {
+  refl::GlobalDef().def("tvm.relax.TensorType", [](int ndim, DataType dtype, Span span) {
     return TensorType(ndim, dtype, span);
   });
 }
@@ -90,7 +90,7 @@ PackedFuncType::PackedFuncType(Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.PackedFuncType", [](Span span) { return PackedFuncType(span); });
+  refl::GlobalDef().def("tvm.relax.PackedFuncType", [](Span span) { return PackedFuncType(span); });
 }
 
 }  // namespace relax

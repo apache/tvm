@@ -571,13 +571,13 @@ TVM_REGISTER_INST_KIND_TRAITS(EnterPostprocTraits);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.schedule.Trace",
+      .def("tvm.tir.schedule.Trace",
            [](ffi::Optional<ffi::Array<Instruction>> insts,
               ffi::Optional<ffi::Map<Instruction, Any>> decisions) {
              return Trace(insts.value_or(ffi::Array<Instruction>()), decisions.value_or({}));
            })
-      .def_method("tir.schedule.TraceGetDecision", &TraceNode::GetDecision)
-      .def("tir.schedule.TraceAppend",
+      .def_method("tvm.tir.schedule.TraceGetDecision", &TraceNode::GetDecision)
+      .def("tvm.tir.schedule.TraceAppend",
            [](Trace self, Instruction inst, ffi::Optional<ObjectRef> decision) {
              if (decision.defined()) {
                return self->Append(inst, decision.value());
@@ -585,13 +585,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                return self->Append(inst);
              }
            })
-      .def_method("tir.schedule.TracePop", &TraceNode::Pop)
-      .def_method("tir.schedule.TraceApplyToSchedule", &TraceNode::ApplyToSchedule)
-      .def_method("tir.schedule.TraceAsJSON", &TraceNode::AsJSON)
-      .def_method("tir.schedule.TraceAsPython", &TraceNode::AsPython)
-      .def_method("tir.schedule.TraceWithDecision", &TraceNode::WithDecision)
-      .def_method("tir.schedule.TraceSimplified", &TraceNode::Simplified)
-      .def("tir.schedule.TraceApplyJSONToSchedule", Trace::ApplyJSONToSchedule);
+      .def_method("tvm.tir.schedule.TracePop", &TraceNode::Pop)
+      .def_method("tvm.tir.schedule.TraceApplyToSchedule", &TraceNode::ApplyToSchedule)
+      .def_method("tvm.tir.schedule.TraceAsJSON", &TraceNode::AsJSON)
+      .def_method("tvm.tir.schedule.TraceAsPython", &TraceNode::AsPython)
+      .def_method("tvm.tir.schedule.TraceWithDecision", &TraceNode::WithDecision)
+      .def_method("tvm.tir.schedule.TraceSimplified", &TraceNode::Simplified)
+      .def("tvm.tir.schedule.TraceApplyJSONToSchedule", Trace::ApplyJSONToSchedule);
 }
 
 }  // namespace tir

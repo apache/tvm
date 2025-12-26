@@ -44,7 +44,7 @@ struct AllClassNonMaximumSuppressionAttrs
         "Output format, onnx or tensorflow. Returns outputs in a way that can be easily "
         "consumed by each frontend.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllClassNonMaximumSuppressionAttrs",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.AllClassNonMaximumSuppressionAttrs",
                                     AllClassNonMaximumSuppressionAttrs, BaseAttrsNode);
 };  // struct AllClassNonMaximumSuppressionAttrs
 

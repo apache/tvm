@@ -51,7 +51,7 @@ Expr matmul(Expr x1, Expr x2, ffi::Optional<DataType> out_dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.matmul", matmul);
+  refl::GlobalDef().def("tvm.relax.op.matmul", matmul);
 }
 
 StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
@@ -185,7 +185,7 @@ Expr einsum(Expr operands, ffi::String subscripts) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.einsum", einsum);
+  refl::GlobalDef().def("tvm.relax.op.einsum", einsum);
 }
 
 StructInfo InferStructInfoEinsum(const Call& call, const BlockBuilder& ctx) {
@@ -270,7 +270,7 @@ Expr outer(Expr x1, Expr x2) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.outer", outer);
+  refl::GlobalDef().def("tvm.relax.op.outer", outer);
 }
 
 StructInfo InferStructInfoOuter(const Call& call, const BlockBuilder& ctx) {

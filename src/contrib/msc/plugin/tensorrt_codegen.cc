@@ -887,7 +887,7 @@ void TensorRTPluginCodeGen::CodegenEnqueue(const Plugin& plugin, bool dynamic) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("msc.plugin.GetTensorRTPluginSources",
+  refl::GlobalDef().def("tvm.msc.plugin.GetTensorRTPluginSources",
                         [](const ffi::String& codegen_config, const ffi::String& print_config,
                            const ffi::String& codegen_type) -> ffi::Map<ffi::String, ffi::String> {
                           TensorRTPluginCodeGen codegen = TensorRTPluginCodeGen(codegen_config);

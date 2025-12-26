@@ -102,7 +102,7 @@ const void* CuDNNDataType::GetConst<1>(cudnnDataType_t type) {
 // CuDNNThreadEntry
 
 CuDNNThreadEntry::CuDNNThreadEntry() {
-  auto func = tvm::ffi::Function::GetGlobalRequired("device_api.cuda");
+  auto func = tvm::ffi::Function::GetGlobalRequired("tvm.device_api.cuda");
   void* ret = func().cast<void*>();
   cuda_api = static_cast<runtime::DeviceAPI*>(ret);
 

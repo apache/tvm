@@ -90,10 +90,10 @@ BlockDependenceInfo::BlockDependenceInfo(IRModule mod) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.BlockDependenceInfo",
+      .def("tvm.tir.BlockDependenceInfo",
            [](IRModule mod) -> BlockDependenceInfo { return BlockDependenceInfo(mod); })
       .def_method("tir.BlockDependenceInfoGetBlockScope", &BlockDependenceInfoNode::GetBlockScope)
-      .def("tir.BlockDependenceInfoGetSRef",
+      .def("tvm.tir.BlockDependenceInfoGetSRef",
            [](BlockDependenceInfo self, Stmt stmt) -> ffi::Optional<StmtSRef> {
              auto it = self->stmt2ref.find(stmt.get());
              return it != self->stmt2ref.end() ? it->second : ffi::Optional<StmtSRef>(std::nullopt);

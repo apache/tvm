@@ -21,6 +21,6 @@ from tvm_ffi import register_object as _register_object
 from ..base import IRBuilderFrame
 
 
-@_register_object("script.ir_builder.IRModuleFrame")
+@_register_object("tvm.script.ir_builder.IRModuleFrame")
 class IRModuleFrame(IRBuilderFrame):
     ...

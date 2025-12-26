@@ -22,7 +22,7 @@ from .. import _ffi_api
 from .schedule_rule import ScheduleRule
 
 
-@register_object("meta_schedule.ApplyCustomRule")
+@register_object("tvm.meta_schedule.ApplyCustomRule")
 class ApplyCustomRule(ScheduleRule):
     """A rule that applies customized rules registered using block attribute `schedule_rule`.
     The rule will be dispatched according to target keys."""

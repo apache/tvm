@@ -382,7 +382,7 @@ class ThreadPool {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_packed("runtime.config_threadpool",
+      .def_packed("tvm.runtime.config_threadpool",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     threading::ThreadGroup::AffinityMode mode =
                         static_cast<threading::ThreadGroup::AffinityMode>(args[0].cast<int>());
@@ -398,7 +398,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     }
                     threading::Configure(mode, nthreads, cpus);
                   })
-      .def("runtime.NumThreads", []() -> int32_t { return threading::NumThreads(); });
+      .def("tvm.runtime.NumThreads", []() -> int32_t { return threading::NumThreads(); });
 }
 
 namespace threading {

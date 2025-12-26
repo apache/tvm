@@ -60,7 +60,7 @@ class AutoBindNode : public ScheduleRuleNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AutoBindNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.AutoBind", AutoBindNode, ScheduleRuleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.AutoBind", AutoBindNode, ScheduleRuleNode);
 };
 
 ffi::Array<tir::Schedule> AutoBindNode::Apply(const tir::Schedule& sch,
@@ -84,7 +84,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { AutoBindNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.ScheduleRuleAutoBind", ScheduleRule::AutoBind);
+  refl::GlobalDef().def("tvm.meta_schedule.ScheduleRuleAutoBind", ScheduleRule::AutoBind);
 }
 
 }  // namespace meta_schedule

@@ -135,7 +135,7 @@ ffi::Module LoadStaticLibrary(const std::string& filename, ffi::Array<ffi::Strin
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.ModuleLoadStaticLibrary", LoadStaticLibrary)
+      .def("tvm.runtime.ModuleLoadStaticLibrary", LoadStaticLibrary)
       .def("ffi.Module.load_from_bytes.static_library", StaticLibraryNode::LoadFromBytes);
 }
 

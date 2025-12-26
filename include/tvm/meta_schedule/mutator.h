@@ -68,7 +68,7 @@ class MutatorNode : public runtime::Object {
   virtual Mutator Clone() const = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.Mutator", MutatorNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.meta_schedule.Mutator", MutatorNode, Object);
 };
 
 /*!
@@ -171,7 +171,7 @@ class PyMutatorNode : public MutatorNode {
   ffi::Optional<tir::Trace> Apply(const tir::Trace& trace,
                                   support::LinearCongruentialEngine::TRandState* rand_state) final;
   Mutator Clone() const final;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyMutator", PyMutatorNode, MutatorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.PyMutator", PyMutatorNode, MutatorNode);
 };
 
 }  // namespace meta_schedule

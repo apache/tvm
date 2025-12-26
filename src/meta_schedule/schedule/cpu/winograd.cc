@@ -63,7 +63,7 @@ static ffi::Array<tir::LoopRV> ScheduleDataPack(tir::Schedule sch, tir::BlockRV 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("meta_schedule.cpu.conv2d_nhwc_winograd_data_pack",
+      .def("tvm.meta_schedule.cpu.conv2d_nhwc_winograd_data_pack",
            [](Schedule sch, BlockRV data_pack) -> ffi::Array<Schedule> {
              BlockRV input_tile = GetWinogradProducerAndInlineConst(sch, data_pack);
              BlockRV data_pad = GetWinogradProducerAndInlineConst(sch, input_tile);
@@ -74,13 +74,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                             /*preserve_unit_loops=*/true);
              return {sch};
            })
-      .def("meta_schedule.cpu.conv2d_nhwc_winograd_inverse",
+      .def("tvm.meta_schedule.cpu.conv2d_nhwc_winograd_inverse",
            [](Schedule sch, BlockRV block) -> ffi::Array<Schedule> {
              GetWinogradProducerAndInlineConst(sch, block);
              ScheduleDataPack(sch, block, {2, 3}, {0, 1, 4, 5});
              return {sch};
            })
-      .def("meta_schedule.cpu.conv2d_nchw_winograd_data_pack",
+      .def("tvm.meta_schedule.cpu.conv2d_nchw_winograd_data_pack",
            [](Schedule sch, BlockRV data_pack) -> ffi::Array<Schedule> {
              BlockRV input_tile = GetWinogradProducerAndInlineConst(sch, data_pack);
              BlockRV data_pad = GetWinogradProducerAndInlineConst(sch, input_tile);
@@ -91,7 +91,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                             /*preserve_unit_loops=*/true);
              return {sch};
            })
-      .def("meta_schedule.cpu.conv2d_nchw_winograd_inverse",
+      .def("tvm.meta_schedule.cpu.conv2d_nchw_winograd_inverse",
            [](Schedule sch, BlockRV block) -> ffi::Array<Schedule> {
              GetWinogradProducerAndInlineConst(sch, block);
              ScheduleDataPack(sch, block, {0, 1}, {2, 3, 4, 5});

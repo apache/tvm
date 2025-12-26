@@ -133,7 +133,8 @@ Pass LowerDeviceStorageAccessInfo() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.LowerDeviceStorageAccessInfo", LowerDeviceStorageAccessInfo);
+  refl::GlobalDef().def("tvm.tir.transform.LowerDeviceStorageAccessInfo",
+                        LowerDeviceStorageAccessInfo);
 }
 
 }  // namespace transform

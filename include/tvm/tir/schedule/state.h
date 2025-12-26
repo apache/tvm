@@ -157,7 +157,7 @@ class ScheduleStateNode : public Object {
   TVM_DLL void DebugVerify() const;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.ScheduleState", ScheduleStateNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.ScheduleState", ScheduleStateNode, Object);
 
   /******** Property of blocks ********/
   /*! \brief Returns the BlockInfo correpsonding to the block sref */

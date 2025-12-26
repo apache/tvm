@@ -48,7 +48,7 @@ class TensorSlice(ObjectConvertible, _expr.ExprOp):
         return self.tensor.dtype
 
 
-@tvm_ffi.register_object("te.Tensor")
+@tvm_ffi.register_object("tvm.te.Tensor")
 class Tensor(DataProducer, _expr.ExprOp):
     """Tensor object, to construct, see function.Tensor"""
 
@@ -92,7 +92,7 @@ class Tensor(DataProducer, _expr.ExprOp):
         return f"{op.name}.v{self.value_index}"
 
 
-@tvm_ffi.register_object("te.Operation")
+@tvm_ffi.register_object("tvm.te.Operation")
 class Operation(Object):
     """Represent an operation that generates a tensor"""
 
@@ -122,26 +122,26 @@ class Operation(Object):
         return _ffi_api.OpInputTensors(self)
 
 
-@tvm_ffi.register_object("te.PlaceholderOp")
+@tvm_ffi.register_object("tvm.te.PlaceholderOp")
 class PlaceholderOp(Operation):
     """Placeholder operation."""
 
 
-@tvm_ffi.register_object("te.BaseComputeOp")
+@tvm_ffi.register_object("tvm.te.BaseComputeOp")
 class BaseComputeOp(Operation):
     """Compute operation."""
 
 
-@tvm_ffi.register_object("te.ComputeOp")
+@tvm_ffi.register_object("tvm.te.ComputeOp")
 class ComputeOp(BaseComputeOp):
     """Scalar operation."""
 
 
-@tvm_ffi.register_object("te.ScanOp")
+@tvm_ffi.register_object("tvm.te.ScanOp")
 class ScanOp(Operation):
     """Scan operation."""
 
 
-@tvm_ffi.register_object("te.ExternOp")
+@tvm_ffi.register_object("tvm.te.ExternOp")
 class ExternOp(Operation):
     """External operation."""

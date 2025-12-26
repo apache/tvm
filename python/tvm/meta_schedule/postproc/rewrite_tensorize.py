@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .postproc import Postproc
 
 
-@register_object("meta_schedule.RewriteTensorize")
+@register_object("tvm.meta_schedule.RewriteTensorize")
 class RewriteTensorize(Postproc):
     """A postprocessor that applies tensorization to annotated blocks.
 

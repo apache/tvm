@@ -60,7 +60,7 @@ ModularSet MakeModularSet(int64_t coeff, int64_t base) { return ModularSet(coeff
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("arith.ModularSet", MakeModularSet);
+  refl::GlobalDef().def("tvm.arith.ModularSet", MakeModularSet);
 }
 
 // internal entry for const int bound

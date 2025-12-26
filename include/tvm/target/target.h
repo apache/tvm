@@ -176,7 +176,7 @@ class TargetNode : public Object {
   TVM_DLL std::unordered_set<std::string> GetLibs() const;
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.Target", TargetNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.target.Target", TargetNode, Object);
 
  private:
   /*! \brief Internal string repr. */

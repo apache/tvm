@@ -234,7 +234,7 @@ Pass AdjustMatmulOrder() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.AdjustMatmulOrder", AdjustMatmulOrder);
+  refl::GlobalDef().def("tvm.relax.transform.AdjustMatmulOrder", AdjustMatmulOrder);
 }
 
 }  // namespace transform

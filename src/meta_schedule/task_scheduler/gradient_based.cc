@@ -39,7 +39,7 @@ class GradientBasedNode final : public TaskSchedulerNode {
         .def_ro("alpha", &GradientBasedNode::alpha)
         .def_ro("window_size", &GradientBasedNode::window_size);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.GradientBased", GradientBasedNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.GradientBased", GradientBasedNode,
                                     TaskSchedulerNode);
 
  public:
@@ -147,7 +147,8 @@ TVM_FFI_STATIC_INIT_BLOCK() { GradientBasedNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.TaskSchedulerGradientBased", TaskScheduler::GradientBased);
+  refl::GlobalDef().def("tvm.meta_schedule.TaskSchedulerGradientBased",
+                        TaskScheduler::GradientBased);
 }
 
 }  // namespace meta_schedule

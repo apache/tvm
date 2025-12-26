@@ -1366,7 +1366,7 @@ Pass SetExprLayout(bool allow_missing, const ffi::String& entry_name) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.SetExprLayout", SetExprLayout);
+  refl::GlobalDef().def("tvm.relax.transform.SetExprLayout", SetExprLayout);
 }
 
 }  // namespace transform

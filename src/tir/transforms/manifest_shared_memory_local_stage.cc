@@ -279,7 +279,7 @@ Pass ManifestSharedMemoryLocalStage() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.ManifestSharedMemoryLocalStage",
+  refl::GlobalDef().def("tvm.tir.transform.ManifestSharedMemoryLocalStage",
                         ManifestSharedMemoryLocalStage);
 }
 

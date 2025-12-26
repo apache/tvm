@@ -120,7 +120,7 @@ class StorageTokenNode : public Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.StorageToken", StorageTokenNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.transform.StorageToken", StorageTokenNode, Object);
 };
 
 /*!
@@ -987,7 +987,7 @@ Pass StaticPlanBlockMemory() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.StaticPlanBlockMemory", StaticPlanBlockMemory);
+  refl::GlobalDef().def("tvm.relax.transform.StaticPlanBlockMemory", StaticPlanBlockMemory);
 }
 
 }  // namespace transform

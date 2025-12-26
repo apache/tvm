@@ -62,7 +62,7 @@ class FrameNode : public Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("script.printer.Frame", FrameNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.script.printer.Frame", FrameNode, Object);
 
  public:
   virtual ~FrameNode() = default;
@@ -165,7 +165,7 @@ class IRDocsifierNode : public Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.IRDocsifier", IRDocsifierNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.IRDocsifier", IRDocsifierNode, Object);
 
  public:
   /*!

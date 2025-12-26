@@ -368,7 +368,7 @@ TVM_DLL ffi::Map<ffi::String, ffi::String> GetLibInfo() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("support.GetLibInfo", GetLibInfo);
+  refl::GlobalDef().def("tvm.support.GetLibInfo", GetLibInfo);
 }
 
 }  // namespace tvm

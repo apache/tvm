@@ -282,7 +282,7 @@ Pass Normalize() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.Normalize", Normalize);
+  refl::GlobalDef().def("tvm.relax.transform.Normalize", Normalize);
 }
 
 Pass NormalizeGlobalVar() {
@@ -296,7 +296,7 @@ Pass NormalizeGlobalVar() {
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.NormalizeGlobalVar", NormalizeGlobalVar);
+  refl::GlobalDef().def("tvm.relax.transform.NormalizeGlobalVar", NormalizeGlobalVar);
 }
 
 }  // namespace transform

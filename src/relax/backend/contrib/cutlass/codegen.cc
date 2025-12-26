@@ -68,7 +68,7 @@ ffi::Module Finalize(const std::string& code, const ffi::Array<ffi::String>& fun
   default_headers << "#include <cutlass/tensor_ref.h>\n";
   default_headers << "#include <cutlass/util/host_tensor.h>\n";
 
-  const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.CSourceModuleCreate");
+  const auto pf = tvm::ffi::Function::GetGlobalRequired("tvm.runtime.CSourceModuleCreate");
   VLOG(1) << "Generated CUTLASS code:" << std::endl << code;
   return pf(default_headers.str() + code, "cu", func_names,
             /*const_vars=*/ffi::Array<ffi::String>())
@@ -86,7 +86,7 @@ class CodegenResultNode : public Object {
         .def_ro("code", &CodegenResultNode::code)
         .def_ro("headers", &CodegenResultNode::headers);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("contrib.cutlass.CodegenResult", CodegenResultNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.contrib.cutlass.CodegenResult", CodegenResultNode, Object);
 };
 
 class CodegenResult : public ObjectRef {
@@ -105,7 +105,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { CodegenResultNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("contrib.cutlass.CodegenResult",
+  refl::GlobalDef().def("tvm.contrib.cutlass.CodegenResult",
                         [](ffi::String code, ffi::Array<ffi::String> headers) {
                           return CodegenResult(code, headers);
                         });
@@ -135,7 +135,7 @@ GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string&
   decl_stream << ");";
 
   const auto instantiate_template_func =
-      tvm::ffi::Function::GetGlobalRequired("contrib.cutlass.instantiate_template");
+      tvm::ffi::Function::GetGlobalRequired("tvm.contrib.cutlass.instantiate_template");
   CodegenResult codegen_res =
       instantiate_template_func(func_name, attrs, func_args).cast<CodegenResult>();
   ret.decl = codegen_res->code;
@@ -375,7 +375,7 @@ class CutlassModuleCodegen {
 ffi::Array<ffi::Module> CUTLASSCompiler(ffi::Array<Function> functions,
                                         ffi::Map<ffi::String, ffi::Any> options,
                                         ffi::Map<Constant, ffi::String> /*unused*/) {
-  const auto tune_func = tvm::ffi::Function::GetGlobal("contrib.cutlass.tune_relax_function");
+  const auto tune_func = tvm::ffi::Function::GetGlobal("tvm.contrib.cutlass.tune_relax_function");
   ICHECK(tune_func.has_value())
       << "The packed function contrib.cutlass.tune_relax_function not found, "
          "please import tvm.contrib.cutlass.build";
@@ -383,7 +383,7 @@ ffi::Array<ffi::Module> CUTLASSCompiler(ffi::Array<Function> functions,
   auto annotated_functions = (*tune_func)(functions, options).cast<ffi::Array<Function>>();
 
   auto source_mod = CutlassModuleCodegen().CreateCSourceModule(annotated_functions, options);
-  const auto pf = tvm::ffi::Function::GetGlobal("contrib.cutlass.compile");
+  const auto pf = tvm::ffi::Function::GetGlobal("tvm.contrib.cutlass.compile");
   ICHECK(pf.has_value()) << "The packed function contrib.cutlass.compile not found, please import "
                             "tvm.contrib.cutlass.build";
   ffi::Module cutlass_mod = (*pf)(source_mod, options).cast<ffi::Module>();
@@ -393,7 +393,7 @@ ffi::Array<ffi::Module> CUTLASSCompiler(ffi::Array<Function> functions,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.ext.cutlass", CUTLASSCompiler);
+  refl::GlobalDef().def("tvm.relax.ext.cutlass", CUTLASSCompiler);
 }
 
 }  // namespace contrib

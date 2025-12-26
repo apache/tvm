@@ -93,7 +93,7 @@ Pass CanonicalizeLoop() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.CanonicalizeLoop", CanonicalizeLoop);
+  refl::GlobalDef().def("tvm.tir.transform.CanonicalizeLoop", CanonicalizeLoop);
 }
 
 }  // namespace transform

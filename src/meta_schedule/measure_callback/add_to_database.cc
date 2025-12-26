@@ -62,7 +62,7 @@ class AddToDatabaseNode : public MeasureCallbackNode {
     refl::ObjectDef<AddToDatabaseNode>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.AddToDatabase", AddToDatabaseNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.AddToDatabase", AddToDatabaseNode,
                                     MeasureCallbackNode);
 };
 
@@ -74,7 +74,7 @@ MeasureCallback MeasureCallback::AddToDatabase() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<AddToDatabaseNode>();
-  refl::GlobalDef().def("meta_schedule.MeasureCallbackAddToDatabase",
+  refl::GlobalDef().def("tvm.meta_schedule.MeasureCallbackAddToDatabase",
                         MeasureCallback::AddToDatabase);
 }
 

@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from ..tune_context import TuneContext
 
 
-@register_object("meta_schedule.MeasureCandidate")
+@register_object("tvm.meta_schedule.MeasureCandidate")
 class MeasureCandidate(Object):
     """Measure candidate class.
 
@@ -74,7 +74,7 @@ class MeasureCandidate(Object):
         )
 
 
-@register_object("meta_schedule.SearchStrategy")
+@register_object("tvm.meta_schedule.SearchStrategy")
 class SearchStrategy(Object):
     """Search strategy is the class that generates the measure candidates."""
 
@@ -219,7 +219,7 @@ class SearchStrategy(Object):
 create = SearchStrategy.create  # pylint: disable=invalid-name
 
 
-@register_object("meta_schedule.PySearchStrategy")
+@register_object("tvm.meta_schedule.PySearchStrategy")
 class _PySearchStrategy(SearchStrategy):
     """
     A TVM object search strategy to support customization on the python side.

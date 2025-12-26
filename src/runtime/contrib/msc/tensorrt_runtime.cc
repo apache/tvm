@@ -120,7 +120,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
   void Run() override {
     SetInputOutputBinds();
     if (tool_tag_.size() > 0) {
-      const auto pf = tvm::ffi::Function::GetGlobal("msc_tool.callback_step");
+      const auto pf = tvm::ffi::Function::GetGlobal("tvm.msc_tool.callback_step");
       ICHECK(pf.has_value()) << "Cannot find msc_tool.callback_step func.";
       ffi::Map<ffi::String, runtime::Tensor> input_datas;
       int device_id = 0;
@@ -153,7 +153,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
       }
     }
     if (tool_tag_.size() > 0) {
-      const auto pf = tvm::ffi::Function::GetGlobal("msc_tool.callback_step");
+      const auto pf = tvm::ffi::Function::GetGlobal("tvm.msc_tool.callback_step");
       ICHECK(pf.has_value()) << "Cannot find msc_tool.callback_step func.";
       ffi::Map<ffi::String, runtime::Tensor> output_datas;
       for (int bid = 0; bid < engine_->getNbBindings(); bid++) {
@@ -354,7 +354,7 @@ ffi::Module MSCTensorRTRuntimeCreate(const ffi::String& symbol_name, const ffi::
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.msc_tensorrt_runtime_create", MSCTensorRTRuntimeCreate)
+      .def("tvm.runtime.msc_tensorrt_runtime_create", MSCTensorRTRuntimeCreate)
       .def("ffi.Module.load_from_bytes.msc_tensorrt",
            JSONRuntimeBase::LoadFromBytes<MSCTensorRTRuntime>);
 }

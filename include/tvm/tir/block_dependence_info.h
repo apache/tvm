@@ -65,7 +65,7 @@ class BlockDependenceInfoNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BlockDependenceInfoNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BlockDependenceInfo", BlockDependenceInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.BlockDependenceInfo", BlockDependenceInfoNode, Object);
 
   /*!
    * \brief Get the BlockScope corresponding to the sref of scope root block

@@ -18,4 +18,4 @@
 
 import tvm_ffi
 
-tvm_ffi.init_ffi_api("msc.framework.tvm", __name__)
+tvm_ffi.init_ffi_api("tvm.msc.framework.tvm", __name__)

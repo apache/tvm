@@ -411,7 +411,7 @@ ffi::Module BuildCHost(IRModule mod, Target target) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("target.build.c", BuildCHost);
+  refl::GlobalDef().def("tvm.target.build.c", BuildCHost);
 }
 }  // namespace codegen
 }  // namespace tvm

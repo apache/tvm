@@ -46,7 +46,7 @@ class HexagonTimerNode : public TimerNode {
   virtual void Stop() { end = HAP_perf_get_time_us(); }
   virtual int64_t SyncAndGetElapsedNanos() { return (end - start) * 1e3; }
   virtual ~HexagonTimerNode() {}
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.hexagon.HexagonTimerNode", HexagonTimerNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.runtime.hexagon.HexagonTimerNode", HexagonTimerNode,
                                     TimerNode);
 
  private:
@@ -55,7 +55,7 @@ class HexagonTimerNode : public TimerNode {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("profiling.timer.hexagon",
+  refl::GlobalDef().def("tvm.profiling.timer.hexagon",
                         [](Device dev) { return Timer(ffi::make_object<HexagonTimerNode>()); });
 }
 }  // namespace hexagon

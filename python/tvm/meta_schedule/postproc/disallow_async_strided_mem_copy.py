@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .postproc import Postproc
 
 
-@register_object("meta_schedule.DisallowAsyncStridedMemCopy")
+@register_object("tvm.meta_schedule.DisallowAsyncStridedMemCopy")
 class DisallowAsyncStridedMemCopy(Postproc):
     """A postprocessor that disallows schedules that use async strided mem copies."""
 
