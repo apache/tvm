@@ -27,7 +27,7 @@ For example, you can use addexp.a to get the left operand of an Add node.
   assert(isinstance(y, tvm.tir.Add))
   assert(y.a == x)
 """
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import tvm_ffi
 import tvm.ir._ffi_api
@@ -1257,6 +1257,9 @@ class Call(PrimExprWithOp):
     args : list of Expr
         The input arguments to the call
 
+    annotations : Optional[Dict[str, Object]]
+        Additional annotations about the call.
+
     span : Optional[Span]
         The location of this expression in the source code.
     """
@@ -1265,7 +1268,12 @@ class Call(PrimExprWithOp):
     args: List[PrimExpr]
 
     def __init__(
-        self, dtype: str, op: Union[Op, str], args: List[PrimExpr], span: Optional[Span] = None
+        self,
+        dtype: str,
+        op: Union[Op, str],
+        args: List[PrimExpr],
+        annotations: Optional[Dict] = None,
+        span: Optional[Span] = None,
     ) -> None:
         if isinstance(op, str):
             if not op.startswith("tir."):
@@ -1278,7 +1286,7 @@ class Call(PrimExprWithOp):
                     % op
                 )
             op = Op.get(op)
-        self.__init_handle_by_constructor__(_ffi_api.Call, dtype, op, args, span)  # type: ignore
+        self.__init_handle_by_constructor__(_ffi_api.Call, dtype, op, args, annotations, span)  # type: ignore
 
 
 @tvm_ffi.register_object("tir.Let")

@@ -113,7 +113,7 @@ class PipelineOpaqueAccessRewriter {
         ffi::Array<PrimExpr> new_args = call->args;
         const Buffer& new_buffer = (*it).second;
         new_args.Set(4, RewriteWmmaFragmentIndex(buffer, new_buffer, call->args[4]));
-        return Call(call->dtype, call->op, new_args, call->span);
+        return Call(call->dtype, call->op, new_args, call->annotations, call->span);
       }
     } else if (call->op.same_as(mma_sync)) {
       ffi::Array<PrimExpr> new_args = call->args;
@@ -127,7 +127,7 @@ class PipelineOpaqueAccessRewriter {
           new_args.Set(i * 2 + 1, new_index);
         }
       }
-      return Call(call->dtype, call->op, new_args, call->span);
+      return Call(call->dtype, call->op, new_args, call->annotations, call->span);
     } else if (call->op.same_as(access_ptr)) {
       return RewriteBufferAccess(call, {1});
     } else if (call->op.same_as(ptx_mma)) {
@@ -190,7 +190,7 @@ class PipelineOpaqueAccessRewriter {
         new_args.Set(i + 1, new_index);
       }
     }
-    return Call(call->dtype, call->op, new_args, call->span);
+    return Call(call->dtype, call->op, new_args, call->annotations, call->span);
   }
 
   const ffi::Map<Var, Buffer>& buffer_data_to_buffer_;

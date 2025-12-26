@@ -581,7 +581,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Call
-Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span) {
+Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args,
+           ffi::Map<ffi::String, ObjectRef> annotations, Span span) {
   for (size_t i = 0; i < args.size(); ++i) {
     ICHECK(args[i].defined()) << "arg " << i << " is not defined()";
   }
@@ -590,6 +591,7 @@ Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span) {
   node->dtype = dtype;
   node->op = std::move(op);
   node->args = std::move(args);
+  node->annotations = std::move(annotations);
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -600,6 +602,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "tir.Call",
       [](ffi::Optional<DataType> dtype, RelaxExpr op,
          ffi::Array<ffi::Variant<ffi::String, DLDataType, IterVar, BufferRegion, PrimExpr>> args,
+         ffi::Optional<ffi::Map<ffi::String, ObjectRef>> annotations,
          Span span) {
         ffi::Array<PrimExpr> prim_expr_args;
         for (const auto& it : args) {
@@ -626,7 +629,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             prim_expr_args.push_back(Downcast<PrimExpr>(it));
           }
         }
-        return Call(dtype.value_or(DataType::Void()), op, prim_expr_args, span);
+        return Call(dtype.value_or(DataType::Void()), op, prim_expr_args,
+                    annotations.value_or(ffi::Map<ffi::String, ObjectRef>()), span);
       });
 }
 

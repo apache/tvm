@@ -731,9 +731,21 @@ class CallNode : public PrimExprNode {
   /*! \brief The arguments. */
   ffi::Array<PrimExpr> args;
 
+  /*!
+   * \brief Additional annotations about the call.
+   *
+   *  These annotations can be used to pass additional metadata
+   *  to lowering passes. For tile operators, this can include
+   *  coalesced_width, disable_tma, eviction_policy, etc.
+   */
+  ffi::Map<ffi::String, ObjectRef> annotations;
+
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<CallNode>().def_ro("op", &CallNode::op).def_ro("args", &CallNode::args);
+    refl::ObjectDef<CallNode>()
+        .def_ro("op", &CallNode::op)
+        .def_ro("args", &CallNode::args)
+        .def_ro("annotations", &CallNode::annotations);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Call", CallNode, PrimExprNode);
 };
@@ -744,7 +756,9 @@ class CallNode : public PrimExprNode {
  */
 class Call : public PrimExpr {
  public:
-  TVM_DLL Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span = Span());
+  TVM_DLL Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args,
+               ffi::Map<ffi::String, ObjectRef> annotations = {},
+               Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Call, PrimExpr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };
