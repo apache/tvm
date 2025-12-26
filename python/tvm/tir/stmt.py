@@ -26,6 +26,20 @@ Each statement node have subfields that can be visited from python side.
     assert isinstance(st, tvm.tir.stmt.BufferStore)
     assert(st.buffer == buffer)
 """
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from ir import IntImm, PrimExpr, Range
+    from tir import Buffer, IterVar, Stmt, Var
+    from tvm_ffi import Tensor, dtype
+    from typing import Any
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from enum import IntEnum
 from typing import List, Mapping, Optional, Union
 
@@ -61,6 +75,14 @@ class LetStmt(Stmt):
         The location of the stmt in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.LetStmt
+    # fmt: off
+    var: Var
+    value: PrimExpr
+    body: Stmt
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     var: Var
     value: PrimExpr
     body: Stmt
@@ -90,6 +112,14 @@ class AssertStmt(Stmt):
     span : Optional[Span]
         The location of the stmt in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.AssertStmt
+    # fmt: off
+    condition: PrimExpr
+    message: PrimExpr
+    body: Stmt
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     condition: PrimExpr
     message: PrimExpr
@@ -156,6 +186,19 @@ class For(Stmt):
         The location of the stmt in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.For
+    # fmt: off
+    loop_var: Var
+    min: PrimExpr
+    extent: PrimExpr
+    kind: int
+    body: Stmt
+    thread_binding: IterVar | None
+    annotations: Mapping[str, Any]
+    step: PrimExpr | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     loop_var: Var
     min: PrimExpr
     extent: PrimExpr
@@ -208,6 +251,13 @@ class While(Stmt):
         The location of the stmt in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.While
+    # fmt: off
+    condition: PrimExpr
+    body: Stmt
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     condition: PrimExpr
     body: Stmt
     span: Optional[Span]
@@ -239,6 +289,15 @@ class BufferStore(Stmt):
     span : Optional[Span]
         The location of the stmt in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.BufferStore
+    # fmt: off
+    buffer: Buffer
+    value: PrimExpr
+    indices: Sequence[PrimExpr]
+    predicate: PrimExpr | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     buffer: Buffer
     value: PrimExpr
@@ -280,6 +339,15 @@ class BufferRealize(Stmt):
     span : Optional[Span]
         The location of the stmt in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.BufferRealize
+    # fmt: off
+    buffer: Buffer
+    bounds: Sequence[Range]
+    condition: PrimExpr
+    body: Stmt
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     buffer: Buffer
     bounds: List[Range]
@@ -327,6 +395,17 @@ class Allocate(Stmt):
     span : Optional[Span]
         The location of the stmt in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.Allocate
+    # fmt: off
+    buffer_var: Var
+    dtype: dtype
+    extents: Sequence[PrimExpr]
+    condition: PrimExpr
+    body: Stmt
+    annotations: Mapping[str, Any]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     buffer_var: Var
     dtype: str
@@ -391,6 +470,18 @@ class AllocateConst(Stmt):
         The location of the stmt in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.AllocateConst
+    # fmt: off
+    buffer_var: Var
+    data: Tensor | None
+    irmod_storage_idx: IntImm | None
+    dtype: dtype
+    extents: Sequence[PrimExpr]
+    body: Stmt
+    annotations: Mapping[str, Any]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     buffer_var: Var
     dtype: str
     extents: List[PrimExpr]
@@ -438,6 +529,13 @@ class DeclBuffer(Stmt):
         The location of this DeclBuffer in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.DeclBuffer
+    # fmt: off
+    buffer: Buffer
+    body: Stmt
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     buffer: Buffer
     body: Stmt
     span: Optional[Span]
@@ -468,6 +566,15 @@ class AttrStmt(Stmt):
         The location of the stmt in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.AttrStmt
+    # fmt: off
+    node: Any
+    attr_key: str
+    value: PrimExpr
+    body: Stmt
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     node: Object
     attr_key: str
     value: PrimExpr
@@ -494,6 +601,12 @@ class SeqStmt(Stmt):
     span : Optional[Span]
         The location of the stmt in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.SeqStmt
+    # fmt: off
+    seq: Sequence[Stmt]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     seq: List[Stmt]
     span: Optional[Span]
@@ -527,6 +640,14 @@ class IfThenElse(Stmt):
         The location of the stmt in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.IfThenElse
+    # fmt: off
+    condition: PrimExpr
+    then_case: Stmt
+    else_case: Stmt | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     condition: PrimExpr
     then_case: Stmt
     else_case: Optional[Stmt]
@@ -556,6 +677,12 @@ class Evaluate(Stmt):
         The location of the stmt in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.Evaluate
+    # fmt: off
+    value: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     value: PrimExpr
     span: Optional[Span]
 
@@ -576,6 +703,13 @@ class BufferRegion(Object, Scriptable):
         The region array of the buffer region
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.BufferRegion
+    # fmt: off
+    buffer: Buffer
+    region: Sequence[Range]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     buffer: Buffer
     region: List[Range]
 
@@ -595,6 +729,13 @@ class MatchBufferRegion(Object, Scriptable):
     source : BufferRegion
         The region of source buffer
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.MatchBufferRegion
+    # fmt: off
+    buffer: Buffer
+    source: BufferRegion
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     buffer: Buffer
     source: BufferRegion
@@ -641,6 +782,20 @@ class Block(Stmt):
     span : Optional[Span]
         The location of this block in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.Block
+    # fmt: off
+    iter_vars: Sequence[IterVar]
+    reads: Sequence[BufferRegion]
+    writes: Sequence[BufferRegion]
+    name_hint: str
+    alloc_buffers: Sequence[Buffer]
+    match_buffers: Sequence[MatchBufferRegion]
+    annotations: Mapping[str, Any]
+    init: Stmt | None
+    body: Stmt
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     iter_vars: List[IterVar]
     reads: List[BufferRegion]
@@ -705,6 +860,14 @@ class BlockRealize(Stmt):
     span : Optional[Span]
         The location of this block_realize in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.BlockRealize
+    # fmt: off
+    iter_values: Sequence[PrimExpr]
+    predicate: PrimExpr
+    block: Block
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     iter_values: List[PrimExpr]
     predicate: PrimExpr

@@ -14,6 +14,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 """FFI APIs for Adreno transform"""
-import tvm.ffi
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from tvm_ffi import init_ffi_api as _FFI_INIT_FUNC
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from target import Target
+    from transform import Pass
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 
-tvm.ffi.init_ffi_api("relax.backend.adreno.transform", __name__)
+
+# tvm-ffi-stubgen(begin): global/relax.backend.adreno.transform
+# fmt: off
+_FFI_INIT_FUNC("relax.backend.adreno.transform", __name__)
+if TYPE_CHECKING:
+    def AnnotateCustomMemoryScope(_0: Target, /) -> Pass: ...
+    def FoldVDeviceScopeChange() -> Pass: ...
+# fmt: on
+# tvm-ffi-stubgen(end)

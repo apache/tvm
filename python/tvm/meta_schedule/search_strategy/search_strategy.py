@@ -18,6 +18,18 @@
 Meta Schedule search strategy that generates the measure
 candidates for measurement.
 """
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from meta_schedule import ArgInfo
+    from tir import Schedule
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import TYPE_CHECKING, Callable, List, Optional, Union
 
 # isort: off
@@ -50,6 +62,13 @@ class MeasureCandidate(Object):
         The argument information.
     """
 
+    # tvm-ffi-stubgen(begin): object/meta_schedule.MeasureCandidate
+    # fmt: off
+    sch: Schedule
+    args_info: Sequence[ArgInfo]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     sch: Schedule
     args_info: List[ArgInfo]
 
@@ -77,6 +96,11 @@ class MeasureCandidate(Object):
 @register_object("meta_schedule.SearchStrategy")
 class SearchStrategy(Object):
     """Search strategy is the class that generates the measure candidates."""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.SearchStrategy
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     SearchStrategyType = Union[
         "SearchStrategy",
@@ -227,6 +251,11 @@ class _PySearchStrategy(SearchStrategy):
 
     See also: PySearchStrategy
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.PySearchStrategy
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

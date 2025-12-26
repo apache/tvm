@@ -16,6 +16,17 @@
 # under the License.
 # pylint: disable=invalid-name
 """Primitive operators in the TVM IR."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import AttrFieldInfo, FuncType
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 import tvm_ffi
 
 from . import _ffi_api
@@ -25,6 +36,18 @@ from .expr import RelaxExpr
 @tvm_ffi.register_object("ir.Op")
 class Op(RelaxExpr):
     """Primitive operator in the IR."""
+
+    # tvm-ffi-stubgen(begin): object/ir.Op
+    # fmt: off
+    name: str
+    op_type: FuncType
+    description: str
+    arguments: Sequence[AttrFieldInfo]
+    attrs_type_key: str
+    num_inputs: int
+    support_level: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self):
         raise RuntimeError("Cannot create op, use get instead")

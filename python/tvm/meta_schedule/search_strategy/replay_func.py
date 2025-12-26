@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Replay Trace Search Strategy"""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from tvm_ffi import register_object
 
 from .. import _ffi_api
@@ -34,6 +36,11 @@ class ReplayFunc(SearchStrategy):
     max_trials_per_task : int
         Total number of trials for one task
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.ReplayFunc
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self):
         """Constructor"""

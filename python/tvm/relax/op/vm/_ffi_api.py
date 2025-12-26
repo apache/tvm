@@ -14,6 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 """FFI APIs for tvm.relax.op.vm"""
-import tvm_ffi
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from tvm_ffi import init_ffi_api as _FFI_INIT_FUNC
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ir import RelaxExpr
+    from relax.expr import DataTypeImm, PrimValue, StringImm, Tuple
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 
-tvm_ffi.init_ffi_api("relax.op.vm", __name__)
+
+# tvm-ffi-stubgen(begin): global/relax.op.vm
+# fmt: off
+_FFI_INIT_FUNC("relax.op.vm", __name__)
+if TYPE_CHECKING:
+    def alloc_storage(_0: RelaxExpr, _1: PrimValue, _2: DataTypeImm, _3: StringImm, /) -> RelaxExpr: ...
+    def alloc_tensor(_0: RelaxExpr, _1: PrimValue, _2: RelaxExpr, _3: DataTypeImm, /) -> RelaxExpr: ...
+    def call_tir_dyn(_0: RelaxExpr, _1: Tuple, /) -> RelaxExpr: ...
+    def kill_object(_0: RelaxExpr, /) -> RelaxExpr: ...
+# fmt: on
+# tvm-ffi-stubgen(end)

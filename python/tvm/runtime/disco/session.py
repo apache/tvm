@@ -18,6 +18,8 @@
 with the distributed runtime.
 """
 
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 import logging
 import os
 import pickle
@@ -39,6 +41,11 @@ class DRef(Object):
     """An object that exists on all workers. The controller process assigns a unique "register id"
     to each object, and the worker process uses this id to refer to the object residing on itself.
     """
+
+    # tvm-ffi-stubgen(begin): object/runtime.disco.DRef
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def debug_get_from_remote(self, worker_id: int) -> Any:
         """Get the value of a DRef from a remote worker. It is only used for debugging purposes.
@@ -102,6 +109,11 @@ class DModule(DRef):
 class Session(Object):
     """A Disco interactive session. It allows users to interact with the Disco command queue with
     various PackedFunc calling convention."""
+
+    # tvm-ffi-stubgen(begin): object/runtime.disco.Session
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def _get_cached_method(self, name: str) -> Callable:
         if "_cache" not in self.__dict__:
@@ -532,6 +544,11 @@ class Session(Object):
 class ThreadedSession(Session):
     """A Disco session backed by multi-threading."""
 
+    # tvm-ffi-stubgen(begin): object/runtime.disco.ThreadedSession
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, num_workers: int, num_groups: int = 1) -> None:
         """Create a disco session backed by multiple threads in the same process."""
         self.__init_handle_by_constructor__(
@@ -544,6 +561,11 @@ class ThreadedSession(Session):
 @register_object("runtime.disco.ProcessSession")
 class ProcessSession(Session):
     """A Disco session backed by pipe-based multi-processing."""
+
+    # tvm-ffi-stubgen(begin): object/runtime.disco.ProcessSession
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,
@@ -592,6 +614,11 @@ def _create_socket_session_local_workers(num_workers) -> Session:
 @register_object("runtime.disco.SocketSession")
 class SocketSession(Session):
     """A Disco session backed by socket-based multi-node communication."""
+
+    # tvm-ffi-stubgen(begin): object/runtime.disco.SocketSession
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

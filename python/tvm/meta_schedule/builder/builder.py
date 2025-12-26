@@ -15,6 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule builders that translate IRModule to runtime.Module, and then export"""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from ir import IRModule
+    from target import Target
+    from tvm_ffi import Tensor
+    from typing import Callable
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import Callable, Dict, List, Optional, Union
 
 # isort: off
@@ -42,6 +56,14 @@ class BuilderInput(Object):
     params: Optional[Dict[str, Tensor]]
         The parameters for Relax build module
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.BuilderInput
+    # fmt: off
+    mod: IRModule
+    target: Target
+    params: Mapping[str, Tensor] | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     mod: IRModule
     target: Target
@@ -84,6 +106,13 @@ class BuilderResult(Object):
         The error message.
     """
 
+    # tvm-ffi-stubgen(begin): object/meta_schedule.BuilderResult
+    # fmt: off
+    artifact_path: str | None
+    error_msg: str | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     artifact_path: Optional[str]
     error_msg: Optional[str]
 
@@ -111,6 +140,11 @@ class BuilderResult(Object):
 @register_object("meta_schedule.Builder")
 class Builder(Object):
     """The abstract builder interface."""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.Builder
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     BuilderType = Union["Builder", Literal["local"]]
 
@@ -164,6 +198,12 @@ class _PyBuilder(Builder):
 
     See also: PyBuilder
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.PyBuilder
+    # fmt: off
+    f_build: Callable[[Sequence[BuilderInput]], Sequence[BuilderResult]]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, f_build: Callable = None):
         """Constructor."""

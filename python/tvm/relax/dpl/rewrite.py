@@ -16,6 +16,19 @@
 # under the License.
 """APIs for pattern-based rewriting."""
 
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from ir import RelaxExpr
+    from relax.dpl import DFPattern
+    from typing import Callable
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import Dict, Callable, Union
 
 from tvm.ir import IRModule
@@ -31,6 +44,11 @@ from . import _ffi as ffi
 @register_object("relax.dpl.PatternMatchingRewriter")
 class PatternMatchingRewriter(Object):
     """A pattern-matching rewriter for Relax"""
+
+    # tvm-ffi-stubgen(begin): object/relax.dpl.PatternMatchingRewriter
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     @staticmethod
     def from_pattern(
@@ -173,6 +191,12 @@ class PatternMatchingRewriter(Object):
 
 @register_object("relax.dpl.ExprPatternRewriter")
 class ExprPatternRewriter(PatternMatchingRewriter):
+    # tvm-ffi-stubgen(begin): object/relax.dpl.ExprPatternRewriter
+    # fmt: off
+    pattern: DFPattern
+    func: Callable[[RelaxExpr, Mapping[DFPattern, RelaxExpr]], RelaxExpr | None]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
     def __init__(self, pattern, func):
         self.__init_handle_by_constructor__(
             ffi.PatternRewriter,
@@ -183,6 +207,12 @@ class ExprPatternRewriter(PatternMatchingRewriter):
 
 @register_object("relax.dpl.OrRewriter")
 class OrRewriter(PatternMatchingRewriter):
+    # tvm-ffi-stubgen(begin): object/relax.dpl.OrRewriter
+    # fmt: off
+    lhs: PatternMatchingRewriter
+    rhs: PatternMatchingRewriter
+    # fmt: on
+    # tvm-ffi-stubgen(end)
     def __init__(self, lhs, rhs):
         self.__init_handle_by_constructor__(
             ffi.OrRewriter,
@@ -193,6 +223,12 @@ class OrRewriter(PatternMatchingRewriter):
 
 @register_object("relax.dpl.TupleRewriter")
 class TupleRewriter(PatternMatchingRewriter):
+    # tvm-ffi-stubgen(begin): object/relax.dpl.TupleRewriter
+    # fmt: off
+    patterns: Sequence[DFPattern]
+    func: Callable[[RelaxExpr, Mapping[DFPattern, RelaxExpr]], RelaxExpr | None]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
     def __init__(self, patterns, func):
         self.__init_handle_by_constructor__(
             ffi.TupleRewriter,

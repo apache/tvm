@@ -16,6 +16,17 @@
 # under the License.
 # pylint: disable=invalid-name, import-outside-toplevel, unused-variable
 """Testing utilities for attrs"""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import EnvFunc, PrimExpr
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from tvm_ffi import register_object
 from ..ir import Attrs
 
@@ -23,6 +34,15 @@ from ..ir import Attrs
 @register_object("attrs.TestAttrs")
 class TestAttrs(Attrs):
     """Attrs used for testing purposes"""
+
+    # tvm-ffi-stubgen(begin): object/attrs.TestAttrs
+    # fmt: off
+    axis: int
+    name: str
+    padding: Sequence[PrimExpr]
+    func: EnvFunc
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
 
 __all__ = ["TestAttrs"]

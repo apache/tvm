@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Auto-bind Rule that binds blocks to threads if needed"""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from typing import List, Optional
 
 from tvm_ffi import register_object
@@ -36,6 +38,11 @@ class AutoBind(ScheduleRule):
     max_threads_per_block: int
         The maximum number of threads per block, if it is known when this schedule rule is created.
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.AutoBind
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

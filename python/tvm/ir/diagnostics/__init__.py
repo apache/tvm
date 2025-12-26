@@ -21,6 +21,18 @@ diagnostic information by the compiler. This module exposes
 three key abstractions: a Diagnostic, the DiagnosticContext,
 and the DiagnosticRenderer.
 """
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import IRModule, Span
+    from typing import Callable
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 import enum
 import tvm_ffi
 from . import _ffi_api
@@ -73,6 +85,14 @@ class DiagnosticLevel(enum.IntEnum):
 class Diagnostic(Object):
     """A single diagnostic object from TVM."""
 
+    # tvm-ffi-stubgen(begin): object/Diagnostic
+    # fmt: off
+    level: int
+    span: Span
+    message: str
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, level, span, message):
         self.__init_handle_by_constructor__(_ffi_api.Diagnostic, level, span, message)
 
@@ -83,6 +103,12 @@ class DiagnosticRenderer(Object):
     A diagnostic renderer, which given a diagnostic context produces a "rendered"
     form of the diagnostics for either human or computer consumption.
     """
+
+    # tvm-ffi-stubgen(begin): object/DiagnosticRenderer
+    # fmt: off
+    renderer: Callable[[DiagnosticContext], None]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, render_func):
         self.__init_handle_by_constructor__(_ffi_api.DiagnosticRenderer, render_func)
@@ -106,6 +132,13 @@ class DiagnosticContext(Object):
     A diagnostic context which records active errors
     and contains a renderer.
     """
+
+    # tvm-ffi-stubgen(begin): object/DiagnosticContext
+    # fmt: off
+    module: IRModule
+    diagnostics: Sequence[Diagnostic]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, module, renderer):
         self.__init_handle_by_constructor__(_ffi_api.DiagnosticContext, module, renderer)

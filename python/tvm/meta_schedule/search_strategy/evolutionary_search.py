@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Evolutionary Search Strategy"""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from tvm_ffi import register_object
 
 from .. import _ffi_api
@@ -46,6 +48,20 @@ class EvolutionarySearch(SearchStrategy):
     eps_greedy : float
         The ratio of greedy selected samples in the final picks.
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.EvolutionarySearch
+    # fmt: off
+    population_size: int
+    num_empty_iters_before_early_stop: int
+    init_measured_ratio: float
+    init_min_unmeasured: int
+    max_fail_count: int
+    genetic_num_iters: int
+    genetic_mutate_prob: float
+    genetic_max_fail_count: int
+    eps_greedy: float
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     population_size: int
     init_measured_ratio: int

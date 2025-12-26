@@ -15,6 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 """The expression nodes of Relax."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from ir import Attrs, PrimExpr, RelaxExpr, Span
+    from tvm_ffi import Tensor, dtype
+    from typing import Any
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 import typing
 from numbers import Number
 from typing import Any, Callable, Dict, List, Optional, Union, Mapping
@@ -48,6 +61,12 @@ class Id(Object):
     Guaranteed to be stable across all passes.
     """
 
+    # tvm-ffi-stubgen(begin): object/relax.Id
+    # fmt: off
+    name_hint: str
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     name_hint: str
 
     def __init__(self):
@@ -63,6 +82,12 @@ class StructInfo(Node, Scriptable):
     StructInfo contains both the static type
     and runtime structural information.
     """
+
+    # tvm-ffi-stubgen(begin): object/ir.StructInfo
+    # fmt: off
+    span: Span
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __eq__(self, other):
         """Compare two struct info for structural equivalence."""
@@ -555,6 +580,15 @@ class Call(ExprWithOp):
         Span that points to original source code
     """
 
+    # tvm-ffi-stubgen(begin): object/relax.expr.Call
+    # fmt: off
+    op: RelaxExpr
+    args: Sequence[RelaxExpr]
+    attrs: Attrs
+    sinfo_args: Sequence[StructInfo]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     op: Expr
     args: List[Expr]
     attrs: tvm.ir.Attrs
@@ -595,6 +629,14 @@ class If(ExprWithOp):
         Span that points to original source code
     """
 
+    # tvm-ffi-stubgen(begin): object/relax.expr.If
+    # fmt: off
+    cond: RelaxExpr
+    true_branch: SeqExpr
+    false_branch: SeqExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     cond: Expr
     true_branch: Expr
     false_branch: Expr
@@ -620,6 +662,12 @@ class Tuple(ExprWithOp):
     span: Optional[Span]
         Span that points to original source code
     """
+
+    # tvm-ffi-stubgen(begin): object/relax.expr.Tuple
+    # fmt: off
+    fields: Sequence[RelaxExpr]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     fields: List[Expr]
     span: Optional[Span]
@@ -659,6 +707,13 @@ class TupleGetItem(ExprWithOp):
         Span that points to original source code
     """
 
+    # tvm-ffi-stubgen(begin): object/relax.expr.TupleGetItem
+    # fmt: off
+    tuple_value: RelaxExpr
+    index: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     tuple_value: Expr
     index: int
     span: Optional[Span]
@@ -681,6 +736,12 @@ class ShapeExpr(ExprWithOp):
     span: Optional[Span]
         Span that points to original source code
     """
+
+    # tvm-ffi-stubgen(begin): object/relax.expr.ShapeExpr
+    # fmt: off
+    values: Sequence[PrimExpr]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     values: List[PrimExpr]
     span: Optional[Span]
@@ -727,6 +788,12 @@ class Constant(ExprWithOp):
     Scalar constants are represented by ndim-0 constant tensors.
     """
 
+    # tvm-ffi-stubgen(begin): object/relax.expr.Constant
+    # fmt: off
+    data: Tensor
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     data: tvm.runtime.Tensor
     span: Optional[Span]
 
@@ -756,6 +823,12 @@ class Var(ExprWithOp):
     span: Optional[Span]
         Span that points to original source code
     """
+
+    # tvm-ffi-stubgen(begin): object/relax.expr.Var
+    # fmt: off
+    vid: Id
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     vid: Id
     span: Optional[Span]
@@ -806,6 +879,11 @@ class DataflowVar(Var):
         Span that points to original source code
     """
 
+    # tvm-ffi-stubgen(begin): object/relax.expr.DataflowVar
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     vid: Id
     span: Optional[Span]
 
@@ -841,6 +919,12 @@ class DataflowVar(Var):
 class PrimValue(Expr, Scriptable):
     """The prim expr representing the value."""
 
+    # tvm-ffi-stubgen(begin): object/relax.expr.PrimValue
+    # fmt: off
+    value: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     value: PrimExpr
 
     def __init__(self, value: Union[PrimExpr, int], span: Optional[Span] = None) -> None:
@@ -853,6 +937,12 @@ class PrimValue(Expr, Scriptable):
 class StringImm(Expr, Scriptable):
     """Represent a string literal constant."""
 
+    # tvm-ffi-stubgen(begin): object/relax.expr.StringImm
+    # fmt: off
+    value: str
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     value: str
     span: Optional[Span]
 
@@ -864,6 +954,12 @@ class StringImm(Expr, Scriptable):
 class DataTypeImm(Expr, Scriptable):
     """Represent a data type constant."""
 
+    # tvm-ffi-stubgen(begin): object/relax.expr.DataTypeImm
+    # fmt: off
+    value: dtype
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     value: DataType
     span: Optional[Span]
 
@@ -874,6 +970,13 @@ class DataTypeImm(Expr, Scriptable):
 @tvm_ffi.register_object("relax.expr.Binding")
 class Binding(Node, Scriptable):
     """The base class of a binding in Relax."""
+
+    # tvm-ffi-stubgen(begin): object/relax.expr.Binding
+    # fmt: off
+    span: Span
+    var: Var
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     var: Var
     span: Optional[Span]
@@ -898,6 +1001,13 @@ class MatchCast(Binding):
     struct_info: tvm.relax.StructInfo
         The struct info to match cast to.
     """
+
+    # tvm-ffi-stubgen(begin): object/relax.expr.MatchCast
+    # fmt: off
+    value: RelaxExpr
+    struct_info: StructInfo
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     struct_info: StructInfo
     value: Expr
@@ -925,6 +1035,12 @@ class VarBinding(Binding):
 
     """
 
+    # tvm-ffi-stubgen(begin): object/relax.expr.VarBinding
+    # fmt: off
+    value: RelaxExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     var: Var
     value: Expr
     span: Optional[Span]
@@ -938,6 +1054,13 @@ class BindingBlock(Node, Scriptable):
     """base class of binding block, bindings inside can be impure
     (with side effect or control flow)"""
 
+    # tvm-ffi-stubgen(begin): object/relax.expr.BindingBlock
+    # fmt: off
+    bindings: Sequence[Binding]
+    span: Span
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     bindings: List[Binding]
     span: Optional[Span]
 
@@ -948,6 +1071,11 @@ class BindingBlock(Node, Scriptable):
 @tvm_ffi.register_object("relax.expr.DataflowBlock")
 class DataflowBlock(BindingBlock):
     """dataflow block, bindings inside are pure (no side effect and no control flow)"""
+
+    # tvm-ffi-stubgen(begin): object/relax.expr.DataflowBlock
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     bindings: List[Binding]
     span: Optional[Span]
@@ -961,6 +1089,13 @@ class DataflowBlock(BindingBlock):
 class SeqExpr(ExprWithOp):
     """A sequence of binding blocks followed by an expression."""
 
+    # tvm-ffi-stubgen(begin): object/relax.expr.SeqExpr
+    # fmt: off
+    blocks: Sequence[BindingBlock]
+    body: RelaxExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     blocks: List[BindingBlock]
     body: Expr
     span: Optional[Span]
@@ -972,6 +1107,15 @@ class SeqExpr(ExprWithOp):
 @tvm_ffi.register_object("relax.expr.Function")
 class Function(BaseFunc, Scriptable):
     """A Relax function."""
+
+    # tvm-ffi-stubgen(begin): object/relax.expr.Function
+    # fmt: off
+    params: Sequence[Var]
+    body: SeqExpr
+    ret_struct_info: StructInfo
+    is_pure: bool
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     params: List[Var]
     body: Expr
@@ -1112,6 +1256,12 @@ class Function(BaseFunc, Scriptable):
 class ExternFunc(BaseFunc, ExprWithOp):
     """extern function, which represents a PackedFunc."""
 
+    # tvm-ffi-stubgen(begin): object/relax.expr.ExternFunc
+    # fmt: off
+    global_symbol: str
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     global_symbol: String
     span: Optional[Span]
 
@@ -1182,6 +1332,17 @@ def const(
 @tvm_ffi.register_object("relax.TEPlaceholderOp")
 class TEPlaceholderOp(tvm.te.tensor.Operation):
     """The placeholder op that represents a relax expression."""
+
+    # tvm-ffi-stubgen(begin): object/relax.TEPlaceholderOp
+    # fmt: off
+    name: str
+    tag: str
+    attrs: Mapping[str, Any]
+    value: RelaxExpr
+    shape: Sequence[PrimExpr]
+    dtype: dtype
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
 
 def te_tensor(

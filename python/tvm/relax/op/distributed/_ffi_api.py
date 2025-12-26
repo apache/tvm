@@ -15,6 +15,30 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI APIs for tvm.relax.op.distributed"""
-import tvm_ffi
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from tvm_ffi import init_ffi_api as _FFI_INIT_FUNC
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import RelaxExpr
+    from relax import DTensorStructInfo
+    from relax.distributed import DeviceMesh, Placement
+    from relax.expr import Tuple
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 
-tvm_ffi.init_ffi_api("relax.op.dist", __name__)
+
+# tvm-ffi-stubgen(begin): global/relax.op.dist
+# fmt: off
+_FFI_INIT_FUNC("relax.op.dist", __name__)
+if TYPE_CHECKING:
+    def annotate_sharding(_0: RelaxExpr, _1: DeviceMesh, _2: Placement, /) -> RelaxExpr: ...
+    def call_tir_local_view(_0: RelaxExpr, _1: Tuple, _2: Sequence[DTensorStructInfo], _3: RelaxExpr | None, /) -> RelaxExpr: ...
+    def redistribute(_0: RelaxExpr, _1: DeviceMesh, _2: Placement, /) -> RelaxExpr: ...
+    def redistribute_replica_to_shard(_0: RelaxExpr, _1: int, _2: int, /) -> RelaxExpr: ...
+# fmt: on
+# tvm-ffi-stubgen(end)

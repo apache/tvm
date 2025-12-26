@@ -15,6 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common base structures."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from ir import Source
+    from typing import Callable
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 import tvm.error
 from tvm_ffi import get_global_func, register_object
 from tvm.runtime import Object, _ffi_node_api
@@ -28,6 +40,11 @@ class Node(Object):
 
 @register_object("ir.SourceMap")
 class SourceMap(Object):
+    # tvm-ffi-stubgen(begin): object/ir.SourceMap
+    # fmt: off
+    source_map: Mapping[SourceName, Source]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
     def add(self, name, content):
         return get_global_func("SourceMapAdd")(self, name, content)
 
@@ -41,6 +58,12 @@ class SourceName(Object):
     name : str
         The name of the source.
     """
+
+    # tvm-ffi-stubgen(begin): object/ir.SourceName
+    # fmt: off
+    name: str
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, name):
         self.__init_handle_by_constructor__(_ffi_api.SourceName, name)  # type: ignore # pylint: disable=no-member
@@ -62,6 +85,16 @@ class Span(Object):
         The column offset of the location.
     """
 
+    # tvm-ffi-stubgen(begin): object/ir.Span
+    # fmt: off
+    source_name: SourceName
+    line: int
+    column: int
+    end_line: int
+    end_column: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, source_name, line, end_line, column, end_column):
         self.__init_handle_by_constructor__(
             _ffi_api.Span, source_name, line, end_line, column, end_column  # type: ignore # pylint: disable=no-member
@@ -81,6 +114,12 @@ class SequentialSpan(Object):
         The array of spans.
     """
 
+    # tvm-ffi-stubgen(begin): object/ir.SequentialSpan
+    # fmt: off
+    spans: Sequence[Span]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, spans):
         self.__init_handle_by_constructor__(_ffi_api.SequentialSpan, spans)
 
@@ -91,6 +130,13 @@ class EnvFunc(Object):
 
     This is a global function object that can be serialized by its name.
     """
+
+    # tvm-ffi-stubgen(begin): object/ir.EnvFunc
+    # fmt: off
+    name: str
+    func: Callable[..., Any]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __call__(self, *args):
         return _ffi_api.EnvFuncCall(self, *args)  # type: ignore # pylint: disable=no-member

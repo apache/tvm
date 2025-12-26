@@ -15,6 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unified type system in the project."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import Span
+    from tvm_ffi import dtype
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 import tvm
 import tvm_ffi
 from tvm.runtime import Scriptable
@@ -26,6 +38,12 @@ from .base import Node
 @tvm_ffi.register_object("ir.Type")
 class Type(Node, Scriptable):
     """The base class of all types."""
+
+    # tvm-ffi-stubgen(begin): object/ir.Type
+    # fmt: off
+    span: Span
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __eq__(self, other):
         """Compare two types for structural equivalence."""
@@ -49,6 +67,12 @@ class PrimType(Type):
         The runtime data type relates to the primtype.
     """
 
+    # tvm-ffi-stubgen(begin): object/ir.PrimType
+    # fmt: off
+    dtype: dtype
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, dtype):
         self.__init_handle_by_constructor__(_ffi_api.PrimType, dtype)
 
@@ -66,6 +90,13 @@ class PointerType(Type):
         The storage scope into which the pointer addresses.
     """
 
+    # tvm-ffi-stubgen(begin): object/ir.PointerType
+    # fmt: off
+    element_type: Type
+    storage_scope: str
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, element_type, storage_scope=""):
         self.__init_handle_by_constructor__(_ffi_api.PointerType, element_type, storage_scope)
 
@@ -79,6 +110,13 @@ class TupleType(Type):
     fields : List[Type]
         The fields in the tuple
     """
+
+    # tvm-ffi-stubgen(begin): object/ir.TupleType
+    # fmt: off
+    fields: Sequence[Type]
+    span: Span
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, fields):
         self.__init_handle_by_constructor__(_ffi_api.TupleType, fields)
@@ -102,6 +140,14 @@ class FuncType(Type):
         The return type.
     """
 
+    # tvm-ffi-stubgen(begin): object/ir.FuncType
+    # fmt: off
+    arg_types: Sequence[Type]
+    ret_type: Type
+    span: Span
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, arg_types, ret_type):
         self.__init_handle_by_constructor__(
             _ffi_api.FuncType,
@@ -119,6 +165,12 @@ class TensorMapType(Type):
     span : tvm.ir.Span
         The span information.
     """
+
+    # tvm-ffi-stubgen(begin): object/ir.TensorMapType
+    # fmt: off
+    span: Span
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, span=None):
         self.__init_handle_by_constructor__(

@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """A measure callback that updates the cost model"""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from tvm_ffi import register_object
 
 from .. import _ffi_api
@@ -23,6 +25,10 @@ from .measure_callback import MeasureCallback
 
 @register_object("meta_schedule.UpdateCostModel")
 class UpdateCostModel(MeasureCallback):
+    # tvm-ffi-stubgen(begin): object/meta_schedule.UpdateCostModel
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
     def __init__(self) -> None:
         """A measure callback that updates the cost model"""
         self.__init_handle_by_constructor__(

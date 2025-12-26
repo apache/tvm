@@ -16,6 +16,16 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name, arguments-differ
 """The expression functor of Relax."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from relax import BlockBuilder
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import Callable, Optional
 
 import tvm_ffi
@@ -271,6 +281,11 @@ class _PyExprVisitor(tvm_ffi.core.Object):
 
     See also: visitor, PyExprVisitor
     """
+
+    # tvm-ffi-stubgen(begin): object/expr_functor.PyExprVisitor
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,
@@ -791,6 +806,12 @@ class _PyExprMutator(Object):
 
     See also: mutator, PyExprmutator
     """
+
+    # tvm-ffi-stubgen(begin): object/expr_functor.PyExprMutator
+    # fmt: off
+    builder_: BlockBuilder
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

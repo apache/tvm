@@ -16,6 +16,18 @@
 # under the License.
 """Meta Schedule tuning context."""
 
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ir import IRModule
+    from meta_schedule import SearchStrategy, SpaceGenerator
+    from target import Target
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import TYPE_CHECKING, List, Optional, Union
 
 # isort: off
@@ -83,6 +95,18 @@ class TuneContext(Object):
     num_threads : int = None
         The number of threads to be used, None means using the logical cpu count.
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.TuneContext
+    # fmt: off
+    mod: IRModule | None
+    target: Target | None
+    space_generator: SpaceGenerator | None
+    search_strategy: SearchStrategy | None
+    task_name: str | None
+    num_threads: int
+    rand_state: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     mod: Optional[IRModule]
     target: Optional[Target]

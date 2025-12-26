@@ -15,6 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """Integer set."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ir import PrimExpr
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 import tvm_ffi
 from tvm.runtime import Object
 from . import _ffi_api
@@ -23,6 +33,11 @@ from . import _ffi_api
 @tvm_ffi.register_object("ir.IntSet")
 class IntSet(Object):
     """Represent a set of integer in one dimension."""
+
+    # tvm-ffi-stubgen(begin): object/ir.IntSet
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def is_nothing(self):
         """Whether the set represent nothing"""
@@ -78,6 +93,13 @@ class IntervalSet(IntSet):
         The maximum value in the interval.
     """
 
+    # tvm-ffi-stubgen(begin): object/arith.IntervalSet
+    # fmt: off
+    min_value: PrimExpr
+    max_value: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, min_value, max_value):
         self.__init_handle_by_constructor__(_ffi_api.IntervalSet, min_value, max_value)
 
@@ -85,6 +107,11 @@ class IntervalSet(IntSet):
 @tvm_ffi.register_object("arith.PresburgerSet")
 class PresburgerSet(IntSet):
     """Represent of Presburger Set"""
+
+    # tvm-ffi-stubgen(begin): object/arith.PresburgerSet
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.PresburgerSet)

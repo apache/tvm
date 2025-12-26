@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name
 """A builder to build Relax VM executable."""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from enum import IntEnum
 from typing import Optional, Union, List
 import tvm
@@ -59,6 +61,11 @@ class VMFuncScope(object):
 @tvm_ffi.register_object("relax.ExecBuilder")
 class ExecBuilder(tvm_ffi.core.Object):
     """A builder to emit instructions and build executable for the virtual machine."""
+
+    # tvm-ffi-stubgen(begin): object/relax.ExecBuilder
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(_ffi_api.ExecBuilderCreate)  # type: ignore

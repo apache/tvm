@@ -15,6 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """Runners"""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import FloatImm
+    from meta_schedule import ArgInfo
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import Callable, List, Optional, Union
 
 # isort: off
@@ -42,6 +54,14 @@ class RunnerInput(Object):
     args_info : List[ArgInfo]
         The argument information.
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.RunnerInput
+    # fmt: off
+    artifact_path: str
+    device_type: str
+    args_info: Sequence[ArgInfo]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     artifact_path: str
     device_type: str
@@ -84,6 +104,13 @@ class RunnerResult(Object):
         The error message, if any.
     """
 
+    # tvm-ffi-stubgen(begin): object/meta_schedule.RunnerResult
+    # fmt: off
+    run_secs: Sequence[FloatImm] | None
+    error_msg: str | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     run_secs: Optional[List[float]]
     error_msg: Optional[str]
 
@@ -117,6 +144,11 @@ class RunnerFuture(Object):
 
     See also: PyRunnerFuture
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.RunnerFuture
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, f_done: Callable, f_result: Callable = None) -> None:
         """Constructor"""
@@ -167,6 +199,11 @@ class PyRunnerFuture:
 class Runner(Object):
     """The abstract runner interface"""
 
+    # tvm-ffi-stubgen(begin): object/meta_schedule.Runner
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     RunnerType = Union["Runner", Literal["local", "rpc"]]
 
     def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
@@ -213,6 +250,11 @@ class _PyRunner(Runner):
 
     See also: PyRunner
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.PyRunner
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, f_run: Callable = None) -> None:
         """Constructor"""

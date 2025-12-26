@@ -15,7 +15,33 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI APIs for tvm.rpc"""
-import tvm_ffi
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from tvm_ffi import init_ffi_api as _FFI_INIT_FUNC
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from tvm_ffi import Module
+    from typing import Any, Callable
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 
 
-tvm_ffi.init_ffi_api("rpc", __name__)
+
+# tvm-ffi-stubgen(begin): global/rpc
+# fmt: off
+_FFI_INIT_FUNC("rpc", __name__)
+if TYPE_CHECKING:
+    def Connect(*args: Any) -> Any: ...
+    def CreateEventDrivenServer(_0: Callable[..., Any], _1: str, _2: str, /) -> Callable[..., Any]: ...
+    def CreatePipeClient(*args: Any) -> Any: ...
+    def ImportRemoteModule(_0: Module, _1: Module, /) -> None: ...
+    def LoadRemoteModule(_0: Module, _1: str, /) -> Module: ...
+    def LocalSession() -> Module: ...
+    def ReturnException(_0: int, _1: str, /) -> None: ...
+    def ServerLoop(*args: Any) -> Any: ...
+    def SessTableIndex(*args: Any) -> Any: ...
+# fmt: on
+# tvm-ffi-stubgen(end)

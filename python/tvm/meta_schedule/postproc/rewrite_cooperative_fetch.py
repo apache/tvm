@@ -17,6 +17,8 @@
 """A postprocessor that rewrites the cooperative fetch annotation to actual
 vectorized cooperative fetching in loop bindings."""
 
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from tvm_ffi.registry import register_object
 from .. import _ffi_api
 from .postproc import Postproc
@@ -27,6 +29,11 @@ class RewriteCooperativeFetch(Postproc):
     """A postprocessor that rewrites the cooperative fetch annotation to actual vectorized
     cooperative fetching in loop bindings.
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.RewriteCooperativeFetch
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(

@@ -16,6 +16,18 @@
 # under the License.
 # pylint: disable=invalid-name, unused-import
 """The struct info nodes of the Relax language."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import EnvFunc, PrimExpr, RelaxExpr, StructInfo, VDevice
+    from tvm_ffi import dtype
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import List, Optional, Union
 
 import tvm_ffi
@@ -33,6 +45,11 @@ from . import _ffi_api, ty, expr
 class ObjectStructInfo(StructInfo):
     """StructInfo of an Object."""
 
+    # tvm-ffi-stubgen(begin): object/relax.ObjectStructInfo
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.ObjectStructInfo, span)  # type: ignore
 
@@ -48,6 +65,13 @@ class PrimStructInfo(StructInfo):
        The data type of the prim value, or a known expression for the prim
        value.
     """
+
+    # tvm-ffi-stubgen(begin): object/relax.PrimStructInfo
+    # fmt: off
+    value: PrimExpr | None
+    dtype: dtype
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     value: Optional[PrimExpr]
     dtype: str
@@ -124,6 +148,13 @@ class ShapeStructInfo(StructInfo):
     Do not specify values and ndim at the same time.
     """
 
+    # tvm-ffi-stubgen(begin): object/relax.ShapeStructInfo
+    # fmt: off
+    values: Sequence[PrimExpr] | None
+    ndim: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     values: Optional[List[PrimExpr]]
     ndim: int
     span: Span
@@ -159,6 +190,15 @@ class TensorStructInfo(StructInfo):
     Do not specify shape and ndim at the same time.
     """
 
+    # tvm-ffi-stubgen(begin): object/relax.TensorStructInfo
+    # fmt: off
+    shape: RelaxExpr | None
+    dtype: dtype
+    vdevice: VDevice | None
+    ndim: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     shape: Optional[Expr]
     dtype: str
     vdevice: Optional[VDevice]
@@ -190,6 +230,12 @@ class TupleStructInfo(StructInfo):
         The struct info of the fields.
     """
 
+    # tvm-ffi-stubgen(begin): object/relax.TupleStructInfo
+    # fmt: off
+    fields: Sequence[StructInfo]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     fields: List[StructInfo]
     span: Span
 
@@ -215,6 +261,15 @@ class FuncStructInfo(StructInfo):
         If a function can have visible side effects only in some cases,
         we still consider it impure.
     """
+
+    # tvm-ffi-stubgen(begin): object/relax.FuncStructInfo
+    # fmt: off
+    params: Sequence[StructInfo] | None
+    ret: StructInfo
+    derive_func: EnvFunc | None
+    purity: bool
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     params: Optional[List[StructInfo]]
     ret: StructInfo

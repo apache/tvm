@@ -15,6 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Rules which apply cross-thread reduction to some reduction blocks correspondingly when needed"""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import IntImm
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import List
 
 from tvm_ffi import register_object
@@ -33,6 +44,14 @@ class CrossThreadReduction(ScheduleRule):
     thread_extents: List[int]
         Candidates of thread axis extent (values are required to be positive).
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.CrossThreadReduction
+    # fmt: off
+    max_threads_per_block: int
+    warp_size: int
+    thread_extents: Sequence[IntImm]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, thread_extents: List[int]) -> None:
         self.__init_handle_by_constructor__(

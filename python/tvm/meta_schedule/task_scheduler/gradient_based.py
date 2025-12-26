@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Gradient Based Task Scheduler"""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from tvm_ffi import register_object
 
 from .. import _ffi_api
@@ -27,6 +29,13 @@ logger = get_logger(__name__)  # pylint: disable=invalid-name
 @register_object("meta_schedule.GradientBased")
 class GradientBased(TaskScheduler):
     """Gradient Based Task Scheduler"""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.GradientBased
+    # fmt: off
+    alpha: float
+    window_size: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

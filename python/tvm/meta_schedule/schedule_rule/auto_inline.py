@@ -15,6 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Auto-Inline. Rule that inlines spatial blocks if it satisfies some conditions"""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import Op
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import List, Optional
 
 from tvm_ffi import register_object
@@ -44,6 +55,18 @@ class AutoInline(ScheduleRule):
     disallow_op : Optional[List[str]]
         The operators that are disallowed in auto inline
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.AutoInline
+    # fmt: off
+    into_producer: bool
+    into_consumer: bool
+    inline_const_tensor: bool
+    disallow_if_then_else: bool
+    require_injective: bool
+    require_ordered: bool
+    disallow_op: Sequence[Op]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,
@@ -75,6 +98,11 @@ class InlineConstantScalars(ScheduleRule):
     counted as a producer block unless they are inlined first. So it is recommended to run
     InlineConstantScalars before AutoInline.
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.InlineConstantScalars
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

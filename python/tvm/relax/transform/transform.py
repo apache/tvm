@@ -16,6 +16,21 @@
 # under the License.
 # pylint: disable=invalid-name
 """Relax transformation passes."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from ir import RelaxExpr
+    from relax.dpl import DFPattern
+    from relax.expr import Var
+    from transform import PassInfo
+    from typing import Callable
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 import functools
 import inspect
 import types
@@ -42,10 +57,22 @@ class FunctionPass(tvm.ir.transform.Pass):
     pass class should be created through `function_pass`.
     """
 
+    # tvm-ffi-stubgen(begin): object/relax.FunctionPass
+    # fmt: off
+    pass_info: PassInfo
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
 
 @tvm_ffi.register_object("relax.DataflowBlockPass")
 class DataflowBlockPass(tvm.ir.transform.Pass):
     """A pass that works on each tvm.relax.DataflowBlock in a module."""
+
+    # tvm-ffi-stubgen(begin): object/relax.DataflowBlockPass
+    # fmt: off
+    pass_info: PassInfo
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
 
 def Gradient(
@@ -847,6 +874,16 @@ class PatternCheckContext(Object):
         matched expression.
     """
 
+    # tvm-ffi-stubgen(begin): object/relax.transform.PatternCheckContext
+    # fmt: off
+    matched_expr: RelaxExpr
+    annotated_expr: Mapping[str, RelaxExpr]
+    matched_bindings: Mapping[Var, RelaxExpr]
+    var_usages: Mapping[Var, Sequence[Var]]
+    value_to_bound_var: Mapping[RelaxExpr, Var]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     matched_expr: Expr
     annotated_expr: Mapping[str, Expr]
     matched_bindings: Mapping[Var, Expr]
@@ -876,6 +913,16 @@ class FusionPattern(Object):
     check: Callable[[PatternCheckContext], bool]
         The function to check whether the match result is accepted.
     """
+
+    # tvm-ffi-stubgen(begin): object/relax.transform.FusionPattern
+    # fmt: off
+    name: str
+    pattern: DFPattern
+    annotation_patterns: Mapping[str, DFPattern]
+    check: Callable[..., Any] | None
+    attrs_getter: Callable[..., Any] | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     name: str
     pattern: DFPattern

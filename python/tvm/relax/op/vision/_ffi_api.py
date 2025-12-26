@@ -15,6 +15,23 @@
 # specific language governing permissions and limitations
 # under the License.
 """Constructor APIs"""
-import tvm_ffi
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from tvm_ffi import init_ffi_api as _FFI_INIT_FUNC
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ir import RelaxExpr
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 
-tvm_ffi.init_ffi_api("relax.op.vision", __name__)
+
+# tvm-ffi-stubgen(begin): global/relax.op.vision
+# fmt: off
+_FFI_INIT_FUNC("relax.op.vision", __name__)
+if TYPE_CHECKING:
+    def all_class_non_max_suppression(_0: RelaxExpr, _1: RelaxExpr, _2: RelaxExpr, _3: RelaxExpr, _4: RelaxExpr, _5: str, /) -> RelaxExpr: ...
+# fmt: on
+# tvm-ffi-stubgen(end)

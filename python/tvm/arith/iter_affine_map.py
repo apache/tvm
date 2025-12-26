@@ -15,6 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Iterator (quasi)affine mapping patterns."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import PrimExpr
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from enum import IntEnum
 import tvm_ffi
 from tvm.runtime import Object
@@ -25,6 +36,11 @@ from . import _ffi_api
 @tvm_ffi.register_object("arith.IterMapExpr")
 class IterMapExpr(PrimExpr):
     """Base class of all IterMap expressions."""
+
+    # tvm-ffi-stubgen(begin): object/arith.IterMapExpr
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
 
 @tvm_ffi.register_object("arith.IterMark")
@@ -39,6 +55,13 @@ class IterMark(Object):
     extent : PrimExpr
         The extent of the iterator.
     """
+
+    # tvm-ffi-stubgen(begin): object/arith.IterMark
+    # fmt: off
+    source: PrimExpr
+    extent: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, source, extent):
         self.__init_handle_by_constructor__(_ffi_api.IterMark, source, extent)
@@ -65,6 +88,15 @@ class IterSplitExpr(IterMapExpr):
         Additional scale to the split.
     """
 
+    # tvm-ffi-stubgen(begin): object/arith.IterSplitExpr
+    # fmt: off
+    source: IterMark
+    lower_factor: PrimExpr
+    extent: PrimExpr
+    scale: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, source, lower_factor, extent, scale):
         self.__init_handle_by_constructor__(
             _ffi_api.IterSplitExpr, source, lower_factor, extent, scale
@@ -86,6 +118,13 @@ class IterSumExpr(IterMapExpr):
         The base offset.
     """
 
+    # tvm-ffi-stubgen(begin): object/arith.IterSumExpr
+    # fmt: off
+    args: Sequence[IterSplitExpr]
+    base: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, args, base):
         self.__init_handle_by_constructor__(_ffi_api.IterSumExpr, args, base)
 
@@ -93,6 +132,14 @@ class IterSumExpr(IterMapExpr):
 @tvm_ffi.register_object("arith.IterMapResult")
 class IterMapResult(Object):
     """Result of iter map detection."""
+
+    # tvm-ffi-stubgen(begin): object/arith.IterMapResult
+    # fmt: off
+    indices: Sequence[IterSumExpr]
+    errors: Sequence[str]
+    padding_predicate: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
 
 class IterMapLevel(IntEnum):

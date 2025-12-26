@@ -15,6 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """A database consists of multiple databases."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from meta_schedule import Database
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from tvm_ffi import register_object
 
 from .. import _ffi_api
@@ -97,6 +108,12 @@ class OrderedUnionDatabase(Database):
     # returns the better one between r3 and r4
     merged_db.query_tuning_record(..., target_workload)
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.OrderedUnionDatabase
+    # fmt: off
+    databases: Sequence[Database]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, *databases: Database) -> None:
         """Construct a merged database from multiple databases.

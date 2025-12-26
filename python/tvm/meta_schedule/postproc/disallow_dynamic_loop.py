@@ -16,6 +16,8 @@
 # under the License.
 """A postprocessor that checks if the IRModule has any loop with non-constant extent"""
 
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from tvm_ffi.registry import register_object
 from .. import _ffi_api
 from .postproc import Postproc
@@ -24,6 +26,11 @@ from .postproc import Postproc
 @register_object("meta_schedule.DisallowDynamicLoop")
 class DisallowDynamicLoop(Postproc):
     """A postprocessor that checks if the IRModule has any loop with non-constant extent"""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.DisallowDynamicLoop
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(

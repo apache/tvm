@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule Mutator."""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from typing import TYPE_CHECKING, Callable, Dict, Optional
 
 # isort: off
@@ -119,6 +121,11 @@ class _PyMutator(Mutator):
 
     See also: PyMutator
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.PyMutator
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

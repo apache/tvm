@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule FeatureExtractor."""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from typing import Callable, List, Union
 
 # isort: off
@@ -35,6 +37,11 @@ from ..utils import _get_default_str
 @register_object("meta_schedule.FeatureExtractor")
 class FeatureExtractor(Object):
     """Extractor for features from measure candidates for use in cost model."""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.FeatureExtractor
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     FeatureExtractorType = Union[Literal["per-store-feature"], "FeatureExtractor"]
 
@@ -82,6 +89,11 @@ class _PyFeatureExtractor(FeatureExtractor):
 
     See also: PyFeatureExtractor
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.PyFeatureExtractor
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, f_extract_from: Callable, f_as_string: Callable = None):
         """Constructor."""

@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Common pass instrumentation across IR variants."""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 import functools
 import inspect
 import re
@@ -42,6 +44,12 @@ class PassInstrument(tvm.runtime.Object):
     in this class definition for more information on each.
 
     """
+
+    # tvm-ffi-stubgen(begin): object/instrument.PassInstrument
+    # fmt: off
+    name: str
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self):
         # initialize handle in case pi_cls creation failed.
@@ -233,6 +241,12 @@ def pass_instrument(pi_cls=None):
 @tvm_ffi.register_object("instrument.PassInstrument")
 class PassTimingInstrument(tvm.runtime.Object):
     """A wrapper to create a passes time instrument that implemented in C++"""
+
+    # tvm-ffi-stubgen(begin): object/instrument.PassInstrument
+    # fmt: off
+    name: str
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_instrument_api.MakePassTimingInstrument)

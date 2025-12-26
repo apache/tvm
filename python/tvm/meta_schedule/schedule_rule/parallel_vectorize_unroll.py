@@ -16,6 +16,17 @@
 # under the License.
 """Rule that mark parallelize, vectorize and unroll to the root block. The mark will be applied to
 each block in a follow-up post processor"""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import IntImm
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import List, Optional
 
 from tvm_ffi import register_object
@@ -45,6 +56,15 @@ class ParallelizeVectorizeUnroll(ScheduleRule):
     unroll_explicit: bool
         Whether to explicitly unroll the loop, or just add an "unroll" pragma
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.ParallelizeVectorizeUnroll
+    # fmt: off
+    max_jobs_per_core: int
+    max_vectorize_extent: int
+    unroll_max_steps: Sequence[IntImm]
+    unroll_explicit: bool
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

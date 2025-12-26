@@ -15,6 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Auto-tuning Task Scheduler"""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from meta_schedule import BuilderResult, CostModel, Database, MeasureCallback, MeasureCandidate, RunnerFuture, TuneContext
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import Callable, List, Optional, Union
 
 # isort: off
@@ -42,6 +53,20 @@ logger = get_logger(__name__)  # pylint: disable=invalid-name
 class TaskRecord(Object):
     """The running record of a task."""
 
+    # tvm-ffi-stubgen(begin): object/meta_schedule.TaskRecord
+    # fmt: off
+    ctx: TuneContext
+    task_weight: float
+    flop: float
+    is_terminated: bool
+    build_error_count: int
+    run_error_count: int
+    measure_candidates: Sequence[MeasureCandidate] | None
+    builder_results: Sequence[BuilderResult] | None
+    runner_futures: Sequence[RunnerFuture] | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     ctx: TuneContext
     task_weight: float
     flop: float
@@ -56,6 +81,16 @@ class TaskRecord(Object):
 @register_object("meta_schedule.TaskScheduler")
 class TaskScheduler(Object):
     """The abstract task scheduler interface."""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.TaskScheduler
+    # fmt: off
+    tasks_: Sequence[TaskRecord]
+    measure_callbacks_: Sequence[MeasureCallback]
+    database_: Database | None
+    cost_model_: CostModel | None
+    remaining_tasks_: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     tasks_: List[TaskRecord]
     measure_callbacks_: List[MeasureCallback]
@@ -197,6 +232,11 @@ class _PyTaskScheduler(TaskScheduler):
 
     See also: PyTaskScheduler
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.PyTaskScheduler
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

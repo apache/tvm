@@ -15,7 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """tvm.contrib.msc.plugin._ffi_api"""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from tvm_ffi import init_ffi_api as _FFI_INIT_FUNC
+from typing import TYPE_CHECKING
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 
-import tvm_ffi
 
-tvm_ffi.init_ffi_api("msc.plugin", __name__)
+# tvm-ffi-stubgen(begin): global/msc.plugin
+_FFI_INIT_FUNC("msc.plugin", __name__)
+# tvm-ffi-stubgen(end)

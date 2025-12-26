@@ -15,6 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Union of meta Schedule design space generators."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from meta_schedule import SpaceGenerator
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import List
 
 from tvm_ffi import register_object
@@ -32,6 +43,12 @@ from .space_generator import (
 @register_object("meta_schedule.SpaceGeneratorUnion")
 class SpaceGeneratorUnion(SpaceGenerator):
     """Union of design space generators."""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.SpaceGeneratorUnion
+    # fmt: off
+    space_generators: Sequence[SpaceGenerator]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

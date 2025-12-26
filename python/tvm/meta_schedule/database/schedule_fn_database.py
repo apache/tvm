@@ -15,6 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """A database for injecting handcrafted schedule functions."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from tir import Schedule
+    from typing import Callable
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import Callable
 
 from tvm_ffi import register_object
@@ -44,6 +55,12 @@ class ScheduleFnDatabase(Database):
                             blocks or in case no anchor block is found.
                             For the definition of the anchor block, see tir/analysis/analysis.py.
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.ScheduleFnDatabase
+    # fmt: off
+    schedule_fn: Callable[[Schedule], bool]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

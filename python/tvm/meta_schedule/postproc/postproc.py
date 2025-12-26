@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule Postproc."""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from typing import TYPE_CHECKING, Callable, List
 
 # isort: off
@@ -36,6 +38,11 @@ if TYPE_CHECKING:
 @register_object("meta_schedule.Postproc")
 class Postproc(Object):
     """Rules to apply a postprocessor to a schedule."""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.Postproc
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the postprocessor with a tune context.
@@ -113,6 +120,11 @@ class _PyPostproc(Postproc):
 
     See also: PyPostproc
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.PyPostproc
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

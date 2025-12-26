@@ -15,6 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """Multi-level tiling with reuse."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Callable
 
 from tvm.tir.schedule import Schedule, BlockRV
@@ -70,6 +80,14 @@ class MultiLevelTiling(ScheduleRule):
         for a block that should be tiled (based on the block name, for example).
     """
 
+    # tvm-ffi-stubgen(begin): object/meta_schedule.MultiLevelTiling
+    # fmt: off
+    structure: str
+    tile_binds: Sequence[str]
+    max_innermost_factor: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(
         self,
         structure: str,
@@ -118,6 +136,11 @@ class MultiLevelTilingWithIntrin(ScheduleRule):
     reuse_write : Optional[ReuseType]
         Data reuse configuration for writing. None means no reuse.
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.MultiLevelTilingWithIntrin
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,
@@ -173,6 +196,11 @@ class MultiLevelTilingTensorCore(ScheduleRule):
         Whether to use the software pipeline.
     """
 
+    # tvm-ffi-stubgen(begin): object/meta_schedule.MultiLevelTilingTensorCore
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(
         self,
         intrin_groups: List[Mapping[str, str]],
@@ -215,6 +243,11 @@ class MultiLevelTilingWideVector(ScheduleRule):
     reuse_write : Optional[ReuseType]
         Data reuse configuration for writing. None means no reuse.
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.MultiLevelTilingWideVector
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

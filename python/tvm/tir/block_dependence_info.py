@@ -17,6 +17,8 @@
 """Define BlockDependenceInfoNode that uses the BlockScope and StmtSRef objects
 to store the block level dependences"""
 
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from typing import Union, Optional
 from tvm_ffi import register_object
 from tvm.ir.module import IRModule
@@ -42,6 +44,11 @@ class BlockDependenceInfo(Object):
     dependences. This provides the advantage that the scope block (parent block) for a given block
     sref can be directly accessed as sref->parent
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.BlockDependenceInfo
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     mod: IRModule
 

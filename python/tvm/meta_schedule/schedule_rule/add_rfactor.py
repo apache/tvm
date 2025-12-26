@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Add-rfactor Rule that add-rfactor to some blocks if needed"""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from typing import Optional
 
 from tvm_ffi import register_object
@@ -36,6 +38,13 @@ class AddRFactor(ScheduleRule):
     max_innermost_factor: Optional[int] = None
         The maximum size of the innermost factor. None means no limit.
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.AddRFactor
+    # fmt: off
+    max_jobs_per_core: int
+    max_innermost_factor: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

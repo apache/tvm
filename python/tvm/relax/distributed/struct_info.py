@@ -16,6 +16,18 @@
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
 """Struct Info for distributed tensor."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from relax import TensorStructInfo
+    from relax.distributed import DeviceMesh
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 import enum
 from typing import List
 import tvm_ffi
@@ -45,6 +57,13 @@ class PlacementSpec(Object):
     kind: PlacementSpecKind
         The kind of placement spec. Possible values: kSharding and kReplica.
     """
+
+    # tvm-ffi-stubgen(begin): object/relax.distributed.PlacementSpec
+    # fmt: off
+    axis: int
+    kind: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     axis: int
     kind: PlacementSpecKind
@@ -90,6 +109,12 @@ class Placement(Object):
         The placement spec for each dimension of the device mesh.
     """
 
+    # tvm-ffi-stubgen(begin): object/relax.distributed.Placement
+    # fmt: off
+    dim_specs: Sequence[PlacementSpec]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, dim_specs: List[PlacementSpec]):
         self.__init_handle_by_constructor__(_ffi_api.Placement, dim_specs)  # type: ignore
 
@@ -124,6 +149,14 @@ class DTensorStructInfo(StructInfo):
         The placement of the tensor among the device mesh
 
     """
+
+    # tvm-ffi-stubgen(begin): object/relax.DTensorStructInfo
+    # fmt: off
+    device_mesh: DeviceMesh
+    placement: Placement
+    tensor_sinfo: TensorStructInfo
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     tensor_sinfo: TensorStructInfo
     device_mesh: DeviceMesh

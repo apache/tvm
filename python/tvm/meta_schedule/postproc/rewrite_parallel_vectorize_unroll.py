@@ -17,6 +17,8 @@
 """A postprocessor that applies parallelization, vectorization and auto unrolling
 according to the annotation of each block"""
 
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from tvm_ffi.registry import register_object
 from .. import _ffi_api
 from .postproc import Postproc
@@ -26,6 +28,11 @@ from .postproc import Postproc
 class RewriteParallelVectorizeUnroll(Postproc):
     """A postprocessor that applies parallelization, vectorization and auto unrolling
     according to the annotation of each block"""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.RewriteParallelVectorizeUnroll
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(

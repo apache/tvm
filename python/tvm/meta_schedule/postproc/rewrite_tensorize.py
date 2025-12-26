@@ -16,6 +16,8 @@
 # under the License.
 """A postprocessor that tensorize related components."""
 
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from tvm_ffi.registry import register_object
 from .. import _ffi_api
 from .postproc import Postproc
@@ -30,6 +32,11 @@ class RewriteTensorize(Postproc):
     vectorize_init_loop : bool
        Whether or not vectorize the initialization loop produced by DecomposeReduction
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.RewriteTensorize
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, vectorize_init_loop=False) -> None:
         self.__init_handle_by_constructor__(

@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule CostModel."""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 import ctypes
 from typing import Callable, List, Union
 
@@ -37,6 +39,11 @@ from ..utils import _get_default_str
 @register_object("meta_schedule.CostModel")
 class CostModel(Object):
     """Cost model."""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.CostModel
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     CostModelType = Union["CostModel", Literal["xgb", "mlp", "random"]]
 
@@ -158,6 +165,11 @@ class _PyCostModel(CostModel):
 
     See also: PyCostModel
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.PyCostModel
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

@@ -15,6 +15,34 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI APIs"""
-import tvm_ffi
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from tvm_ffi import init_ffi_api as _FFI_INIT_FUNC
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from ir import BaseFunc, GlobalInfo, GlobalVar, VDevice
+    from script.ir_builder import IRModuleFrame
+    from tvm_ffi import Object
+    from typing import Any
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 
-tvm_ffi.init_ffi_api("script.ir_builder.ir", __name__)  # pylint: disable=protected-access
+
+# tvm-ffi-stubgen(begin): global/script.ir_builder.ir
+# fmt: off
+_FFI_INIT_FUNC("script.ir_builder.ir", __name__)
+if TYPE_CHECKING:
+    def DeclFunction(_0: str, _1: BaseFunc, /) -> GlobalVar: ...
+    def DefFunction(_0: str, _1: BaseFunc, /) -> None: ...
+    def IRModule() -> IRModuleFrame: ...
+    def LookupVDevice(_0: str, _1: int, /) -> VDevice: ...
+    def ModuleAttrs(_0: Mapping[str, Any], _1: bool, /) -> None: ...
+    def ModuleGetAttr(_0: str, /) -> Object | None: ...
+    def ModuleGlobalInfos(_0: Mapping[str, Sequence[GlobalInfo]], /) -> None: ...
+    def ModuleSetAttr(_0: str, _1: Object | None, _2: bool, /) -> None: ...
+# fmt: on
+# tvm-ffi-stubgen(end)

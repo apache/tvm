@@ -16,6 +16,16 @@
 # under the License.
 # pylint: disable=invalid-name
 """This file defines ScheduleState, the core data structure of TensorIR scheduling."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ir import IRModule
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from collections import namedtuple
 from enum import IntEnum
 from typing import Dict, Optional, Union
@@ -101,6 +111,14 @@ class ScheduleState(Object):
         Indicates whether we enable prerequisite checks for some schedule primitives or not,
         defaults to `True`.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.ScheduleState
+    # fmt: off
+    mod: IRModule
+    debug_mask: int
+    enable_check: bool
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     mod: IRModule
     debug_mask: int

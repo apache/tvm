@@ -27,6 +27,18 @@ For example, you can use addexp.a to get the left operand of an Add node.
   assert(isinstance(y, tvm.tir.Add))
   assert(y.a == x)
 """
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import PrimExpr, Range, RelaxExpr, Span, Type
+    from tir import Buffer, DataProducer
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import List, Optional, Union
 
 import tvm_ffi
@@ -365,6 +377,13 @@ class Var(PrimExprWithOp):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.Var
+    # fmt: off
+    name: str
+    type_annotation: Type
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     name_hint: str
     type_annotation: ir.Type
 
@@ -388,6 +407,11 @@ class SizeVar(Var):
     span : Optional[Span]
         The location of this expression in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.SizeVar
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     # pylint: disable=super-init-not-called
     def __init__(self, name: str, dtype: Union[str, ir.Type], span: Optional[Span] = None) -> None:
@@ -422,6 +446,15 @@ class IterVar(ExprOp, Object, Scriptable):
     te.thread_axis: Create thread axis IterVar.
     te.reduce_axis: Create reduce axis IterVar.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.IterVar
+    # fmt: off
+    dom: Range
+    var: Var
+    iter_type: int
+    thread_tag: str
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     DataPar = 0
     ThreadIndex = 1
@@ -489,6 +522,16 @@ class CommReducer(Object, Scriptable):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.CommReducer
+    # fmt: off
+    lhs: Sequence[Var]
+    rhs: Sequence[Var]
+    result: Sequence[PrimExpr]
+    identity_element: Sequence[PrimExpr]
+    span: Span
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     lhs: List[Var]
     rhs: List[Var]
     result: List[PrimExpr]
@@ -535,6 +578,17 @@ class Reduce(PrimExprWithOp):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.Reduce
+    # fmt: off
+    combiner: CommReducer
+    source: Sequence[PrimExpr]
+    init: Sequence[PrimExpr]
+    axis: Sequence[IterVar]
+    condition: PrimExpr
+    value_index: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     combiner: CommReducer
     source: List[PrimExpr]
     init: List[PrimExpr]
@@ -574,6 +628,12 @@ class FloatImm(ConstExpr):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/ir.FloatImm
+    # fmt: off
+    value: float
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     value: float
 
     def __init__(self, dtype: str, value: float, span: Optional[Span] = None) -> None:
@@ -600,6 +660,12 @@ class IntImm(ConstExpr):
     span : Optional[Span]
         The location of this expression in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/ir.IntImm
+    # fmt: off
+    value: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     value: int
 
@@ -640,6 +706,12 @@ class StringImm(ConstExpr):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.StringImm
+    # fmt: off
+    value: str
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     value: str
 
     def __init__(self, value: str, span: Optional[Span] = None) -> None:
@@ -675,6 +747,12 @@ class Cast(PrimExprWithOp):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.Cast
+    # fmt: off
+    value: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     value: PrimExpr
 
     def __init__(self, dtype, value, span: Optional[Span] = None) -> None:
@@ -697,6 +775,13 @@ class Add(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.Add
+    # fmt: off
+    a: PrimExpr
+    b: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Add, a, b, span)  # type: ignore
 
@@ -716,6 +801,13 @@ class Sub(BinaryOpExpr):
     span : Optional[Span]
         The location of this expression in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.Sub
+    # fmt: off
+    a: PrimExpr
+    b: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Sub, a, b, span)  # type: ignore
@@ -737,6 +829,13 @@ class Mul(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.Mul
+    # fmt: off
+    a: PrimExpr
+    b: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Mul, a, b, span)  # type: ignore
 
@@ -756,6 +855,13 @@ class Div(BinaryOpExpr):
     span : Optional[Span]
         The location of this expression in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.Div
+    # fmt: off
+    a: PrimExpr
+    b: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Div, a, b, span)  # type: ignore
@@ -777,6 +883,13 @@ class Mod(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.Mod
+    # fmt: off
+    a: PrimExpr
+    b: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Mod, a, b, span)  # type: ignore
 
@@ -796,6 +909,13 @@ class FloorDiv(BinaryOpExpr):
     span : Optional[Span]
         The location of this expression in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.FloorDiv
+    # fmt: off
+    a: PrimExpr
+    b: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.FloorDiv, a, b, span)  # type: ignore
@@ -817,6 +937,13 @@ class FloorMod(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.FloorMod
+    # fmt: off
+    a: PrimExpr
+    b: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.FloorMod, a, b, span)  # type: ignore
 
@@ -836,6 +963,13 @@ class Min(BinaryOpExpr):
     span : Optional[Span]
         The location of this expression in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.Min
+    # fmt: off
+    a: PrimExpr
+    b: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Min, a, b, span)  # type: ignore
@@ -857,6 +991,13 @@ class Max(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.Max
+    # fmt: off
+    a: PrimExpr
+    b: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Max, a, b, span)  # type: ignore
 
@@ -876,6 +1017,13 @@ class EQ(CmpExpr):
     span : Optional[Span]
         The location of this expression in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.EQ
+    # fmt: off
+    a: PrimExpr
+    b: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.EQ, a, b, span)  # type: ignore
@@ -897,6 +1045,13 @@ class NE(CmpExpr):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.NE
+    # fmt: off
+    a: PrimExpr
+    b: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.NE, a, b, span)  # type: ignore
 
@@ -916,6 +1071,13 @@ class LT(CmpExpr):
     span : Optional[Span]
         The location of this expression in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.LT
+    # fmt: off
+    a: PrimExpr
+    b: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.LT, a, b, span)  # type: ignore
@@ -937,6 +1099,13 @@ class LE(CmpExpr):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.LE
+    # fmt: off
+    a: PrimExpr
+    b: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.LE, a, b, span)  # type: ignore
 
@@ -956,6 +1125,13 @@ class GT(CmpExpr):
     span : Optional[Span]
         The location of this expression in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.GT
+    # fmt: off
+    a: PrimExpr
+    b: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.GT, a, b, span)  # type: ignore
@@ -977,6 +1153,13 @@ class GE(CmpExpr):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.GE
+    # fmt: off
+    a: PrimExpr
+    b: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.GE, a, b, span)  # type: ignore
 
@@ -996,6 +1179,13 @@ class And(LogicalExpr):
     span : Optional[Span]
         The location of this expression in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.And
+    # fmt: off
+    a: PrimExpr
+    b: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.And, a, b, span)  # type: ignore
@@ -1017,6 +1207,13 @@ class Or(LogicalExpr):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.Or
+    # fmt: off
+    a: PrimExpr
+    b: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     a: PrimExpr
     b: PrimExpr
 
@@ -1036,6 +1233,12 @@ class Not(LogicalExpr):
     span : Optional[Span]
         The location of this expression in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.Not
+    # fmt: off
+    a: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     a: PrimExpr
 
@@ -1068,6 +1271,14 @@ class Select(PrimExprWithOp):
     span : Optional[Span]
         The location of this expression in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.Select
+    # fmt: off
+    condition: PrimExpr
+    true_value: PrimExpr
+    false_value: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     condition: PrimExpr
     true_value: PrimExpr
@@ -1107,6 +1318,14 @@ class BufferLoad(PrimExprWithOp):
         loaded. The number lanes of the mask must be equal to the number of lanes being loaded.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.BufferLoad
+    # fmt: off
+    buffer: Buffer
+    indices: Sequence[PrimExpr]
+    predicate: PrimExpr | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     buffer: Buffer
     indices: List[PrimExpr]
 
@@ -1138,6 +1357,13 @@ class ProducerLoad(PrimExprWithOp):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.ProducerLoad
+    # fmt: off
+    producer: DataProducer
+    indices: Sequence[PrimExpr]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     producer: DataProducer
     indices: List[PrimExpr]
 
@@ -1168,6 +1394,14 @@ class Ramp(PrimExprWithOp):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.Ramp
+    # fmt: off
+    base: PrimExpr
+    stride: PrimExpr
+    lanes: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     base: PrimExpr
     stride: PrimExpr
     lanes: PrimExpr
@@ -1196,6 +1430,13 @@ class Broadcast(PrimExprWithOp):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.Broadcast
+    # fmt: off
+    value: PrimExpr
+    lanes: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     value: PrimExpr
     lanes: PrimExpr
 
@@ -1218,6 +1459,13 @@ class Shuffle(PrimExprWithOp):
     span : Optional[Span]
         The location of this expression in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.Shuffle
+    # fmt: off
+    vectors: Sequence[PrimExpr]
+    indices: Sequence[PrimExpr]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     vectors: List[PrimExpr]
     indices: List[PrimExpr]
@@ -1261,6 +1509,13 @@ class Call(PrimExprWithOp):
         The location of this expression in the source code.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.Call
+    # fmt: off
+    op: RelaxExpr
+    args: Sequence[PrimExpr]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     op: Op
     args: List[PrimExpr]
 
@@ -1299,6 +1554,14 @@ class Let(PrimExprWithOp):
     span : Optional[Span]
         The location of this expression in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.Let
+    # fmt: off
+    var: Var
+    value: PrimExpr
+    body: PrimExpr
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     var: Var
     value: PrimExpr

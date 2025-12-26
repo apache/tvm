@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Rule that randomly select a compute-at location for a free block"""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from tvm_ffi import register_object
 
 from .. import _ffi_api
@@ -24,6 +26,11 @@ from .schedule_rule import ScheduleRule
 @register_object("meta_schedule.RandomComputeLocation")
 class RandomComputeLocation(ScheduleRule):
     """A rule that randomly select a compute-at location for a free block"""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.RandomComputeLocation
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(

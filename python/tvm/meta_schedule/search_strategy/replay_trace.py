@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Replay Trace Search Strategy"""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from tvm_ffi import register_object
 
 from .. import _ffi_api
@@ -32,6 +34,12 @@ class ReplayTrace(SearchStrategy):
     max_fail_count : int
         Max number of failures during trace replaying.
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.ReplayTrace
+    # fmt: off
+    max_fail_count: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     max_fail_count: int
 

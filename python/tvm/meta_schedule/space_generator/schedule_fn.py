@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Union of meta Schedule design space generators."""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from tvm_ffi import register_object
 
 from .. import _ffi_api
@@ -35,6 +37,11 @@ class ScheduleFn(SpaceGenerator):
     - 2) [Schedule] -> Schedule
     - 3) [Schedule] -> List[Schedule]
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.ScheduleFn
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

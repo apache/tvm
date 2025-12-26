@@ -15,6 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """Global Info."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from target import Target
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 import tvm
 import tvm_ffi
 from tvm.runtime.object import Object
@@ -24,6 +34,11 @@ from . import _ffi_api
 @tvm_ffi.register_object("ir.GlobalInfo")
 class GlobalInfo(Object):
     """Base node for all global info that can appear in the IR"""
+
+    # tvm-ffi-stubgen(begin): object/ir.GlobalInfo
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __eq__(self, other):
         """Compare two struct info for structural equivalence."""
@@ -39,6 +54,10 @@ class GlobalInfo(Object):
 
 @tvm_ffi.register_object("ir.DummyGlobalInfo")
 class DummyGlobalInfo(GlobalInfo):
+    # tvm-ffi-stubgen(begin): object/ir.DummyGlobalInfo
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.DummyGlobalInfo,
@@ -47,6 +66,13 @@ class DummyGlobalInfo(GlobalInfo):
 
 @tvm_ffi.register_object("ir.VDevice")
 class VDevice(GlobalInfo):
+    # tvm-ffi-stubgen(begin): object/ir.VDevice
+    # fmt: off
+    target: Target
+    vdevice_id: int
+    memory_scope: str
+    # fmt: on
+    # tvm-ffi-stubgen(end)
     def __init__(
         self,
         target=None,
