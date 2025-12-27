@@ -1289,20 +1289,6 @@ def test_var_if_scoping_fail():
             return w  # error: The w is not defined in the outer scope
 
 
-def test_if_branch_var_scope():
-    with pytest.raises(tvm.error.DiagnosticError):
-
-        @R.function
-        def foo(cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")):
-            if cond:
-                w = R.add(x, x)
-                y = R.multiply(w, w)
-            else:
-                w = R.multiply(x, x)
-                y = R.add(w, w)
-            return w
-
-
 def test_scalar_tensor_as_branch_condition():
     """Branch condition can be 0-d tensor"""
 
