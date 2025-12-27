@@ -329,7 +329,7 @@ class ComputeLegalizer : public StmtExprMutator {
         // this happens when buffer get rewritten to f32
         // but values remain as fp8/bf16
         ICHECK(MatchDType(value->dtype));
-        value = DTypeConversion(value, new_buf->dtype.with_lanes(value.dtype().lanes()));
+        value = cast(new_buf->dtype.with_lanes(value.dtype().lanes()), value);
       }
       ICHECK(!op->predicate.defined()) << "Predicated buffer store is not currently supported in "
                                           "data type legalizer pass.";
@@ -743,6 +743,19 @@ bool CheckDataTypeSupport(const Target& target, const std::string& support_func_
       if (auto check_support = tvm::ffi::Function::GetGlobal(support_func_name)) {
         has_native_support = (*check_support)(compute_version).cast<bool>();
       }
+    }
+  } else if (target->kind->name == "metal") {
+    // For Metal targets, check if bfloat16 is supported
+    // Metal 3.1+ (macOS 14+ / iOS 17+) supports bfloat16 operations
+    if (auto check_support = tvm::ffi::Function::GetGlobal("tvm.contrib.xcode.supports_bf16")) {
+      has_native_support = (*check_support)().cast<bool>();
+      LOG(INFO) << "Metal bfloat16 support: " << (has_native_support ? "YES (Metal 3.1+)" : "NO (requires macOS 14+)");
+    } else {
+      // Fallback: Assume support if version check unavailable
+      // Most modern systems support Metal 3.1+, and the Metal compiler
+      // will produce a compilation error if bfloat16 is actually unsupported
+      has_native_support = true;
+      LOG(INFO) << "Metal bfloat16 support: YES (assumed, import tvm.contrib.xcode for version check)";
     }
   }
   return has_native_support;

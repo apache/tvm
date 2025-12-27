@@ -23,6 +23,7 @@ import subprocess
 import json
 from ..base import py_str
 from . import utils
+from .. import ffi as tvm_ffi
 
 
 def xcrun(cmd):
@@ -140,10 +141,12 @@ def compile_metal(code, path_target=None, sdk="macosx", min_os_version=None):
     #   xcrun -sdk macosx metal -c MyLibrary.metal -o MyLibrary.air
     #   xcrun -sdk macosx metallib MyLibrary.air -o MyLibrary.metallib
     min_target = __get_min_os_version_cmd(sdk, min_os_version)
+    # Use Metal 3.1 for bfloat16 simdgroup support
+    # Metal 3.1 requires macOS 14+ or iOS 17+
     if sdk == "macosx":
-        language_version = "-std=macos-metal2.3"
+        language_version = "-std=macos-metal3.1"
     elif sdk in ("iphoneos", "iphonesimulator"):
-        language_version = "-std=ios-metal2.3"
+        language_version = "-std=ios-metal3.1"
     else:
         raise RuntimeError(f"Unsupported sdk: {sdk}")
     cmd1 = ["xcrun", "-sdk", sdk, "metal", language_version, min_target, "-O3"]
@@ -165,6 +168,54 @@ def compile_metal(code, path_target=None, sdk="macosx", min_os_version=None):
     else:
         libbin = bytearray(open(file_target, "rb").read())
     return libbin
+
+
+@tvm_ffi.register_global_func("tvm.contrib.xcode.supports_bf16")
+def supports_bf16():
+    """Check if Metal supports bfloat16.
+
+    Metal 3.1+ supports bfloat16 with simdgroup_bfloat types.
+    This requires macOS 14+ or iOS 17+.
+
+    Returns
+    -------
+    supported : bool
+        True if bfloat16 is supported.
+    """
+    import platform
+
+    system = platform.system()
+
+    if system == "Darwin":  # macOS
+        # Check macOS version
+        version = platform.mac_ver()[0]
+        if not version:
+            # Fallback: assume supported on recent systems
+            return True
+
+        try:
+            major, minor = map(int, version.split(".")[:2])
+            # macOS 14+ (Sonoma and later) supports Metal 3.1
+            return major >= 14
+        except (ValueError, IndexError):
+            # If we can't parse version, assume not supported for safety
+            return False
+
+    elif system == "iOS":
+        # Check iOS version (for devices running iOS)
+        version = platform.ios_ver()[0] if hasattr(platform, 'ios_ver') else None
+        if not version:
+            return False
+
+        try:
+            major = int(version.split(".")[0])
+            # iOS 17+ supports Metal 3.1
+            return major >= 17
+        except (ValueError, IndexError):
+            return False
+
+    # Unknown platform or non-Apple platform
+    return False
 
 
 def compile_coreml(model, model_name="main", out_dir="."):

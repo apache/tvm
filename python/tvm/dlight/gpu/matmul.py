@@ -444,10 +444,14 @@ class MetalMatmul(GPUScheduleRule):
         sch.reverse_compute_at(C_simd2s, tz, preserve_unit_loops=True)
         sch.reverse_compute_at(C_s2g, by, preserve_unit_loops=True)
 
+        # Detect input dtype to use appropriate SIMD intrinsics
+        block_stmt = sch.get(main_block)
+        in_dtype, _ = get_in_out_dtypes(block_stmt)
+
         intrin_group = get_simdgroup_intrin_group(
             load_scope="shared",
             store_scope="shared",
-            dtype="float16",
+            dtype=in_dtype,
             trans_a=False,
             trans_b=True,
         )
@@ -1040,8 +1044,12 @@ class Matmul(GPUScheduleRule):
                     return tensorize_sch
         elif target.kind.name == "metal":
             try:
-                return MetalMatmul().apply(func, target, _)
-            except:  # pylint: disable=bare-except
+                result = MetalMatmul().apply(func, target, _)
+                if result is not None:
+                    return result
+            except Exception as e:  # pylint: disable=broad-except
+                import warnings
+                warnings.warn(f"MetalMatmul failed: {e}, falling back to generic Matmul")
                 pass
 
         # Step 2. Schedule matmul

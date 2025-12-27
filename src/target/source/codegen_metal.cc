@@ -207,6 +207,21 @@ void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     return;
   }
   bool fail = false;
+
+  // Handle bfloat16 separately (it's not classified as is_float())
+  if (t.is_bfloat16()) {
+    if (lanes == 3) {
+      os << "packed_";
+    }
+    os << "bfloat";
+    if (lanes == 1) return;
+    if (lanes >= 2 && lanes <= 4) {
+      os << lanes;
+      return;
+    }
+    LOG(FATAL) << "Unsupported bfloat16 lanes: " << lanes;
+  }
+
   if (t.is_float()) {
     // Need to care about sizes and alignment of half3/float3 because tir representation might not
     // be aware of Metal half3/float3 details and can treat them as just three elements,
@@ -423,10 +438,21 @@ void CodeGenMetal::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NO
     temp << "NAN";
   } else {
     temp << std::scientific << op->value;
-    if (op->dtype.bits() == 32)
+    if (op->dtype.bits() == 32) {
       temp << 'f';
-    else if (op->dtype.bits() == 16)
-      temp << 'h';
+    } else if (op->dtype.bits() == 16) {
+      if (op->dtype.is_bfloat16()) {
+        // bfloat16 requires explicit cast, can't use 'h' suffix
+        std::ostringstream temp2;
+        temp2 << "bfloat(" << temp.str() << "f)";
+        MarkConst(temp2.str());
+        os << temp2.str();
+        return;
+      } else {
+        // half (float16) uses 'h' suffix
+        temp << 'h';
+      }
+    }
   }
   MarkConst(temp.str());
   os << temp.str();
