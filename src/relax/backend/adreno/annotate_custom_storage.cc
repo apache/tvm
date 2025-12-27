@@ -280,30 +280,58 @@ class CollectConsumerScopeInfo : public ExprVisitor {
     mod_ = mod;
     target_ = target;
     VisitExpr(func->body);
-    // Extend the scope for tuple items
-    for (const auto& val : arg_to_binding) {
+
+    for (const auto& val : tuple_item_to_binding) {
       if (scope_info.find(val.first) != scope_info.end()) {
-        if (scope_info.find(val.second) == scope_info.end()) {
-          scope_info.Set(val.second, scope_info[val.first]);
-        } else {
-          auto ent = scope_info[val.second];
-          for (auto ent_val : scope_info[val.first]) {
-            ent.Set(ent_val.first, ent_val.second);
+        for (const auto& item_val : val.second) {
+          // TODO(Siva): How about ops that generate tuples like split ?
+          if (tuples_to_binding.find(item_val.first) == tuples_to_binding.end()) {
+            continue;
           }
-          scope_info.Set(val.second, ent);
+          auto producer_var = tuples_to_binding[item_val.first][item_val.second];
+          if (scope_info.find(producer_var) == scope_info.end()) {
+            scope_info.Set(producer_var, scope_info[val.first]);
+          } else {
+            auto ent = scope_info[producer_var];
+            for (auto ent_val : scope_info[val.first]) {
+              ent.Set(ent_val.first, ent_val.second);
+            }
+            scope_info.Set(producer_var, ent);
+          }
         }
       }
     }
-
     return std::make_pair(call_scope_info, scope_info);
   }
 
   void VisitBinding_(const VarBindingNode* binding,
                      const TupleGetItemNode* tuple_get_item_node) final {
-    if (arg_to_binding.find(ffi::GetRef<Expr>(binding->var.get())) == arg_to_binding.end()) {
-      arg_to_binding.Set(ffi::GetRef<Expr>(binding->var.get()),
-                         ffi::GetRef<Expr>(tuple_get_item_node->tuple.get()));
+    /*
+     * lv9 = R.call_tir(add, (lv7, m
+     * lv: R.Tuple(
+     *     R.Tensor((1, 3, 224, 224), dtype="float32"),
+     *     R.Tensor((3,), dtype="float32"),
+     *     R.Tensor((3,), dtype="float32")
+     * ) = lv9, metadata["relax.expr.Constant"][4], metadata["relax.expr.Constant"][5]
+     * lv1_1: R.Tensor((1, 3, 224, 224), dtype="float32") = lv[0]
+     * lv4: R.Tensor((1, 64, 112, 112), dtype="float32") = R.nn.conv2d(lv1_1, .....
+     *
+     * lv1_1 scope is requested by conv2d now we need to populate the same to lv9
+     * Capture essestial information here as
+     *
+     * lv => {(0, lv1_1), (1, ) ...}
+     */
+    ffi::Map<Expr, int> field_map;
+    if (tuple_item_to_binding.find(ffi::GetRef<Expr>(binding->var.get())) !=
+        tuple_item_to_binding.end()) {
+      field_map = tuple_item_to_binding[ffi::GetRef<Expr>(binding->var.get())];
     }
+    field_map.Set(ffi::GetRef<Expr>(tuple_get_item_node->tuple.get()), tuple_get_item_node->index);
+    tuple_item_to_binding.Set(ffi::GetRef<Expr>(binding->var.get()), field_map);
+  }
+
+  void VisitBinding_(const VarBindingNode* binding, const TupleNode* tuple) final {
+    tuples_to_binding.Set(ffi::GetRef<Expr>(binding->var.get()), tuple->fields);
   }
 
   void VisitExpr_(const CallNode* call) final {
@@ -325,17 +353,18 @@ class CollectConsumerScopeInfo : public ExprVisitor {
       func_args = Tuple(call->args);
     }
 
-    bool is_texture_supported = SupportsTexture(op_attrs, op_pattern.value());
+    auto is_texture_supported = SupportsTexture(op_attrs, op_pattern.value());
 
     ffi::Array<ffi::String> arg_scope;
-    for (auto arg : func_args->fields) {
-      auto sinfo = GetStructInfo(arg);
+    for (uint32_t i = 0; i < func_args->fields.size(); ++i) {
+      auto sinfo = GetStructInfo(func_args->fields[i]);
       if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
-        auto scope = is_texture_supported
-                         ? Scope(GetShapeFromTensorStructInfo(tensor_sinfo.value()))
-                         : "global";
+        bool is_texture =
+            i < is_texture_supported.size() ? is_texture_supported[i] : is_texture_supported[0];
+        auto scope =
+            is_texture ? Scope(GetShapeFromTensorStructInfo(tensor_sinfo.value())) : "global";
         ffi::Map<Expr, ffi::Array<ffi::String>> ent_call;
-        const VarNode* arg_var = arg.as<VarNode>();
+        const VarNode* arg_var = func_args->fields[i].as<VarNode>();
         if (scope_info.find(ffi::GetRef<Expr>(arg_var)) != scope_info.end()) {
           ent_call = scope_info[ffi::GetRef<Expr>(arg_var)];
         }
@@ -368,28 +397,29 @@ class CollectConsumerScopeInfo : public ExprVisitor {
     return op_pat;
   }
 
-  bool SupportsTexture(const ffi::Array<Attrs>& op_attrs, Integer op_pattern) {
-    if (op_pattern.IntValue() < OpPatternKind::kCommReduce) return true;
+  std::vector<bool> SupportsTexture(const ffi::Array<Attrs>& op_attrs, Integer op_pattern) {
+    if (op_pattern.IntValue() < OpPatternKind::kCommReduce) return {true};
 
     for (auto attr : op_attrs) {
       if (auto conv_attr = attr.as<Conv2DAttrs>()) {
         if (conv_attr->data_layout == "NCHW4c" && conv_attr->kernel_layout == "OIHW4o") {
-          return true;
+          // No Texture for weights
+          return {true, false};
         }
       } else if (auto pool_attrs = attr.as<Pool2DAttrs>()) {
         if (pool_attrs->layout == "NCHW4c") {
-          return true;
+          return {true};
         }
       } else if (auto avg_attrs = attr.as<AdaptivePool2DAttrs>()) {
         if (avg_attrs->layout == "NCHW4c") {
-          return true;
+          return {true};
         }
       } else if (attr.as<LayerNormAttrs>()) {
-        return true;
+        return {true};
       }
     }
 
-    return false;
+    return {false};
   }
 
   std::string Scope(ffi::Array<PrimExpr> shape) {
@@ -432,7 +462,8 @@ class CollectConsumerScopeInfo : public ExprVisitor {
   ffi::Map<Expr, ffi::Map<Expr, ffi::Array<ffi::String>>> scope_info;
   /* A map of call node and scope info for each argument it consunes */
   ffi::Map<Expr, ffi::Array<ffi::String>> call_scope_info;
-  ffi::Map<Expr, Expr> arg_to_binding;
+  ffi::Map<Expr, ffi::Map<Expr, int>> tuple_item_to_binding;
+  ffi::Map<Expr, ffi::Array<Expr>> tuples_to_binding;
   IRModule mod_;
   Target target_;
 };
@@ -600,12 +631,9 @@ class DefineVDevice : ExprMutator {
 
     if (call->op == call_tir_op) {
       gv = Downcast<GlobalVar>(call->args[0]);
-      // tir::PrimFunc pfunc = Downcast<tir::PrimFunc>(mod_->Lookup(gv));
-      // out_sinfo = call->sinfo_args[0];
       func_args = Downcast<Tuple>(call->args[1]);
     } else {
       func_args = Tuple(call->args);
-      // return call;
     }
 
     ffi::Array<Expr> new_args;

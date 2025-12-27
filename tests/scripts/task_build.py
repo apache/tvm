@@ -58,6 +58,8 @@ if __name__ == "__main__":
             logging.info(f"Using sccache region: {env['SCCACHE_REGION']}")
         else:
             logging.info(f"No sccache bucket set, using local cache")
+        if "SCCACHE_SERVER_PORT" in os.environ:
+            env["SCCACHE_SERVER_PORT"] = os.getenv("SCCACHE_SERVER_PORT")
         env["CXX"] = "/opt/sccache/c++"
         env["CC"] = "/opt/sccache/cc"
 

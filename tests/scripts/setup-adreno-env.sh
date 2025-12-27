@@ -103,6 +103,7 @@ case ${ENVIRONMENT} in
     adb shell "mkdir -p ${TARGET_FOLDER}"
     adb push build-adreno-target/tvm_rpc ${TARGET_FOLDER}/tvm_rpc-${USER}
     adb push build-adreno-target/libtvm_runtime.so ${TARGET_FOLDER}
+    adb push build-adreno-target/lib/libtvm_ffi.so ${TARGET_FOLDER}
     if [ -f ${CPP_LIB} ] ; then
         adb push ${CPP_LIB} ${TARGET_FOLDER}
     fi
@@ -112,7 +113,7 @@ case ${ENVIRONMENT} in
     adb forward tcp:$((LISTEN_PORT + 1)) tcp:$((LISTEN_PORT + 1))
     adb forward tcp:$((LISTEN_PORT + 2)) tcp:$((LISTEN_PORT + 2))
     adb forward tcp:$((LISTEN_PORT + 3)) tcp:$((LISTEN_PORT + 3))
-    adb shell "cd ${TARGET_FOLDER}; killall -9 tvm_rpc-${USER}; sleep 2; export CLML_DISABLE_RECORDABLE_QUEUE=1; export CLML_IS_TUNING_RUN=1; export CLML_TUNING_CACHE=clml.bin; LD_LIBRARY_PATH=${TARGET_FOLDER}/ ./tvm_rpc-${USER} server --host=0.0.0.0 --port=${LISTEN_PORT} --port-end=$((LISTEN_PORT + 10)) --tracker=127.0.0.1:${TVM_TRACKER_PORT} --key=${RPC_DEVICE_KEY}"
+    adb shell "cd ${TARGET_FOLDER}; killall -9 tvm_rpc-${USER}; sleep 2; export CLML_DISABLE_RECORDABLE_QUEUE=1; export CLML_IS_TUNING_RUN=1; export CLML_TUNING_CACHE=clml.bin; PROFILE_SHADER_DUMP_PATH=cli LD_LIBRARY_PATH=${TARGET_FOLDER}/ ./tvm_rpc-${USER} server --host=0.0.0.0 --port=${LISTEN_PORT} --port-end=$((LISTEN_PORT + 10)) --tracker=127.0.0.1:${TVM_TRACKER_PORT} --key=${RPC_DEVICE_KEY}"
     ;;
 
   "query")

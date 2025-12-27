@@ -155,6 +155,8 @@ class VMExecutable : public ffi::ModuleObj {
   std::unordered_map<std::string, Index> func_map;
   /*! \brief The global constant pool. */
   std::vector<ffi::Any> constants;
+  /*! \brief The VDevice memory scopes */
+  std::unordered_map<Index, std::string> memory_scopes;
   /*! \brief The offset of instruction. */
   std::vector<Index> instr_offset;
   /*! \brief The byte data of instruction. */
@@ -178,6 +180,11 @@ class VMExecutable : public ffi::ModuleObj {
    */
   void SaveGlobalSection(dmlc::Stream* strm) const;
   /*!
+   * \brief Save the memory scopes.
+   * \param strm The output stream.
+   */
+  void SaveMemoryScopeSection(dmlc::Stream* strm) const;
+  /*!
    * \brief Save the constant pool.
    * \param strm The input stream.
    */
@@ -197,6 +204,11 @@ class VMExecutable : public ffi::ModuleObj {
    * \param strm The input stream.
    */
   void LoadGlobalSection(dmlc::Stream* strm);
+  /*!
+   * \brief Load the memory scopes.
+   * \param strm The input stream.
+   */
+  void LoadMemoryScopeSection(dmlc::Stream* strm);
   /*!
    * \brief Load the constant pool.
    * \param strm The input stream.

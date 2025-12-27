@@ -46,6 +46,10 @@ ObjectPtr<VMExecutable> ExecBuilderNode::Get() {
   return exec_;
 }
 
+void ExecBuilderNode::SaveMemoryScope(vm::Instruction::Arg idx, ffi::String scope) {
+  exec_->memory_scopes[idx.value()] = scope;
+}
+
 vm::Instruction::Arg ExecBuilderNode::ConvertConstant_(Any cvalue) {
   // emit constant immediate as immediate.
   if (auto opt_int = cvalue.as<int64_t>()) {
