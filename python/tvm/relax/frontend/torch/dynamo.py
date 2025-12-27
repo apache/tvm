@@ -206,6 +206,10 @@ def llvm_target():
     import platform
     import subprocess
 
+    AVX512_TARGET = "llvm -mcpu=skylake-avx512"
+    AVX2_TARGET = "llvm -mcpu=core-avx2"
+    DEFAULT_TARGET = "llvm"
+
     system = platform.system()
 
     if system == "Linux":
@@ -213,8 +217,8 @@ def llvm_target():
             with open("/proc/cpuinfo") as f:
                 cpuinfo = f.read()
             if "avx512" in cpuinfo:
-                return "llvm -mcpu=skylake-avx512"
-            return "llvm -mcpu=core-avx2"
+                return AVX512_TARGET
+            return AVX2_TARGET
         except FileNotFoundError:
             pass
     elif system == "Darwin":
@@ -225,16 +229,17 @@ def llvm_target():
                 text=True,
                 check=False,
             )
-            cpu_features = result.stdout.lower()
-            if "avx512" in cpu_features:
-                return "llvm -mcpu=skylake-avx512"
-            if "avx2" in cpu_features:
-                return "llvm -mcpu=core-avx2"
+            if result.returncode == 0:
+                cpu_features = result.stdout.lower()
+                if "avx512" in cpu_features:
+                    return AVX512_TARGET
+                if "avx2" in cpu_features:
+                    return AVX2_TARGET
         except (FileNotFoundError, subprocess.SubprocessError):
             pass
 
         if platform.machine() == "arm64":
-            return "llvm"
+            return DEFAULT_TARGET
 
     # Default fallback
-    return "llvm"
+    return DEFAULT_TARGET
