@@ -202,31 +202,31 @@ def test_subgraph_capture():
         @R.function
         def subgraph_0(
             inp_0: R.Tensor((10,), dtype="float32"), inp_1: R.Tensor((10,), dtype="float32")
-        ) -> R.Tuple(R.Tensor((10,), dtype="float32"), R.Tensor((), dtype="bool")):
+        ) -> R.Tuple(R.Tensor((), dtype="bool"), R.Tensor((10,), dtype="float32")):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((10,), dtype="float32") = R.sin(inp_0)
-                lv1: R.Tensor((10,), dtype="float32") = R.add(lv, R.const(1, "float32"))
+                lv1: R.Tensor((10,), dtype="float32") = R.add(lv, R.const(1.0, "float32"))
                 lv2: R.Tensor((10,), dtype="float32") = R.divide(inp_0, lv1)
                 lv3: R.Tensor((), dtype="float32") = R.sum(inp_1, axis=None, keepdims=False)
-                lv4: R.Tensor((), dtype="bool") = R.less(lv3, R.const(1, "float32"))
-                gv: R.Tuple(R.Tensor((10,), dtype="float32"), R.Tensor((), dtype="bool")) = (
-                    lv2,
+                lv4: R.Tensor((), dtype="bool") = R.less(lv3, R.const(1.0, "float32"))
+                gv: R.Tuple(R.Tensor((), dtype="bool"), R.Tensor((10,), dtype="float32")) = (
                     lv4,
+                    lv2,
                 )
                 R.output(gv)
             return gv
 
         @R.function
         def subgraph_1(
-            inp_01: R.Tensor((10,), dtype="float32"), inp_11: R.Tensor((10,), dtype="float32")
+            inp_0: R.Tensor((10,), dtype="float32"), inp_1: R.Tensor((10,), dtype="float32")
         ) -> R.Tensor((10,), dtype="float32"):
             # block 0
             with R.dataflow():
-                lv5: R.Tensor((10,), dtype="float32") = R.multiply(inp_01, inp_11)
-                gv1: R.Tensor((10,), dtype="float32") = lv5
-                R.output(gv1)
-            return gv1
+                lv: R.Tensor((10,), dtype="float32") = R.multiply(inp_0, inp_1)
+                gv: R.Tensor((10,), dtype="float32") = lv
+                R.output(gv)
+            return gv
 
     mod = dynamo_capture_subgraphs(Input2, torch.randn(10), torch.ones(10))
     tvm.ir.assert_structural_equal(mod, Expected2)
