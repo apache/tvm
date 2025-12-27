@@ -60,6 +60,9 @@ RUN bash /install/ubuntu_install_opencl.sh
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
 RUN bash /install/ubuntu_install_python_package.sh
 
+COPY install/ubuntu_install_cuda_python.sh /install/ubuntu_install_cuda_python.sh
+RUN bash /install/ubuntu_install_cuda_python.sh
+
 COPY install/ubuntu_install_sphinx.sh /install/ubuntu_install_sphinx.sh
 RUN bash /install/ubuntu_install_sphinx.sh
 
