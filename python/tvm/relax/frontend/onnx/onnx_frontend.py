@@ -1881,8 +1881,8 @@ class Pad(OnnxOpConverter):
         elif pad_mode == "reflect":
             return bb.emit_te(topi.nn.mirror_pad, inputs[0], pad_before, pad_after, "REFLECT")
         else:
-            # TODO(gigiblender) Support edge mode.
-            raise NotImplementedError("Pad mode {} not implemented".format(pad_mode))
+            # edge mode - replicate border values
+            return bb.emit_te(topi.nn.replicate_pad, inputs[0], pad_before, pad_after)
 
     @classmethod
     def _impl_v11(cls, bb, inputs, attr, params):
@@ -1911,8 +1911,8 @@ class Pad(OnnxOpConverter):
         elif pad_mode == "reflect":
             return bb.emit_te(topi.nn.mirror_pad, inputs[0], pad_before, pad_after, "REFLECT")
         else:
-            # TODO(gigiblender) Support edge mode.
-            raise NotImplementedError("Pad mode {} not implemented".format(pad_mode))
+            # edge mode - replicate border values
+            return bb.emit_te(topi.nn.replicate_pad, inputs[0], pad_before, pad_after)
 
 
 class Tile(OnnxOpConverter):
