@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -113,3 +114,37 @@ def test_pipeline_with_kv_cache():
 
         cache_np[i, :] = x_np + y_np
         tvm.testing.assert_allclose(kv.numpy(), cache_np[: np_shape[0], :], rtol=1e-7, atol=1e-7)
+
+
+@pytest.mark.parametrize("target_name", ["vulkan", "webgpu"])
+@pytest.mark.parametrize(
+    "pipeline_func",
+    [
+        relax.pipeline.library_dispatch_passes,
+        relax.pipeline.legalize_passes,
+        relax.pipeline.dataflow_lower_passes,
+        relax.pipeline.finalize_passes,
+        relax.pipeline.get_default_pipeline,
+    ],
+)
+def test_gpu_generic_fallback(target_name, pipeline_func):
+    target = tvm.target.Target(target_name)
+    result = pipeline_func(target)
+    assert result is not None
+
+
+@pytest.mark.parametrize("target_name", ["hexagon", "c"])
+@pytest.mark.parametrize(
+    "pipeline_func",
+    [
+        relax.pipeline.library_dispatch_passes,
+        relax.pipeline.legalize_passes,
+        relax.pipeline.dataflow_lower_passes,
+        relax.pipeline.finalize_passes,
+        relax.pipeline.get_default_pipeline,
+    ],
+)
+def test_non_gpu_target_raises_error(target_name, pipeline_func):
+    target = tvm.target.Target(target_name)
+    with pytest.raises(ValueError, match="not yet supported"):
+        pipeline_func(target)
