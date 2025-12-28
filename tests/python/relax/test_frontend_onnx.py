@@ -2440,6 +2440,8 @@ def test_pad(dynamic):
     verify_pad((2, 3), [1, 0, 0, 1], "constant", 0.0)
     verify_pad((3, 2), [0, 0, 1, 0], "constant", 5.0)
     verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "reflect")
+    verify_pad((2, 3), [1, 1, 1, 1], "edge")
+    verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "edge")
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
@@ -2496,6 +2498,8 @@ def test_pad_v2(dynamic):
     verify_pad((2, 3), [1, 0, 0, 1], "constant", 0.0)
     verify_pad((3, 2), [0, 0, 1, 0], "constant", 5.0)
     verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "reflect")
+    verify_pad((2, 3), [1, 1, 1, 1], "edge")
+    verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "edge")
 
 
 @pytest.mark.parametrize("fp_arith", [np.float16, np.float32])
