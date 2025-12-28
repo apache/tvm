@@ -249,9 +249,9 @@ TensorIntrin.register(
     SIMDGROUP_FILLED_8x8x8_f32_INTRIN, *get_make_filled_simdgroup_matrix_intrin("float32", 8, 8)
 )
 
-SIMDGROUP_FILLED_8x8x8_bf16_INTRIN = "simdgroup_fill_8x8x8_bf16"
+SIMDGROUP_MAKE_FILLED_8x8x8_bf16_INTRIN = "simdgroup_make_filled_8x8x8_bf16"
 TensorIntrin.register(
-    SIMDGROUP_FILLED_8x8x8_bf16_INTRIN, *get_make_filled_simdgroup_matrix_intrin("bfloat16", 8, 8)
+    SIMDGROUP_MAKE_FILLED_8x8x8_bf16_INTRIN, *get_make_filled_simdgroup_matrix_intrin("bfloat16", 8, 8)
 )
 
 # Load intrinsics
@@ -268,6 +268,18 @@ TensorIntrin.register(
     *get_simdgroup_load_intrin("float16", "shared", 8, 8, True),
 )
 
+SIMDGROUP_LOAD_8x8x8_bf16_SHARED_INTRIN = "simdgroup_load_8x8x8_bf16_shared"
+TensorIntrin.register(
+    SIMDGROUP_LOAD_8x8x8_bf16_SHARED_INTRIN,
+    *get_simdgroup_load_intrin("bfloat16", "shared", 8, 8, False),
+)
+
+SIMDGROUP_LOAD_8x8x8_bf16_SHARED_TRANS_INTRIN = "simdgroup_load_8x8x8_bf16_shared_trans"
+TensorIntrin.register(
+    SIMDGROUP_LOAD_8x8x8_bf16_SHARED_TRANS_INTRIN,
+    *get_simdgroup_load_intrin("bfloat16", "shared", 8, 8, True),
+)
+
 # Store intrinsics
 
 SIMDGROUP_STORE_8x8x8_f16_GLOBAL_INTRIN = "simdgroup_store_8x8x8_f16_global"
@@ -281,12 +293,31 @@ TensorIntrin.register(
     SIMDGROUP_STORE_8x8x8_f16_SHARED_INTRIN,
     *get_simdgroup_store_intrin("float16", "shared", 8, 8, False),
 )
+
+SIMDGROUP_STORE_8x8x8_bf16_GLOBAL_INTRIN = "simdgroup_store_8x8x8_bf16_global"
+TensorIntrin.register(
+    SIMDGROUP_STORE_8x8x8_bf16_GLOBAL_INTRIN,
+    *get_simdgroup_store_intrin("bfloat16", "global", 8, 8, False),
+)
+
+SIMDGROUP_STORE_8x8x8_bf16_SHARED_INTRIN = "simdgroup_store_8x8x8_bf16_shared"
+TensorIntrin.register(
+    SIMDGROUP_STORE_8x8x8_bf16_SHARED_INTRIN,
+    *get_simdgroup_store_intrin("bfloat16", "shared", 8, 8, False),
+)
+
 # Multiply accumulate intrinsics
 
 SIMDGROUP_MULTI_ACC_8x8x8_f16_INTRIN = "simdgroup_multiply_accumulate_8x8x8_f16"
 TensorIntrin.register(
     SIMDGROUP_MULTI_ACC_8x8x8_f16_INTRIN,
     *get_simdgroup_multiply_accumulate_intrin(8, 8, 8, "float16"),
+)
+
+SIMDGROUP_MULTI_ACC_8x8x8_bf16_INTRIN = "simdgroup_multiply_accumulate_8x8x8_bf16"
+TensorIntrin.register(
+    SIMDGROUP_MULTI_ACC_8x8x8_bf16_INTRIN,
+    *get_simdgroup_multiply_accumulate_intrin(8, 8, 8, "bfloat16"),
 )
 
 

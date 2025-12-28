@@ -393,9 +393,12 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
         << "Cannot find variable allocation for simdgroup: " << var;
     const std::string& dtype_str = it->second;
     f_check_simdgroup_shape(op->args[3], op->args[4]);
+    // Cast the fill value to the correct dtype for Metal's make_filled_simdgroup_matrix
+    // Metal requires the value to be convertible to the matrix element type (e.g., bfloat)
+    // Without the cast, float literals like 0.0f fail with bfloat matrices
     os << PrintExpr(var) << "[" << PrintExpr(op->args[1]) << "] = make_filled_simdgroup_matrix<"
        << dtype_str << ", " << PrintExpr(op->args[3]) << ", " << PrintExpr(op->args[4]) << ">("
-       << PrintExpr(op->args[2]) << ")";
+       << dtype_str << "(" << PrintExpr(op->args[2]) << "))";
   } else if (op->op.same_as(builtin::simdgroup_load())) {
     ICHECK_EQ(op->args.size(), 7);
     f_check_simdgroup_shape(op->args[4], op->args[5]);
