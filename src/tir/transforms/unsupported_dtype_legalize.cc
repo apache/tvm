@@ -749,13 +749,8 @@ bool CheckDataTypeSupport(const Target& target, const std::string& support_func_
     // Metal 3.1+ (macOS 14+ / iOS 17+) supports bfloat16 operations
     if (auto check_support = tvm::ffi::Function::GetGlobal("tvm.contrib.xcode.supports_bf16")) {
       has_native_support = (*check_support)().cast<bool>();
-      LOG(INFO) << "Metal bfloat16 support: " << (has_native_support ? "YES (Metal 3.1+)" : "NO (requires macOS 14+)");
     } else {
-      // Fallback: Assume support if version check unavailable
-      // Most modern systems support Metal 3.1+, and the Metal compiler
-      // will produce a compilation error if bfloat16 is actually unsupported
-      has_native_support = true;
-      LOG(INFO) << "Metal bfloat16 support: YES (assumed, import tvm.contrib.xcode for version check)";
+      has_native_support = false;
     }
   }
   return has_native_support;
