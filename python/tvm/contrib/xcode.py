@@ -169,51 +169,40 @@ def compile_metal(code, path_target=None, sdk="macosx", min_os_version=None):
 
 
 @tvm_ffi.register_global_func("tvm.contrib.xcode.supports_bf16")
-def supports_bf16():
+def supports_bf16(target=None):
     """Check if Metal supports bfloat16.
 
     Metal 3.1+ supports bfloat16 with simdgroup_bfloat types.
-    This requires macOS 14+ or iOS 17+.
+
+    Parameters
+    ----------
+    target : tvm.target.Target, optional
+        The compilation target. If provided, checks the min_metal_version attribute.
+        If not provided, defaults to Metal 2.3 (no bf16 support).
 
     Returns
     -------
     supported : bool
         True if bfloat16 is supported.
     """
-    import platform
+    from .. import target as tvm_target
 
-    system = platform.system()
+    # Check if target specifies min_metal_version, default to 2.3
+    metal_version = "2.3"
+    target = target or tvm_target.Target.current(allow_none=True)
+    if target:
+        min_metal_version = target.attrs.get("min_metal_version")
+        if min_metal_version:
+            metal_version = str(min_metal_version)
 
-    if system == "Darwin":  # macOS
-        # Check macOS version
-        version = platform.mac_ver()[0]
-        if not version:
-            # Fallback: assume supported on recent systems
-            return True
-
-        try:
-            major, minor = map(int, version.split(".")[:2])
-            # macOS 14+ (Sonoma and later) supports Metal 3.1
-            return major >= 14
-        except (ValueError, IndexError):
-            # If we can't parse version, assume not supported for safety
-            return False
-
-    elif system == "iOS":
-        # Check iOS version (for devices running iOS)
-        version = platform.ios_ver()[0] if hasattr(platform, 'ios_ver') else None
-        if not version:
-            return False
-
-        try:
-            major = int(version.split(".")[0])
-            # iOS 17+ supports Metal 3.1
-            return major >= 17
-        except (ValueError, IndexError):
-            return False
-
-    # Unknown platform or non-Apple platform
-    return False
+    try:
+        # Parse version string (e.g., "3.1", "2.3")
+        major, minor = map(int, metal_version.split(".")[:2])
+        # Metal 3.1+ supports bfloat16
+        return major > 3 or (major == 3 and minor >= 1)
+    except (ValueError, IndexError):
+        # If we can't parse version, assume not supported for safety
+        return False
 
 
 def compile_coreml(model, model_name="main", out_dir="."):

@@ -448,6 +448,14 @@ class MetalMatmul(GPUScheduleRule):
         block_stmt = sch.get(main_block)
         in_dtype, _ = get_in_out_dtypes(block_stmt)
 
+        # Check if target supports the dtype for SIMD operations
+        if in_dtype == "bfloat16":
+            from tvm.contrib import xcode  # pylint: disable=import-outside-toplevel
+            if not xcode.supports_bf16(target):
+                # Target doesn't support bf16 SIMD intrinsics, skip MetalMatmul
+                # Will fall back to generic scheduling + bf16 legalization
+                return None
+
         intrin_group = get_simdgroup_intrin_group(
             load_scope="shared",
             store_scope="shared",

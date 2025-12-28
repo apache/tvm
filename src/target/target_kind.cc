@@ -381,6 +381,7 @@ TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
     .add_attr_option<int64_t>("max_shared_memory_per_block", 32768)
     .add_attr_option<int64_t>("thread_warp_size", 16)
     .add_attr_option<int64_t>("max_function_args", 31)
+    .add_attr_option<ffi::String>("min_metal_version", "2.3")
     .set_default_keys({"metal", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
