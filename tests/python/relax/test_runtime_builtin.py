@@ -185,7 +185,7 @@ def test_tensor_cache():
         v_np = param_dict[f"x_{i}"]
         if v_np.dtype == "float32":
             v_np = tvmjs._convert_bf16_to_f32(tvmjs._convert_f32_to_bf16(v_np))
-        np.testing.assert_allclose(v.numpy(), v_np, atol=1e-6, rtol=1e-6)
+        tvm.testing.assert_allclose(v.numpy(), v_np, atol=1e-6, rtol=1e-6)
 
 
 def test_tensor_cache_update():
@@ -210,7 +210,7 @@ def test_tensor_cache_update():
         v_np = param_dict[f"x_{i}"]
         if v_np.dtype == "float32":
             v_np = tvmjs._convert_bf16_to_f32(tvmjs._convert_f32_to_bf16(v_np))
-        np.testing.assert_allclose(v.numpy(), v_np, atol=1e-6, rtol=1e-6)
+        tvm.testing.assert_allclose(v.numpy(), v_np, atol=1e-6, rtol=1e-6)
 
 
 def test_attention_kv_cache_window_override():

@@ -128,11 +128,63 @@ def test_unary_intrin():
             assert b2.numpy().dtype == np.float32
             # Verify correctness against NumPy exp
             expected = np.exp(out_np.astype(np.float32))
-            np.testing.assert_allclose(b2.numpy(), expected, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(b2.numpy(), expected, rtol=1e-5, atol=1e-5)
 
     for func in test_funcs:
         atol = rtol = 1e-3 if func[0].__name__ in ["asin", "acos", "atan"] else 1e-5
         run_test(*func, atol, rtol)
+
+
+def test_asin_acos_boundary_values():
+    """Test asin and acos with boundary values and threshold switching."""
+    test_funcs = [
+        (tvm.tir.asin, lambda x: np.arcsin(x)),
+        (tvm.tir.acos, lambda x: np.arccos(x)),
+    ]
+
+    def run_test(tvm_intrin, np_func):
+        m = te.var("m")
+        A = te.placeholder((m,), name="A")
+        B = te.compute((m,), lambda *i: tvm_intrin(A(*i)), name="B")
+
+        mod = te.create_prim_func([A, B])
+        sch = tir.Schedule(mod)
+        func = tvm.compile(sch.mod, target="llvm")
+
+        dev = tvm.cpu(0)
+
+        # Test boundary values: ±1.0 (should use system library)
+        boundary_values = np.array([1.0, -1.0], dtype=np.float32)
+        a1 = tvm.runtime.tensor(boundary_values, dev)
+        b1 = tvm.runtime.tensor(np.empty_like(boundary_values), dev)
+        func(a1, b1)
+        tvm.testing.assert_allclose(b1.numpy(), np_func(boundary_values), atol=1e-5, rtol=1e-5)
+
+        # Test values at threshold: ±0.5 (should use system library)
+        threshold_values = np.array([0.5, -0.5], dtype=np.float32)
+        a2 = tvm.runtime.tensor(threshold_values, dev)
+        b2 = tvm.runtime.tensor(np.empty_like(threshold_values), dev)
+        func(a2, b2)
+        tvm.testing.assert_allclose(b2.numpy(), np_func(threshold_values), atol=1e-4, rtol=1e-4)
+
+        # Test values just below threshold: ±0.49 (should use Taylor series)
+        below_threshold_values = np.array([0.49, -0.49, 0.3, -0.3, 0.0], dtype=np.float32)
+        a3 = tvm.runtime.tensor(below_threshold_values, dev)
+        b3 = tvm.runtime.tensor(np.empty_like(below_threshold_values), dev)
+        func(a3, b3)
+        tvm.testing.assert_allclose(
+            b3.numpy(), np_func(below_threshold_values), atol=1e-3, rtol=1e-3
+        )
+
+        # Test out-of-domain values: should return NaN
+        out_of_domain = np.array([1.1, -1.1, 2.0, -2.0], dtype=np.float32)
+        a4 = tvm.runtime.tensor(out_of_domain, dev)
+        b4 = tvm.runtime.tensor(np.empty_like(out_of_domain), dev)
+        func(a4, b4)
+        assert np.all(np.isnan(b4.numpy())), "Out-of-domain inputs should return NaN"
+
+    for func in test_funcs:
+        run_test(*func)
 
 
 def test_binary_intrin():
@@ -315,6 +367,7 @@ if __name__ == "__main__":
     test_nearbyint()
     test_unary_intrin()
     test_round_intrinsics_on_int()
+    test_asin_acos_boundary_values()
     test_binary_intrin()
     test_ldexp()
     test_clz()

@@ -781,11 +781,9 @@ def test_nll_loss_no_batch(target, dev, nll_reduction1, nll_weighted1, nll_ignor
 
 @tvm.testing.parametrize_targets("llvm")
 def test_conv2d(target, dev, c2d_shape1, c2d_shape2, c2d_kwargs):
-    # TODO(mlc-team) Update to uniform
-    # We should use float32 to check the correctness of conv2d
-    # to avoid possible precision problems
-    data1_numpy = np.random.uniform(0, 16, c2d_shape1).astype(np.float64)
-    data2_numpy = np.random.uniform(0, 3, c2d_shape2).astype(np.float64)
+    # Use smaller range to reduce numerical errors in gradient check
+    data1_numpy = np.random.uniform(0, 2, c2d_shape1).astype(np.float32)
+    data2_numpy = np.random.uniform(0, 2, c2d_shape2).astype(np.float32)
     relax_check_gradients(
         relax.op.nn.conv2d,
         [data1_numpy, data2_numpy],
@@ -819,7 +817,7 @@ def test_conv2d(target, dev, c2d_shape1, c2d_shape2, c2d_kwargs):
 
 @tvm.testing.parametrize_targets("llvm")
 def test_max_pool2d(target, dev, pool_size, pool_kwargs):
-    data_numpy = np.random.uniform(0, 16, size=(3, 2, 10, 10)).astype(np.float64)
+    data_numpy = np.random.uniform(0, 3, size=(3, 2, 10, 10)).astype(np.float32)
     relax_check_gradients(
         relax.op.nn.max_pool2d,
         [data_numpy],
@@ -832,7 +830,7 @@ def test_max_pool2d(target, dev, pool_size, pool_kwargs):
 
 @tvm.testing.parametrize_targets("llvm")
 def test_avg_pool2d(target, dev, pool_size, pool_kwargs):
-    data_numpy = np.random.uniform(0, 16, size=(3, 2, 10, 10)).astype(np.float64)
+    data_numpy = np.random.uniform(0, 3, size=(3, 2, 10, 10)).astype(np.float32)
     relax_check_gradients(
         relax.op.nn.avg_pool2d,
         [data_numpy],

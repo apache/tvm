@@ -357,17 +357,52 @@ class BlockNameDeduplicator : public tir::StmtMutator {
   }
 
   ffi::String GetUniqueName(const ffi::String& prefix) {
-    ffi::String unique_prefix = prefix;
-    auto it = name_count_.find(prefix);
-    while (name_count_.count(unique_prefix)) {
-      unique_prefix = prefix + "_" + std::to_string(++it->second);
+    std::string str_prefix = std::string(prefix);
+
+    // Find where the trailing digits start
+    size_t base_len = str_prefix.length();
+    while (base_len > 0 && std::isdigit(str_prefix[base_len - 1])) {
+      --base_len;
     }
-    name_count_[unique_prefix] = 0;
-    return unique_prefix;
+
+    std::string base_name;
+    int64_t start_num = 0;
+    bool has_suffix = base_len < str_prefix.length();
+
+    if (has_suffix) {
+      base_name = str_prefix.substr(0, base_len);
+      try {
+        start_num = std::stoll(str_prefix.substr(base_len));
+      } catch (const std::out_of_range&) {
+        // Fallback: if the number is too large, treat the whole string as a base name.
+        has_suffix = false;
+        base_name = str_prefix;
+      }
+    } else {
+      base_name = str_prefix;
+    }
+
+    // Check if the original name is available
+    ffi::String candidate = prefix;
+    if (!name_count_.count(candidate)) {
+      name_count_[candidate] = 0;
+      return candidate;
+    }
+
+    // Generate unique name by incrementing the numeric suffix
+    int64_t counter = has_suffix ? start_num + 1 : 1;
+    while (true) {
+      candidate = ffi::String(base_name + std::to_string(counter));
+      if (!name_count_.count(candidate)) {
+        name_count_[candidate] = 0;
+        return candidate;
+      }
+      ++counter;
+      ICHECK_GT(counter, 0) << "Counter overflow when generating unique block name for prefix: "
+                            << prefix;
+    }
   }
 
-  // TODO(relax-team): It should detects the number suffix and do renaming properly
-  // e.g. GetUniqueName("name1") should return "name2" instead of "name10".
   /*! \brief The count map to make block name unique. */
   std::unordered_map<ffi::String, int> name_count_;
 };

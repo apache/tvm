@@ -327,6 +327,32 @@ def test_tir_starred_for_loop():
     tvm.ir.assert_structural_equal(starred, non_starred)
 
 
+def test_tir_loop_steps():
+    N = T.Var("N", "int32")
+
+    @T.prim_func(private=True)
+    def loop_with_steps(
+        A: T.Buffer((N,)), B: T.Buffer((N,)), C: T.Buffer((N,)), tid: T.int32, v: T.int32
+    ):
+        for i in T.serial(tid, N, step=2):
+            C[i] = A[i] + B[i]
+        for i in T.unroll(tid, N, step=3):
+            C[i] = A[i] + B[i]
+        for i in T.vectorized(tid, N, step=4):
+            C[i] = A[i] + B[i]
+        for i in T.parallel(tid, N, step=5):
+            C[i] = A[i] + B[i]
+        for i in T.serial(tid, N, step=v):
+            C[i] = A[i] + B[i]
+
+    stmts = loop_with_steps.body.seq
+    assert stmts[0].step == 2
+    assert stmts[1].step == 3
+    assert stmts[2].step == 4
+    assert stmts[3].step == 5
+    assert stmts[4].step.name == "v"
+
+
 def test_tir_empty_tuple_index():
     @T.macro
     def bar(val):
@@ -610,6 +636,38 @@ def test_alloc_inside_block():
                 A[i] += B[j]
 
     tvm.ir.assert_structural_equal(func, expected)
+
+
+def test_tir_macro_block_name_suffix():
+    @T.macro
+    def operation(A, idx):
+        with T.block("op"):
+            v = T.axis.remap("S", [idx])
+            A[v] = A[v] * T.float32(2)
+
+    @T.prim_func(private=True)
+    def func_w_macro(a: T.handle) -> None:
+        A = T.match_buffer(a, [10])
+        for i in T.serial(0, 10):
+            operation(A, i)
+            operation(A, i)
+            operation(A, i)
+
+    @T.prim_func(private=True)
+    def expected(a: T.handle) -> None:
+        A = T.match_buffer(a, [10])
+        for i in T.serial(0, 10):
+            with T.block("op"):
+                v = T.axis.remap("S", [i])
+                A[v] = A[v] * T.float32(2)
+            with T.block("op_1"):
+                v = T.axis.remap("S", [i])
+                A[v] = A[v] * T.float32(2)
+            with T.block("op_2"):
+                v = T.axis.remap("S", [i])
+                A[v] = A[v] * T.float32(2)
+
+    tvm.ir.assert_structural_equal(func_w_macro, expected)
 
 
 def test_ifexp():

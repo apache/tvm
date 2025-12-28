@@ -185,8 +185,7 @@ class ExprWithOp(Expr, Scriptable):
         return _binary_rhs_helper(other)
 
     def __mod__(self, other: Expr) -> "ExprWithOp":
-        # TODO(siyuan): Support it after mod operator is supported in relax
-        raise ValueError("relax.mod is not supported yet.")
+        return _binary_op_helper(self, other, _op_ffi_api.mod)  # type: ignore
 
     def __rmod__(self, other: Expr) -> "ExprWithOp":
         return _binary_rhs_helper(other)

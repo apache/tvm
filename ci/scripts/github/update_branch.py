@@ -165,8 +165,6 @@ if __name__ == "__main__":
 
     remote = git(["config", "--get", f"remote.{args.remote}.url"])
     user, repo = parse_remote(remote)
-    # TODO: Remove this before landing
-    user, repo = ("apache", "tvm")
 
     if args.testonly_json:
         r = json.loads(args.testonly_json)

@@ -334,12 +334,55 @@ InferLayoutOutput InferLayoutConcat(
 
   const auto* attrs = call->attrs.as<ConcatAttrs>();
   ICHECK(attrs != nullptr) << "Invalid Call";
+
   NLayout nlayout = GetNLayout(var_layout_map, call->args[0]);
   ICHECK(nlayout.IsNested());
   ICHECK(nlayout.NestedArray()[0].IsLeaf());
 
   int n_tensor = nlayout.NestedArray().size();
   LayoutDecision layout = nlayout.NestedArray()[0].LeafValue();
+
+  // We may expect mix of sub indexed and regular layouts here
+  // Pick the first sub indexed layout and try to prove it for all tensors
+  // On any failre select first occuring regular layout for all
+  auto nlayout_array = nlayout.NestedArray();
+  for (auto n_layout : nlayout_array) {
+    ICHECK(n_layout.IsLeaf());
+    LayoutDecision in_layout = n_layout.LeafValue();
+    if (in_layout->layout.ndim() != in_layout->layout.ndim_primal()) {
+      const auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(call->args[0]);
+      ICHECK(tuple_sinfo != nullptr)
+          << " expects the input to be a Tuple of Tensors. However, the given input is "
+          << call->args[0]->struct_info_->GetTypeKey();
+      for (size_t i = 0; i < tuple_sinfo->fields.size(); ++i) {
+        StructInfo field_sinfo = tuple_sinfo->fields[i];
+        const auto* field_tensor_sinfo = field_sinfo.as<TensorStructInfoNode>();
+        ICHECK(field_tensor_sinfo != nullptr)
+            << call->op
+            << " expects the input to be a Tuple of Tensors. However, the given input is "
+            << call->args[0]->struct_info_;
+        auto t_sinfo = ffi::GetRef<TensorStructInfo>(field_tensor_sinfo);
+        ffi::Optional<ShapeExpr> t_shape =
+            ffi::GetRef<ShapeExpr>(t_sinfo->shape.as<ShapeExprNode>());
+        LayoutDecision curr_layout = nlayout_array[i].LeafValue();
+        if (!CanProveLayoutTransform(curr_layout->layout, in_layout->layout,
+                                     t_shape.value()->values)) {
+          // Some tensor unhappy with sub indexed layout, lets pick first regular layout
+          for (auto pick_layout : nlayout_array) {
+            if (pick_layout.LeafValue()->layout.ndim() ==
+                pick_layout.LeafValue()->layout.ndim_primal()) {
+              in_layout = pick_layout.LeafValue();
+              break;
+            }
+          }
+          break;
+        }
+      }
+      layout = in_layout;
+      break;
+    }
+  }
+
   ffi::Array<NLayout> input_layouts, output_layouts;
   for (int i = 0; i < n_tensor; ++i) {
     input_layouts.push_back(layout);
@@ -1234,15 +1277,10 @@ StructInfo InferStructInfoSqueeze(const Call& call, const BlockBuilder& ctx) {
       // Todo(relax-team): revisit here for better check on if the axis being squeezed has length 1.
       // When `axis` is given, the dim lengths at the axes must be integer 1 when it is not symbolic
       const auto* int_len = shape_value.value()[axes[i]].as<IntImmNode>();
-      if (int_len != nullptr && int_len->value != 1) {
-        ctx->ReportFatal(Diagnostic::Error(call)
-                         << "Squeeze expects the input tensor shape values at the given axis "
-                            "positions to be all 1. However, the tensor shape at axis "
-                         << axes[i] << " is " << shape_value.value()[axes[i]]
-                         << " which is not 1. If it is symbolic, please use MatchCast to cast it "
-                            "to 1 before doing Squeeze.");
+      // If a dimension is not 1, silently skip it (no-op), matching PyTorch behavior.
+      if ((int_len != nullptr && int_len->value == 1) || int_len == nullptr) {
+        axis_removal_mask[axes[i]] = true;
       }
-      axis_removal_mask[axes[i]] = true;
     }
   } else {
     // When `axis` is not defined, squeeze all unit-length dimensions.
@@ -1767,12 +1805,70 @@ StructInfo InferStructInfoRepeat(const Call& call, const BlockBuilder& ctx) {
   return TensorStructInfo(ShapeExpr(shape_array), data_sinfo->dtype, data_sinfo->vdevice);
 }
 
-// TODO(relax-team): implement FRelaxInferLayout for repeat
+InferLayoutOutput InferLayoutRepeat(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+
+  const auto* attrs = call->attrs.as<RepeatAttrs>();
+  ICHECK(attrs != nullptr) << "Invalid Call";
+  const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+  ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support static ndim for now";
+
+  LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  int ndim = tensor_sinfo->ndim;
+
+  // Can't handle sub indexed layouts.
+  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+    existing_layout = LayoutDecision(InitialLayout(ndim));
+  }
+
+  // When axis is not specified, the output is 1D (flattened)
+  if (!attrs->axis.has_value()) {
+    return InferLayoutOutput({existing_layout}, {InitialLayoutDecision(1)}, Attrs(call->attrs));
+  }
+
+  // Transform the axis based on the layout
+  int axis = attrs->axis.value();
+  if (axis < 0) {
+    axis += ndim;
+  }
+
+  // Create a mapping from original layout to existing layout
+  std::string axis_str(ndim, '0');
+  axis_str[axis] = '1';
+  for (int i = 0, j = 0; i < ndim; ++i) {
+    if (axis_str[i] != '1') {
+      axis_str[i] = 'A' + j++;
+    }
+  }
+
+  ffi::String new_axis_str =
+      TransposeStrLike(axis_str, InitialLayout(ndim), existing_layout->layout);
+
+  int64_t new_axis = -1;
+  for (size_t i = 0; i < new_axis_str.size(); ++i) {
+    if (new_axis_str.at(i) == '1') {
+      new_axis = i;
+      break;
+    }
+  }
+  ICHECK_GE(new_axis, 0) << "Failed to find transformed axis";
+
+  ObjectPtr<RepeatAttrs> new_attrs = ffi::make_object<RepeatAttrs>(*attrs);
+  new_attrs->axis = new_axis;
+
+  // When axis is specified, the layout is preserved
+  return InferLayoutOutput({existing_layout}, {existing_layout}, Attrs(new_attrs));
+}
+
 TVM_REGISTER_OP("relax.repeat")
     .set_attrs_type<RepeatAttrs>()
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoRepeat)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutRepeat)
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.tile */
@@ -2105,12 +2201,19 @@ StructInfo InferStructInfoIndexPut(const Call& call, const BlockBuilder& ctx) {
   }
 
   // Validate each index tensor
+  // Index tensors can be multi-dimensional for broadcasting
+  int max_index_ndim = -1;
   for (size_t i = 0; i < indices_tensors.size(); ++i) {
     const auto& tensor_sinfo = indices_tensors[i];
-    if (!tensor_sinfo->IsUnknownNdim() && tensor_sinfo->ndim != 1) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "IndexPut requires each index tensor to be 1D. "
-                       << "However, index tensor " << i << " has ndim=" << tensor_sinfo->ndim);
+    if (!tensor_sinfo->IsUnknownNdim()) {
+      if (tensor_sinfo->ndim < 1) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << "IndexPut requires each index tensor to have at least 1 dimension. "
+                         << "However, index tensor " << i << " has ndim=" << tensor_sinfo->ndim);
+      }
+      if (max_index_ndim < tensor_sinfo->ndim) {
+        max_index_ndim = tensor_sinfo->ndim;
+      }
     }
     if (tensor_sinfo->IsUnknownDtype()) {
       LOG(WARNING) << "Data type of index tensor " << i
@@ -2119,6 +2222,23 @@ StructInfo InferStructInfoIndexPut(const Call& call, const BlockBuilder& ctx) {
       ctx->ReportFatal(Diagnostic::Error(call)
                        << "IndexPut requires each index tensor to have integer dtype. "
                        << "However, index tensor " << i << " has dtype=" << tensor_sinfo->dtype);
+    }
+  }
+
+  // Validate that index tensor shapes are broadcastable
+  if (max_index_ndim > 1) {
+    for (size_t i = 0; i < indices_tensors.size(); ++i) {
+      const auto& tensor_sinfo = indices_tensors[i];
+      if (!tensor_sinfo->IsUnknownNdim() && tensor_sinfo->ndim > 1) {
+        // Check that multi-dimensional indices are broadcastable
+        const auto* shape = tensor_sinfo->shape.as<ShapeExprNode>();
+        if (shape) {
+          // Verify trailing dimensions can broadcast
+          // For now, we accept any multi-dimensional index and rely on runtime validation
+          LOG(INFO) << "IndexPut: index tensor " << i << " has ndim=" << tensor_sinfo->ndim
+                    << " for broadcasting";
+        }
+      }
     }
   }
 
@@ -2336,7 +2456,6 @@ StructInfo InferStructInfoScatterElements(const Call& call, const BlockBuilder& 
   if (data_sinfo->IsUnknownDtype() || updates_sinfo->IsUnknownDtype()) {
     auto diag_dtype = [&](const TensorStructInfoNode* sinfo, ffi::String name) {
       if (sinfo->IsUnknownDtype()) {
-        // TODO(tvm-team): Do we have an equivalent of `ctx->ReportFatal` for warning?
         LOG(WARNING) << "Data type of " << name
                      << " has not been specified. Assume it has an integer type.";
       }
@@ -2353,7 +2472,6 @@ StructInfo InferStructInfoScatterElements(const Call& call, const BlockBuilder& 
   }
 
   if (indices_sinfo->IsUnknownDtype()) {
-    // TODO(tvm-team): Do we have an equivalent of `ctx->ReportFatal` for warning?
     LOG(WARNING) << "Data type of indice has not been specified. Assume it has an integer type.";
   } else if (!(indices_sinfo->dtype.is_int() || indices_sinfo->dtype.is_uint())) {
     ctx->ReportFatal(

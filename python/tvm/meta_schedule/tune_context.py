@@ -123,6 +123,15 @@ class TuneContext(Object):
         if search_strategy is not None:
             if not isinstance(search_strategy, SearchStrategy):
                 search_strategy = SearchStrategy.create(search_strategy)
+            # Additional check: ensure it's not the abstract SearchStrategy class itself
+            # Use type() for exact type check (not isinstance which would match subclasses)
+            elif type(search_strategy) is SearchStrategy:  # pylint: disable=unidiomatic-typecheck
+                raise TypeError(
+                    "Cannot use abstract SearchStrategy class directly. "
+                    "Use SearchStrategy.create() with a valid strategy type "
+                    "(e.g., 'evolutionary', 'replay-trace', 'replay-func') "
+                    "or use a concrete subclass instead."
+                )
         if logger is None:
             logger = get_logger(__name__)
         if not isinstance(num_threads, int):

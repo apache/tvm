@@ -1359,7 +1359,7 @@ export class Instance implements Disposable {
         }
         timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
         fetchedBytes += shard.nbytes;
-        reportCallback(fetchedShards++, /*loading=*/false);
+        reportCallback(++fetchedShards, /*loading=*/false);
       }
     }
     // We launch 4 parallel for loops to limit the max concurrency to 4 download
@@ -1372,6 +1372,10 @@ export class Instance implements Disposable {
         downloadCache(3 * loopSize, list.length)
       ]);
     }
+
+    // Reset for the loading phase to avoid double counting with download phase
+    fetchedBytes = 0;
+    fetchedShards = 0;
 
     // Then iteratively, load the shard from cache
     for (let i = 0; i < list.length; ++i) {
@@ -1421,7 +1425,9 @@ export class Instance implements Disposable {
           throw err;
         }
       }
-      reportCallback(i + 1, /*loading=*/true);
+      fetchedBytes += shard.nbytes;
+      timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
+      reportCallback(++fetchedShards, /*loading=*/true);
     }
   }
 

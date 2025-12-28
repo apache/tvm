@@ -32,14 +32,62 @@ from tvm.relax.frontend.torch import from_exported_program
 
 
 def verify_model(
-    torch_model, example_args, binding, expected, dynamic_shapes=None, run_ep_decomposition=False
+    torch_model,
+    example_args,
+    binding,
+    expected,
+    dynamic_shapes=None,
+    run_ep_decomposition=True,
+    keep_params_as_input=False,
+    unwrap_unit_return_tuple=False,
+    no_bind_return_tuple=False,
+    map_free_vars=False,
+    custom_convert_map=None,
 ):
     exported_program = export(torch_model, args=example_args, dynamic_shapes=dynamic_shapes)
-    mod = from_exported_program(exported_program, run_ep_decomposition=run_ep_decomposition)
+    mod = from_exported_program(
+        exported_program,
+        run_ep_decomposition=run_ep_decomposition,
+        keep_params_as_input=keep_params_as_input,
+        unwrap_unit_return_tuple=unwrap_unit_return_tuple,
+        no_bind_return_tuple=no_bind_return_tuple,
+        custom_convert_map=custom_convert_map,
+    )
 
     binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
-    tvm.ir.assert_structural_equal(mod, expected)
+    tvm.ir.assert_structural_equal(mod, expected, map_free_vars=map_free_vars)
+
+
+def verify_model_numerically(torch_model, example_args, rtol=1e-7, atol=1e-7):
+    """Verify model by comparing numerical outputs between PyTorch and TVM."""
+    with torch.no_grad():
+        pytorch_output = torch_model(*example_args)
+
+    exported_program = export(torch_model, args=example_args)
+    mod = from_exported_program(exported_program)
+    target = tvm.target.Target("llvm")
+    ex = relax.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    tvm_args = [tvm.runtime.tensor(arg.numpy()) for arg in example_args]
+    tvm_output = vm["main"](*tvm_args)
+
+    if hasattr(tvm_output, "numpy"):
+        tvm_output_np = tvm_output.numpy()
+    else:
+        tvm_output_np = tvm_output[0].numpy()
+
+    pytorch_output_np = (
+        pytorch_output.numpy()
+        if isinstance(pytorch_output, torch.Tensor)
+        else pytorch_output[0].numpy()
+    )
+
+    assert (
+        pytorch_output_np.shape == tvm_output_np.shape
+    ), f"Shape mismatch: PyTorch {pytorch_output_np.shape} vs TVM {tvm_output_np.shape}"
+    tvm.testing.assert_allclose(pytorch_output_np, tvm_output_np, rtol=rtol, atol=atol)
 
 
 operator_basic_unary = [
@@ -94,7 +142,7 @@ def test_basic_unary_ops(pytorch_op, relax_op):
                 R.output(gv)
             return gv
 
-    verify_model(UnaryOp(), example_args, {}, expected, run_ep_decomposition=True)
+    verify_model(UnaryOp(), example_args, {}, expected)
 
 
 operator_bool_unary = [
@@ -123,7 +171,7 @@ def test_bool_unary_ops(pytorch_op, relax_op):
                 R.output(gv)
             return gv
 
-    verify_model(UnaryOp(), example_args, {}, expected, run_ep_decomposition=True)
+    verify_model(UnaryOp(), example_args, {}, expected)
 
 
 def test_sqrt_integer_input():
@@ -147,7 +195,7 @@ def test_sqrt_integer_input():
                 R.output(gv)
             return gv
 
-    verify_model(SqrtIntModel(), example_args, {}, expected_int64, run_ep_decomposition=True)
+    verify_model(SqrtIntModel(), example_args, {}, expected_int64)
 
     example_args_int32 = (torch.tensor([[1, 4, 9]], dtype=torch.int32),)
 
@@ -164,7 +212,7 @@ def test_sqrt_integer_input():
                 R.output(gv)
             return gv
 
-    verify_model(SqrtIntModel(), example_args_int32, {}, expected_int32, run_ep_decomposition=True)
+    verify_model(SqrtIntModel(), example_args_int32, {}, expected_int32)
 
 
 def test_extended_unary_ops():
@@ -203,8 +251,8 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(Celu1(), example_args, {}, expected_celu, run_ep_decomposition=True)
-    verify_model(Celu2(), example_args, {}, expected_celu, run_ep_decomposition=True)
+    verify_model(Celu1(), example_args, {}, expected_celu)
+    verify_model(Celu2(), example_args, {}, expected_celu)
 
     # clamp
     class Clamp(Module):
@@ -227,7 +275,7 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(Clamp(), example_args, {}, expected_clamp, run_ep_decomposition=True)
+    verify_model(Clamp(), example_args, {}, expected_clamp)
 
     class ClampMinOnly(Module):
         def forward(self, input):
@@ -247,9 +295,7 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(
-        ClampMinOnly(), example_args, {}, expected_clamp_min_only, run_ep_decomposition=True
-    )
+    verify_model(ClampMinOnly(), example_args, {}, expected_clamp_min_only)
 
     class ClampTensors(Module):
         def forward(self, input):
@@ -277,9 +323,7 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(
-        ClampTensors(), example_args, {}, expected_clamp_tensors, run_ep_decomposition=True
-    )
+    verify_model(ClampTensors(), example_args, {}, expected_clamp_tensors)
 
     # dropout
 
@@ -335,9 +379,9 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(Dropout1(), example_args, {}, expected_dropout_for_1_2, run_ep_decomposition=True)
-    verify_model(Dropout2(), example_args, {}, expected_dropout_for_1_2, run_ep_decomposition=True)
-    verify_model(Dropout3(), example_args, {}, expected_dropout_for_3, run_ep_decomposition=True)
+    verify_model(Dropout1(), example_args, {}, expected_dropout_for_1_2)
+    verify_model(Dropout2(), example_args, {}, expected_dropout_for_1_2)
+    verify_model(Dropout3(), example_args, {}, expected_dropout_for_3)
 
     # elu
     class Elu(Module):
@@ -380,8 +424,8 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(Elu(), example_args, {}, expected_elu, run_ep_decomposition=True)
-    verify_model(Elu2(), example_args, {}, expected_elu, run_ep_decomposition=True)
+    verify_model(Elu(), example_args, {}, expected_elu)
+    verify_model(Elu2(), example_args, {}, expected_elu)
 
     # hardsigmoid
     class Hardsigmoid(torch.nn.Module):
@@ -419,8 +463,8 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(Hardsigmoid(), example_args, {}, expected_hardsigmoid, run_ep_decomposition=True)
-    verify_model(Hardsigmoid2(), example_args, {}, expected_hardsigmoid, run_ep_decomposition=True)
+    verify_model(Hardsigmoid(), example_args, {}, expected_hardsigmoid)
+    verify_model(Hardsigmoid2(), example_args, {}, expected_hardsigmoid)
 
     # hardwish
     class Hardswish(torch.nn.Module):
@@ -492,15 +536,9 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(
-        Hardswish(), example_args, {}, expected_hardswish_for_1_2, run_ep_decomposition=True
-    )
-    verify_model(
-        Hardswish2(), example_args, {}, expected_hardswish_for_1_2, run_ep_decomposition=True
-    )
-    verify_model(
-        Hardswish3(), example_args, {}, expected_hardswish_for_3, run_ep_decomposition=True
-    )
+    verify_model(Hardswish(), example_args, {}, expected_hardswish_for_1_2)
+    verify_model(Hardswish2(), example_args, {}, expected_hardswish_for_1_2)
+    verify_model(Hardswish3(), example_args, {}, expected_hardswish_for_3)
 
     # isfinite
     class IsFinite(Module):
@@ -524,7 +562,7 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(IsFinite(), example_args, {}, expected_isfinite, run_ep_decomposition=True)
+    verify_model(IsFinite(), example_args, {}, expected_isfinite)
 
     # log2
     class Log2(Module):
@@ -546,7 +584,7 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(Log2(), example_args, {}, Expected_log2, run_ep_decomposition=True)
+    verify_model(Log2(), example_args, {}, Expected_log2)
 
     # log10
     class Log10(Module):
@@ -568,7 +606,7 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(Log10(), example_args, {}, Expected_log10, run_ep_decomposition=True)
+    verify_model(Log10(), example_args, {}, Expected_log10)
 
     # log1p
     class Log1p(Module):
@@ -589,7 +627,7 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(Log1p(), example_args, {}, Expected_log1p, run_ep_decomposition=True)
+    verify_model(Log1p(), example_args, {}, Expected_log1p)
 
     # reciprocal
     class Reciprocal(Module):
@@ -610,7 +648,7 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(Reciprocal(), example_args, {}, expected_reciprocal, run_ep_decomposition=True)
+    verify_model(Reciprocal(), example_args, {}, expected_reciprocal)
 
     # Returns the maximum value of all elements in the input tensor.
     class MaxModel(Module):
@@ -629,7 +667,7 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(MaxModel(), example_args, {}, expected_max, run_ep_decomposition=True)
+    verify_model(MaxModel(), example_args, {}, expected_max)
 
     # Returns the minimum value of all elements in the input tensor.
     class MinModel(Module):
@@ -648,7 +686,7 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(MinModel(), example_args, {}, expected_min, run_ep_decomposition=True)
+    verify_model(MinModel(), example_args, {}, expected_min)
 
     # relu6
     class ReLU6_1(torch.nn.Module):
@@ -712,9 +750,9 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(ReLU6_1(), example_args, {}, expected_relu6_1, run_ep_decomposition=True)
-    verify_model(ReLU6_2(), example_args, {}, expected_relu6_2, run_ep_decomposition=True)
-    verify_model(ReLU6_3(), example_args, {}, expected_relu6_3, run_ep_decomposition=True)
+    verify_model(ReLU6_1(), example_args, {}, expected_relu6_1)
+    verify_model(ReLU6_2(), example_args, {}, expected_relu6_2)
+    verify_model(ReLU6_3(), example_args, {}, expected_relu6_3)
 
     # selu
     class SELU(Module):
@@ -749,7 +787,7 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(SELU(), example_args, {}, expected_selu, run_ep_decomposition=True)
+    verify_model(SELU(), example_args, {}, expected_selu)
 
     # silu
     class SiLU(Module):
@@ -769,7 +807,7 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(SiLU(), example_args, {}, expected_silu, run_ep_decomposition=True)
+    verify_model(SiLU(), example_args, {}, expected_silu)
 
     # silu_
     class SiLU_(Module):
@@ -797,7 +835,7 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(SiLU_(), example_args, {}, expected_silu_, run_ep_decomposition=True)
+    verify_model(SiLU_(), example_args, {}, expected_silu_)
 
     # square
     class Square(Module):
@@ -818,7 +856,7 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(Square(), example_args, {}, expected_square, run_ep_decomposition=True)
+    verify_model(Square(), example_args, {}, expected_square)
 
     # relu_
     class ReLU_(Module):
@@ -837,7 +875,7 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(ReLU_(), example_args, {}, expected_relu_, run_ep_decomposition=True)
+    verify_model(ReLU_(), example_args, {}, expected_relu_)
 
 
 def test_hardtanh():
@@ -891,9 +929,9 @@ def test_hardtanh():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(Hardtanh(), example_args, {}, expected_for_1_2, run_ep_decomposition=True)
-    verify_model(Hardtanh2(), example_args, {}, expected_for_1_2, run_ep_decomposition=True)
-    verify_model(Hardtanh3(), example_args, {}, expected_hardtanh_for_3, run_ep_decomposition=True)
+    verify_model(Hardtanh(), example_args, {}, expected_for_1_2)
+    verify_model(Hardtanh2(), example_args, {}, expected_for_1_2)
+    verify_model(Hardtanh3(), example_args, {}, expected_hardtanh_for_3)
 
 
 def test_softplus():
@@ -939,8 +977,8 @@ def test_softplus():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(Softplus0(), example_args, {}, expected, run_ep_decomposition=True)
-    verify_model(Softplus1(), example_args, {}, expected, run_ep_decomposition=True)
+    verify_model(Softplus0(), example_args, {}, expected)
+    verify_model(Softplus1(), example_args, {}, expected)
 
 
 def test_leakyrelu():
@@ -997,9 +1035,9 @@ def test_leakyrelu():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(LeakyReLU0(), example_args, {}, expected_for_1_2, run_ep_decomposition=True)
-    verify_model(LeakyReLU1(), example_args, {}, expected_for_1_2, run_ep_decomposition=True)
-    verify_model(LeakyReLU2(), example_args, {}, expected_for_3, run_ep_decomposition=True)
+    verify_model(LeakyReLU0(), example_args, {}, expected_for_1_2)
+    verify_model(LeakyReLU1(), example_args, {}, expected_for_1_2)
+    verify_model(LeakyReLU2(), example_args, {}, expected_for_3)
 
 
 def test_logaddexp():
@@ -1044,7 +1082,7 @@ def test_logaddexp():
         torch.randn(1, 3, 10, 10, dtype=torch.float32),
         torch.randn(1, 3, 10, 10, dtype=torch.float32),
     )
-    verify_model(LogAddExp(), example_args, {}, expected, run_ep_decomposition=True)
+    verify_model(LogAddExp(), example_args, {}, expected)
 
 
 def test_logsoftmax():
@@ -1074,8 +1112,8 @@ def test_logsoftmax():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(LogSoftmax(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(LogSoftmax2(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(LogSoftmax(), example_args, {}, expected1)
+    verify_model(LogSoftmax2(), example_args, {}, expected1)
 
 
 def test_prelu():
@@ -1113,8 +1151,8 @@ def test_prelu():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(Prelu1(), example_args, {}, expected, run_ep_decomposition=True)
-    verify_model(Prelu2(), example_args, {}, expected, run_ep_decomposition=True)
+    verify_model(Prelu1(), example_args, {}, expected)
+    verify_model(Prelu2(), example_args, {}, expected)
 
 
 def test_softmax():
@@ -1144,8 +1182,8 @@ def test_softmax():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(Softmax(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(Softmax2(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(Softmax(), example_args, {}, expected1)
+    verify_model(Softmax2(), example_args, {}, expected1)
 
 
 def test_softsign():
@@ -1176,8 +1214,8 @@ def test_softsign():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(Softsign(), example_args, {}, expected_softsign, run_ep_decomposition=True)
-    verify_model(Softsign2(), example_args, {}, expected_softsign, run_ep_decomposition=True)
+    verify_model(Softsign(), example_args, {}, expected_softsign)
+    verify_model(Softsign2(), example_args, {}, expected_softsign)
 
 
 def test_softshrink():
@@ -1216,8 +1254,8 @@ def test_softshrink():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(Softshrink(), example_args, {}, expected_softshrink, run_ep_decomposition=True)
-    verify_model(Softshrink2(), example_args, {}, expected_softshrink, run_ep_decomposition=True)
+    verify_model(Softshrink(), example_args, {}, expected_softshrink)
+    verify_model(Softshrink2(), example_args, {}, expected_softshrink)
 
 
 def test_tril_triu():
@@ -1251,7 +1289,7 @@ def test_tril_triu():
                 R.output(gv)
             return gv
 
-    verify_model(Tril(), example_args, {}, expected_tril, run_ep_decomposition=True)
+    verify_model(Tril(), example_args, {}, expected_tril)
 
     class Triu(Module):
         def forward(self, input):
@@ -1281,7 +1319,7 @@ def test_tril_triu():
                 R.output(gv)
             return gv
 
-    verify_model(Triu(), example_args, {}, expected_triu, run_ep_decomposition=True)
+    verify_model(Triu(), example_args, {}, expected_triu)
 
 
 operator_binary_1 = [
@@ -1389,8 +1427,108 @@ def test_binary1(op, relax_op):
 
     expected1 = expected_binary1_inplace if op in inplace_ops else expected_binary1
     expected2 = expected_binary2_inplace if op in inplace_ops else expected_binary2
-    verify_model(Binary1(op), example_args1, {}, expected1, run_ep_decomposition=True)
-    verify_model(Binary2(op), example_args2, {}, expected2, run_ep_decomposition=True)
+    verify_model(Binary1(op), example_args1, {}, expected1)
+    verify_model(Binary2(op), example_args2, {}, expected2)
+
+
+operator_binary_scalar = [
+    (torch.ops.aten.add.Scalar, R.add),
+    (torch.ops.aten.bitwise_and.Scalar, R.bitwise_and),
+    (torch.ops.aten.bitwise_or.Scalar, R.bitwise_or),
+    (torch.ops.aten.bitwise_xor.Scalar, R.bitwise_xor),
+    (torch.ops.aten.div.Scalar, R.divide),
+    (torch.ops.aten.sub.Scalar, R.subtract),
+    (torch.ops.aten.mul.Scalar, R.multiply),
+    (torch.ops.aten.remainder.Scalar, R.floor_mod),
+]
+
+
+@pytest.mark.parametrize("op, relax_op", operator_binary_scalar)
+def test_binary_scalar(op, relax_op):
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+
+    class BinaryScalar(Module):
+        def __init__(self, op):
+            super().__init__()
+            self.op = op
+
+        def forward(self, lhs):
+            return self.op(lhs, 1.0)
+
+    @tvm.script.ir_module
+    class expected_binary_scalar:
+        @R.function
+        def main(
+            lhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = relax_op(lhs, R.const(1.0))
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(BinaryScalar(op), example_args, {}, expected_binary_scalar)
+
+
+operator_binary_promote = [
+    (operator.add, R.add),
+    (operator.sub, R.subtract),
+    (operator.mul, R.multiply),
+    (operator.truediv, R.divide),
+    (operator.pow, R.power),
+    (operator.mod, R.floor_mod),
+]
+
+
+@pytest.mark.parametrize("op, relax_op", operator_binary_promote)
+def test_binary_dtype_promotion(op, relax_op):
+    """Ensure binary ops promote differing dtypes following PyTorch rules."""
+
+    class BinaryPromoteLHS(Module):
+        def forward(self, x):
+            arange_val = torch.arange(x.shape[1])  # int64 by default
+            return op(x, arange_val)
+
+    @tvm.script.ir_module
+    class expected_promote_lhs:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(3), R.prim_value(1), dtype="int64"
+                )
+                lv1: R.Tensor((3,), dtype="float32") = R.astype(lv, dtype="float32")
+                lv2: R.Tensor((2, 3), dtype="float32") = relax_op(x, lv1)
+                gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (lv2,)
+                R.output(gv)
+            return gv
+
+    class BinaryPromoteRHS(Module):
+        def forward(self, x):
+            arange_val = torch.arange(x.shape[1])  # int64 by default
+            return op(arange_val, x)
+
+    @tvm.script.ir_module
+    class expected_promote_rhs:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(3), R.prim_value(1), dtype="int64"
+                )
+                lv1: R.Tensor((3,), dtype="float32") = R.astype(lv, dtype="float32")
+                lv2: R.Tensor((2, 3), dtype="float32") = relax_op(lv1, x)
+                gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (lv2,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 3, dtype=torch.float32),)
+    verify_model(BinaryPromoteLHS(), example_args, {}, expected_promote_lhs)
+    verify_model(BinaryPromoteRHS(), example_args, {}, expected_promote_rhs)
 
 
 operator_binary_2 = [
@@ -1452,8 +1590,8 @@ def test_binary2(op, relax_op):
                 R.output(gv)
             return gv
 
-    verify_model(Binary1(op), example_args1, {}, expected_binary1, run_ep_decomposition=True)
-    verify_model(Binary2(op), example_args2, {}, expected_binary2, run_ep_decomposition=True)
+    verify_model(Binary1(op), example_args1, {}, expected_binary1)
+    verify_model(Binary2(op), example_args2, {}, expected_binary2)
 
 
 def test_binary3():
@@ -1481,7 +1619,7 @@ def test_binary3():
                 R.output(gv)
             return gv
 
-    verify_model(Max1(), example_args1, {}, expected_max1, run_ep_decomposition=True)
+    verify_model(Max1(), example_args1, {}, expected_max1)
 
     # Min
     class Min1(Module):
@@ -1501,7 +1639,7 @@ def test_binary3():
                 R.output(gv)
             return gv
 
-    verify_model(Min1(), example_args1, {}, expected_min1, run_ep_decomposition=True)
+    verify_model(Min1(), example_args1, {}, expected_min1)
 
     # RSub
     class RSub1(Module):
@@ -1536,8 +1674,8 @@ def test_binary3():
                 R.output(gv)
             return gv
 
-    verify_model(RSub1(), example_args1, {}, expected_rsub1, run_ep_decomposition=True)
-    verify_model(RSub2(), example_args2, {}, expected_rsub2, run_ep_decomposition=True)
+    verify_model(RSub1(), example_args1, {}, expected_rsub1)
+    verify_model(RSub2(), example_args2, {}, expected_rsub2)
 
 
 # IsIn
@@ -1557,8 +1695,10 @@ def test_isin():
             with R.dataflow():
                 lv: R.Tensor((10, 10, 1), dtype="float32") = R.reshape(x, R.shape([10, 10, 1]))
                 lv1: R.Tensor((10, 10, 8), dtype="bool") = R.equal(lv, test_elements)
-                lv2: R.Tensor((10, 10), dtype="bool") = R.max(lv1, axis=[-1], keepdims=False)
-                gv: R.Tuple(R.Tensor((10, 10), dtype="bool")) = (lv2,)
+                lv2: R.Tensor((10, 10, 8), dtype="int8") = R.astype(lv1, dtype="int8")
+                lv3: R.Tensor((10, 10), dtype="int8") = R.max(lv2, axis=[-1], keepdims=False)
+                lv4: R.Tensor((10, 10), dtype="bool") = R.astype(lv3, dtype="bool")
+                gv: R.Tuple(R.Tensor((10, 10), dtype="bool")) = (lv4,)
                 R.output(gv)
             return gv
 
@@ -1566,7 +1706,7 @@ def test_isin():
         torch.randn(10, 10, dtype=torch.float32),
         torch.randn(8, dtype=torch.float32),
     )
-    verify_model(IsInModel(), example_args, {}, expected, run_ep_decomposition=True)
+    verify_model(IsInModel(), example_args, {}, expected)
 
 
 def test_div_mode():
@@ -1591,7 +1731,7 @@ def test_div_mode():
         torch.randn(64, 64, dtype=torch.float32),
         torch.randn(64, dtype=torch.float32),
     )
-    verify_model(DivModel(), example_args, {}, expected_div, run_ep_decomposition=True)
+    verify_model(DivModel(), example_args, {}, expected_div)
 
     # Case 2: Division with trunc rounding
     class DivTruncModel(torch.nn.Module):
@@ -1611,7 +1751,7 @@ def test_div_mode():
                 R.output(gv)
             return gv
 
-    verify_model(DivTruncModel(), example_args, {}, expected_div_trunc, run_ep_decomposition=True)
+    verify_model(DivTruncModel(), example_args, {}, expected_div_trunc)
 
     # Case 3: Division with floor rounding
     class DivFloorModel(torch.nn.Module):
@@ -1630,11 +1770,11 @@ def test_div_mode():
                 R.output(gv)
             return gv
 
-    verify_model(DivFloorModel(), example_args, {}, expected_div_floor, run_ep_decomposition=True)
+    verify_model(DivFloorModel(), example_args, {}, expected_div_floor)
 
 
 def test_batchnorm2d():
-    class BatchNorm2d(Module):
+    class BatchNorm2d1(Module):
         def __init__(self):
             super().__init__()
             self.bn = torch.nn.BatchNorm2d(3)
@@ -1668,7 +1808,48 @@ def test_batchnorm2d():
                     epsilon=1e-05,
                     center=True,
                     scale=True,
-                    momentum=1e-05,
+                    momentum=0.1,
+                    training=False,
+                )
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = lv[0]
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    class BatchNorm2dCustom(Module):
+        def __init__(self):
+            super().__init__()
+            self.bn = torch.nn.BatchNorm2d(3, eps=0.001, momentum=0.01)
+
+        def forward(self, input):
+            return self.bn(input)
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            w1: R.Tensor((3,), dtype="float32"),
+            w2: R.Tensor((3,), dtype="float32"),
+            w3: R.Tensor((3,), dtype="float32"),
+            w4: R.Tensor((3,), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((1, 3, 10, 10), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                ) = R.nn.batch_norm(
+                    input_1,
+                    w1,
+                    w2,
+                    w3,
+                    w4,
+                    axis=1,
+                    epsilon=0.001,
+                    center=True,
+                    scale=True,
+                    momentum=0.01,
                     training=False,
                 )
                 lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = lv[0]
@@ -1678,14 +1859,99 @@ def test_batchnorm2d():
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
 
-    model = BatchNorm2d().eval()
-    binding = {
-        "w1": model.bn.weight.detach().numpy(),
-        "w2": model.bn.bias.detach().numpy(),
-        "w3": model.bn.running_mean.detach().numpy(),
-        "w4": model.bn.running_var.detach().numpy(),
+    model_1 = BatchNorm2d1().eval()
+    binding_1 = {
+        "w1": model_1.bn.weight.detach().numpy(),
+        "w2": model_1.bn.bias.detach().numpy(),
+        "w3": model_1.bn.running_mean.detach().numpy(),
+        "w4": model_1.bn.running_var.detach().numpy(),
     }
-    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(model_1, example_args, binding_1, expected1)
+
+    model_2 = BatchNorm2dCustom().eval()
+    binding_2 = {
+        "w1": model_2.bn.weight.detach().numpy(),
+        "w2": model_2.bn.bias.detach().numpy(),
+        "w3": model_2.bn.running_mean.detach().numpy(),
+        "w4": model_2.bn.running_var.detach().numpy(),
+    }
+    verify_model(model_2, example_args, binding_2, expected2)
+
+    class BatchNorm2dTraining(Module):
+        def __init__(self):
+            super().__init__()
+            self.bn = torch.nn.BatchNorm2d(3, track_running_stats=True)
+
+        def forward(self, input):
+            return self.bn(input)
+
+    @tvm.script.ir_module
+    class expected3:
+        @R.function
+        def main(
+            input_1: R.Tensor((2, 3, 4, 4), dtype="float32"),
+            w1: R.Tensor((3,), dtype="float32"),
+            w2: R.Tensor((3,), dtype="float32"),
+            w3: R.Tensor((3,), dtype="float32"),
+            w4: R.Tensor((3,), dtype="float32"),
+        ) -> R.Tuple(
+            R.Tensor((3,), dtype="float32"),
+            R.Tensor((3,), dtype="float32"),
+            R.Tensor((), dtype="int64"),
+            R.Tensor((2, 3, 4, 4), dtype="float32"),
+        ):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="int64") = R.add(R.const(0, "int64"), R.const(1, "int64"))
+                lv1: R.Tuple(
+                    R.Tensor((2, 3, 4, 4), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                ) = R.nn.batch_norm(
+                    input_1,
+                    w1,
+                    w2,
+                    w3,
+                    w4,
+                    axis=1,
+                    epsilon=1e-5,
+                    center=True,
+                    scale=True,
+                    momentum=0.1,
+                    training=True,
+                )
+                lv2: R.Tensor((2, 3, 4, 4), dtype="float32") = lv1[0]
+                lv3: R.Tensor((3,), dtype="float32") = lv1[1]
+                lv4: R.Tensor((3,), dtype="float32") = R.zeros(R.shape([3]), dtype="float32")
+                lv5: R.Tuple(
+                    R.Tensor((2, 3, 4, 4), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                ) = (lv2, lv3, lv4, lv4, lv4)
+                lv6: R.Tensor((2, 3, 4, 4), dtype="float32") = lv5[0]
+                lv7: R.Tensor((3,), dtype="float32") = lv5[3]
+                lv8: R.Tensor((3,), dtype="float32") = lv5[4]
+                gv: R.Tuple(
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((3,), dtype="float32"),
+                    R.Tensor((), dtype="int64"),
+                    R.Tensor((2, 3, 4, 4), dtype="float32"),
+                ) = (lv7, lv8, lv, lv6)
+                R.output(gv)
+            return gv
+
+    example_args_train = (torch.randn(2, 3, 4, 4, dtype=torch.float32),)
+
+    model_3 = BatchNorm2dTraining()
+    model_3.train()  # Set to training mode
+    binding_3 = {
+        "w1": model_3.bn.weight.detach().numpy(),
+        "w2": model_3.bn.bias.detach().numpy(),
+        "w3": model_3.bn.running_mean.detach().numpy(),
+        "w4": model_3.bn.running_var.detach().numpy(),
+    }
+    verify_model(model_3, example_args_train, binding_3, expected3)
 
 
 def test_adaptive_avgpool1d():
@@ -1718,8 +1984,8 @@ def test_adaptive_avgpool1d():
             return gv
 
     example_args = (torch.randn(1, 3, 10, dtype=torch.float32),)
-    verify_model(AdaptiveAvgPool1d0(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(AdaptiveAvgPool1d1(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(AdaptiveAvgPool1d0(), example_args, {}, expected1)
+    verify_model(AdaptiveAvgPool1d1(), example_args, {}, expected1)
 
 
 def test_adaptive_avgpool2d():
@@ -1751,8 +2017,8 @@ def test_adaptive_avgpool2d():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(AdaptiveAvgPool2d0(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(AdaptiveAvgPool2d1(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(AdaptiveAvgPool2d0(), example_args, {}, expected1)
+    verify_model(AdaptiveAvgPool2d1(), example_args, {}, expected1)
 
 
 def test_adaptive_avgpool3d():
@@ -1783,8 +2049,8 @@ def test_adaptive_avgpool3d():
             return gv
 
     example_args = (torch.randn(1, 3, 8, 8, 8, dtype=torch.float32),)
-    verify_model(AdaptiveAvgPool3d0(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(AdaptiveAvgPool3d1(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(AdaptiveAvgPool3d0(), example_args, {}, expected1)
+    verify_model(AdaptiveAvgPool3d1(), example_args, {}, expected1)
 
 
 def test_addmm():
@@ -1842,8 +2108,65 @@ def test_addmm():
         torch.randn(10, 10, dtype=torch.float32),
     )
 
-    verify_model(Addmm1(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(Addmm2(), example_args, {}, expected2, run_ep_decomposition=True)
+    verify_model(Addmm1(), example_args, {}, expected1)
+    verify_model(Addmm2(), example_args, {}, expected2)
+
+
+def test_sparse_addmm():
+    class SparseAddmm1(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x1, x2, x3):
+            return torch.sparse.addmm(x1, x2, x3)
+
+    class SparseAddmm2(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x1, x2, x3):
+            return torch.sparse.addmm(x1, x2, x3, beta=0.8, alpha=0.5)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            x1: R.Tensor((10, 10), dtype="float32"),
+            x2: R.Tensor((10, 10), dtype="float32"),
+            x3: R.Tensor((10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.matmul(x2, x3, out_dtype="float32")
+                lv1: R.Tensor((10, 10), dtype="float32") = R.add(x1, lv)
+                gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            x1: R.Tensor((10, 10), dtype="float32"),
+            x2: R.Tensor((10, 10), dtype="float32"),
+            x3: R.Tensor((10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.matmul(x2, x3, out_dtype="float32")
+                lv1: R.Tensor((10, 10), dtype="float32") = R.multiply(lv, R.const(0.5, "float32"))
+                lv2: R.Tensor((10, 10), dtype="float32") = R.multiply(x1, R.const(0.8, "float32"))
+                lv3: R.Tensor((10, 10), dtype="float32") = R.add(lv2, lv1)
+                gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv3,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(10, 10, dtype=torch.float32),
+        torch.randn(10, 10, dtype=torch.float32),
+        torch.randn(10, 10, dtype=torch.float32),
+    )
+
+    verify_model(SparseAddmm1(), example_args, {}, expected1)
+    verify_model(SparseAddmm2(), example_args, {}, expected2)
 
 
 def test_avg_pool1d():
@@ -1870,7 +2193,7 @@ def test_avg_pool1d():
                     dilation=[1, 1],
                     padding=[0, 0, 0, 0],
                     ceil_mode=False,
-                    count_include_pad=False,
+                    count_include_pad=True,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -1908,7 +2231,7 @@ def test_avg_pool1d():
                     dilation=[1, 1],
                     padding=[0, 1, 0, 1],
                     ceil_mode=True,
-                    count_include_pad=False,
+                    count_include_pad=True,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -1936,7 +2259,7 @@ def test_avg_pool1d():
                     dilation=[1, 1],
                     padding=[0, 0, 0, 0],
                     ceil_mode=False,
-                    count_include_pad=False,
+                    count_include_pad=True,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -1946,10 +2269,10 @@ def test_avg_pool1d():
             return gv
 
     example_args = (torch.randn(1, 3, 10, dtype=torch.float32),)
-    verify_model(AvgPool1d1(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(AvgPool1d2(), example_args, {}, expected2, run_ep_decomposition=True)
-    verify_model(AvgPool1d3(), example_args, {}, expected2, run_ep_decomposition=True)
-    verify_model(AvgPool1d4(), example_args, {}, expected3, run_ep_decomposition=True)
+    verify_model(AvgPool1d1(), example_args, {}, expected1)
+    verify_model(AvgPool1d2(), example_args, {}, expected2)
+    verify_model(AvgPool1d3(), example_args, {}, expected2)
+    verify_model(AvgPool1d4(), example_args, {}, expected3)
 
 
 def test_avg_pool2d():
@@ -1975,6 +2298,7 @@ def test_avg_pool2d():
                     strides=[1, 1],
                     dilation=[1, 1],
                     padding=[0, 0, 0, 0],
+                    count_include_pad=True,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -2008,6 +2332,7 @@ def test_avg_pool2d():
                     dilation=[1, 1],
                     padding=[2, 2, 2, 2],
                     ceil_mode=True,
+                    count_include_pad=True,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -2020,7 +2345,7 @@ def test_avg_pool2d():
             return torch.nn.functional.avg_pool2d(input, kernel_size=[2, 1], divisor_override=2)
 
     @tvm.script.ir_module
-    class expected3:
+    class expected4:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
@@ -2031,6 +2356,33 @@ def test_avg_pool2d():
                     dilation=[1, 1],
                     padding=[0, 0, 0, 0],
                     ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                gv = (lv,)
+                R.output(gv)
+            return gv
+
+    class AvgPool2d5(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool2d(
+                input, kernel_size=[2, 1], divisor_override=2, count_include_pad=False
+            )
+
+    @tvm.script.ir_module
+    class expected5:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool2d(
+                    input_1,
+                    pool_size=[2, 1],
+                    strides=[2, 1],
+                    dilation=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    ceil_mode=False,
+                    count_include_pad=False,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -2039,10 +2391,11 @@ def test_avg_pool2d():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(AvgPool2d1(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(AvgPool2d2(), example_args, {}, expected2, run_ep_decomposition=True)
-    verify_model(AvgPool2d3(), example_args, {}, expected2, run_ep_decomposition=True)
-    verify_model(AvgPool2d4(), example_args, {}, expected3, run_ep_decomposition=True)
+    verify_model(AvgPool2d1(), example_args, {}, expected1)
+    verify_model(AvgPool2d2(), example_args, {}, expected2)
+    verify_model(AvgPool2d3(), example_args, {}, expected2)
+    verify_model(AvgPool2d4(), example_args, {}, expected4)
+    verify_model(AvgPool2d5(), example_args, {}, expected5)
 
 
 def test_avg_pool3d():
@@ -2135,10 +2488,10 @@ def test_avg_pool3d():
             return gv
 
     example_args = (torch.randn(1, 3, 8, 8, 8, dtype=torch.float32),)
-    verify_model(AvgPool3d1(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(AvgPool3d2(), example_args, {}, expected2, run_ep_decomposition=True)
-    verify_model(AvgPool3d3(), example_args, {}, expected2, run_ep_decomposition=True)
-    verify_model(AvgPool3d4(), example_args, {}, expected3, run_ep_decomposition=True)
+    verify_model(AvgPool3d1(), example_args, {}, expected1)
+    verify_model(AvgPool3d2(), example_args, {}, expected2)
+    verify_model(AvgPool3d3(), example_args, {}, expected2)
+    verify_model(AvgPool3d4(), example_args, {}, expected3)
 
 
 def test_baddbmm():
@@ -2372,15 +2725,15 @@ def test_conv_transpose1d():
 
     model = ConvTranspose1d1()
     binding = {"w1": model.conv.weight.detach().numpy(), "w2": model.conv.bias.detach().numpy()}
-    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected1)
 
     model = ConvTranspose1d1Func()
     binding = {"w1": model.weight.detach().numpy(), "w2": model.bias.detach().numpy()}
-    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected1)
 
     model = ConvTranspose1d2()
     binding = {"w1": model.conv.weight.detach().numpy()}
-    verify_model(model, example_args, binding, expected2, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected2)
 
 
 def test_conv_transpose2d():
@@ -2466,15 +2819,15 @@ def test_conv_transpose2d():
 
     model = ConvTranspose2d1()
     binding = {"w1": model.conv.weight.detach().numpy(), "w2": model.conv.bias.detach().numpy()}
-    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected1)
 
     model = ConvTranspose2d1Func()
     binding = {"w1": model.weight.detach().numpy(), "w2": model.bias.detach().numpy()}
-    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected1)
 
     model = ConvTranspose2d2()
     binding = {"w1": model.conv.weight.detach().numpy()}
-    verify_model(model, example_args, binding, expected2, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected2)
 
 
 def test_conv1d():
@@ -2558,15 +2911,15 @@ def test_conv1d():
 
     model = Conv1D1()
     binding = {"w1": model.conv.weight.detach().numpy(), "w2": model.conv.bias.detach().numpy()}
-    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected1)
 
     model = Conv1D1Func()
     binding = {"w1": model.weight.detach().numpy(), "w2": model.bias.detach().numpy()}
-    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected1)
 
     model = Conv1D2()
     binding = {"w1": model.conv.weight.detach().numpy()}
-    verify_model(model, example_args, binding, expected2, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected2)
 
 
 def test_conv2d():
@@ -2650,15 +3003,15 @@ def test_conv2d():
 
     model = Conv2D1()
     binding = {"w1": model.conv.weight.detach().numpy(), "w2": model.conv.bias.detach().numpy()}
-    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected1)
 
     model = Conv2D1Func()
     binding = {"w1": model.weight.numpy(), "w2": model.bias.numpy()}
-    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected1)
 
     model = Conv2D2()
     binding = {"w1": model.conv.weight.detach().numpy()}
-    verify_model(model, example_args, binding, expected2, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected2)
 
 
 def test_conv3d():
@@ -2742,15 +3095,15 @@ def test_conv3d():
 
     model = Conv3D1()
     binding = {"w1": model.conv.weight.detach().numpy(), "w2": model.conv.bias.detach().numpy()}
-    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected1)
 
     model = Conv3D1Func()
     binding = {"w1": model.weight.detach().numpy(), "w2": model.bias.detach().numpy()}
-    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected1)
 
     model = Conv3D2()
     binding = {"w1": model.conv.weight.detach().numpy()}
-    verify_model(model, example_args, binding, expected2, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected2)
 
 
 def test_pad():
@@ -2846,6 +3199,7 @@ def test_pad():
                 lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.zeros(
                     R.shape([1, 3, 14, 12]), dtype="float32"
                 )
+
                 lv1: R.Tensor((1, 3, 14, 10), dtype="float32") = R.strided_slice(
                     lv,
                     (R.prim_value(3),),
@@ -2854,6 +3208,7 @@ def test_pad():
                     (R.prim_value(1),),
                     assume_inbound=False,
                 )
+
                 lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.strided_slice(
                     x,
                     (R.prim_value(3),),
@@ -2862,6 +3217,7 @@ def test_pad():
                     (R.prim_value(1),),
                     assume_inbound=False,
                 )
+
                 lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.strided_slice(
                     lv1,
                     (R.prim_value(2),),
@@ -2870,6 +3226,7 @@ def test_pad():
                     (R.prim_value(1),),
                     assume_inbound=False,
                 )
+
                 lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.strided_slice(
                     lv2,
                     (R.prim_value(2),),
@@ -2878,7 +3235,12 @@ def test_pad():
                     (R.prim_value(1),),
                     assume_inbound=False,
                 )
-                lv5: R.Tensor((1, 3, 14, 10), dtype="float32") = R.strided_slice(
+
+                lv5: R.Tensor((1, 3, 10, 10), dtype="float32") = R.broadcast_to(
+                    lv4, R.shape([1, 3, 10, 10])
+                )
+
+                lv6: R.Tensor((1, 3, 14, 10), dtype="float32") = R.strided_slice(
                     lv,
                     (R.prim_value(3),),
                     (R.prim_value(1),),
@@ -2886,96 +3248,122 @@ def test_pad():
                     (R.prim_value(1),),
                     assume_inbound=False,
                 )
-                lv6: R.Tensor((1, 3, 14, 10), dtype="float32") = R.slice_scatter(
-                    lv5, lv4, R.prim_value(2), R.prim_value(12), R.prim_value(1), axis=2
+
+                lv7: R.Tensor((1, 3, 14, 10), dtype="float32") = R.slice_scatter(
+                    lv6, lv5, R.prim_value(2), R.prim_value(12), R.prim_value(1), axis=2
                 )
-                lv7: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
-                    lv, lv6, R.prim_value(1), R.prim_value(11), R.prim_value(1), axis=3
+
+                lv8: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
+                    lv, lv7, R.prim_value(1), R.prim_value(11), R.prim_value(1), axis=3
                 )
-                lv8: R.Tensor((1, 3, 14, 1), dtype="float32") = R.strided_slice(
-                    lv7,
-                    (R.prim_value(3),),
-                    (R.prim_value(0),),
-                    (R.prim_value(1),),
-                    (R.prim_value(1),),
-                    assume_inbound=False,
-                )
+
                 lv9: R.Tensor((1, 3, 14, 1), dtype="float32") = R.strided_slice(
-                    lv7,
+                    lv8,
                     (R.prim_value(3),),
-                    (R.prim_value(10),),
-                    (R.prim_value(11),),
-                    (R.prim_value(1),),
-                    assume_inbound=False,
-                )
-                lv10: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
-                    lv7, lv9, R.prim_value(0), R.prim_value(1), R.prim_value(1), axis=3
-                )
-                lv11: R.Tensor((1, 3, 14, 1), dtype="float32") = R.strided_slice(
-                    lv10,
-                    (R.prim_value(3),),
-                    (R.prim_value(11),),
-                    (R.prim_value(12),),
-                    (R.prim_value(1),),
-                    assume_inbound=False,
-                )
-                lv12: R.Tensor((1, 3, 14, 1), dtype="float32") = R.strided_slice(
-                    lv10,
-                    (R.prim_value(3),),
-                    (R.prim_value(1),),
-                    (R.prim_value(2),),
-                    (R.prim_value(1),),
-                    assume_inbound=False,
-                )
-                lv13: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
-                    lv10, lv12, R.prim_value(11), R.prim_value(12), R.prim_value(1), axis=3
-                )
-                lv14: R.Tensor((1, 3, 2, 12), dtype="float32") = R.strided_slice(
-                    lv13,
-                    (R.prim_value(2),),
                     (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+
+                lv10: R.Tensor((1, 3, 14, 1), dtype="float32") = R.strided_slice(
+                    lv8,
+                    (R.prim_value(3),),
+                    (R.prim_value(10),),
+                    (R.prim_value(11),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+
+                lv11: R.Tensor((1, 3, 14, 1), dtype="float32") = R.broadcast_to(
+                    lv10, R.shape([1, 3, 14, 1])
+                )
+
+                lv12: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
+                    lv8, lv11, R.prim_value(0), R.prim_value(1), R.prim_value(1), axis=3
+                )
+
+                lv13: R.Tensor((1, 3, 14, 1), dtype="float32") = R.strided_slice(
+                    lv12,
+                    (R.prim_value(3),),
+                    (R.prim_value(11),),
+                    (R.prim_value(12),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+
+                lv14: R.Tensor((1, 3, 14, 1), dtype="float32") = R.strided_slice(
+                    lv12,
+                    (R.prim_value(3),),
+                    (R.prim_value(1),),
                     (R.prim_value(2),),
                     (R.prim_value(1),),
                     assume_inbound=False,
                 )
-                lv15: R.Tensor((1, 3, 2, 12), dtype="float32") = R.strided_slice(
-                    lv13,
-                    (R.prim_value(2),),
-                    (R.prim_value(10),),
-                    (R.prim_value(12),),
-                    (R.prim_value(1),),
-                    assume_inbound=False,
+
+                lv15: R.Tensor((1, 3, 14, 1), dtype="float32") = R.broadcast_to(
+                    lv14, R.shape([1, 3, 14, 1])
                 )
                 lv16: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
-                    lv13, lv15, R.prim_value(0), R.prim_value(2), R.prim_value(1), axis=2
+                    lv12, lv15, R.prim_value(11), R.prim_value(12), R.prim_value(1), axis=3
                 )
+
                 lv17: R.Tensor((1, 3, 2, 12), dtype="float32") = R.strided_slice(
                     lv16,
+                    (R.prim_value(2),),
+                    (R.prim_value(0),),
+                    (R.prim_value(2),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+
+                lv18: R.Tensor((1, 3, 2, 12), dtype="float32") = R.strided_slice(
+                    lv16,
+                    (R.prim_value(2),),
+                    (R.prim_value(10),),
+                    (R.prim_value(12),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+
+                lv19: R.Tensor((1, 3, 2, 12), dtype="float32") = R.broadcast_to(
+                    lv18, R.shape([1, 3, 2, 12])
+                )
+
+                lv20: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
+                    lv16, lv19, R.prim_value(0), R.prim_value(2), R.prim_value(1), axis=2
+                )
+                lv21: R.Tensor((1, 3, 2, 12), dtype="float32") = R.strided_slice(
+                    lv20,
                     (R.prim_value(2),),
                     (R.prim_value(12),),
                     (R.prim_value(14),),
                     (R.prim_value(1),),
                     assume_inbound=False,
                 )
-                lv18: R.Tensor((1, 3, 2, 12), dtype="float32") = R.strided_slice(
-                    lv16,
+
+                lv22: R.Tensor((1, 3, 2, 12), dtype="float32") = R.strided_slice(
+                    lv20,
                     (R.prim_value(2),),
                     (R.prim_value(2),),
                     (R.prim_value(4),),
                     (R.prim_value(1),),
                     assume_inbound=False,
                 )
-                lv19: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
-                    lv16, lv18, R.prim_value(12), R.prim_value(14), R.prim_value(1), axis=2
+
+                lv23: R.Tensor((1, 3, 2, 12), dtype="float32") = R.broadcast_to(
+                    lv22, R.shape([1, 3, 2, 12])
                 )
-                gv: R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")) = (lv19,)
+
+                lv24: R.Tensor((1, 3, 14, 12), dtype="float32") = R.slice_scatter(
+                    lv20, lv23, R.prim_value(12), R.prim_value(14), R.prim_value(1), axis=2
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")) = (lv24,)
                 R.output(gv)
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(
-        PadModel(pad=[1, 1, 2, 2]), example_args, {}, expected_constant, run_ep_decomposition=True
-    )
+    verify_model(PadModel(pad=[1, 1, 2, 2]), example_args, {}, expected_constant)
     verify_model(
         PadModel(pad=[1, 1, 2, 2], mode="reflect"),
         example_args,
@@ -3037,12 +3425,8 @@ def test_pixel_shuffle():
             return gv
 
     example_args = (torch.randn(1, 8, 10, 15, dtype=torch.float32),)
-    verify_model(
-        PixelShuffle1(upscale_factor=2), example_args, {}, expected, run_ep_decomposition=True
-    )
-    verify_model(
-        PixelShuffle2(upscale_factor=2), example_args, {}, expected, run_ep_decomposition=True
-    )
+    verify_model(PixelShuffle1(upscale_factor=2), example_args, {}, expected)
+    verify_model(PixelShuffle2(upscale_factor=2), example_args, {}, expected)
 
 
 def test_einsum():
@@ -3115,7 +3499,7 @@ def test_outer():
         torch.randn(3, dtype=torch.float32),
         torch.randn(4, dtype=torch.float32),
     )
-    verify_model(Outer(), example_args, {}, expected, run_ep_decomposition=True)
+    verify_model(Outer(), example_args, {}, expected)
 
 
 def test_embedding():
@@ -3145,7 +3529,7 @@ def test_embedding():
 
     model = Embedding()
     binding = {"w1": model.embedding.weight.detach().numpy()}
-    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected1)
 
 
 def test_groupnorm():
@@ -3194,7 +3578,7 @@ def test_groupnorm():
         "w1": model.gn.weight.detach().numpy(),
         "w2": model.gn.bias.detach().numpy(),
     }
-    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected1)
 
 
 def test_instancenorm2d():
@@ -3223,7 +3607,7 @@ def test_instancenorm2d():
                     w1,
                     w2,
                     channel_axis=1,
-                    axes=[2, 3],
+                    axes=[0, 2, 3],
                     epsilon=1e-05,
                     center=True,
                     scale=True,
@@ -3239,7 +3623,7 @@ def test_instancenorm2d():
         "w1": torch.ones(3).detach().numpy(),
         "w2": torch.zeros(3).detach().numpy(),
     }
-    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected1)
 
 
 def test_layernorm():
@@ -3354,15 +3738,15 @@ def test_linear():
 
     model = Dense1()
     binding = {"w1": model.linear.weight.detach().numpy(), "w2": model.linear.bias.detach().numpy()}
-    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected1)
 
     model = Dense1Func()
     binding = {"w1": model.weight.detach().numpy(), "w2": model.bias.detach().numpy()}
-    verify_model(model, example_args, binding, expected1, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected1)
 
     model = Dense2()
     binding = {"w1": model.linear.weight.detach().numpy()}
-    verify_model(model, example_args, binding, expected2, run_ep_decomposition=True)
+    verify_model(model, example_args, binding, expected2)
 
 
 def test_maxpool1d():
@@ -3479,9 +3863,9 @@ def test_maxpool1d():
     example_args3 = (torch.randn(1, 3, 10, dtype=torch.float32),)
 
     # Verify the models
-    verify_model(MaxPool1d(), example_args1, {}, expected1, run_ep_decomposition=True)
-    verify_model(MaxPool1d_functional(), example_args2, {}, expected2, run_ep_decomposition=True)
-    verify_model(MaxPool1d2(), example_args3, {}, expected3, run_ep_decomposition=True)
+    verify_model(MaxPool1d(), example_args1, {}, expected1)
+    verify_model(MaxPool1d_functional(), example_args2, {}, expected2)
+    verify_model(MaxPool1d2(), example_args3, {}, expected3)
 
 
 def test_maxpool2d():
@@ -3596,10 +3980,10 @@ def test_maxpool2d():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(MaxPool2d(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(MaxPool2d_functional(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(MaxPool2d2(), example_args, {}, expected2, run_ep_decomposition=True)
-    verify_model(MaxPool2d3(), example_args, {}, expected3, run_ep_decomposition=True)
+    verify_model(MaxPool2d(), example_args, {}, expected1)
+    verify_model(MaxPool2d_functional(), example_args, {}, expected1)
+    verify_model(MaxPool2d2(), example_args, {}, expected2)
+    verify_model(MaxPool2d3(), example_args, {}, expected3)
 
 
 def test_maxpool3d():
@@ -3718,10 +4102,10 @@ def test_maxpool3d():
     example_args3 = (torch.randn(1, 3, 10, 10, 10, dtype=torch.float32),)
 
     # Verify the models with expected IR modules
-    verify_model(MaxPool3d(), example_args1, {}, expected1, run_ep_decomposition=True)
-    verify_model(MaxPool3d_functional(), example_args1, {}, expected1, run_ep_decomposition=True)
-    verify_model(MaxPool3d2(), example_args2, {}, expected2, run_ep_decomposition=True)
-    verify_model(MaxPool3d3(), example_args3, {}, expected3, run_ep_decomposition=True)
+    verify_model(MaxPool3d(), example_args1, {}, expected1)
+    verify_model(MaxPool3d_functional(), example_args1, {}, expected1)
+    verify_model(MaxPool3d2(), example_args2, {}, expected2)
+    verify_model(MaxPool3d3(), example_args3, {}, expected3)
 
 
 def test_scaled_dot_product_attention():
@@ -3738,71 +4122,22 @@ def test_scaled_dot_product_attention():
             v: R.Tensor((32, 8, 128, 64), dtype="float32"),
         ) -> R.Tuple(R.Tensor((32, 8, 128, 64), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((32, 8, 128, 64), dtype="float32") = R.multiply(
-                    q, R.const(0.35355338454246521, "float32")
+                lv: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
+                    q, axes=[0, 2, 1, 3]
                 )
-                lv1: R.Tensor((32, 8, 64, 128), dtype="float32") = R.permute_dims(
-                    k, axes=[0, 1, 3, 2]
+                lv1: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
+                    k, axes=[0, 2, 1, 3]
                 )
-                lv2: R.Tensor((32, 8, 64, 128), dtype="float32") = R.multiply(
-                    lv1, R.const(0.35355338454246521, "float32")
+                lv2: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
+                    v, axes=[0, 2, 1, 3]
                 )
-                lv3: R.Tensor((32, 8, 128, 64), dtype="float32") = R.broadcast_to(
-                    lv, R.shape([32, 8, 128, 64])
+                lv3: R.Tensor((32, 128, 8, 64), dtype="float32") = R.nn.attention(
+                    lv, lv1, lv2, scale=None, causal_mask=None, window_size=None
                 )
-                lv4: R.Tensor((256, 128, 64), dtype="float32") = R.reshape(
-                    lv3, R.shape([256, 128, 64])
+                lv4: R.Tensor((32, 8, 128, 64), dtype="float32") = R.permute_dims(
+                    lv3, axes=[0, 2, 1, 3]
                 )
-                lv5: R.Tensor((32, 8, 64, 128), dtype="float32") = R.broadcast_to(
-                    lv2, R.shape([32, 8, 64, 128])
-                )
-                lv6: R.Tensor((256, 64, 128), dtype="float32") = R.reshape(
-                    lv5, R.shape([256, 64, 128])
-                )
-                lv7: R.Tensor((256, 128, 128), dtype="float32") = R.matmul(
-                    lv4, lv6, out_dtype="float32"
-                )
-                lv8: R.Tensor((32, 8, 128, 128), dtype="float32") = R.reshape(
-                    lv7, R.shape([32, 8, 128, 128])
-                )
-                lv9: R.Tensor((32, 8, 128, 128), dtype="float32") = R.nn.softmax(lv8, axis=-1)
-                lv10: R.Tensor((32, 8, 128, 128), dtype="bool") = R.equal(
-                    lv8, R.const(float("-inf"), "float32")
-                )
-                lv11: R.Tensor((32, 8, 128, 128), dtype="bool") = R.logical_not(lv10)
-                lv12: R.Tensor((32, 8, 128, 1), dtype="bool") = R.max(
-                    lv11, axis=[-1], keepdims=True
-                )
-                lv13: R.Tensor((32, 8, 128, 1), dtype="bool") = R.logical_not(lv12)
-                lv14: R.Tensor((32, 8, 128, 128), dtype="float32") = R.full_like(
-                    lv9, R.const(0, "int32"), dtype="void"
-                )
-                lv15: R.Tensor((32, 8, 128, 128), dtype="float32") = R.where(lv13, lv14, lv9)
-                lv16: R.Tensor((32, 8, 128, 128), dtype="float32") = R.broadcast_to(
-                    lv15, R.shape([32, 8, 128, 128])
-                )
-                lv17: R.Tensor((256, 128, 128), dtype="float32") = R.reshape(
-                    lv16, R.shape([256, 128, 128])
-                )
-                lv18: R.Tensor((32, 8, 128, 64), dtype="float32") = R.broadcast_to(
-                    v, R.shape([32, 8, 128, 64])
-                )
-                lv19: R.Tensor((256, 128, 64), dtype="float32") = R.reshape(
-                    lv18, R.shape([256, 128, 64])
-                )
-                lv20: R.Tensor((256, 128, 64), dtype="float32") = R.matmul(
-                    lv17, lv19, out_dtype="float32"
-                )
-                lv21: R.Tensor((32, 8, 128, 64), dtype="float32") = R.reshape(
-                    lv20, R.shape([32, 8, 128, 64])
-                )
-                lv22: R.Tensor((128, 32, 8, 64), dtype="float32") = R.permute_dims(
-                    lv21, axes=[2, 0, 1, 3]
-                )
-                lv23: R.Tensor((32, 8, 128, 64), dtype="float32") = R.permute_dims(
-                    lv22, axes=[1, 2, 0, 3]
-                )
-                gv: R.Tuple(R.Tensor((32, 8, 128, 64), dtype="float32")) = (lv23,)
+                gv: R.Tuple(R.Tensor((32, 8, 128, 64), dtype="float32")) = (lv4,)
                 R.output(gv)
             return gv
 
@@ -3820,72 +4155,22 @@ def test_scaled_dot_product_attention():
             mask: R.Tensor((32, 8, 128, 128), dtype="float32"),
         ) -> R.Tuple(R.Tensor((32, 8, 128, 64), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((32, 8, 128, 64), dtype="float32") = R.multiply(
-                    q, R.const(0.35355338454246521, "float32")
+                lv: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
+                    q, axes=[0, 2, 1, 3]
                 )
-                lv1: R.Tensor((32, 8, 64, 128), dtype="float32") = R.permute_dims(
-                    k, axes=[0, 1, 3, 2]
+                lv1: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
+                    k, axes=[0, 2, 1, 3]
                 )
-                lv2: R.Tensor((32, 8, 64, 128), dtype="float32") = R.multiply(
-                    lv1, R.const(0.35355338454246521, "float32")
+                lv2: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
+                    v, axes=[0, 2, 1, 3]
                 )
-                lv3: R.Tensor((32, 8, 128, 64), dtype="float32") = R.broadcast_to(
-                    lv, R.shape([32, 8, 128, 64])
+                lv3: R.Tensor((32, 128, 8, 64), dtype="float32") = R.nn.attention_bias(
+                    lv, lv1, lv2, mask, scale=None, causal_mask=None, window_size=None
                 )
-                lv4: R.Tensor((256, 128, 64), dtype="float32") = R.reshape(
-                    lv3, R.shape([256, 128, 64])
+                lv4: R.Tensor((32, 8, 128, 64), dtype="float32") = R.permute_dims(
+                    lv3, axes=[0, 2, 1, 3]
                 )
-                lv5: R.Tensor((32, 8, 64, 128), dtype="float32") = R.broadcast_to(
-                    lv2, R.shape([32, 8, 64, 128])
-                )
-                lv6: R.Tensor((256, 64, 128), dtype="float32") = R.reshape(
-                    lv5, R.shape([256, 64, 128])
-                )
-                lv7: R.Tensor((256, 128, 128), dtype="float32") = R.matmul(
-                    lv4, lv6, out_dtype="float32"
-                )
-                lv8: R.Tensor((32, 8, 128, 128), dtype="float32") = R.reshape(
-                    lv7, R.shape([32, 8, 128, 128])
-                )
-                lv9: R.Tensor((32, 8, 128, 128), dtype="float32") = R.add(lv8, mask)
-                lv10: R.Tensor((32, 8, 128, 128), dtype="float32") = R.nn.softmax(lv9, axis=-1)
-                lv11: R.Tensor((32, 8, 128, 128), dtype="bool") = R.equal(
-                    lv9, R.const(float("-inf"), "float32")
-                )
-                lv12: R.Tensor((32, 8, 128, 128), dtype="bool") = R.logical_not(lv11)
-                lv13: R.Tensor((32, 8, 128, 1), dtype="bool") = R.max(
-                    lv12, axis=[-1], keepdims=True
-                )
-                lv14: R.Tensor((32, 8, 128, 1), dtype="bool") = R.logical_not(lv13)
-                lv15: R.Tensor((32, 8, 128, 128), dtype="float32") = R.full_like(
-                    lv10, R.const(0, "int32"), dtype="void"
-                )
-                lv16: R.Tensor((32, 8, 128, 128), dtype="float32") = R.where(lv14, lv15, lv10)
-                lv17: R.Tensor((32, 8, 128, 128), dtype="float32") = R.broadcast_to(
-                    lv16, R.shape([32, 8, 128, 128])
-                )
-                lv18: R.Tensor((256, 128, 128), dtype="float32") = R.reshape(
-                    lv17, R.shape([256, 128, 128])
-                )
-                lv19: R.Tensor((32, 8, 128, 64), dtype="float32") = R.broadcast_to(
-                    v, R.shape([32, 8, 128, 64])
-                )
-                lv20: R.Tensor((256, 128, 64), dtype="float32") = R.reshape(
-                    lv19, R.shape([256, 128, 64])
-                )
-                lv21: R.Tensor((256, 128, 64), dtype="float32") = R.matmul(
-                    lv18, lv20, out_dtype="float32"
-                )
-                lv22: R.Tensor((32, 8, 128, 64), dtype="float32") = R.reshape(
-                    lv21, R.shape([32, 8, 128, 64])
-                )
-                lv23: R.Tensor((128, 32, 8, 64), dtype="float32") = R.permute_dims(
-                    lv22, axes=[2, 0, 1, 3]
-                )
-                lv24: R.Tensor((32, 8, 128, 64), dtype="float32") = R.permute_dims(
-                    lv23, axes=[1, 2, 0, 3]
-                )
-                gv: R.Tuple(R.Tensor((32, 8, 128, 64), dtype="float32")) = (lv24,)
+                gv: R.Tuple(R.Tensor((32, 8, 128, 64), dtype="float32")) = (lv4,)
                 R.output(gv)
             return gv
 
@@ -3898,7 +4183,7 @@ def test_scaled_dot_product_attention():
         ),
         {},
         Expected1,
-        run_ep_decomposition=True,
+        run_ep_decomposition=False,
     )
 
     verify_model(
@@ -3911,7 +4196,46 @@ def test_scaled_dot_product_attention():
         ),
         {},
         Expected2,
-        run_ep_decomposition=True,
+        run_ep_decomposition=False,
+    )
+
+    # Test 2D input (seq_len, head_dim) - bug fix for #18441
+    class Attention2D(Module):
+        def forward(self, x):
+            return torch.nn.functional.scaled_dot_product_attention(x, x, x, is_causal=False)
+
+    @I.ir_module
+    class Expected2D:
+        @R.function
+        def main(
+            x: R.Tensor((8, 32), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((8, 32), dtype="float32")):
+            with R.dataflow():
+                # Expand to add batch dimension for query, key, value separately
+                # (8, 32) -> (1, 8, 32)
+                lv: R.Tensor((1, 8, 32), dtype="float32") = R.expand_dims(x, axis=[0])
+                lv1: R.Tensor((1, 8, 32), dtype="float32") = R.expand_dims(x, axis=[0])
+                lv2: R.Tensor((1, 8, 32), dtype="float32") = R.expand_dims(x, axis=[0])
+                # Expand to add num_heads dimension: (1, 8, 32) -> (1, 1, 8, 32)
+                lv3: R.Tensor((1, 1, 8, 32), dtype="float32") = R.expand_dims(lv, axis=[1])
+                lv4: R.Tensor((1, 1, 8, 32), dtype="float32") = R.expand_dims(lv1, axis=[1])
+                lv5: R.Tensor((1, 1, 8, 32), dtype="float32") = R.expand_dims(lv2, axis=[1])
+                # Attention operation: (1, 1, 8, 32) -> (1, 1, 8, 32)
+                lv6: R.Tensor((1, 1, 8, 32), dtype="float32") = R.nn.attention(
+                    lv3, lv4, lv5, scale=None, causal_mask=None, window_size=None
+                )
+                # Squeeze batch and num_heads dimensions: (1, 1, 8, 32) -> (8, 32)
+                lv7: R.Tensor((8, 32), dtype="float32") = R.squeeze(lv6, axis=[0, 1])
+                gv: R.Tuple(R.Tensor((8, 32), dtype="float32")) = (lv7,)
+                R.output(gv)
+            return gv
+
+    verify_model(
+        Attention2D(),
+        (torch.randn(8, 32, dtype=torch.float32),),
+        {},
+        Expected2D,
+        run_ep_decomposition=False,
     )
 
 
@@ -4039,10 +4363,10 @@ def test_unbind():
             return gv
 
     example_args = (torch.randn(3, 3, 10, 10, dtype=torch.float32),)
-    verify_model(Unbind1(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(Unbind2(), example_args, {}, expected2, run_ep_decomposition=True)
+    verify_model(Unbind1(), example_args, {}, expected1)
+    verify_model(Unbind2(), example_args, {}, expected2)
     single_dim_args = (torch.randn(3, 1, 3, dtype=torch.float32),)
-    verify_model(Unbind2(), single_dim_args, {}, expected3, run_ep_decomposition=True)
+    verify_model(Unbind2(), single_dim_args, {}, expected3)
 
 
 def test_interpolate():
@@ -4114,22 +4438,424 @@ def test_interpolate():
         def main(
             input: R.Tensor((1, 3, 112, 112), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 224, 224), dtype="float32")):
-            # block 0
             with R.dataflow():
-                lv: R.Tensor((1, 3, 224, 224), dtype="float32") = R.image.resize2d(
-                    input,
-                    R.shape([224, 224]),
-                    roi=[T.float32(0.0), T.float32(0.0), T.float32(0.0), T.float32(0.0)],
-                    layout="NCHW",
-                    method="cubic",
-                    coordinate_transformation_mode="half_pixel",
-                    rounding_method="round",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0.0,
-                    out_dtype="void",
+                lv: R.Tensor((1, 3, 112, 112), dtype="float32") = R.astype(input, dtype="float32")
+                lv1: R.Tensor((1, 3, 112, 112), dtype="float32") = R.astype(lv, dtype="float32")
+                lv2: R.Tensor((224,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(224), R.prim_value(1), dtype="int64"
                 )
-                gv: R.Tuple(R.Tensor((1, 3, 224, 224), dtype="float32")) = (lv,)
+                lv3: R.Tensor((224,), dtype="float32") = R.astype(lv2, dtype="float32")
+                lv4: R.Tensor((224,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(224), R.prim_value(1), dtype="int64"
+                )
+                lv5: R.Tensor((224,), dtype="float32") = R.astype(lv4, dtype="float32")
+                lv6: R.Tensor((224,), dtype="float32") = R.add(lv5, R.const(0.5, "float32"))
+                lv7: R.Tensor((224,), dtype="float32") = R.multiply(lv6, R.const(0.5, "float32"))
+                lv8: R.Tensor((224,), dtype="float32") = R.subtract(lv7, R.const(0.5, "float32"))
+                lv9: R.Tensor((224,), dtype="float32") = R.add(lv3, R.const(0.5, "float32"))
+                lv10: R.Tensor((224,), dtype="float32") = R.multiply(lv9, R.const(0.5, "float32"))
+                lv11: R.Tensor((224,), dtype="float32") = R.subtract(lv10, R.const(0.5, "float32"))
+                lv12: R.Tensor((224, 1), dtype="float32") = R.expand_dims(lv11, axis=[-1])
+                lv13: R.Tensor((224,), dtype="float32") = R.floor(lv8)
+                lv14: R.Tensor((224, 1), dtype="float32") = R.floor(lv12)
+                lv15: R.Tensor((224, 1), dtype="float32") = R.subtract(lv12, lv14)
+                lv16: R.Tensor((224, 1), dtype="float32") = R.clip(
+                    lv15, R.prim_value(T.float64(0.0)), R.prim_value(T.float64(1.0))
+                )
+                lv17: R.Tensor((224,), dtype="float32") = R.subtract(lv8, lv13)
+                lv18: R.Tensor((224,), dtype="float32") = R.clip(
+                    lv17, R.prim_value(T.float64(0.0)), R.prim_value(T.float64(1.0))
+                )
+                lv19: R.Tensor((224,), dtype="int64") = R.astype(lv13, dtype="int64")
+                lv20: R.Tensor((224, 1), dtype="int64") = R.astype(lv14, dtype="int64")
+                lv21: R.Tensor((224, 1), dtype="int64") = R.subtract(lv20, R.const(1, "int64"))
+                lv22: R.Tensor((224, 1), dtype="int64") = R.add(lv20, R.const(1, "int64"))
+                lv23: R.Tensor((224, 1), dtype="int64") = R.add(lv20, R.const(2, "int64"))
+                lv24: R.Tensor((224,), dtype="int64") = R.subtract(lv19, R.const(1, "int64"))
+                lv25: R.Tensor((224,), dtype="int64") = R.add(lv19, R.const(1, "int64"))
+                lv26: R.Tensor((224,), dtype="int64") = R.add(lv19, R.const(2, "int64"))
+                lv27: R.Tensor((224,), dtype="float32") = R.subtract(R.const(1.0, "float32"), lv18)
+                lv28: R.Tensor((448,), dtype="float32") = R.concat((lv18, lv27), axis=0)
+                lv29: R.Tensor((2, 224), dtype="float32") = R.reshape(lv28, R.shape([2, 224]))
+                lv30: R.Tensor((224,), dtype="float32") = R.add(lv18, R.const(1.0, "float32"))
+                lv31: R.Tensor((224,), dtype="float32") = R.subtract(R.const(2.0, "float32"), lv18)
+                lv32: R.Tensor((448,), dtype="float32") = R.concat((lv30, lv31), axis=0)
+                lv33: R.Tensor((2, 224), dtype="float32") = R.reshape(lv32, R.shape([2, 224]))
+                lv34: R.Tensor((2, 224), dtype="float32") = R.multiply(
+                    lv33, R.const(-0.75, "float32")
+                )
+                lv35: R.Tensor((2, 224), dtype="float32") = R.subtract(
+                    lv34, R.const(-3.75, "float32")
+                )
+                lv36: R.Tensor((2, 224), dtype="float32") = R.multiply(lv35, lv33)
+                lv37: R.Tensor((2, 224), dtype="float32") = R.add(lv36, R.const(-6.0, "float32"))
+                lv38: R.Tensor((2, 224), dtype="float32") = R.multiply(lv37, lv33)
+                lv39: R.Tensor((2, 224), dtype="float32") = R.subtract(
+                    lv38, R.const(-3.0, "float32")
+                )
+                lv40: R.Tensor((2, 224), dtype="float32") = R.multiply(
+                    lv29, R.const(1.25, "float32")
+                )
+                lv41: R.Tensor((2, 224), dtype="float32") = R.subtract(
+                    lv40, R.const(2.25, "float32")
+                )
+                lv42: R.Tensor((2, 224), dtype="float32") = R.multiply(lv41, lv29)
+                lv43: R.Tensor((2, 224), dtype="float32") = R.multiply(lv42, lv29)
+                lv44: R.Tensor((2, 224), dtype="float32") = R.add(lv43, R.const(1.0, "float32"))
+                lv45: R.Tensor((1, 224), dtype="float32") = R.strided_slice(
+                    lv39,
+                    (R.prim_value(0),),
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv46: R.Tensor((1, 224), dtype="float32") = R.strided_slice(
+                    lv39,
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(2),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv47: R.Tensor((224,), dtype="float32") = R.squeeze(lv45, axis=[0])
+                lv48: R.Tensor((224,), dtype="float32") = R.squeeze(lv46, axis=[0])
+                lv49: R.Tensor((1, 224), dtype="float32") = R.strided_slice(
+                    lv44,
+                    (R.prim_value(0),),
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv50: R.Tensor((1, 224), dtype="float32") = R.strided_slice(
+                    lv44,
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(2),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv51: R.Tensor((224,), dtype="float32") = R.squeeze(lv49, axis=[0])
+                lv52: R.Tensor((224,), dtype="float32") = R.squeeze(lv50, axis=[0])
+                lv53: R.Tensor((224, 1), dtype="float32") = R.subtract(
+                    R.const(1.0, "float32"), lv16
+                )
+                lv54: R.Tensor((448, 1), dtype="float32") = R.concat((lv16, lv53), axis=0)
+                lv55: R.Tensor((2, 224, 1), dtype="float32") = R.reshape(lv54, R.shape([2, 224, 1]))
+                lv56: R.Tensor((224, 1), dtype="float32") = R.add(lv16, R.const(1.0, "float32"))
+                lv57: R.Tensor((224, 1), dtype="float32") = R.subtract(
+                    R.const(2.0, "float32"), lv16
+                )
+                lv58: R.Tensor((448, 1), dtype="float32") = R.concat((lv56, lv57), axis=0)
+                lv59: R.Tensor((2, 224, 1), dtype="float32") = R.reshape(lv58, R.shape([2, 224, 1]))
+                lv60: R.Tensor((2, 224, 1), dtype="float32") = R.multiply(
+                    lv59, R.const(-0.75, "float32")
+                )
+                lv61: R.Tensor((2, 224, 1), dtype="float32") = R.subtract(
+                    lv60, R.const(-3.75, "float32")
+                )
+                lv62: R.Tensor((2, 224, 1), dtype="float32") = R.multiply(lv61, lv59)
+                lv63: R.Tensor((2, 224, 1), dtype="float32") = R.add(lv62, R.const(-6.0, "float32"))
+                lv64: R.Tensor((2, 224, 1), dtype="float32") = R.multiply(lv63, lv59)
+                lv65: R.Tensor((2, 224, 1), dtype="float32") = R.subtract(
+                    lv64, R.const(-3.0, "float32")
+                )
+                lv66: R.Tensor((2, 224, 1), dtype="float32") = R.multiply(
+                    lv55, R.const(1.25, "float32")
+                )
+                lv67: R.Tensor((2, 224, 1), dtype="float32") = R.subtract(
+                    lv66, R.const(2.25, "float32")
+                )
+                lv68: R.Tensor((2, 224, 1), dtype="float32") = R.multiply(lv67, lv55)
+                lv69: R.Tensor((2, 224, 1), dtype="float32") = R.multiply(lv68, lv55)
+                lv70: R.Tensor((2, 224, 1), dtype="float32") = R.add(lv69, R.const(1.0, "float32"))
+                lv71: R.Tensor((1, 224, 1), dtype="float32") = R.strided_slice(
+                    lv65,
+                    (R.prim_value(0),),
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv72: R.Tensor((1, 224, 1), dtype="float32") = R.strided_slice(
+                    lv65,
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(2),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv73: R.Tensor((224, 1), dtype="float32") = R.squeeze(lv71, axis=[0])
+                lv74: R.Tensor((224, 1), dtype="float32") = R.squeeze(lv72, axis=[0])
+                lv75: R.Tensor((1, 224, 1), dtype="float32") = R.strided_slice(
+                    lv70,
+                    (R.prim_value(0),),
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv76: R.Tensor((1, 224, 1), dtype="float32") = R.strided_slice(
+                    lv70,
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(2),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv77: R.Tensor((224, 1), dtype="float32") = R.squeeze(lv75, axis=[0])
+                lv78: R.Tensor((224, 1), dtype="float32") = R.squeeze(lv76, axis=[0])
+                lv79: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv21, R.prim_value(0), R.prim_value(111)
+                )
+                lv80: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv24, R.prim_value(0), R.prim_value(111)
+                )
+                lv81: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    lv1, lv80, axis=3, mode="fast"
+                )
+                lv82: R.Tensor((224,), dtype="int64") = R.squeeze(lv79, axis=None)
+                lv83: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv81, lv82, axis=2, mode="fast"
+                )
+                lv84: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv21, R.prim_value(0), R.prim_value(111)
+                )
+                lv85: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv19, R.prim_value(0), R.prim_value(111)
+                )
+                lv86: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    lv1, lv85, axis=3, mode="fast"
+                )
+                lv87: R.Tensor((224,), dtype="int64") = R.squeeze(lv84, axis=None)
+                lv88: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv86, lv87, axis=2, mode="fast"
+                )
+                lv89: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv21, R.prim_value(0), R.prim_value(111)
+                )
+                lv90: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv25, R.prim_value(0), R.prim_value(111)
+                )
+                lv91: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    lv1, lv90, axis=3, mode="fast"
+                )
+                lv92: R.Tensor((224,), dtype="int64") = R.squeeze(lv89, axis=None)
+                lv93: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv91, lv92, axis=2, mode="fast"
+                )
+                lv94: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv21, R.prim_value(0), R.prim_value(111)
+                )
+                lv95: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv26, R.prim_value(0), R.prim_value(111)
+                )
+                lv96: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    lv1, lv95, axis=3, mode="fast"
+                )
+                lv97: R.Tensor((224,), dtype="int64") = R.squeeze(lv94, axis=None)
+                lv98: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv96, lv97, axis=2, mode="fast"
+                )
+                lv99: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv83, lv47)
+                lv100: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv88, lv51)
+                lv101: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv99, lv100)
+                lv102: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv93, lv52)
+                lv103: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv101, lv102)
+                lv104: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv98, lv48)
+                lv105: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv103, lv104)
+                lv106: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv20, R.prim_value(0), R.prim_value(111)
+                )
+                lv107: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv24, R.prim_value(0), R.prim_value(111)
+                )
+                lv108: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    lv1, lv107, axis=3, mode="fast"
+                )
+                lv109: R.Tensor((224,), dtype="int64") = R.squeeze(lv106, axis=None)
+                lv110: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv108, lv109, axis=2, mode="fast"
+                )
+                lv111: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv20, R.prim_value(0), R.prim_value(111)
+                )
+                lv112: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv19, R.prim_value(0), R.prim_value(111)
+                )
+                lv113: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    lv1, lv112, axis=3, mode="fast"
+                )
+                lv114: R.Tensor((224,), dtype="int64") = R.squeeze(lv111, axis=None)
+                lv115: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv113, lv114, axis=2, mode="fast"
+                )
+                lv116: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv20, R.prim_value(0), R.prim_value(111)
+                )
+                lv117: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv25, R.prim_value(0), R.prim_value(111)
+                )
+                lv118: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    lv1, lv117, axis=3, mode="fast"
+                )
+                lv119: R.Tensor((224,), dtype="int64") = R.squeeze(lv116, axis=None)
+                lv120: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv118, lv119, axis=2, mode="fast"
+                )
+                lv121: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv20, R.prim_value(0), R.prim_value(111)
+                )
+                lv122: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv26, R.prim_value(0), R.prim_value(111)
+                )
+                lv123: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    lv1, lv122, axis=3, mode="fast"
+                )
+                lv124: R.Tensor((224,), dtype="int64") = R.squeeze(lv121, axis=None)
+                lv125: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv123, lv124, axis=2, mode="fast"
+                )
+                lv126: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv110, lv47)
+                lv127: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv115, lv51)
+                lv128: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv126, lv127)
+                lv129: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv120, lv52)
+                lv130: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv128, lv129)
+                lv131: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv125, lv48)
+                lv132: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv130, lv131)
+                lv133: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv22, R.prim_value(0), R.prim_value(111)
+                )
+                lv134: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv24, R.prim_value(0), R.prim_value(111)
+                )
+                lv135: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    lv1, lv134, axis=3, mode="fast"
+                )
+                lv136: R.Tensor((224,), dtype="int64") = R.squeeze(lv133, axis=None)
+                lv137: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv135, lv136, axis=2, mode="fast"
+                )
+                lv138: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv22, R.prim_value(0), R.prim_value(111)
+                )
+                lv139: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv19, R.prim_value(0), R.prim_value(111)
+                )
+                lv140: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    lv1, lv139, axis=3, mode="fast"
+                )
+                lv141: R.Tensor((224,), dtype="int64") = R.squeeze(lv138, axis=None)
+                lv142: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv140, lv141, axis=2, mode="fast"
+                )
+                lv143: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv22, R.prim_value(0), R.prim_value(111)
+                )
+                lv144: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv25, R.prim_value(0), R.prim_value(111)
+                )
+                lv145: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    lv1, lv144, axis=3, mode="fast"
+                )
+                lv146: R.Tensor((224,), dtype="int64") = R.squeeze(lv143, axis=None)
+                lv147: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv145, lv146, axis=2, mode="fast"
+                )
+                lv148: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv22, R.prim_value(0), R.prim_value(111)
+                )
+                lv149: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv26, R.prim_value(0), R.prim_value(111)
+                )
+                lv150: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    lv1, lv149, axis=3, mode="fast"
+                )
+                lv151: R.Tensor((224,), dtype="int64") = R.squeeze(lv148, axis=None)
+                lv152: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv150, lv151, axis=2, mode="fast"
+                )
+                lv153: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv137, lv47)
+                lv154: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv142, lv51)
+                lv155: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv153, lv154)
+                lv156: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv147, lv52)
+                lv157: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv155, lv156)
+                lv158: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv152, lv48)
+                lv159: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv157, lv158)
+                lv160: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv23, R.prim_value(0), R.prim_value(111)
+                )
+                lv161: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv24, R.prim_value(0), R.prim_value(111)
+                )
+                lv162: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    lv1, lv161, axis=3, mode="fast"
+                )
+                lv163: R.Tensor((224,), dtype="int64") = R.squeeze(lv160, axis=None)
+                lv164: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv162, lv163, axis=2, mode="fast"
+                )
+                lv165: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv23, R.prim_value(0), R.prim_value(111)
+                )
+                lv166: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv19, R.prim_value(0), R.prim_value(111)
+                )
+                lv167: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    lv1, lv166, axis=3, mode="fast"
+                )
+                lv168: R.Tensor((224,), dtype="int64") = R.squeeze(lv165, axis=None)
+                lv169: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv167, lv168, axis=2, mode="fast"
+                )
+                lv170: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv23, R.prim_value(0), R.prim_value(111)
+                )
+                lv171: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv25, R.prim_value(0), R.prim_value(111)
+                )
+                lv172: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    lv1, lv171, axis=3, mode="fast"
+                )
+                lv173: R.Tensor((224,), dtype="int64") = R.squeeze(lv170, axis=None)
+                lv174: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv172, lv173, axis=2, mode="fast"
+                )
+                lv175: R.Tensor((224, 1), dtype="int64") = R.clip(
+                    lv23, R.prim_value(0), R.prim_value(111)
+                )
+                lv176: R.Tensor((224,), dtype="int64") = R.clip(
+                    lv26, R.prim_value(0), R.prim_value(111)
+                )
+                lv177: R.Tensor((1, 3, 112, 224), dtype="float32") = R.take(
+                    lv1, lv176, axis=3, mode="fast"
+                )
+                lv178: R.Tensor((224,), dtype="int64") = R.squeeze(lv175, axis=None)
+                lv179: R.Tensor((1, 3, 224, 224), dtype="float32") = R.take(
+                    lv177, lv178, axis=2, mode="fast"
+                )
+                lv180: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv164, lv47)
+                lv181: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv169, lv51)
+                lv182: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv180, lv181)
+                lv183: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv174, lv52)
+                lv184: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv182, lv183)
+                lv185: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv179, lv48)
+                lv186: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv184, lv185)
+                lv187: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv105, lv73)
+                lv188: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv132, lv77)
+                lv189: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv187, lv188)
+                lv190: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv159, lv78)
+                lv191: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv189, lv190)
+                lv192: R.Tensor((1, 3, 224, 224), dtype="float32") = R.multiply(lv186, lv74)
+                lv193: R.Tensor((1, 3, 224, 224), dtype="float32") = R.add(lv191, lv192)
+                lv194: R.Tensor((1, 3, 224, 224), dtype="float32") = R.astype(
+                    lv193, dtype="float32"
+                )
+                lv195: R.Tensor((1, 3, 224, 224), dtype="float32") = R.astype(
+                    lv194, dtype="float32"
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 224, 224), dtype="float32")) = (lv195,)
                 R.output(gv)
             return gv
 
@@ -4137,6 +4863,43 @@ def test_interpolate():
     verify_model(InterpolateBilinear(), example_args, {}, expected_bilinear)
     verify_model(InterpolateNearest(), example_args, {}, expected_nearest)
     verify_model(InterpolateBicubic(), example_args, {}, expected_bicubic)
+
+
+def test_interpolate_antialiased():
+    """Test bilinear interpolation with antialiasing enabled."""
+
+    class InterpolateBilinearAA(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(
+                input, size=(64, 64), mode="bilinear", align_corners=False, antialias=True
+            )
+
+    @tvm.script.ir_module
+    class expected_bilinear_aa:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 32, 32), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 64, 64), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 64, 64), dtype="float32") = R.image.resize2d(
+                    input,
+                    R.shape([64, 64]),
+                    roi=[T.float32(0.0), T.float32(0.0), T.float32(0.0), T.float32(0.0)],
+                    layout="NCHW",
+                    method="linear",
+                    coordinate_transformation_mode="half_pixel",
+                    rounding_method="round",
+                    cubic_alpha=-0.75,
+                    cubic_exclude=0,
+                    extrapolation_value=0.0,
+                    out_dtype="void",
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 64, 64), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 32, 32, dtype=torch.float32),)
+    verify_model(InterpolateBilinearAA(), example_args, {}, expected_bilinear_aa)
 
 
 def test_mean():
@@ -4147,6 +4910,10 @@ def test_mean():
     class MeanKeepDim(Module):
         def forward(self, input: torch.Tensor):
             return input.mean(-1, keepdim=True)
+
+    class MeanWithoutDim(Module):
+        def forward(self, input: torch.Tensor):
+            return input.mean()
 
     @I.ir_module
     class Expected1:
@@ -4172,15 +4939,36 @@ def test_mean():
                 R.output(gv)
             return gv
 
+    @I.ir_module
+    class Expected3:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tuple(R.Tensor((), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.mean(inp_0, axis=None, keepdims=False)
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
     example_args = (torch.randn(256, 256, dtype=torch.float32),)
-    verify_model(Mean(), example_args, {}, Expected1, run_ep_decomposition=True)
-    verify_model(MeanKeepDim(), example_args, {}, Expected2, run_ep_decomposition=True)
+    verify_model(Mean(), example_args, {}, Expected1)
+    verify_model(MeanKeepDim(), example_args, {}, Expected2)
+    verify_model(MeanWithoutDim(), example_args, {}, Expected3)
 
 
 def test_sum():
     class Sum(Module):
         def forward(self, x):
             return torch.sum(x, (2, 1))
+
+    class SumKeepDim(Module):
+        def forward(self, x):
+            return torch.sum(x, (2, 1), keepdim=True)
+
+    class SumWithoutDim(Module):
+        def forward(self, x):
+            return torch.sum(x)
 
     @tvm.script.ir_module
     class expected1:
@@ -4195,8 +4983,36 @@ def test_sum():
                 R.output(gv)
             return gv
 
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 1, 1, 4), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 1, 1, 4), dtype="float32") = R.sum(
+                    inp_0, axis=[2, 1], keepdims=True
+                )
+                gv: R.Tuple(R.Tensor((1, 1, 1, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected3:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.sum(inp_0, axis=None, keepdims=False)
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
     example_args = (torch.randn(1, 2, 3, 4, dtype=torch.float32),)
-    verify_model(Sum(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(Sum(), example_args, {}, expected1)
+    verify_model(SumKeepDim(), example_args, {}, expected2)
+    verify_model(SumWithoutDim(), example_args, {}, expected3)
 
 
 def test_argmax_argmin():
@@ -4240,8 +5056,8 @@ def test_argmax_argmin():
                 R.output(gv)
             return gv
 
-    verify_model(Argmax1(), example_args, {}, expected_argmax1, run_ep_decomposition=True)
-    verify_model(Argmax2(), example_args, {}, expected_argmax2, run_ep_decomposition=True)
+    verify_model(Argmax1(), example_args, {}, expected_argmax1)
+    verify_model(Argmax2(), example_args, {}, expected_argmax2)
 
     class Argmin1(Module):
         def __init__(self) -> None:
@@ -4281,8 +5097,8 @@ def test_argmax_argmin():
                 R.output(gv)
             return gv
 
-    verify_model(Argmin1(), example_args, {}, expected_argmin1, run_ep_decomposition=True)
-    verify_model(Argmin2(), example_args, {}, expected_argmin2, run_ep_decomposition=True)
+    verify_model(Argmin1(), example_args, {}, expected_argmin1)
+    verify_model(Argmin2(), example_args, {}, expected_argmin2)
 
 
 def test_cat_concat():
@@ -4329,10 +5145,10 @@ def test_cat_concat():
             return gv
 
     example_args = (torch.randn(2, 3, dtype=torch.float32), torch.randn(2, 3, dtype=torch.float32))
-    verify_model(Cat0(), example_args, {}, Expected1, run_ep_decomposition=True)
-    verify_model(Cat1(), example_args, {}, Expected2, run_ep_decomposition=True)
-    verify_model(Cat2(), example_args, {}, Expected2, run_ep_decomposition=True)
-    verify_model(Cat3(), example_args, {}, Expected1, run_ep_decomposition=True)
+    verify_model(Cat0(), example_args, {}, Expected1)
+    verify_model(Cat1(), example_args, {}, Expected2)
+    verify_model(Cat2(), example_args, {}, Expected2)
+    verify_model(Cat3(), example_args, {}, Expected1)
 
 
 def test_cumsum():
@@ -4354,7 +5170,7 @@ def test_cumsum():
             return gv
 
     example_args = (torch.randn(1, 2, 3, 4, dtype=torch.float32),)
-    verify_model(Cumsum(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(Cumsum(), example_args, {}, expected1)
 
 
 def test_expand():
@@ -4380,8 +5196,8 @@ def test_expand():
             return gv
 
     example_args = (torch.randn(1, 2, 3, 4, dtype=torch.float32),)
-    verify_model(Expand1(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(Expand2(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(Expand1(), example_args, {}, expected1)
+    verify_model(Expand2(), example_args, {}, expected1)
 
 
 def test_flatten():
@@ -4407,7 +5223,7 @@ def test_flatten():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(Flatten(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(Flatten(), example_args, {}, expected1)
 
 
 def test_meshgrid():
@@ -4457,8 +5273,8 @@ def test_meshgrid():
         torch.randn(3, dtype=torch.float32),
         torch.randn(3, dtype=torch.float32),
     )
-    verify_model(Meshgrid1(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(Meshgrid2(), example_args, {}, expected2, run_ep_decomposition=True)
+    verify_model(Meshgrid1(), example_args, {}, expected1)
+    verify_model(Meshgrid2(), example_args, {}, expected2)
 
 
 def test_permute():
@@ -4484,8 +5300,8 @@ def test_permute():
             return gv
 
     example_args = (torch.randn(1, 2, 3, 4, dtype=torch.float32),)
-    verify_model(Permute1(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(Permute2(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(Permute1(), example_args, {}, expected1)
+    verify_model(Permute2(), example_args, {}, expected1)
 
 
 def test_repeat():
@@ -4522,13 +5338,13 @@ def test_repeat():
             return gv
 
     example_args = (torch.randn(3, dtype=torch.float32),)
-    verify_model(Tile1(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(Tile1(), example_args, {}, expected1)
 
     example_args = (torch.randn(1, 3, dtype=torch.float32),)
-    verify_model(Tile2(), example_args, {}, expected2, run_ep_decomposition=True)
+    verify_model(Tile2(), example_args, {}, expected2)
 
     example_args = (torch.randn(1, 3, dtype=torch.float32),)
-    verify_model(Tile2(), example_args, {}, expected2, run_ep_decomposition=True)
+    verify_model(Tile2(), example_args, {}, expected2)
 
 
 def test_reshape():
@@ -4550,7 +5366,7 @@ def test_reshape():
             return gv
 
     example_args = (torch.randn(1, 2, 3, 4, dtype=torch.float32),)
-    verify_model(Reshape(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(Reshape(), example_args, {}, expected1)
 
 
 def test_reshape_as():
@@ -4576,7 +5392,7 @@ def test_reshape_as():
         torch.randn(1, 2, 3, 4, dtype=torch.float32),
         torch.randn(2, 12, dtype=torch.float32),
     )
-    verify_model(ReshapeAs(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(ReshapeAs(), example_args, {}, expected1)
 
 
 def test_roll():
@@ -4654,9 +5470,9 @@ def test_roll():
     example_input = torch.randint(0, 10, (4, 2), dtype=torch.int64)
 
     # Run verification for each case
-    verify_model(Roll1(), (example_input,), {}, Expected1, run_ep_decomposition=True)
-    verify_model(Roll2(), (example_input,), {}, Expected2, run_ep_decomposition=True)
-    verify_model(Roll3(), (example_input,), {}, Expected3, run_ep_decomposition=True)
+    verify_model(Roll1(), (example_input,), {}, Expected1)
+    verify_model(Roll2(), (example_input,), {}, Expected2)
+    verify_model(Roll3(), (example_input,), {}, Expected3)
 
 
 def test_select_slice():
@@ -4736,10 +5552,10 @@ def test_select_slice():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(Slice1(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(Slice1(), example_args, {}, expected1)
 
     example_args = (torch.randn(8, 16, dtype=torch.float32),)
-    verify_model(Slice2(), example_args, {}, expected2, run_ep_decomposition=True)
+    verify_model(Slice2(), example_args, {}, expected2)
 
 
 def test_slice_scatter():
@@ -4780,11 +5596,32 @@ def test_slice_scatter():
                 R.output(gv)
             return gv
 
+    class SliceScatterNegative(Module):
+        def forward(self, input, src):
+            return torch.slice_scatter(input, src, dim=1, start=0, end=-2, step=1)
+
+    @tvm.script.ir_module
+    class expected_slice_scatter:
+        @R.function
+        def main(
+            a: R.Tensor((2, 5), dtype="float32"), b: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((2, 5), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 5), dtype="float32") = R.slice_scatter(
+                    a, b, R.prim_value(0), R.prim_value(3), R.prim_value(1), axis=1
+                )
+                gv: R.Tuple(R.Tensor((2, 5), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
     example_args = (torch.randn(8, 8, 10, 10, dtype=torch.float32), torch.randn(8, 3, 10, 10))
-    verify_model(SliceScatter1(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(SliceScatter1(), example_args, {}, expected1)
 
     example_args = (torch.randn(8, 16, dtype=torch.float32), torch.randn(6, 16))
-    verify_model(SliceScatter2(), example_args, {}, expected2, run_ep_decomposition=True)
+    verify_model(SliceScatter2(), example_args, {}, expected2)
+
+    example_args = (torch.randn(2, 5, dtype=torch.float32), torch.randn(2, 3, dtype=torch.float32))
+    verify_model(SliceScatterNegative(), example_args, {}, expected_slice_scatter)
 
 
 def test_split():
@@ -4923,11 +5760,11 @@ def test_split():
             return gv
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
-    verify_model(Chunk(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Chunk(), example_args, {}, Expected)
 
     example_args = (torch.randn(3, 3, 10, 10, dtype=torch.float32),)
-    verify_model(Unbind1(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(Unbind2(), example_args, {}, expected2, run_ep_decomposition=True)
+    verify_model(Unbind1(), example_args, {}, expected1)
+    verify_model(Unbind2(), example_args, {}, expected2)
 
 
 def test_squeeze():
@@ -4958,15 +5795,32 @@ def test_squeeze():
             input: R.Tensor((3, 1, 4, 1), dtype="float32")
         ) -> R.Tuple(R.Tensor((3, 4), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((3, 4), dtype="float32") = R.squeeze(input, axis=[1, 3])
+                lv: R.Tensor((3, 4), dtype="float32") = R.squeeze(input, axis=[0, 1, 2, 3])
                 gv: R.Tuple(R.Tensor((3, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    class Squeeze3(Module):
+        def forward(self, input):
+            return input.squeeze(2)
+
+    @I.ir_module
+    class Expected3:
+        @R.function
+        def main(
+            inp_0: R.Tensor((3, 1, 4, 1), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3, 1, 4, 1), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 1, 4, 1), dtype="float32") = R.squeeze(inp_0, axis=[2])
+                gv: R.Tuple(R.Tensor((3, 1, 4, 1), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 
     example_args = (torch.randn(3, 1, 4, 1, dtype=torch.float32),)
 
-    verify_model(Squeeze1(), example_args, {}, Expected1, run_ep_decomposition=True)
-    verify_model(Squeeze2(), example_args, {}, Expected2, run_ep_decomposition=True)
+    verify_model(Squeeze1(), example_args, {}, Expected1)
+    verify_model(Squeeze2(), example_args, {}, Expected2)
+    verify_model(Squeeze3(), example_args, {}, Expected3)
 
 
 def test_stack():
@@ -5031,10 +5885,10 @@ def test_stack():
 
     example_args = (torch.randn(2, 3, dtype=torch.float32), torch.randn(2, 3, dtype=torch.float32))
 
-    verify_model(Stack0(), example_args, {}, Expected0, run_ep_decomposition=True)
-    verify_model(Stack1(), example_args, {}, Expected1, run_ep_decomposition=True)
-    verify_model(Stack2(), example_args, {}, Expected1, run_ep_decomposition=True)
-    verify_model(Stack3(), example_args, {}, Expected3, run_ep_decomposition=True)
+    verify_model(Stack0(), example_args, {}, Expected0)
+    verify_model(Stack1(), example_args, {}, Expected1)
+    verify_model(Stack2(), example_args, {}, Expected1)
+    verify_model(Stack3(), example_args, {}, Expected3)
 
 
 def test_tile():
@@ -5077,9 +5931,9 @@ def test_tile():
             return gv
 
     example_args = (torch.randn(1, 3, dtype=torch.float32),)
-    verify_model(Tile1(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(Tile2(), example_args, {}, expected2, run_ep_decomposition=True)
-    verify_model(Tile3(), example_args, {}, expected2, run_ep_decomposition=True)
+    verify_model(Tile1(), example_args, {}, expected1)
+    verify_model(Tile2(), example_args, {}, expected2)
+    verify_model(Tile3(), example_args, {}, expected2)
 
 
 def test_transpose():
@@ -5101,7 +5955,7 @@ def test_transpose():
             return gv
 
     example_args = (torch.randn(1, 2, 3, 4, dtype=torch.float32),)
-    verify_model(Transpose(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(Transpose(), example_args, {}, expected1)
 
 
 def test_unsqueeze():
@@ -5141,8 +5995,8 @@ def test_unsqueeze():
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
 
-    verify_model(Unsqueeze1(), example_args, {}, expected1, run_ep_decomposition=True)
-    verify_model(Unsqueeze2(), example_args, {}, expected2, run_ep_decomposition=True)
+    verify_model(Unsqueeze1(), example_args, {}, expected1)
+    verify_model(Unsqueeze2(), example_args, {}, expected2)
 
 
 def test_view():
@@ -5164,7 +6018,45 @@ def test_view():
             return gv
 
     example_args = (torch.randn(1, 2, 3, 4, dtype=torch.float32),)
-    verify_model(View(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(View(), example_args, {}, expected1)
+
+
+def test_as_strided():
+    class AsStrided(Module):
+        def forward(self, x):
+            return torch.ops.aten.as_strided.default(x, (3, 2, 2), (4, 2, 1))
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 2, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3, 2, 2), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 2, 2), dtype="float32") = R.reshape(x, (3, 2, 2))
+                gv: R.Tuple(R.Tensor((3, 2, 2), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    class AsStridedNonContiguous(Module):
+        def forward(self, x):
+            return torch.ops.aten.as_strided.default(x, (2, 2, 2), (6, 3, 1))
+
+    class AsStridedWithStorageOffset(Module):
+        def forward(self, x):
+            return torch.ops.aten.as_strided.default(x, (2, 2), (2, 1), 1)
+
+    example_args = (torch.randn(2, 2, 3, dtype=torch.float32),)
+    verify_model(AsStrided(), example_args, {}, Expected)
+
+    exported = export(AsStridedNonContiguous(), args=example_args)
+    with pytest.raises(AssertionError, match="non-contiguous stride"):
+        from_exported_program(exported)
+
+    example_args = (torch.randn(2, 2, dtype=torch.float32),)
+    exported = export(AsStridedWithStorageOffset(), args=example_args)
+    with pytest.raises(AssertionError, match="storage_offset"):
+        from_exported_program(exported)
 
 
 def test_arange():
@@ -5185,7 +6077,7 @@ def test_arange():
             return gv
 
     example_args = (torch.randn(10, 10, dtype=torch.float32),)
-    verify_model(Arange(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Arange(), example_args, {}, Expected)
 
 
 def test_hamming_window():
@@ -5212,7 +6104,7 @@ def test_hamming_window():
             return gv
 
     example_args = (torch.randn(10, 10, dtype=torch.float32),)
-    verify_model(HammingWindow(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(HammingWindow(), example_args, {}, Expected)
 
 
 def test_contiguous():
@@ -5232,7 +6124,7 @@ def test_contiguous():
             return gv
 
     example_args = (torch.randn(10, 10, dtype=torch.float32),)
-    verify_model(Contiguous(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Contiguous(), example_args, {}, Expected)
 
 
 def test_clone():
@@ -5252,7 +6144,7 @@ def test_clone():
             return gv
 
     example_args = (torch.randn(10, 10, dtype=torch.float32),)
-    verify_model(Clone(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Clone(), example_args, {}, Expected)
 
 
 def test_empty():
@@ -5275,7 +6167,28 @@ def test_empty():
             return gv
 
     example_args = (torch.randn(10, 10, dtype=torch.float32),)
-    verify_model(Empty(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Empty(), example_args, {}, Expected)
+
+
+def test_empty_without_dtype():
+    class EmptyWithoutDtype(Module):
+        def forward(self, input):
+            return torch.empty((5, 5))
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            input: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((5, 5), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((5, 5), dtype="float32") = R.zeros(R.shape([5, 5]), dtype="float32")
+                gv: R.Tuple(R.Tensor((5, 5), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(10, 10, dtype=torch.float32),)
+    verify_model(EmptyWithoutDtype(), example_args, {}, Expected)
 
 
 def test_fill():
@@ -5298,7 +6211,7 @@ def test_fill():
             return gv
 
     example_args = (torch.randn(10, 10, dtype=torch.float32),)
-    verify_model(Fill(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Fill(), example_args, {}, Expected)
 
 
 def test_fill_inplace():
@@ -5324,7 +6237,7 @@ def test_fill_inplace():
             return gv
 
     example_args = (torch.randn(2, 3, dtype=torch.float32),)
-    verify_model(FillInplace(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(FillInplace(), example_args, {}, Expected)
 
 
 def test_masked_fill():
@@ -5346,7 +6259,7 @@ def test_masked_fill():
             return gv
 
     example_args = (torch.randn(128, 128, dtype=torch.float32), torch.rand(128, 128) < 0.5)
-    verify_model(Masked_Fill(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Masked_Fill(), example_args, {}, Expected)
 
 
 def test_masked_fill_inplace():
@@ -5370,7 +6283,44 @@ def test_masked_fill_inplace():
             return gv
 
     example_args = (torch.randn(128, 128, dtype=torch.float32), torch.rand(128, 128) < 0.5)
-    verify_model(Masked_Fill_Inplace(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Masked_Fill_Inplace(), example_args, {}, Expected)
+
+
+def test_masked_select():
+    class MaskedSelect(Module):
+        def forward(self, data: torch.Tensor, mask: torch.Tensor):
+            return torch.masked_select(data, mask)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            data: R.Tensor((2, 3), dtype="float32"), mask: R.Tensor((2, 3), dtype="bool")
+        ) -> R.Tuple(R.Tensor(dtype="float32", ndim=1)):
+            R.func_attr(
+                {
+                    "tir_var_lower_bound": {"u0": 0, "u1": 0},
+                    "tir_var_upper_bound": {"u0": 6, "u1": 6},
+                }
+            )
+            with R.dataflow():
+                lv: R.Tensor((6,), dtype="float32") = R.reshape(data, R.shape([6]))
+                lv1: R.Tensor((6,), dtype="bool") = R.reshape(mask, R.shape([6]))
+                lv2: R.Tensor(dtype="int64", ndim=2) = R.nonzero(lv1)
+                lv3: R.Tensor(dtype="int64", ndim=1) = R.squeeze(lv2, axis=[0])
+                lv4: R.Tensor(dtype="float32", ndim=1) = R.take(lv, lv3, axis=0, mode="fast")
+                lv5: R.Tensor((), dtype="int64") = R.const(0, "int64")
+                lv6: R.Tensor((), dtype="bool") = R.const(True, "bool")
+                lv7: R.Tensor((), dtype="bool") = R.const(True, "bool")
+                gv: R.Tuple(R.Tensor(dtype="float32", ndim=1)) = (lv4,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(2, 3, dtype=torch.float32),
+        torch.tensor([[True, False, True], [False, True, False]]),
+    )
+    verify_model(MaskedSelect(), example_args, {}, Expected)
 
 
 def test_new_ones():
@@ -5394,7 +6344,7 @@ def test_new_ones():
             return gv
 
     example_args = (torch.randn(1, 2, 3, dtype=torch.float32),)
-    verify_model(NewOnes(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(NewOnes(), example_args, {}, expected1)
 
 
 def test_new_zeros():
@@ -5417,7 +6367,35 @@ def test_new_zeros():
             return gv
 
     example_args = (torch.randn(1, 128, 128, dtype=torch.float32),)
-    verify_model(NewZeros(), example_args, {}, expected1, run_ep_decomposition=True)
+    verify_model(NewZeros(), example_args, {}, expected1)
+
+
+def test_copy():
+    class CopyBroadcast(Module):
+        def forward(self, x, src):
+            x.copy_(src)
+            return x
+
+    @tvm.script.ir_module
+    class expected_copy:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32"), src: R.Tensor((), dtype="int64")
+        ) -> R.Tuple(R.Tensor((2, 3), dtype="float32"), R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.astype(src, dtype="float32")
+                lv1: R.Tensor((2, 3), dtype="float32") = R.broadcast_to(lv, (2, 3))
+                gv: R.Tuple(
+                    R.Tensor((2, 3), dtype="float32"), R.Tensor((2, 3), dtype="float32")
+                ) = (
+                    lv1,
+                    lv1,
+                )
+                R.output(gv)
+            return gv
+
+    example_args = (torch.zeros(2, 3, dtype=torch.float32), torch.tensor(1, dtype=torch.int64))
+    verify_model(CopyBroadcast(), example_args, {}, expected_copy)
 
 
 def test_to_copy():
@@ -5508,11 +6486,11 @@ def test_to_copy():
             return gv
 
     example_args = (torch.randn(1, 2, 3, 4, dtype=torch.float32),)
-    verify_model(ToFloat(), example_args, {}, expected_float, run_ep_decomposition=True)
-    verify_model(ToHalf(), example_args, {}, expected_half, run_ep_decomposition=True)
-    verify_model(Type(), example_args, {}, expected_type, run_ep_decomposition=True)
-    verify_model(To1(), example_args, {}, expected_to1, run_ep_decomposition=True)
-    verify_model(To2(), example_args, {}, expected_to2, run_ep_decomposition=True)
+    verify_model(ToFloat(), example_args, {}, expected_float)
+    verify_model(ToHalf(), example_args, {}, expected_half)
+    verify_model(Type(), example_args, {}, expected_type)
+    verify_model(To1(), example_args, {}, expected_to1)
+    verify_model(To2(), example_args, {}, expected_to2)
 
 
 def test_keep_params():
@@ -5556,10 +6534,9 @@ def test_keep_params():
 
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
     model = Conv2D1()
+
     exported_program = torch.export.export(model, example_args)
-    mod = from_exported_program(
-        exported_program, keep_params_as_input=True, run_ep_decomposition=True
-    )
+    mod = from_exported_program(exported_program, keep_params_as_input=True)
     mod, params = detach_params(mod)
     tvm.ir.assert_structural_equal(mod, expected1)
     func = mod["main"]
@@ -5594,11 +6571,7 @@ def test_unwrap_unit_return_tuple():
             return gv
 
     example_args = (torch.randn(256, 256, dtype=torch.float32),)
-    exported_program = export(Identity(), args=example_args)
-    mod = from_exported_program(
-        exported_program, unwrap_unit_return_tuple=True, run_ep_decomposition=True
-    )
-    tvm.ir.assert_structural_equal(mod, Expected)
+    verify_model(Identity(), example_args, {}, Expected, unwrap_unit_return_tuple=True)
 
 
 def test_no_bind_return_tuple():
@@ -5626,11 +6599,56 @@ def test_no_bind_return_tuple():
         torch.randn(256, 256, dtype=torch.float32),
         torch.randn(256, 256, dtype=torch.float32),
     )
-    exported_program = export(Identity(), args=example_args)
-    mod = from_exported_program(
-        exported_program, no_bind_return_tuple=True, run_ep_decomposition=True
+    verify_model(Identity(), example_args, {}, Expected, no_bind_return_tuple=True)
+
+
+def test_register_buffer():
+    class ModelWithBuffer(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.register_buffer("my_buffer", torch.randn(3, 4), persistent=False)
+
+        def forward(self, x):
+            return x + self.my_buffer
+
+    example_args = (torch.randn(2, 3, 4),)
+    ep = export(ModelWithBuffer(), args=example_args)
+    # Just verify that import works.
+    from_exported_program(ep)
+
+
+def test_custom_op():
+    class AddOp(Module):
+        def forward(self, x, y):
+            return torch.ops.aten.add.Tensor(x, y)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((5,), dtype="float32"),
+            y: R.Tensor((5,), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((5,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((5,), dtype="float32") = R.subtract(x, y)
+                gv: R.Tuple(R.Tensor((5,), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    from tvm.relax.frontend.torch.exported_program_translator import (
+        ExportedProgramImporter,
     )
-    tvm.ir.assert_structural_equal(mod, Expected)
+
+    def custom_add_converter(node: torch.fx.Node, self: ExportedProgramImporter) -> relax.Var:
+        x = self.env[node.args[0]]
+        y = self.env[node.args[1]]
+
+        return self.block_builder.emit(R.subtract(x, y))
+
+    example_args = (torch.randn(5, dtype=torch.float32), torch.randn(5, dtype=torch.float32))
+    verify_model(
+        AddOp(), example_args, {}, Expected, custom_convert_map={"add.Tensor": custom_add_converter}
+    )
 
 
 def test_empty_like():
@@ -5652,7 +6670,7 @@ def test_empty_like():
 
     example_args = (torch.randn(5, dtype=torch.float32),)
 
-    verify_model(EmptyLike(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(EmptyLike(), example_args, {}, Expected)
 
 
 def test_one_hot():
@@ -5679,7 +6697,7 @@ def test_one_hot():
 
     example_args = (torch.randint(0, 10, (5,), dtype=torch.int64),)
 
-    verify_model(OneHot(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(OneHot(), example_args, {}, Expected)
 
 
 def test_ones_like():
@@ -5703,7 +6721,7 @@ def test_ones_like():
 
     example_args = (torch.rand(128, 128, dtype=torch.float32),)
 
-    verify_model(OnesLike(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(OnesLike(), example_args, {}, Expected)
 
 
 def test_zero_inplace():
@@ -5732,7 +6750,7 @@ def test_zero_inplace():
 
     example_args = (torch.rand(128, 128, dtype=torch.float32),)
 
-    verify_model(ZeroInplace(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(ZeroInplace(), example_args, {}, Expected)
 
 
 def test_zeros():
@@ -5756,7 +6774,7 @@ def test_zeros():
 
     example_args = (torch.rand(128, 128, dtype=torch.float32),)
 
-    verify_model(Zeros(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Zeros(), example_args, {}, Expected)
 
 
 def test_zeros_like():
@@ -5779,7 +6797,7 @@ def test_zeros_like():
             return gv
 
     example_args = (torch.rand(128, 128, dtype=torch.float32),)
-    verify_model(ZerosLike(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(ZerosLike(), example_args, {}, Expected)
 
 
 def test_type_as():
@@ -5805,7 +6823,7 @@ def test_type_as():
         torch.rand(128, 128, dtype=torch.float16),
     )
 
-    verify_model(TypeAs(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(TypeAs(), example_args, {}, Expected)
 
 
 def test_select():
@@ -5827,7 +6845,7 @@ def test_select():
 
     example_args = (torch.randn(2, 3, dtype=torch.float32),)
 
-    verify_model(Select(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Select(), example_args, {}, Expected)
 
 
 def test_unflatten():
@@ -5853,8 +6871,8 @@ def test_unflatten():
 
     example_args = (torch.randn(2, 15, 7, dtype=torch.float32),)
 
-    verify_model(Unflatten(), example_args, {}, Expected, run_ep_decomposition=True)
-    verify_model(Unflatten1(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Unflatten(), example_args, {}, Expected)
+    verify_model(Unflatten1(), example_args, {}, Expected)
 
 
 def test_gather():
@@ -5931,10 +6949,10 @@ def test_gather():
         torch.randint(0, 3, (2, 3), dtype=torch.int64),
     )
 
-    verify_model(Gather0(), example_args, {}, Expected0, run_ep_decomposition=True)
-    verify_model(Gather1(), example_args, {}, Expected1, run_ep_decomposition=True)
-    verify_model(Gather2(), example_args, {}, Expected2, run_ep_decomposition=True)
-    verify_model(Gather3(), example_args, {}, Expected3, run_ep_decomposition=True)
+    verify_model(Gather0(), example_args, {}, Expected0)
+    verify_model(Gather1(), example_args, {}, Expected1)
+    verify_model(Gather2(), example_args, {}, Expected2)
+    verify_model(Gather3(), example_args, {}, Expected3)
 
 
 def test_index_put():
@@ -6125,12 +7143,180 @@ def test_index_put():
                 R.output(gv)
             return gv
 
+    # Test case 6: 2D input with multi-dimensional index (broadcasting)
+    # This tests the multi-dimensional index support with broadcasting
+    class IndexPutBroadcast1D(Module):
+        def forward(self, data, indices_1):
+            indices_0 = torch.arange(data.shape[0]).unsqueeze(1)
+            values = torch.ones(data.shape[0], len(indices_1), dtype=data.dtype)
+            return data.index_put_((indices_0, indices_1), values, accumulate=False)
+
+    example_args_broadcast1 = (
+        torch.randn(32, 64, dtype=torch.float32),
+        torch.randint(0, 64, (10,), dtype=torch.int64),
+    )
+
+    @I.ir_module
+    class ExpectedBroadcast1D:
+        @R.function
+        def main(
+            data: R.Tensor((32, 64), dtype="float32"),
+            indices_1: R.Tensor((10,), dtype="int64"),
+        ) -> R.Tuple(R.Tensor((32, 64), dtype="float32"), R.Tensor((32, 64), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((32,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(32), R.prim_value(1), dtype="int64"
+                )
+                lv1: R.Tensor((32, 1), dtype="int64") = R.expand_dims(lv, axis=[1])
+                lv2: R.Tensor((32, 10), dtype="float32") = R.full(
+                    R.shape([32, 10]), R.const(1.0, "float32"), dtype="float32"
+                )
+                lv3: R.Tensor((32, 64), dtype="float32") = R.index_put(
+                    data, R.tuple(lv1, indices_1), lv2, accumulate=False
+                )
+                gv: R.Tuple(
+                    R.Tensor((32, 64), dtype="float32"), R.Tensor((32, 64), dtype="float32")
+                ) = (lv3, lv3)
+                R.output(gv)
+            return gv
+
+    # Test case 7: 2D input with multi-dimensional index (second position)
+    class IndexPutBroadcast2D(Module):
+        def forward(self, data, indices_0):
+            indices_1 = torch.arange(data.shape[1]).unsqueeze(1)
+            values = torch.ones(len(indices_0), data.shape[1], dtype=data.dtype)
+            return data.index_put_((indices_0, indices_1), values, accumulate=False)
+
+    example_args_broadcast2 = (
+        torch.randn(32, 64, dtype=torch.float32),
+        torch.randint(0, 32, (10,), dtype=torch.int64),
+    )
+
+    @I.ir_module
+    class ExpectedBroadcast2D:
+        @R.function
+        def main(
+            data: R.Tensor((32, 64), dtype="float32"),
+            indices_0: R.Tensor((10,), dtype="int64"),
+        ) -> R.Tuple(R.Tensor((32, 64), dtype="float32"), R.Tensor((32, 64), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((64,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(64), R.prim_value(1), dtype="int64"
+                )
+                lv1: R.Tensor((64, 1), dtype="int64") = R.expand_dims(lv, axis=[1])
+                lv2: R.Tensor((10, 64), dtype="float32") = R.full(
+                    R.shape([10, 64]), R.const(1.0, "float32"), dtype="float32"
+                )
+                lv3: R.Tensor((32, 64), dtype="float32") = R.index_put(
+                    data, R.tuple(indices_0, lv1), lv2, accumulate=False
+                )
+                gv: R.Tuple(
+                    R.Tensor((32, 64), dtype="float32"), R.Tensor((32, 64), dtype="float32")
+                ) = (lv3, lv3)
+                R.output(gv)
+            return gv
+
+    # Test case 8: 3D input with mixed 1D and 2D indices
+    class IndexPutBroadcast3D(Module):
+        def forward(self, data, indices_1):
+            indices_0 = torch.arange(data.shape[0]).unsqueeze(1)
+            indices_2 = torch.arange(data.shape[2]).unsqueeze(1)
+            values = torch.ones(data.shape[0], len(indices_1), data.shape[2], dtype=data.dtype)
+            return data.index_put_((indices_0, indices_1, indices_2), values, accumulate=False)
+
+    example_args_broadcast3d = (
+        torch.randn(16, 32, 64, dtype=torch.float32),
+        torch.randint(0, 32, (10,), dtype=torch.int64),
+    )
+
+    @I.ir_module
+    class ExpectedBroadcast3D:
+        @R.function
+        def main(
+            data: R.Tensor((16, 32, 64), dtype="float32"),
+            indices_1: R.Tensor((10,), dtype="int64"),
+        ) -> R.Tuple(
+            R.Tensor((16, 32, 64), dtype="float32"), R.Tensor((16, 32, 64), dtype="float32")
+        ):
+            with R.dataflow():
+                lv: R.Tensor((16,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(16), R.prim_value(1), dtype="int64"
+                )
+                lv1: R.Tensor((16, 1), dtype="int64") = R.expand_dims(lv, axis=[1])
+                lv2: R.Tensor((64,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(64), R.prim_value(1), dtype="int64"
+                )
+                lv3: R.Tensor((64, 1), dtype="int64") = R.expand_dims(lv2, axis=[1])
+                lv4: R.Tensor((16, 10, 64), dtype="float32") = R.full(
+                    R.shape([16, 10, 64]), R.const(1.0, "float32"), dtype="float32"
+                )
+                lv5: R.Tensor((16, 32, 64), dtype="float32") = R.index_put(
+                    data, R.tuple(lv1, indices_1, lv3), lv4, accumulate=False
+                )
+                gv: R.Tuple(
+                    R.Tensor((16, 32, 64), dtype="float32"), R.Tensor((16, 32, 64), dtype="float32")
+                ) = (lv5, lv5)
+                R.output(gv)
+            return gv
+
+    # Test case 9: batched indexing with slice (e.g., M[:, rows, cols] = x)
+    class IndexPutBatchedWithNone(Module):
+        def forward(self, x):
+            B = x.size(0)
+            M = torch.zeros(B, 11, 11)
+            rows = torch.arange(10)
+            cols = rows + 1
+            M[:, rows, cols] = x  # Batched index assignment
+            return M
+
+    example_args_batched_none = (torch.randn(2, 10, dtype=torch.float32),)
+
+    @I.ir_module
+    class ExpectedBatchedWithNone:
+        @R.function
+        def main(
+            x: R.Tensor((2, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((2, 11, 11), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 11, 11), dtype="float32") = R.full(
+                    R.shape([2, 11, 11]), R.const(0.0, "float32"), dtype="float32"
+                )
+                lv1: R.Tensor((10,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(10), R.prim_value(1), dtype="int64"
+                )
+                lv2: R.Tensor((10,), dtype="int64") = R.add(lv1, R.const(1, "int64"))
+                lv3: R.Tensor((2, 11, 11), dtype="float32") = R.strided_slice(
+                    lv,
+                    (R.prim_value(0),),
+                    (R.prim_value(0),),
+                    (R.prim_value(9223372036854775807),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv4: R.Tensor((2,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(2), R.prim_value(1), dtype="int64"
+                )
+                lv5: R.Tensor((2, 1), dtype="int64") = R.reshape(lv4, R.shape([2, 1]))
+                lv6: R.Tensor((2, 11, 11), dtype="float32") = R.index_put(
+                    lv3, (lv5, lv1, lv2), x, accumulate=False
+                )
+                lv7: R.Tensor((2, 11, 11), dtype="float32") = R.slice_scatter(
+                    lv, lv6, R.prim_value(0), R.prim_value(2), R.prim_value(1), axis=0
+                )
+                gv: R.Tuple(R.Tensor((2, 11, 11), dtype="float32")) = (lv7,)
+                R.output(gv)
+            return gv
+
     # Run verification for each case
-    verify_model(IndexPut1D(), example_args_1d, {}, Expected1D, run_ep_decomposition=True)
-    verify_model(IndexPut2D(), example_args_2d, {}, Expected2D, run_ep_decomposition=True)
-    verify_model(IndexPut3D(), example_args_3d, {}, Expected3D, run_ep_decomposition=True)
-    verify_model(IndexPut4D(), example_args_4d, {}, Expected4D, run_ep_decomposition=True)
-    verify_model(IndexPut5D(), example_args_5d, {}, Expected5D, run_ep_decomposition=True)
+    verify_model(IndexPut1D(), example_args_1d, {}, Expected1D)
+    verify_model(IndexPut2D(), example_args_2d, {}, Expected2D)
+    verify_model(IndexPut3D(), example_args_3d, {}, Expected3D)
+    verify_model(IndexPut4D(), example_args_4d, {}, Expected4D)
+    verify_model(IndexPut5D(), example_args_5d, {}, Expected5D)
+    verify_model(IndexPutBroadcast1D(), example_args_broadcast1, {}, ExpectedBroadcast1D)
+    verify_model(IndexPutBroadcast2D(), example_args_broadcast2, {}, ExpectedBroadcast2D)
+    verify_model(IndexPutBroadcast3D(), example_args_broadcast3d, {}, ExpectedBroadcast3D)
+    verify_model(IndexPutBatchedWithNone(), example_args_batched_none, {}, ExpectedBatchedWithNone)
 
 
 def test_flip():
@@ -6168,8 +7354,8 @@ def test_flip():
 
     example_args = (torch.randn(2, 2, dtype=torch.float32),)
 
-    verify_model(Flip0(), example_args, {}, Expected0, run_ep_decomposition=True)
-    verify_model(Flip1(), example_args, {}, Expected1, run_ep_decomposition=True)
+    verify_model(Flip0(), example_args, {}, Expected0)
+    verify_model(Flip1(), example_args, {}, Expected1)
 
 
 def test_take():
@@ -6196,7 +7382,30 @@ def test_take():
         torch.randint(0, 5, (3,), dtype=torch.int64),
     )
 
-    verify_model(Take(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Take(), example_args, {}, Expected)
+
+
+def test_any():
+    class AnyAten(torch.nn.Module):
+        def forward(self, x):
+            return torch.ops.aten.any(x, dim=1)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="bool"),
+        ) -> R.Tuple(R.Tensor((2,), dtype="bool")):
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="int8") = relax.op.astype(x, dtype="int8")
+                lv2: R.Tensor((2,), dtype="int8") = relax.op.max(lv, axis=1, keepdims=False)
+                lv3: R.Tensor((2,), dtype="bool") = relax.op.astype(lv2, dtype="bool")
+                gv: R.Tuple(R.Tensor((2,), dtype="bool")) = (lv3,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.tensor([[0, 0, 0], [0, 1, 0]], dtype=torch.bool),)
+    verify_model(AnyAten(), example_args, {}, Expected)
 
 
 def test_std():
@@ -6218,7 +7427,7 @@ def test_std():
             return gv
 
     example_args = (torch.randn(5, 3, dtype=torch.float32),)
-    verify_model(Std(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Std(), example_args, {}, Expected)
 
 
 def test_var():
@@ -6239,7 +7448,7 @@ def test_var():
             return gv
 
     example_args = (torch.randn(5, 3, dtype=torch.float32),)
-    verify_model(Var(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Var(), example_args, {}, Expected)
 
 
 def test_prod():
@@ -6260,7 +7469,7 @@ def test_prod():
             return gv
 
     example_args = (torch.randn(5, 3, dtype=torch.float32),)
-    verify_model(Prod(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Prod(), example_args, {}, Expected)
 
 
 def test_cumprod():
@@ -6281,7 +7490,7 @@ def test_cumprod():
             return gv
 
     example_input = torch.randn(5, 3, dtype=torch.float32)
-    verify_model(Cumprod(), (example_input,), {}, Expected, run_ep_decomposition=True)
+    verify_model(Cumprod(), (example_input,), {}, Expected)
 
 
 def test_where():
@@ -6307,7 +7516,7 @@ def test_where():
     x = torch.randn(5, 3, dtype=torch.float32)
     y = torch.randn(5, 3, dtype=torch.float32)
 
-    verify_model(Where(), (condition, x, y), {}, Expected, run_ep_decomposition=True)
+    verify_model(Where(), (condition, x, y), {}, Expected)
 
 
 def test_bucketize():
@@ -6332,7 +7541,7 @@ def test_bucketize():
     input_tensor = torch.arange(0, 20)
     boundaries = torch.arange(0, 20, 2)
 
-    verify_model(Bucketize(), (input_tensor, boundaries), {}, Expected, run_ep_decomposition=True)
+    verify_model(Bucketize(), (input_tensor, boundaries), {}, Expected)
 
 
 def test_argsort():
@@ -6359,7 +7568,7 @@ def test_argsort():
             return gv
 
     example_args = (torch.randn(5, 3, dtype=torch.float32),)
-    verify_model(Argsort(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Argsort(), example_args, {}, Expected)
 
 
 def test_topk():
@@ -6387,7 +7596,7 @@ def test_topk():
             return gv
 
     example_args = (torch.randn(5, 3, dtype=torch.float32),)
-    verify_model(Topk(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Topk(), example_args, {}, Expected)
 
 
 def test_dynamic_shape():
@@ -6404,6 +7613,7 @@ def test_dynamic_shape():
             lhs: R.Tensor((B, 4), dtype="float32"),
             rhs: R.Tensor((B, 4), dtype="float32"),
         ) -> R.Tuple(R.Tensor((B, 4), dtype="float32")):
+            R.func_attr({"tir_var_lower_bound": {"s0": 0}})
             with R.dataflow():
                 lv: R.Tensor((B, 4), dtype="float32") = R.add(lhs, rhs)
                 gv: R.Tuple(R.Tensor((B, 4), dtype="float32")) = (lv,)
@@ -6414,7 +7624,14 @@ def test_dynamic_shape():
     batch = torch.export.Dim("batch")
     dynamic_shapes = {"x1": {0: batch}, "x2": {0: batch}}
 
-    verify_model(DynamicModel(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes)
+    verify_model(
+        DynamicModel(),
+        example_args,
+        {},
+        Expected,
+        dynamic_shapes=dynamic_shapes,
+        run_ep_decomposition=True,
+    )
 
 
 def test_broadcast_to():
@@ -6436,7 +7653,7 @@ def test_broadcast_to():
             return gv
 
     example_args = (torch.randn(5, 1, dtype=torch.float32),)
-    verify_model(BroadcastTo(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(BroadcastTo(), example_args, {}, Expected)
 
 
 def test_narrow():
@@ -6465,7 +7682,7 @@ def test_narrow():
             return gv
 
     example_args = (torch.randn(5, 3, dtype=torch.float32),)
-    verify_model(Narrow(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Narrow(), example_args, {}, Expected)
 
 
 def test_item():
@@ -6484,7 +7701,7 @@ def test_item():
             return gv
 
     example_args = (torch.randn(1, dtype=torch.float32),)
-    verify_model(Item(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Item(), example_args, {}, Expected)
 
 
 def test_norm():
@@ -6596,9 +7813,7 @@ def test_norm():
     example_args = (torch.randn(1, 3, 5, 3, dtype=torch.float32),)
 
     for (p, dim, keepdim), expected in norms:
-        verify_model(
-            Norm(p, dim=dim, keepdim=keepdim), example_args, {}, expected, run_ep_decomposition=True
-        )
+        verify_model(Norm(p, dim=dim, keepdim=keepdim), example_args, {}, expected)
 
 
 def test_eye():
@@ -6659,10 +7874,10 @@ def test_eye():
             return gv
 
     example_args1 = (torch.randn(3, 5, dtype=torch.float32),)
-    verify_model(Eye1(), example_args1, {}, Expected1, run_ep_decomposition=True)
+    verify_model(Eye1(), example_args1, {}, Expected1)
 
     example_args2 = (torch.randn(5, dtype=torch.float32),)
-    verify_model(Eye2(), example_args2, {}, Expected2, run_ep_decomposition=True)
+    verify_model(Eye2(), example_args2, {}, Expected2)
 
 
 def test_cross_entropy():
@@ -6678,7 +7893,7 @@ def test_cross_entropy():
     @tvm.script.ir_module
     class Expected1:
         @R.function
-        def main(x: R.Tensor((4, 3), dtype="float32")) -> R.Tuple(R.Tensor((4,), dtype="float32")):
+        def main(x: R.Tensor((4, 3), dtype="float32")) -> R.Tuple(R.Tensor((), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((4, 3), dtype="float32") = R.astype(x, dtype="float32")
                 lv1: R.Tensor((4, 3), dtype="float32") = R.nn.log_softmax(lv, axis=1)
@@ -6701,16 +7916,16 @@ def test_cross_entropy():
                 lv12: R.Tensor((4,), dtype="bool") = R.not_equal(
                     R.const([0, 1, 2, 1], dtype="int64"), R.const(-100, "int64")
                 )
-                lv13: R.Tensor((4,), dtype="bool") = R.sum(lv12, axis=[], keepdims=False)
-                lv14: R.Tensor((4,), dtype="float32") = R.astype(lv13, dtype="float32")
-                lv15: R.Tensor((4,), dtype="float32") = R.sum(lv11, axis=[], keepdims=False)
-                lv16: R.Tensor((4,), dtype="float32") = R.divide(lv15, lv14)
-                gv: R.Tuple(R.Tensor((4,), dtype="float32")) = (lv16,)
+                lv13: R.Tensor((), dtype="bool") = R.sum(lv12, axis=None, keepdims=False)
+                lv14: R.Tensor((), dtype="float32") = R.astype(lv13, dtype="float32")
+                lv15: R.Tensor((), dtype="float32") = R.sum(lv11, axis=None, keepdims=False)
+                lv16: R.Tensor((), dtype="float32") = R.divide(lv15, lv14)
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv16,)
                 R.output(gv)
             return gv
 
     example_args1 = (torch.randn(4, 3, dtype=torch.float32),)
-    verify_model(CrossEntropyModule(), example_args1, {}, Expected1, run_ep_decomposition=True)
+    verify_model(CrossEntropyModule(), example_args1, {}, Expected1)
 
 
 def test_linspace():
@@ -6742,7 +7957,7 @@ def test_linspace():
             return gv
 
     example_args = (torch.randn(9, 9, dtype=torch.float32),)
-    verify_model(Linspace(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Linspace(), example_args, {}, Expected)
 
 
 @pytest.mark.parametrize(
@@ -6779,7 +7994,7 @@ def test_dtypes(torch_dtype, relax_dtype):
                 R.output(gv)
             return gv
 
-    verify_model(Model(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(Model(), example_args, {}, Expected)
 
 
 def test_mm():
@@ -6805,78 +8020,78 @@ def test_mm():
                 R.output(gv)
             return gv
 
-    verify_model(MatrixMultiply(), example_args, {}, Expected, run_ep_decomposition=True)
+    verify_model(MatrixMultiply(), example_args, {}, Expected)
 
 
+def test_sparse_mm():
+    class SparseMatrixMultiply(Module):
+        def forward(self, sparse_input, dense_input):
+            return torch.sparse.mm(sparse_input, dense_input)
+
+    indices = torch.tensor([[0, 1, 2], [2, 0, 1]])
+    values = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)
+    sparse_input = torch.sparse_coo_tensor(indices, values, size=(3, 100))
+    dense_input = torch.randn(100, 50, dtype=torch.float32)
+
+    example_args = (sparse_input, dense_input)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            sparse_input: R.Tensor((3, 100), dtype="float32"),
+            dense_input: R.Tensor((100, 50), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((3, 50), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 50), dtype="float32") = R.full(
+                    R.shape([3, 50]), R.const(0.0, "float32"), dtype="float32"
+                )
+                lv1: R.Tensor((3, 50), dtype="float32") = R.matmul(
+                    sparse_input, dense_input, out_dtype="float32"
+                )
+                gv: R.Tuple(R.Tensor((3, 50), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    verify_model(SparseMatrixMultiply(), example_args, {}, Expected)
+
+
+@tvm.testing.requires_llvm
 def test_lstm():
-    class BasicLSTM(nn.Module):
-        def __init__(self):
+    class LSTM(nn.Module):
+        def __init__(self, input_size, hidden_size, batch_first, bidirectional):
             super().__init__()
             self.lstm = nn.LSTM(
-                input_size=4,
-                hidden_size=8,
+                input_size=input_size,
+                hidden_size=hidden_size,
                 num_layers=1,
-                batch_first=True,
-                bidirectional=False,
+                batch_first=batch_first,
+                bidirectional=bidirectional,
             )
 
         def forward(self, x):
             y, _ = self.lstm(x)
             return y
 
+    # Unidirectional LSTM with batch_first=True
     torch.manual_seed(42)
     x = torch.randn(2, 3, 4, dtype=torch.float32)
-    model = BasicLSTM()
-    with torch.no_grad():
-        pytorch_output = model(x)
-    exported_program = export(model, args=(x,))
-    mod = from_exported_program(exported_program, run_ep_decomposition=True)
-    target = tvm.target.Target("llvm")
-    ex = relax.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    x_tvm = tvm.runtime.tensor(x.numpy())
-    tvm_output = vm["main"](x_tvm)
-    if hasattr(tvm_output, "numpy"):
-        tvm_output_np = tvm_output.numpy()
-    else:
-        tvm_output_np = tvm_output[0].numpy()
-    assert (
-        pytorch_output.shape == tvm_output_np.shape
-    ), f"Shape mismatch: PyTorch {pytorch_output.shape} vs TVM {tvm_output_np.shape}"
-    np.testing.assert_allclose(pytorch_output.numpy(), tvm_output_np, rtol=1e-4, atol=1e-5)
+    verify_model_numerically(LSTM(4, 8, batch_first=True, bidirectional=False), (x,))
 
-    class SeqFirstLSTM(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.lstm = nn.LSTM(
-                input_size=3,
-                hidden_size=6,
-                num_layers=1,
-                batch_first=False,
-                bidirectional=False,
-            )
-
-        def forward(self, x):
-            y, _ = self.lstm(x)
-            return y
-
+    # Unidirectional LSTM with batch_first=False
     torch.manual_seed(43)
     x2 = torch.randn(4, 2, 3, dtype=torch.float32)
-    model2 = SeqFirstLSTM()
-    with torch.no_grad():
-        pytorch_output2 = model2(x2)
-    exported_program2 = export(model2, args=(x2,))
-    mod2 = from_exported_program(exported_program2, run_ep_decomposition=True)
-    ex2 = relax.build(mod2, target)
-    vm2 = relax.VirtualMachine(ex2, tvm.cpu())
-    x2_tvm = tvm.runtime.tensor(x2.numpy())
-    tvm_output2 = vm2["main"](x2_tvm)
-    if hasattr(tvm_output2, "numpy"):
-        tvm_output2_np = tvm_output2.numpy()
-    else:
-        tvm_output2_np = tvm_output2[0].numpy()
-    assert pytorch_output2.shape == tvm_output2_np.shape
-    np.testing.assert_allclose(pytorch_output2.numpy(), tvm_output2_np, rtol=1e-4, atol=1e-5)
+    verify_model_numerically(LSTM(3, 6, batch_first=False, bidirectional=False), (x2,))
+
+    # Bidirectional LSTM with batch_first=True
+    torch.manual_seed(44)
+    x3 = torch.randn(2, 3, 4, dtype=torch.float32)
+    verify_model_numerically(LSTM(4, 8, batch_first=True, bidirectional=True), (x3,))
+
+    # Bidirectional LSTM with batch_first=False
+    torch.manual_seed(45)
+    x4 = torch.randn(4, 2, 3, dtype=torch.float32)
+    verify_model_numerically(LSTM(3, 6, batch_first=False, bidirectional=True), (x4,))
 
 
 def test_tensor_none_tuple():
@@ -6923,7 +8138,7 @@ def test_gru():
     with torch.no_grad():
         pytorch_output = model(x)
     exported_program = export(model, args=(x,))
-    mod = from_exported_program(exported_program, run_ep_decomposition=True)
+    mod = from_exported_program(exported_program)
     target = tvm.target.Target("llvm")
     ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
@@ -6936,7 +8151,7 @@ def test_gru():
     assert (
         pytorch_output.shape == tvm_output_np.shape
     ), f"Shape mismatch: PyTorch {pytorch_output.shape} vs TVM {tvm_output_np.shape}"
-    np.testing.assert_allclose(pytorch_output.numpy(), tvm_output_np, rtol=1e-4, atol=1e-5)
+    tvm.testing.assert_allclose(pytorch_output.numpy(), tvm_output_np, rtol=1e-4, atol=1e-5)
 
     class SeqFirstGRU(nn.Module):
         def __init__(self):
@@ -6959,7 +8174,7 @@ def test_gru():
     with torch.no_grad():
         pytorch_output2 = model2(x2)
     exported_program2 = export(model2, args=(x2,))
-    mod2 = from_exported_program(exported_program2, run_ep_decomposition=True)
+    mod2 = from_exported_program(exported_program2)
     ex2 = relax.build(mod2, target)
     vm2 = relax.VirtualMachine(ex2, tvm.cpu())
     x2_tvm = tvm.runtime.tensor(x2.numpy())
@@ -6969,7 +8184,93 @@ def test_gru():
     else:
         tvm_output2_np = tvm_output2[0].numpy()
     assert pytorch_output2.shape == tvm_output2_np.shape
-    np.testing.assert_allclose(pytorch_output2.numpy(), tvm_output2_np, rtol=1e-4, atol=1e-5)
+    tvm.testing.assert_allclose(pytorch_output2.numpy(), tvm_output2_np, rtol=1e-4, atol=1e-5)
+
+    # Test bidirectional GRU with batch_first=True
+    class BidirectionalGRU(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.gru = nn.GRU(
+                input_size=4,
+                hidden_size=5,
+                num_layers=1,
+                batch_first=True,
+                bidirectional=True,
+            )
+
+        def forward(self, x):
+            y, _ = self.gru(x)
+            return y
+
+    torch.manual_seed(44)
+    x3 = torch.randn(2, 3, 4, dtype=torch.float32)
+    model3 = BidirectionalGRU()
+    with torch.no_grad():
+        pytorch_output3 = model3(x3)
+
+    # Verify output shape is correct (hidden_size * 2 due to bidirectional)
+    assert pytorch_output3.shape == (
+        2,
+        3,
+        10,
+    ), f"Expected shape (2, 3, 10), got {pytorch_output3.shape}"
+
+    exported_program3 = export(model3, args=(x3,))
+    mod3 = from_exported_program(exported_program3)
+    ex3 = relax.build(mod3, target)
+    vm3 = relax.VirtualMachine(ex3, tvm.cpu())
+    x3_tvm = tvm.runtime.tensor(x3.numpy())
+    tvm_output3 = vm3["main"](x3_tvm)
+    if hasattr(tvm_output3, "numpy"):
+        tvm_output3_np = tvm_output3.numpy()
+    else:
+        tvm_output3_np = tvm_output3[0].numpy()
+    assert (
+        pytorch_output3.shape == tvm_output3_np.shape
+    ), f"Shape mismatch: PyTorch {pytorch_output3.shape} vs TVM {tvm_output3_np.shape}"
+    tvm.testing.assert_allclose(pytorch_output3.numpy(), tvm_output3_np, rtol=1e-4, atol=1e-5)
+
+    # Test bidirectional GRU with batch_first=False
+    class SeqFirstBidirectionalGRU(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.gru = nn.GRU(
+                input_size=3,
+                hidden_size=4,
+                num_layers=1,
+                batch_first=False,
+                bidirectional=True,
+            )
+
+        def forward(self, x):
+            y, _ = self.gru(x)
+            return y
+
+    torch.manual_seed(45)
+    x4 = torch.randn(4, 2, 3, dtype=torch.float32)  # (seq_len, batch, input_size)
+    model4 = SeqFirstBidirectionalGRU()
+    with torch.no_grad():
+        pytorch_output4 = model4(x4)
+
+    # Verify output shape (seq_len, batch, hidden_size * 2)
+    assert pytorch_output4.shape == (
+        4,
+        2,
+        8,
+    ), f"Expected shape (4, 2, 8), got {pytorch_output4.shape}"
+
+    exported_program4 = export(model4, args=(x4,))
+    mod4 = from_exported_program(exported_program4)
+    ex4 = relax.build(mod4, target)
+    vm4 = relax.VirtualMachine(ex4, tvm.cpu())
+    x4_tvm = tvm.runtime.tensor(x4.numpy())
+    tvm_output4 = vm4["main"](x4_tvm)
+    if hasattr(tvm_output4, "numpy"):
+        tvm_output4_np = tvm_output4.numpy()
+    else:
+        tvm_output4_np = tvm_output4[0].numpy()
+    assert pytorch_output4.shape == tvm_output4_np.shape
+    tvm.testing.assert_allclose(pytorch_output4.numpy(), tvm_output4_np, rtol=1e-4, atol=1e-5)
 
 
 def test_dynamic_shape_with_range_constraints():
@@ -6994,13 +8295,18 @@ def test_dynamic_shape_with_range_constraints():
     example_args = (torch.randn(8, 4), torch.randn(8, 4))
     batch = torch.export.Dim("batch", min=1, max=64)
     dynamic_shapes = {"x1": {0: batch}, "x2": {0: batch}}
-    exported_program = export(DynamicModel(), args=example_args, dynamic_shapes=dynamic_shapes)
 
-    mod = from_exported_program(exported_program, run_ep_decomposition=True)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    verify_model(
+        DynamicModel(),
+        example_args,
+        {},
+        Expected,
+        dynamic_shapes=dynamic_shapes,
+        map_free_vars=True,
+    )
 
 
-def test_dynamic_shape_with_derived_range_constraints():
+def test_dynamic_shape_with_addition_constraints():
     class ConcatModel(torch.nn.Module):
         def forward(self, x, y):
             return torch.cat([x, y], dim=0)
@@ -7028,10 +8334,389 @@ def test_dynamic_shape_with_derived_range_constraints():
     batch = torch.export.Dim("batch", min=1, max=64)
     example_args = (torch.randn(8, 4), torch.randn(9, 4))
     dynamic_shapes = {"x": {0: batch}, "y": {0: batch + 1}}
-    exported_program = export(ConcatModel(), args=example_args, dynamic_shapes=dynamic_shapes)
 
-    mod = from_exported_program(exported_program, run_ep_decomposition=True)
-    tvm.ir.assert_structural_equal(mod, Expected, map_free_vars=True)
+    verify_model(
+        ConcatModel(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes, map_free_vars=True
+    )
+
+
+def test_dynamic_shape_with_subtraction_constraints():
+    class ConcatModel(torch.nn.Module):
+        def forward(self, x, y):
+            return torch.cat([x, y], dim=0)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor(("s1___1", 4), dtype="float32"), y: R.Tensor(("s1", 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor(("s1___1 + s1", 4), dtype="float32")):
+            s1___1 = T.int64(is_size_var=True)
+            s1 = T.int64(is_size_var=True)
+            R.func_attr(
+                {
+                    "tir_var_lower_bound": {"s1": 0, "s1___1": 1},
+                    "tir_var_upper_bound": {"s1": 63, "s1___1": 64},
+                }
+            )
+            with R.dataflow():
+                lv: R.Tensor((s1___1 + s1, 4), dtype="float32") = R.concat((x, y), axis=0)
+                gv: R.Tuple(R.Tensor((s1___1 + s1, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    batch = torch.export.Dim("batch", min=1, max=64)
+    example_args = (torch.randn(8, 4), torch.randn(7, 4))
+    dynamic_shapes = {"x": {0: batch}, "y": {0: batch - 1}}
+
+    verify_model(
+        ConcatModel(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes, map_free_vars=True
+    )
+
+
+def test_dynamic_shape_with_multiplication_constraints():
+    class ConcatModel(torch.nn.Module):
+        def forward(self, x, y):
+            return torch.cat([x, y], dim=0)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor(("s0", 4), dtype="float32"), y: R.Tensor(("s0_2", 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor(("s0 + s0_2", 4), dtype="float32")):
+            s0 = T.int64(is_size_var=True)
+            s0_2 = T.int64(is_size_var=True)
+            R.func_attr(
+                {
+                    "tir_var_lower_bound": {"s0": 1, "s0_2": 2},
+                    "tir_var_upper_bound": {"s0": 64, "s0_2": 128},
+                }
+            )
+            with R.dataflow():
+                lv: R.Tensor((s0 + s0_2, 4), dtype="float32") = R.concat((x, y), axis=0)
+                gv: R.Tuple(R.Tensor((s0 + s0_2, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    batch = torch.export.Dim("batch", min=1, max=64)
+    example_args = (torch.randn(8, 4), torch.randn(16, 4))
+    dynamic_shapes = {"x": {0: batch}, "y": {0: batch * 2}}
+
+    verify_model(
+        ConcatModel(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes, map_free_vars=True
+    )
+
+
+def test_dynamic_shape_with_unbounded_constraints():
+    class DynamicModel(torch.nn.Module):
+        def forward(self, x):
+            return torch.ops.aten.add.Tensor(x, x)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor(("s0", 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor(("s0", 4), dtype="float32")):
+            s0 = T.int64(is_size_var=True)
+            R.func_attr({"tir_var_lower_bound": {"s0": 2}})
+            with R.dataflow():
+                lv: R.Tensor((s0, 4), dtype="float32") = R.add(x, x)
+                gv: R.Tuple(R.Tensor((s0, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(8, 4),)
+    batch = torch.export.Dim("batch", min=2)
+    dynamic_shapes = {"x": {0: batch}}
+
+    verify_model(
+        DynamicModel(),
+        example_args,
+        {},
+        Expected,
+        dynamic_shapes=dynamic_shapes,
+        map_free_vars=True,
+    )
+
+
+def test_sym_size_int():
+    class SymSizeInt(Module):
+        def __init__(self, dim):
+            super().__init__()
+            self.dim = dim
+
+        def forward(self, x):
+            # TODO(@mshr-h): `torch.ops.aten.sym_size.int(x, self.dim)` would be ideal, but currently
+            # the ep frontend is not able to handle it.
+            return torch.add(x[0], torch.ops.aten.sym_size.int(x, self.dim))
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3, 4), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 4), dtype="float32") = R.take(
+                    x, R.const(0, "int64"), axis=0, mode="fast"
+                )
+                lv1: R.Tensor((3, 4), dtype="float32") = R.add(lv, R.const(3.0, "float32"))
+                gv: R.Tuple(R.Tensor((3, 4), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    example_args_1 = (torch.randn(1, 3, 4),)
+    verify_model(SymSizeInt(dim=1), example_args_1, {}, Expected1)
+    verify_model(SymSizeInt(dim=-2), example_args_1, {}, Expected1)
+
+    class SymSizeIntDynamic(Module):
+        def __init__(self, dim):
+            super().__init__()
+            self.dim = dim
+
+        def forward(self, x):
+            shape_dim = torch.ops.aten.sym_size.int(x, self.dim)
+            return x.reshape(shape_dim, -1)
+
+    @I.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            x: R.Tensor(("s0", 3, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor(("s0", 12), dtype="float32")):
+            s0 = T.int64(is_size_var=True)
+            R.func_attr({"tir_var_lower_bound": {"s0": 0}})
+            with R.dataflow():
+                lv: R.Tensor((s0, 12), dtype="float32") = R.reshape(x, R.shape([s0, 12]))
+                gv: R.Tuple(R.Tensor((s0, 12), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args_2 = (torch.randn(2, 3, 4),)
+    dynamic_shapes = {"x": {0: torch.export.Dim("dim")}}
+    verify_model(
+        SymSizeIntDynamic(dim=0), example_args_2, {}, Expected2, dynamic_shapes=dynamic_shapes
+    )
+
+
+def test_exponential():
+    class Exponential(Module):
+        def forward(self, x):
+            return x.exponential_()
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((4, 8), dtype="float32")
+        ) -> R.Tuple(R.Tensor((4, 8), dtype="float32"), R.Tensor((4, 8), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((4, 8), dtype="float32") = R.zeros_like(x, dtype="void")
+                gv: R.Tuple(
+                    R.Tensor((4, 8), dtype="float32"), R.Tensor((4, 8), dtype="float32")
+                ) = (lv, lv)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(4, 8, dtype=torch.float32),)
+    verify_model(Exponential(), example_args, {}, Expected)
+
+
+def test_max_dim():
+    class MaxDim1(Module):
+        def forward(self, x):
+            return torch.max(x, dim=1)
+
+    class MaxDim2(Module):
+        def forward(self, x):
+            return torch.max(x, dim=1, keepdim=True)
+
+    @I.ir_module
+    class expected1:
+        @R.function
+        def main(
+            x: R.Tensor((4, 8, 16), dtype="float32")
+        ) -> R.Tuple(R.Tensor((4, 16), dtype="float32"), R.Tensor((4, 16), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((4, 1, 16), dtype="float32"), R.Tensor((4, 1, 16), dtype="int64")
+                ) = R.topk(x, k=1, axis=1, ret_type="both", largest=True, dtype="int64")
+                lv1: R.Tensor((4, 1, 16), dtype="float32") = lv[0]
+                lv2: R.Tensor((4, 16), dtype="float32") = R.squeeze(lv1, axis=[1])
+                lv3: R.Tensor((4, 1, 16), dtype="int64") = lv[1]
+                lv4: R.Tensor((4, 16), dtype="int64") = R.squeeze(lv3, axis=[1])
+                lv5: R.Tuple(
+                    R.Tensor((4, 16), dtype="float32"), R.Tensor((4, 16), dtype="int64")
+                ) = (lv2, lv4)
+                lv6: R.Tensor((4, 16), dtype="float32") = lv5[0]
+                lv7: R.Tensor((4, 16), dtype="int64") = lv5[1]
+                gv: R.Tuple(
+                    R.Tensor((4, 16), dtype="float32"), R.Tensor((4, 16), dtype="int64")
+                ) = (lv6, lv7)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class expected2:
+        @R.function
+        def main(
+            x: R.Tensor((4, 8, 16), dtype="float32")
+        ) -> R.Tuple(R.Tensor((4, 1, 16), dtype="float32"), R.Tensor((4, 1, 16), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((4, 1, 16), dtype="float32"), R.Tensor((4, 1, 16), dtype="int64")
+                ) = R.topk(x, k=1, axis=1, ret_type="both", largest=True, dtype="int64")
+                lv1: R.Tensor((4, 1, 16), dtype="float32") = lv[0]
+                lv2: R.Tensor((4, 1, 16), dtype="int64") = lv[1]
+                lv3: R.Tuple(
+                    R.Tensor((4, 1, 16), dtype="float32"), R.Tensor((4, 1, 16), dtype="int64")
+                ) = (lv1, lv2)
+                lv4: R.Tensor((4, 1, 16), dtype="float32") = lv3[0]
+                lv5: R.Tensor((4, 1, 16), dtype="int64") = lv3[1]
+                gv: R.Tuple(
+                    R.Tensor((4, 1, 16), dtype="float32"), R.Tensor((4, 1, 16), dtype="int64")
+                ) = (lv4, lv5)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(4, 8, 16, dtype=torch.float32),)
+    verify_model(MaxDim1(), example_args, {}, expected1)
+    verify_model(MaxDim2(), example_args, {}, expected2)
+
+
+def test_alias():
+    class Alias(Module):
+        def forward(self, x):
+            return torch.ops.aten.alias(x)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((4, 8), dtype="float32")
+        ) -> R.Tuple(R.Tensor((4, 8), dtype="float32")):
+            with R.dataflow():
+                gv: R.Tuple(R.Tensor((4, 8), dtype="float32")) = (x,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(4, 8, dtype=torch.float32),)
+    verify_model(Alias(), example_args, {}, Expected)
+
+
+def test_scatter_value():
+    class ScatterValue(Module):
+        def forward(self, x, index):
+            return x.scatter(1, index, 0.5)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((4, 8), dtype="float32"),
+            index: R.Tensor((4, 2), dtype="int64"),
+        ) -> R.Tuple(R.Tensor((4, 8), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((4, 2), dtype="float32") = R.broadcast_to(
+                    R.const(0.5, "float32"), R.shape([4, 2])
+                )
+                lv1: R.Tensor((4, 8), dtype="float32") = R.scatter_elements(x, index, lv, axis=1)
+                gv: R.Tuple(R.Tensor((4, 8), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(4, 8, dtype=torch.float32),
+        torch.randint(0, 8, (4, 2), dtype=torch.int64),
+    )
+    verify_model(ScatterValue(), example_args, {}, Expected)
+
+
+def test_grid_sample():
+    class GridSample(Module):
+        def forward(self, input, grid):
+            return torch.nn.functional.grid_sample(
+                input, grid, mode="bilinear", padding_mode="zeros", align_corners=True
+            )
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 4, 4), dtype="float32"),
+            grid: R.Tensor((1, 2, 2, 2), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 2, 2), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 2, 2), dtype="float32") = R.image.grid_sample(
+                    input_1,
+                    grid,
+                    method="bilinear",
+                    layout="NCHW",
+                    padding_mode="zeros",
+                    align_corners=True,
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 2, 2), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(1, 3, 4, 4, dtype=torch.float32),
+        torch.randn(1, 2, 2, 2, dtype=torch.float32),
+    )
+    verify_model(GridSample(), example_args, {}, expected)
+
+
+def test_upsample_nearest2d():
+    class UpsampleNearest2dScale(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(input, scale_factor=2.0, mode="nearest")
+
+    class UpsampleNearest2dSize(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(input, size=(20, 20), mode="nearest")
+
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+
+    @tvm.script.ir_module
+    class expected_scale:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 20, 20), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 20, 20), dtype="float32") = R.image.resize2d(
+                    input_1,
+                    size=(20, 20),
+                    layout="NCHW",
+                    method="nearest_neighbor",
+                    coordinate_transformation_mode="half_pixel",
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 20, 20), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected_size:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 20, 20), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 20, 20), dtype="float32") = R.image.resize2d(
+                    input_1,
+                    size=(20, 20),
+                    layout="NCHW",
+                    method="nearest_neighbor",
+                    coordinate_transformation_mode="half_pixel",
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 20, 20), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(UpsampleNearest2dScale(), example_args, {}, expected_scale)
+    verify_model(UpsampleNearest2dSize(), example_args, {}, expected_size)
 
 
 if __name__ == "__main__":

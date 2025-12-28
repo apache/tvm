@@ -89,7 +89,7 @@ class TestAsyncSoftwarePipeline:
             if "int" in dtype:
                 np.testing.assert_equal(out.numpy(), ref)
             else:
-                np.testing.assert_allclose(out.numpy(), ref, rtol=1e-3, atol=1e-3)
+                tvm.testing.assert_allclose(out.numpy(), ref, rtol=1e-3, atol=1e-3)
 
         return check
 

@@ -228,37 +228,45 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings,
  * \param start The minimum value of iteration.
  * \param stop The maximum value of iteration.
  * \param annotations The optional annotations of the For statement.
+ * \param step The optional step value of iteration.
  * \return The ForFrame.
  */
 ForFrame Serial(PrimExpr start, PrimExpr stop,
-                ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt);
+                ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
+                ffi::Optional<PrimExpr> step = std::nullopt);
 /*!
  * \brief The parallel For statement.
  * \param start The minimum value of iteration.
  * \param stop The maximum value of iteration.
  * \param annotations The optional annotations of the For statement.
+ * \param step The optional step value of iteration.
  * \return The ForFrame.
  */
 ForFrame Parallel(PrimExpr start, PrimExpr stop,
-                  ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt);
+                  ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
+                  ffi::Optional<PrimExpr> step = std::nullopt);
 /*!
  * \brief The vectorized For statement.
  * \param start The minimum value of iteration.
  * \param stop The maximum value of iteration.
  * \param annotations The optional annotations of the For statement.
+ * \param step The optional step value of iteration.
  * \return The ForFrame.
  */
 ForFrame Vectorized(PrimExpr start, PrimExpr stop,
-                    ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt);
+                    ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
+                    ffi::Optional<PrimExpr> step = std::nullopt);
 /*!
  * \brief The unrolled For statement.
  * \param start The minimum value of iteration.
  * \param stop The maximum value of iteration.
  * \param annotations The optional annotations of the For statement.
+ * \param step The optional step value of iteration.
  * \return The ForFrame.
  */
 ForFrame Unroll(PrimExpr start, PrimExpr stop,
-                ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt);
+                ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
+                ffi::Optional<PrimExpr> step = std::nullopt);
 /*!
  * \brief The thread-binding For statement.
  * \param start The minimum value of iteration.

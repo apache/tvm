@@ -1062,7 +1062,9 @@ def BundleModelParams(param_tuple_name: Optional[str] = None) -> tvm.ir.transfor
 
 
 def LegalizeOps(
-    customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None, enable_warning: bool = False
+    customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None,
+    skip_ops: Optional[List[str]] = None,
+    enable_warning: bool = False,
 ):
     """Legalize high-level operator calls in Relax functions to call_tir
     with corresponding low-level TIR PrimFuncs.
@@ -1087,6 +1089,9 @@ def LegalizeOps(
     customize_legalize_map : Optional[Dict[str, LegalizeFunc]]
         The customized operator legalization function map. The customized function will override
         the default one.
+
+    skip_ops : Optional,List[str]]
+        List of ops that need to be skipped from legalization
 
     enable_warning : bool
         A boolean value indicating if to print warnings for CallNode whose op's
@@ -1167,7 +1172,7 @@ def LegalizeOps(
                         T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * B[v_ax0, v_ax1]
     """
 
-    return _ffi_api.LegalizeOps(customize_legalize_map, enable_warning)  # type: ignore
+    return _ffi_api.LegalizeOps(customize_legalize_map, skip_ops, enable_warning)  # type: ignore
 
 
 def RealizeVDevice() -> tvm.ir.transform.Pass:
@@ -1603,6 +1608,19 @@ def AllocateWorkspace() -> tvm.ir.transform.Pass:
         The registered pass for allocating workspace.
     """
     return _ffi_api.AllocateWorkspace()  # type: ignore
+
+
+def SpecializePrimFuncBasedOnCallSite() -> tvm.ir.transform.Pass:
+    """This pass updates the var_buffer mapping of PrimFunctions from the call_tir info.
+    Primarily used to update the VDevice information if any changes occured from the caller.
+    This pass recreates the buffers and updates the map.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+        The registered pass for allocating workspace.
+    """
+    return _ffi_api.SpecializePrimFuncBasedOnCallSite()  # type: ignore
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):

@@ -306,9 +306,40 @@ def test_meta_schedule_evolutionary_search_fail_init_population():  # pylint: di
     assert candidates is None
 
 
+def test_search_strategy_abstract_class_instantiation():
+    """Test that directly instantiating abstract SearchStrategy raises TypeError instead of segfault."""
+    from tvm.meta_schedule import SearchStrategy
+    from tvm.target import Target
+    from tvm.meta_schedule import TuneContext
+
+    # Test that direct instantiation raises TypeError
+    # This prevents segfault when SearchStrategy() is called directly
+    with pytest.raises(TypeError, match="Cannot instantiate abstract class SearchStrategy"):
+        SearchStrategy()
+
+    # Test that TuneContext with SearchStrategy() raises TypeError
+    # The error should occur when trying to create SearchStrategy() instance in the function call
+    # Since SearchStrategy() fails in __new__, it will fail before TuneContext.__init__ is called
+    with pytest.raises(TypeError, match="Cannot instantiate abstract class SearchStrategy"):
+        # This will fail when evaluating SearchStrategy() as an argument
+        TuneContext(
+            mod=Matmul,  # Use the existing Matmul module from the test file
+            target=Target("llvm"),
+            search_strategy=SearchStrategy(),  # This should fail in __new__ before reaching TuneContext
+        )
+
+    # Test that SearchStrategy.create() works correctly
+    strategy = SearchStrategy.create("evolutionary")
+    assert strategy is not None
+    assert isinstance(strategy, SearchStrategy)
+    # Verify it's not the abstract class itself
+    assert type(strategy) is not SearchStrategy
+
+
 if __name__ == "__main__":
     test_meta_schedule_replay_func(ms.search_strategy.ReplayFunc)
     test_meta_schedule_replay_func(ms.search_strategy.ReplayTrace)
     test_meta_schedule_evolutionary_search()
     test_meta_schedule_evolutionary_search_early_stop()
     test_meta_schedule_evolutionary_search_fail_init_population()
+    test_search_strategy_abstract_class_instantiation()
