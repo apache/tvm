@@ -141,12 +141,10 @@ def compile_metal(code, path_target=None, sdk="macosx", min_os_version=None):
     #   xcrun -sdk macosx metal -c MyLibrary.metal -o MyLibrary.air
     #   xcrun -sdk macosx metallib MyLibrary.air -o MyLibrary.metallib
     min_target = __get_min_os_version_cmd(sdk, min_os_version)
-    # Use Metal 3.1 for bfloat16 simdgroup support
-    # Metal 3.1 requires macOS 14+ or iOS 17+
     if sdk == "macosx":
-        language_version = "-std=macos-metal3.1"
+        language_version = "-std=macos-metal2.3"
     elif sdk in ("iphoneos", "iphonesimulator"):
-        language_version = "-std=ios-metal3.1"
+        language_version = "-std=ios-metal2.3"
     else:
         raise RuntimeError(f"Unsupported sdk: {sdk}")
     cmd1 = ["xcrun", "-sdk", sdk, "metal", language_version, min_target, "-O3"]
