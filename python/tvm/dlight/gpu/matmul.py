@@ -451,6 +451,7 @@ class MetalMatmul(GPUScheduleRule):
         # Check if target supports the dtype for SIMD operations
         if in_dtype == "bfloat16":
             from tvm.contrib import xcode  # pylint: disable=import-outside-toplevel
+
             if not xcode.supports_bf16(target):
                 # Target doesn't support bf16 SIMD intrinsics, skip MetalMatmul
                 # Will fall back to generic scheduling + bf16 legalization
@@ -1057,6 +1058,7 @@ class Matmul(GPUScheduleRule):
                     return result
             except Exception as e:  # pylint: disable=broad-except
                 import warnings
+
                 warnings.warn(f"MetalMatmul failed: {e}, falling back to generic Matmul")
                 pass
 
