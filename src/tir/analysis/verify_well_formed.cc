@@ -378,8 +378,8 @@ bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.analysis.VerifyWellFormed", [](const ObjectRef& obj,
-                                                            bool assert_mode) {
+  refl::GlobalDef().def("tvm.tir.analysis.VerifyWellFormed", [](const ObjectRef& obj,
+                                                                bool assert_mode) {
     if (auto opt = obj.as<PrimFunc>()) {
       return VerifyWellFormed(opt.value(), assert_mode);
     } else if (auto opt = obj.as<IRModule>()) {

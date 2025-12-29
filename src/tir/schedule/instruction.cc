@@ -107,8 +107,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.schedule.InstructionKindGet", InstructionKind::Get)
-      .def("tir.schedule.Instruction",
+      .def("tvm.tir.schedule.InstructionKindGet", InstructionKind::Get)
+      .def("tvm.tir.schedule.Instruction",
            [](InstructionKind kind, ffi::Array<Any> inputs, ffi::Array<Any> attrs,
               ffi::Array<Any> outputs) -> Instruction {
              return Instruction(kind, inputs, attrs, outputs);

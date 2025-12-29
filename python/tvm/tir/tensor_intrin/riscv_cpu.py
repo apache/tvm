@@ -166,7 +166,7 @@ def rvv_vec_dot_product_kernels(
     return rvv_vec_dot_prod_desc, rvv_vec_dot_prod_impl
 
 
-@tvm_ffi.register_global_func("tir.tensor_intrin.register_rvv_isa_intrinsics")
+@tvm_ffi.register_global_func("tvm.tir.tensor_intrin.register_rvv_isa_intrinsics")
 def register_rvv_isa_intrinsics(target: Target, inventory_only=False) -> dict():
     """Register RISCV V (vector) intrinsics
     [x] Implementation follows version 1.0 vector specifications:

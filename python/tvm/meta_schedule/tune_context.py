@@ -58,7 +58,7 @@ def _normalize_mod(mod: Union[PrimFunc, IRModule]) -> IRModule:
     return mod
 
 
-@register_object("meta_schedule.TuneContext")
+@register_object("tvm.meta_schedule.TuneContext")
 class TuneContext(Object):
     """The tune context class is designed to contain all resources for a tuning task.
 

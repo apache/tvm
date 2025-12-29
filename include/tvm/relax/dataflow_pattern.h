@@ -91,7 +91,7 @@ TVM_DLL PatternSeq operator>>(const PatternSeq& lhs, const PatternSeq& rhs);
 class DFPatternNode : public Object {
  public:
   static constexpr const uint32_t _type_child_slots = 21;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.dpl.DFPattern", DFPatternNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.dpl.DFPattern", DFPatternNode, Object);
 };
 
 /*!
@@ -197,7 +197,7 @@ class DFConstraintNode : public Object {
       std::function<ffi::Optional<Var>(const DFPatternNode*)> match_state) const = 0;
 
   static constexpr const uint32_t _type_child_slots = 1;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.dpl.DFConstraint", DFConstraintNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.dpl.DFConstraint", DFConstraintNode, Object);
 };
 
 class DFConstraint : public ObjectRef {
@@ -218,7 +218,7 @@ class PatternSeqNode final : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PatternSeqNode>().def_ro("patterns", &PatternSeqNode::patterns);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.dpl.PatternSeq", PatternSeqNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.dpl.PatternSeq", PatternSeqNode, Object);
 };
 
 /*!
@@ -265,7 +265,7 @@ class PatternContextNode : public Object {
 
   // Non-edge constraints
   std::vector<DFConstraint> validation_constraints;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.PatternContext", PatternContextNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.PatternContext", PatternContextNode, Object);
 };
 
 /*!
@@ -347,7 +347,7 @@ class ExprPatternNode : public DFPatternNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ExprPatternNode>().def_ro("expr", &ExprPatternNode::expr);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.ExprPattern", ExprPatternNode, DFPatternNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.ExprPattern", ExprPatternNode, DFPatternNode);
 };
 
 /*!
@@ -376,7 +376,7 @@ class VarPatternNode : public DFPatternNode {
   }
 
   static constexpr const uint32_t _type_child_slots = 1;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.dpl.VarPattern", VarPatternNode, DFPatternNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.dpl.VarPattern", VarPatternNode, DFPatternNode);
 };
 
 /*!
@@ -404,7 +404,7 @@ class DataflowVarPatternNode : public VarPatternNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DataflowVarPatternNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.DataflowVarPattern", DataflowVarPatternNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.DataflowVarPattern", DataflowVarPatternNode,
                                     VarPatternNode);
 };
 
@@ -425,7 +425,7 @@ class DataflowVarPattern : public DFPattern {
  */
 class GlobalVarPatternNode : public VarPatternNode {
  public:
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.GlobalVarPattern", GlobalVarPatternNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.GlobalVarPattern", GlobalVarPatternNode,
                                     DFPatternNode);
 };
 
@@ -449,7 +449,7 @@ class ConstantPatternNode : public DFPatternNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ConstantPatternNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.ConstantPattern", ConstantPatternNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.ConstantPattern", ConstantPatternNode,
                                     DFPatternNode);
 };
 
@@ -491,7 +491,7 @@ class CallPatternNode : public DFPatternNode {
         .def_ro("op", &CallPatternNode::op)
         .def_ro("args", &CallPatternNode::args);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.CallPattern", CallPatternNode, DFPatternNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.CallPattern", CallPatternNode, DFPatternNode);
 };
 
 class CallPattern : public DFPattern {
@@ -513,7 +513,8 @@ class PrimArrPatternNode : public DFPatternNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimArrPatternNode>().def_ro("fields", &PrimArrPatternNode::fields);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.PrimArrPattern", PrimArrPatternNode, DFPatternNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.PrimArrPattern", PrimArrPatternNode,
+                                    DFPatternNode);
 };
 
 /*!
@@ -548,7 +549,7 @@ class FunctionPatternNode : public DFPatternNode {
         .def_ro("params", &FunctionPatternNode::params)
         .def_ro("body", &FunctionPatternNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.FunctionPattern", FunctionPatternNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.FunctionPattern", FunctionPatternNode,
                                     DFPatternNode);
 };
 
@@ -580,7 +581,7 @@ class TuplePatternNode : public DFPatternNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TuplePatternNode>().def_ro("fields", &TuplePatternNode::fields);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.TuplePattern", TuplePatternNode, DFPatternNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.TuplePattern", TuplePatternNode, DFPatternNode);
 };
 
 /*!
@@ -606,8 +607,8 @@ class UnorderedTuplePatternNode : public DFPatternNode {
     refl::ObjectDef<UnorderedTuplePatternNode>().def_ro("fields",
                                                         &UnorderedTuplePatternNode::fields);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.UnorderedTuplePattern", UnorderedTuplePatternNode,
-                                    DFPatternNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.UnorderedTuplePattern",
+                                    UnorderedTuplePatternNode, DFPatternNode);
 };
 
 /*!
@@ -637,7 +638,7 @@ class TupleGetItemPatternNode : public DFPatternNode {
         .def_ro("tuple", &TupleGetItemPatternNode::tuple)
         .def_ro("index", &TupleGetItemPatternNode::index);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.TupleGetItemPattern", TupleGetItemPatternNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.TupleGetItemPattern", TupleGetItemPatternNode,
                                     DFPatternNode);
 };
 
@@ -667,7 +668,7 @@ class AndPatternNode : public DFPatternNode {
         .def_ro("left", &AndPatternNode::left)
         .def_ro("right", &AndPatternNode::right);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.AndPattern", AndPatternNode, DFPatternNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.AndPattern", AndPatternNode, DFPatternNode);
 };
 
 /*!
@@ -695,7 +696,7 @@ class OrPatternNode : public DFPatternNode {
         .def_ro("left", &OrPatternNode::left)
         .def_ro("right", &OrPatternNode::right);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.OrPattern", OrPatternNode, DFPatternNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.OrPattern", OrPatternNode, DFPatternNode);
 };
 
 /*!
@@ -720,7 +721,7 @@ class NotPatternNode : public DFPatternNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<NotPatternNode>().def_ro("reject", &NotPatternNode::reject);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.NotPattern", NotPatternNode, DFPatternNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.NotPattern", NotPatternNode, DFPatternNode);
 };
 
 /*!
@@ -743,7 +744,7 @@ class WildcardPatternNode : public DFPatternNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<WildcardPatternNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.WildcardPattern", WildcardPatternNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.WildcardPattern", WildcardPatternNode,
                                     DFPatternNode);
 };
 
@@ -782,7 +783,7 @@ class StructInfoPatternNode : public DFPatternNode {
         .def_ro("pattern", &StructInfoPatternNode::pattern)
         .def_ro("struct_info", &StructInfoPatternNode::struct_info);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.StructInfoPattern", StructInfoPatternNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.StructInfoPattern", StructInfoPatternNode,
                                     DFPatternNode);
 };
 
@@ -807,7 +808,7 @@ class ShapePatternNode : public DFPatternNode {
         .def_ro("pattern", &ShapePatternNode::pattern)
         .def_ro("shape", &ShapePatternNode::shape);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.ShapePattern", ShapePatternNode, DFPatternNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.ShapePattern", ShapePatternNode, DFPatternNode);
 };
 
 /*!
@@ -837,7 +838,7 @@ class SameShapeConstraintNode : public DFConstraintNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SameShapeConstraintNode>().def_ro("args", &SameShapeConstraintNode::args);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.SameShapeConstraint", SameShapeConstraintNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.SameShapeConstraint", SameShapeConstraintNode,
                                     DFConstraintNode);
 };
 
@@ -867,7 +868,7 @@ class DataTypePatternNode : public DFPatternNode {
         .def_ro("pattern", &DataTypePatternNode::pattern)
         .def_ro("dtype", &DataTypePatternNode::dtype);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.DataTypePattern", DataTypePatternNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.DataTypePattern", DataTypePatternNode,
                                     DFPatternNode);
 };
 
@@ -896,7 +897,7 @@ class AttrPatternNode : public DFPatternNode {
         .def_ro("pattern", &AttrPatternNode::pattern)
         .def_ro("attrs", &AttrPatternNode::attrs);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.AttrPattern", AttrPatternNode, DFPatternNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.AttrPattern", AttrPatternNode, DFPatternNode);
 };
 
 /*!
@@ -926,7 +927,7 @@ class ExternFuncPatternNode : public DFPatternNode {
     refl::ObjectDef<ExternFuncPatternNode>().def_ro("global_symbol",
                                                     &ExternFuncPatternNode::global_symbol_);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.ExternFuncPattern", ExternFuncPatternNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.ExternFuncPattern", ExternFuncPatternNode,
                                     DFPatternNode);
 };
 

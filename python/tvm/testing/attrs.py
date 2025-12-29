@@ -20,7 +20,7 @@ from tvm_ffi import register_object
 from ..ir import Attrs
 
 
-@register_object("attrs.TestAttrs")
+@register_object("tvm.attrs.TestAttrs")
 class TestAttrs(Attrs):
     """Attrs used for testing purposes"""
 

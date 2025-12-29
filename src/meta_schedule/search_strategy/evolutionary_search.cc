@@ -395,7 +395,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
         .def_ro("genetic_max_fail_count", &EvolutionarySearchNode::genetic_max_fail_count)
         .def_ro("eps_greedy", &EvolutionarySearchNode::eps_greedy);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.EvolutionarySearch", EvolutionarySearchNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.EvolutionarySearch", EvolutionarySearchNode,
                                     SearchStrategyNode);
 
   void InitializeWithTuneContext(const TuneContext& ctx) final {
@@ -807,10 +807,10 @@ TVM_FFI_STATIC_INIT_BLOCK() { EvolutionarySearchNode::RegisterReflection(); }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("meta_schedule.SearchStrategyEvolutionarySearch", SearchStrategy::EvolutionarySearch)
-      .def("meta_schedule.SearchStrategyEvolutionarySearchSampleInitPopulation",
+      .def("tvm.meta_schedule.SearchStrategyEvolutionarySearch", SearchStrategy::EvolutionarySearch)
+      .def("tvm.meta_schedule.SearchStrategyEvolutionarySearchSampleInitPopulation",
            EvolutionarySearchSampleInitPopulation)
-      .def("meta_schedule.SearchStrategyEvolutionarySearchEvolveWithCostModel",
+      .def("tvm.meta_schedule.SearchStrategyEvolutionarySearchEvolveWithCostModel",
            EvolutionarySearchEvolveWithCostModel);
 }
 

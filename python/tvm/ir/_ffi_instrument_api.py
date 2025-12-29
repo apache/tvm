@@ -17,4 +17,4 @@
 """FFI APIs for tvm.instrument"""
 import tvm_ffi
 
-tvm_ffi.init_ffi_api("instrument", __name__)
+tvm_ffi.init_ffi_api("tvm.instrument", __name__)

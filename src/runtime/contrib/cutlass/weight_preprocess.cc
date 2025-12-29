@@ -37,8 +37,8 @@ namespace runtime {
 // The preprocessing functions are defined in C++, so we need to copy the input weight to CPU.
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("cutlass.ft_preprocess_weight", [](Tensor packed_weight, int sm,
-                                                           bool is_int4) {
+  refl::GlobalDef().def("tvm.cutlass.ft_preprocess_weight", [](Tensor packed_weight, int sm,
+                                                               bool is_int4) {
     bool is_2d = packed_weight->ndim == 2;
     int num_experts = is_2d ? 1 : packed_weight->shape[0];
     int rows = packed_weight->shape[is_2d ? 0 : 1];

@@ -56,7 +56,7 @@ Expr resize2d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.image.resize2d", resize2d);
+  refl::GlobalDef().def("tvm.relax.op.image.resize2d", resize2d);
 }
 
 StructInfo InferStructInfoResize2D(const Call& call, const BlockBuilder& ctx) {
@@ -166,7 +166,7 @@ Expr grid_sample(Expr data, Expr grid, ffi::String method, ffi::String layout,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.image.grid_sample", grid_sample);
+  refl::GlobalDef().def("tvm.relax.op.image.grid_sample", grid_sample);
 }
 
 StructInfo InferStructInfoGridSample(const Call& call, const BlockBuilder& ctx) {

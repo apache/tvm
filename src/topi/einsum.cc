@@ -364,7 +364,7 @@ ffi::Array<PrimExpr> InferEinsumShape(const std::string& subscripts,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("topi.einsum", [](ffi::PackedArgs args, ffi::Any* rv) {
+  refl::GlobalDef().def_packed("tvm.topi.einsum", [](ffi::PackedArgs args, ffi::Any* rv) {
     *rv = einsum(args[0].cast<std::string>(), args[1].cast<ffi::Array<Tensor>>());
   });
 }

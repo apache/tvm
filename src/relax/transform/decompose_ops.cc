@@ -144,11 +144,11 @@ Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
   const ShapeStructInfoNode* sinfo = GetStructInfoAs<ShapeStructInfoNode>(call_node);
   ICHECK(sinfo);
   // call builtin function that converts tensor to shape tuple
-  // TODO(@sunggg): Register operator for "vm.builtin.tensor_to_shape"
+  // TODO(@sunggg): Register operator for "tvm.vm.builtin.tensor_to_shape"
   static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
   Var call =
-      builder->Emit(Call(call_pure_packed_op, {ExternFunc("vm.builtin.tensor_to_shape"), expr}, {},
-                         {ffi::GetRef<ShapeStructInfo>(sinfo)}));
+      builder->Emit(Call(call_pure_packed_op, {ExternFunc("tvm.vm.builtin.tensor_to_shape"), expr},
+                         {}, {ffi::GetRef<ShapeStructInfo>(sinfo)}));
 
   // Operators like reshape take the output of `TensorToShape` as their output shape.
   // Because TOPI expects to have such output shape in symbolic shape at least (i.e.,
@@ -254,8 +254,8 @@ Pass DecomposeOpsForTraining(ffi::Optional<ffi::String> func_name) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("relax.transform.DecomposeOpsForInference", DecomposeOpsForInference)
-      .def("relax.transform.DecomposeOpsForTraining", DecomposeOpsForTraining);
+      .def("tvm.relax.transform.DecomposeOpsForInference", DecomposeOpsForInference)
+      .def("tvm.relax.transform.DecomposeOpsForTraining", DecomposeOpsForTraining);
 }
 
 }  // namespace transform

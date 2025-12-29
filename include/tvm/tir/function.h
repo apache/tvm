@@ -119,7 +119,7 @@ class PrimFuncNode : public BaseFuncNode {
   TVM_DLL FuncType func_type_annotation() const;
 
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.PrimFunc", PrimFuncNode, BaseFuncNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.PrimFunc", PrimFuncNode, BaseFuncNode);
 };
 
 /*!
@@ -170,7 +170,7 @@ class TensorIntrinNode : public Object {
         .def_ro("desc", &TensorIntrinNode::desc)
         .def_ro("impl", &TensorIntrinNode::impl);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.TensorIntrin", TensorIntrinNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.TensorIntrin", TensorIntrinNode, Object);
 };
 
 /*!

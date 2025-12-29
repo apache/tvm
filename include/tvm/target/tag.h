@@ -47,7 +47,7 @@ class TargetTagNode : public Object {
         .def_ro("name", &TargetTagNode::name)
         .def_ro("config", &TargetTagNode::config);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.TargetTag", TargetTagNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.target.TargetTag", TargetTagNode, Object);
 
  private:
   /*! \brief Return the index stored in attr registry */

@@ -27,7 +27,7 @@ from .block_scope import BlockScope, StmtSRef
 from . import _ffi_api
 
 
-@register_object("tir.BlockDependenceInfo")
+@register_object("tvm.tir.BlockDependenceInfo")
 class BlockDependenceInfo(Object):
     """
     BlockDependenceInfo

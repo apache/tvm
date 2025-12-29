@@ -52,7 +52,7 @@ class CURandGenerator {
 };
 
 DeviceAPI* GetCUDADeviceAPI() {
-  const auto get_cuda_api = tvm::ffi::Function::GetGlobalRequired("device_api.cuda");
+  const auto get_cuda_api = tvm::ffi::Function::GetGlobalRequired("tvm.device_api.cuda");
   void* ret = get_cuda_api();
   runtime::DeviceAPI* cuda_api = static_cast<runtime::DeviceAPI*>(ret);
   return cuda_api;
@@ -115,7 +115,7 @@ void RandomFill(DLTensor* tensor) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.contrib.curand.RandomFill", RandomFill);
+  refl::GlobalDef().def("tvm.runtime.contrib.curand.RandomFill", RandomFill);
 }
 
 }  // namespace curand

@@ -36,7 +36,7 @@ namespace vm {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("vm.builtin.hexagon.dma_copy",
+      .def("tvm.vm.builtin.hexagon.dma_copy",
            [](ffi::AnyView vm_ptr, Tensor src_arr, Tensor dst_arr, int queue_id,
               bool bypass_cache) {
              const DLTensor* dptr = dst_arr.operator->();
@@ -57,7 +57,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              } while (ret == DMA_RETRY);
              CHECK(ret == DMA_SUCCESS);
            })
-      .def("vm.builtin.hexagon.dma_wait", [](ffi::AnyView vm_ptr, int queue_id, int inflight_dma,
+.def(
+          "tvm.vm.builtin.hexagon.dma_wait",
+          [](ffi::AnyView vm_ptr, int queue_id, int inflight_dma,
                                              bool bypass_cache, [[maybe_unused]] Tensor src_arr,
                                              [[maybe_unused]] Tensor dst_arr) {
         ICHECK(inflight_dma >= 0);

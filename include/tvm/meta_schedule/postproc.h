@@ -65,7 +65,7 @@ class PostprocNode : public runtime::Object {
   virtual Postproc Clone() const = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.Postproc", PostprocNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.meta_schedule.Postproc", PostprocNode, Object);
 };
 
 /*!
@@ -207,7 +207,7 @@ class PyPostprocNode : public PostprocNode {
   void InitializeWithTuneContext(const TuneContext& context) final;
   bool Apply(const tir::Schedule& sch) final;
   Postproc Clone() const final;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyPostproc", PyPostprocNode, PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.PyPostproc", PyPostprocNode, PostprocNode);
 };
 
 }  // namespace meta_schedule

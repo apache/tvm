@@ -76,8 +76,8 @@ bool NodeStructuralEqualAdapter(const Any& lhs, const Any& rhs, bool assert_mode
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("node.StructuralEqual", NodeStructuralEqualAdapter)
-      .def("node.GetFirstStructuralMismatch", ffi::StructuralEqual::GetFirstMismatch);
+      .def("tvm.node.StructuralEqual", NodeStructuralEqualAdapter)
+      .def("tvm.node.GetFirstStructuralMismatch", ffi::StructuralEqual::GetFirstMismatch);
 }
 
 bool StructuralEqual::operator()(const ffi::Any& lhs, const ffi::Any& rhs,

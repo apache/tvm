@@ -488,7 +488,7 @@ ml_dpdk_cb MarvellHardwareModuleNode::dpdk_cb_ = {};
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.mrvl_hw_runtime_create", MarvellHardwareModuleRuntimeCreate)
+      .def("tvm.runtime.mrvl_hw_runtime_create", MarvellHardwareModuleRuntimeCreate)
       .def("ffi.Module.load_from_bytes.mrvl_hw", MarvellHardwareModuleNode::LoadFromBytes);
 }
 }  // namespace contrib

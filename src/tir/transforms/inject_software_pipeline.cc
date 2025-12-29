@@ -1265,7 +1265,7 @@ Pass InjectSoftwarePipeline() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.InjectSoftwarePipeline", InjectSoftwarePipeline);
+  refl::GlobalDef().def("tvm.tir.transform.InjectSoftwarePipeline", InjectSoftwarePipeline);
 }
 
 }  // namespace transform

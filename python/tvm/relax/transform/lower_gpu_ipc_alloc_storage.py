@@ -63,7 +63,7 @@ class _Rewriter(PyExprMutator):
         shape = call.args[0]
         dtype = call.args[3]
         return relax.Call(
-            relax.ExternFunc("runtime.disco.cuda_ipc.alloc_storage"),
+            relax.ExternFunc("tvm.runtime.disco.cuda_ipc.alloc_storage"),
             args=[shape, dtype],
             sinfo_args=[call.struct_info],
         )
@@ -72,7 +72,7 @@ class _Rewriter(PyExprMutator):
         shape = call.args[0]
         dtype = call.args[1]
         ipc_alloc_storage = relax.Call(
-            relax.ExternFunc("runtime.disco.cuda_ipc.alloc_storage"),
+            relax.ExternFunc("tvm.runtime.disco.cuda_ipc.alloc_storage"),
             args=[shape, dtype],
             sinfo_args=[relax.ObjectStructInfo()],
         )

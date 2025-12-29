@@ -658,13 +658,13 @@ void* LLVMModuleNode::GetFunctionAddr(const std::string& name,
 static void LLVMReflectionRegister() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("target.build.llvm",
+      .def("tvm.target.build.llvm",
            [](IRModule mod, Target target) -> ffi::Module {
              auto n = ffi::make_object<LLVMModuleNode>();
              n->Init(mod, target);
              return ffi::Module(n);
            })
-      .def("codegen.LLVMModuleCreate",
+      .def("tvm.codegen.LLVMModuleCreate",
            [](std::string target_str, std::string module_name) -> ffi::Module {
              auto llvm_instance = std::make_unique<LLVMInstance>();
              With<LLVMTarget> llvm_target(*llvm_instance, target_str);
@@ -682,7 +682,7 @@ static void LLVMReflectionRegister() {
              n->SetJITEngine(llvm_target->GetJITEngine());
              return ffi::Module(n);
            })
-      .def("target.llvm_lookup_intrinsic_id",
+      .def("tvm.target.llvm_lookup_intrinsic_id",
            [](std::string name) -> int64_t {
 #if TVM_LLVM_VERSION >= 200
              return static_cast<int64_t>(llvm::Intrinsic::lookupIntrinsicID(name));
@@ -690,9 +690,9 @@ static void LLVMReflectionRegister() {
       return static_cast<int64_t>(llvm::Function::lookupIntrinsicID(name));
 #endif
            })
-      .def("target.llvm_get_intrinsic_name",
+      .def("tvm.target.llvm_get_intrinsic_name",
            [](int64_t id) -> ffi::String { return llvmGetIntrinName(id); })
-      .def("target.llvm_get_system_x86_vendor",
+      .def("tvm.target.llvm_get_system_x86_vendor",
            []() -> ffi::String {
 #if TVM_LLVM_VERSION >= 120
 #if defined(__i386__) || defined(_M_IX86) || defined(__x86_64__) || defined(_M_X64)
@@ -708,7 +708,7 @@ static void LLVMReflectionRegister() {
 #endif
              return "unimplemented";
            })
-      .def("target.llvm_get_vector_width",
+      .def("tvm.target.llvm_get_vector_width",
            [](const Target& target) -> int {
              auto use_target = target.defined() ? target : Target::Current(false);
              // ignore non "llvm" target
@@ -721,17 +721,17 @@ static void LLVMReflectionRegister() {
              LLVMTargetInfo llvm_backend(*llvm_instance, use_target);
              return llvm_backend.GetVectorWidth();
            })
-      .def("target.llvm_get_system_triple",
+      .def("tvm.target.llvm_get_system_triple",
            []() -> ffi::String { return llvm::sys::getDefaultTargetTriple(); })
-      .def("target.llvm_get_system_cpu",
+      .def("tvm.target.llvm_get_system_cpu",
            []() -> ffi::String { return llvm::sys::getHostCPUName().str(); })
-      .def("target.llvm_get_targets",
+      .def("tvm.target.llvm_get_targets",
            []() -> ffi::Array<ffi::String> {
              auto llvm_instance = std::make_unique<LLVMInstance>();
              LLVMTargetInfo llvm_backend(*llvm_instance, "llvm");
              return llvm_backend.GetAllLLVMTargets();
            })
-      .def("target.llvm_get_cpu_archlist",
+      .def("tvm.target.llvm_get_cpu_archlist",
            [](const Target& target) -> ffi::Array<ffi::String> {
              auto use_target = target.defined() ? target : Target::Current(false);
              // ignore non "llvm" target
@@ -744,7 +744,7 @@ static void LLVMReflectionRegister() {
              LLVMTargetInfo llvm_backend(*llvm_instance, use_target);
              return llvm_backend.GetAllLLVMTargetArches();
            })
-      .def("target.llvm_get_cpu_features",
+      .def("tvm.target.llvm_get_cpu_features",
            [](const Target& target) -> ffi::Map<ffi::String, ffi::String> {
              auto use_target = target.defined() ? target : Target::Current(false);
              // ignore non "llvm" target
@@ -757,7 +757,7 @@ static void LLVMReflectionRegister() {
              LLVMTargetInfo llvm_backend(*llvm_instance, use_target);
              return llvm_backend.GetAllLLVMCpuFeatures();
            })
-      .def("target.llvm_cpu_has_feature",
+      .def("tvm.target.llvm_cpu_has_feature",
            [](const ffi::String feature, const Target& target) -> bool {
              auto use_target = target.defined() ? target : Target::Current(false);
              // ignore non "llvm" target
@@ -772,7 +772,7 @@ static void LLVMReflectionRegister() {
              bool has_feature = cpu_features.find(feature) != cpu_features.end();
              return has_feature;
            })
-      .def("target.target_has_feature",
+      .def("tvm.target.target_has_feature",
            [](const ffi::String feature, const Target& target) -> bool {
              auto use_target = target.defined() ? target : Target::Current(false);
              // ignore non "llvm" target
@@ -785,7 +785,7 @@ static void LLVMReflectionRegister() {
              LLVMTargetInfo llvm_target(*llvm_instance, use_target);
              return llvm_target.TargetHasCPUFeature(feature);
            })
-      .def("target.llvm_version_major", []() -> int { return TVM_LLVM_VERSION / 10; })
+      .def("tvm.target.llvm_version_major", []() -> int { return TVM_LLVM_VERSION / 10; })
       .def("ffi.Module.load_from_file.ll",
            [](std::string filename, std::string fmt) -> ffi::Module {
              auto n = ffi::make_object<LLVMModuleNode>();
@@ -793,14 +793,14 @@ static void LLVMReflectionRegister() {
              n->LoadIR(filename);
              return ffi::Module(n);
            })
-      .def("codegen.llvm_target_enabled",
+      .def("tvm.codegen.llvm_target_enabled",
            [](std::string target_str) -> bool {
              LLVMInstance llvm_instance;
              auto* tm = With<LLVMTarget>(llvm_instance, target_str)
                             ->GetOrCreateTargetMachine(/*allow_missing=*/true);
              return tm != nullptr;
            })
-      .def("codegen.codegen_blob",
+      .def("tvm.codegen.codegen_blob",
            [](std::string data, bool system_lib, std::string llvm_target_string,
               std::string c_symbol_prefix) -> ffi::Module {
              auto n = ffi::make_object<LLVMModuleNode>();

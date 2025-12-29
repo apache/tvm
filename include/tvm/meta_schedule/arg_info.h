@@ -33,7 +33,7 @@ namespace meta_schedule {
 /*! \brief The argument information. */
 class ArgInfoNode : public runtime::Object {
  public:
-  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.ArgInfo", ArgInfoNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.meta_schedule.ArgInfo", ArgInfoNode, runtime::Object);
 
  public:
   /*! \brief Default destructor. */
@@ -88,7 +88,7 @@ class TensorInfoNode : public ArgInfoNode {
         .def_ro("dtype", &TensorInfoNode::dtype)
         .def_ro("shape", &TensorInfoNode::shape);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.TensorInfo", TensorInfoNode, ArgInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.TensorInfo", TensorInfoNode, ArgInfoNode);
 
  public:
   ObjectRef AsJSON() const;

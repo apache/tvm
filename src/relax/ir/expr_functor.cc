@@ -329,7 +329,7 @@ void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.analysis.post_order_visit", [](Expr expr, ffi::Function f) {
+  refl::GlobalDef().def("tvm.relax.analysis.post_order_visit", [](Expr expr, ffi::Function f) {
     PostOrderVisit(expr, [f](const Expr& n) { f(n); });
   });
 }

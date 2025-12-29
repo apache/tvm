@@ -186,7 +186,7 @@ Pass CallTIRRewrite() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.CallTIRRewrite", CallTIRRewrite);
+  refl::GlobalDef().def("tvm.relax.transform.CallTIRRewrite", CallTIRRewrite);
 }
 
 }  // namespace transform

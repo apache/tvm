@@ -74,7 +74,7 @@ class CostModelNode : public runtime::Object {
                                       const ffi::Array<MeasureCandidate>& candidates) = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.CostModel", CostModelNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.meta_schedule.CostModel", CostModelNode, Object);
 };
 
 /*! \brief The cost model with customized methods on the python-side. */
@@ -130,7 +130,8 @@ class PyCostModelNode : public CostModelNode {
               const ffi::Array<RunnerResult>& results);
   std::vector<double> Predict(const TuneContext& context,
                               const ffi::Array<MeasureCandidate>& candidates);
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyCostModel", PyCostModelNode, CostModelNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.PyCostModel", PyCostModelNode,
+                                    CostModelNode);
 };
 
 /*!

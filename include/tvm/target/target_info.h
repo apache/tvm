@@ -57,7 +57,7 @@ class MemoryInfoNode : public Object {
         .def_ro("max_simd_bits", &MemoryInfoNode::max_simd_bits)
         .def_ro("head_address", &MemoryInfoNode::head_address);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.MemoryInfo", MemoryInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.target.MemoryInfo", MemoryInfoNode, Object);
 };
 
 /*! \brief Defines memory info */

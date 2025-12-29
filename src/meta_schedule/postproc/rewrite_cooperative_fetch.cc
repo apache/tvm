@@ -140,7 +140,7 @@ class RewriteCooperativeFetchNode : public PostprocNode {
     return Postproc(n);
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RewriteCooperativeFetch",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.RewriteCooperativeFetch",
                                     RewriteCooperativeFetchNode, PostprocNode);
 
  private:
@@ -239,7 +239,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { RewriteCooperativeFetchNode::RegisterReflection();
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.PostprocRewriteCooperativeFetch",
+  refl::GlobalDef().def("tvm.meta_schedule.PostprocRewriteCooperativeFetch",
                         Postproc::RewriteCooperativeFetch);
 }
 

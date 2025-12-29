@@ -608,7 +608,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       ffi::PackedArgs constructor_args = ffi::PackedArgs(nullptr, 0);
 
       if (args.size() == 0) {
-        constructor_name = "rpc.LocalSession";
+        constructor_name = "tvm.rpc.LocalSession";
         serving_session_ = std::make_shared<LocalSession>();
       } else {
         constructor_name = args[0].cast<std::string>();

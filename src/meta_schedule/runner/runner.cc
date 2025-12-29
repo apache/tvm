@@ -66,20 +66,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("meta_schedule.RunnerInput",
+      .def("tvm.meta_schedule.RunnerInput",
            [](ffi::String artifact_path, ffi::String device_type, ffi::Array<ArgInfo> args_info)
                -> RunnerInput { return RunnerInput(artifact_path, device_type, args_info); })
-      .def("meta_schedule.RunnerResult",
+      .def("tvm.meta_schedule.RunnerResult",
            [](ffi::Optional<ffi::Array<FloatImm>> run_secs, ffi::Optional<ffi::String> error_msg)
                -> RunnerResult { return RunnerResult(run_secs, error_msg); })
-      .def("meta_schedule.RunnerFuture",
+      .def("tvm.meta_schedule.RunnerFuture",
            [](RunnerFuture::FDone f_done, RunnerFuture::FResult f_result) -> RunnerFuture {
              return RunnerFuture(f_done, f_result);
            })
-      .def_method("meta_schedule.RunnerFutureDone", &RunnerFutureNode::Done)
-      .def_method("meta_schedule.RunnerFutureResult", &RunnerFutureNode::Result)
-      .def_method("meta_schedule.RunnerRun", &RunnerNode::Run)
-      .def("meta_schedule.RunnerPyRunner", Runner::PyRunner);
+      .def_method("tvm.meta_schedule.RunnerFutureDone", &RunnerFutureNode::Done)
+      .def_method("tvm.meta_schedule.RunnerFutureResult", &RunnerFutureNode::Result)
+      .def_method("tvm.meta_schedule.RunnerRun", &RunnerNode::Run)
+      .def("tvm.meta_schedule.RunnerPyRunner", Runner::PyRunner);
 }
 
 }  // namespace meta_schedule

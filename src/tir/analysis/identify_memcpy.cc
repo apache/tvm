@@ -285,7 +285,7 @@ std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop, arith::Analyzer* an
 // Expose the IdentifyMemCpy functionality to Python API for purpose of unit testing.
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.analysis._identify_memcpy", [](const Stmt& stmt) {
+  refl::GlobalDef().def("tvm.tir.analysis._identify_memcpy", [](const Stmt& stmt) {
     ffi::Array<ObjectRef> output;
 
     struct Visitor : arith::IRVisitorWithAnalyzer {

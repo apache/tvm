@@ -66,7 +66,8 @@ class ReplayFuncNode : public SearchStrategyNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ReplayFuncNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.ReplayFunc", ReplayFuncNode, SearchStrategyNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.ReplayFunc", ReplayFuncNode,
+                                    SearchStrategyNode);
 
   void InitializeWithTuneContext(const TuneContext& ctx) final {
     CHECK(ctx->mod.defined()) << "ValueError: TuneContext.mod is not defined";
@@ -166,7 +167,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { ReplayFuncNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.SearchStrategyReplayFunc", SearchStrategy::ReplayFunc);
+  refl::GlobalDef().def("tvm.meta_schedule.SearchStrategyReplayFunc", SearchStrategy::ReplayFunc);
 }
 
 }  // namespace meta_schedule

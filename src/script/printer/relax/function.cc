@@ -100,7 +100,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         }
       }
       // Step 5. Prepare the decorator (include purity if it's impure)
-      ExprDoc decorator = Relax(d, "function");
+      ExprDoc decorator = Relax(d, "tvm.function");
       ffi::Array<ExprDoc, void> pos_args = {};
       ffi::Array<ffi::String, void> dec_keys;
       ffi::Array<ExprDoc, void> dec_values;

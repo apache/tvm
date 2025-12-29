@@ -682,7 +682,7 @@ ffi::Module BuildOpenCL(IRModule mod, Target target) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("target.build.opencl", BuildOpenCL);
+  refl::GlobalDef().def("tvm.target.build.opencl", BuildOpenCL);
 }
 
 ffi::String DeviceScopeCompatibilityFromTarget(Target target, ffi::String memory_scope) {
@@ -697,7 +697,7 @@ ffi::String DeviceScopeCompatibilityFromTarget(Target target, ffi::String memory
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("DeviceScopeCompatibility.opencl", DeviceScopeCompatibilityFromTarget);
+  refl::GlobalDef().def("tvm.DeviceScopeCompatibility.opencl", DeviceScopeCompatibilityFromTarget);
 }
 
 }  // namespace codegen

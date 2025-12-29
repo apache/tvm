@@ -541,7 +541,7 @@ bool HasReshapePattern(const PrimFunc& func) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.analysis.has_reshape_pattern", HasReshapePattern);
+  refl::GlobalDef().def("tvm.relax.analysis.has_reshape_pattern", HasReshapePattern);
 }
 
 }  // namespace relax

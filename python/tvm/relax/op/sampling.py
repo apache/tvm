@@ -33,7 +33,7 @@ def multinomial_from_uniform(
 
     Notes
     -----
-    For better cpu performance, use 'vm.builtin.multinomial_from_uniform'.
+    For better cpu performance, use 'tvm.vm.builtin.multinomial_from_uniform'.
     For accurate results, ensure probabilities are between 0 and 1 and sum to 1.
 
     Parameters

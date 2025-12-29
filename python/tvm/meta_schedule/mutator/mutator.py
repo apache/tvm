@@ -111,7 +111,7 @@ class Mutator(Object):
 create = Mutator.create  # pylint: disable=invalid-name
 
 
-@register_object("meta_schedule.PyMutator")
+@register_object("tvm.meta_schedule.PyMutator")
 class _PyMutator(Mutator):
     """
     A TVM object mutator to support customization on the python side.

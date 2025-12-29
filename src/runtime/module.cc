@@ -41,25 +41,25 @@ bool RuntimeEnabled(const ffi::String& target_str) {
   if (target == "cpu") {
     return true;
   } else if (target == "cuda" || target == "gpu") {
-    f_name = "device_api.cuda";
+    f_name = "tvm.device_api.cuda";
   } else if (target == "cl" || target == "opencl") {
-    f_name = "device_api.opencl";
+    f_name = "tvm.device_api.opencl";
   } else if (target == "mtl" || target == "metal") {
-    f_name = "device_api.metal";
+    f_name = "tvm.device_api.metal";
   } else if (target == "tflite") {
-    f_name = "target.runtime.tflite";
+    f_name = "tvm.target.runtime.tflite";
   } else if (target == "vulkan") {
-    f_name = "device_api.vulkan";
+    f_name = "tvm.device_api.vulkan";
   } else if (target == "rpc") {
-    f_name = "device_api.rpc";
+    f_name = "tvm.device_api.rpc";
   } else if (target == "hexagon") {
-    f_name = "device_api.hexagon";
+    f_name = "tvm.device_api.hexagon";
   } else if (target.length() >= 5 && target.substr(0, 5) == "nvptx") {
-    f_name = "device_api.cuda";
+    f_name = "tvm.device_api.cuda";
   } else if (target.length() >= 4 && target.substr(0, 4) == "rocm") {
-    f_name = "device_api.rocm";
+    f_name = "tvm.device_api.rocm";
   } else if (target.length() >= 4 && target.substr(0, 4) == "llvm") {
-    const auto pf = tvm::ffi::Function::GetGlobal("codegen.llvm_target_enabled");
+    const auto pf = tvm::ffi::Function::GetGlobal("tvm.codegen.llvm_target_enabled");
     if (!pf.has_value()) return false;
     return (*pf)(target).cast<bool>();
   } else {
@@ -84,7 +84,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   TVM_INIT_CONTEXT_FUNC(TVMBackendParallelLaunch);
   TVM_INIT_CONTEXT_FUNC(TVMBackendParallelBarrier);
 
-  refl::GlobalDef().def("runtime.RuntimeEnabled", RuntimeEnabled);
+  refl::GlobalDef().def("tvm.runtime.RuntimeEnabled", RuntimeEnabled);
 }
 
 #undef TVM_INIT_CONTEXT_FUNC

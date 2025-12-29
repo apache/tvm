@@ -374,13 +374,14 @@ void PyTaskSchedulerNode::Tune(ffi::Array<TuneContext> tasks, ffi::Array<FloatIm
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("meta_schedule.TaskSchedulerPyTaskScheduler", TaskScheduler::PyTaskScheduler)
-      .def_method("meta_schedule.TaskSchedulerTune", &TaskSchedulerNode::Tune)
-      .def_method("meta_schedule.TaskSchedulerJoinRunningTask", &TaskSchedulerNode::JoinRunningTask)
-      .def_method("meta_schedule.TaskSchedulerNextTaskId", &TaskSchedulerNode::NextTaskId)
-      .def_method("meta_schedule.TaskSchedulerTerminateTask", &TaskSchedulerNode::TerminateTask)
-      .def_method("meta_schedule.TaskSchedulerTouchTask", &TaskSchedulerNode::TouchTask)
-      .def_method("meta_schedule.TaskSchedulerPrintTuningStatistics",
+      .def("tvm.meta_schedule.TaskSchedulerPyTaskScheduler", TaskScheduler::PyTaskScheduler)
+      .def_method("tvm.meta_schedule.TaskSchedulerTune", &TaskSchedulerNode::Tune)
+      .def_method("tvm.meta_schedule.TaskSchedulerJoinRunningTask",
+                  &TaskSchedulerNode::JoinRunningTask)
+      .def_method("tvm.meta_schedule.TaskSchedulerNextTaskId", &TaskSchedulerNode::NextTaskId)
+      .def_method("tvm.meta_schedule.TaskSchedulerTerminateTask", &TaskSchedulerNode::TerminateTask)
+      .def_method("tvm.meta_schedule.TaskSchedulerTouchTask", &TaskSchedulerNode::TouchTask)
+      .def_method("tvm.meta_schedule.TaskSchedulerPrintTuningStatistics",
                   &TaskSchedulerNode::PrintTuningStatistics);
 }
 

@@ -52,7 +52,7 @@ Expr all_class_non_max_suppression(Expr boxes, Expr scores, Expr max_output_boxe
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.vision.all_class_non_max_suppression",
+  refl::GlobalDef().def("tvm.relax.op.vision.all_class_non_max_suppression",
                         all_class_non_max_suppression);
 }
 

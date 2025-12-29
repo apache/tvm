@@ -23,7 +23,7 @@ from .. import _ffi_api
 from .schedule_rule import ScheduleRule
 
 
-@register_object("meta_schedule.AutoInline")
+@register_object("tvm.meta_schedule.AutoInline")
 class AutoInline(ScheduleRule):
     """Rule that inlines spatial blocks if it satisfies some conditions
 
@@ -67,7 +67,7 @@ class AutoInline(ScheduleRule):
         )
 
 
-@register_object("meta_schedule.InlineConstantScalars")
+@register_object("tvm.meta_schedule.InlineConstantScalars")
 class InlineConstantScalars(ScheduleRule):
     """Inline blocks that produce a constant scalar.
 

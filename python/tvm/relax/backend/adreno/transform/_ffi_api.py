@@ -16,4 +16,4 @@
 """FFI APIs for Adreno transform"""
 import tvm.ffi
 
-tvm.ffi.init_ffi_api("relax.backend.adreno.transform", __name__)
+tvm.ffi.init_ffi_api("tvm.relax.backend.adreno.transform", __name__)

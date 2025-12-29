@@ -60,7 +60,7 @@ class IRModuleFrameNode : public IRBuilderFrameNode {
         .def_ro("attrs", &IRModuleFrameNode::attrs)
         .def_ro("global_infos", &IRModuleFrameNode::global_infos);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.IRModuleFrame", IRModuleFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.ir_builder.IRModuleFrame", IRModuleFrameNode,
                                     IRBuilderFrameNode);
 
  public:

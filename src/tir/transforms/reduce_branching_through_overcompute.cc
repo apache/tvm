@@ -51,7 +51,7 @@ struct ReduceBranchingThroughOvercomputeConfigNode
         "to statically prove that overcompute is valid.",
         refl::DefaultValue(false));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.ReduceBranchingThroughOvercomputeConfig",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.transform.ReduceBranchingThroughOvercomputeConfig",
                                     ReduceBranchingThroughOvercomputeConfigNode, BaseAttrsNode);
 };
 
@@ -177,7 +177,7 @@ Pass ReduceBranchingThroughOvercompute() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.ReduceBranchingThroughOvercompute",
+  refl::GlobalDef().def("tvm.tir.transform.ReduceBranchingThroughOvercompute",
                         ReduceBranchingThroughOvercompute);
 }
 

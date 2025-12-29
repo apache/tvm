@@ -90,7 +90,7 @@ class TVM_DLL OperationNode : public Object {
         .def_ro("tag", &OperationNode::tag)
         .def_ro("attrs", &OperationNode::attrs);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("te.Operation", OperationNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.te.Operation", OperationNode, Object);
 };
 
 /*!
@@ -114,7 +114,7 @@ class PlaceholderOpNode : public OperationNode {
         .def_ro("shape", &PlaceholderOpNode::shape)
         .def_ro("dtype", &PlaceholderOpNode::dtype);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("te.PlaceholderOp", PlaceholderOpNode, OperationNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.te.PlaceholderOp", PlaceholderOpNode, OperationNode);
 };
 
 /*!
@@ -147,7 +147,7 @@ class TVM_DLL BaseComputeOpNode : public OperationNode {
         .def_ro("axis", &BaseComputeOpNode::axis)
         .def_ro("reduce_axis", &BaseComputeOpNode::reduce_axis);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("te.BaseComputeOp", BaseComputeOpNode, OperationNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.te.BaseComputeOp", BaseComputeOpNode, OperationNode);
 };
 
 /*!
@@ -168,7 +168,7 @@ class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ComputeOpNode>().def_ro("body", &ComputeOpNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.ComputeOp", ComputeOpNode, BaseComputeOpNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.te.ComputeOp", ComputeOpNode, BaseComputeOpNode);
 };
 
 /*!
@@ -230,7 +230,7 @@ class ScanOpNode : public OperationNode {
         .def_ro("inputs", &ScanOpNode::inputs)
         .def_ro("spatial_axis_", &ScanOpNode::spatial_axis_);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.ScanOp", ScanOpNode, OperationNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.te.ScanOp", ScanOpNode, OperationNode);
 };
 
 /*!
@@ -277,7 +277,7 @@ class ExternOpNode : public OperationNode {
         .def_ro("output_placeholders", &ExternOpNode::output_placeholders)
         .def_ro("body", &ExternOpNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.ExternOp", ExternOpNode, OperationNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.te.ExternOp", ExternOpNode, OperationNode);
 };
 
 /*!

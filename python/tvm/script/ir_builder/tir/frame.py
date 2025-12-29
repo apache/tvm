@@ -23,97 +23,97 @@ from tvm.tir import Buffer, Var
 from ..base import IRBuilderFrame
 
 
-@_register_object("script.ir_builder.tir.TIRFrame")
+@_register_object("tvm.script.ir_builder.tir.TIRFrame")
 class TIRFrame(IRBuilderFrame):
     ...
 
 
-@_register_object("script.ir_builder.tir.PrimFuncFrame")
+@_register_object("tvm.script.ir_builder.tir.PrimFuncFrame")
 class PrimFuncFrame(TIRFrame):
     ...
 
 
-@_register_object("script.ir_builder.tir.BlockFrame")
+@_register_object("tvm.script.ir_builder.tir.BlockFrame")
 class BlockFrame(TIRFrame):
     ...
 
 
-@_register_object("script.ir_builder.tir.BlockInitFrame")
+@_register_object("tvm.script.ir_builder.tir.BlockInitFrame")
 class BlockInitFrame(TIRFrame):
     ...
 
 
-@_register_object("script.ir_builder.tir.ForFrame")
+@_register_object("tvm.script.ir_builder.tir.ForFrame")
 class ForFrame(TIRFrame):
     def __enter__(self) -> Union[Var, List[Var]]:  # type: ignore[override]
         super().__enter__()
         return self.vars if len(self.vars) > 1 else self.vars[0]
 
 
-@_register_object("script.ir_builder.tir.AssertFrame")
+@_register_object("tvm.script.ir_builder.tir.AssertFrame")
 class AssertFrame(TIRFrame):
     ...
 
 
-@_register_object("script.ir_builder.tir.LetFrame")
+@_register_object("tvm.script.ir_builder.tir.LetFrame")
 class LetFrame(TIRFrame):
     def __enter__(self) -> Var:
         super().__enter__()
         return self.var
 
 
-@_register_object("script.ir_builder.tir.RealizeFrame")
+@_register_object("tvm.script.ir_builder.tir.RealizeFrame")
 class RealizeFrame(TIRFrame):
     ...
 
 
-@_register_object("script.ir_builder.tir.AllocateFrame")
+@_register_object("tvm.script.ir_builder.tir.AllocateFrame")
 class AllocateFrame(TIRFrame):
     def __enter__(self) -> Buffer:
         super().__enter__()
         return self.buffer_var
 
 
-@_register_object("script.ir_builder.tir.AllocateConstFrame")
+@_register_object("tvm.script.ir_builder.tir.AllocateConstFrame")
 class AllocateConstFrame(TIRFrame):
     def __enter__(self) -> Buffer:
         super().__enter__()
         return self.buffer_var
 
 
-@_register_object("script.ir_builder.tir.AttrFrame")
+@_register_object("tvm.script.ir_builder.tir.AttrFrame")
 class AttrFrame(TIRFrame):
     ...
 
 
-@_register_object("script.ir_builder.tir.WhileFrame")
+@_register_object("tvm.script.ir_builder.tir.WhileFrame")
 class WhileFrame(TIRFrame):
     ...
 
 
-@_register_object("script.ir_builder.tir.IfFrame")
+@_register_object("tvm.script.ir_builder.tir.IfFrame")
 class IfFrame(TIRFrame):
     ...
 
 
-@_register_object("script.ir_builder.tir.ThenFrame")
+@_register_object("tvm.script.ir_builder.tir.ThenFrame")
 class ThenFrame(TIRFrame):
     ...
 
 
-@_register_object("script.ir_builder.tir.ElseFrame")
+@_register_object("tvm.script.ir_builder.tir.ElseFrame")
 class ElseFrame(TIRFrame):
     ...
 
 
-@_register_object("script.ir_builder.tir.DeclBufferFrame")
+@_register_object("tvm.script.ir_builder.tir.DeclBufferFrame")
 class DeclBufferFrame(TIRFrame):
     def __enter__(self) -> Buffer:
         super().__enter__()
         return self.buffer
 
 
-@_register_object("script.ir_builder.tir.LaunchThreadFrame")
+@_register_object("tvm.script.ir_builder.tir.LaunchThreadFrame")
 class LaunchThreadFrame(TIRFrame):
     def __enter__(self) -> Var:
         super().__enter__()

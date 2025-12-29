@@ -351,10 +351,10 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         CHECK(attn_kind == AttnKind::kMHA);
       }
       const auto f_nvshmem_init =
-          tvm::ffi::Function::GetGlobal("runtime.disco.nvshmem.init_nvshmem");
+          tvm::ffi::Function::GetGlobal("tvm.runtime.disco.nvshmem.init_nvshmem");
       CHECK(f_nvshmem_init.has_value())
           << "NVSHMEM is not enabled. Please make sure NVSHMEM is enabled when compiling TVM.";
-      const auto f_nvshmem_empty = tvm::ffi::Function::GetGlobal("runtime.disco.nvshmem.empty");
+      const auto f_nvshmem_empty = tvm::ffi::Function::GetGlobal("tvm.runtime.disco.nvshmem.empty");
       ICHECK(f_nvshmem_empty.has_value());
       nvshmem_pages_ =
           (*f_nvshmem_empty)(
@@ -368,9 +368,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
                 nvshmem_pages_.DataType().bytes()));
       }
 
-      const auto f_transfer_kv_ptr = tvm::ffi::Function::GetGlobal("nvshmem.KVTransfer");
+      const auto f_transfer_kv_ptr = tvm::ffi::Function::GetGlobal("tvm.nvshmem.KVTransfer");
       const auto f_transfer_kv_page_to_page_ptr =
-          tvm::ffi::Function::GetGlobal("nvshmem.KVTransferPageToPage");
+          tvm::ffi::Function::GetGlobal("tvm.nvshmem.KVTransferPageToPage");
       ICHECK(f_transfer_kv_ptr.has_value());
       ICHECK(f_transfer_kv_page_to_page_ptr.has_value());
       f_transfer_kv_ = *f_transfer_kv_ptr;
@@ -1691,7 +1691,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   void DebugSetKV(int64_t seq_id, int64_t start_pos, Tensor k_data, Tensor v_data) final {
     ICHECK(false) << "DebugSetKV for PageAttentionKVCache not implemented yet.";
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.vm.PagedAttentionKVCache", PagedAttentionKVCacheObj,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.vm.PagedAttentionKVCache", PagedAttentionKVCacheObj,
                                     AttentionKVCacheObj);
 
  private:
@@ -2436,7 +2436,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
-      "vm.builtin.paged_attention_kv_cache_create", [](ffi::PackedArgs args, ffi::Any* rv) {
+      "tvm.vm.builtin.paged_attention_kv_cache_create", [](ffi::PackedArgs args, ffi::Any* rv) {
         // Todo: cuda graph arg
         CHECK(args.size() == 28 || args.size() == 29)
             << "Invalid number of KV cache constructor args: " << args.size();

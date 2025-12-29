@@ -745,7 +745,7 @@ Pass AnnotateCustomMemoryScope(Target target) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.backend.adreno.transform.AnnotateCustomMemoryScope",
+  refl::GlobalDef().def("tvm.relax.backend.adreno.transform.AnnotateCustomMemoryScope",
                         AnnotateCustomMemoryScope);
 }
 }  // namespace transform

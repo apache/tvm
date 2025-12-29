@@ -194,7 +194,7 @@ Expr cumprod(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DataType> dty
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.cumprod", cumprod);
+  refl::GlobalDef().def("tvm.relax.op.cumprod", cumprod);
 }
 
 TVM_REGISTER_OP("relax.cumprod")
@@ -217,7 +217,7 @@ Expr cumsum(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DataType> dtyp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.cumsum", cumsum);
+  refl::GlobalDef().def("tvm.relax.op.cumsum", cumsum);
 }
 
 TVM_REGISTER_OP("relax.cumsum")

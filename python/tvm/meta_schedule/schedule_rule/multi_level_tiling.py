@@ -40,7 +40,7 @@ class ReuseType(NamedTuple):
         }
 
 
-@register_object("meta_schedule.MultiLevelTiling")
+@register_object("tvm.meta_schedule.MultiLevelTiling")
 class MultiLevelTiling(ScheduleRule):
     """Multi-level tiling with reuse.
 
@@ -92,7 +92,7 @@ class MultiLevelTiling(ScheduleRule):
         )
 
 
-@register_object("meta_schedule.MultiLevelTilingWithIntrin")
+@register_object("tvm.meta_schedule.MultiLevelTilingWithIntrin")
 class MultiLevelTilingWithIntrin(ScheduleRule):
     """Extension of MultiLevelTiling for auto-tensorizing with a single intrinsic.
 
@@ -141,7 +141,7 @@ class MultiLevelTilingWithIntrin(ScheduleRule):
         )
 
 
-@register_object("meta_schedule.MultiLevelTilingTensorCore")
+@register_object("tvm.meta_schedule.MultiLevelTilingTensorCore")
 class MultiLevelTilingTensorCore(ScheduleRule):
     """Extension of MultiLevelTiling for auto-tensorizing with multiple groups of candidate tensor
     core intrinsics.
@@ -197,7 +197,7 @@ class MultiLevelTilingTensorCore(ScheduleRule):
         )
 
 
-@register_object("meta_schedule.MultiLevelTilingWideVector")
+@register_object("tvm.meta_schedule.MultiLevelTilingWideVector")
 class MultiLevelTilingWideVector(ScheduleRule):
     """Extension of MultiLevelTiling for backends with wide vectors. The loop over the innermost
     spatial axis of the output buffer is always vectorized with the maximum vector length.

@@ -57,7 +57,7 @@ IterMark::IterMark(PrimExpr source, PrimExpr extent) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("arith.IterMark",
+  refl::GlobalDef().def("tvm.arith.IterMark",
                         [](PrimExpr source, PrimExpr extent) { return IterMark(source, extent); });
 }
 
@@ -102,8 +102,8 @@ IterSplitExpr::IterSplitExpr(IterMark source, PrimExpr lower_factor, PrimExpr ex
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("arith.IterSplitExpr", [](IterMark source, PrimExpr lower_factor,
-                                                  PrimExpr extent, PrimExpr scale) {
+  refl::GlobalDef().def("tvm.arith.IterSplitExpr", [](IterMark source, PrimExpr lower_factor,
+                                                      PrimExpr extent, PrimExpr scale) {
     return IterSplitExpr(source, lower_factor, extent, scale);
   });
 }
@@ -125,7 +125,7 @@ IterSumExpr::IterSumExpr(ffi::Array<IterSplitExpr> args, PrimExpr base) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("arith.IterSumExpr", [](ffi::Array<IterSplitExpr> args, PrimExpr base) {
+  refl::GlobalDef().def("tvm.arith.IterSumExpr", [](ffi::Array<IterSplitExpr> args, PrimExpr base) {
     return IterSumExpr(args, base);
   });
 }
@@ -1527,7 +1527,7 @@ IterMapResult DetectIterMap(const ffi::Array<PrimExpr>& indices,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "arith.DetectIterMap",
+      "tvm.arith.DetectIterMap",
       [](const ffi::Array<PrimExpr>& indices, const ffi::Map<Var, Range>& input_iters,
          const PrimExpr& input_pred, int check_level, bool simplify_trivial_iterators) {
         arith::Analyzer ana;
@@ -1554,7 +1554,7 @@ IterSumExpr NormalizeToIterSum(PrimExpr index, const ffi::Map<Var, Range>& input
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("arith.NormalizeToIterSum",
+  refl::GlobalDef().def("tvm.arith.NormalizeToIterSum",
                         [](PrimExpr index, const ffi::Map<Var, Range>& input_iters) {
                           arith::Analyzer ana;
                           return NormalizeToIterSum(index, input_iters, &ana);
@@ -2156,7 +2156,7 @@ PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("arith.NormalizeIterMapToExpr", NormalizeIterMapToExpr);
+  refl::GlobalDef().def("tvm.arith.NormalizeIterMapToExpr", NormalizeIterMapToExpr);
 }
 
 ffi::Array<PrimExpr> IterMapSimplify(const ffi::Array<PrimExpr>& indices,
@@ -2190,7 +2190,7 @@ ffi::Array<PrimExpr> IterMapSimplify(const ffi::Array<PrimExpr>& indices,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "arith.IterMapSimplify",
+      "tvm.arith.IterMapSimplify",
       [](const ffi::Array<PrimExpr>& indices, const ffi::Map<Var, Range>& input_iters,
          const PrimExpr& input_pred, int check_level, bool simplify_trivial_iterators) {
         arith::Analyzer ana;
@@ -2527,7 +2527,7 @@ ffi::Array<ffi::Array<IterMark>> SubspaceDivide(const ffi::Array<PrimExpr>& bind
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "arith.SubspaceDivide",
+      "tvm.arith.SubspaceDivide",
       [](const ffi::Array<PrimExpr>& bindings, const ffi::Map<Var, Range>& root_iters,
          const ffi::Array<Var>& sub_iters, const PrimExpr& predicate, int check_level,
          bool simplify_trivial_iterators) {
@@ -2670,7 +2670,7 @@ ffi::Map<Var, PrimExpr> InverseAffineIterMap(const ffi::Array<IterSumExpr>& iter
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("arith.InverseAffineIterMap", InverseAffineIterMap);
+  refl::GlobalDef().def("tvm.arith.InverseAffineIterMap", InverseAffineIterMap);
 }
 
 }  // namespace arith

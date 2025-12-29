@@ -375,7 +375,7 @@ transform::Pass BindTarget(Target target) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.BindTarget", BindTarget);
+  refl::GlobalDef().def("tvm.tir.transform.BindTarget", BindTarget);
 }
 
 }  // namespace transform

@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .postproc import Postproc
 
 
-@register_object("meta_schedule.DisallowDynamicLoop")
+@register_object("tvm.meta_schedule.DisallowDynamicLoop")
 class DisallowDynamicLoop(Postproc):
     """A postprocessor that checks if the IRModule has any loop with non-constant extent"""
 

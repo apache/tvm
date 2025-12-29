@@ -71,12 +71,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def(
-          "cutlass.group_gemm_e5m2_e5m2_fp16",
+          "tvm.cutlass.group_gemm_e5m2_e5m2_fp16",
           tvm_cutlass_fp8_group_gemm<cutlass::float_e5m2_t, cutlass::float_e5m2_t, cutlass::half_t>)
       .def(
-          "cutlass.group_gemm_e5m2_e4m3_fp16",
+          "tvm.cutlass.group_gemm_e5m2_e4m3_fp16",
           tvm_cutlass_fp8_group_gemm<cutlass::float_e5m2_t, cutlass::float_e4m3_t, cutlass::half_t>)
-      .def("cutlass.group_gemm_e4m3_e4m3_fp16",
+      .def("tvm.cutlass.group_gemm_e4m3_e4m3_fp16",
            tvm_cutlass_fp8_group_gemm<cutlass::float_e4m3_t, cutlass::float_e4m3_t,
                                       cutlass::half_t>);
 }

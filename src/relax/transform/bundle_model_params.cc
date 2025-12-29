@@ -118,7 +118,7 @@ Pass BundleModelParams(ffi::Optional<ffi::String> param_tuple_name) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.BundleModelParams", BundleModelParams);
+  refl::GlobalDef().def("tvm.relax.transform.BundleModelParams", BundleModelParams);
 }
 
 }  // namespace transform

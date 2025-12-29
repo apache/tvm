@@ -60,7 +60,7 @@ class PatternMatchingRewriterNode : public tvm::transform::PassNode {
 
   IRModule operator()(IRModule mod, const tvm::transform::PassContext& pass_ctx) const override;
   tvm::transform::PassInfo Info() const override;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.dpl.PatternMatchingRewriter", PatternMatchingRewriterNode,
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.dpl.PatternMatchingRewriter", PatternMatchingRewriterNode,
                               PassNode);
 };
 
@@ -98,7 +98,7 @@ class ExprPatternRewriterNode : public PatternMatchingRewriterNode {
         .def_ro("pattern", &ExprPatternRewriterNode::pattern)
         .def_ro("func", &ExprPatternRewriterNode::func);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.dpl.ExprPatternRewriter", ExprPatternRewriterNode,
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.dpl.ExprPatternRewriter", ExprPatternRewriterNode,
                               PatternMatchingRewriterNode);
 };
 
@@ -126,7 +126,8 @@ class OrRewriterNode : public PatternMatchingRewriterNode {
         .def_ro("lhs", &OrRewriterNode::lhs)
         .def_ro("rhs", &OrRewriterNode::rhs);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.dpl.OrRewriter", OrRewriterNode, PatternMatchingRewriterNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.dpl.OrRewriter", OrRewriterNode,
+                              PatternMatchingRewriterNode);
 };
 
 class OrRewriter : public PatternMatchingRewriter {
@@ -151,7 +152,7 @@ class TupleRewriterNode : public PatternMatchingRewriterNode {
         .def_ro("patterns", &TupleRewriterNode::patterns)
         .def_ro("func", &TupleRewriterNode::func);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.dpl.TupleRewriter", TupleRewriterNode,
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.dpl.TupleRewriter", TupleRewriterNode,
                               PatternMatchingRewriterNode);
 
  private:

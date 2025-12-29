@@ -1766,7 +1766,7 @@ Pass StorageRewrite() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.StorageRewrite", StorageRewrite);
+  refl::GlobalDef().def("tvm.tir.transform.StorageRewrite", StorageRewrite);
 }
 
 Pass PointerValueTypeRewrite() {
@@ -1778,7 +1778,7 @@ Pass PointerValueTypeRewrite() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.PointerValueTypeRewrite", PointerValueTypeRewrite);
+  refl::GlobalDef().def("tvm.tir.transform.PointerValueTypeRewrite", PointerValueTypeRewrite);
 }
 
 }  // namespace transform

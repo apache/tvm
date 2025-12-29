@@ -29,7 +29,7 @@ from .. import _ffi_api
 from ..arg_info import ArgInfo
 
 
-@register_object("meta_schedule.RunnerInput")
+@register_object("tvm.meta_schedule.RunnerInput")
 class RunnerInput(Object):
     """The runner's input
 
@@ -72,7 +72,7 @@ class RunnerInput(Object):
         )
 
 
-@register_object("meta_schedule.RunnerResult")
+@register_object("tvm.meta_schedule.RunnerResult")
 class RunnerResult(Object):
     """The runner's result
 
@@ -108,7 +108,7 @@ class RunnerResult(Object):
         )
 
 
-@register_object("meta_schedule.RunnerFuture")
+@register_object("tvm.meta_schedule.RunnerFuture")
 class RunnerFuture(Object):
     """
     A class to fetch asynchronous runner's output.
@@ -163,7 +163,7 @@ class PyRunnerFuture:
         raise NotImplementedError
 
 
-@register_object("meta_schedule.Runner")
+@register_object("tvm.meta_schedule.Runner")
 class Runner(Object):
     """The abstract runner interface"""
 
@@ -205,7 +205,7 @@ class Runner(Object):
 create = Runner.create  # pylint: disable=invalid-name
 
 
-@register_object("meta_schedule.PyRunner")
+@register_object("tvm.meta_schedule.PyRunner")
 class _PyRunner(Runner):
     """
     A TVM object runner to support customization on the python side.

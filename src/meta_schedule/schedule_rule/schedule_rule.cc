@@ -322,7 +322,7 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultRISCV(const int vlen) {
       /*max_innermost_factor=*/Integer(64)));
   auto current_target = tvm::Target::Current();
   const auto reg_rvv_intrinsics =
-      tvm::ffi::Function::GetGlobalRequired("tir.tensor_intrin.register_rvv_isa_intrinsics");
+      tvm::ffi::Function::GetGlobalRequired("tvm.tir.tensor_intrin.register_rvv_isa_intrinsics");
   const auto rvv_kernels_inventory = reg_rvv_intrinsics(current_target, /* inventory_only */ true)
                                          .cast<ffi::Map<ffi::String, int>>();
   for (const auto& intrin : rvv_kernels_inventory) {
@@ -467,16 +467,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("meta_schedule.ScheduleRuleInitializeWithTuneContext",
+      .def_method("tvm.meta_schedule.ScheduleRuleInitializeWithTuneContext",
                   &ScheduleRuleNode::InitializeWithTuneContext)
-      .def_method("meta_schedule.ScheduleRuleApply", &ScheduleRuleNode::Apply)
-      .def_method("meta_schedule.ScheduleRuleClone", &ScheduleRuleNode::Clone)
-      .def("meta_schedule.ScheduleRulePyScheduleRule", ScheduleRule::PyScheduleRule)
-      .def("meta_schedule.ScheduleRuleDefaultLLVM", ScheduleRule::DefaultLLVM)
-      .def("meta_schedule.ScheduleRuleDefaultCUDA", ScheduleRule::DefaultCUDA)
-      .def("meta_schedule.ScheduleRuleDefaultCUDATensorCore", ScheduleRule::DefaultCUDATensorCore)
-      .def("meta_schedule.ScheduleRuleDefaultHexagon", ScheduleRule::DefaultHexagon)
-      .def("meta_schedule.ScheduleRuleDefaultARM", ScheduleRule::DefaultARM);
+      .def_method("tvm.meta_schedule.ScheduleRuleApply", &ScheduleRuleNode::Apply)
+      .def_method("tvm.meta_schedule.ScheduleRuleClone", &ScheduleRuleNode::Clone)
+      .def("tvm.meta_schedule.ScheduleRulePyScheduleRule", ScheduleRule::PyScheduleRule)
+      .def("tvm.meta_schedule.ScheduleRuleDefaultLLVM", ScheduleRule::DefaultLLVM)
+      .def("tvm.meta_schedule.ScheduleRuleDefaultCUDA", ScheduleRule::DefaultCUDA)
+      .def("tvm.meta_schedule.ScheduleRuleDefaultCUDATensorCore",
+           ScheduleRule::DefaultCUDATensorCore)
+      .def("tvm.meta_schedule.ScheduleRuleDefaultHexagon", ScheduleRule::DefaultHexagon)
+      .def("tvm.meta_schedule.ScheduleRuleDefaultARM", ScheduleRule::DefaultARM);
 }
 
 }  // namespace meta_schedule

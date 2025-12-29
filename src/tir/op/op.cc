@@ -267,10 +267,10 @@ PrimExpr break_loop(Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.ret", ret)
-      .def("tir.thread_return", thread_return)
-      .def("tir.continue_loop", continue_loop)
-      .def("tir.break_loop", break_loop);
+      .def("tvm.tir.ret", ret)
+      .def("tvm.tir.thread_return", thread_return)
+      .def("tvm.tir.continue_loop", continue_loop)
+      .def("tvm.tir.break_loop", break_loop);
 };
 
 // maximum and min limits
@@ -839,7 +839,7 @@ PrimExpr bitwise_neg(PrimExpr a, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.bitwise_not",
+  refl::GlobalDef().def("tvm.tir.bitwise_not",
                         [](PrimExpr a, Span span) { return bitwise_neg(a, span); });
 }
 
@@ -918,7 +918,7 @@ PrimExpr isnan(PrimExpr x, Span span) {
     if (fx) {
       return make_const(t, std::isnan(fx->value), fx->span);
     }
-    static auto op = Op::Get("tir.isnan");
+    static auto op = Op::Get("tvm.tir.isnan");
     if (x.dtype().bits() == 16) {
       return tir::Call(t, op, {cast(DataType::Float(32, t.lanes()), std::move(x), span)}, span);
     } else {
@@ -1013,7 +1013,7 @@ PrimExpr floor(PrimExpr x, Span span) {
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::floor(fx->value), fx->span);
-  static auto op = Op::Get("tir.floor");
+  static auto op = Op::Get("tvm.tir.floor");
   return tir::Call(x.dtype(), op, {x}, span);
 }
 
@@ -1027,7 +1027,7 @@ PrimExpr ceil(PrimExpr x, Span span) {
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::ceil(fx->value), fx->span);
-  static auto op = Op::Get("tir.ceil");
+  static auto op = Op::Get("tvm.tir.ceil");
   return tir::Call(x.dtype(), op, {x}, span);
 }
 
@@ -1041,7 +1041,7 @@ PrimExpr round(PrimExpr x, Span span) {
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::nearbyint(fx->value), fx->span);
-  static auto op = Op::Get("tir.round");
+  static auto op = Op::Get("tvm.tir.round");
   return tir::Call(x.dtype(), op, {x}, span);
 }
 
@@ -1055,7 +1055,7 @@ PrimExpr nearbyint(PrimExpr x, Span span) {
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::nearbyint(fx->value), fx->span);
-  static auto op = Op::Get("tir.nearbyint");
+  static auto op = Op::Get("tvm.tir.nearbyint");
   return tir::Call(x.dtype(), op, {x}, span);
 }
 
@@ -1072,7 +1072,7 @@ PrimExpr trunc(PrimExpr x, Span span) {
     return FloatImm(x.dtype(), (fx->value < 0 ? std::ceil(fx->value) : std::floor(fx->value)),
                     fx->span);
   }
-  static auto op = Op::Get("tir.trunc");
+  static auto op = Op::Get("tvm.tir.trunc");
   return tir::Call(x.dtype(), op, {x}, span);
 }
 
@@ -1152,7 +1152,7 @@ TVM_TIR_REGISTER_OP("TVMBackendFreeWorkspace")
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_packed("node._const",
+      .def_packed("tvm.node._const",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
                     if (auto opt = args[0].try_cast<int64_t>()) {
                       *ret = tir::make_const(args[1].cast<DataType>(), *opt, args[2].cast<Span>());
@@ -1164,22 +1164,22 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                  << args[0].GetTypeKey();
                     }
                   })
-      .def("node.LargeUIntImm", LargeUIntImm)
-      .def("tir.min_value", min_value)
-      .def("tir.max_value", max_value)
-      .def("tir.infinity", infinity)
-      .def("tir.abs", tvm::abs)
-      .def("tir.likely", tvm::likely)
-      .def("tir.isnan", tvm::isnan)
-      .def("tir.isfinite", tvm::isfinite)
-      .def("tir.isinf", tvm::isinf)
-      .def("tir.floor", tvm::floor)
-      .def("tir.ceil", tvm::ceil)
-      .def("tir.round", tvm::round)
-      .def("tir.nearbyint", tvm::nearbyint)
-      .def("tir.trunc", tvm::trunc)
-      .def("tir._cast", tvm::cast)
-      .def("tir.reinterpret", tvm::reinterpret);
+      .def("tvm.node.LargeUIntImm", LargeUIntImm)
+      .def("tvm.tir.min_value", min_value)
+      .def("tvm.tir.max_value", max_value)
+      .def("tvm.tir.infinity", infinity)
+      .def("tvm.tir.abs", tvm::abs)
+      .def("tvm.tir.likely", tvm::likely)
+      .def("tvm.tir.isnan", tvm::isnan)
+      .def("tvm.tir.isfinite", tvm::isfinite)
+      .def("tvm.tir.isinf", tvm::isinf)
+      .def("tvm.tir.floor", tvm::floor)
+      .def("tvm.tir.ceil", tvm::ceil)
+      .def("tvm.tir.round", tvm::round)
+      .def("tvm.tir.nearbyint", tvm::nearbyint)
+      .def("tvm.tir.trunc", tvm::trunc)
+      .def("tvm.tir._cast", tvm::cast)
+      .def("tvm.tir.reinterpret", tvm::reinterpret);
 }
 
 // operator overloading, smarter than make
@@ -1202,11 +1202,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir._OpIfThenElse",
+      .def("tvm.tir._OpIfThenElse",
            [](PrimExpr cond, PrimExpr true_value, PrimExpr false_value, Span span) {
              return if_then_else(cond, true_value, false_value, span);
            })
-      .def("tir.const_true", [](DataType t, Span span) { return const_true(t.lanes(), span); })
+      .def("tvm.tir.const_true", [](DataType t, Span span) { return const_true(t.lanes(), span); })
       .DEF_MAKE_BINARY_OP(_OpAdd, add)
       .DEF_MAKE_BINARY_OP(_OpSub, sub)
       .DEF_MAKE_BINARY_OP(_OpMul, mul)

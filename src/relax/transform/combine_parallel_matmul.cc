@@ -390,7 +390,7 @@ Pass CombineParallelMatmul(FCheck check) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.CombineParallelMatmul", CombineParallelMatmul);
+  refl::GlobalDef().def("tvm.relax.transform.CombineParallelMatmul", CombineParallelMatmul);
 }
 
 }  // namespace transform

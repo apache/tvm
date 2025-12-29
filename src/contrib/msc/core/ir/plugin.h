@@ -279,7 +279,7 @@ class PluginAttrNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.PluginAttr", PluginAttrNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.msc.core.PluginAttr", PluginAttrNode, Object);
 };
 
 /*!
@@ -347,7 +347,7 @@ class PluginTensorNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.PluginTensor", PluginTensorNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.msc.core.PluginTensor", PluginTensorNode, Object);
 };
 
 /*!
@@ -416,7 +416,7 @@ class PluginExternNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.PluginExtern", PluginExternNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.msc.core.PluginExtern", PluginExternNode, Object);
 };
 
 /*!
@@ -506,7 +506,7 @@ class PluginNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("msc.core.Plugin", PluginNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.msc.core.Plugin", PluginNode, Object);
 };
 
 /*!

@@ -55,22 +55,22 @@ static PrimExpr DispatchMetalShuffle(const PrimExpr& e) {
 TVM_REGISTER_OP("tir.clz").set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic",
                                                      DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.floor")
+TVM_REGISTER_OP("tvm.tir.floor")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.ceil")
+TVM_REGISTER_OP("tvm.tir.ceil")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.trunc")
+TVM_REGISTER_OP("tvm.tir.trunc")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.fabs")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.round")
+TVM_REGISTER_OP("tvm.tir.round")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.nearbyint")
+TVM_REGISTER_OP("tvm.tir.nearbyint")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic",

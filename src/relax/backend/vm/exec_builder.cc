@@ -322,25 +322,25 @@ void ExecBuilderNode::Formalize() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("relax.ExecBuilderCreate", ExecBuilderNode::Create)
-      .def_packed("relax.ExecBuilderConvertConstant",
+      .def("tvm.relax.ExecBuilderCreate", ExecBuilderNode::Create)
+      .def_packed("tvm.relax.ExecBuilderConvertConstant",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
                     ExecBuilder builder = args[0].cast<ExecBuilder>();
                     ffi::Any rt;
                     rt = args[1];
                     *ret = builder->ConvertConstant(rt).data();
                   })
-      .def("relax.ExecBuilderEmitFunction",
+      .def("tvm.relax.ExecBuilderEmitFunction",
            [](ExecBuilder builder, ffi::String func, int64_t num_inputs,
               ffi::Optional<ffi::Array<ffi::String>> param_names) {
              builder->EmitFunction(func, num_inputs, param_names);
            })
-      .def_method("relax.ExecBuilderEndFunction", &ExecBuilderNode::EndFunction)
-      .def("relax.ExecBuilderDeclareFunction",
+      .def_method("tvm.relax.ExecBuilderEndFunction", &ExecBuilderNode::EndFunction)
+      .def("tvm.relax.ExecBuilderDeclareFunction",
            [](ExecBuilder builder, ffi::String name, int32_t kind) {
              builder->DeclareFunction(name, static_cast<VMFuncInfo::FuncKind>(kind));
            })
-      .def("relax.ExecBuilderEmitCall",
+      .def("tvm.relax.ExecBuilderEmitCall",
            [](ExecBuilder builder, ffi::String name, ffi::Array<IntImm> args, int64_t dst) {
              std::vector<Instruction::Arg> args_;
              for (size_t i = 0; i < args.size(); ++i) {
@@ -349,31 +349,31 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              auto dst_ = Instruction::Arg::Register(dst);
              builder->EmitCall(name, args_, dst_.value());
            })
-      .def("relax.ExecBuilderEmitRet",
+      .def("tvm.relax.ExecBuilderEmitRet",
            [](ExecBuilder builder, int64_t data) {
              builder->EmitRet(Instruction::Arg::FromData(data));
            })
-      .def_method("relax.ExecBuilderEmitGoto", &ExecBuilderNode::EmitGoto)
-      .def("relax.ExecBuilderEmitIf",
+      .def_method("tvm.relax.ExecBuilderEmitGoto", &ExecBuilderNode::EmitGoto)
+      .def("tvm.relax.ExecBuilderEmitIf",
            [](ExecBuilder builder, int64_t data, vm::Index false_offset) {
              builder->EmitIf(Instruction::Arg::FromData(data), false_offset);
            })
-      .def("relax.ExecBuilderR",
+      .def("tvm.relax.ExecBuilderR",
            [](ExecBuilder builder, int64_t value) {
              return Instruction::Arg::Register(value).data();
            })
-      .def("relax.ExecBuilderImm",
+      .def("tvm.relax.ExecBuilderImm",
            [](ExecBuilder builder, int64_t value) {
              return Instruction::Arg::Immediate(value).data();
            })
-      .def("relax.ExecBuilderC",
+      .def("tvm.relax.ExecBuilderC",
            [](ExecBuilder builder, int64_t value) {
              return Instruction::Arg::ConstIdx(value).data();
            })
       .def(
-          "relax.ExecBuilderF",
+          "tvm.relax.ExecBuilderF",
           [](ExecBuilder builder, ffi::String value) { return builder->GetFunction(value).data(); })
-      .def("relax.ExecBuilderGet", [](ExecBuilder builder) {
+      .def("tvm.relax.ExecBuilderGet", [](ExecBuilder builder) {
         ObjectPtr<VMExecutable> p_exec = builder->Get();
         return ffi::Module(p_exec);
       });

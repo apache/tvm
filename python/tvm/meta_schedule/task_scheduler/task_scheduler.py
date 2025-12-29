@@ -38,7 +38,7 @@ from ..tune_context import TuneContext
 logger = get_logger(__name__)  # pylint: disable=invalid-name
 
 
-@register_object("meta_schedule.TaskRecord")
+@register_object("tvm.meta_schedule.TaskRecord")
 class TaskRecord(Object):
     """The running record of a task."""
 
@@ -53,7 +53,7 @@ class TaskRecord(Object):
     runner_results: List[RunnerResult]
 
 
-@register_object("meta_schedule.TaskScheduler")
+@register_object("tvm.meta_schedule.TaskScheduler")
 class TaskScheduler(Object):
     """The abstract task scheduler interface."""
 
@@ -189,7 +189,7 @@ class TaskScheduler(Object):
 create = TaskScheduler.create  # pylint: disable=invalid-name
 
 
-@register_object("meta_schedule.PyTaskScheduler")
+@register_object("tvm.meta_schedule.PyTaskScheduler")
 class _PyTaskScheduler(TaskScheduler):
     """
     A TVM object task scheduler to support customization on the python side.

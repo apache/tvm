@@ -143,8 +143,8 @@ class TaskExtractor : public ExprVisitor {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.backend.MetaScheduleExtractTask", [](IRModule mod, Target target,
-                                                                    ffi::String mod_eq_name) {
+  refl::GlobalDef().def("tvm.relax.backend.MetaScheduleExtractTask", [](IRModule mod, Target target,
+                                                                        ffi::String mod_eq_name) {
     return TaskExtractor::ExtractTask(std::move(mod), std::move(target), std::move(mod_eq_name));
   });
 }

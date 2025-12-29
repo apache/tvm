@@ -91,7 +91,7 @@ ffi::Array<ffi::Module> DNNLCompiler(ffi::Array<Function> functions,
     serializer.serialize(func);
     auto graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();
-    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.DNNLJSONRuntimeCreate");
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("tvm.runtime.DNNLJSONRuntimeCreate");
     auto func_name = GetExtSymbol(func);
     compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<ffi::Module>());
   }
@@ -101,7 +101,7 @@ ffi::Array<ffi::Module> DNNLCompiler(ffi::Array<Function> functions,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.ext.dnnl", DNNLCompiler);
+  refl::GlobalDef().def("tvm.relax.ext.dnnl", DNNLCompiler);
 }
 
 }  // namespace contrib

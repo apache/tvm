@@ -41,7 +41,7 @@ struct InjectDoubleBufferConfigNode : public AttrsNodeReflAdapter<InjectDoubleBu
         "split_loop", &InjectDoubleBufferConfigNode::split_loop, "Split loop factors",
         refl::DefaultValue(1));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.InjectDoubleBufferConfig",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.transform.InjectDoubleBufferConfig",
                                     InjectDoubleBufferConfigNode, BaseAttrsNode);
 };
 
@@ -328,7 +328,7 @@ Pass InjectDoubleBuffer() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.InjectDoubleBuffer", InjectDoubleBuffer);
+  refl::GlobalDef().def("tvm.tir.transform.InjectDoubleBuffer", InjectDoubleBuffer);
 }
 
 }  // namespace transform

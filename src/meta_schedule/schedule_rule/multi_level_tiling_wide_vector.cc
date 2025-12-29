@@ -45,7 +45,7 @@ class MultiLevelTilingWideVectorNode : public MultiLevelTilingNode {
     refl::ObjectDef<MultiLevelTilingWideVectorNode>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MultiLevelTilingWideVector",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.MultiLevelTilingWideVector",
                                     MultiLevelTilingWideVectorNode, MultiLevelTilingNode);
 
  protected:
@@ -136,7 +136,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingWideVector(
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   MultiLevelTilingWideVectorNode::RegisterReflection();
-  refl::GlobalDef().def("meta_schedule.ScheduleRuleMultiLevelTilingWideVector",
+  refl::GlobalDef().def("tvm.meta_schedule.ScheduleRuleMultiLevelTilingWideVector",
                         ScheduleRule::MultiLevelTilingWideVector);
 }
 

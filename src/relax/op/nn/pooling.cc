@@ -75,7 +75,7 @@ Expr max_pool1d(Expr data, ffi::Array<IntImm> pool_size, ffi::Array<IntImm> stri
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.max_pool1d", max_pool1d);
+  refl::GlobalDef().def("tvm.relax.op.nn.max_pool1d", max_pool1d);
 }
 
 StructInfo InferStructInfoPool1D(const Call& call, const BlockBuilder& ctx) {
@@ -191,7 +191,7 @@ Expr max_pool2d(Expr data, ffi::Array<IntImm> pool_size, ffi::Array<IntImm> stri
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.max_pool2d", max_pool2d);
+  refl::GlobalDef().def("tvm.relax.op.nn.max_pool2d", max_pool2d);
 }
 
 StructInfo InferStructInfoPool2D(const Call& call, const BlockBuilder& ctx) {
@@ -334,7 +334,7 @@ Expr max_pool3d(Expr data, ffi::Array<IntImm> pool_size, ffi::Array<IntImm> stri
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.max_pool3d", max_pool3d);
+  refl::GlobalDef().def("tvm.relax.op.nn.max_pool3d", max_pool3d);
 }
 
 StructInfo InferStructInfoPool3D(const Call& call, const BlockBuilder& ctx) {
@@ -424,7 +424,7 @@ Expr avg_pool1d(Expr data, ffi::Array<IntImm> pool_size, ffi::Array<IntImm> stri
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.avg_pool1d", avg_pool1d);
+  refl::GlobalDef().def("tvm.relax.op.nn.avg_pool1d", avg_pool1d);
 }
 
 TVM_REGISTER_OP("relax.nn.avg_pool1d")
@@ -446,7 +446,7 @@ Expr avg_pool2d(Expr data, ffi::Array<IntImm> pool_size, ffi::Array<IntImm> stri
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.avg_pool2d", avg_pool2d);
+  refl::GlobalDef().def("tvm.relax.op.nn.avg_pool2d", avg_pool2d);
 }
 
 TVM_REGISTER_OP("relax.nn.avg_pool2d")
@@ -468,7 +468,7 @@ Expr avg_pool3d(Expr data, ffi::Array<IntImm> pool_size, ffi::Array<IntImm> stri
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.avg_pool3d", avg_pool3d);
+  refl::GlobalDef().def("tvm.relax.op.nn.avg_pool3d", avg_pool3d);
 }
 
 TVM_REGISTER_OP("relax.nn.avg_pool3d")
@@ -501,7 +501,7 @@ Expr adaptive_avg_pool1d(Expr data, ffi::Optional<ffi::Array<IntImm>> output_siz
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.adaptive_avg_pool1d", adaptive_avg_pool1d);
+  refl::GlobalDef().def("tvm.relax.op.nn.adaptive_avg_pool1d", adaptive_avg_pool1d);
 }
 
 StructInfo InferStructInfoAdaptiveAvgPool1D(const Call& call, const BlockBuilder& ctx) {
@@ -586,7 +586,7 @@ Expr adaptive_avg_pool2d(Expr data, ffi::Optional<ffi::Array<IntImm>> output_siz
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.adaptive_avg_pool2d", adaptive_avg_pool2d);
+  refl::GlobalDef().def("tvm.relax.op.nn.adaptive_avg_pool2d", adaptive_avg_pool2d);
 }
 
 StructInfo InferStructInfoAdaptiveAvgPool2D(const Call& call, const BlockBuilder& ctx) {
@@ -688,7 +688,7 @@ Expr adaptive_avg_pool3d(Expr data, ffi::Optional<ffi::Array<IntImm>> output_siz
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.nn.adaptive_avg_pool3d", adaptive_avg_pool3d);
+  refl::GlobalDef().def("tvm.relax.op.nn.adaptive_avg_pool3d", adaptive_avg_pool3d);
 }
 
 StructInfo InferStructInfoAdaptiveAvgPool3D(const Call& call, const BlockBuilder& ctx) {

@@ -188,7 +188,7 @@ Pass InlineParams(const ffi::String& entry_name) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.InlineParams", InlineParams);
+  refl::GlobalDef().def("tvm.relax.transform.InlineParams", InlineParams);
 }
 
 }  // namespace transform

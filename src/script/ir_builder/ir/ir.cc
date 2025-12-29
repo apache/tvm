@@ -164,14 +164,14 @@ VDevice LookupVDevice(ffi::String target_kind, int device_index) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("script.ir_builder.ir.IRModule", IRModule)
-      .def("script.ir_builder.ir.DeclFunction", DeclFunction)
-      .def("script.ir_builder.ir.DefFunction", DefFunction)
-      .def("script.ir_builder.ir.ModuleAttrs", ModuleAttrs)
-      .def("script.ir_builder.ir.ModuleGetAttr", ModuleGetAttr)
-      .def("script.ir_builder.ir.ModuleSetAttr", ModuleSetAttr)
-      .def("script.ir_builder.ir.ModuleGlobalInfos", ModuleGlobalInfos)
-      .def("script.ir_builder.ir.LookupVDevice", LookupVDevice);
+      .def("tvm.script.ir_builder.ir.IRModule", IRModule)
+      .def("tvm.script.ir_builder.ir.DeclFunction", DeclFunction)
+      .def("tvm.script.ir_builder.ir.DefFunction", DefFunction)
+      .def("tvm.script.ir_builder.ir.ModuleAttrs", ModuleAttrs)
+      .def("tvm.script.ir_builder.ir.ModuleGetAttr", ModuleGetAttr)
+      .def("tvm.script.ir_builder.ir.ModuleSetAttr", ModuleSetAttr)
+      .def("tvm.script.ir_builder.ir.ModuleGlobalInfos", ModuleGlobalInfos)
+      .def("tvm.script.ir_builder.ir.LookupVDevice", LookupVDevice);
 }
 
 }  // namespace ir

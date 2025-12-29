@@ -17,4 +17,4 @@
 """Constructor APIs"""
 import tvm_ffi
 
-tvm_ffi.init_ffi_api("relax.op.image", __name__)
+tvm_ffi.init_ffi_api("tvm.relax.op.image", __name__)

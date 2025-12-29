@@ -75,7 +75,7 @@ struct Resize2DAttrs : public AttrsNodeReflAdapter<Resize2DAttrs> {
             "The dtype of the output tensor. It it is not specified, the output will have the same "
             "dtype as input if not specified.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Resize2DAttrs", Resize2DAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.Resize2DAttrs", Resize2DAttrs, BaseAttrsNode);
 };  // struct Resize2dAttrs
 
 /*! \brief Attributes used in image grid_sample operator */
@@ -97,7 +97,8 @@ struct GridSampleAttrs : public AttrsNodeReflAdapter<GridSampleAttrs> {
         .def_ro("align_corners", &GridSampleAttrs::align_corners,
                 "If True, the corner pixels of the input and output tensors are aligned.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GridSampleAttrs", GridSampleAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.GridSampleAttrs", GridSampleAttrs,
+                                    BaseAttrsNode);
 };  // struct GridSampleAttrs
 
 }  // namespace relax

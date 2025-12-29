@@ -163,7 +163,7 @@ class IndexMapNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.IndexMap", IndexMapNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.IndexMap", IndexMapNode, Object);
 };
 
 class IndexMap : public ObjectRef {

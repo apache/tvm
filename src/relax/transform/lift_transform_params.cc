@@ -667,7 +667,7 @@ class ConsumeBundledParams : public ExprMutator {
  public:
   void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* tuple_get_item) final {
     static const auto& call_pure_packed = Op::Get("relax.call_pure_packed");
-    static const auto& builtin_tuple_reset_item = ExternFunc("vm.builtin.tuple_reset_item");
+    static const auto& builtin_tuple_reset_item = ExternFunc("tvm.vm.builtin.tuple_reset_item");
     if (tuple_get_item->tuple.same_as(params_)) {
       if (auto it = param_remap_.find(tuple_get_item->index); it != param_remap_.end()) {
         ReEmitBinding(binding, it->second);
@@ -870,7 +870,7 @@ Pass LiftTransformParams(ffi::Variant<Bool, ffi::Array<ffi::String>> shared_tran
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.LiftTransformParams", LiftTransformParams);
+  refl::GlobalDef().def("tvm.relax.transform.LiftTransformParams", LiftTransformParams);
 }
 
 }  // namespace transform

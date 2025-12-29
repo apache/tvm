@@ -44,7 +44,7 @@ struct StatisticalAttrs : public AttrsNodeReflAdapter<StatisticalAttrs> {
                 "with size "
                 "one.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.StatisticalAttrs", StatisticalAttrs,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.StatisticalAttrs", StatisticalAttrs,
                                     BaseAttrsNode);
 };  // struct StatisticalAttrs
 
@@ -66,7 +66,7 @@ struct ScanopAttrs : public AttrsNodeReflAdapter<ScanopAttrs> {
         .def_ro("exclusive", &ScanopAttrs::exclusive, "The first element is not included",
                 refl::DefaultValue(Bool(false)));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScanopAttrs", ScanopAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.ScanopAttrs", ScanopAttrs, BaseAttrsNode);
 };  // struct ScanopAttrs
 
 }  // namespace relax

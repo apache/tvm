@@ -41,7 +41,7 @@ struct TakeAttrs : public AttrsNodeReflAdapter<TakeAttrs> {
         .def_ro("mode", &TakeAttrs::mode, "The mode for handling out-of-bounds indices.",
                 refl::DefaultValue("fast"));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TakeAttrs", TakeAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.TakeAttrs", TakeAttrs, BaseAttrsNode);
 };  // struct TakeAttrs
 
 /*! \brief Attributes used in strided_slice operator */
@@ -56,7 +56,7 @@ struct StridedSliceAttrs : public AttrsNodeReflAdapter<StridedSliceAttrs> {
         "out of bound indices will be clipped to the bound.",
         refl::DefaultValue(true));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.StridedSliceAttrs", StridedSliceAttrs,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.StridedSliceAttrs", StridedSliceAttrs,
                                     BaseAttrsNode);
 };  // struct StridedSliceAttrs
 

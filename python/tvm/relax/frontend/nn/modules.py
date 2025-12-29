@@ -600,7 +600,7 @@ class KVCache(Effect):
         return [
             bb.emit(
                 rx.op.call_pure_packed(
-                    "vm.builtin.attention_kv_cache_create",
+                    "tvm.vm.builtin.attention_kv_cache_create",
                     rx.op.zeros(init_shape, self.dtype),
                     init_shape,
                     rx.PrimValue(0),
@@ -673,7 +673,7 @@ class KVCache(Effect):
         return Tensor(
             _expr=rx.BlockBuilder.current().emit(
                 rx.op.call_pure_packed(
-                    "vm.builtin.attention_kv_cache_view",
+                    "tvm.vm.builtin.attention_kv_cache_view",
                     self.cache,
                     shape,
                     sinfo_args=rx.TensorStructInfo(shape, self.dtype),
@@ -697,7 +697,7 @@ class KVCache(Effect):
             )
         self.cache = rx.BlockBuilder.current().emit(
             rx.op.call_inplace_packed(
-                "vm.builtin.attention_kv_cache_append",
+                "tvm.vm.builtin.attention_kv_cache_append",
                 self.cache,
                 new_element._expr,
                 inplace_indices=[0],

@@ -761,7 +761,7 @@ Pass BF16ComputeLegalize() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.BF16ComputeLegalize", BF16ComputeLegalize);
+  refl::GlobalDef().def("tvm.tir.transform.BF16ComputeLegalize", BF16ComputeLegalize);
 }
 
 Pass BF16StorageLegalize() {
@@ -777,7 +777,7 @@ Pass BF16StorageLegalize() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.BF16StorageLegalize", BF16StorageLegalize);
+  refl::GlobalDef().def("tvm.tir.transform.BF16StorageLegalize", BF16StorageLegalize);
 }
 
 Pass FP8ComputeLegalize(ffi::String promote_dtype) {
@@ -793,7 +793,7 @@ Pass FP8ComputeLegalize(ffi::String promote_dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.FP8ComputeLegalize", FP8ComputeLegalize);
+  refl::GlobalDef().def("tvm.tir.transform.FP8ComputeLegalize", FP8ComputeLegalize);
 }
 
 Pass FP8StorageLegalize() {
@@ -809,7 +809,7 @@ Pass FP8StorageLegalize() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.FP8StorageLegalize", FP8StorageLegalize);
+  refl::GlobalDef().def("tvm.tir.transform.FP8StorageLegalize", FP8StorageLegalize);
 }
 
 }  // namespace transform

@@ -90,7 +90,7 @@ class TensorNode : public DataProducerNode {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.Tensor", TensorNode, DataProducerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.te.Tensor", TensorNode, DataProducerNode);
 };
 
 /*!

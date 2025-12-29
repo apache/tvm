@@ -25,7 +25,7 @@ from tvm.runtime import Object
 from . import _ffi_api
 
 
-@register_object("meta_schedule.Profiler")
+@register_object("tvm.meta_schedule.Profiler")
 class Profiler(Object):
     """Tuning time profiler."""
 

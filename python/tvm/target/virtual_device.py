@@ -21,7 +21,7 @@ import tvm_ffi
 from . import _ffi_api
 
 
-@tvm_ffi.register_object("target.VirtualDevice")
+@tvm_ffi.register_object("tvm.target.VirtualDevice")
 class VirtualDevice(tvm_ffi.core.Object):
     """A compile time representation for where data is to be stored at runtime,
     and how to compile code to compute it."""

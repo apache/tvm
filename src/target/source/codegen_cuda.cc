@@ -1109,7 +1109,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // to determine the output location for each 8 element.
 
     const auto index_map_func =
-        tvm::ffi::Function::GetGlobal("tir.index_map.shared_16x16_to_ldmatrix_32x8_layout");
+        tvm::ffi::Function::GetGlobal("tvm.tir.index_map.shared_16x16_to_ldmatrix_32x8_layout");
     ICHECK(index_map_func.has_value());
 
     arith::Analyzer analyzer;

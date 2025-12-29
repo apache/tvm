@@ -124,7 +124,7 @@ class StateNode : public Object {
   virtual State Copy() const;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.State", StateNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.meta_schedule.State", StateNode, Object);
 };
 
 /*! \brief Managed reference to StateNode */
@@ -227,7 +227,7 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
         .def_ro("tile_binds", &MultiLevelTilingNode::tile_binds)
         .def_ro("max_innermost_factor", &MultiLevelTilingNode::max_innermost_factor);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.MultiLevelTiling", MultiLevelTilingNode,
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.meta_schedule.MultiLevelTiling", MultiLevelTilingNode,
                               ScheduleRuleNode);
 };
 

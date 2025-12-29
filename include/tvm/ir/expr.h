@@ -64,7 +64,7 @@ class BaseExprNode : public Object {
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
   static constexpr const uint32_t _type_child_slots = 64;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.BaseExpr", BaseExprNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.ir.BaseExpr", BaseExprNode, Object);
 };
 
 /*!
@@ -114,7 +114,7 @@ class PrimExprNode : public BaseExprNode {
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
   static constexpr const uint32_t _type_child_slots = 40;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExpr", PrimExprNode, BaseExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.ir.PrimExpr", PrimExprNode, BaseExprNode);
 };
 
 /*!
@@ -155,7 +155,7 @@ class PrimExprConvertibleNode : public Object {
  public:
   virtual ~PrimExprConvertibleNode() {}
   virtual PrimExpr ToPrimExpr() const = 0;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExprConvertible", PrimExprConvertibleNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.ir.PrimExprConvertible", PrimExprConvertibleNode, Object);
 };
 
 /*!
@@ -429,7 +429,7 @@ class RelaxExprNode : public BaseExprNode {
   }
 
   static constexpr const uint32_t _type_child_slots = 22;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.RelaxExpr", RelaxExprNode, BaseExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.ir.RelaxExpr", RelaxExprNode, BaseExprNode);
 };
 
 /*!
@@ -471,7 +471,7 @@ class GlobalVarNode : public RelaxExprNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.GlobalVar", GlobalVarNode, RelaxExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.GlobalVar", GlobalVarNode, RelaxExprNode);
 };
 
 /*!
@@ -499,7 +499,7 @@ class IntImmNode : public PrimExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IntImmNode>().def_ro("value", &IntImmNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.IntImm", IntImmNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.IntImm", IntImmNode, PrimExprNode);
 };
 
 /*!
@@ -534,7 +534,7 @@ class FloatImmNode : public PrimExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FloatImmNode>().def_ro("value", &FloatImmNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.FloatImm", FloatImmNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.FloatImm", FloatImmNode, PrimExprNode);
 };
 
 /*!
@@ -682,7 +682,7 @@ class RangeNode : public Object {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Range", RangeNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.ir.Range", RangeNode, Object);
 };
 
 /*! \brief Range container  */

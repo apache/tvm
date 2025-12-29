@@ -283,12 +283,12 @@ CUDAThreadEntry* CUDAThreadEntry::ThreadLocal() { return CUDAThreadStore::Get();
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_packed("device_api.cuda",
+      .def_packed("tvm.device_api.cuda",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     DeviceAPI* ptr = CUDADeviceAPI::Global();
                     *rv = static_cast<void*>(ptr);
                   })
-      .def_packed("device_api.cuda_host", [](ffi::PackedArgs args, ffi::Any* rv) {
+      .def_packed("tvm.device_api.cuda_host", [](ffi::PackedArgs args, ffi::Any* rv) {
         DeviceAPI* ptr = CUDADeviceAPI::Global();
         *rv = static_cast<void*>(ptr);
       });
@@ -323,7 +323,7 @@ class CUDATimerNode : public TimerNode {
     CUDA_CALL(cudaEventCreate(&start_));
     CUDA_CALL(cudaEventCreate(&stop_));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.cuda.CUDATimerNode", CUDATimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.runtime.cuda.CUDATimerNode", CUDATimerNode, TimerNode);
 
  private:
   cudaEvent_t start_;
@@ -333,7 +333,7 @@ class CUDATimerNode : public TimerNode {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("profiling.timer.cuda",
+  refl::GlobalDef().def("tvm.profiling.timer.cuda",
                         [](Device dev) { return Timer(ffi::make_object<CUDATimerNode>()); });
 }
 
@@ -349,8 +349,8 @@ TVM_DLL ffi::String GetCudaFreeMemory() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.GetCudaFreeMemory", GetCudaFreeMemory)
-      .def("runtime.get_cuda_stream", []() {
+      .def("tvm.runtime.GetCudaFreeMemory", GetCudaFreeMemory)
+      .def("tvm.runtime.get_cuda_stream", []() {
         // TODO(tvm-team): remove once confirms all dep such as flashinfer
         // migrated to TVMFFIEnvGetStream
         int device_id;
@@ -367,7 +367,7 @@ TVM_DLL int GetCudaDeviceCount() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.GetCudaDeviceCount", GetCudaDeviceCount);
+  refl::GlobalDef().def("tvm.runtime.GetCudaDeviceCount", GetCudaDeviceCount);
 }
 
 #if (CUDA_VERSION >= 12000)
@@ -396,8 +396,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  */
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("runtime.cuTensorMapEncodeTiled", [](ffi::PackedArgs args,
-                                                                    ffi::Any* rv) {
+  refl::GlobalDef().def_packed("tvm.runtime.cuTensorMapEncodeTiled", [](ffi::PackedArgs args,
+                                                                        ffi::Any* rv) {
     CHECK_GE(args.size(), 4) << "init_cuTensorMap expects at least 4 arguments";
     size_t arg_cnt = 0;
     CUtensorMap* tensor_map = static_cast<CUtensorMap*>(args[arg_cnt++].cast<void*>());

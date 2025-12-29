@@ -121,7 +121,8 @@ class InstructionKindNode : public runtime::Object {
 
   /*! \brief Checks if the instruction kind is EnterPostproc */
   bool IsPostproc() const;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.InstructionKind", InstructionKindNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.InstructionKind", InstructionKindNode,
+                                    runtime::Object);
 };
 
 /*!
@@ -179,7 +180,7 @@ class InstructionNode : public runtime::Object {
         .def_ro("attrs", &InstructionNode::attrs)
         .def_ro("outputs", &InstructionNode::outputs);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Instruction", InstructionNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Instruction", InstructionNode, runtime::Object);
 };
 
 /*!

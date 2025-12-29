@@ -73,7 +73,7 @@ class DocNode : public Object {
 
   static constexpr bool _type_mutable = true;
 
-  TVM_FFI_DECLARE_OBJECT_INFO("script.printer.Doc", DocNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.script.printer.Doc", DocNode, Object);
 
  public:
   virtual ~DocNode() = default;
@@ -134,7 +134,7 @@ class ExprDocNode : public DocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ExprDocNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("script.printer.ExprDoc", ExprDocNode, DocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.script.printer.ExprDoc", ExprDocNode, DocNode);
 };
 
 /*!
@@ -179,7 +179,7 @@ class StmtDocNode : public DocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<StmtDocNode>().def_rw("comment", &StmtDocNode::comment);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("script.printer.StmtDoc", StmtDocNode, DocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.script.printer.StmtDoc", StmtDocNode, DocNode);
 };
 
 /*!
@@ -210,7 +210,7 @@ class StmtBlockDocNode : public DocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<StmtBlockDocNode>().def_ro("stmts", &StmtBlockDocNode::stmts);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.StmtBlockDoc", StmtBlockDocNode, DocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.StmtBlockDoc", StmtBlockDocNode, DocNode);
 };
 
 /*!
@@ -249,7 +249,7 @@ class LiteralDocNode : public ExprDocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<LiteralDocNode>().def_ro("value", &LiteralDocNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.LiteralDoc", LiteralDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.LiteralDoc", LiteralDocNode, ExprDocNode);
 };
 
 /*!
@@ -338,7 +338,7 @@ class IdDocNode : public ExprDocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IdDocNode>().def_ro("name", &IdDocNode::name);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.IdDoc", IdDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.IdDoc", IdDocNode, ExprDocNode);
 };
 
 /*!
@@ -375,7 +375,8 @@ class AttrAccessDocNode : public ExprDocNode {
         .def_ro("value", &AttrAccessDocNode::value)
         .def_ro("name", &AttrAccessDocNode::name);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.AttrAccessDoc", AttrAccessDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.AttrAccessDoc", AttrAccessDocNode,
+                                    ExprDocNode);
 };
 
 /*!
@@ -418,7 +419,7 @@ class IndexDocNode : public ExprDocNode {
         .def_ro("value", &IndexDocNode::value)
         .def_ro("indices", &IndexDocNode::indices);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.IndexDoc", IndexDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.IndexDoc", IndexDocNode, ExprDocNode);
 };
 
 /*!
@@ -466,7 +467,7 @@ class CallDocNode : public ExprDocNode {
         .def_ro("kwargs_keys", &CallDocNode::kwargs_keys)
         .def_ro("kwargs_values", &CallDocNode::kwargs_values);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.CallDoc", CallDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.CallDoc", CallDocNode, ExprDocNode);
 };
 
 /*!
@@ -547,7 +548,8 @@ class OperationDocNode : public ExprDocNode {
         .def_ro("kind", &OperationDocNode::kind)
         .def_ro("operands", &OperationDocNode::operands);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.OperationDoc", OperationDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.OperationDoc", OperationDocNode,
+                                    ExprDocNode);
 };
 
 /*!
@@ -587,7 +589,7 @@ class LambdaDocNode : public ExprDocNode {
         .def_ro("args", &LambdaDocNode::args)
         .def_ro("body", &LambdaDocNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.LambdaDoc", LambdaDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.LambdaDoc", LambdaDocNode, ExprDocNode);
 };
 
 /*!
@@ -620,7 +622,7 @@ class TupleDocNode : public ExprDocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TupleDocNode>().def_ro("elements", &TupleDocNode::elements);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.TupleDoc", TupleDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.TupleDoc", TupleDocNode, ExprDocNode);
 };
 
 /*!
@@ -656,7 +658,7 @@ class ListDocNode : public ExprDocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ListDocNode>().def_ro("elements", &ListDocNode::elements);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.ListDoc", ListDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.ListDoc", ListDocNode, ExprDocNode);
 };
 
 /*!
@@ -701,7 +703,7 @@ class DictDocNode : public ExprDocNode {
         .def_ro("keys", &DictDocNode::keys)
         .def_ro("values", &DictDocNode::values);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.DictDoc", DictDocNode, ExprDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.DictDoc", DictDocNode, ExprDocNode);
 };
 
 /*!
@@ -747,7 +749,7 @@ class SliceDocNode : public DocNode {
         .def_ro("stop", &SliceDocNode::stop)
         .def_ro("step", &SliceDocNode::step);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.SliceDoc", SliceDocNode, DocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.SliceDoc", SliceDocNode, DocNode);
 };
 
 /*!
@@ -793,7 +795,7 @@ class AssignDocNode : public StmtDocNode {
         .def_ro("rhs", &AssignDocNode::rhs)
         .def_ro("annotation", &AssignDocNode::annotation);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.AssignDoc", AssignDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.AssignDoc", AssignDocNode, StmtDocNode);
 };
 
 /*!
@@ -834,7 +836,7 @@ class IfDocNode : public StmtDocNode {
         .def_ro("then_branch", &IfDocNode::then_branch)
         .def_ro("else_branch", &IfDocNode::else_branch);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.IfDoc", IfDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.IfDoc", IfDocNode, StmtDocNode);
 };
 
 /*!
@@ -873,7 +875,7 @@ class WhileDocNode : public StmtDocNode {
         .def_ro("predicate", &WhileDocNode::predicate)
         .def_ro("body", &WhileDocNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.WhileDoc", WhileDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.WhileDoc", WhileDocNode, StmtDocNode);
 };
 
 /*!
@@ -917,7 +919,7 @@ class ForDocNode : public StmtDocNode {
         .def_ro("rhs", &ForDocNode::rhs)
         .def_ro("body", &ForDocNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.ForDoc", ForDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.ForDoc", ForDocNode, StmtDocNode);
 };
 
 /*!
@@ -963,7 +965,7 @@ class ScopeDocNode : public StmtDocNode {
         .def_ro("rhs", &ScopeDocNode::rhs)
         .def_ro("body", &ScopeDocNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.ScopeDoc", ScopeDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.ScopeDoc", ScopeDocNode, StmtDocNode);
 };
 
 /*!
@@ -1005,7 +1007,7 @@ class ExprStmtDocNode : public StmtDocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ExprStmtDocNode>().def_ro("expr", &ExprStmtDocNode::expr);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.ExprStmtDoc", ExprStmtDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.ExprStmtDoc", ExprStmtDocNode, StmtDocNode);
 };
 
 /*!
@@ -1041,7 +1043,7 @@ class AssertDocNode : public StmtDocNode {
         .def_ro("test", &AssertDocNode::test)
         .def_ro("msg", &AssertDocNode::msg);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.AssertDoc", AssertDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.AssertDoc", AssertDocNode, StmtDocNode);
 };
 
 /*!
@@ -1074,7 +1076,7 @@ class ReturnDocNode : public StmtDocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ReturnDocNode>().def_ro("value", &ReturnDocNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.ReturnDoc", ReturnDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.ReturnDoc", ReturnDocNode, StmtDocNode);
 };
 
 /*!
@@ -1125,7 +1127,7 @@ class FunctionDocNode : public StmtDocNode {
         .def_ro("return_type", &FunctionDocNode::return_type)
         .def_ro("body", &FunctionDocNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.FunctionDoc", FunctionDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.FunctionDoc", FunctionDocNode, StmtDocNode);
 };
 
 /*!
@@ -1169,7 +1171,7 @@ class ClassDocNode : public StmtDocNode {
         .def_ro("decorators", &ClassDocNode::decorators)
         .def_ro("body", &ClassDocNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.ClassDoc", ClassDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.ClassDoc", ClassDocNode, StmtDocNode);
 };
 
 /*!
@@ -1200,7 +1202,7 @@ class CommentDocNode : public StmtDocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<CommentDocNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.CommentDoc", CommentDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.CommentDoc", CommentDocNode, StmtDocNode);
 };
 
 /*!
@@ -1225,7 +1227,8 @@ class DocStringDocNode : public StmtDocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DocStringDocNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.DocStringDoc", DocStringDocNode, StmtDocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.script.printer.DocStringDoc", DocStringDocNode,
+                                    StmtDocNode);
 };
 
 /*!

@@ -258,7 +258,7 @@ class BlockBuilderNode : public Object {
   virtual arith::Analyzer* GetAnalyzer() = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.BlockBuilder", BlockBuilderNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.relax.BlockBuilder", BlockBuilderNode, Object);
 };
 
 class BlockBuilder : public ObjectRef {

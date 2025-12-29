@@ -54,7 +54,7 @@ class BlockRVNode : public runtime::Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BlockRVNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BlockRV", BlockRVNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.BlockRV", BlockRVNode, runtime::Object);
 };
 
 /*!
@@ -77,7 +77,7 @@ class LoopRVNode : public runtime::Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<LoopRVNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.LoopRV", LoopRVNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.LoopRV", LoopRVNode, runtime::Object);
 };
 
 /*!
@@ -110,7 +110,7 @@ class ScheduleNode : public runtime::Object {
   virtual ~ScheduleNode() = default;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Schedule", ScheduleNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.Schedule", ScheduleNode, runtime::Object);
 
  public:
   /*! \brief Get the IRModule associated with this schedule. */

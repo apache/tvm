@@ -103,7 +103,7 @@ class ConstIntBoundNode : public Object {
   static const constexpr int64_t kNegInf = -kPosInf;
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.ConstIntBound", ConstIntBoundNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.arith.ConstIntBound", ConstIntBoundNode, Object);
 };
 
 /*!
@@ -215,7 +215,7 @@ class ModularSetNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.ModularSet", ModularSetNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.arith.ModularSet", ModularSetNode, Object);
 };
 
 /*!

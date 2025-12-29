@@ -652,7 +652,7 @@ bool WellFormed(ffi::Variant<IRModule, Function> obj, bool check_struct_info) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.analysis.well_formed", WellFormed);
+  refl::GlobalDef().def("tvm.relax.analysis.well_formed", WellFormed);
 }
 
 }  // namespace relax

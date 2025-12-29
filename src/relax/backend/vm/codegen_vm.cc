@@ -76,7 +76,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       return arg;
     } else {
       RegName dst_reg = NewRegister();
-      builder_->EmitCall("vm.builtin.copy", {arg}, dst_reg);
+      builder_->EmitCall("tvm.vm.builtin.copy", {arg}, dst_reg);
       return Instruction::Arg::Register(dst_reg);
     }
   }
@@ -119,7 +119,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
           // "del" operator.  These bindings may be removable by using
           // relax.transform.CanonicalizeBindings earlier in lowering.
           RegName new_reg = NewRegister();
-          builder_->EmitCall("vm.builtin.copy", {value}, new_reg);
+          builder_->EmitCall("tvm.vm.builtin.copy", {value}, new_reg);
           value = Instruction::Arg::Register(new_reg);
         }
 
@@ -168,7 +168,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
     // Reserve a register for cond
     RegName cond_reg = NewRegister();
-    builder_->EmitCall("vm.builtin.read_if_cond", {cond_value}, cond_reg);
+    builder_->EmitCall("tvm.vm.builtin.read_if_cond", {cond_value}, cond_reg);
 
     // obtain the temp exec in progress.
     vm::VMExecutable* exec = builder_->exec();
@@ -182,7 +182,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     // Reserve a register for return
     size_t merge_register = NewRegister();
     // Copy the output from true branch to merge register
-    builder_->EmitCall("vm.builtin.copy", {true_value}, merge_register);
+    builder_->EmitCall("tvm.vm.builtin.copy", {true_value}, merge_register);
 
     // Record the offset of Goto instruction
     size_t goto_offset = exec->instr_offset.size();
@@ -194,7 +194,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
     Instruction::Arg false_value = this->VisitExpr(ife->false_branch);
     // Copy the output data of false branch to merge register
-    builder_->EmitCall("vm.builtin.copy", {false_value}, merge_register);
+    builder_->EmitCall("tvm.vm.builtin.copy", {false_value}, merge_register);
 
     // Update the offsets of the If instruction emitted above
     // Jump to the behind of the next goto instruction
@@ -256,7 +256,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       args.push_back(this->VisitExpr(arg));
     }
     size_t dst_register = NewRegister();
-    builder_->EmitCall("vm.builtin.make_tuple", args, dst_register);
+    builder_->EmitCall("tvm.vm.builtin.make_tuple", args, dst_register);
 
     return Instruction::Arg::Register(dst_register);
   }
@@ -268,7 +268,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     args.push_back(builder_->ConvertConstant(expr->index));
 
     size_t dst_register = NewRegister();
-    builder_->EmitCall("vm.builtin.tuple_getitem", args, dst_register);
+    builder_->EmitCall("tvm.vm.builtin.tuple_getitem", args, dst_register);
 
     return Instruction::Arg::Register(dst_register);
   }
@@ -329,7 +329,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     for (auto arg : call_node->args) {
       args.push_back(this->VisitExpr(arg));
     }
-    builder_->EmitCall("vm.builtin.alloc_storage", args, dst_reg);
+    builder_->EmitCall("tvm.vm.builtin.alloc_storage", args, dst_reg);
   }
 
   void EmitAllocTensor(const Call& call_node, RegName dst_reg) {
@@ -339,7 +339,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     for (Expr arg : call_node->args) {
       args.push_back(this->VisitExpr(arg));
     }
-    builder_->EmitCall("vm.builtin.alloc_tensor", args, dst_reg);
+    builder_->EmitCall("tvm.vm.builtin.alloc_tensor", args, dst_reg);
   }
 
   RegName EmitKillObject(const Call& call_node) {
@@ -350,7 +350,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
         << "but argument " << call_node->args[0] << " produced VM instruction of type "
         << arg.kind();
     RegName dst_reg = arg.value();
-    builder_->EmitCall("vm.builtin.null_value", {}, dst_reg);
+    builder_->EmitCall("tvm.vm.builtin.null_value", {}, dst_reg);
     return dst_reg;
   }
 
@@ -378,7 +378,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       std::vector<Instruction::Arg> closure_args = {
           Instruction::Arg::Register(Instruction::kVMRegister), func};
       std::copy(args.begin(), args.end(), std::back_inserter(closure_args));
-      builder_->EmitCall("vm.builtin.invoke_closure", closure_args, dst_reg);
+      builder_->EmitCall("tvm.vm.builtin.invoke_closure", closure_args, dst_reg);
     }
   }
 
@@ -428,7 +428,7 @@ IRModule VMCodeGen(ExecBuilder exec_builder, IRModule mod) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.VMCodeGen", VMCodeGen);
+  refl::GlobalDef().def("tvm.relax.VMCodeGen", VMCodeGen);
 }
 
 /*!
@@ -497,7 +497,7 @@ ffi::Module VMLink(ExecBuilder builder, Target target, ffi::Optional<ffi::Module
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.VMLink", VMLink);
+  refl::GlobalDef().def("tvm.relax.VMLink", VMLink);
 }
 
 }  // namespace codegen_vm

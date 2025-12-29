@@ -464,7 +464,7 @@ Pass LowerWarpMemory() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.LowerWarpMemory", LowerWarpMemory);
+  refl::GlobalDef().def("tvm.tir.transform.LowerWarpMemory", LowerWarpMemory);
 }
 
 }  // namespace transform

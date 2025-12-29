@@ -29,7 +29,7 @@ from tvm.target import Target
 from .. import _ffi_api
 
 
-@register_object("meta_schedule.BuilderInput")
+@register_object("tvm.meta_schedule.BuilderInput")
 class BuilderInput(Object):
     """The builder's input.
 
@@ -72,7 +72,7 @@ class BuilderInput(Object):
         )
 
 
-@register_object("meta_schedule.BuilderResult")
+@register_object("tvm.meta_schedule.BuilderResult")
 class BuilderResult(Object):
     """The builder's result.
 
@@ -108,7 +108,7 @@ class BuilderResult(Object):
         )
 
 
-@register_object("meta_schedule.Builder")
+@register_object("tvm.meta_schedule.Builder")
 class Builder(Object):
     """The abstract builder interface."""
 
@@ -156,7 +156,7 @@ class Builder(Object):
 create = Builder.create  # pylint: disable=invalid-name
 
 
-@register_object("meta_schedule.PyBuilder")
+@register_object("tvm.meta_schedule.PyBuilder")
 class _PyBuilder(Builder):
     """
     A TVM object builder to support customization on the python side.

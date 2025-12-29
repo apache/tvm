@@ -18,4 +18,4 @@
 import tvm_ffi
 
 
-tvm_ffi.init_ffi_api("transform", __name__)
+tvm_ffi.init_ffi_api("tvm.transform", __name__)

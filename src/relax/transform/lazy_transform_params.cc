@@ -263,7 +263,7 @@ Pass LazyGetInput() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.LazyGetInput", LazyGetInput);
+  refl::GlobalDef().def("tvm.relax.transform.LazyGetInput", LazyGetInput);
 }
 
 Pass LazySetOutput() {
@@ -281,7 +281,7 @@ Pass LazySetOutput() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.LazySetOutput", LazySetOutput);
+  refl::GlobalDef().def("tvm.relax.transform.LazySetOutput", LazySetOutput);
 }
 
 }  // namespace transform

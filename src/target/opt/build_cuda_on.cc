@@ -158,9 +158,9 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
   }
   std::string fmt = "ptx";
   std::string ptx;
-  auto f_enter = ffi::Function::GetGlobal("target.TargetEnterScope");
+  auto f_enter = ffi::Function::GetGlobal("tvm.target.TargetEnterScope");
   (*f_enter)(target);
-  if (auto f = ffi::Function::GetGlobal("tvm_callback_cuda_compile")) {
+  if (auto f = ffi::Function::GetGlobal("tvm.tvm_callback_cuda_compile")) {
     ptx = (*f)(code, target).cast<std::string>();
     // Dirty matching to check PTX vs cubin.
     // TODO(tqchen) more reliable checks
@@ -168,14 +168,14 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
   } else {
     ptx = NVRTCCompile(code, cg.need_include_path());
   }
-  auto f_exit = ffi::Function::GetGlobal("target.TargetExitScope");
+  auto f_exit = ffi::Function::GetGlobal("tvm.target.TargetExitScope");
   (*f_exit)(target);
   return CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(mod), code);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("target.build.cuda", BuildCUDA);
+  refl::GlobalDef().def("tvm.target.build.cuda", BuildCUDA);
 }
 TVM_REGISTER_PASS_CONFIG_OPTION("cuda.kernels_output_dir", ffi::String);
 }  // namespace codegen

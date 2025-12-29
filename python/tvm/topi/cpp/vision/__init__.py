@@ -21,4 +21,4 @@ import tvm_ffi
 from . import yolo
 from ...vision import nms
 
-tvm_ffi.init_ffi_api("topi.vision", "tvm.topi.cpp.vision")
+tvm_ffi.init_ffi_api("tvm.topi.vision", "tvm.topi.cpp.vision")

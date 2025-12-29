@@ -267,7 +267,7 @@ void Allocator::Clear() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("vm.builtin.memory_manager.clear", MemoryManager::Clear);
+  refl::GlobalDef().def("tvm.vm.builtin.memory_manager.clear", MemoryManager::Clear);
 }
 
 }  // namespace memory

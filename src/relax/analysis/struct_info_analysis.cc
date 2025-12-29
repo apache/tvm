@@ -75,7 +75,7 @@ Type GetStaticType(const StructInfo& info) { return StaticTypeDeriver()(info); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.analysis.GetStaticType",
+  refl::GlobalDef().def("tvm.relax.analysis.GetStaticType",
                         [](const StructInfo& info) { return GetStaticType(info); });
 }
 
@@ -293,7 +293,7 @@ StructInfo EraseToWellDefined(const StructInfo& info, ffi::Map<tir::Var, PrimExp
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "relax.analysis.EraseToWellDefined",
+      "tvm.relax.analysis.EraseToWellDefined",
       [](const StructInfo& info, ffi::Map<tir::Var, PrimExpr> shape_var_map,
          ffi::Map<Var, Expr> var_map) { return EraseToWellDefined(info, shape_var_map, var_map); });
 }
@@ -605,7 +605,7 @@ BaseCheckResult StructInfoBaseCheck(const StructInfo& base, const StructInfo& de
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.analysis.StructInfoBaseCheck",
+  refl::GlobalDef().def("tvm.relax.analysis.StructInfoBaseCheck",
                         [](const StructInfo& base, const StructInfo& derived) -> int {
                           return static_cast<int>(StructInfoBaseCheck(base, derived));
                         });
@@ -618,7 +618,7 @@ bool IsBaseOf(const StructInfo& base, const StructInfo& derived, arith::Analyzer
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "relax.StructInfoIsBaseOf",
+      "tvm.relax.StructInfoIsBaseOf",
       [](const StructInfo& base, const StructInfo& derived) { return IsBaseOf(base, derived); });
 }
 
@@ -970,7 +970,7 @@ StructInfo DeriveCallRetStructInfo(const FuncStructInfo& finfo, const Call& call
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.analysis.DeriveCallRetStructInfo",
+  refl::GlobalDef().def("tvm.relax.analysis.DeriveCallRetStructInfo",
                         [](const FuncStructInfo& finfo, const Call& call, const BlockBuilder& ctx) {
                           return DeriveCallRetStructInfo(finfo, call, ctx);
                         });
@@ -1177,7 +1177,7 @@ StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs, arith::An
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "relax.analysis.StructInfoLCA",
+      "tvm.relax.analysis.StructInfoLCA",
       [](const StructInfo& lhs, const StructInfo& rhs) { return StructInfoLCA(lhs, rhs); });
 }
 
@@ -1262,8 +1262,8 @@ ffi::Array<tir::Var> DefinableTIRVarsInStructInfo(const StructInfo& sinfo) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("relax.analysis.TIRVarsInStructInfo", TIRVarsInStructInfo)
-      .def("relax.analysis.DefinableTIRVarsInStructInfo", DefinableTIRVarsInStructInfo);
+      .def("tvm.relax.analysis.TIRVarsInStructInfo", TIRVarsInStructInfo)
+      .def("tvm.relax.analysis.DefinableTIRVarsInStructInfo", DefinableTIRVarsInStructInfo);
 }
 
 class NonNegativeExpressionCollector : relax::StructInfoVisitor {
@@ -1310,7 +1310,7 @@ ffi::Array<PrimExpr> CollectNonNegativeExpressions(const StructInfo& sinfo) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.analysis.CollectNonNegativeExpressions",
+  refl::GlobalDef().def("tvm.relax.analysis.CollectNonNegativeExpressions",
                         CollectNonNegativeExpressions);
 }
 
@@ -1463,8 +1463,8 @@ ffi::Array<tir::Var> FreeSymbolicVars(const Expr& expr) { return SymbolicVarColl
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("relax.analysis.DefinedSymbolicVars", DefinedSymbolicVars)
-      .def("relax.analysis.FreeSymbolicVars", FreeSymbolicVars);
+      .def("tvm.relax.analysis.DefinedSymbolicVars", DefinedSymbolicVars)
+      .def("tvm.relax.analysis.FreeSymbolicVars", FreeSymbolicVars);
 }
 
 }  // namespace relax

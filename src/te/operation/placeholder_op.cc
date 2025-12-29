@@ -64,19 +64,20 @@ Tensor placeholder(ffi::Array<PrimExpr> shape, DataType dtype, std::string name)
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("te.Placeholder", [](ffi::Variant<PrimExpr, ffi::Array<PrimExpr>> shape_arg,
-                                             DataType dtype, std::string name) {
-    auto shape = [&]() -> ffi::Array<PrimExpr> {
-      if (auto arg_expr = shape_arg.as<PrimExpr>()) {
-        return {arg_expr.value()};
-      } else if (auto arg_array = shape_arg.as<ffi::Array<PrimExpr>>()) {
-        return arg_array.value();
-      } else {
-        LOG(FATAL) << "Variant did not contain either allowed type";
-      }
-    }();
-    return placeholder(shape, dtype, name);
-  });
+  refl::GlobalDef().def(
+      "tvm.te.Placeholder",
+      [](ffi::Variant<PrimExpr, ffi::Array<PrimExpr>> shape_arg, DataType dtype, std::string name) {
+        auto shape = [&]() -> ffi::Array<PrimExpr> {
+          if (auto arg_expr = shape_arg.as<PrimExpr>()) {
+            return {arg_expr.value()};
+          } else if (auto arg_array = shape_arg.as<ffi::Array<PrimExpr>>()) {
+            return arg_array.value();
+          } else {
+            LOG(FATAL) << "Variant did not contain either allowed type";
+          }
+        }();
+        return placeholder(shape, dtype, name);
+      });
 }
 
 ffi::Array<Tensor> PlaceholderOpNode::InputTensors() const { return {}; }

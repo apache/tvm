@@ -33,9 +33,9 @@ namespace tvm {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("ir.BaseFunc_Attrs", [](BaseFunc func) { return func->attrs; })
-      .def("ir.BaseFuncCopy", [](BaseFunc func) { return func; })
-      .def("ir.BaseFuncWithAttr",
+      .def("tvm.ir.BaseFunc_Attrs", [](BaseFunc func) { return func->attrs; })
+      .def("tvm.ir.BaseFuncCopy", [](BaseFunc func) { return func; })
+      .def("tvm.ir.BaseFuncWithAttr",
            [](ffi::RValueRef<BaseFunc> func_ref, ffi::String key, Any value) -> BaseFunc {
              BaseFunc func = *std::move(func_ref);
              if (func->IsInstance<tir::PrimFuncNode>()) {
@@ -48,14 +48,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
              }
            })
-      .def("ir.BaseFuncWithAttrs",
+      .def("tvm.ir.BaseFuncWithAttrs",
            [](ffi::RValueRef<BaseFunc> func_ref,
               ffi::Map<ffi::String, ffi::Any> attr_map) -> BaseFunc {
              BaseFunc func = *std::move(func_ref);
              if (func->IsInstance<tir::PrimFuncNode>()) {
                return WithAttrs(Downcast<tir::PrimFunc>(std::move(func)), attr_map);
              }
-             if (const auto f = tvm::ffi::Function::GetGlobal("relax.FuncWithAttrs")) {
+             if (const auto f = tvm::ffi::Function::GetGlobal("tvm.relax.FuncWithAttrs")) {
                if (auto ret = (*f)(func, attr_map).cast<ffi::Optional<BaseFunc>>()) {
                  return ret.value();
                }
@@ -66,7 +66,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
              TVM_FFI_UNREACHABLE();
            })
-      .def("ir.BaseFuncWithoutAttr",
+      .def("tvm.ir.BaseFuncWithoutAttr",
            [](ffi::RValueRef<BaseFunc> func_ref, ffi::String key) -> BaseFunc {
              BaseFunc func = *std::move(func_ref);
              if (func->IsInstance<tir::PrimFuncNode>()) {

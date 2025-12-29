@@ -27,7 +27,7 @@ namespace meta_schedule {
 ffi::String GetRuleKindFromTarget(const Target& target) {
   if (target->kind->name == "llvm") {
     static auto target_has_feature_fn_ptr =
-        tvm::ffi::Function::GetGlobalRequired("target.target_has_feature");
+        tvm::ffi::Function::GetGlobalRequired("tvm.target.target_has_feature");
     bool have_avx512vnni = target_has_feature_fn_ptr("avx512vnni", target).cast<bool>();
     bool have_avxvnni = target_has_feature_fn_ptr("avxvnni", target).cast<bool>();
     if (have_avx512vnni || have_avxvnni) {
@@ -123,7 +123,7 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
       default_mutator_probs = Mutator::DefaultLLVM();
     } else if (kind == "rvv") {
       static auto llvm_get_vector_width =
-          tvm::ffi::Function::GetGlobalRequired("target.llvm_get_vector_width");
+          tvm::ffi::Function::GetGlobalRequired("tvm.target.llvm_get_vector_width");
       const int vlen = llvm_get_vector_width(context->target.value()).cast<int>();
       default_sch_rules = ScheduleRule::DefaultRISCV(vlen);
       default_postprocs = Postproc::DefaultRISCV();
@@ -209,12 +209,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("meta_schedule.SpaceGeneratorInitializeWithTuneContext",
+      .def_method("tvm.meta_schedule.SpaceGeneratorInitializeWithTuneContext",
                   &SpaceGeneratorNode::InitializeWithTuneContext)
-      .def_method("meta_schedule.SpaceGeneratorGenerateDesignSpace",
+      .def_method("tvm.meta_schedule.SpaceGeneratorGenerateDesignSpace",
                   &SpaceGeneratorNode::GenerateDesignSpace)
-      .def("meta_schedule.SpaceGeneratorPySpaceGenerator", SpaceGenerator::PySpaceGenerator)
-      .def_method("meta_schedule.SpaceGeneratorClone", &SpaceGeneratorNode::Clone);
+      .def("tvm.meta_schedule.SpaceGeneratorPySpaceGenerator", SpaceGenerator::PySpaceGenerator)
+      .def_method("tvm.meta_schedule.SpaceGeneratorClone", &SpaceGeneratorNode::Clone);
 }
 
 }  // namespace meta_schedule

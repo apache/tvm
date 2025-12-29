@@ -177,7 +177,7 @@ Pass ReorderPermuteDimsAfterConcat() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.ReorderPermuteDimsAfterConcat",
+  refl::GlobalDef().def("tvm.relax.transform.ReorderPermuteDimsAfterConcat",
                         ReorderPermuteDimsAfterConcat);
 }
 

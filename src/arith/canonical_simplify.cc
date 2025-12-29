@@ -53,7 +53,7 @@ class CanonicalExprNode : public PrimExprNode {
   virtual PrimExpr Normalize() const = 0;
 
   static constexpr const uint32_t _type_child_slots = 2;
-  TVM_FFI_DECLARE_OBJECT_INFO("arith.CanonicalExpr", CanonicalExprNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.arith.CanonicalExpr", CanonicalExprNode, PrimExprNode);
 };
 
 inline PrimExpr ModImpl(PrimExpr a, PrimExpr b, DivMode mode) {
@@ -203,7 +203,7 @@ class SplitExprNode : public CanonicalExprNode {
 
   /*! \brief positive infty */
   static const constexpr int64_t kPosInf = ConstIntBoundNode::kPosInf;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.SplitExpr", SplitExprNode, CanonicalExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.arith.SplitExpr", SplitExprNode, CanonicalExprNode);
 };
 
 class SplitExpr : public PrimExpr {
@@ -388,7 +388,7 @@ class SumExprNode : public CanonicalExprNode {
     }
     this->dtype = dtype;
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.SumExpr", SumExprNode, CanonicalExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.arith.SumExpr", SumExprNode, CanonicalExprNode);
 
  private:
   /*!

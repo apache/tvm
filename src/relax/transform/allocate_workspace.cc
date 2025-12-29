@@ -204,7 +204,7 @@ Pass AllocateWorkspace() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.AllocateWorkspace", AllocateWorkspace);
+  refl::GlobalDef().def("tvm.relax.transform.AllocateWorkspace", AllocateWorkspace);
 }
 
 }  // namespace transform

@@ -134,7 +134,7 @@ class PassContextNode : public Object {
         .def_ro("config", &PassContextNode::config)
         .def_ro("diag_ctx", &PassContextNode::diag_ctx);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.PassContext", PassContextNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.transform.PassContext", PassContextNode, Object);
 };
 
 /*!
@@ -340,7 +340,7 @@ class PassInfoNode : public Object {
         .def_ro("required", &PassInfoNode::required)
         .def_ro("traceable", &PassInfoNode::traceable);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.PassInfo", PassInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.transform.PassInfo", PassInfoNode, Object);
 };
 
 /*!
@@ -394,7 +394,7 @@ class PassNode : public Object {
    * \return The transformed module.
    */
   virtual IRModule operator()(IRModule mod, const PassContext& pass_ctx) const = 0;
-  TVM_FFI_DECLARE_OBJECT_INFO("transform.Pass", PassNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.transform.Pass", PassNode, Object);
 };
 
 class Pass : public ObjectRef {
@@ -485,7 +485,7 @@ class SequentialNode : public PassNode {
    * \return Return the updated module.
    */
   IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.Sequential", SequentialNode, PassNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.transform.Sequential", SequentialNode, PassNode);
 };
 
 class Sequential : public Pass {

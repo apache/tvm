@@ -234,7 +234,7 @@ Pass FuseTuple(const ffi::String& target, const ffi::String& entry_name) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.FuseTuple", FuseTuple);
+  refl::GlobalDef().def("tvm.relax.transform.FuseTuple", FuseTuple);
 }
 
 }  // namespace transform

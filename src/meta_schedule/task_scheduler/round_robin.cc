@@ -33,7 +33,8 @@ class RoundRobinNode final : public TaskSchedulerNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RoundRobinNode>().def_ro("task_id", &RoundRobinNode::task_id);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RoundRobin", RoundRobinNode, TaskSchedulerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.RoundRobin", RoundRobinNode,
+                                    TaskSchedulerNode);
 
  protected:
   int NextTaskId() final {
@@ -66,7 +67,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { RoundRobinNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.TaskSchedulerRoundRobin", TaskScheduler::RoundRobin);
+  refl::GlobalDef().def("tvm.meta_schedule.TaskSchedulerRoundRobin", TaskScheduler::RoundRobin);
 }
 
 }  // namespace meta_schedule

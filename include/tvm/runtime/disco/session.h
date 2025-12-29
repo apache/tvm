@@ -152,7 +152,7 @@ class DRefObj : public Object {
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimeDiscoDRef;
   static const constexpr bool _type_final = true;
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_STATIC("runtime.disco.DRef", DRefObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_STATIC("tvm.runtime.disco.DRef", DRefObj, Object);
 
   /*! \brief The id of the register */
   int64_t reg_id;
@@ -257,7 +257,7 @@ class SessionObj : public Object {
   friend class DRefObj;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("runtime.disco.Session", SessionObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.runtime.disco.Session", SessionObj, Object);
 
  protected:
   /*! \brief Deallocate a register id, kill it on all workers, and append it to `free_regs_`. */

@@ -38,7 +38,7 @@ tvm::transform::Pass ApplyEmptyCppMutator() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.testing.transform.ApplyEmptyCppMutator", ApplyEmptyCppMutator);
+  refl::GlobalDef().def("tvm.relax.testing.transform.ApplyEmptyCppMutator", ApplyEmptyCppMutator);
 }
 
 }  // namespace testing

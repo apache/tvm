@@ -136,7 +136,7 @@ Pass BindShape(const ffi::String& entry_name) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.BindShape", BindShape);
+  refl::GlobalDef().def("tvm.relax.transform.BindShape", BindShape);
 }
 
 }  // namespace transform

@@ -39,7 +39,7 @@ void RelaxCodeGen::CodeGenGraph() {
   for (const auto& i : graph()->GetInputs()) {
     const auto& pair = graph()->FindProducerAndIdx(i);
     const auto& idx_input = IdxOutputBase(pair.first, pair.second);
-    stack_.func_arg(idx_input, "relax.Var");
+    stack_.func_arg(idx_input, "tvm.relax.Var");
     idx_inputs.push_back(idx_input);
   }
   if (config()->use_plugin) {
@@ -52,9 +52,9 @@ void RelaxCodeGen::CodeGenGraph() {
     const auto& node = graph()->FindNode(n);
     for (const auto& pair : node->weights) {
       const auto& idx_weight = IdxWeightBase(node, pair.first, false);
-      stack_.func_call("relax.Var", idx_weight)
+      stack_.func_call("tvm.relax.Var", idx_weight)
           .call_arg(DocUtils::ToStr(pair.second->name))
-          .func_call("relax.TensorStructInfo")
+          .func_call("tvm.relax.TensorStructInfo")
           .call_arg(DocUtils::ToList(pair.second->shape, true), "")
           .call_arg(DocUtils::ToStr(pair.second->DTypeName()))
           .pop_nest()
@@ -63,7 +63,7 @@ void RelaxCodeGen::CodeGenGraph() {
     }
   }
   stack_.comment("Define the module");
-  stack_.func_call("relax.BlockBuilder", "block_builder")
+  stack_.func_call("tvm.relax.BlockBuilder", "block_builder")
       .scope_start("block_builder.function(name=\"" + graph()->name + "\", params=inputs.copy())");
   if (config()->use_tools) {
     stack_.func_call("msc_tools.execute_step")
@@ -100,7 +100,7 @@ void RelaxCodeGen::CodeGenGraph() {
           const auto& t_output = IdxOutputBase(e, o_idx, true);
           tuple_outputs.push_back(t_output);
         }
-        stack_.func_call("relax.Tuple", idx_exit).call_arg(DocUtils::ToList(tuple_outputs));
+        stack_.func_call("tvm.relax.Tuple", idx_exit).call_arg(DocUtils::ToList(tuple_outputs));
         stack_.func_call("emit", idx_exit, "block_builder").call_arg(idx_exit);
         stack_.call_arg(DocUtils::ToStr(e->name + "_exit"), "name_hint");
       }
@@ -136,9 +136,9 @@ void RelaxCodeGen::CodeGenInference() {
   }
   for (const auto& i : graph()->GetInputs()) {
     const auto& producer = graph()->FindProducer(i);
-    stack_.func_call("relax.Var", IdxNodeBase(producer))
+    stack_.func_call("tvm.relax.Var", IdxNodeBase(producer))
         .call_arg(DocUtils::ToStr(i->alias))
-        .func_call("relax.TensorStructInfo")
+        .func_call("tvm.relax.TensorStructInfo")
         .call_arg(DocUtils::ToList(i->shape))
         .call_arg(DocUtils::ToStr(i->DTypeName()))
         .pop_nest();
@@ -214,7 +214,7 @@ const ffi::Array<Doc> RelaxCodeGen::GetOpCodes(const MSCJoint& node) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("msc.framework.tvm.GetRelaxSources",
+  refl::GlobalDef().def("tvm.msc.framework.tvm.GetRelaxSources",
                         [](const MSCGraph& graph, const ffi::String& codegen_config,
                            const ffi::String& print_config) -> ffi::Map<ffi::String, ffi::String> {
                           RelaxCodeGen codegen = RelaxCodeGen(graph, codegen_config);

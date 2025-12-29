@@ -301,9 +301,9 @@ int main(int argc, char* argv[]) {
   void* self = dlopen(argv[0], RTLD_GLOBAL);
   ICHECK(self != nullptr);
 
-  const auto api = tvm::ffi::Function::GetGlobal("device_api.hexagon");
+  const auto api = tvm::ffi::Function::GetGlobal("tvm.device_api.hexagon");
   ICHECK(api.has_value());
-  tvm::ffi::Function::SetGlobal("device_api.cpu", *api, true);
+  tvm::ffi::Function::SetGlobal("tvm.device_api.cpu", *api, true);
 
   tvm::runtime::hexagon::SimulatorRPCServer server;
 

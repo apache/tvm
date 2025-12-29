@@ -54,7 +54,7 @@ ConstIntBound MakeConstIntBound(int64_t min_value, int64_t max_value) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("arith.ConstIntBound", MakeConstIntBound);
+  refl::GlobalDef().def("tvm.arith.ConstIntBound", MakeConstIntBound);
 }
 
 inline void PrintBoundValue(std::ostream& os, int64_t val) {
@@ -807,7 +807,7 @@ class ConstIntBoundAnalyzer::Impl
   static ffi::Optional<PrimExpr> FindCeilLog2Arg(const CastNode* op) {
     if (op->dtype.is_int()) {
       if (auto as_call = op->value.as<CallNode>()) {
-        if (as_call->op.same_as(Op::Get("tir.ceil"))) {
+        if (as_call->op.same_as(Op::Get("tvm.tir.ceil"))) {
           PrimExpr ceil_arg = as_call->args[0];
           if (auto arg_call = ceil_arg.as<CallNode>()) {
             if (arg_call->op.same_as(Op::Get("tir.log2"))) {

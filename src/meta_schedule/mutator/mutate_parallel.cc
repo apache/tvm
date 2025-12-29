@@ -176,7 +176,7 @@ class MutateParallelNode : public MutatorNode {
     refl::ObjectDef<MutateParallelNode>().def_ro("max_jobs_per_core",
                                                  &MutateParallelNode::max_jobs_per_core);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.MutateParallel", MutateParallelNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.MutateParallel", MutateParallelNode,
                                     MutatorNode);
 
  public:
@@ -316,7 +316,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { MutateParallelNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.MutatorMutateParallel", Mutator::MutateParallel);
+  refl::GlobalDef().def("tvm.meta_schedule.MutatorMutateParallel", Mutator::MutateParallel);
 }
 
 }  // namespace meta_schedule

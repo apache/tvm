@@ -131,7 +131,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         return Tensor(
             _expr=rx.BlockBuilder.current().emit(
                 rx.call_dps_packed(
-                    "vm.builtin.attention_kv_cache_attention_with_fused_qkv",
+                    "tvm.vm.builtin.attention_kv_cache_attention_with_fused_qkv",
                     [
                         self._expr,
                         rx.PrimValue(layer_id),  # type: ignore[arg-type]
@@ -161,7 +161,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         bb = rx.BlockBuilder.current()
         attn_results = bb.emit(
             rx.call_dps_packed(
-                "vm.builtin.attention_kv_cache_self_attention",
+                "tvm.vm.builtin.attention_kv_cache_self_attention",
                 [
                     self._expr,
                     rx.PrimValue(layer_id),  # type: ignore[arg-type]
@@ -196,7 +196,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         bb = rx.BlockBuilder.current()
         attn_results = bb.emit(
             rx.call_dps_packed(
-                "vm.builtin.attention_kv_cache_cross_attention",
+                "tvm.vm.builtin.attention_kv_cache_cross_attention",
                 [
                     self._expr,
                     rx.PrimValue(layer_id),  # type: ignore[arg-type]
@@ -222,7 +222,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         kv = kv.reshape(b * s, d_qk)
         return PagedKVCache(
             _expr=rx.call_pure_packed(
-                "vm.builtin.attention_kv_cache_append_mla_kv",
+                "tvm.vm.builtin.attention_kv_cache_append_mla_kv",
                 self._expr,
                 rx.PrimValue(layer_id),  # type: ignore[arg-type]
                 kv._expr,
@@ -250,7 +250,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         bb = rx.BlockBuilder.current()
         merge_results = bb.emit(
             rx.call_pure_packed(
-                "vm.builtin.attention_kv_cache_merge_attn_output_inplace",
+                "tvm.vm.builtin.attention_kv_cache_merge_attn_output_inplace",
                 self._expr,
                 o_self_attn._expr,
                 lse_self_attn._expr,
@@ -287,7 +287,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         return Tensor(
             _expr=rx.BlockBuilder.current().emit(
                 rx.call_pure_packed(
-                    "vm.builtin.attention_kv_cache_get_query_positions",
+                    "tvm.vm.builtin.attention_kv_cache_get_query_positions",
                     self._expr,
                     sinfo_args=rx.TensorStructInfo((total_length,), "int32"),
                 )
@@ -477,7 +477,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
         ]
         super().__init__(
             _expr=rx.call_pure_packed(
-                "vm.builtin.paged_attention_kv_cache_create",
+                "tvm.vm.builtin.paged_attention_kv_cache_create",
                 *args,
                 sinfo_args=rx.ObjectStructInfo(),
             ),
@@ -665,7 +665,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
 
         super().__init__(
             _expr=rx.call_pure_packed(
-                "vm.builtin.paged_attention_kv_cache_create",
+                "tvm.vm.builtin.paged_attention_kv_cache_create",
                 *args,
                 sinfo_args=rx.ObjectStructInfo(),
             ),

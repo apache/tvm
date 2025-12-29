@@ -142,7 +142,7 @@ Pass RewriteUnsafeSelect() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.RewriteUnsafeSelect", RewriteUnsafeSelect);
+  refl::GlobalDef().def("tvm.tir.transform.RewriteUnsafeSelect", RewriteUnsafeSelect);
 }
 
 }  // namespace transform

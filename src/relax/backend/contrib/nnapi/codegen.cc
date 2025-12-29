@@ -259,7 +259,7 @@ ffi::Array<ffi::Module> NNAPICompiler(ffi::Array<Function> functions,
     serializer.serialize(func);
     auto graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();
-    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.nnapi_runtime_create");
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("tvm.runtime.nnapi_runtime_create");
     auto func_name = GetExtSymbol(func);
     auto result = pf(func_name, graph_json, constant_names);
     tvm::ffi::Module mod = result.cast<tvm::ffi::Module>();
@@ -271,7 +271,7 @@ ffi::Array<ffi::Module> NNAPICompiler(ffi::Array<Function> functions,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.ext.nnapi", NNAPICompiler);
+  refl::GlobalDef().def("tvm.relax.ext.nnapi", NNAPICompiler);
 }
 
 }  // namespace contrib

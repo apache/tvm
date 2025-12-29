@@ -134,7 +134,7 @@ def benchmark(
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
             min_repeat_ms=evaluator_config.min_repeat_ms,
-            f_preproc="cache_flush_cpu_non_first_arg"
+            f_preproc="tvm.cache_flush_cpu_non_first_arg"
             if evaluator_config.enable_cpu_cache_flush
             else "",
         )(*input_tensors)

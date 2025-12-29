@@ -65,7 +65,7 @@ IRModule ReplaceGlobalVars(IRModule mod, ffi::Map<GlobalVar, GlobalVar> replacem
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("transform.ReplaceGlobalVars", ReplaceGlobalVars);
+  refl::GlobalDef().def("tvm.transform.ReplaceGlobalVars", ReplaceGlobalVars);
 }
 
 IRModule ModuleReplaceGlobalVars(
@@ -103,7 +103,7 @@ IRModule ModuleReplaceGlobalVars(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.Module_ReplaceGlobalVars", ModuleReplaceGlobalVars);
+  refl::GlobalDef().def("tvm.ir.Module_ReplaceGlobalVars", ModuleReplaceGlobalVars);
 }
 
 }  // namespace transform

@@ -270,7 +270,8 @@ class RewriteLayoutNode : public PostprocNode {
     refl::ObjectDef<RewriteLayoutNode>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.RewriteLayout", RewriteLayoutNode, PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.RewriteLayout", RewriteLayoutNode,
+                                    PostprocNode);
 };
 
 Postproc Postproc::RewriteLayout() {
@@ -281,7 +282,7 @@ Postproc Postproc::RewriteLayout() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   RewriteLayoutNode::RegisterReflection();
-  refl::GlobalDef().def("meta_schedule.PostprocRewriteLayout", Postproc::RewriteLayout);
+  refl::GlobalDef().def("tvm.meta_schedule.PostprocRewriteLayout", Postproc::RewriteLayout);
 }
 
 }  // namespace meta_schedule

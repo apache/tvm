@@ -89,7 +89,7 @@ Pass ForceNarrowIndexToInt32() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.ForceNarrowIndexToInt32", ForceNarrowIndexToInt32);
+  refl::GlobalDef().def("tvm.tir.transform.ForceNarrowIndexToInt32", ForceNarrowIndexToInt32);
 }
 
 }  // namespace transform

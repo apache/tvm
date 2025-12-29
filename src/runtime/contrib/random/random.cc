@@ -131,7 +131,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_packed("tvm.contrib.random.random_fill_for_measure",
                   [](ffi::PackedArgs args, ffi::Any* ret) -> void {
                     const auto curand =
-                        tvm::ffi::Function::GetGlobal("runtime.contrib.curand.RandomFill");
+                        tvm::ffi::Function::GetGlobal("tvm.runtime.contrib.curand.RandomFill");
                     auto out = args[0].cast<DLTensor*>();
                     if (curand.has_value() && out->device.device_type == DLDeviceType::kDLCUDA) {
                       if (out->dtype.code == DLDataTypeCode::kDLFloat) {

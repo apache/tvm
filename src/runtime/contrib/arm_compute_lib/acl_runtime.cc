@@ -597,7 +597,7 @@ ffi::Module ACLRuntimeCreate(const ffi::String& symbol_name, const ffi::String& 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.arm_compute_lib_runtime_create", ACLRuntimeCreate)
+      .def("tvm.runtime.arm_compute_lib_runtime_create", ACLRuntimeCreate)
       .def("ffi.Module.load_from_bytes.arm_compute_lib",
            JSONRuntimeBase::LoadFromBytes<ACLRuntime>);
 }

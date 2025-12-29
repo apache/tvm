@@ -88,7 +88,7 @@ class TargetKindNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUniqueInstance;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.TargetKind", TargetKindNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.target.TargetKind", TargetKindNode, Object);
 
  private:
   /*! \brief Return the index stored in attr registry */

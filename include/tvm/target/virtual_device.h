@@ -257,7 +257,7 @@ class VirtualDeviceNode : public AttrsNodeReflAdapter<VirtualDeviceNode> {
                 "The area of memory w.r.t. the virtual device where data is stored.",
                 refl::DefaultValue(""));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.VirtualDevice", VirtualDeviceNode, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.target.VirtualDevice", VirtualDeviceNode, BaseAttrsNode);
 
   friend class VirtualDevice;
 };

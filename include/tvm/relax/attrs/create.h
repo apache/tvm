@@ -38,7 +38,7 @@ struct InitAttrs : public AttrsNodeReflAdapter<InitAttrs> {
     refl::ObjectDef<InitAttrs>().def_ro("dtype", &InitAttrs::dtype,
                                         "The data type of the created tensor.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.InitAttrs", InitAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.InitAttrs", InitAttrs, BaseAttrsNode);
 };  // struct InitAttrs
 
 /*! \brief Attributes used in tril and triu operator */
@@ -51,7 +51,7 @@ struct TriluAttrs : public AttrsNodeReflAdapter<TriluAttrs> {
         "k", &TriluAttrs::k,
         "The number of diagonals above or below the main diagonal to exclude or include.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TriluAttrs", TriluAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.TriluAttrs", TriluAttrs, BaseAttrsNode);
 };  // struct TriluAttrs
 
 }  // namespace relax

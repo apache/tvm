@@ -30,7 +30,7 @@ def _redistribute_replica_to_shard(_bb: BlockBuilder, call: Call) -> Expr:
     axis = call.attrs.axis
     worker_id_symbol = tir.Var("worker_id", "int64")
     worker_id_var = _bb.emit(
-        call_pure_packed("runtime.disco.worker_id", sinfo_args=[ShapeStructInfo(None)])
+        call_pure_packed("tvm.runtime.disco.worker_id", sinfo_args=[ShapeStructInfo(None)])
     )
     _bb.match_cast(worker_id_var, ShapeStructInfo([worker_id_symbol]))
 

@@ -55,7 +55,7 @@ inline ncclRedOp_t AsNCCLRedOp(ReduceKind kind) {
 }
 
 void InitCCL(Session sess, ffi::Shape device_ids) {
-  DRef func = sess->GetGlobalFunc("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker");
+  DRef func = sess->GetGlobalFunc("tvm.runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker");
   DLOG(INFO) << "Initializing " TVM_DISCO_CCL_NAME " with devices: " << device_ids;
   ncclUniqueId id;
   NCCL_CALL(ncclGetUniqueId(&id));
@@ -330,26 +330,26 @@ void SyncWorker() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.disco.compiled_ccl", []() -> ffi::String { return TVM_DISCO_CCL_NAME; })
-      .def("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl", InitCCL)
-      .def("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker", InitCCLPerWorker)
-      .def("runtime.disco." TVM_DISCO_CCL_NAME ".allreduce",
+      .def("tvm.runtime.disco.compiled_ccl", []() -> ffi::String { return TVM_DISCO_CCL_NAME; })
+      .def("tvm.runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl", InitCCL)
+      .def("tvm.runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker", InitCCLPerWorker)
+      .def("tvm.runtime.disco." TVM_DISCO_CCL_NAME ".allreduce",
            [](Tensor send, int kind, bool in_group, Tensor recv) {
              CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
              nccl::AllReduce(send, static_cast<ReduceKind>(kind), in_group, recv);
            })
-      .def("runtime.disco." TVM_DISCO_CCL_NAME ".allgather",
+      .def("tvm.runtime.disco." TVM_DISCO_CCL_NAME ".allgather",
            [](Tensor send, bool in_group, Tensor recv) { nccl::AllGather(send, in_group, recv); })
-      .def("runtime.disco." TVM_DISCO_CCL_NAME ".broadcast_from_worker0", BroadcastFromWorker0)
-      .def("runtime.disco." TVM_DISCO_CCL_NAME ".scatter_from_worker0", ScatterFromWorker0)
-      .def("runtime.disco." TVM_DISCO_CCL_NAME ".gather_to_worker0", GatherToWorker0)
-      .def("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_worker0", RecvFromWorker0)
-      .def("runtime.disco." TVM_DISCO_CCL_NAME ".send_to_next_group", SendToNextGroup)
-      .def("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_prev_group", RecvFromPrevGroup)
-      .def("runtime.disco." TVM_DISCO_CCL_NAME ".send_to_worker", SendToWorker)
-      .def("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_worker", RecvFromWorker)
-      .def("runtime.disco." TVM_DISCO_CCL_NAME ".sync_worker", SyncWorker)
-      .def("runtime.disco." TVM_DISCO_CCL_NAME ".test_send_to_next_group_recv_from_prev_group",
+      .def("tvm.runtime.disco." TVM_DISCO_CCL_NAME ".broadcast_from_worker0", BroadcastFromWorker0)
+      .def("tvm.runtime.disco." TVM_DISCO_CCL_NAME ".scatter_from_worker0", ScatterFromWorker0)
+      .def("tvm.runtime.disco." TVM_DISCO_CCL_NAME ".gather_to_worker0", GatherToWorker0)
+      .def("tvm.runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_worker0", RecvFromWorker0)
+      .def("tvm.runtime.disco." TVM_DISCO_CCL_NAME ".send_to_next_group", SendToNextGroup)
+      .def("tvm.runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_prev_group", RecvFromPrevGroup)
+      .def("tvm.runtime.disco." TVM_DISCO_CCL_NAME ".send_to_worker", SendToWorker)
+      .def("tvm.runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_worker", RecvFromWorker)
+      .def("tvm.runtime.disco." TVM_DISCO_CCL_NAME ".sync_worker", SyncWorker)
+      .def("tvm.runtime.disco." TVM_DISCO_CCL_NAME ".test_send_to_next_group_recv_from_prev_group",
            [](Tensor buffer) {
              CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
              CHECK_EQ(ctx->worker->num_workers, 4) << "The test requires the world size to be 4.";
@@ -362,16 +362,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                tvm::runtime::nccl::RecvFromPrevGroup(buffer);
              }
            })
-      .def("runtime.disco." TVM_DISCO_CCL_NAME ".test_worker2_sends_to_worker0", [](Tensor buffer) {
-        CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
-        CHECK_EQ(ctx->worker->num_workers, 4) << "The test requires the world size to be 4.";
-        CHECK_EQ(ctx->worker->num_groups, 2) << "The test requires the group size to be 2.";
-        if (ctx->worker->worker_id == 2) {
-          tvm::runtime::nccl::SendToWorker(buffer, 0);
-        } else if (ctx->worker->worker_id == 0) {
-          tvm::runtime::nccl::RecvFromWorker(buffer, 2);
-        }
-      });
+      .def("tvm.runtime.disco." TVM_DISCO_CCL_NAME ".test_worker2_sends_to_worker0",
+           [](Tensor buffer) {
+             CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
+             CHECK_EQ(ctx->worker->num_workers, 4) << "The test requires the world size to be 4.";
+             CHECK_EQ(ctx->worker->num_groups, 2) << "The test requires the group size to be 2.";
+             if (ctx->worker->worker_id == 2) {
+               tvm::runtime::nccl::SendToWorker(buffer, 0);
+             } else if (ctx->worker->worker_id == 0) {
+               tvm::runtime::nccl::RecvFromWorker(buffer, 2);
+             }
+           });
 }
 
 }  // namespace nccl

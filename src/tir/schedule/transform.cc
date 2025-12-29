@@ -448,7 +448,7 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.schedule.TileWithTensorIntrin", TileWithTensorIntrin);
+  refl::GlobalDef().def("tvm.tir.schedule.TileWithTensorIntrin", TileWithTensorIntrin);
 }
 
 /******** BlockBufferAccessSimplifier ********/
@@ -570,7 +570,7 @@ ffi::Optional<ObjectRef> NormalizePrimFunc(Schedule sch) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.schedule.NormalizePrimFunc", NormalizePrimFunc);
+  refl::GlobalDef().def("tvm.tir.schedule.NormalizePrimFunc", NormalizePrimFunc);
 }
 
 }  // namespace tir

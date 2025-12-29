@@ -48,13 +48,13 @@ if TYPE_CHECKING:
     from tvm import relax
 
 _extract_task_func = get_global_func(  # pylint: disable=invalid-name
-    "relax.backend.MetaScheduleExtractTask",
+    "tvm.relax.backend.MetaScheduleExtractTask",
     allow_missing=False,
 )
 
 
 def extract_tasks(
-    mod: Union[IRModule, "relax.Function"],
+    mod: Union[IRModule, "tvm.relax.Function"],
     target: Target,
     params: Optional[Dict[str, Tensor]] = None,
     module_equality: str = "structural",
@@ -158,7 +158,7 @@ def extracted_tasks_to_tune_contexts(
 
 
 def tune_relax(
-    mod: Union[IRModule, "relax.Function"],
+    mod: Union[IRModule, "tvm.relax.Function"],
     params: Dict[str, Tensor],
     target: Union[str, Target],
     work_dir: str,
@@ -271,7 +271,7 @@ def tune_relax(
 
 @register_global_func("tvm.meta_schedule.tune_relax")
 def _tune_relax(
-    mod: Union[IRModule, "relax.Function"],
+    mod: Union[IRModule, "tvm.relax.Function"],
     params: Dict[str, Tensor],
     target: Union[str, Target],
     work_dir: str,

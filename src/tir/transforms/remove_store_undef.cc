@@ -174,7 +174,7 @@ Pass RemoveStoreUndef() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.RemoveStoreUndef", RemoveStoreUndef);
+  refl::GlobalDef().def("tvm.tir.transform.RemoveStoreUndef", RemoveStoreUndef);
 }
 
 }  // namespace transform

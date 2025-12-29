@@ -194,7 +194,7 @@ VirtualDevice VirtualDeviceCache::Unique(const VirtualDevice& virtual_device) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("target.VirtualDevice_ForDeviceTargetAndMemoryScope",
+  refl::GlobalDef().def("tvm.target.VirtualDevice_ForDeviceTargetAndMemoryScope",
                         VirtualDevice::ForDeviceTargetAndMemoryScope);
 }
 

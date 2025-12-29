@@ -458,7 +458,7 @@ class RNNStateImpObj : public RNNStateObj {
   }
 
  public:
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.vm.RNNStateImp", RNNStateImpObj, RNNStateObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.vm.RNNStateImp", RNNStateImpObj, RNNStateObj);
 };
 
 //-------------------------------------------------
@@ -467,12 +467,12 @@ class RNNStateImpObj : public RNNStateObj {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("vm.builtin.rnn_state_create", [](int64_t num_layers,                //
-                                                          int64_t reserved_num_seqs,         //
-                                                          int64_t max_history,               //
-                                                          ffi::Array<ffi::Function> f_gets,  //
-                                                          ffi::Array<ffi::Function> f_sets,  //
-                                                          ffi::Array<Tensor> init_layer_value) {
+  refl::GlobalDef().def("tvm.vm.builtin.rnn_state_create", [](int64_t num_layers,                //
+                                                              int64_t reserved_num_seqs,         //
+                                                              int64_t max_history,               //
+                                                              ffi::Array<ffi::Function> f_gets,  //
+                                                              ffi::Array<ffi::Function> f_sets,  //
+                                                              ffi::Array<Tensor> init_layer_value) {
     CHECK_GT(num_layers, 0) << "The number of layers should be greater than 0.";
     CHECK_GT(reserved_num_seqs, 0) << "The number of reserved sequences should be greater than 0.";
     CHECK_GE(max_history, 0) << "The maximum history length should be greater or equal than 0.";

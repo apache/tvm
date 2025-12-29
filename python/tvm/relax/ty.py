@@ -22,7 +22,7 @@ from tvm.ir import Type, TupleType, FuncType, Span
 from . import _ffi_api
 
 
-@tvm_ffi.register_object("relax.ShapeType")
+@tvm_ffi.register_object("tvm.relax.ShapeType")
 class ShapeType(Type):
     """The type of shape in Relax.
 
@@ -37,7 +37,7 @@ class ShapeType(Type):
         self.__init_handle_by_constructor__(_ffi_api.ShapeType, ndim, span)  # type: ignore
 
 
-@tvm_ffi.register_object("relax.ObjectType")
+@tvm_ffi.register_object("tvm.relax.ObjectType")
 class ObjectType(Type):
     """A type that corresponds to tvm::runtime::Object, is base of all possible object
     values in TVM."""
@@ -46,7 +46,7 @@ class ObjectType(Type):
         self.__init_handle_by_constructor__(_ffi_api.ObjectType, span)  # type: ignore
 
 
-@tvm_ffi.register_object("relax.DynTensorType")
+@tvm_ffi.register_object("tvm.relax.DynTensorType")
 class TensorType(Type):
     """A dynamic tensor type in Relax.
 
@@ -65,7 +65,7 @@ class TensorType(Type):
         self.__init_handle_by_constructor__(_ffi_api.TensorType, ndim, dtype, span)  # type: ignore
 
 
-@tvm_ffi.register_object("relax.PackedFuncType")
+@tvm_ffi.register_object("tvm.relax.PackedFuncType")
 class PackedFuncType(Type):
     """The type of ExternFunc in Relax."""
 

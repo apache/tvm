@@ -18,4 +18,4 @@
 
 import tvm_ffi
 
-tvm_ffi.init_ffi_api("msc.framework.torch", __name__)
+tvm_ffi.init_ffi_api("tvm.msc.framework.torch", __name__)

@@ -64,7 +64,7 @@ IntervalSet MakeIntervalSet(PrimExpr min_value, PrimExpr max_value) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("arith.IntervalSet", MakeIntervalSet);
+  refl::GlobalDef().def("tvm.arith.IntervalSet", MakeIntervalSet);
 }
 
 IntervalSet Intersect(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
@@ -1237,34 +1237,34 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("arith.intset_single_point", IntSet::SinglePoint)
-      .def("arith.intset_vector", IntSet::Vector)
-      .def("arith.intset_interval", IntSet::Interval)
-      .def_method("arith.IntervalSetGetMin", &IntSet::min)
-      .def_method("arith.IntervalSetGetMax", &IntSet::max)
-      .def_method("arith.IntSetIsNothing", &IntSet::IsNothing)
-      .def_method("arith.IntSetIsEverything", &IntSet::IsEverything)
-      .def("arith.EstimateRegionLowerBound",
+      .def("tvm.arith.intset_single_point", IntSet::SinglePoint)
+      .def("tvm.arith.intset_vector", IntSet::Vector)
+      .def("tvm.arith.intset_interval", IntSet::Interval)
+      .def_method("tvm.arith.IntervalSetGetMin", &IntSet::min)
+      .def_method("tvm.arith.IntervalSetGetMax", &IntSet::max)
+      .def_method("tvm.arith.IntSetIsNothing", &IntSet::IsNothing)
+      .def_method("tvm.arith.IntSetIsEverything", &IntSet::IsEverything)
+      .def("tvm.arith.EstimateRegionLowerBound",
            [](ffi::Array<Range> region, ffi::Map<Var, Range> var_dom,
               PrimExpr predicate) -> ffi::Optional<ffi::Array<IntSet>> {
              Analyzer analyzer;
              return EstimateRegionLowerBound(region, var_dom, predicate, &analyzer);
            })
-      .def("arith.EstimateRegionStrictBound",
+      .def("tvm.arith.EstimateRegionStrictBound",
            [](ffi::Array<Range> region, ffi::Map<Var, Range> var_dom,
               PrimExpr predicate) -> ffi::Optional<ffi::Array<IntSet>> {
              Analyzer analyzer;
              return EstimateRegionStrictBound(region, var_dom, predicate, &analyzer);
            })
-      .def("arith.EstimateRegionUpperBound",
+      .def("tvm.arith.EstimateRegionUpperBound",
            [](ffi::Array<Range> region, ffi::Map<Var, Range> var_dom,
               PrimExpr predicate) -> ffi::Optional<ffi::Array<IntSet>> {
              Analyzer analyzer;
              return EstimateRegionUpperBound(region, var_dom, predicate, &analyzer);
            })
-      .def("arith.PosInf", []() { return SymbolicLimits::pos_inf_; })
-      .def("arith.NegInf", []() { return SymbolicLimits::neg_inf_; })
-      .def("arith.UnionLowerBound", UnionLowerBound);
+      .def("tvm.arith.PosInf", []() { return SymbolicLimits::pos_inf_; })
+      .def("tvm.arith.NegInf", []() { return SymbolicLimits::neg_inf_; })
+      .def("tvm.arith.UnionLowerBound", UnionLowerBound);
 }
 
 }  // namespace arith

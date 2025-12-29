@@ -142,7 +142,7 @@ bool VerifySSA(const PrimFunc& func) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.analysis.verify_ssa", VerifySSA);
+  refl::GlobalDef().def("tvm.tir.analysis.verify_ssa", VerifySSA);
 }
 
 namespace transform {
@@ -161,7 +161,7 @@ Pass VerifySSA() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.VerifySSA", VerifySSA);
+  refl::GlobalDef().def("tvm.tir.transform.VerifySSA", VerifySSA);
 }
 
 }  // namespace transform

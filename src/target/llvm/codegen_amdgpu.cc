@@ -279,7 +279,7 @@ ffi::Module BuildAMDGPU(IRModule mod, Target target) {
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
 
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
-  auto fbitcode = tvm::ffi::Function::GetGlobalRequired("tvm_callback_rocm_bitcode_path");
+  auto fbitcode = tvm::ffi::Function::GetGlobalRequired("tvm.tvm_callback_rocm_bitcode_path");
   auto bitcode_files = fbitcode().cast<ffi::Array<ffi::String>>();
 
   for (auto& bitcode_path : bitcode_files) {
@@ -348,7 +348,7 @@ ffi::Module BuildAMDGPU(IRModule mod, Target target) {
   passAsm.run(*mAsm);
   std::string assembly(dataAsm.begin(), dataAsm.end());
 
-  auto flink = tvm::ffi::Function::GetGlobal("tvm_callback_rocm_link");
+  auto flink = tvm::ffi::Function::GetGlobal("tvm.tvm_callback_rocm_link");
   ICHECK(flink.has_value())
       << "Require tvm_callback_rocm_link to exist, do import tvm.contrib.rocm";
 
@@ -364,7 +364,7 @@ ffi::Module BuildAMDGPU(IRModule mod, Target target) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("target.build.rocm", BuildAMDGPU)
+      .def("tvm.target.build.rocm", BuildAMDGPU)
       .def_packed("tvm.codegen.llvm.target_rocm", [](const ffi::PackedArgs& targs, ffi::Any* rv) {
         *rv = static_cast<void*>(new CodeGenAMDGPU());
       });

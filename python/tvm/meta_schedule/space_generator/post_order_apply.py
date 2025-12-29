@@ -27,7 +27,7 @@ from .space_generator import (
 )
 
 
-@register_object("meta_schedule.PostOrderApply")
+@register_object("tvm.meta_schedule.PostOrderApply")
 class PostOrderApply(SpaceGenerator):
     """
     PostOrderApply is the design space generator that generates design spaces by applying schedule

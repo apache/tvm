@@ -82,7 +82,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  */
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.convert",
+  refl::GlobalDef().def("tvm.tir.convert",
                         [](ffi::Variant<PrimExpr, ffi::Array<PrimExpr>> expr) { return expr; });
 }
 
@@ -168,7 +168,7 @@ Var Var::copy_with_dtype(DataType dtype) const {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Var", [](ffi::String name_hint, ffi::AnyView type, Span span) {
+  refl::GlobalDef().def("tvm.tir.Var", [](ffi::String name_hint, ffi::AnyView type, Span span) {
     if (type.as<Type>()) {
       return Var(name_hint, type.cast<Type>(), span);
     } else {
@@ -198,7 +198,7 @@ SizeVar::SizeVar(ffi::String name_hint, Type type_annotation, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.SizeVar",
+  refl::GlobalDef().def("tvm.tir.SizeVar",
                         [](ffi::String s, DataType t, Span span) { return SizeVar(s, t, span); });
 }
 
@@ -225,7 +225,7 @@ IterVar::IterVar(Range dom, Var var, IterVarType t, ffi::String thread_tag, Span
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tir.IterVar", [](Range dom, Var var, int iter_type, ffi::String thread_tag, Span span) {
+      "tvm.tir.IterVar", [](Range dom, Var var, int iter_type, ffi::String thread_tag, Span span) {
         return IterVar(dom, var, static_cast<IterVarType>(iter_type), thread_tag, span);
       });
 }
@@ -241,7 +241,7 @@ StringImm::StringImm(ffi::String value, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.StringImm",
+  refl::GlobalDef().def("tvm.tir.StringImm",
                         [](ffi::String value, Span span) { return StringImm(value, span); });
 }
 
@@ -259,7 +259,7 @@ Cast::Cast(DataType t, PrimExpr value, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Cast", [](DataType dtype, PrimExpr value, Span span) {
+  refl::GlobalDef().def("tvm.tir.Cast", [](DataType dtype, PrimExpr value, Span span) {
     return Cast(dtype, value, span);
   });
 }
@@ -269,7 +269,7 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Add);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Add",
+  refl::GlobalDef().def("tvm.tir.Add",
                         [](PrimExpr a, PrimExpr b, Span span) { return Add(a, b, span); });
 }
 
@@ -278,7 +278,7 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Sub);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Sub",
+  refl::GlobalDef().def("tvm.tir.Sub",
                         [](PrimExpr a, PrimExpr b, Span span) { return Sub(a, b, span); });
 }
 
@@ -287,7 +287,7 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Mul);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Mul",
+  refl::GlobalDef().def("tvm.tir.Mul",
                         [](PrimExpr a, PrimExpr b, Span span) { return Mul(a, b, span); });
 }
 
@@ -296,7 +296,7 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Div);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Div",
+  refl::GlobalDef().def("tvm.tir.Div",
                         [](PrimExpr a, PrimExpr b, Span span) { return Div(a, b, span); });
 }
 
@@ -305,7 +305,7 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Mod);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Mod",
+  refl::GlobalDef().def("tvm.tir.Mod",
                         [](PrimExpr a, PrimExpr b, Span span) { return Mod(a, b, span); });
 }
 
@@ -314,7 +314,7 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(FloorDiv);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.FloorDiv",
+  refl::GlobalDef().def("tvm.tir.FloorDiv",
                         [](PrimExpr a, PrimExpr b, Span span) { return FloorDiv(a, b, span); });
 }
 
@@ -323,7 +323,7 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(FloorMod);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.FloorMod",
+  refl::GlobalDef().def("tvm.tir.FloorMod",
                         [](PrimExpr a, PrimExpr b, Span span) { return FloorMod(a, b, span); });
 }
 
@@ -332,7 +332,7 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Min);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Min",
+  refl::GlobalDef().def("tvm.tir.Min",
                         [](PrimExpr a, PrimExpr b, Span span) { return Min(a, b, span); });
 }
 
@@ -341,7 +341,7 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Max);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Max",
+  refl::GlobalDef().def("tvm.tir.Max",
                         [](PrimExpr a, PrimExpr b, Span span) { return Max(a, b, span); });
 }
 
@@ -350,7 +350,8 @@ TVM_DEFINE_CMPOP_CONSTRUCTOR(EQ);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.EQ", [](PrimExpr a, PrimExpr b, Span span) { return EQ(a, b, span); });
+  refl::GlobalDef().def("tvm.tir.EQ",
+                        [](PrimExpr a, PrimExpr b, Span span) { return EQ(a, b, span); });
 }
 
 // NE
@@ -358,7 +359,8 @@ TVM_DEFINE_CMPOP_CONSTRUCTOR(NE);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.NE", [](PrimExpr a, PrimExpr b, Span span) { return NE(a, b, span); });
+  refl::GlobalDef().def("tvm.tir.NE",
+                        [](PrimExpr a, PrimExpr b, Span span) { return NE(a, b, span); });
 }
 
 // LT
@@ -366,7 +368,8 @@ TVM_DEFINE_CMPOP_CONSTRUCTOR(LT);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.LT", [](PrimExpr a, PrimExpr b, Span span) { return LT(a, b, span); });
+  refl::GlobalDef().def("tvm.tir.LT",
+                        [](PrimExpr a, PrimExpr b, Span span) { return LT(a, b, span); });
 }
 
 // LE
@@ -374,7 +377,8 @@ TVM_DEFINE_CMPOP_CONSTRUCTOR(LE);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.LE", [](PrimExpr a, PrimExpr b, Span span) { return LE(a, b, span); });
+  refl::GlobalDef().def("tvm.tir.LE",
+                        [](PrimExpr a, PrimExpr b, Span span) { return LE(a, b, span); });
 }
 
 // GT
@@ -382,7 +386,8 @@ TVM_DEFINE_CMPOP_CONSTRUCTOR(GT);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.GT", [](PrimExpr a, PrimExpr b, Span span) { return GT(a, b, span); });
+  refl::GlobalDef().def("tvm.tir.GT",
+                        [](PrimExpr a, PrimExpr b, Span span) { return GT(a, b, span); });
 }
 
 // GE
@@ -390,7 +395,8 @@ TVM_DEFINE_CMPOP_CONSTRUCTOR(GE);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.GE", [](PrimExpr a, PrimExpr b, Span span) { return GE(a, b, span); });
+  refl::GlobalDef().def("tvm.tir.GE",
+                        [](PrimExpr a, PrimExpr b, Span span) { return GE(a, b, span); });
 }
 
 // And
@@ -412,7 +418,7 @@ And::And(PrimExpr a, PrimExpr b, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.And",
+  refl::GlobalDef().def("tvm.tir.And",
                         [](PrimExpr a, PrimExpr b, Span span) { return And(a, b, span); });
 }
 
@@ -435,7 +441,8 @@ Or::Or(PrimExpr a, PrimExpr b, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Or", [](PrimExpr a, PrimExpr b, Span span) { return Or(a, b, span); });
+  refl::GlobalDef().def("tvm.tir.Or",
+                        [](PrimExpr a, PrimExpr b, Span span) { return Or(a, b, span); });
 }
 
 // Not
@@ -453,7 +460,7 @@ Not::Not(PrimExpr a, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Not", [](PrimExpr a, Span span) { return Not(a, span); });
+  refl::GlobalDef().def("tvm.tir.Not", [](PrimExpr a, Span span) { return Not(a, span); });
 }
 
 // Select
@@ -480,10 +487,9 @@ Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Sp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "tir.Select", [](PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Span span) {
-        return Select(condition, true_value, false_value, span);
-      });
+  refl::GlobalDef().def("tvm.tir.Select",
+                        [](PrimExpr condition, PrimExpr true_value, PrimExpr false_value,
+                           Span span) { return Select(condition, true_value, false_value, span); });
 }
 
 // Ramp
@@ -520,9 +526,8 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Ramp", [](PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
-    return Ramp(base, stride, lanes, span);
-  });
+  refl::GlobalDef().def("tvm.tir.Ramp", [](PrimExpr base, PrimExpr stride, PrimExpr lanes,
+                                           Span span) { return Ramp(base, stride, lanes, span); });
 }
 
 // Broadcast
@@ -553,7 +558,7 @@ Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Broadcast", [](PrimExpr value, PrimExpr lanes, Span span) {
+  refl::GlobalDef().def("tvm.tir.Broadcast", [](PrimExpr value, PrimExpr lanes, Span span) {
     return Broadcast(value, lanes, span);
   });
 }
@@ -575,7 +580,7 @@ Let::Let(Var var, PrimExpr value, PrimExpr body, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Let", [](Var var, PrimExpr value, PrimExpr body, Span span) {
+  refl::GlobalDef().def("tvm.tir.Let", [](Var var, PrimExpr value, PrimExpr body, Span span) {
     return Let(var, value, body, span);
   });
 }
@@ -597,7 +602,7 @@ Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tir.Call",
+      "tvm.tir.Call",
       [](ffi::Optional<DataType> dtype, RelaxExpr op,
          ffi::Array<ffi::Variant<ffi::String, DLDataType, IterVar, BufferRegion, PrimExpr>> args,
          Span span) {
@@ -673,7 +678,7 @@ PrimExpr Shuffle::ExtractElement(PrimExpr vector, int index, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Shuffle",
+  refl::GlobalDef().def("tvm.tir.Shuffle",
                         [](ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Span span) {
                           return Shuffle(vectors, indices, span);
                         });
@@ -736,7 +741,7 @@ ffi::Array<PrimExpr> CommReducerNode::operator()(ffi::Array<PrimExpr> a,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.CommReducer",
+      .def("tvm.tir.CommReducer",
            [](ffi::Array<Var> lhs, ffi::Array<Var> rhs, ffi::Array<PrimExpr> result,
               ffi::Array<PrimExpr> identity_element,
               Span span) { return CommReducer(lhs, rhs, result, identity_element, span); })
@@ -781,10 +786,10 @@ Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<Ite
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tir.Reduce", [](CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<IterVar> axis,
-                       PrimExpr condition, int value_index, ffi::Array<PrimExpr> init, Span span) {
-        return Reduce(combiner, source, axis, condition, value_index, init, span);
-      });
+      "tvm.tir.Reduce",
+      [](CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<IterVar> axis,
+         PrimExpr condition, int value_index, ffi::Array<PrimExpr> init,
+         Span span) { return Reduce(combiner, source, axis, condition, value_index, init, span); });
 }
 
 // BufferLoad
@@ -856,8 +861,8 @@ BufferLoad::BufferLoad(Buffer buffer, ffi::Array<PrimExpr> indices,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.BufferLoad", [](Buffer buffer, ffi::Array<PrimExpr> indices,
-                                             ffi::Optional<PrimExpr> predicate, Span span) {
+  refl::GlobalDef().def("tvm.tir.BufferLoad", [](Buffer buffer, ffi::Array<PrimExpr> indices,
+                                                 ffi::Optional<PrimExpr> predicate, Span span) {
     return BufferLoad(buffer, indices, predicate, span);
   });
 }
@@ -874,7 +879,7 @@ ProducerLoad::ProducerLoad(DataProducer producer, ffi::Array<PrimExpr> indices, 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.ProducerLoad",
+  refl::GlobalDef().def("tvm.tir.ProducerLoad",
                         [](DataProducer producer, ffi::Array<PrimExpr> indices, Span span) {
                           return ProducerLoad(producer, indices, span);
                         });

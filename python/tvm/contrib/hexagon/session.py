@@ -100,7 +100,7 @@ class Session:
                     self._rpc_receive_buffer_size_bytes,
                 ],
             )
-            func = self._rpc.get_function("device_api.hexagon.acquire_resources")
+            func = self._rpc.get_function("tvm.device_api.hexagon.acquire_resources")
             func()
             return self
 
@@ -109,7 +109,7 @@ class Session:
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         try:
-            func = self._rpc.get_function("device_api.hexagon.release_resources")
+            func = self._rpc.get_function("tvm.device_api.hexagon.release_resources")
             func()
         except RuntimeError as exception:
             print(

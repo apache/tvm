@@ -44,7 +44,7 @@ struct DistributionAttrs : public AttrsNodeReflAdapter<DistributionAttrs> {
         .def_ro("placement", &DistributionAttrs::placement,
                 "The placement of a tensor's distribution plan");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.DistributionAttrs", DistributionAttrs,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.attrs.DistributionAttrs", DistributionAttrs,
                                     BaseAttrsNode);
 };  // struct DistributionAttrs
 

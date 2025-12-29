@@ -102,7 +102,7 @@ Pass LowerAllocTensor() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.LowerAllocTensor", LowerAllocTensor);
+  refl::GlobalDef().def("tvm.relax.transform.LowerAllocTensor", LowerAllocTensor);
 }
 
 }  // namespace transform

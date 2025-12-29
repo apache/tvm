@@ -47,7 +47,7 @@ class Extension(enum.Flag):
     ComparisonOfProductAndSum = 1 << 3
 
 
-@tvm_ffi.register_object("arith.ModularSet")
+@tvm_ffi.register_object("tvm.arith.ModularSet")
 class ModularSet(Object):
     """Represent range of (coeff * x + base) for x in Z"""
 
@@ -55,7 +55,7 @@ class ModularSet(Object):
         self.__init_handle_by_constructor__(_ffi_api.ModularSet, coeff, base)
 
 
-@tvm_ffi.register_object("arith.ConstIntBound")
+@tvm_ffi.register_object("tvm.arith.ConstIntBound")
 class ConstIntBound(Object):
     """Represent constant integer bound
 

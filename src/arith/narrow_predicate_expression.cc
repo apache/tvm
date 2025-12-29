@@ -216,7 +216,7 @@ PrimExpr NarrowPredicateExpression(PrimExpr expr, ffi::Map<Var, Range> free_para
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("arith.NarrowPredicateExpression", NarrowPredicateExpression);
+  refl::GlobalDef().def("tvm.arith.NarrowPredicateExpression", NarrowPredicateExpression);
 }
 
 }  // namespace arith

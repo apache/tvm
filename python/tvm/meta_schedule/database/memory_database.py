@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .database import Database
 
 
-@register_object("meta_schedule.MemoryDatabase")
+@register_object("tvm.meta_schedule.MemoryDatabase")
 class MemoryDatabase(Database):
     """An in-memory database
 

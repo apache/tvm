@@ -44,7 +44,7 @@ PrimType::PrimType(runtime::DataType dtype, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.PrimType", [](runtime::DataType dtype) { return PrimType(dtype); });
+  refl::GlobalDef().def("tvm.ir.PrimType", [](runtime::DataType dtype) { return PrimType(dtype); });
 }
 
 PointerType::PointerType(Type element_type, ffi::String storage_scope) {
@@ -60,9 +60,10 @@ PointerType::PointerType(Type element_type, ffi::String storage_scope) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.PointerType", [](Type element_type, ffi::String storage_scope = "") {
-    return PointerType(element_type, storage_scope);
-  });
+  refl::GlobalDef().def("tvm.ir.PointerType",
+                        [](Type element_type, ffi::String storage_scope = "") {
+                          return PointerType(element_type, storage_scope);
+                        });
 }
 
 FuncType::FuncType(tvm::ffi::Array<Type> arg_types, Type ret_type, Span span) {
@@ -75,7 +76,7 @@ FuncType::FuncType(tvm::ffi::Array<Type> arg_types, Type ret_type, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.FuncType", [](tvm::ffi::Array<Type> arg_types, Type ret_type) {
+  refl::GlobalDef().def("tvm.ir.FuncType", [](tvm::ffi::Array<Type> arg_types, Type ret_type) {
     return FuncType(arg_types, ret_type);
   });
 }
@@ -92,8 +93,8 @@ TupleType TupleType::Empty() { return TupleType(ffi::Array<Type>()); }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("ir.TupleType", [](ffi::Array<Type> fields) { return TupleType(fields); })
-      .def("ir.TensorMapType", [](Span span) { return TensorMapType(span); });
+      .def("tvm.ir.TupleType", [](ffi::Array<Type> fields) { return TupleType(fields); })
+      .def("tvm.ir.TensorMapType", [](Span span) { return TensorMapType(span); });
 }
 
 TensorMapType::TensorMapType(Span span) {

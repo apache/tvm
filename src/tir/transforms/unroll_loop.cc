@@ -62,7 +62,7 @@ struct UnrollLoopConfigNode : public AttrsNodeReflAdapter<UnrollLoopConfigNode> 
         .def_ro("unroll_local_access", &UnrollLoopConfigNode::unroll_local_access,
                 "Whether to always unroll local access", refl::DefaultValue(false));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.transform.UnrollLoopConfig", UnrollLoopConfigNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.transform.UnrollLoopConfig", UnrollLoopConfigNode,
                                     BaseAttrsNode);
 };
 
@@ -293,7 +293,7 @@ Pass UnrollLoop() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.UnrollLoop", UnrollLoop);
+  refl::GlobalDef().def("tvm.tir.transform.UnrollLoop", UnrollLoop);
 }
 
 }  // namespace transform

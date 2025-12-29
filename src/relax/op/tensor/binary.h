@@ -34,7 +34,8 @@ namespace relax {
  * - Expose a make function to construct the node.
  * - Register op to the registry.
  * \param OpName The name of operator to register. The name passed in will
- *  1. be prepended with a prefix "relax.op." as the FFI identifier string for the make function,
+ *  1. be prepended with a prefix "tvm.relax.op." as the FFI identifier string for the make
+ *     function,
  *  2. be prepended with a prefix "relax." as the identifier string in the operator registry.
  */
 #define RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName)                                                  \
@@ -43,7 +44,7 @@ namespace relax {
     return Call(op, {x1, x2}, Attrs(), {});                                                        \
   }                                                                                                \
   TVM_FFI_STATIC_INIT_BLOCK() {                                                                    \
-    tvm::ffi::reflection::GlobalDef().def("relax.op." #OpName, OpName);                            \
+    tvm::ffi::reflection::GlobalDef().def("tvm.relax.op." #OpName, OpName);                        \
   }                                                                                                \
   TVM_REGISTER_OP("relax." #OpName)                                                                \
       .set_num_inputs(2)                                                                           \

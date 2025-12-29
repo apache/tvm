@@ -261,7 +261,7 @@ Pass PlanAndUpdateBufferAllocationLocation() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.PlanAndUpdateBufferAllocationLocation",
+  refl::GlobalDef().def("tvm.tir.transform.PlanAndUpdateBufferAllocationLocation",
                         PlanAndUpdateBufferAllocationLocation);
 }
 

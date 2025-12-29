@@ -21,7 +21,7 @@ from .. import _ffi_api
 from .measure_callback import MeasureCallback
 
 
-@register_object("meta_schedule.RemoveBuildArtifact")
+@register_object("tvm.meta_schedule.RemoveBuildArtifact")
 class RemoveBuildArtifact(MeasureCallback):
     def __init__(self) -> None:
         """A callback that removes the build artifacts from the disk"""

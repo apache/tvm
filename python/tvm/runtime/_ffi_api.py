@@ -18,4 +18,4 @@
 import tvm_ffi
 
 # Exports functions registered in runtime namespace.
-tvm_ffi.init_ffi_api("runtime", __name__)
+tvm_ffi.init_ffi_api("tvm.runtime", __name__)

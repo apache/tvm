@@ -64,7 +64,7 @@ struct RewriteSimplifierStatsNode : Object {
         .def_ro("max_recursive_depth", &RewriteSimplifierStatsNode::max_recursive_depth)
         .def_ro("num_recursive_rewrites", &RewriteSimplifierStatsNode::num_recursive_rewrites);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.RewriteSimplifierStats", RewriteSimplifierStatsNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.arith.RewriteSimplifierStats", RewriteSimplifierStatsNode,
                                     Object);
 };
 

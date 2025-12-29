@@ -367,7 +367,7 @@ ffi::Optional<ffi::Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "relax.dpl.match_dfb",
+      "tvm.relax.dpl.match_dfb",
       [](const PatternContext& ctx, const DataflowBlock& dfb) { return MatchGraph(ctx, dfb); });
 }
 
@@ -385,8 +385,8 @@ class PatternContextRewriterNode : public PatternMatchingRewriterNode {
         .def_ro("pattern", &PatternContextRewriterNode::pattern)
         .def_ro("rewriter_func", &PatternContextRewriterNode::rewriter_func);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.PatternContextRewriter", PatternContextRewriterNode,
-                                    PatternMatchingRewriterNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.dpl.PatternContextRewriter",
+                                    PatternContextRewriterNode, PatternMatchingRewriterNode);
 
  private:
   ffi::Optional<ffi::Map<Var, Expr>> MatchBindings(const ffi::Array<Binding>& bindings) const {
@@ -456,7 +456,7 @@ Function RewriteBindings(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.dpl.rewrite_bindings", RewriteBindings);
+  refl::GlobalDef().def("tvm.relax.dpl.rewrite_bindings", RewriteBindings);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { PatternContextRewriterNode::RegisterReflection(); }

@@ -216,8 +216,8 @@ memory::Storage IPCAllocStorage(ffi::Shape buffer_shape, DLDataType dtype_hint) 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.disco.cuda_ipc.alloc_storage", IPCAllocStorage)
-      .def("runtime.disco.cuda_ipc.cuda_ipc_memory_allocator_clear",
+      .def("tvm.runtime.disco.cuda_ipc.alloc_storage", IPCAllocStorage)
+      .def("tvm.runtime.disco.cuda_ipc.cuda_ipc_memory_allocator_clear",
            []() { CUDAIPCMemoryAllocator::Global()->Clear(); });
 }
 

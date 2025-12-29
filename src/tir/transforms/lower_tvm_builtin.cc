@@ -681,7 +681,7 @@ Pass LowerTVMBuiltin() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.LowerTVMBuiltin", LowerTVMBuiltin);
+  refl::GlobalDef().def("tvm.tir.transform.LowerTVMBuiltin", LowerTVMBuiltin);
 }
 
 }  // namespace transform

@@ -81,7 +81,7 @@ IntImm::IntImm(DataType dtype, int64_t value, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.IntImm", [](DataType dtype, int64_t value, Span span) {
+  refl::GlobalDef().def("tvm.ir.IntImm", [](DataType dtype, int64_t value, Span span) {
     return IntImm(dtype, value, span);
   });
 }
@@ -184,7 +184,7 @@ FloatImm::FloatImm(DataType dtype, double value, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.FloatImm", [](DataType dtype, double value, Span span) {
+  refl::GlobalDef().def("tvm.ir.FloatImm", [](DataType dtype, double value, Span span) {
     return FloatImm(dtype, value, span);
   });
 }
@@ -199,8 +199,8 @@ Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("ir.Range_from_min_extent", Range::FromMinExtent)
-      .def("ir.Range", [](PrimExpr begin, ffi::Optional<PrimExpr> end, Span span) -> Range {
+      .def("tvm.ir.Range_from_min_extent", Range::FromMinExtent)
+      .def("tvm.ir.Range", [](PrimExpr begin, ffi::Optional<PrimExpr> end, Span span) -> Range {
         if (end.defined()) {
           return Range(begin, end.value(), span);
         } else {
@@ -219,8 +219,8 @@ GlobalVar::GlobalVar(ffi::String name_hint, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("ir.GlobalVar", [](ffi::String name) { return GlobalVar(name); })
-      .def("ir.DebugPrint", [](ObjectRef ref) {
+      .def("tvm.ir.GlobalVar", [](ffi::String name) { return GlobalVar(name); })
+      .def("tvm.ir.DebugPrint", [](ObjectRef ref) {
         std::stringstream ss;
         ss << ref;
         return ss.str();

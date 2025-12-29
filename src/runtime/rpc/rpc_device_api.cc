@@ -153,7 +153,7 @@ class RPCDeviceAPI final : public DeviceAPI {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("device_api.rpc", [](ffi::PackedArgs args, ffi::Any* rv) {
+  refl::GlobalDef().def_packed("tvm.device_api.rpc", [](ffi::PackedArgs args, ffi::Any* rv) {
     static RPCDeviceAPI inst;
     DeviceAPI* ptr = &inst;
     *rv = static_cast<void*>(ptr);

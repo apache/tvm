@@ -132,7 +132,7 @@ Pass ApplyPassToFunction(Pass pass, ffi::String func_name_regex,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("transform.ApplyPassToFunction", ApplyPassToFunction);
+  refl::GlobalDef().def("tvm.transform.ApplyPassToFunction", ApplyPassToFunction);
 }
 
 }  // namespace transform

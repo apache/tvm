@@ -82,7 +82,7 @@ class PrimFuncPassNode : public PassNode {
    * \brief Get the pass information/meta data.
    */
   PassInfo Info() const override { return pass_info; }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.PrimFuncPass", PrimFuncPassNode, PassNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.tir.PrimFuncPass", PrimFuncPassNode, PassNode);
 };
 
 class PrimFuncPass : public Pass {
@@ -150,7 +150,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { PrimFuncPassNode::RegisterReflection(); }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tir.transform.CreatePrimFuncPass",
+      "tvm.tir.transform.CreatePrimFuncPass",
       [](ffi::TypedFunction<PrimFunc(ffi::RValueRef<PrimFunc>, IRModule, PassContext)> pass_func,
          PassInfo pass_info) {
         auto wrapped_pass_func = [pass_func](PrimFunc func, IRModule mod, PassContext ctx) {

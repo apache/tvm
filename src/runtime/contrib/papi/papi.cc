@@ -51,7 +51,7 @@ struct PAPIEventSetNode : public Object {
 
   explicit PAPIEventSetNode(std::vector<long_long> start_values, Device dev)
       : start_values(start_values), dev(dev) {}
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("PAPIEventSetNode", PAPIEventSetNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.PAPIEventSetNode", PAPIEventSetNode, Object);
 };
 
 /* Get the PAPI component id for the given device.
@@ -267,7 +267,7 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
   /*! \brief Device-specific metric names. Order of names matches the order in the corresponding
    * `event_set`. */
   std::unordered_map<Device, std::vector<std::string>> papi_metric_names;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.profiling.PAPIMetricCollector",
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.runtime.profiling.PAPIMetricCollector",
                                     PAPIMetricCollectorNode, MetricCollectorNode);
 };
 
@@ -288,7 +288,7 @@ MetricCollector CreatePAPIMetricCollector(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.profiling.PAPIMetricCollector",
+  refl::GlobalDef().def("tvm.runtime.profiling.PAPIMetricCollector",
                         [](ffi::Map<DeviceWrapper, ffi::Array<ffi::String>> metrics) {
                           return PAPIMetricCollector(metrics);
                         });

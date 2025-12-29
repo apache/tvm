@@ -49,7 +49,7 @@ ffi::Module Build(IRModule mod, Target target) {
   }
 
   // the build function.
-  std::string build_f_name = "target.build." + target->kind->name;
+  std::string build_f_name = "tvm.target.build." + target->kind->name;
   const auto bf = tvm::ffi::Function::GetGlobal(build_f_name);
   ICHECK(bf.has_value()) << build_f_name << " is not enabled";
   return (*bf)(mod, target).cast<ffi::Module>();
@@ -69,7 +69,7 @@ class ModuleSerializer {
       // we prioritize export dso when a module is both serializable and exportable
       if (export_dso) {
         if (group[0]->GetPropertyMask() & ffi::Module::kCompilationExportable) {
-          std::string mod_type_key = "_lib";
+          std::string mod_type_key = "tvm._lib";
           stream->Write(mod_type_key);
         } else if (group[0]->GetPropertyMask() & ffi::Module::kBinarySerializable) {
           ICHECK_EQ(group.size(), 1U) << "Non DSO module is never merged";
@@ -236,9 +236,9 @@ ffi::Module DeserializeModuleFromBytes(std::string blob) {
   for (uint64_t i = 0; i < size; ++i) {
     std::string tkey;
     ICHECK(stream->Read(&tkey));
-    // "_lib" serves as a placeholder in the module import tree to indicate where
+    // "tvm._lib" serves as a placeholder in the module import tree to indicate where
     // to place the DSOModule
-    ICHECK(tkey != "_lib") << "Should not contain any placeholder for DSOModule.";
+    ICHECK(tkey != "tvm._lib") << "Should not contain any placeholder for DSOModule.";
     if (tkey == "_import_tree") {
       ICHECK(stream->Read(&import_tree_row_ptr));
       ICHECK(stream->Read(&import_tree_child_indices));
@@ -333,7 +333,7 @@ ffi::Module PackImportsToLLVM(const ffi::Module& mod, bool system_lib,
   std::string blob = PackImportsToBytes(mod);
 
   // Call codegen_blob to generate LLVM module
-  std::string codegen_f_name = "codegen.codegen_blob";
+  std::string codegen_f_name = "tvm.codegen.codegen_blob";
   // the codegen function.
   const auto codegen_f = tvm::ffi::Function::GetGlobal(codegen_f_name);
   ICHECK(codegen_f.has_value()) << "codegen.codegen_blob is not presented.";
@@ -343,16 +343,16 @@ ffi::Module PackImportsToLLVM(const ffi::Module& mod, bool system_lib,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("target.Build", Build);
+  refl::GlobalDef().def("tvm.target.Build", Build);
 }
 
 // Export a few auxiliary function to the runtime namespace.
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.ModuleImportsBlobName",
+      .def("tvm.runtime.ModuleImportsBlobName",
            []() -> std::string { return ffi::symbol::tvm_ffi_library_bin; })
-      .def("runtime.ModulePackImportsToTensor",
+      .def("tvm.runtime.ModulePackImportsToTensor",
            [](const ffi::Module& mod) {
              std::string buffer = PackImportsToBytes(mod);
              ffi::Shape::index_type size = buffer.size();
@@ -367,8 +367,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              array.CopyFromBytes(buffer.data(), size);
              return array;
            })
-      .def("runtime.ModulePackImportsToC", PackImportsToC)
-      .def("runtime.ModulePackImportsToLLVM", PackImportsToLLVM);
+      .def("tvm.runtime.ModulePackImportsToC", PackImportsToC)
+      .def("tvm.runtime.ModulePackImportsToLLVM", PackImportsToLLVM);
 }
 
 }  // namespace codegen

@@ -69,7 +69,7 @@ def _detect_opencl(dev: Device) -> Target:
 
 
 def _detect_vulkan(dev: Device) -> Target:
-    f_get_target_property = get_global_func("device_api.vulkan.get_target_property")
+    f_get_target_property = get_global_func("tvm.device_api.vulkan.get_target_property")
     return Target(
         {
             "kind": "vulkan",

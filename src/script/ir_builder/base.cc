@@ -108,16 +108,17 @@ void Namer::Name(ObjectRef node, ffi::String name) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("script.ir_builder.IRBuilderFrameEnter", &IRBuilderFrameNode::EnterWithScope)
-      .def_method("script.ir_builder.IRBuilderFrameExit", &IRBuilderFrameNode::ExitWithScope)
-      .def_method("script.ir_builder.IRBuilderFrameAddCallback", &IRBuilderFrameNode::AddCallback)
-      .def("script.ir_builder.IRBuilder", []() { return IRBuilder(); })
-      .def_method("script.ir_builder.IRBuilderEnter", &IRBuilder::EnterWithScope)
-      .def_method("script.ir_builder.IRBuilderExit", &IRBuilder::ExitWithScope)
-      .def("script.ir_builder.IRBuilderCurrent", IRBuilder::Current)
-      .def("script.ir_builder.IRBuilderIsInScope", IRBuilder::IsInScope)
-      .def_method("script.ir_builder.IRBuilderGet", &IRBuilderNode::Get<ObjectRef>)
-      .def("script.ir_builder.IRBuilderName", IRBuilder::Name<ObjectRef>);
+      .def_method("tvm.script.ir_builder.IRBuilderFrameEnter", &IRBuilderFrameNode::EnterWithScope)
+      .def_method("tvm.script.ir_builder.IRBuilderFrameExit", &IRBuilderFrameNode::ExitWithScope)
+      .def_method("tvm.script.ir_builder.IRBuilderFrameAddCallback",
+                  &IRBuilderFrameNode::AddCallback)
+      .def("tvm.script.ir_builder.IRBuilder", []() { return IRBuilder(); })
+      .def_method("tvm.script.ir_builder.IRBuilderEnter", &IRBuilder::EnterWithScope)
+      .def_method("tvm.script.ir_builder.IRBuilderExit", &IRBuilder::ExitWithScope)
+      .def("tvm.script.ir_builder.IRBuilderCurrent", IRBuilder::Current)
+      .def("tvm.script.ir_builder.IRBuilderIsInScope", IRBuilder::IsInScope)
+      .def_method("tvm.script.ir_builder.IRBuilderGet", &IRBuilderNode::Get<ObjectRef>)
+      .def("tvm.script.ir_builder.IRBuilderName", IRBuilder::Name<ObjectRef>);
 }
 
 }  // namespace ir_builder

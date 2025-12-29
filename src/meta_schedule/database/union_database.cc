@@ -31,7 +31,8 @@ class UnionDatabaseNode : public DatabaseNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<UnionDatabaseNode>().def_ro("databases", &UnionDatabaseNode::databases);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.UnionDatabase", UnionDatabaseNode, DatabaseNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.UnionDatabase", UnionDatabaseNode,
+                                    DatabaseNode);
 
  public:
   ffi::Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
@@ -86,7 +87,7 @@ Database Database::UnionDatabase(ffi::Array<Database> databases) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("meta_schedule.DatabaseUnionDatabase", Database::UnionDatabase);
+  refl::GlobalDef().def("tvm.meta_schedule.DatabaseUnionDatabase", Database::UnionDatabase);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { UnionDatabaseNode::RegisterReflection(); }

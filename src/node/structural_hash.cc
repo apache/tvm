@@ -43,25 +43,25 @@ namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("node.StructuralHash",
+  refl::GlobalDef().def("tvm.node.StructuralHash",
                         [](const Any& object, bool map_free_vars) -> int64_t {
                           return ffi::StructuralHash::Hash(object, map_free_vars);
                         });
   refl::TypeAttrDef<ffi::ModuleObj>()
-      .def("__data_to_json__",
+      .def("tvm.__data_to_json__",
            [](const ffi::ModuleObj* node) {
              std::string bytes = codegen::SerializeModuleToBytes(ffi::GetRef<ffi::Module>(node),
                                                                  /*export_dso*/ false);
              return ffi::Base64Encode(ffi::Bytes(bytes));
            })
-      .def("__data_from_json__", [](const ffi::String& base64_bytes) {
+      .def("tvm.__data_from_json__", [](const ffi::String& base64_bytes) {
         ffi::Bytes bytes = ffi::Base64Decode(base64_bytes);
         ffi::Module rtmod = codegen::DeserializeModuleFromBytes(bytes.operator std::string());
         return rtmod;
       });
 
   refl::TypeAttrDef<runtime::Tensor::Container>()
-      .def("__data_to_json__",
+      .def("tvm.__data_to_json__",
            [](const runtime::Tensor::Container* node) {
              std::string blob;
              dmlc::MemoryStringStream mstrm(&blob);
@@ -70,7 +70,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              b64strm.Finish();
              return ffi::String(blob);
            })
-      .def("__data_from_json__", [](const std::string& blob) {
+      .def("tvm.__data_from_json__", [](const std::string& blob) {
         dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
         support::Base64InStream b64strm(&mstrm);
         b64strm.InitPosition();

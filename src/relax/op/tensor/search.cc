@@ -49,7 +49,7 @@ Expr bucketize(Expr input_tensor, Expr boundaries, bool out_int32, bool right) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.bucketize", bucketize);
+  refl::GlobalDef().def("tvm.relax.op.bucketize", bucketize);
 }
 
 StructInfo InferStructInfoBucketize(const Call& call, const BlockBuilder& ctx) {
@@ -95,7 +95,7 @@ Expr where(Expr condition, Expr x1, Expr x2) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.where", where);
+  refl::GlobalDef().def("tvm.relax.op.where", where);
 }
 
 StructInfo InferStructInfoWhere(const Call& call, const BlockBuilder& ctx) {
@@ -256,7 +256,7 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
     return Call(op, {std::move(x)}, Attrs(attrs));                                 \
   }                                                                                \
   TVM_FFI_STATIC_INIT_BLOCK() {                                                    \
-    tvm::ffi::reflection::GlobalDef().def("relax.op." #OpName, OpName);            \
+    tvm::ffi::reflection::GlobalDef().def("tvm.relax.op." #OpName, OpName);        \
   }                                                                                \
   TVM_REGISTER_OP("relax." #OpName)                                                \
       .set_num_inputs(1)                                                           \

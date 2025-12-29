@@ -48,7 +48,7 @@ Expr astype(Expr x, DataType dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.astype", astype);
+  refl::GlobalDef().def("tvm.relax.op.astype", astype);
 }
 
 StructInfo InferStructInfoAstype(const Call& call, const BlockBuilder& ctx) {
@@ -80,7 +80,7 @@ Expr MakeWrapParam(Expr data, DataType dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.wrap_param", MakeWrapParam);
+  refl::GlobalDef().def("tvm.relax.op.wrap_param", MakeWrapParam);
 }
 
 StructInfo InferStructInfoWrapParam(const Call& call, const BlockBuilder& ctx) {

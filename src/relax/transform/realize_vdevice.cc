@@ -420,7 +420,7 @@ Pass RealizeVDevice() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.RealizeVDevice", RealizeVDevice);
+  refl::GlobalDef().def("tvm.relax.transform.RealizeVDevice", RealizeVDevice);
 }
 
 }  // namespace transform

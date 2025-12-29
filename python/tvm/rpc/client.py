@@ -264,7 +264,7 @@ class LocalSession(RPCSession):
         RPCSession.__init__(self, _ffi_api.LocalSession())
 
 
-@tvm_ffi.register_global_func("rpc.PopenSession")
+@tvm_ffi.register_global_func("tvm.rpc.PopenSession")
 def _popen_session(binary):
     temp = utils.tempdir()
 
@@ -535,7 +535,7 @@ def connect(
         client_via_proxy = rpc.connect(
             proxy_server_url, proxy_server_port, proxy_server_key, enable_logging
             session_constructor_args=[
-                "rpc.Connect", internal_url, internal_port, internal_key, internal_logging])
+                "tvm.rpc.Connect", internal_url, internal_port, internal_key, internal_logging])
 
     """
     try:

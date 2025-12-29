@@ -204,7 +204,7 @@ ffi::Array<Var> UndefinedVars(const PrimExpr& expr, const ffi::Array<Var>& args)
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
-      "tir.analysis.UndefinedVars", [](ffi::PackedArgs args, ffi::Any* rv) {
+      "tvm.tir.analysis.UndefinedVars", [](ffi::PackedArgs args, ffi::Any* rv) {
         if (auto opt_stmt = args[0].as<Stmt>()) {
           *rv = UndefinedVars(opt_stmt.value(), args[1].cast<ffi::Array<Var>>());
         } else if (auto opt_expr = args[0].as<PrimExpr>()) {

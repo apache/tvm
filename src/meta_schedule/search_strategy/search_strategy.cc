@@ -93,20 +93,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("meta_schedule.MeasureCandidate",
+      .def("tvm.meta_schedule.MeasureCandidate",
            [](tir::Schedule sch, ffi::Optional<ffi::Array<ArgInfo>> args_info) -> MeasureCandidate {
              return MeasureCandidate(sch, args_info.value_or({}));
            })
-      .def("meta_schedule.SearchStrategyPySearchStrategy", SearchStrategy::PySearchStrategy)
-      .def_method("meta_schedule.SearchStrategyInitializeWithTuneContext",
+      .def("tvm.meta_schedule.SearchStrategyPySearchStrategy", SearchStrategy::PySearchStrategy)
+      .def_method("tvm.meta_schedule.SearchStrategyInitializeWithTuneContext",
                   &SearchStrategyNode::InitializeWithTuneContext)
-      .def_method("meta_schedule.SearchStrategyPreTuning", &SearchStrategyNode::PreTuning)
-      .def_method("meta_schedule.SearchStrategyPostTuning", &SearchStrategyNode::PostTuning)
-      .def_method("meta_schedule.SearchStrategyGenerateMeasureCandidates",
+      .def_method("tvm.meta_schedule.SearchStrategyPreTuning", &SearchStrategyNode::PreTuning)
+      .def_method("tvm.meta_schedule.SearchStrategyPostTuning", &SearchStrategyNode::PostTuning)
+      .def_method("tvm.meta_schedule.SearchStrategyGenerateMeasureCandidates",
                   &SearchStrategyNode::GenerateMeasureCandidates)
-      .def_method("meta_schedule.SearchStrategyNotifyRunnerResults",
+      .def_method("tvm.meta_schedule.SearchStrategyNotifyRunnerResults",
                   &SearchStrategyNode::NotifyRunnerResults)
-      .def_method("meta_schedule.SearchStrategyClone", &SearchStrategyNode::Clone);
+      .def_method("tvm.meta_schedule.SearchStrategyClone", &SearchStrategyNode::Clone);
 }
 
 }  // namespace meta_schedule

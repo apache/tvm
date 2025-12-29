@@ -107,7 +107,7 @@ Pass UpdateParamStructInfo(ffi::TypedFunction<ffi::Optional<StructInfo>(Var)> si
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.UpdateParamStructInfo", UpdateParamStructInfo);
+  refl::GlobalDef().def("tvm.relax.transform.UpdateParamStructInfo", UpdateParamStructInfo);
 }
 
 }  // namespace transform

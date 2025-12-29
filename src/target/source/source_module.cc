@@ -266,12 +266,13 @@ ffi::Module DeviceSourceModuleCreate(std::string data, std::string fmt,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.SourceModuleCreate", SourceModuleCreate)
-      .def("runtime.CSourceModuleCreate", [](ffi::String code, ffi::String fmt,
-                                             ffi::Optional<ffi::Array<ffi::String>> func_names,
-                                             ffi::Optional<ffi::Array<ffi::String>> const_vars) {
-        return CSourceModuleCreate(code, fmt, func_names.value_or({}), const_vars.value_or({}));
-      });
+      .def("tvm.runtime.SourceModuleCreate", SourceModuleCreate)
+      .def("tvm.runtime.CSourceModuleCreate",
+           [](ffi::String code, ffi::String fmt, ffi::Optional<ffi::Array<ffi::String>> func_names,
+              ffi::Optional<ffi::Array<ffi::String>> const_vars) {
+             return CSourceModuleCreate(code, fmt, func_names.value_or({}),
+                                        const_vars.value_or({}));
+           });
 }
 
 }  // namespace codegen

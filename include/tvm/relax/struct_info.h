@@ -41,7 +41,8 @@ class ObjectStructInfoNode : public StructInfoNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ObjectStructInfoNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ObjectStructInfo", ObjectStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.ObjectStructInfo", ObjectStructInfoNode,
+                                    StructInfoNode);
 };
 
 /*!
@@ -72,7 +73,7 @@ class PrimStructInfoNode : public StructInfoNode {
         .def_ro("value", &PrimStructInfoNode::value)
         .def_ro("dtype", &PrimStructInfoNode::dtype);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.PrimStructInfo", PrimStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.PrimStructInfo", PrimStructInfoNode, StructInfoNode);
 };
 
 /*!
@@ -112,7 +113,8 @@ class ShapeStructInfoNode : public StructInfoNode {
         .def_ro("values", &ShapeStructInfoNode::values)
         .def_ro("ndim", &ShapeStructInfoNode::ndim);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ShapeStructInfo", ShapeStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.ShapeStructInfo", ShapeStructInfoNode,
+                                    StructInfoNode);
 };
 
 /*!
@@ -180,7 +182,8 @@ class TensorStructInfoNode : public StructInfoNode {
         .def_ro("vdevice", &TensorStructInfoNode::vdevice)
         .def_ro("ndim", &TensorStructInfoNode::ndim);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TensorStructInfo", TensorStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.TensorStructInfo", TensorStructInfoNode,
+                                    StructInfoNode);
 };
 
 /*!
@@ -226,7 +229,8 @@ class TupleStructInfoNode : public StructInfoNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TupleStructInfoNode>().def_ro("fields", &TupleStructInfoNode::fields);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TupleStructInfo", TupleStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.TupleStructInfo", TupleStructInfoNode,
+                                    StructInfoNode);
 };
 
 /*!
@@ -298,7 +302,7 @@ class FuncStructInfoNode : public StructInfoNode {
         .def_ro("derive_func", &FuncStructInfoNode::derive_func)
         .def_ro("purity", &FuncStructInfoNode::purity);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.FuncStructInfo", FuncStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.FuncStructInfo", FuncStructInfoNode, StructInfoNode);
 };
 
 /*!

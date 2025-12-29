@@ -77,7 +77,7 @@ class VMClosureObj : public Object {
    *       the same arguments as the normal function call.
    */
   ffi::Function impl;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.vm.Closure", VMClosureObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.relax.vm.Closure", VMClosureObj, Object);
 };
 
 /*! \brief reference to closure. */
@@ -107,7 +107,7 @@ class VMClosure : public ObjectRef {
  */
 class VMExtensionNode : public Object {
  protected:
-  TVM_FFI_DECLARE_OBJECT_INFO("runtime.VMExtension", VMExtensionNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.runtime.VMExtension", VMExtensionNode, Object);
 };
 
 /*! \brief Managed reference to VM extension. */

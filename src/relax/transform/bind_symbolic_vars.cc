@@ -153,7 +153,7 @@ IRModule ModuleBindSymbolicVars(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.FunctionBindSymbolicVars", FunctionBindSymbolicVars);
+  refl::GlobalDef().def("tvm.relax.FunctionBindSymbolicVars", FunctionBindSymbolicVars);
 }
 
 namespace transform {
@@ -179,7 +179,7 @@ Pass BindSymbolicVars(ffi::Map<ffi::Variant<tir::Var, ffi::String>, PrimExpr> bi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.BindSymbolicVars", BindSymbolicVars);
+  refl::GlobalDef().def("tvm.relax.transform.BindSymbolicVars", BindSymbolicVars);
 }
 
 }  // namespace transform

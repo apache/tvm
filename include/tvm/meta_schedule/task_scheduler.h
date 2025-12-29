@@ -75,7 +75,7 @@ class TaskRecordNode : public runtime::Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.TaskRecord", TaskRecordNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.TaskRecord", TaskRecordNode, Object);
 };
 
 /*!
@@ -202,7 +202,7 @@ class TaskSchedulerNode : public runtime::Object {
   void PrintTuningStatistics();
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.TaskScheduler", TaskSchedulerNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.meta_schedule.TaskScheduler", TaskSchedulerNode, Object);
 };
 
 class TaskScheduler;
@@ -250,7 +250,7 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
             int max_trials_per_task, int num_trials_per_iter, Builder builder, Runner runner,
             ffi::Array<MeasureCallback> measure_callbacks, ffi::Optional<Database> database,
             ffi::Optional<CostModel> cost_model) final;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyTaskScheduler", PyTaskSchedulerNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tvm.meta_schedule.PyTaskScheduler", PyTaskSchedulerNode,
                                     TaskSchedulerNode);
 };
 
