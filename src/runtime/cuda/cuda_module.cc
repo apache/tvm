@@ -60,8 +60,13 @@ class CUDAModuleNode : public ffi::ModuleObj {
   ~CUDAModuleNode() {
     for (size_t i = 0; i < module_.size(); ++i) {
       if (module_[i] != nullptr) {
-        CUDA_CALL(cudaSetDevice(static_cast<int>(i)));
-        CUDA_DRIVER_CALL(cuModuleUnload(module_[i]));
+        cudaError_t set_err = cudaSetDevice(static_cast<int>(i));
+        if (set_err != cudaSuccess && set_err != cudaErrorCudartUnloading) {
+          continue;
+        }
+        CUresult result = cuModuleUnload(module_[i]);
+        // Ignore errors during cleanup - context may be shutting down
+        (void)result;
       }
     }
   }
