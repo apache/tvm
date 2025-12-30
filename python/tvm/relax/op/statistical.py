@@ -343,9 +343,7 @@ def variance(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bo
     return _ffi_api.variance(x, axis, keepdims)  # type: ignore
 
 
-def median(
-    x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False
-) -> Expr:
+def median(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
     """Computes the median of tensor elements over given axes.
 
     Parameters
@@ -369,5 +367,4 @@ def median(
     """
     if isinstance(axis, int):
         axis = [axis]
-
     return _ffi_api.median(x, axis, keepdims)  # type: ignore

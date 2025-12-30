@@ -4975,18 +4975,17 @@ def test_median():
         @R.function
         def main(
             inp_0: R.Tensor((256, 256), dtype="float32")
-            ) -> R.Tuple(R.Tensor((256,), dtype="float32"), R.Tensor((256,), dtype="int64")):
+        ) -> R.Tuple(R.Tensor((256,), dtype="float32"), R.Tensor((256,), dtype="int64")):
             with R.dataflow():
                 lv: R.Tuple(
-                    R.Tensor((256,), dtype="float32"),
-                    R.Tensor((256,), dtype="int64")
-                    ) = R.median(inp_0, axis=[-1], keepdims=False)
+                    R.Tensor((256,), dtype="float32"), R.Tensor((256,), dtype="int64")
+                ) = R.median(inp_0, axis=[-1], keepdims=False)
                 lv1: R.Tensor((256,), dtype="float32") = lv[0]
                 lv2: R.Tensor((256,), dtype="int64") = lv[1]
-                gv: R.Tuple(
-                    R.Tensor((256,), dtype="float32"),
-                    R.Tensor((256,), dtype="int64")
-                    ) = lv1, lv2
+                gv: R.Tuple(R.Tensor((256,), dtype="float32"), R.Tensor((256,), dtype="int64")) = (
+                    lv1,
+                    lv2
+                )
                 R.output(gv)
             return gv
 
@@ -4995,18 +4994,16 @@ def test_median():
         @R.function
         def main(
             inp_0: R.Tensor((256, 256), dtype="float32")
-            ) -> R.Tuple(R.Tensor((256, 1), dtype="float32"), R.Tensor((256, 1), dtype="int64")):
+        ) -> R.Tuple(R.Tensor((256, 1), dtype="float32"), R.Tensor((256, 1), dtype="int64")):
             with R.dataflow():
                 lv: R.Tuple(
-                    R.Tensor((256, 1), dtype="float32"),
-                    R.Tensor((256, 1), dtype="int64")
-                    ) = R.median(inp_0, axis=[-1], keepdims=True)
+                    R.Tensor((256, 1), dtype="float32"), R.Tensor((256, 1), dtype="int64")
+                ) = R.median(inp_0, axis=[-1], keepdims=True)
                 lv1: R.Tensor((256, 1), dtype="float32") = lv[0]
                 lv2: R.Tensor((256, 1), dtype="int64") = lv[1]
                 gv: R.Tuple(
-                    R.Tensor((256, 1), dtype="float32"),
-                    R.Tensor((256, 1), dtype="int64")
-                    ) = lv1, lv2
+                    R.Tensor((256, 1), dtype="float32"), R.Tensor((256, 1), dtype="int64")
+                ) = (lv1, lv2)
                 R.output(gv)
             return gv
 
@@ -5015,7 +5012,7 @@ def test_median():
         @R.function
         def main(
             inp_0: R.Tensor((256, 256), dtype="float32")
-            ) -> R.Tuple(R.Tensor((), dtype="float32")):
+        ) -> R.Tuple(R.Tensor((), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((), dtype="float32") = R.median(inp_0, axis=None, keepdims=False)
                 gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv,)
