@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for statistical operators."""
-from typing import List
+from typing import List, Union, Tuple
 from tvm import topi, tir, te
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
@@ -53,15 +53,15 @@ def _te_variance(x: te.Tensor, axis: List[tir.IntImm], keepdims: bool) -> te.Ten
     # return _te_mean(x * x, axis, keepdims) - mean * mean
 
 
-def _te_median(x: te.Tensor, axis: List[tir.IntImm], keepdims: bool) -> te.Tensor:
+def _te_median(
+    x: te.Tensor,
+    axis: List[tir.IntImm],
+    keepdims: bool
+) -> Union[te.Tensor, Tuple[te.Tensor, te.Tensor]]:
     # currently only supports one axis or no axis ~ same pytorch
     # todo: support multiple axis ~ same numpy
     shape_prod = _compute_shape_prod(x, axis)
-    mid_index = shape_prod // 2
-    if shape_prod % 2 == 1:
-        mid_index = mid_index
-    else:
-        mid_index = mid_index - 1
+    mid_index = (shape_prod - 1) // 2
 
     if axis is None or len(axis) == 0:
         x = topi.reshape(x, [shape_prod.value])
