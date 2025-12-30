@@ -235,8 +235,8 @@ StructInfo InferStructInfoStatisticalExtension(const Call& call, const BlockBuil
   if (!attrs->axis.defined() || axes.size() > 1)
     return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
   else
-    return TupleStructInfo({
-        TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice),
+    return TupleStructInfo(
+        {TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice),
         TensorStructInfo(ShapeExpr(out_shape), DataType::Int(64), data_sinfo->vdevice)});
 }
 

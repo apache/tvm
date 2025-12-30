@@ -54,9 +54,7 @@ def _te_variance(x: te.Tensor, axis: List[tir.IntImm], keepdims: bool) -> te.Ten
 
 
 def _te_median(
-    x: te.Tensor,
-    axis: List[tir.IntImm],
-    keepdims: bool
+    x: te.Tensor, axis: List[tir.IntImm], keepdims: bool
 ) -> Union[te.Tensor, Tuple[te.Tensor, te.Tensor]]:
     # currently only supports one axis or no axis ~ same pytorch
     # todo: support multiple axis ~ same numpy

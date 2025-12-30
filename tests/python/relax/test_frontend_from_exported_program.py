@@ -4984,7 +4984,7 @@ def test_median():
                 lv2: R.Tensor((256,), dtype="int64") = lv[1]
                 gv: R.Tuple(R.Tensor((256,), dtype="float32"), R.Tensor((256,), dtype="int64")) = (
                     lv1,
-                    lv2
+                    lv2,
                 )
                 R.output(gv)
             return gv
