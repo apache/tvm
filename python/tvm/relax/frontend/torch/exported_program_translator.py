@@ -1476,6 +1476,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "ones_like.default": lambda node: self.block_builder.emit(
                 relax.op.ones_like(self.env[node.args[0]])
             ),
+            "randn.default": self._randn,
             "zero_.default": self._zeros_inplace,
             "zeros.default": self._zeros,
             "zeros_like.default": self._zeros_like,

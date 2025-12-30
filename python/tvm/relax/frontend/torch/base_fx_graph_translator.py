@@ -2275,6 +2275,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         return self.block_builder.emit(relax.op.zeros_like(x))
 
+    def _randn(self, node: fx.Node) -> relax.Var:
+        import torch
+
+        dtype = self._convert_data_type(
+            node.kwargs.get("dtype", torch.get_default_dtype()), self.env
+        )
+        return self.block_builder.emit(relax.op.zeros(node.args[0], dtype))
+
     def _eye(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         n = args[0]

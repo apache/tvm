@@ -8719,5 +8719,28 @@ def test_upsample_nearest2d():
     verify_model(UpsampleNearest2dSize(), example_args, {}, expected_size)
 
 
+def test_randn():
+    """Test basic torch.randn operation."""
+
+    class Randn(Module):
+        def forward(self, x):
+            return torch.randn(4, 8)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((4, 8), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((4, 8), dtype="float32") = R.zeros(R.shape([4, 8]), dtype="float32")
+                gv: R.Tuple(R.Tensor((4, 8), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 3, dtype=torch.float32),)
+    verify_model(Randn(), example_args, {}, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
