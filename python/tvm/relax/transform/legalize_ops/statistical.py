@@ -53,6 +53,42 @@ def _te_variance(x: te.Tensor, axis: List[tir.IntImm], keepdims: bool) -> te.Ten
     # return _te_mean(x * x, axis, keepdims) - mean * mean
 
 
+def _te_median(x: te.Tensor, axis: List[tir.IntImm], keepdims: bool) -> te.Tensor:
+    # currently only supports one axis or no axis ~ same pytorch
+    # todo: support multiple axis ~ same numpy
+    shape_prod = _compute_shape_prod(x, axis)
+    mid_index = shape_prod // 2
+    if shape_prod % 2 == 1:
+        mid_index = mid_index
+    else:
+        mid_index = mid_index - 1
+
+    if axis is None or len(axis) == 0:
+        x = topi.reshape(x, [shape_prod.value])
+        ax = -1
+    else:
+        ax = axis[0].value
+    index_sorted = topi.argsort(x, axis=ax, is_ascend=True, dtype="int64")
+    x_sorted = topi.gather(x, axis=ax, indices=index_sorted)
+
+    new_shape = list(x.shape)
+    new_shape[ax] = 1
+    indices = topi.full(new_shape, fill_value=mid_index, dtype="int64")
+
+    median_val = topi.gather(x_sorted, axis=ax, indices=indices)
+    median_idx = topi.gather(index_sorted, axis=ax, indices=indices)
+
+    if axis is None or len(axis) == 0:
+        return median_val if keepdims else topi.squeeze(median_val, axis=axis)
+
+    val = median_val
+    idx = median_idx
+    if not keepdims:
+        val = topi.squeeze(val, axis=axis)
+        idx = topi.squeeze(idx, axis=axis)
+    return val, idx
+
+
 @register_legalize("relax.mean")
 def _mean(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(
@@ -78,6 +114,17 @@ def _variance(bb: BlockBuilder, call: Call) -> Expr:
         call.attrs.axis,
         call.attrs.keepdims,
         primfunc_name_hint="variance",
+    )
+
+
+@register_legalize("relax.median")
+def _median(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(
+        _te_median,
+        call.args[0],
+        call.attrs.axis,
+        call.attrs.keepdims,
+        primfunc_name_hint="median",
     )
 
 

@@ -4957,6 +4957,77 @@ def test_mean():
     verify_model(MeanWithoutDim(), example_args, {}, Expected3)
 
 
+def test_median():
+    class Median(Module):
+        def forward(self, input):
+            return input.median(-1)
+
+    class MedianKeepDim(Module):
+        def forward(self, input):
+            return input.median(-1, keepdim=True)
+
+    class MedianWithoutDim(Module):
+        def forward(self, input):
+            return input.median()
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+            ) -> R.Tuple(R.Tensor((256,), dtype="float32"), R.Tensor((256,), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((256,), dtype="float32"),
+                    R.Tensor((256,), dtype="int64")
+                    ) = R.median(inp_0, axis=[-1], keepdims=False)
+                lv1: R.Tensor((256,), dtype="float32") = lv[0]
+                lv2: R.Tensor((256,), dtype="int64") = lv[1]
+                gv: R.Tuple(
+                    R.Tensor((256,), dtype="float32"),
+                    R.Tensor((256,), dtype="int64")
+                    ) = lv1, lv2
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+            ) -> R.Tuple(R.Tensor((256, 1), dtype="float32"), R.Tensor((256, 1), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((256, 1), dtype="float32"),
+                    R.Tensor((256, 1), dtype="int64")
+                    ) = R.median(inp_0, axis=[-1], keepdims=True)
+                lv1: R.Tensor((256, 1), dtype="float32") = lv[0]
+                lv2: R.Tensor((256, 1), dtype="int64") = lv[1]
+                gv: R.Tuple(
+                    R.Tensor((256, 1), dtype="float32"),
+                    R.Tensor((256, 1), dtype="int64")
+                    ) = lv1, lv2
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected3:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+            ) -> R.Tuple(R.Tensor((), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.median(inp_0, axis=None, keepdims=False)
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(256, 256, dtype=torch.float32),)
+    verify_model(Median(), example_args, {}, Expected1)
+    verify_model(MedianKeepDim(), example_args, {}, Expected2)
+    verify_model(MedianWithoutDim(), example_args, {}, Expected3)
+
+
 def test_sum():
     class Sum(Module):
         def forward(self, x):
