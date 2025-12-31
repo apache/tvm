@@ -216,13 +216,11 @@ StructInfo InferStructInfoStatisticalExtension(const Call& call, const BlockBuil
           data_sinfo->dtype, data_sinfo->vdevice);
     }
     if (out_ndim == 0) {
-      return TensorStructInfo(
-          ShapeExpr(ffi::Array<PrimExpr>()), data_sinfo->dtype,
-          data_sinfo->vdevice);
+      return TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>()), data_sinfo->dtype,
+                              data_sinfo->vdevice);
     }
-    return TupleStructInfo(
-        {TensorStructInfo(data_sinfo->dtype, out_ndim, data_sinfo->vdevice),
-         TensorStructInfo(DataType::Int(64), out_ndim, data_sinfo->vdevice)});
+    return TupleStructInfo({TensorStructInfo(data_sinfo->dtype, out_ndim, data_sinfo->vdevice),
+                            TensorStructInfo(DataType::Int(64), out_ndim, data_sinfo->vdevice)});
   }
 
   ffi::Array<PrimExpr> out_shape;
