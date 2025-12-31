@@ -216,12 +216,6 @@ class MetalWrappedFunc {
       ThreadWorkLoad wl = launch_param_config_.Extract(args);
       int blockSize = wl.block_dim(0) * wl.block_dim(1) * wl.block_dim(2);
       auto maxTotalThreadsPerThreadgroup = scache_[device_id].maxTotalThreadsPerThreadgroup;
-
-      // LOG(INFO) << "Launching " << func_name_
-      //           << " with grid(" << wl.grid_dim(0) << "," << wl.grid_dim(1) << "," << wl.grid_dim(2) << ")"
-      //           << " block(" << wl.block_dim(0) << "," << wl.block_dim(1) << "," << wl.block_dim(2) << ")"
-      //           << " blockSize=" << blockSize << " max=" << maxTotalThreadsPerThreadgroup;
-
       CHECK_LE(blockSize, maxTotalThreadsPerThreadgroup);
       // attach error message directly in this functio
       id<MTLCommandBuffer> cb = stream->GetCommandBuffer(/*label=*/"TVMKernel:" + func_name_,
@@ -240,12 +234,8 @@ class MetalWrappedFunc {
       // launch
       MTLSize dimGrid = MTLSizeMake(wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2));
       MTLSize dimBlock = MTLSizeMake(wl.block_dim(0), wl.block_dim(1), wl.block_dim(2));
-
-      // LOG(DEBUG) << "Dispatching kernel...";
       [encoder dispatchThreadgroups:dimGrid threadsPerThreadgroup:dimBlock];
-      // LOG(DEBUG) << "Kernel dispatched, encoding...";
       [encoder endEncoding];
-      // LOG(DEBUG) << "Encoding complete";
       // attach error message with function name
       [cb addCompletedHandler:^(id<MTLCommandBuffer> buffer) {
         if (buffer.status == MTLCommandBufferStatusError) {
