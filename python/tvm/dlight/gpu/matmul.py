@@ -1047,10 +1047,7 @@ class Matmul(GPUScheduleRule):
                 result = MetalMatmul().apply(func, target, _)
                 if result is not None:
                     return result
-            except Exception as e:  # pylint: disable=broad-except
-                import warnings
-
-                warnings.warn(f"MetalMatmul failed: {e}, falling back to generic Matmul")
+            except Exception:  # pylint: disable=broad-except
                 pass
 
         # Step 2. Schedule matmul
