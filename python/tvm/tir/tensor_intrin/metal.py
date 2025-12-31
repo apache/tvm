@@ -251,7 +251,8 @@ TensorIntrin.register(
 
 SIMDGROUP_MAKE_FILLED_8x8x8_bf16_INTRIN = "simdgroup_make_filled_8x8x8_bf16"
 TensorIntrin.register(
-    SIMDGROUP_MAKE_FILLED_8x8x8_bf16_INTRIN, *get_make_filled_simdgroup_matrix_intrin("bfloat16", 8, 8)
+    SIMDGROUP_MAKE_FILLED_8x8x8_bf16_INTRIN,
+    *get_make_filled_simdgroup_matrix_intrin("bfloat16", 8, 8),
 )
 
 # Load intrinsics
