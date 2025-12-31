@@ -217,7 +217,6 @@ def rope_freq_yarn(
 
     exponent = d * 2 % d_range / tir.const(d_range, "float32")
     freq_power = tir.power(theta, exponent)
-
     freq_extra = tir.const(1, "float32") / freq_power
     freq_inter = tir.const(1, "float32") / (scaling_factor * freq_power)
 
