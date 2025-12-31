@@ -319,7 +319,6 @@ def _convert_data_type(input_type):
         raise NotImplementedError("input_type {} is not handled yet".format(input_type))
 
 
-@tvm.testing.requires_gpu
 def test_ones():
     import torch
     from torch.nn import Module
@@ -350,7 +349,6 @@ def test_ones():
     )
 
 
-@tvm.testing.requires_gpu
 def test_full():
     import torch
     from torch.nn import Module
@@ -381,7 +379,6 @@ def test_full():
     )
 
 
-@tvm.testing.requires_gpu
 def test_gelu():
     import torch
     from torch.nn import Module
@@ -433,7 +430,6 @@ def test_gelu():
     )
 
 
-@tvm.testing.requires_gpu
 def test_masked_fill():
     import torch
     from torch.nn import Module
@@ -470,7 +466,6 @@ def test_masked_fill():
     )
 
 
-@tvm.testing.requires_gpu
 def test_getitem():
     import torch
     from torch.nn import Module
@@ -546,7 +541,6 @@ def test_getitem():
     version.parse(torch_version) >= version.parse("2.6.0"),
     reason="Need to support dynamic arange in Relax",
 )
-@tvm.testing.requires_gpu
 def test_arange():
     import torch
     from torch.nn import Module
