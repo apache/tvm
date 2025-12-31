@@ -214,11 +214,15 @@ StructInfo InferStructInfoStatisticalExtension(const Call& call, const BlockBuil
       return TensorStructInfo(
           ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm(DataType::Int(64), /*value=*/1))),
           data_sinfo->dtype, data_sinfo->vdevice);
-    } else {
-      return out_ndim == 0 ? TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>()), data_sinfo->dtype,
-                                              data_sinfo->vdevice)
-                           : TensorStructInfo(data_sinfo->dtype, out_ndim, data_sinfo->vdevice);
     }
+    if (out_ndim == 0) {
+      return TensorStructInfo(
+          ShapeExpr(ffi::Array<PrimExpr>()), data_sinfo->dtype,
+          data_sinfo->vdevice);
+    }
+    return TupleStructInfo(
+        {TensorStructInfo(data_sinfo->dtype, out_ndim, data_sinfo->vdevice),
+         TensorStructInfo(DataType::Int(64), out_ndim, data_sinfo->vdevice)});
   }
 
   ffi::Array<PrimExpr> out_shape;
@@ -237,7 +241,7 @@ StructInfo InferStructInfoStatisticalExtension(const Call& call, const BlockBuil
   else
     return TupleStructInfo(
         {TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice),
-        TensorStructInfo(ShapeExpr(out_shape), DataType::Int(64), data_sinfo->vdevice)});
+         TensorStructInfo(ShapeExpr(out_shape), DataType::Int(64), data_sinfo->vdevice)});
 }
 
 /* relax.cumprod */
