@@ -707,9 +707,9 @@ StructInfo InferStructInfoConv1dTranspose(const Call& call, const BlockBuilder& 
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 
-InferLayoutOutput InferLayoutConv1dTranspose(const Call& call,
-                                             const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
-                                             const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutConv1dTranspose(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   const auto* attrs = call->attrs.as<Conv1DTransposeAttrs>();
   LayoutDecision data_layout, weight_layout, output_layout;
   ObjectPtr<Conv1DTransposeAttrs> new_attrs = ffi::make_object<Conv1DTransposeAttrs>(*attrs);
@@ -746,12 +746,12 @@ InferLayoutOutput InferLayoutConv1dTranspose(const Call& call,
 
 Call InferMixedPrecisionConv1dTranspose(const Call& call, const DataType& out_dtype) {
   const auto* conv1d_transpose_attrs = call->attrs.as<Conv1DTransposeAttrs>();
-  return Downcast<Call>(conv1d_transpose(
-      call->args[0], call->args[1], conv1d_transpose_attrs->strides,
-      conv1d_transpose_attrs->padding, conv1d_transpose_attrs->output_padding,
-      conv1d_transpose_attrs->dilation, conv1d_transpose_attrs->groups,
-      conv1d_transpose_attrs->data_layout, conv1d_transpose_attrs->kernel_layout,
-      conv1d_transpose_attrs->out_layout, out_dtype));
+  return Downcast<Call>(
+      conv1d_transpose(call->args[0], call->args[1], conv1d_transpose_attrs->strides,
+                       conv1d_transpose_attrs->padding, conv1d_transpose_attrs->output_padding,
+                       conv1d_transpose_attrs->dilation, conv1d_transpose_attrs->groups,
+                       conv1d_transpose_attrs->data_layout, conv1d_transpose_attrs->kernel_layout,
+                       conv1d_transpose_attrs->out_layout, out_dtype));
 }
 
 TVM_REGISTER_OP("relax.nn.conv1d_transpose")
@@ -905,9 +905,9 @@ StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& 
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 
-InferLayoutOutput InferLayoutConv2dTranspose(const Call& call,
-                                             const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
-                                             const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutConv2dTranspose(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   const auto* attrs = call->attrs.as<Conv2DTransposeAttrs>();
   LayoutDecision data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   LayoutDecision weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
@@ -977,12 +977,12 @@ InferLayoutOutput InferLayoutConv2dTranspose(const Call& call,
 
 Call InferMixedPrecisionConv2dTranspose(const Call& call, const DataType& out_dtype) {
   const auto* conv2d_transpose_attrs = call->attrs.as<Conv2DTransposeAttrs>();
-  return Downcast<Call>(conv2d_transpose(
-      call->args[0], call->args[1], conv2d_transpose_attrs->strides,
-      conv2d_transpose_attrs->padding, conv2d_transpose_attrs->output_padding,
-      conv2d_transpose_attrs->dilation, conv2d_transpose_attrs->groups,
-      conv2d_transpose_attrs->data_layout, conv2d_transpose_attrs->kernel_layout,
-      conv2d_transpose_attrs->out_layout, out_dtype));
+  return Downcast<Call>(
+      conv2d_transpose(call->args[0], call->args[1], conv2d_transpose_attrs->strides,
+                       conv2d_transpose_attrs->padding, conv2d_transpose_attrs->output_padding,
+                       conv2d_transpose_attrs->dilation, conv2d_transpose_attrs->groups,
+                       conv2d_transpose_attrs->data_layout, conv2d_transpose_attrs->kernel_layout,
+                       conv2d_transpose_attrs->out_layout, out_dtype));
 }
 
 TVM_REGISTER_OP("relax.nn.conv2d_transpose")
