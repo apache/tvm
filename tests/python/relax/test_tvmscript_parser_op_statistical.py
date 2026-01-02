@@ -95,6 +95,25 @@ def test_mean():
     _check(foo, bb.get()["foo"])
 
 
+def test_median():
+    @R.function
+    def foo(
+        x: R.Tensor((1, 2, 3, 4), "float32")
+    ) -> R.Tuple(R.Tensor((1, 3, 4), "float32"), R.Tensor((1, 3, 4), "int64")):
+        gv: R.Tuple(R.Tensor((1, 3, 4), "float32"), R.Tensor((1, 3, 4), "int64")) = R.median(
+            x, axis=[1]
+        )
+        return gv
+
+    x = relax.Var("x", R.Tensor((1, 2, 3, 4), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x]):
+        gv = bb.emit(relax.op.median(x, axis=[1]))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
 def test_variance():
     @R.function
     def foo(x: R.Tensor((1, 2, 3, 4), "float32")) -> R.Tensor((1,), "float32"):

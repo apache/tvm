@@ -33,6 +33,7 @@ def test_op_correctness():
     assert relax.op.std(x).op == Op.get("relax.std")
     assert relax.op.sum(x).op == Op.get("relax.sum")
     assert relax.op.variance(x).op == Op.get("relax.variance")
+    assert relax.op.median(x).op == Op.get("relax.median")
 
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
@@ -273,6 +274,231 @@ def test_scan_opinfer_struct_info_wrong_input_type(scan_op: Callable):
         bb.normalize(scan_op(x0, axis=1))
     with pytest.raises(TVMError):
         bb.normalize(scan_op(x1, axis=1))
+
+
+def test_statistical_ext_infer_struct_info():
+    bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
+    x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
+    x1 = relax.Var("x", R.Tensor("float32", ndim=4))
+    x2 = relax.Var("x", R.Tensor("float32"))
+    x3 = relax.Var("x", R.Tensor((2, 3, 4, 5)))
+    x4 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32", vdev0))
+
+    _check_inference(
+        bb,
+        relax.op.median(x0, axis=[1]),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo((2, 4, 5), "float32"),
+                relax.TensorStructInfo((2, 4, 5), "int64"),
+            ]
+        ),
+    )
+    _check_inference(
+        bb,
+        relax.op.median(x0, axis=[1], keepdims=True),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo((2, 1, 4, 5), "float32"),
+                relax.TensorStructInfo((2, 1, 4, 5), "int64"),
+            ]
+        ),
+    )
+    _check_inference(
+        bb,
+        relax.op.median(x1, axis=[1]),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo(dtype="float32", ndim=3),
+                relax.TensorStructInfo(dtype="int64", ndim=3),
+            ]
+        ),
+    )
+    _check_inference(
+        bb,
+        relax.op.median(x1, axis=[1], keepdims=True),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo(dtype="float32", ndim=4),
+                relax.TensorStructInfo(dtype="int64", ndim=4),
+            ]
+        ),
+    )
+    _check_inference(
+        bb,
+        relax.op.median(x1, axis=None, keepdims=True),
+        relax.TensorStructInfo((1, 1, 1, 1), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.median(x2, axis=[1]),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo(dtype="float32"),
+                relax.TensorStructInfo(dtype="int64"),
+            ]
+        ),
+    )
+    _check_inference(
+        bb,
+        relax.op.median(x2, axis=[1], keepdims=True),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo(dtype="float32"),
+                relax.TensorStructInfo(dtype="int64"),
+            ]
+        ),
+    )
+    _check_inference(bb, relax.op.median(x2, axis=None), relax.TensorStructInfo((), "float32"))
+    _check_inference(
+        bb,
+        relax.op.median(x3, axis=[1], keepdims=True),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo((2, 1, 4, 5), dtype=""),
+                relax.TensorStructInfo((2, 1, 4, 5), dtype="int64"),
+            ]
+        ),
+    )
+    _check_inference(bb, relax.op.median(x3, axis=None), relax.TensorStructInfo((), dtype=""))
+    _check_inference(
+        bb,
+        relax.op.median(x3, axis=None, keepdims=True),
+        relax.TensorStructInfo((1, 1, 1, 1), dtype=""),
+    )
+    _check_inference(
+        bb,
+        relax.op.median(x4, axis=[1]),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo((2, 4, 5), "float32", vdev0),
+                relax.TensorStructInfo((2, 4, 5), "int64", vdev0),
+            ]
+        ),
+    )
+
+
+def test_statistical_ext_infer_struct_info_shape_symbolic():
+    bb = relax.BlockBuilder()
+    a = tir.Var("a", "int64")
+    b = tir.Var("b", "int64")
+    c = tir.Var("c", "int64")
+    d = tir.Var("d", "int64")
+    x = relax.Var("x", R.Tensor((a, b, c, d), "float32"))
+
+    _check_inference(
+        bb,
+        relax.op.median(x, axis=[1]),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo((a, c, d), "float32"),
+                relax.TensorStructInfo((a, c, d), "int64"),
+            ]
+        ),
+    )
+    _check_inference(
+        bb,
+        relax.op.median(x, axis=[1], keepdims=True),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo((a, 1, c, d), "float32"),
+                relax.TensorStructInfo((a, 1, c, d), "int64"),
+            ]
+        ),
+    )
+    _check_inference(bb, relax.op.median(x, axis=None), relax.TensorStructInfo((), "float32"))
+    _check_inference(
+        bb,
+        relax.op.median(x, axis=None, keepdims=True),
+        relax.TensorStructInfo((1, 1, 1, 1), "float32"),
+    )
+
+
+def test_statistical_ext_infer_struct_info_shape_var():
+    bb = relax.BlockBuilder()
+    s0 = relax.Var("s", relax.ShapeStructInfo(ndim=4))
+    s1 = relax.Var("s", relax.ShapeStructInfo())
+    x0 = relax.Var("x", relax.TensorStructInfo(s0, "float32"))
+    x1 = relax.Var("x", relax.TensorStructInfo(s1, "float32"))
+
+    _check_inference(bb, relax.op.median(x0), relax.TensorStructInfo((), dtype="float32"))
+    _check_inference(
+        bb,
+        relax.op.median(x0, keepdims=True),
+        relax.TensorStructInfo((1, 1, 1, 1), dtype="float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.median(x0, axis=[2]),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo(dtype="float32", ndim=3),
+                relax.TensorStructInfo(dtype="int64", ndim=3),
+            ]
+        ),
+    )
+    _check_inference(
+        bb,
+        relax.op.median(x0, axis=[2], keepdims=True),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo(dtype="float32", ndim=4),
+                relax.TensorStructInfo(dtype="int64", ndim=4),
+            ]
+        ),
+    )
+    _check_inference(bb, relax.op.median(x1), relax.TensorStructInfo((), dtype="float32"))
+    _check_inference(
+        bb,
+        relax.op.median(x1, keepdims=True),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo(dtype="float32"),
+                relax.TensorStructInfo(dtype="int64"),
+            ]
+        ),
+    )
+    _check_inference(
+        bb,
+        relax.op.median(x1, axis=[2]),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo(dtype="float32"),
+                relax.TensorStructInfo(dtype="int64"),
+            ]
+        ),
+    )
+    _check_inference(
+        bb,
+        relax.op.median(x1, axis=[2], keepdims=True),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo(dtype="float32"),
+                relax.TensorStructInfo(dtype="int64"),
+            ]
+        ),
+    )
+
+
+def test_statistical_ext_infer_struct_info_more_input_dtype():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float16"))
+    x1 = relax.Var("x", R.Tensor((2, 3, 4, 5), "int8"))
+
+    _check_inference(bb, relax.op.median(x0), relax.TensorStructInfo((), "float16"))
+    _check_inference(bb, relax.op.median(x1), relax.TensorStructInfo((), "int8"))
+
+
+def test_statistical_ext_infer_struct_info_wrong_input_type():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4, 5)))
+    x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 4, 5), "float32")))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.median(x0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.median(x1))
 
 
 if __name__ == "__main__":

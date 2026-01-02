@@ -1384,6 +1384,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "sum.dim_IntList": self._sum,
             "var.correction": self._var,
             "max.dim": self._max_dim,
+            "median.dim": self._median,
+            "median.default": self._median,
             # search
             "argmax.default": self._argmax_argmin(relax.op.argmax),
             "argmin.default": self._argmax_argmin(relax.op.argmin),
