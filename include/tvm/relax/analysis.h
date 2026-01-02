@@ -34,6 +34,7 @@
 #include <tvm/tir/index_map.h>
 
 #include <functional>
+#include <set>
 #include <utility>
 
 namespace tvm {
@@ -493,6 +494,17 @@ struct VarUsageInfo {
  * \return The collected information
  */
 VarUsageInfo CollectVarUsage(const Expr& expr);
+
+/*!
+ * \brief Get the used variables in an expression.
+ *
+ * This function collects all variables that are referenced within the given expression.
+ *
+ * \param expr The expression to analyze
+ *
+ * \return A set of variable nodes that are used in the expression
+ */
+TVM_DLL std::set<const VarNode*> GetUsedVars(const Expr& expr);
 
 /*!
  * \brief Remove unused statements inside DataflowBlocks.

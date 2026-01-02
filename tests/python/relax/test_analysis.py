@@ -17,6 +17,7 @@
 
 from typing import List, Set, Union
 
+import pytest
 import tvm
 import tvm.testing
 from tvm import relax as rx
@@ -26,6 +27,7 @@ from tvm.relax.analysis import (
     all_vars,
     bound_vars,
     free_vars,
+    get_used_vars,
     has_reshape_pattern,
     name_to_binding,
     remove_all_unused,
@@ -59,6 +61,27 @@ def test_use_def():
     assert set(udc[lv0]) == {lv1}
     assert set(udc[lv1]) == {gv0}
     assert set(udc[gv0]) == set()
+
+
+@pytest.mark.parametrize(
+    "expr_fn, expected_var_names",
+    [
+        (lambda x, y, z: rx.op.add(x, y), {"x", "y"}),
+        (lambda x, y, z: rx.op.multiply(x, x), {"x"}),
+        (lambda x, y, z: rx.Tuple([x, y, z]), {"x", "y", "z"}),
+    ],
+    ids=["binary_op", "self_reference", "tuple"],
+)
+def test_get_used_vars(expr_fn, expected_var_names):
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
+    x = rx.Var("x", R.Tensor([m, n], "float16"))
+    y = rx.Var("y", R.Tensor([n], "float16"))
+    z = rx.Var("z", R.Tensor([m], "float16"))
+
+    expr = expr_fn(x, y, z)
+    used_vars = get_used_vars(expr)
+    assert var_name_set(used_vars) == expected_var_names
 
 
 def test_chained_remove_all_unused():

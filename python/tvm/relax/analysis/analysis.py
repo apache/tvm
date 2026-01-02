@@ -312,6 +312,26 @@ def all_vars(expr: Expr) -> List[Var]:
     return _ffi_api.all_vars(expr)
 
 
+def get_used_vars(expr: Expr) -> List[Var]:
+    """
+    Get all variables used in an expression.
+
+    This function collects all variable references within the given expression,
+    which is useful for analyzing variable dependencies.
+
+    Parameters
+    ----------
+    expr: Expr
+        The expression to analyze.
+
+    Returns
+    -------
+    ret: List[Var]
+        List of variables used in the expression.
+    """
+    return _ffi_api.get_used_vars(expr)  # type: ignore
+
+
 def all_global_vars(expr: Expr) -> List[GlobalVar]:
     """
     Return all global variables from expression expr.
