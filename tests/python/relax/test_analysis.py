@@ -27,7 +27,7 @@ from tvm.relax.analysis import (
     all_vars,
     bound_vars,
     free_vars,
-    get_used_vars,
+    used_vars,
     has_reshape_pattern,
     name_to_binding,
     remove_all_unused,
@@ -72,7 +72,7 @@ def test_use_def():
     ],
     ids=["binary_op", "self_reference", "tuple"],
 )
-def test_get_used_vars(expr_fn, expected_var_names):
+def test_used_vars(expr_fn, expected_var_names):
     m = tir.Var("m", "int64")
     n = tir.Var("n", "int64")
     x = rx.Var("x", R.Tensor([m, n], "float16"))
@@ -80,8 +80,8 @@ def test_get_used_vars(expr_fn, expected_var_names):
     z = rx.Var("z", R.Tensor([m], "float16"))
 
     expr = expr_fn(x, y, z)
-    used_vars = get_used_vars(expr)
-    assert var_name_set(used_vars) == expected_var_names
+    result = used_vars(expr)
+    assert var_name_set(result) == expected_var_names
 
 
 def test_chained_remove_all_unused():

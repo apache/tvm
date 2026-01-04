@@ -123,7 +123,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.analysis.udchain", DataflowBlockUseDef)
-      .def("relax.analysis.get_used_vars", [](const Expr& expr) {
+      .def("relax.analysis.used_vars", [](const Expr& expr) {
         auto used_vars = GetUsedVars(expr);
         ffi::Array<Var> result;
         for (const VarNode* var_node : used_vars) {
