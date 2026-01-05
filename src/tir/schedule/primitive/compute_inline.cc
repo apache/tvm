@@ -986,15 +986,8 @@ void ReverseComputeInline(ScheduleState self, const StmtSRef& consumer_block_sre
 
 /*!
  * \brief Helper to fuse epilogue block into reduction block
- * Analyzes epilogue pattern and transforms reduction init/update
+ * Uses generalized approach to handle any epilogue expression without pattern matching
  */
-// Epilogue type enumeration
-enum class EpilogueType {
-  Bias,      // temp + C
-  BiasReLU,  // max(temp + C, 0)
-  Clipping,  // min(max(temp, lower), upper)
-};
-
 class ReductionEpilogueFuser : public BaseInliner {
  public:
   explicit ReductionEpilogueFuser(const Buffer& reduction_buffer, const BlockNode* reduction_block,
@@ -1002,8 +995,7 @@ class ReductionEpilogueFuser : public BaseInliner {
                                   const StmtSRef& scope_root_sref)
       : BaseInliner(reduction_buffer, epilogue_block_realize->block, scope_root_sref),
         reduction_block_(reduction_block),
-        epilogue_block_(epilogue_block_realize->block.get()),
-        epilogue_type_(EpilogueType::Bias) {
+        epilogue_block_(epilogue_block_realize->block.get()) {
     // Disable opaque access check for epilogue fusion
     // Epilogue blocks can read multiple buffers (temp + bias), which is allowed
     has_opaque_access = false;
@@ -1023,7 +1015,6 @@ class ReductionEpilogueFuser : public BaseInliner {
                                   const BlockRealizeNode* reduction_realize);
 
  private:
-  bool AnalyzeEpiloguePattern(const PrimExpr& value);
   bool IsReductionBlock(const BlockNode* block);
   void ExtractEpilogueInfo();
   // Helper function to extract BufferLoad nodes from BufferStore
@@ -1055,15 +1046,11 @@ class ReductionEpilogueFuser : public BaseInliner {
   // Generalized approach: store the entire epilogue expression
   PrimExpr epilogue_expression_{nullptr};                  // The entire epilogue expression (e.g., temp + C, max(temp + C, 0))
   const BufferLoadNode* reduction_buffer_load_{nullptr};   // The reduction buffer load in epilogue expression
-  PrimExpr epilogue_addend_{nullptr};                      // C[vi, vj] in D = temp + C (kept for backward compatibility)
   Buffer epilogue_output_buffer_{nullptr};                 // Output buffer D
   ffi::Array<PrimExpr> epilogue_output_indices_{nullptr};  // Indices of D[vi, vj]
   BufferRegion epilogue_output_region_{nullptr};           // Write region of D
-  Buffer epilogue_addend_buffer_{nullptr};                 // Addend buffer C
-  BufferRegion epilogue_addend_region_{nullptr};           // Read region of C
-  EpilogueType epilogue_type_;                             // Type of epilogue operation (kept for backward compatibility)
-  PrimExpr clipping_lower_{nullptr};                       // Lower bound for clipping (kept for backward compatibility)
-  PrimExpr clipping_upper_{nullptr};                       // Upper bound for clipping (kept for backward compatibility)
+  Buffer epilogue_addend_buffer_{nullptr};                 // Additional buffer (e.g., bias buffer C)
+  BufferRegion epilogue_addend_region_{nullptr};           // Read region of additional buffer
 };
 
 bool ReductionEpilogueFuser::BodyPatternAllowFusion(const BlockRealize& epilogue_block_realize) {
@@ -1098,9 +1085,6 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const BlockRealize& epilogue
   epilogue_expression_ = inlined_store_->value;
   reduction_buffer_load_ = loads[0];
   
-  // For backward compatibility, try to analyze pattern (optional)
-  AnalyzeEpiloguePattern(inlined_store_->value);
-
   // 6. Check if producer is a reduction block
   if (!IsReductionBlock(reduction_block_)) {
     // Failure: producer is not a reduction block
@@ -1111,140 +1095,6 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const BlockRealize& epilogue
   ExtractEpilogueInfo();
 
   return true;
-}
-
-bool ReductionEpilogueFuser::AnalyzeEpiloguePattern(const PrimExpr& value) {
-  // Pattern 1: temp[i,j] + C[i,j] or C[i,j] + temp[i,j] (Bias)
-  if (const auto* add = value.as<AddNode>()) {
-    const auto* load_a = add->a.as<BufferLoadNode>();
-    const auto* load_b = add->b.as<BufferLoadNode>();
-
-    bool a_is_target = load_a && load_a->buffer.same_as(inlined_buffer_);
-    bool b_is_target = load_b && load_b->buffer.same_as(inlined_buffer_);
-
-    // Ensure exactly one operand is from the reduction buffer
-    if (a_is_target != b_is_target) {
-      epilogue_addend_ = a_is_target ? add->b : add->a;
-      epilogue_type_ = EpilogueType::Bias;
-      return true;
-    }
-  }
-
-  // Pattern 2: min(max(temp[i,j], lower), upper) or max(min(temp[i,j], upper), lower) (Clipping)
-  // Handle all commutative variants of min/max at each level.
-
-  // Helper to check if an expression is a load from the reduction buffer, and
-  // return the other operand as `other` if so.
-  auto match_buffer_in_commutative_op = [this](const PrimExpr& a, const PrimExpr& b,
-                                               PrimExpr* other) -> bool {
-    if (const auto* load_a = a.as<BufferLoadNode>()) {
-      if (load_a->buffer.same_as(inlined_buffer_)) {
-        *other = b;
-        return true;
-      }
-    }
-    if (const auto* load_b = b.as<BufferLoadNode>()) {
-      if (load_b->buffer.same_as(inlined_buffer_)) {
-        *other = a;
-        return true;
-      }
-    }
-    return false;
-  };
-
-  // Check for min(max(temp, lower), upper) and commutative variants
-  if (const auto* min_node = value.as<MinNode>()) {
-    const MaxNode* max_node = nullptr;
-    PrimExpr upper;
-    // Try both (a, b) as possible positions of the inner max
-    if ((max_node = min_node->a.as<MaxNode>())) {
-      upper = min_node->b;
-    } else if ((max_node = min_node->b.as<MaxNode>())) {
-      upper = min_node->a;
-    }
-    if (max_node != nullptr) {
-      PrimExpr lower;
-      if (match_buffer_in_commutative_op(max_node->a, max_node->b, &lower)) {
-        clipping_lower_ = lower;
-        clipping_upper_ = upper;
-        epilogue_type_ = EpilogueType::Clipping;
-        return true;
-      }
-    }
-  }
-
-  // Check for max(min(temp[i,j], upper), lower) and commutative variants
-  if (const auto* max_node = value.as<MaxNode>()) {
-    const MinNode* min_node = nullptr;
-    PrimExpr lower;
-    // Try both (a, b) as possible positions of the inner min
-    if ((min_node = max_node->a.as<MinNode>())) {
-      lower = max_node->b;
-    } else if ((min_node = max_node->b.as<MinNode>())) {
-      lower = max_node->a;
-    }
-    if (min_node != nullptr) {
-      PrimExpr upper;
-      if (match_buffer_in_commutative_op(min_node->a, min_node->b, &upper)) {
-        clipping_lower_ = lower;
-        clipping_upper_ = upper;
-        epilogue_type_ = EpilogueType::Clipping;
-        return true;
-      }
-    }
-  }
-
-  // Pattern 3: max(temp[i,j] + C[i,j], 0) or max(C[i,j] + temp[i,j], 0) (BiasReLU)
-  // Also handle max(0, temp[i,j] + C[i,j]) or max(0, C[i,j] + temp[i,j])
-  if (const auto* max_node = value.as<MaxNode>()) {
-    // Check if either operand is zero (ReLU: max(x, 0) or max(0, x))
-    // Support both integer and float zero constants.
-    const PrimExpr* add_candidate = nullptr;
-    bool is_zero_const = false;
-    auto is_zero_expr = [](const PrimExpr& expr) -> bool {
-      if (tir::is_zero(expr)) {
-        return true;
-      }
-      if (const auto* float_imm = expr.as<FloatImmNode>()) {
-        return float_imm->value == 0.0;
-      }
-      return false;
-    };
-
-    if (is_zero_expr(max_node->a)) {
-      is_zero_const = true;
-      add_candidate = &max_node->b;
-    } else if (is_zero_expr(max_node->b)) {
-      is_zero_const = true;
-      add_candidate = &max_node->a;
-    }
-
-    if (is_zero_const && add_candidate != nullptr) {
-      if (const auto* add = add_candidate->as<AddNode>()) {
-        const auto* load_a = add->a.as<BufferLoadNode>();
-        const auto* load_b = add->b.as<BufferLoadNode>();
-
-        bool a_is_target = load_a && load_a->buffer.same_as(inlined_buffer_);
-        bool b_is_target = load_b && load_b->buffer.same_as(inlined_buffer_);
-
-        // Ensure exactly one operand is from the reduction buffer
-        if (a_is_target != b_is_target) {
-          epilogue_addend_ = a_is_target ? add->b : add->a;
-          epilogue_type_ = EpilogueType::BiasReLU;
-          return true;
-        }
-      } else if (const auto* load = add_candidate->as<BufferLoadNode>()) {
-        // Handle bias-free ReLU: max(temp, 0) or max(0, temp)
-        if (load->buffer.same_as(inlined_buffer_)) {
-          epilogue_addend_ = tir::make_zero(load->dtype);
-          epilogue_type_ = EpilogueType::BiasReLU;
-          return true;
-        }
-      }
-    }
-  }
-
-  return false;
 }
 
 bool ReductionEpilogueFuser::IsReductionBlock(const BlockNode* block) {
@@ -1285,7 +1135,7 @@ void ReductionEpilogueFuser::ExtractEpilogueInfo() {
   extractor.reduction_buffer = inlined_buffer_;
   extractor(epilogue_expression_);
 
-  // Extract the first non-reduction buffer and its region (for backward compatibility)
+  // Extract the first non-reduction buffer and its region
   // In most cases, there's one additional buffer (e.g., bias buffer)
   if (!extractor.other_buffers.empty()) {
     const BufferNode* first_buffer = *extractor.other_buffers.begin();
@@ -1295,19 +1145,6 @@ void ReductionEpilogueFuser::ExtractEpilogueInfo() {
       if (read->buffer.get() == first_buffer) {
         epilogue_addend_region_ = read;
         break;
-      }
-    }
-  }
-  
-  // For backward compatibility, also try to extract from epilogue_addend_
-  if (!epilogue_addend_buffer_.defined() && epilogue_addend_.defined()) {
-    if (const auto* load = epilogue_addend_.as<BufferLoadNode>()) {
-      epilogue_addend_buffer_ = load->buffer;
-      for (const BufferRegion& read : epilogue_block_->reads) {
-        if (read->buffer.same_as(epilogue_addend_buffer_)) {
-          epilogue_addend_region_ = read;
-          break;
-        }
       }
     }
   }
@@ -1378,9 +1215,9 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
                                            Substitute(epilogue_output_indices_, var_map));
   new_block->init = new_init_store;
 
-  // 3. Generalized update transformation: replace reduction buffer with output buffer
-  // For Bias pattern: epilogue addend should only be in the init, not in the update
-  // For BiasReLU and Clipping patterns: epilogue expression must be applied per-iteration
+  // 3. Generalized update transformation: apply epilogue expression with reduction buffer replaced
+  // If reduction buffer load's parent is Add and other operand is not a reduction buffer,
+  // remove that operand (bias addend) from update expression
   class UpdateSubstituter : public StmtExprMutator {
    public:
     UpdateSubstituter(const Buffer& old_buf, const Buffer& new_buf,
@@ -1428,9 +1265,7 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
               : target_buffer_(target_buf),
                 reduction_buffer_(reduction_buf),
                 replacement_(replacement),
-                found_target_load_(false),
-                parent_is_add_(false),
-                addend_to_remove_(nullptr) {}
+                found_target_load_(false) {}
 
           PrimExpr VisitExpr_(const BufferLoadNode* op) final {
             BufferLoad load = Downcast<BufferLoad>(ExprMutator::VisitExpr_(op));
@@ -1492,8 +1327,6 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
           const Buffer& reduction_buffer_;
           const PrimExpr& replacement_;
           bool found_target_load_;
-          bool parent_is_add_;
-          PrimExpr addend_to_remove_;
         };
 
         GeneralizedEpilogueApplier applier(old_buffer_, reduction_buffer_, reduction_update);
