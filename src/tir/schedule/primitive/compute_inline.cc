@@ -1052,15 +1052,18 @@ class ReductionEpilogueFuser : public BaseInliner {
 
   const BlockNode* reduction_block_;
   const BlockNode* epilogue_block_;
-  PrimExpr epilogue_addend_{nullptr};                      // C[vi, vj] in D = temp + C
+  // Generalized approach: store the entire epilogue expression
+  PrimExpr epilogue_expression_{nullptr};                  // The entire epilogue expression (e.g., temp + C, max(temp + C, 0))
+  const BufferLoadNode* reduction_buffer_load_{nullptr};   // The reduction buffer load in epilogue expression
+  PrimExpr epilogue_addend_{nullptr};                      // C[vi, vj] in D = temp + C (kept for backward compatibility)
   Buffer epilogue_output_buffer_{nullptr};                 // Output buffer D
   ffi::Array<PrimExpr> epilogue_output_indices_{nullptr};  // Indices of D[vi, vj]
   BufferRegion epilogue_output_region_{nullptr};           // Write region of D
   Buffer epilogue_addend_buffer_{nullptr};                 // Addend buffer C
   BufferRegion epilogue_addend_region_{nullptr};           // Read region of C
-  EpilogueType epilogue_type_;                             // Type of epilogue operation
-  PrimExpr clipping_lower_{nullptr};                       // Lower bound for clipping
-  PrimExpr clipping_upper_{nullptr};                       // Upper bound for clipping
+  EpilogueType epilogue_type_;                             // Type of epilogue operation (kept for backward compatibility)
+  PrimExpr clipping_lower_{nullptr};                       // Lower bound for clipping (kept for backward compatibility)
+  PrimExpr clipping_upper_{nullptr};                       // Upper bound for clipping (kept for backward compatibility)
 };
 
 bool ReductionEpilogueFuser::BodyPatternAllowFusion(const BlockRealize& epilogue_block_realize) {
@@ -1083,21 +1086,20 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const BlockRealize& epilogue
     return false;
   }
 
-  // 4. Analyze epilogue pattern: D[i,j] = temp[i,j] + C[i,j] or
-  //    D[i,j] = min(max(temp[i,j], lower), upper)
-  if (!AnalyzeEpiloguePattern(inlined_store_->value)) {
-    // Failure: epilogue is not a supported pattern (Bias, BiasReLU, or Clipping)
-    return false;
-  }
-
-  // 5. Verify temp appears exactly once in the epilogue pattern
-  // This ensures correctness for all supported patterns (Bias, BiasReLU, Clipping)
-  // The reduction result buffer must be used exactly once in the epilogue expression
+  // 4. Generalized approach: store the entire epilogue expression
+  // Verify reduction buffer appears exactly once (required for fusion correctness)
   if (loads.size() != 1) {
     // Failure: The reduction result (temp) must be used exactly once in the
     // epilogue expression for fusion.
     return false;
   }
+  
+  // Store the epilogue expression and reduction buffer load
+  epilogue_expression_ = inlined_store_->value;
+  reduction_buffer_load_ = loads[0];
+  
+  // For backward compatibility, try to analyze pattern (optional)
+  AnalyzeEpiloguePattern(inlined_store_->value);
 
   // 6. Check if producer is a reduction block
   if (!IsReductionBlock(reduction_block_)) {
@@ -1268,14 +1270,44 @@ void ReductionEpilogueFuser::ExtractEpilogueInfo() {
     }
   }
 
-  // Extract epilogue addend buffer and region from epilogue_addend_
-  if (const auto* load = epilogue_addend_.as<BufferLoadNode>()) {
-    epilogue_addend_buffer_ = load->buffer;
+  // Generalized approach: extract all non-reduction buffers from epilogue expression
+  // Find all buffers in epilogue expression (except the reduction buffer)
+  struct BufferExtractor : public ExprVisitor {
+    void VisitExpr_(const BufferLoadNode* load) final {
+      if (!load->buffer.same_as(reduction_buffer)) {
+        other_buffers.insert(load->buffer.get());
+      }
+      ExprVisitor::VisitExpr_(load);
+    }
+    Buffer reduction_buffer;
+    std::unordered_set<const BufferNode*> other_buffers;
+  } extractor;
+  extractor.reduction_buffer = inlined_buffer_;
+  extractor(epilogue_expression_);
+
+  // Extract the first non-reduction buffer and its region (for backward compatibility)
+  // In most cases, there's one additional buffer (e.g., bias buffer)
+  if (!extractor.other_buffers.empty()) {
+    const BufferNode* first_buffer = *extractor.other_buffers.begin();
+    epilogue_addend_buffer_ = ffi::GetRef<Buffer>(first_buffer);
     // Find the read region from epilogue block reads
     for (const BufferRegion& read : epilogue_block_->reads) {
-      if (read->buffer.same_as(epilogue_addend_buffer_)) {
+      if (read->buffer.get() == first_buffer) {
         epilogue_addend_region_ = read;
         break;
+      }
+    }
+  }
+  
+  // For backward compatibility, also try to extract from epilogue_addend_
+  if (!epilogue_addend_buffer_.defined() && epilogue_addend_.defined()) {
+    if (const auto* load = epilogue_addend_.as<BufferLoadNode>()) {
+      epilogue_addend_buffer_ = load->buffer;
+      for (const BufferRegion& read : epilogue_block_->reads) {
+        if (read->buffer.same_as(epilogue_addend_buffer_)) {
+          epilogue_addend_region_ = read;
+          break;
+        }
       }
     }
   }
@@ -1308,54 +1340,83 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
     var_map[epilogue_data_vars[i]] = reduction_data_vars[i];
   }
 
-  // 2. Change init to epilogue value based on epilogue type
-  BufferStore new_init_store;
-  if (epilogue_type_ == EpilogueType::BiasReLU) {
-    // For ReLU, init should be max(C[vi, vj], 0) to match per-iteration ReLU semantics
-    PrimExpr init_value = Substitute(epilogue_addend_, var_map);
-    PrimExpr zero = tir::make_zero(init_value.dtype());
-    new_init_store = BufferStore(epilogue_output_buffer_, Max(init_value, zero),
-                                 Substitute(epilogue_output_indices_, var_map));
-  } else if (epilogue_type_ == EpilogueType::Clipping) {
-    // For Clipping, init should be min(max(init_value, lower), upper)
-    // Since init is typically 0, this becomes min(max(0, lower), upper)
-    PrimExpr init_value = tir::make_zero(epilogue_output_buffer_->dtype);
-    PrimExpr clipped_init = Min(Max(init_value, Substitute(clipping_lower_, var_map)),
-                                Substitute(clipping_upper_, var_map));
-    new_init_store = BufferStore(epilogue_output_buffer_, clipped_init,
-                                 Substitute(epilogue_output_indices_, var_map));
-  } else {
-    // Bias: D[vi, vj] = C[vi, vj]
-    new_init_store = BufferStore(epilogue_output_buffer_, Substitute(epilogue_addend_, var_map),
-                                 Substitute(epilogue_output_indices_, var_map));
-  }
+  // 2. Generalized init transformation: substitute reduction buffer load with identity element (0)
+  // Create a substituter to replace reduction_buffer_load_ with identity element
+  class InitSubstituter : public ExprMutator {
+   public:
+    InitSubstituter(const Buffer& target_buffer, PrimExpr identity_elem)
+        : target_buffer_(target_buffer), identity_elem_(identity_elem) {}
+
+    PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+      BufferLoad load = Downcast<BufferLoad>(ExprMutator::VisitExpr_(op));
+      if (load->buffer.same_as(target_buffer_)) {
+        return identity_elem_;
+      }
+      return load;
+    }
+
+   private:
+    Buffer target_buffer_;
+    PrimExpr identity_elem_;
+  };
+
+  // Identity element for reduction (assumed to be 0 for addition-based reductions)
+  PrimExpr identity_elem = tir::make_zero(epilogue_output_buffer_->dtype);
+  
+  // Substitute reduction buffer load with identity element
+  InitSubstituter init_subst(inlined_buffer_, identity_elem);
+  PrimExpr init_epilogue = init_subst(epilogue_expression_);
+  
+  // Apply index mapping
+  init_epilogue = Substitute(init_epilogue, var_map);
+  
+  // Simplify the expression (e.g., 0 + C[vi, vj] -> C[vi, vj])
+  arith::Analyzer analyzer;
+  init_epilogue = analyzer.Simplify(init_epilogue);
+  
+  BufferStore new_init_store = BufferStore(epilogue_output_buffer_, init_epilogue,
+                                           Substitute(epilogue_output_indices_, var_map));
   new_block->init = new_init_store;
 
-  // 3. Replace output buffer from temp to D in body
-  class BufferReplacer : public StmtExprMutator {
+  // 3. Generalized update transformation: replace reduction buffer with output buffer
+  // The epilogue addend should only be in the init, not in the update
+  // So we just replace the buffer reference, without applying the epilogue expression
+  class UpdateSubstituter : public StmtExprMutator {
    public:
-    BufferReplacer(Buffer old_buf, Buffer new_buf, EpilogueType epilogue_type, DataType dtype,
-                   PrimExpr clipping_lower = PrimExpr(), PrimExpr clipping_upper = PrimExpr())
-        : old_buffer_(old_buf),
-          new_buffer_(new_buf),
-          epilogue_type_(epilogue_type),
-          dtype_(dtype),
-          clipping_lower_(clipping_lower),
-          clipping_upper_(clipping_upper) {}
+    UpdateSubstituter(const Buffer& old_buf, const Buffer& new_buf,
+                      const std::unordered_map<Var, Var>& var_map)
+        : old_buffer_(old_buf), new_buffer_(new_buf), var_map_(var_map) {}
 
     Stmt VisitStmt_(const BufferStoreNode* op) final {
       BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
       if (store->buffer.same_as(old_buffer_)) {
-        PrimExpr new_value = store->value;
-        // For ReLU, apply max per iteration to match per-iteration ReLU semantics
-        if (epilogue_type_ == EpilogueType::BiasReLU) {
-          PrimExpr zero = tir::make_zero(dtype_);
-          new_value = Max(new_value, zero);
-        } else if (epilogue_type_ == EpilogueType::Clipping) {
-          // For Clipping, apply min(max(value, lower), upper) per iteration
-          new_value = Min(Max(new_value, clipping_lower_), clipping_upper_);
-        }
-        return BufferStore(new_buffer_, new_value, store->indices);
+        // Replace old_buffer_ in store->value with new_buffer_ to get the reduction update expression
+        // This ensures store->value references new_buffer_ instead of old_buffer_
+        class ReductionUpdateReplacer : public ExprMutator {
+         public:
+          ReductionUpdateReplacer(const Buffer& old_buf, const Buffer& new_buf)
+              : old_buffer_(old_buf), new_buffer_(new_buf) {}
+
+          PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+            BufferLoad load = Downcast<BufferLoad>(ExprMutator::VisitExpr_(op));
+            if (load->buffer.same_as(old_buffer_)) {
+              return BufferLoad(new_buffer_, load->indices);
+            }
+            return load;
+          }
+
+         private:
+          Buffer old_buffer_;
+          Buffer new_buffer_;
+        };
+
+        ReductionUpdateReplacer reduction_replacer(old_buffer_, new_buffer_);
+        PrimExpr reduction_update = reduction_replacer(store->value);
+        
+        // Apply index mapping
+        reduction_update = Substitute(reduction_update, var_map_);
+        
+        return BufferStore(new_buffer_, reduction_update, store->indices);
       }
       return store;
     }
@@ -1371,19 +1432,10 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
    private:
     Buffer old_buffer_;
     Buffer new_buffer_;
-    EpilogueType epilogue_type_;
-    DataType dtype_;
-    PrimExpr clipping_lower_;
-    PrimExpr clipping_upper_;
+    std::unordered_map<Var, Var> var_map_;
   };
-
-  DataType dtype = epilogue_output_buffer_->dtype;
-  PrimExpr clipping_lower_subst =
-      epilogue_type_ == EpilogueType::Clipping ? Substitute(clipping_lower_, var_map) : PrimExpr();
-  PrimExpr clipping_upper_subst =
-      epilogue_type_ == EpilogueType::Clipping ? Substitute(clipping_upper_, var_map) : PrimExpr();
-  BufferReplacer replacer(inlined_buffer_, epilogue_output_buffer_, epilogue_type_, dtype,
-                          clipping_lower_subst, clipping_upper_subst);
+  
+  UpdateSubstituter replacer(inlined_buffer_, epilogue_output_buffer_, var_map);
   new_block->body = replacer(reduction_block->body);
 
   // 4. Update write regions
@@ -1398,21 +1450,22 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
   }
   new_block->writes = new_writes;
 
-  // 5. Update read regions (C first, then A, B)
+  // 5. Update read regions: add all buffers from epilogue expression (except reduction buffer)
   ffi::Array<BufferRegion> new_reads;
   std::unordered_set<const BufferNode*> read_bufs;
 
-  // Add C buffer read first (used in init)
-  if (epilogue_addend_buffer_.defined()) {
-    new_reads.push_back(BufferRegion(epilogue_addend_buffer_,
-                                     Substitute(epilogue_addend_region_->region, var_map)));
-    read_bufs.insert(epilogue_addend_buffer_.get());
+  // Add all non-reduction buffers from epilogue expression
+  for (const BufferRegion& read : epilogue_block_->reads) {
+    if (!read->buffer.same_as(inlined_buffer_)) {
+      new_reads.push_back(BufferRegion(read->buffer, Substitute(read->region, var_map)));
+      read_bufs.insert(read->buffer.get());
+    }
   }
 
-  // Add existing read regions (A, B, etc.)
+  // Add existing read regions from reduction block (A, B, etc.)
   for (const BufferRegion& read : reduction_block->reads) {
     if (!read->buffer.same_as(inlined_buffer_)) {
-      // Only add non-temp buffers
+      // Only add non-temp buffers that haven't been added yet
       if (read_bufs.find(read->buffer.get()) == read_bufs.end()) {
         new_reads.push_back(read);
         read_bufs.insert(read->buffer.get());
