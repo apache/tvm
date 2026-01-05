@@ -786,7 +786,7 @@ Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<IntImm> strides,
   CHECK_GT(groups, 0) << "The number of groups in convolution is expected to be positive. However, "
                          "the given number of groups is "
                       << groups;
-  CHECK_EQ(output_padding.size(), 2) << "The input output_padding length is expected to be 4. "
+  CHECK_EQ(output_padding.size(), 2) << "The input output_padding length is expected to be 2. "
                                         "However, the given output_padding is "
                                      << output_padding;
   CHECK_EQ(strides.size(), 2)
