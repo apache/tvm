@@ -1080,11 +1080,11 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const BlockRealize& epilogue
     // epilogue expression for fusion.
     return false;
   }
-  
+
   // Store the epilogue expression and reduction buffer load
   epilogue_expression_ = inlined_store_->value;
   reduction_buffer_load_ = loads[0];
-  
+
   // 6. Check if producer is a reduction block
   if (!IsReductionBlock(reduction_block_)) {
     // Failure: producer is not a reduction block
@@ -1199,18 +1199,18 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
 
   // Identity element for reduction (assumed to be 0 for addition-based reductions)
   PrimExpr identity_elem = tir::make_zero(epilogue_output_buffer_->dtype);
-  
+
   // Substitute reduction buffer load with identity element
   InitSubstituter init_subst(inlined_buffer_, identity_elem);
   PrimExpr init_epilogue = init_subst(epilogue_expression_);
-  
+
   // Apply index mapping
   init_epilogue = Substitute(init_epilogue, var_map);
-  
+
   // Simplify the expression (e.g., 0 + C[vi, vj] -> C[vi, vj])
   arith::Analyzer analyzer;
   init_epilogue = analyzer.Simplify(init_epilogue);
-  
+
   BufferStore new_init_store = BufferStore(epilogue_output_buffer_, init_epilogue,
                                            Substitute(epilogue_output_indices_, var_map));
   new_block->init = new_init_store;
@@ -1254,7 +1254,7 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
 
         ReductionUpdateReplacer reduction_replacer(old_buffer_, new_buffer_);
         PrimExpr reduction_update = reduction_replacer(store->value);
-        
+
         // Generalized approach: apply epilogue expression with reduction buffer load replaced
         // If reduction buffer load's direct parent is Add and the other operand is not a reduction buffer,
         // remove that operand (bias addend) from the update expression
@@ -1281,14 +1281,14 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
             // Visit children first to see if we find the target buffer load
             bool found_before = found_target_load_;
             found_target_load_ = false;
-            
+
             PrimExpr a = VisitExpr(op->a);
             bool found_in_a = found_target_load_;
             found_target_load_ = false;
-            
+
             PrimExpr b = VisitExpr(op->b);
             bool found_in_b = found_target_load_;
-            
+
             // If target buffer load was found in this Add node
             if (found_in_a || found_in_b) {
               // Check if the other operand is NOT from the reduction buffer
@@ -1316,7 +1316,7 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
               // If other operand is also from reduction buffer, keep the Add
               return Add(a, b);
             }
-            
+
             // Target buffer load not found in this Add, return as is
             found_target_load_ = found_before;
             return Add(a, b);
@@ -1331,10 +1331,10 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
 
         GeneralizedEpilogueApplier applier(old_buffer_, reduction_buffer_, reduction_update);
         PrimExpr new_value = applier(epilogue_expression_);
-        
+
         // Apply index mapping
         new_value = Substitute(new_value, var_map_);
-        
+
         return BufferStore(new_buffer_, new_value, store->indices);
       }
       return store;
@@ -1358,7 +1358,7 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
 
   // Apply index mapping to epilogue expression first
   PrimExpr epilogue_expr_mapped = Substitute(epilogue_expression_, var_map);
-  
+
   UpdateSubstituter replacer(inlined_buffer_, epilogue_output_buffer_, inlined_buffer_,
                              epilogue_expr_mapped, var_map);
   new_block->body = replacer(reduction_block->body);
