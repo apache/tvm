@@ -1384,14 +1384,12 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
   class UpdateSubstituter : public StmtExprMutator {
    public:
     UpdateSubstituter(const Buffer& old_buf, const Buffer& new_buf,
-                      const PrimExpr& epilogue_expr, EpilogueType epilogue_type,
-                      const PrimExpr& epilogue_addend,
+                      const Buffer& reduction_buf, const PrimExpr& epilogue_expr,
                       const std::unordered_map<Var, Var>& var_map)
         : old_buffer_(old_buf),
           new_buffer_(new_buf),
+          reduction_buffer_(reduction_buf),
           epilogue_expression_(epilogue_expr),
-          epilogue_type_(epilogue_type),
-          epilogue_addend_(epilogue_addend),
           var_map_(var_map) {}
 
     Stmt VisitStmt_(const BufferStoreNode* op) final {
@@ -1420,82 +1418,86 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
         ReductionUpdateReplacer reduction_replacer(old_buffer_, new_buffer_);
         PrimExpr reduction_update = reduction_replacer(store->value);
         
-        PrimExpr new_value;
-        if (epilogue_type_ == EpilogueType::Bias) {
-          // For Bias pattern: just use the reduction update without epilogue expression
-          new_value = reduction_update;
-        } else if (epilogue_type_ == EpilogueType::BiasReLU) {
-          // For BiasReLU pattern: apply ReLU only (without bias addend) per-iteration
-          // The epilogue expression is max(temp + C, 0), but update should be max(reduction_update, 0)
-          // So we need to remove the bias addend from the epilogue expression
-          class ReLUApplier : public ExprMutator {
-           public:
-            ReLUApplier(const Buffer& target_buf, const PrimExpr& replacement,
-                        const PrimExpr& addend_to_remove)
-                : target_buffer_(target_buf),
-                  replacement_(replacement),
-                  addend_to_remove_(addend_to_remove) {}
+        // Generalized approach: apply epilogue expression with reduction buffer load replaced
+        // If reduction buffer load's direct parent is Add and the other operand is not a reduction buffer,
+        // remove that operand (bias addend) from the update expression
+        class GeneralizedEpilogueApplier : public ExprMutator {
+         public:
+          GeneralizedEpilogueApplier(const Buffer& target_buf, const Buffer& reduction_buf,
+                                     const PrimExpr& replacement)
+              : target_buffer_(target_buf),
+                reduction_buffer_(reduction_buf),
+                replacement_(replacement),
+                found_target_load_(false),
+                parent_is_add_(false),
+                addend_to_remove_(nullptr) {}
 
-            PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-              BufferLoad load = Downcast<BufferLoad>(ExprMutator::VisitExpr_(op));
-              if (load->buffer.same_as(target_buffer_)) {
-                return replacement_;
-              }
-              return load;
+          PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+            BufferLoad load = Downcast<BufferLoad>(ExprMutator::VisitExpr_(op));
+            if (load->buffer.same_as(target_buffer_)) {
+              found_target_load_ = true;
+              // Check if parent is Add (will be checked in VisitExpr_(const AddNode*))
+              return replacement_;
             }
+            return load;
+          }
 
-            PrimExpr VisitExpr_(const AddNode* op) final {
-              // Remove the bias addend from the addition
-              PrimExpr a = VisitExpr(op->a);
-              PrimExpr b = VisitExpr(op->b);
-              
-              // Check if either operand matches the addend to remove
-              arith::Analyzer analyzer;
-              if (analyzer.CanProveEqual(a, addend_to_remove_)) {
-                return b;
+          PrimExpr VisitExpr_(const AddNode* op) final {
+            // Visit children first to see if we find the target buffer load
+            bool found_before = found_target_load_;
+            found_target_load_ = false;
+            
+            PrimExpr a = VisitExpr(op->a);
+            bool found_in_a = found_target_load_;
+            found_target_load_ = false;
+            
+            PrimExpr b = VisitExpr(op->b);
+            bool found_in_b = found_target_load_;
+            
+            // If target buffer load was found in this Add node
+            if (found_in_a || found_in_b) {
+              // Check if the other operand is NOT from the reduction buffer
+              // If so, it's likely a bias addend that should be removed in update
+              bool other_is_reduction = false;
+              if (found_in_a) {
+                // Check if b is from reduction buffer
+                if (const auto* load_b = b.as<BufferLoadNode>()) {
+                  other_is_reduction = load_b->buffer.same_as(reduction_buffer_);
+                }
+                if (!other_is_reduction) {
+                  // b is the bias addend, remove it
+                  return a;
+                }
+              } else {  // found_in_b
+                // Check if a is from reduction buffer
+                if (const auto* load_a = a.as<BufferLoadNode>()) {
+                  other_is_reduction = load_a->buffer.same_as(reduction_buffer_);
+                }
+                if (!other_is_reduction) {
+                  // a is the bias addend, remove it
+                  return b;
+                }
               }
-              if (analyzer.CanProveEqual(b, addend_to_remove_)) {
-                return a;
-              }
-              
-              // If neither matches, return the original addition
+              // If other operand is also from reduction buffer, keep the Add
               return Add(a, b);
             }
+            
+            // Target buffer load not found in this Add, return as is
+            found_target_load_ = found_before;
+            return Add(a, b);
+          }
 
-           private:
-            Buffer target_buffer_;
-            PrimExpr replacement_;
-            PrimExpr addend_to_remove_;
-          };
+         private:
+          const Buffer& target_buffer_;
+          const Buffer& reduction_buffer_;
+          const PrimExpr& replacement_;
+          bool found_target_load_;
+          bool parent_is_add_;
+          PrimExpr addend_to_remove_;
+        };
 
-          // Get the bias addend with index mapping applied
-          PrimExpr addend_mapped = Substitute(epilogue_addend_, var_map_);
-          ReLUApplier applier(old_buffer_, reduction_update, addend_mapped);
-          new_value = applier(epilogue_expression_);
-        } else {
-          // For Clipping pattern: apply epilogue expression per-iteration
-          // Substitute reduction buffer load with the reduction update in epilogue expression
-          class EpilogueApplier : public ExprMutator {
-           public:
-            EpilogueApplier(const Buffer& target_buf, const PrimExpr& replacement)
-                : target_buffer_(target_buf), replacement_(replacement) {}
-
-            PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-              BufferLoad load = Downcast<BufferLoad>(ExprMutator::VisitExpr_(op));
-              if (load->buffer.same_as(target_buffer_)) {
-                return replacement_;
-              }
-              return load;
-            }
-
-           private:
-            Buffer target_buffer_;
-            PrimExpr replacement_;
-          };
-
-          EpilogueApplier applier(old_buffer_, reduction_update);
-          new_value = applier(epilogue_expression_);
-        }
+        GeneralizedEpilogueApplier applier(old_buffer_, reduction_buffer_, reduction_update);
+        PrimExpr new_value = applier(epilogue_expression_);
         
         // Apply index mapping
         new_value = Substitute(new_value, var_map_);
@@ -1516,20 +1518,16 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
    private:
     Buffer old_buffer_;
     Buffer new_buffer_;
+    Buffer reduction_buffer_;
     PrimExpr epilogue_expression_;
-    EpilogueType epilogue_type_;
-    PrimExpr epilogue_addend_;
     std::unordered_map<Var, Var> var_map_;
   };
 
   // Apply index mapping to epilogue expression first
   PrimExpr epilogue_expr_mapped = Substitute(epilogue_expression_, var_map);
-  PrimExpr epilogue_addend_mapped = epilogue_addend_.defined() 
-      ? Substitute(epilogue_addend_, var_map) 
-      : PrimExpr(nullptr);
   
-  UpdateSubstituter replacer(inlined_buffer_, epilogue_output_buffer_, epilogue_expr_mapped,
-                             epilogue_type_, epilogue_addend_mapped, var_map);
+  UpdateSubstituter replacer(inlined_buffer_, epilogue_output_buffer_, inlined_buffer_,
+                             epilogue_expr_mapped, var_map);
   new_block->body = replacer(reduction_block->body);
 
   // 4. Update write regions
