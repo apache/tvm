@@ -863,7 +863,7 @@ def _var(dtype):
 def _causal_mask(causal, row, col, kv_len, qo_len, sliding_window_size=-1):
     lower_bound_condition = T.if_then_else(
         sliding_window_size > 0,
-        col >= kv_len - qo_len + row - sliding_window_size,
+        col >= kv_len - qo_len + row - sliding_window_size + 1,
         True,
     )
     return T.if_then_else(
