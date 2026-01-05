@@ -1418,7 +1418,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     ICHECK(!dirty_aux_data_device_);
 
     if (attn_kind == AttnKind::kMHA || attn_kind == AttnKind::kMHASliding) {
-      MHASelfAttnInternal(layer_id, q_data, k_data, v_data, o_data, lse_data, sm_scale);
+      MHASelfAttnInternal(local_layer_id, q_data, k_data, v_data, o_data, lse_data, sm_scale);
     } else {
       MLASelfAttnInternal(q_data, k_data, v_data, o_data, lse_data, sm_scale);
     }
