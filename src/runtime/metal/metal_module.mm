@@ -33,6 +33,7 @@
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "metal_common.h"
+#include "tvm/runtime/device_api.h"
 
 namespace tvm {
 namespace runtime {
@@ -211,8 +212,9 @@ class MetalWrappedFunc {
       auto maxTotalThreadsPerThreadgroup = scache_[device_id].maxTotalThreadsPerThreadgroup;
       CHECK_LE(blockSize, maxTotalThreadsPerThreadgroup);
       // attach error message directly in this functio
-      id<MTLCommandBuffer> cb = stream->GetCommandBuffer(/*label=*/"TVMKernel:" + func_name_,
-                                                         /*attach_error_callback=*/false);
+      // id<MTLCommandBuffer> cb = stream->GetCommandBuffer(/*label=*/"TVMKernel:" + func_name_,
+      //                                                    /*attach_error_callback=*/false);
+      id<MTLCommandBuffer> cb = static_cast<metal::CBStream*>(stream)->GetCommandBuffer();
       id<MTLComputeCommandEncoder> encoder = [cb computeCommandEncoder];
       [encoder setComputePipelineState:scache_[device_id]];
       for (size_t i = 0; i < num_buffer_args_; ++i) {
@@ -239,7 +241,8 @@ class MetalWrappedFunc {
           stream->SetError(os.str());
         }
       }];
-      [cb commit];
+      // When we reuse torch's command buffer, torch will sync
+      // [cb commit];
     };
   }
 
@@ -324,9 +327,19 @@ ffi::Module MetalModuleLoadFromBytes(const ffi::Bytes& bytes) {
   return MetalModuleCreate(smap, fmap, fmt, "");
 }
 
+void SetMetalStream(TVMStreamHandle stream) {
+  metal::MetalThreadEntry* t = metal::MetalThreadEntry::ThreadLocal();
+  auto s = new metal::CBStream(static_cast<id<MTLCommandBuffer>>(stream));
+  if (t->stream.size() <= t->device.device_id) {
+    t->stream.resize(t->device.device_id);
+  }
+  t->stream[t->device.device_id] = static_cast<TVMStreamHandle>(s);
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ffi.Module.load_from_bytes.metal", MetalModuleLoadFromBytes);
+  refl::GlobalDef().def("ffi.Module.load_from_bytes.metal", MetalModuleLoadFromBytes)
+                   .def("metal.SetStream", SetMetalStream);
 }
 }  // namespace runtime
 }  // namespace tvm

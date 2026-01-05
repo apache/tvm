@@ -141,6 +141,19 @@ class Stream {
   std::string error_description_;
 };
 
+class CBStream final : public Stream {
+public:
+  explicit CBStream(id<MTLCommandBuffer> commandBuffer): Stream(nullptr) {
+    buffer_ = commandBuffer;
+  }
+  id<MTLCommandBuffer> GetCommandBuffer() {
+    return buffer_;
+  }
+private:
+  id<MTLCommandBuffer> buffer_;
+};
+
+
 /*!
  * \brief Process global Metal workspace.
  */
