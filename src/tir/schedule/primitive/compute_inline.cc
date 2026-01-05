@@ -1044,13 +1044,15 @@ class ReductionEpilogueFuser : public BaseInliner {
   const BlockNode* reduction_block_;
   const BlockNode* epilogue_block_;
   // Generalized approach: store the entire epilogue expression
-  PrimExpr epilogue_expression_{nullptr};                  // The entire epilogue expression (e.g., temp + C, max(temp + C, 0))
-  const BufferLoadNode* reduction_buffer_load_{nullptr};   // The reduction buffer load in epilogue expression
-  Buffer epilogue_output_buffer_{nullptr};                 // Output buffer D
+  PrimExpr epilogue_expression_{
+      nullptr};  // The entire epilogue expression (e.g., temp + C, max(temp + C, 0))
+  const BufferLoadNode* reduction_buffer_load_{
+      nullptr};                             // The reduction buffer load in epilogue expression
+  Buffer epilogue_output_buffer_{nullptr};  // Output buffer D
   ffi::Array<PrimExpr> epilogue_output_indices_{nullptr};  // Indices of D[vi, vj]
   BufferRegion epilogue_output_region_{nullptr};           // Write region of D
-  Buffer epilogue_addend_buffer_{nullptr};                 // Additional buffer (e.g., bias buffer C)
-  BufferRegion epilogue_addend_region_{nullptr};           // Read region of additional buffer
+  Buffer epilogue_addend_buffer_{nullptr};        // Additional buffer (e.g., bias buffer C)
+  BufferRegion epilogue_addend_region_{nullptr};  // Read region of additional buffer
 };
 
 bool ReductionEpilogueFuser::BodyPatternAllowFusion(const BlockRealize& epilogue_block_realize) {
@@ -1220,9 +1222,8 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
   // remove that operand (bias addend) from update expression
   class UpdateSubstituter : public StmtExprMutator {
    public:
-    UpdateSubstituter(const Buffer& old_buf, const Buffer& new_buf,
-                      const Buffer& reduction_buf, const PrimExpr& epilogue_expr,
-                      const std::unordered_map<Var, Var>& var_map)
+    UpdateSubstituter(const Buffer& old_buf, const Buffer& new_buf, const Buffer& reduction_buf,
+                      const PrimExpr& epilogue_expr, const std::unordered_map<Var, Var>& var_map)
         : old_buffer_(old_buf),
           new_buffer_(new_buf),
           reduction_buffer_(reduction_buf),
@@ -1232,8 +1233,8 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
     Stmt VisitStmt_(const BufferStoreNode* op) final {
       BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
       if (store->buffer.same_as(old_buffer_)) {
-        // Replace old_buffer_ in store->value with new_buffer_ to get the reduction update expression
-        // This ensures store->value references new_buffer_ instead of old_buffer_
+        // Replace old_buffer_ in store->value with new_buffer_ to get the reduction update
+        // expression This ensures store->value references new_buffer_ instead of old_buffer_
         class ReductionUpdateReplacer : public ExprMutator {
          public:
           ReductionUpdateReplacer(const Buffer& old_buf, const Buffer& new_buf)
@@ -1256,8 +1257,8 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
         PrimExpr reduction_update = reduction_replacer(store->value);
 
         // Generalized approach: apply epilogue expression with reduction buffer load replaced
-        // If reduction buffer load's direct parent is Add and the other operand is not a reduction buffer,
-        // remove that operand (bias addend) from the update expression
+        // If reduction buffer load's direct parent is Add and the other operand is not a reduction
+        // buffer, remove that operand (bias addend) from the update expression
         class GeneralizedEpilogueApplier : public ExprMutator {
          public:
           GeneralizedEpilogueApplier(const Buffer& target_buf, const Buffer& reduction_buf,
