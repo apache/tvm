@@ -1379,13 +1379,20 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
   new_block->init = new_init_store;
 
   // 3. Generalized update transformation: replace reduction buffer with output buffer
-  // The epilogue addend should only be in the init, not in the update
-  // So we just replace the buffer reference, without applying the epilogue expression
+  // For Bias pattern: epilogue addend should only be in the init, not in the update
+  // For BiasReLU and Clipping patterns: epilogue expression must be applied per-iteration
   class UpdateSubstituter : public StmtExprMutator {
    public:
     UpdateSubstituter(const Buffer& old_buf, const Buffer& new_buf,
+                      const PrimExpr& epilogue_expr, EpilogueType epilogue_type,
+                      const PrimExpr& epilogue_addend,
                       const std::unordered_map<Var, Var>& var_map)
-        : old_buffer_(old_buf), new_buffer_(new_buf), var_map_(var_map) {}
+        : old_buffer_(old_buf),
+          new_buffer_(new_buf),
+          epilogue_expression_(epilogue_expr),
+          epilogue_type_(epilogue_type),
+          epilogue_addend_(epilogue_addend),
+          var_map_(var_map) {}
 
     Stmt VisitStmt_(const BufferStoreNode* op) final {
       BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
@@ -1413,10 +1420,87 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
         ReductionUpdateReplacer reduction_replacer(old_buffer_, new_buffer_);
         PrimExpr reduction_update = reduction_replacer(store->value);
         
-        // Apply index mapping
-        reduction_update = Substitute(reduction_update, var_map_);
+        PrimExpr new_value;
+        if (epilogue_type_ == EpilogueType::Bias) {
+          // For Bias pattern: just use the reduction update without epilogue expression
+          new_value = reduction_update;
+        } else if (epilogue_type_ == EpilogueType::BiasReLU) {
+          // For BiasReLU pattern: apply ReLU only (without bias addend) per-iteration
+          // The epilogue expression is max(temp + C, 0), but update should be max(reduction_update, 0)
+          // So we need to remove the bias addend from the epilogue expression
+          class ReLUApplier : public ExprMutator {
+           public:
+            ReLUApplier(const Buffer& target_buf, const PrimExpr& replacement,
+                        const PrimExpr& addend_to_remove)
+                : target_buffer_(target_buf),
+                  replacement_(replacement),
+                  addend_to_remove_(addend_to_remove) {}
+
+            PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+              BufferLoad load = Downcast<BufferLoad>(ExprMutator::VisitExpr_(op));
+              if (load->buffer.same_as(target_buffer_)) {
+                return replacement_;
+              }
+              return load;
+            }
+
+            PrimExpr VisitExpr_(const AddNode* op) final {
+              // Remove the bias addend from the addition
+              PrimExpr a = VisitExpr(op->a);
+              PrimExpr b = VisitExpr(op->b);
+              
+              // Check if either operand matches the addend to remove
+              arith::Analyzer analyzer;
+              if (analyzer.CanProveEqual(a, addend_to_remove_)) {
+                return b;
+              }
+              if (analyzer.CanProveEqual(b, addend_to_remove_)) {
+                return a;
+              }
+              
+              // If neither matches, return the original addition
+              return Add(a, b);
+            }
+
+           private:
+            Buffer target_buffer_;
+            PrimExpr replacement_;
+            PrimExpr addend_to_remove_;
+          };
+
+          // Get the bias addend with index mapping applied
+          PrimExpr addend_mapped = Substitute(epilogue_addend_, var_map_);
+          ReLUApplier applier(old_buffer_, reduction_update, addend_mapped);
+          new_value = applier(epilogue_expression_);
+        } else {
+          // For Clipping pattern: apply epilogue expression per-iteration
+          // Substitute reduction buffer load with the reduction update in epilogue expression
+          class EpilogueApplier : public ExprMutator {
+           public:
+            EpilogueApplier(const Buffer& target_buf, const PrimExpr& replacement)
+                : target_buffer_(target_buf), replacement_(replacement) {}
+
+            PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+              BufferLoad load = Downcast<BufferLoad>(ExprMutator::VisitExpr_(op));
+              if (load->buffer.same_as(target_buffer_)) {
+                return replacement_;
+              }
+              return load;
+            }
+
+           private:
+            Buffer target_buffer_;
+            PrimExpr replacement_;
+          };
+
+          EpilogueApplier applier(old_buffer_, reduction_update);
+          new_value = applier(epilogue_expression_);
+        }
         
-        return BufferStore(new_buffer_, reduction_update, store->indices);
+        // Apply index mapping
+        new_value = Substitute(new_value, var_map_);
+        
+        return BufferStore(new_buffer_, new_value, store->indices);
       }
       return store;
     }
@@ -1432,10 +1516,20 @@ Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reducti
    private:
     Buffer old_buffer_;
     Buffer new_buffer_;
+    PrimExpr epilogue_expression_;
+    EpilogueType epilogue_type_;
+    PrimExpr epilogue_addend_;
     std::unordered_map<Var, Var> var_map_;
   };
+
+  // Apply index mapping to epilogue expression first
+  PrimExpr epilogue_expr_mapped = Substitute(epilogue_expression_, var_map);
+  PrimExpr epilogue_addend_mapped = epilogue_addend_.defined() 
+      ? Substitute(epilogue_addend_, var_map) 
+      : PrimExpr(nullptr);
   
-  UpdateSubstituter replacer(inlined_buffer_, epilogue_output_buffer_, var_map);
+  UpdateSubstituter replacer(inlined_buffer_, epilogue_output_buffer_, epilogue_expr_mapped,
+                             epilogue_type_, epilogue_addend_mapped, var_map);
   new_block->body = replacer(reduction_block->body);
 
   // 4. Update write regions
