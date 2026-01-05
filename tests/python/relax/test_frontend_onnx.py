@@ -1208,9 +1208,9 @@ def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool, output
         model = helper.make_model(graph, producer_name="conv_transpose_test")
         check_correctness(model, atol=1e-4)
 
-    # # ConvTranspose1D
-    # _verify_conv_transpose([3, 4, 32], [4, 4, 3])
-    # _verify_conv_transpose([3, 4, 32], [4, 2, 3])  # group=2
+    # ConvTranspose1D
+    _verify_conv_transpose([3, 4, 32], [4, 4, 3])
+    _verify_conv_transpose([3, 4, 32], [4, 2, 3])  # group=2
     # ConvTranspose2D
     _verify_conv_transpose([3, 4, 32, 32], [4, 4, 3, 3])
     _verify_conv_transpose([3, 4, 32, 32], [4, 2, 3, 3])  # group=2
