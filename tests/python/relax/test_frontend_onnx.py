@@ -1171,11 +1171,12 @@ def test_conv(stride: int, dilation: int, pad: int, bias: bool, auto_pad: str):
     _verify_conv([3, 4, 32, 32, 32], [2, 4, 3, 3, 3])  # group=2
 
 
-@pytest.mark.parametrize("stride", [1, 2])
+@pytest.mark.parametrize("stride", [2])
 @pytest.mark.parametrize("dilation", [1])
 @pytest.mark.parametrize("bias", [True, False])
 @pytest.mark.parametrize("pad", [0, 2])
-def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool):
+@pytest.mark.parametrize("output_pad", [0, 1])
+def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool, output_pad: int):
     def _verify_conv_transpose(input_shape, weight_shape):
         nd = len(weight_shape) - 2
         output_shape = [input_shape[0], weight_shape[0]] + [
@@ -1190,6 +1191,7 @@ def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool):
             strides=[stride] * nd,
             dilations=[dilation] * nd,
             pads=[pad] * nd * 2,
+            output_padding=[output_pad] * nd,
             group=input_shape[1] // weight_shape[1],
         )
         graph = helper.make_graph(

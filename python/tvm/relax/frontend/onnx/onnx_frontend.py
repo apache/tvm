@@ -1334,6 +1334,7 @@ class ConvTranspose(OnnxOpConverter):
             weight=inputs[1],
             strides=attr.get("strides", 1),
             padding=attr.get("pads", 0),
+            output_padding=attr.get("output_padding", 0),
             dilation=attr.get("dilations", 1),
             groups=attr.get("group", 1),
             data_layout=data_layout,
