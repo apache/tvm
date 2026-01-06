@@ -187,5 +187,43 @@ def test_not_matches(type_annotation, case):
         func(case)
 
 
+@pytest.mark.parametrize(
+    ["type_annotation", "expected_key", "expected_subtypes"],
+    [
+        pytest.param(Union[str, int], "union", [str, int], id="Union[str, int]"),
+        pytest.param(List[str], "list", [str], id="List[str]"),
+        pytest.param(Dict[str, int], "dict", [str, int], id="Dict[str, int]"),
+        pytest.param(Tuple[str, int], "tuple", (str, int), id="Tuple[str, int]"),
+        pytest.param(
+            Union[List[str], Dict[str, int]],
+            "union",
+            None,  # We'll check length instead
+            id="Union[List[str], Dict[str, int]]",
+        ),
+    ],
+)
+def test_subscripted_generics(type_annotation, expected_key, expected_subtypes):
+    """Test that _dispatcher correctly handles subscripted generics in Python 3.14+.
+
+    In Python 3.14, Union and other generic types have a different internal representation.
+    This test ensures that the dispatcher correctly identifies these types.
+    """
+    from tvm.tir.schedule._type_checker import _dispatcher
+
+    key, subtypes = _dispatcher(type_annotation)
+    assert key == expected_key, f"Expected '{expected_key}' but got '{key}'"
+
+    if expected_subtypes is not None:
+        if isinstance(expected_subtypes, tuple):
+            assert tuple(subtypes) == expected_subtypes, (
+                f"Expected {expected_subtypes} but got {subtypes}"
+            )
+        else:
+            assert subtypes == expected_subtypes, f"Expected {expected_subtypes} but got {subtypes}"
+    else:
+        # For nested Union test, just check that we got 2 subtypes
+        assert len(subtypes) == 2, f"Expected 2 subtypes but got {len(subtypes)}"
+
+
 if __name__ == "__main__":
     tvm.testing.main()
