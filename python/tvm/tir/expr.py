@@ -155,10 +155,10 @@ class ExprOp:
     def __ror__(self, other: Union[PrimExpr, int, bool]) -> "Call":
         return _ffi_api.bitwise_or(other, self, None)  # type: ignore
 
-    def __xor__(self, other: Union[PrimExpr, int]) -> "Call":
+    def __xor__(self, other: Union[PrimExpr, int, bool]) -> "Call":
         return _ffi_api.bitwise_xor(self, other, None)  # type: ignore
 
-    def __rxor__(self, other: Union[PrimExpr, int]) -> "Call":
+    def __rxor__(self, other: Union[PrimExpr, int, bool]) -> "Call":
         return _ffi_api.bitwise_xor(other, self, None)  # type: ignore
 
     def __invert__(self) -> "Call":
