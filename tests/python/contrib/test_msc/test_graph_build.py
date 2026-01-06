@@ -2443,22 +2443,22 @@ def test_scatter(dynamic: bool):
 
     expected1 = {
         "inputs": [
-            {"name": "inp_0", "shape": [bz, 20], "dtype": "float32", "layout": ""},
-            {"name": "inp_1", "shape": [2, 5], "dtype": "float32", "layout": ""},
+            {"name": "inp_0", "shape": [bz, 20], "dtype": "float32", "layout": "AB"},
+            {"name": "inp_1", "shape": [2, 5], "dtype": "float32", "layout": "AB"},
         ],
         "outputs": [
-            {"name": "scatter_elements", "shape": [bz, 20], "dtype": "float32", "layout": ""}
+            {"name": "scatter_elements", "shape": [bz, 20], "dtype": "float32", "layout": "AB"}
         ],
         "nodes": {"total": 4, "input": 2, "constant": 1, "scatter_elements": 1},
     }
     expected2 = {
         "inputs": [
-            {"name": "inp_0", "shape": [bz, 20], "dtype": "float32", "layout": ""},
-            {"name": "inp_1", "shape": [2, 5], "dtype": "int64", "layout": ""},
-            {"name": "inp_2", "shape": [2, 5], "dtype": "float32", "layout": ""},
+            {"name": "inp_0", "shape": [bz, 20], "dtype": "float32", "layout": "AB"},
+            {"name": "inp_1", "shape": [2, 5], "dtype": "int64", "layout": "AB"},
+            {"name": "inp_2", "shape": [2, 5], "dtype": "float32", "layout": "AB"},
         ],
         "outputs": [
-            {"name": "scatter_elements", "shape": [bz, 20], "dtype": "float32", "layout": ""}
+            {"name": "scatter_elements", "shape": [bz, 20], "dtype": "float32", "layout": "AB"}
         ],
         "nodes": {"total": 4, "input": 3, "scatter_elements": 1},
     }

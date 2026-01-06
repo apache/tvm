@@ -2613,7 +2613,35 @@ StructInfo InferStructInfoScatterElements(const Call& call, const BlockBuilder& 
   return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice);
 }
 
-// TODO(relax-team): implement FRelaxInferLayout for scatter_elements
+InferLayoutOutput InferLayoutScatterElements(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+  const auto* attrs = call->attrs.as<ScatterElementsAttrs>();
+  ICHECK(attrs) << "Invalid Call";
+
+  LayoutDecision data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  LayoutDecision indices_layout = GetLayoutDecision(var_layout_map, call->args[1]);
+  LayoutDecision updates_layout = GetLayoutDecision(var_layout_map, call->args[2]);
+
+  LayoutDecision layout = data_layout;
+  if (NLayoutEqual()(indices_layout, updates_layout)) {
+    layout = indices_layout;
+  }
+
+  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
+    const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support static ndim for now";
+    int ndim = tensor_sinfo->ndim;
+    layout = LayoutDecision(InitialLayout(ndim));
+  }
+
+  ObjectPtr<ScatterElementsAttrs> new_attrs = ffi::make_object<ScatterElementsAttrs>(*attrs);
+  new_attrs->axis = FindAxis(layout->layout, attrs->axis->value);
+  return InferLayoutOutput({layout, layout, layout}, {layout}, Attrs(new_attrs));
+}
+
 TVM_REGISTER_OP("relax.scatter_elements")
     .set_attrs_type<ScatterElementsAttrs>()
     .set_num_inputs(3)
@@ -2621,6 +2649,7 @@ TVM_REGISTER_OP("relax.scatter_elements")
     .add_argument("indices", "Tensor", "The indices tensor.")
     .add_argument("updates", "Tensor", "The input tensor of updates.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatterElements)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutScatterElements)
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.scatter_nd */
