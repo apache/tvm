@@ -2047,11 +2047,44 @@ StructInfo InferStructInfoFlip(const Call& call, const BlockBuilder& ctx) {
   return data_sinfo;
 }
 
+InferLayoutOutput InferLayoutFlip(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+
+  const auto* attrs = call->attrs.as<FlipAttrs>();
+  ICHECK(attrs != nullptr) << "Invalid Call";
+  const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+  ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support static ndim for now";
+
+  LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  int ndim = tensor_sinfo->ndim;
+
+  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+    existing_layout = LayoutDecision(InitialLayout(ndim));
+  }
+
+  int axis = attrs->axis.IntValue();
+  if (axis < 0) {
+    axis += ndim;
+  }
+
+  const int new_axis = FindAxis(existing_layout->layout, axis);
+  ICHECK_GE(new_axis, 0) << "Failed to find transformed axis";
+
+  ObjectPtr<FlipAttrs> new_attrs = ffi::make_object<FlipAttrs>(*attrs);
+  new_attrs->axis = Integer(new_axis);
+
+  return InferLayoutOutput({existing_layout}, {existing_layout}, Attrs(new_attrs));
+}
+
 TVM_REGISTER_OP("relax.flip")
     .set_attrs_type<FlipAttrs>()
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFlip)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutFlip)
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.gather_elements */
