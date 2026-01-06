@@ -214,9 +214,9 @@ def test_subscripted_generics(type_annotation, expected_key, expected_subtypes):
     assert key == expected_key, f"Expected '{expected_key}' but got '{key}'"
 
     if isinstance(expected_subtypes, tuple):
-        assert tuple(subtypes) == expected_subtypes, (
-            f"Expected {expected_subtypes} but got {subtypes}"
-        )
+        assert (
+            tuple(subtypes) == expected_subtypes
+        ), f"Expected {expected_subtypes} but got {subtypes}"
     else:
         assert subtypes == expected_subtypes, f"Expected {expected_subtypes} but got {subtypes}"
 
