@@ -197,7 +197,7 @@ def test_not_matches(type_annotation, case):
         pytest.param(
             Union[List[str], Dict[str, int]],
             "union",
-            None,  # We'll check length instead
+            [List[str], Dict[str, int]],
             id="Union[List[str], Dict[str, int]]",
         ),
     ],
@@ -213,16 +213,12 @@ def test_subscripted_generics(type_annotation, expected_key, expected_subtypes):
     key, subtypes = _dispatcher(type_annotation)
     assert key == expected_key, f"Expected '{expected_key}' but got '{key}'"
 
-    if expected_subtypes is not None:
-        if isinstance(expected_subtypes, tuple):
-            assert tuple(subtypes) == expected_subtypes, (
-                f"Expected {expected_subtypes} but got {subtypes}"
-            )
-        else:
-            assert subtypes == expected_subtypes, f"Expected {expected_subtypes} but got {subtypes}"
+    if isinstance(expected_subtypes, tuple):
+        assert tuple(subtypes) == expected_subtypes, (
+            f"Expected {expected_subtypes} but got {subtypes}"
+        )
     else:
-        # For nested Union test, just check that we got 2 subtypes
-        assert len(subtypes) == 2, f"Expected 2 subtypes but got {len(subtypes)}"
+        assert subtypes == expected_subtypes, f"Expected {expected_subtypes} but got {subtypes}"
 
 
 if __name__ == "__main__":
