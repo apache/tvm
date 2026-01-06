@@ -39,7 +39,7 @@ from tvm.target import Target
 
 # pylint: disable=unused-import
 from tvm.target.codegen import llvm_lookup_intrinsic_id
-from tvm.tir import Buffer, BufferRegion, IndexMap, PrimExpr
+from tvm.tir import Buffer, BufferRegion, IndexMap, PrimExpr, PrimIntExpr
 from tvm.tir import op as _tir_op
 from tvm.tir import type_annotation
 
@@ -271,11 +271,11 @@ def func_ret(ret_type: Type) -> Type:
 
 def match_buffer(
     param: Union[Var, BufferLoad, BufferRegion],
-    shape: Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral] = None,
+    shape: Union[List[PrimIntExpr], Tuple[PrimIntExpr, ...], PrimIntExpr] = None,
     dtype: str = "float32",
     data: Var = None,
-    strides: List[PrimExpr] = None,
-    elem_offset: PrimExpr = None,
+    strides: List[PrimIntExpr] = None,
+    elem_offset: PrimIntExpr = None,
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
@@ -906,7 +906,7 @@ def thread_binding(
     )
 
 
-def grid(*extents: PrimExpr) -> frame.ForFrame:
+def grid(*extents: PrimIntExpr) -> frame.ForFrame:
     """The grid For statement.
 
     Parameters

@@ -32,16 +32,13 @@ from typing import List, Optional, Self, Union
 import tvm_ffi
 import tvm.ir._ffi_api
 from tvm import ir
-from tvm.ir import Op, PrimExpr
+from tvm.ir import Op, PrimExpr, PrimIntExpr, PrimFloatExpr, PrimLogicalExpr
 from tvm.ir.base import Span
 from tvm.runtime import Object, ObjectConvertible, Scriptable, DataType, DataTypeCode, const
 
 from . import _ffi_api
 from . import generic as _generic
 from .buffer import Buffer, DataProducer
-
-
-numeric = Union[int, float, complex]
 
 
 def convert(expr) -> PrimExpr:
@@ -77,88 +74,88 @@ class ExprOp:
 
     # TODO(tkonolige): use inspect to add source information to these objects
 
-    def __add__(self, other: Union[PrimExpr, numeric]) -> "Add":
+    def __add__(self, other: PrimFloatExpr) -> "Add":
         return _generic.add(self, other)
 
-    def __radd__(self, other: Union[PrimExpr, numeric]) -> "Add":
+    def __radd__(self, other: PrimFloatExpr) -> "Add":
         return _generic.add(other, self)
 
-    def __sub__(self, other: Union[PrimExpr, numeric]) -> "Sub":
+    def __sub__(self, other: PrimFloatExpr) -> "Sub":
         return _generic.subtract(self, other)
 
-    def __rsub__(self, other: Union[PrimExpr, numeric]) -> "Sub":
+    def __rsub__(self, other: PrimFloatExpr) -> "Sub":
         return _generic.subtract(other, self)
 
-    def __mul__(self, other: Union[PrimExpr, numeric]) -> "Mul":
+    def __mul__(self, other: PrimFloatExpr) -> "Mul":
         return _generic.multiply(self, other)
 
-    def __rmul__(self, other: Union[PrimExpr, numeric]) -> "Mul":
+    def __rmul__(self, other: PrimFloatExpr) -> "Mul":
         return _generic.multiply(other, self)
 
-    def __div__(self, other: Union[PrimExpr, numeric]) -> "Div":
+    def __div__(self, other: PrimFloatExpr) -> "Div":
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
         return _generic.divide(self, other)
 
-    def __rdiv__(self, other: Union[PrimExpr, numeric]) -> "Div":
+    def __rdiv__(self, other: PrimFloatExpr) -> "Div":
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
         return _generic.divide(other, self)
 
-    def __truediv__(self, other: Union[PrimExpr, numeric]) -> "Div":
+    def __truediv__(self, other: PrimFloatExpr) -> "Div":
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
         return _generic.divide(self, other)
 
-    def __rtruediv__(self, other: Union[PrimExpr, numeric]) -> "Div":
+    def __rtruediv__(self, other: PrimFloatExpr) -> "Div":
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
         return _generic.divide(other, self)
 
-    def __floordiv__(self, other: Union[PrimExpr, numeric]) -> "FloorDiv":
+    def __floordiv__(self, other: PrimFloatExpr) -> "FloorDiv":
         return _generic.floordiv(self, other)
 
-    def __rfloordiv__(self, other: Union[PrimExpr, numeric]) -> "FloorDiv":
+    def __rfloordiv__(self, other: PrimFloatExpr) -> "FloorDiv":
         return _generic.floordiv(other, self, None)
 
-    def __mod__(self, other: Union[PrimExpr, numeric]) -> "Mod":
+    def __mod__(self, other: PrimFloatExpr) -> "Mod":
         return _ffi_api._OpFloorMod(self, other, None)  # type: ignore
 
-    def __rmod__(self, other: Union[PrimExpr, numeric]) -> "Mod":
+    def __rmod__(self, other: PrimFloatExpr) -> "Mod":
         return _ffi_api._OpFloorMod(other, self, None)  # type: ignore
 
     def __neg__(self) -> "Mul":
         neg_one = const(-1, self.dtype)  # type: ignore
         return self.__mul__(neg_one)
 
-    def __lshift__(self, other: Union[PrimExpr, int]) -> "Call":
+    def __lshift__(self, other: PrimIntExpr) -> "Call":
         return _ffi_api.left_shift(self, other, None)  # type: ignore
 
-    def __rlshift__(self, other: Union[PrimExpr, int]) -> "Call":
+    def __rlshift__(self, other: PrimIntExpr) -> "Call":
         return _ffi_api.left_shift(other, self, None)  # type: ignore
 
-    def __rshift__(self, other: Union[PrimExpr, int]) -> "Call":
+    def __rshift__(self, other: PrimIntExpr) -> "Call":
         return _ffi_api.right_shift(self, other, None)  # type: ignore
 
-    def __rrshift__(self, other: Union[PrimExpr, int]) -> "Call":
+    def __rrshift__(self, other: PrimIntExpr) -> "Call":
         return _ffi_api.right_shift(other, self, None)  # type: ignore
 
-    def __and__(self, other: Union[PrimExpr, int, bool]) -> "Call":
+    def __and__(self, other: PrimLogicalExpr) -> "Call":
         return _ffi_api.bitwise_and(self, other, None)  # type: ignore
 
-    def __rand__(self, other: Union[PrimExpr, int, bool]) -> "Call":
+    def __rand__(self, other: PrimLogicalExpr) -> "Call":
         return _ffi_api.bitwise_and(other, self, None)  # type: ignore
 
-    def __or__(self, other: Union[PrimExpr, int, bool]) -> "Call":
+    def __or__(self, other: PrimLogicalExpr) -> "Call":
         return _ffi_api.bitwise_or(self, other, None)  # type: ignore
 
-    def __ror__(self, other: Union[PrimExpr, int, bool]) -> "Call":
+    def __ror__(self, other: PrimLogicalExpr) -> "Call":
         return _ffi_api.bitwise_or(other, self, None)  # type: ignore
 
-    def __xor__(self, other: Union[PrimExpr, int, bool]) -> "Call":
+    def __xor__(self, other: PrimLogicalExpr) -> "Call":
         return _ffi_api.bitwise_xor(self, other, None)  # type: ignore
 
-    def __rxor__(self, other: Union[PrimExpr, int, bool]) -> "Call":
+    def __rxor__(self, other: PrimLogicalExpr) -> "Call":
         return _ffi_api.bitwise_xor(other, self, None)  # type: ignore
 
     def __invert__(self) -> "Call":
@@ -166,22 +163,22 @@ class ExprOp:
             raise RuntimeError("Cannot use ~ operator on float type Expr.")
         return _ffi_api.bitwise_not(self, None)  # type: ignore
 
-    def __lt__(self, other: Union[PrimExpr, numeric]) -> "LT":
+    def __lt__(self, other: PrimFloatExpr) -> "LT":
         return _ffi_api._OpLT(self, other, None)  # type: ignore
 
-    def __le__(self, other: Union[PrimExpr, numeric]) -> "LE":
+    def __le__(self, other: PrimFloatExpr) -> "LE":
         return _ffi_api._OpLE(self, other, None)  # type: ignore
 
-    def __eq__(self, other: Union[PrimExpr, numeric]) -> "EqualOp":
+    def __eq__(self, other: PrimFloatExpr) -> "EqualOp":
         return EqualOp(self, other)
 
-    def __ne__(self, other: Union[PrimExpr, numeric]) -> "NotEqualOp":
+    def __ne__(self, other: PrimFloatExpr) -> "NotEqualOp":
         return NotEqualOp(self, other)
 
-    def __gt__(self, other: Union[PrimExpr, numeric]) -> "GT":
+    def __gt__(self, other: PrimFloatExpr) -> "GT":
         return _ffi_api._OpGT(self, other, None)  # type: ignore
 
-    def __ge__(self, other: Union[PrimExpr, numeric]) -> "GE":
+    def __ge__(self, other: PrimFloatExpr) -> "GE":
         return _ffi_api._OpGE(self, other, None)  # type: ignore
 
     def __nonzero__(self):

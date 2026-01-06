@@ -16,7 +16,7 @@
 # under the License.
 """Common expressions data structures in the IR."""
 from numbers import Number
-from typing import Optional
+from typing import Optional, Union
 
 import tvm
 import tvm_ffi
@@ -42,6 +42,11 @@ class PrimExpr(BaseExpr):
     """
 
     dtype: str
+
+
+PrimIntExpr = Union[PrimExpr, int]
+PrimFloatExpr = Union[PrimExpr, float]
+PrimLogicalExpr = Union[PrimExpr, int, bool]
 
 
 @tvm_ffi.register_object("ir.RelaxExpr")
