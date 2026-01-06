@@ -47,6 +47,10 @@ if hasattr(typing, "_GenericAlias"):
     class _Subtype:
         @staticmethod
         def _origin(type_: Any) -> Any:
+            # In Python 3.14+, check if the type has __origin__ attribute directly
+            if hasattr(type_, "__origin__"):
+                return type_.__origin__
+
             if hasattr(typing, "_SpecialGenericAlias"):
                 if isinstance(type_, typing._SpecialGenericAlias):  # type: ignore # pylint: disable=protected-access
                     return type_.__origin__
