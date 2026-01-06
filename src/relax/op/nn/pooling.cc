@@ -111,7 +111,13 @@ StructInfo InferStructInfoPool1D(const Call& call, const BlockBuilder& ctx) {
   if (attrs->ceil_mode) {
     numerator_w += attrs->strides[0] - 1;
   }
-  out_NCW_shape[2] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[0]) + 1);
+  PrimExpr raw_out_w = floordiv(numerator_w, attrs->strides[0]) + 1;
+  if (attrs->ceil_mode) {
+    PrimExpr invalid_last_w = (raw_out_w - 1) * attrs->strides[0] >= input_w + attrs->padding[0];
+    out_NCW_shape[2] = analyzer->Simplify(if_then_else(invalid_last_w, raw_out_w - 1, raw_out_w));
+  } else {
+    out_NCW_shape[2] = analyzer->Simplify(raw_out_w);
+  }
 
   ffi::Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
@@ -232,8 +238,17 @@ StructInfo InferStructInfoPool2D(const Call& call, const BlockBuilder& ctx) {
     numerator_h += attrs->strides[0] - 1;
     numerator_w += attrs->strides[1] - 1;
   }
-  out_NCHW_shape[2] = analyzer->Simplify(floordiv(numerator_h, attrs->strides[0]) + 1);
-  out_NCHW_shape[3] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[1]) + 1);
+  PrimExpr raw_out_h = floordiv(numerator_h, attrs->strides[0]) + 1;
+  PrimExpr raw_out_w = floordiv(numerator_w, attrs->strides[1]) + 1;
+  if (attrs->ceil_mode) {
+    PrimExpr invalid_last_h = (raw_out_h - 1) * attrs->strides[0] >= input_h + attrs->padding[0];
+    PrimExpr invalid_last_w = (raw_out_w - 1) * attrs->strides[1] >= input_w + attrs->padding[1];
+    out_NCHW_shape[2] = analyzer->Simplify(if_then_else(invalid_last_h, raw_out_h - 1, raw_out_h));
+    out_NCHW_shape[3] = analyzer->Simplify(if_then_else(invalid_last_w, raw_out_w - 1, raw_out_w));
+  } else {
+    out_NCHW_shape[2] = analyzer->Simplify(raw_out_h);
+    out_NCHW_shape[3] = analyzer->Simplify(raw_out_w);
+  }
 
   ffi::Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
@@ -380,9 +395,21 @@ StructInfo InferStructInfoPool3D(const Call& call, const BlockBuilder& ctx) {
     numerator_h += attrs->strides[1] - 1;
     numerator_w += attrs->strides[2] - 1;
   }
-  out_NCDHW_shape[2] = analyzer->Simplify(floordiv(numerator_d, attrs->strides[0]) + 1);
-  out_NCDHW_shape[3] = analyzer->Simplify(floordiv(numerator_h, attrs->strides[1]) + 1);
-  out_NCDHW_shape[4] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[2]) + 1);
+  PrimExpr raw_out_d = floordiv(numerator_d, attrs->strides[0]) + 1;
+  PrimExpr raw_out_h = floordiv(numerator_h, attrs->strides[1]) + 1;
+  PrimExpr raw_out_w = floordiv(numerator_w, attrs->strides[2]) + 1;
+  if (attrs->ceil_mode) {
+    PrimExpr invalid_last_d = (raw_out_d - 1) * attrs->strides[0] >= input_d + attrs->padding[0];
+    PrimExpr invalid_last_h = (raw_out_h - 1) * attrs->strides[1] >= input_h + attrs->padding[1];
+    PrimExpr invalid_last_w = (raw_out_w - 1) * attrs->strides[2] >= input_w + attrs->padding[2];
+    out_NCDHW_shape[2] = analyzer->Simplify(if_then_else(invalid_last_d, raw_out_d - 1, raw_out_d));
+    out_NCDHW_shape[3] = analyzer->Simplify(if_then_else(invalid_last_h, raw_out_h - 1, raw_out_h));
+    out_NCDHW_shape[4] = analyzer->Simplify(if_then_else(invalid_last_w, raw_out_w - 1, raw_out_w));
+  } else {
+    out_NCDHW_shape[2] = analyzer->Simplify(raw_out_d);
+    out_NCDHW_shape[3] = analyzer->Simplify(raw_out_h);
+    out_NCDHW_shape[4] = analyzer->Simplify(raw_out_w);
+  }
 
   ffi::Array<PrimExpr> out_shape = out2NCDHW.BackwardShape(out_NCDHW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
