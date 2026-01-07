@@ -2789,17 +2789,34 @@ InferLayoutOutput InferLayoutScatterND(
   LayoutDecision indices_layout = GetLayoutDecision(var_layout_map, call->args[1]);
   LayoutDecision updates_layout = GetLayoutDecision(var_layout_map, call->args[2]);
 
-  LayoutDecision layout = data_layout;
+  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* updates_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
+  ICHECK(data_sinfo != nullptr) << "Invalid Call";
+  ICHECK(updates_sinfo != nullptr) << "Invalid Call";
+  ICHECK(!data_sinfo->IsUnknownNdim()) << "Only support static ndim for now";
+  ICHECK(!updates_sinfo->IsUnknownNdim()) << "Only support static ndim for now";
 
-  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
-    const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
-    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support static ndim for now";
-    int ndim = tensor_sinfo->ndim;
-    layout = LayoutDecision(InitialLayout(ndim));
+  LayoutDecision layout = data_layout;
+  LayoutDecision out_updates_layout = updates_layout;
+
+  // Check if data has a sub-indexed layout
+  bool has_sub_indexed_layout = layout->layout.ndim() != layout->layout.ndim_primal();
+
+  if (has_sub_indexed_layout) {
+    // Fall back to initial layouts for both data and updates
+    layout = LayoutDecision(InitialLayout(data_sinfo->ndim));
+    out_updates_layout = LayoutDecision(InitialLayout(updates_sinfo->ndim));
+  } else if (data_sinfo->ndim == updates_sinfo->ndim) {
+    // When data and updates have the same rank, apply the same layout to both
+    out_updates_layout = layout;
+  } else {
+    // Different ranks - fall back to initial layouts for both
+    layout = LayoutDecision(InitialLayout(data_sinfo->ndim));
+    out_updates_layout = LayoutDecision(InitialLayout(updates_sinfo->ndim));
   }
 
-  return InferLayoutOutput({layout, indices_layout, updates_layout}, {layout}, Attrs(call->attrs));
+  return InferLayoutOutput({layout, indices_layout, out_updates_layout}, {layout},
+                           Attrs(call->attrs));
 }
 
 TVM_REGISTER_OP("relax.scatter_nd")
