@@ -539,7 +539,9 @@ def alloc_buffer(
     )
 
 
-def _as_range(dom: Union[ir.Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr]) -> ir.Range:
+def _as_range(
+    dom: Union[ir.Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr],
+) -> ir.Range:
     """The range constructor.
 
     Parameters
@@ -683,13 +685,26 @@ class axis:  # pylint: disable=invalid-name
 
     @overload
     @staticmethod
-    def remap(kinds: str, bindings: Union[PrimExpr, Tuple[PrimExpr]], dtype: str = "int32") -> Var: ...
+    def remap(
+        kinds: str, bindings: Union[PrimExpr, Tuple[PrimExpr]], dtype: str = "int32"
+    ) -> Var: ...
     @overload
     @staticmethod
-    def remap(kinds: str, bindings: Union[List[PrimExpr], Tuple[()], Tuple[PrimExpr, PrimExpr, *tuple[PrimExpr, ...]]], dtype: str = "int32") -> List[Var]: ...
+    def remap(
+        kinds: str,
+        bindings: Union[Tuple[()], Tuple[PrimExpr, PrimExpr, *Tuple[PrimExpr, ...]]],
+        dtype: str = "int32",
+    ) -> List[Var]: ...
+    @overload
+    @staticmethod
+    def remap(kinds: str, bindings: List[PrimExpr], dtype: str = "int32") -> List[Var]: ...
 
     @staticmethod
-    def remap(kinds: str, bindings: Union[List[PrimExpr], Tuple[PrimExpr, ...], PrimExpr], dtype: str = "int32") -> Union[List[Var], Var]:
+    def remap(
+        kinds: str,
+        bindings: Union[List[PrimExpr], Tuple[PrimExpr, ...], PrimExpr],
+        dtype: str = "int32",
+    ) -> Union[List[Var], Var]:
         """The block axis remapping function.
 
         Parameters
@@ -930,7 +945,9 @@ def grid(*extents: PrimIntExpr) -> frame.ForFrame:
     return _ffi_api.Grid(extents)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def Assert(condition: PrimLogicalExpr, message: str) -> frame.AssertFrame:  # pylint: disable=invalid-name
+def Assert(
+    condition: PrimLogicalExpr, message: str
+) -> frame.AssertFrame:  # pylint: disable=invalid-name
     """Create an assertion statement.
 
     Parameters

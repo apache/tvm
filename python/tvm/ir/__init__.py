@@ -32,7 +32,16 @@ from .base import (
     structural_hash,
 )
 from .container import Array, Map
-from .expr import BaseExpr, GlobalVar, PrimExpr, PrimIntExpr, PrimFloatExpr, PrimLogicalExpr, Range, RelaxExpr
+from .expr import (
+    BaseExpr,
+    GlobalVar,
+    PrimExpr,
+    PrimIntExpr,
+    PrimFloatExpr,
+    PrimLogicalExpr,
+    Range,
+    RelaxExpr,
+)
 from .function import BaseFunc, CallingConv
 from .global_info import GlobalInfo, DummyGlobalInfo, VDevice
 from .module import IRModule
