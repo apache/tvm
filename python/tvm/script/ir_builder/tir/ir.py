@@ -22,7 +22,7 @@ import inspect
 import sys
 import threading
 from numbers import Integral
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, overload
 
 # isort: off
 from typing_extensions import Literal
@@ -681,8 +681,15 @@ class axis:  # pylint: disable=invalid-name
             _as_range(dom), binding, dtype
         )
 
+    @overload
     @staticmethod
-    def remap(kinds: str, bindings: List[PrimIntExpr], dtype: str = "int32") -> Union[List[Var], Var]:
+    def remap(kinds: str, bindings: Union[PrimExpr, Tuple[PrimExpr]], dtype: str = "int32") -> Var: ...
+    @overload
+    @staticmethod
+    def remap(kinds: str, bindings: Union[List[PrimExpr], Tuple[()], Tuple[PrimExpr, PrimExpr, *tuple[PrimExpr, ...]]], dtype: str = "int32") -> List[Var]: ...
+
+    @staticmethod
+    def remap(kinds: str, bindings: Union[List[PrimExpr], Tuple[PrimExpr, ...], PrimExpr], dtype: str = "int32") -> Union[List[Var], Var]:
         """The block axis remapping function.
 
         Parameters
@@ -690,7 +697,7 @@ class axis:  # pylint: disable=invalid-name
         kinds : str
             The types of the iteration variables.
 
-        bindings : List[PrimIntExpr]
+        bindings : Union[List[PrimExpr], Tuple[PrimExpr, ...], PrimExpr]
             The binding values of the iteration variables.
 
         dtype : str
@@ -698,9 +705,10 @@ class axis:  # pylint: disable=invalid-name
 
         Returns
         -------
-        res : Var
+        res : Union[Var, List[Var]]
             The iteration variables.
         """
+        bindings = (bindings,) if isinstance(bindings, PrimExpr) else bindings
         iter_vars = _ffi_api.AxisRemap(  # type: ignore[attr-defined] # pylint: disable=no-member
             kinds, bindings, dtype
         )
