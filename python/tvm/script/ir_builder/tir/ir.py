@@ -539,12 +539,12 @@ def alloc_buffer(
     )
 
 
-def _as_range(dom: Union[ir.Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr]]) -> ir.Range:
+def _as_range(dom: Union[ir.Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr]) -> ir.Range:
     """The range constructor.
 
     Parameters
     ----------
-    dom : Union[Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr]]
+    dom : Union[Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr]
         The domain.
 
     Returns
@@ -571,18 +571,18 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def spatial(
-        dom: Union[ir.Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr]],
-        binding: PrimExpr,
+        dom: Union[ir.Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr],
+        binding: PrimIntExpr,
         dtype: str = "int32",
     ) -> Var:
         """The spatial block axis defining function.
 
         Parameters
         ----------
-        dom : Union[Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr]]
+        dom : Union[Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr]
             The domain of the iteration variable.
 
-        binding : PrimExpr
+        binding : PrimIntExpr
             The binding value of the iteration variable.
 
         dtype : str
@@ -599,18 +599,18 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def reduce(
-        dom: Union[ir.Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr]],
-        binding: PrimExpr,
+        dom: Union[ir.Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr],
+        binding: PrimIntExpr,
         dtype: str = "int32",
     ) -> Var:
         """The reduced block axis defining function.
 
         Parameters
         ----------
-        dom : Union[Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr]]
+        dom : Union[Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr]
             The domain of the iteration variable.
 
-        binding : PrimExpr
+        binding : PrimIntExpr
             The binding value of the iteration variable.
 
         dtype : str
@@ -627,18 +627,18 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def scan(
-        dom: Union[ir.Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr]],
-        binding: PrimExpr,
+        dom: Union[ir.Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr],
+        binding: PrimIntExpr,
         dtype: str = "int32",
     ) -> Var:
         """The scanning block axis defining function.
 
         Parameters
         ----------
-        dom : Union[Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr]]
+        dom : Union[Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr]
             The domain of the iteration variable.
 
-        binding : PrimExpr
+        binding : PrimIntExpr
             The binding value of the iteration variable.
 
         dtype : str
@@ -655,18 +655,18 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def opaque(
-        dom: Union[ir.Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr]],
-        binding: PrimExpr,
+        dom: Union[ir.Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr],
+        binding: PrimIntExpr,
         dtype: str = "int32",
     ) -> Var:
         """The opaque block axis defining function.
 
         Parameters
         ----------
-        dom : Union[Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr]]
+        dom : Union[Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr]
             The domain of the iteration variable.
 
-        binding : PrimExpr
+        binding : PrimIntExpr
             The binding value of the iteration variable.
 
         dtype : str
@@ -682,7 +682,7 @@ class axis:  # pylint: disable=invalid-name
         )
 
     @staticmethod
-    def remap(kinds: str, bindings: List[PrimExpr], dtype: str = "int32") -> Union[List[Var], Var]:
+    def remap(kinds: str, bindings: List[PrimIntExpr], dtype: str = "int32") -> Union[List[Var], Var]:
         """The block axis remapping function.
 
         Parameters
@@ -690,7 +690,7 @@ class axis:  # pylint: disable=invalid-name
         kinds : str
             The types of the iteration variables.
 
-        bindings : List[PrimExpr]
+        bindings : List[PrimIntExpr]
             The binding values of the iteration variables.
 
         dtype : str
