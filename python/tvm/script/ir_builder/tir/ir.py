@@ -692,7 +692,7 @@ class axis:  # pylint: disable=invalid-name
     @staticmethod
     def remap(
         kinds: str,
-        bindings: Union[Tuple[()], Tuple[PrimExpr, PrimExpr, *Tuple[PrimExpr, ...]]],
+        bindings: Tuple[PrimExpr, ...],
         dtype: str = "int32",
     ) -> List[Var]: ...
     @overload
