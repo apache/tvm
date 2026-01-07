@@ -2161,7 +2161,12 @@ InferLayoutOutput InferLayoutGatherElements(
   LayoutDecision indices_layout = GetLayoutDecision(var_layout_map, call->args[1]);
 
   LayoutDecision layout = data_layout;
-  if (NLayoutEqual()(data_layout, indices_layout)) {
+  // If data_layout is initial and indices_layout is not, prefer indices_layout.
+  bool data_is_initial =
+      data_layout->layout.name() == InitialLayout(data_layout->layout.ndim()).name();
+  bool indices_is_initial =
+      indices_layout->layout.name() == InitialLayout(indices_layout->layout.ndim()).name();
+  if (data_is_initial && !indices_is_initial) {
     layout = indices_layout;
   }
 
