@@ -562,7 +562,7 @@ def _as_range(dom: Union[ir.Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimInt
             return ir.Range.from_min_extent(dom[0], extent)
         return ir.Range(dom[0], dom[1])
     if hasattr(dom, "dtype"):
-        return ir.Range(IntImm(dom.dtype, 0), dom)
+        return ir.Range(IntImm(dom.dtype, 0), dom)  # type: ignore[attr-defined] # pylint: disable=no-member
     return ir.Range(0, dom)
 
 

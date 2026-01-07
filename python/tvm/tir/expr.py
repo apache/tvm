@@ -27,7 +27,7 @@ For example, you can use addexp.a to get the left operand of an Add node.
   assert(isinstance(y, tvm.tir.Add))
   assert(y.a == x)
 """
-from typing import List, Optional, Self, Union
+from typing import List, Optional, TypeVar, Union
 
 import tvm_ffi
 import tvm.ir._ffi_api
@@ -67,6 +67,9 @@ def _dtype_is_float(value):
     return (
         isinstance(value, ExprOp) and DataType(value.dtype).type_code == DataTypeCode.FLOAT
     )  # type: ignore
+
+
+Self = TypeVar("Self", bound="ExprOp")
 
 
 class ExprOp:
@@ -208,7 +211,7 @@ class ExprOp:
         """
         return _ffi_api._OpEQ(self, other, span)  # type: ignore
 
-    def astype(self, dtype: str, span: Optional[Span] = None) -> Union["Cast", "Self"]:
+    def astype(self: Self, dtype: str, span: Optional[Span] = None) -> Union["Cast", Self]:
         """Cast the expression to other type.
 
         Parameters
