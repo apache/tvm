@@ -685,19 +685,18 @@ class axis:  # pylint: disable=invalid-name
 
     @overload
     @staticmethod
-    def remap(
-        kinds: str, bindings: Union[PrimExpr, Tuple[PrimExpr]], dtype: str = "int32"
-    ) -> Var: ...
+    def remap(kinds: str, bindings: Union[PrimExpr, Tuple[PrimExpr]], dtype: str = "int32") -> Var:
+        ...
+
     @overload
     @staticmethod
-    def remap(
-        kinds: str,
-        bindings: Tuple[PrimExpr, ...],
-        dtype: str = "int32",
-    ) -> List[Var]: ...
+    def remap(kinds: str, bindings: Tuple[PrimExpr, ...], dtype: str = "int32") -> List[Var]:
+        ...
+
     @overload
     @staticmethod
-    def remap(kinds: str, bindings: List[PrimExpr], dtype: str = "int32") -> List[Var]: ...
+    def remap(kinds: str, bindings: List[PrimExpr], dtype: str = "int32") -> List[Var]:
+        ...
 
     @staticmethod
     def remap(
@@ -945,9 +944,9 @@ def grid(*extents: PrimIntExpr) -> frame.ForFrame:
     return _ffi_api.Grid(extents)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def Assert(
+def Assert(  # pylint: disable=invalid-name
     condition: PrimLogicalExpr, message: str
-) -> frame.AssertFrame:  # pylint: disable=invalid-name
+) -> frame.AssertFrame:
     """Create an assertion statement.
 
     Parameters
