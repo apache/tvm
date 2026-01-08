@@ -256,10 +256,17 @@ cast_smem_ptr_to_int(const void* const smem_ptr)
 #else
 #define TVM_ENABLE_L2_PREFETCH 0
 #endif
+
+#ifdef __CUDACC_RTC__
+using int64_t = long long;
+using uint64_t = unsigned long long;
+#else
 #include <cstdint>
+#endif
 using uint = unsigned int;
 using uchar = unsigned char;
 using ushort = unsigned short;
+
 extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C);
 extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C) {
   __shared__ float A_shared[64];
