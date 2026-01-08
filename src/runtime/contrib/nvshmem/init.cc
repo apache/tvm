@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <cuda.h>
 #include <nvshmem.h>
 #include <nvshmemx.h>
 #include <picojson.h>
@@ -117,7 +118,22 @@ void NVSHMEMXCumoduleInit(void* cuModule) {
     // NOTE: we do not check the return value of nvshmemx_cumodule_init.
     // The reason is because that the input cuModule might not use any NVSHMEM functions,
     // in which case the nvshmemx_cumodule_init will fail.
-    nvshmemx_cumodule_init(mod);
+
+    // A set of guards to check if the module has NVSHMEM symbol to avoid the
+    // "gpgpu named symbol not found" error.
+    CUdeviceptr d_ptr;
+    size_t d_size;
+    const char* kNvshmemDeviceSymbols[] = {
+        "nvshmemi_device_state_d",      "nvshmem_i_device_state_d",
+        "nvshmemi_device_team_state_d", "nvshmemi_device_heap_base_d",
+        "nvshmemi_device_heap_size_d",  "nvshmemi_device_heap_d",
+    };
+    for (const char* sym : kNvshmemDeviceSymbols) {
+      if (cuModuleGetGlobal(&d_ptr, &d_size, mod, sym) == CUDA_SUCCESS) {
+        nvshmemx_cumodule_init(mod);
+        return;
+      }
+    }
   }
 }
 
