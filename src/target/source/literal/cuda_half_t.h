@@ -391,7 +391,9 @@ void declare_vector_type_extensions(std::ostringstream& stream, bool enable_fp16
                                     bool enable_fp8, bool enable_fp4) {
   if (enable_fp16 || enable_bf16) {
     stream << R"(
-#include <type_traits>
+template <typename T, typename U> struct is_same { static constexpr bool value = false; };
+template <typename T> struct is_same<T, T> { static constexpr bool value = true; };
+
 template <typename T, typename TVec2>
 struct __align__(8) half4_bfloat164 {
   T x, y, z, w;
@@ -401,7 +403,7 @@ struct __align__(8) half4_bfloat164 {
     if (enable_fp8) {
       stream << R"(
   __host__ __device__ explicit half4_bfloat164(const __nv_fp8x4_e4m3& fp8x4) {
-    if constexpr (std::is_same_v<T, __half>) {
+    if constexpr (is_same<T, __half>::value) {
       __nv_fp8x2_e4m3 lo_part, hi_part;
       lo_part.__x = static_cast<__nv_fp8x2_storage_t>(fp8x4.__x & 0xFFFF);
       hi_part.__x = static_cast<__nv_fp8x2_storage_t>((fp8x4.__x >> 16) & 0xFFFF);
@@ -481,7 +483,7 @@ struct __align__(8) half4_bfloat164 {
     if (enable_fp4) {
       stream << R"(
   __host__ __device__ explicit half4_bfloat164(const __nv_fp4x4_e2m1& fp4x4) {
-    if constexpr (std::is_same_v<T, __half>) {
+    if constexpr (is_same<T, __half>::value) {
       __nv_fp4x2_storage_t lo_part = static_cast<__nv_fp4x2_storage_t>(fp4x4.__x & 0xFF);
       __nv_fp4x2_storage_t hi_part = static_cast<__nv_fp4x2_storage_t>((fp4x4.__x >> 8) & 0xFF);
       TVec2 lo_half2 = __half2(__nv_cvt_fp4x2_to_halfraw2(lo_part, __NV_E2M1));
