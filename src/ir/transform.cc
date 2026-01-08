@@ -533,8 +533,8 @@ void SequentialNode::ResolveDependency(const IRModule& mod) {
             // If we can't get the pass from the registry, we'll skip this dependency
             // This can happen if the required pass is not registered globally
             // It will be resolved at runtime in operator() if needed
-            VLOG(0) << "Warning: Cannot resolve required pass '" << req_name
-                    << "' for pass '" << pass_info->name
+            VLOG(0) << "Warning: Cannot resolve required pass '" << req_name << "' for pass '"
+                    << pass_info->name
                     << "' from global registry. It will be resolved at runtime if needed.";
           }
         }
