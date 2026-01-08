@@ -379,6 +379,31 @@ def test_llvm_bool():
 
 
 @tvm.testing.requires_llvm
+def test_llvm_cast_float_to_bool():
+    a_np = np.array([0.0, 1.0, np.nan, np.inf], dtype="float32")
+    n = a_np.shape[0]
+
+    A = te.placeholder((n,), name="A", dtype="float32")
+    C = te.compute((n,), lambda i: A[i].astype("bool"), name="C")
+
+    # Convert to TIR and create schedule
+    mod = te.create_prim_func([A, C])
+    sch = tir.Schedule(mod)
+
+    # build and invoke the kernel.
+    f = tvm.compile(sch.mod, target="llvm")
+    dev = tvm.cpu(0)
+
+    # launch the kernel.
+    a = tvm.runtime.tensor(a_np, dev)
+    c = tvm.runtime.empty((n,), dtype="bool", device=dev)
+    f(a, c)
+    c_np = np.array([False, True, True, True], dtype="bool")
+
+    tvm.testing.assert_allclose(c.numpy(), c_np)
+
+
+@tvm.testing.requires_llvm
 def test_rank_zero():
     def check_llvm(n):
         A = te.placeholder((n,), name="A")
