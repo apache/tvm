@@ -31,12 +31,13 @@
 #include <tvm/relax/expr.h>
 #include <tvm/runtime/device_api.h>
 
+#include <optional>
+#include <queue>
+#include <sstream>
 #include <stack>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <queue>
-#include <sstream>
 
 namespace tvm {
 namespace transform {
@@ -459,6 +460,20 @@ Pass GetPass(const ffi::String& pass_name) {
   return (*f)().cast<Pass>();
 }
 
+// Safe version of GetPass that returns empty optional instead of throwing
+std::optional<Pass> TryGetPass(const ffi::String& pass_name) {
+  std::optional<tvm::ffi::Function> f;
+  if (pass_name.operator std::string().find("transform.") != std::string::npos) {
+    f = tvm::ffi::Function::GetGlobal(pass_name);
+  } else {
+    f = tvm::ffi::Function::GetGlobal("transform." + pass_name);
+  }
+  if (!f.has_value()) {
+    return std::nullopt;
+  }
+  return (*f)().cast<Pass>();
+}
+
 void SequentialNode::ResolveDependency(const IRModule& mod) {
   // Get the current pass context to check which passes are enabled
   // Note: mod parameter is reserved for future use when dependency resolution
@@ -504,20 +519,23 @@ void SequentialNode::ResolveDependency(const IRModule& mod) {
         // Check if the required pass is already in our list
         if (name_to_pass.find(req_name) == name_to_pass.end()) {
           // Try to get it from the global registry
-          try {
-            Pass required_pass = GetPass(ffi::String(req_name));
+          // Use TryGetPass to avoid exceptions when the pass is not registered
+          std::optional<Pass> required_pass_opt = TryGetPass(ffi::String(req_name));
+          if (required_pass_opt.has_value()) {
+            Pass required_pass = required_pass_opt.value();
             const PassInfo& req_pass_info = required_pass->Info();
             if (pass_ctx.PassEnabled(req_pass_info)) {
               name_to_pass[req_name] = required_pass;
               enabled_passes.push_back(required_pass);
               changed = true;
             }
-          } catch (...) {
-            // If we can't get the pass, we'll skip this dependency
-            // It will be resolved at runtime in operator()
+          } else {
+            // If we can't get the pass from the registry, we'll skip this dependency
+            // This can happen if the required pass is not registered globally
+            // It will be resolved at runtime in operator() if needed
             VLOG(0) << "Warning: Cannot resolve required pass '" << req_name
                     << "' for pass '" << pass_info->name
-                    << "'. It will be resolved at runtime if needed.";
+                    << "' from global registry. It will be resolved at runtime if needed.";
           }
         }
       }
@@ -562,18 +580,17 @@ void SequentialNode::ResolveDependency(const IRModule& mod) {
   }
 
   std::vector<Pass> sorted_passes;
-  std::unordered_set<size_t> visited;
+  // Track which passes have been sorted to handle circular dependencies
+  std::vector<bool> sorted(enabled_passes.size(), false);
 
   while (!queue.empty()) {
     size_t current = queue.front();
     queue.pop();
 
-    if (visited.find(current) != visited.end()) {
-      continue;
-    }
-    visited.insert(current);
-
+    // In Kahn's algorithm, a node is added to queue only when in_degree becomes 0,
+    // which happens exactly once for each node in a DAG, so no need to check visited
     sorted_passes.push_back(enabled_passes[current]);
+    sorted[current] = true;
 
     // Process dependents: passes that depend on the current pass
     for (size_t dependent : dependents[current]) {
@@ -593,7 +610,7 @@ void SequentialNode::ResolveDependency(const IRModule& mod) {
     LOG(WARNING) << os.str();
     // Add remaining passes that weren't sorted (they have circular dependencies)
     for (size_t i = 0; i < enabled_passes.size(); ++i) {
-      if (visited.find(i) == visited.end()) {
+      if (!sorted[i]) {
         sorted_passes.push_back(enabled_passes[i]);
       }
     }
@@ -603,10 +620,14 @@ void SequentialNode::ResolveDependency(const IRModule& mod) {
   passes = ffi::Array<Pass>(sorted_passes);
 }
 
-// TODO(zhiics): we currently only sequentially execute each pass in
-// a Sequential without the consideration of their orders. The phase
-// ordering problem needs to be handled in the future.
 IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
+  // Resolve dependencies and sort passes using topological sort
+  // Note: We need to call ResolveDependency which modifies the passes member,
+  // but since SequentialNode is an Object (immutable reference), we can safely
+  // modify it here as the actual object data is mutable.
+  const_cast<SequentialNode*>(this)->ResolveDependency(mod);
+
+  // Execute passes in the resolved order
   for (const Pass& pass : passes) {
     VLOG(0) << "Running pass " << pass->Info()->name;
     ICHECK(pass.defined()) << "Found undefined pass for optimization.";
@@ -616,11 +637,8 @@ IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) c
       continue;
     }
 
-    // resolve dependencies
-    for (const auto& it : pass_info->required) {
-      mod = GetPass(it)(std::move(mod), pass_ctx);
-    }
-
+    // Dependencies are already resolved and sorted by ResolveDependency,
+    // so we just execute the pass directly
     mod = pass(std::move(mod), pass_ctx);
   }
   return mod;

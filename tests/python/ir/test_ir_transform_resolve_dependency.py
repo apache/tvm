@@ -99,5 +99,137 @@ def test_sequential_required_pass_execution():
     assert result is not None
 
 
+def test_sequential_dependency_chain():
+    """Test simple dependency chain: A requires B, B requires C."""
+
+    # Track execution order
+    execution_order = []
+
+    @transform.module_pass(opt_level=0, name="PassC", required=[], traceable=False)
+    def pass_c(mod, ctx):
+        execution_order.append("C")
+        return mod
+
+    @transform.module_pass(opt_level=0, name="PassB", required=["PassC"], traceable=False)
+    def pass_b(mod, ctx):
+        execution_order.append("B")
+        return mod
+
+    @transform.module_pass(opt_level=0, name="PassA", required=["PassB"], traceable=False)
+    def pass_a(mod, ctx):
+        execution_order.append("A")
+        return mod
+
+    # Create sequential with passes in wrong order
+    # All passes must be in the list for dependency resolution to work
+    # After dependency resolution, order should be C -> B -> A
+    seq = transform.Sequential([pass_a, pass_b, pass_c])
+    mod = IRModule({})
+
+    with PassContext(opt_level=3):
+        result = seq(mod)
+
+    assert result is not None
+    # Verify execution order: C should run before B, B before A
+    assert execution_order == ["C", "B", "A"], f"Expected ['C', 'B', 'A'], got {execution_order}"
+
+
+def test_sequential_shared_dependency():
+    """Test that a pass required by multiple other passes is executed only once."""
+
+    execution_order = []
+
+    @transform.module_pass(opt_level=0, name="SharedPass", required=[], traceable=False)
+    def shared_pass(mod, ctx):
+        execution_order.append("Shared")
+        return mod
+
+    @transform.module_pass(opt_level=0, name="Pass1", required=["SharedPass"], traceable=False)
+    def pass1(mod, ctx):
+        execution_order.append("Pass1")
+        return mod
+
+    @transform.module_pass(opt_level=0, name="Pass2", required=["SharedPass"], traceable=False)
+    def pass2(mod, ctx):
+        execution_order.append("Pass2")
+        return mod
+
+    # Both Pass1 and Pass2 require SharedPass
+    # All passes must be in the list for dependency resolution to work
+    # SharedPass should execute before both, but only once
+    seq = transform.Sequential([pass1, pass2, shared_pass])
+    mod = IRModule({})
+
+    with PassContext(opt_level=3):
+        result = seq(mod)
+
+    assert result is not None
+    # SharedPass should be first, then Pass1 and Pass2 (order may vary)
+    assert execution_order[0] == "Shared", "SharedPass should execute first"
+    assert "Pass1" in execution_order and "Pass2" in execution_order
+    assert execution_order.count("Shared") == 1, "SharedPass should execute only once"
+
+
+def test_sequential_transitive_dependency():
+    """Test transitive dependencies: A requires B, B requires C, but A doesn't explicitly require C."""
+
+    execution_order = []
+
+    @transform.module_pass(opt_level=0, name="PassC", required=[], traceable=False)
+    def pass_c(mod, ctx):
+        execution_order.append("C")
+        return mod
+
+    @transform.module_pass(opt_level=0, name="PassB", required=["PassC"], traceable=False)
+    def pass_b(mod, ctx):
+        execution_order.append("B")
+        return mod
+
+    @transform.module_pass(opt_level=0, name="PassA", required=["PassB"], traceable=False)
+    def pass_a(mod, ctx):
+        execution_order.append("A")
+        return mod
+
+    # PassA only explicitly requires PassB, but PassB requires PassC
+    # All passes must be in the list for dependency resolution to work
+    # ResolveDependency should handle transitive dependencies
+    seq = transform.Sequential([pass_a, pass_b, pass_c])
+    mod = IRModule({})
+
+    with PassContext(opt_level=3):
+        result = seq(mod)
+
+    assert result is not None
+    # C should run before B, B before A
+    assert execution_order == ["C", "B", "A"], f"Expected ['C', 'B', 'A'], got {execution_order}"
+
+
+def test_sequential_opt_level_disabled_pass():
+    """Test that passes disabled by opt_level are not executed."""
+
+    execution_order = []
+
+    @transform.module_pass(opt_level=1, name="Pass1", required=[], traceable=False)
+    def pass1(mod, ctx):
+        execution_order.append("Pass1")
+        return mod
+
+    @transform.module_pass(opt_level=3, name="Pass3", required=[], traceable=False)
+    def pass3(mod, ctx):
+        execution_order.append("Pass3")
+        return mod
+
+    seq = transform.Sequential([pass1, pass3])
+    mod = IRModule({})
+
+    # With opt_level=2, Pass3 (opt_level=3) should be skipped
+    with PassContext(opt_level=2):
+        result = seq(mod)
+
+    assert result is not None
+    # Only Pass1 should execute
+    assert execution_order == ["Pass1"], f"Expected ['Pass1'], got {execution_order}"
+
+
 if __name__ == "__main__":
     tvm.testing.main()
