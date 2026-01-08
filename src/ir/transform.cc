@@ -32,6 +32,11 @@
 #include <tvm/runtime/device_api.h>
 
 #include <stack>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+#include <queue>
+#include <sstream>
 
 namespace tvm {
 namespace transform {
@@ -443,15 +448,6 @@ const SequentialNode* Sequential::operator->() const {
   return static_cast<const SequentialNode*>(get());
 }
 
-void SequentialNode::ResolveDependency(const IRModule& mod) {
-  // TODO(zhiics) Implement it.
-  // 1. Consider the required passes for each pass.
-  // 2. Only resolve the enabled passes.
-  // 3. Build a dependency graph. Probably we need to update the pass list.
-  LOG(FATAL) << "Pass dependency has not been resolved yet."
-             << "\n";
-}
-
 Pass GetPass(const ffi::String& pass_name) {
   std::optional<tvm::ffi::Function> f;
   if (pass_name.operator std::string().find("transform.") != std::string::npos) {
@@ -461,6 +457,150 @@ Pass GetPass(const ffi::String& pass_name) {
   }
   ICHECK(f.has_value()) << "Cannot use " << pass_name << " to create the pass";
   return (*f)().cast<Pass>();
+}
+
+void SequentialNode::ResolveDependency(const IRModule& mod) {
+  // Get the current pass context to check which passes are enabled
+  // Note: mod parameter is reserved for future use when dependency resolution
+  // might need to consider module-specific information
+  (void)mod;  // Suppress unused parameter warning
+  PassContext pass_ctx = PassContext::Current();
+
+  // Step 1: Collect all enabled passes from the current list
+  std::unordered_map<std::string, Pass> name_to_pass;
+  std::vector<Pass> enabled_passes;
+
+  for (const Pass& pass : passes) {
+    if (!pass.defined()) {
+      continue;
+    }
+    const PassInfo& pass_info = pass->Info();
+    if (pass_ctx.PassEnabled(pass_info)) {
+      std::string pass_name = pass_info->name;
+      // Avoid duplicates
+      if (name_to_pass.find(pass_name) == name_to_pass.end()) {
+        name_to_pass[pass_name] = pass;
+        enabled_passes.push_back(pass);
+      }
+    }
+  }
+
+  // Step 2: Collect all required passes that are not in the current list
+  // We need to do this in multiple passes to handle transitive dependencies
+  std::unordered_set<std::string> processed_required;
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    for (size_t i = 0; i < enabled_passes.size(); ++i) {
+      const PassInfo& pass_info = enabled_passes[i]->Info();
+      for (const auto& required_name : pass_info->required) {
+        std::string req_name = required_name;
+        std::string key = pass_info->name + "->" + req_name;
+        if (processed_required.find(key) != processed_required.end()) {
+          continue;
+        }
+        processed_required.insert(key);
+
+        // Check if the required pass is already in our list
+        if (name_to_pass.find(req_name) == name_to_pass.end()) {
+          // Try to get it from the global registry
+          try {
+            Pass required_pass = GetPass(ffi::String(req_name));
+            const PassInfo& req_pass_info = required_pass->Info();
+            if (pass_ctx.PassEnabled(req_pass_info)) {
+              name_to_pass[req_name] = required_pass;
+              enabled_passes.push_back(required_pass);
+              changed = true;
+            }
+          } catch (...) {
+            // If we can't get the pass, we'll skip this dependency
+            // It will be resolved at runtime in operator()
+            VLOG(0) << "Warning: Cannot resolve required pass '" << req_name
+                    << "' for pass '" << pass_info->name
+                    << "'. It will be resolved at runtime if needed.";
+          }
+        }
+      }
+    }
+  }
+
+  // Step 3: Build dependency graph
+  // Map from pass name to its index in enabled_passes
+  std::unordered_map<std::string, size_t> name_to_index;
+  for (size_t i = 0; i < enabled_passes.size(); ++i) {
+    const PassInfo& pass_info = enabled_passes[i]->Info();
+    name_to_index[pass_info->name] = i;
+  }
+
+  // Build reverse adjacency list: dependents[i] contains indices of passes that depend on pass i
+  // This is used for topological sort
+  std::vector<std::vector<size_t>> dependents(enabled_passes.size());
+  std::vector<size_t> in_degree(enabled_passes.size(), 0);
+
+  for (size_t i = 0; i < enabled_passes.size(); ++i) {
+    const PassInfo& pass_info = enabled_passes[i]->Info();
+    for (const auto& required_name : pass_info->required) {
+      std::string req_name = required_name;
+      auto it = name_to_index.find(req_name);
+      if (it != name_to_index.end()) {
+        // The required pass is in our enabled passes list
+        // pass i depends on pass req_idx, so req_idx should come before i
+        size_t req_idx = it->second;
+        dependents[req_idx].push_back(i);
+        in_degree[i]++;
+      }
+      // If the required pass is not in our list, it will be handled at runtime
+    }
+  }
+
+  // Step 4: Topological sort using Kahn's algorithm
+  std::queue<size_t> queue;
+  for (size_t i = 0; i < enabled_passes.size(); ++i) {
+    if (in_degree[i] == 0) {
+      queue.push(i);
+    }
+  }
+
+  std::vector<Pass> sorted_passes;
+  std::unordered_set<size_t> visited;
+
+  while (!queue.empty()) {
+    size_t current = queue.front();
+    queue.pop();
+
+    if (visited.find(current) != visited.end()) {
+      continue;
+    }
+    visited.insert(current);
+
+    sorted_passes.push_back(enabled_passes[current]);
+
+    // Process dependents: passes that depend on the current pass
+    for (size_t dependent : dependents[current]) {
+      in_degree[dependent]--;
+      if (in_degree[dependent] == 0) {
+        queue.push(dependent);
+      }
+    }
+  }
+
+  // Check for circular dependencies
+  if (sorted_passes.size() != enabled_passes.size()) {
+    std::ostringstream os;
+    os << "Circular dependency detected in pass sequence. "
+       << "Only " << sorted_passes.size() << " out of " << enabled_passes.size()
+       << " passes were sorted. Remaining passes will be appended in original order.";
+    LOG(WARNING) << os.str();
+    // Add remaining passes that weren't sorted (they have circular dependencies)
+    for (size_t i = 0; i < enabled_passes.size(); ++i) {
+      if (visited.find(i) == visited.end()) {
+        sorted_passes.push_back(enabled_passes[i]);
+      }
+    }
+  }
+
+  // Step 5: Update the passes list
+  passes = ffi::Array<Pass>(sorted_passes);
 }
 
 // TODO(zhiics): we currently only sequentially execute each pass in
