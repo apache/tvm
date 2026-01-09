@@ -21,6 +21,8 @@
 import tvm
 from tvm import tir
 
+from . import backend
+
 
 def default_tir_pipeline():
     """The default tir pipeline used in tvm.tir.build"""
@@ -176,4 +178,7 @@ def get_default_tir_pipeline(
     target: tvm.target.Target,  # pylint: disable=unused-argument
 ) -> tvm.transform.Pass:
     """Get the default TIR pipeline for the given target."""
-    return default_tir_pipeline()
+    if target.kind.name == "opencl" and "adreno" in target.keys:
+        return backend.adreno.get_tir_pipeline(target)
+    else:
+        return default_tir_pipeline()

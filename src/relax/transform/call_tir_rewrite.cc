@@ -81,15 +81,20 @@ class CallTIRMutator : public ExprMutator {
         ICHECK(tensor_sinfo->shape.defined())
             << "the TensorStructInfo shape of call_tir has not populated";
         int dev_index = 0;
+        ffi::String scope = "global";
         if (tensor_sinfo->vdevice.defined()) {
           dev_index = GetDeviceIndex(mod_, tensor_sinfo->vdevice.value());
+          scope = tensor_sinfo->vdevice.value()->memory_scope;
+        } else {
+          dev_index = GetDeviceIndexByScope(mod_, scope);
         }
+
         if (!is_inplace) {
           outs.push_back(builder_->Emit(Call(alloc_tensor_op,
                                              {Downcast<ShapeExpr>(tensor_sinfo->shape.value()),
                                               DataTypeImm(tensor_sinfo->dtype),
-                                              PrimValue::Int64(dev_index), StringImm("global")},
-                                             Attrs()),
+                                              PrimValue::Int64(dev_index), StringImm(scope)},
+                                             Attrs(), {tensor_sinfo}),
                                         "alloc"));
         } else {
           // if there is only one output, it must be an in-place argument, but check anyway
@@ -112,13 +117,21 @@ class CallTIRMutator : public ExprMutator {
           ICHECK(field_tensor->shape.defined())
               << "call_tir expects all TensorStructInfo has shape, but got " << field_tensor
               << " as an element of TupleStructInfo";
+
+          int dev_index = 0;
+          ffi::String scope = "global";
+          if (field_tensor->vdevice.defined()) {
+            dev_index = GetDeviceIndex(mod_, field_tensor->vdevice.value());
+            scope = field_tensor->vdevice.value()->memory_scope;
+          }
+
           if (!is_inplace || inplace_attrs->inplace_indices[i].IntValue() == -1) {
-            outs.push_back(builder_->Emit(
-                Call(alloc_tensor_op,
-                     {Downcast<ShapeExpr>(field_tensor->shape.value()),
-                      DataTypeImm(field_tensor->dtype), PrimValue::Int64(0), StringImm("global")},
-                     Attrs()),
-                "alloc"));
+            outs.push_back(builder_->Emit(Call(alloc_tensor_op,
+                                               {Downcast<ShapeExpr>(field_tensor->shape.value()),
+                                                DataTypeImm(field_tensor->dtype),
+                                                PrimValue::Int64(dev_index), StringImm(scope)},
+                                               Attrs(), {field_tensor}),
+                                          "alloc"));
           } else {
             outs.push_back(Downcast<Tuple>(call->args[1])
                                ->fields[inplace_attrs->inplace_indices[i].IntValue()]);

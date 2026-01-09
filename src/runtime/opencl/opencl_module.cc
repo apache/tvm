@@ -50,6 +50,7 @@ class OpenCLWrappedFunc {
     arg_size_ = arg_size;
     launch_param_config_.Init(arg_size.size(), launch_param_tags);
   }
+
   // invoke the function with void arguments
   void operator()(ffi::PackedArgs args, ffi::Any* rv, void** void_args) const {
     ICHECK(w_->devices.size() > 0) << "No OpenCL device";
@@ -63,6 +64,8 @@ class OpenCLWrappedFunc {
     if (kernel == nullptr || e.version != entry_.version) {
       kernel = m_->InstallKernel(w_, t, func_name_, entry_);
     }
+    ThreadWorkLoad wl = launch_param_config_.Extract(args);
+    cl_uint work_dim = static_cast<cl_uint>(launch_param_config_.work_dim());
     // setup arguments.
     for (cl_uint i = 0; i < arg_size_.size(); ++i) {
       void* arg = nullptr;
@@ -74,13 +77,10 @@ class OpenCLWrappedFunc {
       OPENCL_CALL(clSetKernelArg(kernel, i, arg_size_[i], arg));
     }
     cl_command_queue queue = w_->GetQueue(t->device);
-    ThreadWorkLoad wl = launch_param_config_.Extract(args);
-    cl_uint work_dim = static_cast<cl_uint>(launch_param_config_.work_dim());
     for (cl_uint i = 0; i < work_dim; ++i) {
       wl.work_size[i] *= wl.work_size[i + 3];
     }
     // launch kernel
-
     if (w_->IsProfiling(t->device)) {
       w_->GetEventQueue(t->device).resize(w_->GetEventQueue(t->device).size() + 1);
       OPENCL_CALL(clEnqueueNDRangeKernel(queue, kernel, work_dim, nullptr, wl.work_size,
