@@ -918,6 +918,17 @@ requires_cudagraph = Feature(
     parent_features="cuda",
 )
 
+# Mark a test as requiring the OpenCL runtime on remote RPC
+requires_adreno_opencl = Feature(
+    "opencl",
+    long_name="Remote Adreno OpenCL",
+    cmake_flag="USE_OPENCL",
+    target_kind_enabled="opencl",
+    target_kind_hardware=None,
+    parent_features="gpu",
+    run_time_check=lambda: os.getenv("RPC_TARGET") is not None,
+)
+
 # Mark a test as requiring the OpenCL runtime
 requires_opencl = Feature(
     "opencl",

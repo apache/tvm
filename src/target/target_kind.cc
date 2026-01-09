@@ -362,6 +362,7 @@ TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
     .add_attr_option<int64_t>("max_num_threads", 256)
     .add_attr_option<int64_t>("thread_warp_size", 1)
     .add_attr_option<int64_t>("texture_spatial_limit", 16384)
+    .add_attr_option<int64_t>("texture_depth_limit", 2048)
     // Faced that Qualcomm OpenCL runtime crashed without any error message in
     // the case when the number of kernel arguments was pretty big. OpenCL doesn't
     // specify any limitations on the number of kernel arguments. max_function_args
