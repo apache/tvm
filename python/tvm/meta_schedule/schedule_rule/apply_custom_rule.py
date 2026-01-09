@@ -16,6 +16,16 @@
 # under the License.
 """Create a rule that applies customized rules registered using block attribute `schedule_rule`.
 The rule will be dispatched according to target keys."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from target import Target
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from tvm_ffi import register_object
 
 from .. import _ffi_api
@@ -26,6 +36,12 @@ from .schedule_rule import ScheduleRule
 class ApplyCustomRule(ScheduleRule):
     """A rule that applies customized rules registered using block attribute `schedule_rule`.
     The rule will be dispatched according to target keys."""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.ApplyCustomRule
+    # fmt: off
+    target_: Target | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(

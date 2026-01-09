@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=used-before-assignment
 """A context manager that profiles tuning time cost for different parts."""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from contextlib import contextmanager
 from typing import Dict, Optional
 
@@ -28,6 +30,11 @@ from . import _ffi_api
 @register_object("meta_schedule.Profiler")
 class Profiler(Object):
     """Tuning time profiler."""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.Profiler
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(

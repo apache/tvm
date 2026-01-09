@@ -16,6 +16,18 @@
 # under the License.
 """Doc types for TVMScript Unified Printer"""
 
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from tvm_ffi.reflection import AccessPath
+    from typing import Any
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from enum import IntEnum, unique
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
@@ -31,10 +43,21 @@ from . import _ffi_api
 class Doc(Object):
     """Base class of all Docs"""
 
+    # tvm-ffi-stubgen(begin): object/script.printer.Doc
+    # fmt: off
+    source_paths: Sequence[AccessPath]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
 
 @register_object("script.printer.ExprDoc")
 class ExprDoc(Doc):
     """Base class of all expression Docs"""
+
+    # tvm-ffi-stubgen(begin): object/script.printer.ExprDoc
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def attr(self, name: str) -> "AttrAccessDoc":
         """
@@ -106,6 +129,12 @@ class ExprDoc(Doc):
 class StmtDoc(Doc):
     """Base class of statement doc"""
 
+    # tvm-ffi-stubgen(begin): object/script.printer.StmtDoc
+    # fmt: off
+    comment: str | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
 
 @register_object("script.printer.StmtBlockDoc")
 class StmtBlockDoc(Doc):
@@ -114,6 +143,12 @@ class StmtBlockDoc(Doc):
     Note: `StmtBlockDoc` is never used in the IR, but a temporary container that allows holding a
     list of StmtDoc.
     """
+
+    # tvm-ffi-stubgen(begin): object/script.printer.StmtBlockDoc
+    # fmt: off
+    stmts: Sequence[StmtDoc]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     stmts: Sequence[StmtDoc]
 
@@ -124,6 +159,12 @@ class StmtBlockDoc(Doc):
 @register_object("script.printer.LiteralDoc")
 class LiteralDoc(ExprDoc):
     """Doc that represents literal value"""
+
+    # tvm-ffi-stubgen(begin): object/script.printer.LiteralDoc
+    # fmt: off
+    value: Any
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     value: Union[str, IntImm, FloatImm, None]
 
@@ -166,6 +207,12 @@ class LiteralDoc(ExprDoc):
 class IdDoc(ExprDoc):
     """Doc that represents identifier"""
 
+    # tvm-ffi-stubgen(begin): object/script.printer.IdDoc
+    # fmt: off
+    name: str
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     name: str
 
     def __init__(self, name: str):
@@ -175,6 +222,13 @@ class IdDoc(ExprDoc):
 @register_object("script.printer.AttrAccessDoc")
 class AttrAccessDoc(ExprDoc):
     """Doc that represents attribute access on an expression"""
+
+    # tvm-ffi-stubgen(begin): object/script.printer.AttrAccessDoc
+    # fmt: off
+    value: ExprDoc
+    name: str
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     value: ExprDoc
     name: str
@@ -187,6 +241,13 @@ class AttrAccessDoc(ExprDoc):
 class IndexDoc(ExprDoc):
     """Doc that represents index access on an expression"""
 
+    # tvm-ffi-stubgen(begin): object/script.printer.IndexDoc
+    # fmt: off
+    value: ExprDoc
+    indices: Sequence[Doc]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     value: ExprDoc
     indices: Sequence[Union[ExprDoc, "SliceDoc"]]
 
@@ -197,6 +258,15 @@ class IndexDoc(ExprDoc):
 @register_object("script.printer.CallDoc")
 class CallDoc(ExprDoc):
     """Doc that represents function call"""
+
+    # tvm-ffi-stubgen(begin): object/script.printer.CallDoc
+    # fmt: off
+    callee: ExprDoc
+    args: Sequence[ExprDoc]
+    kwargs_keys: Sequence[str]
+    kwargs_values: Sequence[ExprDoc]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     callee: ExprDoc
     args: Sequence[ExprDoc]
@@ -271,6 +341,13 @@ class OperationDoc(ExprDoc):
     if-then-else expression).
     """
 
+    # tvm-ffi-stubgen(begin): object/script.printer.OperationDoc
+    # fmt: off
+    kind: int
+    operands: Sequence[ExprDoc]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     kind: OperationKind
     operands: Sequence[ExprDoc]
 
@@ -281,6 +358,13 @@ class OperationDoc(ExprDoc):
 @register_object("script.printer.LambdaDoc")
 class LambdaDoc(ExprDoc):
     """Doc that represents lambda function"""
+
+    # tvm-ffi-stubgen(begin): object/script.printer.LambdaDoc
+    # fmt: off
+    args: Sequence[IdDoc]
+    body: ExprDoc
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     args: Sequence[IdDoc]
     body: ExprDoc
@@ -293,6 +377,12 @@ class LambdaDoc(ExprDoc):
 class TupleDoc(ExprDoc):
     """Doc that represents tuple literal"""
 
+    # tvm-ffi-stubgen(begin): object/script.printer.TupleDoc
+    # fmt: off
+    elements: Sequence[ExprDoc]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     elements: Sequence[ExprDoc]
 
     def __init__(self, elements: List[ExprDoc]):
@@ -303,6 +393,12 @@ class TupleDoc(ExprDoc):
 class ListDoc(ExprDoc):
     """Doc that represents list literal"""
 
+    # tvm-ffi-stubgen(begin): object/script.printer.ListDoc
+    # fmt: off
+    elements: Sequence[ExprDoc]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     elements: Sequence[ExprDoc]
 
     def __init__(self, elements: List[ExprDoc]):
@@ -312,6 +408,13 @@ class ListDoc(ExprDoc):
 @register_object("script.printer.DictDoc")
 class DictDoc(ExprDoc):
     """Doc that represents dict literal"""
+
+    # tvm-ffi-stubgen(begin): object/script.printer.DictDoc
+    # fmt: off
+    keys: Sequence[ExprDoc]
+    values: Sequence[ExprDoc]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     keys: Sequence[ExprDoc]
     values: Sequence[ExprDoc]
@@ -330,6 +433,14 @@ class SliceDoc(ExprDoc):
     This doc can only appear in `IndexDoc.indices`.
     """
 
+    # tvm-ffi-stubgen(begin): object/script.printer.SliceDoc
+    # fmt: off
+    start: ExprDoc | None
+    stop: ExprDoc | None
+    step: ExprDoc | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     start: Optional[ExprDoc]
     stop: Optional[ExprDoc]
     step: Optional[ExprDoc]
@@ -346,6 +457,14 @@ class SliceDoc(ExprDoc):
 @register_object("script.printer.AssignDoc")
 class AssignDoc(StmtDoc):
     """Doc that represents assign statement."""
+
+    # tvm-ffi-stubgen(begin): object/script.printer.AssignDoc
+    # fmt: off
+    lhs: ExprDoc
+    rhs: ExprDoc | None
+    annotation: ExprDoc | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     lhs: ExprDoc
     rhs: Optional[ExprDoc]
@@ -364,6 +483,14 @@ class AssignDoc(StmtDoc):
 class IfDoc(StmtDoc):
     """Doc that represent if-then-else statement."""
 
+    # tvm-ffi-stubgen(begin): object/script.printer.IfDoc
+    # fmt: off
+    predicate: ExprDoc
+    then_branch: Sequence[StmtDoc]
+    else_branch: Sequence[StmtDoc]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     predicate: ExprDoc
     then_branch: Sequence[StmtDoc]
     else_branch: Sequence[StmtDoc]
@@ -381,6 +508,13 @@ class IfDoc(StmtDoc):
 class WhileDoc(StmtDoc):
     """Doc that represents while statement."""
 
+    # tvm-ffi-stubgen(begin): object/script.printer.WhileDoc
+    # fmt: off
+    predicate: ExprDoc
+    body: Sequence[StmtDoc]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     predicate: ExprDoc
     body: Sequence[StmtDoc]
 
@@ -391,6 +525,14 @@ class WhileDoc(StmtDoc):
 @register_object("script.printer.ForDoc")
 class ForDoc(StmtDoc):
     """Doc that represents for statement."""
+
+    # tvm-ffi-stubgen(begin): object/script.printer.ForDoc
+    # fmt: off
+    lhs: ExprDoc
+    rhs: ExprDoc
+    body: Sequence[StmtDoc]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     lhs: ExprDoc
     rhs: ExprDoc
@@ -411,6 +553,14 @@ class ScopeDoc(StmtDoc):
         <body...>
     """
 
+    # tvm-ffi-stubgen(begin): object/script.printer.ScopeDoc
+    # fmt: off
+    lhs: ExprDoc | None
+    rhs: ExprDoc
+    body: Sequence[StmtDoc]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     lhs: Optional[ExprDoc]
     rhs: ExprDoc
     body: Sequence[StmtDoc]
@@ -423,6 +573,12 @@ class ScopeDoc(StmtDoc):
 class ExprStmtDoc(StmtDoc):
     """Doc that represents an expression as statement."""
 
+    # tvm-ffi-stubgen(begin): object/script.printer.ExprStmtDoc
+    # fmt: off
+    expr: ExprDoc
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     expr: ExprDoc
 
     def __init__(self, expr: ExprDoc):
@@ -432,6 +588,13 @@ class ExprStmtDoc(StmtDoc):
 @register_object("script.printer.AssertDoc")
 class AssertDoc(StmtDoc):
     """Doc that represents assert statement."""
+
+    # tvm-ffi-stubgen(begin): object/script.printer.AssertDoc
+    # fmt: off
+    test: ExprDoc
+    msg: ExprDoc | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     test: ExprDoc
     msg: Optional[ExprDoc]
@@ -444,6 +607,12 @@ class AssertDoc(StmtDoc):
 class ReturnDoc(StmtDoc):
     """Doc that represents return statement."""
 
+    # tvm-ffi-stubgen(begin): object/script.printer.ReturnDoc
+    # fmt: off
+    value: ExprDoc
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     value: ExprDoc
 
     def __init__(self, value: ExprDoc):
@@ -453,6 +622,16 @@ class ReturnDoc(StmtDoc):
 @register_object("script.printer.FunctionDoc")
 class FunctionDoc(StmtDoc):
     """Doc that represents function definition."""
+
+    # tvm-ffi-stubgen(begin): object/script.printer.FunctionDoc
+    # fmt: off
+    name: IdDoc
+    args: Sequence[AssignDoc]
+    decorators: Sequence[ExprDoc]
+    return_type: ExprDoc | None
+    body: Sequence[StmtDoc]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     name: IdDoc
     args: Sequence[AssignDoc]
@@ -482,6 +661,14 @@ class FunctionDoc(StmtDoc):
 class ClassDoc(StmtDoc):
     """Doc that represents class definition."""
 
+    # tvm-ffi-stubgen(begin): object/script.printer.ClassDoc
+    # fmt: off
+    name: IdDoc
+    decorators: Sequence[ExprDoc]
+    body: Sequence[StmtDoc]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     name: IdDoc
     decorators: Sequence[ExprDoc]
     body: Sequence[StmtDoc]
@@ -499,6 +686,11 @@ class ClassDoc(StmtDoc):
 class CommentDoc(StmtDoc):
     """Doc that represents comment."""
 
+    # tvm-ffi-stubgen(begin): object/script.printer.CommentDoc
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, comment: str):
         self.__init_handle_by_constructor__(
             _ffi_api.CommentDoc, comment  # type: ignore # pylint: disable=no-member
@@ -508,6 +700,11 @@ class CommentDoc(StmtDoc):
 @register_object("script.printer.DocStringDoc")
 class DocStringDoc(StmtDoc):
     """Doc that represents docstring."""
+
+    # tvm-ffi-stubgen(begin): object/script.printer.DocStringDoc
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, docs: str):
         self.__init_handle_by_constructor__(

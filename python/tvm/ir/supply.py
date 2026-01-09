@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Suppliers that are used to guarantee uniqueness of names and GlobalVars."""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 import tvm
 import tvm_ffi
 from tvm import Object, IRModule
@@ -29,6 +31,11 @@ class NameSupply(Object):
     ----------
     prefix: The prefix to be added to the generated names.
     """
+
+    # tvm-ffi-stubgen(begin): object/ir.NameSupply
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, prefix=""):
         self.__init_handle_by_constructor__(_ffi_api.NameSupply, prefix)
@@ -90,6 +97,11 @@ class GlobalVarSupply(Object):
     value: Union[List[IRModule], IRModule, NameSupply]
         The IRModules used to build this GlobalVarSupply or a NameSupply.
     """
+
+    # tvm-ffi-stubgen(begin): object/ir.GlobalVarSupply
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, value=None):
         if value is None:

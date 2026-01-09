@@ -18,6 +18,8 @@
 # pylint: disable=invalid-name, unsupported-binary-operation
 
 
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 import enum
 from typing import Callable, Optional
 
@@ -53,6 +55,14 @@ def Apply(ftransform):
 @_ffi.register_object("tir.transform.LoopPartitionConfig")
 class LoopPartitionConfig(_ir.Attrs):
     """Config for loop partition pass"""
+
+    # tvm-ffi-stubgen(begin): object/tir.transform.LoopPartitionConfig
+    # fmt: off
+    partition_const_loop: bool
+    no_unroll_loop_with_extent_one: bool
+    unroll_loop_with_partition_hint_no_interval: bool
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
 
 def LoopPartition():
@@ -97,6 +107,12 @@ def InjectVirtualThread():
 @_ffi.register_object("tir.transform.InjectDoubleBufferConfig")
 class InjectDoubleBufferConfig(_ir.Attrs):
     """Config for inject double buffer pass"""
+
+    # tvm-ffi-stubgen(begin): object/tir.transform.InjectDoubleBufferConfig
+    # fmt: off
+    split_loop: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
 
 def InjectDoubleBuffer():
@@ -165,6 +181,16 @@ def PointerValueTypeRewrite():
 class UnrollLoopConfig(_ir.Attrs):
     """Config for unroll loop pass"""
 
+    # tvm-ffi-stubgen(begin): object/tir.transform.UnrollLoopConfig
+    # fmt: off
+    auto_max_step: int
+    auto_max_depth: int
+    auto_max_extent: int
+    explicit_unroll: int
+    unroll_local_access: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
 
 def UnrollLoop():
     """Unroll the constant loop marked by unroll.
@@ -183,6 +209,12 @@ def UnrollLoop():
 class ReduceBranchingThroughOvercomputeConfig(_ir.Attrs):
     """Config for reduce branching through overcompute pass"""
 
+    # tvm-ffi-stubgen(begin): object/tir.transform.ReduceBranchingThroughOvercomputeConfig
+    # fmt: off
+    use_dataflow_analysis: bool
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
 
 def ReduceBranchingThroughOvercompute():
     """Reduce branching by introducing overcompute
@@ -198,6 +230,13 @@ def ReduceBranchingThroughOvercompute():
 @_ffi.register_object("tir.transform.RemoveNoOpConfig")
 class RemoveNoOpConfig(_ir.Attrs):
     """Config for remove no op pass"""
+
+    # tvm-ffi-stubgen(begin): object/tir.transform.RemoveNoOpConfig
+    # fmt: off
+    use_dataflow_analysis: bool
+    max_simplification_steps: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
 
 def RemoveNoOp():
@@ -307,6 +346,16 @@ def RewriteUnsafeSelect():
 @_ffi.register_object("tir.transform.SimplifyConfig")
 class SimplifyConfig(_ir.Attrs):
     """Config for simplify pass"""
+
+    # tvm-ffi-stubgen(begin): object/tir.transform.SimplifyConfig
+    # fmt: off
+    transitively_prove_inequalities: bool
+    propagate_knowns_to_prove_conditional: bool
+    propagate_knowns_to_simplify_expressions: bool
+    convert_boolean_to_and_of_ors: bool
+    apply_constraints_to_boolean_branches: bool
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
 
 def Simplify():
@@ -656,6 +705,12 @@ def VerifyVTCMLimit(limit=None):
 class HoistIfThenElseConfig(_ir.Attrs):
     """Config for hoist if then else pass"""
 
+    # tvm-ffi-stubgen(begin): object/tir.transform.HoistIfThenElseConfig
+    # fmt: off
+    support_block_scope_hoisting: bool
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
 
 # pylint: disable=no-else-return,inconsistent-return-statements
 def HoistIfThenElse(variant: Optional[str] = None):
@@ -739,6 +794,13 @@ class HoistedLetBindings(enum.Flag):
 @_ffi.register_object("tir.transform.HoistExpressionConfig")
 class HoistExpressionConfig(_ir.Attrs):
     """Config for hoist expression pass"""
+
+    # tvm-ffi-stubgen(begin): object/tir.transform.HoistExpressionConfig
+    # fmt: off
+    hoisted_conditionals: int
+    hoisted_let_bindings: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
 
 def HoistExpression():

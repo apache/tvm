@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name
 """Arithmetic data structure and utility"""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 import enum
 from typing import Union
 
@@ -51,6 +53,13 @@ class Extension(enum.Flag):
 class ModularSet(Object):
     """Represent range of (coeff * x + base) for x in Z"""
 
+    # tvm-ffi-stubgen(begin): object/arith.ModularSet
+    # fmt: off
+    coeff: int
+    base: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, coeff, base):
         self.__init_handle_by_constructor__(_ffi_api.ModularSet, coeff, base)
 
@@ -67,6 +76,13 @@ class ConstIntBound(Object):
     max_value : int
         The maximum value of the bound.
     """
+
+    # tvm-ffi-stubgen(begin): object/arith.ConstIntBound
+    # fmt: off
+    min_value: int
+    max_value: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     POS_INF = (1 << 63) - 1
     NEG_INF = -POS_INF

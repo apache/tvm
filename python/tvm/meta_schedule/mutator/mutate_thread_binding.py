@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Mutator that mutates the thread binding extent"""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from tvm_ffi.registry import register_object
 
 from .. import _ffi_api
@@ -24,6 +26,11 @@ from .mutator import Mutator
 @register_object("meta_schedule.MutateThreadBinding")
 class MutateThreadBinding(Mutator):
     """Mutator that mutates the binding extent"""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.MutateThreadBinding
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self) -> None:
         """Mutator that mutates the binding extent"""

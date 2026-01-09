@@ -16,6 +16,18 @@
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
 """Global Info Data structures for distributed tensor."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import IntImm, Range
+    from tvm_ffi import Shape
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import List, Union, Tuple
 
 import tvm_ffi
@@ -38,6 +50,14 @@ class DeviceMesh(GlobalInfo):
     device_ids: Union[List[int], Range]
         Represents the device id in the mesh
     """
+
+    # tvm-ffi-stubgen(begin): object/relax.distributed.DeviceMesh
+    # fmt: off
+    shape: Shape
+    device_ids: Sequence[IntImm]
+    device_range: Range | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self, shape: Union[ShapeTuple, List[int], Tuple[int]], device_ids: Union[List[int], Range]

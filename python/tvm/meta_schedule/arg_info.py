@@ -15,6 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """The argument information"""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from tvm_ffi import Shape, dtype
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import Any, List, Union
 
 from tvm_ffi import register_object
@@ -29,6 +39,11 @@ from .utils import _json_de_tvm
 @register_object("meta_schedule.ArgInfo")
 class ArgInfo(Object):
     """Argument information"""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.ArgInfo
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def as_json(self) -> Any:
         """Converts the ArgInfo to its corresponding JSON representation."""
@@ -96,6 +111,13 @@ class TensorInfo(ArgInfo):
     shape : ShapeTuple
         The shape of the tensor.
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.TensorInfo
+    # fmt: off
+    dtype: dtype
+    shape: Shape
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     dtype: DataType
     shape: ShapeTuple

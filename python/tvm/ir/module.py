@@ -18,6 +18,17 @@
 
 from __future__ import annotations
 
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from ir import BaseFunc, DictAttrs, GlobalInfo, GlobalVar, SourceMap
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import Dict, Union
 
 import tvm
@@ -42,6 +53,16 @@ class IRModule(Node, Scriptable):
     functions: Optional[dict].
         Map of global var to BaseFunc
     """
+
+    # tvm-ffi-stubgen(begin): object/ir.IRModule
+    # fmt: off
+    functions: Mapping[GlobalVar, BaseFunc]
+    global_var_map_: Mapping[str, GlobalVar]
+    source_map: SourceMap
+    attrs: DictAttrs
+    global_infos: Mapping[str, Sequence[GlobalInfo]]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, functions=None, attrs=None, global_infos=None):
         if functions is None:

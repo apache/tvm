@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Type relation and function for type checking."""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 import tvm_ffi
 
 from .type import Type, TypeConstraint
@@ -38,6 +40,9 @@ class TypeCall(Type):
     type_call: TypeCall
         The type function application.
     """
+
+    # tvm-ffi-stubgen(begin): object/TypeCall
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, func, args):
         self.__init_handle_by_constructor__(_ffi_api.TypeCall, func, args)
@@ -70,6 +75,9 @@ class TypeRelation(TypeConstraint):
     type_relation : tvm.ir.TypeRelation
         The type relation.
     """
+
+    # tvm-ffi-stubgen(begin): object/TypeRelation
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, func, args, num_inputs, attrs):
         self.__init_handle_by_constructor__(_ffi_api.TypeRelation, func, args, num_inputs, attrs)

@@ -17,6 +17,17 @@
 # pylint: disable=unused-argument, invalid-name, no-else-return, abstract-method, arguments-differ
 """Relax transformation passes for testing"""
 
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import IntImm
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 import logging
 import os
 from typing import Dict, List, Set, Tuple
@@ -85,6 +96,13 @@ class InplaceOpportunity(Object):
     arg_idxs: List[int]
         Indices of arguments that are eligible to be used as in-place targets.
     """
+
+    # tvm-ffi-stubgen(begin): object/relax.transform.InplaceOpportunity
+    # fmt: off
+    binding_idx: IntImm
+    arg_idxs: Sequence[IntImm]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, _binding_idx, _arg_idxs):
         raise NotImplementedError("Constructor for InplaceOpportunity not exposed!")

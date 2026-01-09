@@ -18,6 +18,8 @@
 """We extract one feature vector per BufferStoreNode statement in a TIR Stmt,
 so we call this feature as "per-store" feature.
 """
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from tvm_ffi import register_object
 
 from .. import _ffi_api
@@ -39,6 +41,16 @@ class PerStoreFeature(FeatureExtractor):
     extract_workload : bool
         Whether to extract features in the workload in tuning context or not.
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.PerStoreFeature
+    # fmt: off
+    buffers_per_store: int
+    arith_intensity_curve_num_samples: int
+    cache_line_bytes: int
+    extract_workload: bool
+    feature_vector_length: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     buffers_per_store: int
     """The number of buffers in each BufferStore; Pad or truncate if necessary."""

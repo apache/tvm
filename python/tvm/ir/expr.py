@@ -15,6 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common expressions data structures in the IR."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ir import Span
+    from tvm_ffi import Object, dtype
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from numbers import Number
 from typing import Optional
 
@@ -30,6 +41,12 @@ from .base import Node, Span
 class BaseExpr(Node):
     """Base class of all the expressions."""
 
+    # tvm-ffi-stubgen(begin): object/ir.BaseExpr
+    # fmt: off
+    span: Span
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     span: Optional[Span]
 
 
@@ -41,12 +58,24 @@ class PrimExpr(BaseExpr):
     optimizations and integer analysis.
     """
 
+    # tvm-ffi-stubgen(begin): object/ir.PrimExpr
+    # fmt: off
+    dtype: dtype
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     dtype: str
 
 
 @tvm_ffi.register_object("ir.RelaxExpr")
 class RelaxExpr(BaseExpr):
     """Base class of all non-primitive expressions."""
+
+    # tvm-ffi-stubgen(begin): object/ir.RelaxExpr
+    # fmt: off
+    struct_info_: Object | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     @property
     def struct_info(self) -> Optional["tvm.relax.StructInfo"]:
@@ -72,6 +101,12 @@ class GlobalVar(RelaxExpr):
     name_hint: str
         The name of the variable.
     """
+
+    # tvm-ffi-stubgen(begin): object/ir.GlobalVar
+    # fmt: off
+    name_hint: str
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     name_hint: str
 
@@ -130,6 +165,14 @@ class Range(Node, Scriptable):
     The constructor creates the range `[begin, end)`
     if the end argument is not None. Otherwise, it creates `[0, begin)`.
     """
+
+    # tvm-ffi-stubgen(begin): object/ir.Range
+    # fmt: off
+    min: PrimExpr
+    extent: PrimExpr
+    span: Span
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     min: PrimExpr
     extent: PrimExpr

@@ -16,6 +16,20 @@
 # under the License.
 """Tensor class for computation declaration."""
 # pylint: disable=invalid-name
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from ir import PrimExpr
+    from tir import Buffer, IterVar, Stmt
+    from tvm_ffi import dtype
+    from typing import Any
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 import tvm_ffi
 
 from tvm.runtime import Object, ObjectConvertible
@@ -51,6 +65,15 @@ class TensorSlice(ObjectConvertible, _expr.ExprOp):
 @tvm_ffi.register_object("te.Tensor")
 class Tensor(DataProducer, _expr.ExprOp):
     """Tensor object, to construct, see function.Tensor"""
+
+    # tvm-ffi-stubgen(begin): object/te.Tensor
+    # fmt: off
+    shape: Sequence[PrimExpr]
+    dtype: dtype
+    op: Operation
+    value_index: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __call__(self, *indices):
         ndim = self.ndim
@@ -96,6 +119,14 @@ class Tensor(DataProducer, _expr.ExprOp):
 class Operation(Object):
     """Represent an operation that generates a tensor"""
 
+    # tvm-ffi-stubgen(begin): object/te.Operation
+    # fmt: off
+    name: str
+    tag: str
+    attrs: Mapping[str, Any]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def output(self, index):
         """Get the index-th output of the operation
 
@@ -126,22 +157,62 @@ class Operation(Object):
 class PlaceholderOp(Operation):
     """Placeholder operation."""
 
+    # tvm-ffi-stubgen(begin): object/te.PlaceholderOp
+    # fmt: off
+    shape: Sequence[PrimExpr]
+    dtype: dtype
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
 
 @tvm_ffi.register_object("te.BaseComputeOp")
 class BaseComputeOp(Operation):
     """Compute operation."""
+
+    # tvm-ffi-stubgen(begin): object/te.BaseComputeOp
+    # fmt: off
+    axis: Sequence[IterVar]
+    reduce_axis: Sequence[IterVar]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
 
 @tvm_ffi.register_object("te.ComputeOp")
 class ComputeOp(BaseComputeOp):
     """Scalar operation."""
 
+    # tvm-ffi-stubgen(begin): object/te.ComputeOp
+    # fmt: off
+    body: Sequence[PrimExpr]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
 
 @tvm_ffi.register_object("te.ScanOp")
 class ScanOp(Operation):
     """Scan operation."""
 
+    # tvm-ffi-stubgen(begin): object/te.ScanOp
+    # fmt: off
+    scan_axis: IterVar
+    init: Sequence[Tensor]
+    update: Sequence[Tensor]
+    state_placeholder: Sequence[Tensor]
+    inputs: Sequence[Tensor]
+    spatial_axis_: Sequence[IterVar]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
 
 @tvm_ffi.register_object("te.ExternOp")
 class ExternOp(Operation):
     """External operation."""
+
+    # tvm-ffi-stubgen(begin): object/te.ExternOp
+    # fmt: off
+    inputs: Sequence[Tensor]
+    input_placeholders: Sequence[Buffer]
+    output_placeholders: Sequence[Buffer]
+    body: Stmt
+    # fmt: on
+    # tvm-ffi-stubgen(end)

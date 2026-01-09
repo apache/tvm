@@ -15,6 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """Analysis used in TensorIR scheduling"""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from ir import IntImm, PrimExpr
+    from tir import Buffer, For, IndexMap, IterVar, StmtSRef
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import List, Optional
 
 import tvm_ffi
@@ -66,6 +78,14 @@ def suggest_index_map(
 class TensorizeInfo(Object):
     """Necessary information used for tensorization."""
 
+    # tvm-ffi-stubgen(begin): object/tir.schedule.TensorizeInfo
+    # fmt: off
+    loop_map: Mapping[StmtSRef, For]
+    desc_loop_indexer: Mapping[For, IntImm]
+    block_iter_paddings: Sequence[IntImm] | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
 
 def get_tensorize_loop_mapping(
     sch: Schedule, block: BlockRV, desc_func: PrimFunc, allow_padding: bool = False
@@ -93,6 +113,16 @@ def get_tensorize_loop_mapping(
 @tvm_ffi.register_object("tir.schedule.AutoTensorizeMappingInfo")
 class AutoTensorizeMappingInfo(Object):
     """Necessary information used to perform transformations for tensorization."""
+
+    # tvm-ffi-stubgen(begin): object/tir.schedule.AutoTensorizeMappingInfo
+    # fmt: off
+    mappings: Sequence[IndexMap]
+    lhs_buffer_map: Mapping[Buffer, Buffer]
+    rhs_buffer_indices: Mapping[Buffer, Sequence[PrimExpr]]
+    lhs_iters: Sequence[IterVar]
+    rhs_iters: Sequence[IterVar]
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
 
 def get_auto_tensorize_mapping_info(

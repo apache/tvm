@@ -26,6 +26,15 @@ class VirtualDevice(tvm_ffi.core.Object):
     """A compile time representation for where data is to be stored at runtime,
     and how to compile code to compute it."""
 
+    # tvm-ffi-stubgen(begin): object/target.VirtualDevice
+    # fmt: off
+    device_type_int: int
+    virtual_device_id: int
+    target: Target
+    memory_scope: str
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, device=None, target=None, memory_scope="") -> None:
         if device is None:
             # The 'unconstrained' device has device type -1 and device id -1.

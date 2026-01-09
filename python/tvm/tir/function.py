@@ -17,6 +17,19 @@
 # pylint: disable=unrecognized-inline-option
 """Function data types."""
 
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from ir import PrimExpr, Type
+    from tir import Buffer, Stmt, Var
+    from tvm_ffi import Object
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 import collections
 import inspect
 from typing import Callable, List, Mapping, Optional, Tuple, Union
@@ -58,6 +71,15 @@ class PrimFunc(BaseFunc, Scriptable):
     span : Optional[Span]
         The location of this itervar in the source code.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.PrimFunc
+    # fmt: off
+    params: Sequence[Var]
+    ret_type: Type
+    buffer_map: Mapping[Var, Buffer]
+    body: Stmt
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,
@@ -188,6 +210,13 @@ class TensorIntrin(Object):
         The function of the implementation for the execution.
     """
 
+    # tvm-ffi-stubgen(begin): object/tir.TensorIntrin
+    # fmt: off
+    desc: PrimFunc
+    impl: PrimFunc
+    # fmt: on
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, desc, impl):
         self.__init_handle_by_constructor__(_ffi_api.TensorIntrin, desc, impl)
 
@@ -248,6 +277,14 @@ class IndexMap(Object):
         It is the user's responsibility to ensure the correctness of the pre-defined inverse
         index map.
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.IndexMap
+    # fmt: off
+    initial_indices: Sequence[Var]
+    final_indices: Sequence[PrimExpr]
+    inverse_index_map: Object | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     initial_indices: List[Var]
     final_indices: List[PrimExpr]

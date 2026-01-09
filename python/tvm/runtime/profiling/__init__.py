@@ -16,6 +16,8 @@
 # under the License.
 """Registration of profiling objects in python."""
 
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from typing import Dict, Sequence, Optional
 from ... import ffi as _ffi
 from . import _ffi_api
@@ -34,6 +36,9 @@ class Report(Object):
     device_metrics : Dict[Device, Dict[str, Object]]
         Per-device metrics collected over the entire run.
     """
+
+    # tvm-ffi-stubgen(begin): object/runtime.profiling.Report
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,
@@ -176,6 +181,9 @@ class Report(Object):
 class Count(Object):
     """A integer count of something"""
 
+    # tvm-ffi-stubgen(begin): object/runtime.profiling.Count
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, count: int):
         self.__init_handle_by_constructor__(_ffi_api.Count, count)
 
@@ -183,6 +191,9 @@ class Count(Object):
 @_ffi.register_object("runtime.profiling.Duration")
 class Duration(Object):
     """A duration of something"""
+
+    # tvm-ffi-stubgen(begin): object/runtime.profiling.Duration
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, duration: float):
         self.__init_handle_by_constructor__(_ffi_api.Duration, duration)
@@ -192,6 +203,9 @@ class Duration(Object):
 class Percent(Object):
     """A Percent of something"""
 
+    # tvm-ffi-stubgen(begin): object/runtime.profiling.Percent
+    # tvm-ffi-stubgen(end)
+
     def __init__(self, percent: float):
         self.__init_handle_by_constructor__(_ffi_api.Percent, percent)
 
@@ -199,6 +213,9 @@ class Percent(Object):
 @_ffi.register_object("runtime.profiling.Ratio")
 class Ratio(Object):
     """A Ratio of two things"""
+
+    # tvm-ffi-stubgen(begin): object/runtime.profiling.Ratio
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, ratio: float):
         self.__init_handle_by_constructor__(_ffi_api.Ratio, ratio)
@@ -208,10 +225,16 @@ class Ratio(Object):
 class MetricCollector(Object):
     """Interface for user defined profiling metric collection."""
 
+    # tvm-ffi-stubgen(begin): object/runtime.profiling.MetricCollector
+    # tvm-ffi-stubgen(end)
+
 
 @_ffi.register_object("runtime.profiling.DeviceWrapper")
 class DeviceWrapper(Object):
     """Wraps a tvm.runtime.Device"""
+
+    # tvm-ffi-stubgen(begin): object/runtime.profiling.DeviceWrapper
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, dev: Device):
         self.__init_handle_by_constructor__(_ffi_api.DeviceWrapper, dev)
@@ -278,6 +301,9 @@ if _ffi.get_global_func("runtime.profiling.PAPIMetricCollector", allow_missing=T
         """Collects performance counter information using the Performance
         Application Programming Interface (PAPI).
         """
+
+        # tvm-ffi-stubgen(begin): object/runtime.profiling.PAPIMetricCollector
+        # tvm-ffi-stubgen(end)
 
         def __init__(self, metric_names: Optional[Dict[Device, Sequence[str]]] = None):
             """

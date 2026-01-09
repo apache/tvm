@@ -15,6 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """Extracted tasks from high-level IR."""
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from ir import IRModule
+    from target import Target
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import List
 
 from tvm_ffi import register_object
@@ -42,6 +54,16 @@ class ExtractedTask(Object):
     weight : int
         The weight of the task
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.ExtractedTask
+    # fmt: off
+    task_name: str
+    mod: IRModule
+    target: Target
+    dispatched: Sequence[IRModule]
+    weight: int
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     task_name: str
     mod: IRModule

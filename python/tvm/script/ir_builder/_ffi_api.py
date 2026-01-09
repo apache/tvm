@@ -15,6 +15,34 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI APIs for tvm.script.ir_builder"""
-import tvm_ffi
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from tvm_ffi import init_ffi_api as _FFI_INIT_FUNC
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from script.ir_builder import IRBuilder, IRBuilderFrame
+    from tvm_ffi import Object
+    from typing import Callable
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 
-tvm_ffi.init_ffi_api("script.ir_builder", __name__)  # pylint: disable=protected-access
+
+# tvm-ffi-stubgen(begin): global/script.ir_builder
+# fmt: off
+_FFI_INIT_FUNC("script.ir_builder", __name__)
+if TYPE_CHECKING:
+    def IRBuilder() -> IRBuilder: ...
+    def IRBuilderCurrent() -> IRBuilder: ...
+    def IRBuilderEnter(_0: IRBuilder, /) -> None: ...
+    def IRBuilderExit(_0: IRBuilder, /) -> None: ...
+    def IRBuilderFrameAddCallback(_0: IRBuilderFrame, _1: Callable[[], None], /) -> None: ...
+    def IRBuilderFrameEnter(_0: IRBuilderFrame, /) -> None: ...
+    def IRBuilderFrameExit(_0: IRBuilderFrame, /) -> None: ...
+    def IRBuilderGet(_0: IRBuilder, /) -> Object: ...
+    def IRBuilderIsInScope() -> bool: ...
+    def IRBuilderName(_0: str, _1: Object, /) -> Object: ...
+# fmt: on
+# tvm-ffi-stubgen(end)

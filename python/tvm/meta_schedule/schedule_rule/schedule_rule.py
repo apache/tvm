@@ -18,6 +18,8 @@
 Meta Schedule schedule rules are used for modification of
 blocks in a schedule. See also PostOrderApply.
 """
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from typing import TYPE_CHECKING, Callable, List
 
 # isort: off
@@ -39,6 +41,11 @@ if TYPE_CHECKING:
 @register_object("meta_schedule.ScheduleRule")
 class ScheduleRule(Object):
     """Rules to modify a block in a schedule."""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.ScheduleRule
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the schedule rule with a tune context.
@@ -120,6 +127,11 @@ class _PyScheduleRule(ScheduleRule):
 
     See also: PyScheduleRule
     """
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.PyScheduleRule
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """A mutator that mutates the compute-at location decision of SampleComputeLocation"""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from tvm_ffi.registry import register_object
 
 from .. import _ffi_api
@@ -24,6 +26,11 @@ from .mutator import Mutator
 @register_object("meta_schedule.MutateComputeLocation")
 class MutateComputeLocation(Mutator):
     """A mutator that mutates the compute-at location decision of SampleComputeLocation"""
+
+    # tvm-ffi-stubgen(begin): object/meta_schedule.MutateComputeLocation
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(

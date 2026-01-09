@@ -17,6 +17,16 @@
 # pylint: disable=no-else-return, invalid-name
 """Developer API of add/remove/replace bindings in Relax."""
 
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from relax.expr import DataflowBlock, Function
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 from typing import Optional
 
 import tvm
@@ -38,6 +48,13 @@ class DataflowBlockRewrite(Object):
     root Function is created and returned by mutated_root_fn. To apply this change for an IRModule,
     use mutate_irmodule which rewrites the old function that registered in the constructor.
     """
+
+    # tvm-ffi-stubgen(begin): object/relax.DataflowBlockRewrite
+    # fmt: off
+    dfb: DataflowBlock
+    root_fn: Function | None
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(self, dfb: DataflowBlock, root_fn: Function):
         """

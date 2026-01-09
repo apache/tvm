@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name, arguments-differ
 """The expression and statement functor of TIR."""
+# tvm-ffi-stubgen(begin): import-section
+# tvm-ffi-stubgen(end)
 from typing import Callable
 
 import tvm_ffi
@@ -153,6 +155,11 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
 
     See also: PyStmtExprVisitor, stmt_expr_visitor
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.PyStmtExprVisitor
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,
@@ -987,6 +994,11 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
 
     See also: stmt_expr_mutator, PyStmtExprMutator
     """
+
+    # tvm-ffi-stubgen(begin): object/tir.PyStmtExprMutator
+    # fmt: off
+    # fmt: on
+    # tvm-ffi-stubgen(end)
 
     def __init__(
         self,

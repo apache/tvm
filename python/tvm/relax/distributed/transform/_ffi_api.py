@@ -14,6 +14,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 """FFI APIs for tvm.relax.distributed.transform"""
-import tvm_ffi
+# tvm-ffi-stubgen(begin): import-section
+# fmt: off
+# isort: off
+from __future__ import annotations
+from tvm_ffi import init_ffi_api as _FFI_INIT_FUNC
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from transform import Pass
+# isort: on
+# fmt: on
+# tvm-ffi-stubgen(end)
 
-tvm_ffi.init_ffi_api("relax.distributed.transform", __name__)
+
+# tvm-ffi-stubgen(begin): global/relax.distributed.transform
+# fmt: off
+_FFI_INIT_FUNC("relax.distributed.transform", __name__)
+if TYPE_CHECKING:
+    def LegalizeRedistribute() -> Pass: ...
+    def LowerDistIR() -> Pass: ...
+    def LowerGlobalViewToLocalView() -> Pass: ...
+    def PropagateSharding() -> Pass: ...
+# fmt: on
+# tvm-ffi-stubgen(end)
