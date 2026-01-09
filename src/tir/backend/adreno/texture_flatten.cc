@@ -20,24 +20,26 @@
 /*!
  * \file texture_flatten.cc
  * \brief Flattens texture storage from multi-dimensional array
- * to 2D (width, height) buffer access
+ * to 2D (width, height, depth) array access
  */
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/te/operation.h>
+#include <tvm/tir/backend/adreno/transform.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
-#include <tvm/tir/transform.h>
 
 #include <unordered_map>
 
-#include "../../arith/ir_visitor_with_analyzer.h"
-#include "../../runtime/texture.h"
-#include "../../runtime/thread_storage_scope.h"
+#include "../../../arith/ir_visitor_with_analyzer.h"
+#include "../../../runtime/texture.h"
+#include "../../../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace tir {
+namespace backend {
+namespace adreno {
 using arith::IRVisitorWithAnalyzer;
 using runtime::ApplyTexture2DFlattening;
 using runtime::DefaultTextureLayoutSeparator;
@@ -200,7 +202,7 @@ class TextureFlattener : public TextureLoweringBase {
   std::unordered_map<Var, PrimExpr> let_binding_;
 };
 
-PrimFunc TextureFlatten(PrimFunc func) {
+PrimFunc TextureFlattenHandler(PrimFunc func) {
   auto fptr = func.CopyOnWrite();
   IRVisitorWithAnalyzer bound_analyzer;
   bound_analyzer(fptr->body);
@@ -212,17 +214,19 @@ namespace transform {
 
 Pass TextureFlatten() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    return TextureFlatten(std::move(f));
+    return TextureFlattenHandler(std::move(f));
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.TextureFlatten", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.backend.adreno.TextureFlatten", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.TextureFlatten", TextureFlatten);
+  refl::GlobalDef().def("tir.backend.adreno.transform.TextureFlatten", TextureFlatten);
 }
 
 }  // namespace transform
 
+}  // namespace adreno
+}  // namespace backend
 }  // namespace tir
 }  // namespace tvm

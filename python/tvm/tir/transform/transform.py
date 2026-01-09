@@ -893,17 +893,6 @@ def LowerOpaqueBlock():
     return _ffi_api.LowerOpaqueBlock()  # type: ignore
 
 
-def InjectTextureAlloc():
-    """Inject Texture Allocation Intrinsic to make sure appropriate lowering
-    via alloc_nd/alloc_free calls
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InjectTextureAlloc()  # type: ignore
-
-
 def FlattenBuffer():
     """Flatten the multi-dimensional BufferLoad and BufferStore to single dimensional
     BufferLoad/BufferStore for the TIR not contains opaque block.
@@ -1193,18 +1182,3 @@ def CanonicalizeLoop():
         The result pass
     """
     return _ffi_api.CanonicalizeLoop()  # type: ignore
-
-
-def TextureFlatten():
-    """Flatten the multi-dimensional read/write to 2D.
-
-
-    Parameters
-    ----------
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.TextureFlatten()  # type: ignore

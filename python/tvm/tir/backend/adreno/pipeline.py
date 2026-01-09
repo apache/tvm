@@ -16,12 +16,10 @@
 # under the License.
 
 # pylint: disable=invalid-name
-"""The TIR backend compilation pipeline."""
+"""The TIR backend compilation pipeline for Adreno"""
 
 import tvm
 from tvm import tir
-
-from . import backend
 
 
 def default_tir_pipeline():
@@ -33,6 +31,7 @@ def default_tir_pipeline():
         pass_ctx = tvm.transform.PassContext.current()
         config = pass_ctx.config
         passes = [
+            tir.backend.adreno.transform.TextureFlatten(),
             tir.transform.CanonicalizeLoop(),
             tir.transform.LowerCrossThreadReduction(),
             tir.transform.LowerInitBlock(),
@@ -50,6 +49,7 @@ def default_tir_pipeline():
             tir.transform.InjectSoftwarePipeline(),
             tir.transform.TransformMmaBufferLayout(),
             tir.transform.LowerOpaqueBlock(),
+            tir.backend.adreno.transform.InjectTextureAlloc(),
             tir.transform.FlattenBuffer(),
             tir.transform.BF16ComputeLegalize(),
             tir.transform.NarrowDataType(32),
@@ -153,32 +153,8 @@ def finalize_device_passes():  # pylint: disable=unused-argument
     return tvm.ir.transform.Sequential(device_pass_list)
 
 
-# global map of pre-built pipelines
-PIPELINE_MAP = {
-    "default": default_tir_pipeline,
-}
-
-
-def get_tir_pipeline(name: str = "default", **kwargs) -> tvm.transform.Pass:
-    """Get pre-build pipeline by name
-
-    Parameters
-    ----------
-    name : Optional[str]
-        Name of the pipeline
-    """
-    if name not in PIPELINE_MAP:
-        raise ValueError(
-            f"Unknown pre-built pipeline {name}," f"candidates are {list(PIPELINE_MAP.keys())}"
-        )
-    return PIPELINE_MAP[name](**kwargs)
-
-
-def get_default_tir_pipeline(
+def get_tir_pipeline(
     target: tvm.target.Target,  # pylint: disable=unused-argument
 ) -> tvm.transform.Pass:
-    """Get the default TIR pipeline for the given target."""
-    if target.kind.name == "opencl" and "adreno" in target.keys:
-        return backend.adreno.get_tir_pipeline(target)
-    else:
-        return default_tir_pipeline()
+    """Get the TIR pipeline for Adreno GPU."""
+    return default_tir_pipeline()

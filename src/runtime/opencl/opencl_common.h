@@ -451,11 +451,6 @@ struct BufferDescriptor {
   MemoryLayout layout{MemoryLayout::kBuffer1D};
   Buffer mbuf{nullptr};  // MemoryManager ref.
   bool is_compat_view{false};
-#ifdef PROFILE_SHADER_DUMP
-  size_t mem_size;
-  size_t width, height, depth;
-  DLDataType dtype;
-#endif  // PROFILE_SHADER_DUMP
 };
 }  // namespace cl
 

@@ -23,15 +23,17 @@
 
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/backend/adreno/transform.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/transform.h>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
-#include "../../runtime/texture.h"
-#include "ir_utils.h"
+#include "../../../arith/ir_mutator_with_analyzer.h"
+#include "../../../runtime/texture.h"
+#include "../../transforms/ir_utils.h"
 
 namespace tvm {
 namespace tir {
+namespace backend {
+namespace adreno {
 using runtime::ApplyTexture2DFlattening;
 using runtime::DefaultTextureLayoutSeparator;
 using runtime::IsTextureStorage;
@@ -99,15 +101,17 @@ Pass InjectTextureAlloc() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     return TextureAllocInjector::Inject(std::move(f));
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.InjectTextureAlloc", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.backend.adreno.InjectTextureAlloc", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.InjectTextureAlloc", InjectTextureAlloc);
+  refl::GlobalDef().def("tir.backend.adreno.transform.InjectTextureAlloc", InjectTextureAlloc);
 }
 
 }  // namespace transform
 
+}  // namespace adreno
+}  // namespace backend
 }  // namespace tir
 }  // namespace tvm

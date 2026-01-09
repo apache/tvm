@@ -51,88 +51,6 @@ class OpenCLWrappedFunc {
     launch_param_config_.Init(arg_size.size(), launch_param_tags);
   }
 
-#ifdef PROFILE_SHADER_DUMP
-  void dump_trace(const ThreadWorkLoad& wl, int work_dim, const ffi::PackedArgs& args) const {
-    std::string dump_path(getenv("PROFILE_SHADER_DUMP_PATH"));
-    static int trace_count = 0;
-
-    std::vector<int> g_vec;
-    std::vector<int> l_vec;
-    for (cl_uint i = 0; i < work_dim; ++i) {
-      g_vec.push_back(wl.work_size[i]);
-      l_vec.push_back(wl.work_size[i + 3]);
-    }
-
-    std::ostringstream os;
-    dmlc::JSONWriter writer(&os);
-    writer.BeginObject();
-    writer.WriteObjectKeyValue("api", func_name_);
-    writer.WriteObjectKeyValue("global", g_vec);
-    writer.WriteObjectKeyValue("local", l_vec);
-
-    class DumpArg {
-     public:
-      DumpArg() = default;
-
-      void Save(dmlc::JSONWriter* writer) const {
-        writer->BeginObject();
-        writer->WriteObjectKeyValue("index", idx);
-        writer->WriteObjectKeyValue("scope", scope);
-        if (scope.find("texture") != std::string::npos) {
-          writer->WriteObjectKeyValue("width", width);
-          writer->WriteObjectKeyValue("height", height);
-          writer->WriteObjectKeyValue("depth", depth);
-        } else {
-          writer->WriteObjectKeyValue("size", size);
-        }
-        writer->WriteObjectKeyValue("dtype", dtype);
-        writer->EndObject();
-      }
-
-      uint32_t idx;
-      std::string scope;
-      uint32_t size;
-      uint32_t width;
-      uint32_t height;
-      uint32_t depth;
-      uint32_t dtype;
-    };
-
-    std::vector<DumpArg> vargs;
-
-    for (cl_uint i = 0; i < arg_size_.size(); ++i) {
-      DumpArg darg;
-      darg.idx = i;
-      if (args[i].as<void*>()) {
-        cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(args[i].cast<void*>());
-        auto mem_scope = cl::BufferDescriptor::ScopeFromMemoryLayout(desc->layout);
-        darg.scope = std::string(mem_scope);
-        if (desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
-          darg.size = desc->mem_size;
-        } else {
-          darg.width = desc->width;
-          darg.height = desc->height;
-          darg.depth = desc->depth;
-        }
-        darg.dtype = desc->dtype.code;
-      }
-      vargs.push_back(darg);
-    }
-
-    writer.WriteObjectKeyValue("args", vargs);
-    writer.EndObject();
-    std::stringstream trace_file;
-    trace_file << std::setw(4) << std::setfill('0') << std::to_string(trace_count);
-    trace_file << "_" << func_name_ << ".json";
-    if (dump_path == "cli") {
-      LOG(WARNING) << os.str();
-    } else {
-      SaveBinaryToFile(dump_path + "/" + trace_file.str(), os.str());
-    }
-    trace_count++;
-  }
-#endif  // PROFILE_SHADER_DUMP
-
   // invoke the function with void arguments
   void operator()(ffi::PackedArgs args, ffi::Any* rv, void** void_args) const {
     ICHECK(w_->devices.size() > 0) << "No OpenCL device";
@@ -148,11 +66,6 @@ class OpenCLWrappedFunc {
     }
     ThreadWorkLoad wl = launch_param_config_.Extract(args);
     cl_uint work_dim = static_cast<cl_uint>(launch_param_config_.work_dim());
-#ifdef PROFILE_SHADER_DUMP
-    if (getenv("PROFILE_SHADER_DUMP_PATH")) {
-      dump_trace(wl, work_dim, args);
-    }
-#endif  // PROFILE_SHADER_DUMP
     // setup arguments.
     for (cl_uint i = 0; i < arg_size_.size(); ++i) {
       void* arg = nullptr;

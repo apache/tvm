@@ -315,9 +315,6 @@ void* OpenCLWorkspace::AllocCLBuffer(Device dev, size_t size, size_t alignment,
   desc->buffer =
       clCreateBuffer(this->contexts[platform], CL_MEM_CREATE_FLAGS, size, nullptr, &err_code);
   desc->layout = cl::BufferDescriptor::MemoryLayout::kBuffer1D;
-#ifdef PROFILE_SHADER_DUMP
-  desc->mem_size = size;
-#endif  // PROFILE_SHADER_DUMP
   OPENCL_CHECK_ERROR(err_code);
   return CreateHostPtrIfEnabled(desc, dev, size);
 }
@@ -347,12 +344,6 @@ void* OpenCLWorkspace::AllocCLImage(Device dev, void* back_buffer, size_t width,
   cl::BufferDescriptor* desc = new cl::BufferDescriptor(mem_scope);
   desc->buffer = mptr;
   desc->back_buffer = back_desc;
-#ifdef PROFILE_SHADER_DUMP
-  desc->width = width;
-  desc->height = height;
-  desc->depth = depth;
-  desc->dtype = type_hint;
-#endif  // PROFILE_SHADER_DUMP
   return desc;
 }
 
