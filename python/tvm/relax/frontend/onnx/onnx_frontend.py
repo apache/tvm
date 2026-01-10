@@ -3255,7 +3255,21 @@ class HardSigmoid(OnnxOpConverter):
         alpha = relax.const(alpha, dtype=dtype)
         beta = float(attr.get("beta", 0.5))
         beta = relax.const(beta, dtype=dtype)
-        return relax.op.clip(relax.op.add(relax.op.multiply(alpha, x), beta), 0, 1)
+
+        # Detect NaN values BEFORE applying any operations that might change them
+        if isinstance(x, relax.Constant):
+            x_data = x.data.numpy()
+            is_nan_data = _np.isnan(x_data)
+            is_nan = relax.const(is_nan_data, dtype="bool")
+        else:
+            is_nan = relax.op.not_equal(x, x)
+
+        # Apply the standard HardSigmoid computation
+        clipped = relax.op.clip(relax.op.add(relax.op.multiply(alpha, x), beta), 0, 1)
+
+        # Preserve NaN values: where x is NaN, return NaN instead of clipped value
+        nan_val = relax.const(_np.nan, dtype=dtype)
+        return relax.op.where(is_nan, nan_val, clipped)
 
 
 class HardSwish(OnnxOpConverter):
