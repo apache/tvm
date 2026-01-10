@@ -459,9 +459,9 @@ bool VarBindingNode::SEqual(const VarBindingNode* other,
   }
 }
 
-uint64_t VarBindingNode::SHash(uint64_t init_hash,
-                               ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const {
-  uint64_t hash_value = init_hash;
+int64_t VarBindingNode::SHash(int64_t init_hash,
+                              ffi::TypedFunction<int64_t(AnyView, int64_t, bool)> hash) const {
+  int64_t hash_value = init_hash;
   if (value->IsInstance<FunctionNode>()) {
     hash_value = hash(var, hash_value, true);
     hash_value = hash(value, hash_value, false);
