@@ -84,8 +84,7 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
   }();
 
   if (indices_sinfo->IsUnknownDtype()) {
-    // TODO(tvm-team): Do we have an equivalent of `ctx->ReportFatal` for warning?
-    LOG(WARNING) << "Data type of indice has not been specified. Assume it has an integer type.";
+    LOG(WARNING) << "Data type of indices has not been specified. Assume it has an integer type.";
   } else if (!(indices_sinfo->dtype.is_int() || indices_sinfo->dtype.is_uint())) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Take op requires the input indices to have integer dtype. However, the "

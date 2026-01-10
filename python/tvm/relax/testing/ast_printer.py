@@ -260,7 +260,6 @@ class ASTPrinter(ExprFunctor):
                 "FuncType",
                 arg_types=self.build_list(map(self.visit_type_, type_node.arg_types)),
                 ret_type=self.visit_type_(type_node.ret_type),
-                # TODO: skipping type params and type constraints
             )
         raise ValueError(f"Invalid Relax Type {type_node} ({type(type_node)})")
 
