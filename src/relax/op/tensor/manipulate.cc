@@ -2617,7 +2617,7 @@ StructInfo InferStructInfoScatterElements(const Call& call, const BlockBuilder& 
   }
 
   if (indices_sinfo->IsUnknownDtype()) {
-    LOG(WARNING) << "Data type of indice has not been specified. Assume it has an integer type.";
+    LOG(WARNING) << "Data type of indices has not been specified. Assume it has an integer type.";
   } else if (!(indices_sinfo->dtype.is_int() || indices_sinfo->dtype.is_uint())) {
     ctx->ReportFatal(
         Diagnostic::Error(call)
