@@ -1130,6 +1130,7 @@ class PRelu(OnnxOpConverter):
 
         x_shape = x.struct_info.shape
         slope_shape = slope.struct_info.shape
+        
 
         ndim = len(x_shape)
         s_ndim = len(slope_shape)
