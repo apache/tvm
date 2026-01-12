@@ -1127,7 +1127,31 @@ class PRelu(OnnxOpConverter):
     def _impl_v1(cls, bb, inputs, attr, params):
         x = inputs[0]
         slope = inputs[1]
-        return relax.op.nn.prelu(x, slope)
+
+        x_shape = x.struct_info.shape
+        slope_shape = slope.struct_info.shape
+
+        ndim = len(x_shape)
+        s_ndim = len(slope_shape)
+
+        if all(ss == 1 for ss in slope_shape) or s_ndim == 1:
+            slope = relax.op.reshape(slope, (slope_shape[0],))
+            return relax.op.nn.prelu(x, slope, ndim - 1)
+
+        if s_ndim == ndim:
+            non_one_axes = [i for i, ss in enumerate(slope_shape) if ss != 1]
+
+            # Must have only ONE non-broadcast axis
+            if len(non_one_axes) != 1:
+                raise ValueError(
+                    f"Invalid PRelu slope shape (multiple non-broadcast dims): {slope_shape}"
+                )
+            axis = non_one_axes[0]
+
+            slope = relax.op.reshape(slope, (slope_shape[axis],))
+            return relax.op.nn.prelu(x, slope, axis)
+
+        raise ValueError(f"Unsupported PRelu slope shape: {slope_shape}")
 
 
 class ThresholdedRelu(OnnxOpConverter):
