@@ -18,8 +18,9 @@
 
 import pytest
 import tvm
-import tvm.error
+import tvm.testing
 from tvm.topi.utils import get_const_tuple
+from tvm.error import InternalError
 
 
 def test_layout():
@@ -35,7 +36,7 @@ def test_layout():
     assert layout.index_of("C") == 1
     assert layout.index_of("H") == 2
     assert layout.index_of("W") == 3
-    assert layout.index_of("c") == 4
+    assert layout.index_of("16c") == 4
     assert layout.index_of("O") == -1
 
     assert "N" in layout
@@ -49,8 +50,50 @@ def test_layout():
     assert layout[1] == "C"
     assert layout[2] == "H"
     assert layout[3] == "W"
-    assert layout[4] == "c"
-    assert layout[-1] == "c"
+    assert layout[4] == "16c"
+
+    layout = tvm.tir.layout("OIHW[4o4i]")
+    assert layout is not None
+    assert isinstance(layout, tvm.tir.Layout)
+
+    assert layout.factor_of("o") == 4
+    assert layout.factor_of("i") == 4
+    assert layout.factor_of("H") == -1
+    assert layout.factor_of("W") == -1
+    assert layout.factor_of("N") == -1
+
+    assert layout.index_of("O") == 0
+    assert layout.index_of("I") == 1
+    assert layout.index_of("H") == 2
+    assert layout.index_of("W") == 3
+    assert layout.index_of("4o4i") == 4
+    assert layout.index_of("i") == -1
+    assert layout.index_of("o") == -1
+
+    assert "O" in layout
+    assert "I" in layout
+    assert "H" in layout
+    assert "W" in layout
+    assert "4o4i" in layout
+    assert "i" in layout
+    assert "o" in layout
+
+    assert layout[0] == "O"
+    assert layout[1] == "I"
+    assert layout[2] == "H"
+    assert layout[3] == "W"
+    assert layout[4] == "4o4i"
+
+    with pytest.raises(InternalError):
+        layout = tvm.tir.layout("[N4o]C")
+    with pytest.raises(InternalError):
+        layout = tvm.tir.layout("[O4o]")
+    with pytest.raises(InternalError):
+        layout = tvm.tir.layout("C4o")
+    with pytest.raises(InternalError):
+        layout = tvm.tir.layout("OI[4o4i][]")
+    with pytest.raises(InternalError):
+        layout = tvm.tir.layout("C4c[4c]")
 
 
 def test_layout_dtype():
@@ -85,6 +128,8 @@ def test_bilayout_convertible():
     assert tvm.s_tir.bijective_layout("", "NCHW") is None
     assert tvm.s_tir.bijective_layout("NCHW", "") is None
     assert tvm.s_tir.bijective_layout("", "") is None
+    assert tvm.s_tir.bijective_layout("OIHW", "OIHW[4o4i]") is not None
+    assert tvm.s_tir.bijective_layout("OIHW[2o4i]", "OIHW") is not None
     # convertible
     assert tvm.s_tir.bijective_layout("NCHW", "NCHW16c") is not None
 
@@ -99,6 +144,14 @@ def test_bilayout_shape():
     src_shape = bilayout.backward_shape(dst_shape)
     assert get_const_tuple(src_shape) == (1, 32, 7, 7)
 
+    bilayout = tvm.tir.bijective_layout("OIHW", "OIHW[4o4i]")
+
+    dst_shape = bilayout.forward_shape((64, 28, 7, 7))
+    assert get_const_tuple(dst_shape) == (16, 7, 7, 7, 16)
+
+    src_shape = bilayout.backward_shape((2, 11, 4, 4, 16))
+    assert get_const_tuple(src_shape) == (8, 44, 4, 4)
+
 
 def test_bilayout_index():
     bilayout = tvm.s_tir.bijective_layout("NCHW", "NCHW16c")
@@ -109,10 +162,14 @@ def test_bilayout_index():
     src_index = bilayout.backward_index([0, 1, 6, 6, 2])
     assert get_const_tuple(src_index) == (0, 18, 6, 6)
 
+    bilayout = tvm.tir.bijective_layout("OIHW", "OIHW[4o4i]")
+
+    dst_index = bilayout.forward_index((63, 29, 7, 7))
+    assert get_const_tuple(dst_index) == (15, 7, 7, 7, 13)
+
+    src_index = bilayout.backward_index((4, 7, 4, 4, 13))
+    assert get_const_tuple(src_index) == (19, 29, 4, 4)
+
 
 if __name__ == "__main__":
-    test_layout()
-    test_layout_dtype()
-    test_bilayout_convertible()
-    test_bilayout_shape()
-    test_bilayout_index()
+    tvm.testing.main()

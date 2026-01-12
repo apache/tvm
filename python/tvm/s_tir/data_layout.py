@@ -41,7 +41,8 @@ class Layout(Object):
         return _ffi_api.LayoutNdim(self)  # type: ignore
 
     def __contains__(self, axis):
-        return len(axis) == 1 and axis[0].isalpha() and axis[0] in self.name
+        # Note: We do a weaker check for packed axis assuming layout is valid
+        return not any(bkt in axis for bkt in "[]") and axis in self.name
 
     def __getitem__(self, index):
         if index >= len(self):
@@ -54,7 +55,7 @@ class Layout(Object):
         Parameters
         ----------
         axis : str
-            The axis name, need to be [a-z,A-Z]
+            The axis name, needs to be [a-z,A-Z] or a packed axis
 
         Returns
         -------
