@@ -129,9 +129,10 @@ def prelu(x, slope, axis=1):
 
     assert len(slope.shape) == 1
     assert axis < len(x.shape)
-    slope = te.compute(
-        (get_const_int(x.shape[axis]),), lambda c: slope[0], name="slope_broadcasted"
-    )
+    if slope.shape[0] == 1:
+        slope = te.compute(
+            (get_const_int(x.shape[axis]),), lambda c: slope[0], name="slope_broadcasted"
+        )
     assert get_const_int(slope.shape[0]) == get_const_int(x.shape[axis])
 
     def _compute_channelwise(*indices):
