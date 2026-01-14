@@ -365,9 +365,8 @@ class VarNode : public LeafExprNode {
            equal(struct_info_, other->struct_info_, false, "struct_info_");
   }
 
-  uint64_t SHash(uint64_t init_hash,
-                 ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const {
-    uint64_t hash_value = init_hash;
+  int64_t SHash(int64_t init_hash, ffi::TypedFunction<int64_t(AnyView, int64_t, bool)> hash) const {
+    int64_t hash_value = init_hash;
     hash_value = hash(vid, hash_value, false);
     hash_value = hash(struct_info_, hash_value, false);
     return hash_value;
@@ -647,8 +646,7 @@ class VarBindingNode : public BindingNode {
 
   bool SEqual(const VarBindingNode* other,
               ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const;
-  uint64_t SHash(uint64_t init_hash,
-                 ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const;
+  int64_t SHash(int64_t init_hash, ffi::TypedFunction<int64_t(AnyView, int64_t, bool)> hash) const;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.VarBinding", VarBindingNode, BindingNode);
 };
 
