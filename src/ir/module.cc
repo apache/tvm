@@ -81,9 +81,9 @@ bool IRModuleNode::SEqual(const IRModuleNode* other,
   return true;
 }
 
-uint64_t IRModuleNode::SHash(uint64_t init_hash,
-                             ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const {
-  uint64_t hash_value = init_hash;
+int64_t IRModuleNode::SHash(int64_t init_hash,
+                            ffi::TypedFunction<int64_t(AnyView, int64_t, bool)> hash) const {
+  int64_t hash_value = init_hash;
   hash_value = hash(this->attrs, hash_value, false);
   hash_value = hash(this->global_infos, hash_value, false);
 
@@ -96,7 +96,8 @@ uint64_t IRModuleNode::SHash(uint64_t init_hash,
   // sort by the hash key of the keys.
   std::sort(temp.begin(), temp.end(),
             [](const KV& lhs, const KV& rhs) { return std::get<0>(lhs) < std::get<0>(rhs); });
-  hash_value = hash(static_cast<uint64_t>(temp.size()), hash_value, false);
+  uint64_t temp_size = static_cast<uint64_t>(temp.size());
+  hash_value = hash(static_cast<int64_t>(temp_size), hash_value, false);
   // first need to define the GlobalVar in the order of the keys
   for (size_t i = 0; i < temp.size(); ++i) {
     hash_value = hash(std::get<1>(temp[i]), hash_value, true);

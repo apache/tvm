@@ -146,8 +146,8 @@ class IRModuleNode : public Object {
 
   TVM_DLL bool SEqual(const IRModuleNode* other,
                       ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const;
-  TVM_DLL uint64_t SHash(uint64_t init_hash,
-                         ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const;
+  TVM_DLL int64_t SHash(int64_t init_hash,
+                        ffi::TypedFunction<int64_t(AnyView, int64_t, bool)> hash) const;
 
   /*!
    * \brief Add a function to the global environment.
