@@ -189,6 +189,7 @@ def yarn_find_correction_dim(
         d * math.log(max_position_embeddings / (num_rotations * 2 * math.pi)) * inv_theta_log_scale
     )
 
+
 def yarn_find_correction_range(
     low_rot: int,
     high_rot: int,
@@ -232,7 +233,7 @@ def rope_freq_yarn(
         d_range,
         theta,
         original_max_position_embeddings,
-        inv_theta_log_scale=inv_theta_log_scale
+        inv_theta_log_scale=inv_theta_log_scale,
     )
     high = tir.if_then_else(low == high, high + 0.001, high)
     inv_freq_mask = tir.const(1, "float32") - tir.max(
