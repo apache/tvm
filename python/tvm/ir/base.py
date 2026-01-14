@@ -126,7 +126,7 @@ def load_json(json_str) -> Object:
     """
 
     # Prevent pathological memory / CPU usage from unbounded JSON inputs.
-    MAX_JSON_BYTES = 5 * 1024 * 1024
+    MAX_JSON_BYTES = 50 * 1024 * 1024
 
     if len(json_str) > MAX_JSON_BYTES:
         raise ValueError("JSON IR input too large")
