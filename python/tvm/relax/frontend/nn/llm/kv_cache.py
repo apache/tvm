@@ -308,10 +308,7 @@ def _prepare_yarn_rope_scaling(
         return rope_scaling
 
     rope_scaling_updated = dict(rope_scaling)
-    if (
-        "inv_theta_log_scale" not in rope_scaling_updated
-        and rope_theta is not None
-    ):
+    if "inv_theta_log_scale" not in rope_scaling_updated and rope_theta is not None:
         theta_value = float(rope_theta)
         rope_scaling_updated["inv_theta_log_scale"] = 1.0 / (2 * math.log(theta_value))
     return rope_scaling_updated

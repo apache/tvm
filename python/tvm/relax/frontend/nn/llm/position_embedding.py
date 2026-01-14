@@ -185,8 +185,9 @@ def yarn_find_correction_dim(
     inv_theta_log_scale: Optional[Union[float, tir.PrimExpr]] = None,
 ):
     """Inverse dim formula to find dim based on number of rotations"""
-    return d * math.log(max_position_embeddings / (num_rotations * 2 * math.pi)) * inv_theta_log_scale
-
+    return (
+        d * math.log(max_position_embeddings / (num_rotations * 2 * math.pi)) * inv_theta_log_scale
+    )
 
 def yarn_find_correction_range(
     low_rot: int,
@@ -197,8 +198,12 @@ def yarn_find_correction_range(
     inv_theta_log_scale: Optional[Union[float, tir.PrimExpr]] = None,
 ):
     """Find the correction range based on the number of rotations"""
-    low = yarn_find_correction_dim(low_rot, d, theta, max_position_embeddings, inv_theta_log_scale=inv_theta_log_scale)
-    high = yarn_find_correction_dim(high_rot, d, theta, max_position_embeddings, inv_theta_log_scale=inv_theta_log_scale)
+    low = yarn_find_correction_dim(
+        low_rot, d, theta, max_position_embeddings, inv_theta_log_scale=inv_theta_log_scale
+    )
+    high = yarn_find_correction_dim(
+        high_rot, d, theta, max_position_embeddings, inv_theta_log_scale=inv_theta_log_scale
+    )
     return tir.max(low, 0), tir.min(high, d - 1)
 
 
@@ -222,7 +227,12 @@ def rope_freq_yarn(
     freq_inter = tir.const(1, "float32") / (scaling_factor * freq_power)
 
     low, high = yarn_find_correction_range(
-        beta_fast, beta_slow, d_range, theta, original_max_position_embeddings, inv_theta_log_scale=inv_theta_log_scale
+        beta_fast,
+        beta_slow,
+        d_range,
+        theta,
+        original_max_position_embeddings,
+        inv_theta_log_scale=inv_theta_log_scale
     )
     high = tir.if_then_else(low == high, high + 0.001, high)
     inv_freq_mask = tir.const(1, "float32") - tir.max(
