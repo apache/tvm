@@ -125,8 +125,15 @@ def load_json(json_str) -> Object:
         The loaded tvm node.
     """
 
+    # Prevent pathological memory / CPU usage from unbounded JSON inputs.
+    MAX_JSON_BYTES = 5 * 1024 * 1024
+
+    if len(json_str) > MAX_JSON_BYTES:
+        raise ValueError("JSON IR input too large")
+
     json_str = json_compact.upgrade_json(json_str)
     return _ffi_node_api.LoadJSON(json_str)
+
 
 
 def save_json(node) -> str:
