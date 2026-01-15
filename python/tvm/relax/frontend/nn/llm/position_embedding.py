@@ -180,7 +180,6 @@ def rope_freq_longrope(  # pylint: disable=too-many-arguments
 def yarn_find_correction_dim(
     num_rotations: int,
     d: tir.Var,
-    theta: Union[float, tir.PrimExpr],
     max_position_embeddings: int,
     inv_theta_log_scale: Optional[Union[float, tir.PrimExpr]] = None,
 ):
@@ -194,16 +193,15 @@ def yarn_find_correction_range(
     low_rot: int,
     high_rot: int,
     d: tir.Var,
-    theta: Union[float, tir.PrimExpr],
     max_position_embeddings: int,
     inv_theta_log_scale: Optional[Union[float, tir.PrimExpr]] = None,
 ):
     """Find the correction range based on the number of rotations"""
     low = yarn_find_correction_dim(
-        low_rot, d, theta, max_position_embeddings, inv_theta_log_scale=inv_theta_log_scale
+        low_rot, d, max_position_embeddings, inv_theta_log_scale=inv_theta_log_scale
     )
     high = yarn_find_correction_dim(
-        high_rot, d, theta, max_position_embeddings, inv_theta_log_scale=inv_theta_log_scale
+        high_rot, d, max_position_embeddings, inv_theta_log_scale=inv_theta_log_scale
     )
     return tir.max(low, 0), tir.min(high, d - 1)
 
@@ -231,7 +229,6 @@ def rope_freq_yarn(
         beta_fast,
         beta_slow,
         d_range,
-        theta,
         original_max_position_embeddings,
         inv_theta_log_scale=inv_theta_log_scale,
     )
