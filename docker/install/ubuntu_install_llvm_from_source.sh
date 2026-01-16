@@ -63,7 +63,7 @@ cmake \
     -DLLVM_ENABLE_PROJECTS=mlir \
     -DLLVM_USE_INTEL_JITEVENTS=ON \
     -DLLVM_TEMPORARILY_ALLOW_OLD_TOOLCHAIN=ON \
-    -DPYTHON_EXECUTABLE="$(which python3.9)" \
+    -DPYTHON_EXECUTABLE="$(which python3.10)" \
     -GNinja \
     ..
 ninja install

@@ -47,9 +47,9 @@ release=$(lsb_release -sc)
 if [ "${release}" == "bionic" ]; then
      python_cmd="python3"
 elif [ "${release}" == "focal" ]; then
-     python_cmd="python3.9"
+     python_cmd="python3.10"
 elif [ "${release}" == "jammy" ]; then
-     python_cmd="python3.9"
+     python_cmd="python3.10"
 else
     echo "Don't know which version of python to use for Zephyr."
     exit 2
