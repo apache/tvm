@@ -436,7 +436,9 @@ def call_packed(
         (
             sinfo()
             if callable(sinfo)
-            else sinfo.asobject() if isinstance(sinfo, ObjectConvertible) else sinfo
+            else sinfo.asobject()
+            if isinstance(sinfo, ObjectConvertible)
+            else sinfo
         )
         for sinfo in sinfo_args
     ]
@@ -489,7 +491,9 @@ def call_py_func(
         (
             sinfo()
             if callable(sinfo)
-            else sinfo.asobject() if isinstance(sinfo, ObjectConvertible) else sinfo
+            else sinfo.asobject()
+            if isinstance(sinfo, ObjectConvertible)
+            else sinfo
         )
         for sinfo in out_sinfo
     ]

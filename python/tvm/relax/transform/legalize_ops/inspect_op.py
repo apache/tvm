@@ -130,5 +130,5 @@ def _tensor_elem_offset(bb: BlockBuilder, call: Call) -> Expr:
 
 
 @register_legalize("relax.size")
-def _size(bb: BlockBuilder, call: Call) -> Expr:
+def _size(_bb: BlockBuilder, call: Call) -> Expr:
     return op.prod(op.shape_to_tensor(op.shape_of(call.args[0])))
