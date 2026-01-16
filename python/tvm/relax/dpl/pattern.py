@@ -1120,7 +1120,9 @@ def _only_used_by(
     return ffi.only_used_by(lhs, rhs, index)  # type: ignore
 
 
-def make_fused_bias_activation_pattern(op_name, with_bias=False, activation=None):
+def make_fused_bias_activation_pattern(
+    op_name, with_bias=False, activation=None, allow_reshape=False
+):
     """
     A simple utility to create patterns for an operation fused with bias addition and activation.
 
@@ -1135,6 +1137,9 @@ def make_fused_bias_activation_pattern(op_name, with_bias=False, activation=None
     activation: str
         The name of an activation Relax op, such as "relax.nn.relu"
 
+    allow_reshape: bool
+        Whether to allow reshape operation before bias addition (for PyTorch frontend)
+
     Returns
     -------
     pattern: DFPattern
@@ -1146,7 +1151,11 @@ def make_fused_bias_activation_pattern(op_name, with_bias=False, activation=None
 
     if with_bias:
         bias = wildcard()
-        out = is_op("relax.add")(out, bias)
+        if allow_reshape:
+            reshaped_bias = is_op("relax.reshape")(bias, wildcard(), varg_default_wildcard=True)
+            out = is_op("relax.add")(out, reshaped_bias, varg_default_wildcard=True)
+        else:
+            out = is_op("relax.add")(out, bias)
 
     if activation:
         return is_op(activation)(out)
