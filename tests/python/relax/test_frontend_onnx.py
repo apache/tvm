@@ -2887,19 +2887,34 @@ def test_onehot():
 
 @pytest.mark.parametrize("axis", [None, 0, 1, -1])
 @pytest.mark.parametrize("sorted", [0, 1])
-def test_unique(axis: Optional[int], sorted: int):
-    input_shape = [32, 32]
+@pytest.mark.parametrize("num_outputs", [1, 2, 3, 4])
+def test_unique(axis: Optional[int], sorted: int, num_outputs: int):
+    input_shape = [8, 8]
     if axis is None:
         output_shape = [-1]
     else:
-        output_shape = [32, 32]
+        output_shape = [8, 8]
         output_shape[axis] = -1
-    unique_node = helper.make_node("Unique", ["x"], ["y"], axis=axis, sorted=sorted)
+
+    output_names = ["y", "indices", "inverse_indices", "counts"][:num_outputs]
+    unique_node = helper.make_node("Unique", ["x"], output_names, axis=axis, sorted=sorted)
+
+    outputs = [helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)]
+    if num_outputs > 1:
+        outputs.append(helper.make_tensor_value_info("indices", TensorProto.INT64, [-1]))
+    if num_outputs > 2:
+        inverse_shape = [-1] if axis is None else input_shape
+        outputs.append(
+            helper.make_tensor_value_info("inverse_indices", TensorProto.INT64, inverse_shape)
+        )
+    if num_outputs > 3:
+        outputs.append(helper.make_tensor_value_info("counts", TensorProto.INT64, [-1]))
+
     graph = helper.make_graph(
         [unique_node],
         "unique_test",
         inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape)],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)],
+        outputs=outputs,
     )
     model = helper.make_model(graph, producer_name="unique_test")
     check_correctness(model)

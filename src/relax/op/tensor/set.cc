@@ -101,16 +101,45 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
     output_sinfo.push_back(TensorStructInfo(data_sinfo->dtype, /*ndim=*/1, data_sinfo->vdevice));
   }
 
-  // index, reverse and counts
-  TensorStructInfo int_return{nullptr};
-  if (data_sinfo->ndim == 0) {
-    int_return = TensorStructInfo(ShapeExpr({IntImm(DataType::Int(64), /*value=*/1)}),
-                                  DataType::Int(64), data_sinfo->vdevice);
-  } else {
-    int_return = TensorStructInfo(DataType::Int(64), /*ndim=*/1, data_sinfo->vdevice);
+  // index, inverse_indices, and counts
+  // index: always 1D
+  if (f_convert_to_int64(return_index->value)) {
+    TensorStructInfo index_sinfo{nullptr};
+    if (data_sinfo->ndim == 0) {
+      index_sinfo = TensorStructInfo(ShapeExpr({IntImm(DataType::Int(64), /*value=*/1)}),
+                                     DataType::Int(64), data_sinfo->vdevice);
+    } else {
+      index_sinfo = TensorStructInfo(DataType::Int(64), /*ndim=*/1, data_sinfo->vdevice);
+    }
+    output_sinfo.push_back(index_sinfo);
   }
-  for (int i = 0; i < n_int_return; ++i) {
-    output_sinfo.push_back(int_return);
+
+  // inverse_indices: 1D when axis is None, same ndim as input when axis is specified
+  if (f_convert_to_int64(return_inverse->value)) {
+    TensorStructInfo inverse_sinfo{nullptr};
+    if (data_sinfo->ndim == 0) {
+      inverse_sinfo = TensorStructInfo(ShapeExpr({IntImm(DataType::Int(64), /*value=*/1)}),
+                                       DataType::Int(64), data_sinfo->vdevice);
+    } else if (axis.defined()) {
+      // When axis is specified, inverse_indices has the same ndim as input
+      inverse_sinfo = TensorStructInfo(DataType::Int(64), data_sinfo->ndim, data_sinfo->vdevice);
+    } else {
+      // When axis is None, inverse_indices is 1D (flattened)
+      inverse_sinfo = TensorStructInfo(DataType::Int(64), /*ndim=*/1, data_sinfo->vdevice);
+    }
+    output_sinfo.push_back(inverse_sinfo);
+  }
+
+  // counts: always 1D
+  if (f_convert_to_int64(return_counts->value)) {
+    TensorStructInfo counts_sinfo{nullptr};
+    if (data_sinfo->ndim == 0) {
+      counts_sinfo = TensorStructInfo(ShapeExpr({IntImm(DataType::Int(64), /*value=*/1)}),
+                                      DataType::Int(64), data_sinfo->vdevice);
+    } else {
+      counts_sinfo = TensorStructInfo(DataType::Int(64), /*ndim=*/1, data_sinfo->vdevice);
+    }
+    output_sinfo.push_back(counts_sinfo);
   }
 
   if (output_sinfo.size() == 1) {
