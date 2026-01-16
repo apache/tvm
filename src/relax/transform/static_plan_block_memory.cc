@@ -437,15 +437,18 @@ void SetTIRVarRangeConstraints(Function func, arith::Analyzer* ana,
     auto it_upper = var_upper_bound_attr.find(tir_var->name_hint);
     auto it_lower = var_lower_bound_attr.find(tir_var->name_hint);
 
-    if (it_upper != var_upper_bound_attr.end() || it_lower != var_lower_bound_attr.end()) {
+    // Only bind the variable to a range if an upper bound is explicitly provided.
+    // Without an upper bound, memory planning cannot determine the required storage size,
+    // so we skip binding and let the variable remain unbounded.
+    if (it_upper != var_upper_bound_attr.end()) {
       int64_t lower = (it_lower != var_lower_bound_attr.end()) ? it_lower->second->value : 0;
-      int64_t upper = (it_upper != var_upper_bound_attr.end())
-                          ? it_upper->second->value
-                          : std::numeric_limits<int64_t>::max();
+      int64_t upper = it_upper->second->value;
       tvm::Range range = tvm::Range::FromMinExtent(
           tvm::IntImm(DataType::Int(64), lower), tvm::IntImm(DataType::Int(64), upper - lower + 1));
       ana->Bind(tir_var, range);
       dom_map->Set(tir_var, arith::IntSet::FromRange(range));
+    } else if (it_lower != var_lower_bound_attr.end() && it_lower->second->value >= 0) {
+      ana->MarkGlobalNonNegValue(tir_var);
     } else if (non_negative_var_attr.count(tir_var->name_hint)) {
       ana->MarkGlobalNonNegValue(tir_var);
     }
