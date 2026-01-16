@@ -2306,7 +2306,7 @@ class Resize(OnnxOpConverter):
                 exclude_outside,
                 extrapolation_value,
             )
-        if ndims == 4:
+        elif ndims == 4:
             return relax.op.image.resize2d(
                 x,
                 size=relax.ShapeExpr(sizes),
@@ -2319,19 +2319,20 @@ class Resize(OnnxOpConverter):
                 cubic_exclude=exclude_outside,
                 extrapolation_value=extrapolation_value,
             )
-        return bb.emit_te(
-            topi.image.resize3d,
-            x,
-            roi,
-            sizes,
-            "NCDHW",
-            topi_mode,
-            coord_mode,
-            rounding_method,
-            cubic_coeff_a,
-            exclude_outside,
-            extrapolation_value,
-        )
+        else:  # ndims == 5
+            return bb.emit_te(
+                topi.image.resize3d,
+                x,
+                roi,
+                sizes,
+                "NCDHW",
+                topi_mode,
+                coord_mode,
+                rounding_method,
+                cubic_coeff_a,
+                exclude_outside,
+                extrapolation_value,
+            )
 
 
 class Einsum(OnnxOpConverter):
