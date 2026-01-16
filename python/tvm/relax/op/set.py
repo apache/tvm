@@ -160,20 +160,10 @@ def numpy_unique(
             inverse_mapping = np.empty_like(sort_order)
             inverse_mapping[sort_order] = np.arange(len(sort_order))
             inverse_indices = inverse_mapping[inverse_indices]
-        # ONNX spec: inverse_indices shape depends on axis
-        if axis is None:
-            # When axis is None, flatten to 1D
-            inverse_indices = inverse_indices.flatten()
-        else:
-            # When axis is specified, reshape to input shape
-            # numpy returns 1D inverse_indices with length = input.shape[axis]
-            # We need to reshape it to have the same shape as input
-            new_shape = list(x_numpy.shape)
-            new_shape[axis] = 1
-            inverse_indices = np.broadcast_to(
-                inverse_indices.reshape([-1 if i == axis else 1 for i in range(len(new_shape))]),
-                x_numpy.shape,
-            )
+        # ONNX spec: inverse_indices is always 1D
+        # When axis is None, it has length X.size (flattened)
+        # When axis is specified, it has length X.shape[axis]
+        # numpy.unique already returns 1D inverse_indices, so no reshaping needed
         output_list.append(tvm.runtime.tensor(inverse_indices))
         result_idx += 1
 

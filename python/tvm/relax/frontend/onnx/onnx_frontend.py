@@ -3249,12 +3249,10 @@ class Unique(OnnxOpConverter):
             tuple_idx += 1
 
         if return_inverse:
-            # When axis is None, inverse_indices is flattened (1D)
-            # When axis is specified, inverse_indices has the same shape as input
-            if axis is None:
-                inverse_shape = (tir.Var("inverse_numbers", "int64"),)
-            else:
-                inverse_shape = input_shape
+            # ONNX spec: inverse_indices is always 1D
+            # When axis is None: shape is [X.size]
+            # When axis is specified: shape is [X.shape[axis]]
+            inverse_shape = (tir.Var("inverse_numbers", "int64"),)
             inverse_sinfo = relax.TensorStructInfo(inverse_shape, "int64")
             outputs.append(bb.match_cast(unique[tuple_idx], inverse_sinfo))
             tuple_idx += 1

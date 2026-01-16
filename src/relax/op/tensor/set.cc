@@ -114,17 +114,13 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
     output_sinfo.push_back(index_sinfo);
   }
 
-  // inverse_indices: 1D when axis is None, same ndim as input when axis is specified
+  // inverse_indices: always 1D per ONNX spec
   if (f_convert_to_int64(return_inverse->value)) {
     TensorStructInfo inverse_sinfo{nullptr};
     if (data_sinfo->ndim == 0) {
       inverse_sinfo = TensorStructInfo(ShapeExpr({IntImm(DataType::Int(64), /*value=*/1)}),
                                        DataType::Int(64), data_sinfo->vdevice);
-    } else if (axis.defined()) {
-      // When axis is specified, inverse_indices has the same ndim as input
-      inverse_sinfo = TensorStructInfo(DataType::Int(64), data_sinfo->ndim, data_sinfo->vdevice);
     } else {
-      // When axis is None, inverse_indices is 1D (flattened)
       inverse_sinfo = TensorStructInfo(DataType::Int(64), /*ndim=*/1, data_sinfo->vdevice);
     }
     output_sinfo.push_back(inverse_sinfo);
