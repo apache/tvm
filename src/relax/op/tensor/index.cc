@@ -574,7 +574,8 @@ TVM_REGISTER_OP("relax.dynamic_strided_slice")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDynStridedSlice)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutDynStridedSlice)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<Bool>("FPurity", Bool(true))
+    .set_attr<Bool>("FDataDependent", Bool(true));
 
 }  // namespace relax
 }  // namespace tvm
