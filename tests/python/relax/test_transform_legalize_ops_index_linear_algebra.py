@@ -1204,7 +1204,7 @@ def test_data_dependent_attribute():
     assert dynamic_strided_slice_op.get_attr("FDataDependent")
 
     strided_slice_op = Op.get("relax.strided_slice")
-    assert not strided_slice_op.has_attr("FDataDependent")
+    assert strided_slice_op.get_attr("FDataDependent") is None
 
 
 if __name__ == "__main__":
