@@ -16,10 +16,12 @@
 # under the License.
 
 import tvm
-from tvm.relax.transform import LegalizeOps
-from tvm.script import relax as R, tir as T, ir as I
 import tvm.testing
-
+from tvm.ir import Op
+from tvm.relax.transform import LegalizeOps
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 ##################### Indexing #####################
 
@@ -1195,6 +1197,14 @@ def test_einsum_symbolic():
 
     mod = LegalizeOps()(Einsum)
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_data_dependent_attribute():
+    dynamic_strided_slice_op = Op.get("relax.dynamic_strided_slice")
+    assert dynamic_strided_slice_op.get_attr("FDataDependent")
+
+    strided_slice_op = Op.get("relax.strided_slice")
+    assert not strided_slice_op.has_attr("FDataDependent")
 
 
 if __name__ == "__main__":

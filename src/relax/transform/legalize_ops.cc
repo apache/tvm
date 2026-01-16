@@ -287,8 +287,15 @@ class LegalizeMutator : public ExprMutator {
         return false;
       }
 
-      std::string op_name(op->name);
-      bool is_data_dependent_op = (op_name.find("dynamic") != std::string::npos);
+      bool is_data_dependent_op = [&]() -> bool {
+        if (Op::HasAttrMap("FDataDependent")) {
+          auto op_map = Op::GetAttrMap<Bool>("FDataDependent");
+          if (op_map.count(op)) {
+            return op_map[op]->value;
+          }
+        }
+        return false;
+      }();
       bool ret_shape_defined = KnowAllShapeValues(GetStructInfo(visited_call));
       if (!is_data_dependent_op && !ret_shape_defined) {
         // This operator cannot be legalized, because legalization by
@@ -303,10 +310,6 @@ class LegalizeMutator : public ExprMutator {
         // data-dependent op, and match cast to define symbolic output
         // shapes.  These symbolic output shapes at compile time can
         // be by later operations to refer to the runtime shape.
-        //
-        // TODO(Lunderberg): Make a new operator attribute
-        // `.set_attr<Bool>("DataDependent")`, rather than relying on
-        // the name of the operator.
         return false;
       }
 
