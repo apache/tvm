@@ -2235,7 +2235,10 @@ class Resize(OnnxOpConverter):
 
         # Adapt attributes to fit TVM definition.
         if mode == "nearest":
-            mode = "nearest_neighbor"
+            relax_mode = "nearest_neighbor"
+        else:
+            relax_mode = mode
+        topi_mode = relax_mode
 
         # Unpack inputs.
         x = inputs[0]
@@ -2243,7 +2246,7 @@ class Resize(OnnxOpConverter):
         scales = get_constant(inputs[2], params)
         sizes = get_constant(inputs[3], params)
         ndims = len(x.struct_info.shape)
-        assert ndims == 4, "Only resize2d is currently supported."
+        assert ndims in (3, 4, 5), "Only resize1d/resize2d/resize3d are supported."
 
         assert (
             scales is None or sizes is None
@@ -2253,6 +2256,8 @@ class Resize(OnnxOpConverter):
         if roi is not None:
             if isinstance(roi, relax.Constant):
                 roi = roi.data.numpy().tolist()
+                if len(roi) == 2 * ndims:
+                    roi = roi[2:ndims] + roi[ndims + 2 : 2 * ndims]
             else:
                 roi = relax.op.concat(
                     [
@@ -2262,9 +2267,9 @@ class Resize(OnnxOpConverter):
                     axis=0,
                 )
                 # TODO The backend C++ func resize2d does not support dynamic ROI for now.
-                raise NotImplementedError("Dynamic ROI is not supported in resize2d for now.")
+                raise NotImplementedError("Dynamic ROI is not supported in resize for now.")
         else:
-            roi = [0.0] * 4
+            roi = [0.0] * (2 * (ndims - 2))
 
         # Convert scales to sizes if needed.
         if scales is not None:
@@ -2287,17 +2292,45 @@ class Resize(OnnxOpConverter):
             else:
                 assert f"Type {type(size)} for size is currently unsupported."
 
-        return relax.op.image.resize2d(
+        if ndims == 3:
+            return bb.emit_te(
+                topi.image.resize1d,
+                x,
+                roi,
+                sizes,
+                "NCW",
+                topi_mode,
+                coord_mode,
+                rounding_method,
+                cubic_coeff_a,
+                exclude_outside,
+                extrapolation_value,
+            )
+        if ndims == 4:
+            return relax.op.image.resize2d(
+                x,
+                size=relax.ShapeExpr(sizes),
+                roi=roi,
+                layout="NCHW",
+                method=relax_mode,
+                coordinate_transformation_mode=coord_mode,
+                rounding_method=rounding_method,
+                cubic_alpha=cubic_coeff_a,
+                cubic_exclude=exclude_outside,
+                extrapolation_value=extrapolation_value,
+            )
+        return bb.emit_te(
+            topi.image.resize3d,
             x,
-            size=relax.ShapeExpr(sizes),
-            roi=roi,
-            layout="NCHW",
-            method=mode,
-            coordinate_transformation_mode=coord_mode,
-            rounding_method=rounding_method,
-            cubic_alpha=cubic_coeff_a,
-            cubic_exclude=exclude_outside,
-            extrapolation_value=extrapolation_value,
+            roi,
+            sizes,
+            "NCDHW",
+            topi_mode,
+            coord_mode,
+            rounding_method,
+            cubic_coeff_a,
+            exclude_outside,
+            extrapolation_value,
         )
 
 
