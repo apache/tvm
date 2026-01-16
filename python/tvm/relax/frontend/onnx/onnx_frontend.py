@@ -3263,8 +3263,12 @@ class HardSigmoid(OnnxOpConverter):
         else:
             is_nan = relax.op.not_equal(x, x)
 
+        # Replace NaN with 0 for computation to avoid NaN propagation through clip
+        zero_const = relax.const(0.0, dtype=dtype)
+        x_safe = relax.op.where(is_nan, zero_const, x)
+
         # Apply the standard HardSigmoid computation: max(0, min(1, alpha * x + beta))
-        transformed = relax.op.add(relax.op.multiply(alpha_const, x), beta_const)
+        transformed = relax.op.add(relax.op.multiply(alpha_const, x_safe), beta_const)
         clipped = relax.op.clip(transformed, 0, 1)
 
         # Preserve NaN values using where: if is_nan, return x (which contains NaN), else return clipped
