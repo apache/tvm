@@ -1125,6 +1125,32 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.shape_of", MakeShapeOf);
 }
 
+// size
+
+StructInfo InferStructInfoSize(const Call& call, const BlockBuilder& ctx) {
+  auto arg_sinfo = GetStructInfo(call->args[0]);
+  auto* tensor_sinfo = GetStructInfo(call->args[0]).as<TensorStructInfoNode>();
+  CHECK(tensor_sinfo) << "size expects a tensor input, but received " << arg_sinfo
+                      << "; use MatchCast if necessary";
+  return TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>{}), DataType::Int(64));
+}
+
+TVM_REGISTER_OP("relax.size")
+    .set_num_inputs(1)
+    .add_argument("input", "Expr", "The input tensor")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSize)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+Expr MakeSize(Expr expr) {
+  static const Op& op = Op::Get("relax.size");
+  return Call(op, {expr}, {}, {});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.size", MakeSize);
+}
+
 // tensor_to_shape
 
 StructInfo ReturnTensorToShapeStructInfo(const Call& call, const BlockBuilder& ctx) {

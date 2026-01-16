@@ -634,6 +634,22 @@ def shape_of(expr: Expr) -> Expr:
     return _ffi_api.shape_of(expr)  # type: ignore # pylint: disable=no-member
 
 
+def size(expr: Expr) -> Expr:
+    """Get the total number of elements in a tensor.
+
+    Parameters
+    ----------
+    expr : Expr
+        The input tensor.
+
+    Returns
+    -------
+    result : Expr
+        A scalar tensor of dtype int64 containing the total number of elements.
+    """
+    return _ffi_api.size(expr)  # type: ignore # pylint: disable=no-member
+
+
 def tensor_to_shape(expr: Expr) -> Expr:
     """Convert tensor to shape expr.
     Parameters
@@ -777,11 +793,13 @@ def call_pure_packed(
         sinfo_args = [sinfo_args]
 
     sinfo_args = [
-        sinfo()
-        if callable(sinfo)
-        else sinfo.asobject()
-        if isinstance(sinfo, ObjectConvertible)
-        else sinfo
+        (
+            sinfo()
+            if callable(sinfo)
+            else sinfo.asobject()
+            if isinstance(sinfo, ObjectConvertible)
+            else sinfo
+        )
         for sinfo in sinfo_args
     ]
 
