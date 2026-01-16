@@ -2681,6 +2681,41 @@ def test_resize(with_roi, roi_list):
     check_correctness(model)
 
 
+def test_resize_nd_sizes():
+    cases = [
+        ("resize1d", [1, 1, 4], [1, 1, 7]),
+        ("resize2d", [1, 1, 4, 5], [1, 1, 6, 7]),
+        ("resize3d", [1, 1, 3, 4, 5], [1, 1, 4, 6, 7]),
+    ]
+
+    for name, input_shape, sizes in cases:
+        resize_node = helper.make_node(
+            "Resize",
+            ["X", "", "", "sizes"],
+            ["Y"],
+            mode="nearest",
+            coordinate_transformation_mode="asymmetric",
+            nearest_mode="floor",
+        )
+
+        graph = helper.make_graph(
+            [resize_node],
+            name,
+            inputs=[
+                helper.make_tensor_value_info("X", TensorProto.FLOAT, input_shape),
+            ],
+            initializer=[
+                helper.make_tensor("sizes", TensorProto.INT64, [len(sizes)], sizes),
+            ],
+            outputs=[
+                helper.make_tensor_value_info("Y", TensorProto.FLOAT, sizes),
+            ],
+        )
+
+        model = helper.make_model(graph, producer_name=name)
+        check_correctness(model, opset=18)
+
+
 def test_einsum():
     eqn = "ij->i"
     einsum_node = helper.make_node("Einsum", ["x"], ["y"], equation=eqn)
