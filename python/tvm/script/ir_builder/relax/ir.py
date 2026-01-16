@@ -163,6 +163,7 @@ from tvm.relax.op import (
     sign,
     sin,
     sinh,
+    size,
     slice_scatter,
     sort,
     split,
@@ -435,9 +436,7 @@ def call_packed(
         (
             sinfo()
             if callable(sinfo)
-            else sinfo.asobject()
-            if isinstance(sinfo, ObjectConvertible)
-            else sinfo
+            else sinfo.asobject() if isinstance(sinfo, ObjectConvertible) else sinfo
         )
         for sinfo in sinfo_args
     ]
@@ -490,9 +489,7 @@ def call_py_func(
         (
             sinfo()
             if callable(sinfo)
-            else sinfo.asobject()
-            if isinstance(sinfo, ObjectConvertible)
-            else sinfo
+            else sinfo.asobject() if isinstance(sinfo, ObjectConvertible) else sinfo
         )
         for sinfo in out_sinfo
     ]
@@ -938,6 +935,7 @@ __all__ = [
     "shape",
     "shape_of",
     "ShapeExpr",
+    "size",
     "std",
     "str",
     "sum",
