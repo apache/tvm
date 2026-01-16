@@ -3161,11 +3161,10 @@ class EmbedLayerNormalization(OnnxOpConverter):
 
         if pos_ids is None:
             pos_ids = relax.const([list(range(seq_len))] * batch_size, dtype="int64")
-        # TODO(jwfromm) Replace with relax ops once take has better support.
-        word_vec = bb.emit_te(topi.take, word_emb, input_ids, 0)
+        word_vec = relax.op.take(word_emb, input_ids, axis=0)
         if segment_ids:
-            segment_vec = bb.emit_te(topi.take, segment_emb, segment_ids, 0)
-        pos_vec = bb.emit_te(topi.take, pos_emb, pos_ids, 0)
+            segment_vec = relax.op.take(segment_emb, segment_ids, axis=0)
+        pos_vec = relax.op.take(pos_emb, pos_ids, axis=0)
 
         vec_sum = relax.op.add(word_vec, pos_vec)
         if segment_ids:
@@ -3323,15 +3322,11 @@ class DepthToSpace(OnnxOpConverter):
         mode = attr.get("mode", b"DCR").decode("utf-8")
         b, c, h, w = inputs[0].struct_info.shape
         if mode == "DCR":
-            x = relax.op.reshape(
-                inputs[0], (b, block_size, block_size, c // (block_size**2), h, w)
-            )
+            x = relax.op.reshape(inputs[0], (b, block_size, block_size, c // (block_size**2), h, w))
             x = relax.op.permute_dims(x, [0, 3, 4, 1, 5, 2])
             return relax.op.reshape(x, (b, c // (block_size**2), h * block_size, w * block_size))
         elif mode == "CRD":
-            x = relax.op.reshape(
-                inputs[0], (b, c // (block_size**2), block_size, block_size, h, w)
-            )
+            x = relax.op.reshape(inputs[0], (b, c // (block_size**2), block_size, block_size, h, w))
             x = relax.op.permute_dims(x, [0, 1, 4, 2, 5, 3])
             return relax.op.reshape(x, (b, c // (block_size**2), h * block_size, w * block_size))
         else:
