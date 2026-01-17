@@ -45,7 +45,7 @@ import subprocess
 # Two tag formats are supported:
 # - vMAJ.MIN.PATCH (e.g. v0.8.0) or
 # - vMAJ.MIN.devN (e.g. v0.8.dev0)
-__version__ = "0.23.dev0"
+__version__ = "0.24.dev0"
 
 # ---------------------------------------------------
 
