@@ -928,7 +928,7 @@ llvm::Value* CodeGenLLVM::CreateCast(DataType from, DataType to, llvm::Value* va
   } else if (to.is_bool()) {
     if (from.is_float()) {
       llvm::Constant* zero = llvm::ConstantFP::get(DTypeToLLVMType(from), 0.);
-      return builder_->CreateFCmpONE(value, zero);
+      return builder_->CreateFCmpUNE(value, zero);
     } else {
       llvm::Constant* zero = llvm::ConstantInt::get(DTypeToLLVMType(from), 0);
       return builder_->CreateICmpNE(value, zero);
