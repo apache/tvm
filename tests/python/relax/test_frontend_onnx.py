@@ -1673,6 +1673,33 @@ def test_embedlayernormalization():
     )
 
 
+def test_local_response_norm():
+    lrn_node = helper.make_node(
+        op_type="LRN",
+        inputs=["input"],
+        outputs=["output"],
+        name="LRN_Node",
+        alpha=0.0001,
+        beta=0.75,
+        bias=1.0,
+        size=3,
+    )
+
+    graph = helper.make_graph(
+        [lrn_node],
+        "local_response_norm_test",
+        inputs=[
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 3, 32, 32]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("output", TensorProto.FLOAT, [1, 3, 32, 32]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="local_response_norm_test")
+    check_correctness(model)
+
+
 def create_reduce_test_parameters_axes_attr():
     output = []
     for value in [True, False]:
