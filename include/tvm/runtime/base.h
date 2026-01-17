@@ -29,7 +29,7 @@
 #include <tvm/ffi/c_api.h>
 
 // TVM version
-#define TVM_VERSION "0.23.0"
+#define TVM_VERSION "0.24.dev0"
 
 // define extra macros for TVM DLL exprt
 #ifdef __EMSCRIPTEN__
