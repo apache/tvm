@@ -8787,5 +8787,33 @@ def test_upsample_nearest2d():
     verify_model(UpsampleNearest2dSize(), example_args, {}, expected_size)
 
 
+def test_from_exported_program_sparse_csr_buffer():
+    if not hasattr(torch, "sparse_csr"):
+        pytest.skip("sparse CSR tensor is not supported in this PyTorch build")
+
+    class SparseCsrBufferModule(nn.Module):
+        def __init__(self):
+            super().__init__()
+            crow_indices = torch.tensor([0, 1, 2], dtype=torch.int64)
+            col_indices = torch.tensor([0, 1], dtype=torch.int64)
+            values = torch.tensor([1.0, 1.0], dtype=torch.float32, requires_grad=True)
+            csr_tensor = torch.sparse_csr_tensor(
+                crow_indices, col_indices, values, dtype=torch.float32
+            )
+            self.register_buffer("csr_tensor", csr_tensor)
+            self.csr_tensor.requires_grad_(True)
+
+        def forward(self, x):
+            csr2 = self.csr_tensor.to_sparse(layout=torch.sparse_csr)
+            y = torch.matmul(csr2, x)
+            return y.sum()
+
+    model = SparseCsrBufferModule().eval()
+    x = torch.ones((2, 1), dtype=torch.float32)
+    exported_program = export(model, (x,))
+    mod = from_exported_program(exported_program)
+    assert isinstance(mod, tvm.IRModule)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
