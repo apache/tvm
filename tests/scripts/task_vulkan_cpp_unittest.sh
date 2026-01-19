@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -18,19 +18,21 @@
 
 set -euxo pipefail
 
-BUILD_DIR=$1
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
-cp ../cmake/config.cmake .
-
-echo set\(USE_OPENCL_GTEST /googletest\) >> config.cmake
-#echo set\(USE_VULKAN_GTEST /googletest\) >> config.cmake
-
-if [ -f "${ADRENO_OPENCL}/CL/cl_qcom_ml_ops.h" ] ; then
-echo set\(USE_CLML ${ADRENO_OPENCL}\) >> config.cmake
+if [ $# -gt 0 ]; then
+    BUILD_DIR="$1"
+elif [ -n "${TVM_BUILD_PATH:-}" ]; then
+    # TVM_BUILD_PATH may contain multiple space-separated paths.  If
+    # so, use the first one.
+    BUILD_DIR=$(IFS=" "; set -- $TVM_BUILD_PATH; echo $1)
+else
+    BUILD_DIR=build
 fi
-echo set\(USE_OPENCL ON\) >> config.cmake
-echo set\(USE_RPC ON\) >> config.cmake
-echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake
-echo set\(USE_LLVM ON\) >> config.cmake
-#echo set\(USE_VULKAN ON\) >> config.cmake
+
+# to avoid CI thread throttling.
+export TVM_BIND_THREADS=0
+export OMP_NUM_THREADS=1
+
+pushd "${BUILD_DIR}"
+# run cpp test executable
+./vulkan-cpptest
+popd

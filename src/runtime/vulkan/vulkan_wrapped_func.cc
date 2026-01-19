@@ -25,6 +25,7 @@
 
 #include "../file_utils.h"
 #include "vulkan_device_api.h"
+#include "vulkan_resource.h"
 
 namespace tvm {
 namespace runtime {
@@ -45,6 +46,7 @@ void VulkanWrappedFunc::Init(VulkanModuleNode* m, ObjectPtr<Object> sptr,
 void VulkanWrappedFunc::operator()(ffi::PackedArgs args, ffi::Any* rv,
                                    const ArgUnion64* pack_args) const {
   int device_id = VulkanDeviceAPI::Global()->GetActiveDeviceID();
+  const auto total_function_args = num_buffer_args_;
   auto& device = VulkanDeviceAPI::Global()->device(device_id);
   if (!scache_[device_id]) {
     scache_[device_id] = m_->GetPipeline(device_id, func_name_, num_pack_args_);
@@ -52,15 +54,37 @@ void VulkanWrappedFunc::operator()(ffi::PackedArgs args, ffi::Any* rv,
   const auto& pipeline = scache_[device_id];
   ThreadWorkLoad wl = launch_param_config_.Extract(args);
   std::vector<VkDescriptorBufferInfo> descriptor_buffers;
-  descriptor_buffers.resize(num_buffer_args_);
+  std::vector<VkDescriptorImageInfo> descriptor_images;
+
+  descriptor_buffers.reserve(num_buffer_args_);
+  descriptor_images.reserve(num_buffer_args_);
+
   for (size_t i = 0; i < num_buffer_args_; ++i) {
-    void* buf = args[static_cast<int>(i)].cast<void*>();
-    VkDescriptorBufferInfo binfo;
-    binfo.buffer = static_cast<VulkanBuffer*>(buf)->buffer;
-    binfo.offset = 0;
-    binfo.range = VK_WHOLE_SIZE;
-    descriptor_buffers[i] = binfo;
+    void* res_ = args[static_cast<int>(i)].cast<void*>();
+    VulkanResource* res = static_cast<VulkanResource*>(res_);
+
+    if (auto* buffer = dynamic_cast<VulkanBuffer*>(res)) {
+      VkDescriptorBufferInfo binfo;
+      binfo.buffer = buffer->buffer;
+      binfo.offset = 0;
+      binfo.range = VK_WHOLE_SIZE;
+      descriptor_buffers.push_back(binfo);
+    } else if (auto* image = dynamic_cast<VulkanImage*>(res)) {
+      VkDescriptorImageInfo iinfo;
+      iinfo.imageView = image->imageView;
+      iinfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+      descriptor_images.push_back(iinfo);
+    }
   }
+
+  // Check that the total number of descriptors matches num_buffer_args_
+  if (descriptor_buffers.size() + descriptor_images.size() != num_buffer_args_) {
+    std::cerr << "Error: The number of buffers and images does not match num_buffer_args_"
+              << std::endl;
+    // Handle the error appropriately (e.g., throw an exception, return, etc.)
+    throw std::runtime_error("Mismatch in the number of function arguments and descriptor sets.");
+  }
+
   const size_t nbytes_scalars = num_pack_args_ * sizeof(ArgUnion64);
   if (pipeline->use_ubo) {
     auto& ubo = device.ThreadLocalUniformBuffer(nbytes_scalars);
@@ -71,13 +95,39 @@ void VulkanWrappedFunc::operator()(ffi::PackedArgs args, ffi::Any* rv,
     descriptor_buffers.push_back(binfo);
   }
   if (device.UseImmediate()) {
+    std::vector<uint8_t> descriptor_data;
+    descriptor_data.resize(descriptor_buffers.size() * sizeof(VkDescriptorBufferInfo) +
+                           descriptor_images.size() * sizeof(VkDescriptorImageInfo));
+
+    size_t offset = 0;
+    size_t buffer_idx = 0, image_idx = 0;
+
+    for (size_t i = 0; i < total_function_args; ++i) {
+      void* res_ = args[static_cast<int>(i)].cast<void*>();
+      VulkanResource* res = static_cast<VulkanResource*>(res_);
+      if (dynamic_cast<VulkanBuffer*>(res)) {
+        std::memcpy(descriptor_data.data() + offset, &descriptor_buffers[buffer_idx++],
+                    sizeof(VkDescriptorBufferInfo));
+        offset += sizeof(VkDescriptorBufferInfo);
+      } else if (dynamic_cast<VulkanImage*>(res)) {
+        std::memcpy(descriptor_data.data() + offset, &descriptor_images[image_idx++],
+                    sizeof(VkDescriptorImageInfo));
+        offset += sizeof(VkDescriptorImageInfo);
+      }
+    }
+
+    if (pipeline->use_ubo) {
+      std::memcpy(descriptor_data.data() + offset, &descriptor_buffers[buffer_idx++],
+                  sizeof(VkDescriptorBufferInfo));
+      offset += sizeof(VkDescriptorBufferInfo);
+    }
     // Can safely capture by reference as this lambda is immediately executed on the calling thread.
     device.ThreadLocalStream().Launch([&](VulkanStreamState* state) {
       vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
       ICHECK(pipeline->descriptor_update_template != VK_NULL_HANDLE);
       device.descriptor_template_khr_functions->vkCmdPushDescriptorSetWithTemplateKHR(
           state->cmd_buffer_, pipeline->descriptor_update_template, pipeline->pipeline_layout, 0,
-          descriptor_buffers.data());
+          descriptor_data.data());
 
       if (pipeline->use_ubo) {
         auto& ubo = device.ThreadLocalUniformBuffer(nbytes_scalars);
@@ -101,7 +151,7 @@ void VulkanWrappedFunc::operator()(ffi::PackedArgs args, ffi::Any* rv,
 
       if (device.UseDebugUtilsLabel()) {
         VkDebugUtilsLabelEXT dispatch_label = {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
-                                               nullptr,
+                                               NULL,
                                                func_name_.c_str(),
                                                {0.0f, 0.0f, 0.0f, 0.0f}};
         device.queue_insert_debug_utils_label_functions->vkQueueInsertDebugUtilsLabelEXT(
@@ -113,29 +163,38 @@ void VulkanWrappedFunc::operator()(ffi::PackedArgs args, ffi::Any* rv,
 
   // Otherwise, the more expensive deferred path.
   std::vector<ArgUnion64> pack_args_storage(pack_args, pack_args + num_pack_args_);
-  const auto& deferred_initializer = [&device, pipeline, descriptor_buffers]() {
+  const auto& deferred_initializer = [&device, pipeline, descriptor_buffers, descriptor_images,
+                                      args, total_function_args]() {
     std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-    write_descriptor_sets.resize(descriptor_buffers.size());
-    for (size_t i = 0; i < write_descriptor_sets.size(); i++) {
-      write_descriptor_sets[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-      write_descriptor_sets[i].pNext = nullptr;
-      write_descriptor_sets[i].dstSet = pipeline->descriptor_set;
-      write_descriptor_sets[i].dstBinding = i;
-      write_descriptor_sets[i].dstArrayElement = 0;
-      write_descriptor_sets[i].descriptorCount = 1;
-      write_descriptor_sets[i].pImageInfo = nullptr;
-      write_descriptor_sets[i].pBufferInfo = &(descriptor_buffers[i]);
-      write_descriptor_sets[i].pTexelBufferView = nullptr;
+    write_descriptor_sets.reserve(descriptor_buffers.size() + descriptor_images.size());
 
-      if (pipeline->use_ubo && i == write_descriptor_sets.size() - 1) {
-        // The last binding is for UBO
-        write_descriptor_sets[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-      } else {
-        write_descriptor_sets[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    size_t buffer_idx = 0, image_idx = 0;
+    // Iterate over the arguments to determine their bindings
+    for (size_t i = 0; i < total_function_args; ++i) {
+      void* res_ = args[static_cast<int>(i)].cast<void*>();
+      VulkanResource* res = static_cast<VulkanResource*>(res_);
+      VkWriteDescriptorSet write_set = {};
+      write_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+      write_set.pNext = nullptr;
+      write_set.dstSet = pipeline->descriptor_set;
+      write_set.dstBinding = i;
+      write_set.dstArrayElement = 0;
+      write_set.descriptorCount = 1;
+      if (dynamic_cast<VulkanBuffer*>(res)) {
+        write_set.descriptorType =
+            (buffer_idx == descriptor_buffers.size() - 1 && pipeline->use_ubo)
+                ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+                : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        write_set.pBufferInfo = &(descriptor_buffers[buffer_idx++]);
+        write_descriptor_sets.push_back(write_set);
+      } else if (dynamic_cast<VulkanImage*>(res)) {
+        write_set.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        write_set.pImageInfo = &(descriptor_images[image_idx++]);
+        write_descriptor_sets.push_back(write_set);
       }
     }
     vkUpdateDescriptorSets(device, write_descriptor_sets.size(), write_descriptor_sets.data(), 0,
-                           nullptr);
+                           0);
   };
   const auto& deferred_kernel = [this, pipeline, wl, pack_args_storage, nbytes_scalars,
                                  device_id](VulkanStreamState* state) {
@@ -176,7 +235,7 @@ void VulkanWrappedFunc::operator()(ffi::PackedArgs args, ffi::Any* rv,
 
   if (device.UseDebugUtilsLabel()) {
     VkDebugUtilsLabelEXT dispatch_label = {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
-                                           nullptr,
+                                           NULL,
                                            func_name_.c_str(),
                                            {0.0f, 0.0f, 0.0f, 0.0f}};
     device.queue_insert_debug_utils_label_functions->vkQueueInsertDebugUtilsLabelEXT(
@@ -278,8 +337,15 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
       tpl.dstArrayElement = 0;
       tpl.descriptorCount = 1;
       tpl.descriptorType = desc_type;
-      tpl.offset = binding * sizeof(VkDescriptorBufferInfo);
-      tpl.stride = sizeof(VkDescriptorBufferInfo);
+
+      // Choose the appropriate size for image descriptors
+      if (desc_type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE) {
+        tpl.offset = binding * sizeof(VkDescriptorImageInfo);
+        tpl.stride = sizeof(VkDescriptorImageInfo);
+      } else {
+        tpl.offset = binding * sizeof(VkDescriptorBufferInfo);
+        tpl.stride = sizeof(VkDescriptorBufferInfo);
+      }
       arg_template.push_back(tpl);
     }
   };
@@ -287,10 +353,17 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   {
     auto fit = fmap_.find(func_name);
     ICHECK(fit != fmap_.end());
-    for (DLDataType arg_type : fit->second.arg_types) {
-      if (arg_type.code == kDLOpaqueHandle) {
-        push_arg_info(num_buffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
-        ++num_buffer;
+    const auto& info = fit->second;
+
+    for (size_t i = 0; i < info.arg_types.size(); ++i) {
+      if (info.arg_types[i].code == kDLOpaqueHandle) {
+        if (runtime::IsTextureStorage(info.storage_scopes[i])) {
+          push_arg_info(num_buffer, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+          ++num_buffer;  // Increment num_image here
+        } else {
+          push_arg_info(num_buffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+          ++num_buffer;  // Increment num_buffer here
+        }
       } else {
         ++num_pod;
       }

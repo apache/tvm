@@ -838,6 +838,14 @@ def _multi_gpu_exists():
     )
 
 
+def _check_opencl_vulkan():
+    return (
+        (_cmake_flag_enabled("USE_OPENCL") and tvm.opencl(0).exist)
+        or (_cmake_flag_enabled("USE_VULKAN") and tvm.vulkan(0).exist)
+        or "RPC_TARGET" in os.environ
+    )
+
+
 # Mark a test as requiring llvm to run
 requires_llvm = Feature(
     "llvm", "LLVM", cmake_flag="USE_LLVM", target_kind_enabled="llvm", target_kind_hardware="llvm"
@@ -976,8 +984,8 @@ requires_vulkan = Feature(
     "Vulkan",
     cmake_flag="USE_VULKAN",
     target_kind_enabled="vulkan",
-    target_kind_hardware="vulkan",
-    parent_features="gpu",
+    target_kind_hardware="vulkan" if "RPC_TARGET" not in os.environ else None,
+    parent_features="gpu" if "RPC_TARGET" not in os.environ else None,
 )
 
 # Mark a test as requiring OpenCLML support in build.
@@ -986,6 +994,13 @@ requires_openclml = Feature(
     "CLML",
     cmake_flag="USE_CLML",
     target_kind_enabled="opencl",
+)
+
+requires_opencl_vulkan = Feature(
+    "opencl_vulkan",
+    "OpenCL or Vulkan",
+    run_time_check=_check_opencl_vulkan,
+    parent_features=["opencl", "vulkan"],
 )
 
 # Mark a test as requiring NNAPI support in build.
