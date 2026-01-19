@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "vulkan_device_api.h"
+#include "vulkan_resource.h"
 
 namespace tvm {
 namespace runtime {
@@ -29,6 +30,7 @@ namespace vulkan {
 
 VkBufferCreateInfo MakeBufferCreateInfo(size_t nbytes, VkBufferUsageFlags usage) {
   VkBufferCreateInfo info = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+
   info.size = nbytes;
   // Since sharingMode is not VK_SHARING_MODE_CONCURRENT, no need to
   // specify the queue families.
@@ -38,46 +40,48 @@ VkBufferCreateInfo MakeBufferCreateInfo(size_t nbytes, VkBufferUsageFlags usage)
 }
 
 VulkanBuffer::VulkanBuffer(const VulkanDevice& device, size_t nbytes, VkBufferUsageFlags usage,
-                           uint32_t mem_type_index)
-    : device_(device) {
-  // Create a buffer
+                           uint32_t mem_type_index, std::optional<std::string> mem_scope,
+                           std::shared_ptr<VulkanMemory> back_memory)
+    : VulkanResource(device, mem_scope, back_memory), size(nbytes) {
   VkBufferCreateInfo buffer_info = MakeBufferCreateInfo(nbytes, usage);
   VULKAN_CALL(vkCreateBuffer(device, &buffer_info, nullptr, &buffer));
 
-  // Allocate memory
-  VkMemoryAllocateInfo mem_info = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-  mem_info.allocationSize = buffer_info.size;
-  mem_info.memoryTypeIndex = mem_type_index;
+  VkMemoryRequirements mem_reqs;
+  vkGetBufferMemoryRequirements(device, buffer, &mem_reqs);
 
-  VkMemoryDedicatedAllocateInfoKHR dedicated_info = {
-      VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR};
-
-  bool use_dedicated_allocation = UseDedicatedAllocation(device, buffer, &mem_info.allocationSize);
-  if (use_dedicated_allocation) {
-    dedicated_info.buffer = buffer;
-    mem_info.pNext = &dedicated_info;
+  // Allocate new memory if no memory is passed in or if the existing memory is not compatible
+  if (!memory) {
+    AllocateMemory(mem_reqs, mem_type_index);
   }
 
-  VULKAN_CALL(vkAllocateMemory(device, &mem_info, nullptr, &memory));
-
   // Bind the buffer to the allocated memory
-  VULKAN_CALL(vkBindBufferMemory(device, buffer, memory, 0));
+  VULKAN_CALL(vkBindBufferMemory(device, buffer, memory->memory_, 0));
+}
+
+void VulkanBuffer::AllocateMemory(const VkMemoryRequirements& mem_reqs, uint32_t mem_type_index) {
+  VkMemoryAllocateInfo mem_info = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+  mem_info.allocationSize = mem_reqs.size;
+  mem_info.memoryTypeIndex = mem_type_index;
+
+  // Allocate memory
+  VkDeviceMemory raw_memory;
+  VULKAN_CALL(vkAllocateMemory(device_, &mem_info, nullptr, &raw_memory));
+
+  // Store the allocated memory along with its requirements
+  memory = std::make_shared<VulkanMemory>(raw_memory, mem_reqs);
 }
 
 VulkanBuffer::~VulkanBuffer() {
   if (buffer) {
     vkDestroyBuffer(device_, buffer, nullptr);
-  }
-  if (memory) {
-    vkFreeMemory(device_, memory, nullptr);
+    buffer = VK_NULL_HANDLE;
   }
 }
 
 VulkanBuffer::VulkanBuffer(VulkanBuffer&& other)
-    : device_(other.device_), buffer(other.buffer), memory(other.memory) {
-  other.device_ = VK_NULL_HANDLE;
+    : VulkanResource(std::move(other)), buffer(other.buffer) {
   other.buffer = VK_NULL_HANDLE;
-  other.memory = VK_NULL_HANDLE;
+  other.size = 0;
 }
 
 VulkanBuffer& VulkanBuffer::operator=(VulkanBuffer&& other) {
@@ -115,14 +119,15 @@ bool VulkanBuffer::UseDedicatedAllocation(const VulkanDevice& device, VkBuffer b
 }
 
 VulkanHostVisibleBuffer::VulkanHostVisibleBuffer(const VulkanDevice& device, size_t nbytes,
-                                                 VkBufferUsageFlags usage, uint32_t mem_type_index)
-    : vk_buf(device, nbytes, usage, mem_type_index), size(nbytes) {
-  VULKAN_CALL(vkMapMemory(device, vk_buf.memory, 0, size, 0, &host_addr));
+                                                 VkBufferUsageFlags usage, uint32_t mem_type_index,
+                                                 std::optional<std::string> mem_scope)
+    : vk_buf(device, nbytes, usage, mem_type_index, mem_scope), size(nbytes) {
+  VULKAN_CALL(vkMapMemory(device, vk_buf.memory->memory_, 0, size, 0, &host_addr));
 }
 
 VulkanHostVisibleBuffer::~VulkanHostVisibleBuffer() {
   if (host_addr) {
-    vkUnmapMemory(vk_buf.device_, vk_buf.memory);
+    vkUnmapMemory(vk_buf.device_, vk_buf.memory->memory_);
   }
 }
 

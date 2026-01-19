@@ -63,6 +63,7 @@ enum ValueKind {
   kVectorPtr,
   kStructArrayPtr,
   kPushConstantPtr,
+  kVariablePtr,
   kFunction,
   kExtInst,
   kUniformPtr,
@@ -607,6 +608,47 @@ class IRBuilder {
    */
   Value GetSpecConst(const SType& dtype, uint64_t value);
 
+  SType f32_type() const { return t_fp32_; }
+
+  SType i32_type() const { return t_int32_; }
+
+  SType f32_v4_type() const { return t_v4_fp32_; }
+
+  // Register name to corresponding Value/VariablePointer
+  void RegisterSType(const std::string& name, SType var_stype);
+  // Query Value/VariablePointer by name
+  SType QuerySType(const std::string& name);
+  // Check whether a value has been evaluated
+  bool CheckSTypeExistence(const std::string& name);
+
+  Value MakeComposite(const SType& composite_type, const std::vector<Value>& constituents) {
+    // Create a new SSA value for the composite type
+    Value composite_value = NewValue(composite_type, kNormal);
+
+    // Begin the OpCompositeConstruct instruction
+    ib_.Begin(spv::OpCompositeConstruct)
+        .Add(composite_type)    // The type of the composite
+        .Add(composite_value);  // The resulting value
+
+    // Add each constituent value
+    for (const Value& val : constituents) {
+      ib_.Add(val);
+    }
+
+    // Commit the instruction to the function segment
+    ib_.Commit(&function_);
+
+    // Return the composite value
+    return composite_value;
+  }
+
+  spv::ImageFormat GetImageFormat(const DataType& dtype, int channels);
+
+  Value StorageImageArgument(const std::string& name, const DataType& dtype, int num_dimensions,
+                             uint32_t sampled, uint32_t descriptor_set, uint32_t binding);
+
+  SType GetStorageImageSType(const DataType& dtype, int num_dimensions, uint32_t sampled);
+
  private:
   /*!
    * \brief Create new value
@@ -679,7 +721,8 @@ class IRBuilder {
   /*! \brief glsl 450 extension */
   Value ext_glsl450_;
   /*! \brief Special cache int32, fp32, void*/
-  SType t_bool_, t_int32_, t_uint32_, t_fp32_, t_void_, t_void_func_;
+  SType t_bool_, t_int32_, t_uint32_, t_v2_int_, t_fp16_, t_fp32_, t_v4_fp32_, t_void_,
+      t_void_func_;
   /*! \brief quick cache for const one i32 */
   Value const_i32_zero_;
 
@@ -722,6 +765,9 @@ class IRBuilder {
   std::map<std::pair<uint32_t, double>, Value> composite_const_tbl_;
   /*! \brief map from name of a ExtInstImport to its value */
   std::map<std::string, Value> ext_inst_tbl_;
+
+  std::map<std::tuple<spv::ImageFormat, int, uint32_t>, SType> storage_image_ptr_tbl_;
+  std::unordered_map<std::string, SType> stype_name_tbl_;
 
   /*! \brief Header segment
    *

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
 if(USE_OPENCL)
   tvm_file_glob(GLOB RUNTIME_OPENCL_SRCS src/runtime/opencl/*.cc)
   list(APPEND COMPILER_SRCS src/target/spirv/spirv_utils.cc)
@@ -35,36 +34,15 @@ if(USE_OPENCL)
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${OpenCL_LIBRARIES})
   endif()
 
-  if(DEFINED USE_OPENCL_GTEST)
-    if(EXISTS ${USE_OPENCL_GTEST})
-        include(FetchContent)
-        FetchContent_Declare(googletest SOURCE_DIR "${USE_OPENCL_GTEST}")
-        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-        FetchContent_MakeAvailable(googletest)
-        install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
-
-        message(STATUS "Found OpenCL gtest at ${USE_OPENCL_GTEST}")
-        set(Build_OpenCL_GTests ON)
-    elseif (ANDROID_ABI AND DEFINED ENV{ANDROID_NDK_HOME})
-        set(GOOGLETEST_ROOT $ENV{ANDROID_NDK_HOME}/sources/third_party/googletest)
-        add_library(gtest_main STATIC ${GOOGLETEST_ROOT}/src/gtest_main.cc ${GOOGLETEST_ROOT}/src/gtest-all.cc)
-        target_include_directories(gtest_main PRIVATE ${GOOGLETEST_ROOT})
-        target_include_directories(gtest_main PUBLIC ${GOOGLETEST_ROOT}/include)
-        message(STATUS "Using gtest from Android NDK")
-        set(Build_OpenCL_GTests ON)
-    endif()
-
-    if(Build_OpenCL_GTests)
-        message(STATUS "Building OpenCL-Gtests")
-        tvm_file_glob(GLOB_RECURSE OPENCL_TEST_SRCS
-          "tests/cpp-runtime/opencl/*.cc"
-        )
-        add_executable(opencl-cpptest ${OPENCL_TEST_SRCS})
-        target_link_libraries(opencl-cpptest PRIVATE gtest_main tvm_runtime ${OpenCL_LIBRARIES})
-    else()
-        message(STATUS "Couldn't build OpenCL-Gtests")
-    endif()
+  if(Build_GTests)
+    message(STATUS "Building OpenCL GTests")
+    tvm_file_glob(GLOB_RECURSE OPENCL_TEST_SRCS "tests/cpp-runtime/opencl/*.cc")
+    add_executable(opencl-cpptest ${OPENCL_TEST_SRCS})
+    target_link_libraries(opencl-cpptest PRIVATE gtest_main tvm_runtime ${OpenCL_LIBRARIES})
+  else()
+    message(STATUS "Couldn't build OpenCL-Gtests")
   endif()
+
   list(APPEND RUNTIME_SRCS ${RUNTIME_OPENCL_SRCS})
   if(USE_OPENCL_ENABLE_HOST_PTR)
     add_definitions(-DOPENCL_ENABLE_HOST_PTR)
