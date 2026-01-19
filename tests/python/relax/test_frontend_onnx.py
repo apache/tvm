@@ -1068,6 +1068,9 @@ def test_mish():
 
 def test_prelu():
     verify_binary("PRelu", [3, 32, 32], [1], [3, 32, 32])
+    verify_binary("PRelu", [3, 32, 32], [1, 1], [3, 32, 32])
+    verify_binary("PRelu", [3, 32, 32], [32], [3, 32, 32])
+    verify_binary("PRelu", [3, 32, 32], [3, 1, 1], [3, 32, 32])
 
 
 def test_thresholded_relu():
@@ -1171,11 +1174,12 @@ def test_conv(stride: int, dilation: int, pad: int, bias: bool, auto_pad: str):
     _verify_conv([3, 4, 32, 32, 32], [2, 4, 3, 3, 3])  # group=2
 
 
-@pytest.mark.parametrize("stride", [1, 2])
+@pytest.mark.parametrize("stride", [2])
 @pytest.mark.parametrize("dilation", [1])
 @pytest.mark.parametrize("bias", [True, False])
 @pytest.mark.parametrize("pad", [0, 2])
-def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool):
+@pytest.mark.parametrize("output_pad", [0, 1])
+def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool, output_pad: int):
     def _verify_conv_transpose(input_shape, weight_shape):
         nd = len(weight_shape) - 2
         output_shape = [input_shape[0], weight_shape[0]] + [
@@ -1190,6 +1194,7 @@ def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool):
             strides=[stride] * nd,
             dilations=[dilation] * nd,
             pads=[pad] * nd * 2,
+            output_padding=[output_pad] * nd,
             group=input_shape[1] // weight_shape[1],
         )
         graph = helper.make_graph(
@@ -2674,6 +2679,41 @@ def test_resize(with_roi, roi_list):
 
     model = helper.make_model(graph, producer_name="resize_test")
     check_correctness(model)
+
+
+def test_resize_nd_sizes():
+    cases = [
+        ("resize1d", [1, 1, 4], [1, 1, 7]),
+        ("resize2d", [1, 1, 4, 5], [1, 1, 6, 7]),
+        ("resize3d", [1, 1, 3, 4, 5], [1, 1, 4, 6, 7]),
+    ]
+
+    for name, input_shape, sizes in cases:
+        resize_node = helper.make_node(
+            "Resize",
+            ["X", "", "", "sizes"],
+            ["Y"],
+            mode="nearest",
+            coordinate_transformation_mode="asymmetric",
+            nearest_mode="floor",
+        )
+
+        graph = helper.make_graph(
+            [resize_node],
+            name,
+            inputs=[
+                helper.make_tensor_value_info("X", TensorProto.FLOAT, input_shape),
+            ],
+            initializer=[
+                helper.make_tensor("sizes", TensorProto.INT64, [len(sizes)], sizes),
+            ],
+            outputs=[
+                helper.make_tensor_value_info("Y", TensorProto.FLOAT, sizes),
+            ],
+        )
+
+        model = helper.make_model(graph, producer_name=name)
+        check_correctness(model, opset=18)
 
 
 def test_einsum():

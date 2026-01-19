@@ -1127,7 +1127,31 @@ class PRelu(OnnxOpConverter):
     def _impl_v1(cls, bb, inputs, attr, params):
         x = inputs[0]
         slope = inputs[1]
-        return relax.op.nn.prelu(x, slope)
+
+        x_shape = x.struct_info.shape
+        slope_shape = slope.struct_info.shape
+
+        ndim = len(x_shape)
+        s_ndim = len(slope_shape)
+
+        if all(ss == 1 for ss in slope_shape) or s_ndim == 1:
+            slope = relax.op.reshape(slope, (slope_shape[0],))
+            return relax.op.nn.prelu(x, slope, ndim - 1)
+
+        if s_ndim == ndim:
+            non_one_axes = [i for i, ss in enumerate(slope_shape) if ss != 1]
+
+            # Must have only ONE non-broadcast axis
+            if len(non_one_axes) != 1:
+                raise ValueError(
+                    f"Invalid PRelu slope shape (multiple non-broadcast dims): {slope_shape}"
+                )
+            axis = non_one_axes[0]
+
+            slope = relax.op.reshape(slope, (slope_shape[axis],))
+            return relax.op.nn.prelu(x, slope, axis)
+
+        raise ValueError(f"Unsupported PRelu slope shape: {slope_shape}")
 
 
 class ThresholdedRelu(OnnxOpConverter):
@@ -1334,6 +1358,7 @@ class ConvTranspose(OnnxOpConverter):
             weight=inputs[1],
             strides=attr.get("strides", 1),
             padding=attr.get("pads", 0),
+            output_padding=attr.get("output_padding", 0),
             dilation=attr.get("dilations", 1),
             groups=attr.get("group", 1),
             data_layout=data_layout,
@@ -2210,7 +2235,10 @@ class Resize(OnnxOpConverter):
 
         # Adapt attributes to fit TVM definition.
         if mode == "nearest":
-            mode = "nearest_neighbor"
+            relax_mode = "nearest_neighbor"
+        else:
+            relax_mode = mode
+        topi_mode = relax_mode
 
         # Unpack inputs.
         x = inputs[0]
@@ -2218,7 +2246,7 @@ class Resize(OnnxOpConverter):
         scales = get_constant(inputs[2], params)
         sizes = get_constant(inputs[3], params)
         ndims = len(x.struct_info.shape)
-        assert ndims == 4, "Only resize2d is currently supported."
+        assert ndims in (3, 4, 5), "Only resize1d/resize2d/resize3d are supported."
 
         assert (
             scales is None or sizes is None
@@ -2228,6 +2256,8 @@ class Resize(OnnxOpConverter):
         if roi is not None:
             if isinstance(roi, relax.Constant):
                 roi = roi.data.numpy().tolist()
+                if len(roi) == 2 * ndims:
+                    roi = roi[2:ndims] + roi[ndims + 2 : 2 * ndims]
             else:
                 roi = relax.op.concat(
                     [
@@ -2237,9 +2267,9 @@ class Resize(OnnxOpConverter):
                     axis=0,
                 )
                 # TODO The backend C++ func resize2d does not support dynamic ROI for now.
-                raise NotImplementedError("Dynamic ROI is not supported in resize2d for now.")
+                raise NotImplementedError("Dynamic ROI is not supported in resize for now.")
         else:
-            roi = [0.0] * 4
+            roi = [0.0] * (2 * (ndims - 2))
 
         # Convert scales to sizes if needed.
         if scales is not None:
@@ -2262,18 +2292,47 @@ class Resize(OnnxOpConverter):
             else:
                 assert f"Type {type(size)} for size is currently unsupported."
 
-        return relax.op.image.resize2d(
-            x,
-            size=relax.ShapeExpr(sizes),
-            roi=roi,
-            layout="NCHW",
-            method=mode,
-            coordinate_transformation_mode=coord_mode,
-            rounding_method=rounding_method,
-            cubic_alpha=cubic_coeff_a,
-            cubic_exclude=exclude_outside,
-            extrapolation_value=extrapolation_value,
-        )
+        if ndims == 3:
+            return bb.emit_te(
+                topi.image.resize1d,
+                x,
+                roi,
+                sizes,
+                "NCW",
+                topi_mode,
+                coord_mode,
+                rounding_method,
+                cubic_coeff_a,
+                exclude_outside,
+                extrapolation_value,
+            )
+        elif ndims == 4:
+            return relax.op.image.resize2d(
+                x,
+                size=relax.ShapeExpr(sizes),
+                roi=roi,
+                layout="NCHW",
+                method=relax_mode,
+                coordinate_transformation_mode=coord_mode,
+                rounding_method=rounding_method,
+                cubic_alpha=cubic_coeff_a,
+                cubic_exclude=exclude_outside,
+                extrapolation_value=extrapolation_value,
+            )
+        else:  # ndims == 5
+            return bb.emit_te(
+                topi.image.resize3d,
+                x,
+                roi,
+                sizes,
+                "NCDHW",
+                topi_mode,
+                coord_mode,
+                rounding_method,
+                cubic_coeff_a,
+                exclude_outside,
+                extrapolation_value,
+            )
 
 
 class Einsum(OnnxOpConverter):
@@ -3136,11 +3195,10 @@ class EmbedLayerNormalization(OnnxOpConverter):
 
         if pos_ids is None:
             pos_ids = relax.const([list(range(seq_len))] * batch_size, dtype="int64")
-        # TODO(jwfromm) Replace with relax ops once take has better support.
-        word_vec = bb.emit_te(topi.take, word_emb, input_ids, 0)
+        word_vec = relax.op.take(word_emb, input_ids, axis=0)
         if segment_ids:
-            segment_vec = bb.emit_te(topi.take, segment_emb, segment_ids, 0)
-        pos_vec = bb.emit_te(topi.take, pos_emb, pos_ids, 0)
+            segment_vec = relax.op.take(segment_emb, segment_ids, axis=0)
+        pos_vec = relax.op.take(pos_emb, pos_ids, axis=0)
 
         vec_sum = relax.op.add(word_vec, pos_vec)
         if segment_ids:

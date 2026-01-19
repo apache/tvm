@@ -84,19 +84,21 @@ ffi::Any IndexIntoNestedObject(ffi::Any obj, ffi::PackedArgs args, int starting_
   return obj;
 }
 
-Tensor ConvertTensorToDevice(Tensor src, const DLDevice& dev, Allocator* alloc) {
+Tensor ConvertTensorToDevice(Tensor src, const DLDevice& dev, Allocator* alloc,
+                             ffi::String scope = "global") {
   if (src->device.device_type == dev.device_type && src->device.device_id == dev.device_id) {
     return src;
   } else {
-    auto res = alloc->Empty(src.Shape(), src->dtype, dev);
+    auto res = alloc->Empty(src.Shape(), src->dtype, dev, scope);
     res.CopyFrom(src);
     return res;
   }
 }
 
-Any ConvertObjectToDevice(Any src, const Device& dev, Allocator* alloc) {
+Any ConvertObjectToDevice(Any src, const Device& dev, Allocator* alloc,
+                          ffi::String scope = "global") {
   if (src.as<Tensor::ContainerType>()) {
-    return ConvertTensorToDevice(src.cast<Tensor>(), dev, alloc);
+    return ConvertTensorToDevice(src.cast<Tensor>(), dev, alloc, scope);
   } else if (src.as<ffi::ArrayObj>()) {
     std::vector<Any> ret;
     auto arr = src.cast<ffi::Array<Any>>();
@@ -129,10 +131,11 @@ ffi::Any ConvertArgToDevice(ffi::AnyView input, Device dev, Allocator* alloc) {
   return ret;
 }
 
-ffi::Any ConvertRegToDevice(ffi::Any input, Device dev, Allocator* alloc) {
+ffi::Any ConvertRegToDevice(ffi::Any input, Device dev, Allocator* alloc,
+                            ffi::String scope = "global") {
   ffi::Any ret;
   if (auto opt_obj = input.as<ObjectRef>()) {
-    ret = ConvertObjectToDevice(opt_obj.value(), dev, alloc);
+    ret = ConvertObjectToDevice(opt_obj.value(), dev, alloc, scope);
   } else {
     ret = input;
   }
@@ -469,11 +472,12 @@ void VirtualMachineImpl::Init(const std::vector<Device>& devices,
   }
   // Setup constant sections.
   this->const_pool_.reserve(exec_->constants.size());
-  for (const auto& constant : exec_->constants) {
-    if (auto opt_nd = constant.as<Tensor>()) {
-      this->const_pool_.push_back(ConvertRegToDevice(opt_nd.value(), devices[0], allocators[0]));
+  for (size_t i = 0; i < exec_->constants.size(); ++i) {
+    if (auto opt_nd = exec_->constants[i].as<Tensor>()) {
+      this->const_pool_.push_back(
+          ConvertRegToDevice(opt_nd.value(), devices[0], allocators[0], exec_->memory_scopes[i]));
     } else {
-      this->const_pool_.push_back(constant);
+      this->const_pool_.push_back(exec_->constants[i]);
     }
   }
   // Setup function sections.
