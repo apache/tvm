@@ -1087,6 +1087,90 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const BlockRealize& epilogue
   epilogue_expression_ = inlined_store_->value;
   reduction_buffer_load_ = loads[0];
 
+  // 5. Reject epilogues that scale the reduction result with non-additive ops
+  // For example, (reduce_out * 2.0) + C[i] is not a valid bias-style epilogue.
+  // We only allow the reduction result to be combined via Add/Min/Max shells.
+  class ScalingDetector : public ExprVisitor {
+   public:
+    explicit ScalingDetector(const Buffer& buffer) : buffer_(buffer) {}
+
+    bool HasScaling(const PrimExpr& expr) {
+      has_scaling_ = false;
+      VisitExpr(expr);
+      return has_scaling_;
+    }
+
+   private:
+    // Helper to check if a subtree contains a load from the reduction buffer
+    bool ContainsTarget(const PrimExpr& expr) {
+      class TargetFinder : public ExprVisitor {
+       public:
+        explicit TargetFinder(const Buffer& buffer) : buffer_(buffer) {}
+
+        bool Find(const PrimExpr& e) {
+          found_ = false;
+          VisitExpr(e);
+          return found_;
+        }
+
+       private:
+        void VisitExpr_(const BufferLoadNode* op) final {
+          if (op->buffer.same_as(buffer_)) {
+            found_ = true;
+            return;
+          }
+          ExprVisitor::VisitExpr_(op);
+        }
+
+        Buffer buffer_;
+        bool found_{false};
+      };
+
+      TargetFinder finder(buffer_);
+      return finder.Find(expr);
+    }
+
+    void VisitExpr_(const MulNode* op) final {
+      if (has_scaling_) return;
+      // If either operand subtree contains the reduction buffer load,
+      // we treat this as invalid scaling of the reduction result.
+      if (ContainsTarget(op->a) || ContainsTarget(op->b)) {
+        has_scaling_ = true;
+        return;
+      }
+      ExprVisitor::VisitExpr_(op);
+    }
+
+    void VisitExpr_(const DivNode* op) final {
+      if (has_scaling_) return;
+      if (ContainsTarget(op->a) || ContainsTarget(op->b)) {
+        has_scaling_ = true;
+        return;
+      }
+      ExprVisitor::VisitExpr_(op);
+    }
+
+    void VisitExpr_(const ModNode* op) final {
+      if (has_scaling_) return;
+      if (ContainsTarget(op->a) || ContainsTarget(op->b)) {
+        has_scaling_ = true;
+        return;
+      }
+      ExprVisitor::VisitExpr_(op);
+    }
+
+    Buffer buffer_;
+    bool has_scaling_{false};
+  };
+
+  {
+    ScalingDetector detector(inlined_buffer_);
+    if (detector.HasScaling(inlined_store_->value)) {
+      // Failure: Non-additive scaling of the reduction result is not supported
+      return false;
+    }
+  }
+
   // 6. Check if producer is a reduction block
   if (!IsReductionBlock(reduction_block_)) {
     // Failure: producer is not a reduction block

@@ -246,5 +246,36 @@ def test_fuse_reduction_epilogue_reject_multiple_use():
         sch.fuse_reduction_epilogue("multiply", "bad_epilogue")
 
 
+@T.prim_func
+def matmul_bias_invalid_scaling_before(
+    A: T.Buffer((16, 16), "int8"),
+    B: T.Buffer((16, 16), "int8"),
+    C: T.Buffer((16, 16), "int32"),
+    D: T.Buffer((16, 16), "int32"),
+) -> None:
+    """Epilogue scales the reduction result; fusion must be rejected."""
+    temp = T.alloc_buffer((16, 16), dtype="int32")
+    for i, j, k in T.grid(16, 16, 16):
+        with T.block("multiply"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                temp[vi, vj] = T.int32(0)
+            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(
+                B[vj, vk], "int32"
+            )
+    for i, j in T.grid(16, 16):
+        with T.block("scaled_epilogue"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            # temp[vi, vj] is scaled by 2 before adding bias; this must not be fused.
+            D[vi, vj] = temp[vi, vj] * T.int32(2) + C[vi, vj]
+
+
+def test_fuse_reduction_epilogue_reject_scaling():
+    """fusion should be rejected when the reduction result is scaled by Mul/Div/Mod."""
+    sch = tir.Schedule(matmul_bias_invalid_scaling_before, debug_mask="all")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.fuse_reduction_epilogue("multiply", "scaled_epilogue")
+
+
 if __name__ == "__main__":
     tvm.testing.main()
