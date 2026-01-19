@@ -38,6 +38,7 @@ import math
 import operator
 import re
 import warnings
+import functools
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as _np
@@ -1690,8 +1691,6 @@ class MultiInputBase(OnnxOpConverter):
             np_inputs = [inp.data.numpy() for inp in inputs]
             output = cls.numpy_op(*np_inputs)  # pylint: disable=not-callable
             return relax.const(output, output.dtype)
-
-        import functools
 
         input_shapes = [inp.struct_info.shape for inp in inputs]
         target_shape = functools.reduce(compute_broadcast_shape, input_shapes)
