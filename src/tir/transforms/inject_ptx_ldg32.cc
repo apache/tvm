@@ -41,9 +41,8 @@ class PTXRewriter : public StmtMutator {
     }
     EnsureBuffers();
     body = Allocate(addr_buffer->data, addr_buffer->dtype, addr_buffer->shape, Bool(true), body);
-    body =
-        Allocate(predicate_buffer->data, predicate_buffer->dtype, predicate_buffer->shape,
-                 Bool(true), body);
+    body = Allocate(predicate_buffer->data, predicate_buffer->dtype, predicate_buffer->shape,
+                    Bool(true), body);
     has_buffer_2 = true;
     return body;
   }
