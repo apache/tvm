@@ -1827,19 +1827,15 @@ def from_exported_program(
             return False
 
     def _has_sparse_tensors(ep: torch.export.ExportedProgram) -> bool:
-        for _, tensor in ep.named_buffers():
-            if _is_sparse_tensor(tensor):
-                return True
-        for _, tensor in ep.named_parameters():
-            if _is_sparse_tensor(tensor):
-                return True
-        for tensor in ep.constants.values():
-            if _is_sparse_tensor(tensor):
-                return True
-        for tensor in ep.tensor_constants.values():
-            if _is_sparse_tensor(tensor):
-                return True
-        return False
+        from itertools import chain
+
+        all_potential_tensors = chain(
+            (t for _, t in ep.named_buffers()),
+            (t for _, t in ep.named_parameters()),
+            ep.constants.values(),
+            ep.tensor_constants.values(),
+        )
+        return any(_is_sparse_tensor(t) for t in all_potential_tensors)
 
     # Conditionally decompose into Core ATen operators
     if run_ep_decomposition and not _has_sparse_tensors(exported_program):
