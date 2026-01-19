@@ -1695,7 +1695,6 @@ class MultiInputBase(OnnxOpConverter):
         current_target_shape = input_shapes[0]
         for next_shape in input_shapes[1:]:
             current_target_shape = compute_broadcast_shape(current_target_shape, next_shape)
-        print("target shape", current_target_shape)
 
         # broadcast_to, stack them, then perform minimum over the new axis.
         inputs = [bb.normalize(relax.op.broadcast_to(i, current_target_shape)) for i in inputs]
