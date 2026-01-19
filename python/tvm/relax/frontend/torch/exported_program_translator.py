@@ -1818,6 +1818,7 @@ def from_exported_program(
         # Use the importer to import the ExportedProgram to Relax.
         mod: tvm.IRModule = from_exported_program(exported_program)
     """
+
     def _is_sparse_tensor(value: object) -> bool:
         if not isinstance(value, torch.Tensor):
             return False
