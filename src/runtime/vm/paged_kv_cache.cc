@@ -2098,7 +2098,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     if (!append_before_attn_) {
       // The first part of attention, which only involves the q and the newly appended k/v.
       is_first_kernel = false;
-      MHASelfAttnInternal(local_layer_id, q_data, k_data, v_data, output, merged_attn_lse_view_, sm_scale);
+      MHASelfAttnInternal(
+          local_layer_id, q_data, k_data, v_data, output, merged_attn_lse_view_, sm_scale);
     }
     bool self_attn_computed = !is_first_kernel;
     bool cross_attn_computed = MHACrossAttnInternal(
@@ -2107,8 +2108,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         << "Both self-attention and cross-attention are not computed.";
   }
 
-  void MHASelfAttnInternal(int64_t local_layer_id, Tensor q_data, Tensor k_data, Tensor v_data, Tensor o_data,
-                           Tensor lse_data, double sm_scale) {
+  void MHASelfAttnInternal(int64_t local_layer_id, Tensor q_data, Tensor k_data, Tensor v_data,
+                           Tensor o_data, Tensor lse_data, double sm_scale) {
     if (is_chain_on_depths_[0]) {
       // If the batch does not form a tree, use raggedness prefill kernel.
 
@@ -2120,8 +2121,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       ICHECK_NOTNULL(f_attention_prefill_ragged_);
       f_attention_prefill_ragged_->MHA(
           q_data, k_data, v_data, cur_append_length_indptr_view_, cur_append_length_indptr_view_,
-          q_rope_position_map_view_, k_ragged_rope_pos_offset_view_, sliding_window_size, /*causal=*/true,
-          rope_mode_, rotary_scale_, rotary_theta_, sm_scale, o_data, lse_data, compute_stream_);
+          q_rope_position_map_view_, k_ragged_rope_pos_offset_view_, sliding_window_size,
+          /*causal=*/true, rope_mode_, rotary_scale_, rotary_theta_, sm_scale, o_data, lse_data,
+          compute_stream_);
     } else {
       // The batch requires tree attention.
       ICHECK(f_attention_prefill_with_tree_mask_ != nullptr)
@@ -2198,14 +2200,14 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         f_attention_prefill_with_tree_mask_paged_kv_->MHA(
             q_data, qo_indptr_on_depths_view_[d], pages_[local_layer_id], page_indptr, page_indices,
             length_info, k_rope_pos, q_rope_position_map_view_, tree_attn_mn_indptr_view_[d],
-            tree_attn_mask_view_[d], rope_mode_, rotary_scale_, rotary_theta_, sm_scale, attn_output,
-            attn_lse, compute_stream_);
+            tree_attn_mask_view_[d], rope_mode_, rotary_scale_, rotary_theta_, sm_scale,
+            attn_output, attn_lse, compute_stream_);
       } else if (use_decode_kernel_[d]) {
         // Use decode kernel for depth d
         ICHECK_NOTNULL(f_decode);
         f_decode->MHA(d, q_data, pages_[local_layer_id], page_indptr, page_indices, length_info,
-                      k_rope_pos, q_rope_position_map_view_, rope_mode_, rotary_scale_, rotary_theta_,
-                      sm_scale, attn_output, attn_lse, compute_stream_);
+                      k_rope_pos, q_rope_position_map_view_, rope_mode_, rotary_scale_,
+                      rotary_theta_, sm_scale, attn_output, attn_lse, compute_stream_);
       } else {
         // Use prefill kernel for depth d
         ICHECK_NOTNULL(f_prefill);

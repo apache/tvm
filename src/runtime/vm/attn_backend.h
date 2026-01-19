@@ -286,9 +286,10 @@ class RaggedPrefillFunc : public AttnBackendFunc {
       : AttnBackendFunc(std::move(attn_func), attn_kind, backend_kind) {}
 
   virtual void MHA(Tensor q, Tensor k, Tensor v, Tensor qo_indptr, Tensor kv_indptr,
-                   Tensor q_rope_position, Tensor k_rope_pos_offset, int sliding_window_size, bool causal,
-                   RoPEMode rope_mode, double rotary_scale, double rotary_theta, double sm_scale,
-                   Tensor attn_output, Tensor attn_lse, TVMStreamHandle compute_stream) {
+                   Tensor q_rope_position, Tensor k_rope_pos_offset, int sliding_window_size,
+                   bool causal, RoPEMode rope_mode, double rotary_scale, double rotary_theta,
+                   double sm_scale, Tensor attn_output, Tensor attn_lse,
+                   TVMStreamHandle compute_stream) {
     LOG(FATAL) << "MHA computation is not supported by the current backend";
   }
 
@@ -308,9 +309,9 @@ class TIRRaggedPrefillFunc : public RaggedPrefillFunc {
       : RaggedPrefillFunc(std::move(attn_func), attn_kind, AttnBackendKind::kTIR) {}
 
   void MHA(Tensor q, Tensor k, Tensor v, Tensor qo_indptr, Tensor kv_indptr, Tensor q_rope_position,
-           Tensor k_rope_pos_offset, int sliding_window_size, bool causal, RoPEMode rope_mode, double rotary_scale,
-           double rotary_theta, double sm_scale, Tensor attn_output, Tensor attn_lse,
-           TVMStreamHandle compute_stream) final {
+           Tensor k_rope_pos_offset, int sliding_window_size, bool causal, RoPEMode rope_mode,
+           double rotary_scale, double rotary_theta, double sm_scale, Tensor attn_output,
+           Tensor attn_lse, TVMStreamHandle compute_stream) final {
     attn_func_(q, qo_indptr, k, v, kv_indptr, q_rope_position, k_rope_pos_offset, attn_output,
                attn_lse, sliding_window_size, static_cast<int64_t>(causal),
                /*rotary_mode=*/static_cast<int64_t>(rope_mode == RoPEMode::kInline), rotary_scale,
@@ -330,9 +331,9 @@ class FlashInferRaggedPrefillFunc : public RaggedPrefillFunc {
         plan_func_(std::move(plan_func)) {}
 
   void MHA(Tensor q, Tensor k, Tensor v, Tensor qo_indptr, Tensor kv_indptr, Tensor q_rope_position,
-           Tensor k_rope_pos_offset, int sliding_window_size, bool causal, RoPEMode rope_mode, double rotary_scale,
-           double rotary_theta, double sm_scale, Tensor attn_output, Tensor attn_lse,
-           TVMStreamHandle compute_stream) final {
+           Tensor k_rope_pos_offset, int sliding_window_size, bool causal, RoPEMode rope_mode,
+           double rotary_scale, double rotary_theta, double sm_scale, Tensor attn_output,
+           Tensor attn_lse, TVMStreamHandle compute_stream) final {
     Device device = q->device;
     TVMStreamHandle original_stream = DeviceAPI::Get(device)->GetCurrentStream(device);
     DeviceAPI::Get(device)->SetStream(device, compute_stream);
