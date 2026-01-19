@@ -3309,10 +3309,19 @@ class HardSigmoid(OnnxOpConverter):
         x = inputs[0]
         dtype = x.struct_info.dtype
         alpha = float(attr.get("alpha", 0.2))
-        alpha = relax.const(alpha, dtype=dtype)
+        alpha_const = relax.const(alpha, dtype=dtype)
         beta = float(attr.get("beta", 0.5))
-        beta = relax.const(beta, dtype=dtype)
-        return relax.op.clip(relax.op.add(relax.op.multiply(alpha, x), beta), 0, 1)
+        beta_const = relax.const(beta, dtype=dtype)
+
+        is_nan = relax.op.isnan(x)
+
+        zero_const = relax.const(0.0, dtype=dtype)
+        x_safe = relax.op.where(is_nan, zero_const, x)
+
+        transformed = relax.op.add(relax.op.multiply(alpha_const, x_safe), beta_const)
+        clipped = relax.op.clip(transformed, 0, 1)
+
+        return relax.op.where(is_nan, x, clipped)
 
 
 class HardSwish(OnnxOpConverter):
