@@ -18,8 +18,9 @@
 
 set -euxo pipefail
 
-export TVM_TEST_TARGETS="opencl"
-export TVM_RELAY_OPENCL_TEXTURE_TARGETS="opencl -device=adreno"
+export TVM_TEST_TARGETS="opencl;vulkan"
+export TVM_RELAX_TEXTURE_TARGETS="opencl -device=adreno;vulkan -device=adreno"
+
 
 source tests/scripts/setup-pytest-env.sh
 export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"

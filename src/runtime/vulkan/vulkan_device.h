@@ -33,6 +33,7 @@
 #include "../thread_map.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan_buffer.h"
+#include "vulkan_image.h"
 #include "vulkan_stream.h"
 
 namespace tvm {
@@ -55,6 +56,12 @@ struct VulkanGetBufferMemoryRequirements2Functions {
   explicit VulkanGetBufferMemoryRequirements2Functions(VkDevice device);
 
   PFN_vkGetBufferMemoryRequirements2KHR vkGetBufferMemoryRequirements2KHR{nullptr};
+};
+
+struct VulkanGetImageMemoryRequirements2Functions {
+  explicit VulkanGetImageMemoryRequirements2Functions(VkDevice device);
+
+  PFN_vkGetImageMemoryRequirements2KHR vkGetImageMemoryRequirements2KHR{nullptr};
 };
 
 struct VulkanQueueInsertDebugUtilsLabelFunctions {
@@ -96,16 +103,18 @@ struct VulkanDeviceProperties {
   uint32_t max_block_size_y{1};
   uint32_t max_block_size_z{1};
   uint32_t max_push_constants_size{128};
-  uint32_t max_uniform_buffer_range{16384};
+  uint32_t max_uniform_buffer_range{65536};
   uint32_t max_storage_buffer_range{1 << 27};
   uint32_t max_per_stage_descriptor_storage_buffer{4};
-  uint32_t max_shared_memory_per_block{16384};
+  uint32_t max_shared_memory_per_block{32768};
   std::string device_type{"unknown_device_type"};
   std::string device_name{"unknown_device_name"};
   std::string driver_name{"unknown_driver_name"};
   uint32_t driver_version{0};
   uint32_t vulkan_api_version{VK_API_VERSION_1_0};
   uint32_t max_spirv_version{0x10000};
+  uint32_t image_row_align{0};
+  float timestamp_period{0};
 };
 
 /*! \brief Handle to the Vulkan API's VkDevice
@@ -219,6 +228,8 @@ class VulkanDevice {
   std::unique_ptr<VulkanDescriptorTemplateKHRFunctions> descriptor_template_khr_functions{nullptr};
   std::unique_ptr<VulkanGetBufferMemoryRequirements2Functions>
       get_buffer_memory_requirements_2_functions{nullptr};
+  std::unique_ptr<VulkanGetImageMemoryRequirements2Functions>
+      get_image_memory_requirements_2_functions{nullptr};
   std::unique_ptr<VulkanQueueInsertDebugUtilsLabelFunctions>
       queue_insert_debug_utils_label_functions{nullptr};
   // Memory type index for compute
@@ -307,6 +318,9 @@ uint32_t FindMemoryType(const VulkanDevice& device, VkBufferCreateInfo info,
                         VkMemoryPropertyFlags req_prop);
 
 VkBufferCreateInfo MakeBufferCreateInfo(size_t nbytes, VkBufferUsageFlags usage);
+
+VkImageCreateInfo MakeImageCreateInfo(VkFormat format, uint32_t width, uint32_t height,
+                                      uint32_t layers, VkImageUsageFlags usage);
 
 }  // namespace vulkan
 }  // namespace runtime

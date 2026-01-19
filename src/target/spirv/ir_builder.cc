@@ -534,6 +534,136 @@ SType IRBuilder::DeclareType(const DataType& dtype, uint32_t row, uint32_t col) 
   }
 }
 
+void IRBuilder::RegisterSType(const std::string& name, SType var_stype) {
+  auto it = stype_name_tbl_.find(name);
+  if (it != stype_name_tbl_.end()) {
+    LOG(FATAL) << name << " already exists.";
+    return;
+  }
+  stype_name_tbl_[name] = var_stype;
+}
+
+SType IRBuilder::QuerySType(const std::string& name) {
+  auto it = stype_name_tbl_.find(name);
+  if (it != stype_name_tbl_.end()) {
+    return it->second;
+  }
+  LOG(FATAL) << "Value \"" << name << "\" does not yet exist.";
+  return SType();  // Return an empty Value (this line may not be reached due to LOG(FATAL))
+}
+
+bool IRBuilder::CheckSTypeExistence(const std::string& name) {
+  return stype_name_tbl_.find(name) != stype_name_tbl_.end();
+}
+
+spv::ImageFormat IRBuilder::GetImageFormat(const DataType& dtype, int channels) {
+  // Handle float formats
+  if (dtype.is_float()) {
+    switch (dtype.bits()) {
+      case 32:
+        if (channels == 1) return spv::ImageFormatR32f;
+        if (channels == 2) return spv::ImageFormatRg32f;
+        if (channels == 4) return spv::ImageFormatRgba32f;
+        break;
+      case 16:
+        if (channels == 1) return spv::ImageFormatR16f;
+        if (channels == 2) return spv::ImageFormatRg16f;
+        if (channels == 4) return spv::ImageFormatRgba16f;
+        break;
+      default:
+        return spv::ImageFormatUnknown;
+    }
+  } else if (dtype.is_int()) {
+    switch (dtype.bits()) {
+      case 32:
+        if (channels == 1) return spv::ImageFormatR32i;
+        if (channels == 2) return spv::ImageFormatRg32i;
+        if (channels == 4) return spv::ImageFormatRgba32i;
+        break;
+      case 16:
+        if (channels == 1) return spv::ImageFormatR16i;
+        if (channels == 2) return spv::ImageFormatRg16i;
+        if (channels == 4) return spv::ImageFormatRgba16i;
+        break;
+      case 8:
+        if (channels == 1) return spv::ImageFormatR8i;
+        if (channels == 2) return spv::ImageFormatRg8i;
+        if (channels == 4) return spv::ImageFormatRgba8i;
+        break;
+      default:
+        return spv::ImageFormatUnknown;
+    }
+  }
+  return spv::ImageFormatUnknown;
+}
+
+SType IRBuilder::GetStorageImageSType(const DataType& dtype, int num_dimensions, uint32_t sampled) {
+  // Get the appropriate SPIR-V ImageFormat using the dtype
+  spv::ImageFormat spv_format = GetImageFormat(dtype, 4);
+
+  // get SPIR-V type for image
+  SType value_type = GetSType(dtype);
+  if (spv_format == spv::ImageFormatUnknown) {
+    LOG(FATAL) << "Unsupported image format for dtype: " << dtype;
+  }
+
+  // Create a key to cache and reuse image types
+  auto key = std::make_tuple(spv_format, num_dimensions, sampled);
+  auto it = storage_image_ptr_tbl_.find(key);
+  if (it != storage_image_ptr_tbl_.end()) {
+    return it->second;
+  }
+
+  // Determine the SPIR-V dimension based on the number of dimensions
+  spv::Dim dim;
+  if (num_dimensions == 1) {
+    dim = spv::Dim1D;
+  } else if (num_dimensions == 2) {
+    dim = spv::Dim2D;
+  } else if (num_dimensions == 3) {
+    dim = spv::Dim3D;
+  } else {
+    LOG(FATAL) << "Unsupported number of dimensions: " << num_dimensions;
+  }
+
+  // Generate a unique ID for the new image type
+  int img_id = id_counter_++;
+
+  // Declare the SPIR-V image type
+  ib_.Begin(spv::OpTypeImage)
+      .AddSeq(img_id, value_type, dim,
+              /*Depth=*/0, /*Arrayed=*/1, /*MS=*/0, /*Sampled=*/sampled, spv_format)
+      .Commit(&global_);
+
+  // Create and cache the new image type
+  SType img_t;
+  img_t.id = img_id;
+  img_t.element_type_id = value_type.id;
+  storage_image_ptr_tbl_[key] = img_t;
+  return img_t;
+}
+
+Value IRBuilder::StorageImageArgument(const std::string& name, const DataType& dtype,
+                                      int num_dimensions, uint32_t sampled, uint32_t descriptor_set,
+                                      uint32_t binding) {
+  auto texture_type = GetStorageImageSType(dtype, num_dimensions, sampled);
+  auto texture_ptr_type = GetPointerType(texture_type, spv::StorageClassUniformConstant);
+
+  // Store the type in the map
+  RegisterSType(name, texture_type);
+  Value val = NewValue(texture_ptr_type, kVariablePtr);
+
+  // Variable declaration
+  ib_.Begin(spv::OpVariable)
+      .AddSeq(texture_ptr_type, val, spv::StorageClassUniformConstant)
+      .Commit(&global_);
+
+  // Decorate the image argument
+  this->Decorate(spv::OpDecorate, val, spv::DecorationDescriptorSet, descriptor_set);
+  this->Decorate(spv::OpDecorate, val, spv::DecorationBinding, binding);
+  return val;
+}
+
 void IRBuilder::AddCapabilityFor(const DataType& dtype) {
   // Declare appropriate capabilities for int/float types
   if (dtype.is_int() || dtype.is_uint()) {
