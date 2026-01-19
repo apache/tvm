@@ -151,7 +151,7 @@ void VulkanWrappedFunc::operator()(ffi::PackedArgs args, ffi::Any* rv,
 
       if (device.UseDebugUtilsLabel()) {
         VkDebugUtilsLabelEXT dispatch_label = {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
-                                               NULL,
+                                               nullptr,
                                                func_name_.c_str(),
                                                {0.0f, 0.0f, 0.0f, 0.0f}};
         device.queue_insert_debug_utils_label_functions->vkQueueInsertDebugUtilsLabelEXT(
@@ -235,7 +235,7 @@ void VulkanWrappedFunc::operator()(ffi::PackedArgs args, ffi::Any* rv,
 
   if (device.UseDebugUtilsLabel()) {
     VkDebugUtilsLabelEXT dispatch_label = {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
-                                           NULL,
+                                           nullptr,
                                            func_name_.c_str(),
                                            {0.0f, 0.0f, 0.0f, 0.0f}};
     device.queue_insert_debug_utils_label_functions->vkQueueInsertDebugUtilsLabelEXT(

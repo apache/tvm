@@ -82,7 +82,6 @@ macro(find_vulkan use_vulkan use_khronos_spirv)
 
   else()
 
-  message(STATUS "__vulkan_sdk:- " ${__vulkan_sdk})
   if(__vulkan_sdk)
     set(Vulkan_INCLUDE_DIRS ${__vulkan_sdk}/include)
     find_library(Vulkan_LIBRARY NAMES vulkan vulkan-1 PATHS ${__vulkan_sdk}/lib)
