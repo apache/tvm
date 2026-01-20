@@ -512,7 +512,7 @@ def test_conv2d_conv2d_fallback_to_buffer_conv2d(target):
                 R.output(gv7)
             return gv7
 
-    verify(Input, "opencl", "vulkan")
+    verify(Input, target)
 
 
 @tvm.testing.requires_opencl_vulkan
@@ -553,7 +553,7 @@ def test_conv2d_conv2d_conv2d_concat(target):
                 R.output(gv7)
             return gv7
 
-    verify(Input, "opencl", "vulkan")
+    verify(Input, target)
 
 
 @tvm.testing.requires_opencl_vulkan
