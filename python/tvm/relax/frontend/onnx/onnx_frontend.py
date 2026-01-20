@@ -911,8 +911,7 @@ class Size(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
-        # TODO(tvm-team): add native support for size op
-        return relax.op.prod(relax.op.shape_to_tensor(relax.op.shape_of(inputs[0])))
+        return relax.op.size(inputs[0])
 
 
 class EyeLike(OnnxOpConverter):
