@@ -1000,7 +1000,7 @@ requires_opencl_vulkan = Feature(
     "opencl_vulkan",
     "OpenCL or Vulkan",
     run_time_check=_check_opencl_vulkan,
-    parent_features=["opencl", "vulkan"],
+    parent_features=["opencl", "gpu"],
 )
 
 # Mark a test as requiring NNAPI support in build.
