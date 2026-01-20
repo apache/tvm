@@ -2432,6 +2432,63 @@ class MeanVarianceNormalization(OnnxOpConverter):
         return (data - data_mean) / relax.op.sqrt(data_squared_mean - data_mean_squared)
 
 
+class LocalResponseNormalization(OnnxOpConverter):
+    """Converts an onnx LocalResponseNormalization node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v13(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        size = attr["size"]
+        alpha = attr.get("alpha", 0.0001)
+        beta = attr.get("beta", 0.75)
+        bias = attr.get("bias", 1.0)
+
+        if hasattr(data.struct_info, "ndim"):
+            ndim = data.struct_info.ndim
+        else:
+            ndim = len(data.struct_info.shape)
+
+        if ndim not in [3, 4]:
+            raise ValueError(f"LRN only supports 3D or 4D input, got {ndim}D.")
+
+        data_squared = relax.op.multiply(data, data)
+        data_expanded = relax.op.expand_dims(data_squared, axis=1)
+        pad_len = size // 2
+        if ndim == 3:
+            pool_padding = [pad_len, 0, pad_len, 0]
+            pool_op = relax.op.nn.avg_pool2d
+            pool_size = (size, 1)
+            layout = "NCHW"
+            strides = (1, 1)
+        else:
+            pool_padding = [pad_len, 0, 0, pad_len, 0, 0]
+            pool_op = relax.op.nn.avg_pool3d
+            pool_size = (size, 1, 1)
+            layout = "NCDHW"
+            strides = (1, 1, 1)
+
+        data_avgpool = pool_op(
+            data_expanded,
+            pool_size=pool_size,
+            strides=strides,
+            padding=pool_padding,
+            layout=layout,
+            ceil_mode=False,
+            count_include_pad=True,
+        )
+        data_squeezed = relax.op.squeeze(data_avgpool, axis=1)
+
+        const_alpha = relax.const(alpha, dtype="float32")
+        const_bias = relax.const(bias, dtype="float32")
+        const_beta = relax.const(beta, dtype="float32")
+
+        scale = relax.op.multiply(data_squeezed, const_alpha)
+        scale = relax.op.add(scale, const_bias)
+        denominator = relax.op.power(scale, const_beta)
+
+        return relax.op.divide(data, denominator)
+
+
 class Pool(OnnxOpConverter):
     """A helper class for pool op converters."""
 
@@ -3863,6 +3920,7 @@ def _get_convert_map():
         "EmbedLayerNormalization": EmbedLayerNormalization,
         "InstanceNormalization": InstanceNormalization,
         "MeanVarianceNormalization": MeanVarianceNormalization,
+        "LRN": LocalResponseNormalization,
         # defs/reduction
         "ReduceMax": ReduceMax,
         "ReduceMin": ReduceMin,
@@ -3902,7 +3960,6 @@ def _get_convert_map():
         "Unique": Unique,
         "NonZero": NonZero,
         # "If": If,
-        # "LRN": LRN,
         # "MaxRoiPool": MaxRoiPool,
         # "RoiAlign": RoiAlign,
         "NonMaxSuppression": NonMaxSuppression,
