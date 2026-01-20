@@ -41,6 +41,7 @@ using PassContext = tvm::transform::PassContext;
 using Function = tvm::relax::Function;
 using DataflowBlock = tvm::relax::DataflowBlock;
 using tvm::transform::CreateModulePass;
+using LayoutCb = ffi::TypedFunction<ffi::Map<ffi::String, ffi::Array<ffi::String>>(Call)>;
 
 /*!
  * \brief Create a function pass.
@@ -606,10 +607,12 @@ TVM_DLL Pass AlterOpImpl(
 /*!
  * \brief Layout conversion pass.
  * \param desired_layouts The desired layouts for some operators.
+ * \param layout_cb custom call back to define layouts dynamically.
  * \return The Pass.
  * \note Operates only on dataflow blocks. ConvertToDataflow may need to be called first.
  */
-TVM_DLL Pass ConvertLayout(ffi::Map<ffi::String, ffi::Array<ffi::String>> desired_layouts);
+TVM_DLL Pass ConvertLayout(ffi::Map<ffi::String, ffi::Array<ffi::String>> desired_layouts,
+                           LayoutCb layout_cb);
 
 /*!
  * \brief A pass that converts consecutive dataflow operations
