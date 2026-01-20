@@ -1382,7 +1382,7 @@ def ConvertLayout(
         ``{"relax.nn.conv2d": ["NHWC", "OHWI"]}``.
     layout_cb : Callable
         A user defined call back function that can dynamically handle operator layouts
-        based on Call description. desigred_layouts will be ignored if layout_cb is defined.
+        based on Call description. desired_layouts will be ignored if layout_cb is defined.
 
     Returns
     -------
