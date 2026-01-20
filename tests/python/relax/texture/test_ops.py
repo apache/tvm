@@ -474,8 +474,8 @@ def test_residual_block(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl_vulkan
-@tvm.testing.parametrize_targets("opencl", "vulkan")
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl")
 def test_conv2d_conv2d_fallback_to_buffer_conv2d(target):
     """
         layout_transform (NCHW->NCHW4c)
@@ -515,8 +515,8 @@ def test_conv2d_conv2d_fallback_to_buffer_conv2d(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl_vulkan
-@tvm.testing.parametrize_targets("opencl", "vulkan")
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl")
 def test_conv2d_conv2d_conv2d_concat(target):
     """
         layout_transform (NCHW->NCHW4c)
