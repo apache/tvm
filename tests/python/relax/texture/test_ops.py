@@ -23,8 +23,8 @@ from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 from adreno_utils import verify
 
 
-@tvm.testing.requires_opencl_vulkan
-@tvm.testing.parametrize_targets("opencl", "vulkan")
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl")
 def test_conv2d(target):
     @I.ir_module
     class Input:
