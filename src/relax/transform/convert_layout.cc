@@ -210,12 +210,12 @@ class LayoutConvertMutator : public ExprMutator {
     if (attr_map.count(op) && !HasUnknownDimTensor(call_node->args)) {
       // If the op has FRelaxInferLayout, and all the input tensors have known ndim
       FRelaxInferLayout f = attr_map[op];
+      auto call = ffi::GetRef<Call>(call_node);
       if (layout_cb != nullptr) {
-        ffi::Map<ffi::String, ffi::Array<ffi::String>> custom_layouts;
-        custom_layouts = layout_cb(ffi::GetRef<Call>(call_node));
-        return f(ffi::GetRef<Call>(call_node), custom_layouts, var_layout_map);
+        auto custom_layouts = layout_cb(call);
+        return f(call, custom_layouts, var_layout_map);
       } else {
-        return f(ffi::GetRef<Call>(call_node), desired_layouts, var_layout_map);
+        return f(call, desired_layouts, var_layout_map);
       }
     } else {
       // Otherwise, we use the default policy.
