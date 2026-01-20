@@ -269,12 +269,12 @@ class LogFatal {
  public:
   LogFatal(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
 #ifdef _MSC_VER
-#pragma disagnostic push
+#pragma warning(push)
 #pragma warning(disable : 4722)
 #endif
   [[noreturn]] ~LogFatal() TVM_THROW_EXCEPTION { LogFatalImpl(file_, lineno_, stream_.str()); }
 #ifdef _MSC_VER
-#pragma disagnostic pop
+#pragma warning(pop)
 #endif
   std::ostringstream& stream() { return stream_; }
 
@@ -314,7 +314,7 @@ class LogFatal {
  public:
   TVM_NO_INLINE LogFatal(const char* file, int lineno) { GetEntry().Init(file, lineno); }
 #ifdef _MSC_VER
-#pragma disagnostic push
+#pragma warning(push)
 #pragma warning(disable : 4722)
 #endif
   [[noreturn]] ~LogFatal() TVM_THROW_EXCEPTION {
@@ -322,7 +322,7 @@ class LogFatal {
     throw;
   }
 #ifdef _MSC_VER
-#pragma disagnostic pop
+#pragma warning(pop)
 #endif
   std::ostringstream& stream() { return GetEntry().stream_; }
 
