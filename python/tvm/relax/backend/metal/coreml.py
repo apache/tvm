@@ -142,11 +142,10 @@ register_patterns(
         *default_unary_patterns(op_name="nn.relu"),
         *default_unary_patterns(op_name="expand_dims"),
         *default_unary_patterns(op_name="nn.avg_pool2d"),
+        *default_unary_patterns(op_name="nn.batch_flatten"),
         *conv2d_patterns(),
         *clip_patterns(),
         *matmul_patterns(),
-        # TODO(@tvm-team): enable when relax op is implemented
-        # ("coreml.nn.batch_flatten", is_op("relax.nn.batch_flatten")(wildcard())),
     ]
 )
 
@@ -271,7 +270,7 @@ _convert_map = {
     "clip": _convert_clip,
     "expand_dims": _convert_expand_dims,
     "nn.relu": _convert_relu,
-    # "nn.batch_flatten": _convert_batch_flatten,
+    "nn.batch_flatten": _convert_batch_flatten,
     "nn.softmax": _convert_softmax,
     "nn.conv2d": _convert_conv2d,
     "nn.avg_pool2d": _convert_avg_pool2d,

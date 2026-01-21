@@ -3898,5 +3898,48 @@ def test_pad():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_batch_flatten():
+    # fmt: off
+    @tvm.script.ir_module
+    class BatchFlatten:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((2, 60), "float32"):
+            gv: R.Tensor((2, 60), "float32") = R.nn.batch_flatten(x)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4, 5), dtype="float32")) -> R.Tensor((2, 60), dtype="float32"):
+            gv = R.call_tir(Expected.reshape, (x,), out_sinfo=R.Tensor((2, 60), dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def reshape(x: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), T_reshape: T.Buffer((T.int64(2), T.int64(60)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for ax0, ax1 in T.grid(T.int64(2), T.int64(60)):
+                with T.block("T_reshape"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(x[(v_ax1 // T.int64(60) + v_ax0) % T.int64(2), v_ax1 % T.int64(60) // T.int64(20), v_ax1 % T.int64(20) // T.int64(5), v_ax1 % T.int64(5)])
+                    T.writes(T_reshape[v_ax0, v_ax1])
+                    T_reshape[v_ax0, v_ax1] = x[(v_ax1 // T.int64(60) + v_ax0) % T.int64(2), v_ax1 % T.int64(60) // T.int64(20), v_ax1 % T.int64(20) // T.int64(5), v_ax1 % T.int64(5)]
+    # fmt: on
+
+    mod = LegalizeOps()(BatchFlatten)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_batch_flatten_undefined_shape():
+    @tvm.script.ir_module
+    class BatchFlattenUndefinedShape:
+        @R.function
+        def main(x: R.Tensor(ndim=4, dtype="float32")) -> R.Tensor(ndim=2, dtype="float32"):
+            gv: R.Tensor(ndim=2, dtype="float32") = R.nn.batch_flatten(x)
+            return gv
+
+    mod = LegalizeOps()(BatchFlattenUndefinedShape)
+    tvm.ir.assert_structural_equal(mod, BatchFlattenUndefinedShape)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
