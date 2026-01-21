@@ -229,9 +229,7 @@ def matmul_bias_invalid_multiple_use_before(
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 temp[vi, vj] = T.int32(0)
-            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(
-                B[vj, vk], "int32"
-            )
+            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
     for i, j in T.grid(16, 16):
         with T.block("bad_epilogue"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -260,9 +258,7 @@ def matmul_bias_invalid_scaling_before(
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 temp[vi, vj] = T.int32(0)
-            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(
-                B[vj, vk], "int32"
-            )
+            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
     for i, j in T.grid(16, 16):
         with T.block("scaled_epilogue"):
             vi, vj = T.axis.remap("SS", [i, j])
