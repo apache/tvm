@@ -60,7 +60,6 @@ class VulkanImage : public VulkanResource {
               std::optional<std::string> mem_scope = std::nullopt,
               std::shared_ptr<VulkanMemory> back_memory = nullptr);
 
-  //! \brief Destructor, deallocates the memory, image, and image view.
   ~VulkanImage();
 
   // Forbid copy assignment/constructor
@@ -74,9 +73,6 @@ class VulkanImage : public VulkanResource {
   void AllocateMemory(const VkMemoryRequirements& mem_reqs, uint32_t mem_type_index);
 
   void CreateImageView(VkFormat format);
-
-  inline uint32_t FindMemoryTypeForImage(const VulkanDevice& device,
-                                         VkMemoryPropertyFlags properties, uint32_t typeFilter);
 
  private:
   /*!

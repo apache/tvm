@@ -549,7 +549,7 @@ SType IRBuilder::QuerySType(const std::string& name) {
     return it->second;
   }
   LOG(FATAL) << "Value \"" << name << "\" does not yet exist.";
-  return SType();  // Return an empty Value (this line may not be reached due to LOG(FATAL))
+  return SType();
 }
 
 bool IRBuilder::CheckSTypeExistence(const std::string& name) {

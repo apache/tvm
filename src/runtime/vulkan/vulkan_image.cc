@@ -96,24 +96,6 @@ VulkanImage::VulkanImage(VulkanImage&& other)
   other.imageView = VK_NULL_HANDLE;
 }
 
-uint32_t VulkanImage::FindMemoryTypeForImage(const VulkanDevice& device,
-                                             VkMemoryPropertyFlags properties,
-                                             uint32_t typeFilter) {
-  VkPhysicalDeviceMemoryProperties memProperties;
-  VkPhysicalDevice physicalDeviceHandle =
-      device;  // Implicit conversion using operator VkPhysicalDevice()
-  vkGetPhysicalDeviceMemoryProperties(physicalDeviceHandle, &memProperties);
-
-  for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-    if ((typeFilter & (1 << i)) &&
-        (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-      return i;
-    }
-  }
-
-  throw std::runtime_error("Failed to find suitable memory type!");
-}
-
 VulkanImage& VulkanImage::operator=(VulkanImage&& other) {
   std::swap(device_, other.device_);
   std::swap(image, other.image);

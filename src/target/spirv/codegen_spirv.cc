@@ -70,7 +70,7 @@ runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::s
         value_storage_type = boolean_storage_type_.with_lanes(value_storage_type.lanes());
       }
 
-      spirv::Value arg_value;  // Declare arg_value before the if-else block
+      spirv::Value arg_value;
       if (ptr && runtime::IsTextureStorage(std::string(ptr->storage_scope))) {
         arg_value = builder_->StorageImageArgument(arg->name_hint, value_storage_type, 2, 2,
                                                    descriptor_set, binding_index++);
@@ -532,9 +532,9 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     spirv::Value layer_index = MakeValue(op->args[3]);  // layer_index
     spirv::Value texel = MakeValue(op->args.back());
 
-    // Create a composite value representing the coordinates (int3)
+    // Composite value representing the coordinates (int3)
     spirv::Value coord =
-        builder_->MakeComposite(builder_->GetSType(DataType::Int(32).with_lanes(3)),  // Type: int3
+        builder_->MakeComposite(builder_->GetSType(DataType::Int(32).with_lanes(3)),
                                 {coord_x, coord_y, layer_index});
 
     spirv::SType image_type = builder_->QuerySType(op->args[0].as<VarNode>()->name_hint);
@@ -542,7 +542,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
 
     // Generate the SPIR-V instruction to store the value in the texture
     builder_->MakeInst(spv::OpImageWrite, loaded_image, coord, texel);
-    return spirv::Value();  // No result for image store
+    return spirv::Value();
 
   } else if (op->op.same_as(builtin::texture2d_load())) {
     ICHECK_EQ(op->args.size(), 6U);
@@ -554,13 +554,13 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     spirv::Value coord_y = MakeValue(op->args[2]);      // y-coordinate
     spirv::Value layer_index = MakeValue(op->args[3]);  // layer_index
 
-    // Attempt to create a composite value representing the coordinates (int3)
+    // Create a composite value representing the coordinates (int3)
     spirv::Value coord =
-        builder_->MakeComposite(builder_->GetSType(DataType::Int(32).with_lanes(3)),  // Type: int3
+        builder_->MakeComposite(builder_->GetSType(DataType::Int(32).with_lanes(3)),
                                 {coord_x, coord_y, layer_index});
 
     spirv::Value loaded_image =
-        builder_->MakeValue(spv::OpLoad, image_type, image);  // Load the image handle
+        builder_->MakeValue(spv::OpLoad, image_type, image);
     spirv::Value image_texel = builder_->MakeValue(
         spv::OpImageRead, builder_->GetSType(op->dtype.with_lanes(4)), loaded_image, coord);
 
