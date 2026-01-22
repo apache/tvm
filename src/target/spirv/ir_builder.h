@@ -627,8 +627,8 @@ class IRBuilder {
 
     // Begin the OpCompositeConstruct instruction
     ib_.Begin(spv::OpCompositeConstruct)
-        .Add(composite_type)    // The type of the composite
-        .Add(composite_value);  // The resulting value
+        .Add(composite_type)
+        .Add(composite_value);
 
     // Add each constituent value
     for (const Value& val : constituents) {
@@ -637,8 +637,6 @@ class IRBuilder {
 
     // Commit the instruction to the function segment
     ib_.Commit(&function_);
-
-    // Return the composite value
     return composite_value;
   }
 

@@ -64,8 +64,7 @@ inline std::unordered_map<std::string, runtime::FunctionInfo> ExtractFuncInfo(co
       if (auto* ptr = f->params[i]->type_annotation.as<PointerTypeNode>()) {
         info.storage_scopes.push_back(std::string(ptr->storage_scope));
       } else {
-        info.storage_scopes.push_back(
-            "");  // Use an empty string or "default" if no storage scope is provided
+        info.storage_scopes.push_back("");
       }
     }
     if (auto opt = f->GetAttr<ffi::Array<ffi::String>>(tir::attr::kKernelLaunchParams)) {

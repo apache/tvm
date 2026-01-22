@@ -54,7 +54,6 @@ class VulkanBuffer : public VulkanResource {
                uint32_t mem_type_index, std::optional<std::string> mem_scope = std::nullopt,
                std::shared_ptr<VulkanMemory> back_memory = nullptr);
 
-  //! \brief Destructor, deallocates the memory and buffer.
   ~VulkanBuffer();
 
   // Forbid copy assignment/constructor
