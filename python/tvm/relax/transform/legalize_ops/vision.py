@@ -15,64 +15,27 @@
 # specific language governing permissions and limitations
 # under the License.
 """Default legalization function for vision network related operators."""
-from tvm import topi, te
-from tvm import relax
+from tvm import relax, te, tir, topi
+
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
+from ...expr import Call, Expr, TupleGetItem
 from .common import register_legalize
-
-
-def _create_onnx_nms_te(boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold):
-    """Create a proper NMS implementation that follows the correct algorithm"""
-    scores_shape = list(scores.shape)
-    if len(scores_shape) == 3:
-        batch, num_classes, _ = scores_shape
-    elif len(scores_shape) == 2:
-        num_classes, _ = scores_shape
-        batch = 1
-    else:
-        raise ValueError(f"Unexpected scores shape: {scores_shape}")
-
-    if hasattr(max_output_boxes_per_class, "data"):
-        max_boxes = int(max_output_boxes_per_class.data.numpy())
-    else:
-        max_boxes = 3  # Default value
-
-    expected_detections = batch * num_classes * max_boxes
-
-    selected_indices_full, _ = topi.vision.all_class_non_max_suppression(
-        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, "onnx"
-    )
-
-    def slice_to_onnx_shape(data, expected_size):
-        def compute_element(i, j):
-            return tvm.tir.if_then_else(i < expected_size, data[i, j], tvm.tir.Cast("int64", 0))
-
-        return te.compute((expected_size, 3), compute_element, name="sliced_indices")
-
-    sliced_indices = slice_to_onnx_shape(selected_indices_full, expected_detections)
-
-    actual_detections = te.compute(
-        (1,), lambda i: tvm.tir.Cast("int64", expected_detections), name="actual_detections"
-    )
-
-    return [sliced_indices, actual_detections]
 
 
 @register_legalize("relax.vision.all_class_non_max_suppression")
 def _all_class_non_max_suppression(block_builder: BlockBuilder, call: Call) -> Expr:
-    """Legalize all_class_non_max_suppression with fixed shape output.
+    """Legalize all_class_non_max_suppression with dynamic output trimming.
 
-    Note: This implementation outputs fixed-size tensors with trailing garbage data.
-    Only the first `num_total_detection` rows contain valid data. Users should use
-    the `valid_count` tensor to determine how many rows are actually valid.
+    This implementation uses dynamic_strided_slice to trim the NMS output to only
+    contain valid detections, improving memory efficiency and ONNX compatibility.
 
-    For complete ONNX compatibility, users can post-process the output:
-    ```python
-    selected_indices, valid_count = nms_output
-    actual_count = int(valid_count.numpy()[0])
-    valid_indices = selected_indices.numpy()[:actual_count, :]
-    ```
+    Returns
+    -------
+    result : Tuple[Tensor, Tensor]
+        A tuple of (trimmed_indices, num_total_detections) where:
+        - trimmed_indices: Tensor of shape (num_total_detections, 3) containing only
+          valid detection indices (batch_id, class_id, box_id)
+        - num_total_detections: Tensor of shape (1,) with the count of valid detections
     """
     boxes = call.args[0]
     scores = call.args[1]
@@ -105,16 +68,37 @@ def _all_class_non_max_suppression(block_builder: BlockBuilder, call: Call) -> E
         output_format,
     )
 
-    # TODO: Implement dynamic output trimming for better memory efficiency
-    # Current approach returns fixed-size output with trailing garbage data
-    # Future improvements could include:
-    # 1. Dynamic strided_slice based on num_total_detections
-    # 2. Custom Relax operator with true dynamic shapes
-    # 3. VM builtin functions for runtime shape adjustment
-    # 4. Symbolic shape inference in Relax IR
-    #
-    # For now, users should trim manually:
-    # actual_count = int(num_total_detections.numpy()[0])
-    # valid_indices = selected_indices.numpy()[:actual_count, :]
+    # Dynamic output trimming using dynamic_strided_slice
+    # Extract selected_indices and num_total_detections from the NMS result
+    selected_indices = block_builder.emit(TupleGetItem(nms_result, 0))
+    num_total_detections = block_builder.emit(TupleGetItem(nms_result, 1))
 
-    return nms_result
+    # Build slicing parameters using TE to avoid high-level Relax ops during legalization
+    def build_begin():
+        return te.compute((2,), lambda i: tir.const(0, "int64"), name="begin")
+
+    def build_strides():
+        return te.compute((2,), lambda i: tir.const(1, "int64"), name="strides")
+
+    def build_end(count_tensor):
+        # end = [count_tensor[0], 3]
+        def compute_end(i):
+            return tir.if_then_else(
+                i == 0,
+                tir.Cast("int64", count_tensor[0]),
+                tir.const(3, "int64"),
+            )
+
+        return te.compute((2,), compute_end, name="end")
+
+    begin = block_builder.call_te(build_begin)
+    strides = block_builder.call_te(build_strides)
+    end = block_builder.call_te(build_end, num_total_detections)
+
+    # Apply dynamic strided slice to trim to valid detections only
+    trimmed_indices = block_builder.emit(
+        relax.op.dynamic_strided_slice(selected_indices, begin, end, strides)
+    )
+
+    # Return trimmed indices along with num_total_detections for compatibility
+    return relax.Tuple([trimmed_indices, num_total_detections])
