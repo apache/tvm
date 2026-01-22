@@ -8788,8 +8788,6 @@ def test_upsample_nearest2d():
 
 
 def test_from_exported_program_sparse_csr_buffer():
-    if not hasattr(torch, "sparse_csr"):
-        pytest.skip("sparse CSR tensor is not supported in this PyTorch build")
 
     class SparseCsrBufferModule(nn.Module):
         def __init__(self):
