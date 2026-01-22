@@ -8788,7 +8788,6 @@ def test_upsample_nearest2d():
 
 
 def test_from_exported_program_sparse_csr_buffer():
-
     class SparseCsrBufferModule(nn.Module):
         def __init__(self):
             super().__init__()
