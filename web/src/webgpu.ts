@@ -110,6 +110,18 @@ export async function detectGPUDevice(powerPreference: "low-power" | "high-perfo
       );
     }
 
+    const candidates = [1024, 512, 256];
+    const limit = adapter.limits.maxComputeInvocationsPerWorkgroup;
+    const requiredMaxComputeInvocationsPerWorkgroup = candidates.find(x => x <= limit) || undefined;
+    if (requiredMaxComputeInvocationsPerWorkgroup === undefined) {
+      console.log(`No candidate fits device limit=${limit}; will rely on defaults`);
+    } else if (requiredMaxComputeInvocationsPerWorkgroup !== 1024) {
+      console.log(
+        `Falling back to maxComputeInvocationsPerWorkgroup=${requiredMaxComputeInvocationsPerWorkgroup} ` +
+        `due to device limit=${limit}`
+      )
+    }
+
     const requiredFeatures: GPUFeatureName[] = [];
     // Always require f16 if available
     if (adapter.features.has("shader-f16")) {
@@ -125,6 +137,7 @@ export async function detectGPUDevice(powerPreference: "low-power" | "high-perfo
         maxStorageBufferBindingSize: requiredMaxStorageBufferBindingSize,
         maxComputeWorkgroupStorageSize: requiredMaxComputeWorkgroupStorageSize,
         maxStorageBuffersPerShaderStage: requiredMaxStorageBuffersPerShaderStage,
+        maxComputeInvocationsPerWorkgroup: requiredMaxComputeInvocationsPerWorkgroup,
       },
       requiredFeatures
     });
