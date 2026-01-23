@@ -328,6 +328,28 @@ def _compile_cuda_nvrtc(
             "};\n\n" + code_filtered
         )
 
+    # Add standard type definitions and compatibility macros that NVRTC doesn't provide.
+    nvrtc_preamble = """#include <cuda/std/cstdint>
+using cuda::std::uint8_t;
+using cuda::std::uint16_t;
+using cuda::std::uint32_t;
+using cuda::std::uint64_t;
+using cuda::std::int8_t;
+using cuda::std::int16_t;
+using cuda::std::int32_t;
+using cuda::std::int64_t;
+
+// NVRTC uses asm/volatile instead of __asm__/__volatile__
+#ifndef __asm__
+#define __asm__ asm
+#endif
+#ifndef __volatile__
+#define __volatile__ volatile
+#endif
+
+"""
+    code_filtered = nvrtc_preamble + code_filtered
+
     # For NVSHMEM, add preamble to map cuda::std type traits to std namespace.
     # NVSHMEM headers require std:: type traits but NVRTC uses cuda::std::.
     if use_nvshmem:
@@ -385,11 +407,11 @@ namespace std {
     if os.path.isdir(arch_include):
         include_paths.append(arch_include)
 
-    if use_nvshmem:
-        # Check for CCCL include directory (required for cuda/std/type_traits with NVSHMEM)
-        cccl_include = os.path.join(arch_include, "cccl") if os.path.isdir(arch_include) else None
-        if cccl_include and os.path.isdir(cccl_include):
-            include_paths.append(cccl_include)
+    # Check for CCCL include directory (required for cuda/std/cstdint and type_traits)
+    # CCCL provides standard library functionality for device code
+    cccl_include = os.path.join(arch_include, "cccl") if os.path.isdir(arch_include) else None
+    if cccl_include and os.path.isdir(cccl_include):
+        include_paths.append(cccl_include)
 
     # Verify we can find essential CUDA headers
     if not any(os.path.isfile(os.path.join(p, "cuda_runtime.h")) for p in include_paths):
