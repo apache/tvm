@@ -234,7 +234,14 @@ export class RPCServer {
         if (typeIndex === TypeIndex.kTVMFFIRawStr) {
           const str = Uint8ArrayToString(reader.readByteArray());
           args.push(str);
+        } else if (typeIndex === TypeIndex.kTVMFFIStr) {
+          reader.readU32(); // skip duplicate type_index
+          const str = Uint8ArrayToString(reader.readByteArray());
+          args.push(str);
         } else if (typeIndex === TypeIndex.kTVMFFIByteArrayPtr) {
+          args.push(reader.readByteArray());
+        } else if (typeIndex === TypeIndex.kTVMFFIBytes) {
+          reader.readU32(); // skip duplicate type_index
           args.push(reader.readByteArray());
         } else {
           throw new Error("cannot support type index " + typeIndex);
