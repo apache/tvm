@@ -58,14 +58,16 @@ class BaseKernel:  # pylint: disable=too-few-public-methods
         )
         return tvm_metadata
 
-    def _create_cuda_module(self, ptx, kernel_arg_types, launch_param_tags, kernel_name):
+    def _create_cuda_module(
+        self, binary_data, kernel_arg_types, launch_param_tags, kernel_name, fmt="ptx"
+    ):
         """
-        Create a CUDA module from PTX and metadata.
+        Create a CUDA module from compiled binary (PTX or cubin) and metadata.
 
         Parameters
         ----------
-        ptx : str
-            The PTX code of the kernel.
+        binary_data : str or bytes
+            The compiled binary data (PTX as str, cubin as bytes).
 
         kernel_arg_types : List[str]
             The types of the kernel arguments.
@@ -76,6 +78,9 @@ class BaseKernel:  # pylint: disable=too-few-public-methods
         kernel_name : str
             The name of the kernel.
 
+        fmt : str
+            The format of the binary data: "ptx" or "cubin".
+
         Returns
         -------
         kernel_module : Module
@@ -85,12 +90,16 @@ class BaseKernel:  # pylint: disable=too-few-public-methods
             kernel_name, kernel_arg_types, launch_param_tags
         )
         with tempfile.TemporaryDirectory() as temp_dir:
-            ptx_path = f"{temp_dir}/{kernel_name}.ptx"
-            with open(ptx_path, "w") as f:
-                f.write(ptx)
+            binary_path = f"{temp_dir}/{kernel_name}.{fmt}"
+            if fmt == "ptx":
+                with open(binary_path, "w") as f:
+                    f.write(binary_data)
+            else:
+                with open(binary_path, "wb") as f:
+                    f.write(binary_data)
             with open(f"{temp_dir}/{kernel_name}.tvm_meta.json", "w") as f:
                 f.write(tvm_metadata)
-            kernel_module = load_module(ptx_path)
+            kernel_module = load_module(binary_path)
         return kernel_module
 
 
@@ -139,20 +148,31 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
             pass
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            ptx_path = f"{temp_dir}/{kernel_name}.ptx"
+            # Check if NVSHMEM is used - requires cubin output for device library linking
+            use_nvshmem = (
+                "#include <nvshmem.h>" in source_code or "#include <nvshmemx.h>" in source_code
+            )
+            target_format = "cubin" if use_nvshmem else "ptx"
+            output_path = f"{temp_dir}/{kernel_name}.{target_format}"
+
             compiler = os.environ.get("TVM_CUDA_COMPILE_MODE", "nvcc")
             nvcc.compile_cuda(
                 source_code,
-                target_format="ptx",
+                target_format=target_format,
                 options=compile_options,
-                path_target=ptx_path,
+                path_target=output_path,
                 compiler=compiler,
             )
-            with open(ptx_path, "r") as f:
-                ptx = f.read()
+
+            if target_format == "ptx":
+                with open(output_path, "r") as f:
+                    binary_data = f.read()
+            else:
+                with open(output_path, "rb") as f:
+                    binary_data = f.read()
 
             kernel_module = self._create_cuda_module(
-                ptx, kernel_arg_types, launch_param_tags, kernel_name
+                binary_data, kernel_arg_types, launch_param_tags, kernel_name, fmt=target_format
             )
 
         return kernel_name, kernel_module, runtime_args

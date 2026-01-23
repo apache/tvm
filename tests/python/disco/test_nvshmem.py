@@ -28,6 +28,8 @@ import multiprocessing
 from multiprocessing import Process
 from typing import Any, Callable, List
 
+from tvm.script import ir as I
+from tvm.script import relax as R
 from tvm.script import tir as T
 
 
@@ -142,7 +144,7 @@ def test_nvshmem_compile():
     if tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid", True) is None:
         return
 
-    num_workers = 4
+    num_workers = 2
     sess = di.ProcessSession(num_workers=num_workers)
 
     f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
@@ -191,6 +193,121 @@ def test_nvshmem_compile():
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+NVSHMEM_QUERY_KERNEL_SOURCE = """
+#include <nvshmem.h>
+
+extern "C" __global__ void nvshmem_query_kernel(int* my_pe_out, int* n_pes_out) {
+    my_pe_out[0] = nvshmem_my_pe();
+    n_pes_out[0] = nvshmem_n_pes();
+}
+"""
+
+
+def _test_nvshmem_kernel_compile_impl():
+    """Test compiling and running a kernel that calls NVSHMEM functions"""
+    if tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid", True) is None:
+        return
+
+    num_workers = 2
+    sess = di.ProcessSession(num_workers=num_workers)
+
+    f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+    uid = f_init_nvshmem_uid()
+    init_dfunc = sess.get_global_func("runtime.disco.nvshmem.init_nvshmem")
+    init_dfunc(uid, num_workers, 0)
+    sess.sync_worker_0()
+
+    try:
+
+        @I.ir_module
+        class NvshmemQueryModule:
+            @T.prim_func
+            def query_pe(
+                my_pe_out: T.Buffer((1,), "int32"),
+                n_pes_out: T.Buffer((1,), "int32"),
+            ):
+                with T.block("root"):
+                    T.reads()
+                    T.writes(my_pe_out[0:1], n_pes_out[0:1])
+                    T.call_kernel(
+                        NVSHMEM_QUERY_KERNEL_SOURCE,
+                        ((1,), (1,)),  # grid=(1,), block=(1,)
+                        my_pe_out.data,
+                        n_pes_out.data,
+                        kernel_name="nvshmem_query_kernel",
+                    )
+
+            @R.function
+            def main() -> R.Tuple(R.Tensor((1,), "int32"), R.Tensor((1,), "int32")):
+                cls = NvshmemQueryModule
+                with R.dataflow():
+                    my_pe = R.call_tir(
+                        cls.query_pe,
+                        (),
+                        out_sinfo=[
+                            R.Tensor((1,), "int32"),
+                            R.Tensor((1,), "int32"),
+                        ],
+                    )
+                    R.output(my_pe)
+                return my_pe
+
+        tmpdir = tempfile.mkdtemp()
+        try:
+            path = tmpdir + "/test_nvshmem_kernel.so"
+
+            target = tvm.target.Target("cuda")
+            tvm.compile(NvshmemQueryModule, target=target).export_library(path)
+            mod = sess.load_vm_module(path)
+            result = mod["main"]()
+
+            # Verify results from each worker
+            for worker_id in range(num_workers):
+                my_pe_result, n_pes_result = result.debug_get_from_remote(worker_id)
+                my_pe_val = my_pe_result.numpy()[0]
+                n_pes_val = n_pes_result.numpy()[0]
+                assert my_pe_val == worker_id, (
+                    f"Worker {worker_id} reported my_pe={my_pe_val}, expected {worker_id}"
+                )
+                assert n_pes_val == num_workers, (
+                    f"Worker {worker_id} reported n_pes={n_pes_val}, expected {num_workers}"
+                )
+
+            # Sync all workers before cleanup
+            sess._sync_all()
+
+            finalize_dfunc = sess.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
+            finalize_dfunc()
+            sess.sync_worker_0()
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+    finally:
+        sess.shutdown()
+
+
+def test_nvshmem_kernel_compile_nvcc():
+    """Test NVSHMEM kernel compilation with nvcc."""
+    # Since this test runs in a separate process, we can safely set the env var
+    import os
+
+    os.environ["TVM_CUDA_COMPILE_MODE"] = "nvcc"
+    _test_nvshmem_kernel_compile_impl()
+
+
+def test_nvshmem_kernel_compile_nvrtc():
+    """Test NVSHMEM kernel compilation with nvrtc."""
+    try:
+        from cuda.bindings import nvrtc  # noqa: F401
+    except ImportError:
+        pytest.skip("cuda-python not available, skipping nvrtc test")
+
+    # Since this test runs in a separate process, we can safely set the env var
+    import os
+
+    os.environ["TVM_CUDA_COMPILE_MODE"] = "nvrtc"
+    _test_nvshmem_kernel_compile_impl()
+
+
 if __name__ == "__main__":
     # After the first call to `nvshmem_init`, a subsequent call to `nvshmem_init`
     # or `nvshmem_init_thread` in the same program results in undefined behavior.
@@ -212,8 +329,13 @@ if __name__ == "__main__":
                     p.exitcode == 0
                 ), f"Test {test_func.__name__} failed with exit code {p.exitcode}"
 
-    # testing compilation flow
     p = Process(target=test_nvshmem_compile)
     p.start()
     p.join()
     assert p.exitcode == 0, f"Test test_nvshmem_compile failed with exit code {p.exitcode}"
+
+    for test_func in [test_nvshmem_kernel_compile_nvcc, test_nvshmem_kernel_compile_nvrtc]:
+        p = Process(target=test_func)
+        p.start()
+        p.join()
+        assert p.exitcode == 0, f"Test {test_func.__name__} failed with exit code {p.exitcode}"

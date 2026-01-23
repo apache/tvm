@@ -71,15 +71,16 @@ def compile_cuda(
     - NVRTC is a "runtime" compilation library and can be faster for JIT compilation.
     - NVRTC requires cuda-python: pip install cuda-python
     """
-    # TODO: if need NVSHMEM for compilation, fall back to NVCC because support for NVRTC
-    # is not yet implemented
     use_nvshmem = "#include <nvshmem.h>" in code or "#include <nvshmemx.h>" in code
-    if compiler == "nvcc" or use_nvshmem:
-        return _compile_cuda_nvcc(code, target_format, arch, options, path_target, use_nvshmem)
+
+    if compiler == "nvcc":
+        result = _compile_cuda_nvcc(code, target_format, arch, options, path_target, use_nvshmem)
     elif compiler == "nvrtc":
-        return _compile_cuda_nvrtc(code, target_format, arch, options)
+        result = _compile_cuda_nvrtc(code, target_format, arch, options, path_target, use_nvshmem)
     else:
         raise ValueError(f"cuda compiler must be 'nvcc' or 'nvrtc', got: {compiler}")
+
+    return result
 
 
 def _compile_cuda_nvcc(
@@ -235,7 +236,9 @@ def _compile_cuda_nvcc(
         return data
 
 
-def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
+def _compile_cuda_nvrtc(
+    code, target_format=None, arch=None, options=None, path_target=None, use_nvshmem=False
+):
     """Compile CUDA code using NVRTC (NVIDIA Runtime Compilation).
 
     Parameters
@@ -248,6 +251,10 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
         Target architecture (e.g., "sm_80"). Auto-detected if None.
     options : str or list of str, optional
         Additional NVRTC options.
+    path_target : str, optional
+        Output file path. If provided, the compiled binary is written to this path.
+    use_nvshmem : bool, optional
+        Whether NVSHMEM is used. Default: False
 
     Returns
     -------
@@ -264,8 +271,20 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
             "See: https://nvidia.github.io/cuda-python/"
         ) from e
 
-    # Default target format
-    if target_format is None:
+    # For NVSHMEM, we also need the CUDA driver API to initialize the context for linking
+    if use_nvshmem:
+        try:
+            from cuda.bindings import driver as cu  # pylint: disable=import-outside-toplevel
+        except ImportError as e:
+            raise RuntimeError(
+                "Failed to compile CUDA with NVRTC+NVSHMEM because the `cuda-python` package "
+                "is not available.\n"
+                "Please install it with: pip install cuda-python\n"
+                "See: https://nvidia.github.io/cuda-python/"
+            ) from e
+
+    # NVSHMEM requires linking with device library, which always produces cubin
+    if use_nvshmem or target_format is None:
         target_format = "cubin"
 
     # Validate target_format (NVRTC doesn't support fatbin)
@@ -287,6 +306,11 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
         compute_version = get_target_compute_version(Target.current(allow_none=True))
         arch = f"sm_{''.join(compute_version.split('.'))}"
 
+    # Get NVSHMEM paths if needed
+    nvshmem_include_path, nvshmem_lib_path = None, None
+    if use_nvshmem:
+        nvshmem_include_path, nvshmem_lib_path = find_nvshmem_paths()
+
     # Strip host-only headers for NVRTC. NVRTC compiles device code and does not
     # require the CUDA driver header or host C++ headers.
     headers_to_strip = {"#include <cuda.h>"}
@@ -304,6 +328,25 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
             "};\n\n" + code_filtered
         )
 
+    # For NVSHMEM, add preamble to map cuda::std type traits to std namespace.
+    # NVSHMEM headers require std:: type traits but NVRTC uses cuda::std::.
+    if use_nvshmem:
+        nvshmem_preamble = """#include <cuda/std/type_traits>
+
+// Map cuda::std type traits to std namespace for NVSHMEM headers
+namespace std {
+    using cuda::std::is_integral;
+    using cuda::std::is_signed;
+    using cuda::std::is_unsigned;
+    using cuda::std::is_floating_point;
+    using cuda::std::is_same;
+    using cuda::std::enable_if;
+    using cuda::std::conditional;
+}
+
+"""
+        code_filtered = nvshmem_preamble + code_filtered
+
     # Create NVRTC program
     # Use "tvm_kernels.cu" for consistency with nvcc path
     result, prog = nvrtc.nvrtcCreateProgram(
@@ -318,6 +361,9 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
         f"--gpu-architecture={arch}".encode(),
         b"-default-device",
     ]
+
+    if use_nvshmem:
+        compile_opts.extend([b"-rdc", b"true"])
 
     # Add CUDA include paths. NVRTC needs explicit include paths for CUDA headers.
     # Standard installations: cuda_path/include
@@ -339,6 +385,12 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
     if os.path.isdir(arch_include):
         include_paths.append(arch_include)
 
+    if use_nvshmem:
+        # Check for CCCL include directory (required for cuda/std/type_traits with NVSHMEM)
+        cccl_include = os.path.join(arch_include, "cccl") if os.path.isdir(arch_include) else None
+        if cccl_include and os.path.isdir(cccl_include):
+            include_paths.append(cccl_include)
+
     # Verify we can find essential CUDA headers
     if not any(os.path.isfile(os.path.join(p, "cuda_runtime.h")) for p in include_paths):
         raise RuntimeError(
@@ -350,6 +402,26 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
     # Add all valid include paths
     for include_path in include_paths:
         compile_opts.append(f"-I{include_path}".encode())
+
+    # Add NVSHMEM include path
+    if use_nvshmem and nvshmem_include_path:
+        compile_opts.append(f"-I{nvshmem_include_path}".encode())
+
+    # For NVSHMEM, add deprecation and type conversion macros
+    if use_nvshmem:
+        compile_opts.extend(
+            [
+                # Define deprecation macros as empty (not properly defined in NVRTC context)
+                b"-D__NV_SILENCE_DEPRECATION_BEGIN=",
+                b"-D__NV_SILENCE_DEPRECATION_END=",
+                b"-D__NV_SILENCE_HOST_DEPRECATION_BEGIN=",
+                b"-D__NV_SILENCE_HOST_DEPRECATION_END=",
+                # Disable FP8/FP6/FP4 extended types that cause issues with NVRTC
+                b"-D__CUDA_NO_FP8_CONVERSIONS__",
+                b"-D__CUDA_NO_FP6_CONVERSIONS__",
+                b"-D__CUDA_NO_FP4_CONVERSIONS__",
+            ]
+        )
 
     compile_opts.extend(
         [
@@ -363,12 +435,40 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
         ]
     )
 
-    # Add user-provided options
+    # Add user-provided options, filtering out nvcc-specific flags that nvrtc doesn't support
     if options:
+        nvcc_only_prefixes = (
+            "-c",
+            "-O",
+            "-std",
+            "--std",
+            "-Xcompiler",
+            "-Xlinker",
+            "-Xarchive",
+            "-Xcudafe",
+            "-Xptxas",
+            "--compile",
+            "--compiler-options",
+            "--linker-options",
+            "-fPIC",
+            "-shared",
+            "-o",
+        )
         if isinstance(options, str):
-            compile_opts.append(options.encode())
-        else:
-            compile_opts.extend([opt.encode() if isinstance(opt, str) else opt for opt in options])
+            options = [options]
+        for opt in options:
+            if isinstance(opt, str):
+                opt_str = opt
+            elif isinstance(opt, bytes):
+                opt_str = opt.decode()
+            else:
+                opt_str = str(opt)
+            skip = any(
+                opt_str.startswith(prefix) or opt_str == prefix for prefix in nvcc_only_prefixes
+            )
+            if skip:
+                continue
+            compile_opts.append(opt.encode() if isinstance(opt, str) else opt)
 
     # Compile
     (result,) = nvrtc.nvrtcCompileProgram(prog, len(compile_opts), compile_opts)
@@ -410,10 +510,81 @@ def _compile_cuda_nvrtc(code, target_format=None, arch=None, options=None):
             nvrtc.nvrtcDestroyProgram(prog)
             raise RuntimeError(f"Failed to get PTX: {nvrtc.nvrtcGetErrorString(result)}")
 
-    # Clean up
+    # Clean up NVRTC program
     nvrtc.nvrtcDestroyProgram(prog)
 
-    return bytearray(binary_buf)
+    # link stage for NVSHMEM
+    if use_nvshmem:
+        import ctypes  # pylint: disable=import-outside-toplevel
+
+        # cuLinkCreate requires a valid CUDA context.
+        (result,) = cu.cuInit(0)
+        if result != cu.CUresult.CUDA_SUCCESS:
+            raise RuntimeError(f"Failed to initialize CUDA: {result}")
+
+        # Check if there's already a CUDA context; create one if not
+        result, context = cu.cuCtxGetCurrent()
+        if result != cu.CUresult.CUDA_SUCCESS or context is None or int(context) == 0:
+            result, device = cu.cuDeviceGet(0)
+            if result != cu.CUresult.CUDA_SUCCESS:
+                raise RuntimeError(f"Failed to get CUDA device: {result}")
+            result, context = cu.cuCtxCreate(None, 0, device)
+            if result != cu.CUresult.CUDA_SUCCESS:
+                raise RuntimeError(f"Failed to create CUDA context: {result}")
+
+        # Create linker
+        result, link_state = cu.cuLinkCreate(0, [], [])
+        if result != cu.CUresult.CUDA_SUCCESS:
+            raise RuntimeError(f"Failed to create CUDA linker: {result}")
+
+        try:
+            # Add our compiled CUBIN
+            (result,) = cu.cuLinkAddData(
+                link_state,
+                cu.CUjitInputType.CU_JIT_INPUT_CUBIN,
+                binary_buf,
+                len(binary_buf),
+                b"tvm_kernels.cubin",
+                0,
+                [],
+                [],
+            )
+            if result != cu.CUresult.CUDA_SUCCESS:
+                raise RuntimeError(f"Failed to add CUBIN to linker: {result}")
+
+            # Add NVSHMEM device library
+            nvshmem_device_lib = os.path.join(nvshmem_lib_path, "libnvshmem_device.a")
+            if not os.path.exists(nvshmem_device_lib):
+                raise RuntimeError(f"NVSHMEM device library not found: {nvshmem_device_lib}")
+
+            (result,) = cu.cuLinkAddFile(
+                link_state,
+                cu.CUjitInputType.CU_JIT_INPUT_LIBRARY,
+                nvshmem_device_lib.encode(),
+                0,
+                [],
+                [],
+            )
+            if result != cu.CUresult.CUDA_SUCCESS:
+                raise RuntimeError(f"Failed to add NVSHMEM device library: {result}")
+
+            # Complete linking
+            result, linked_cubin, linked_size = cu.cuLinkComplete(link_state)
+            if result != cu.CUresult.CUDA_SUCCESS:
+                raise RuntimeError(f"Failed to complete NVSHMEM linking: {result}")
+
+            # Copy linked binary to binary_buf
+            binary_buf = bytearray(ctypes.string_at(linked_cubin, linked_size))
+            if not binary_buf:
+                raise RuntimeError("Compilation error: empty result is generated")
+        finally:
+            # Clean up linker
+            cu.cuLinkDestroy(link_state)
+
+    if path_target:
+        with open(path_target, "wb") as f:
+            f.write(binary_buf)
+    return binary_buf
 
 
 def find_cuda_path():
