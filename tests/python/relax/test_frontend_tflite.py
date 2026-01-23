@@ -28,7 +28,7 @@ from tvm import relax
 from tvm.script.parser import ir as I, relax as R, tir as T
 
 from tvm.relax.frontend.tflite import from_tflite
-from tf.keras import applications as keras_app
+from tensorflow.keras import applications as keras_app
 
 import ssl
 
