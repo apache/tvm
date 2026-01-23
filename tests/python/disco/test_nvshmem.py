@@ -266,12 +266,12 @@ def _test_nvshmem_kernel_compile_impl():
                 my_pe_result, n_pes_result = result.debug_get_from_remote(worker_id)
                 my_pe_val = my_pe_result.numpy()[0]
                 n_pes_val = n_pes_result.numpy()[0]
-                assert my_pe_val == worker_id, (
-                    f"Worker {worker_id} reported my_pe={my_pe_val}, expected {worker_id}"
-                )
-                assert n_pes_val == num_workers, (
-                    f"Worker {worker_id} reported n_pes={n_pes_val}, expected {num_workers}"
-                )
+                assert (
+                    my_pe_val == worker_id
+                ), f"Worker {worker_id} reported my_pe={my_pe_val}, expected {worker_id}"
+                assert (
+                    n_pes_val == num_workers
+                ), f"Worker {worker_id} reported n_pes={n_pes_val}, expected {num_workers}"
 
             # Sync all workers before cleanup
             sess._sync_all()
