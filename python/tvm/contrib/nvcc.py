@@ -552,21 +552,19 @@ def _link_nvshmem_nvrtc(binary_buf, nvshmem_lib_path):
     from cuda.bindings import driver as cu  # pylint: disable=import-outside-toplevel
 
     # cuLinkCreate requires a valid CUDA context.
+    # Always create a fresh context for linking to avoid issues with stale contexts
+    # in multi-process environments like Disco workers.
     (result,) = cu.cuInit(0)
     if result != cu.CUresult.CUDA_SUCCESS:
         raise RuntimeError(f"Failed to initialize CUDA: {result}")
 
-    # Check if there's already a CUDA context; create one if not
-    context_created = False
-    result, context = cu.cuCtxGetCurrent()
-    if result != cu.CUresult.CUDA_SUCCESS or not context:
-        result, device = cu.cuDeviceGet(0)
-        if result != cu.CUresult.CUDA_SUCCESS:
-            raise RuntimeError(f"Failed to get CUDA device: {result}")
-        result, context = cu.cuCtxCreate(None, 0, device)
-        if result != cu.CUresult.CUDA_SUCCESS:
-            raise RuntimeError(f"Failed to create CUDA context: {result}")
-        context_created = True
+    result, device = cu.cuDeviceGet(0)
+    if result != cu.CUresult.CUDA_SUCCESS:
+        raise RuntimeError(f"Failed to get CUDA device: {result}")
+
+    result, context = cu.cuCtxCreate(None, 0, device)
+    if result != cu.CUresult.CUDA_SUCCESS:
+        raise RuntimeError(f"Failed to create CUDA context: {result}")
 
     try:
         # Create linker
@@ -618,9 +616,8 @@ def _link_nvshmem_nvrtc(binary_buf, nvshmem_lib_path):
             # Clean up linker
             cu.cuLinkDestroy(link_state)
     finally:
-        # Clean up context if we created it
-        if context_created and context:
-            cu.cuCtxDestroy(context)
+        # Clean up context
+        cu.cuCtxDestroy(context)
 
     return binary_buf
 
