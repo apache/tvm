@@ -60,6 +60,7 @@ class DataType {
     kFloat = kDLFloat,
     kHandle = kDLOpaqueHandle,
     kBFloat = kDLBfloat,
+    kBool = kDLBool,
     kFloat8_e3m4 = kDLFloat8_e3m4,
     kFloat8_e4m3 = kDLFloat8_e4m3,
     kFloat8_e4m3b11fnuz = kDLFloat8_e4m3b11fnuz,
@@ -137,8 +138,10 @@ class DataType {
   }
   /*! \return whether type is a scalar type. */
   bool is_scalar() const { return !is_scalable_vector() && lanes() == 1; }
-  /*! \return whether type is a scalar type. */
-  bool is_bool() const { return code() == DataType::kUInt && bits() == 1; }
+  /*! \return whether type is a bool type. */
+  bool is_bool() const { return code() == DataType::kBool; }
+  /*! \return whether type can be used in a predicate expression. */
+  bool is_predicate_dtype() const { return is_bool() || (is_uint() && bits() == 1); }
   /*! \return whether type is a float type. */
   bool is_float() const { return code() == DataType::kFloat; }
   /*! \return whether type is a bfloat type. */
@@ -204,7 +207,7 @@ class DataType {
   /*! \return whether type is a vector type. */
   bool is_vector() const { return lanes() > 1; }
   /*! \return whether type is a bool vector type. */
-  bool is_vector_bool() const { return is_scalable_or_fixed_length_vector() && bits() == 1; }
+  bool is_vector_bool() const { return is_scalable_or_fixed_length_vector() && is_bool(); }
   /*! \return whether type is a Void type. */
   bool is_void() const {
     return code() == DataType::kHandle && bits() == 0 && static_cast<int16_t>(data_.lanes) == 0;
@@ -381,7 +384,7 @@ class DataType {
    * \return The constructed data type.
    */
   static DataType Bool(int lanes = 1, bool is_scalable = false) {
-    return DataType::UInt(1, lanes, is_scalable);
+    return DataType(kDLBool, 8, lanes, is_scalable);
   }
   /*!
    * \brief Construct a handle type.
@@ -497,6 +500,10 @@ struct TypeTraits<runtime::DataType> : public TypeTraitsBase {
   }
 
   TVM_FFI_INLINE static std::string TypeStr() { return ffi::StaticTypeKey::kTVMFFIDataType; }
+
+  TVM_FFI_INLINE static std::string TypeSchema() {
+    return R"({"type":")" + std::string(ffi::StaticTypeKey::kTVMFFIDataType) + R"("})";
+  }
 };
 
 }  // namespace ffi

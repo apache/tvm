@@ -23,6 +23,7 @@ from tvm.script import tir as T
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
+from ... import op
 from .common import register_legalize
 
 
@@ -126,3 +127,8 @@ def _tensor_elem_offset(bb: BlockBuilder, call: Call) -> Expr:
 
     gvar = bb.add_func(_get_tensor_elem_offset, "_get_tensor_elem_offset")
     return Call(gvar, call.args)
+
+
+@register_legalize("relax.size")
+def _size(_bb: BlockBuilder, call: Call) -> Expr:
+    return op.prod(op.shape_to_tensor(op.shape_of(call.args[0])))

@@ -132,7 +132,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // For
 For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
-         ffi::Optional<IterVar> thread_binding, ffi::Map<ffi::String, Any> annotations, Span span) {
+         ffi::Optional<IterVar> thread_binding, ffi::Map<ffi::String, Any> annotations,
+         ffi::Optional<PrimExpr> step, Span span) {
   ICHECK(loop_var.defined());
   ICHECK(min.defined());
   ICHECK(extent.defined());
@@ -148,8 +149,8 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   require_scalar_int_dtype(min, "min");
   require_scalar_int_dtype(extent, "extent");
 
-  // When extent or min is an IntImm but has narrower dtype than loop_var, we directly promote them
-  // without raising errors.
+  // When extent, min or step is an IntImm but has narrower dtype than loop_var
+  // we directly promote them without raising errors.
   auto try_promote_imm_dtype = [&](const PrimExpr& e) {
     ICHECK(e.dtype().bits() <= loop_var.dtype().bits())
         << " Loop variable's dtype (" << loop_var.dtype()
@@ -168,6 +169,12 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   ICHECK(loop_var.dtype() == min.dtype()) << loop_var.dtype() << " vs " << min.dtype();
   ICHECK(loop_var.dtype() == extent.dtype()) << loop_var.dtype() << " vs " << extent.dtype();
 
+  if (step.has_value()) {
+    require_scalar_int_dtype(*step, "step");
+    step = try_promote_imm_dtype(*step);
+    ICHECK(loop_var.dtype() == (*step).dtype()) << loop_var.dtype() << " vs " << (*step).dtype();
+  }
+
   ObjectPtr<ForNode> node = ffi::make_object<ForNode>();
   node->loop_var = std::move(loop_var);
   node->min = std::move(min);
@@ -176,19 +183,22 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   node->body = std::move(body);
   node->thread_binding = std::move(thread_binding);
   node->annotations = std::move(annotations);
+  node->step = std::move(step);
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
+bool ForNode::HasTrivialStep() const { return !step.has_value() || is_one(*step); }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "tir.For", [](Var loop_var, PrimExpr min, PrimExpr extent, int kind, Stmt body,
-                    ffi::Optional<IterVar> thread_binding,
-                    ffi::Optional<ffi::Map<ffi::String, Any>> annotations, Span span) {
-        return For(loop_var, min, extent, static_cast<ForKind>(kind), body, thread_binding,
-                   annotations.value_or(ffi::Map<ffi::String, Any>()), span);
-      });
+  refl::GlobalDef().def("tir.For", [](Var loop_var, PrimExpr min, PrimExpr extent, int kind,
+                                      Stmt body, ffi::Optional<IterVar> thread_binding,
+                                      ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
+                                      ffi::Optional<PrimExpr> step, Span span) {
+    return For(loop_var, min, extent, static_cast<ForKind>(kind), body, thread_binding,
+               annotations.value_or(ffi::Map<ffi::String, Any>()), step, span);
+  });
 }
 
 std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
@@ -485,7 +495,7 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> ind
         << " lanes. The number of lanes must match.";
 
     DataType predicate_element_dtype = predicate_dtype.element_of();
-    ICHECK(predicate_element_dtype.is_bool())
+    ICHECK(predicate_element_dtype.is_predicate_dtype())
         << "Predicate mask elements must be boolean values, but got " << predicate_element_dtype
         << ".";
   }
@@ -687,7 +697,8 @@ BlockRealize::BlockRealize(ffi::Array<PrimExpr> values, PrimExpr predicate, Bloc
                            Span span) {
   CHECK_EQ(block->iter_vars.size(), values.size())
       << "ValueError: BlockRealize needs to have the same number of iter_vars and binding values";
-  CHECK(predicate.dtype().is_bool()) << "TypeError: Expect Block.predicate to be a bool expression";
+  CHECK(predicate.dtype().is_bool() || predicate.dtype() == DataType::UInt(1))
+      << "TypeError: Expect Block.predicate to be a bool expression";
   ObjectPtr<BlockRealizeNode> node = ffi::make_object<BlockRealizeNode>();
   node->iter_values = std::move(values);
   node->predicate = std::move(predicate);

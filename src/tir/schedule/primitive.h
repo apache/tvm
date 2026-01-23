@@ -509,6 +509,14 @@ TVM_DLL void ComputeInline(ScheduleState self, const StmtSRef& block_sref);
  * \param block_sref The sref to the block to be inlined to its producer
  */
 TVM_DLL void ReverseComputeInline(ScheduleState self, const StmtSRef& block_sref);
+/*!
+ * \brief Fuse an epilogue block into a reduction block
+ * \param self The state of the schedule
+ * \param reduction_block_sref The sref to the reduction block
+ * \param epilogue_block_sref The sref to the epilogue block to be fused
+ */
+TVM_DLL void FuseReductionEpilogue(ScheduleState self, const StmtSRef& reduction_block_sref,
+                                   const StmtSRef& epilogue_block_sref);
 /******** Schedule: Reduction ********/
 /*!
  * \brief Decompose a reduction block into two separate blocks.

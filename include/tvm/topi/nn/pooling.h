@@ -563,8 +563,18 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
 
     PrimExpr numerator =
         data_shape[ii] - (kernel[i] - 1) * dilation[i] - 1 + pad_head[i] + pad_tail[i];
-    auto out_dim = analyzer.Simplify(indexdiv(numerator, stride[i]) + 1);
-    out_shape.Set(ii, out_dim);
+    auto raw_out = indexdiv(numerator, stride[i]) + 1;
+    if (ceil_mode) {
+      // In the case of ceil_mode=True, we need to check if the last pooling window is valid.
+      // If not, we skip the last window as it would start in the bottom padded region,
+      // we need to minus 1 to get the correct output shape.
+      auto invalid_last = (raw_out - 1) * stride[i] >= data_shape[ii] + pad_head[i];
+      auto out_dim = analyzer.Simplify(if_then_else(invalid_last, raw_out - 1, raw_out));
+      out_shape.Set(ii, out_dim);
+    } else {
+      auto out_dim = analyzer.Simplify(raw_out);
+      out_shape.Set(ii, out_dim);
+    }
   }
 
   ffi::Map<ffi::String, ffi::Any> attrs;

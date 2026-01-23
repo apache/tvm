@@ -51,7 +51,8 @@ enum class BufferIndexType : int32_t {
 class BlockRVNode : public runtime::Object {
  public:
   static void RegisterReflection() {
-    // No fields to register as they are not visited
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BlockRVNode>();
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BlockRV", BlockRVNode, runtime::Object);
 };
@@ -73,7 +74,8 @@ class BlockRV : public runtime::ObjectRef {
 class LoopRVNode : public runtime::Object {
  public:
   static void RegisterReflection() {
-    // No fields to register as they are not visited
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<LoopRVNode>();
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.LoopRV", LoopRVNode, runtime::Object);
 };
@@ -606,6 +608,13 @@ class ScheduleNode : public runtime::Object {
    * \param block The block to be inlined to its producer
    */
   virtual void ReverseComputeInline(const BlockRV& block) = 0;
+  /*!
+   * \brief Fuse an epilogue block into a reduction block
+   * \param reduction_block The reduction block (e.g., matmul)
+   * \param epilogue_block The epilogue block to be fused (e.g., bias add)
+   */
+  virtual void FuseReductionEpilogue(const BlockRV& reduction_block,
+                                     const BlockRV& epilogue_block) = 0;
   /******** Schedule: Reduction ********/
   /*!
    * \brief Decompose a reduction block into two separate blocks.

@@ -32,6 +32,8 @@ struct SessionObj::FFI {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<DRefObj>();
+  refl::ObjectDef<SessionObj>();
   refl::GlobalDef()
       .def("runtime.disco.SessionThreaded", Session::ThreadedSession)
       .def_method("runtime.disco.DRefDebugGetFromRemote", &DRefObj::DebugGetFromRemote)

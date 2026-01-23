@@ -465,8 +465,7 @@ class GlobalVarNode : public RelaxExprNode {
     return equal(name_hint, other->name_hint, false, "name_hint");
   }
 
-  uint64_t SHash(uint64_t init_hash,
-                 ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const {
+  int64_t SHash(int64_t init_hash, ffi::TypedFunction<int64_t(AnyView, int64_t, bool)> hash) const {
     return hash(name_hint, init_hash, false);
   }
 

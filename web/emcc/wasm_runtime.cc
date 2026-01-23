@@ -30,6 +30,7 @@
 #define TVM_FFI_ALWAYS_LOG_BEFORE_THROW 1
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
+#include <tvm/ffi/any.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 
@@ -48,17 +49,19 @@
 #include "src/runtime/tensor.cc"
 #include "src/runtime/workspace_pool.cc"
 // relax setup
+#include "3rdparty/tvm-ffi/src/ffi/backtrace.cc"
 #include "3rdparty/tvm-ffi/src/ffi/container.cc"
 #include "3rdparty/tvm-ffi/src/ffi/dtype.cc"
 #include "3rdparty/tvm-ffi/src/ffi/error.cc"
+#include "3rdparty/tvm-ffi/src/ffi/extra/env_c_api.cc"
+#include "3rdparty/tvm-ffi/src/ffi/extra/env_context.cc"
 #include "3rdparty/tvm-ffi/src/ffi/extra/library_module.cc"
 #include "3rdparty/tvm-ffi/src/ffi/extra/library_module_system_lib.cc"
 #include "3rdparty/tvm-ffi/src/ffi/extra/module.cc"
-#include "3rdparty/tvm-ffi/src/ffi/extra/testing.cc"
 #include "3rdparty/tvm-ffi/src/ffi/function.cc"
 #include "3rdparty/tvm-ffi/src/ffi/object.cc"
 #include "3rdparty/tvm-ffi/src/ffi/tensor.cc"
-#include "3rdparty/tvm-ffi/src/ffi/traceback.cc"
+#include "3rdparty/tvm-ffi/src/ffi/testing/testing.cc"
 #include "src/runtime/memory/memory_manager.cc"
 #include "src/runtime/nvtx.cc"
 #include "src/runtime/vm/attn_backend.cc"
@@ -122,30 +125,38 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-void ArrayDecodeStorage(Tensor cpu_arr, std::string bytes, std::string format, std::string dtype) {
+void ArrayDecodeStorage(Tensor cpu_arr, TVMFFIByteArray* bytes, const std::string& format,
+                        const std::string& dtype) {
+  ICHECK_NE(bytes, nullptr);
+  const char* byte_data = bytes->data;
+  const size_t byte_size = bytes->size;
   if (format == "f32-to-bf16" && dtype == "float32") {
-    std::vector<uint16_t> buffer(bytes.length() / 2);
-    std::memcpy(buffer.data(), bytes.data(), buffer.size() * 2);
-    // decode bf16 to f32
-    const uint16_t* bf16 = reinterpret_cast<const uint16_t*>(buffer.data());
+    const uint16_t* bf16 = reinterpret_cast<const uint16_t*>(byte_data);
     uint32_t* data = static_cast<uint32_t*>(cpu_arr->data);
     ICHECK(cpu_arr.IsContiguous());
     size_t size = 1;
     for (int i = 0; i < cpu_arr->ndim; ++i) {
       size *= cpu_arr->shape[i];
     }
-    ICHECK_EQ(size, bytes.length() / 2);
+    ICHECK_EQ(size, byte_size / 2);
     for (size_t i = 0; i < size; ++i) {
       data[i] = static_cast<uint32_t>(bf16[i]) << 16;
     }
   } else {
-    cpu_arr.CopyFromBytes(bytes.data(), bytes.length());
+    cpu_arr.CopyFromBytes(byte_data, byte_size);
   }
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tvmjs.array.decode_storage", ArrayDecodeStorage);
+  refl::GlobalDef().def_packed(
+      "tvmjs.array.decode_storage", [](ffi::PackedArgs args, ffi::Any* ret) {
+        Tensor cpu_arr = args[0].cast<Tensor>();
+        TVMFFIByteArray* bytes = args[1].cast<TVMFFIByteArray*>();
+        std::string format = args[2].cast<ffi::String>().operator std::string();
+        std::string dtype = args[3].cast<ffi::String>().operator std::string();
+        ArrayDecodeStorage(cpu_arr, bytes, format, dtype);
+      });
 }
 
 // Concatenate n TVMArrays
@@ -217,7 +228,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("tvmjs.runtime.TensorCopyFromBytes",
            [](Tensor nd, TVMFFIByteArray* bytes) { nd.CopyFromBytes(bytes->data, bytes->size); })
       .def("tvmjs.runtime.TensorCopyToBytes", [](Tensor nd) -> ffi::Bytes {
-        size_t size = GetDataSize(*(nd.operator->()));
+        size_t size = ffi::GetDataSize(*(nd.operator->()));
         std::string bytes;
         bytes.resize(size);
         nd.CopyToBytes(bytes.data(), size);

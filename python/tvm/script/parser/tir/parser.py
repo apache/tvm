@@ -18,7 +18,7 @@
 
 import contextlib
 from functools import partial
-from typing import Any
+from typing import Any, Dict, Optional
 
 import tvm
 from tvm.ir import GlobalVar, PrimType
@@ -166,6 +166,28 @@ def find_decorator_annotation(node: doc.FunctionDef, annotation: str, default: b
             if keyword.arg == annotation:
                 return keyword.value.value
     return default
+
+
+def range_sugar(
+    start: PrimExpr,
+    stop: PrimExpr = None,
+    step: Optional[PrimExpr] = None,
+    *,
+    annotations: Dict[str, Any] = None,
+) -> T.frame.ForFrame:
+    """The sugar for python range builtin."""
+
+    # Since `tir.For` do not support reversed iteration semantic,
+    # the step must be checked to be positive integer when use range sugar
+    if step is not None:
+        try:
+            step = int(step)
+            if step <= 0:
+                raise ValueError(f"Only support positive step in range(), get {step}")
+        except TypeError:  # pylint: disable=broad-except
+            raise ValueError(f"Only support literal step in range(), get {step}")
+
+    return T.serial(start, stop, annotations=annotations, step=step)
 
 
 @dispatch.register(token="tir", type_name="For")
@@ -379,7 +401,8 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
     privacy = find_decorator_annotation(node, "private", default=False)
     self.function_annotations = None
     with self.var_table.with_frame():
-        self.var_table.add("range", T.serial)
+
+        self.var_table.add("range", range_sugar)
         with T.prim_func(is_private=privacy):
             T.func_name(node.name)
             if node.returns is not None:

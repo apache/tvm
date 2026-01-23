@@ -40,6 +40,7 @@ from .base import (
     register_gradient,
     shape_of,
     shape_to_tensor,
+    size,
     tensor_to_shape,
     to_vdevice,
 )
@@ -119,7 +120,7 @@ from .sampling import multinomial_from_uniform
 from .search import argmax, argmin, where, bucketize
 from .set import nonzero, unique
 from .sorting import argsort, sort, topk
-from .statistical import cumprod, cumsum, max, mean, min, prod, std, sum, variance
+from .statistical import cumprod, cumsum, max, mean, min, prod, std, sum, variance, median
 from .ternary import ewise_fma
 from .unary import (
     abs,
@@ -155,6 +156,7 @@ from .unary import (
     tanh,
     trunc,
 )
+from .vision import all_class_non_max_suppression
 
 
 def _register_op_make():

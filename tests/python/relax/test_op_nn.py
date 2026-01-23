@@ -1721,7 +1721,6 @@ def test_nll_loss_infer_struct_info_targets_dtype():
     w = relax.Var("w", R.Tensor((5,), "float32"))
     targets0 = relax.Var("targets", R.Tensor((3, 10, 10), "float32"))
     targets1 = relax.Var("targets", R.Tensor((3, 10, 10), "float64"))
-    targets2 = relax.Var("targets", R.Tensor((3, 10, 10), "bool"))
     targets3 = relax.Var("targets", R.Tensor((3, 10, 10), "int32"))
     targets4 = relax.Var("targets", R.Tensor((3, 10, 10), "int64"))
     targets5 = relax.Var("targets", R.Tensor((3, 10, 10), "uint32"))
@@ -1733,7 +1732,6 @@ def test_nll_loss_infer_struct_info_targets_dtype():
         bb.normalize(relax.op.nn.nll_loss(x, targets1, w))
 
     # correct cases
-    bb.normalize(relax.op.nn.nll_loss(x, targets2, w))  # bool is uint1
     bb.normalize(relax.op.nn.nll_loss(x, targets3, w))
     bb.normalize(relax.op.nn.nll_loss(x, targets4, w))
     bb.normalize(relax.op.nn.nll_loss(x, targets5, w))

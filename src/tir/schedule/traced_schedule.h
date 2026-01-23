@@ -32,7 +32,8 @@ class TracedScheduleNode : public ConcreteScheduleNode {
 
  public:
   static void RegisterReflection() {
-    // No fields to register as they are not visited
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TracedScheduleNode>();
   }
 
   ~TracedScheduleNode() = default;
@@ -108,6 +109,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
                         int index = -1) final;
   void ComputeInline(const BlockRV& block_rv) final;
   void ReverseComputeInline(const BlockRV& block_rv) final;
+  void FuseReductionEpilogue(const BlockRV& reduction_block, const BlockRV& epilogue_block) final;
   /******** Schedule: Reduction ********/
   BlockRV DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) final;
   BlockRV RFactor(const LoopRV& loop_rv, int factor_axis) final;

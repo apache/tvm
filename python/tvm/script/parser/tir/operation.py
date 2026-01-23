@@ -61,6 +61,7 @@ def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
                 if (
                     DataType(b.dtype).type_code == DataTypeCode.INT
                     or DataType(b.dtype).type_code == DataTypeCode.UINT
+                    or DataType(b.dtype).type_code == DataTypeCode.BOOL
                 ):
                     a = IntImm(_get_type_str(b.dtype), a)
                 elif DataType(b.dtype).type_code == DataTypeCode.FLOAT:
@@ -80,6 +81,7 @@ def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
             if (
                 DataType(a.dtype).type_code == DataTypeCode.INT
                 or DataType(a.dtype).type_code == DataTypeCode.UINT
+                or DataType(a.dtype).type_code == DataTypeCode.BOOL
             ):
                 b = IntImm(_get_type_str(a.dtype), b)
             elif DataType(a.dtype).type_code == DataTypeCode.FLOAT:

@@ -31,6 +31,8 @@
 #include <tvm/relax/transform.h>
 #include <tvm/tir/transform.h>
 
+#include <set>
+
 namespace tvm {
 namespace relax {
 
@@ -62,10 +64,16 @@ class LegalizeMutator : public ExprMutator {
  public:
   explicit LegalizeMutator(const IRModule& mod,
                            const ffi::Optional<ffi::Map<ffi::String, ffi::Function>>& cmap,
+                           const ffi::Optional<ffi::Array<ffi::String>> skip_ops,
                            bool enable_warning)
       : ExprMutator(mod), mod_(std::move(mod)), enable_warning_(enable_warning) {
     if (cmap) {
       cmap_ = cmap.value();
+    }
+    if (skip_ops.defined()) {
+      for (const auto name : skip_ops.value()) {
+        skip_ops_.insert(Op::Get(name));
+      }
     }
   }
 
@@ -239,6 +247,10 @@ class LegalizeMutator : public ExprMutator {
     }
     auto op = ffi::GetRef<Op>(op_node);
 
+    if (skip_ops_.find(op) != skip_ops_.end()) {
+      return visited_call;
+    }
+
     bool shapes_are_known_if_required = [&]() -> bool {
       bool requires_arg_shapes = requires_arg_shapes_map.get(op, Bool(true))->value;
       if (!requires_arg_shapes) {
@@ -275,8 +287,15 @@ class LegalizeMutator : public ExprMutator {
         return false;
       }
 
-      std::string op_name(op->name);
-      bool is_data_dependent_op = (op_name.find("dynamic") != std::string::npos);
+      bool is_data_dependent_op = [&]() -> bool {
+        if (Op::HasAttrMap("FDataDependent")) {
+          auto op_map = Op::GetAttrMap<Bool>("FDataDependent");
+          if (op_map.count(op)) {
+            return op_map[op]->value;
+          }
+        }
+        return false;
+      }();
       bool ret_shape_defined = KnowAllShapeValues(GetStructInfo(visited_call));
       if (!is_data_dependent_op && !ret_shape_defined) {
         // This operator cannot be legalized, because legalization by
@@ -291,10 +310,6 @@ class LegalizeMutator : public ExprMutator {
         // data-dependent op, and match cast to define symbolic output
         // shapes.  These symbolic output shapes at compile time can
         // be by later operations to refer to the runtime shape.
-        //
-        // TODO(Lunderberg): Make a new operator attribute
-        // `.set_attr<Bool>("DataDependent")`, rather than relying on
-        // the name of the operator.
         return false;
       }
 
@@ -387,16 +402,21 @@ class LegalizeMutator : public ExprMutator {
    * legalization function is not registered.
    */
   bool enable_warning_;
+  /*!
+   * \brief List of ops to be skipped from legalization
+   */
+  std::set<Op> skip_ops_;
 };
 
 namespace transform {
 
-Pass LegalizeOps(ffi::Optional<ffi::Map<ffi::String, ffi::Function>> cmap, bool enable_warning) {
+Pass LegalizeOps(ffi::Optional<ffi::Map<ffi::String, ffi::Function>> cmap,
+                 ffi::Optional<ffi::Array<ffi::String>> skip_ops, bool enable_warning) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     bool apply_legalize_ops =
         pc->GetConfig<Bool>("relax.transform.apply_legalize_ops").value_or(Bool(true))->value;
     if (apply_legalize_ops) {
-      mod = LegalizeMutator(mod, cmap, enable_warning).Transform();
+      mod = LegalizeMutator(mod, cmap, skip_ops, enable_warning).Transform();
     }
     return mod;
   };

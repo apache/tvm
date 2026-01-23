@@ -634,6 +634,22 @@ def shape_of(expr: Expr) -> Expr:
     return _ffi_api.shape_of(expr)  # type: ignore # pylint: disable=no-member
 
 
+def size(expr: Expr) -> Expr:
+    """Get the total number of elements in a tensor.
+
+    Parameters
+    ----------
+    expr : Expr
+        The input tensor.
+
+    Returns
+    -------
+    result : Expr
+        A scalar tensor of dtype int64 containing the total number of elements.
+    """
+    return _ffi_api.size(expr)  # type: ignore # pylint: disable=no-member
+
+
 def tensor_to_shape(expr: Expr) -> Expr:
     """Convert tensor to shape expr.
     Parameters
@@ -777,11 +793,13 @@ def call_pure_packed(
         sinfo_args = [sinfo_args]
 
     sinfo_args = [
-        sinfo()
-        if callable(sinfo)
-        else sinfo.asobject()
-        if isinstance(sinfo, ObjectConvertible)
-        else sinfo
+        (
+            sinfo()
+            if callable(sinfo)
+            else sinfo.asobject()
+            if isinstance(sinfo, ObjectConvertible)
+            else sinfo
+        )
         for sinfo in sinfo_args
     ]
 
@@ -849,7 +867,7 @@ def to_vdevice(data, dst_vdevice) -> Expr:
     return _ffi_api.to_vdevice(data, dst_vdevice)  # type: ignore
 
 
-def hint_on_device(data, dst_vdevice) -> Expr:
+def hint_on_device(data, dst_vdevice, memory_scope="global") -> Expr:
     """It provides a hint specifying the device on which the input data should be executed.
     This hint is utilized by RealizeVDevice to propagate the virtual device."
 
@@ -858,12 +876,15 @@ def hint_on_device(data, dst_vdevice) -> Expr:
     data : Expr
         The tensor to be copied.
 
-    dst_device : VDevice
+    dst_device : Device
         The destination device where the data is supposed to be executed.
+
+    memory_scope: String
+       Memory scope of buffer on target device.
 
     Returns
     -------
     result : Expr
         The result.
     """
-    return _ffi_api.hint_on_device(data, dst_vdevice)  # type: ignore
+    return _ffi_api.hint_on_device(data, dst_vdevice, memory_scope)  # type: ignore

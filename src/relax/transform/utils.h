@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "../../support/array.h"
@@ -328,7 +329,7 @@ inline Constant MakeConstantScalar(T value, DataType dtype) {
     *static_cast<int32_t*>(arr->data) = static_cast<int32_t>(value);
   } else if (dtype == DataType::Int(64)) {
     *static_cast<int64_t*>(arr->data) = static_cast<int64_t>(value);
-  } else if (dtype == DataType::UInt(1)) {
+  } else if (dtype == DataType::Bool()) {
     *static_cast<bool*>(arr->data) = static_cast<bool>(value);
   } else if (dtype == DataType::UInt(8)) {
     *static_cast<uint8_t*>(arr->data) = static_cast<uint8_t>(value);
@@ -383,15 +384,39 @@ inline ffi::String GetCodegenName(const std::string& composite_name) {
   return composite_name.substr(0, delim_pos);
 }
 
+inline int GetDeviceIndexByScope(const IRModule& mod, const ffi::String& scope) {
+  if (mod->global_infos.find("vdevice") == mod->global_infos.end()) {
+    return 0;
+  }
+  ffi::Array<GlobalInfo> vdevices = mod->global_infos["vdevice"];
+  for (int i = 0; i < static_cast<int>(vdevices.size()); ++i) {
+    if (scope == vdevices[i].as<VDevice>().value()->memory_scope) {
+      return i;
+    }
+  }
+  return 0;
+}
+
 inline int GetDeviceIndex(const IRModule& mod, const VDevice& vdevice) {
   ffi::Array<GlobalInfo> vdevices = mod->global_infos["vdevice"];
   for (int i = 0; i < static_cast<int>(vdevices.size()); ++i) {
-    if (vdevices[i] == vdevice) {
+    if (vdevices[i].same_as(vdevice)) {
       return i;
     }
   }
   LOG(FATAL) << "The vdevice is not in the ir_module.";
   return -1;
+}
+
+inline ffi::Optional<VDevice> GetGlobalVDevice(const IRModule& mod, const int index) {
+  ffi::Optional<VDevice> ret;
+  if (mod->global_infos.find("vdevice") != mod->global_infos.end()) {
+    ffi::Array<GlobalInfo> vdevices = mod->global_infos["vdevice"];
+    if (index < static_cast<int>(vdevices.size())) {
+      ret = vdevices[index].as<VDevice>();
+    }
+  }
+  return ret;
 }
 
 /* \brief Eliminate common subexpressions

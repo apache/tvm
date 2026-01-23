@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file relax/analysis/layout_transormation.cc
+ * \file relax/analysis/layout_transformation.cc
  * \brief Analyze the PrimFunc and suggest layout transformation on it's blocks and buffers based on
  * the user provided layout transformations on it's outputs.
  */

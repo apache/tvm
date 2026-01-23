@@ -365,7 +365,26 @@ def test_group_norm():
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
-def test_embedding():
+def test_embedding_1d():
+    @R.function
+    def forward(
+        x: R.Tensor((4,), dtype="int32"),
+        _io: R.Object,
+        weight: R.Tensor((8, 16), dtype="float32"),
+    ) -> R.Tuple(R.Tensor((4, 16), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            take: R.Tensor((4, 16), dtype="float32") = R.take(weight, x, axis=0)
+            gv1: R.Tuple(R.Tensor((4, 16), dtype="float32"), R.Tuple(R.Object)) = take, (_io,)
+            R.output(gv1)
+        return gv1
+
+    mod = modules.Embedding(8, 16, "float32")
+    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((4,), "int32")}}, debug=True)
+    assert_structural_equal(tvm_mod["forward"], forward, True)
+
+
+def test_embedding_2d():
     @R.function
     def forward(
         x: R.Tensor((1, 4), dtype="int32"),
@@ -713,6 +732,23 @@ def test_module_list():
     mod = Module()
     named_params = dict(mod.named_parameters())
     assert ["layers.0.0.weight", "layers.0.1.weight"] == sorted(list(named_params.keys()))
+
+
+def test_module_dict():
+    class Module(nn.Module):
+        def __init__(self):
+            self.layers = nn.ModuleDict(
+                {"linear0": nn.Linear(4, 4, bias=False), "linear1": nn.Linear(4, 4, bias=False)}
+            )
+
+        def forward(self, x: nn.Tensor):
+            x = self.layers["linear0"](x)
+            x = self.layers["linear1"](x)
+            return x
+
+    mod = Module()
+    named_params = dict(mod.named_parameters())
+    assert ["layers.linear0.weight", "layers.linear1.weight"] == sorted(list(named_params.keys()))
 
 
 if __name__ == "__main__":

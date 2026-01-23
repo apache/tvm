@@ -206,10 +206,10 @@ def test_subgraph_capture():
             # block 0
             with R.dataflow():
                 lv: R.Tensor((10,), dtype="float32") = R.sin(inp_0)
-                lv1: R.Tensor((10,), dtype="float32") = R.add(lv, R.const(1, "float32"))
+                lv1: R.Tensor((10,), dtype="float32") = R.add(lv, R.const(1.0, "float32"))
                 lv2: R.Tensor((10,), dtype="float32") = R.divide(inp_0, lv1)
                 lv3: R.Tensor((), dtype="float32") = R.sum(inp_1, axis=None, keepdims=False)
-                lv4: R.Tensor((), dtype="bool") = R.less(lv3, R.const(1, "float32"))
+                lv4: R.Tensor((), dtype="bool") = R.less(lv3, R.const(1.0, "float32"))
                 gv: R.Tuple(R.Tensor((10,), dtype="float32"), R.Tensor((), dtype="bool")) = (
                     lv2,
                     lv4,
@@ -219,14 +219,14 @@ def test_subgraph_capture():
 
         @R.function
         def subgraph_1(
-            inp_01: R.Tensor((10,), dtype="float32"), inp_11: R.Tensor((10,), dtype="float32")
+            inp_0: R.Tensor((10,), dtype="float32"), inp_1: R.Tensor((10,), dtype="float32")
         ) -> R.Tensor((10,), dtype="float32"):
             # block 0
             with R.dataflow():
-                lv5: R.Tensor((10,), dtype="float32") = R.multiply(inp_01, inp_11)
-                gv1: R.Tensor((10,), dtype="float32") = lv5
-                R.output(gv1)
-            return gv1
+                lv: R.Tensor((10,), dtype="float32") = R.multiply(inp_0, inp_1)
+                gv: R.Tensor((10,), dtype="float32") = lv
+                R.output(gv)
+            return gv
 
     mod = dynamo_capture_subgraphs(Input2, torch.randn(10), torch.ones(10))
     tvm.ir.assert_structural_equal(mod, Expected2)
@@ -285,14 +285,34 @@ def _convert_data_type(input_type):
     import torch  # type: ignore
 
     input_type = input_type.lower() if isinstance(input_type, str) else input_type
-    if input_type == "float32":
-        return torch.float32
-    elif input_type == "float16":
+    # Float types
+    if input_type == "float16":
         return torch.float16
-    elif input_type == "int64":
-        return torch.int64
+    elif input_type == "float32":
+        return torch.float32
+    elif input_type == "float64":
+        return torch.float64
+    elif input_type == "bfloat16":
+        return torch.bfloat16
+    # Signed integer types
+    elif input_type == "int8":
+        return torch.int8
+    elif input_type == "int16":
+        return torch.int16
     elif input_type == "int32":
         return torch.int32
+    elif input_type == "int64":
+        return torch.int64
+    # Unsigned integer types
+    elif input_type == "uint8":
+        return torch.uint8
+    elif input_type == "uint16":
+        return torch.uint16
+    elif input_type == "uint32":
+        return torch.uint32
+    elif input_type == "uint64":
+        return torch.uint64
+    # Boolean
     elif input_type == "bool":
         return torch.bool
     else:

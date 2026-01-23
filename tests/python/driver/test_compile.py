@@ -52,9 +52,9 @@ def test_compile_tir():
     c = tvm.runtime.tensor(np.zeros(10, dtype=np.float32), dev)
 
     exec_prim(a, b, c)
-    np.testing.assert_allclose(c.numpy(), a_np + b_np)
+    tvm.testing.assert_allclose(c.numpy(), a_np + b_np)
     exec_mod(a, b, c)
-    np.testing.assert_allclose(c.numpy(), a_np + b_np)
+    tvm.testing.assert_allclose(c.numpy(), a_np + b_np)
 
 
 def test_compile_relax():
@@ -82,7 +82,7 @@ def test_compile_relax():
 
     vm = relax.VirtualMachine(exec_relax, dev)
     z = vm["main"](x, y)
-    np.testing.assert_allclose(z.numpy(), x_np + y_np)
+    tvm.testing.assert_allclose(z.numpy(), x_np + y_np)
 
 
 @tvm.testing.skip_if_32bit(reason="skipping test for i386.")
@@ -111,11 +111,11 @@ def test_compile_mixed_module():
     y = tvm.runtime.tensor(np.zeros(4, dtype=np.float32), dev)
     # For tir function, we can directly call the function
     ex["add_one"](x, y)
-    np.testing.assert_allclose(y.numpy(), x.numpy() + 1)
+    tvm.testing.assert_allclose(y.numpy(), x.numpy() + 1)
     # For relax function, we need to use the vm to call the function
     vm = relax.VirtualMachine(ex, dev)
     z = vm["main"](x)
-    np.testing.assert_allclose(z.numpy(), x.numpy() + 1)
+    tvm.testing.assert_allclose(z.numpy(), x.numpy() + 1)
 
 
 if __name__ == "__main__":

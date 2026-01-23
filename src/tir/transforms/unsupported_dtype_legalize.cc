@@ -329,7 +329,7 @@ class ComputeLegalizer : public StmtExprMutator {
         // this happens when buffer get rewritten to f32
         // but values remain as fp8/bf16
         ICHECK(MatchDType(value->dtype));
-        value = cast(new_buf->dtype.with_lanes(value.dtype().lanes()), value);
+        value = DTypeConversion(value, new_buf->dtype.with_lanes(value.dtype().lanes()));
       }
       ICHECK(!op->predicate.defined()) << "Predicated buffer store is not currently supported in "
                                           "data type legalizer pass.";
@@ -780,13 +780,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("tir.transform.BF16StorageLegalize", BF16StorageLegalize);
 }
 
-Pass FP8ComputeLegalize(ffi::String promote_dtype_str) {
+Pass FP8ComputeLegalize(ffi::String promote_dtype) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget).value();
     if (CheckDataTypeSupport(target, "tvm.contrib.nvcc.supports_fp8")) {
       return f;
     }
-    return FP8ComputeLegalizer(DataType(ffi::StringToDLDataType(promote_dtype_str))).Legalize(f);
+    return FP8ComputeLegalizer(DataType(ffi::StringToDLDataType(promote_dtype))).Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.FP8ComputeLegalize", {});
 }

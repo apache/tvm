@@ -984,6 +984,661 @@ void ReverseComputeInline(ScheduleState self, const StmtSRef& consumer_block_sre
   ReverseComputeInlineImpl(self, consumer_block_sref);
 }
 
+/*!
+ * \brief Helper to fuse epilogue block into reduction block
+ * Analyzes epilogue pattern and transforms reduction init/update
+ */
+// Epilogue type enumeration
+enum class EpilogueType {
+  Bias,      // temp + C
+  BiasReLU,  // max(temp + C, 0)
+  Clipping,  // min(max(temp, lower), upper)
+};
+
+class ReductionEpilogueFuser : public BaseInliner {
+ public:
+  explicit ReductionEpilogueFuser(const Buffer& reduction_buffer, const BlockNode* reduction_block,
+                                  const BlockRealize& epilogue_block_realize,
+                                  const StmtSRef& scope_root_sref)
+      : BaseInliner(reduction_buffer, epilogue_block_realize->block, scope_root_sref),
+        reduction_block_(reduction_block),
+        epilogue_block_(epilogue_block_realize->block.get()),
+        epilogue_type_(EpilogueType::Bias) {
+    // Disable opaque access check for epilogue fusion
+    // Epilogue blocks can read multiple buffers (temp + bias), which is allowed
+    has_opaque_access = false;
+  }
+
+  // Override CheckOpaqueAccess to allow multiple buffer reads
+  void CheckOpaqueAccess(const VarNode* buffer_var) {
+    // For epilogue fusion, we allow multiple buffer reads (temp + bias)
+    // So we don't check for opaque access
+    // BaseInliner::CheckOpaqueAccess(buffer_var);  // Don't call base class
+  }
+
+  bool BodyPatternAllowFusion(const BlockRealize& epilogue_block_realize);
+
+  // Step 2: Create single fused reduction block
+  Block CreateFusedReductionBlock(const BlockNode* reduction_block,
+                                  const BlockRealizeNode* reduction_realize);
+
+ private:
+  bool AnalyzeEpiloguePattern(const PrimExpr& value);
+  bool IsReductionBlock(const BlockNode* block);
+  void ExtractEpilogueInfo();
+  // Helper function to extract BufferLoad nodes from BufferStore
+  static std::vector<const BufferLoadNode*> ExtractBufferLoad(const Buffer& buffer,
+                                                              const BufferStoreNode* from) {
+    struct Extractor : public ExprVisitor {
+      void VisitExpr_(const BufferLoadNode* load) final {
+        if (load->buffer.same_as(buffer)) {
+          result.push_back(load);
+        }
+        // Continue visiting child nodes (indices)
+        ExprVisitor::VisitExpr_(load);
+      }
+      Buffer buffer;
+      std::vector<const BufferLoadNode*> result;
+    } extractor;
+    extractor.buffer = buffer;
+    // Visit indices first (though they typically don't contain BufferLoad)
+    for (const PrimExpr& expr : from->indices) {
+      extractor(expr);
+    }
+    // Visit the value expression (e.g., max(temp + C, 0) for ReLU)
+    extractor(from->value);
+    return std::move(extractor.result);
+  }
+
+  const BlockNode* reduction_block_;
+  const BlockNode* epilogue_block_;
+  PrimExpr epilogue_addend_{nullptr};                      // C[vi, vj] in D = temp + C
+  Buffer epilogue_output_buffer_{nullptr};                 // Output buffer D
+  ffi::Array<PrimExpr> epilogue_output_indices_{nullptr};  // Indices of D[vi, vj]
+  BufferRegion epilogue_output_region_{nullptr};           // Write region of D
+  Buffer epilogue_addend_buffer_{nullptr};                 // Addend buffer C
+  BufferRegion epilogue_addend_region_{nullptr};           // Read region of C
+  EpilogueType epilogue_type_;                             // Type of epilogue operation
+  PrimExpr clipping_lower_{nullptr};                       // Lower bound for clipping
+  PrimExpr clipping_upper_{nullptr};                       // Upper bound for clipping
+};
+
+bool ReductionEpilogueFuser::BodyPatternAllowFusion(const BlockRealize& epilogue_block_realize) {
+  // 1. Validate predicate
+  if (!is_one(epilogue_block_realize->predicate)) {
+    // Failure: Predicate in epilogue block is not supported
+    return false;
+  }
+
+  // 2. Check if epilogue body is BufferStore
+  if (inlined_store_ == nullptr) {
+    // Failure: epilogue block body is not BufferStore
+    return false;
+  }
+
+  // 3. Check if epilogue reads from reduction buffer
+  std::vector<const BufferLoadNode*> loads = ExtractBufferLoad(inlined_buffer_, inlined_store_);
+  if (loads.size() == 0) {
+    // Failure: no BufferLoad from the reduction buffer
+    return false;
+  }
+
+  // 4. Analyze epilogue pattern: D[i,j] = temp[i,j] + C[i,j] or
+  //    D[i,j] = min(max(temp[i,j], lower), upper)
+  if (!AnalyzeEpiloguePattern(inlined_store_->value)) {
+    // Failure: epilogue is not a supported pattern (Bias, BiasReLU, or Clipping)
+    return false;
+  }
+
+  // 5. Verify temp appears exactly once in the epilogue pattern
+  // This ensures correctness for all supported patterns (Bias, BiasReLU, Clipping)
+  // The reduction result buffer must be used exactly once in the epilogue expression
+  if (loads.size() != 1) {
+    // Failure: The reduction result (temp) must be used exactly once in the
+    // epilogue expression for fusion.
+    return false;
+  }
+
+  // 6. Check if producer is a reduction block
+  if (!IsReductionBlock(reduction_block_)) {
+    // Failure: producer is not a reduction block
+    return false;
+  }
+
+  // 7. Extract epilogue information (output buffer, indices, regions, etc.)
+  ExtractEpilogueInfo();
+
+  return true;
+}
+
+bool ReductionEpilogueFuser::AnalyzeEpiloguePattern(const PrimExpr& value) {
+  // Pattern 1: temp[i,j] + C[i,j] or C[i,j] + temp[i,j] (Bias)
+  if (const auto* add = value.as<AddNode>()) {
+    const auto* load_a = add->a.as<BufferLoadNode>();
+    const auto* load_b = add->b.as<BufferLoadNode>();
+
+    bool a_is_target = load_a && load_a->buffer.same_as(inlined_buffer_);
+    bool b_is_target = load_b && load_b->buffer.same_as(inlined_buffer_);
+
+    // Ensure exactly one operand is from the reduction buffer
+    if (a_is_target != b_is_target) {
+      epilogue_addend_ = a_is_target ? add->b : add->a;
+      epilogue_type_ = EpilogueType::Bias;
+      return true;
+    }
+  }
+
+  // Pattern 2: min(max(temp[i,j], lower), upper) or max(min(temp[i,j], upper), lower) (Clipping)
+  // Handle all commutative variants of min/max at each level.
+
+  // Helper to check if an expression is a load from the reduction buffer, and
+  // return the other operand as `other` if so.
+  auto match_buffer_in_commutative_op = [this](const PrimExpr& a, const PrimExpr& b,
+                                               PrimExpr* other) -> bool {
+    if (const auto* load_a = a.as<BufferLoadNode>()) {
+      if (load_a->buffer.same_as(inlined_buffer_)) {
+        *other = b;
+        return true;
+      }
+    }
+    if (const auto* load_b = b.as<BufferLoadNode>()) {
+      if (load_b->buffer.same_as(inlined_buffer_)) {
+        *other = a;
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Check for min(max(temp, lower), upper) and commutative variants
+  if (const auto* min_node = value.as<MinNode>()) {
+    const MaxNode* max_node = nullptr;
+    PrimExpr upper;
+    // Try both (a, b) as possible positions of the inner max
+    if ((max_node = min_node->a.as<MaxNode>())) {
+      upper = min_node->b;
+    } else if ((max_node = min_node->b.as<MaxNode>())) {
+      upper = min_node->a;
+    }
+    if (max_node != nullptr) {
+      PrimExpr lower;
+      if (match_buffer_in_commutative_op(max_node->a, max_node->b, &lower)) {
+        clipping_lower_ = lower;
+        clipping_upper_ = upper;
+        epilogue_type_ = EpilogueType::Clipping;
+        return true;
+      }
+    }
+  }
+
+  // Check for max(min(temp[i,j], upper), lower) and commutative variants
+  if (const auto* max_node = value.as<MaxNode>()) {
+    const MinNode* min_node = nullptr;
+    PrimExpr lower;
+    // Try both (a, b) as possible positions of the inner min
+    if ((min_node = max_node->a.as<MinNode>())) {
+      lower = max_node->b;
+    } else if ((min_node = max_node->b.as<MinNode>())) {
+      lower = max_node->a;
+    }
+    if (min_node != nullptr) {
+      PrimExpr upper;
+      if (match_buffer_in_commutative_op(min_node->a, min_node->b, &upper)) {
+        clipping_lower_ = lower;
+        clipping_upper_ = upper;
+        epilogue_type_ = EpilogueType::Clipping;
+        return true;
+      }
+    }
+  }
+
+  // Pattern 3: max(temp[i,j] + C[i,j], 0) or max(C[i,j] + temp[i,j], 0) (BiasReLU)
+  // Also handle max(0, temp[i,j] + C[i,j]) or max(0, C[i,j] + temp[i,j])
+  if (const auto* max_node = value.as<MaxNode>()) {
+    // Check if either operand is zero (ReLU: max(x, 0) or max(0, x))
+    // Support both integer and float zero constants.
+    const PrimExpr* add_candidate = nullptr;
+    bool is_zero_const = false;
+    auto is_zero_expr = [](const PrimExpr& expr) -> bool {
+      if (tir::is_zero(expr)) {
+        return true;
+      }
+      if (const auto* float_imm = expr.as<FloatImmNode>()) {
+        return float_imm->value == 0.0;
+      }
+      return false;
+    };
+
+    if (is_zero_expr(max_node->a)) {
+      is_zero_const = true;
+      add_candidate = &max_node->b;
+    } else if (is_zero_expr(max_node->b)) {
+      is_zero_const = true;
+      add_candidate = &max_node->a;
+    }
+
+    if (is_zero_const && add_candidate != nullptr) {
+      if (const auto* add = add_candidate->as<AddNode>()) {
+        const auto* load_a = add->a.as<BufferLoadNode>();
+        const auto* load_b = add->b.as<BufferLoadNode>();
+
+        bool a_is_target = load_a && load_a->buffer.same_as(inlined_buffer_);
+        bool b_is_target = load_b && load_b->buffer.same_as(inlined_buffer_);
+
+        // Ensure exactly one operand is from the reduction buffer
+        if (a_is_target != b_is_target) {
+          epilogue_addend_ = a_is_target ? add->b : add->a;
+          epilogue_type_ = EpilogueType::BiasReLU;
+          return true;
+        }
+      } else if (const auto* load = add_candidate->as<BufferLoadNode>()) {
+        // Handle bias-free ReLU: max(temp, 0) or max(0, temp)
+        if (load->buffer.same_as(inlined_buffer_)) {
+          epilogue_addend_ = tir::make_zero(load->dtype);
+          epilogue_type_ = EpilogueType::BiasReLU;
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+bool ReductionEpilogueFuser::IsReductionBlock(const BlockNode* block) {
+  // Check if block has reduction iter vars
+  for (const IterVar& iter : block->iter_vars) {
+    if (iter->iter_type == kCommReduce) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void ReductionEpilogueFuser::ExtractEpilogueInfo() {
+  // Extract epilogue output buffer and indices
+  epilogue_output_buffer_ = inlined_store_->buffer;
+  epilogue_output_indices_ = inlined_store_->indices;
+
+  // Extract epilogue output region from epilogue block writes
+  for (const BufferRegion& write : epilogue_block_->writes) {
+    if (write->buffer.same_as(epilogue_output_buffer_)) {
+      epilogue_output_region_ = write;
+      break;
+    }
+  }
+
+  // Extract epilogue addend buffer and region from epilogue_addend_
+  if (const auto* load = epilogue_addend_.as<BufferLoadNode>()) {
+    epilogue_addend_buffer_ = load->buffer;
+    // Find the read region from epilogue block reads
+    for (const BufferRegion& read : epilogue_block_->reads) {
+      if (read->buffer.same_as(epilogue_addend_buffer_)) {
+        epilogue_addend_region_ = read;
+        break;
+      }
+    }
+  }
+}
+
+Block ReductionEpilogueFuser::CreateFusedReductionBlock(const BlockNode* reduction_block,
+                                                        const BlockRealizeNode* reduction_realize) {
+  ObjectPtr<BlockNode> new_block = ffi::make_object<BlockNode>(*reduction_block);
+
+  // 1. Map epilogue block vars to reduction block vars
+  std::vector<Var> reduction_data_vars;
+  for (const IterVar& iter_var : reduction_block->iter_vars) {
+    if (iter_var->iter_type == IterVarType::kDataPar) {
+      reduction_data_vars.push_back(iter_var->var);
+    }
+  }
+  std::vector<Var> epilogue_data_vars;
+  for (const IterVar& iter_var : epilogue_block_->iter_vars) {
+    if (iter_var->iter_type == IterVarType::kDataPar) {
+      epilogue_data_vars.push_back(iter_var->var);
+    }
+  }
+
+  ICHECK_EQ(reduction_data_vars.size(), epilogue_data_vars.size())
+      << "ValueError: The number of data parallel iter vars must be the same in the reduction "
+         "and epilogue blocks.";
+
+  std::unordered_map<Var, Var> var_map;
+  for (size_t i = 0; i < reduction_data_vars.size(); ++i) {
+    var_map[epilogue_data_vars[i]] = reduction_data_vars[i];
+  }
+
+  // 2. Change init to epilogue value based on epilogue type
+  BufferStore new_init_store;
+  if (epilogue_type_ == EpilogueType::BiasReLU) {
+    // For ReLU, init should be max(C[vi, vj], 0) to match per-iteration ReLU semantics
+    PrimExpr init_value = Substitute(epilogue_addend_, var_map);
+    PrimExpr zero = tir::make_zero(init_value.dtype());
+    new_init_store = BufferStore(epilogue_output_buffer_, Max(init_value, zero),
+                                 Substitute(epilogue_output_indices_, var_map));
+  } else if (epilogue_type_ == EpilogueType::Clipping) {
+    // For Clipping, init should be min(max(init_value, lower), upper)
+    // Since init is typically 0, this becomes min(max(0, lower), upper)
+    PrimExpr init_value = tir::make_zero(epilogue_output_buffer_->dtype);
+    PrimExpr clipped_init = Min(Max(init_value, Substitute(clipping_lower_, var_map)),
+                                Substitute(clipping_upper_, var_map));
+    new_init_store = BufferStore(epilogue_output_buffer_, clipped_init,
+                                 Substitute(epilogue_output_indices_, var_map));
+  } else {
+    // Bias: D[vi, vj] = C[vi, vj]
+    new_init_store = BufferStore(epilogue_output_buffer_, Substitute(epilogue_addend_, var_map),
+                                 Substitute(epilogue_output_indices_, var_map));
+  }
+  new_block->init = new_init_store;
+
+  // 3. Replace output buffer from temp to D in body
+  class BufferReplacer : public StmtExprMutator {
+   public:
+    BufferReplacer(Buffer old_buf, Buffer new_buf, EpilogueType epilogue_type, DataType dtype,
+                   PrimExpr clipping_lower = PrimExpr(), PrimExpr clipping_upper = PrimExpr())
+        : old_buffer_(old_buf),
+          new_buffer_(new_buf),
+          epilogue_type_(epilogue_type),
+          dtype_(dtype),
+          clipping_lower_(clipping_lower),
+          clipping_upper_(clipping_upper) {}
+
+    Stmt VisitStmt_(const BufferStoreNode* op) final {
+      BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+      if (store->buffer.same_as(old_buffer_)) {
+        PrimExpr new_value = store->value;
+        // For ReLU, apply max per iteration to match per-iteration ReLU semantics
+        if (epilogue_type_ == EpilogueType::BiasReLU) {
+          PrimExpr zero = tir::make_zero(dtype_);
+          new_value = Max(new_value, zero);
+        } else if (epilogue_type_ == EpilogueType::Clipping) {
+          // For Clipping, apply min(max(value, lower), upper) per iteration
+          new_value = Min(Max(new_value, clipping_lower_), clipping_upper_);
+        }
+        return BufferStore(new_buffer_, new_value, store->indices);
+      }
+      return store;
+    }
+
+    PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+      BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+      if (load->buffer.same_as(old_buffer_)) {
+        return BufferLoad(new_buffer_, load->indices);
+      }
+      return load;
+    }
+
+   private:
+    Buffer old_buffer_;
+    Buffer new_buffer_;
+    EpilogueType epilogue_type_;
+    DataType dtype_;
+    PrimExpr clipping_lower_;
+    PrimExpr clipping_upper_;
+  };
+
+  DataType dtype = epilogue_output_buffer_->dtype;
+  PrimExpr clipping_lower_subst =
+      epilogue_type_ == EpilogueType::Clipping ? Substitute(clipping_lower_, var_map) : PrimExpr();
+  PrimExpr clipping_upper_subst =
+      epilogue_type_ == EpilogueType::Clipping ? Substitute(clipping_upper_, var_map) : PrimExpr();
+  BufferReplacer replacer(inlined_buffer_, epilogue_output_buffer_, epilogue_type_, dtype,
+                          clipping_lower_subst, clipping_upper_subst);
+  new_block->body = replacer(reduction_block->body);
+
+  // 4. Update write regions
+  ffi::Array<BufferRegion> new_writes;
+  for (const BufferRegion& write : reduction_block->writes) {
+    if (write->buffer.same_as(inlined_buffer_)) {
+      new_writes.push_back(
+          BufferRegion(epilogue_output_buffer_, Substitute(write->region, var_map)));
+    } else {
+      new_writes.push_back(write);
+    }
+  }
+  new_block->writes = new_writes;
+
+  // 5. Update read regions (C first, then A, B)
+  ffi::Array<BufferRegion> new_reads;
+  std::unordered_set<const BufferNode*> read_bufs;
+
+  // Add C buffer read first (used in init)
+  if (epilogue_addend_buffer_.defined()) {
+    new_reads.push_back(BufferRegion(epilogue_addend_buffer_,
+                                     Substitute(epilogue_addend_region_->region, var_map)));
+    read_bufs.insert(epilogue_addend_buffer_.get());
+  }
+
+  // Add existing read regions (A, B, etc.)
+  for (const BufferRegion& read : reduction_block->reads) {
+    if (!read->buffer.same_as(inlined_buffer_)) {
+      // Only add non-temp buffers
+      if (read_bufs.find(read->buffer.get()) == read_bufs.end()) {
+        new_reads.push_back(read);
+        read_bufs.insert(read->buffer.get());
+      }
+    }
+  }
+
+  new_block->reads = new_reads;
+
+  return Block(new_block);
+}
+
+/*!
+ * \brief Check if a buffer is still referenced by other blocks in the scope
+ */
+static bool CheckBufferStillUsed(const Block& scope_root, const Buffer& buffer) {
+  class BufferUsageChecker : public StmtVisitor {
+   public:
+    explicit BufferUsageChecker(const Buffer& buffer) : buffer_(buffer) {}
+
+    bool CheckStmt(const Stmt& stmt) {
+      found_usage_ = false;
+      VisitStmt(stmt);
+      return found_usage_;
+    }
+
+   private:
+    void VisitStmt_(const BlockRealizeNode* op) final {
+      if (found_usage_) return;
+
+      if (!op || !op->block.defined()) {
+        StmtVisitor::VisitStmt_(op);
+        return;
+      }
+
+      const BlockNode* block = op->block.get();
+      if (!block) {
+        StmtVisitor::VisitStmt_(op);
+        return;
+      }
+
+      // Check reads
+      for (const BufferRegion& read : block->reads) {
+        if (read->buffer.same_as(buffer_)) {
+          found_usage_ = true;
+          return;
+        }
+      }
+
+      // Check writes
+      for (const BufferRegion& write : block->writes) {
+        if (write->buffer.same_as(buffer_)) {
+          found_usage_ = true;
+          return;
+        }
+      }
+
+      // Continue visiting nested blocks
+      StmtVisitor::VisitStmt_(op);
+    }
+
+    void VisitStmt_(const BlockNode* op) final {
+      if (found_usage_) return;
+      if (!op) return;
+
+      // Check alloc_buffers
+      for (const Buffer& buf : op->alloc_buffers) {
+        if (buf.same_as(buffer_)) {
+          found_usage_ = true;
+          return;
+        }
+      }
+
+      StmtVisitor::VisitStmt_(op);
+    }
+
+    const Buffer& buffer_;
+    bool found_usage_{false};
+  };
+
+  if (!scope_root->body.defined()) {
+    return false;
+  }
+
+  BufferUsageChecker checker(buffer);
+  return checker.CheckStmt(scope_root->body);
+}
+
+/*!
+ * \brief Helper class to replace reduction and epilogue blocks with a single fused block
+ */
+class SingleBlockFusionReplacer : public StmtMutator {
+ public:
+  static Block Replace(Block old_scope_root, Block new_fused_block, Block old_reduction_block,
+                       Block old_epilogue_block, Buffer reduction_buffer) {
+    SingleBlockFusionReplacer replacer(std::move(new_fused_block), std::move(old_reduction_block),
+                                       std::move(old_epilogue_block), std::move(reduction_buffer));
+    Block result = Downcast<Block>(replacer(std::move(old_scope_root)));
+
+    // Check if reduction_buffer is still referenced by other blocks
+    bool buffer_still_used = CheckBufferStillUsed(result, reduction_buffer);
+
+    // Remove intermediate temp buffer only if it's not used by other blocks
+    if (!buffer_still_used) {
+      BlockNode* p = result.CopyOnWrite();
+      ffi::Array<Buffer> new_alloc_buffers;
+      for (const Buffer& buf : p->alloc_buffers) {
+        if (!buf.same_as(reduction_buffer)) {
+          new_alloc_buffers.push_back(buf);
+        }
+      }
+      p->alloc_buffers = new_alloc_buffers;
+    }
+
+    return result;
+  }
+
+ private:
+  explicit SingleBlockFusionReplacer(Block new_fused_block, Block old_reduction_block,
+                                     Block old_epilogue_block, Buffer reduction_buffer)
+      : new_fused_block_(std::move(new_fused_block)),
+        old_reduction_block_(std::move(old_reduction_block)),
+        old_epilogue_block_(std::move(old_epilogue_block)),
+        reduction_buffer_(std::move(reduction_buffer)) {}
+
+  Stmt VisitStmt_(const ForNode* loop) final {
+    Stmt mutated_body = StmtMutator::VisitStmt(loop->body);
+    // Remove empty loops (containing only Evaluate(0))
+    if (mutated_body.as<EvaluateNode>()) {
+      return mutated_body;  // Return Evaluate(0) to be removed by SeqStmt
+    }
+
+    return For(loop->loop_var, loop->min, loop->extent, loop->kind, mutated_body,
+               loop->thread_binding, loop->annotations);
+  }
+
+  Stmt VisitStmt_(const BlockRealizeNode* realize) final {
+    if (realize->block.same_as(old_reduction_block_)) {
+      // Replace reduction block with new fused block
+      ObjectPtr<BlockRealizeNode> new_realize = ffi::make_object<BlockRealizeNode>(*realize);
+      new_realize->block = new_fused_block_;
+      return BlockRealize(new_realize);
+    } else if (realize->block.same_as(old_epilogue_block_)) {
+      // Remove epilogue block completely
+      return Evaluate(0);
+    }
+    return StmtMutator::VisitStmt_(realize);
+  }
+
+  Stmt VisitStmt_(const SeqStmtNode* seq) final {
+    ffi::Array<Stmt> new_stmts;
+    for (const Stmt& stmt : seq->seq) {
+      Stmt new_stmt = VisitStmt(stmt);
+      // Remove Evaluate(0)
+      if (!new_stmt.as<EvaluateNode>()) {
+        new_stmts.push_back(new_stmt);
+      }
+    }
+    return SeqStmt::Flatten(new_stmts);
+  }
+
+ private:
+  Block new_fused_block_;
+  Block old_reduction_block_;
+  Block old_epilogue_block_;
+  Buffer reduction_buffer_;
+};
+
+void FuseReductionEpilogueImpl(ScheduleState self, const StmtSRef& reduction_block_sref,
+                               const StmtSRef& epilogue_block_sref, bool check_only = false) {
+  const BlockNode* _reduction_block = TVM_SREF_TO_BLOCK(reduction_block_sref);
+  const BlockNode* _epilogue_block = TVM_SREF_TO_BLOCK(epilogue_block_sref);
+
+  Block reduction_block = ffi::GetRef<Block>(_reduction_block);
+  Block epilogue_block = ffi::GetRef<Block>(_epilogue_block);
+  BlockRealize epilogue_block_realize = GetBlockRealize(self, epilogue_block_sref);
+
+  // Step 1. Get the scope block
+  StmtSRef scope_root_sref =
+      GetScopeRoot(self, epilogue_block_sref, /*require_stage_pipeline=*/true);
+
+  // Step 2. Get the reduction buffer (intermediate buffer)
+  Buffer reduction_buffer = NotSingleReadWriteBuffer::GetSingleWrite(self, reduction_block);
+
+  // Step 3. Check completeness and reduction block properties
+  CheckReductionBlock(self, reduction_block_sref, scope_root_sref);
+  CheckCompleteBlock(self, epilogue_block_sref, scope_root_sref);
+  CheckNotOutputBlock(self, reduction_block_sref, scope_root_sref);
+
+  // Step 4. Analyze the epilogue pattern
+  ReductionEpilogueFuser fuser(reduction_buffer, _reduction_block, epilogue_block_realize,
+                               scope_root_sref);
+  if (!fuser.BodyPatternAllowFusion(epilogue_block_realize)) {
+    throw BodyAnalysisError(true, self->mod, epilogue_block);
+  }
+
+  if (check_only) {
+    return;
+  }
+
+  // Step 5. Create single fused reduction block
+  BlockRealize reduction_realize = GetBlockRealize(self, reduction_block_sref);
+  Block fused_block = fuser.CreateFusedReductionBlock(_reduction_block, reduction_realize.get());
+
+  // Step 6. Transform and replace IR
+  const BlockNode* old_scope_root = TVM_SREF_TO_BLOCK(scope_root_sref);
+
+  Block new_scope_root =
+      SingleBlockFusionReplacer::Replace(ffi::GetRef<Block>(old_scope_root), fused_block,
+                                         reduction_block, epilogue_block, reduction_buffer);
+
+  // Step 7. Update schedule state
+  ffi::Map<Block, Block> block_reuse;
+  block_reuse.Set(ffi::GetRef<Block>(old_scope_root), new_scope_root);
+  block_reuse.Set(reduction_block, fused_block);
+  self->Replace(scope_root_sref, new_scope_root, block_reuse);
+
+  // Step 8. Update BlockInfo
+  self->UpdateScopeBlockInfo(GetBlockRealize(self, scope_root_sref));
+}
+
+void FuseReductionEpilogue(ScheduleState self, const StmtSRef& reduction_block_sref,
+                           const StmtSRef& epilogue_block_sref) {
+  FuseReductionEpilogueImpl(self, reduction_block_sref, epilogue_block_sref);
+}
+
 /******** InstructionKind Registration ********/
 
 struct ComputeInlineTraits : public UnpackedInstTraits<ComputeInlineTraits> {
@@ -1034,6 +1689,35 @@ struct ReverseComputeInlineTraits : public UnpackedInstTraits<ReverseComputeInli
 
 TVM_REGISTER_INST_KIND_TRAITS(ComputeInlineTraits);
 TVM_REGISTER_INST_KIND_TRAITS(ReverseComputeInlineTraits);
+
+struct FuseReductionEpilogueTraits : public UnpackedInstTraits<FuseReductionEpilogueTraits> {
+  static constexpr const char* kName = "FuseReductionEpilogue";
+  static constexpr bool kIsPure = false;
+
+ private:
+  static constexpr size_t kNumInputs = 2;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 0;
+
+  static void UnpackedApplyToSchedule(Schedule sch, BlockRV reduction_block_rv,
+                                      BlockRV epilogue_block_rv) {
+    return sch->FuseReductionEpilogue(reduction_block_rv, epilogue_block_rv);
+  }
+
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs,
+                                      ffi::String reduction_block_rv,
+                                      ffi::String epilogue_block_rv) {
+    PythonAPICall py("fuse_reduction_epilogue");
+    py.Input("reduction_block", reduction_block_rv);
+    py.Input("epilogue_block", epilogue_block_rv);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
+TVM_REGISTER_INST_KIND_TRAITS(FuseReductionEpilogueTraits);
 
 }  // namespace tir
 }  // namespace tvm

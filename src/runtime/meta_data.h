@@ -48,6 +48,10 @@ namespace launch_param {
 
 /*! \brief A tag to specify whether or not dynamic shared memory is used */
 constexpr const char* kUseDynamicSharedMemoryTag = "tir.use_dyn_shared_memory";
+/*! \brief A tag to specify whether or not use programatic dependent launch */
+constexpr const char* kUseProgramaticDependentLaunch = "tir.use_programtic_dependent_launch";
+/*! \brief A tag to specify whether or not use cooperative launch */
+constexpr const char* kUseCooperativeLaunch = "tir.use_cooperative_launch";
 
 }  // namespace launch_param
 

@@ -167,9 +167,15 @@ TVM_REGISTER_OP("tir.sinh")
 TVM_REGISTER_OP("tir.asin")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       using tir::make_const;
+      using namespace intrin;
       const tir::CallNode* call = e.as<tir::CallNode>();
       ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
+
+      PrimExpr threshold = make_const(x.dtype(), 0.5);
+      PrimExpr abs_x = tvm::abs(x);
+      PrimExpr use_lib = abs_x >= threshold;
+
       PrimExpr x2 = x * x;
       PrimExpr term1 = x;
       PrimExpr term3 = term1 * x2 / make_const(x.dtype(), 6);
@@ -178,25 +184,43 @@ TVM_REGISTER_OP("tir.asin")
       PrimExpr term9 = term7 * x2 * make_const(x.dtype(), 1225) / make_const(x.dtype(), 3456);
       PrimExpr term11 = term9 * x2 * make_const(x.dtype(), 3969) / make_const(x.dtype(), 28160);
       PrimExpr series = term1 + term3 + term5 + term7 + term9 + term11;
-      /* --- domain limit check --- */
+
+      PrimExpr lib_result =
+          ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
+
       PrimExpr lower = make_const(x.dtype(), -1.0);
       PrimExpr upper = make_const(x.dtype(), 1.0);
       PrimExpr out_range = tir::Or(x<lower, x> upper);
-      // Use a quiet NaN constant
       PrimExpr nan_const = make_const(x.dtype(), std::numeric_limits<double>::quiet_NaN());
-      // select: if out of [-1,1] → NaN, else → series
-      return tir::Select(out_range, nan_const, series);
+
+      return tir::Select(out_range, nan_const, tir::Select(use_lib, lib_result, series));
     });
 
 TVM_REGISTER_OP("tir.acos")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       using tir::make_const;
+      using namespace intrin;
       const tir::CallNode* call = e.as<tir::CallNode>();
       ICHECK(call != nullptr) << "Invalid call node in acos legalization";
       const PrimExpr& x = call->args[0];
+
+      PrimExpr threshold = make_const(x.dtype(), 0.5);
+      PrimExpr abs_x = tvm::abs(x);
+      PrimExpr use_lib = abs_x >= threshold;
+
       PrimExpr half_pi = make_const(x.dtype(), M_PI / 2);
       PrimExpr asin_x = asin(x);
-      return half_pi - asin_x;
+      PrimExpr formula_result = half_pi - asin_x;
+
+      PrimExpr lib_result =
+          ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
+
+      PrimExpr lower = make_const(x.dtype(), -1.0);
+      PrimExpr upper = make_const(x.dtype(), 1.0);
+      PrimExpr out_range = tir::Or(x<lower, x> upper);
+      PrimExpr nan_const = make_const(x.dtype(), std::numeric_limits<double>::quiet_NaN());
+
+      return tir::Select(out_range, nan_const, tir::Select(use_lib, lib_result, formula_result));
     });
 
 TVM_REGISTER_OP("tir.atan")

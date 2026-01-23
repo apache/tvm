@@ -102,6 +102,7 @@ struct ConstIntBoundAnalyzer::Entry {
 class ConstIntBoundAnalyzer::Impl
     : public ExprFunctor<ConstIntBoundAnalyzer::Entry(const PrimExpr&)> {
  public:
+  explicit Impl(Analyzer* parent) : parent_(parent) {}
   /*! \brief additional bound info about expr in bound */
   struct BoundInfo {
     /*! \brief The expr */
@@ -278,6 +279,33 @@ class ConstIntBoundAnalyzer::Impl
 
     if (b.min_value > 0) {
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
+
+      // Try to get tighter bounds using modular set information
+      if (parent_ && b.min_value == b.max_value) {
+        ModularSet mod_a = parent_->modular_set(op->a);
+        int64_t modulus = b.min_value;
+        int64_t gcd_coeff_mod = ZeroAwareGCD(mod_a->coeff, modulus);
+
+        // If gcd_coeff_mod > 1, we can get tighter bounds
+        // The result will be of the form gcd_coeff_mod * k + (base % modulus)
+        // where k ranges to cover [0, modulus - gcd_coeff_mod]
+        //
+        // Example: expr = (bx * 2048 + tx * 16) % 7168
+        //          where bx in [0, 3584), tx in [0, 128)
+        //          ModularSet(expr) = 16*k (coeff=16, base=0)
+        //          GCD(16, 7168) = 16
+        //          Result can only be {0, 16, 32, ..., 7152}
+        //          Without this optimization: bound = [0, 7167]
+        //          With this optimization: bound = [0, 7152]
+        if (gcd_coeff_mod > 1) {
+          int64_t base_mod = mod_a->base % modulus;
+          if (base_mod < 0) base_mod += modulus;
+          int64_t tight_max = modulus - gcd_coeff_mod + base_mod;
+          if (tight_max >= modulus) tight_max -= modulus;
+          return MakeBound(base_mod, tight_max);
+        }
+      }
+
       if (a.min_value >= 0) {
         // 0 <= [a_min, a_max] < b_min
         if (a.max_value < b.min_value) return a;
@@ -324,6 +352,32 @@ class ConstIntBoundAnalyzer::Impl
 
     if (b.min_value > 0) {
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
+      // Try to get tighter bounds using modular set information
+      if (parent_ && b.min_value == b.max_value) {
+        ModularSet mod_a = parent_->modular_set(op->a);
+        int64_t modulus = b.min_value;
+        int64_t gcd_coeff_mod = ZeroAwareGCD(mod_a->coeff, modulus);
+
+        // If gcd_coeff_mod > 1, we can get tighter bounds
+        // The result will be of the form gcd_coeff_mod * k + (base % modulus)
+        // where k ranges to cover [0, modulus - gcd_coeff_mod]
+        //
+        // Example: expr = (bx * 2048 + tx * 16) % 7168
+        //          where bx in [0, 3584), tx in [0, 128)
+        //          ModularSet(expr) = 16*k (coeff=16, base=0)
+        //          GCD(16, 7168) = 16
+        //          Result can only be {0, 16, 32, ..., 7152}
+        //          Without this optimization: bound = [0, 7167]
+        //          With this optimization: bound = [0, 7152]
+        if (gcd_coeff_mod > 1) {
+          int64_t base_mod = mod_a->base % modulus;
+          if (base_mod < 0) base_mod += modulus;
+          int64_t tight_max = modulus - gcd_coeff_mod + base_mod;
+          if (tight_max >= modulus) tight_max -= modulus;
+          return MakeBound(base_mod, tight_max);
+        }
+      }
+
       if (a.min_value >= 0) {
         // 0 <= [a_min, a_max] < b_min
         if (a.max_value < b.min_value) return a;
@@ -448,16 +502,18 @@ class ConstIntBoundAnalyzer::Impl
     if (info.size() == 0) return nullptr;
     size_t old_size = additional_info_.size();
     additional_info_.insert(additional_info_.end(), info.begin(), info.end());
-    size_t new_size = old_size + info.size();
-    auto frecover = [old_size, new_size, this]() {
-      ICHECK_EQ(additional_info_.size(), new_size);
-      additional_info_.resize(old_size);
+    auto frecover = [old_size, this]() {
+      if (additional_info_.size() > old_size) {
+        additional_info_.resize(old_size);
+      }
     };
     return frecover;
   }
 
  private:
   friend class ConstIntBoundAnalyzer;
+  // parent analyzer
+  Analyzer* parent_;
   // internal variable map
   std::unordered_map<Var, Entry> var_map_;
   // additional bound info
@@ -525,6 +581,7 @@ class ConstIntBoundAnalyzer::Impl
     // If the range of b does not have 0, use BinaryOpBoundary.
     return BinaryOpBoundary(a, b, op);
   }
+
   /*!
    * \brief Compute x + y, aware of inf.
    * \param x The left operand.
@@ -678,8 +735,11 @@ class ConstIntBoundAnalyzer::Impl
    * \return Bound that represent everything dtype can represent.
    */
   static Entry Everything(DataType dtype) {
-    if (!dtype.is_int() && !dtype.is_uint()) {
+    if (!dtype.is_int() && !dtype.is_uint() && !dtype.is_bool()) {
       return MakeBound(kNegInf, kPosInf);
+    }
+    if (dtype.is_bool()) {
+      return MakeBound(0, 1);
     }
     Entry ret;
     int64_t vbits = dtype.bits() - static_cast<int>(dtype.is_int());
@@ -805,7 +865,7 @@ std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const PrimExpr& con
   return impl_->EnterConstraint(constraint);
 }
 
-ConstIntBoundAnalyzer::ConstIntBoundAnalyzer(Analyzer* parent) : impl_(new Impl()) {}
+ConstIntBoundAnalyzer::ConstIntBoundAnalyzer(Analyzer* parent) : impl_(new Impl(parent)) {}
 
 ConstIntBoundAnalyzer::~ConstIntBoundAnalyzer() { delete impl_; }
 

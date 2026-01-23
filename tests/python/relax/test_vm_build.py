@@ -412,7 +412,7 @@ def test_vm_emit_te_dtype_change(exec_mode):
         ).astype(np.float32)
     )
     res = check_saved_func(vm, "rx_func", inp)
-    np.testing.assert_allclose(res.numpy(), inp.numpy().astype("int16"))
+    tvm.testing.assert_allclose(res.numpy(), inp.numpy().astype("int16"))
 
 
 def test_vm_emit_te_floor_symbolic_shape(exec_mode):

@@ -38,6 +38,7 @@ namespace relax {
 
 using tir::IndexMap;
 using tir::Layout;
+using LayoutCb = tvm::relax::transform::LayoutCb;
 
 /*!
  * \brief Main logic to convert the layout of conv2d. Other ops
@@ -79,8 +80,8 @@ using tir::Layout;
 class LayoutConvertMutator : public ExprMutator {
  public:
   explicit LayoutConvertMutator(
-      const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts)
-      : desired_layouts_(desired_layouts) {}
+      const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts, LayoutCb layout_cb)
+      : desired_layouts_(desired_layouts), layout_cb_(layout_cb) {}
 
  private:
   ffi::Array<Integer> LayoutToIntegers(const Layout& layout) {
@@ -201,7 +202,7 @@ class LayoutConvertMutator : public ExprMutator {
   ffi::Optional<InferLayoutOutput> GetInferLayoutInfo(
       const CallNode* call_node,
       const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
-      const VarLayoutMap& var_layout_map) {
+      const LayoutCb& layout_cb, const VarLayoutMap& var_layout_map) {
     const OpNode* op_node = call_node->op.as<OpNode>();
     if (op_node == nullptr) return std::nullopt;
     Op op = Downcast<Op>(ffi::GetRef<Op>(op_node));
@@ -209,7 +210,13 @@ class LayoutConvertMutator : public ExprMutator {
     if (attr_map.count(op) && !HasUnknownDimTensor(call_node->args)) {
       // If the op has FRelaxInferLayout, and all the input tensors have known ndim
       FRelaxInferLayout f = attr_map[op];
-      return f(ffi::GetRef<Call>(call_node), desired_layouts, var_layout_map);
+      auto call = ffi::GetRef<Call>(call_node);
+      if (layout_cb != nullptr) {
+        auto custom_layouts = layout_cb(call);
+        return f(call, custom_layouts, var_layout_map);
+      } else {
+        return f(call, desired_layouts, var_layout_map);
+      }
     } else {
       // Otherwise, we use the default policy.
       return std::nullopt;
@@ -218,7 +225,7 @@ class LayoutConvertMutator : public ExprMutator {
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call_node) final {
     ffi::Optional<InferLayoutOutput> res =
-        GetInferLayoutInfo(call_node, desired_layouts_, var_layout_map_);
+        GetInferLayoutInfo(call_node, desired_layouts_, layout_cb_, var_layout_map_);
     ObjectPtr<CallNode> new_call = ffi::make_object<CallNode>(*call_node);
     new_call->struct_info_ = std::nullopt;
     if (!res.defined() ||
@@ -335,20 +342,23 @@ class LayoutConvertMutator : public ExprMutator {
 
   std::unordered_map<Var, NLayout> var_layout_map_;
   ffi::Map<ffi::String, ffi::Array<ffi::String>> desired_layouts_;
+  LayoutCb layout_cb_;
 };  // namespace relax
 
 DataflowBlock ConvertLayoutPass(const DataflowBlock& df_block,
-                                ffi::Map<ffi::String, ffi::Array<ffi::String>> desired_layouts) {
-  LayoutConvertMutator mutator(desired_layouts);
+                                ffi::Map<ffi::String, ffi::Array<ffi::String>> desired_layouts,
+                                LayoutCb layout_cb) {
+  LayoutConvertMutator mutator(desired_layouts, layout_cb);
   return Downcast<DataflowBlock>(mutator.VisitBindingBlock(df_block));
 }
 
 namespace transform {
 
-Pass ConvertLayout(ffi::Map<ffi::String, ffi::Array<ffi::String>> desired_layouts) {
+Pass ConvertLayout(ffi::Map<ffi::String, ffi::Array<ffi::String>> desired_layouts,
+                   LayoutCb layout_cb) {
   ffi::TypedFunction<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func =
       [=](DataflowBlock df_block, IRModule m, PassContext pc) {
-        return Downcast<DataflowBlock>(ConvertLayoutPass(df_block, desired_layouts));
+        return Downcast<DataflowBlock>(ConvertLayoutPass(df_block, desired_layouts, layout_cb));
       };
   return CreateDataflowBlockPass(pass_func, 0, "ConvertLayout", {});
 }

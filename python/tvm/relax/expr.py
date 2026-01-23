@@ -22,6 +22,7 @@ from typing import Any, Callable, Dict, List, Optional, Union, Mapping
 import numpy as _np  # type: ignore
 
 import tvm_ffi
+
 import tvm.ir
 import tvm.relax
 from tvm import DataType
@@ -184,8 +185,7 @@ class ExprWithOp(Expr, Scriptable):
         return _binary_rhs_helper(other)
 
     def __mod__(self, other: Expr) -> "ExprWithOp":
-        # TODO(siyuan): Support it after mod operator is supported in relax
-        raise ValueError("relax.mod is not supported yet.")
+        return _binary_op_helper(self, other, _op_ffi_api.mod)  # type: ignore
 
     def __rmod__(self, other: Expr) -> "ExprWithOp":
         return _binary_rhs_helper(other)
@@ -1153,6 +1153,9 @@ def const(
     - bool maps to "bool"
     - other using the same default rule as numpy.
     """
+    # Needed for bf16 and fp8 support (does not come with numpy)
+    import ml_dtypes  # pylint: disable=unused-import,import-outside-toplevel
+
     if isinstance(value, (Number, (bool, list))):
         value = _np.array(value, dtype=dtype)
 

@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/binding_rewrite.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
@@ -133,17 +134,6 @@ class UpdateDFB : public ExprMutator {
     return old_dfb.get() == op ? new_dfb : old_dfb;
   }
 };
-
-// TODO(masahi): Consider moving this to analysis
-std::set<const VarNode*> GetUsedVars(Expr val) {
-  class UsedVars : public ExprVisitor {
-   public:
-    std::set<const VarNode*> used_vars;
-    void VisitExpr_(const VarNode* op) override { used_vars.insert(op); }
-  } uvar{};
-  uvar.VisitExpr(val);
-  return std::move(uvar.used_vars);
-}
 
 void DataflowBlockRewriteNode::Add(Binding binding) {
   auto [var, val] = [binding] {

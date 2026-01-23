@@ -2444,5 +2444,77 @@ def test_fuse_with_axis_separators_inconsistent_buffer_mapping():
         relax.transform.FuseTIR()(Before)
 
 
+def test_block_name_numeric_suffix_deduplication():
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def add1(x: T.Buffer((10,), "float32"), y: T.Buffer((10,), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for i in range(10):
+                with T.block("compute1"):
+                    vi = T.axis.spatial(10, i)
+                    y[vi] = x[vi] + T.float32(1.0)
+
+        @T.prim_func(private=True)
+        def mul1(x: T.Buffer((10,), "float32"), y: T.Buffer((10,), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for i in range(10):
+                with T.block("compute1"):
+                    vi = T.axis.spatial(10, i)
+                    y[vi] = x[vi] * T.float32(2.0)
+
+        @R.function(private=True)
+        def fused_add_mul(x: R.Tensor((10,), "float32")) -> R.Tensor((10,), dtype="float32"):
+            R.func_attr({"Primitive": True})
+            cls = Before
+            with R.dataflow():
+                lv1 = R.call_tir(cls.add1, (x,), out_sinfo=R.Tensor((10,), dtype="float32"))
+                lv2 = R.call_tir(cls.mul1, (lv1,), out_sinfo=R.Tensor((10,), dtype="float32"))
+                R.output(lv2)
+            return lv2
+
+        @R.function
+        def main(x: R.Tensor((10,), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+            cls = Before
+            with R.dataflow():
+                gv = cls.fused_add_mul(x)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def fused_add_mul(p_x: T.handle, p_output0: T.handle):
+            T.func_attr({"tir.noalias": True})
+            x = T.match_buffer(p_x, (T.int64(10),))
+            y_intermediate_1 = T.match_buffer(p_output0, (T.int64(10),), elem_offset=T.int32(0))
+            with T.block("root"):
+                T.reads()
+                T.writes()
+                y_intermediate = T.alloc_buffer((T.int64(10),), elem_offset=T.int32(0))
+                for i in range(10):
+                    with T.block("compute1"):
+                        vi = T.axis.spatial(10, i)
+                        T.reads(x[vi])
+                        T.writes(y_intermediate[vi])
+                        y_intermediate[vi] = x[vi] + T.float32(1.0)
+                for i in range(10):
+                    with T.block("compute2"):
+                        vi = T.axis.spatial(10, i)
+                        T.reads(y_intermediate[vi])
+                        T.writes(y_intermediate_1[vi])
+                        y_intermediate_1[vi] = y_intermediate[vi] * T.float32(2.0)
+
+        @R.function
+        def main(x: R.Tensor((10,), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                gv = R.call_tir(cls.fused_add_mul, (x,), out_sinfo=R.Tensor((10,), dtype="float32"))
+                R.output(gv)
+            return gv
+
+    _check(Before, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

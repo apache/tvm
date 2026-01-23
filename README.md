@@ -15,16 +15,18 @@
 <!--- specific language governing permissions and limitations -->
 <!--- under the License. -->
 
-<img src=https://raw.githubusercontent.com/apache/tvm-site/main/images/logo/tvm-logo-small.png width=128/> Open Deep Learning Compiler Stack
+<img src=https://raw.githubusercontent.com/apache/tvm-site/main/images/logo/tvm-logo-small.png width=128/> Open Machine Learning Compiler Framework
 ==============================================
 [Documentation](https://tvm.apache.org/docs) |
 [Contributors](CONTRIBUTORS.md) |
 [Community](https://tvm.apache.org/community) |
 [Release Notes](NEWS.md)
 
-Apache TVM is a compiler stack for deep learning systems. It is designed to close the gap between the
-productivity-focused deep learning frameworks and the performance- and efficiency-focused hardware backends.
-TVM works with deep learning frameworks to provide end-to-end compilation for different backends.
+Apache TVM is an open machine learning compilation framework,
+following the following principles:
+
+- Python-first development that enables quick customization of machine learning compiler pipelines.
+- Universal deployment to bring models into minimum deployable modules.
 
 License
 -------

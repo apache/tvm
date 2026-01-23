@@ -219,11 +219,22 @@ def _sort_common(
     upper_lim = ceil_log2(size)
 
     def get_merge_begin(source, base_idx, aCount, bCount, aStart, bStart, diag, step_count):
-        first = ib.allocate("int64", (1,), name="first", scope="local")
-        mid = ib.allocate("int64", (1,), name="mid", scope="local")
-        last = ib.allocate("int64", (1,), name="last", scope="local")
-        first[0] = tvm.te.max(0, diag - bCount)
-        last[0] = tvm.te.min(diag, aCount)
+        target = tvm.target.Target.current()
+        is_webgpu = "webgpu" in str(target)
+        target_dtype = "int32" if is_webgpu else "int64"
+
+        first = ib.allocate(target_dtype, (1,), name="first", scope="local")
+        mid = ib.allocate(target_dtype, (1,), name="mid", scope="local")
+        last = ib.allocate(target_dtype, (1,), name="last", scope="local")
+        max_val = tvm.te.max(0, diag - bCount)
+        min_val = tvm.te.min(diag, aCount)
+        if is_webgpu:
+            first[0] = cast(max_val, target_dtype)
+            last[0] = cast(min_val, target_dtype)
+        else:
+            first[0] = max_val
+            last[0] = min_val
+
         with ib.while_loop(first[0] < last[0]):
             mid = (first[0] + last[0]) >> 1
             a = source[base_idx + (aStart + mid)]
@@ -250,10 +261,20 @@ def _sort_common(
         first,
         last,
     ):
-        i = ib.allocate("int64", (1,), name="i", scope="local")
-        j = ib.allocate("int64", (1,), name="j", scope="local")
-        i[0] = aStart + first
-        j[0] = bStart + diag - last
+        target = tvm.target.Target.current()
+        is_webgpu = "webgpu" in str(target)
+        target_dtype = "int32" if is_webgpu else "int64"
+        i = ib.allocate(target_dtype, (1,), name="i", scope="local")
+        j = ib.allocate(target_dtype, (1,), name="j", scope="local")
+        i_val = aStart + first
+        j_val = bStart + diag - last
+        if is_webgpu:
+            i[0] = cast(i_val, target_dtype)
+            j[0] = cast(j_val, target_dtype)
+        else:
+            i[0] = i_val
+            j[0] = j_val
+
         with ib.for_range(0, tvm.te.min(aCount + bCount - diag, step_count)) as count:
             i_idx = base_idx + i[0]
             j_idx = base_idx + j[0]
@@ -287,7 +308,9 @@ def _sort_common(
                 with ib.else_scope():
                     assign_j()
 
-    with ib.for_range(0, cast(upper_lim - lower_lim, "int64"), dtype="int64") as l2_width:
+    target = tvm.target.Target.current()
+    target_dtype = "int32" if "webgpu" in str(target) else "int64"
+    with ib.for_range(0, cast(upper_lim - lower_lim, target_dtype), dtype=target_dtype) as l2_width:
         width = 2 << (l2_width + lower_lim)
         # Define and launch the cuda kernel
         with ib.new_scope():
@@ -359,8 +382,10 @@ def _sort_common(
             def mergesort(source, dest, source_idx, dest_idx, size, width, even):
                 # calculate the start, mid, and end points of this section
                 start = width * bz
-                middle = cast(tvm.te.min(start + tvm.tir.indexdiv(width, 2), size), "int64")
-                end = cast(tvm.te.min(start + width, size), "int64")
+                target = tvm.target.Target.current()
+                target_dtype = "int32" if "webgpu" in str(target) else "int64"
+                middle = cast(tvm.te.min(start + tvm.tir.indexdiv(width, 2), size), target_dtype)
+                end = cast(tvm.te.min(start + width, size), target_dtype)
                 with ib.if_scope(start < size):
                     with ib.if_scope(nbx == 1):
                         ## merge the start->middle and middle->end arrays

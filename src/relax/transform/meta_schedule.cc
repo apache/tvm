@@ -86,6 +86,7 @@ Pass MetaScheduleApplyDatabase(ffi::Optional<ffi::String> work_dir, bool enable_
       database = Database::Current().value();
     } else {
       ICHECK(work_dir.has_value());
+      std::filesystem::create_directories(work_dir.value().c_str());
       ffi::String path_workload = work_dir.value() + "/database_workload.json";
       ffi::String path_tuning_record = work_dir.value() + "/database_tuning_record.json";
       LOG(WARNING) << "Creating JSONDatabase. Workload at: " << path_workload

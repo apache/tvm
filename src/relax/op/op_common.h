@@ -211,7 +211,17 @@ inline StructInfo InferStructInfoUnary(const Call& call, const BlockBuilder& ctx
   }
   auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*input_sinfo.get());
   output_sinfo->dtype = f_compute_out_dtype(input_sinfo);
-  return TensorStructInfo(output_sinfo);
+  if (call->sinfo_args.size() > 0) {
+    auto defined_sinfo = call->sinfo_args[0].as<TensorStructInfoNode>();
+    ICHECK(defined_sinfo);
+    auto shape = output_sinfo->GetShape();
+    ICHECK(shape.defined());
+    ICHECK(defined_sinfo->vdevice.has_value());
+    return TensorStructInfo(ShapeExpr(shape.value()), output_sinfo->dtype,
+                            defined_sinfo->vdevice.value());
+  } else {
+    return TensorStructInfo(output_sinfo);
+  }
 }
 
 /*!
@@ -351,6 +361,15 @@ inline ffi::Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call,
     }
   };
 
+  /*
+   * This is the case where the output VDevice defined by a customization pass.
+   * Like targets that supports mixed VDevices (like differed by memory_scope for Adreno)
+   * and have specialized derivation for output VDevice.
+   */
+  if (call->sinfo_args.size() > 0) {
+    return get_vdevice(call->sinfo_args[0]);
+  }
+
   auto lhs_vdevice = get_vdevice(lhs_sinfo);
   auto rhs_vdevice = get_vdevice(rhs_sinfo);
 
@@ -360,6 +379,7 @@ inline ffi::Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call,
   if (!rhs_vdevice.defined() || !rhs_vdevice.value()->target.defined()) {
     return lhs_vdevice;
   }
+
   if (lhs_vdevice.value() != rhs_vdevice.value()) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "TypeErorr: "
@@ -558,7 +578,8 @@ inline ffi::Optional<ShapeExpr> CheckNdimPerLayoutAndGetShape(const Call& call,
 
 Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm dtype,
                         StringImm storage_scope = StringImm("global"));
-Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype);
+Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype,
+                       PrimValue runtime_device_index);
 
 Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_index,
                      StringImm storage_scope = StringImm("global"));

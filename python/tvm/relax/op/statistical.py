@@ -341,3 +341,30 @@ def variance(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bo
     if isinstance(axis, int):
         axis = [axis]
     return _ffi_api.variance(x, axis, keepdims)  # type: ignore
+
+
+def median(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
+    """Computes the median of tensor elements over given axes.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data tensor
+
+    axis : Optional[Union[int, List[int]]]
+        Axis along which the median is computed. The default (None) is to compute
+        the median of the entire flattened tensor.
+
+    keepdims : bool
+        If this is set to True, the axes which are reduced are left in the result as dimensions
+        with size one.
+        With this option, the result will broadcast correctly against the input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    if isinstance(axis, int):
+        axis = [axis]
+    return _ffi_api.median(x, axis, keepdims)  # type: ignore

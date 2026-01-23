@@ -20,11 +20,37 @@ import numpy as np
 import pytest
 
 import tvm
+import tvm.contrib.nvcc
 import tvm.testing
 from tvm import te, topi
 from tvm.contrib.nvcc import have_bf16, have_fp16, have_int8
 from tvm.script import ir as I
 from tvm.script import tir as T
+
+
+@pytest.fixture(autouse=True, params=["nvcc", "nvrtc"])
+def setup_cuda_compile_mode(request):
+    mode = request.param
+    if mode == "nvrtc":
+        try:
+            from cuda.bindings import nvrtc
+        except ImportError:
+            pytest.skip("cuda-python not available, skipping nvrtc tests")
+
+    orig_func = tvm.contrib.nvcc.tvm_callback_cuda_compile
+
+    def compile_mode_wrapper(code, target):
+        if mode == "nvcc":
+            return tvm.contrib.nvcc.compile_cuda(code, target_format="fatbin", compiler="nvcc")
+        elif mode == "nvrtc":
+            return tvm.contrib.nvcc.compile_cuda(code, target_format="cubin", compiler="nvrtc")
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
+
+    tvm.register_global_func("tvm_callback_cuda_compile", compile_mode_wrapper, override=True)
+    # yield back to the original function so that each test runs twice
+    yield
+    tvm.register_global_func("tvm_callback_cuda_compile", orig_func, override=True)
 
 
 @tvm.testing.requires_gpu
@@ -201,13 +227,13 @@ def test_cuda_make_int8():
         fun(a)
         np.testing.assert_equal(a.numpy(), np_a)
 
-    check_cuda(64, np.int8(0xAB), 4)
+    check_cuda(64, np.uint8(0xAB).view(np.int8), 4)
     check_cuda(64, 0, 4)
     check_cuda(64, -3, 4)
-    check_cuda(64, np.int8(0xAB), 3)
+    check_cuda(64, np.uint8(0xAB).view(np.int8), 3)
     check_cuda(64, 0, 3)
     check_cuda(64, -3, 3)
-    check_cuda(64, np.int8(0xAB), 2)
+    check_cuda(64, np.uint8(0xAB).view(np.int8), 2)
     check_cuda(64, 0, 2)
     check_cuda(64, -3, 2)
 
@@ -875,6 +901,38 @@ def test_thread_return():
     lib = tvm.compile(Module, target="cuda")
     cuda_code = lib.mod.imports[0].inspect_source()
     assert "return;" in cuda_code
+
+
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
+def test_cuda_loop_step():
+    @T.prim_func
+    def cuda_loop_step(
+        A: T.Buffer((1024,), "float32"),
+        B: T.Buffer((1024,), "float32"),
+        C: T.Buffer((1024,), "float32"),
+    ):
+        # Each thread computes a strided subset of the i loop: start = tx*3, step = 96 (3 * 32 threads)
+        for bx in T.thread_binding(1, "blockIdx.x"):
+            for tx in T.thread_binding(96, "threadIdx.x"):
+                for i in T.serial(tx, 1024, step=96):
+                    C[i] = A[i] + B[i]
+
+    target = tvm.target.Target({"kind": "cuda"})
+    with tvm.transform.PassContext(disabled_pass=["tir.CanonicalizeLoop"]):
+        lib = tvm.compile(cuda_loop_step, target=target)
+
+    cuda_src = lib.mod.imports[0].inspect_source()
+    assert "i += 96" in cuda_src
+    dev = tvm.cuda(0)
+    a_np = np.random.uniform(1, 100, (1024,)).astype("float32")
+    b_np = np.random.uniform(1, 100, (1024,)).astype("float32")
+    c_np = np.zeros((1024,), dtype="float32")
+    a_nd = tvm.runtime.tensor(a_np, dev)
+    b_nd = tvm.runtime.tensor(b_np, dev)
+    c_nd = tvm.runtime.tensor(c_np, dev)
+    lib["main"](a_nd, b_nd, c_nd)
+    tvm.testing.assert_allclose(c_nd.numpy(), a_np + b_np)
 
 
 if __name__ == "__main__":

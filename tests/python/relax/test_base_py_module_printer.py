@@ -420,54 +420,6 @@ class ErrorHandlingPyFuncModule(BasePyModule):
                 Output[i] = 0.0
 
 
-if __name__ == "__main__":
-    # This allows the file to be run directly for debugging
-    # In normal pytest usage, these classes are automatically tested by TVMScript
-    print("All test modules defined successfully!")
-    print("TVMScript will automatically validate these modules during testing.")
-
-    # Demo the printer functionality
-    print("\n" + "=" * 60)
-    print("DEMO: BasePyModule Printer Functionality")
-    print("=" * 60)
-
-    # Test the printer with SimplePyFuncModule
-    try:
-        ir_mod = SimplePyFuncModule
-        device = tvm.cpu()
-        module = BasePyModule(ir_mod, device)
-
-        print("\n1. Testing script() method:")
-        print("-" * 40)
-        script_output = module.script()
-        print(script_output[:500] + "..." if len(script_output) > 500 else script_output)
-
-        print("\n2. Testing show() method:")
-        print("-" * 40)
-        module.show()
-
-        print("\n3. Python functions found in pyfuncs:")
-        print("-" * 40)
-        if hasattr(ir_mod, "pyfuncs"):
-            for name, func in ir_mod.pyfuncs.items():
-                print(f"  - {name}: {func}")
-        else:
-            print("  No pyfuncs attribute found")
-
-    except Exception as e:
-        print(f"Demo failed: {e}")
-        print("This is expected for testing-only TVMScript code.")
-
-    # Run all tests using tvm.testing.main()
-    print("\n" + "=" * 60)
-    print("Running all tests with tvm.testing.main()...")
-    print("=" * 60)
-
-    import tvm.testing
-
-    tvm.testing.main()
-
-
 # Pytest test functions to verify the classes work correctly
 def test_simple_pyfunc_module_creation():
     """Test that SimplePyFuncModule can be created."""
@@ -760,43 +712,54 @@ def test_python_functions_in_irmodule():
         pytest.fail("pyfuncs attribute not found in IRModule")
 
 
-def test_call_py_func_validation():
-    """Test call_py_func validation and error handling."""
+def test_call_py_func_with_base_py_module():
+    """Test R.call_py_func with BasePyModule."""
     import torch
+    import numpy as np
+    from tvm.relax.op import call_py_func
+    from tvm.relax.expr import StringImm
+    from tvm.relax import Var, TensorStructInfo
 
+    # Test 1: Operator creation and basic properties
+    x = Var("x", TensorStructInfo((5,), "float32"))
+    y = Var("y", TensorStructInfo((5,), "float32"))
+
+    call_expr = call_py_func(StringImm("test_func"), (x, y), out_sinfo=R.Tensor((5,), "float32"))
+
+    assert call_expr.op.name == "relax.call_py_func"
+    assert call_expr.args[0].value == "test_func"
+    assert len(call_expr.args) == 2
+
+    # Test 2: Compilation validation
+    try:
+        call_py_func(
+            "invalid",
+            (Var("x", TensorStructInfo((5,), "float32")),),
+            out_sinfo=R.Tensor((5,), "float32"),
+        )
+        assert False, "Should raise type error"
+    except Exception as e:
+        assert "Mismatched type" in str(e) or "Expected" in str(e)
+
+    # Test 3: Validation and error handling
     @I.ir_module
     class ValidationTestModule(BasePyModule):
-        """Test module for validation."""
-
-        @I.pyfunc
-        def valid_func(self, x):
-            """Valid Python function."""
-            return x * 2
-
         @R.function
         def test_invalid_call(x: R.Tensor((5,), "float32")) -> R.Tensor((5,), "float32"):
-            # This should cause a validation error
             result = R.call_py_func("non_existent_func", (x,), out_sinfo=R.Tensor((5,), "float32"))
             return result
 
     device = tvm.cpu()
     module = ValidationTestModule(device)
 
-    # Test that calling non-existent function raises error
     x = torch.randn(5, dtype=torch.float32)
 
     with pytest.raises(ValueError, match="Python function 'non_existent_func' not found"):
         module.call_py_func("non_existent_func", [x])
 
-
-def test_call_py_func_in_relax_function():
-    """Test using call_py_func within Relax functions."""
-    import torch
-
+    # Test 4: Using call_py_func within Relax functions
     @I.ir_module
     class RelaxCallPyFuncModule(BasePyModule):
-        """Test module with call_py_func in Relax functions."""
-
         @I.pyfunc
         def torch_relu(self, x):
             """PyTorch ReLU implementation."""
@@ -809,9 +772,7 @@ def test_call_py_func_in_relax_function():
 
         @R.function
         def mixed_computation(x: R.Tensor((10,), "float32")) -> R.Tensor((10,), "float32"):
-            # Use Python function for ReLU
             relu_result = R.call_py_func("torch_relu", (x,), out_sinfo=R.Tensor((10,), "float32"))
-            # Use Python function for softmax
             final_result = R.call_py_func(
                 "torch_softmax", (relu_result,), out_sinfo=R.Tensor((10,), "float32")
             )
@@ -820,7 +781,6 @@ def test_call_py_func_in_relax_function():
     device = tvm.cpu()
     module = RelaxCallPyFuncModule(device)
 
-    # Test the mixed computation
     x = torch.randn(10, dtype=torch.float32)
 
     expected = torch.softmax(torch.relu(x), dim=0)
@@ -828,40 +788,20 @@ def test_call_py_func_in_relax_function():
     relu_result = module.call_py_func("torch_relu", [x])
     final_result = module.call_py_func("torch_softmax", [relu_result])
 
-    assert torch.allclose(final_result, expected, atol=1e-5)
+    # Convert to numpy for comparison
+    if isinstance(final_result, tvm.runtime.Tensor):
+        final_result_np = final_result.numpy()
+    else:
+        final_result_np = final_result
+
+    if isinstance(expected, torch.Tensor):
+        expected_np = expected.numpy()
+    else:
+        expected_np = expected
+
+    # Use numpy for comparison since we have numpy arrays
+    tvm.testing.assert_allclose(final_result_np, expected_np, rtol=1e-5, atol=1e-5)
 
 
-def test_call_py_func_operator_creation():
-    """Test R.call_py_func operator creation and basic properties."""
-    from tvm.relax.op import call_py_func
-    from tvm.relax.expr import StringImm
-    from tvm.relax import Var, TensorStructInfo
-
-    # Create variables
-    x = Var("x", TensorStructInfo((5,), "float32"))
-    y = Var("y", TensorStructInfo((5,), "float32"))
-
-    # Create call_py_func call
-    call_expr = call_py_func(StringImm("test_func"), (x, y), out_sinfo=R.Tensor((5,), "float32"))
-
-    # Verify operator properties
-    assert call_expr.op.name == "relax.call_py_func"
-    assert call_expr.args[0].value == "test_func"
-    assert len(call_expr.args) == 2
-
-
-def test_call_py_func_compilation_validation():
-    """Test call_py_func compilation validation."""
-    from tvm.relax.op import call_py_func
-    from tvm.relax import Var, TensorStructInfo
-
-    # Test operator parameter validation
-    try:
-        call_py_func(
-            "invalid",
-            (Var("x", TensorStructInfo((5,), "float32")),),
-            out_sinfo=R.Tensor((5,), "float32"),
-        )
-        assert False, "Should raise type error"
-    except Exception as e:
-        assert "Mismatched type" in str(e) or "Expected" in str(e)
+if __name__ == "__main__":
+    tvm.testing.main()

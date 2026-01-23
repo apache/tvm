@@ -33,6 +33,8 @@ def test_op_correctness():
     assert relax.op.multiply(x, y).op == Op.get("relax.multiply")
     assert relax.op.power(x, y).op == Op.get("relax.power")
     assert relax.op.subtract(x, y).op == Op.get("relax.subtract")
+    assert relax.op.mod(x, y).op == Op.get("relax.mod")
+    assert relax.op.floor_mod(x, y).op == Op.get("relax.floor_mod")
 
     assert relax.op.equal(x, y).op == Op.get("relax.equal")
     assert relax.op.greater(x, y).op == Op.get("relax.greater")
@@ -70,6 +72,8 @@ def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: r
     (relax.op.subtract, tir.Sub),
     (relax.op.maximum, tir.Max),
     (relax.op.minimum, tir.Min),
+    (relax.op.mod, tir.Mod),
+    (relax.op.floor_mod, tir.FloorMod),
 )
 
 

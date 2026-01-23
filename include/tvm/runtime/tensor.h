@@ -63,7 +63,7 @@ class Tensor : public tvm::ffi::Tensor {
   Tensor(ffi::Tensor&& other) : tvm::ffi::Tensor(std::move(other)) {}  // NOLINT(*)
   Tensor(const ffi::Tensor& other) : tvm::ffi::Tensor(other) {}        // NOLINT(*)
 
-  ffi::Shape Shape() const { return this->shape(); }
+  ffi::ShapeView Shape() const { return this->shape(); }
   runtime::DataType DataType() const { return runtime::DataType(this->dtype()); }
 
   // DLPack handling
@@ -74,6 +74,7 @@ class Tensor : public tvm::ffi::Tensor {
   static Tensor FromDLPackVersioned(DLManagedTensorVersioned* tensor) {
     return tvm::ffi::Tensor::FromDLPackVersioned(tensor, kAllocAlignment, true);
   }
+  inline const DLTensor* operator->() const { return this->get(); }
   /*!
    * \brief Copy data content from another array.
    * \param other The source array to be copied from.
@@ -177,6 +178,16 @@ class Tensor : public tvm::ffi::Tensor {
    */
   TVM_DLL static void CopyToBytes(const DLTensor* from, void* to, size_t nbytes,
                                   TVMStreamHandle stream = nullptr);
+
+  /*!
+   * \brief Function to copy data from one array to a byte buffer.
+   * \param from The source array.
+   * \param to The target byte buffer.
+   * \param nbytes The size of the data buffer.
+   * \param stream The stream used in copy.
+   */
+  TVM_DLL static void CopyFromBytes(const DLTensor* to, void* from, size_t nbytes,
+                                    TVMStreamHandle stream = nullptr);
 };
 
 /*!

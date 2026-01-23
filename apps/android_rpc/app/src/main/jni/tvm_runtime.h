@@ -34,6 +34,7 @@
 #define TVM_LOG_CUSTOMIZE 1
 #define TVM_FFI_USE_LIBBACKTRACE 0
 
+#include "../3rdparty/tvm-ffi/src/ffi/backtrace.cc"
 #include "../3rdparty/tvm-ffi/src/ffi/container.cc"
 #include "../3rdparty/tvm-ffi/src/ffi/dtype.cc"
 #include "../3rdparty/tvm-ffi/src/ffi/error.cc"
@@ -45,7 +46,6 @@
 #include "../3rdparty/tvm-ffi/src/ffi/function.cc"
 #include "../3rdparty/tvm-ffi/src/ffi/object.cc"
 #include "../3rdparty/tvm-ffi/src/ffi/tensor.cc"
-#include "../3rdparty/tvm-ffi/src/ffi/traceback.cc"
 #include "../src/runtime/cpu_device_api.cc"
 #include "../src/runtime/device_api.cc"
 #include "../src/runtime/file_utils.cc"

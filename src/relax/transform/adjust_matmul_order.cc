@@ -73,19 +73,37 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
              pat_permuted_matmul_on_rhs;
 
   PrimExpr symbolic_var_constraints = Bool(true);
-  if (auto upper_bounds = func->GetAttr<ffi::Map<ffi::String, Any>>("tir_var_upper_bound")) {
+  auto upper_bounds = func->GetAttr<ffi::Map<ffi::String, Any>>("tir_var_upper_bound");
+  auto lower_bounds = func->GetAttr<ffi::Map<ffi::String, Any>>("tir_var_lower_bound");
+
+  if (upper_bounds || lower_bounds) {
     ffi::Map<ffi::String, tir::Var> name_lookup;
     for (const auto& tir_var : TIRVarsInStructInfo(GetStructInfo(func))) {
       name_lookup.Set(tir_var->name_hint, tir_var);
       symbolic_var_constraints = symbolic_var_constraints && (0 <= tir_var);
     }
 
-    for (const auto& [key, obj_bound] : upper_bounds.value()) {
-      auto tir_var_name = Downcast<ffi::String>(key);
-      if (auto opt_var = name_lookup.Get(tir_var_name)) {
-        auto var = opt_var.value();
-        auto expr_bound = Downcast<PrimExpr>(obj_bound);
-        symbolic_var_constraints = symbolic_var_constraints && (var < expr_bound);
+    // Add lower bound constraints
+    if (lower_bounds) {
+      for (const auto& [key, obj_bound] : lower_bounds.value()) {
+        auto tir_var_name = Downcast<ffi::String>(key);
+        if (auto opt_var = name_lookup.Get(tir_var_name)) {
+          auto var = opt_var.value();
+          auto expr_bound = Downcast<PrimExpr>(obj_bound);
+          symbolic_var_constraints = symbolic_var_constraints && (expr_bound <= var);
+        }
+      }
+    }
+
+    // Add upper bound constraints
+    if (upper_bounds) {
+      for (const auto& [key, obj_bound] : upper_bounds.value()) {
+        auto tir_var_name = Downcast<ffi::String>(key);
+        if (auto opt_var = name_lookup.Get(tir_var_name)) {
+          auto var = opt_var.value();
+          auto expr_bound = Downcast<PrimExpr>(obj_bound);
+          symbolic_var_constraints = symbolic_var_constraints && (var < expr_bound);
+        }
       }
     }
   }

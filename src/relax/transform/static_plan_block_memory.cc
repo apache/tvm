@@ -77,6 +77,9 @@
 #include <set>
 #include <vector>
 
+#include "../../runtime/texture.h"
+#include "utils.h"
+
 namespace tvm {
 namespace relax {
 
@@ -105,6 +108,8 @@ class StorageTokenNode : public Object {
   DataType dtype;
   /*! \brief The memory scope of the token. */
   std::string storage_scope;
+  /*! \brief The VDevice information. */
+  ffi::Optional<VDevice> vdevice;
   /*! \brief The storage id, reserved for debug and demo use. */
   int storage_id{-1};
 
@@ -129,23 +134,51 @@ class StorageTokenNode : public Object {
  */
 class StorageToken : public ObjectRef {
  public:
-  explicit StorageToken(ffi::Array<PrimExpr> shape, DataType dtype, std::string storage_scope) {
+  explicit StorageToken(ffi::Array<PrimExpr> shape, DataType dtype, std::string storage_scope,
+                        ffi::Optional<VDevice> vdevice = std::nullopt) {
     // Compute the tensor size from the shape.
     int64_t const_coeff = dtype.bytes() * dtype.lanes();
     PrimExpr size = tir::make_const(DataType::Int(64), 1);
-    for (const PrimExpr& dim_len : shape) {
-      if (const IntImmNode* const_dim_len = dim_len.as<IntImmNode>()) {
-        const_coeff *= const_dim_len->value;
-      } else {
-        size *= dim_len;
+    bool size_computed = false;
+
+    if (vdevice.defined()) {
+      VDevice vdev = vdevice.value();
+      std::string dev_kind = vdev->target->kind->name;
+
+      if (vdev->memory_scope != "global") {
+        auto device_size_handler =
+            tvm::ffi::Function::GetGlobal(std::string("DeviceGetMemSize." + dev_kind));
+        if (device_size_handler.has_value()) {
+          size *= (*device_size_handler)(shape, dtype, vdevice.value()).cast<PrimExpr>();
+          size_computed = true;
+        }
+        auto device_scope_handler =
+            tvm::ffi::Function::GetGlobal(std::string("DeviceScopeCompatibility." + dev_kind));
+        if (device_scope_handler.has_value()) {
+          ffi::String dev_scope =
+              (*device_scope_handler)(vdevice.value()->target, vdevice.value()->memory_scope)
+                  .cast<ffi::String>();
+          storage_scope = dev_scope;
+        }
       }
     }
+    if (!size_computed) {
+      for (const PrimExpr& dim_len : shape) {
+        if (const IntImmNode* const_dim_len = dim_len.as<IntImmNode>()) {
+          const_coeff *= const_dim_len->value;
+        } else {
+          size *= dim_len;
+        }
+      }
+    }
+
     size = tir::make_const(DataType::Int(64), const_coeff) * size;
 
     ObjectPtr<StorageTokenNode> n = ffi::make_object<StorageTokenNode>();
     n->bytes = size;
     n->dtype = dtype;
     n->storage_scope = std::move(storage_scope);
+    n->vdevice = std::move(vdevice);
     data_ = std::move(n);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StorageToken, ObjectRef, StorageTokenNode);
@@ -159,9 +192,9 @@ using Tokens = NestedMsg<StorageToken>;
  * \note We can generalize this implementation to multi-dimensional memory
  * following the same flow in the future.
  */
-class TokenAllocator1D {
+class TokenAllocatorMixed {
  public:
-  explicit TokenAllocator1D(arith::Analyzer* analyzer) : analyzer_(analyzer) {}
+  explicit TokenAllocatorMixed(arith::Analyzer* analyzer) : analyzer_(analyzer) {}
 
   /*!
    * \brief Request a storage token from the available token pool for a
@@ -365,42 +398,57 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
 };
 
 /*!
- * \brief Set the upper bound of the TIR variables that appear in
+ * \brief Set the range constraints of the TIR variables that appear in
  * the input function signature in the analyzer.
  * \param func The function to be analyzed.
  * \param ana The analyzer which contains the TIR var upper bounds.
  * \param dom_map The domain map of the TIR variables.
  */
-void SetTIRVarUpperBound(Function func, arith::Analyzer* ana,
-                         ffi::Map<tir::Var, arith::IntSet>* dom_map) {
-  // Use the attribute-annotated TIR var upper bounds as the TIR var values for
+void SetTIRVarRangeConstraints(Function func, arith::Analyzer* ana,
+                               ffi::Map<tir::Var, arith::IntSet>* dom_map) {
+  // Use the attribute-annotated TIR var bounds as the TIR var values for
   // memory planning.
-  // NOTE: we only apply the annotated upper bounds to the TIR variables that
+  // NOTE: we only apply the annotated bounds to the TIR variables that
   // appear in the **function signature**.
   ffi::Map<ffi::String, IntImm> var_upper_bound_attr_raw =
       func->GetAttr<ffi::Map<ffi::String, IntImm>>("tir_var_upper_bound")
+          .value_or(ffi::Map<ffi::String, IntImm>());
+  ffi::Map<ffi::String, IntImm> var_lower_bound_attr_raw =
+      func->GetAttr<ffi::Map<ffi::String, IntImm>>("tir_var_lower_bound")
           .value_or(ffi::Map<ffi::String, IntImm>());
   ffi::Array<ffi::String> non_negative_var_attr_raw =
       func->GetAttr<ffi::Array<ffi::String>>("tir_non_negative_var")
           .value_or(ffi::Array<ffi::String>());
   std::unordered_map<ffi::String, IntImm> var_upper_bound_attr;
+  std::unordered_map<ffi::String, IntImm> var_lower_bound_attr;
   std::unordered_set<ffi::String> non_negative_var_attr;
   // We manually check the value type to ensure the values are all positive IntImm.
   for (auto [key, value] : var_upper_bound_attr_raw) {
     var_upper_bound_attr[key] = value;
+  }
+  for (auto [key, value] : var_lower_bound_attr_raw) {
+    var_lower_bound_attr[key] = value;
   }
   for (const ffi::String& var_name : non_negative_var_attr_raw) {
     non_negative_var_attr.insert(var_name);
   }
   ffi::Array<tir::Var> var_in_signature = TIRVarsInStructInfo(GetStructInfo(func));
   for (const tir::Var& tir_var : var_in_signature) {
-    auto it = var_upper_bound_attr.find(tir_var->name_hint);
-    if (it != var_upper_bound_attr.end()) {
-      tvm::Range range =
-          tvm::Range::FromMinExtent(tvm::IntImm(DataType::Int(64), 0),
-                                    tvm::IntImm(DataType::Int(64), (*it).second->value + 1));
+    auto it_upper = var_upper_bound_attr.find(tir_var->name_hint);
+    auto it_lower = var_lower_bound_attr.find(tir_var->name_hint);
+
+    // Only bind the variable to a range if an upper bound is explicitly provided.
+    // Without an upper bound, memory planning cannot determine the required storage size,
+    // so we skip binding and let the variable remain unbounded.
+    if (it_upper != var_upper_bound_attr.end()) {
+      int64_t lower = (it_lower != var_lower_bound_attr.end()) ? it_lower->second->value : 0;
+      int64_t upper = it_upper->second->value;
+      tvm::Range range = tvm::Range::FromMinExtent(
+          tvm::IntImm(DataType::Int(64), lower), tvm::IntImm(DataType::Int(64), upper - lower + 1));
       ana->Bind(tir_var, range);
       dom_map->Set(tir_var, arith::IntSet::FromRange(range));
+    } else if (it_lower != var_lower_bound_attr.end() && it_lower->second->value >= 0) {
+      ana->MarkGlobalNonNegValue(tir_var);
     } else if (non_negative_var_attr.count(tir_var->name_hint)) {
       ana->MarkGlobalNonNegValue(tir_var);
     }
@@ -485,8 +533,8 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
       : ctx_mod_(ctx_mod), analyzer_(analyzer) {}
 
   void VisitExpr_(const FunctionNode* func) final {
-    // Set the upper bound of TIR variables in the analyzer.
-    SetTIRVarUpperBound(ffi::GetRef<Function>(func), analyzer_, &dom_map_);
+    // Set the range constraints of TIR variables in the analyzer.
+    SetTIRVarRangeConstraints(ffi::GetRef<Function>(func), analyzer_, &dom_map_);
     // Recurse into the function to get its tokens.
     Tokens body_tokens = GetTokens(func->body);
     // Discard the tokens used by the function return value, as they are external referenced.
@@ -594,7 +642,14 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
 
     // Create and set token.
     StringImm storage_scope = Downcast<StringImm>(call->args[3]);
-    StorageToken token(upper_bounded_shape, sinfo->dtype, storage_scope->value);
+
+    int64_t vdevice_index = -1;
+    if (auto* prim_value_node = call->args[2].as<PrimValueNode>()) {
+      vdevice_index = prim_value_node->value.as<IntImmNode>()->value;
+    }
+    ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
+
+    StorageToken token(upper_bounded_shape, sinfo->dtype, storage_scope->value, vdevice);
 
     Tokens tokens(token);
     SetTokens(call, tokens);
@@ -811,7 +866,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
   /*! \brief Number of allocated storages. */
   int n_storage_{0};
   /*! \brief The 1D memory allocator. */
-  TokenAllocator1D allocator_;
+  TokenAllocatorMixed allocator_;
   /*! \brief The mapping from each token to the tensors that are currently using it. */
   std::unordered_map<const StorageTokenNode*, std::vector<Var>> token2cur_tensor_;
 };
@@ -843,7 +898,7 @@ class StorageAllocationRewriter : public ExprMutator {
       plan_dynamic_output_ = static_cast<bool>(
           func_->GetAttr<IntImm>(plan_dyn_attr_).value_or(IntImm(DataType::Int(32), 0))->value);
       if (plan_dynamic_output_) {
-        SetTIRVarUpperBound(ffi::GetRef<Function>(func_), &ana_, &dom_map_);
+        SetTIRVarRangeConstraints(ffi::GetRef<Function>(func_), &ana_, &dom_map_);
       }
       token2storage_var_.clear();
       Function func = Downcast<Function>(this->VisitExpr_(func_));
@@ -893,7 +948,8 @@ class StorageAllocationRewriter : public ExprMutator {
       // And always create a `memory.alloc_tensor` for the old `builtin.alloc_tensor`.
       PrimValue offset = PrimValue::Int64(0);
       DataType dtype = sinfo->dtype;
-      return Call(mem_alloc_tensor, {storage_var, offset, sinfo->shape.value(), DataTypeImm(dtype)},
+      return Call(mem_alloc_tensor,
+                  {storage_var, offset, sinfo->shape.value(), DataTypeImm(dtype), call->args[2]},
                   Attrs());
     } else if (plan_dynamic_output_ && call->op == alloc_tensor_op) {
       // Case 2. For a `alloc_tensor` that is not planned for memory reuse,
@@ -924,7 +980,8 @@ class StorageAllocationRewriter : public ExprMutator {
         return Call(mem_alloc_tensor, {storage,  //
                                        /*offset=*/PrimValue::Int64(0),
                                        /*shape=*/ffi::GetRef<ShapeExpr>(shape),  //
-                                       /*dtype=*/DataTypeImm(sinfo->dtype)});
+                                       /*dtype=*/DataTypeImm(sinfo->dtype),
+                                       /*vdevice_index=*/call->args[2]});
       }
     }
 
@@ -976,6 +1033,32 @@ Pass StaticPlanBlockMemory() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.StaticPlanBlockMemory", StaticPlanBlockMemory);
+}
+
+PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DataType dtype,
+                                         VDevice vdevice) {
+  int image_row_align = vdevice->target->GetAttr<Integer>("image_base_address_alignment")
+                            .value_or(Integer(64))
+                            ->value;
+
+  struct Shape {
+    const ffi::Array<PrimExpr>& shape;
+    int64_t operator[](size_t i) const {
+      ICHECK(tir::as_const_int(shape[i])) << "Dymamic shapes not suported over texture now";
+      return *tir::as_const_int(shape[i]);
+    }
+    int size() { return this->shape.size(); }
+  };
+  auto shape = Shape{pshape};
+
+  size_t size = runtime::GetTextureMemorySize<Shape>(shape, dtype.bytes() * 8, dtype.lanes(),
+                                                     vdevice->memory_scope, image_row_align);
+  return tir::make_const(DataType::Int(64), size);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("DeviceGetMemSize.opencl", GetTextureMemorySizeFromVDevice);
 }
 
 }  // namespace transform

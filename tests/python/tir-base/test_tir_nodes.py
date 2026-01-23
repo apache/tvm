@@ -134,6 +134,7 @@ def test_basic():
 def test_stmt():
     x = tvm.tir.Evaluate(0)
     tvm.tir.For(te.var("i"), 0, 1, tvm.tir.ForKind.SERIAL, x)
+    tvm.tir.For(te.var("i"), 0, 1, tvm.tir.ForKind.UNROLLED, x, step=2)
 
 
 def test_dir():
@@ -302,7 +303,7 @@ def test_isnan():
     z = te.var("z", "int32")
     assert str(tvm.tir.isnan(z)) == "T.bool(False)"
     k = te.var("k", "int8x2")
-    assert str(tvm.tir.isnan(k).dtype) == "uint1x2"
+    assert str(tvm.tir.isnan(k).dtype) == "boolx2"
 
 
 def test_equality():

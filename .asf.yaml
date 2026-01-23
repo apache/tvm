@@ -16,7 +16,7 @@
 # under the License.
 
 github:
-  description: "Open deep learning compiler stack for cpu, gpu and specialized accelerators"
+  description: "Open Machine Learning Compiler Framework"
   homepage: https://tvm.apache.org/
   labels:
     - tvm
@@ -33,6 +33,12 @@ github:
     - spirv
     - machine-learning
 
+  features:
+    # Enable issue management
+    issues: true
+    # Enable projects for project management boards
+    projects: true
+
   # Triage perm for collaborators(test run)
   #
   # The perm is given based on needs and not based on
@@ -45,10 +51,6 @@ github:
   # participation, permission is given on a three month
   # cycle. PMC may review and recycle slots when necessary.
   collaborators:
-    - hpanda-naut
-    - denise-k
-    - janetsc
-    - naut-thomas
     - tvm-bot  # For automated feedback in PR review.
 
   # See https://cwiki.apache.org/confluence/display/INFRA/Git+-+.asf.yaml+features#Git.asf.yamlfeatures-Branchprotection
@@ -68,3 +70,24 @@ github:
 
       required_pull_request_reviews:
         required_approving_review_count: 1
+
+  enabled_merge_buttons:
+    # enable squash button:
+    squash: true
+    # default commit message when merging with a squash commit
+    # can either be: DEFAULT | PR_TITLE | PR_TITLE_AND_COMMIT_DETAILS | PR_TITLE_AND_DESC
+    squash_commit_message: PR_TITLE_AND_DESC
+    # enable merge button:
+    merge: false
+    # default commit message when merging with a merge commit
+    # can either be: DEFAULT | PR_TITLE | PR_TITLE_AND_DESC
+    merge_commit_message: DEFAULT
+    # enable rebase button for rare use.
+    rebase: true
+
+notifications:
+  commits: commits@tvm.apache.org
+  issues: discuss-archive@tvm.apache.org
+  pullrequests: discuss-archive@tvm.apache.org
+  jobs: discuss-archive@tvm.apache.org
+  discussions: discuss-archive@tvm.apache.org

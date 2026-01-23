@@ -104,7 +104,7 @@ skip_if_wheel_test = pytest.mark.skipif(
 )
 
 
-def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
+def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7, verbose=True):
     """Version of np.testing.assert_allclose with `atol` and `rtol` fields set
     in reasonable defaults.
 
@@ -115,7 +115,7 @@ def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
     actual = np.asanyarray(actual)
     desired = np.asanyarray(desired)
     np.testing.assert_allclose(actual.shape, desired.shape)
-    np.testing.assert_allclose(actual, desired, rtol=rtol, atol=atol, verbose=True)
+    np.testing.assert_allclose(actual, desired, rtol=rtol, atol=atol, verbose=verbose)
 
 
 def check_numerical_grads(
@@ -916,6 +916,17 @@ requires_cudagraph = Feature(
     target_kind_enabled="cuda",
     compile_time_check=nvcc.have_cudagraph,
     parent_features="cuda",
+)
+
+# Mark a test as requiring the OpenCL runtime on remote RPC
+requires_adreno_opencl = Feature(
+    "opencl",
+    long_name="Remote Adreno OpenCL",
+    cmake_flag="USE_OPENCL",
+    target_kind_enabled="opencl",
+    target_kind_hardware=None,
+    parent_features="gpu",
+    run_time_check=lambda: os.getenv("RPC_TARGET") is not None,
 )
 
 # Mark a test as requiring the OpenCL runtime

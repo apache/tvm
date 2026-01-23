@@ -128,6 +128,8 @@ class RunnerFutureNode : public runtime::Object {
   static void RegisterReflection() {
     // `f_done` is not registered
     // `f_result` is not registered
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RunnerFutureNode>();
   }
 
   /*!
@@ -189,6 +191,11 @@ class RunnerNode : public runtime::Object {
    */
   virtual ffi::Array<RunnerFuture> Run(ffi::Array<RunnerInput> runner_inputs) = 0;
 
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RunnerNode>();
+  }
+
   static constexpr const bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO("meta_schedule.Runner", RunnerNode, runtime::Object);
 };
@@ -222,6 +229,8 @@ class PyRunnerNode : public RunnerNode {
 
   static void RegisterReflection() {
     // `f_run` is not registered
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PyRunnerNode>();
   }
 
   ffi::Array<RunnerFuture> Run(ffi::Array<RunnerInput> runner_inputs) final {

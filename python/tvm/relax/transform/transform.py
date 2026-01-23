@@ -219,7 +219,7 @@ def Gradient(
                 # return value: (orig_return_values, tuple(adjoints))
                 return ((lv1, lv2), (x_adjoint, y_adjoint))
     """
-    if require_grads is not None and not isinstance(require_grads, list):
+    if require_grads is not None and not isinstance(require_grads, (list, tvm_ffi.Array)):
         require_grads = [require_grads]
 
     return _ffi_api.Gradient(func_name, require_grads, target_index)  # type: ignore
@@ -1062,7 +1062,9 @@ def BundleModelParams(param_tuple_name: Optional[str] = None) -> tvm.ir.transfor
 
 
 def LegalizeOps(
-    customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None, enable_warning: bool = False
+    customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None,
+    skip_ops: Optional[List[str]] = None,
+    enable_warning: bool = False,
 ):
     """Legalize high-level operator calls in Relax functions to call_tir
     with corresponding low-level TIR PrimFuncs.
@@ -1087,6 +1089,9 @@ def LegalizeOps(
     customize_legalize_map : Optional[Dict[str, LegalizeFunc]]
         The customized operator legalization function map. The customized function will override
         the default one.
+
+    skip_ops : Optional,List[str]]
+        List of ops that need to be skipped from legalization
 
     enable_warning : bool
         A boolean value indicating if to print warnings for CallNode whose op's
@@ -1167,7 +1172,7 @@ def LegalizeOps(
                         T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * B[v_ax0, v_ax1]
     """
 
-    return _ffi_api.LegalizeOps(customize_legalize_map, enable_warning)  # type: ignore
+    return _ffi_api.LegalizeOps(customize_legalize_map, skip_ops, enable_warning)  # type: ignore
 
 
 def RealizeVDevice() -> tvm.ir.transform.Pass:
@@ -1362,7 +1367,10 @@ def AlterOpImpl(
     )  # type: ignore
 
 
-def ConvertLayout(desired_layouts: Dict[str, List[str]]) -> tvm.ir.transform.Pass:
+def ConvertLayout(
+    desired_layouts: Dict[str, List[str]],
+    layout_cb: Callable = None,
+) -> tvm.ir.transform.Pass:
     """Automatic layout conversion pass.
 
     Parameters
@@ -1372,13 +1380,16 @@ def ConvertLayout(desired_layouts: Dict[str, List[str]]) -> tvm.ir.transform.Pas
         of the desired feature map, weight and output. For example, if we want to convert the
         layout of conv2d from NCHW to NHWC, we can set the desired layout of conv2d to be
         ``{"relax.nn.conv2d": ["NHWC", "OHWI"]}``.
+    layout_cb : Callable
+        A user defined call back function that can dynamically handle operator layouts
+        based on Call description. desired_layouts will be ignored if layout_cb is defined.
 
     Returns
     -------
     ret : tvm.transform.Pass
         The registered pass for layout conversion.
     """
-    return _ffi_api.ConvertLayout(desired_layouts)  # type: ignore
+    return _ffi_api.ConvertLayout(desired_layouts, layout_cb)  # type: ignore
 
 
 def DeadCodeElimination(entry_functions: Optional[List[str]] = None) -> tvm.ir.transform.Pass:
@@ -1603,6 +1614,19 @@ def AllocateWorkspace() -> tvm.ir.transform.Pass:
         The registered pass for allocating workspace.
     """
     return _ffi_api.AllocateWorkspace()  # type: ignore
+
+
+def SpecializePrimFuncBasedOnCallSite() -> tvm.ir.transform.Pass:
+    """This pass updates the var_buffer mapping of PrimFunctions from the call_tir info.
+    Primarily used to update the VDevice information if any changes occured from the caller.
+    This pass recreates the buffers and updates the map.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+        The registered pass for allocating workspace.
+    """
+    return _ffi_api.SpecializePrimFuncBasedOnCallSite()  # type: ignore
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):

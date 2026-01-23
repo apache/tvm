@@ -34,6 +34,8 @@
 #include <tvm/runtime/vm/bytecode.h>
 #include <tvm/runtime/vm/vm.h>
 
+#include <unordered_map>
+
 namespace tvm {
 namespace runtime {
 namespace vm {
@@ -120,10 +122,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * \sa MatchShapeCode
  */
 void MatchShape(ffi::PackedArgs args, ffi::Any* rv) {
-  // input shape the first argument can take in tensor or shape.
+  // input shape the first argument can take in tensor, DLTensor* or shape.
   ffi::Shape input_shape;
-  if (auto opt_nd = args[0].as<Tensor>()) {
-    input_shape = opt_nd.value().Shape();
+  if (auto opt_tensor = args[0].as<Tensor>()) {
+    input_shape = opt_tensor.value().Shape();
+  } else if (auto opt_dltensor = args[0].try_cast<DLTensor*>()) {
+    DLTensor* ptr = opt_dltensor.value();
+    input_shape = ffi::Shape(ptr->shape, ptr->shape + ptr->ndim);
   } else {
     input_shape = args[0].cast<ffi::Shape>();
   }
@@ -388,7 +393,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("vm.builtin.alloc_storage", VMAllocStorage)
-      .def_method("vm.builtin.alloc_tensor", &StorageObj::AllocTensor);
+      .def_packed("vm.builtin.alloc_tensor", [](ffi::PackedArgs args, ffi::Any* rv) {
+        Storage sobj = args[0].cast<Storage>();
+        int64_t offset = args[1].cast<int64_t>();
+        ffi::Shape shape = args[2].cast<ffi::Shape>();
+        DataType dtype = args[3].cast<DataType>();
+        if (args.size() == 5) {
+          ffi::String scope = args[4].cast<ffi::String>();
+          *rv = sobj->AllocTensorScoped(offset, shape, dtype, scope);
+        } else {
+          *rv = sobj->AllocTensor(offset, shape, dtype);
+        }
+      });
 }
 
 //-------------------------------------------------
@@ -431,20 +447,99 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 //-------------------------------------
+//  Python function call support
+//-------------------------------------
+
+// Global registry for Python functions
+static std::unordered_map<std::string, ffi::Function> py_func_registry;
+
+/*!
+ * \brief Clear the Python function registry on shutdown
+ */
+void ClearPyFuncRegistry() { py_func_registry.clear(); }
+
+/*!
+ * \brief Register a Python function for call_py_func
+ * \param name The function name
+ * \param func The Python function wrapped as ffi::Function
+ */
+void RegisterPyFunc(const std::string& name, ffi::Function func) { py_func_registry[name] = func; }
+
+/*!
+ * \brief Get a registered Python function
+ * \param name The function name
+ * \return The Python function
+ */
+ffi::Function GetPyFunc(const std::string& name) {
+  auto it = py_func_registry.find(name);
+  if (it == py_func_registry.end()) {
+    LOG(FATAL) << "Python function '" << name << "' not found in registry";
+  }
+  return it->second;
+}
+
+/*!
+ * \brief Call a Python function from VM
+ * \param args The packed function arguments (tuple containing function name and arguments)
+ * \param rv The return value
+ */
+void CallPyFunc(ffi::PackedArgs args, ffi::Any* rv) {
+  // args[0] should be a tuple containing (func_name, args_tuple)
+  if (args.size() != 1) {
+    LOG(FATAL) << "vm.builtin.call_py_func expects exactly 1 argument (tuple)";
+  }
+
+  auto tuple_arg = args[0].cast<ffi::Array<ffi::Any>>();
+  if (tuple_arg.size() != 2) {
+    LOG(FATAL) << "vm.builtin.call_py_func tuple should contain (func_name, args)";
+  }
+
+  // Get function name
+  std::string func_name = tuple_arg[0].cast<ffi::String>();
+
+  // Get arguments tuple
+  auto func_args = tuple_arg[1].cast<ffi::Array<ffi::Any>>();
+
+  // Look up Python function in registry
+  ffi::Function py_func = GetPyFunc(func_name);
+
+  // Call the Python function with the arguments
+  std::vector<ffi::AnyView> py_args_vec(func_args.begin(), func_args.end());
+  ffi::PackedArgs py_args(py_args_vec.data(), py_args_vec.size());
+  py_func.CallPacked(py_args, rv);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("vm.builtin.call_py_func", CallPyFunc)
+      .def("vm.builtin.register_py_func", RegisterPyFunc)
+      .def("vm.builtin.get_py_func", GetPyFunc)
+      .def("vm.builtin.clear_py_func_registry", ClearPyFuncRegistry);
+}
+
+//-------------------------------------
 //  Builtin runtime operators.
 //-------------------------------------
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("vm.builtin.shape_of", &Tensor::Shape)
+      .def_method("vm.builtin.shape_of", [](Tensor data) -> ffi::Shape { return data.Shape(); })
       .def("vm.builtin.copy", [](ffi::Any a) -> ffi::Any { return a; })
       .def(
           "vm.builtin.reshape",
           [](Tensor data, ffi::Shape new_shape) { return data.CreateView(new_shape, data->dtype); })
       .def("vm.builtin.null_value", []() -> std::nullptr_t { return nullptr; })
-      .def("vm.builtin.to_device", [](Tensor data, int dev_type, int dev_id) {
+      .def_packed("vm.builtin.to_device", [](ffi::PackedArgs args, ffi::Any* rv) {
+        Tensor data = args[0].cast<Tensor>();
+        int dev_type = args[1].cast<int>();
+        int dev_id = args[2].cast<int>();
         Device dst_device = {(DLDeviceType)dev_type, dev_id};
-        return data.CopyTo(dst_device);
+        ffi::String mem_scope = "global";
+        if (args.size() == 4) {
+          mem_scope = args[3].cast<ffi::String>();
+        }
+        *rv = data.CopyTo(dst_device, mem_scope);
       });
 }
 
@@ -461,7 +556,7 @@ bool ReadIfCond(ffi::AnyView cond) {
   if (arr->device.device_type != kDLCPU) {
     arr = arr.CopyTo(DLDevice{kDLCPU, 0});
   }
-  ICHECK(arr->dtype.code == kDLInt || arr->dtype.code == kDLUInt);
+  ICHECK(arr->dtype.code == kDLInt || arr->dtype.code == kDLUInt || arr->dtype.code == kDLBool);
   int64_t result;
   switch (arr->dtype.bits) {
     case 1: {
@@ -661,7 +756,7 @@ int TVMBackendAnyListMoveFromPackedReturn(void* anylist, int index, TVMFFIAny* a
   using namespace tvm::runtime;
   TVM_FFI_SAFE_CALL_BEGIN();
   auto* list = static_cast<tvm::ffi::Any*>(anylist);
-  list[index] = tvm::ffi::details::AnyUnsafe::MoveTVMFFIAnyToAny(std::move(args[ret_offset]));
+  list[index] = tvm::ffi::details::AnyUnsafe::MoveTVMFFIAnyToAny(&args[ret_offset]);
   TVM_FFI_SAFE_CALL_END();
 }
 }  // extern "C"

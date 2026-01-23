@@ -51,7 +51,8 @@ class ConcreteScheduleNode : public ScheduleNode {
 
  public:
   static void RegisterReflection() {
-    // No fields to register as they are not visited
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ConcreteScheduleNode>();
   }
 
   virtual ~ConcreteScheduleNode() = default;
@@ -146,6 +147,8 @@ class ConcreteScheduleNode : public ScheduleNode {
                         int index = -1) override;
   void ComputeInline(const BlockRV& block) override;
   void ReverseComputeInline(const BlockRV& block) override;
+  void FuseReductionEpilogue(const BlockRV& reduction_block,
+                             const BlockRV& epilogue_block) override;
   /******** Schedule: Reduction ********/
   BlockRV RFactor(const LoopRV& loop_rv, int factor_axis) override;
   BlockRV DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) override;

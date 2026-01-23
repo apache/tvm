@@ -247,6 +247,10 @@ class LaunchParamConfig {
         ICHECK_EQ(i, launch_param_tags.size() - 1)
             << "kUseDynamicSharedMemoryTag should be the last tag in launch_param_tags.";
         use_dyn_shared_memory_ = true;
+      } else if (tag == launch_param::kUseProgramaticDependentLaunch) {
+        use_programmatic_dependent_launch_ = true;
+      } else if (tag == launch_param::kUseCooperativeLaunch) {
+        use_cooperative_launch_ = true;
       } else {
         ThreadScope ts = ThreadScope::Create(tag);
         arg_index_map_.push_back(ts.rank * 3 + ts.dim_index);
@@ -281,6 +285,10 @@ class LaunchParamConfig {
   // return the work dim
   size_t work_dim() const { return work_dim_; }
 
+  bool use_programtic_dependent_launch() const { return use_programmatic_dependent_launch_; }
+
+  bool use_cooperative_launch() const { return use_cooperative_launch_; }
+
  private:
   /*! \brief base axis */
   size_t base_;
@@ -290,6 +298,10 @@ class LaunchParamConfig {
   std::vector<uint32_t> arg_index_map_;
   /*! \brief Whether or not use dynamic shared memory. */
   bool use_dyn_shared_memory_{false};
+  /*! \brief Whether or not use programmatic dependent launch. */
+  bool use_programmatic_dependent_launch_{false};
+  /*! \brief Whether or not use cooperative launch. */
+  bool use_cooperative_launch_{false};
 };
 
 }  // namespace runtime

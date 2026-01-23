@@ -37,6 +37,8 @@
 
 #include "../../src/arith/scalable_expression.h"
 #include "../../tir/analysis/check_contains.h"
+#include "tvm/runtime/data_type.h"
+#include "tvm/tir/buffer.h"
 
 namespace tvm {
 namespace tir {
@@ -519,16 +521,32 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     } else if (op->op.same_as(builtin::texture2d_load())) {
       int lane = 0;
       ffi::Array<PrimExpr> fcd = MutateArray({op->args.back()}, &lane);
+      auto dtype = op->args[0]
+                       .as<VarNode>()
+                       ->type_annotation.as<PointerTypeNode>()
+                       ->element_type.as<PrimTypeNode>()
+                       ->dtype;
+      ICHECK(lane * dtype.bits() <= op->args[4].as<IntImmNode>()->value)
+          << "Expected Data to be Read is lesser than or equal to Texture Load length";
+
       auto new_args = op->args;
       new_args.pop_back();
       new_args.push_back(fcd[0]);
-      return Call(op->dtype.with_lanes(4), op->op, new_args);
+      return Call(op->dtype.with_lanes(lane), op->op, new_args);
     } else if (op->op.same_as(builtin::texture2d_store())) {
       int lane = 0;
       // Vectorize the value to store
       ffi::Array<PrimExpr> value{op->args.back()};
       ffi::Array<PrimExpr> mutated_value = MutateArray(value, &lane);
-      ffi::Array<PrimExpr> new_args{op->args[0], op->args[1], op->args[2], mutated_value[0]};
+      auto dtype = op->args[0]
+                       .as<VarNode>()
+                       ->type_annotation.as<PointerTypeNode>()
+                       ->element_type.as<PrimTypeNode>()
+                       ->dtype;
+      ICHECK(lane * dtype.bits() == op->args[4].as<IntImmNode>()->value)
+          << "Expected Data to be Written equal to Texture Store length";
+      ffi::Array<PrimExpr> new_args{op->args[0], op->args[1], op->args[2],
+                                    op->args[3], op->args[4], mutated_value[0]};
       return Call(op->dtype.with_lanes(lane), op->op, new_args);
     } else if (op->op.same_as(builtin::reinterpret())) {
       return MutateReinterpretExpr_(op);
@@ -752,8 +770,10 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     if (extent.same_as(op->extent) && body.same_as(op->body)) {
       return ffi::GetRef<Stmt>(op);
     } else {
-      return For(op->loop_var, op->min, extent, op->kind, body, op->thread_binding,
-                 op->annotations);
+      auto n = CopyOnWrite(op);
+      n->extent = extent;
+      n->body = body;
+      return For(n);
     }
   }
   // IfThenElse

@@ -782,6 +782,25 @@ def test_conv1d_transpose_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.nn.conv1d_transpose(x1, w0))
 
 
+def test_conv1d_transpose_infer_struct_info_mixed_precision():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 28), "float16"))
+    w0 = relax.Var("w", R.Tensor((3, 4, 3), "float16"))
+    x1 = relax.Var("x", R.Tensor((2, 3, 28), "int8"))
+    w1 = relax.Var("w", R.Tensor((3, 4, 3), "int8"))
+
+    _check_inference(
+        bb,
+        relax.op.nn.conv1d_transpose(x0, w0, out_dtype="float32"),
+        relax.TensorStructInfo((2, 4, 30), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.conv1d_transpose(x1, w1, out_dtype="int32"),
+        relax.TensorStructInfo((2, 4, 30), "int32"),
+    )
+
+
 def test_conv2d_infer_struct_info():
     bb = relax.BlockBuilder()
     vdev0 = VDevice("llvm")
@@ -1569,6 +1588,25 @@ def test_conv2d_transpose_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.nn.conv2d_transpose(x0, w1))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.nn.conv2d_transpose(x1, w0))
+
+
+def test_conv2d_transpose_infer_struct_info_mixed_precision():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 28, 28), "float16"))
+    w0 = relax.Var("w", R.Tensor((3, 4, 3, 3), "float16"))
+    x1 = relax.Var("x", R.Tensor((2, 3, 28, 28), "int8"))
+    w1 = relax.Var("w", R.Tensor((3, 4, 3, 3), "int8"))
+
+    _check_inference(
+        bb,
+        relax.op.nn.conv2d_transpose(x0, w0, out_dtype="float32"),
+        relax.TensorStructInfo((2, 4, 30, 30), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.conv2d_transpose(x1, w1, out_dtype="int32"),
+        relax.TensorStructInfo((2, 4, 30, 30), "int32"),
+    )
 
 
 def test_conv3d_infer_struct_info():

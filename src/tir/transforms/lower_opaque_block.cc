@@ -111,7 +111,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     } else {
       // Case 3. An ordinary loop
       body = For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body),
-                 std::nullopt, new_annotations);
+                 std::nullopt, new_annotations, op->step);
     }
     // Step 5. Insert nested attrs
     for (auto it = pragma_attrs.rbegin(); it != pragma_attrs.rend(); ++it) {

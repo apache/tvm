@@ -319,6 +319,8 @@ InferLayoutOutput InferLayoutConv2d(
   ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout, weight_layout, output_layout;
+  data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
   ObjectPtr<Conv2DAttrs> new_attrs = ffi::make_object<Conv2DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
@@ -366,14 +368,16 @@ InferLayoutOutput InferLayoutConv2d(
         new_attrs->kernel_layout = (*it).second[1];
         new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
         return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
+      } else {
+        data_layout = LayoutDecision(InitialLayout(4));
+        weight_layout = LayoutDecision(InitialLayout(4));
       }
     }
   }
 
   // We don't have a desired layout for conv2d or desired layouts not compatible.
   // We can just propagate the layout from the input.
-  data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
+
   output_layout = data_layout;
   new_attrs->data_layout =
       TransposeLike(attrs->data_layout, InitialLayout(4), data_layout->layout).name();
@@ -703,14 +707,62 @@ StructInfo InferStructInfoConv1dTranspose(const Call& call, const BlockBuilder& 
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 
-// TODO(relax-team): implement FInferMixedPrecision and FRelaxInferLayout for conv1d_transpose
-// and unit test for mixed_precision
+InferLayoutOutput InferLayoutConv1dTranspose(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
+  const auto* attrs = call->attrs.as<Conv1DTransposeAttrs>();
+  LayoutDecision data_layout, weight_layout, output_layout;
+  ObjectPtr<Conv1DTransposeAttrs> new_attrs = ffi::make_object<Conv1DTransposeAttrs>(*attrs);
+
+  auto it = desired_layouts.find("relax.nn.conv1d_transpose");
+  if (it != desired_layouts.end()) {
+    Layout desired_data_layout = (*it).second[0];
+    Layout desired_weight_layout = (*it).second[1];
+    Layout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+    ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal()) << "Axis swap only";
+    ICHECK_EQ(desired_weight_layout.ndim(), desired_weight_layout.ndim_primal())
+        << "Axis swap only";
+    ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
+        << "Axis swap only";
+    data_layout = TransposeLike(InitialLayout(3), attrs->data_layout, desired_data_layout);
+    weight_layout = TransposeLike(InitialLayout(3), attrs->kernel_layout, desired_weight_layout);
+    output_layout = TransposeLike(InitialLayout(3), attrs->out_layout, desired_output_layout);
+    new_attrs->data_layout = (*it).second[0];
+    new_attrs->kernel_layout = (*it).second[1];
+    new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+  } else {
+    data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+    weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
+    output_layout = data_layout;
+    new_attrs->data_layout =
+        TransposeLike(attrs->data_layout, InitialLayout(3), data_layout->layout).name();
+    new_attrs->kernel_layout =
+        TransposeLike(attrs->kernel_layout, InitialLayout(3), weight_layout->layout).name();
+    new_attrs->out_layout =
+        TransposeLike(attrs->out_layout, InitialLayout(3), output_layout->layout).name();
+  }
+  return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
+}
+
+Call InferMixedPrecisionConv1dTranspose(const Call& call, const DataType& out_dtype) {
+  const auto* conv1d_transpose_attrs = call->attrs.as<Conv1DTransposeAttrs>();
+  return Downcast<Call>(
+      conv1d_transpose(call->args[0], call->args[1], conv1d_transpose_attrs->strides,
+                       conv1d_transpose_attrs->padding, conv1d_transpose_attrs->output_padding,
+                       conv1d_transpose_attrs->dilation, conv1d_transpose_attrs->groups,
+                       conv1d_transpose_attrs->data_layout, conv1d_transpose_attrs->kernel_layout,
+                       conv1d_transpose_attrs->out_layout, out_dtype));
+}
+
 TVM_REGISTER_OP("relax.nn.conv1d_transpose")
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .set_attrs_type<Conv1DTransposeAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv1dTranspose)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1dTranspose)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
+    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv1dTranspose)
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.conv2d_transpose */
@@ -734,7 +786,7 @@ Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<IntImm> strides,
   CHECK_GT(groups, 0) << "The number of groups in convolution is expected to be positive. However, "
                          "the given number of groups is "
                       << groups;
-  CHECK_EQ(output_padding.size(), 2) << "The input output_padding length is expected to be 4. "
+  CHECK_EQ(output_padding.size(), 2) << "The input output_padding length is expected to be 2. "
                                         "However, the given output_padding is "
                                      << output_padding;
   CHECK_EQ(strides.size(), 2)
@@ -853,14 +905,95 @@ StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& 
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 
-// TODO(relax-team): implement FInferMixedPrecision and FRelaxInferLayout for conv2d_transpose
-// and unit test for mixed_precision
+InferLayoutOutput InferLayoutConv2dTranspose(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
+  const auto* attrs = call->attrs.as<Conv2DTransposeAttrs>();
+  LayoutDecision data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  LayoutDecision weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
+  LayoutDecision output_layout;
+  ObjectPtr<Conv2DTransposeAttrs> new_attrs = ffi::make_object<Conv2DTransposeAttrs>(*attrs);
+
+  auto it = desired_layouts.find("relax.nn.conv2d_transpose");
+  if (it != desired_layouts.end()) {
+    Layout desired_data_layout = (*it).second[0];
+    Layout desired_weight_layout = (*it).second[1];
+    Layout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+
+    Layout input_layout = Layout(attrs->data_layout);
+    Layout kernel_layout = Layout(attrs->kernel_layout);
+    Layout out_layout = Layout(attrs->out_layout);
+
+    if (desired_data_layout.ndim_primal() == input_layout.ndim() &&
+        desired_weight_layout.ndim_primal() == kernel_layout.ndim() &&
+        desired_output_layout.ndim_primal() == out_layout.ndim()) {
+      data_layout = TransposeLike(InitialLayout(4), attrs->data_layout, desired_data_layout);
+      weight_layout = TransposeLike(InitialLayout(4), attrs->kernel_layout, desired_weight_layout);
+      output_layout = TransposeLike(InitialLayout(4), attrs->out_layout, desired_output_layout);
+      new_attrs->data_layout = (*it).second[0];
+      new_attrs->kernel_layout = (*it).second[1];
+      new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+      return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
+    } else {
+      auto data_si = GetStructInfo(call->args[0]);
+      auto kernel_si = GetStructInfo(call->args[1]);
+      TensorStructInfo data_sinfo = data_si.as<TensorStructInfo>().value();
+      TensorStructInfo kernel_sinfo = kernel_si.as<TensorStructInfo>().value();
+      ffi::Optional<ShapeExpr> data_shape =
+          ffi::GetRef<ShapeExpr>(data_sinfo->shape.as<ShapeExprNode>());
+      ffi::Optional<ShapeExpr> kernel_shape =
+          ffi::GetRef<ShapeExpr>(kernel_sinfo->shape.as<ShapeExprNode>());
+
+      bool can_data_proved =
+          CanProveLayoutTransform(input_layout, desired_data_layout, data_shape.value()->values);
+      bool can_kernel_proved = CanProveLayoutTransform(kernel_layout, desired_weight_layout,
+                                                       kernel_shape.value()->values);
+
+      if (can_data_proved && can_kernel_proved) {
+        data_layout = TransposeSubLayoutLike(InitialLayout(4), input_layout, desired_data_layout);
+        weight_layout =
+            TransposeSubLayoutLike(InitialLayout(4), kernel_layout, desired_weight_layout);
+        output_layout = TransposeSubLayoutLike(InitialLayout(4), out_layout, desired_output_layout);
+        new_attrs->data_layout = (*it).second[0];
+        new_attrs->kernel_layout = (*it).second[1];
+        new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+        return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
+      } else {
+        data_layout = LayoutDecision(InitialLayout(4));
+        weight_layout = LayoutDecision(InitialLayout(4));
+      }
+    }
+  }
+
+  output_layout = data_layout;
+  new_attrs->data_layout =
+      TransposeLike(attrs->data_layout, InitialLayout(4), data_layout->layout).name();
+  new_attrs->kernel_layout =
+      TransposeLike(attrs->kernel_layout, InitialLayout(4), weight_layout->layout).name();
+  new_attrs->out_layout =
+      TransposeLike(attrs->out_layout, InitialLayout(4), output_layout->layout).name();
+  return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
+}
+
+Call InferMixedPrecisionConv2dTranspose(const Call& call, const DataType& out_dtype) {
+  const auto* conv2d_transpose_attrs = call->attrs.as<Conv2DTransposeAttrs>();
+  return Downcast<Call>(
+      conv2d_transpose(call->args[0], call->args[1], conv2d_transpose_attrs->strides,
+                       conv2d_transpose_attrs->padding, conv2d_transpose_attrs->output_padding,
+                       conv2d_transpose_attrs->dilation, conv2d_transpose_attrs->groups,
+                       conv2d_transpose_attrs->data_layout, conv2d_transpose_attrs->kernel_layout,
+                       conv2d_transpose_attrs->out_layout, out_dtype));
+}
+
 TVM_REGISTER_OP("relax.nn.conv2d_transpose")
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .set_attrs_type<Conv2DTransposeAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv2dTranspose)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2dTranspose)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
+    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv2dTranspose)
     .set_attr<Bool>("FPurity", Bool(true));
 
 }  // namespace relax

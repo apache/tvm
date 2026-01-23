@@ -71,7 +71,7 @@ ImageInfo GetImageInfo(const cl::BufferDescriptor* desc, const DLTensor* tensor)
   auto texture_shape = ApplyTexture2DFlattening<int64_t>(tensor->shape, tensor->ndim, axis);
   info.region[0] = texture_shape.width;
   info.region[1] = texture_shape.height;
-  info.region[2] = 1;
+  info.region[2] = texture_shape.depth;
   return info;
 }
 
@@ -260,13 +260,13 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t size, size_t alignment,
   return AllocCLBuffer(dev, size, alignment, type_hint);
 }
 
-void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t width, size_t height, DLDataType type_hint,
-                                      ffi::Optional<ffi::String> mem_scope) {
+void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t width, size_t height, size_t depth,
+                                      DLDataType type_hint, ffi::Optional<ffi::String> mem_scope) {
   // Texture allocation given width and height
   cl_uint row_align = GetImageAlignment(dev.device_id);
   size_t pixel_size = (type_hint.bits * type_hint.lanes + 7) / 8;
   size_t row_pitch = ALIGN_UP(width * pixel_size * 4, row_align);  // CL_RGBA = 4
-  size_t mem_size = row_pitch * height;
+  size_t mem_size = row_pitch * height * depth;
 
   // Alloc back buffer from pool
   cl::BufferDescriptor* back_buffer = nullptr;
@@ -280,7 +280,7 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t width, size_t height, D
   if (!mem_scope.has_value()) {
     mem_scope = ffi::String("global.texture");
   }
-  return AllocCLImage(dev, back_buffer, width, height, row_pitch, type_hint, mem_scope);
+  return AllocCLImage(dev, back_buffer, width, height, depth, row_pitch, type_hint, mem_scope);
 }
 
 void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
@@ -298,7 +298,7 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape
   size_t axis = DefaultTextureLayoutSeparator(ndim, mem_scope.value());
   auto texture = ApplyTexture2DFlattening<int64_t>(shape, ndim, axis);
 
-  return AllocDataSpace(dev, texture.width, texture.height, dtype, mem_scope);
+  return AllocDataSpace(dev, texture.width, texture.height, texture.depth, dtype, mem_scope);
 }
 
 void* OpenCLWorkspace::AllocCLBuffer(Device dev, size_t size, size_t alignment,
@@ -320,7 +320,7 @@ void* OpenCLWorkspace::AllocCLBuffer(Device dev, size_t size, size_t alignment,
 }
 
 void* OpenCLWorkspace::AllocCLImage(Device dev, void* back_buffer, size_t width, size_t height,
-                                    size_t row_pitch, DLDataType type_hint,
+                                    size_t depth, size_t row_pitch, DLDataType type_hint,
                                     ffi::Optional<ffi::String> mem_scope) {
   this->Init();
   ICHECK(std::string(mem_scope.value()).find("texture") != std::string::npos)
@@ -331,7 +331,7 @@ void* OpenCLWorkspace::AllocCLImage(Device dev, void* back_buffer, size_t width,
   cl_int err_code;
   cl_channel_type cl_type = DTypeToOpenCLChannelType(type_hint);
   cl_image_format format = {CL_RGBA, cl_type};
-  cl_image_desc descriptor = {CL_MEM_OBJECT_IMAGE2D, width, height, 0, 0, 0, 0, 0, 0};
+  cl_image_desc descriptor = {CL_MEM_OBJECT_IMAGE2D_ARRAY, width, height, 0, depth, 0, 0, 0, 0};
 
   if (IsBufferToImageSupported(dev.device_id)) {
     descriptor.image_row_pitch = row_pitch;
@@ -344,7 +344,6 @@ void* OpenCLWorkspace::AllocCLImage(Device dev, void* back_buffer, size_t width,
   cl::BufferDescriptor* desc = new cl::BufferDescriptor(mem_scope);
   desc->buffer = mptr;
   desc->back_buffer = back_desc;
-
   return desc;
 }
 
@@ -383,7 +382,7 @@ void* OpenCLWorkspace::AllocDataSpaceView(Device dev, void* data, ffi::Shape sha
       size_t row_pitch = ALIGN_UP(texture.width * pixel_size * 4, row_align);  // CL_RGBA = 4
 
       ret_desc = static_cast<cl::BufferDescriptor*>(OpenCLWorkspace::Global()->AllocCLImage(
-          dev, nullptr, texture.width, texture.height, row_pitch, dtype, mem_scope));
+          dev, nullptr, texture.width, texture.height, texture.depth, row_pitch, dtype, mem_scope));
       ret_desc->is_compat_view = true;
     }
     return ret_desc;
@@ -414,7 +413,7 @@ void* OpenCLWorkspace::AllocDataSpaceView(Device dev, void* data, ffi::Shape sha
   }
 
   return (cl::BufferDescriptor*)AllocCLImage(dev, back_buffer, texture.width, texture.height,
-                                             row_pitch, dtype, mem_scope);
+                                             texture.depth, row_pitch, dtype, mem_scope);
 }
 
 void OpenCLWorkspace::FreeDataSpaceView(Device dev, void* ptr) {
@@ -472,7 +471,7 @@ void OpenCLWorkspace::SetNativePtr(const tvm::runtime::Tensor& narr, void* host_
 }
 
 void OpenCLWorkspace::SetPerfHint(Device dev, cl_uint perf_hint) {
-#ifdef CL_CONTEXT_PERF_HINT_QCOM
+#if defined(USE_OPENCL_EXTN_QCOM) && defined(CL_CONTEXT_PERF_HINT_QCOM)
   cl_device_id device_id = GetCLDeviceID(dev.device_id);
   auto platform = device_info[device_id].platform_id;
   OPENCL_CALL(clSetPerfHintQCOM(this->contexts[platform], perf_hint));
@@ -768,28 +767,27 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     int32_t device_type = args[0].cast<int32_t>();
                     int32_t device_id = args[1].cast<int32_t>();
-                    int32_t dtype_code_hint = args[2].cast<int32_t>();
-                    int32_t dtype_bits_hint = args[3].cast<int32_t>();
                     auto scope = args[4].cast<std::string>();
                     CHECK(scope.find("texture") != std::string::npos);
                     int64_t ndim = args[5].cast<int64_t>();
-                    CHECK_EQ(ndim, 2);
+                    CHECK_EQ(ndim, 3);
                     int64_t* shape = static_cast<int64_t*>(args[6].cast<void*>());
                     int64_t width = shape[0];
                     int64_t height = shape[1];
-
+                    int64_t depth = shape[2];
+                    int64_t channel_size = args[7].cast<int64_t>();
+                    DataType channel_type = GetChannelType(channel_size);
                     Device dev;
                     dev.device_type = static_cast<DLDeviceType>(device_type);
                     dev.device_id = device_id;
-
                     DLDataType type_hint;
-                    type_hint.code = static_cast<decltype(type_hint.code)>(dtype_code_hint);
-                    type_hint.bits = static_cast<decltype(type_hint.bits)>(dtype_bits_hint);
-                    type_hint.lanes = 1;
+                    type_hint.code = channel_type.code();
+                    type_hint.bits = channel_type.bits();
+                    type_hint.lanes = channel_type.lanes();
 
                     *rv = OpenCLWorkspace::Global()->AllocDataSpace(
-                        dev, static_cast<size_t>(width), static_cast<size_t>(height), type_hint,
-                        ffi::String("global.texture"));
+                        dev, static_cast<size_t>(width), static_cast<size_t>(height),
+                        static_cast<size_t>(depth), type_hint, ffi::String("global.texture"));
                   })
       .def_packed("device_api.opencl.free_nd",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -857,7 +855,7 @@ class OpenCLPooledAllocator final : public memory::PooledAllocator {
   Buffer Alloc(Device dev, ffi::Shape shape, DLDataType type_hint,
                const std::string& mem_scope) override {
     if (AllowMemoryScope(mem_scope)) {
-      size_t size = ffi::GetDataSize(shape.Product(), type_hint);
+      size_t size = GetMemObjectSize(dev, shape.size(), shape.data(), type_hint);
       Buffer buf;
       buf.device = dev;
       buf.size = size;
