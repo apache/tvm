@@ -996,13 +996,9 @@ def _attention_prefill_cpu(
                         for d_idx in T.serial(d):
 
                             Q_local[d_idx] = T.if_then_else(
-                                q_rope_position[curl_q] != -1,
-                                T.if_then_else(
-                                    rotary_mode == 1,
-                                    _rope(q, q_rope_position[curl_q], d, rope_theta, rope_scale, (curl_q, h_qo, d_idx), dtype, rope_scaling),
-                                    q[curl_q, h_qo, d_idx]
-                                ),
-                                0.0
+                                rotary_mode == 1,
+                                _rope(q, q_rope_position[curl_q], d, rope_theta, rope_scale, (curl_q, h_qo, d_idx), dtype, rope_scaling),
+                                q[curl_q, h_qo, d_idx]
                             )
                         for row_idx in T.serial(max_num_pages * page_size):
                             if row_idx < kv_chunk_len[0]:
@@ -1053,10 +1049,7 @@ def _attention_prefill_cpu(
                         # Store Output
                         for d_idx in T.serial(d):
                             O_local[d_idx] = O_local[d_idx] /d_val[0]
-                            if q_rope_position[curl_q] != -1:
-                                output[curl_q, h_qo, d_idx] = O_local[d_idx]
-                            else:
-                                output[curl_q, h_qo, d_idx] = 0.0
+                            output[curl_q, h_qo, d_idx] = O_local[d_idx]
                         lse[curl_q, h_qo] = m_val[0] + T.log2(d_val[0])
     return batch_prefill_paged_kv_cpu
 
@@ -1366,13 +1359,9 @@ def _attention_prefill(
                                             cur_H_qo = by * group_size + (LH_start + i) % group_size
                                             if cur_L < q_indptr[b_idx + 1]:
                                                 Q_smem[i, j] = T.if_then_else(
-                                                    q_rope_position[cur_L] != -1,
-                                                    T.if_then_else(
-                                                        rotary_mode == 1,
-                                                        _rope(q, q_rope_position[cur_L], d, rope_theta, rope_scale, (cur_L, cur_H_qo, j), dtype, rope_scaling),
-                                                        q[cur_L, cur_H_qo, j]
-                                                    ),
-                                                    0.0
+                                                    rotary_mode == 1,
+                                                    _rope(q, q_rope_position[cur_L], d, rope_theta, rope_scale, (cur_L, cur_H_qo, j), dtype, rope_scaling),
+                                                    q[cur_L, cur_H_qo, j]
                                                 )
                                             else:
                                                 Q_smem[i, j] = 0.0
@@ -1489,10 +1478,7 @@ def _attention_prefill(
                                             cur_L: T.int32 = q_indptr[b_idx] + (LH_start + i) // group_size
                                             cur_H_qo: T.int32 = by * group_size + (LH_start + i) % group_size
                                             if cur_L < q_indptr[b_idx + 1]:
-                                                if q_rope_position[cur_L] != -1:
-                                                    output[cur_L, cur_H_qo, j] = O_local[i, j] / d_smem[i]
-                                                else:
-                                                    output[cur_L, cur_H_qo, j] = 0.0
+                                                output[cur_L, cur_H_qo, j] = O_local[i, j] / d_smem[i]
 
                                     # Store LSE to gmem
                                     for li in T.grid(tile_x):
@@ -1622,13 +1608,9 @@ def _attention_decode_cpu(
 
                     for d in T.serial(D):
                         Q_local[d] = T.if_then_else(
-                            q_rope_position[b] != -1,
-                            T.if_then_else(
-                                rotary_mode == 1,
-                                _rope(Q, q_rope_position[b], head_dim, rope_theta, rope_scale, (b, h_qo, d), qkv_dtype, rope_scaling),
-                                Q[b, h_qo, d],
-                            ),
-                            0.0
+                            rotary_mode == 1,
+                            _rope(Q, q_rope_position[b], head_dim, rope_theta, rope_scale, (b, h_qo, d), qkv_dtype, rope_scaling),
+                            Q[b, h_qo, d],
                         )
 
                     for row_idx in T.serial(kv_chunk_len[0]):
@@ -1666,10 +1648,7 @@ def _attention_decode_cpu(
                             O_local[d] = O_local[d] + V_local[d] * factor[0]
                     for d in T.serial(D):
                         O_local[d] = O_local[d] / d_val[0]
-                        if q_rope_position[b] != -1:
-                            output[b, h_qo, d] = O_local[d]
-                        else:
-                            output[b, h_qo, d] = 0.0
+                        output[b, h_qo, d] = O_local[d]
                     lse[b, h_qo] = m_val[0] + T.log2(d_val[0])
     # fmt: on
     # pylint: enable=line-too-long
@@ -1818,13 +1797,9 @@ def _attention_decode(
                                 # load q
                                 for vec in T.vectorized(VEC_SIZE):
                                     Q_local[vec] = T.if_then_else(
-                                        q_rope_position[batch_idx] != -1,
-                                        T.if_then_else(
-                                            rotary_mode == 1,
-                                            _rope(Q, q_rope_position[batch_idx], head_dim, rope_theta, rope_scale, (bx, by * GROUP_SIZE + bz * bdy + ty, tx * VEC_SIZE + vec), qkv_dtype, rope_scaling),
-                                            Q[bx, by * GROUP_SIZE + bz * bdy + ty, tx * VEC_SIZE + vec]
-                                        ),
-                                        0.0
+                                        rotary_mode == 1,
+                                        _rope(Q, q_rope_position[batch_idx], head_dim, rope_theta, rope_scale, (bx, by * GROUP_SIZE + bz * bdy + ty, tx * VEC_SIZE + vec), qkv_dtype, rope_scaling),
+                                        Q[bx, by * GROUP_SIZE + bz * bdy + ty, tx * VEC_SIZE + vec]
                                     )
 
                                 for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_size_per_bdx * bdy * bdz)):
@@ -1928,10 +1903,7 @@ def _attention_decode(
 
                                 # store O to global memory
                                 for vec in T.vectorized(VEC_SIZE):
-                                    if q_rope_position[batch_idx] != -1:
-                                        output[batch_idx, by * GROUP_SIZE + bz * bdy + ty, tx * VEC_SIZE + vec] = O_local[vec]
-                                    else:
-                                        output[batch_idx, by * GROUP_SIZE + bz * bdy + ty, tx * VEC_SIZE + vec] = 0.0
+                                    output[batch_idx, by * GROUP_SIZE + bz * bdy + ty, tx * VEC_SIZE + vec] = O_local[vec]
 
                                 # store lse to global memory
                                 lse[batch_idx, by * GROUP_SIZE + bz * bdy + ty] = st_m[0] + T.log2(st_d[0])
@@ -2396,13 +2368,9 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: Dic
                                 result[0] = 0.0
                                 for d_idx in T.serial(d_qk):
                                     query_val[0] = T.if_then_else(
-                                        q_rope_position[q_indptr[b] + q_idx] != -1,
-                                        T.if_then_else(
-                                            rotary_mode == 1,
-                                            _rope(q, q_rope_position[q_indptr[b] + q_idx], d_qk, rope_theta, rope_scale, (q_indptr[b] + q_idx, h, d_idx), dtype, rope_scaling),
-                                            q[q_indptr[b] + q_idx, h, d_idx],
-                                        ),
-                                        0.0,
+                                        rotary_mode == 1,
+                                        _rope(q, q_rope_position[q_indptr[b] + q_idx], d_qk, rope_theta, rope_scale, (q_indptr[b] + q_idx, h, d_idx), dtype, rope_scaling),
+                                        q[q_indptr[b] + q_idx, h, d_idx],
                                     )
 
                                     key_val[0] = T.if_then_else(
@@ -2576,13 +2544,9 @@ def _attention_prefill_ragged(
                                             cur_H_qo = by * group_size + (LH_start + i) % group_size
                                             if cur_L < q_indptr[b_idx + 1]:
                                                 Q_smem[i, j] = T.if_then_else(
-                                                    q_rope_position[cur_L] != -1,
-                                                    T.if_then_else(
-                                                        rotary_mode == 1,
-                                                        _rope(q, q_rope_position[cur_L], d_qk, rope_theta, rope_scale, (cur_L, cur_H_qo, j), dtype, rope_scaling),
-                                                        q[cur_L, cur_H_qo, j]
-                                                    ),
-                                                    0.0
+                                                    rotary_mode == 1,
+                                                    _rope(q, q_rope_position[cur_L], d_qk, rope_theta, rope_scale, (cur_L, cur_H_qo, j), dtype, rope_scaling),
+                                                    q[cur_L, cur_H_qo, j]
                                                 )
                                             else:
                                                 Q_smem[i, j] = 0.0
