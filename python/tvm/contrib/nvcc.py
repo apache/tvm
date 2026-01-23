@@ -273,15 +273,15 @@ def _compile_cuda_nvrtc(
 
     # For NVSHMEM, we also need the CUDA driver API to initialize the context for linking
     if use_nvshmem:
-        try:
-            from cuda.bindings import driver as cu  # pylint: disable=import-outside-toplevel
-        except ImportError as e:
+        import importlib.util  # pylint: disable=import-outside-toplevel
+
+        if importlib.util.find_spec("cuda.bindings.driver") is None:
             raise RuntimeError(
                 "Failed to compile CUDA with NVRTC+NVSHMEM because the `cuda-python` package "
                 "is not available.\n"
                 "Please install it with: pip install cuda-python\n"
                 "See: https://nvidia.github.io/cuda-python/"
-            ) from e
+            )
 
     # NVSHMEM requires linking with device library, which always produces cubin
     if use_nvshmem or target_format is None:
@@ -535,84 +535,93 @@ namespace std {
     # Clean up NVRTC program
     nvrtc.nvrtcDestroyProgram(prog)
 
-    # link stage for NVSHMEM
+    # Link stage for NVSHMEM
     if use_nvshmem:
-        import ctypes  # pylint: disable=import-outside-toplevel
-
-        # cuLinkCreate requires a valid CUDA context.
-        (result,) = cu.cuInit(0)
-        if result != cu.CUresult.CUDA_SUCCESS:
-            raise RuntimeError(f"Failed to initialize CUDA: {result}")
-
-        # Check if there's already a CUDA context; create one if not
-        context_created = False
-        result, context = cu.cuCtxGetCurrent()
-        if result != cu.CUresult.CUDA_SUCCESS or not context:
-            result, device = cu.cuDeviceGet(0)
-            if result != cu.CUresult.CUDA_SUCCESS:
-                raise RuntimeError(f"Failed to get CUDA device: {result}")
-            result, context = cu.cuCtxCreate(None, 0, device)
-            if result != cu.CUresult.CUDA_SUCCESS:
-                raise RuntimeError(f"Failed to create CUDA context: {result}")
-            context_created = True
-
-        try:
-            # Create linker
-            result, link_state = cu.cuLinkCreate(0, [], [])
-            if result != cu.CUresult.CUDA_SUCCESS:
-                raise RuntimeError(f"Failed to create CUDA linker: {result}")
-
-            try:
-                # Add our compiled CUBIN
-                (result,) = cu.cuLinkAddData(
-                    link_state,
-                    cu.CUjitInputType.CU_JIT_INPUT_CUBIN,
-                    binary_buf,
-                    len(binary_buf),
-                    b"tvm_kernels.cubin",
-                    0,
-                    [],
-                    [],
-                )
-                if result != cu.CUresult.CUDA_SUCCESS:
-                    raise RuntimeError(f"Failed to add CUBIN to linker: {result}")
-
-                # Add NVSHMEM device library
-                nvshmem_device_lib = os.path.join(nvshmem_lib_path, "libnvshmem_device.a")
-                if not os.path.exists(nvshmem_device_lib):
-                    raise RuntimeError(f"NVSHMEM device library not found: {nvshmem_device_lib}")
-
-                (result,) = cu.cuLinkAddFile(
-                    link_state,
-                    cu.CUjitInputType.CU_JIT_INPUT_LIBRARY,
-                    nvshmem_device_lib.encode(),
-                    0,
-                    [],
-                    [],
-                )
-                if result != cu.CUresult.CUDA_SUCCESS:
-                    raise RuntimeError(f"Failed to add NVSHMEM device library: {result}")
-
-                # Complete linking
-                result, linked_cubin, linked_size = cu.cuLinkComplete(link_state)
-                if result != cu.CUresult.CUDA_SUCCESS:
-                    raise RuntimeError(f"Failed to complete NVSHMEM linking: {result}")
-
-                # Copy linked binary to binary_buf
-                binary_buf = bytearray(ctypes.string_at(linked_cubin, linked_size))
-                if not binary_buf:
-                    raise RuntimeError("Compilation error: empty result is generated")
-            finally:
-                # Clean up linker
-                cu.cuLinkDestroy(link_state)
-        finally:
-            # Clean up context if we created it
-            if context_created and context:
-                cu.cuCtxDestroy(context)
+        binary_buf = _link_nvshmem_nvrtc(binary_buf, nvshmem_lib_path)
 
     if path_target:
         with open(path_target, "wb") as f:
             f.write(binary_buf)
+    return binary_buf
+
+
+def _link_nvshmem_nvrtc(binary_buf, nvshmem_lib_path):
+    """Link compiled CUBIN with NVSHMEM device library using CUDA driver API."""
+    import ctypes  # pylint: disable=import-outside-toplevel
+
+    from cuda.bindings import driver as cu  # pylint: disable=import-outside-toplevel
+
+    # cuLinkCreate requires a valid CUDA context.
+    (result,) = cu.cuInit(0)
+    if result != cu.CUresult.CUDA_SUCCESS:
+        raise RuntimeError(f"Failed to initialize CUDA: {result}")
+
+    # Check if there's already a CUDA context; create one if not
+    context_created = False
+    result, context = cu.cuCtxGetCurrent()
+    if result != cu.CUresult.CUDA_SUCCESS or not context:
+        result, device = cu.cuDeviceGet(0)
+        if result != cu.CUresult.CUDA_SUCCESS:
+            raise RuntimeError(f"Failed to get CUDA device: {result}")
+        result, context = cu.cuCtxCreate(None, 0, device)
+        if result != cu.CUresult.CUDA_SUCCESS:
+            raise RuntimeError(f"Failed to create CUDA context: {result}")
+        context_created = True
+
+    try:
+        # Create linker
+        result, link_state = cu.cuLinkCreate(0, [], [])
+        if result != cu.CUresult.CUDA_SUCCESS:
+            raise RuntimeError(f"Failed to create CUDA linker: {result}")
+
+        try:
+            # Add our compiled CUBIN
+            (result,) = cu.cuLinkAddData(
+                link_state,
+                cu.CUjitInputType.CU_JIT_INPUT_CUBIN,
+                binary_buf,
+                len(binary_buf),
+                b"tvm_kernels.cubin",
+                0,
+                [],
+                [],
+            )
+            if result != cu.CUresult.CUDA_SUCCESS:
+                raise RuntimeError(f"Failed to add CUBIN to linker: {result}")
+
+            # Add NVSHMEM device library
+            nvshmem_device_lib = os.path.join(nvshmem_lib_path, "libnvshmem_device.a")
+            if not os.path.exists(nvshmem_device_lib):
+                raise RuntimeError(f"NVSHMEM device library not found: {nvshmem_device_lib}")
+
+            (result,) = cu.cuLinkAddFile(
+                link_state,
+                cu.CUjitInputType.CU_JIT_INPUT_LIBRARY,
+                nvshmem_device_lib.encode(),
+                0,
+                [],
+                [],
+            )
+            if result != cu.CUresult.CUDA_SUCCESS:
+                raise RuntimeError(f"Failed to add NVSHMEM device library: {result}")
+
+            # Complete linking
+            result, linked_cubin, linked_size = cu.cuLinkComplete(link_state)
+            if result != cu.CUresult.CUDA_SUCCESS:
+                raise RuntimeError(f"Failed to complete NVSHMEM linking: {result}")
+
+            # Copy linked binary before destroying linker
+            binary_buf = bytearray(ctypes.string_at(linked_cubin, linked_size))
+            if not binary_buf:
+                raise RuntimeError("Compilation error: empty result is generated")
+        finally:
+            # Clean up linker
+            cu.cuLinkDestroy(link_state)
+    finally:
+        # Clean up context if we created it
+        if context_created and context:
+            cu.cuCtxDestroy(context)
+
     return binary_buf
 
 
