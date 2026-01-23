@@ -18,7 +18,7 @@
 
 export TVM_TEST_TARGETS="llvm;cuda"
 export PYTEST_ADDOPTS="-m gpu $PYTEST_ADDOPTS"
-export TVM_RELAY_TEST_TARGETS="cuda"
+export TVM_RELAY_TEST_TARGETS="cuda;opencl"
 export TVM_INTEGRATION_TESTSUITE_NAME=python-integration-gpu
 export TVM_INTEGRATION_GPU_ONLY=1
 

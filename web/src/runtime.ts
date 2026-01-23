@@ -2146,7 +2146,7 @@ export class Instance implements Disposable {
         const errMsgOffset = stack.allocRawBytes(errMsg.length + 1);
         stack.storeRawBytes(errMsgOffset, StringToUint8Array(errMsg));
         stack.commitToWasmMemory();
-        (this.lib.exports.FTVMFFIErrorSetRaisedFromCStr as ctypes.FTVMFFIErrorSetRaisedFromCStr)(
+        (this.lib.exports.TVMFFIErrorSetRaisedFromCStr as ctypes.FTVMFFIErrorSetRaisedFromCStr)(
           stack.ptrFromOffset(errKindOffset),
           stack.ptrFromOffset(errMsgOffset)
         );

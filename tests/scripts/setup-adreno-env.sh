@@ -103,6 +103,7 @@ case ${ENVIRONMENT} in
     adb shell "mkdir -p ${TARGET_FOLDER}"
     adb push build-adreno-target/tvm_rpc ${TARGET_FOLDER}/tvm_rpc-${USER}
     adb push build-adreno-target/libtvm_runtime.so ${TARGET_FOLDER}
+    adb push build-adreno-target/lib/libtvm_ffi.so ${TARGET_FOLDER}
     if [ -f ${CPP_LIB} ] ; then
         adb push ${CPP_LIB} ${TARGET_FOLDER}
     fi

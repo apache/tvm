@@ -119,6 +119,9 @@ Expr cumsum(Expr data, ffi::Optional<int64_t> axis = std::nullopt,
 /*! \brief Computes the variance of tensor elements over given axes. */
 Expr variance(Expr x, ffi::Optional<ffi::Array<Integer>> axis, bool keepdims);
 
+/*! \brief Computes the median of tensor elements over given axes. */
+Expr median(Expr x, ffi::Optional<ffi::Array<Integer>> axis, bool keepdims);
+
 }  // namespace relax
 }  // namespace tvm
 

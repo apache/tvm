@@ -32,6 +32,7 @@ from .analysis import (
     free_symbolic_vars,
     free_vars,
     get_static_type,
+    used_vars,
     get_var2val,
     has_reshape_pattern,
     name_to_binding,

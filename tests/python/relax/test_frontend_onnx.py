@@ -1068,6 +1068,9 @@ def test_mish():
 
 def test_prelu():
     verify_binary("PRelu", [3, 32, 32], [1], [3, 32, 32])
+    verify_binary("PRelu", [3, 32, 32], [1, 1], [3, 32, 32])
+    verify_binary("PRelu", [3, 32, 32], [32], [3, 32, 32])
+    verify_binary("PRelu", [3, 32, 32], [3, 1, 1], [3, 32, 32])
 
 
 def test_thresholded_relu():
@@ -1171,11 +1174,12 @@ def test_conv(stride: int, dilation: int, pad: int, bias: bool, auto_pad: str):
     _verify_conv([3, 4, 32, 32, 32], [2, 4, 3, 3, 3])  # group=2
 
 
-@pytest.mark.parametrize("stride", [1, 2])
+@pytest.mark.parametrize("stride", [2])
 @pytest.mark.parametrize("dilation", [1])
 @pytest.mark.parametrize("bias", [True, False])
 @pytest.mark.parametrize("pad", [0, 2])
-def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool):
+@pytest.mark.parametrize("output_pad", [0, 1])
+def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool, output_pad: int):
     def _verify_conv_transpose(input_shape, weight_shape):
         nd = len(weight_shape) - 2
         output_shape = [input_shape[0], weight_shape[0]] + [
@@ -1190,6 +1194,7 @@ def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool):
             strides=[stride] * nd,
             dilations=[dilation] * nd,
             pads=[pad] * nd * 2,
+            output_padding=[output_pad] * nd,
             group=input_shape[1] // weight_shape[1],
         )
         graph = helper.make_graph(
@@ -1666,6 +1671,33 @@ def test_embedlayernormalization():
     verify_embedlayernormalization(
         input_ids, None, word_embedding, position_embedding, None, gamma, beta
     )
+
+
+def test_local_response_norm():
+    lrn_node = helper.make_node(
+        op_type="LRN",
+        inputs=["input"],
+        outputs=["output"],
+        name="LRN_Node",
+        alpha=0.0001,
+        beta=0.75,
+        bias=1.0,
+        size=3,
+    )
+
+    graph = helper.make_graph(
+        [lrn_node],
+        "local_response_norm_test",
+        inputs=[
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 3, 32, 32]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("output", TensorProto.FLOAT, [1, 3, 32, 32]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="local_response_norm_test")
+    check_correctness(model)
 
 
 def create_reduce_test_parameters_axes_attr():
@@ -2440,6 +2472,8 @@ def test_pad(dynamic):
     verify_pad((2, 3), [1, 0, 0, 1], "constant", 0.0)
     verify_pad((3, 2), [0, 0, 1, 0], "constant", 5.0)
     verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "reflect")
+    verify_pad((2, 3), [1, 1, 1, 1], "edge")
+    verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "edge")
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
@@ -2496,6 +2530,8 @@ def test_pad_v2(dynamic):
     verify_pad((2, 3), [1, 0, 0, 1], "constant", 0.0)
     verify_pad((3, 2), [0, 0, 1, 0], "constant", 5.0)
     verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "reflect")
+    verify_pad((2, 3), [1, 1, 1, 1], "edge")
+    verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "edge")
 
 
 @pytest.mark.parametrize("fp_arith", [np.float16, np.float32])
@@ -2670,6 +2706,41 @@ def test_resize(with_roi, roi_list):
 
     model = helper.make_model(graph, producer_name="resize_test")
     check_correctness(model)
+
+
+def test_resize_nd_sizes():
+    cases = [
+        ("resize1d", [1, 1, 4], [1, 1, 7]),
+        ("resize2d", [1, 1, 4, 5], [1, 1, 6, 7]),
+        ("resize3d", [1, 1, 3, 4, 5], [1, 1, 4, 6, 7]),
+    ]
+
+    for name, input_shape, sizes in cases:
+        resize_node = helper.make_node(
+            "Resize",
+            ["X", "", "", "sizes"],
+            ["Y"],
+            mode="nearest",
+            coordinate_transformation_mode="asymmetric",
+            nearest_mode="floor",
+        )
+
+        graph = helper.make_graph(
+            [resize_node],
+            name,
+            inputs=[
+                helper.make_tensor_value_info("X", TensorProto.FLOAT, input_shape),
+            ],
+            initializer=[
+                helper.make_tensor("sizes", TensorProto.INT64, [len(sizes)], sizes),
+            ],
+            outputs=[
+                helper.make_tensor_value_info("Y", TensorProto.FLOAT, sizes),
+            ],
+        )
+
+        model = helper.make_model(graph, producer_name=name)
+        check_correctness(model, opset=18)
 
 
 def test_einsum():
@@ -2878,19 +2949,32 @@ def test_onehot():
 
 @pytest.mark.parametrize("axis", [None, 0, 1, -1])
 @pytest.mark.parametrize("sorted", [0, 1])
-def test_unique(axis: Optional[int], sorted: int):
-    input_shape = [32, 32]
+@pytest.mark.parametrize("num_outputs", [1, 2, 3, 4])
+def test_unique(axis: Optional[int], sorted: int, num_outputs: int):
+    input_shape = [8, 8]
     if axis is None:
         output_shape = [-1]
     else:
-        output_shape = [32, 32]
+        output_shape = [8, 8]
         output_shape[axis] = -1
-    unique_node = helper.make_node("Unique", ["x"], ["y"], axis=axis, sorted=sorted)
+
+    output_names = ["y", "indices", "inverse_indices", "counts"][:num_outputs]
+    unique_node = helper.make_node("Unique", ["x"], output_names, axis=axis, sorted=sorted)
+
+    outputs = [helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)]
+    if num_outputs > 1:
+        outputs.append(helper.make_tensor_value_info("indices", TensorProto.INT64, [-1]))
+    if num_outputs > 2:
+        # ONNX spec: inverse_indices is always 1D
+        outputs.append(helper.make_tensor_value_info("inverse_indices", TensorProto.INT64, [-1]))
+    if num_outputs > 3:
+        outputs.append(helper.make_tensor_value_info("counts", TensorProto.INT64, [-1]))
+
     graph = helper.make_graph(
         [unique_node],
         "unique_test",
         inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape)],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)],
+        outputs=outputs,
     )
     model = helper.make_model(graph, producer_name="unique_test")
     check_correctness(model)

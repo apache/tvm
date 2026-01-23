@@ -84,8 +84,7 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
   }();
 
   if (indices_sinfo->IsUnknownDtype()) {
-    // TODO(tvm-team): Do we have an equivalent of `ctx->ReportFatal` for warning?
-    LOG(WARNING) << "Data type of indice has not been specified. Assume it has an integer type.";
+    LOG(WARNING) << "Data type of indices has not been specified. Assume it has an integer type.";
   } else if (!(indices_sinfo->dtype.is_int() || indices_sinfo->dtype.is_uint())) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Take op requires the input indices to have integer dtype. However, the "
@@ -549,7 +548,23 @@ StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& 
   return TensorStructInfo(data_sinfo->dtype, n_axis, data_sinfo->vdevice);
 }
 
-// TODO(tvm-team): Register FRelaxInferLayout, TMixedPrecisionPolicy
+InferLayoutOutput InferLayoutDynStridedSlice(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+
+  const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  CHECK(tensor_sinfo) << "Invalid Call";
+  CHECK(!tensor_sinfo->IsUnknownNdim()) << "Layout inference only supports known dimensionality, "
+                                        << "but expression " << call << " has argument "
+                                        << call->args[0] << " of unknown dimensionality.";
+  int ndim = tensor_sinfo->ndim;
+  // Since begin/end/strides are dynamic tensors, we cannot transform
+  // them at compile time. Fall back to the initial layout.
+  LayoutDecision initial = LayoutDecision(InitialLayout(ndim));
+  return InferLayoutOutput({initial}, {initial}, Attrs());
+}
+
 TVM_REGISTER_OP("relax.dynamic_strided_slice")
     .set_num_inputs(4)
     .add_argument("x", "Tensor", "The source tensor to be sliced.")
@@ -557,7 +572,10 @@ TVM_REGISTER_OP("relax.dynamic_strided_slice")
     .add_argument("end", "Tensor", "Indices indicating end of the slice.")
     .add_argument("strides", "Tensor", "The stride values.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDynStridedSlice)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutDynStridedSlice)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true))
+    .set_attr<Bool>("FDataDependent", Bool(true));
 
 }  // namespace relax
 }  // namespace tvm

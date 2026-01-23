@@ -911,8 +911,7 @@ class Size(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
-        # TODO(tvm-team): add native support for size op
-        return relax.op.prod(relax.op.shape_to_tensor(relax.op.shape_of(inputs[0])))
+        return relax.op.size(inputs[0])
 
 
 class EyeLike(OnnxOpConverter):
@@ -1127,7 +1126,31 @@ class PRelu(OnnxOpConverter):
     def _impl_v1(cls, bb, inputs, attr, params):
         x = inputs[0]
         slope = inputs[1]
-        return relax.op.nn.prelu(x, slope)
+
+        x_shape = x.struct_info.shape
+        slope_shape = slope.struct_info.shape
+
+        ndim = len(x_shape)
+        s_ndim = len(slope_shape)
+
+        if all(ss == 1 for ss in slope_shape) or s_ndim == 1:
+            slope = relax.op.reshape(slope, (slope_shape[0],))
+            return relax.op.nn.prelu(x, slope, ndim - 1)
+
+        if s_ndim == ndim:
+            non_one_axes = [i for i, ss in enumerate(slope_shape) if ss != 1]
+
+            # Must have only ONE non-broadcast axis
+            if len(non_one_axes) != 1:
+                raise ValueError(
+                    f"Invalid PRelu slope shape (multiple non-broadcast dims): {slope_shape}"
+                )
+            axis = non_one_axes[0]
+
+            slope = relax.op.reshape(slope, (slope_shape[axis],))
+            return relax.op.nn.prelu(x, slope, axis)
+
+        raise ValueError(f"Unsupported PRelu slope shape: {slope_shape}")
 
 
 class ThresholdedRelu(OnnxOpConverter):
@@ -1334,6 +1357,7 @@ class ConvTranspose(OnnxOpConverter):
             weight=inputs[1],
             strides=attr.get("strides", 1),
             padding=attr.get("pads", 0),
+            output_padding=attr.get("output_padding", 0),
             dilation=attr.get("dilations", 1),
             groups=attr.get("group", 1),
             data_layout=data_layout,
@@ -1881,8 +1905,8 @@ class Pad(OnnxOpConverter):
         elif pad_mode == "reflect":
             return bb.emit_te(topi.nn.mirror_pad, inputs[0], pad_before, pad_after, "REFLECT")
         else:
-            # TODO(gigiblender) Support edge mode.
-            raise NotImplementedError("Pad mode {} not implemented".format(pad_mode))
+            # edge mode - replicate border values
+            return bb.emit_te(topi.nn.replicate_pad, inputs[0], pad_before, pad_after)
 
     @classmethod
     def _impl_v11(cls, bb, inputs, attr, params):
@@ -1911,8 +1935,8 @@ class Pad(OnnxOpConverter):
         elif pad_mode == "reflect":
             return bb.emit_te(topi.nn.mirror_pad, inputs[0], pad_before, pad_after, "REFLECT")
         else:
-            # TODO(gigiblender) Support edge mode.
-            raise NotImplementedError("Pad mode {} not implemented".format(pad_mode))
+            # edge mode - replicate border values
+            return bb.emit_te(topi.nn.replicate_pad, inputs[0], pad_before, pad_after)
 
 
 class Tile(OnnxOpConverter):
@@ -2210,7 +2234,10 @@ class Resize(OnnxOpConverter):
 
         # Adapt attributes to fit TVM definition.
         if mode == "nearest":
-            mode = "nearest_neighbor"
+            relax_mode = "nearest_neighbor"
+        else:
+            relax_mode = mode
+        topi_mode = relax_mode
 
         # Unpack inputs.
         x = inputs[0]
@@ -2218,7 +2245,7 @@ class Resize(OnnxOpConverter):
         scales = get_constant(inputs[2], params)
         sizes = get_constant(inputs[3], params)
         ndims = len(x.struct_info.shape)
-        assert ndims == 4, "Only resize2d is currently supported."
+        assert ndims in (3, 4, 5), "Only resize1d/resize2d/resize3d are supported."
 
         assert (
             scales is None or sizes is None
@@ -2228,6 +2255,8 @@ class Resize(OnnxOpConverter):
         if roi is not None:
             if isinstance(roi, relax.Constant):
                 roi = roi.data.numpy().tolist()
+                if len(roi) == 2 * ndims:
+                    roi = roi[2:ndims] + roi[ndims + 2 : 2 * ndims]
             else:
                 roi = relax.op.concat(
                     [
@@ -2237,9 +2266,9 @@ class Resize(OnnxOpConverter):
                     axis=0,
                 )
                 # TODO The backend C++ func resize2d does not support dynamic ROI for now.
-                raise NotImplementedError("Dynamic ROI is not supported in resize2d for now.")
+                raise NotImplementedError("Dynamic ROI is not supported in resize for now.")
         else:
-            roi = [0.0] * 4
+            roi = [0.0] * (2 * (ndims - 2))
 
         # Convert scales to sizes if needed.
         if scales is not None:
@@ -2262,18 +2291,47 @@ class Resize(OnnxOpConverter):
             else:
                 assert f"Type {type(size)} for size is currently unsupported."
 
-        return relax.op.image.resize2d(
-            x,
-            size=relax.ShapeExpr(sizes),
-            roi=roi,
-            layout="NCHW",
-            method=mode,
-            coordinate_transformation_mode=coord_mode,
-            rounding_method=rounding_method,
-            cubic_alpha=cubic_coeff_a,
-            cubic_exclude=exclude_outside,
-            extrapolation_value=extrapolation_value,
-        )
+        if ndims == 3:
+            return bb.emit_te(
+                topi.image.resize1d,
+                x,
+                roi,
+                sizes,
+                "NCW",
+                topi_mode,
+                coord_mode,
+                rounding_method,
+                cubic_coeff_a,
+                exclude_outside,
+                extrapolation_value,
+            )
+        elif ndims == 4:
+            return relax.op.image.resize2d(
+                x,
+                size=relax.ShapeExpr(sizes),
+                roi=roi,
+                layout="NCHW",
+                method=relax_mode,
+                coordinate_transformation_mode=coord_mode,
+                rounding_method=rounding_method,
+                cubic_alpha=cubic_coeff_a,
+                cubic_exclude=exclude_outside,
+                extrapolation_value=extrapolation_value,
+            )
+        else:  # ndims == 5
+            return bb.emit_te(
+                topi.image.resize3d,
+                x,
+                roi,
+                sizes,
+                "NCDHW",
+                topi_mode,
+                coord_mode,
+                rounding_method,
+                cubic_coeff_a,
+                exclude_outside,
+                extrapolation_value,
+            )
 
 
 class Einsum(OnnxOpConverter):
@@ -2372,6 +2430,63 @@ class MeanVarianceNormalization(OnnxOpConverter):
         data_squared = relax.op.power(data, relax.const(2, dtype="float32"))
         data_squared_mean = relax.op.mean(data_squared, axis=axis, keepdims=True)
         return (data - data_mean) / relax.op.sqrt(data_squared_mean - data_mean_squared)
+
+
+class LocalResponseNormalization(OnnxOpConverter):
+    """Converts an onnx LocalResponseNormalization node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v13(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        size = attr["size"]
+        alpha = attr.get("alpha", 0.0001)
+        beta = attr.get("beta", 0.75)
+        bias = attr.get("bias", 1.0)
+
+        if hasattr(data.struct_info, "ndim"):
+            ndim = data.struct_info.ndim
+        else:
+            ndim = len(data.struct_info.shape)
+
+        if ndim not in [3, 4]:
+            raise ValueError(f"LRN only supports 3D or 4D input, got {ndim}D.")
+
+        data_squared = relax.op.multiply(data, data)
+        data_expanded = relax.op.expand_dims(data_squared, axis=1)
+        pad_len = size // 2
+        if ndim == 3:
+            pool_padding = [pad_len, 0, pad_len, 0]
+            pool_op = relax.op.nn.avg_pool2d
+            pool_size = (size, 1)
+            layout = "NCHW"
+            strides = (1, 1)
+        else:
+            pool_padding = [pad_len, 0, 0, pad_len, 0, 0]
+            pool_op = relax.op.nn.avg_pool3d
+            pool_size = (size, 1, 1)
+            layout = "NCDHW"
+            strides = (1, 1, 1)
+
+        data_avgpool = pool_op(
+            data_expanded,
+            pool_size=pool_size,
+            strides=strides,
+            padding=pool_padding,
+            layout=layout,
+            ceil_mode=False,
+            count_include_pad=True,
+        )
+        data_squeezed = relax.op.squeeze(data_avgpool, axis=1)
+
+        const_alpha = relax.const(alpha, dtype="float32")
+        const_bias = relax.const(bias, dtype="float32")
+        const_beta = relax.const(beta, dtype="float32")
+
+        scale = relax.op.multiply(data_squeezed, const_alpha)
+        scale = relax.op.add(scale, const_bias)
+        denominator = relax.op.power(scale, const_beta)
+
+        return relax.op.divide(data, denominator)
 
 
 class Pool(OnnxOpConverter):
@@ -3136,11 +3251,10 @@ class EmbedLayerNormalization(OnnxOpConverter):
 
         if pos_ids is None:
             pos_ids = relax.const([list(range(seq_len))] * batch_size, dtype="int64")
-        # TODO(jwfromm) Replace with relax ops once take has better support.
-        word_vec = bb.emit_te(topi.take, word_emb, input_ids, 0)
+        word_vec = relax.op.take(word_emb, input_ids, axis=0)
         if segment_ids:
-            segment_vec = bb.emit_te(topi.take, segment_emb, segment_ids, 0)
-        pos_vec = bb.emit_te(topi.take, pos_emb, pos_ids, 0)
+            segment_vec = relax.op.take(segment_emb, segment_ids, axis=0)
+        pos_vec = relax.op.take(pos_emb, pos_ids, axis=0)
 
         vec_sum = relax.op.add(word_vec, pos_vec)
         if segment_ids:
@@ -3181,24 +3295,63 @@ class Unique(OnnxOpConverter):
     def _impl_v11(cls, bb, inputs, attr, params):
         data = inputs[0]
         axis = attr.get("axis", None)
-        sorted = bool(attr.get("sorted", 1))
-        # TODO(tvm-team): Add support for return_index, return_inverse, return_counts
-        unique = relax.op.unique(data, sorted=sorted, axis=axis)
+        sorted_flag = bool(attr.get("sorted", 1))
+        num_outputs = attr["tvm_custom"]["num_outputs"]
+
+        return_index = num_outputs > 1
+        return_inverse = num_outputs > 2
+        return_counts = num_outputs > 3
+
+        unique = relax.op.unique(
+            data,
+            sorted=sorted_flag,
+            return_index=return_index,
+            return_inverse=return_inverse,
+            return_counts=return_counts,
+            axis=axis,
+        )
+
         unique_numbers = tir.Var("unique_numbers", "int64")
         input_shape = data.struct_info.shape
         dtype = data.struct_info.dtype
 
         if axis is None:
-            # flatten the input tensor
-            return bb.match_cast(unique, relax.TensorStructInfo((unique_numbers,), dtype))
+            output_shape = (unique_numbers,)
+        else:
+            axis = axis if axis >= 0 else len(input_shape) + axis
+            if axis < 0 or axis >= len(input_shape):
+                raise ValueError(f"Axis {axis} is out of bounds")
+            output_shape = [
+                input_shape[i] if i != axis else unique_numbers for i in range(len(input_shape))
+            ]
 
-        axis = axis if axis >= 0 else len(input_shape) + axis
-        if axis < 0 or axis >= len(input_shape):
-            raise ValueError(f"Axis {axis} is out of bounds")
-        output_shape = [
-            input_shape[i] if i != axis else unique_numbers for i in range(len(input_shape))
-        ]
-        return bb.match_cast(unique, relax.TensorStructInfo(output_shape, dtype))
+        if num_outputs == 1:
+            return bb.match_cast(unique, relax.TensorStructInfo(output_shape, dtype))
+
+        outputs = [bb.match_cast(unique[0], relax.TensorStructInfo(output_shape, dtype))]
+        tuple_idx = 1  # Track which index in the tuple we're at
+
+        if return_index:
+            index_shape = (unique_numbers,)
+            index_sinfo = relax.TensorStructInfo(index_shape, "int64")
+            outputs.append(bb.match_cast(unique[tuple_idx], index_sinfo))
+            tuple_idx += 1
+
+        if return_inverse:
+            # ONNX spec: inverse_indices is always 1D
+            # When axis is None: shape is [X.size]
+            # When axis is specified: shape is [X.shape[axis]]
+            inverse_shape = (tir.Var("inverse_numbers", "int64"),)
+            inverse_sinfo = relax.TensorStructInfo(inverse_shape, "int64")
+            outputs.append(bb.match_cast(unique[tuple_idx], inverse_sinfo))
+            tuple_idx += 1
+
+        if return_counts:
+            count_shape = (unique_numbers,)
+            count_sinfo = relax.TensorStructInfo(count_shape, "int64")
+            outputs.append(bb.match_cast(unique[tuple_idx], count_sinfo))
+
+        return relax.Tuple(outputs)
 
 
 class NonZero(OnnxOpConverter):
@@ -3767,6 +3920,7 @@ def _get_convert_map():
         "EmbedLayerNormalization": EmbedLayerNormalization,
         "InstanceNormalization": InstanceNormalization,
         "MeanVarianceNormalization": MeanVarianceNormalization,
+        "LRN": LocalResponseNormalization,
         # defs/reduction
         "ReduceMax": ReduceMax,
         "ReduceMin": ReduceMin,
@@ -3806,7 +3960,6 @@ def _get_convert_map():
         "Unique": Unique,
         "NonZero": NonZero,
         # "If": If,
-        # "LRN": LRN,
         # "MaxRoiPool": MaxRoiPool,
         # "RoiAlign": RoiAlign,
         "NonMaxSuppression": NonMaxSuppression,

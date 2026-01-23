@@ -19,6 +19,7 @@
 # pylint: disable=import-outside-toplevel, unused-argument, use-list-literal
 # mypy: ignore-errors
 """PyTorch Dynamo backend of Relax."""
+
 import functools
 from typing import Optional
 
@@ -202,6 +203,43 @@ def dynamo_capture_subgraphs(model, *params, **kwargs) -> tvm.IRModule:
 
 @functools.lru_cache(None)
 def llvm_target():
-    if "avx512" in open("/proc/cpuinfo").read():
-        return "llvm -mcpu=skylake-avx512"
-    return "llvm -mcpu=core-avx2"
+    import platform
+    import subprocess
+
+    AVX512_TARGET = "llvm -mcpu=skylake-avx512"
+    AVX2_TARGET = "llvm -mcpu=core-avx2"
+    DEFAULT_TARGET = "llvm"
+
+    system = platform.system()
+
+    if system == "Linux":
+        try:
+            with open("/proc/cpuinfo") as f:
+                cpuinfo = f.read()
+            if "avx512" in cpuinfo:
+                return AVX512_TARGET
+            return AVX2_TARGET
+        except FileNotFoundError:
+            pass
+    elif system == "Darwin":
+        try:
+            result = subprocess.run(
+                ["sysctl", "-n", "machdep.cpu.features"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0:
+                cpu_features = result.stdout.lower()
+                if "avx512" in cpu_features:
+                    return AVX512_TARGET
+                if "avx2" in cpu_features:
+                    return AVX2_TARGET
+        except (FileNotFoundError, subprocess.SubprocessError):
+            pass
+
+        if platform.machine() == "arm64":
+            return DEFAULT_TARGET
+
+    # Default fallback
+    return DEFAULT_TARGET

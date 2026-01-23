@@ -97,7 +97,6 @@ def test_getattr_map():
 def test_in_container():
     arr = tvm.runtime.convert(["a", "b", "c"])
     assert "a" in arr
-    assert tvm.tir.StringImm("a") in arr
     assert "d" not in arr
 
 

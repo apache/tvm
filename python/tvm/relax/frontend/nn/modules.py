@@ -743,7 +743,7 @@ class Embedding(Module):
                 op.reshape(x, shape=[-1]),
                 axis=0,
             ),
-            shape=[*x.shape, self.dim],  # TODO(@junrushao): revisit and remove self.dim
+            shape=[*x.shape, self.weight.shape[1]],
         )
 
 

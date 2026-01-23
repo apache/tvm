@@ -348,12 +348,12 @@ def _linux_compile(
         if compile_shared or output.endswith(".so") or output.endswith(".dylib"):
             cmd += ["-shared"]
     cmd += ["-o", output]
+    if options:
+        cmd += options
     if isinstance(objects, str):
         cmd += [objects]
     else:
         cmd += objects
-    if options:
-        cmd += options
     env = None
     if ccache_env is not None:
         if shutil.which("ccache"):
