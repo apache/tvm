@@ -342,6 +342,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("ffi.Module.load_from_file.cuda", CUDAModuleLoadFile)
       .def("ffi.Module.load_from_file.ptx", CUDAModuleLoadFile)
+      .def("ffi.Module.load_from_file.cubin", CUDAModuleLoadFile)
       .def("ffi.Module.load_from_bytes.cuda", CUDAModuleLoadFromBytes);
 }
 }  // namespace runtime
