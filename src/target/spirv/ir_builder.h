@@ -626,9 +626,7 @@ class IRBuilder {
     Value composite_value = NewValue(composite_type, kNormal);
 
     // Begin the OpCompositeConstruct instruction
-    ib_.Begin(spv::OpCompositeConstruct)
-        .Add(composite_type)
-        .Add(composite_value);
+    ib_.Begin(spv::OpCompositeConstruct).Add(composite_type).Add(composite_value);
 
     // Add each constituent value
     for (const Value& val : constituents) {
