@@ -521,7 +521,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int nu
     };
     support::parallel_for_dynamic(0, num, self->ctx_->num_threads, f_proc_unmeasured);
     bool found_new = false;
-    for (int i = 0; i < num; i++) {
+    for (int i = static_cast<int>(out_schs.size()); i < num; i++) {
       if (results[i].defined()) {
         found_new = true;
         out_schs.push_back(results[i]);
