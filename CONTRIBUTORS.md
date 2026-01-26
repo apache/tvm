@@ -241,6 +241,3 @@ TVM is now a top-level Apache project. During our Incubator phase, we were fortu
 - Henry Saputra @hsaputra
 - Timothy Chen @tnachen
 - Furkan KAMACI @kamaci
-
- -   A s h w i n i   B o k k a   ( @ A s h w i n i B o k k a )   < a s h w i n i b o k k a 4 @ g m a i l . c o m >  
- 
