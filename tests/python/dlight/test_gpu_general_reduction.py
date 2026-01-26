@@ -615,7 +615,7 @@ def test_logsumexp():
                             with T.block("max"):
                                 v0 = T.axis.spatial(
                                     batch_size,
-                                    ax0_ax1_fused % (num_chunks * batch_size) // num_chunks + ax0,
+                                    ax0_ax1_fused // num_chunks + ax0,
                                 )
                                 v1 = T.axis.spatial(num_chunks, ax0_ax1_fused % num_chunks + ax1)
                                 v2 = T.axis.reduce(
@@ -645,7 +645,7 @@ def test_logsumexp():
                             with T.block("sum_exp"):
                                 v0 = T.axis.spatial(
                                     batch_size,
-                                    ax0_ax1_fused % (num_chunks * batch_size) // num_chunks + ax0,
+                                    ax0_ax1_fused // num_chunks + ax0,
                                 )
                                 v1 = T.axis.spatial(num_chunks, ax0_ax1_fused % num_chunks + ax1)
                                 v2 = T.axis.reduce(
@@ -678,9 +678,7 @@ def test_logsumexp():
                         },
                     ):
                         with T.block("log"):
-                            v0 = T.axis.spatial(
-                                batch_size, ax0_ax1_fused % (num_chunks * batch_size) // num_chunks
-                            )
+                            v0 = T.axis.spatial(batch_size, ax0_ax1_fused // num_chunks)
                             v1 = T.axis.spatial(num_chunks, ax0_ax1_fused % num_chunks)
                             v2 = T.axis.spatial(T.int64(1), ax2_0 * T.int64(256) + ax2_1)
                             T.where(ax2_0 * T.int64(256) + ax2_1 < T.int64(1))

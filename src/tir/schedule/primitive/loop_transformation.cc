@@ -922,15 +922,16 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
     bits = std::max(bits, loops[i]->loop_var.dtype().bits());
   }
   suffix += "_fused";
+
   Var fused_var = loops[0]->loop_var.copy_with_suffix(suffix).copy_with_dtype(DataType::Int(bits));
   ffi::Array<PrimExpr> substitute_value;
   substitute_value.resize(loops.size());
   PrimExpr lower = 1;
   for (int i = static_cast<int>(loops.size()) - 1; i > 0; i--) {
-    substitute_value.Set(i, is_one(loops[i]->extent)
-                                ? 0
-                                : floordiv(floormod(fused_var, lower * loops[i]->extent), lower));
-    lower = lower * loops[i]->extent;
+    PrimExpr next_lower = analyzer.canonical_simplify(loops[i]->extent * lower);
+    substitute_value.Set(
+        i, is_one(loops[i]->extent) ? 0 : floordiv(floormod(fused_var, next_lower), lower));
+    lower = next_lower;
   }
   substitute_value.Set(0, is_one(loops[0]->extent) ? 0 : floordiv(fused_var, lower));
   Stmt new_stmt = loops.back()->body;
@@ -947,7 +948,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
       SubstituteVarAndCollectOpaqueBlock(f_substitute, &opaque_block_reuse)(std::move(new_stmt));
   // Step 3. Generate a loop to replace the original loops
   PrimExpr fused_extent = 1;
-  for (int i = 0; i < n; i++) {
+  for (int i = 0; i < n; ++i) {
     fused_extent *= loops[i]->extent;
   }
   fused_extent = analyzer.Simplify(fused_extent);
